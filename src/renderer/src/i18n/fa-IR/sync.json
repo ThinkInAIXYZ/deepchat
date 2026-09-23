@@ -52,7 +52,7 @@
     "overwrite": "Replace local data",
     "forget": "Disconnect device",
     "lastSuccess": "Last synced: {time}",
-    "consent": "دستگاه‌های جفت‌شده می‌توانند داده‌های به‌اشتراک‌گذاشته‌شده را بخوانند. می‌توانید به هر دستگاه اجازه دهید گفتگوها، حافظه‌ها، تنظیمات، کلیدهای API ارائه‌دهندگان و اطلاعات ورود MCP را تغییر دهد یا حذف کند. اتصال HTTPS در Cloudflare پایان می‌یابد و انتقال‌ها رمزنگاری سرتاسری ندارند. اشتراک‌گذاری فعال شود؟",
+    "consent": "دستگاه‌های جفت‌شده می‌توانند پشتیبان کامل داده‌های برنامه را دانلود کنند؛ از جمله گفتگوها، مسیر پروژه‌ها، کارهای زمان‌بندی‌شده، ورودی‌های در انتظار، تنظیمات، کلیدهای API ارائه‌دهندگان و اطلاعات ورود MCP. می‌توانید به هر دستگاه جداگانه اجازهٔ ویرایش و حذف داده‌های به‌اشتراک‌گذاشته‌شده را بدهید. اتصال HTTPS در Cloudflare پایان می‌یابد و انتقال‌ها رمزنگاری سرتاسری ندارند. اشتراک‌گذاری فعال شود؟",
     "overwriteWarning": "این کار داده‌های محلی را با یک پشتیبان کامل از دستگاه میزبان جایگزین می‌کند و هنگام واردکردن، نشست‌های فعال را متوقف می‌کند. پشتیبان شامل داده‌های مخصوص دستگاه مانند مسیر پروژه‌ها و کارهای زمان‌بندی‌شده نیز هست. ادامه می‌دهید؟",
     "phase": {
       "idle": "Ready",
@@ -70,7 +70,7 @@
       "invalidPort": "Choose a port between 1 and 65535.",
       "disableFirst": "Disable sharing before changing the address or port.",
       "bindFailed": "Could not bind the loopback port. Choose another port and try again.",
-      "busy": "Another operation is in progress. Try again after it finishes.",
+      "busy": "یک نشست، ورودی در انتظار یا عملیات دیگر همگام‌سازی را متوقف کرده است. آن را پایان دهید یا رد کنید و دوباره تلاش کنید.",
       "credentialsUnavailable": "Pairing credentials could not be read or unlocked. Check the system keychain and pair again.",
       "invalidUrl": "Enter an HTTPS origin, without a path, query, fragment or embedded credentials.",
       "invalidPairing": "Paste the complete pairing details from the host.",
@@ -103,8 +103,9 @@
       "automaticDisabled": "Enable automatic sync first.",
       "cancelled": "Sync cancelled.",
       "clockSkew": "A device clock is over five minutes ahead. Correct the clock, then sync again.",
-      "rePairRequired": "This pairing predates device identity checks. Disconnect and pair again.",
-      "duplicateReplica": "Another active device uses this sync identity. Reset the cloned profile identity before pairing."
+      "rePairRequired": "این جفت‌سازی دیگر با شناسهٔ همگام‌سازی محلی مطابقت ندارد. دستگاه قبلی را در میزبان لغو کنید، اینجا اتصال را قطع کنید و دوباره جفت شوید.",
+      "duplicateReplica": "این شناسهٔ همگام‌سازی قبلاً جفت شده است. دستگاه قبلی را در میزبان لغو کنید و دوباره جفت شوید.",
+      "fullBackupIncompatible": "واردکردن پشتیبان کامل برای جفت‌سازی دوطرفه ممکن نیست. به‌جای آن از همگام‌سازی خودکار استفاده کنید."
     },
     "syncTitle": "Sync",
     "syncDescription": "Back up through cloud storage, or connect directly to another device.",
@@ -147,7 +148,7 @@
       "failed": "Tunnel connection failed"
     },
     "automatic": "Automatic two-way sync",
-    "automaticHelp": "Sync after 15 seconds without changes, at least 60 seconds between syncs. Busy sessions wait until they finish. Newer changes and deletions win on both devices.",
+    "automaticHelp": "برای ویرایش، تأیید میزبان لازم است. پس از ۱۵ ثانیه بدون تغییر همگام‌سازی انجام می‌شود و بین دو همگام‌سازی دست‌کم ۶۰ ثانیه فاصله است. نشست‌های مشغول تا پایان کار منتظر می‌مانند؛ تغییرها و حذف‌های جدیدتر اولویت دارند.",
     "automaticConsent": "برای فرستادن گفتگوها، کلیدهای ارائه‌دهندگان و تنظیمات قابل‌انتقال این دستگاه به میزبان درخواست مجوز کنید. میزبان باید پس از جفت‌شدن، اجازهٔ ویرایش را جداگانه بدهد.",
     "automaticPhase": {
       "off": "Automatic sync off",
@@ -159,7 +160,7 @@
       "failed": "Sync failed; pending changes will retry"
     },
     "requestWrite": "درخواست همگام‌سازی دوطرفه",
-    "readOnlyHelp": "با این جفت‌سازی می‌توان پشتیبان کامل میزبان را وارد کرد، اما همگام‌سازی خودکار دوطرفه ممکن نیست. برای درخواست آن، اتصال را قطع کنید و دوباره جفت شوید.",
+    "readOnlyHelp": "با این جفت‌سازی فقط می‌توان پشتیبان کامل را وارد کرد. برای همگام‌سازی خودکار دوطرفه، ابتدا اشتراک‌گذاری دوطرفه را در میزبان فعال کنید، اینجا اتصال را قطع کنید، دوباره درخواست ویرایش بدهید و از میزبان تأیید بگیرید.",
     "writeAllowed": "اجازهٔ ویرایش دارد",
     "readOnly": "فقط خواندنی",
     "allowWrite": "اجازهٔ ویرایش بده",

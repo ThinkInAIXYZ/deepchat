@@ -121,6 +121,20 @@ describe('SyncHostService endpoint', () => {
     expect(service.listDevices().find((device) => device.deviceId === deviceId)?.writable).toBe(
       false
     )
+    expect(await service.setDeviceWritable(deviceId, true)).toBe(true)
+    await service.setEnabled(true, { port: Number(new URL(baseUrl).port), consent: true })
+    expect(service.listDevices().find((device) => device.deviceId === deviceId)?.writable).toBe(
+      false
+    )
+    expect(await service.setDeviceWritable(deviceId, true)).toBe(false)
+    await service.setEnabled(true, {
+      port: Number(new URL(baseUrl).port),
+      consent: true,
+      bidirectional: true
+    })
+    expect(service.listDevices().find((device) => device.deviceId === deviceId)?.writable).toBe(
+      false
+    )
     const duplicateCode = service.createPairingCode()!
     const duplicate = await fetch(`${baseUrl}${SYNC_HOST_PATH_PREFIX}/pair`, {
       method: 'POST',
@@ -136,6 +150,25 @@ describe('SyncHostService endpoint', () => {
     expect(service.listDevices()).toHaveLength(1)
   })
 
+  it('rejects a two-way pairing without a replica identity before consuming the code', async () => {
+    const pairing = service.createPairingCode()!
+    const pair = `${baseUrl}${SYNC_HOST_PATH_PREFIX}/pair`
+    const invalid = await fetch(pair, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code: pairing.code, deviceName: 'Old client', bidirectional: true })
+    })
+    expect(invalid.status).toBe(400)
+    expect(await invalid.json()).toEqual({ error: 'automaticUnsupported' })
+    expect(service.listDevices()).toHaveLength(0)
+    const valid = await fetch(pair, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code: pairing.code, deviceName: 'Current client' })
+    })
+    expect(valid.status).toBe(200)
+  })
+
   it('serves handshake without authentication and advertises only real capabilities', async () => {
     const response = await fetch(`${baseUrl}${SYNC_HOST_PATH_PREFIX}/handshake`)
     expect(response.status).toBe(200)
@@ -149,6 +182,69 @@ describe('SyncHostService endpoint', () => {
     expect(body.hostId).toBe(service.getHostId())
     expect(body.capabilities).toEqual(['snapshot', 'range'])
     expect(body.encryption.transport).toBe('tls')
+  })
+
+  it('rejects browser origins, foreign hosts and non-JSON pairing requests', async () => {
+    const handshake = `${baseUrl}${SYNC_HOST_PATH_PREFIX}/handshake`
+    const foreignHostStatus = await new Promise<number>((resolve, reject) => {
+      const request = http.get(handshake, { headers: { host: 'attacker.example' } }, (response) => {
+        response.resume()
+        response.once('end', () => resolve(response.statusCode ?? 0))
+      })
+      request.once('error', reject)
+    })
+    expect(foreignHostStatus).toBe(403)
+    expect(
+      (await fetch(handshake, { headers: { origin: 'https://attacker.example' } })).status
+    ).toBe(403)
+
+    const code = service.createPairingCode()!
+    const pair = `${baseUrl}${SYNC_HOST_PATH_PREFIX}/pair`
+    const body = JSON.stringify({ code: code.code, deviceName: 'Laptop' })
+    expect(
+      (await fetch(pair, { method: 'POST', headers: { 'content-type': 'text/plain' }, body }))
+        .status
+    ).toBe(415)
+    expect(
+      (
+        await fetch(pair, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body
+        })
+      ).status
+    ).toBe(200)
+  })
+
+  it('does not share an anonymous rate-limit bucket across external tunnel clients', async () => {
+    const port = Number(new URL(baseUrl).port)
+    await service.setEnabled(false)
+    await service.setEnabled(true, {
+      port,
+      consent: true,
+      tunnel: { mode: 'external', publicUrl: 'https://sync.example.test' }
+    })
+    const agent = new http.Agent({ keepAlive: true })
+    try {
+      for (const host of ['sync.example.test', `127.0.0.1:${port}`]) {
+        for (let attempt = 0; attempt < 121; attempt += 1) {
+          const status = await new Promise<number>((resolve, reject) => {
+            const request = http.get(
+              `${baseUrl}${SYNC_HOST_PATH_PREFIX}/handshake`,
+              { agent, headers: { host } },
+              (response) => {
+                response.resume()
+                response.once('end', () => resolve(response.statusCode ?? 0))
+              }
+            )
+            request.once('error', reject)
+          })
+          expect(status).toBe(200)
+        }
+      }
+    } finally {
+      agent.destroy()
+    }
   })
 
   it('answers every unauthenticated request with one uniform 401 regardless of path or method', async () => {
@@ -367,7 +463,7 @@ describe('SyncHostService endpoint', () => {
       await new Promise<void>((resolve) => socket.once('connect', () => resolve()))
       // Announce a body that never arrives: these occupy slots without ever completing a request.
       socket.write(
-        `POST ${SYNC_HOST_PATH_PREFIX}/pair HTTP/1.1\r\nHost: 127.0.0.1\r\n` +
+        `POST ${SYNC_HOST_PATH_PREFIX}/pair HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\n` +
           `Content-Type: application/json\r\nContent-Length: 100000\r\n\r\n`
       )
     }
@@ -520,7 +616,7 @@ describe('SyncHostService endpoint', () => {
     await new Promise<void>((resolve) => socket.once('connect', () => resolve()))
     // Announce a body that never arrives.
     socket.write(
-      `POST ${SYNC_HOST_PATH_PREFIX}/pair HTTP/1.1\r\nHost: 127.0.0.1\r\n` +
+      `POST ${SYNC_HOST_PATH_PREFIX}/pair HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\n` +
         `Content-Type: application/json\r\nContent-Length: 100000\r\n\r\n`
     )
 

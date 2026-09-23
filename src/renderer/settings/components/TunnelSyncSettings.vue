@@ -439,7 +439,7 @@ async function overwrite() {
                 v-if="!device.revoked && device.requestedWrite"
                 size="sm"
                 variant="ghost"
-                :disabled="busy"
+                :disabled="busy || !host?.status.allowWrites"
                 @click="
                   store.run(() => store.client.setDeviceWritable(device.deviceId, !device.writable))
                 "
@@ -533,7 +533,7 @@ async function overwrite() {
         </div>
       </div>
       <template v-if="peer?.paired">
-        <div v-if="peer.canWrite" class="flex items-center justify-between gap-3">
+        <div v-if="peer.requestedWrite" class="flex items-center justify-between gap-3">
           <div class="space-y-1">
             <Label for="tunnel-automatic">{{ t('sync.tunnel.automatic') }}</Label>
             <p class="text-xs text-muted-foreground">{{ t('sync.tunnel.automaticHelp') }}</p>
@@ -592,9 +592,12 @@ async function overwrite() {
           <summary class="w-fit cursor-pointer text-muted-foreground">
             {{ t('sync.tunnel.moreOptions') }}
           </summary>
-          <p class="my-2 text-muted-foreground">{{ t('sync.tunnel.fullBackupWarning') }}</p>
+          <p v-if="!peer.requestedWrite" class="my-2 text-muted-foreground">
+            {{ t('sync.tunnel.fullBackupWarning') }}
+          </p>
           <div class="flex flex-wrap gap-2">
             <DcButton
+              v-if="!peer.requestedWrite"
               size="sm"
               variant="outline"
               :disabled="busy || transferring"
@@ -602,7 +605,7 @@ async function overwrite() {
               >{{ t('sync.tunnel.importFullBackup') }}</DcButton
             >
             <DcButton
-              v-if="!peer.automatic?.enabled"
+              v-if="!peer.requestedWrite"
               size="sm"
               variant="outline"
               :disabled="busy || transferring"

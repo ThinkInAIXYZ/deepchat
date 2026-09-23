@@ -25,7 +25,7 @@ function toView(record: SyncHostDeviceRecord): SyncHostDeviceView {
     expiresAt: record.expiresAt,
     lastSeenAt: record.lastSeenAt,
     revoked: record.revokedAt !== null,
-    writable: record.writable === true,
+    writable: record.writable === true && record.requestedWrite === true && !!record.replicaId,
     requestedWrite: record.requestedWrite === true
   }
 }
@@ -111,6 +111,8 @@ export class SyncHostDeviceStore {
         (device) =>
           device.deviceId === deviceId &&
           device.writable === true &&
+          device.requestedWrite === true &&
+          !!device.replicaId &&
           device.revokedAt === null &&
           (device.expiresAt === null || device.expiresAt > Date.now())
       )

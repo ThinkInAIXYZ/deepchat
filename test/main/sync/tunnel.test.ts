@@ -79,7 +79,8 @@ describe('sync connector lifecycle', () => {
         executable,
         `#!${process.execPath}\n` +
           `console.error('Tunnel connection curve preferences connIndex=0 ip=198.18.0.46');\n` +
-          `console.error('HTTP/2 connection is blocked or unreachable'); setInterval(() => {}, 1000)\n`,
+          `console.error('HTTP/2 connection is blocked or unreachable');\n` +
+          `setTimeout(() => console.error('HTTP/2 connection is blocked or unreachable'), 500); setInterval(() => {}, 1000)\n`,
         { mode: 0o755 }
       )
       const tunnel = new SyncTunnel(root, () => executable)
@@ -87,6 +88,12 @@ describe('sync connector lifecycle', () => {
       await tunnel.start({ mode: 'quick', publicUrl: '' }, 48632)
       await vi.waitFor(() =>
         expect(tunnel.status().error).toBe('sync.tunnel.error.syntheticEdgeIp')
+      )
+      await vi.waitFor(
+        () => expect(tunnel.status().error).toBe('sync.tunnel.error.networkBlocked'),
+        {
+          timeout: 3000
+        }
       )
     }
   )

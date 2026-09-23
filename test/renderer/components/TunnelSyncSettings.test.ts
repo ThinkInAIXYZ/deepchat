@@ -38,7 +38,7 @@ vi.mock('@api/TunnelSyncClient', () => ({ createTunnelSyncClient: () => client }
 
 const initialPeer = {
   paired: true,
-  canWrite: true,
+  requestedWrite: true,
   hostUrl: 'https://sync.example.test',
   hostId: 'host-1',
   deviceName: 'Laptop',
@@ -151,6 +151,8 @@ describe('TunnelSyncSettings', () => {
   })
   it('requires explicit overwrite confirmation and disables cancellation after import begins', async () => {
     const wrapper = await render()
+    useTunnelSyncStore().peer = { ...initialPeer, requestedWrite: false }
+    await flushPromises()
     const overwrite = wrapper
       .findAll('button')
       .find((button) => button.text() === 'Replace local data')!
@@ -221,6 +223,13 @@ describe('TunnelSyncSettings', () => {
     await flushPromises()
     expect(client.syncNow).toHaveBeenCalledOnce()
     expect(client.pull).not.toHaveBeenCalled()
+  })
+
+  it('hides full backup import for a two-way pairing even when automatic sync is off', async () => {
+    const wrapper = await render()
+    expect(wrapper.text()).not.toContain('Import full backup')
+    expect(wrapper.text()).not.toContain('Replace local data')
+    expect(wrapper.text()).toContain('Disconnect device')
   })
 
   it('shows why pairing is unavailable until the tunnel connects', async () => {

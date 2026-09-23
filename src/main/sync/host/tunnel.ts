@@ -60,7 +60,7 @@ export class SyncTunnel {
       this.child = child
       let buffer = ''
       const connections = new Set<string>()
-      let syntheticEdgeIp = false
+      let syntheticEdgeIpAt = 0
       const consume = (chunk: Buffer) => {
         if (this.child !== child || this.current.phase === 'failed') return
         const previous = JSON.stringify(this.current)
@@ -68,26 +68,32 @@ export class SyncTunnel {
         const lines = buffer.split('\n')
         buffer = lines.pop() ?? ''
         for (const line of lines) {
-          if (/\b198\.1[89]\.\d{1,3}\.\d{1,3}\b/.test(line)) syntheticEdgeIp = true
+          if (/\b198\.1[89]\.\d{1,3}\.\d{1,3}\b/.test(line)) syntheticEdgeIpAt = Date.now()
           if (config.mode === 'quick') {
             const url = line.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com\b/)?.[0]
             if (url) this.current.publicUrl = url
           }
           const index = line.match(/connIndex=(\d+)/)?.[1]
-          if (index && line.includes('Registered tunnel connection')) connections.add(index)
+          if (index && line.includes('Registered tunnel connection')) {
+            connections.add(index)
+            syntheticEdgeIpAt = 0
+          }
           if (
             index &&
             (line.includes('Unregistered tunnel connection') || line.includes('Serve tunnel error'))
           )
             connections.delete(index)
-          if (
+          const blocked =
             line.includes('TLS handshake with edge error') ||
             line.includes('HTTP/2 connection is blocked') ||
             line.includes('precheck complete hard_fail=true')
-          )
-            this.current.error = 'sync.tunnel.error.networkBlocked'
-          if (syntheticEdgeIp && this.current.error === 'sync.tunnel.error.networkBlocked')
-            this.current.error = 'sync.tunnel.error.syntheticEdgeIp'
+          if (blocked) {
+            this.current.error =
+              syntheticEdgeIpAt && Date.now() - syntheticEdgeIpAt < 60_000
+                ? 'sync.tunnel.error.syntheticEdgeIp'
+                : 'sync.tunnel.error.networkBlocked'
+            syntheticEdgeIpAt = 0
+          }
         }
         if (connections.size && this.current.publicUrl) {
           this.current.phase = 'connected'

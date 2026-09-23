@@ -25,10 +25,11 @@ describeIfNativeSqlite('Automatic device sync transport', () => {
     const directory = mkdtempSync(join(tmpdir(), 'deepchat-sync-wire-'))
     const db = new (requireDatabase())(join(directory, 'agent.db'))
     db.exec('CREATE TABLE new_sessions(id TEXT PRIMARY KEY,title TEXT,updated_at INTEGER)')
+    let blockedId = ''
     const store = new SyncReplicaStore({
       database: () => db,
       directory,
-      canApply: () => true,
+      canApply: (_kind, id) => id !== blockedId,
       applied: () => {}
     })
     cleanups.push(() => {
@@ -36,12 +37,13 @@ describeIfNativeSqlite('Automatic device sync transport', () => {
       db.close()
       rmSync(directory, { recursive: true, force: true })
     })
-    return { directory, db, store }
+    return { directory, db, store, block: (id: string) => (blockedId = id) }
   }
 
   it('guides mismatched replica identities to re-pairing', async () => {
     const peer = device()
     let body = JSON.stringify({ error: 'replicaMismatch' })
+    let status = 403
     const automatic = new AutomaticSync({
       store: peer.store,
       directory: peer.directory,
@@ -52,12 +54,15 @@ describeIfNativeSqlite('Automatic device sync transport', () => {
       }),
       available: () => true,
       changed: () => {},
-      fetch: async () => new Response(body, { status: 403 })
+      fetch: async () => new Response(body, { status })
     })
     cleanups.push(() => automatic.close())
     await expect(automatic.setEnabled(true)).rejects.toThrow('rePairRequired')
     body = 'Forbidden'
     await expect(automatic.setEnabled(true)).rejects.toThrow('writeConsentRequired')
+    status = 400
+    body = '<html>Bad request</html>'
+    await expect(automatic.setEnabled(true)).rejects.toThrow('invalidResponse')
   })
 
   it('exchanges edits in both directions, persists acknowledgements, and rejects revoked writes', async () => {
@@ -121,6 +126,13 @@ describeIfNativeSqlite('Automatic device sync transport', () => {
       { timeout: 5000 }
     )
     await vi.waitFor(() => expect(automatic.status().phase).toBe('idle'))
+    const lastSuccessAt = automatic.status().lastSuccessAt
+    peer.db.exec("INSERT INTO new_sessions VALUES('blocked','Busy session',1)")
+    peer.block('blocked')
+    vi.spyOn(Date, 'now').mockReturnValue(now + 61_000)
+    automatic.request(true)
+    await vi.waitFor(() => expect(automatic.status().phase).toBe('busy'))
+    expect(automatic.status().lastSuccessAt).toBe(lastSuccessAt)
     await automatic.setEnabled(false)
     const cursor = host.store.cursor(peer.store.replicaId)
     expect(cursor).toBeGreaterThan(0)

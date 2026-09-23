@@ -128,7 +128,7 @@ export class SyncPeerService {
     return {
       automatic: this.automatic?.status(),
       paired: pairing !== null,
-      canWrite: pairing?.bidirectional ?? false,
+      requestedWrite: pairing?.bidirectional ?? false,
       hostUrl: pairing?.hostUrl ?? '',
       hostId: pairing?.hostId ?? '',
       deviceName: pairing?.deviceName ?? '',
@@ -239,6 +239,7 @@ export class SyncPeerService {
 
   async pull(mode: 'increment' | 'overwrite', confirmOverwrite = false): Promise<SyncPeerStatus> {
     this.assertIdle()
+    if ((await this.readPairing())?.bidirectional) fail('fullBackupIncompatible')
     if (this.automatic?.status().enabled) fail('busy')
     if (mode === 'overwrite' && !confirmOverwrite) fail('overwriteConfirmation')
     this.cancelled = false
@@ -454,7 +455,6 @@ export class SyncPeerService {
     this.progress.phase = 'importing'
     const result = await this.deps.importSnapshot(this.file('snapshot.part'), mode)
     if (!result.success) throw new Error(result.message)
-    this.progress.phase = 'completed'
     try {
       await this.writePrivate('pairing.json', { ...pairing, lastSuccessAt: Date.now() })
       await this.clearPartial()
@@ -462,6 +462,7 @@ export class SyncPeerService {
       // Import has committed: never report a failed import just because local bookkeeping failed.
       this.progress.error = 'sync.tunnel.error.cleanupFailed'
     }
+    this.progress.phase = 'completed'
   }
 
   private async download(

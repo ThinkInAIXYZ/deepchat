@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
@@ -42,7 +42,10 @@ describe('Automatic sync timing contract', () => {
       },
       cursor: () => 0,
       revision: () => 0,
-      export: () => ({ protocol: 2, replicaId: 'peer', after: 0, through: 0, units: [] }),
+      exportWithStatus: () => ({
+        batch: { protocol: 2, replicaId: 'peer', after: 0, through: 0, units: [] },
+        blocked: false
+      }),
       apply: async () => true
     } as unknown as SyncReplicaStore
     const data = gzipSync(
@@ -132,5 +135,29 @@ describe('Automatic sync timing contract', () => {
     const settled = starts.length
     await vi.advanceTimersByTimeAsync(10 * 60_000)
     expect(starts).toHaveLength(settled)
+  })
+
+  it('reports an encrypted database without opening a connection', async () => {
+    directory = await mkdtemp(join(tmpdir(), 'deepchat-sync-encrypted-'))
+    await writeFile(
+      join(directory, 'automatic.json'),
+      JSON.stringify({ enabled: true, lastSuccessAt: null })
+    )
+    const connection = vi.fn(async () => null)
+    automatic = new AutomaticSync({
+      directory,
+      store: { subscribe: () => () => {} } as unknown as SyncReplicaStore,
+      available: () => false,
+      isEncrypted: () => true,
+      changed: () => {},
+      connection
+    })
+    await automatic.start()
+    expect(automatic.status()).toMatchObject({
+      phase: 'failed',
+      error: 'sync.tunnel.error.unavailable'
+    })
+    await expect(automatic.setEnabled(true)).rejects.toThrow('sync.tunnel.error.unavailable')
+    expect(connection).not.toHaveBeenCalled()
   })
 })

@@ -52,7 +52,7 @@
     "overwrite": "Replace local data",
     "forget": "Disconnect device",
     "lastSuccess": "Last synced: {time}",
-    "consent": "Paired devices can read shared data. You can grant each device permission to update and delete conversations, memories, settings, provider API keys and MCP credentials. Cloudflare terminates HTTPS; transfers are not end-to-end encrypted. Enable sharing?",
+    "consent": "Paired devices can download a full backup of app data, including conversations, project paths, scheduled jobs, pending inputs, settings, provider API keys and MCP credentials. You can separately grant each device permission to edit and delete shared data. Cloudflare terminates HTTPS; transfers are not end-to-end encrypted. Enable sharing?",
     "overwriteWarning": "This replaces local data with a full host backup and stops active sessions during import. The backup includes device-local data such as project paths and scheduled jobs. Continue?",
     "phase": {
       "idle": "Ready",
@@ -70,7 +70,7 @@
       "invalidPort": "Choose a port between 1 and 65535.",
       "disableFirst": "Disable sharing before changing the address or port.",
       "bindFailed": "Could not bind the loopback port. Choose another port and try again.",
-      "busy": "Another operation is in progress. Try again after it finishes.",
+      "busy": "A session, pending input or another operation is blocking sync. Finish or dismiss it, then retry.",
       "credentialsUnavailable": "Pairing credentials could not be read or unlocked. Check the system keychain and pair again.",
       "invalidUrl": "Enter an HTTPS origin, without a path, query, fragment or embedded credentials.",
       "invalidPairing": "Paste the complete pairing details from the host.",
@@ -103,8 +103,9 @@
       "automaticDisabled": "Enable automatic sync first.",
       "cancelled": "Sync cancelled.",
       "clockSkew": "A device clock is over five minutes ahead. Correct the clock, then sync again.",
-      "rePairRequired": "This pairing predates device identity checks. Disconnect and pair again.",
-      "duplicateReplica": "Another active device uses this sync identity. Reset the cloned profile identity before pairing."
+      "rePairRequired": "This pairing no longer matches the local sync identity. Revoke the old device on the host, disconnect here, and pair again.",
+      "duplicateReplica": "This sync identity is already paired. Revoke the old device on the host, then pair again.",
+      "fullBackupIncompatible": "Full backup import is unavailable for a two-way pairing. Use automatic sync instead."
     },
     "syncTitle": "Sync",
     "syncDescription": "Back up through cloud storage, or connect directly to another device.",
@@ -147,7 +148,7 @@
       "failed": "Tunnel connection failed"
     },
     "automatic": "Automatic two-way sync",
-    "automaticHelp": "Sync after 15 seconds without changes, at least 60 seconds between syncs. Busy sessions wait until they finish. Newer changes and deletions win on both devices.",
+    "automaticHelp": "Requires host edit approval. Sync after 15 seconds without changes, at least 60 seconds between syncs. Busy sessions wait until they finish; newer changes and deletions win.",
     "automaticConsent": "Request permission to send this device’s conversations, provider keys and portable settings to the host. The host must separately allow edits after pairing.",
     "automaticPhase": {
       "off": "Automatic sync off",
@@ -159,7 +160,7 @@
       "failed": "Sync failed; pending changes will retry"
     },
     "requestWrite": "Request two-way sync",
-    "readOnlyHelp": "This pairing can import a full host backup, but cannot use automatic two-way sync. Disconnect and pair again to request it.",
+    "readOnlyHelp": "This read-only pairing can import a full backup. For automatic two-way sync, enable two-way sharing on the host, disconnect here, pair again with an edit request, and ask the host to approve it.",
     "writeAllowed": "Can edit",
     "readOnly": "Read only",
     "allowWrite": "Allow edits",

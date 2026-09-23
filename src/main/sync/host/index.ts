@@ -98,6 +98,11 @@ export class SyncHostService {
     })
     this.endpoint = new SyncHostEndpoint({
       changed: deps.changed,
+      getPublicUrl: () =>
+        this.state.snapshot().tunnel.mode === 'quick'
+          ? (this.tunnel?.status().publicUrl ?? '')
+          : this.state.snapshot().tunnel.publicUrl,
+      trustCloudflareClientIp: () => this.state.snapshot().tunnel.mode !== 'external',
       replica: deps.replica,
       allowWrites: () => this.state.snapshot().allowWrites,
       prepare: () => this.prepareSnapshot(),
@@ -208,6 +213,7 @@ export class SyncHostService {
         try {
           await this.state.update((state) => {
             state.allowWrites = options.bidirectional === true
+            if (!state.allowWrites) for (const device of state.devices) device.writable = false
             state.enabled = true
             state.port = port
             state.consentAt = Date.now()
@@ -347,7 +353,11 @@ export class SyncHostService {
   }
 
   listDevices(): SyncHostDeviceView[] {
-    return this.devices.list()
+    const allowWrites = this.state.snapshot().allowWrites
+    return this.devices.list().map((device) => ({
+      ...device,
+      writable: allowWrites && device.writable
+    }))
   }
 
   async revokeDevice(deviceId: string): Promise<boolean> {
@@ -361,6 +371,7 @@ export class SyncHostService {
   }
 
   async setDeviceWritable(deviceId: string, writable: boolean): Promise<boolean> {
+    if (writable && !this.state.snapshot().allowWrites) return false
     const changed = await this.devices.setWritable(deviceId, writable)
     if (changed && !writable) this.deps.replica?.revoke(deviceId)
     if (changed) this.deps.changed?.()

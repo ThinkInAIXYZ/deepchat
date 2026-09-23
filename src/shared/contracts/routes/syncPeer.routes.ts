@@ -5,7 +5,7 @@ import { defineRouteContract } from '../common'
 export const SyncPeerStatusSchema = z.object({
   automatic: SyncAutomaticStatusSchema.optional(),
   paired: z.boolean(),
-  canWrite: z.boolean(),
+  requestedWrite: z.boolean(),
   hostUrl: z.string(),
   hostId: z.string(),
   deviceName: z.string(),

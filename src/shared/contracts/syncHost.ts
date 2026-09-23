@@ -41,7 +41,8 @@ export const SYNC_HOST_PAIRING_CODE_TTL_MS = 5 * 60_000
  * Per-source pairing failure budget. There is deliberately no global attempt cap and no
  * `attemptsRemaining` in the pairing payload: anyone who learns the tunnel hostname can call
  * `pair`, so a global counter would both hand them a denial of pairing and let them drive a
- * number the UI shows. Brute force is bounded per source against ~40 bits of code entropy.
+ * number the UI shows. Apply this budget only when a trusted source IP is available; the code
+ * itself has ~40 bits of entropy and expires after five minutes.
  */
 export const SYNC_HOST_PAIR_FAILURE_WINDOW_MS = 5 * 60_000
 export const SYNC_HOST_PAIR_MAX_FAILURES_PER_WINDOW = 20

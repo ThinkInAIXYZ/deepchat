@@ -29,11 +29,11 @@ describeIfNativeSqlite('Device sync durable merge', () => {
     const directory = mkdtempSync(join(tmpdir(), 'deepchat-replica-'))
     const db = new (requireDatabase())(join(directory, 'agent.db'))
     db.exec(schema)
-    let busy = false
+    let busy: boolean | string = false
     let store = new SyncReplicaStore({
       directory,
       database: () => db,
-      canApply: () => !busy,
+      canApply: (_kind, id) => !busy || (typeof busy === 'string' && busy !== id),
       applied: () => {}
     })
     cleanups.push(() => {
@@ -46,7 +46,7 @@ describeIfNativeSqlite('Device sync durable merge', () => {
       get store() {
         return store
       },
-      busy: (value: boolean) => {
+      busy: (value: boolean | string) => {
         busy = value
       },
       restart() {
@@ -54,7 +54,7 @@ describeIfNativeSqlite('Device sync durable merge', () => {
         store = new SyncReplicaStore({
           directory,
           database: () => db,
-          canApply: () => !busy,
+          canApply: (_kind, id) => !busy || (typeof busy === 'string' && busy !== id),
           applied: () => {}
         })
       }
@@ -134,6 +134,28 @@ describeIfNativeSqlite('Device sync durable merge', () => {
     expect(b.store.cursor(a.store.replicaId)).toBe(0)
     expect(b.db.prepare('SELECT * FROM new_sessions').all()).toEqual([])
     expect(await b.store.apply(batch)).toBe(true)
+  })
+
+  it('does not export an empty success while the first change is blocked', () => {
+    const a = device()
+    a.db.exec("INSERT INTO new_sessions VALUES('s','First',NULL,1,1)")
+    a.busy(true)
+    expect(() => a.store.export(0)).toThrow('sync.tunnel.error.busy')
+    a.busy(false)
+    expect(a.store.export(0).units).toHaveLength(1)
+  })
+
+  it('marks a delivered prefix as blocked until the next unit is available', () => {
+    const a = device()
+    a.db.exec("INSERT INTO new_sessions VALUES('first','First',NULL,1,1)")
+    a.db.exec("INSERT INTO new_sessions VALUES('second','Second',NULL,1,1)")
+    a.busy('second')
+    const { batch: prefix, blocked } = a.store.exportWithStatus(0)
+    expect(prefix.units.map((unit) => unit.id)).toEqual(['first'])
+    expect(blocked).toBe(true)
+    expect(() => a.store.export(prefix.through)).toThrow('sync.tunnel.error.busy')
+    a.busy(false)
+    expect(a.store.export(prefix.through).units.map((unit) => unit.id)).toEqual(['second'])
   })
 
   it('rejects a future peer timestamp without advancing its delivery cursor', async () => {

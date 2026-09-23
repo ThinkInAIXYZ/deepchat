@@ -96,6 +96,8 @@ Runtime handles, pending executions/approvals, scheduler jobs and deliveries, ma
 choices, caches, derived projections, credentials for sync itself and local UI state are excluded.
 File attachments and external resources retain the existing backup boundary: this feature does not
 promise transfer of arbitrary files referenced by an absolute path.
+`deepchat_user_message_files.path` can still carry a sender-local absolute path in the session
+bundle; the referenced file is not copied to the receiving device.
 
 The executable allowlist is `src/main/sync/replica/units.ts`: sessions include the session root,
 DeepChat configuration/metadata, tape entries, messages and their dependent content; providers include
@@ -154,7 +156,8 @@ nextAttemptAt = max(min(quietDeadline, forcedDeadline), rateDeadline)
 The 120-second maximum wait prevents continuous edits from starving eligible pending work. It never
 bypasses runtime admission, the 60-second minimum or an in-flight operation. Ineligible active session
 bundles wait for runtime-idle notifications or a bounded retry. Export stops before a busy unit to
-keep delivery cursors contiguous; later units remain pending. There is at most one local cycle at a
+keep delivery cursors contiguous; later units remain pending, and a partial prefix is not reported
+as a completed sync while a blocked unit remains. There is at most one local cycle at a
 time. One-shot timers use the current clock and the persisted last-start time, under the same
 correct-device-clock assumption as conflict comparison.
 Persist pending revisions and the last start so restart cannot forget work or reset the rate limit.
@@ -271,6 +274,9 @@ waiting-for-local-work, offline and last successfully applied time. Do not expos
 bits, cursors or batch preparation as user actions. Turning automatic sync off does not disconnect a
 paired device. Connection loss preserves pairing and pending changes; it is not reported as success.
 All user-facing copy uses i18n and existing settings primitives.
+Manual full-backup import is available only for read-only pairings. A two-way pairing uses v2 sync
+instead, so importing a sanitized backup cannot reset its replica identity or copy pending work
+into an active replica. Re-pairing the same replica requires revoking its old host record first.
 
 ```text
 BEFORE                                  AFTER

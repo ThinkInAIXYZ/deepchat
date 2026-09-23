@@ -284,6 +284,10 @@ export class SyncReplicaStore {
   }
 
   export(after: number): SyncBatch {
+    return this.exportWithStatus(after).batch
+  }
+
+  exportWithStatus(after: number): { batch: SyncBatch; blocked: boolean } {
     const db = this.database()
     return db.transaction(() => {
       const changes = db
@@ -292,8 +296,15 @@ export class SyncReplicaStore {
       const units: SyncUnit[] = []
       let through = after
       let bytes = 1024
+      let blocked = false
       for (const change of changes) {
-        if (!this.deps.canApply(change.kind, change.id)) break
+        if (!this.deps.canApply(change.kind, change.id)) {
+          if (units.length) {
+            blocked = true
+            break
+          }
+          throw new Error('sync.tunnel.error.busy')
+        }
         const definition = this.definitions.find((value) => value.kind === change.kind)!
         const tables: Record<string, SyncRow[]> = {}
         if (!change.deleted) {
@@ -325,7 +336,7 @@ export class SyncReplicaStore {
         units.push(unit)
         through = change.revision
       }
-      return { protocol: 2, replicaId: this.replicaId, after, through, units }
+      return { batch: { protocol: 2, replicaId: this.replicaId, after, through, units }, blocked }
     })()
   }
 

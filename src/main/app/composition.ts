@@ -1455,6 +1455,25 @@ export async function createMainProcessControl(dependencies: {
         })
       }
       if (kind === 'setting' && id === 'customPrompts') promptSettings.invalidateSyncCache()
+      if (kind === 'setting') {
+        const key = (
+          [
+            'autoCompactionEnabled',
+            'autoCompactionTriggerThreshold',
+            'autoCompactionRetainRecentPairs',
+            'copyWithCotEnabled'
+          ] as const
+        ).find((value) => value === id)
+        if (key) {
+          const value = dependencies.settingsStore.get(key)
+          if (value !== undefined)
+            publishDeepchatEvent('settings.changed', {
+              changedKeys: [key],
+              version: Date.now(),
+              values: { [key]: value }
+            })
+        }
+      }
       const refresh = async () => {
         if (kind === 'agent')
           await emitAgentCatalogChanged(agentSettings, publishDeepchatEvent, [id])
@@ -1498,6 +1517,7 @@ export async function createMainProcessControl(dependencies: {
       databaseMaintenanceState === 'running' &&
       !syncService.isBackupInProgress() &&
       !mainDatabase.getDatabasePassword(),
+    isEncrypted: () => Boolean(mainDatabase.getDatabasePassword()),
     changed: () => publishDeepchatEvent('sync.device.changed', { version: Date.now() })
   })
   syncPeerService.automatic = automaticSync

@@ -1,4 +1,4 @@
-import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto'
+import { randomBytes, randomUUID, createCipheriv, createDecipheriv } from 'node:crypto'
 import { mkdtemp, mkdir, readFile, writeFile, rm, stat } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -27,10 +27,12 @@ describe('tunnel sync transfer boundary', () => {
   let requests: Array<{ path: string; range: string | null }>
   let exportFailure: boolean
   const key = randomBytes(32)
+  const replicaId = randomUUID()
 
   function createPeer(): SyncPeerService {
     return new SyncPeerService({
       directory: path.join(root, 'peer'),
+      replicaId: () => replicaId,
       fetch: (input, init) => requestFetch(input, init),
       protectToken: (token) => {
         const iv = randomBytes(12)
@@ -148,6 +150,24 @@ describe('tunnel sync transfer boundary', () => {
     expect(imported[0].equals(bytes)).toBe(true)
     expect(requests.filter((request) => request.path.endsWith('/prepare'))).toHaveLength(1)
     expect((await peer.getStatus()).lastSuccessAt).toBeTypeOf('number')
+  })
+
+  it('keeps full backup import separate from a two-way pairing', async () => {
+    const port = Number(new URL(hostOrigin).port)
+    await host.setEnabled(true, { port, consent: true, bidirectional: true })
+    await publish()
+    const code = host.createPairingCode()!
+    await peer.pair({
+      hostUrl: 'https://sync.example.test',
+      hostId: code.hostId,
+      code: code.code,
+      deviceName: 'Receiving device',
+      bidirectional: true
+    })
+    expect((await peer.getStatus()).requestedWrite).toBe(true)
+    await expect(peer.pull('increment')).rejects.toThrow('fullBackupIncompatible')
+    await expect(peer.pull('overwrite', true)).rejects.toThrow('fullBackupIncompatible')
+    expect(imported).toEqual([])
   })
 
   it('imports an existing snapshot when an older host has no prepare route', async () => {

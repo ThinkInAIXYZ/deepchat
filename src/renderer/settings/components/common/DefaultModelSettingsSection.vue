@@ -80,7 +80,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
@@ -91,12 +91,15 @@ import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useThemeStore } from '@/stores/theme'
 import { useModelStore } from '@/stores/modelStore'
 import { createConfigClient } from '@api/ConfigClient'
+import { createTunnelSyncClient } from '@api/TunnelSyncClient'
 import type { RENDERER_MODEL_META } from '@shared/types/provider'
 
 const { t } = useI18n()
 const themeStore = useThemeStore()
 const modelStore = useModelStore()
 const configClient = createConfigClient()
+const tunnelSyncClient = createTunnelSyncClient()
+let stopSyncEvents: (() => void) | null = null
 
 const assistantModelSelectOpen = ref(false)
 const chatModelSelectOpen = ref(false)
@@ -109,6 +112,7 @@ interface SelectedModel {
 const selectedAssistantModel = ref<SelectedModel | null>(null)
 const selectedChatModel = ref<SelectedModel | null>(null)
 let isSyncingModelDefaults = false
+let syncAgain = false
 
 const selectBySetting = (
   setting: { providerId: string; modelId: string } | null | undefined,
@@ -169,43 +173,52 @@ const handleChatModelSelect = async (
 
 const syncModelSelections = async (): Promise<void> => {
   if (isSyncingModelDefaults) {
+    syncAgain = true
     return
   }
   isSyncingModelDefaults = true
   try {
-    const assistantModelSetting = (await configClient.getSetting('assistantModel')) as
-      | { providerId: string; modelId: string }
-      | null
-      | undefined
-    const defaultModelSetting = (await configClient.getSetting('defaultModel')) as
-      | { providerId: string; modelId: string }
-      | undefined
+    do {
+      syncAgain = false
+      try {
+        const assistantModelSetting = (await configClient.getSetting('assistantModel')) as
+          | { providerId: string; modelId: string }
+          | null
+          | undefined
+        const defaultModelSetting = (await configClient.getSetting('defaultModel')) as
+          | { providerId: string; modelId: string }
+          | undefined
 
-    const chatSelection = selectBySetting(
-      defaultModelSetting,
-      (_model, providerId) => providerId !== 'acp'
-    )
+        const chatSelection = selectBySetting(
+          defaultModelSetting,
+          (_model, providerId) => providerId !== 'acp'
+        )
 
-    const assistantSelection = selectBySetting(
-      assistantModelSetting,
-      (_model, providerId) => providerId !== 'acp'
-    )
+        const assistantSelection = selectBySetting(
+          assistantModelSetting,
+          (_model, providerId) => providerId !== 'acp'
+        )
 
-    selectedChatModel.value = chatSelection
-    selectedAssistantModel.value = assistantSelection
+        selectedChatModel.value = chatSelection
+        selectedAssistantModel.value = assistantSelection
 
-    await persistModelSetting('defaultModel', defaultModelSetting, chatSelection)
-    await persistModelSetting('assistantModel', assistantModelSetting, assistantSelection)
-  } catch (error) {
-    console.error('Failed to sync model selections:', error)
+        await persistModelSetting('defaultModel', defaultModelSetting, chatSelection)
+        await persistModelSetting('assistantModel', assistantModelSetting, assistantSelection)
+      } catch (error) {
+        console.error('Failed to sync model selections:', error)
+      }
+    } while (syncAgain)
   } finally {
     isSyncingModelDefaults = false
   }
 }
 
 onMounted(() => {
-  syncModelSelections()
+  void syncModelSelections()
+  stopSyncEvents = tunnelSyncClient.onChanged(() => void syncModelSelections())
 })
+
+onBeforeUnmount(() => stopSyncEvents?.())
 
 watch(
   () => modelStore.enabledModels,

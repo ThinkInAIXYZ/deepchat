@@ -51,6 +51,7 @@ export class AutomaticSync {
       store: SyncReplicaStore
       connection(): Promise<SyncConnection | null>
       available(): boolean
+      isEncrypted?(): boolean
       changed(): void
       fetch?: typeof fetch
     }
@@ -79,7 +80,8 @@ export class AutomaticSync {
 
   async setEnabled(enabled: boolean): Promise<void> {
     if (enabled) {
-      if (!this.deps.available()) throw new Error('sync.tunnel.error.unavailable')
+      if (this.deps.isEncrypted?.()) throw new Error('sync.tunnel.error.unavailable')
+      if (!this.deps.available()) throw new Error('sync.tunnel.error.busy')
       const connection = await this.requireConnection()
       const info = SyncReplicaInfoSchema.parse(
         await this.json(connection, '/status', AbortSignal.timeout(30_000))
@@ -102,6 +104,10 @@ export class AutomaticSync {
 
   request(immediate = false): void {
     if (!this.state.enabled || this.disposed) return
+    if (this.deps.isEncrypted?.()) {
+      this.update('failed', 'sync.tunnel.error.unavailable')
+      return
+    }
     const now = Date.now()
     this.firstPending ||= now
     this.flushPending ||= immediate
@@ -172,6 +178,10 @@ export class AutomaticSync {
 
   private connect(): void {
     if (this.stream || this.disposed || !this.state.enabled) return
+    if (this.deps.isEncrypted?.()) {
+      this.update('failed', 'sync.tunnel.error.unavailable')
+      return
+    }
     const controller = new AbortController()
     this.stream = controller
     this.listening = this.listen(controller.signal)
@@ -251,6 +261,7 @@ export class AutomaticSync {
   }
 
   private async exchange(): Promise<void> {
+    if (this.deps.isEncrypted?.()) throw new Error('sync.tunnel.error.unavailable')
     if (!this.deps.available()) throw new Error('sync.tunnel.error.busy')
     const connection = await this.requireConnection()
     const controller = new AbortController()
@@ -274,7 +285,7 @@ export class AutomaticSync {
       let outgoingThrough = cursor
       let uploadFailure: unknown = null
       try {
-        const outgoing = this.deps.store.export(cursor)
+        const { batch: outgoing, blocked } = this.deps.store.exportWithStatus(cursor)
         outgoingThrough = outgoing.through
         if (outgoing.units.length) {
           const manifest = await this.outgoing.prepare(outgoing)
@@ -299,6 +310,7 @@ export class AutomaticSync {
           if (committed.cursor < outgoing.through) throw new Error('Invalid acknowledgement')
           await this.outgoing.discard(manifest.id)
         }
+        if (blocked) uploadFailure = new Error('sync.tunnel.error.busy')
       } catch (error) {
         uploadFailure = error
       }
@@ -324,11 +336,15 @@ export class AutomaticSync {
         throw new Error('sync.tunnel.error.busy')
       await this.incoming.discard(manifest.id)
       if (uploadFailure) throw uploadFailure
+      if (batch.through < info.revision) {
+        this.update('waiting')
+        this.request()
+        return
+      }
       this.state.lastSuccessAt = Date.now()
       await this.save()
       this.update('idle')
-      if (outgoingThrough < this.deps.store.revision() || batch.through < info.revision)
-        this.request()
+      if (outgoingThrough < this.deps.store.revision()) this.request()
     } finally {
       if (this.transfer === controller) this.transfer = null
     }
@@ -353,13 +369,19 @@ export class AutomaticSync {
   private async check(response: Response): Promise<void> {
     if (response.ok) return
     if (response.status === 400) {
-      const body = JSON.parse((await this.bytes(response, 65536)).toString()) as { error?: unknown }
+      let body: { error?: unknown } = {}
+      try {
+        body = JSON.parse((await this.bytes(response, 65536)).toString()) as { error?: unknown }
+      } catch {
+        // Intermediaries can return a non-JSON 400 response.
+      }
       const errors = [
         'sync.tunnel.error.batchTooLarge',
         'sync.tunnel.error.diskFull',
         'sync.tunnel.error.integrityFailed',
         'sync.tunnel.error.cancelled',
-        'sync.tunnel.error.clockSkew'
+        'sync.tunnel.error.clockSkew',
+        'sync.tunnel.error.busy'
       ]
       if (typeof body.error === 'string' && errors.includes(body.error)) throw new Error(body.error)
       throw new Error('sync.tunnel.error.invalidResponse')
