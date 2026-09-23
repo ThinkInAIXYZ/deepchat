@@ -105,6 +105,7 @@ function applyBedrockCachePoint(
 
 export interface BuildProviderOptionsParams {
   providerId: string
+  codexBackend?: boolean
   capabilityProviderId: string
   supportsOfficialAnthropicReasoning?: boolean
   providerOptionsKey: string
@@ -261,7 +262,10 @@ export function buildProviderOptions(
           type: requestPolicy.legacyThinking.value
         }
       }
-      if (params.providerId === 'openai-codex' && params.apiType === 'openai_responses') {
+      if (
+        (params.codexBackend || params.providerId === 'openai-codex') &&
+        params.apiType === 'openai_responses'
+      ) {
         config.store = false
         config.instructions =
           extractSystemInstructions(params.messages) ?? OPENAI_CODEX_DEFAULT_INSTRUCTIONS

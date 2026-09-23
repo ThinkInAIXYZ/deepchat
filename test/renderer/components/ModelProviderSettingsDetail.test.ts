@@ -14,6 +14,7 @@ const providerApiConfigStub = defineComponent({
   emits: [
     'api-host-change',
     'api-key-change',
+    'auth-mode-change',
     'validate-key',
     'delete-provider',
     'oauth-success',
@@ -22,6 +23,7 @@ const providerApiConfigStub = defineComponent({
   template: `
     <div>
       <button data-testid="save-api-key" @click="$emit('api-key-change', 'updated-key')">save</button>
+      <button data-testid="use-chatgpt" @click="$emit('auth-mode-change', 'chatgpt')">chatgpt</button>
     </div>
   `
 })
@@ -65,6 +67,10 @@ async function setup(options?: {
     updateProviderApi: vi.fn().mockResolvedValue({
       updated: options?.updatedProvider ?? createProvider({ ...provider, apiKey: 'updated-key' })
     }),
+    updateProviderConfig: vi.fn().mockResolvedValue({
+      requiresRebuild: true,
+      updated: { ...provider, openaiAuthMode: 'chatgpt' }
+    }),
     checkProvider: vi.fn().mockResolvedValue({ isOk: true }),
     getAzureApiVersion: vi.fn().mockResolvedValue('2024-02-01'),
     getGeminiSafety: vi.fn().mockResolvedValue('BLOCK_MEDIUM_AND_ABOVE'),
@@ -79,7 +85,7 @@ async function setup(options?: {
   const modelStore = {
     allProviderModels: [],
     customModels: [],
-    refreshProviderModels: vi.fn().mockResolvedValue(undefined),
+    refreshProviderModels: vi.fn().mockResolvedValue(true),
     updateModelStatus: vi.fn().mockResolvedValue(undefined),
     disableAllModels: vi.fn().mockResolvedValue(undefined)
   }
@@ -164,6 +170,7 @@ async function setup(options?: {
   return {
     wrapper,
     providerStore,
+    modelStore,
     notifyRendererMock
   }
 }
@@ -188,6 +195,25 @@ describe('ModelProviderSettingsDetail', () => {
     )
     expect(providerStore.stageProviderApiChange).not.toHaveBeenCalled()
     expect(wrapper.emitted('provider-configured')).toHaveLength(1)
+  })
+
+  it('persists the OpenAI auth mode and refreshes models from the new backend', async () => {
+    const { wrapper, providerStore, modelStore } = await setup({
+      provider: createProvider({
+        id: 'openai',
+        name: 'OpenAI',
+        apiType: 'openai',
+        baseUrl: 'https://api.openai.com/v1'
+      })
+    })
+
+    await wrapper.get('[data-testid="use-chatgpt"]').trigger('click')
+    await flushPromises()
+
+    expect(providerStore.updateProviderConfig).toHaveBeenCalledWith('openai', {
+      openaiAuthMode: 'chatgpt'
+    })
+    expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('openai')
   })
 
   it('stages a key replacement for an already configured provider', async () => {

@@ -669,7 +669,11 @@ export class AiSdkProvider extends BaseLLMProvider {
   }
 
   private isOfficialOpenAIService(decision: RouteDecision, runtimeProvider: LLM_PROVIDER): boolean {
-    return runtimeProvider.id === 'openai' && !this.isAzureOpenAI(decision, runtimeProvider)
+    return (
+      runtimeProvider.id === 'openai' &&
+      decision.providerKind !== 'openai-codex' &&
+      !this.isAzureOpenAI(decision, runtimeProvider)
+    )
   }
 
   private resolveTraceAuthToken(runtimeProvider: LLM_PROVIDER): string {

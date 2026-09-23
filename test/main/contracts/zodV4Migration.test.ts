@@ -4,6 +4,7 @@ import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { JsonValueSchema } from '@shared/contracts/common'
 import {
   McpServerConfigSchema,
+  LlmProviderSchema,
   ProjectSchema,
   UsageStatsBackfillStatusSchema
 } from '@shared/contracts/domainSchemas'
@@ -11,6 +12,24 @@ import { agentPlanItemSchema, normalizeAgentPlanEntry } from '@shared/types/agen
 import { questionToolSchema } from '@/tool/agentTools/questionTool'
 
 describe('Zod 4 migration contracts', () => {
+  it('validates the OpenAI authentication mode', () => {
+    const provider = {
+      id: 'openai',
+      name: 'OpenAI',
+      apiType: 'openai',
+      apiKey: '',
+      baseUrl: 'https://api.openai.com/v1',
+      enable: true
+    }
+
+    expect(LlmProviderSchema.safeParse({ ...provider, openaiAuthMode: 'chatgpt' }).success).toBe(
+      true
+    )
+    expect(LlmProviderSchema.safeParse({ ...provider, openaiAuthMode: 'invalid' }).success).toBe(
+      false
+    )
+  })
+
   it('converts tool schemas through native Zod JSON Schema conversion', () => {
     const jsonSchema = toDeepChatJsonSchema(questionToolSchema)
 

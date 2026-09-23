@@ -376,6 +376,7 @@ export const LlmProviderSchema = z.looseObject({
   capabilityProviderId: z.string().optional(),
   name: z.string(),
   apiType: z.string(),
+  openaiAuthMode: z.enum(['api-key', 'chatgpt']).optional(),
   apiKey: z.string(),
   copilotClientId: z.string().optional(),
   baseUrl: z.string(),

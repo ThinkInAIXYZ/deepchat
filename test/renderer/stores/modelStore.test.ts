@@ -803,6 +803,53 @@ describe('modelStore.refreshProviderModels', () => {
     ).toBe(false)
   })
 
+  it('uses runtime Codex models for the OpenAI entry in ChatGPT mode', async () => {
+    const runtimeModels = [
+      {
+        id: 'gpt-5.6-luna',
+        name: 'gpt-5.6-luna',
+        providerId: 'openai',
+        reasoning: true,
+        functionCall: true,
+        contextLength: 400000,
+        maxTokens: 128000,
+        isCustom: false
+      }
+    ]
+    const { store, modelClient } = await setupStore({
+      providerStore: {
+        providers: [
+          {
+            id: 'openai',
+            apiType: 'openai',
+            openaiAuthMode: 'chatgpt',
+            enable: true,
+            name: 'OpenAI'
+          }
+        ]
+      },
+      modelClient: {
+        getDbProviderModels: vi.fn(async () => [
+          { id: 'gpt-4.1', name: 'gpt-4.1', providerId: 'openai' }
+        ]),
+        getModelList: vi.fn(async () => runtimeModels),
+        getProviderModels: vi.fn(async () => [
+          { id: 'gpt-4o', name: 'gpt-4o', providerId: 'openai' }
+        ]),
+        getCustomModels: vi.fn(async () => []),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-5.6-luna': true }))
+      }
+    })
+
+    await store.refreshProviderModels('openai')
+
+    expect(modelClient.getModelList).toHaveBeenCalledWith('openai')
+    expect(modelClient.getDbProviderModels).not.toHaveBeenCalled()
+    expect(store.allProviderModels.value[0].models.map((model) => model.id)).toEqual([
+      'gpt-5.6-luna'
+    ])
+  })
+
   it('keeps enabled provider DB-only embedding models after refresh', async () => {
     const dbEmbeddingModel = {
       id: 'text-embedding-3-small',

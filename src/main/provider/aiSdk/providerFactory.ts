@@ -589,7 +589,9 @@ export function createAiSdkProviderContext(
 
   switch (params.providerKind) {
     case 'openai-codex': {
-      const codexBaseUrl = normalizeOpenAICodexBaseUrl(baseUrl)
+      // Codex OAuth credentials must only be sent to the configured ChatGPT backend.
+      // In particular, never reuse a custom URL saved for OpenAI API-key mode.
+      const codexBaseUrl = normalizeOpenAICodexBaseUrl(undefined)
       const provider = createOpenAI({
         baseURL: codexBaseUrl,
         apiKey: 'openai-codex-oauth',

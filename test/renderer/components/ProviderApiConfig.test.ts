@@ -191,6 +191,27 @@ describe('ProviderApiConfig', () => {
     vi.clearAllMocks()
   })
 
+  it('switches the OpenAI entry between API Key and ChatGPT sign-in', async () => {
+    const provider = createProvider({
+      id: 'openai',
+      name: 'OpenAI',
+      apiType: 'openai',
+      apiKey: 'saved-key',
+      baseUrl: 'https://api.openai.com/v1'
+    })
+    const { wrapper } = await setup({ provider })
+
+    expect(wrapper.find('[data-testid="provider-api-key-summary"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="openai-chatgpt-mode-button"]').trigger('click')
+    expect(wrapper.emitted('auth-mode-change')?.[0]).toEqual(['chatgpt'])
+
+    await wrapper.setProps({ provider: { ...provider, openaiAuthMode: 'chatgpt' } })
+    expect(wrapper.find('[data-testid="provider-api-key-summary"]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'OpenAICodexOAuth' }).exists()).toBe(true)
+    await wrapper.find('[data-testid="openai-api-key-mode-button"]').trigger('click')
+    expect(wrapper.emitted('auth-mode-change')?.[1]).toEqual(['api-key'])
+  })
+
   it('shows key status errors, redacts the key, and clears them after a credential update', async () => {
     const { wrapper, providerClient } = await setup({ provider: createProvider({ apiKey: '' }) })
     providerClient.getKeyStatus.mockRejectedValueOnce(

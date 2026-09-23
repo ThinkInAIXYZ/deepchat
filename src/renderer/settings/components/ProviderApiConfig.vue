@@ -1,7 +1,31 @@
 <template>
   <div class="flex flex-col gap-4">
+    <div v-if="provider.id === 'openai'" class="flex flex-col gap-2">
+      <Label>{{ t('settings.provider.openaiAuthMethod') }}</Label>
+      <div class="flex flex-wrap gap-2">
+        <DcButton
+          data-testid="openai-api-key-mode-button"
+          :variant="isOpenAIChatGPTMode ? 'outline' : 'default'"
+          size="sm"
+          @click="$emit('auth-mode-change', 'api-key')"
+        >
+          {{ t('settings.provider.openaiApiKeyMode') }}
+        </DcButton>
+        <DcButton
+          data-testid="openai-chatgpt-mode-button"
+          :variant="isOpenAIChatGPTMode ? 'default' : 'outline'"
+          size="sm"
+          @click="$emit('auth-mode-change', 'chatgpt')"
+        >
+          {{ t('settings.provider.openaiChatGPTMode') }}
+        </DcButton>
+      </div>
+      <p v-if="isOpenAIChatGPTMode" class="text-xs leading-5 text-muted-foreground">
+        {{ t('settings.provider.openaiChatGPTBackendNotice') }}
+      </p>
+    </div>
     <div
-      v-if="provider.id === 'openai'"
+      v-if="provider.id === 'openai' && !isOpenAIChatGPTMode"
       class="w-full rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900"
     >
       <div class="flex items-start gap-2">
@@ -13,7 +37,7 @@
     </div>
 
     <!-- API URL 配置 -->
-    <div class="flex flex-col items-start gap-2">
+    <div v-if="!isOpenAIChatGPTMode" class="flex flex-col items-start gap-2">
       <div class="flex justify-between items-center w-full">
         <Label :for="`${provider.id}-url`" class="flex-1">API URL</Label>
         <DcButton
@@ -96,7 +120,7 @@
     />
 
     <OpenAICodexOAuth
-      v-else-if="provider.id === 'openai-codex'"
+      v-else-if="provider.id === 'openai-codex' || isOpenAIChatGPTMode"
       :provider="provider"
       @auth-success="handleOAuthSuccess"
       @auth-error="handleOAuthError"
@@ -310,6 +334,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'api-host-change': [value: string]
   'api-key-change': [value: string]
+  'auth-mode-change': [value: 'api-key' | 'chatgpt']
   'validate-key': [value: string]
   'delete-provider': []
   'oauth-success': []
@@ -318,6 +343,9 @@ const emit = defineEmits<{
 
 const apiKey = ref(props.provider.apiKey || '')
 const apiHost = ref(props.provider.baseUrl || '')
+const isOpenAIChatGPTMode = computed(
+  () => props.provider.id === 'openai' && props.provider.openaiAuthMode === 'chatgpt'
+)
 const keyStatus = ref<KeyStatus | null>(null)
 const keyStatusError = ref('')
 const isRefreshing = ref(false)
