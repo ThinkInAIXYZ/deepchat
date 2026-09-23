@@ -59,9 +59,10 @@ Completion condition: a draft `jev` provider resolves and validates end to end.
 
 Objective: let a user-defined provider select the protocol.
 
-- [x] Add the `jev` option to `AddProviderFlow`'s api type select, plus the `/v1/systemone` endpoint
-      hint. The option label is a hardcoded product name, matching every neighbouring option in that
-      select; no i18n key is introduced because the surrounding options have none.
+- [x] Add the `jev` option to `AddProviderFlow`'s api type select, labelled `System One` and with no
+      endpoint hint: the configured base URL is the endpoint itself. The label is a hardcoded product
+      name, matching every neighbouring option in that select; no i18n key is introduced because the
+      surrounding options have none.
 - [x] Add `jev` to the import allow-list and the deeplink allow-list so imported configurations do
       not degrade to `openai-completions`.
 - [x] Add the provider mark: `assets/llm-icons/typesafe.png` (TypeSafe's official square favicon)
@@ -129,6 +130,29 @@ Applied in response to the second PR review.
       threshold constants module-private.
 - [x] Reconcile spec and plan with the code: status, the api-type-only branch, the action-binding
       wording, and the covered picker surfaces.
+
+## Slice 8 — Endpoint URL as a full reference
+
+Applied on review: vendors expose System One at different paths, so the base URL is the endpoint
+itself rather than a host with a fixed route appended to it.
+
+- [x] Post to the configured base URL verbatim instead of `{baseUrl}/v1/systemone`.
+- [x] Derive the catalog from the endpoint's sibling path (last segment replaced by `models`) instead
+      of a fixed `/v1/models`. A 404/405 there means "no live catalog" for discovery and "not
+      contradicted" for the check, so a vendor without a catalog is still connectable.
+- [x] Move the built-in profile's base URL to `https://api.typesafe.ai/v1/systemone` and label the
+      custom-provider option `System One` with no endpoint hint.
+- [x] Migrate a stored `https://api.typesafe.ai` (the bare host a pre-change dev build persisted) to
+      the full endpoint, because the configured URL is now posted verbatim and the connection check
+      reads a missing sibling catalog as "not contradicted", so the old value would look healthy and
+      still post to the host root. The comparison normalizes whitespace and trailing slashes, matching
+      what the request path does.
+- [x] Normalize a trailing slash before deriving the catalog path, so `…/v1/systemone/` resolves to
+      the sibling `/v1/models` instead of the child `/v1/systemone/models`.
+- [x] Validate the configured endpoint before using it: an unparseable value, a non-HTTP scheme, or a
+      bare host with no path fails the check with the documented message and issues no request, so
+      staged validation cannot accept a broken endpoint over a working configuration. The 404/405
+      "vendor without a catalog" fallback stays separate from this.
 
 ## Deferred
 

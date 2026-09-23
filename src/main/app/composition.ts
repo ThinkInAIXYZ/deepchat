@@ -3,6 +3,8 @@ import { SyncReplicaEndpoint } from '@/sync/replica/endpoint'
 import { AutomaticSync } from '@/sync/replica/automatic'
 import { SyncPeerService } from '../sync/peer'
 import { createSyncPeerRoutes } from '../sync/peer/routes'
+import { NowledgeMemConnections } from '@/nowledgeMem'
+import { NOWLEDGE_PLUGIN_ID } from '@shared/types/nowledgeMemPlugin'
 import logger from '@shared/logger'
 import {
   mainLogger,
@@ -1233,7 +1235,16 @@ export async function createMainProcessControl(dependencies: {
         version
       })
   )
+  const nowledgeMemConnections = new NowledgeMemConnections(
+    dependencies.settingsStore,
+    dependencies.secretStore,
+    dependencies.mcpSettings
+  )
+  dependencies.mcpSettings.setPluginBindingResolver(NOWLEDGE_PLUGIN_ID, (config) =>
+    nowledgeMemConnections.getMcpBindings(config)
+  )
   exporter = new ConversationExporterService({
+    nowledgeMemConnections,
     sqlitePresenter: sessionData.database,
     settings: dependencies.settingsStore
   })
@@ -1940,6 +1951,8 @@ export async function createMainProcessControl(dependencies: {
   // Plugin activation is a shared startup barrier for Skill migration and MCP startup.
   const pluginSettingsWindow = new PluginSettingsWindow()
   pluginService = new PluginService({
+    nowledgeMem: nowledgeMemConnections,
+    exportNowledgeSession: (input) => agentSessionExportService.submitToNowledgeMem(input),
     contextTape: sessionData.tapeStore,
     mcpSettings: dependencies.mcpSettings,
     mcpService: mcpService,
@@ -2366,6 +2379,7 @@ export async function createMainProcessControl(dependencies: {
   })
   sessionHistorySearch = new SessionHistorySearch(sessionData.database, appSessionService)
   agentSessionExportService = new AgentSessionExportService({
+    nowledgeMemConnections,
     agentManager: agentManager,
     appSessionService,
     transcript: sessionData.transcript,
@@ -2715,7 +2729,12 @@ export async function createMainProcessControl(dependencies: {
         }
       })
     }
-    await pluginInitializationPromise
+    try {
+      await pluginInitializationPromise
+    } catch (error) {
+      reportMainStartupComponentFailure(dependencies.startupRunId, 'plugin_host', 'unknown')
+      console.error('[PluginHost] Failed to initialize plugins:', error)
+    }
   }
 
   async function initializeSkillSyncScan(signal?: AbortSignal): Promise<void> {
@@ -2746,12 +2765,7 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function initializeMcp() {
-    try {
-      await initializePlugins()
-    } catch (error) {
-      reportMainStartupComponentFailure(dependencies.startupRunId, 'plugin_host', 'unknown')
-      console.error('[PluginHost] Failed to initialize plugins:', error)
-    }
+    await initializePlugins()
 
     try {
       await proxyConfig.whenReady()

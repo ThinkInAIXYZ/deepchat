@@ -18,7 +18,7 @@ try {
   )
   if (!response.ok) throw new Error(`cloudflared download failed: ${response.status}`)
   const data = Buffer.from(await response.arrayBuffer())
-  if (createHash('sha256').update(data).digest('hex') !== artifact.sha256)
+  if (createHash('sha256').update(data).digest('hex') !== artifact.archiveSha256)
     throw new Error('cloudflared checksum mismatch')
   const archive = path.join(staging, artifact.filename)
   await writeFile(archive, data)

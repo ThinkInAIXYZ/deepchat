@@ -90,6 +90,7 @@ import apiRouteIcon from '@/assets/llm-icons/api-route.svg?url'
 import cheaperInferenceIcon from '@/assets/llm-icons/cheaper-inference.svg?url'
 import anonrouterIcon from '@/assets/llm-icons/anonrouter.svg?url'
 import typesafeIcon from '@/assets/llm-icons/typesafe.png?url'
+import cloudflareColorIcon from '@/assets/llm-icons/cloudflare-color.svg?url'
 
 export const modelIcons = {
   'kimi-for-coding': kimiColorIcon,
@@ -193,6 +194,11 @@ export const modelIcons = {
   llama: metaColorIcon,
   o4: openaiColorIcon,
   glm: zhipuColorIcon,
+  // Deliberately after `glm`: resolution is first-substring-wins in key order, and a provider-db
+  // model id like `cloudflare-glm-5.2` must keep resolving to the model family, not to the vendor
+  // hosting it.
+  cloudflare: cloudflareColorIcon,
+  'workers-ai': cloudflareColorIcon,
   meta: metaColorIcon,
   'aws-bedrock': awsBedrockIcon,
   jiekou: jiekouColorIcon,

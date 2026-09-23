@@ -444,6 +444,10 @@
       "specifier": "@/stores/modelCheck"
     },
     {
+      "file": "src/renderer/settings/components/PluginsSettings.vue",
+      "specifier": "@/assets/images/nowledge-mem.webp"
+    },
+    {
       "file": "src/renderer/settings/components/prompt/CustomPromptSettingsSection.vue",
       "specifier": "@/lib/download"
     },
@@ -560,5 +564,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 127
+  "settingsToChatAppImportCount": 128
 }

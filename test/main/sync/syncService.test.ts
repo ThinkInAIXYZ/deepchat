@@ -464,6 +464,9 @@ describe('SyncService backup import', () => {
         openai_models: [{ id: 'gpt-4' }],
         custom_models_openai: [{ id: 'custom-gpt' }],
         recent_models: ['local-history'],
+        nowledgeMemPlugin: { connections: { remote: {} } },
+        nowledgeMem: { credentials: { wrapped: 'local-secret' } },
+        'nowledgeMem.credentials.flat': 'local-secret',
         agentCommandShell: {
           preference: 'git-bash',
           gitBashExecutableOverride: 'C:\\Program Files\\Git\\bin\\bash.exe'
@@ -518,6 +521,9 @@ describe('SyncService backup import', () => {
     expect(appSettings.openai_models).toBeUndefined()
     expect(appSettings.custom_models_openai).toBeUndefined()
     expect(appSettings.agentCommandShell).toBeUndefined()
+    expect(appSettings.nowledgeMemPlugin).toBeUndefined()
+    expect(appSettings.nowledgeMem).toBeUndefined()
+    expect(appSettings['nowledgeMem.credentials.flat']).toBeUndefined()
     expect(appSettings.recent_models).toEqual(['local-history'])
   })
 
@@ -525,6 +531,8 @@ describe('SyncService backup import', () => {
     createLocalState(userDataDir, {
       conversations: [{ id: 'conv-1', title: 'Local conversation' }],
       appSettings: {
+        nowledgeMemPlugin: { connections: { local: { baseUrl: 'http://127.0.0.1:14242' } } },
+        nowledgeMem: { credentials: { wrapped: 'local-secret' } },
         theme: 'light',
         locale: 'en',
         agentCommandShell: {
@@ -557,7 +565,9 @@ describe('SyncService backup import', () => {
         locale: 'zh',
         agentCommandShell: { preference: 'windows-powershell' },
         cloudSyncConfig: { provider: 's3', bucket: 'foreign-device' },
-        cloudSyncSecret: 'foreign-wrapped-secret'
+        cloudSyncSecret: 'foreign-wrapped-secret',
+        nowledgeMemPlugin: { connections: { remote: {} } },
+        nowledgeMem: { credentials: { wrapped: 'foreign-secret' } }
       },
       customPrompts: {
         prompts: [
@@ -610,6 +620,8 @@ describe('SyncService backup import', () => {
       fs.readFileSync(path.join(userDataDir, 'app-settings.json'), 'utf-8')
     )
     expect(appSettings).toEqual({
+      nowledgeMemPlugin: { connections: { local: { baseUrl: 'http://127.0.0.1:14242' } } },
+      nowledgeMem: { credentials: { wrapped: 'local-secret' } },
       theme: 'dark',
       locale: 'zh',
       agentCommandShell: {

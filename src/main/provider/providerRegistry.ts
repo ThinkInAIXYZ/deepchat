@@ -28,6 +28,7 @@ export type AiSdkModelSourceStrategy =
   | 'tokenflux'
   | '302ai'
   | 'astraflow'
+  | 'workers-ai'
 
 export type AiSdkKeyStatusStrategy =
   | 'none'
@@ -77,6 +78,18 @@ const OPENAI_BASE = createDefinition({
   keyStatusStrategy: 'none',
   routeStrategy: 'none',
   embeddingStrategy: 'openai'
+})
+
+/**
+ * Workers AI serves ordinary chat and embedding models through the OpenAI-compatible endpoints, so
+ * the chat transport is the shared one. Its catalog is the Workers AI model search and its check is
+ * the authenticated variant of it, both of which the provider class overrides: the `openai` catalog
+ * path would ask for a `/models` route the OpenAI-compatible endpoint does not serve.
+ */
+const WORKERS_AI = createDefinition({
+  ...OPENAI_BASE,
+  modelSource: 'workers-ai',
+  credentialStrategy: 'api-key'
 })
 
 const TITLE_SUMMARY_OPENAI = createDefinition({
@@ -735,6 +748,7 @@ const PROVIDER_API_TYPE_REGISTRY = new Map<string, AiSdkProviderDefinition>([
   ['openai-responses', PROVIDER_ID_REGISTRY.get('openai-responses')!],
   ['together', PROVIDER_ID_REGISTRY.get('together')!],
   ['vertex', PROVIDER_ID_REGISTRY.get('vertex')!],
+  ['workers-ai', WORKERS_AI],
   ['zenmux', PROVIDER_ID_REGISTRY.get('zenmux')!]
 ])
 

@@ -2,6 +2,12 @@ import { test, expect } from '../fixtures/electronApp'
 import { waitForAppReady } from '../helpers/wait'
 
 test('Skills sync routes and scan events work from Plugins @smoke', async ({ app }) => {
+  const fallbackWarnings: string[] = []
+  app.electronApp.on('console', (message) => {
+    if (/\[SkillSync\] Worker .*failed, falling back/.test(message.text())) {
+      fallbackWarnings.push(message.text())
+    }
+  })
   await waitForAppReady(app.page)
 
   await app.page.evaluate(() => {
@@ -130,4 +136,7 @@ test('Skills sync routes and scan events work from Plugins @smoke', async ({ app
   expect(snapshot.scanEvents.started).toBeGreaterThanOrEqual(1)
   expect(snapshot.scanEvents.completed).toBeGreaterThanOrEqual(1)
   expect(snapshot.scanEvents.completedResultCount).toBe(snapshot.scanResultCount)
+  expect(fallbackWarnings, 'Scanning must execute in the bundled Worker, not the fallback').toEqual(
+    []
+  )
 })

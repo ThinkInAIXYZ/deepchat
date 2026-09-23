@@ -25,6 +25,29 @@ import {
   type ProviderImportSourceScan
 } from '@shared/providerImport'
 import type { ProviderChange } from '@shared/provider-operations'
+import { isJevJudgmentModelId } from '@shared/jevProtocol'
+
+/**
+ * Imported sources carry no model type, and the picker filters read "no type" as "not a judgment
+ * model". A System One api type is judgment models only; Workers AI is mixed, so only its Jev models
+ * are tagged here.
+ */
+function resolveImportedModelType(apiType: string, modelId: string): ModelType | undefined {
+  if (apiType === 'jev') return ModelType.Judgment
+  if (apiType === 'workers-ai' && isJevJudgmentModelId(modelId)) return ModelType.Judgment
+  return undefined
+}
+
+/**
+ * Whether an imported model should be kept. Workers AI serves chat, embedding and judgment models
+ * under one protocol, and an imported source carries no task metadata, so nothing here can tell an
+ * embedding model from a chat model. Only its Jev models are imported; the rest are skipped rather
+ * than imported untyped, because an untyped model reads as chat and would put an embedding model in
+ * the chat pickers until the provider's own catalog refresh classifies it.
+ */
+function shouldImportModel(apiType: string, modelId: string): boolean {
+  return apiType !== 'workers-ai' || isJevJudgmentModelId(modelId)
+}
 
 type SourceDefinition = {
   id: ProviderImportSourceId
@@ -1394,20 +1417,24 @@ export class ProviderImportService {
     // A System One provider's models are decision models, not chat models. Imported sources carry no
     // type, and an untyped model reads as "not a judgment model" to the picker filters, so it would
     // otherwise land in every chat picker and fail only at request time.
-    const modelType = apiType === 'jev' ? ModelType.Judgment : undefined
-
-    return uniqueStrings(models.map((model) => model.id)).map((modelId) => {
-      const sourceModel = models.find((model) => model.id === modelId)
-      return {
-        id: modelId,
-        name: sourceModel?.name || modelId,
-        group: sourceModel?.group || 'custom',
-        providerId,
-        isCustom: true,
-        enabled: true,
-        ...(modelType ? { type: modelType } : {})
-      }
-    })
+    //
+    // Workers AI is mixed — its catalog is mostly ordinary chat and embedding models — so its type is
+    // resolved per model, and the models it cannot classify are skipped rather than imported untyped.
+    return uniqueStrings(models.map((model) => model.id))
+      .filter((modelId) => shouldImportModel(apiType, modelId))
+      .map((modelId) => {
+        const sourceModel = models.find((model) => model.id === modelId)
+        const modelType = resolveImportedModelType(apiType, modelId)
+        return {
+          id: modelId,
+          name: sourceModel?.name || modelId,
+          group: sourceModel?.group || 'custom',
+          providerId,
+          isCustom: true,
+          enabled: true,
+          ...(modelType ? { type: modelType } : {})
+        }
+      })
   }
 
   private applyPlannedProviders(

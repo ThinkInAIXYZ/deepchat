@@ -8,8 +8,6 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 export const repositoryRoot = path.resolve(scriptDir, '..')
 export const runtimeVersionsPath = path.join(repositoryRoot, 'resources', 'runtime-versions.json')
 
-const supportedPlatforms = new Set(['darwin', 'linux', 'win32'])
-const supportedArchitectures = new Set(['arm64', 'x64'])
 const supportedRuntimeTypes = new Set(['node', 'rtk', 'uv', 'cloudflared'])
 const supportedToolchainManifestSchemas = new Set([2, 3])
 const sha256Pattern = /^[a-f0-9]{64}$/
@@ -26,23 +24,27 @@ export function loadRuntimeVersions(manifestPath = runtimeVersionsPath) {
       throw new Error(`Runtime version manifest is missing a valid ${key} value`)
     }
   }
-  if (!parsed.nodeArtifacts || typeof parsed.nodeArtifacts !== 'object') {
+  if (
+    !parsed.nodeArtifacts ||
+    typeof parsed.nodeArtifacts !== 'object' ||
+    Array.isArray(parsed.nodeArtifacts) ||
+    Object.keys(parsed.nodeArtifacts).length === 0
+  ) {
     throw new Error('Runtime version manifest is missing Node artifact integrity metadata')
   }
   const nodeArtifacts = {}
-  for (const platform of supportedPlatforms) {
-    for (const arch of supportedArchitectures) {
-      const target = `${platform}-${arch}`
-      const artifact = parsed.nodeArtifacts[target]
-      if (!artifact || !sha256Pattern.test(artifact.executableSha256)) {
-        throw new Error(
-          `Runtime version manifest has invalid Node integrity metadata for ${target}`
-        )
-      }
-      nodeArtifacts[target] = Object.freeze({
-        executableSha256: artifact.executableSha256
-      })
+  for (const [target, artifact] of Object.entries(parsed.nodeArtifacts)) {
+    if (
+      !/^[a-z0-9]+-[a-z0-9]+$/.test(target) ||
+      !artifact ||
+      typeof artifact.executableSha256 !== 'string' ||
+      !sha256Pattern.test(artifact.executableSha256)
+    ) {
+      throw new Error(`Runtime version manifest has invalid Node integrity metadata for ${target}`)
     }
+    nodeArtifacts[target] = Object.freeze({
+      executableSha256: artifact.executableSha256
+    })
   }
 
   return Object.freeze({
@@ -113,12 +115,16 @@ function parseRuntimeTypes(value) {
   return types
 }
 
-function validateTarget(platform, arch) {
-  if (!supportedPlatforms.has(platform)) {
+function validateTarget(platform, arch, nodeArtifacts) {
+  const targets = Object.keys(nodeArtifacts).map((target) => target.split('-'))
+  if (!targets.some(([targetPlatform]) => targetPlatform === platform)) {
     throw new Error(`Unsupported runtime platform: ${platform}`)
   }
-  if (!supportedArchitectures.has(arch)) {
+  if (!targets.some(([, targetArch]) => targetArch === arch)) {
     throw new Error(`Unsupported runtime architecture: ${arch}`)
+  }
+  if (!Object.hasOwn(nodeArtifacts, `${platform}-${arch}`)) {
+    throw new Error(`Unsupported runtime target: ${platform}-${arch}`)
   }
 }
 
@@ -129,7 +135,7 @@ export function buildRuntimeInstallPlan({
   versions = loadRuntimeVersions(),
   types
 } = {}) {
-  validateTarget(platform, arch)
+  validateTarget(platform, arch, versions.nodeArtifacts)
 
   let runtimes = [
     { type: 'uv', version: versions.uv },

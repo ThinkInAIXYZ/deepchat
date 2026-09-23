@@ -384,7 +384,8 @@
         "gemini": "Gemini",
         "ollama": "Ollama",
         "mistral": "Mistral AI",
-        "jev": "TypeSafe Jev (System One)"
+        "jev": "TypeSafe Jev (System One)",
+        "workersAi": "Cloudflare Workers AI"
       },
       "applyFailed": "匯入失敗：{message}"
     },
@@ -3391,5 +3392,34 @@
       "uncertain": "已中斷，結果未知"
     },
     "hooks": "自動掛鉤"
+  },
+  "nowledgePlugin": {
+    "title": "Nowledge Mem",
+    "description": "填寫 Nowledge Mem 伺服器位址即可連線。",
+    "serverUrl": "伺服器位址",
+    "savedKey": "已儲存；留空保留，僅用於相同位址",
+    "enterKey": "伺服器無需金鑰時可留空",
+    "keyHint": "金鑰在此電腦上加密儲存。",
+    "replace": "API、MCP 和對話匯出將使用新位址，原位址的金鑰會保留。",
+    "verifying": "正在驗證…",
+    "verifySave": "驗證並儲存",
+    "verified": "連線已驗證並儲存。",
+    "legacy": "現有設定",
+    "import": "載入設定",
+    "legacyHint": "載入後需驗證儲存。現有 MCP 不會自動刪除，請確認新連線後停用舊項目。",
+    "importReady": "已載入現有設定，驗證儲存後完成匯入。",
+    "loadFailed": "無法讀取 Nowledge Mem 設定。",
+    "saveFailed": "無法儲存 Nowledge Mem 連線。",
+    "openSettings": "Nowledge Mem → 前往外掛設定",
+    "sendSession": "傳送至 Nowledge Mem",
+    "sendConfirm": "將對話「{title}」傳送至 {url}？",
+    "selectTarget": "請先在外掛 > Nowledge Mem 中驗證連線。",
+    "sent": "對話已儲存至 Nowledge Mem",
+    "activationFailed": "連線已儲存，但外掛啟用失敗。外掛已停用，請重新啟用後再使用 MCP。",
+    "clearConnections": "清除連線",
+    "clearConfirm": "停用外掛並清除連線及為舊位址保留的金鑰？Mem 中的記憶和其他工具的連線設定會保留。",
+    "apiKey": "API 金鑰（選填）",
+    "replaceTitle": "變更連線位址？",
+    "summary": "跨 AI 工具儲存對話、決策和智慧體發現，讓記憶持續累積。"
   }
 }

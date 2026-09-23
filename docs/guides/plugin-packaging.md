@@ -144,6 +144,20 @@ deepchat-plugin-feishu-<version>-win32-x64.dcplugin
 deepchat-plugin-feishu-<version>-win32-arm64.dcplugin
 ```
 
+## Nowledge Mem Plugin Artifacts
+
+The nowledge-mem plugin bundles a Skill and two host-managed HTTP MCP declarations. It needs no
+native runtime, nmem CLI or package download at activation. All six OS/architecture targets include
+it. Connection URLs and encrypted credentials belong to the host settings, not the package.
+
+```bash
+pnpm run plugin:validate -- --name nowledge-mem --platform darwin --arch arm64
+pnpm run plugin:bundle -- --name nowledge-mem --platform darwin --arch arm64
+pnpm run plugin:verify -- --name nowledge-mem --platform darwin --arch arm64 --plugin-root build/bundled-plugins
+```
+
+See [local verification](../features/nowledge-mem-plugin/verification.md) for connection setup.
+
 ## Output Locations
 
 Standalone packages:
@@ -175,11 +189,11 @@ Native plugin bundling belongs to the three reusable package workflows:
 `build.yml`, `release.yml`, and `package-regression.yml` call those workflows with an architecture
 matrix instead of repeating plugin logic. The target behavior is:
 
-- **macOS**: bundles both CUA and feishu plugins for arm64 and x64.
-- **Linux x64**: bundles both CUA and feishu plugins.
-- **Linux arm64**: bundles feishu and deliberately omits unsupported CUA.
-- **Windows x64**: bundles both CUA and feishu plugins.
-- **Windows arm64**: bundles both CUA and feishu plugins.
+- **macOS**: bundles CUA, feishu and nowledge-mem plugins for arm64 and x64.
+- **Linux x64**: bundles CUA, feishu and nowledge-mem plugins.
+- **Linux arm64**: bundles feishu and nowledge-mem and deliberately omits unsupported CUA.
+- **Windows x64**: bundles CUA, feishu and nowledge-mem plugins.
+- **Windows arm64**: bundles CUA, feishu and nowledge-mem plugins.
 
 Electron Builder embeds `.dcplugin` files from `build/bundled-plugins/` into:
 
@@ -217,6 +231,12 @@ app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-win32-x64.dcplugin
 app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-win32-arm64.dcplugin
 app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-linux-x64.dcplugin
 app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-linux-arm64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-nowledge-mem-<version>-darwin-x64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-nowledge-mem-<version>-darwin-arm64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-nowledge-mem-<version>-win32-x64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-nowledge-mem-<version>-win32-arm64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-nowledge-mem-<version>-linux-x64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-nowledge-mem-<version>-linux-arm64.dcplugin
 ```
 
 ## Adding a New Plugin

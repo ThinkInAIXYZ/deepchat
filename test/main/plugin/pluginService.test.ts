@@ -42,6 +42,7 @@ type CreatePluginServiceOptions = {
   resourcesPath?: string
   mcpEnabled?: boolean
   arch?: NodeJS.Architecture
+  nowledgeMem?: unknown
 }
 
 const createPluginService = async (
@@ -109,6 +110,7 @@ const createPluginService = async (
     appPath: options.appPath ?? process.cwd(),
     isPackaged: options.isPackaged,
     resourcesPath: options.resourcesPath,
+    nowledgeMem: options.nowledgeMem,
     mcpSettings,
     mcpService,
     runtimeSupervisor,
@@ -427,6 +429,53 @@ describe('PluginService', () => {
     vi.mocked(app.getPath).mockImplementation(() => '/mock/path')
     await Promise.all(tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
   })
+
+  it('isolates invalid directories and packages while restoring a healthy plugin', async () => {
+    const fixture = await createDirectoryFixture()
+    const presenter = await createPluginService('darwin', fixture.appPath)
+    expect((await presenter.enablePlugin(fixture.pluginId)).ok).toBe(true)
+    const invalidRoot = path.join(fixture.appPath, 'plugins', 'invalid')
+    await mkdir(invalidRoot, { recursive: true })
+    await writeFile(path.join(invalidRoot, 'plugin.json'), '{broken')
+    const packageRoot = path.join(fixture.appPath, 'build', 'bundled-plugins')
+    await mkdir(packageRoot, { recursive: true })
+    await writeFile(path.join(packageRoot, 'broken.dcplugin'), 'not a plugin archive')
+
+    await expect(presenter.initialize()).resolves.toBeUndefined()
+    expect(
+      (await presenter.listPlugins()).some(
+        (plugin) => plugin.id === fixture.pluginId && plugin.enabled
+      )
+    ).toBe(true)
+    expect(await presenter.__mocks.mcpSettings.getMcpServers()).toHaveProperty('fixture-tools')
+  })
+
+  it.each(['malformed JSON', 'obsolete HTTP server'])(
+    'repairs an installed %s manifest from the valid source without losing config',
+    async (kind) => {
+      const fixture = await createDirectoryFixture()
+      const presenter = await createPluginService('darwin', fixture.appPath)
+      expect((await presenter.enablePlugin(fixture.pluginId)).ok).toBe(true)
+      const config = '{"appSecret":"fixture-secret"}\n'
+      await writeFile(path.join(fixture.installedRoot, 'config.json'), config)
+      const manifestPath = path.join(fixture.installedRoot, 'plugin.json')
+      const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+      manifest.mcpServers = [
+        { id: 'nowledge-mem-local', transport: 'http', connectionProfile: 'local' }
+      ]
+      await writeFile(
+        manifestPath,
+        kind === 'malformed JSON' ? '{broken' : JSON.stringify(manifest)
+      )
+
+      await expect(presenter.initialize()).resolves.toBeUndefined()
+      expect(JSON.parse(await readFile(manifestPath, 'utf8')).mcpServers[0].id).toBe(
+        'fixture-tools'
+      )
+      expect(await readFile(path.join(fixture.installedRoot, 'config.json'), 'utf8')).toBe(config)
+      expect(await presenter.__mocks.mcpSettings.getMcpServers()).toHaveProperty('fixture-tools')
+    }
+  )
 
   it('uses CUA target metadata to show only supported platform and arch pairs', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'deepchat-plugin-platform-test-'))
@@ -813,6 +862,44 @@ describe('PluginService', () => {
     expect(presenter.__mocks.runtimeSupervisor.reconcilePlugin).toHaveBeenCalledWith(
       fixture.pluginId
     )
+  })
+
+  it('returns saved Nowledge settings with an inactive warning after registration fails', async () => {
+    const pluginId = 'com.deepchat.plugins.nowledge-mem'
+    const fixture = await createDirectoryFixture({ pluginId })
+    const manifestPath = path.join(fixture.pluginRoot, 'plugin.json')
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+    manifest.mcpServers = [{ id: 'nowledge-mem-connection', transport: 'http' }]
+    await writeFile(manifestPath, JSON.stringify(manifest))
+    const state = {
+      connection: { apiBaseUrl: 'http://127.0.0.1:14242' },
+      legacy: []
+    }
+    const nowledgeMem = {
+      save: vi.fn().mockResolvedValue(state),
+      getState: vi.fn().mockResolvedValue(state),
+      getMcpConnection: vi.fn().mockReturnValue({ baseUrl: 'http://127.0.0.1:14242/mcp/' })
+    }
+    const presenter = await createPluginService('darwin', { appPath: fixture.appPath, nowledgeMem })
+    expect((await presenter.enablePlugin(pluginId)).ok).toBe(true)
+    presenter.__mocks.mcpSettings.addMcpServer.mockRejectedValueOnce(
+      new Error('registration failed')
+    )
+    const result = await presenter.invokeAction(pluginId, 'nowledge.save', {})
+    expect(result).toMatchObject({
+      ok: true,
+      data: { ...state, activationFailed: true },
+      status: { enabled: false }
+    })
+    expect(await presenter.__mocks.mcpSettings.getMcpServers()).toEqual({})
+    expect(await presenter.invokeAction(pluginId, 'nowledge.get')).toMatchObject({
+      data: { activationFailed: true }
+    })
+    expect((await presenter.enablePlugin(pluginId)).ok).toBe(true)
+    expect(await presenter.invokeAction(pluginId, 'nowledge.get')).toMatchObject({
+      data: { activationFailed: false }
+    })
+    expect(nowledgeMem.save).toHaveBeenCalledOnce()
   })
 
   it('does not commit a partially activated plugin when a later contribution fails', async () => {
@@ -1692,6 +1779,9 @@ describe('PluginService', () => {
       mcpServers: [
         {
           id: 'duplicate',
+          transport: 'stdio',
+          command: 'node',
+          args: [],
           startMode: 'eager',
           surfaces: ['tools']
         }

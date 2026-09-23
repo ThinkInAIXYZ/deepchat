@@ -168,6 +168,39 @@ describe('ModelIcon', () => {
     expect(apimart.get('img').classes()).toContain('invert')
   })
 
+  it('resolves cloudflare to the Cloudflare colour mark', async () => {
+    const ModelIcon = (await import('@/components/icons/ModelIcon.vue')).default
+    const cloudflareIcon = (await import('@/assets/llm-icons/cloudflare-color.svg?url')).default
+    const wrapper = mount(ModelIcon, {
+      props: {
+        modelId: 'cloudflare',
+        isDark: true
+      }
+    })
+
+    const image = wrapper.get('img')
+
+    expect(image.attributes('alt')).toBe('cloudflare')
+    expect(image.attributes('src')).toBe(cloudflareIcon)
+    // Brand colour mark: dark mode must not invert it.
+    expect(image.classes()).not.toContain('invert')
+  })
+
+  it('lets a model family outrank the vendor hosting it', async () => {
+    // Provider-db ids like this one carry both names. Resolution is first-substring-wins in key
+    // order, so the vendor key must stay behind the model-family keys.
+    const ModelIcon = (await import('@/components/icons/ModelIcon.vue')).default
+    const zhipuIcon = (await import('@/assets/llm-icons/zhipu-color.svg?url')).default
+    const wrapper = mount(ModelIcon, {
+      props: {
+        modelId: 'cloudflare-glm-5.2'
+      }
+    })
+
+    expect(wrapper.get('img').attributes('alt')).toBe('glm')
+    expect(wrapper.get('img').attributes('src')).toBe(zhipuIcon)
+  })
+
   it('keeps fuzzy matching for common model ids and provider apiType fallback', async () => {
     const ModelIcon = (await import('@/components/icons/ModelIcon.vue')).default
     const openaiIcon = (await import('@/assets/llm-icons/openai.svg?url')).default

@@ -384,7 +384,8 @@
         "gemini": "Gemini",
         "ollama": "Ollama",
         "mistral": "Mistral AI",
-        "jev": "TypeSafe Jev (System One)"
+        "jev": "TypeSafe Jev (System One)",
+        "workersAi": "Cloudflare Workers AI"
       },
       "applyFailed": "Échec de l’import : {message}"
     },
@@ -3391,5 +3392,34 @@
     },
     "technicalDetails": "Détails techniques",
     "hooks": "Hooks"
+  },
+  "nowledgePlugin": {
+    "title": "Nowledge Mem",
+    "description": "Connect to Nowledge Mem using your server address.",
+    "serverUrl": "Server URL",
+    "savedKey": "Saved; leave blank to keep for the same destination",
+    "enterKey": "Leave blank if your server does not require a key",
+    "keyHint": "Keys are stored encrypted on this computer.",
+    "replace": "API, MCP and conversation exports will use this address. Credentials for the previous address will be retained.",
+    "verifying": "Verifying…",
+    "verifySave": "Verify and save",
+    "verified": "Connection verified and saved.",
+    "legacy": "Existing configuration",
+    "import": "Load configuration",
+    "legacyHint": "Verify and save after loading. Existing MCP entries are retained; disable the old entry after checking the plugin.",
+    "importReady": "Existing configuration loaded. Verify and save to finish importing.",
+    "loadFailed": "Could not load Nowledge Mem configuration.",
+    "saveFailed": "Could not save the Nowledge Mem connection.",
+    "openSettings": "Nowledge Mem → Open plugin settings",
+    "sendSession": "Send to Nowledge Mem",
+    "sendConfirm": "Send the conversation “{title}” to {url}?",
+    "selectTarget": "Verify a connection in Plugins > Nowledge Mem first.",
+    "sent": "Conversation saved to Nowledge Mem",
+    "activationFailed": "Connection saved, but plugin activation failed. The plugin is inactive; enable it again before using MCP.",
+    "clearConnections": "Clear connection",
+    "clearConfirm": "Disable the plugin and remove the saved connection and keys retained for previous addresses? Memories in Mem and other tools’ connections will be kept.",
+    "apiKey": "API key (optional)",
+    "replaceTitle": "Change connection?",
+    "summary": "Carry conversations, decisions, and agent discoveries across AI tools, with memory that grows over time."
   }
 }

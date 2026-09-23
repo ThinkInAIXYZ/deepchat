@@ -32,11 +32,17 @@ describe('install-runtime', () => {
     )
   })
 
-  it('keeps the schema-v2 toolchain envelope readable after OCR metadata advances', async () => {
+  it.each([2, 3])('reads legacy schema-v%s manifests without archive metadata', async (schema) => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), 'deepchat-runtime-versions-test-'))
     try {
       const manifest = JSON.parse(await readFile(runtimeVersionsPath, 'utf8'))
-      manifest.schemaVersion = 2
+      manifest.schemaVersion = schema
+      delete manifest.artifactVersions
+      delete manifest.uvArtifacts
+      for (const artifact of Object.values(manifest.nodeArtifacts) as Record<string, unknown>[]) {
+        delete artifact.filename
+        delete artifact.archiveSha256
+      }
       const manifestPath = path.join(tempDir, 'runtime-versions.json')
       await writeFile(manifestPath, JSON.stringify(manifest))
 
@@ -75,6 +81,16 @@ describe('install-runtime', () => {
     const plan = buildRuntimeInstallPlan({ platform: 'win32', arch: 'arm64' })
 
     expect(plan.map((step) => step.type)).toEqual(['uv'])
+  })
+
+  it('rejects missing target pairs even when platform and architecture exist separately', () => {
+    const versions = structuredClone(loadRuntimeVersions())
+    delete versions.nodeArtifacts['win32-arm64']
+    expect(() => buildRuntimeInstallPlan({ platform: 'win32', arch: 'arm64', versions })).toThrow(
+      /Unsupported runtime target: win32-arm64/
+    )
+    expect(buildRuntimeInstallPlan({ platform: 'win32', arch: 'x64', versions })).toHaveLength(3)
+    expect(buildRuntimeInstallPlan({ platform: 'linux', arch: 'arm64', versions })).toHaveLength(3)
   })
 
   it.each(['x64', 'arm64'])('builds a Node-only plan for Linux %s', (arch) => {

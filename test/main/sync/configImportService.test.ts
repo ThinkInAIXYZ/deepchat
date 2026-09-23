@@ -386,6 +386,7 @@ describe('SyncConfigImportService', () => {
       expect(tables.getModelConfigStoreEntry('imported:provider-cache')).toBeUndefined()
       expect(tables.listMcpServers()['server-a'].enabled).toBe(true)
       expect(tables.listMcpServers()['server-b'].enabled).toBe(false)
+      expect(tables.listMcpServers()['nowledge-mem-remote']).toBeUndefined()
       expect(tables.listMcpSettings()).toMatchObject({
         mcpEnabled: true,
         customNpmRegistry: 'https://registry.npmjs.org',
@@ -610,7 +611,13 @@ function writeLegacyConfigFixture(extractionDir: string) {
     defaultServers: ['server-a'],
     mcpServers: {
       'server-a': mcpServer('backup-server-a', false),
-      'server-b': mcpServer('backup-server-b', false)
+      'server-b': mcpServer('backup-server-b', false),
+      'nowledge-mem-remote': {
+        type: 'http',
+        baseUrl: 'https://foreign.example/mcp/',
+        ownerPluginId: 'com.deepchat.plugins.nowledge-mem',
+        enabled: true
+      }
     }
   })
 

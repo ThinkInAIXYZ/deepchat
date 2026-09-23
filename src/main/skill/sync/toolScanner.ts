@@ -279,9 +279,9 @@ export function resolveSkillsDir(tool: ExternalToolConfig, projectRoot?: string)
 export class ToolScanner {
   private toolRegistry: Map<string, ExternalToolConfig>
 
-  constructor() {
+  constructor(tools: ExternalToolConfig[] = EXTERNAL_TOOLS) {
     this.toolRegistry = new Map()
-    for (const tool of EXTERNAL_TOOLS) {
+    for (const tool of tools) {
       this.toolRegistry.set(tool.id, tool)
     }
   }
@@ -531,15 +531,22 @@ export class ToolScanner {
     tool: ExternalToolConfig
   ): Promise<ExternalSkillInfo | null> {
     try {
+      // Validate the final file too: SKILL.md can itself be a symlink even when
+      // its directory entry is ordinary. Read the resolved, contained target.
+      const safeFilePath = resolveSafePath(filePath, folderPath)
+      if (safeFilePath === null) {
+        return null
+      }
+
       // Security: Validate file size before reading
-      const sizeResult = await validateFileSize(filePath, MAX_FILE_SIZE)
+      const sizeResult = await validateFileSize(safeFilePath, MAX_FILE_SIZE)
       if (!sizeResult.valid) {
         console.warn(`Skipping oversized file ${filePath}: ${sizeResult.error}`)
         return null
       }
 
-      const content = await fs.promises.readFile(filePath, 'utf-8')
-      const stats = await fs.promises.stat(filePath)
+      const content = await fs.promises.readFile(safeFilePath, 'utf-8')
+      const stats = await fs.promises.stat(safeFilePath)
 
       // Extract name from file/folder
       let name: string

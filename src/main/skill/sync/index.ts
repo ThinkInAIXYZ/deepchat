@@ -29,6 +29,7 @@ import type { SyncContext } from './types'
 import type { DeepchatEventPublisher, DeepchatEventPayload } from '@shared/contracts/events'
 import { isValidToolId, MAX_SUBFOLDER_FILE_SIZE, MAX_SKILL_FOLDER_SIZE } from './security'
 import { scanAndDetectDiscoveriesInWorker, scanExternalToolsInWorker } from './scanWorker'
+import { compareWithCacheAndSkills } from './discoveries'
 
 const EXTERNAL_SKILL_MAX_DIRECTORY_DEPTH = 10
 const EXTERNAL_SKILL_MAX_DIRECTORY_ENTRIES = 1000
@@ -152,57 +153,6 @@ export class SkillSyncService implements SkillSyncServicePort {
   }
 
   /**
-   * Compare scan results with cache and existing skills to find new discoveries
-   */
-  private compareWithCacheAndSkills(
-    scanResults: ScanResult[],
-    cache: ScanCache | null,
-    existingSkillNames: Set<string>
-  ): NewDiscovery[] {
-    const discoveries: NewDiscovery[] = []
-
-    // Build cache lookup map
-    const cacheMap = new Map<string, Set<string>>()
-    if (cache) {
-      for (const tool of cache.tools) {
-        cacheMap.set(tool.toolId, new Set(tool.skills.map((s) => s.name)))
-      }
-    }
-
-    for (const result of scanResults) {
-      // Only consider available user-level tools
-      if (!result.available || result.toolId.includes('project')) {
-        continue
-      }
-
-      const cachedSkillNames = cacheMap.get(result.toolId) || new Set<string>()
-      const newSkills: ExternalSkillInfo[] = []
-
-      for (const skill of result.skills) {
-        // A skill is "new" if:
-        // 1. It's not in the cache (newly discovered)
-        // 2. It's not already imported into DeepChat
-        const isInCache = cachedSkillNames.has(skill.name)
-        const isAlreadyImported = existingSkillNames.has(skill.name)
-
-        if (!isInCache && !isAlreadyImported) {
-          newSkills.push(skill)
-        }
-      }
-
-      if (newSkills.length > 0) {
-        discoveries.push({
-          toolId: result.toolId,
-          toolName: result.toolName,
-          newSkills
-        })
-      }
-    }
-
-    return discoveries
-  }
-
-  /**
    * Get new discoveries by comparing current scan with cache and existing skills
    * Note: This does trigger a scan to get fresh results
    */
@@ -289,7 +239,7 @@ export class SkillSyncService implements SkillSyncServicePort {
       const scanResults = await toolScanner.scanExternalTools(this.syncContext.projectRoot)
       return {
         scanResults,
-        discoveries: this.compareWithCacheAndSkills(scanResults, cache, existingSkillNames)
+        discoveries: compareWithCacheAndSkills(scanResults, cache, existingSkillNames)
       }
     }
   }

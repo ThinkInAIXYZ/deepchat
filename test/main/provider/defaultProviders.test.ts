@@ -9,14 +9,14 @@ describe('DEFAULT_PROVIDERS', () => {
         id: 'typesafe',
         name: 'TypeSafe',
         apiType: 'jev',
-        baseUrl: 'https://api.typesafe.ai',
+        baseUrl: 'https://api.typesafe.ai/v1/systemone',
         enable: false,
         websites: expect.objectContaining({
           official: 'https://typesafe.ai/',
           apiKey: 'https://console.typesafe.ai/keys',
           docs: 'https://docs.typesafe.ai/introduction',
           models: 'https://docs.typesafe.ai/models',
-          defaultBaseUrl: 'https://api.typesafe.ai'
+          defaultBaseUrl: 'https://api.typesafe.ai/v1/systemone'
         })
       })
     )
@@ -27,6 +27,36 @@ describe('DEFAULT_PROVIDERS', () => {
 
     expect(typesafe?.models?.map((model) => model.id)).toEqual(['jev-latest', 'jev-1.13.0'])
     expect(typesafe?.models?.every((model) => model.type === ModelType.Judgment)).toBe(true)
+  })
+
+  it('includes Cloudflare as a disabled built-in Workers AI provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'cloudflare',
+        name: 'Cloudflare',
+        apiType: 'workers-ai',
+        // The account id is a path segment, so the profile ships the format as the field hint rather
+        // than a base URL that would resolve to another vendor. It is the OpenAI-compatible base the
+        // chat and embedding models use; the run and catalog endpoints derive from it.
+        baseUrl: '',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://www.cloudflare.com/',
+          apiKey: 'https://dash.cloudflare.com/?to=/:account/ai/workers-ai',
+          docs: 'https://developers.cloudflare.com/workers-ai/',
+          models: 'https://developers.cloudflare.com/workers-ai/models/',
+          defaultBaseUrl: 'https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai/v1'
+        })
+      })
+    )
+  })
+
+  it('seeds only the Workers AI judgment model, leaving the chat catalog to discovery', () => {
+    const cloudflare = DEFAULT_PROVIDERS.find((provider) => provider.id === 'cloudflare')
+
+    expect(cloudflare?.models?.map((model) => model.id)).toEqual(['typesafe/jev'])
+    expect(cloudflare?.models?.every((model) => model.type === ModelType.Judgment)).toBe(true)
+    expect(cloudflare?.models?.every((model) => model.contextLength === 32000)).toBe(true)
   })
   it('includes AnonRouter as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(

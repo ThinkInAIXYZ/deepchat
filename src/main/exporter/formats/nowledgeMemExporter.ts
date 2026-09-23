@@ -166,20 +166,8 @@ export function convertDeepChatToNowledgeMemFormat(
     }
   }
 
-  // Generate thread_id from title
-  let threadId = conversation.title
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .substring(0, 50)
-
-  // Fallback to conversation ID if title produces empty thread_id
-  if (!threadId || threadId.trim().length === 0) {
-    threadId = conversation.id
-  }
-
   return {
-    thread_id: threadId,
+    thread_id: `deepchat-${conversation.id}`,
     title: conversation.title || null,
     messages: nowledgeMessages,
     source: 'deepchat',
