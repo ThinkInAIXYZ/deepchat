@@ -50,6 +50,11 @@ type UseToolInteractionOptions = {
   applyRestoredSessionSummary: (session: unknown) => void
   currentRestoreRequestId: () => number
   canWriteSessionView: (sessionId: string, requestId: number) => boolean
+  /**
+   * Reports a response the main process refused to accept. The failure must be visible: releasing
+   * the approval afterwards closes it without a decision, which is not something the user chose.
+   */
+  onResponseFailed?: (interaction: PendingInteractionView, error: unknown) => void
 }
 
 function parseSubagentProgress(value: unknown): SubagentProgressPayload | null {
@@ -203,6 +208,7 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
       await dismissStale()
     } catch (error) {
       console.error('[ChatPage] respond tool interaction failed:', error)
+      options.onResponseFailed?.(interaction, error)
       // A rejected respond is itself a strong staleness signal (a resolvable
       // interaction would not be rejected). Reload once and, if the interaction
       // is still pending, release the UI from the uncloseable approval.

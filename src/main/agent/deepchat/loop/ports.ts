@@ -84,6 +84,14 @@ export interface ToolExecutionPort {
     call: MCPToolCall,
     options: ToolExecutionPreCheckOptions
   ): Promise<ToolPermissionPreCheckResult | null>
+  /**
+   * Resolves the filesystem paths a call authorizes, against the base directory the call will run
+   * under, so an approval records the targets the execution actually touches.
+   */
+  resolveAgentToolApprovalPaths(
+    call: MCPToolCall,
+    options?: ToolExecutionPreCheckOptions
+  ): Promise<string[]>
   execute(
     call: MCPToolCall,
     options: ToolExecutionOptions

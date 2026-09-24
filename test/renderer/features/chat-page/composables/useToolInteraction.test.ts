@@ -11,7 +11,7 @@ function createAssistantMessage(id: string, blocks: unknown[]) {
   }
 }
 
-function createHarness(messages: Array<Record<string, unknown>>) {
+function createHarness(messages: Array<Record<string, unknown>>, onResponseFailed?: any) {
   const sessionId = ref('s1')
   const messageRecords = ref(messages)
   const messageStore = {
@@ -42,7 +42,8 @@ function createHarness(messages: Array<Record<string, unknown>>) {
       loadMessagesForSession,
       applyRestoredSessionSummary,
       currentRestoreRequestId: () => restoreRequestId.value,
-      canWriteSessionView
+      canWriteSessionView,
+      ...(onResponseFailed ? { onResponseFailed } : {})
     })
   })
 
@@ -214,6 +215,38 @@ describe('useToolInteraction', () => {
     expect(harness.toolInteraction.activePendingInteraction.value).toBeNull()
     expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
     expect(consoleError).toHaveBeenCalledWith('[ChatPage] respond tool interaction failed:', error)
+    consoleError.mockRestore()
+    harness.stop()
+  })
+
+  it('reports a rejected response to the page instead of only dropping the interaction', async () => {
+    const error = new Error('response failed')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const onResponseFailed = vi.fn()
+    const harness = createHarness(
+      [
+        createAssistantMessage('m1', [
+          {
+            type: 'action',
+            action_type: 'tool_call_permission',
+            status: 'pending',
+            tool_call: { id: 'tool-1', name: 'process', params: '{"action":"kill"}' }
+          }
+        ])
+      ],
+      onResponseFailed
+    )
+    harness.chatClient.respondToolInteraction.mockRejectedValue(error)
+
+    await harness.toolInteraction.onToolInteractionRespond({
+      kind: 'permission',
+      granted: true
+    } as any)
+
+    expect(onResponseFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ messageId: 'm1', toolCallId: 'tool-1' }),
+      error
+    )
     consoleError.mockRestore()
     harness.stop()
   })

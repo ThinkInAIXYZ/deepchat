@@ -27,6 +27,10 @@ type MainProcessToolExecutionService = Pick<ToolServicePort, 'preCheckToolPermis
     request: Parameters<ToolServicePort['callTool']>[0],
     options: ToolExecutionPreCheckOptions
   ): void
+  resolveAgentToolApprovalPaths?(
+    request: Parameters<ToolServicePort['callTool']>[0],
+    options?: ToolExecutionPreCheckOptions
+  ): Promise<string[]>
   callTool(
     request: Parameters<ToolServicePort['callTool']>[0],
     options?: ToolExecutionOptions
@@ -86,6 +90,8 @@ export function createToolExecutionPort(
       toolService.assertToolSurfaceAuthority(call, options)
     },
     preCheck: (call, options) => toolService.preCheckToolPermission(call, options),
+    resolveAgentToolApprovalPaths: (call, options) =>
+      toolService.resolveAgentToolApprovalPaths?.(call, options) ?? Promise.resolve([]),
     execute: (call, options) => toolService.callTool(call, options)
   }
 }

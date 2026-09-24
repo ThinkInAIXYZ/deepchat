@@ -48,6 +48,7 @@ import type {
 } from '@/tape/ports/capabilities'
 import { ExecutionJournalError } from '@/tape/domain/executionJournal'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
+import { APPLY_PATCH_TOOL_NAME } from '@/tool/codeMode/toolModeTools'
 import {
   TOOL_SEARCH_AGENT_TOOL_NAME,
   TOOL_SEARCH_AGENT_TOOL_SERVER_NAME
@@ -461,6 +462,21 @@ function createMockToolService(responses: Record<string, string> = {}): ToolServ
       }
     }),
     preCheckToolPermission: vi.fn().mockResolvedValue(null),
+    // Mirrors the real service for the single-`path` shapes these tests use: the tool layer resolves
+    // the call's own path argument, so the approval records the target rather than re-deriving it.
+    // `apply_patch` is the case that makes this the tool layer's job: its arguments are raw patch
+    // text, which this side cannot parse into a path.
+    resolveAgentToolApprovalPaths: vi.fn(async (request) => {
+      if (request.function.name === APPLY_PATCH_TOOL_NAME) {
+        return ['src/new.ts']
+      }
+      try {
+        const args = JSON.parse(request.function.arguments) as Record<string, unknown>
+        return typeof args.path === 'string' && args.path.trim() ? [args.path] : []
+      } catch {
+        return []
+      }
+    }),
     assertToolSurfaceAuthority: vi.fn(),
     clearConversationToolMapping: vi.fn(),
     clearAgentPlanState: vi.fn(),
@@ -3984,7 +4000,78 @@ describe('dispatch', () => {
           riskLevel: 'low'
         })
       }
-      const tools = [makeAgentTool('read')]
+      const tools = [makeAgentTool('write')]
+      const toolService = createMockToolService({ write: 'file content' })
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-write',
+          name: 'write',
+          params: '{"path":"/tmp/outside.txt","content":"hello"}',
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        {
+          id: 'tc-write',
+          name: 'write',
+          arguments: '{"path":"/tmp/outside.txt","content":"hello"}'
+        }
+      ]
+
+      const result = await settleToolBatch(
+        state,
+        [],
+        0,
+        tools,
+        toolService,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks
+      )
+
+      expect(result.type).toBe('completed')
+      expect(hooks.reviewToolPermission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: 's1',
+          messageId: 'm1',
+          toolCallId: 'tc-write',
+          toolName: 'write',
+          toolArgs: '{"path":"/tmp/outside.txt","content":"hello"}',
+          toolSource: 'agent',
+          reason: 'tool_call',
+          permission: expect.objectContaining({
+            permissionType: 'write',
+            // The approval keeps the tool call's own server identity; it never rewrites it.
+            serverName: 'test-server',
+            paths: ['/tmp/outside.txt'],
+            rememberable: false
+          })
+        })
+      )
+      expect(toolService.callTool).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'tc-write' }),
+        expect.objectContaining({ permissionMode: 'full_access' })
+      )
+      expect(result.executed).toBe(1)
+    })
+
+    it('runs read-only Agent tool calls without review', async () => {
+      const hooks = {
+        reviewToolPermission: vi.fn().mockResolvedValue({
+          decision: 'ask_user',
+          riskLevel: 'low'
+        })
+      }
+      const tools = [makeAgentTool('read', TOOL_EXECUTION.read.parallel)]
       const toolService = createMockToolService({ read: 'file content' })
 
       state.blocks.push({
@@ -4019,23 +4106,7 @@ describe('dispatch', () => {
       )
 
       expect(result.type).toBe('completed')
-      expect(hooks.reviewToolPermission).toHaveBeenCalledWith(
-        expect.objectContaining({
-          sessionId: 's1',
-          messageId: 'm1',
-          toolCallId: 'tc-read',
-          toolName: 'read',
-          toolArgs: '{"path":"/tmp/outside.txt"}',
-          toolSource: 'agent',
-          reason: 'tool_call',
-          permission: expect.objectContaining({
-            permissionType: 'read',
-            serverName: 'agent-filesystem',
-            paths: ['/tmp/outside.txt'],
-            rememberable: false
-          })
-        })
-      )
+      expect(hooks.reviewToolPermission).not.toHaveBeenCalled()
       expect(toolService.callTool).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'tc-read' }),
         expect.objectContaining({ permissionMode: 'full_access' })
@@ -4937,11 +5008,11 @@ describe('dispatch', () => {
         DEFAULT_INTERLEAVED_REASONING,
         rendererFlushHandle
       )
-      await Promise.resolve()
-
-      expect(flushedBlocks[0][0].extra).toMatchObject({
-        autoApproveReviewStatus: 'reviewing'
-      })
+      await vi.waitFor(() =>
+        expect(flushedBlocks[0]?.[0]?.extra).toMatchObject({
+          autoApproveReviewStatus: 'reviewing'
+        })
+      )
       expect(toolService.callTool).not.toHaveBeenCalled()
 
       reviewDecision.resolve({ decision: 'auto_allow', riskLevel: 'low' })
@@ -5011,6 +5082,56 @@ describe('dispatch', () => {
       ).toBeUndefined()
     })
 
+    it('reviews an apply_patch call whose arguments are raw patch text', async () => {
+      const hooks = {
+        reviewToolPermission: vi.fn().mockResolvedValue({
+          decision: 'ask_user',
+          riskLevel: 'medium'
+        })
+      }
+      const tools = [makeAgentTool(APPLY_PATCH_TOOL_NAME)]
+      const toolService = createMockToolService()
+      const patchText = '*** Begin Patch\n*** Add File: src/new.ts\n+hello\n*** End Patch'
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-patch',
+          name: APPLY_PATCH_TOOL_NAME,
+          params: patchText,
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc-patch', name: APPLY_PATCH_TOOL_NAME, arguments: patchText }
+      ]
+
+      const result = await settleToolBatch(
+        state,
+        [],
+        0,
+        tools,
+        toolService,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks
+      )
+
+      expect(result.type).toBe('paused')
+      // Raw patch text is not JSON, so a policy that re-derived paths from the arguments would
+      // decide the approval is tool-scoped and drop them. The tool layer supplies them instead.
+      expect(result.type === 'paused' ? result.interactions[0].permission : null).toEqual(
+        expect.objectContaining({ permissionType: 'write', paths: ['src/new.ts'] })
+      )
+    })
+
     it('pauses auto-approve Agent tool calls when the reviewer asks the user', async () => {
       const hooks = {
         onPermissionRequest: vi.fn(),
@@ -5021,6 +5142,11 @@ describe('dispatch', () => {
       }
       const tools = [makeAgentTool('write')]
       const toolService = createMockToolService()
+      // The tool layer resolves the call's own path argument against the directory the call runs
+      // under; the approval must record that resolved target.
+      toolService.resolveAgentToolApprovalPaths = vi
+        .fn()
+        .mockResolvedValue(['/workspace/outside.txt'])
 
       state.blocks.push({
         type: 'tool_call',
@@ -5064,8 +5190,9 @@ describe('dispatch', () => {
       expect(result.type === 'paused' ? result.interactions[0].permission : null).toEqual(
         expect.objectContaining({
           permissionType: 'write',
-          serverName: 'agent-filesystem',
-          paths: ['/tmp/outside.txt']
+          // The approval keeps the tool call's own server identity; it never rewrites it.
+          serverName: 'test-server',
+          paths: ['/workspace/outside.txt']
         })
       )
       expect(hooks.onPermissionRequest).toHaveBeenCalledTimes(1)
@@ -5081,7 +5208,7 @@ describe('dispatch', () => {
           extra: expect.objectContaining({
             needsUserAction: true,
             permissionType: 'write',
-            serverName: 'agent-filesystem'
+            serverName: 'test-server'
           })
         })
       )

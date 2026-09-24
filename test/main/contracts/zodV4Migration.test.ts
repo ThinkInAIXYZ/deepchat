@@ -108,7 +108,86 @@ describe('Zod 4 migration contracts', () => {
     })
   })
 
-  it('rejects intersection object schemas for tool schemas', () => {
+  it('flattens compatible scalar intersections without dropping bounds', () => {
+    const jsonSchema = toDeepChatJsonSchema(
+      z.object({
+        text: z.intersection(z.string().min(2), z.string().max(7)),
+        count: z.intersection(z.number().gt(-3), z.number().max(11))
+      })
+    )
+
+    expect(jsonSchema.properties).toEqual({
+      text: { type: 'string', minLength: 2, maxLength: 7 },
+      count: { type: 'number', exclusiveMinimum: -3, maximum: 11 }
+    })
+    expect(jsonSchema.required).toEqual(['text', 'count'])
+  })
+
+  it('flattens intersections introduced by merging object properties', () => {
+    const jsonSchema = toDeepChatJsonSchema(
+      z.intersection(z.object({ value: z.string().min(2) }), z.object({ value: z.string().max(7) }))
+    )
+
+    expect(jsonSchema).toEqual({
+      type: 'object',
+      properties: { value: { type: 'string', minLength: 2, maxLength: 7 } },
+      required: ['value']
+    })
+  })
+
+  it('flattens scalar intersections in nested schema positions', () => {
+    const bounded = z.intersection(z.string().min(2), z.string().max(7))
+    const jsonSchema = toDeepChatJsonSchema(
+      z.object({
+        list: z.array(bounded),
+        tuple: z.tuple([bounded]),
+        map: z.record(z.string(), bounded),
+        nullable: bounded.nullable()
+      })
+    )
+    const expected = { type: 'string', minLength: 2, maxLength: 7 }
+
+    expect(jsonSchema.properties.list).toEqual({ type: 'array', items: expected })
+    expect(jsonSchema.properties.tuple).toEqual({
+      type: 'array',
+      prefixItems: [expected],
+      items: false,
+      minItems: 1,
+      maxItems: 1
+    })
+    expect(jsonSchema.properties.map).toEqual({
+      type: 'object',
+      propertyNames: { type: 'string' },
+      additionalProperties: expected
+    })
+    expect(jsonSchema.properties.nullable).toEqual({ anyOf: [expected, { type: 'null' }] })
+  })
+
+  it('preserves literal allOf data in defaults and examples', () => {
+    const data = { allOf: [{ type: 'string' }, { type: 'number' }] }
+    const jsonSchema = toDeepChatJsonSchema(
+      z.object({
+        value: z
+          .unknown()
+          .default(data)
+          .meta({ examples: [data] })
+      })
+    )
+
+    expect(jsonSchema.properties.value).toEqual({ default: data, examples: [data] })
+  })
+
+  it.each([
+    z.intersection(z.string(), z.number()),
+    z.intersection(z.string().regex(/^a/), z.string().regex(/z$/)),
+    z.intersection(z.string().min(2), z.string().min(5))
+  ])('rejects intersections that need constraint-specific merging (%#)', (value) => {
+    expect(() => toDeepChatJsonSchema(z.object({ value }))).toThrow(
+      'DeepChat tool schema intersection has unsupported or conflicting constraints.'
+    )
+  })
+
+  it('rejects conflicting intersection object schemas for tool schemas', () => {
     expect(() =>
       toDeepChatJsonSchema(
         z.intersection(
@@ -120,7 +199,7 @@ describe('Zod 4 migration contracts', () => {
           })
         )
       )
-    ).toThrow('DeepChat tool schemas cannot safely represent intersection object schemas.')
+    ).toThrow('DeepChat tool schema intersection has unsupported or conflicting constraints.')
   })
 
   it('preserves meaningful root additionalProperties values', () => {

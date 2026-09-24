@@ -3205,6 +3205,66 @@ export class AgentToolManager {
     return null
   }
 
+  /**
+   * Resolves the filesystem paths an agent tool call authorizes, against the same base directory
+   * the call itself will run under. `collectWriteTargets` returns the call's own path arguments;
+   * an approval must record the targets the execution actually touches, not the raw relative
+   * strings, or an approved path and the written path can disagree.
+   *
+   * The resolution mirrors `preCheckToolPermission`: the call's own workspace root is the base, and
+   * the call's command shell decides the path style. The manager-level handler is not usable here
+   * because it holds the last synced workspace, which is not necessarily this call's.
+   */
+  async resolveApprovalPaths(
+    toolName: string,
+    args: Record<string, unknown>,
+    conversationId?: string,
+    options?: { commandShell?: ResolvedCommandShell }
+  ): Promise<string[]> {
+    const targets = this.collectWriteTargets(toolName, args)
+    if (targets.length === 0) {
+      return targets
+    }
+
+    let dynamicWorkdir: string | null = null
+    if (conversationId) {
+      try {
+        dynamicWorkdir = await this.getWorkdirForConversation(conversationId)
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to get workdir for approval paths:', {
+          conversationId,
+          error
+        })
+      }
+    }
+
+    const explicitBaseDirectory =
+      typeof args.base_directory === 'string' && args.base_directory.trim().length > 0
+        ? args.base_directory
+        : undefined
+    // Never leave the base undefined: `resolvePath` would fall back to the handler's first allowed
+    // directory, which is the workspace this manager last synced rather than this call's.
+    const workspaceRoot = this.resolveCallWorkspaceRoot(dynamicWorkdir, conversationId)
+    const baseDirectory = explicitBaseDirectory ?? dynamicWorkdir ?? workspaceRoot
+
+    // The manager-level handler is always built without a path style, so the call's own shell is the
+    // only source of one; the resolver defaults to `native` when the call has none either.
+    const resolver = new AgentFileSystemHandler([workspaceRoot], {
+      conversationId,
+      allowExternalAccess: true,
+      ...(options?.commandShell?.pathStyle
+        ? { commandShellPathStyle: options.commandShell.pathStyle }
+        : {})
+    })
+
+    const resolved: string[] = []
+    for (const target of targets) {
+      const targetPath = resolver.resolvePath(target, baseDirectory)
+      resolved.push(await this.resolvePermissionTarget(targetPath))
+    }
+    return Array.from(new Set(resolved))
+  }
+
   private requireCommandShell(commandShell?: ResolvedCommandShell): ResolvedCommandShell {
     if (!commandShell) {
       throw new Error('Agent tool requires a resolved command shell.')

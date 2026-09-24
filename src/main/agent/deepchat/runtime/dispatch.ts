@@ -57,7 +57,9 @@ import {
 } from '@shared/commandShell'
 import {
   buildCommandPermissionSignature,
-  isCommandSignatureForProfile
+  isCommandSignatureForProfile,
+  requiresAgentToolApprovalShellProfile,
+  resolveAgentToolReview
 } from '@/tool/permission'
 import { emitDeepChatLoopNotification } from '@/agent/deepchat/loop/notificationObserver'
 import { cloneBlocksForRenderer } from '@/session/clientMessageProjection'
@@ -1512,32 +1514,6 @@ async function runWithAutoGrantedPermission<T>(
   }
 }
 
-function collectStringValues(value: unknown, keys: Set<string>, results: string[]): void {
-  if (!value || typeof value !== 'object') return
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      if (typeof item === 'string' && item.trim()) results.push(item)
-      else collectStringValues(item, keys, results)
-    }
-    return
-  }
-
-  for (const [key, entry] of Object.entries(value)) {
-    const normalizedKey = key.toLowerCase()
-    if (typeof entry === 'string' && keys.has(normalizedKey) && entry.trim()) {
-      results.push(entry)
-      continue
-    }
-    if (Array.isArray(entry) && keys.has(normalizedKey)) {
-      for (const item of entry) {
-        if (typeof item === 'string' && item.trim()) results.push(item)
-      }
-      continue
-    }
-    collectStringValues(entry, keys, results)
-  }
-}
-
 function parseToolArgs(toolArgs: string): Record<string, unknown> | null {
   if (!toolArgs.trim()) return null
   try {
@@ -1550,101 +1526,63 @@ function parseToolArgs(toolArgs: string): Record<string, unknown> | null {
   }
 }
 
-function extractToolArgPaths(toolArgs: string): string[] {
-  const parsed = parseToolArgs(toolArgs)
-  if (!parsed) return []
-  const paths: string[] = []
-  collectStringValues(
-    parsed,
-    new Set(['path', 'paths', 'file', 'files', 'filepath', 'filepaths', 'dir', 'cwd']),
-    paths
-  )
-  return Array.from(new Set(paths))
-}
-
-function extractToolArgCommand(toolArgs: string): string | undefined {
-  const parsed = parseToolArgs(toolArgs)
-  if (!parsed) return undefined
-  for (const key of ['command', 'cmd', 'script']) {
-    const value = parsed[key]
-    if (typeof value === 'string' && value.trim()) return value
-  }
-  return undefined
-}
-
-function isReviewableFullAccessToolCall(execution: ToolExecutionContext): boolean {
-  if (execution.toolDef?.source !== 'agent') return false
-  if (extractToolArgCommand(execution.toolContext.args)) return true
-  const name = execution.toolContext.name.toLowerCase()
-  if (
-    [
-      'read',
-      'write',
-      'edit',
-      'delete',
-      'remove',
-      'exec',
-      'bash',
-      'shell',
-      'terminal',
-      'command',
-      'process',
-      'file',
-      'search',
-      'settings',
-      'memory',
-      'skill'
-    ].some((part) => name.includes(part))
-  ) {
-    return true
-  }
-  return extractToolArgPaths(execution.toolContext.args).length > 0
-}
-
-function buildSyntheticPermissionForReview(
-  execution: ToolExecutionContext,
+/**
+ * Builds the approval the `auto_approve` review is asked about, or null when this call is not
+ * reviewed. Coverage and payload shape come from one decision so the synthesizer and the allow path
+ * cannot disagree about what the approval means.
+ */
+async function buildSyntheticPermissionForReview(params: {
+  execution: ToolExecutionContext
   commandShell: ResolvedCommandShell
-): NonNullable<PendingToolInteraction['permission']> {
-  const name = execution.toolContext.name
-  const lowerName = name.toLowerCase()
-  const paths = extractToolArgPaths(execution.toolContext.args)
-  const command = extractToolArgCommand(execution.toolContext.args)
-  if (command) {
+  toolExecution: ToolExecutionPort
+  preCheckOptions: Parameters<ToolExecutionPort['preCheck']>[1]
+}): Promise<NonNullable<PendingToolInteraction['permission']> | null> {
+  const { execution, commandShell, toolExecution, preCheckOptions } = params
+  const toolName = execution.toolContext.name
+  const args = parseToolArgs(execution.toolContext.args) ?? {}
+  const decision = resolveAgentToolReview({
+    toolName,
+    args,
+    execution: execution.toolDef?.execution,
+    source: execution.toolDef?.source
+  })
+  if (!decision.reviewed) {
+    return null
+  }
+
+  const serverName = execution.toolContext.serverName
+  const base = {
+    permissionType: decision.permissionType,
+    description: `Auto-review requested approval for tool ${toolName}.`,
+    toolName,
+    serverName,
+    rememberable: false
+  }
+
+  if (decision.scope === 'command') {
+    const command = typeof args.command === 'string' ? args.command : ''
     return {
-      permissionType: 'command',
-      description: `Auto-review requested approval for command tool ${name}.`,
-      toolName: name,
-      serverName: execution.toolContext.serverName,
+      ...base,
       command,
       commandSignature: buildCommandPermissionSignature(command, commandShell),
-      shellProfile: commandShell.profile,
-      rememberable: false
+      shellProfile: commandShell.profile
     }
   }
 
-  if (['bash', 'shell', 'terminal', 'command'].some((part) => lowerName.includes(part))) {
-    return {
-      permissionType: 'all',
-      description: `Auto-review requested approval for command tool ${name}.`,
-      toolName: name,
-      serverName: execution.toolContext.serverName,
-      rememberable: false
-    }
-  }
+  // The tool layer owns which argument carries a path, and it also parses the call's arguments, so
+  // it is the only layer that can resolve `apply_patch`'s raw patch text into its targets. Ask it
+  // for the paths the execution will touch rather than re-deriving them here.
+  const paths =
+    decision.scope === 'paths'
+      ? await toolExecution.resolveAgentToolApprovalPaths(execution.toolCall, preCheckOptions)
+      : []
 
-  const permissionType: 'read' | 'write' | 'all' = ['read', 'search', 'list', 'find'].some((part) =>
-    lowerName.includes(part)
-  )
-    ? 'read'
-    : 'write'
   return {
-    permissionType,
-    description: `Auto-review requested approval for tool ${name}.`,
-    toolName: name,
-    serverName: paths.length > 0 ? 'agent-filesystem' : execution.toolContext.serverName,
-    paths: paths.length > 0 ? paths : undefined,
-    ...(paths.length > 0 ? { shellProfile: commandShell.profile } : {}),
-    rememberable: false
+    ...base,
+    ...(paths.length > 0 ? { paths } : {}),
+    ...(requiresAgentToolApprovalShellProfile(serverName)
+      ? { shellProfile: commandShell.profile }
+      : {})
   }
 }
 
@@ -3235,21 +3173,22 @@ export async function settleToolBatch(
 
       let preCheckedPermission: PendingToolInteraction['permission'] | null = null
       let permissionToAutoGrant: NonNullable<PendingToolInteraction['permission']> | null = null
+      const toolPreCheckOptions: Parameters<ToolExecutionPort['preCheck']>[1] = {
+        permissionMode: toolPermissionMode,
+        signal: io.abortSignal,
+        activeSkillNames: controls?.getActiveSkillNames?.(),
+        commandShell,
+        ...(toolSurface
+          ? {
+              messageId: io.messageId,
+              runId: operationScope.runId,
+              requestSeq: operationScope.requestSeq,
+              toolSurfaceSnapshot: toolSurface.snapshot
+            }
+          : {})
+      }
       if (toolCall.function.name !== TOOL_SEARCH_AGENT_TOOL_NAME && toolExecution.preCheck) {
-        const preChecked = await toolExecution.preCheck(toolCall, {
-          permissionMode: toolPermissionMode,
-          signal: io.abortSignal,
-          activeSkillNames: controls?.getActiveSkillNames?.(),
-          commandShell,
-          ...(toolSurface
-            ? {
-                messageId: io.messageId,
-                runId: operationScope.runId,
-                requestSeq: operationScope.requestSeq,
-                toolSurfaceSnapshot: toolSurface.snapshot
-              }
-            : {})
-        })
+        const preChecked = await toolExecution.preCheck(toolCall, toolPreCheckOptions)
         io.abortSignal.throwIfAborted()
         assertToolSurfaceAuthority(toolCall)
         if (preChecked?.needsPermission) {
@@ -3313,47 +3252,52 @@ export async function settleToolBatch(
         }
       }
 
-      if (
-        permissionMode === 'auto_approve' &&
-        !preCheckedPermission &&
-        isReviewableFullAccessToolCall(execution)
-      ) {
-        const reviewPermission = buildSyntheticPermissionForReview(execution, commandShell)
-        const review = await reviewAutoApproveAction({
-          controls,
-          io,
-          state,
-          batchToolCallBlocks,
-          rendererFlushHandle,
+      if (permissionMode === 'auto_approve' && !preCheckedPermission) {
+        // A null decision means the review gate does not cover this call, so it proceeds under the
+        // session's own authority.
+        const reviewPermission = await buildSyntheticPermissionForReview({
           execution,
-          permission: reviewPermission,
-          reason: 'tool_call'
+          commandShell,
+          toolExecution,
+          preCheckOptions: toolPreCheckOptions
         })
-        assertToolSurfaceAuthority(toolCall)
-        if (review !== 'auto_allow') {
-          emitDeepChatLoopNotification(notificationObserver, {
-            event: 'PermissionRequest',
-            permission: reviewPermission,
-            tool: {
-              callId: tc.id,
-              name: tc.name,
-              params: tc.arguments
-            }
-          })
-          const interaction = appendPermissionActionBlock(
-            state,
+        if (reviewPermission) {
+          const review = await reviewAutoApproveAction({
+            controls,
             io,
-            toolContext,
-            reviewPermission,
-            'pre-check-permission',
-            takeInteractionOrder(),
-            executionContract,
-            toolSurface?.snapshot
-          )
-          pendingInteractions.push(interaction)
-          updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
-          rescheduleRendererFlush(state, rendererFlushHandle)
-          continue
+            state,
+            batchToolCallBlocks,
+            rendererFlushHandle,
+            execution,
+            permission: reviewPermission,
+            reason: 'tool_call'
+          })
+          assertToolSurfaceAuthority(toolCall)
+          if (review !== 'auto_allow') {
+            emitDeepChatLoopNotification(notificationObserver, {
+              event: 'PermissionRequest',
+              permission: reviewPermission,
+              tool: {
+                callId: tc.id,
+                name: tc.name,
+                params: tc.arguments
+              }
+            })
+            const interaction = appendPermissionActionBlock(
+              state,
+              io,
+              toolContext,
+              reviewPermission,
+              'pre-check-permission',
+              takeInteractionOrder(),
+              executionContract,
+              toolSurface?.snapshot
+            )
+            pendingInteractions.push(interaction)
+            updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
+            rescheduleRendererFlush(state, rendererFlushHandle)
+            continue
+          }
         }
       }
 
