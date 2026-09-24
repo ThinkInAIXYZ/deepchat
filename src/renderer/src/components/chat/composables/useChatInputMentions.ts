@@ -90,6 +90,13 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   const acpCommands = ref<AcpSessionCommand[]>([])
   const acpCommandFetchSeq = ref(0)
   const isSuggestionMenuOpen = ref(false)
+  const suggestionItemCount = ref(0)
+  const suggestionLoading = ref(false)
+  // The menu may only claim Enter/Tab while it can act on them: an open menu that has nothing to
+  // pick (or is still resolving items) must not block sending the draft.
+  const hasSelectableSuggestions = computed(
+    () => isSuggestionMenuOpen.value && (suggestionLoading.value || suggestionItemCount.value > 0)
+  )
   const suggestionAttributes = computed<Record<string, string>>(() => {
     if (!isSuggestionMenuOpen.value) return {}
     return {
@@ -403,8 +410,15 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     let component: VueRenderer | null = null
     let popup: ReturnType<typeof tippy> | null = null
 
+    const syncAvailability = (props: any) => {
+      suggestionItemCount.value = Array.isArray(props?.items) ? props.items.length : 0
+      suggestionLoading.value = props?.loading === true
+    }
+
     const close = () => {
       isSuggestionMenuOpen.value = false
+      suggestionItemCount.value = 0
+      suggestionLoading.value = false
       activeSuggestionId.value = null
       popup?.[0]?.destroy()
       popup = null
@@ -414,6 +428,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     return {
       onStart: (props: any) => {
         isSuggestionMenuOpen.value = true
+        syncAvailability(props)
         component = new VueRenderer(SuggestionList, {
           editor: props.editor,
           props: {
@@ -447,6 +462,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
         })
       },
       onUpdate: (props: any) => {
+        syncAvailability(props)
         component?.updateProps({
           items: props.items,
           query: props.query,
@@ -498,7 +514,10 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
 
   const slashSuggestion = {
     char: '/',
-    allowedPrefixes: null,
+    // Slash commands are only valid at a command position: the start of the input or after a
+    // space. Allowing any preceding character (`allowedPrefixes: null`) made the trailing
+    // `/lody` of a URL, or a `src/main/index.ts` path, open the menu and swallow Enter.
+    allowedPrefixes: [' '],
     items: ({ query }: { query: string }) => filterSlashItems(query),
     command: ({
       editor,
@@ -568,6 +587,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     atSuggestion,
     slashSuggestion,
     isSuggestionMenuOpen,
+    hasSelectableSuggestions,
     suggestionAttributes,
     shouldSuppressSubmit,
     submitDialog,
