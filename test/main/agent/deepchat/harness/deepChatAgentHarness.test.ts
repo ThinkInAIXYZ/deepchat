@@ -18006,6 +18006,38 @@ describe('DeepChatAgentHarness', () => {
       ).toBe(false)
     })
 
+    it('settles a session left generating with no owner when its last approval is dismissed', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingPermission({
+        toolName: 'process',
+        params: '{"action":"poll","sessionId":"sess-1"}',
+        serverName: 'agent-filesystem',
+        shellProfile: 'posix'
+      })
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      // The stuck state: the paused run released its claim, so nothing owns the approval, yet the
+      // session still reports work in progress.
+      instance.setRuntimeState({
+        status: 'generating',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'auto_approve'
+      })
+
+      const dismissed = await agent.dismissToolInteraction('s1', 'm1', 'tc1')
+
+      expect(dismissed).toBe(true)
+      expect(instance.getPendingInteractions()).toEqual([])
+      await expect(agent.getSessionState('s1')).resolves.toMatchObject({ status: 'idle' })
+      // A failed interaction is not a decision the user made.
+      const [, content] = getFinalizedWrite('m1')
+      const blocks = JSON.parse(content) as AssistantMessageBlock[]
+      const toolBlock = blocks.find(
+        (block) => block.type === 'tool_call' && block.tool_call?.id === 'tc1'
+      )
+      expect(toolBlock?.tool_call?.response).not.toBe('User denied the request.')
+    })
+
     it('resolves a pending question block and its paired tool call', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       installPendingQuestion()
@@ -18637,6 +18669,38 @@ describe('DeepChatAgentHarness', () => {
         await expect(approvePendingTool()).rejects.toThrow('File approval is missing valid paths.')
         expect(sessionPermissionPort.approvePermission).not.toHaveBeenCalled()
         expect(executeDeferredToolCallSpy).not.toHaveBeenCalled()
+      } finally {
+        executeDeferredToolCallSpy.mockRestore()
+      }
+    })
+
+    it('approves an agent-filesystem call that authorizes no path', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      installPendingPermission({
+        toolName: 'process',
+        params: '{"action":"kill","sessionId":"sess-1"}',
+        serverName: 'agent-filesystem',
+        permissionType: 'write',
+        shellProfile: 'posix'
+      })
+      const executeDeferredToolCallSpy = vi
+        .spyOn(DeferredToolExecutor.prototype, 'execute')
+        .mockResolvedValue({
+          responseText: 'terminal failure',
+          isError: true,
+          terminalError: 'terminal failure'
+        })
+
+      try {
+        await expect(approvePendingTool()).resolves.toEqual({ resumed: false })
+
+        // The tool authorizes no path, so the approval is granted without arming a file lease
+        // instead of being refused for lacking paths it never had.
+        expect(sessionPermissionPort.approvePermission).toHaveBeenCalledWith(
+          's1',
+          expect.not.objectContaining({ paths: expect.anything() })
+        )
+        expect(executeDeferredToolCallSpy).toHaveBeenCalled()
       } finally {
         executeDeferredToolCallSpy.mockRestore()
       }

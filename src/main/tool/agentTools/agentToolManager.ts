@@ -3205,6 +3205,48 @@ export class AgentToolManager {
     return null
   }
 
+  /**
+   * Resolves the filesystem paths an agent tool call authorizes, against the same base directory
+   * the call itself will run under. `collectWriteTargets` returns the call's own path arguments;
+   * an approval must record the targets the execution actually touches, not the raw relative
+   * strings, or an approved path and the written path can disagree.
+   */
+  async resolveApprovalPaths(
+    toolName: string,
+    args: Record<string, unknown>,
+    conversationId?: string
+  ): Promise<string[]> {
+    const targets = this.collectWriteTargets(toolName, args)
+    if (targets.length === 0 || !this.fileSystemHandler) {
+      return targets
+    }
+
+    let dynamicWorkdir: string | null = null
+    if (conversationId) {
+      try {
+        dynamicWorkdir = await this.getWorkdirForConversation(conversationId)
+      } catch (error) {
+        logger.warn('[AgentToolManager] Failed to get workdir for approval paths:', {
+          conversationId,
+          error
+        })
+      }
+    }
+
+    const explicitBaseDirectory =
+      typeof args.base_directory === 'string' && args.base_directory.trim().length > 0
+        ? args.base_directory
+        : undefined
+    const baseDirectory = explicitBaseDirectory ?? dynamicWorkdir ?? undefined
+
+    const resolved: string[] = []
+    for (const target of targets) {
+      const targetPath = this.fileSystemHandler.resolvePath(target, baseDirectory)
+      resolved.push(await this.resolvePermissionTarget(targetPath))
+    }
+    return Array.from(new Set(resolved))
+  }
+
   private requireCommandShell(commandShell?: ResolvedCommandShell): ResolvedCommandShell {
     if (!commandShell) {
       throw new Error('Agent tool requires a resolved command shell.')

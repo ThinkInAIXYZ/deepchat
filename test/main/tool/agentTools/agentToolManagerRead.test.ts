@@ -143,6 +143,27 @@ describe('AgentToolManager read routing', () => {
     )
   })
 
+  it('resolves approval paths against the base directory the call will run under', async () => {
+    await expect(
+      manager.resolveApprovalPaths('write', { path: 'note.txt' }, 'conv1')
+    ).resolves.toEqual([path.join(workspaceDir, 'note.txt')])
+
+    const skillRoot = path.join(workspaceDir, 'skills', 'demo')
+    await expect(
+      manager.resolveApprovalPaths(
+        'write',
+        { path: 'note.txt', base_directory: skillRoot },
+        'conv1'
+      )
+    ).resolves.toEqual([path.join(skillRoot, 'note.txt')])
+  })
+
+  it('resolves no approval paths for a tool that authorizes none', async () => {
+    await expect(
+      manager.resolveApprovalPaths('process', { action: 'kill', sessionId: 'sess-1' }, 'conv1')
+    ).resolves.toEqual([])
+  })
+
   it('fails closed before filesystem execution or pre-check without a shell spec', async () => {
     await expect(
       callToolWithoutCommandShell('read', { path: 'note.txt' }, 'conv1')

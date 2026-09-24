@@ -357,6 +357,31 @@ describe('RunLifecycleCoordinator', () => {
     expect(revoke).toHaveBeenCalledWith(SESSION_ID)
   })
 
+  it('settles a generating session that nothing owns when it is stopped', async () => {
+    const { coordinator, pendingInputWakeup, terminalObserver } = createHarness()
+    const scope = coordinator.getOrCreateScope(SESSION_ID)
+    scope.instance.setRuntimeState(createState('generating'))
+    vi.spyOn(toolSurface, 'revokeToolSurfaceDeferredDispatchesForSession')
+
+    await coordinator.cancel(SESSION_ID)
+    await flushPromises()
+
+    expect(scope.state()?.status).toBe('idle')
+    expect(terminalObserver.observeTerminal).toHaveBeenCalledOnce()
+    expect(pendingInputWakeup.drain).toHaveBeenCalledWith(SESSION_ID, 'completed')
+  })
+
+  it('leaves a generating session alone while a run still owns it', () => {
+    const { coordinator, terminalObserver } = createHarness()
+    const scope = coordinator.getOrCreateScope(SESSION_ID)
+    scope.instance.setRuntimeState(createState('generating'))
+    coordinator.registerRun(scope, createRun(SESSION_ID, 'run-live', 'message-live'))
+
+    expect(coordinator.settleOrphanedInteraction(SESSION_ID, null)).toBe(false)
+    expect(scope.state()?.status).toBe('generating')
+    expect(terminalObserver.observeTerminal).not.toHaveBeenCalled()
+  })
+
   it('preserves pending interaction order across assistant messages', () => {
     const first = createMessage('message-1', [
       createPendingAction('tool-1'),

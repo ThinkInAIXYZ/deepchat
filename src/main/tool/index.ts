@@ -1200,6 +1200,28 @@ export class ToolService implements ToolServicePort {
     )
   }
 
+  /**
+   * Resolves the filesystem paths an agent tool call authorizes so an approval can record the
+   * targets the execution will actually touch.
+   */
+  async resolveAgentToolApprovalPaths(
+    request: MCPToolCall,
+    options?: MainProcessToolPreCheckOptions
+  ): Promise<string[]> {
+    const toolName = request.function.name
+    if (
+      !this.agentToolManager ||
+      this.getToolSource(toolName, request.conversationId) !== 'agent'
+    ) {
+      return []
+    }
+    const args = this.parseAgentToolArguments(request.function.arguments, toolName)
+    return await awaitWithAbort(
+      this.agentToolManager.resolveApprovalPaths(toolName, args, request.conversationId),
+      options?.signal
+    )
+  }
+
   private resolveAgentToolResponse(response: AgentToolCallResult | string): AgentToolCallResult {
     if (typeof response === 'string') {
       return { content: response }

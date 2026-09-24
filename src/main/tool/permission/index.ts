@@ -5,6 +5,14 @@ export {
 } from './commandPermissionService'
 export { CommandPermissionCache } from './commandPermissionCache'
 export { FilePermissionService, FilePermissionRequiredError } from './filePermissionService'
+export {
+  collectAgentToolApprovalPaths,
+  requiresAgentToolApprovalPaths,
+  requiresAgentToolApprovalShellProfile,
+  resolveAgentToolReview,
+  type AgentToolReviewDecision,
+  type AgentToolReviewScope
+} from './agentToolReviewPolicy'
 export { SettingsPermissionService } from './settingsPermissionService'
 export {
   ToolPermissionBroker,

@@ -282,7 +282,17 @@ export class RunLifecycleCoordinator {
     instance.abortDeferredToolCalls()
     this.cancelProviderPermissions(instance)
 
-    if (hasAsyncSettlementOwner || pendingInteractions.length === 0) {
+    if (hasAsyncSettlementOwner) {
+      return
+    }
+    if (pendingInteractions.length === 0) {
+      // Nothing owns the turn and no approval can resume it. A session left non-idle here cannot be
+      // ended by any other path, so publish the terminal state instead of reporting a stop that
+      // changed nothing.
+      if (this.currentState(sessionId)?.status !== 'idle') {
+        this.settleOrphanedInteraction(sessionId, null)
+        this.schedulePendingInputDrain(sessionId, 'completed')
+      }
       return
     }
 
@@ -298,15 +308,22 @@ export class RunLifecycleCoordinator {
       }
     })
     for (const { messageId, terminalMetadata } of terminalMessages) {
-      this.writeCanceledTerminalBlock(sessionId, messageId, JSON.stringify(terminalMetadata))
+      this.writeTerminalErrorBlock(
+        sessionId,
+        messageId,
+        'common.error.userCanceledGeneration',
+        JSON.stringify(terminalMetadata)
+      )
     }
     instance.replacePendingInteractions([])
     const primaryTerminal = terminalMessages[0]
-    this.observeAbortedTurn(
-      sessionId,
-      primaryTerminal.terminalMetadata.runId,
-      JSON.stringify(primaryTerminal.terminalMetadata)
-    )
+    this.settleInterruptedTurn(sessionId, {
+      messageId: null,
+      errorMessage: 'common.error.userCanceledGeneration',
+      stopReason: 'user_stop',
+      runId: primaryTerminal.terminalMetadata.runId,
+      metadata: JSON.stringify(primaryTerminal.terminalMetadata)
+    })
     this.schedulePendingInputDrain(sessionId, 'completed')
   }
 
@@ -374,21 +391,69 @@ export class RunLifecycleCoordinator {
     runId?: string,
     metadata?: string
   ): void {
-    this.writeCanceledTerminalBlock(sessionId, messageId, metadata)
-    this.observeAbortedTurn(sessionId, runId, metadata)
+    this.settleInterruptedTurn(sessionId, {
+      messageId,
+      errorMessage: 'common.error.userCanceledGeneration',
+      stopReason: 'user_stop',
+      runId,
+      metadata
+    })
   }
 
-  private observeAbortedTurn(sessionId: string, runId?: string, metadata?: string): void {
-    const usage = metadata ? buildUsageFromMetadata(parseMessageMetadata(metadata)) : undefined
+  /**
+   * Settles a turn whose pending interaction was closed without a decision. The approval can no
+   * longer resume the turn, so a session left non-idle here has no other way out: stop would be a
+   * silent no-op and queued input would never drain. Declines to act while anything still owns the
+   * turn, so a live run or a newer replacement operation is never settled out from under itself.
+   */
+  settleOrphanedInteraction(
+    sessionId: string,
+    messageId: string | null,
+    metadata?: string
+  ): boolean {
+    const scope = this.getHydratedScope(sessionId)
+    if (!scope) {
+      return false
+    }
+    if (scope.instance.getActiveGeneration() || scope.instance.getAbortController()) {
+      return false
+    }
+    if (scope.instance.getPendingInteractions().length > 0) {
+      return false
+    }
+
+    this.settleInterruptedTurn(sessionId, {
+      messageId,
+      errorMessage: 'common.error.sessionInterrupted',
+      stopReason: 'interaction',
+      metadata
+    })
+    return true
+  }
+
+  private settleInterruptedTurn(
+    sessionId: string,
+    input: {
+      messageId: string | null
+      errorMessage: string
+      stopReason: string
+      runId?: string
+      metadata?: string
+    }
+  ): void {
+    this.writeTerminalErrorBlock(sessionId, input.messageId, input.errorMessage, input.metadata)
+    const usage = input.metadata
+      ? buildUsageFromMetadata(parseMessageMetadata(input.metadata))
+      : undefined
     this.observeTerminal(sessionId, {
       status: 'aborted',
-      stopReason: 'user_stop',
-      errorMessage: 'common.error.userCanceledGeneration',
+      stopReason: input.stopReason,
+      errorMessage: input.errorMessage,
       usage
     })
 
     const scope = this.getHydratedScope(sessionId)
-    if (scope && this.canSettleAbortedRun(scope, runId)) {
+    if (scope && this.canSettleAbortedRun(scope, input.runId)) {
       this.ports.statusPublisher.transition(scope, 'idle', usage)
     }
   }
@@ -427,9 +492,10 @@ export class RunLifecycleCoordinator {
     return this.getHydratedScope(sessionId)?.state()
   }
 
-  private writeCanceledTerminalBlock(
+  private writeTerminalErrorBlock(
     sessionId: string,
     messageId: string | null,
+    errorMessage: string,
     metadata?: string
   ): void {
     if (!messageId) {
@@ -441,7 +507,7 @@ export class RunLifecycleCoordinator {
     }
     const blocks = buildTerminalErrorBlocks(
       parseAssistantBlocks(assistantMessage.content),
-      'common.error.userCanceledGeneration'
+      errorMessage
     )
     this.ports.transcript.setMessageError(messageId, blocks, metadata)
     this.ports.messageProjection.refresh(sessionId, messageId)
