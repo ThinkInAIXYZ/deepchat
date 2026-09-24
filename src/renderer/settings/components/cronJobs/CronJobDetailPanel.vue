@@ -781,24 +781,26 @@ const presetOptions = computed(() => [
 ])
 
 /**
- * The expression the user last chose the `custom` preset for, or null. A cron expression cannot
- * express `custom`: choosing it keeps the current expression, which `describeCronSchedule` then
- * classifies back to its preset kind, so the select would reset itself. Scoping the choice to the
- * expression it was made for drops it again as soon as that expression changes — by typing a new
- * one, or by switching tasks.
+ * Whether the user selected the `custom` preset and has not moved the edit on since. A cron
+ * expression cannot express `custom`: choosing it keeps the current expression, which
+ * `describeCronSchedule` then classifies back to its preset kind, so the select would reset itself.
+ * The selection is dropped as soon as it stops describing the edit in front of the user — another
+ * task, a new draft, or a different expression.
  */
-const customScheduleExpr = ref<string | null>(null)
+const customPresetSelected = ref(false)
 
 const presetKind = computed(() =>
-  schedule.value.kind !== 'custom' && customScheduleExpr.value === schedule.value.cronExpr
-    ? 'custom'
-    : schedule.value.kind
+  customPresetSelected.value && schedule.value.kind !== 'custom' ? 'custom' : schedule.value.kind
 )
+
+watch([() => props.mode, () => props.job?.id, () => draft.value?.cronExpr], () => {
+  customPresetSelected.value = false
+})
 
 const onPresetChange = (value: string) => {
   const kind = value as CronScheduleKind
   const next = changeScheduleKind(schedule.value, kind, schedule.value.cronExpr)
-  customScheduleExpr.value = kind === 'custom' ? schedule.value.cronExpr : null
+  customPresetSelected.value = kind === 'custom'
   patchDraft({ cronExpr: next.cronExpr })
 }
 

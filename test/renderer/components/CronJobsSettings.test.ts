@@ -204,8 +204,8 @@ const dropdownActionItemStub = defineComponent({
 
 /**
  * The real menu renders its content only while it is open. A passthrough stub would always render
- * the actions, letting a test click an item whose trigger never worked, so these stubs keep the
- * open state and a click on the trigger is what reveals the content.
+ * the actions, letting a test click an item whose trigger never worked, so the trigger is what
+ * toggles the shared open state and the content only renders once it has.
  */
 const DROPDOWN_MENU_OPEN = Symbol('dropdownMenuOpen')
 
@@ -213,22 +213,24 @@ const dropdownMenuStub = defineComponent({
   name: 'DropdownMenu',
   inheritAttrs: false,
   setup() {
-    const open = ref(false)
-    provide(DROPDOWN_MENU_OPEN, open)
-    return {
-      toggleOpen: () => {
-        open.value = !open.value
-      }
-    }
+    provide(DROPDOWN_MENU_OPEN, ref(false))
   },
-  template: '<div v-bind="$attrs" @click="toggleOpen"><slot /></div>'
+  template: '<div v-bind="$attrs"><slot /></div>'
 })
 
 const dropdownMenuTriggerStub = defineComponent({
   name: 'DropdownMenuTrigger',
   inheritAttrs: false,
   props: { asChild: Boolean },
-  template: '<span v-bind="$attrs"><slot /></span>'
+  setup() {
+    const open = inject(DROPDOWN_MENU_OPEN, ref(false))
+    return {
+      toggleOpen: () => {
+        open.value = !open.value
+      }
+    }
+  },
+  template: '<span v-bind="$attrs" @click="toggleOpen"><slot /></span>'
 })
 
 const dropdownMenuContentStub = defineComponent({
@@ -716,6 +718,44 @@ describe('CronJobsSettings', () => {
     await flushPromises()
 
     expect(presetSelect().props('modelValue')).toBe('weekly')
+
+    // Restoring an expression must not resurrect the selection that was made for it earlier.
+    await cronInput().setValue('0 9 * * *')
+    await flushPromises()
+
+    expect(presetSelect().props('modelValue')).toBe('daily')
+  })
+
+  it('drops the custom preset when the edited task changes', async () => {
+    const twinJob: CronJob = {
+      ...cloneJob(),
+      id: 'job-2',
+      name: 'Twin report',
+      createdAt: 1_100,
+      updatedAt: 1_100
+    }
+    const { wrapper } = await setup({
+      list: async () => ({ jobs: [cloneJob(), twinJob], schedulerStatus: cloneStatus() })
+    })
+
+    await wrapper.get('[data-testid="cron-job-edit"]').trigger('click')
+    await flushPromises()
+
+    const presetSelect = () => wrapper.getComponent('[data-testid="cron-job-preset-select"]')
+    await presetSelect().setValue('custom')
+    await flushPromises()
+    expect(presetSelect().props('modelValue')).toBe('custom')
+
+    // The twin shares the expression, but the selection belonged to the first task.
+    await wrapper.get('[data-job-id="job-2"] [data-testid="cron-job-select"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="cron-job-edit"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="cron-job-name-input"]').attributes('value')).toBe(
+      'Twin report'
+    )
+    expect(presetSelect().props('modelValue')).toBe('daily')
   })
 
   it('protects an unsaved draft when switching tasks and restores it on discard', async () => {
