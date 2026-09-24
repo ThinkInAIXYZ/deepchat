@@ -190,6 +190,11 @@ export function sanitizeAggregateJson(json) {
         if (typeof effort === 'string' && REASONING_EFFORT_VALUES.includes(effort)) {
           rs.effort = effort
         }
+        const effortOptions = sanitizeReasoningOptions(
+          r.reasoning_options ?? r.effort_options,
+          REASONING_EFFORT_VALUES
+        )
+        if (effortOptions) rs.effort_options = effortOptions
         const verbosity = r.verbosity
         if (typeof verbosity === 'string' && ['low', 'medium', 'high'].includes(verbosity)) {
           rs.verbosity = verbosity

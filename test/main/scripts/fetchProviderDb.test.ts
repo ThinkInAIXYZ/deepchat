@@ -64,4 +64,28 @@ describe('fetch-provider-db', () => {
     ])
     expect(sanitized?.providers.openai.models[6].default_tool_mode).toBeUndefined()
   })
+
+  it('preserves upstream reasoning options as effort options', () => {
+    const sanitized = sanitizeAggregateJson({
+      providers: {
+        zhipu: {
+          id: 'zhipu',
+          models: [
+            {
+              id: 'glm-5.3',
+              reasoning: {
+                supported: true,
+                reasoning_options: ['low', 'high', 'max', 'unsupported']
+              }
+            }
+          ]
+        }
+      }
+    })
+
+    expect(sanitized?.providers.zhipu.models[0].reasoning).toEqual({
+      supported: true,
+      effort_options: ['low', 'high', 'max']
+    })
+  })
 })
