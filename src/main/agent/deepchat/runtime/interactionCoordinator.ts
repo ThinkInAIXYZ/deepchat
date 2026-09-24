@@ -71,10 +71,16 @@ import {
   resolveDeferredToolSurfaceDispatch
 } from './deferredToolSurface'
 import { CommandShellProfileSchema } from '@shared/commandShell'
-import { isCommandSignatureForProfile } from '@/tool/permission'
+import { isAgentToolPathBearing, isCommandSignatureForProfile } from '@/tool/permission'
 
 const DEFERRED_INTERACTION_PARKED_ERROR =
   'Execution is parked after its durable dispatch boundary and will not be retried automatically.'
+
+/**
+ * Recorded when a pending approval is closed because it could not be resolved. Deliberately distinct
+ * from the denial text: a failed interaction must never be persisted as a user decision.
+ */
+const DISMISSED_INTERACTION_RESPONSE = 'The request was closed without a user decision.'
 
 type DeferredPermissionGrant = {
   serverName: string
@@ -95,6 +101,7 @@ type InteractionRunLifecyclePort = Pick<
   | 'schedulePendingInputDrain'
   | 'scopeFor'
   | 'settleAbortedTurn'
+  | 'settleOrphanedInteraction'
   | 'transitionStatus'
 >
 
@@ -749,9 +756,13 @@ export class InteractionCoordinator {
 
   /**
    * Closes a stale pending interaction (permission/question) whose backing run
-   * can no longer resolve it. The block is marked denied/resolved in the
-   * transcript so the approval does not linger across session reloads or block
-   * new turns. No tool executes and no run resumes.
+   * can no longer resolve it. The block is marked resolved in the transcript so
+   * the approval does not linger across session reloads or block new turns. No
+   * tool executes and no run resumes.
+   *
+   * Closing the last approval of a turn also settles that turn: the transcript is
+   * resolved, but without a terminal state the session would stay `generating`
+   * forever with nothing left able to resume or stop it.
    */
   async dismiss(sessionId: string, messageId: string, toolCallId: string): Promise<boolean> {
     const message = await this.ports.messageStore.getMessage(messageId)
@@ -771,7 +782,10 @@ export class InteractionCoordinator {
     if (actionBlock.action_type === 'tool_call_permission') {
       const permissionType = parsePermissionPayload(actionBlock)?.permissionType ?? 'write'
       markPermissionResolved(actionBlock, false, permissionType)
-      updateToolCallResponse(blocks, toolCallId, 'User denied the request.', true)
+      // The approval is closed without a decision, so neither the transcript nor the model may read
+      // it as a denial the user never made.
+      actionBlock.content = DISMISSED_INTERACTION_RESPONSE
+      updateToolCallResponse(blocks, toolCallId, DISMISSED_INTERACTION_RESPONSE, true)
     } else if (actionBlock.action_type === 'question_request') {
       markQuestionResolved(actionBlock, '')
       updateToolCallResponse(blocks, toolCallId, 'Question dismissed.', false)
@@ -801,6 +815,9 @@ export class InteractionCoordinator {
         (pending) => pending.messageId !== messageId || pending.toolCallId !== toolCallId
       )
     )
+    if (this.ports.runLifecycle.settleOrphanedInteraction(sessionId, messageId, metadataJson)) {
+      this.ports.runLifecycle.schedulePendingInputDrain(sessionId, 'completed')
+    }
     return true
   }
 
@@ -1023,11 +1040,16 @@ export class InteractionCoordinator {
       if (!parsedProfile.success) {
         throw new Error('File approval is missing a valid shell profile.')
       }
-      if (
-        !Array.isArray(payload.paths) ||
-        payload.paths.length === 0 ||
-        payload.paths.some((filePath) => typeof filePath !== 'string' || !filePath.trim())
-      ) {
+      const declaredPaths = Array.isArray(payload.paths) ? payload.paths : []
+      const validPaths = declaredPaths.filter(
+        (filePath): filePath is string => typeof filePath === 'string' && filePath.trim().length > 0
+      )
+      if (validPaths.length !== declaredPaths.length) {
+        throw new Error('File approval is missing valid paths.')
+      }
+      // Only a path-scoped tool authorizes paths. A tool that manages no path at all is approved
+      // without arming a file lease, instead of being refused for lacking paths it never had.
+      if (isAgentToolPathBearing(toolName) && validPaths.length === 0) {
         throw new Error('File approval is missing valid paths.')
       }
       const grant = await this.grantNonCommandPermission(sessionId, {
@@ -1037,7 +1059,7 @@ export class InteractionCoordinator {
             : 'write',
         serverName,
         toolName,
-        paths: payload.paths,
+        ...(validPaths.length > 0 ? { paths: validPaths } : {}),
         shellProfile: parsedProfile.data
       })
       return { serverName, lease: grant.lease }

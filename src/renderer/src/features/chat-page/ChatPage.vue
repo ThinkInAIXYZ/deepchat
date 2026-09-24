@@ -1346,7 +1346,15 @@ const {
   loadMessagesForSession,
   applyRestoredSessionSummary,
   currentRestoreRequestId,
-  canWriteSessionView
+  canWriteSessionView,
+  onResponseFailed: () => {
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.toolInteraction.responseFailed',
+      title: t('components.messageBlockPermissionRequest.title'),
+      description: t('common.error.operationFailed')
+    })
+  }
 })
 
 async function onToolInteractionRespond(response: ToolInteractionResponse) {
