@@ -115,18 +115,18 @@
                   {{ formatTimestamp(schedulerStatus?.updatedAt ?? null) }}
                 </dd>
               </dl>
-              <DcButton
-                v-if="schedulerDetailsOpen"
-                variant="outline"
-                size="sm"
-                class="mt-2 w-full"
-                :disabled="restartingScheduler || pageOperationPending || runtimeActionPending"
-                @click="restartScheduler"
-              >
-                <Spinner v-if="restartingScheduler" class="mr-1 size-3.5" />
-                <Icon v-else icon="lucide:rotate-cw" class="mr-1 size-3.5" />
-                {{ t('settings.cronJobs.actions.restart') }}
-              </DcButton>
+              <div v-if="schedulerDetailsOpen" class="mt-2 flex justify-end">
+                <DcButton
+                  data-testid="cron-jobs-restart"
+                  variant="outline"
+                  size="icon-sm"
+                  icon="lucide:rotate-cw"
+                  :loading="restartingScheduler"
+                  :disabled="restartingScheduler || pageOperationPending || runtimeActionPending"
+                  :tooltip="t('settings.cronJobs.actions.restart')"
+                  @click="restartScheduler"
+                />
+              </div>
             </div>
 
             <div

@@ -48,25 +48,23 @@
             <DcButton
               data-testid="cron-job-run-now"
               variant="outline"
-              size="sm"
+              size="icon-sm"
               icon="lucide:play"
               :loading="runningNow"
               :disabled="busy || runningNow"
-              :title="t('settings.cronJobs.actions.runNow')"
+              :tooltip="t('settings.cronJobs.actions.runNow')"
               :aria-label="`${t('settings.cronJobs.actions.runNow')}: ${job.name}`"
               @click="emit('runNow')"
-            >
-              {{ t('settings.cronJobs.actions.runNow') }}
-            </DcButton>
+            />
             <DcButton
               data-testid="cron-job-edit"
-              size="sm"
+              size="icon-sm"
               icon="lucide:pencil"
               :disabled="busy"
+              :tooltip="t('common.edit')"
+              :aria-label="`${t('common.edit')}: ${job.name}`"
               @click="emit('edit')"
-            >
-              {{ t('common.edit') }}
-            </DcButton>
+            />
             <DcButton
               data-testid="cron-job-detail-delete"
               variant="ghost"
@@ -85,14 +83,13 @@
               v-if="mode === 'edit'"
               data-testid="cron-job-editor-delete"
               variant="outline"
-              size="sm"
+              size="icon-sm"
               icon="lucide:trash-2"
               class="text-destructive"
               :disabled="busy"
+              :tooltip="t('common.delete')"
               @click="emit('delete')"
-            >
-              {{ t('common.delete') }}
-            </DcButton>
+            />
             <DcButton
               data-testid="cron-job-editor-cancel"
               variant="outline"

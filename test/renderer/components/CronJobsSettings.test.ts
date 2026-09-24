@@ -938,7 +938,7 @@ describe('CronJobsSettings', () => {
 
     await wrapper.get('[data-testid="cron-jobs-scheduler-details"]').trigger('click')
     await flushPromises()
-    await findButtonByText(wrapper, 'Restart').trigger('click')
+    await wrapper.get('[data-testid="cron-jobs-restart"]').trigger('click')
     await flushPromises()
 
     expect(notifyRenderer).toHaveBeenCalledWith({
