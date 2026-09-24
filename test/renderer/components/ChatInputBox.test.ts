@@ -27,6 +27,8 @@ const removeSessionActiveSkillMock = vi.fn().mockResolvedValue(undefined)
 const notifyRendererMock = vi.hoisted(() => vi.fn())
 const closeDialogMock = vi.fn()
 const getOcrRuntimeStatusMock = vi.fn()
+const isSuggestionMenuOpenRef = ref(false)
+const hasSelectableSuggestionsRef = ref(false)
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void
@@ -42,7 +44,8 @@ const useChatInputMentionsMock = vi.fn((_options?: unknown) => ({
   dialogState: ref(null),
   submitDialog: vi.fn(),
   closeDialog: closeDialogMock,
-  isSuggestionMenuOpen: ref(false),
+  isSuggestionMenuOpen: isSuggestionMenuOpenRef,
+  hasSelectableSuggestions: hasSelectableSuggestionsRef,
   suggestionAttributes: ref({}),
   shouldSuppressSubmit: vi.fn(() => false)
 }))
@@ -257,6 +260,8 @@ describe('ChatInputBox attachments', () => {
     mockEditorText = ''
     closeDialogMock.mockClear()
     getOcrRuntimeStatusMock.mockReset()
+    isSuggestionMenuOpenRef.value = false
+    hasSelectableSuggestionsRef.value = false
     Object.assign(((window as any).api ??= {}), {
       toRelativePath: vi.fn((filePath: string, basePath?: string) => {
         if (typeof filePath !== 'string' || typeof basePath !== 'string') {
@@ -855,6 +860,43 @@ describe('ChatInputBox attachments', () => {
     }
     expect(wrapper.emitted('submit')).toBeUndefined()
     expect(wrapper.emitted('queue-submit')).toBeUndefined()
+  })
+
+  it('submits on Enter while the suggestion menu has nothing to select', async () => {
+    const wrapper = await mountComponent()
+    isSuggestionMenuOpenRef.value = true
+    hasSelectableSuggestionsRef.value = false
+
+    await wrapper.get('[data-testid="chat-input-editor"]').trigger('keydown', {
+      key: 'Enter'
+    })
+
+    expect(wrapper.emitted('submit')).toHaveLength(1)
+  })
+
+  it('defers Enter to the suggestion menu while it has selectable items', async () => {
+    const wrapper = await mountComponent()
+    isSuggestionMenuOpenRef.value = true
+    hasSelectableSuggestionsRef.value = true
+
+    await wrapper.get('[data-testid="chat-input-editor"]').trigger('keydown', {
+      key: 'Enter'
+    })
+
+    expect(wrapper.emitted('submit')).toBeUndefined()
+  })
+
+  it('queues on Tab while the suggestion menu has nothing to select', async () => {
+    const wrapper = await mountComponent()
+    await wrapper.setProps({ queueSubmitEnabled: true, queueSubmitDisabled: false })
+    isSuggestionMenuOpenRef.value = true
+    hasSelectableSuggestionsRef.value = false
+
+    await wrapper.get('[data-testid="chat-input-editor"]').trigger('keydown', {
+      key: 'Tab'
+    })
+
+    expect(wrapper.emitted('queue-submit')).toEqual([[]])
   })
 
   it('emits queue-submit on Tab only when queue submit is available', async () => {

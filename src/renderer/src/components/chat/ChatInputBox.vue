@@ -707,7 +707,7 @@ function handleKeydown(e: KeyboardEvent) {
 
   const isPlainTab = e.key === 'Tab' && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey
   if (isPlainTab && props.queueSubmitEnabled && !props.queueSubmitDisabled) {
-    if (mentions.isSuggestionMenuOpen.value || mentions.shouldSuppressSubmit()) {
+    if (mentions.hasSelectableSuggestions.value || mentions.shouldSuppressSubmit()) {
       return
     }
     e.preventDefault()
@@ -719,7 +719,7 @@ function handleKeydown(e: KeyboardEvent) {
     return
   }
 
-  if (mentions.isSuggestionMenuOpen.value || mentions.shouldSuppressSubmit()) {
+  if (mentions.hasSelectableSuggestions.value || mentions.shouldSuppressSubmit()) {
     return
   }
 
