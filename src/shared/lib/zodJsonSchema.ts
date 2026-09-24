@@ -11,28 +11,56 @@ export interface DeepChatJsonSchemaObject {
 }
 
 const INTERSECTION_SCHEMA_ERROR =
-  'DeepChat tool schemas cannot safely represent intersection object schemas.'
+  'DeepChat tool schema intersection has unsupported or conflicting constraints.'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const isNullSchema = (value: unknown): boolean => isRecord(value) && value.type === 'null'
 
-// zod >= 4.5 merges compatible intersections into a single object schema and
-// only emits `allOf` for conflicting (unrepresentable) branches, possibly nested
-// inside properties. Any `allOf` in the emitted schema means the tool input
-// cannot be safely flattened, so reject it.
-const containsAllOf = (value: unknown): boolean => {
+// Zod can leave compatible scalar constraints in allOf, including inside merged
+// object intersections. Flatten only when no keyword would be overwritten.
+const flattenIntersections = (value: unknown): void => {
   if (Array.isArray(value)) {
-    return value.some(containsAllOf)
+    value.forEach(flattenIntersections)
+    return
   }
   if (!isRecord(value)) {
-    return false
+    return
   }
-  if (Array.isArray(value.allOf)) {
-    return true
+
+  // Visit schema positions, not literal values in default, examples, const or enum.
+  for (const key of ['properties', 'patternProperties', '$defs', 'definitions']) {
+    if (isRecord(value[key])) {
+      Object.values(value[key]).forEach(flattenIntersections)
+    }
   }
-  return Object.values(value).some(containsAllOf)
+  for (const key of [
+    'items',
+    'prefixItems',
+    'additionalProperties',
+    'propertyNames',
+    'anyOf',
+    'oneOf',
+    'allOf'
+  ]) {
+    flattenIntersections(value[key])
+  }
+
+  if (!Array.isArray(value.allOf)) return
+
+  for (const branch of value.allOf) {
+    if (!isRecord(branch) || !['string', 'number', 'integer'].includes(String(branch.type))) {
+      throw new Error(INTERSECTION_SCHEMA_ERROR)
+    }
+    for (const [key, constraint] of Object.entries(branch)) {
+      if (Object.hasOwn(value, key) && JSON.stringify(value[key]) !== JSON.stringify(constraint)) {
+        throw new Error(INTERSECTION_SCHEMA_ERROR)
+      }
+      value[key] = constraint
+    }
+  }
+  delete value.allOf
 }
 
 const objectVariants = (value: unknown): Record<string, unknown>[] | null => {
@@ -190,9 +218,7 @@ export function toDeepChatJsonSchema(schema: z.ZodType): DeepChatJsonSchemaObjec
     unrepresentable: 'throw'
   }) as Record<string, unknown>
 
-  if (containsAllOf(jsonSchema)) {
-    throw new Error(INTERSECTION_SCHEMA_ERROR)
-  }
+  flattenIntersections(jsonSchema)
 
   if (jsonSchema.type === 'object' && isRecord(jsonSchema.properties)) {
     const required = collectRequired(jsonSchema)
