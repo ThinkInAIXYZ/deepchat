@@ -318,6 +318,7 @@ const chatInputRef = ref<
       getInlineItemsSnapshot?: () => UserMessageInlineItem[]
       focusInput?: () => void
       focusAndInsertText?: (text: string) => void
+      focusAndPaste?: (event: ClipboardEvent) => void
     })
   | null
 >(null)

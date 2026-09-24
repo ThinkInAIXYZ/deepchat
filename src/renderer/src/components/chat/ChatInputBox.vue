@@ -911,6 +911,32 @@ function focusInput() {
   setCaretToEnd(editor)
 }
 
+function focusAndPaste(event: ClipboardEvent) {
+  const data = event.clipboardData
+  if (!props.editable || event.defaultPrevented || !data) {
+    return
+  }
+
+  const text = data.getData('text/plain') || data.getData('text/uri-list').replace(/\r?\n/g, ' ')
+  const html = data.getData('text/html')
+  if (!data.files.length && !text && !html) {
+    return
+  }
+
+  focusInput()
+  onPaste(event)
+
+  // The event targets the page, so focusing alone cannot run the editor's paste handler.
+  if (!event.defaultPrevented) {
+    if (html) {
+      editor.view.pasteHTML(html, event)
+    } else if (text) {
+      editor.view.pasteText(text, event)
+    }
+    event.preventDefault()
+  }
+}
+
 /**
  * Focuses the composer and types `text` at the end of the existing draft.
  *
@@ -941,6 +967,7 @@ defineExpose({
   getDocumentSnapshot,
   restoreDocumentSnapshot,
   focusInput,
+  focusAndPaste,
   focusAndInsertText
 })
 </script>

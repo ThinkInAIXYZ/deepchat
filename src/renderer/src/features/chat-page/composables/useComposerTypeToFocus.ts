@@ -6,6 +6,7 @@ import { resolveComposerTypeToFocusIntent } from '../model/typeToFocus'
 export type ComposerTypeToFocusHandle = {
   focusInput?: () => void
   focusAndInsertText?: (text: string) => void
+  focusAndPaste?: (event: ClipboardEvent) => void
 }
 
 type UseComposerTypeToFocusOptions = {
@@ -15,7 +16,7 @@ type UseComposerTypeToFocusOptions = {
 }
 
 /**
- * Routes the first keystroke of a window-level typing session into the composer.
+ * Routes typing and paste from the page into the composer.
  *
  * Owns its own window listener instead of joining `useChatPageEventBridge`
  * because the new-thread page has no event bridge but needs the same behavior.
@@ -23,6 +24,21 @@ type UseComposerTypeToFocusOptions = {
  * scope.
  */
 export function useComposerTypeToFocus(options: UseComposerTypeToFocusOptions): void {
+  useEventListener(window, 'paste', (event: ClipboardEvent) => {
+    // Chromium can target the DOM selection inside an unfocused button after a blank-area click.
+    const activeElement = document.activeElement
+    if (
+      event.defaultPrevented ||
+      !options.isEnabled() ||
+      isEditableKeyboardTarget(activeElement) ||
+      hasInteractiveKeyboardFocus(activeElement)
+    ) {
+      return
+    }
+
+    options.chatInputRef.value?.focusAndPaste?.(event)
+  })
+
   useEventListener(window, 'keydown', (event: KeyboardEvent) => {
     const intent = resolveComposerTypeToFocusIntent(event, {
       isEnabled: options.isEnabled(),

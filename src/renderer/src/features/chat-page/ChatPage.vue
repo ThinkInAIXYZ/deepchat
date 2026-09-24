@@ -1318,6 +1318,7 @@ function handleWindowKeydown(event: KeyboardEvent) {
 const chatInputRef = ref<{
   triggerAttach: () => void
   focusInput?: () => void
+  focusAndPaste?: (event: ClipboardEvent) => void
   insertRecognizedText?: (text: string) => void
   insertWorkspaceReference?: (targetPath: string) => boolean
   getInlineItemsSnapshot?: () => UserMessageInlineItem[]
