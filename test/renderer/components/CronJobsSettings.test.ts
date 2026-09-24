@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, onMounted, onUpdated, ref } from 'vue'
+import { defineComponent, inject, onMounted, onUpdated, provide, ref } from 'vue'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import type { CronJob, CronJobRun, CronJobsSchedulerStatus } from '../../../src/shared/cronJobs'
 import type { CronJobsClient, CronJobsUpsertInput } from '../../../src/renderer/api/CronJobsClient'
@@ -200,6 +200,44 @@ const dropdownActionItemStub = defineComponent({
   emits: ['select'],
   template:
     '<button v-bind="$attrs" :disabled="disabled" @click="$emit(\'select\')">{{ label }}</button>'
+})
+
+/**
+ * The real menu renders its content only while it is open. A passthrough stub would always render
+ * the actions, letting a test click an item whose trigger never worked, so these stubs keep the
+ * open state and a click on the trigger is what reveals the content.
+ */
+const DROPDOWN_MENU_OPEN = Symbol('dropdownMenuOpen')
+
+const dropdownMenuStub = defineComponent({
+  name: 'DropdownMenu',
+  inheritAttrs: false,
+  setup() {
+    const open = ref(false)
+    provide(DROPDOWN_MENU_OPEN, open)
+    return {
+      toggleOpen: () => {
+        open.value = !open.value
+      }
+    }
+  },
+  template: '<div v-bind="$attrs" @click="toggleOpen"><slot /></div>'
+})
+
+const dropdownMenuTriggerStub = defineComponent({
+  name: 'DropdownMenuTrigger',
+  inheritAttrs: false,
+  props: { asChild: Boolean },
+  template: '<span v-bind="$attrs"><slot /></span>'
+})
+
+const dropdownMenuContentStub = defineComponent({
+  name: 'DropdownMenuContent',
+  inheritAttrs: false,
+  setup() {
+    return { open: inject(DROPDOWN_MENU_OPEN, ref(false)) }
+  },
+  template: '<div v-if="open" v-bind="$attrs"><slot /></div>'
 })
 
 const inlineErrorStub = defineComponent({
@@ -464,9 +502,9 @@ async function setup(options: SetupOptions = {}) {
         DialogFooter: passthrough('DialogFooter'),
         DialogHeader: passthrough('DialogHeader'),
         DialogTitle: passthrough('DialogTitle'),
-        DropdownMenu: passthrough('DropdownMenu'),
-        DropdownMenuContent: passthrough('DropdownMenuContent'),
-        DropdownMenuTrigger: passthrough('DropdownMenuTrigger'),
+        DropdownMenu: dropdownMenuStub,
+        DropdownMenuContent: dropdownMenuContentStub,
+        DropdownMenuTrigger: dropdownMenuTriggerStub,
         Input: inputStub,
         Label: passthrough('Label'),
         Select: selectStub,
@@ -489,8 +527,11 @@ async function setup(options: SetupOptions = {}) {
   return { wrapper, cronClient, notifyRenderer, settingsLeaveGuard }
 }
 
+const findButtonByTextOrNull = (wrapper: VueWrapper, text: string) =>
+  wrapper.findAll('button').find((entry) => entry.text() === text) ?? null
+
 const findButtonByText = (wrapper: VueWrapper, text: string) => {
-  const button = wrapper.findAll('button').find((entry) => entry.text() === text)
+  const button = findButtonByTextOrNull(wrapper, text)
   if (!button) {
     throw new Error(`Button "${text}" not found`)
   }
@@ -652,6 +693,31 @@ describe('CronJobsSettings', () => {
     ).toBe('0 9 * * 1')
   })
 
+  it('keeps the custom preset selected for an expression a preset also describes', async () => {
+    const { wrapper } = await setup()
+
+    await wrapper.get('[data-testid="cron-job-edit"]').trigger('click')
+    await flushPromises()
+
+    // The select is controlled, so its `modelValue` is what it displays.
+    const presetSelect = () => wrapper.getComponent('[data-testid="cron-job-preset-select"]')
+    const cronInput = () => wrapper.get('[data-testid="cron-job-cron-input"]')
+    expect(presetSelect().props('modelValue')).toBe('daily')
+    expect((cronInput().element as HTMLInputElement).value).toBe('0 9 * * *')
+
+    await presetSelect().setValue('custom')
+    await flushPromises()
+
+    expect(presetSelect().props('modelValue')).toBe('custom')
+    expect((cronInput().element as HTMLInputElement).value).toBe('0 9 * * *')
+
+    // Editing the expression directly leaves `custom` behind: the select describes the expression.
+    await cronInput().setValue('0 9 * * 1')
+    await flushPromises()
+
+    expect(presetSelect().props('modelValue')).toBe('weekly')
+  })
+
   it('protects an unsaved draft when switching tasks and restores it on discard', async () => {
     const secondJob: CronJob = {
       ...cloneJob(),
@@ -756,6 +822,8 @@ describe('CronJobsSettings', () => {
 
   it('deletes a task from the list menu after confirming the name', async () => {
     const { wrapper, cronClient } = await setup()
+
+    expect(findButtonByTextOrNull(wrapper, 'Delete')).toBeNull()
 
     await wrapper.get('[data-testid="cron-job-more"]').trigger('click')
     await flushPromises()

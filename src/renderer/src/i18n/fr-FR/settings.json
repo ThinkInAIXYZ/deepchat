@@ -1722,7 +1722,7 @@
       "every5Minutes": "Toutes les 5 minutes",
       "hourly": "Toutes les heures",
       "daily": "Quotidien à 09:00",
-      "weekdays": "Jours ouvrables à 09:00",
+      "weekdays": "Du lundi au vendredi à 09:00",
       "weekly": "Hebdomadaire",
       "monthly": "Mensuel"
     },
@@ -1739,7 +1739,7 @@
       "every5Minutes": "Toutes les 5 minutes",
       "hourly": "Toutes les heures à la minute {minute}",
       "daily": "Chaque jour à {time}",
-      "weekdays": "Jours ouvrables à {time}",
+      "weekdays": "Du lundi au vendredi à {time}",
       "weekly": "Chaque {weekday} à {time}",
       "monthly": "Le {day} de chaque mois à {time}"
     },

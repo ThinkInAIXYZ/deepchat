@@ -385,7 +385,7 @@
               <span class="text-sm font-medium">{{ t('settings.cronJobs.fields.preset') }}</span>
               <Select
                 data-testid="cron-job-preset-select"
-                :model-value="schedule.kind"
+                :model-value="presetKind"
                 @update:model-value="(value) => onPresetChange(String(value))"
               >
                 <SelectTrigger
@@ -783,9 +783,25 @@ const presetOptions = computed(() => [
   { value: 'custom', label: t('settings.cronJobs.presets.custom') }
 ])
 
+/**
+ * The expression the user last chose the `custom` preset for, or null. A cron expression cannot
+ * express `custom`: choosing it keeps the current expression, which `describeCronSchedule` then
+ * classifies back to its preset kind, so the select would reset itself. Scoping the choice to the
+ * expression it was made for drops it again as soon as that expression changes — by typing a new
+ * one, or by switching tasks.
+ */
+const customScheduleExpr = ref<string | null>(null)
+
+const presetKind = computed(() =>
+  schedule.value.kind !== 'custom' && customScheduleExpr.value === schedule.value.cronExpr
+    ? 'custom'
+    : schedule.value.kind
+)
+
 const onPresetChange = (value: string) => {
   const kind = value as CronScheduleKind
   const next = changeScheduleKind(schedule.value, kind, schedule.value.cronExpr)
+  customScheduleExpr.value = kind === 'custom' ? schedule.value.cronExpr : null
   patchDraft({ cronExpr: next.cronExpr })
 }
 
