@@ -371,6 +371,36 @@ describe('RunLifecycleCoordinator', () => {
     expect(pendingInputWakeup.drain).toHaveBeenCalledWith(SESSION_ID, 'completed')
   })
 
+  it('declines to settle while the transcript still holds another approval', () => {
+    const message = createMessage('message-pending', [createPendingAction('tool-1')])
+    const { coordinator, terminalObserver } = createHarness([message])
+    const scope = coordinator.getOrCreateScope(SESSION_ID)
+    scope.instance.setRuntimeState(createState('generating'))
+    // The instance queue is stale relative to the transcript: the caller closed one entry, and
+    // another message's approval is still open.
+    scope.instance.replacePendingInteractions([])
+
+    expect(coordinator.settleOrphanedInteraction(SESSION_ID, null)).toBe(false)
+    expect(scope.state()?.status).toBe('generating')
+    expect(terminalObserver.observeTerminal).not.toHaveBeenCalled()
+  })
+
+  it('leaves an error session untouched when it is stopped', async () => {
+    const { coordinator, pendingInputWakeup, terminalObserver } = createHarness()
+    const scope = coordinator.getOrCreateScope(SESSION_ID)
+    scope.instance.setRuntimeState(createState('error'))
+    vi.spyOn(toolSurface, 'revokeToolSurfaceDeferredDispatchesForSession')
+
+    await coordinator.cancel(SESSION_ID)
+    await flushPromises()
+
+    // An errored session already published its terminal state; settling it again would emit a
+    // second one and replace the error the user still needs to see.
+    expect(scope.state()?.status).toBe('error')
+    expect(terminalObserver.observeTerminal).not.toHaveBeenCalled()
+    expect(pendingInputWakeup.drain).not.toHaveBeenCalled()
+  })
+
   it('leaves a generating session alone while a run still owns it', () => {
     const { coordinator, terminalObserver } = createHarness()
     const scope = coordinator.getOrCreateScope(SESSION_ID)

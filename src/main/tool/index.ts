@@ -1217,7 +1217,9 @@ export class ToolService implements ToolServicePort {
     }
     const args = this.parseAgentToolArguments(request.function.arguments, toolName)
     return await awaitWithAbort(
-      this.agentToolManager.resolveApprovalPaths(toolName, args, request.conversationId),
+      this.agentToolManager.resolveApprovalPaths(toolName, args, request.conversationId, {
+        commandShell: options?.commandShell
+      }),
       options?.signal
     )
   }

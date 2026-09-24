@@ -71,7 +71,7 @@ import {
   resolveDeferredToolSurfaceDispatch
 } from './deferredToolSurface'
 import { CommandShellProfileSchema } from '@shared/commandShell'
-import { isCommandSignatureForProfile, requiresAgentToolApprovalPaths } from '@/tool/permission'
+import { isAgentToolPathBearing, isCommandSignatureForProfile } from '@/tool/permission'
 
 const DEFERRED_INTERACTION_PARKED_ERROR =
   'Execution is parked after its durable dispatch boundary and will not be retried automatically.'
@@ -1049,7 +1049,7 @@ export class InteractionCoordinator {
       }
       // Only a path-scoped tool authorizes paths. A tool that manages no path at all is approved
       // without arming a file lease, instead of being refused for lacking paths it never had.
-      if (requiresAgentToolApprovalPaths(toolName) && validPaths.length === 0) {
+      if (isAgentToolPathBearing(toolName) && validPaths.length === 0) {
         throw new Error('File approval is missing valid paths.')
       }
       const grant = await this.grantNonCommandPermission(sessionId, {

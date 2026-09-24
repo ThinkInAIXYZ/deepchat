@@ -286,10 +286,11 @@ export class RunLifecycleCoordinator {
       return
     }
     if (pendingInteractions.length === 0) {
-      // Nothing owns the turn and no approval can resume it. A session left non-idle here cannot be
-      // ended by any other path, so publish the terminal state instead of reporting a stop that
-      // changed nothing.
-      if (this.currentState(sessionId)?.status !== 'idle') {
+      // Nothing owns the turn and no approval can resume it. A session left `generating` here
+      // cannot be ended by any other path, so publish the terminal state instead of reporting a
+      // stop that changed nothing. An `error` session already has its terminal state; settling it
+      // again would emit a second one and replace the error with `idle`.
+      if (this.currentState(sessionId)?.status === 'generating') {
         this.settleOrphanedInteraction(sessionId, null)
         this.schedulePendingInputDrain(sessionId, 'completed')
       }
@@ -404,7 +405,8 @@ export class RunLifecycleCoordinator {
    * Settles a turn whose pending interaction was closed without a decision. The approval can no
    * longer resume the turn, so a session left non-idle here has no other way out: stop would be a
    * silent no-op and queued input would never drain. Declines to act while anything still owns the
-   * turn, so a live run or a newer replacement operation is never settled out from under itself.
+   * turn, so a live run, a newer replacement operation, or another approval is never settled out
+   * from under itself.
    */
   settleOrphanedInteraction(
     sessionId: string,
@@ -418,6 +420,10 @@ export class RunLifecycleCoordinator {
     if (scope.instance.getActiveGeneration() || scope.instance.getAbortController()) {
       return false
     }
+
+    // The caller may have closed one entry of a queue that is stale relative to the transcript.
+    // Rebuild it before deciding, or another message's approval would be settled along with it.
+    this.refreshPendingInteractions(sessionId)
     if (scope.instance.getPendingInteractions().length > 0) {
       return false
     }

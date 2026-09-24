@@ -6,8 +6,7 @@ export {
 export { CommandPermissionCache } from './commandPermissionCache'
 export { FilePermissionService, FilePermissionRequiredError } from './filePermissionService'
 export {
-  collectAgentToolApprovalPaths,
-  requiresAgentToolApprovalPaths,
+  isAgentToolPathBearing,
   requiresAgentToolApprovalShellProfile,
   resolveAgentToolReview,
   type AgentToolReviewDecision,

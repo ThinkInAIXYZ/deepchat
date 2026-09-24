@@ -158,6 +158,18 @@ describe('AgentToolManager read routing', () => {
     ).resolves.toEqual([path.join(skillRoot, 'note.txt')])
   })
 
+  it('resolves approval paths against the call workspace, not the last synced one', async () => {
+    const otherWorkspace = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-other-'))
+    manager.syncContext({ chatMode: 'agent', agentWorkspacePath: otherWorkspace })
+    resolveConversationWorkdir.mockResolvedValue(null)
+
+    const resolved = await manager.resolveApprovalPaths('write', { path: 'note.txt' }, 'conv1')
+
+    expect(resolved).toHaveLength(1)
+    expect(resolved[0]).not.toContain(otherWorkspace)
+    expect(resolved[0]).toContain(path.join('deepchat-agent', 'workspaces'))
+  })
+
   it('resolves no approval paths for a tool that authorizes none', async () => {
     await expect(
       manager.resolveApprovalPaths('process', { action: 'kill', sessionId: 'sess-1' }, 'conv1')

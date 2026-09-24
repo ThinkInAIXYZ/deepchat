@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { TOOL_EXECUTION } from '@shared/types/core/mcp'
 import {
-  collectAgentToolApprovalPaths,
-  requiresAgentToolApprovalPaths,
+  isAgentToolPathBearing,
   requiresAgentToolApprovalShellProfile,
   resolveAgentToolReview
 } from '@/tool/permission/agentToolReviewPolicy'
@@ -21,35 +20,30 @@ describe('agent tool review policy', () => {
       expect(decision).toMatchObject({
         reviewed: true,
         scope: 'tool',
-        permissionType: 'write',
-        paths: []
+        permissionType: 'write'
       })
-      expect(requiresAgentToolApprovalPaths('process')).toBe(false)
+      expect(isAgentToolPathBearing('process')).toBe(false)
     })
 
-    it('does not read a tape_search kind filter as a path', () => {
-      const decision = review('tape_search', { query: 'review', kinds: ['event', 'anchor'] })
-
-      expect(decision.paths).toEqual([])
-    })
-
-    it('does not read a subagent id list as a path', () => {
-      const decision = review('deepchat_subagents', {
-        operation: 'send',
-        delegationIds: ['delegation-1', 'delegation-2']
+    it('never scopes a filter, id list or draft path to filesystem paths', () => {
+      // These tools authorize no workspace path, so their approvals are tool-scoped whatever their
+      // arguments happen to contain. Path extraction belongs to the tool layer, which reads only
+      // the arguments that really are paths.
+      expect(isAgentToolPathBearing('tape_search')).toBe(false)
+      expect(isAgentToolPathBearing('deepchat_subagents')).toBe(false)
+      expect(isAgentToolPathBearing('skill_manage')).toBe(false)
+      expect(review('tape_search', { query: 'review', kinds: ['event', 'anchor'] })).toMatchObject({
+        scope: 'tool'
       })
-
-      expect(decision.paths).toEqual([])
-    })
-
-    it('does not read a skill draft path as a workspace path', () => {
-      const decision = review('skill_manage', {
-        action: 'write_file',
-        filePath: 'SKILL.md',
-        content: 'body'
-      })
-
-      expect(decision).toMatchObject({ reviewed: true, scope: 'tool', paths: [] })
+      expect(
+        review('deepchat_subagents', {
+          operation: 'send',
+          delegationIds: ['delegation-1', 'delegation-2']
+        })
+      ).toMatchObject({ scope: 'tool' })
+      expect(
+        review('skill_manage', { action: 'write_file', filePath: 'SKILL.md', content: 'body' })
+      ).toMatchObject({ reviewed: true, scope: 'tool' })
     })
 
     it('does not read a skill script as a shell command', () => {
@@ -65,7 +59,6 @@ describe('agent tool review policy', () => {
       })
 
       expect(decision).toMatchObject({ scope: 'paths', permissionType: 'write' })
-      expect(decision.paths).toEqual(['src/app.ts'])
     })
   })
 
@@ -80,12 +73,7 @@ describe('agent tool review policy', () => {
     })
 
     it('reviews a file write that carries no path keyword in its name', () => {
-      const decision = review('apply_patch', {
-        patch: '*** Begin Patch\n*** Add File: src/new.ts\n+hello\n*** End Patch'
-      })
-
-      expect(decision).toMatchObject({ reviewed: true, scope: 'paths' })
-      expect(decision.paths).toEqual(['src/new.ts'])
+      expect(review('apply_patch', {})).toMatchObject({ reviewed: true, scope: 'paths' })
     })
 
     it('reviews only the process actions that change a session', () => {
@@ -138,11 +126,16 @@ describe('agent tool review policy', () => {
   })
 
   describe('approval requirements', () => {
-    it('keeps requiring paths for path-bearing tools', () => {
-      expect(requiresAgentToolApprovalPaths('write')).toBe(true)
-      expect(requiresAgentToolApprovalPaths('apply_patch')).toBe(true)
-      expect(requiresAgentToolApprovalPaths('str_replace_editor')).toBe(true)
-      expect(requiresAgentToolApprovalPaths('unrecognized-tool')).toBe(true)
+    it('requires paths only from tools that authorize them', () => {
+      expect(isAgentToolPathBearing('write')).toBe(true)
+      expect(isAgentToolPathBearing('apply_patch')).toBe(true)
+      expect(isAgentToolPathBearing('str_replace_editor')).toBe(true)
+      expect(isAgentToolPathBearing('read')).toBe(true)
+      expect(isAgentToolPathBearing('exec')).toBe(true)
+      expect(isAgentToolPathBearing('process')).toBe(false)
+      expect(isAgentToolPathBearing('memory_recall')).toBe(false)
+      expect(isAgentToolPathBearing('skill_manage')).toBe(false)
+      expect(isAgentToolPathBearing('unrecognized-tool')).toBe(false)
     })
 
     it('requires a shell profile for every agent-filesystem approval', () => {
@@ -151,13 +144,21 @@ describe('agent tool review policy', () => {
       expect(requiresAgentToolApprovalShellProfile(undefined)).toBe(false)
     })
 
-    it('collects paths only from arguments that really are paths', () => {
-      expect(collectAgentToolApprovalPaths('write', { path: 'src/app.ts' })).toEqual(['src/app.ts'])
-      expect(collectAgentToolApprovalPaths('write', { path: '  ' })).toEqual([])
-      expect(collectAgentToolApprovalPaths('skill_manage', { filePath: 'SKILL.md' })).toEqual([])
-      expect(collectAgentToolApprovalPaths('deepchat_subagents', { delegationIds: ['a'] })).toEqual(
-        []
-      )
+    it('scopes a path-bearing tool to paths without re-deriving the path arguments', () => {
+      // `apply_patch` sends raw patch text, not JSON, so the policy must not try to read a `path`
+      // out of it: the tool layer resolves the targets from the raw text.
+      expect(review('apply_patch', {}, TOOL_EXECUTION.write)).toMatchObject({
+        reviewed: true,
+        scope: 'paths'
+      })
+      expect(review('write', {}, TOOL_EXECUTION.write)).toMatchObject({
+        reviewed: true,
+        scope: 'paths'
+      })
+      expect(review('process', { action: 'kill' }, TOOL_EXECUTION.write)).toMatchObject({
+        reviewed: true,
+        scope: 'tool'
+      })
     })
   })
 })

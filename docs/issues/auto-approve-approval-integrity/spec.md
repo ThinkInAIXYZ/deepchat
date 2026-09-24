@@ -107,29 +107,29 @@ the maintained contract for the broker and is not modified.
 
 - The payload never rewrites the declared server identity; `serverName` is the tool's declared
   `server.name`. The allow path rejects a payload whose server identity disagrees with the tool call.
-- The approval subject comes from the same policy module the coverage decision comes from, so both
-  sides agree on what a given tool's approval means.
-- Only a path-scoped tool's approval carries paths, and only the paths that tool actually authorizes
-  (`path` for the file editors, the patch hunks for `apply_patch`). An argument that is an operation
-  name, an identifier or an enum is never read as a path.
+- One shared path-bearing list decides both the approval's scope and whether the allow path requires
+  paths, so the two sides cannot disagree.
+- Which argument carries a path is not decided by the review policy. The tool layer owns that,
+  because it also parses the call's arguments and is therefore the only layer that can read
+  `apply_patch`'s raw patch text. A path-scoped approval records the targets the execution will
+  touch, resolved against the same base directory and command shell path style the call runs under.
 - Only a tool that runs a shell command synthesizes a command approval. `str_replace_editor.command`
   is an operation enum and `skill_run.script` is a skill script; neither is a command.
 - Every `agent-filesystem` approval carries a resolved shell profile, because the retry path resolves
   the approved call against the shell it was reviewed under.
-- A path-scoped approval records the targets the execution will touch: the call's own path arguments
-  are resolved through the tool layer against the same base directory the call runs under, so an
-  approved path and the written path cannot disagree.
-- The allow path validates against the policy: an `agent-filesystem` approval must carry a valid
-  shell profile, and must carry paths when the tool authorizes paths. Tool identity validation is
-  preserved; no validation is removed and no synthetic path is invented to satisfy it.
+- The allow path validates an `agent-filesystem` approval's shell profile always, and its paths when
+  the tool authorizes paths. Tool identity validation is preserved; no validation is removed and no
+  synthetic path is invented to satisfy it.
 
 ### Recovery
 
 - `dismiss` settles the turn it orphans: when it removes the last pending interaction and no run or
   operation controller owns the message, it publishes the cancelled terminal state and wakes the
   input queue, reusing the existing abort-settlement path.
-- `cancel` publishes a terminal state when the session is not idle and nothing owns it, so stop
-  reports what actually happened.
+- `cancel` publishes a terminal state when a `generating` session has no owner, so stop is never a
+  silent no-op. An `error` session already holds its terminal state and is left alone.
+- `dismiss` and `cancel` decide from pending interactions rebuilt from the transcript, so a stale
+  queue cannot cause another message's approval to be settled.
 - The renderer surfaces a failed interaction response to the user instead of silently recording a
   denial.
 
@@ -180,10 +180,19 @@ Two existing dispatch tests were updated because they asserted the behaviour thi
 the synthesized approval used to rewrite the server identity to `agent-filesystem`, and a `read`
 fixture declared as a write tool used to be reviewed by name.
 
+Every fix from the first review round is locked by a test that fails without it, verified by
+reverting each fix in turn:
+
+| Test | Fails without |
+| --- | --- |
+| dispatch — "reviews an apply_patch call whose arguments are raw patch text" | the tool layer owning path extraction |
+| run lifecycle — "leaves an error session untouched when it is stopped" | settling only a `generating` session |
+| run lifecycle — "declines to settle while the transcript still holds another approval" | refreshing pending interactions before deciding |
+| agent tool manager — "resolves approval paths against the call workspace, not the last synced one" | the call-scoped resolver |
+
 Gates: `pnpm run format`, `pnpm run i18n`, `pnpm run lint` and `pnpm run typecheck` pass. Suites
-pass: `test/main/agent/deepchat/runtime/**`, `test/main/tool/**`,
-`test/main/agent/deepchat/harness/deepChatAgentHarness.test.ts` and the renderer interaction suite —
-1510 tests plus 383 harness tests, one pre-existing skip.
+pass: `test/main/agent/deepchat/**`, `test/main/tool/**`, the harness suite and the renderer
+interaction suite.
 
 Not covered by a test: the real end-to-end path in a packaged app. The reproduction is exercised
 through the main-process classes with in-memory stand-ins for the database, tool execution and model

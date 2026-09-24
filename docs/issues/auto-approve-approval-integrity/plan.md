@@ -14,8 +14,8 @@ reports what actually happened.
 - [x] `InteractionCoordinator.dismiss` settles the turn it orphans through
       `RunLifecycleCoordinator.settleOrphanedInteraction`, which declines while a run or a
       replacement operation controller still owns the turn.
-- [x] `RunLifecycleCoordinator.cancel` publishes a terminal state when the session is not idle and
-      nothing owns it, so stop is never a silent no-op.
+- [x] `RunLifecycleCoordinator.cancel` publishes a terminal state when a `generating` session has no
+      owner, so stop is never a silent no-op. An `error` session keeps its terminal state.
 - [x] Renderer reports a failed `respondToolInteraction` through `notifyRenderer` before releasing
       the approval.
 - [x] The dismissal records `The request was closed without a user decision.` instead of the denial
@@ -31,13 +31,15 @@ allow path validates the same thing the synthesizer produced.
 
 - [x] `src/main/tool/permission/agentToolReviewPolicy.ts` is the single owner of the coverage
       decision and the approval shape.
-- [x] Argument collection reads paths only from the arguments that really are paths
-      (`path` for the file editors, the patch hunks for `apply_patch`). Operation names, identifiers,
-      enums and string arrays are never read as paths.
+- [x] Which argument carries a path is not decided here: the tool layer owns that, because it also
+      parses the call's arguments. One shared path-bearing list decides both the approval's scope and
+      whether the allow path requires paths, so the two cannot disagree. `apply_patch`'s raw patch
+      text is resolved by the tool layer, which is the only layer that can read it.
 - [x] The payload keeps the tool's declared server identity; it is never rewritten.
 - [x] Command synthesis is limited to `exec`, the only tool that runs a shell command.
-- [x] Approval paths are resolved through the tool layer against the same base directory the call
-      runs under (`ToolExecutionPort.resolveAgentToolApprovalPaths`).
+- [x] Approval paths are resolved through the tool layer against the same base directory and command
+      shell path style the call runs under (`ToolExecutionPort.resolveAgentToolApprovalPaths`), using
+      a call-scoped resolver rather than the manager's last synced workspace.
 - [x] Every `agent-filesystem` approval carries a resolved shell profile; the allow path requires
       paths only from tools that authorize paths, and still rejects invalid or missing paths for
       those.
@@ -74,10 +76,11 @@ table matches the code.
   did not check `source`, so MCP tools — whose execution contract is hardcoded to `write` — would
   have been reviewed, contradicting the recorded decision to leave MCP on the broker's path. The
   policy now gates on `source === 'agent'` and a test locks it.
-- `collectAgentToolApprovalPaths` (which decides whether a call is path-scoped) and the tool
-  manager's `collectWriteTargets` (which resolves the execution's targets) must stay in step. A
-  divergence fails loudly at approval time rather than silently dropping the path requirement,
-  because `requiresAgentToolApprovalPaths` keeps the stricter default for unrecognized tools.
+- The first implementation also derived the approval's scope from the call's own JSON arguments,
+  which cannot read `apply_patch`'s raw patch text: the payload came out pathless and Allow failed
+  with `File approval is missing valid paths.` — the same failure class as the issue. Path
+  extraction now belongs to the tool layer, which parses those arguments, and one shared
+  path-bearing list decides both the scope and the allow-side requirement.
 - Reused existing i18n keys (`common.error.operationFailed`, `common.error.sessionInterrupted`)
   rather than adding keys, because the notification copy is generic and adding one would require
   translating it into 23 locales.
@@ -89,4 +92,18 @@ table matches the code.
 - `skill_run` recovered through a deferred dispatch may fail on its request-bound execution authority
   (`manifestHash`/`tapeIncarnationId`), which the deferred path does not carry. That is a
   pre-existing condition outside this change's scope and was not verified by a test.
-- Not committed, and no GitHub issue sync performed: the change is left in the worktree for review.
+
+## Review round 1
+
+CodeRabbit raised four findings against the first commit; all four were valid and are fixed, each
+locked by a test that fails without its fix (verified by reverting each fix in turn).
+
+| Finding | Fix |
+| --- | --- |
+| `apply_patch` arguments are raw patch text, so the synthesized approval had no paths and Allow failed | The policy no longer derives paths from the arguments; the tool layer resolves them |
+| `cancel` settled an `error` session, emitting a second terminal and replacing the error with `idle` | Only a `generating` session is settled |
+| `settleOrphanedInteraction` read a queue that can be stale relative to the transcript | It refreshes pending interactions before deciding |
+| Approval paths used the manager's last synced workspace and ignored the call's shell path style | A call-scoped resolver built from the call's workspace root and `commandShell.pathStyle` |
+
+The deferred-tool-controller half of the third finding does not apply: deferred controllers are
+derived per pending interaction, so an empty pending set cannot hold one.

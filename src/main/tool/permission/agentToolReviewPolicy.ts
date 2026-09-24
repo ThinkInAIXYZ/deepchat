@@ -5,8 +5,8 @@ import {
   SKILL_VIEW_AGENT_TOOL_NAME
 } from '@shared/agentTools'
 import { UPDATE_PLAN_TOOL_NAME } from '@shared/types/agent-plan'
+import { GLOB_TOOL_NAME, GREP_TOOL_NAME } from '@/tool/agentTools/agentFffSearchHandler'
 import { APPLY_PATCH_TOOL_NAME, STR_REPLACE_EDITOR_TOOL_NAME } from '@/tool/codeMode/toolModeTools'
-import { collectApplyPatchPaths, parseApplyPatch } from '@/tool/agentTools/minimalEditorAdapter'
 
 /**
  * One owner for what an agent built-in tool call means to the assistant review gate that
@@ -18,7 +18,8 @@ import { collectApplyPatchPaths, parseApplyPatch } from '@/tool/agentTools/minim
  * paths the tool never had, and could not be approved at all.
  *
  * Coverage follows the tool's declared execution contract, corrected where the contract cannot
- * express what an operation does.
+ * express what an operation does. Which argument carries a path is not decided here: the tool layer
+ * owns that, because it is also the layer that parses the call's arguments.
  */
 
 /** What an approval authorizes. */
@@ -31,8 +32,6 @@ export interface AgentToolReviewDecision {
   readonly scope: AgentToolReviewScope
   /** Permission type recorded on the approval. */
   readonly permissionType: 'read' | 'write' | 'command'
-  /** Filesystem paths the approval authorizes; empty unless the scope is `paths`. */
-  readonly paths: readonly string[]
 }
 
 const AGENT_FILESYSTEM_SERVER_NAME = 'agent-filesystem'
@@ -40,8 +39,7 @@ const AGENT_FILESYSTEM_SERVER_NAME = 'agent-filesystem'
 const NOT_REVIEWED: AgentToolReviewDecision = Object.freeze({
   reviewed: false,
   scope: 'tool',
-  permissionType: 'read',
-  paths: Object.freeze([])
+  permissionType: 'read'
 })
 
 /**
@@ -89,11 +87,21 @@ const READ_ONLY_DESPITE_CONTRACT: ReadonlySet<string> = new Set([
 const SESSION_LOCAL_TOOLS: ReadonlySet<string> = new Set([UPDATE_PLAN_TOOL_NAME])
 
 /**
- * Agent-filesystem tools whose approvals authorize no filesystem path. Every other
- * agent-filesystem approval must carry the paths it authorizes, so an unrecognized tool keeps the
- * stricter validation instead of silently losing it.
+ * Agent tools whose approvals authorize filesystem paths: every agent-filesystem tool except
+ * `process`, which manages existing exec sessions and touches no path. One list, used by both the
+ * synthesizer (to decide the approval's scope) and the allow path (to decide whether paths are
+ * required), so the two cannot disagree.
  */
-const PATHLESS_AGENT_FILESYSTEM_TOOLS: ReadonlySet<string> = new Set(['process'])
+const PATH_BEARING_AGENT_TOOLS: ReadonlySet<string> = new Set([
+  'read',
+  'write',
+  'edit',
+  GLOB_TOOL_NAME,
+  GREP_TOOL_NAME,
+  'exec',
+  APPLY_PATCH_TOOL_NAME,
+  STR_REPLACE_EDITOR_TOOL_NAME
+])
 
 /**
  * The argument carrying the operation name differs per tool family; only tools with a mixed
@@ -109,41 +117,12 @@ function resolveOperation(args: Record<string, unknown>): string {
   return ''
 }
 
-/** Filesystem paths an approval for this tool must authorize. Must stay in step with the tool
- * manager's own write targets, so the approval and the execution agree on which argument is a path.
- */
-export function collectAgentToolApprovalPaths(
-  toolName: string,
-  args: Record<string, unknown>
-): string[] {
-  switch (toolName) {
-    case 'read':
-    case 'write':
-    case 'edit':
-    case STR_REPLACE_EDITOR_TOOL_NAME: {
-      const pathArg = args.path
-      return typeof pathArg === 'string' && pathArg.trim() ? [pathArg] : []
-    }
-    case APPLY_PATCH_TOOL_NAME: {
-      const patch = args.patch
-      if (typeof patch !== 'string') return []
-      try {
-        return collectApplyPatchPaths(parseApplyPatch(patch))
-      } catch {
-        return []
-      }
-    }
-    default:
-      return []
-  }
-}
-
 /**
- * Whether an approval for this tool must carry the filesystem paths it authorizes. Only meaningful
- * for `agent-filesystem` approvals, where the allow path arms a file lease from those paths.
+ * Whether an approval for this tool authorizes filesystem paths. Only meaningful for
+ * `agent-filesystem` approvals, where the allow path arms a file lease from those paths.
  */
-export function requiresAgentToolApprovalPaths(toolName: string): boolean {
-  return !PATHLESS_AGENT_FILESYSTEM_TOOLS.has(toolName)
+export function isAgentToolPathBearing(toolName: string): boolean {
+  return PATH_BEARING_AGENT_TOOLS.has(toolName)
 }
 
 /**
@@ -190,7 +169,7 @@ export function resolveAgentToolReview(input: {
   if (toolName === 'exec') {
     const command = args.command
     return typeof command === 'string' && command.trim()
-      ? { reviewed: true, scope: 'command', permissionType: 'command', paths: [] }
+      ? { reviewed: true, scope: 'command', permissionType: 'command' }
       : NOT_REVIEWED
   }
 
@@ -198,8 +177,9 @@ export function resolveAgentToolReview(input: {
     return NOT_REVIEWED
   }
 
-  const paths = collectAgentToolApprovalPaths(toolName, args)
-  return paths.length > 0
-    ? { reviewed: true, scope: 'paths', permissionType: 'write', paths }
-    : { reviewed: true, scope: 'tool', permissionType: 'write', paths: [] }
+  return {
+    reviewed: true,
+    scope: isAgentToolPathBearing(toolName) ? 'paths' : 'tool',
+    permissionType: 'write'
+  }
 }

@@ -48,6 +48,7 @@ import type {
 } from '@/tape/ports/capabilities'
 import { ExecutionJournalError } from '@/tape/domain/executionJournal'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
+import { APPLY_PATCH_TOOL_NAME } from '@/tool/codeMode/toolModeTools'
 import {
   TOOL_SEARCH_AGENT_TOOL_NAME,
   TOOL_SEARCH_AGENT_TOOL_SERVER_NAME
@@ -461,6 +462,21 @@ function createMockToolService(responses: Record<string, string> = {}): ToolServ
       }
     }),
     preCheckToolPermission: vi.fn().mockResolvedValue(null),
+    // Mirrors the real service for the single-`path` shapes these tests use: the tool layer resolves
+    // the call's own path argument, so the approval records the target rather than re-deriving it.
+    // `apply_patch` is the case that makes this the tool layer's job: its arguments are raw patch
+    // text, which this side cannot parse into a path.
+    resolveAgentToolApprovalPaths: vi.fn(async (request) => {
+      if (request.function.name === APPLY_PATCH_TOOL_NAME) {
+        return ['src/new.ts']
+      }
+      try {
+        const args = JSON.parse(request.function.arguments) as Record<string, unknown>
+        return typeof args.path === 'string' && args.path.trim() ? [args.path] : []
+      } catch {
+        return []
+      }
+    }),
     assertToolSurfaceAuthority: vi.fn(),
     clearConversationToolMapping: vi.fn(),
     clearAgentPlanState: vi.fn(),
@@ -5064,6 +5080,56 @@ describe('dispatch', () => {
         state.blocks.find((block) => block.tool_call?.id === 'tc-read')?.extra
           ?.autoApproveReviewStatus
       ).toBeUndefined()
+    })
+
+    it('reviews an apply_patch call whose arguments are raw patch text', async () => {
+      const hooks = {
+        reviewToolPermission: vi.fn().mockResolvedValue({
+          decision: 'ask_user',
+          riskLevel: 'medium'
+        })
+      }
+      const tools = [makeAgentTool(APPLY_PATCH_TOOL_NAME)]
+      const toolService = createMockToolService()
+      const patchText = '*** Begin Patch\n*** Add File: src/new.ts\n+hello\n*** End Patch'
+
+      state.blocks.push({
+        type: 'tool_call',
+        content: '',
+        status: 'pending',
+        timestamp: Date.now(),
+        tool_call: {
+          id: 'tc-patch',
+          name: APPLY_PATCH_TOOL_NAME,
+          params: patchText,
+          response: ''
+        }
+      })
+      state.completedToolCalls = [
+        { id: 'tc-patch', name: APPLY_PATCH_TOOL_NAME, arguments: patchText }
+      ]
+
+      const result = await settleToolBatch(
+        state,
+        [],
+        0,
+        tools,
+        toolService,
+        'gpt-4',
+        io,
+        'auto_approve',
+        new ToolOutputGuard(),
+        32000,
+        1024,
+        hooks
+      )
+
+      expect(result.type).toBe('paused')
+      // Raw patch text is not JSON, so a policy that re-derived paths from the arguments would
+      // decide the approval is tool-scoped and drop them. The tool layer supplies them instead.
+      expect(result.type === 'paused' ? result.interactions[0].permission : null).toEqual(
+        expect.objectContaining({ permissionType: 'write', paths: ['src/new.ts'] })
+      )
     })
 
     it('pauses auto-approve Agent tool calls when the reviewer asks the user', async () => {

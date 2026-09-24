@@ -18060,24 +18060,40 @@ describe('DeepChatAgentHarness', () => {
 
     it('preserves pending interactions from other messages when dismissing one', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      installPendingPermission({
+      const firstRow = installPendingPermission({
         messageId: 'm1',
         toolName: 'write_file',
         serverName: 'agent-filesystem',
         shellProfile: 'posix',
         paths: ['/workspace/a.txt']
       })
+      const secondRow = installPendingPermission({
+        messageId: 'm2',
+        toolCallId: 'tc2',
+        toolName: 'write_file',
+        serverName: 'agent-filesystem',
+        shellProfile: 'posix',
+        paths: ['/workspace/b.txt']
+      })
+      // `installPendingPermission` serves one message at a time; this case needs both, because the
+      // dismissal must decide from the transcript rather than from a hand-injected queue entry.
+      sqlitePresenter.deepchatMessagesTable.get.mockImplementation((id: string) =>
+        id === 'm1' ? firstRow : id === 'm2' ? secondRow : undefined
+      )
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([firstRow, secondRow])
+      sqlitePresenter.deepchatMessagesTable.updateContent.mockImplementation(
+        (id: string, content: string) => {
+          if (id === 'm1') firstRow.content = content
+          else if (id === 'm2') secondRow.content = content
+        }
+      )
       const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
-      instance.replacePendingInteractions([
-        { messageId: 'm1', toolCallId: 'tc1', origin: 'pre-check-permission', order: 0 },
-        { messageId: 'm2', toolCallId: 'tc2', origin: 'pre-check-permission', order: 1 }
-      ])
 
       const dismissed = await agent.dismissToolInteraction('s1', 'm1', 'tc1')
 
       expect(dismissed).toBe(true)
       expect(instance.getPendingInteractions()).toEqual([
-        { messageId: 'm2', toolCallId: 'tc2', origin: 'pre-check-permission', order: 1 }
+        { messageId: 'm2', toolCallId: 'tc2', origin: 'pre-check-permission', order: 0 }
       ])
     })
 

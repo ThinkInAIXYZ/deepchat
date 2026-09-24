@@ -1569,14 +1569,13 @@ async function buildSyntheticPermissionForReview(params: {
     }
   }
 
-  // Record the targets the execution will touch rather than the call's raw relative arguments, so
-  // an approved path and the written path cannot disagree. The call's own arguments remain the
-  // fallback for a tool the resolver reports no targets for.
-  const resolvedPaths =
+  // The tool layer owns which argument carries a path, and it also parses the call's arguments, so
+  // it is the only layer that can resolve `apply_patch`'s raw patch text into its targets. Ask it
+  // for the paths the execution will touch rather than re-deriving them here.
+  const paths =
     decision.scope === 'paths'
       ? await toolExecution.resolveAgentToolApprovalPaths(execution.toolCall, preCheckOptions)
       : []
-  const paths = resolvedPaths.length > 0 ? resolvedPaths : [...decision.paths]
 
   return {
     ...base,
