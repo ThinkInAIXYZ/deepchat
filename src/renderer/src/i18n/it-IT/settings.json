@@ -3059,6 +3059,7 @@
     "empty": "Nessuna attività pianificata.",
     "none": "Nessuno",
     "nextRunAt": "Prossima esecuzione",
+    "created": "Attività creata",
     "defaults": {
       "name": "Attività pianificata mattutina"
     },
@@ -3067,7 +3068,15 @@
       "runNow": "Esegui ora",
       "clearNextRun": "Cancella prossima esecuzione",
       "reconcile": "Riconcilia",
-      "restart": "Riavvia timer"
+      "restart": "Riavvia timer",
+      "create": "Crea",
+      "createFirstTask": "Crea la prima attività",
+      "backToList": "Torna all'elenco",
+      "schedulerDetails": "Dettagli pianificatore"
+    },
+    "list": {
+      "enabledGroup": "Attive",
+      "disabledGroup": "Disattivate"
     },
     "fields": {
       "name": "Nome",
@@ -3085,14 +3094,92 @@
       "remoteChannel": "Canale Remote",
       "noRemoteChannels": "Abilita Remote e collega prima un canale.",
       "deliverySuccess": "inviato",
-      "deliveryFailed": "errore"
+      "deliveryFailed": "errore",
+      "schedule": "Pianificazione",
+      "scheduleTime": "Ora",
+      "scheduleWeekday": "Giorno della settimana",
+      "scheduleMonthDay": "Giorno del mese",
+      "scheduleMinute": "Minuto",
+      "createEnabled": "Attiva dopo la creazione",
+      "createEnabledHint": "Si avvia secondo la pianificazione subito dopo la creazione."
     },
     "presets": {
       "custom": "Personalizzata",
       "every5Minutes": "Ogni 5 minuti",
       "hourly": "Ogni ora",
       "daily": "Giornaliera alle 09:00",
-      "weekdays": "Giorni feriali alle 09:00"
+      "weekdays": "Giorni feriali alle 09:00",
+      "weekly": "Settimanale",
+      "monthly": "Mensile"
+    },
+    "weekdays": {
+      "sun": "Domenica",
+      "mon": "Lunedì",
+      "tue": "Martedì",
+      "wed": "Mercoledì",
+      "thu": "Giovedì",
+      "fri": "Venerdì",
+      "sat": "Sabato"
+    },
+    "schedule": {
+      "every5Minutes": "Ogni 5 minuti",
+      "hourly": "Ogni ora al minuto {minute}",
+      "daily": "Ogni giorno alle {time}",
+      "weekdays": "Giorni feriali alle {time}",
+      "weekly": "Ogni {weekday} alle {time}",
+      "monthly": "Il giorno {day} di ogni mese alle {time}"
+    },
+    "detail": {
+      "placeholderTitle": "Seleziona un'attività",
+      "placeholderDescription": "Scegli un'attività dall'elenco per vedere pianificazione, prompt, consegna e cronologia.",
+      "scheduleTitle": "Pianificazione",
+      "lastRun": "Ultima esecuzione",
+      "neverRun": "Mai eseguita",
+      "promptEmpty": "Nessun prompt dell'attività.",
+      "promptPlaceholder": "Descrivi cosa deve fare l'agent a ogni esecuzione.",
+      "deliveryDisabled": "La consegna è disattivata.",
+      "historyTitle": "Cronologia esecuzioni",
+      "noRuns": "Nessuna esecuzione.",
+      "unsaved": "Modifiche non salvate",
+      "basicsTitle": "Informazioni di base",
+      "createTitle": "Nuova attività",
+      "editTitle": "Modifica attività",
+      "deleteConfirm": "Eliminare l'attività \"{name}\"? L'operazione è irreversibile e anche la cronologia delle esecuzioni verrà rimossa."
+    },
+    "emptyState": {
+      "title": "Nessuna attività pianificata",
+      "description": "Le attività pianificate eseguono un agent secondo la tua pianificazione: riassumere notizie, creare report, ordinare appunti. I risultati restano nella cronologia o vengono consegnati a un canale Remote.",
+      "templatesTitle": "Inizia da un modello",
+      "templatesDescription": "Un modello precompila il modulo; nulla viene salvato finché non confermi."
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "Riepilogo giornaliero",
+        "prompt": "Riassumi le notizie importanti di oggi relative a me e ai miei progetti. Elenca 3-5 punti chiave con un breve commento per ciascuno."
+      },
+      "repositoryDigest": {
+        "name": "Report PR settimanale",
+        "prompt": "Riassumi le pull request del repository di questa settimana: aperte, unite e in attesa di revisione, e segnala i blocchi che richiedono attenzione."
+      },
+      "knowledgeTidy": {
+        "name": "Riordina la knowledge base",
+        "prompt": "Esamina le note e i materiali aggiunti questa settimana, raggruppali per tema, aggiungi tag e indica cosa manca ancora."
+      }
+    },
+    "runs": {
+      "reasonScheduled": "Pianificata",
+      "reasonManual": "Manuale",
+      "durationSeconds": "{value} s",
+      "durationMinutes": "{minutes} min {seconds} s",
+      "output": "Output"
+    },
+    "scheduler": {
+      "pid": "PID processo",
+      "heartbeat": "Heartbeat",
+      "restartAttempts": "Riavvii",
+      "updatedAt": "Aggiornato",
+      "errorDescription": "Il processo del pianificatore sta fallendo; le attività potrebbero non essere eseguite in orario.",
+      "staleDescription": "Lo stato del pianificatore non è disponibile; le attività potrebbero non essere eseguite in orario."
     },
     "status": {
       "state": "Stato",
@@ -3103,6 +3190,9 @@
       "running": "In esecuzione",
       "idle": "Inattivo",
       "error": "Errore",
+      "ready": "Pronto",
+      "jobDisabled": "Disattivata",
+      "invalidAgentShort": "Agent non disponibile",
       "invalidAgent": "Agent mancante o disattivato. Scegli un altro Agent."
     },
     "runNowSuccess": "Attività pianificata completata"

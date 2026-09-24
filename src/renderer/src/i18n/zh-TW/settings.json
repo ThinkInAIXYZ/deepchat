@@ -1673,6 +1673,7 @@
     "empty": "暫無定時任務。",
     "none": "無",
     "nextRunAt": "下次執行",
+    "created": "任務已建立",
     "defaults": {
       "name": "早晨定時任務"
     },
@@ -1681,7 +1682,15 @@
       "runNow": "立即執行",
       "clearNextRun": "清除下次執行",
       "reconcile": "重新同步",
-      "restart": "重啟定時器"
+      "restart": "重啟定時器",
+      "create": "建立",
+      "createFirstTask": "建立第一個任務",
+      "backToList": "返回列表",
+      "schedulerDetails": "排程器詳情"
+    },
+    "list": {
+      "enabledGroup": "已啟用",
+      "disabledGroup": "已停用"
     },
     "fields": {
       "name": "名稱",
@@ -1699,14 +1708,92 @@
       "remoteChannel": "Remote 頻道",
       "noRemoteChannels": "請先啟用 Remote，並綁定頻道。",
       "deliverySuccess": "已傳送",
-      "deliveryFailed": "傳送失敗"
+      "deliveryFailed": "傳送失敗",
+      "schedule": "執行排程",
+      "scheduleTime": "時間",
+      "scheduleWeekday": "星期",
+      "scheduleMonthDay": "每月日期",
+      "scheduleMinute": "每小時第幾分鐘",
+      "createEnabled": "建立後啟用",
+      "createEnabledHint": "建立後立即依排程執行。"
     },
     "presets": {
       "custom": "自訂",
       "every5Minutes": "每 5 分鐘",
       "hourly": "每小時",
       "daily": "每天 09:00",
-      "weekdays": "工作日 09:00"
+      "weekdays": "工作日 09:00",
+      "weekly": "每週",
+      "monthly": "每月"
+    },
+    "weekdays": {
+      "sun": "週日",
+      "mon": "週一",
+      "tue": "週二",
+      "wed": "週三",
+      "thu": "週四",
+      "fri": "週五",
+      "sat": "週六"
+    },
+    "schedule": {
+      "every5Minutes": "每 5 分鐘",
+      "hourly": "每小時第 {minute} 分鐘",
+      "daily": "每天 {time}",
+      "weekdays": "工作日 {time}",
+      "weekly": "每{weekday} {time}",
+      "monthly": "每月 {day} 日 {time}"
+    },
+    "detail": {
+      "placeholderTitle": "選擇一個任務",
+      "placeholderDescription": "從左側清單選擇任務，查看執行排程、任務內容、傳送設定和執行紀錄。",
+      "scheduleTitle": "執行排程",
+      "lastRun": "最近執行",
+      "neverRun": "尚未執行",
+      "promptEmpty": "尚未填寫任務內容。",
+      "promptPlaceholder": "描述每次執行要讓 Agent 完成的事情。",
+      "deliveryDisabled": "未開啟傳送。",
+      "historyTitle": "執行紀錄",
+      "noRuns": "暫無執行紀錄。",
+      "unsaved": "有未儲存的變更",
+      "basicsTitle": "基本資訊",
+      "createTitle": "新增任務",
+      "editTitle": "編輯任務",
+      "deleteConfirm": "刪除任務「{name}」？刪除後無法復原，執行紀錄也會一併清除。"
+    },
+    "emptyState": {
+      "title": "還沒有定時任務",
+      "description": "定時任務會依設定的排程自動執行 Agent：彙總資訊、產生週報、整理資料，並把結果保留在執行紀錄裡，或傳送到 Remote 頻道。",
+      "templatesTitle": "從範本開始",
+      "templatesDescription": "選擇範本會預填表單，確認建立後才會儲存。"
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "每日資訊摘要",
+        "prompt": "彙總今天與我和我的專案相關的重要資訊，列出 3-5 條重點，並給出簡短解讀。"
+      },
+      "repositoryDigest": {
+        "name": "倉庫 PR 週報",
+        "prompt": "整理本週倉庫的 Pull Request：新增、已合併、待審查，列出需要關注的阻塞項。"
+      },
+      "knowledgeTidy": {
+        "name": "整理知識庫",
+        "prompt": "回顧本週新增的筆記與資料，依主題歸類並補充標籤，指出仍然缺失的資訊。"
+      }
+    },
+    "runs": {
+      "reasonScheduled": "定時觸發",
+      "reasonManual": "手動觸發",
+      "durationSeconds": "{value} 秒",
+      "durationMinutes": "{minutes} 分 {seconds} 秒",
+      "output": "輸出"
+    },
+    "scheduler": {
+      "pid": "行程 PID",
+      "heartbeat": "心跳",
+      "restartAttempts": "重啟次數",
+      "updatedAt": "更新時間",
+      "errorDescription": "排程程序目前異常，任務可能不會按時執行。",
+      "staleDescription": "無法取得排程器狀態，任務可能不會按時執行。"
     },
     "status": {
       "state": "狀態",
@@ -1717,6 +1804,9 @@
       "running": "執行中",
       "idle": "閒置",
       "error": "錯誤",
+      "ready": "就緒",
+      "jobDisabled": "已停用",
+      "invalidAgentShort": "Agent 無效",
       "invalidAgent": "Agent 不存在或已停用，請重新選擇 Agent。"
     },
     "runNowSuccess": "排程任務已完成"

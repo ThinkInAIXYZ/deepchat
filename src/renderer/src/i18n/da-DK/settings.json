@@ -1606,6 +1606,7 @@
     "empty": "Ingen planlagte opgaver endnu.",
     "none": "Ingen",
     "nextRunAt": "Næste kørsel",
+    "created": "Opgave oprettet",
     "defaults": {
       "name": "Morgen-job"
     },
@@ -1614,7 +1615,15 @@
       "runNow": "Kør nu",
       "clearNextRun": "Ryd næste kørsel",
       "reconcile": "Synkroniser",
-      "restart": "Genstart timer"
+      "restart": "Genstart timer",
+      "create": "Opret",
+      "createFirstTask": "Opret første opgave",
+      "backToList": "Tilbage til listen",
+      "schedulerDetails": "Detaljer om planlæggeren"
+    },
+    "list": {
+      "enabledGroup": "Aktiverede",
+      "disabledGroup": "Deaktiverede"
     },
     "fields": {
       "name": "Navn",
@@ -1632,14 +1641,92 @@
       "remoteChannel": "Remote-kanal",
       "noRemoteChannels": "Aktivér Remote, og bind en kanal først.",
       "deliverySuccess": "sendt",
-      "deliveryFailed": "mislykkedes"
+      "deliveryFailed": "mislykkedes",
+      "schedule": "Tidsplan",
+      "scheduleTime": "Tid",
+      "scheduleWeekday": "Ugedag",
+      "scheduleMonthDay": "Dag i måneden",
+      "scheduleMinute": "Minut",
+      "createEnabled": "Aktivér efter oprettelse",
+      "createEnabledHint": "Begynd at køre efter tidsplanen straks efter oprettelsen."
     },
     "presets": {
       "custom": "Brugerdefineret",
       "every5Minutes": "Hvert 5. minut",
       "hourly": "Hver time",
       "daily": "Dagligt kl. 09:00",
-      "weekdays": "Hverdage kl. 09:00"
+      "weekdays": "Hverdage kl. 09:00",
+      "weekly": "Ugentligt",
+      "monthly": "Månedligt"
+    },
+    "weekdays": {
+      "sun": "Søndag",
+      "mon": "Mandag",
+      "tue": "Tirsdag",
+      "wed": "Onsdag",
+      "thu": "Torsdag",
+      "fri": "Fredag",
+      "sat": "Lørdag"
+    },
+    "schedule": {
+      "every5Minutes": "Hvert 5. minut",
+      "hourly": "Hver time på minut {minute}",
+      "daily": "Dagligt kl. {time}",
+      "weekdays": "Hverdage kl. {time}",
+      "weekly": "Hver {weekday} kl. {time}",
+      "monthly": "Den {day}. i hver måned kl. {time}"
+    },
+    "detail": {
+      "placeholderTitle": "Vælg en opgave",
+      "placeholderDescription": "Vælg en opgave på listen for at gennemgå tidsplan, prompt, leveringsindstillinger og kørselshistorik.",
+      "scheduleTitle": "Tidsplan",
+      "lastRun": "Seneste kørsel",
+      "neverRun": "Aldrig kørt",
+      "promptEmpty": "Ingen opgaveprompt endnu.",
+      "promptPlaceholder": "Beskriv, hvad agenten skal gøre ved hver kørsel.",
+      "deliveryDisabled": "Levering er slået fra.",
+      "historyTitle": "Kørselshistorik",
+      "noRuns": "Ingen kørsler endnu.",
+      "unsaved": "Ikke-gemte ændringer",
+      "basicsTitle": "Grundoplysninger",
+      "createTitle": "Ny opgave",
+      "editTitle": "Rediger opgave",
+      "deleteConfirm": "Slet opgaven \"{name}\"? Det kan ikke fortrydes, og kørselshistorikken fjernes også."
+    },
+    "emptyState": {
+      "title": "Ingen planlagte opgaver endnu",
+      "description": "Planlagte opgaver kører en agent efter din tidsplan: opsummer nyheder, lav rapporter, ryd op i noter. Resultaterne gemmes i kørselshistorikken eller leveres til en Remote-kanal.",
+      "templatesTitle": "Start fra en skabelon",
+      "templatesDescription": "En skabelon udfylder formen på forhånd; intet gemmes, før du bekræfter."
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "Daglig nyhedsoversigt",
+        "prompt": "Opsummer dagens vigtige nyheder, der vedrører mig og mine projekter. List 3-5 hovedpunkter med en kort vurdering af hvert."
+      },
+      "repositoryDigest": {
+        "name": "Ugentlig PR-rapport",
+        "prompt": "Opsummer ugens pull requests i repositoriet: åbnede, merged og dem, der afventer gennemgang, og fremhæv blokeringer, der kræver opmærksomhed."
+      },
+      "knowledgeTidy": {
+        "name": "Ryd op i vidensbasen",
+        "prompt": "Gennemgå ugens nye noter og materialer, gruppér dem efter emne, tilføj tags, og påpeg, hvad der stadig mangler."
+      }
+    },
+    "runs": {
+      "reasonScheduled": "Planlagt",
+      "reasonManual": "Manuel",
+      "durationSeconds": "{value}s",
+      "durationMinutes": "{minutes}m {seconds}s",
+      "output": "Output"
+    },
+    "scheduler": {
+      "pid": "Proces-PID",
+      "heartbeat": "Heartbeat",
+      "restartAttempts": "Genstarter",
+      "updatedAt": "Opdateret",
+      "errorDescription": "Planlægningsprocessen fejler; opgaver kører muligvis ikke til tiden.",
+      "staleDescription": "Status for planlæggeren er ikke tilgængelig; opgaver kører muligvis ikke til tiden."
     },
     "status": {
       "state": "Tilstand",
@@ -1650,6 +1737,9 @@
       "running": "Kører",
       "idle": "Inaktiv",
       "error": "Fejl",
+      "ready": "Klar",
+      "jobDisabled": "Deaktiveret",
+      "invalidAgentShort": "Agent utilgængelig",
       "invalidAgent": "Agent mangler eller er deaktiveret. Vælg en anden agent."
     },
     "runNowSuccess": "Planlagt opgave fuldført"

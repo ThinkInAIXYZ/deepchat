@@ -3059,6 +3059,7 @@
     "empty": "Brak zaplanowanych zadań.",
     "none": "Brak",
     "nextRunAt": "Następne uruchomienie",
+    "created": "Zadanie utworzone",
     "defaults": {
       "name": "Zadanie poranne"
     },
@@ -3067,32 +3068,118 @@
       "runNow": "Uruchom teraz",
       "clearNextRun": "Wyczyść następne uruchomienie",
       "reconcile": "Synchronizuj",
-      "restart": "Uruchom ponownie"
+      "restart": "Uruchom ponownie",
+      "create": "Utwórz",
+      "createFirstTask": "Utwórz pierwsze zadanie",
+      "backToList": "Powrót do listy",
+      "schedulerDetails": "Szczegóły harmonogramu"
+    },
+    "list": {
+      "enabledGroup": "Włączone",
+      "disabledGroup": "Wyłączone"
     },
     "fields": {
       "name": "Nazwa",
       "cronExpr": "Wyrażenie cron",
       "timezone": "Strefa czasowa",
-      "preset": "Szablon",
+      "preset": "Preset",
       "agent": "Agent",
       "noAgent": "Nie wybrano",
       "taskPrompt": "Polecenie zadania",
       "runtimePolicy": "Zasady wykonania",
-      "followAgent": "Śledź agenta",
+      "followAgent": "Użyj konfiguracji agenta",
       "pinCurrent": "Przypnij bieżącą konfigurację",
       "delivery": "Dostarczanie",
       "remoteDelivery": "Dostarczanie Remote",
       "remoteChannel": "Kanał Remote",
       "noRemoteChannels": "Najpierw włącz Remote i powiąż kanał.",
       "deliverySuccess": "wysłano",
-      "deliveryFailed": "błąd"
+      "deliveryFailed": "błąd",
+      "schedule": "Harmonogram",
+      "scheduleTime": "Godzina",
+      "scheduleWeekday": "Dzień tygodnia",
+      "scheduleMonthDay": "Dzień miesiąca",
+      "scheduleMinute": "Minuta",
+      "createEnabled": "Włącz po utworzeniu",
+      "createEnabledHint": "Rozpocznij działanie zgodnie z harmonogramem od razu po utworzeniu."
     },
     "presets": {
       "custom": "Własny",
       "every5Minutes": "Co 5 minut",
       "hourly": "Co godzinę",
       "daily": "Codziennie o 09:00",
-      "weekdays": "W dni robocze o 09:00"
+      "weekdays": "W dni robocze o 09:00",
+      "weekly": "Co tydzień",
+      "monthly": "Co miesiąc"
+    },
+    "weekdays": {
+      "sun": "Niedziela",
+      "mon": "Poniedziałek",
+      "tue": "Wtorek",
+      "wed": "Środa",
+      "thu": "Czwartek",
+      "fri": "Piątek",
+      "sat": "Sobota"
+    },
+    "schedule": {
+      "every5Minutes": "Co 5 minut",
+      "hourly": "Co godzinę, minuta {minute}",
+      "daily": "Codziennie o {time}",
+      "weekdays": "W dni robocze o {time}",
+      "weekly": "Co tydzień: {weekday}, {time}",
+      "monthly": "{day}. dzień miesiąca o {time}"
+    },
+    "detail": {
+      "placeholderTitle": "Wybierz zadanie",
+      "placeholderDescription": "Wybierz zadanie z listy, aby sprawdzić harmonogram, polecenie, ustawienia dostarczania i historię uruchomień.",
+      "scheduleTitle": "Harmonogram",
+      "lastRun": "Ostatnie uruchomienie",
+      "neverRun": "Jeszcze nie uruchamiano",
+      "promptEmpty": "Brak polecenia zadania.",
+      "promptPlaceholder": "Opisz, co agent ma robić przy każdym uruchomieniu.",
+      "deliveryDisabled": "Dostarczanie jest wyłączone.",
+      "historyTitle": "Historia uruchomień",
+      "noRuns": "Brak uruchomień.",
+      "unsaved": "Niezapisane zmiany",
+      "basicsTitle": "Podstawy",
+      "createTitle": "Nowe zadanie",
+      "editTitle": "Edytuj zadanie",
+      "deleteConfirm": "Usunąć zadanie \"{name}\"? Tej operacji nie można cofnąć, a historia uruchomień również zostanie usunięta."
+    },
+    "emptyState": {
+      "title": "Brak zaplanowanych zadań",
+      "description": "Zaplanowane zadania uruchamiają agenta zgodnie z harmonogramem: podsumowują wiadomości, tworzą raporty, porządkują notatki. Wyniki trafiają do historii uruchomień lub są dostarczane do kanału Remote.",
+      "templatesTitle": "Zacznij od szablonu",
+      "templatesDescription": "Szablon wstępnie wypełni formularz; nic nie zostanie zapisane, dopóki nie potwierdzisz."
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "Dzienny przegląd wiadomości",
+        "prompt": "Podsumuj dzisiejsze ważne wiadomości związane ze mną i moimi projektami. Wypisz 3-5 kluczowych punktów z krótkim komentarzem do każdego."
+      },
+      "repositoryDigest": {
+        "name": "Tygodniowy raport PR",
+        "prompt": "Podsumuj pull requesty w repozytorium z tego tygodnia: otwarte, scalone i oczekujące na przegląd, oraz wskaż blokery wymagające uwagi."
+      },
+      "knowledgeTidy": {
+        "name": "Uporządkuj bazę wiedzy",
+        "prompt": "Przejrzyj notatki i materiały dodane w tym tygodniu, pogrupuj je tematycznie, dodaj tagi i wskaż, czego jeszcze brakuje."
+      }
+    },
+    "runs": {
+      "reasonScheduled": "Z harmonogramu",
+      "reasonManual": "Ręcznie",
+      "durationSeconds": "{value} s",
+      "durationMinutes": "{minutes} min {seconds} s",
+      "output": "Wynik"
+    },
+    "scheduler": {
+      "pid": "PID procesu",
+      "heartbeat": "Puls",
+      "restartAttempts": "Restarty",
+      "updatedAt": "Zaktualizowano",
+      "errorDescription": "Proces harmonogramu działa nieprawidłowo; zadania mogą nie uruchamiać się na czas.",
+      "staleDescription": "Stan harmonogramu jest niedostępny; zadania mogą nie uruchamiać się na czas."
     },
     "status": {
       "state": "Stan",
@@ -3103,6 +3190,9 @@
       "running": "Uruchomiony",
       "idle": "Bezczynny",
       "error": "Błąd",
+      "ready": "Gotowe",
+      "jobDisabled": "Wyłączone",
+      "invalidAgentShort": "Agent niedostępny",
       "invalidAgent": "Agent jest niedostępny lub wyłączony. Wybierz innego agenta."
     },
     "runNowSuccess": "Zaplanowane zadanie zakończone"

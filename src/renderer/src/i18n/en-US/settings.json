@@ -2042,6 +2042,7 @@
     "empty": "No scheduled tasks yet.",
     "none": "None",
     "nextRunAt": "Next run",
+    "created": "Task created",
     "defaults": {
       "name": "Morning cron job"
     },
@@ -2050,7 +2051,15 @@
       "runNow": "Run now",
       "clearNextRun": "Clear next run",
       "reconcile": "Reconcile",
-      "restart": "Restart timer"
+      "restart": "Restart timer",
+      "create": "Create",
+      "createFirstTask": "Create first task",
+      "backToList": "Back to list",
+      "schedulerDetails": "Scheduler details"
+    },
+    "list": {
+      "enabledGroup": "Enabled",
+      "disabledGroup": "Disabled"
     },
     "fields": {
       "name": "Name",
@@ -2068,14 +2077,92 @@
       "remoteChannel": "Remote channel",
       "noRemoteChannels": "Enable Remote and bind a channel first.",
       "deliverySuccess": "sent",
-      "deliveryFailed": "failed"
+      "deliveryFailed": "failed",
+      "schedule": "Schedule",
+      "scheduleTime": "Time",
+      "scheduleWeekday": "Weekday",
+      "scheduleMonthDay": "Day of month",
+      "scheduleMinute": "Minute",
+      "createEnabled": "Enable after creation",
+      "createEnabledHint": "Start running on schedule right after creation."
     },
     "presets": {
       "custom": "Custom",
       "every5Minutes": "Every 5 minutes",
       "hourly": "Hourly",
       "daily": "Daily at 09:00",
-      "weekdays": "Weekdays at 09:00"
+      "weekdays": "Weekdays at 09:00",
+      "weekly": "Weekly",
+      "monthly": "Monthly"
+    },
+    "weekdays": {
+      "sun": "Sunday",
+      "mon": "Monday",
+      "tue": "Tuesday",
+      "wed": "Wednesday",
+      "thu": "Thursday",
+      "fri": "Friday",
+      "sat": "Saturday"
+    },
+    "schedule": {
+      "every5Minutes": "Every 5 minutes",
+      "hourly": "Hourly at minute {minute}",
+      "daily": "Daily at {time}",
+      "weekdays": "Weekdays at {time}",
+      "weekly": "Every {weekday} at {time}",
+      "monthly": "Day {day} of each month at {time}"
+    },
+    "detail": {
+      "placeholderTitle": "Select a task",
+      "placeholderDescription": "Pick a task from the list to review its schedule, prompt, delivery settings, and run history.",
+      "scheduleTitle": "Schedule",
+      "lastRun": "Last run",
+      "neverRun": "Never run",
+      "promptEmpty": "No task prompt yet.",
+      "promptPlaceholder": "Describe what the agent should do on every run.",
+      "deliveryDisabled": "Delivery is off.",
+      "historyTitle": "Run history",
+      "noRuns": "No runs yet.",
+      "unsaved": "Unsaved changes",
+      "basicsTitle": "Basics",
+      "createTitle": "New task",
+      "editTitle": "Edit task",
+      "deleteConfirm": "Delete task \"{name}\"? This cannot be undone and its run history is removed as well."
+    },
+    "emptyState": {
+      "title": "No scheduled tasks yet",
+      "description": "Scheduled tasks run an agent on your schedule: digest the news, build reports, tidy notes. Results stay in run history or get delivered to a Remote channel.",
+      "templatesTitle": "Start from a template",
+      "templatesDescription": "A template prefills the form; nothing is saved until you confirm."
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "Daily news digest",
+        "prompt": "Summarize today's important news related to me and my projects. List 3-5 key points with a short take on each."
+      },
+      "repositoryDigest": {
+        "name": "Weekly PR report",
+        "prompt": "Summarize this week's repository pull requests: opened, merged, and awaiting review, and call out blockers that need attention."
+      },
+      "knowledgeTidy": {
+        "name": "Tidy knowledge base",
+        "prompt": "Review the notes and material added this week, group them by topic, add tags, and point out what is still missing."
+      }
+    },
+    "runs": {
+      "reasonScheduled": "Scheduled",
+      "reasonManual": "Manual",
+      "durationSeconds": "{value}s",
+      "durationMinutes": "{minutes}m {seconds}s",
+      "output": "Output"
+    },
+    "scheduler": {
+      "pid": "Process PID",
+      "heartbeat": "Heartbeat",
+      "restartAttempts": "Restarts",
+      "updatedAt": "Updated",
+      "errorDescription": "The scheduler process is failing; tasks may not run on time.",
+      "staleDescription": "Scheduler status is unavailable; tasks may not run on time."
     },
     "status": {
       "state": "State",
@@ -2086,6 +2173,9 @@
       "running": "Running",
       "idle": "Idle",
       "error": "Error",
+      "ready": "Ready",
+      "jobDisabled": "Disabled",
+      "invalidAgentShort": "Agent unavailable",
       "invalidAgent": "Agent is missing or disabled. Choose another agent."
     },
     "runNowSuccess": "Scheduled task completed"

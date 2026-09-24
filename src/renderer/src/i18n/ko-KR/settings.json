@@ -1673,6 +1673,7 @@
     "empty": "아직 예약 작업이 없습니다.",
     "none": "없음",
     "nextRunAt": "다음 실행",
+    "created": "작업이 생성되었습니다",
     "defaults": {
       "name": "아침 예약 작업"
     },
@@ -1681,7 +1682,15 @@
       "runNow": "지금 실행",
       "clearNextRun": "다음 실행 취소",
       "reconcile": "재조정",
-      "restart": "타이머 재시작"
+      "restart": "타이머 재시작",
+      "create": "만들기",
+      "createFirstTask": "첫 작업 만들기",
+      "backToList": "목록으로 돌아가기",
+      "schedulerDetails": "스케줄러 세부 정보"
+    },
+    "list": {
+      "enabledGroup": "사용 중",
+      "disabledGroup": "사용 안 함"
     },
     "fields": {
       "name": "이름",
@@ -1699,14 +1708,92 @@
       "remoteChannel": "Remote 채널",
       "noRemoteChannels": "먼저 Remote를 활성화하고 채널을 바인딩하세요.",
       "deliverySuccess": "전달됨",
-      "deliveryFailed": "전달 실패"
+      "deliveryFailed": "전달 실패",
+      "schedule": "일정",
+      "scheduleTime": "시간",
+      "scheduleWeekday": "요일",
+      "scheduleMonthDay": "매월 날짜",
+      "scheduleMinute": "매시 몇 분",
+      "createEnabled": "생성 후 활성화",
+      "createEnabledHint": "생성 후 바로 일정에 따라 실행합니다."
     },
     "presets": {
       "custom": "사용자 지정",
       "every5Minutes": "5분마다",
       "hourly": "매시간",
       "daily": "매일 오전 9시",
-      "weekdays": "평일 오전 9시"
+      "weekdays": "평일 오전 9시",
+      "weekly": "매주",
+      "monthly": "매월"
+    },
+    "weekdays": {
+      "sun": "일요일",
+      "mon": "월요일",
+      "tue": "화요일",
+      "wed": "수요일",
+      "thu": "목요일",
+      "fri": "금요일",
+      "sat": "토요일"
+    },
+    "schedule": {
+      "every5Minutes": "5분마다",
+      "hourly": "매시 {minute}분",
+      "daily": "매일 {time}",
+      "weekdays": "평일 {time}",
+      "weekly": "매주 {weekday} {time}",
+      "monthly": "매월 {day}일 {time}"
+    },
+    "detail": {
+      "placeholderTitle": "작업 선택",
+      "placeholderDescription": "왼쪽 목록에서 작업을 선택하면 일정, 프롬프트, 전달 설정, 실행 기록을 확인할 수 있습니다.",
+      "scheduleTitle": "일정",
+      "lastRun": "최근 실행",
+      "neverRun": "실행 기록 없음",
+      "promptEmpty": "작업 프롬프트가 아직 없습니다.",
+      "promptPlaceholder": "매번 실행할 때 에이전트가 수행할 내용을 설명하세요.",
+      "deliveryDisabled": "전달이 꺼져 있습니다.",
+      "historyTitle": "실행 기록",
+      "noRuns": "실행 기록이 없습니다.",
+      "unsaved": "저장하지 않은 변경 사항",
+      "basicsTitle": "기본 정보",
+      "createTitle": "새 작업",
+      "editTitle": "작업 편집",
+      "deleteConfirm": "작업 \"{name}\"을(를) 삭제할까요? 삭제하면 되돌릴 수 없으며 실행 기록도 함께 삭제됩니다."
+    },
+    "emptyState": {
+      "title": "예약 작업이 아직 없습니다",
+      "description": "예약 작업은 설정한 일정에 따라 에이전트를 자동으로 실행합니다. 뉴스 요약, 보고서 생성, 노트 정리 등을 수행하고 결과는 실행 기록에 남기거나 Remote 채널로 전달합니다.",
+      "templatesTitle": "템플릿으로 시작",
+      "templatesDescription": "템플릿을 선택하면 양식이 미리 채워지며, 확인하기 전에는 저장되지 않습니다."
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "일일 뉴스 요약",
+        "prompt": "오늘 나와 내 프로젝트와 관련된 중요한 뉴스를 요약하고 핵심 3~5가지를 짧은 해설과 함께 정리하세요."
+      },
+      "repositoryDigest": {
+        "name": "주간 PR 보고서",
+        "prompt": "이번 주 저장소의 Pull Request를 정리하세요: 새로 열린 것, 병합된 것, 리뷰 대기 중인 것을 나누고 주의가 필요한 블로커를 알려주세요."
+      },
+      "knowledgeTidy": {
+        "name": "지식 베이스 정리",
+        "prompt": "이번 주에 추가된 노트와 자료를 살펴보고 주제별로 분류하고 태그를 보완하며, 아직 빠진 정보를 짚어주세요."
+      }
+    },
+    "runs": {
+      "reasonScheduled": "예약 실행",
+      "reasonManual": "수동 실행",
+      "durationSeconds": "{value}초",
+      "durationMinutes": "{minutes}분 {seconds}초",
+      "output": "출력"
+    },
+    "scheduler": {
+      "pid": "프로세스 PID",
+      "heartbeat": "하트비트",
+      "restartAttempts": "재시작 횟수",
+      "updatedAt": "업데이트 시각",
+      "errorDescription": "스케줄러 프로세스에 문제가 있습니다. 작업이 제때 실행되지 않을 수 있습니다.",
+      "staleDescription": "스케줄러 상태를 가져올 수 없습니다. 작업이 제때 실행되지 않을 수 있습니다."
     },
     "status": {
       "state": "상태",
@@ -1717,6 +1804,9 @@
       "running": "실행 중",
       "idle": "대기 중",
       "error": "오류",
+      "ready": "준비됨",
+      "jobDisabled": "사용 안 함",
+      "invalidAgentShort": "에이전트 사용 불가",
       "invalidAgent": "에이전트가 없거나 비활성화되었습니다. 다른 에이전트를 선택하세요."
     },
     "runNowSuccess": "예약 작업이 완료되었습니다"

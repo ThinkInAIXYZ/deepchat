@@ -1673,6 +1673,7 @@
     "empty": "אין עדיין משימות מתוזמנות.",
     "none": "ללא",
     "nextRunAt": "ההרצה הבאה",
+    "created": "המשימה נוצרה",
     "defaults": {
       "name": "משימת בוקר מתוזמנת"
     },
@@ -1681,7 +1682,15 @@
       "runNow": "הרץ עכשיו",
       "clearNextRun": "נקה הרצה הבאה",
       "reconcile": "סנכרן מחדש",
-      "restart": "הפעל טיימר מחדש"
+      "restart": "הפעל טיימר מחדש",
+      "create": "צור",
+      "createFirstTask": "צור משימה ראשונה",
+      "backToList": "חזרה לרשימה",
+      "schedulerDetails": "פרטי המתזמן"
+    },
+    "list": {
+      "enabledGroup": "מופעלות",
+      "disabledGroup": "מושבתות"
     },
     "fields": {
       "name": "שם",
@@ -1699,14 +1708,92 @@
       "remoteChannel": "ערוץ Remote",
       "noRemoteChannels": "יש להפעיל Remote ולקשר ערוץ תחילה.",
       "deliverySuccess": "נשלח",
-      "deliveryFailed": "נכשל"
+      "deliveryFailed": "נכשל",
+      "schedule": "תזמון",
+      "scheduleTime": "שעה",
+      "scheduleWeekday": "יום בשבוע",
+      "scheduleMonthDay": "יום בחודש",
+      "scheduleMinute": "דקה",
+      "createEnabled": "הפעל לאחר היצירה",
+      "createEnabledHint": "התחל לרוץ לפי התזמון מיד לאחר היצירה."
     },
     "presets": {
       "custom": "מותאם אישית",
       "every5Minutes": "כל 5 דקות",
       "hourly": "כל שעה",
       "daily": "יומי ב-09:00",
-      "weekdays": "ימי חול ב-09:00"
+      "weekdays": "ימי חול ב-09:00",
+      "weekly": "שבועי",
+      "monthly": "חודשי"
+    },
+    "weekdays": {
+      "sun": "יום ראשון",
+      "mon": "יום שני",
+      "tue": "יום שלישי",
+      "wed": "יום רביעי",
+      "thu": "יום חמישי",
+      "fri": "יום שישי",
+      "sat": "שבת"
+    },
+    "schedule": {
+      "every5Minutes": "כל 5 דקות",
+      "hourly": "כל שעה בדקה {minute}",
+      "daily": "יומי ב-{time}",
+      "weekdays": "ימי חול ב-{time}",
+      "weekly": "כל {weekday} ב-{time}",
+      "monthly": "יום {day} בכל חודש ב-{time}"
+    },
+    "detail": {
+      "placeholderTitle": "בחר משימה",
+      "placeholderDescription": "בחר משימה מהרשימה כדי לצפות בתזמון, בפרומפט, בהגדרות המסירה ובהיסטוריית ההרצות שלה.",
+      "scheduleTitle": "תזמון",
+      "lastRun": "הרצה אחרונה",
+      "neverRun": "לא הורצה",
+      "promptEmpty": "עדיין אין פרומפט למשימה.",
+      "promptPlaceholder": "תאר מה הסוכן צריך לעשות בכל הרצה.",
+      "deliveryDisabled": "המסירה כבויה.",
+      "historyTitle": "היסטוריית הרצות",
+      "noRuns": "אין עדיין הרצות.",
+      "unsaved": "שינויים שלא נשמרו",
+      "basicsTitle": "פרטים בסיסיים",
+      "createTitle": "משימה חדשה",
+      "editTitle": "עריכת משימה",
+      "deleteConfirm": "למחוק את המשימה \"{name}\"? לא ניתן לבטל פעולה זו וגם היסטוריית ההרצות שלה תימחק."
+    },
+    "emptyState": {
+      "title": "אין עדיין משימות מתוזמנות",
+      "description": "משימות מתוזמנות מריצות סוכן לפי לוח הזמנים שלך: סיכום חדשות, יצירת דוחות, סידור הערות. התוצאות נשמרות בהיסטוריית ההרצות או נמסרות לערוץ Remote.",
+      "templatesTitle": "התחל מתבנית",
+      "templatesDescription": "תבנית ממלאת מראש את הטופס; שום דבר לא נשמר עד שתאשר."
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "סיכום חדשות יומי",
+        "prompt": "סכם את החדשות החשובות של היום הקשורות אליי ולפרויקטים שלי. פרט 3-5 נקודות עיקריות עם הסבר קצר לכל אחת."
+      },
+      "repositoryDigest": {
+        "name": "דוח PR שבועי",
+        "prompt": "סכם את בקשות המיזוג (Pull Request) של המאגר השבוע: נפתחו, מוזגו וממתינות לסקירה, וציין חסמים שדורשים התייחסות."
+      },
+      "knowledgeTidy": {
+        "name": "סידור בסיס הידע",
+        "prompt": "עבור על ההערות והחומרים שנוספו השבוע, קבץ אותם לפי נושא, הוסף תגיות וציין מה עדיין חסר."
+      }
+    },
+    "runs": {
+      "reasonScheduled": "מתוזמן",
+      "reasonManual": "ידני",
+      "durationSeconds": "{value} שנ׳",
+      "durationMinutes": "{minutes} דק׳ {seconds} שנ׳",
+      "output": "פלט"
+    },
+    "scheduler": {
+      "pid": "PID של התהליך",
+      "heartbeat": "פעימת לב",
+      "restartAttempts": "הפעלות מחדש",
+      "updatedAt": "עודכן",
+      "errorDescription": "תהליך המתזמן נכשל; ייתכן שהמשימות לא ירוצו בזמן.",
+      "staleDescription": "מצב המתזמן אינו זמין; ייתכן שהמשימות לא ירוצו בזמן."
     },
     "status": {
       "state": "מצב",
@@ -1717,6 +1804,9 @@
       "running": "פועל",
       "idle": "במנוחה",
       "error": "שגיאה",
+      "ready": "מוכן",
+      "jobDisabled": "מושבת",
+      "invalidAgentShort": "הסוכן אינו זמין",
       "invalidAgent": "הסוכן חסר או מושבת. בחר סוכן אחר."
     },
     "runNowSuccess": "המשימה המתוזמנת הושלמה"

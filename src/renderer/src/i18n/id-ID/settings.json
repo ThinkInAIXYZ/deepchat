@@ -3059,6 +3059,7 @@
     "empty": "Belum ada tugas terjadwal.",
     "none": "Tidak ada",
     "nextRunAt": "Eksekusi selanjutnya",
+    "created": "Tugas dibuat",
     "defaults": {
       "name": "Tugas pagi hari"
     },
@@ -3067,7 +3068,15 @@
       "runNow": "Jalankan sekarang",
       "clearNextRun": "Hapus eksekusi selanjutnya",
       "reconcile": "Rekonsiliasi",
-      "restart": "Mulai ulang timer"
+      "restart": "Mulai ulang timer",
+      "create": "Buat",
+      "createFirstTask": "Buat tugas pertama",
+      "backToList": "Kembali ke daftar",
+      "schedulerDetails": "Detail penjadwal"
+    },
+    "list": {
+      "enabledGroup": "Aktif",
+      "disabledGroup": "Nonaktif"
     },
     "fields": {
       "name": "Nama",
@@ -3085,14 +3094,92 @@
       "remoteChannel": "Kanal Remote",
       "noRemoteChannels": "Aktifkan Remote dan tautkan kanal terlebih dahulu.",
       "deliverySuccess": "terkirim",
-      "deliveryFailed": "gagal"
+      "deliveryFailed": "gagal",
+      "schedule": "Jadwal",
+      "scheduleTime": "Waktu",
+      "scheduleWeekday": "Hari",
+      "scheduleMonthDay": "Tanggal",
+      "scheduleMinute": "Menit",
+      "createEnabled": "Aktifkan setelah dibuat",
+      "createEnabledHint": "Langsung berjalan sesuai jadwal setelah dibuat."
     },
     "presets": {
       "custom": "Kustom",
       "every5Minutes": "Setiap 5 menit",
       "hourly": "Setiap jam",
       "daily": "Setiap hari pukul 09:00",
-      "weekdays": "Hari kerja pukul 09:00"
+      "weekdays": "Hari kerja pukul 09:00",
+      "weekly": "Mingguan",
+      "monthly": "Bulanan"
+    },
+    "weekdays": {
+      "sun": "Minggu",
+      "mon": "Senin",
+      "tue": "Selasa",
+      "wed": "Rabu",
+      "thu": "Kamis",
+      "fri": "Jumat",
+      "sat": "Sabtu"
+    },
+    "schedule": {
+      "every5Minutes": "Setiap 5 menit",
+      "hourly": "Setiap jam pada menit ke-{minute}",
+      "daily": "Setiap hari pukul {time}",
+      "weekdays": "Hari kerja pukul {time}",
+      "weekly": "Setiap hari {weekday} pukul {time}",
+      "monthly": "Tanggal {day} setiap bulan pukul {time}"
+    },
+    "detail": {
+      "placeholderTitle": "Pilih tugas",
+      "placeholderDescription": "Pilih tugas dari daftar untuk meninjau jadwal, prompt, pengaturan pengiriman, dan riwayat eksekusi.",
+      "scheduleTitle": "Jadwal",
+      "lastRun": "Eksekusi terakhir",
+      "neverRun": "Belum pernah dijalankan",
+      "promptEmpty": "Belum ada prompt tugas.",
+      "promptPlaceholder": "Jelaskan apa yang harus dilakukan agen pada setiap eksekusi.",
+      "deliveryDisabled": "Pengiriman nonaktif.",
+      "historyTitle": "Riwayat eksekusi",
+      "noRuns": "Belum ada eksekusi.",
+      "unsaved": "Ada perubahan yang belum disimpan",
+      "basicsTitle": "Informasi dasar",
+      "createTitle": "Tugas baru",
+      "editTitle": "Edit tugas",
+      "deleteConfirm": "Hapus tugas \"{name}\"? Tindakan ini tidak dapat dibatalkan dan riwayat eksekusinya ikut terhapus."
+    },
+    "emptyState": {
+      "title": "Belum ada tugas terjadwal",
+      "description": "Tugas terjadwal menjalankan agen sesuai jadwal Anda: merangkum berita, membuat laporan, merapikan catatan. Hasilnya tersimpan di riwayat eksekusi atau dikirim ke kanal Remote.",
+      "templatesTitle": "Mulai dari templat",
+      "templatesDescription": "Templat akan mengisi formulir terlebih dahulu; tidak ada yang disimpan sebelum Anda mengonfirmasi."
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "Ringkasan berita harian",
+        "prompt": "Rangkum berita penting hari ini yang berkaitan dengan saya dan proyek saya. Sebutkan 3-5 poin utama beserta ulasan singkatnya."
+      },
+      "repositoryDigest": {
+        "name": "Laporan PR mingguan",
+        "prompt": "Rangkum pull request repositori minggu ini: yang dibuka, digabungkan, dan menunggu peninjauan, serta sebutkan hambatan yang perlu diperhatikan."
+      },
+      "knowledgeTidy": {
+        "name": "Rapikan basis pengetahuan",
+        "prompt": "Tinjau catatan dan materi yang ditambahkan minggu ini, kelompokkan berdasarkan topik, tambahkan tag, dan tunjukkan informasi yang masih kurang."
+      }
+    },
+    "runs": {
+      "reasonScheduled": "Terjadwal",
+      "reasonManual": "Manual",
+      "durationSeconds": "{value} d",
+      "durationMinutes": "{minutes} m {seconds} d",
+      "output": "Keluaran"
+    },
+    "scheduler": {
+      "pid": "PID proses",
+      "heartbeat": "Heartbeat",
+      "restartAttempts": "Mulai ulang",
+      "updatedAt": "Diperbarui",
+      "errorDescription": "Proses penjadwal sedang bermasalah; tugas mungkin tidak berjalan tepat waktu.",
+      "staleDescription": "Status penjadwal tidak tersedia; tugas mungkin tidak berjalan tepat waktu."
     },
     "status": {
       "state": "Status",
@@ -3103,6 +3190,9 @@
       "running": "Berjalan",
       "idle": "Menganggur",
       "error": "Error",
+      "ready": "Siap",
+      "jobDisabled": "Nonaktif",
+      "invalidAgentShort": "Agen tidak valid",
       "invalidAgent": "Agen tidak tersedia atau dinonaktifkan. Pilih agen lain."
     },
     "runNowSuccess": "Tugas terjadwal selesai"

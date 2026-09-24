@@ -3059,6 +3059,7 @@
     "empty": "Aún no hay tareas programadas.",
     "none": "None",
     "nextRunAt": "Próxima ejecución",
+    "created": "Tarea creada",
     "defaults": {
       "name": "Morning cron job"
     },
@@ -3067,7 +3068,15 @@
       "runNow": "Ejecutar ahora",
       "clearNextRun": "Limpiar próxima ejecución",
       "reconcile": "Reconciliar",
-      "restart": "Reiniciar temporizador"
+      "restart": "Reiniciar temporizador",
+      "create": "Crear",
+      "createFirstTask": "Crear la primera tarea",
+      "backToList": "Volver a la lista",
+      "schedulerDetails": "Detalles del planificador"
+    },
+    "list": {
+      "enabledGroup": "Habilitadas",
+      "disabledGroup": "Deshabilitadas"
     },
     "fields": {
       "name": "Nombre",
@@ -3085,14 +3094,92 @@
       "remoteChannel": "Canal Remote",
       "noRemoteChannels": "Activa Remote y vincula primero un canal.",
       "deliverySuccess": "enviado",
-      "deliveryFailed": "falló"
+      "deliveryFailed": "falló",
+      "schedule": "Programación",
+      "scheduleTime": "Hora",
+      "scheduleWeekday": "Día de la semana",
+      "scheduleMonthDay": "Día del mes",
+      "scheduleMinute": "Minuto",
+      "createEnabled": "Habilitar tras crear",
+      "createEnabledHint": "Se ejecuta según la programación justo después de crearla."
     },
     "presets": {
       "custom": "Personalizado",
       "every5Minutes": "Cada 5 minutos",
       "hourly": "Cada hora",
       "daily": "Diariamente a las 09:00",
-      "weekdays": "Entre semana a las 09:00"
+      "weekdays": "Entre semana a las 09:00",
+      "weekly": "Semanal",
+      "monthly": "Mensual"
+    },
+    "weekdays": {
+      "sun": "Domingo",
+      "mon": "Lunes",
+      "tue": "Martes",
+      "wed": "Miércoles",
+      "thu": "Jueves",
+      "fri": "Viernes",
+      "sat": "Sábado"
+    },
+    "schedule": {
+      "every5Minutes": "Cada 5 minutos",
+      "hourly": "Cada hora en el minuto {minute}",
+      "daily": "Cada día a las {time}",
+      "weekdays": "Entre semana a las {time}",
+      "weekly": "Cada {weekday} a las {time}",
+      "monthly": "El día {day} de cada mes a las {time}"
+    },
+    "detail": {
+      "placeholderTitle": "Selecciona una tarea",
+      "placeholderDescription": "Elige una tarea de la lista para ver su programación, su prompt, su entrega y su historial.",
+      "scheduleTitle": "Programación",
+      "lastRun": "Última ejecución",
+      "neverRun": "Sin ejecuciones",
+      "promptEmpty": "Aún no hay prompt de tarea.",
+      "promptPlaceholder": "Describe lo que el agente debe hacer en cada ejecución.",
+      "deliveryDisabled": "La entrega está desactivada.",
+      "historyTitle": "Historial de ejecuciones",
+      "noRuns": "Aún no hay ejecuciones.",
+      "unsaved": "Cambios sin guardar",
+      "basicsTitle": "Información básica",
+      "createTitle": "Nueva tarea",
+      "editTitle": "Editar tarea",
+      "deleteConfirm": "¿Eliminar la tarea \"{name}\"? No se puede deshacer y el historial de ejecuciones también se eliminará."
+    },
+    "emptyState": {
+      "title": "Aún no hay tareas programadas",
+      "description": "Las tareas programadas ejecutan un agente según tu planificación: resumir noticias, generar informes, ordenar notas. Los resultados quedan en el historial o se envían a un canal Remote.",
+      "templatesTitle": "Empezar con una plantilla",
+      "templatesDescription": "Una plantilla rellena el formulario; no se guarda nada hasta que confirmes."
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "Resumen diario de noticias",
+        "prompt": "Resume las noticias importantes de hoy relacionadas conmigo y con mis proyectos. Enumera de 3 a 5 puntos clave con un breve comentario de cada uno."
+      },
+      "repositoryDigest": {
+        "name": "Informe semanal de PR",
+        "prompt": "Resume las pull requests del repositorio de esta semana: abiertas, fusionadas y pendientes de revisión, y señala los bloqueos que requieren atención."
+      },
+      "knowledgeTidy": {
+        "name": "Ordenar la base de conocimiento",
+        "prompt": "Revisa las notas y materiales añadidos esta semana, agrúpalos por tema, añade etiquetas y señala lo que aún falta."
+      }
+    },
+    "runs": {
+      "reasonScheduled": "Programada",
+      "reasonManual": "Manual",
+      "durationSeconds": "{value} s",
+      "durationMinutes": "{minutes} min {seconds} s",
+      "output": "Salida"
+    },
+    "scheduler": {
+      "pid": "PID del proceso",
+      "heartbeat": "Latido",
+      "restartAttempts": "Reinicios",
+      "updatedAt": "Actualizado",
+      "errorDescription": "El proceso del planificador está fallando; es posible que las tareas no se ejecuten a tiempo.",
+      "staleDescription": "El estado del planificador no está disponible; es posible que las tareas no se ejecuten a tiempo."
     },
     "status": {
       "state": "Estado",
@@ -3103,6 +3190,9 @@
       "running": "En ejecución",
       "idle": "Inactivo",
       "error": "Error",
+      "ready": "Listo",
+      "jobDisabled": "Deshabilitada",
+      "invalidAgentShort": "Agente no disponible",
       "invalidAgent": "El agente no existe o está deshabilitado. Elige otro agente."
     },
     "runNowSuccess": "Tarea programada completada"
