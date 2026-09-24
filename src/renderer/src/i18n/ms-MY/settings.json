@@ -3059,6 +3059,7 @@
     "empty": "Tiada tugasan berjadual lagi.",
     "none": "Tiada",
     "nextRunAt": "Larian seterusnya",
+    "created": "Tugasan dicipta",
     "defaults": {
       "name": "Tugasan cron pagi"
     },
@@ -3067,7 +3068,15 @@
       "runNow": "Jalankan sekarang",
       "clearNextRun": "Kosongkan larian seterusnya",
       "reconcile": "Selaraskan semula",
-      "restart": "Mulakan semula pemasa"
+      "restart": "Mulakan semula pemasa",
+      "create": "Cipta",
+      "createFirstTask": "Cipta tugasan pertama",
+      "backToList": "Kembali ke senarai",
+      "schedulerDetails": "Butiran penjadual"
+    },
+    "list": {
+      "enabledGroup": "Didayakan",
+      "disabledGroup": "Dilumpuhkan"
     },
     "fields": {
       "name": "Nama",
@@ -3085,14 +3094,92 @@
       "remoteChannel": "Saluran Remote",
       "noRemoteChannels": "Dayakan Remote dan pautkan saluran dahulu.",
       "deliverySuccess": "dihantar",
-      "deliveryFailed": "gagal"
+      "deliveryFailed": "gagal",
+      "schedule": "Jadual",
+      "scheduleTime": "Masa",
+      "scheduleWeekday": "Hari",
+      "scheduleMonthDay": "Hari dalam bulan",
+      "scheduleMinute": "Minit",
+      "createEnabled": "Dayakan selepas dicipta",
+      "createEnabledHint": "Mula berjalan mengikut jadual sebaik sahaja dicipta."
     },
     "presets": {
       "custom": "Tersuai",
       "every5Minutes": "Setiap 5 minit",
       "hourly": "Setiap jam",
       "daily": "Harian pada 09:00",
-      "weekdays": "Hari bekerja pada 09:00"
+      "weekdays": "Hari bekerja pada 09:00",
+      "weekly": "Setiap minggu",
+      "monthly": "Setiap bulan"
+    },
+    "weekdays": {
+      "sun": "Ahad",
+      "mon": "Isnin",
+      "tue": "Selasa",
+      "wed": "Rabu",
+      "thu": "Khamis",
+      "fri": "Jumaat",
+      "sat": "Sabtu"
+    },
+    "schedule": {
+      "every5Minutes": "Setiap 5 minit",
+      "hourly": "Setiap jam pada minit ke-{minute}",
+      "daily": "Harian pada {time}",
+      "weekdays": "Hari bekerja pada {time}",
+      "weekly": "Setiap {weekday} pada {time}",
+      "monthly": "Hari {day} setiap bulan pada {time}"
+    },
+    "detail": {
+      "placeholderTitle": "Pilih tugasan",
+      "placeholderDescription": "Pilih tugasan daripada senarai untuk menyemak jadual, prompt, tetapan penghantaran dan sejarah larian.",
+      "scheduleTitle": "Jadual",
+      "lastRun": "Larian terakhir",
+      "neverRun": "Belum dijalankan",
+      "promptEmpty": "Belum ada prompt tugasan.",
+      "promptPlaceholder": "Terangkan apa yang perlu dilakukan oleh ejen pada setiap larian.",
+      "deliveryDisabled": "Penghantaran dimatikan.",
+      "historyTitle": "Sejarah larian",
+      "noRuns": "Belum ada larian.",
+      "unsaved": "Perubahan belum disimpan",
+      "basicsTitle": "Maklumat asas",
+      "createTitle": "Tugasan baharu",
+      "editTitle": "Edit tugasan",
+      "deleteConfirm": "Padam tugasan \"{name}\"? Tindakan ini tidak boleh dibatalkan dan sejarah lariannya juga akan dipadam."
+    },
+    "emptyState": {
+      "title": "Belum ada tugasan berjadual",
+      "description": "Tugasan berjadual menjalankan ejen mengikut jadual anda: ringkaskan berita, jana laporan, kemas catatan. Hasilnya kekal dalam sejarah larian atau dihantar ke saluran Remote.",
+      "templatesTitle": "Mulakan dengan templat",
+      "templatesDescription": "Templat akan mengisi borang terlebih dahulu; tiada apa yang disimpan sehingga anda mengesahkannya."
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "Ringkasan berita harian",
+        "prompt": "Ringkaskan berita penting hari ini yang berkaitan dengan saya dan projek saya. Senaraikan 3-5 poin utama berserta ulasan ringkas bagi setiap satu."
+      },
+      "repositoryDigest": {
+        "name": "Laporan PR mingguan",
+        "prompt": "Ringkaskan pull request repositori minggu ini: yang dibuka, digabungkan dan menunggu semakan, serta nyatakan halangan yang perlu diberi perhatian."
+      },
+      "knowledgeTidy": {
+        "name": "Kemas pangkalan pengetahuan",
+        "prompt": "Semak catatan dan bahan yang ditambah minggu ini, kumpulkan mengikut topik, tambah tag dan nyatakan maklumat yang masih kurang."
+      }
+    },
+    "runs": {
+      "reasonScheduled": "Berjadual",
+      "reasonManual": "Manual",
+      "durationSeconds": "{value} s",
+      "durationMinutes": "{minutes} m {seconds} s",
+      "output": "Output"
+    },
+    "scheduler": {
+      "pid": "PID proses",
+      "heartbeat": "Denyutan jantung",
+      "restartAttempts": "Mula semula",
+      "updatedAt": "Dikemas kini",
+      "errorDescription": "Proses penjadual mengalami masalah; tugasan mungkin tidak berjalan mengikut masa.",
+      "staleDescription": "Status penjadual tidak tersedia; tugasan mungkin tidak berjalan mengikut masa."
     },
     "status": {
       "state": "Keadaan",
@@ -3103,6 +3190,9 @@
       "running": "Berjalan",
       "idle": "Terbiar",
       "error": "Ralat",
+      "ready": "Sedia",
+      "jobDisabled": "Dilumpuhkan",
+      "invalidAgentShort": "Ejen tidak sah",
       "invalidAgent": "Ejen tiada atau dilumpuhkan. Pilih ejen lain."
     },
     "runNowSuccess": "Tugasan berjadual selesai"

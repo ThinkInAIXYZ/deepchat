@@ -3059,6 +3059,7 @@
     "empty": "Chưa có tác vụ đã lên lịch.",
     "none": "Không có",
     "nextRunAt": "Lần chạy tiếp",
+    "created": "Đã tạo tác vụ",
     "defaults": {
       "name": "Tác vụ buổi sáng"
     },
@@ -3067,12 +3068,20 @@
       "runNow": "Chạy ngay",
       "clearNextRun": "Xóa lần chạy tiếp",
       "reconcile": "Đồng bộ lại",
-      "restart": "Khởi động lại bộ đếm"
+      "restart": "Khởi động lại bộ đếm",
+      "create": "Tạo",
+      "createFirstTask": "Tạo tác vụ đầu tiên",
+      "backToList": "Quay lại danh sách",
+      "schedulerDetails": "Chi tiết bộ lập lịch"
+    },
+    "list": {
+      "enabledGroup": "Đã bật",
+      "disabledGroup": "Đã tắt"
     },
     "fields": {
       "name": "Tên",
-      "cronExpr": "Cron expression",
-      "timezone": "múi giờ",
+      "cronExpr": "Biểu thức Cron",
+      "timezone": "Múi giờ",
       "preset": "Mẫu có sẵn",
       "agent": "Agent",
       "noAgent": "Chưa chọn",
@@ -3085,14 +3094,92 @@
       "remoteChannel": "Kênh Remote",
       "noRemoteChannels": "Hãy bật Remote và liên kết kênh trước.",
       "deliverySuccess": "đã gửi",
-      "deliveryFailed": "gửi thất bại"
+      "deliveryFailed": "gửi thất bại",
+      "schedule": "Lịch chạy",
+      "scheduleTime": "Thời gian",
+      "scheduleWeekday": "Thứ",
+      "scheduleMonthDay": "Ngày trong tháng",
+      "scheduleMinute": "Phút trong giờ",
+      "createEnabled": "Bật sau khi tạo",
+      "createEnabledHint": "Chạy theo lịch ngay sau khi tạo."
     },
     "presets": {
       "custom": "Tùy chỉnh",
       "every5Minutes": "Mỗi 5 phút",
       "hourly": "Mỗi giờ",
       "daily": "Hàng ngày lúc 09:00",
-      "weekdays": "Các ngày trong tuần lúc 09:00"
+      "weekdays": "Các ngày trong tuần lúc 09:00",
+      "weekly": "Hàng tuần",
+      "monthly": "Hàng tháng"
+    },
+    "weekdays": {
+      "sun": "Chủ nhật",
+      "mon": "Thứ hai",
+      "tue": "Thứ ba",
+      "wed": "Thứ tư",
+      "thu": "Thứ năm",
+      "fri": "Thứ sáu",
+      "sat": "Thứ bảy"
+    },
+    "schedule": {
+      "every5Minutes": "Mỗi 5 phút",
+      "hourly": "Mỗi giờ vào phút {minute}",
+      "daily": "Hàng ngày lúc {time}",
+      "weekdays": "Các ngày trong tuần lúc {time}",
+      "weekly": "Mỗi {weekday} lúc {time}",
+      "monthly": "Ngày {day} hàng tháng lúc {time}"
+    },
+    "detail": {
+      "placeholderTitle": "Chọn một tác vụ",
+      "placeholderDescription": "Chọn tác vụ ở danh sách bên trái để xem lịch chạy, nội dung, cấu hình gửi và lịch sử chạy.",
+      "scheduleTitle": "Lịch chạy",
+      "lastRun": "Lần chạy gần nhất",
+      "neverRun": "Chưa chạy",
+      "promptEmpty": "Chưa có nội dung tác vụ.",
+      "promptPlaceholder": "Mô tả việc agent cần làm trong mỗi lần chạy.",
+      "deliveryDisabled": "Chưa bật gửi kết quả.",
+      "historyTitle": "Lịch sử chạy",
+      "noRuns": "Chưa có lần chạy nào.",
+      "unsaved": "Có thay đổi chưa lưu",
+      "basicsTitle": "Thông tin cơ bản",
+      "createTitle": "Tác vụ mới",
+      "editTitle": "Sửa tác vụ",
+      "deleteConfirm": "Xóa tác vụ \"{name}\"? Không thể hoàn tác và lịch sử chạy cũng sẽ bị xóa."
+    },
+    "emptyState": {
+      "title": "Chưa có tác vụ đã lên lịch",
+      "description": "Tác vụ đã lên lịch sẽ tự động chạy agent theo lịch bạn đặt: tổng hợp tin tức, tạo báo cáo, sắp xếp ghi chú. Kết quả được lưu trong lịch sử chạy hoặc gửi tới kênh Remote.",
+      "templatesTitle": "Bắt đầu từ mẫu",
+      "templatesDescription": "Chọn mẫu sẽ điền sẵn biểu mẫu; chỉ lưu sau khi bạn xác nhận."
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "Tóm tắt tin tức hàng ngày",
+        "prompt": "Tóm tắt những tin tức quan trọng trong ngày liên quan đến tôi và các dự án của tôi, nêu 3-5 điểm chính kèm nhận định ngắn."
+      },
+      "repositoryDigest": {
+        "name": "Báo cáo PR hàng tuần",
+        "prompt": "Tổng hợp Pull Request của kho trong tuần này: mới mở, đã hợp nhất, đang chờ duyệt, và nêu những điểm đang tắc cần chú ý."
+      },
+      "knowledgeTidy": {
+        "name": "Sắp xếp kho kiến thức",
+        "prompt": "Xem lại ghi chú và tài liệu thêm mới trong tuần, phân loại theo chủ đề, bổ sung thẻ và chỉ ra thông tin còn thiếu."
+      }
+    },
+    "runs": {
+      "reasonScheduled": "Theo lịch",
+      "reasonManual": "Thủ công",
+      "durationSeconds": "{value} giây",
+      "durationMinutes": "{minutes} phút {seconds} giây",
+      "output": "Kết quả"
+    },
+    "scheduler": {
+      "pid": "PID tiến trình",
+      "heartbeat": "Tín hiệu hoạt động",
+      "restartAttempts": "Số lần khởi động lại",
+      "updatedAt": "Cập nhật lúc",
+      "errorDescription": "Tiến trình lập lịch đang gặp lỗi; tác vụ có thể không chạy đúng giờ.",
+      "staleDescription": "Không lấy được trạng thái bộ lập lịch; tác vụ có thể không chạy đúng giờ."
     },
     "status": {
       "state": "Trạng thái",
@@ -3103,6 +3190,9 @@
       "running": "Đang chạy",
       "idle": "Rảnh",
       "error": "Lỗi",
+      "ready": "Sẵn sàng",
+      "jobDisabled": "Đã tắt",
+      "invalidAgentShort": "Agent không khả dụng",
       "invalidAgent": "Agent bị thiếu hoặc đã tắt. Hãy chọn agent khác."
     },
     "runNowSuccess": "Tác vụ đã lên lịch đã hoàn tất"

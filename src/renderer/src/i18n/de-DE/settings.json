@@ -3059,6 +3059,7 @@
     "empty": "Noch keine geplanten Aufgaben.",
     "none": "Keine",
     "nextRunAt": "Nächster Lauf",
+    "created": "Aufgabe erstellt",
     "defaults": {
       "name": "Morgendliche Cron-Aufgabe"
     },
@@ -3067,7 +3068,15 @@
       "runNow": "Jetzt ausführen",
       "clearNextRun": "Nächsten Lauf löschen",
       "reconcile": "Abgleichen",
-      "restart": "Timer neustarten"
+      "restart": "Timer neustarten",
+      "create": "Erstellen",
+      "createFirstTask": "Erste Aufgabe erstellen",
+      "backToList": "Zurück zur Liste",
+      "schedulerDetails": "Scheduler-Details"
+    },
+    "list": {
+      "enabledGroup": "Aktiviert",
+      "disabledGroup": "Deaktiviert"
     },
     "fields": {
       "name": "Name",
@@ -3085,14 +3094,92 @@
       "remoteChannel": "Remote-Kanal",
       "noRemoteChannels": "Aktivieren Sie zuerst Remote und binden Sie einen Kanal.",
       "deliverySuccess": "gesendet",
-      "deliveryFailed": "fehlgeschlagen"
+      "deliveryFailed": "fehlgeschlagen",
+      "schedule": "Zeitplan",
+      "scheduleTime": "Uhrzeit",
+      "scheduleWeekday": "Wochentag",
+      "scheduleMonthDay": "Tag des Monats",
+      "scheduleMinute": "Minute",
+      "createEnabled": "Nach dem Erstellen aktivieren",
+      "createEnabledHint": "Startet direkt nach dem Erstellen nach Zeitplan."
     },
     "presets": {
       "custom": "Benutzerdefiniert",
       "every5Minutes": "Alle 5 Minuten",
       "hourly": "Stündlich",
       "daily": "Täglich um 09:00",
-      "weekdays": "Wochentags um 09:00"
+      "weekdays": "Wochentags um 09:00",
+      "weekly": "Wöchentlich",
+      "monthly": "Monatlich"
+    },
+    "weekdays": {
+      "sun": "Sonntag",
+      "mon": "Montag",
+      "tue": "Dienstag",
+      "wed": "Mittwoch",
+      "thu": "Donnerstag",
+      "fri": "Freitag",
+      "sat": "Samstag"
+    },
+    "schedule": {
+      "every5Minutes": "Alle 5 Minuten",
+      "hourly": "Stündlich zur Minute {minute}",
+      "daily": "Täglich um {time}",
+      "weekdays": "Wochentags um {time}",
+      "weekly": "Jeden {weekday} um {time}",
+      "monthly": "Am {day}. jedes Monats um {time}"
+    },
+    "detail": {
+      "placeholderTitle": "Aufgabe auswählen",
+      "placeholderDescription": "Wählen Sie eine Aufgabe aus der Liste, um Zeitplan, Prompt, Zustellung und Verlauf zu sehen.",
+      "scheduleTitle": "Zeitplan",
+      "lastRun": "Letzter Lauf",
+      "neverRun": "Noch nie ausgeführt",
+      "promptEmpty": "Noch kein Aufgabenprompt.",
+      "promptPlaceholder": "Beschreiben Sie, was der Agent bei jedem Lauf tun soll.",
+      "deliveryDisabled": "Zustellung ist deaktiviert.",
+      "historyTitle": "Ausführungsverlauf",
+      "noRuns": "Noch keine Läufe.",
+      "unsaved": "Ungespeicherte Änderungen",
+      "basicsTitle": "Grundlagen",
+      "createTitle": "Neue Aufgabe",
+      "editTitle": "Aufgabe bearbeiten",
+      "deleteConfirm": "Aufgabe \"{name}\" löschen? Das kann nicht rückgängig gemacht werden und der Ausführungsverlauf wird ebenfalls entfernt."
+    },
+    "emptyState": {
+      "title": "Noch keine geplanten Aufgaben",
+      "description": "Geplante Aufgaben führen einen Agent nach deinem Zeitplan aus: Nachrichten zusammenfassen, Berichte erstellen, Notizen ordnen. Ergebnisse bleiben im Verlauf oder werden an einen Remote-Kanal zugestellt.",
+      "templatesTitle": "Mit einer Vorlage starten",
+      "templatesDescription": "Eine Vorlage füllt das Formular vor; gespeichert wird erst nach Bestätigung."
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "Tägliche Nachrichtenzusammenfassung",
+        "prompt": "Fasse die wichtigsten Nachrichten von heute zu mir und meinen Projekten zusammen. Nenne 3-5 Kernpunkte mit einer kurzen Einordnung."
+      },
+      "repositoryDigest": {
+        "name": "Wöchentlicher PR-Bericht",
+        "prompt": "Fasse die Pull Requests des Repositories dieser Woche zusammen: neu, zusammengeführt, wartet auf Review, und nenne Blocker, die Aufmerksamkeit brauchen."
+      },
+      "knowledgeTidy": {
+        "name": "Wissensbasis aufräumen",
+        "prompt": "Prüfen Sie die diese Woche hinzugefügten Notizen und Materialien, gruppieren Sie sie nach Thema, ergänzen Sie Tags und nennen Sie, was noch fehlt."
+      }
+    },
+    "runs": {
+      "reasonScheduled": "Geplant",
+      "reasonManual": "Manuell",
+      "durationSeconds": "{value} s",
+      "durationMinutes": "{minutes} min {seconds} s",
+      "output": "Ausgabe"
+    },
+    "scheduler": {
+      "pid": "Prozess-PID",
+      "heartbeat": "Heartbeat",
+      "restartAttempts": "Neustarts",
+      "updatedAt": "Aktualisiert",
+      "errorDescription": "Der Scheduler-Prozess schlägt fehl; Aufgaben laufen möglicherweise nicht pünktlich.",
+      "staleDescription": "Scheduler-Status nicht verfügbar; Aufgaben laufen möglicherweise nicht pünktlich."
     },
     "status": {
       "state": "Status",
@@ -3103,6 +3190,9 @@
       "running": "Läuft",
       "idle": "Inaktiv",
       "error": "Fehler",
+      "ready": "Bereit",
+      "jobDisabled": "Deaktiviert",
+      "invalidAgentShort": "Agent nicht verfügbar",
       "invalidAgent": "Agent fehlt oder ist deaktiviert. Wählen Sie einen anderen Agent."
     },
     "runNowSuccess": "Geplante Aufgabe abgeschlossen"

@@ -1673,6 +1673,7 @@
     "empty": "Ainda não há tarefas agendadas.",
     "none": "Nenhum",
     "nextRunAt": "Próxima execução",
+    "created": "Tarefa criada",
     "defaults": {
       "name": "Tarefa matinal"
     },
@@ -1681,7 +1682,15 @@
       "runNow": "Executar agora",
       "clearNextRun": "Limpar próxima execução",
       "reconcile": "Reconciliar",
-      "restart": "Reiniciar temporizador"
+      "restart": "Reiniciar temporizador",
+      "create": "Criar",
+      "createFirstTask": "Criar primeira tarefa",
+      "backToList": "Voltar à lista",
+      "schedulerDetails": "Detalhes do agendador"
+    },
+    "list": {
+      "enabledGroup": "Ativadas",
+      "disabledGroup": "Desativadas"
     },
     "fields": {
       "name": "Nome",
@@ -1699,14 +1708,92 @@
       "remoteChannel": "Canal Remote",
       "noRemoteChannels": "Ative o Remote e vincule um canal primeiro.",
       "deliverySuccess": "enviado",
-      "deliveryFailed": "falhou"
+      "deliveryFailed": "falhou",
+      "schedule": "Agendamento",
+      "scheduleTime": "Horário",
+      "scheduleWeekday": "Dia da semana",
+      "scheduleMonthDay": "Dia do mês",
+      "scheduleMinute": "Minuto",
+      "createEnabled": "Ativar após criar",
+      "createEnabledHint": "Começa a rodar conforme o agendamento logo após a criação."
     },
     "presets": {
       "custom": "Personalizado",
       "every5Minutes": "A cada 5 minutos",
       "hourly": "A cada hora",
       "daily": "Diariamente às 09:00",
-      "weekdays": "Dias úteis às 09:00"
+      "weekdays": "Dias úteis às 09:00",
+      "weekly": "Semanal",
+      "monthly": "Mensal"
+    },
+    "weekdays": {
+      "sun": "Domingo",
+      "mon": "Segunda-feira",
+      "tue": "Terça-feira",
+      "wed": "Quarta-feira",
+      "thu": "Quinta-feira",
+      "fri": "Sexta-feira",
+      "sat": "Sábado"
+    },
+    "schedule": {
+      "every5Minutes": "A cada 5 minutos",
+      "hourly": "A cada hora no minuto {minute}",
+      "daily": "Diariamente às {time}",
+      "weekdays": "Dias úteis às {time}",
+      "weekly": "Toda {weekday} às {time}",
+      "monthly": "No dia {day} de cada mês às {time}"
+    },
+    "detail": {
+      "placeholderTitle": "Selecione uma tarefa",
+      "placeholderDescription": "Escolha uma tarefa na lista para ver o agendamento, o prompt, a entrega e o histórico.",
+      "scheduleTitle": "Agendamento",
+      "lastRun": "Última execução",
+      "neverRun": "Nunca executada",
+      "promptEmpty": "Nenhum prompt de tarefa ainda.",
+      "promptPlaceholder": "Descreva o que o agente deve fazer em cada execução.",
+      "deliveryDisabled": "A entrega está desativada.",
+      "historyTitle": "Histórico de execuções",
+      "noRuns": "Nenhuma execução ainda.",
+      "unsaved": "Alterações não salvas",
+      "basicsTitle": "Informações básicas",
+      "createTitle": "Nova tarefa",
+      "editTitle": "Editar tarefa",
+      "deleteConfirm": "Excluir a tarefa \"{name}\"? Isso não pode ser desfeito e o histórico de execuções também será removido."
+    },
+    "emptyState": {
+      "title": "Ainda não há tarefas agendadas",
+      "description": "Tarefas agendadas executam um agente conforme o seu agendamento: resumir notícias, gerar relatórios, organizar anotações. Os resultados ficam no histórico ou são entregues em um canal Remote.",
+      "templatesTitle": "Começar com um modelo",
+      "templatesDescription": "Um modelo preenche o formulário; nada é salvo até você confirmar."
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "Resumo diário de notícias",
+        "prompt": "Resuma as notícias importantes de hoje relacionadas a mim e aos meus projetos. Liste de 3 a 5 pontos principais com um breve comentário sobre cada um."
+      },
+      "repositoryDigest": {
+        "name": "Relatório semanal de PR",
+        "prompt": "Resuma as pull requests do repositório desta semana: abertas, mescladas e aguardando revisão, e destaque os bloqueios que precisam de atenção."
+      },
+      "knowledgeTidy": {
+        "name": "Organizar a base de conhecimento",
+        "prompt": "Revise as notas e os materiais adicionados nesta semana, agrupe por tema, adicione tags e aponte o que ainda falta."
+      }
+    },
+    "runs": {
+      "reasonScheduled": "Agendada",
+      "reasonManual": "Manual",
+      "durationSeconds": "{value}s",
+      "durationMinutes": "{minutes}m {seconds}s",
+      "output": "Saída"
+    },
+    "scheduler": {
+      "pid": "PID do processo",
+      "heartbeat": "Pulsação",
+      "restartAttempts": "Reinicializações",
+      "updatedAt": "Atualizado",
+      "errorDescription": "O processo do agendador está falhando; as tarefas podem não rodar no horário.",
+      "staleDescription": "O status do agendador está indisponível; as tarefas podem não rodar no horário."
     },
     "status": {
       "state": "Estado",
@@ -1717,6 +1804,9 @@
       "running": "Em execução",
       "idle": "Ocioso",
       "error": "Erro",
+      "ready": "Pronto",
+      "jobDisabled": "Desativada",
+      "invalidAgentShort": "Agente indisponível",
       "invalidAgent": "O agente está ausente ou desabilitado. Escolha outro agente."
     },
     "runNowSuccess": "Tarefa agendada concluída"

@@ -1673,6 +1673,7 @@
     "empty": "スケジュール済みタスクはまだありません。",
     "none": "なし",
     "nextRunAt": "次回実行",
+    "created": "タスクを作成しました",
     "defaults": {
       "name": "朝の定期ジョブ"
     },
@@ -1681,7 +1682,15 @@
       "runNow": "今すぐ実行",
       "clearNextRun": "次回実行をクリア",
       "reconcile": "再調整",
-      "restart": "タイマーを再起動"
+      "restart": "タイマーを再起動",
+      "create": "作成",
+      "createFirstTask": "最初のタスクを作成",
+      "backToList": "一覧に戻る",
+      "schedulerDetails": "スケジューラーの詳細"
+    },
+    "list": {
+      "enabledGroup": "有効",
+      "disabledGroup": "無効"
     },
     "fields": {
       "name": "名前",
@@ -1699,14 +1708,92 @@
       "remoteChannel": "リモートチャンネル",
       "noRemoteChannels": "先にリモートを有効化し、チャンネルをバインドしてください。",
       "deliverySuccess": "配信済み",
-      "deliveryFailed": "配信失敗"
+      "deliveryFailed": "配信失敗",
+      "schedule": "スケジュール",
+      "scheduleTime": "時刻",
+      "scheduleWeekday": "曜日",
+      "scheduleMonthDay": "毎月の日",
+      "scheduleMinute": "毎時の分",
+      "createEnabled": "作成後に有効化",
+      "createEnabledHint": "作成後すぐにスケジュールで実行を開始します。"
     },
     "presets": {
       "custom": "カスタム",
       "every5Minutes": "5分ごと",
       "hourly": "毎時",
       "daily": "毎日09:00",
-      "weekdays": "平日09:00"
+      "weekdays": "平日09:00",
+      "weekly": "毎週",
+      "monthly": "毎月"
+    },
+    "weekdays": {
+      "sun": "日曜日",
+      "mon": "月曜日",
+      "tue": "火曜日",
+      "wed": "水曜日",
+      "thu": "木曜日",
+      "fri": "金曜日",
+      "sat": "土曜日"
+    },
+    "schedule": {
+      "every5Minutes": "5分ごと",
+      "hourly": "毎時{minute}分",
+      "daily": "毎日 {time}",
+      "weekdays": "平日 {time}",
+      "weekly": "毎週{weekday} {time}",
+      "monthly": "毎月{day}日 {time}"
+    },
+    "detail": {
+      "placeholderTitle": "タスクを選択",
+      "placeholderDescription": "左の一覧からタスクを選ぶと、スケジュール、プロンプト、配信設定、実行履歴を確認できます。",
+      "scheduleTitle": "スケジュール",
+      "lastRun": "前回の実行",
+      "neverRun": "未実行",
+      "promptEmpty": "タスクプロンプトはまだありません。",
+      "promptPlaceholder": "毎回の実行でエージェントに実行させる内容を記述してください。",
+      "deliveryDisabled": "配信はオフです。",
+      "historyTitle": "実行履歴",
+      "noRuns": "実行履歴はまだありません。",
+      "unsaved": "未保存の変更があります",
+      "basicsTitle": "基本情報",
+      "createTitle": "新規タスク",
+      "editTitle": "タスクを編集",
+      "deleteConfirm": "タスク「{name}」を削除しますか？削除すると元に戻せず、実行履歴も削除されます。"
+    },
+    "emptyState": {
+      "title": "スケジュール済みタスクはまだありません",
+      "description": "スケジュール済みタスクは設定したスケジュールでエージェントを自動実行します。ニュースの要約、レポートの作成、ノートの整理などを行い、結果は実行履歴に残すかリモートチャンネルへ配信します。",
+      "templatesTitle": "テンプレートから始める",
+      "templatesDescription": "テンプレートを選ぶとフォームが入力されます。確定するまで保存されません。"
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "毎日のニュース要約",
+        "prompt": "今日の自分と自分のプロジェクトに関わる重要なニュースを要約し、3〜5個の要点と短い所見をまとめてください。"
+      },
+      "repositoryDigest": {
+        "name": "週次の PR レポート",
+        "prompt": "今週のリポジトリの Pull Request を整理してください：新規、マージ済み、レビュー待ち、そして対応が必要なブロッカーを挙げてください。"
+      },
+      "knowledgeTidy": {
+        "name": "ナレッジベースの整理",
+        "prompt": "今週追加されたノートと資料を見直し、トピックごとに分類してタグを付け、まだ不足している情報を指摘してください。"
+      }
+    },
+    "runs": {
+      "reasonScheduled": "スケジュール実行",
+      "reasonManual": "手動実行",
+      "durationSeconds": "{value}秒",
+      "durationMinutes": "{minutes}分{seconds}秒",
+      "output": "出力"
+    },
+    "scheduler": {
+      "pid": "プロセス PID",
+      "heartbeat": "ハートビート",
+      "restartAttempts": "再起動回数",
+      "updatedAt": "更新日時",
+      "errorDescription": "スケジューラープロセスが異常です。タスクが時間どおりに実行されない可能性があります。",
+      "staleDescription": "スケジューラーの状態を取得できません。タスクが時間どおりに実行されない可能性があります。"
     },
     "status": {
       "state": "状態",
@@ -1717,6 +1804,9 @@
       "running": "実行中",
       "idle": "待機中",
       "error": "エラー",
+      "ready": "準備完了",
+      "jobDisabled": "無効",
+      "invalidAgentShort": "エージェント無効",
       "invalidAgent": "エージェントが見つからないか無効です。別のエージェントを選択してください。"
     },
     "runNowSuccess": "スケジュール済みタスクが完了しました"

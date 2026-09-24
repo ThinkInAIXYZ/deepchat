@@ -2042,6 +2042,7 @@
     "empty": "暂无定时任务。",
     "none": "无",
     "nextRunAt": "下次运行",
+    "created": "任务已创建",
     "defaults": {
       "name": "Morning cron job"
     },
@@ -2050,7 +2051,15 @@
       "runNow": "立即运行",
       "clearNextRun": "清空下次运行",
       "reconcile": "重新同步",
-      "restart": "重启定时器"
+      "restart": "重启定时器",
+      "create": "创建",
+      "createFirstTask": "创建第一个任务",
+      "backToList": "返回列表",
+      "schedulerDetails": "调度器详情"
+    },
+    "list": {
+      "enabledGroup": "已启用",
+      "disabledGroup": "已停用"
     },
     "fields": {
       "name": "名称",
@@ -2068,14 +2077,92 @@
       "remoteChannel": "Remote 频道",
       "noRemoteChannels": "先启用 Remote，并绑定频道。",
       "deliverySuccess": "已投递",
-      "deliveryFailed": "投递失败"
+      "deliveryFailed": "投递失败",
+      "schedule": "执行计划",
+      "scheduleTime": "时间",
+      "scheduleWeekday": "星期",
+      "scheduleMonthDay": "每月日期",
+      "scheduleMinute": "每小时的第几分钟",
+      "createEnabled": "创建后启用",
+      "createEnabledHint": "创建后立即按计划运行。"
     },
     "presets": {
       "custom": "自定义",
       "every5Minutes": "每 5 分钟",
       "hourly": "每小时",
       "daily": "每天 09:00",
-      "weekdays": "工作日 09:00"
+      "weekdays": "工作日 09:00",
+      "weekly": "每周",
+      "monthly": "每月"
+    },
+    "weekdays": {
+      "sun": "周日",
+      "mon": "周一",
+      "tue": "周二",
+      "wed": "周三",
+      "thu": "周四",
+      "fri": "周五",
+      "sat": "周六"
+    },
+    "schedule": {
+      "every5Minutes": "每 5 分钟",
+      "hourly": "每小时第 {minute} 分钟",
+      "daily": "每天 {time}",
+      "weekdays": "工作日 {time}",
+      "weekly": "每{weekday} {time}",
+      "monthly": "每月 {day} 日 {time}"
+    },
+    "detail": {
+      "placeholderTitle": "选择一个任务",
+      "placeholderDescription": "从左侧列表选择任务，查看执行计划、任务内容、投递配置和运行记录。",
+      "scheduleTitle": "执行计划",
+      "lastRun": "最近运行",
+      "neverRun": "尚未运行",
+      "promptEmpty": "尚未填写任务内容。",
+      "promptPlaceholder": "描述每次运行要让 Agent 完成的事情。",
+      "deliveryDisabled": "未开启投递。",
+      "historyTitle": "运行记录",
+      "noRuns": "暂无运行记录。",
+      "unsaved": "有未保存的修改",
+      "basicsTitle": "基本信息",
+      "createTitle": "新建任务",
+      "editTitle": "编辑任务",
+      "deleteConfirm": "删除任务「{name}」？删除后无法恢复，运行记录也会一并清除。"
+    },
+    "emptyState": {
+      "title": "还没有定时任务",
+      "description": "定时任务会按设定的计划自动运行 Agent：汇总资讯、生成周报、整理资料，并把结果保留在运行记录里，或投递到 Remote 频道。",
+      "templatesTitle": "从示例开始",
+      "templatesDescription": "选择示例会预填表单，确认创建后才会保存。"
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "每日资讯摘要",
+        "prompt": "汇总今天与我和我的项目相关的重要资讯，列出 3-5 条要点，并给出简短解读。"
+      },
+      "repositoryDigest": {
+        "name": "仓库 PR 周报",
+        "prompt": "整理本周仓库的 Pull Request：新增、已合并、待评审，列出需要关注的阻塞项。"
+      },
+      "knowledgeTidy": {
+        "name": "整理知识库",
+        "prompt": "回顾本周新增的笔记与资料，按主题归类并补充标签，指出仍然缺失的信息。"
+      }
+    },
+    "runs": {
+      "reasonScheduled": "定时触发",
+      "reasonManual": "手动触发",
+      "durationSeconds": "{value} 秒",
+      "durationMinutes": "{minutes} 分 {seconds} 秒",
+      "output": "输出"
+    },
+    "scheduler": {
+      "pid": "进程 PID",
+      "heartbeat": "心跳",
+      "restartAttempts": "重启次数",
+      "updatedAt": "更新时间",
+      "errorDescription": "调度进程当前异常，任务可能不会按时运行。",
+      "staleDescription": "无法获取调度器状态，任务可能不会按时运行。"
     },
     "status": {
       "state": "状态",
@@ -2086,6 +2173,9 @@
       "running": "运行中",
       "idle": "空闲",
       "error": "错误",
+      "ready": "就绪",
+      "jobDisabled": "已停用",
+      "invalidAgentShort": "Agent 无效",
       "invalidAgent": "Agent 不存在或已停用，请重新选择 Agent。"
     },
     "runNowSuccess": "定时任务已完成"

@@ -3059,6 +3059,7 @@
     "empty": "Henüz zamanlanmış görev yok.",
     "none": "Yok",
     "nextRunAt": "Bir sonraki çalıştırma",
+    "created": "Görev oluşturuldu",
     "defaults": {
       "name": "Sabah zamanlanmış görev"
     },
@@ -3067,7 +3068,15 @@
       "runNow": "Şimdi çalıştır",
       "clearNextRun": "Sonraki çalıştırmayı temizle",
       "reconcile": "Yeniden senkronize et",
-      "restart": "Zamanlayıcıyı yeniden başlat"
+      "restart": "Zamanlayıcıyı yeniden başlat",
+      "create": "Oluştur",
+      "createFirstTask": "İlk görevi oluştur",
+      "backToList": "Listeye dön",
+      "schedulerDetails": "Zamanlayıcı ayrıntıları"
+    },
+    "list": {
+      "enabledGroup": "Etkin",
+      "disabledGroup": "Devre dışı"
     },
     "fields": {
       "name": "Ad",
@@ -3078,21 +3087,99 @@
       "noAgent": "Hiçbiri seçilmedi",
       "taskPrompt": "Görev istemi",
       "runtimePolicy": "Çalışma zamanı",
-      "followAgent": "Ajanı takip et",
+      "followAgent": "Ajan yapılandırmasını kullan",
       "pinCurrent": "Mevcut yapılandırmayı sabitle",
       "delivery": "Teslim",
       "remoteDelivery": "Uzak teslimat",
       "remoteChannel": "Uzak kanal",
       "noRemoteChannels": "Önce Remote’u etkinleştirip bir kanal bağlayın.",
       "deliverySuccess": "gönderildi",
-      "deliveryFailed": "başarısız"
+      "deliveryFailed": "başarısız",
+      "schedule": "Zamanlama",
+      "scheduleTime": "Saat",
+      "scheduleWeekday": "Haftanın günü",
+      "scheduleMonthDay": "Ayın günü",
+      "scheduleMinute": "Dakika",
+      "createEnabled": "Oluşturduktan sonra etkinleştir",
+      "createEnabledHint": "Oluşturulduktan hemen sonra zamanlamaya göre çalışmaya başlar."
     },
     "presets": {
       "custom": "Özel",
       "every5Minutes": "Her 5 dakikada",
       "hourly": "Saatlik",
       "daily": "Her gün 09:00'da",
-      "weekdays": "Hafta içi 09:00'da"
+      "weekdays": "Hafta içi 09:00'da",
+      "weekly": "Haftalık",
+      "monthly": "Aylık"
+    },
+    "weekdays": {
+      "sun": "Pazar",
+      "mon": "Pazartesi",
+      "tue": "Salı",
+      "wed": "Çarşamba",
+      "thu": "Perşembe",
+      "fri": "Cuma",
+      "sat": "Cumartesi"
+    },
+    "schedule": {
+      "every5Minutes": "Her 5 dakikada",
+      "hourly": "Her saat {minute}. dakikada",
+      "daily": "Her gün {time}",
+      "weekdays": "Hafta içi {time}",
+      "weekly": "Her {weekday} saat {time}",
+      "monthly": "Her ayın {day}. günü saat {time}"
+    },
+    "detail": {
+      "placeholderTitle": "Bir görev seçin",
+      "placeholderDescription": "Zamanlamayı, görev istemini, teslim ayarlarını ve çalıştırma geçmişini incelemek için listeden bir görev seçin.",
+      "scheduleTitle": "Zamanlama",
+      "lastRun": "Son çalıştırma",
+      "neverRun": "Henüz çalıştırılmadı",
+      "promptEmpty": "Henüz görev istemi yok.",
+      "promptPlaceholder": "Ajanın her çalıştırmada ne yapacağını açıklayın.",
+      "deliveryDisabled": "Teslimat kapalı.",
+      "historyTitle": "Çalıştırma geçmişi",
+      "noRuns": "Henüz çalıştırma yok.",
+      "unsaved": "Kaydedilmemiş değişiklikler",
+      "basicsTitle": "Temel bilgiler",
+      "createTitle": "Yeni görev",
+      "editTitle": "Görevi düzenle",
+      "deleteConfirm": "\"{name}\" görevi silinsin mi? Bu işlem geri alınamaz ve çalıştırma geçmişi de silinir."
+    },
+    "emptyState": {
+      "title": "Henüz zamanlanmış görev yok",
+      "description": "Zamanlanmış görevler ajanı belirlediğiniz zamanlamaya göre çalıştırır: haberleri özetler, raporlar oluşturur, notları düzenler. Sonuçlar çalıştırma geçmişinde kalır veya bir Remote kanalına teslim edilir.",
+      "templatesTitle": "Bir şablonla başlayın",
+      "templatesDescription": "Şablon formu önceden doldurur; siz onaylayana kadar hiçbir şey kaydedilmez."
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "Günlük haber özeti",
+        "prompt": "Bugün benimle ve projelerimle ilgili önemli haberleri özetle. 3-5 kilit noktayı kısa bir yorumla birlikte listele."
+      },
+      "repositoryDigest": {
+        "name": "Haftalık PR raporu",
+        "prompt": "Bu haftaki depo pull request’lerini özetle: açılanlar, birleştirilenler ve inceleme bekleyenler; dikkat edilmesi gereken engelleri belirt."
+      },
+      "knowledgeTidy": {
+        "name": "Bilgi tabanını düzenle",
+        "prompt": "Bu hafta eklenen notları ve materyalleri gözden geçir, konuya göre grupla, etiket ekle ve hâlâ eksik olanları belirt."
+      }
+    },
+    "runs": {
+      "reasonScheduled": "Zamanlanmış",
+      "reasonManual": "Manuel",
+      "durationSeconds": "{value} sn",
+      "durationMinutes": "{minutes} dk {seconds} sn",
+      "output": "Çıktı"
+    },
+    "scheduler": {
+      "pid": "İşlem PID",
+      "heartbeat": "Sinyal",
+      "restartAttempts": "Yeniden başlatma",
+      "updatedAt": "Güncellendi",
+      "errorDescription": "Zamanlayıcı süreci hata veriyor; görevler zamanında çalışmayabilir.",
+      "staleDescription": "Zamanlayıcı durumu alınamıyor; görevler zamanında çalışmayabilir."
     },
     "status": {
       "state": "Durum",
@@ -3103,6 +3190,9 @@
       "running": "Çalışıyor",
       "idle": "Boşta",
       "error": "Hata",
+      "ready": "Hazır",
+      "jobDisabled": "Devre dışı",
+      "invalidAgentShort": "Ajan geçersiz",
       "invalidAgent": "Ajan eksik veya devre dışı. Başka bir ajan seçin."
     },
     "runNowSuccess": "Zamanlanmış görev tamamlandı"

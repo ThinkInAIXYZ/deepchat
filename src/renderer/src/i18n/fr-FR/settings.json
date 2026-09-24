@@ -1673,6 +1673,7 @@
     "empty": "Aucune tâche planifiée pour le moment.",
     "none": "Aucun",
     "nextRunAt": "Prochaine exécution",
+    "created": "Tâche créée",
     "defaults": {
       "name": "Tâche cron du matin"
     },
@@ -1681,7 +1682,15 @@
       "runNow": "Exécuter maintenant",
       "clearNextRun": "Annuler la prochaine exécution",
       "reconcile": "Réconcilier",
-      "restart": "Redémarrer le minuteur"
+      "restart": "Redémarrer le minuteur",
+      "create": "Créer",
+      "createFirstTask": "Créer la première tâche",
+      "backToList": "Retour à la liste",
+      "schedulerDetails": "Détails du planificateur"
+    },
+    "list": {
+      "enabledGroup": "Activées",
+      "disabledGroup": "Désactivées"
     },
     "fields": {
       "name": "Nom",
@@ -1699,14 +1708,92 @@
       "remoteChannel": "Canal Remote",
       "noRemoteChannels": "Activez Remote et associez d’abord un canal.",
       "deliverySuccess": "envoyé",
-      "deliveryFailed": "échec"
+      "deliveryFailed": "échec",
+      "schedule": "Planification",
+      "scheduleTime": "Heure",
+      "scheduleWeekday": "Jour de la semaine",
+      "scheduleMonthDay": "Jour du mois",
+      "scheduleMinute": "Minute",
+      "createEnabled": "Activer après création",
+      "createEnabledHint": "Démarre selon la planification dès la création."
     },
     "presets": {
       "custom": "Personnalisé",
       "every5Minutes": "Toutes les 5 minutes",
       "hourly": "Toutes les heures",
       "daily": "Quotidien à 09:00",
-      "weekdays": "Jours ouvrables à 09:00"
+      "weekdays": "Jours ouvrables à 09:00",
+      "weekly": "Hebdomadaire",
+      "monthly": "Mensuel"
+    },
+    "weekdays": {
+      "sun": "Dimanche",
+      "mon": "Lundi",
+      "tue": "Mardi",
+      "wed": "Mercredi",
+      "thu": "Jeudi",
+      "fri": "Vendredi",
+      "sat": "Samedi"
+    },
+    "schedule": {
+      "every5Minutes": "Toutes les 5 minutes",
+      "hourly": "Toutes les heures à la minute {minute}",
+      "daily": "Chaque jour à {time}",
+      "weekdays": "Jours ouvrables à {time}",
+      "weekly": "Chaque {weekday} à {time}",
+      "monthly": "Le {day} de chaque mois à {time}"
+    },
+    "detail": {
+      "placeholderTitle": "Sélectionnez une tâche",
+      "placeholderDescription": "Choisissez une tâche dans la liste pour voir sa planification, son prompt, sa livraison et son historique.",
+      "scheduleTitle": "Planification",
+      "lastRun": "Dernière exécution",
+      "neverRun": "Jamais exécutée",
+      "promptEmpty": "Aucun prompt de tâche pour le moment.",
+      "promptPlaceholder": "Décrivez ce que l'agent doit faire à chaque exécution.",
+      "deliveryDisabled": "La livraison est désactivée.",
+      "historyTitle": "Historique des exécutions",
+      "noRuns": "Aucune exécution pour le moment.",
+      "unsaved": "Modifications non enregistrées",
+      "basicsTitle": "Général",
+      "createTitle": "Nouvelle tâche",
+      "editTitle": "Modifier la tâche",
+      "deleteConfirm": "Supprimer la tâche « {name} » ? Cette action est irréversible et l'historique des exécutions sera également supprimé."
+    },
+    "emptyState": {
+      "title": "Aucune tâche planifiée pour le moment",
+      "description": "Les tâches planifiées exécutent un agent selon votre planning : veille d'actualités, rapports, rangement des notes. Les résultats restent dans l'historique ou sont livrés à un canal Remote.",
+      "templatesTitle": "Partir d'un modèle",
+      "templatesDescription": "Un modèle préremplit le formulaire ; rien n'est enregistré avant votre confirmation."
+    },
+    "templates": {
+      "dailyDigest": {
+        "name": "Synthèse quotidienne",
+        "prompt": "Résume l'actualité importante du jour liée à moi et à mes projets. Donne 3 à 5 points clés avec un bref commentaire pour chacun."
+      },
+      "repositoryDigest": {
+        "name": "Rapport PR hebdomadaire",
+        "prompt": "Résume les pull requests du dépôt de cette semaine : ouvertes, fusionnées, en attente de relecture, et signale les blocages à surveiller."
+      },
+      "knowledgeTidy": {
+        "name": "Ranger la base de connaissances",
+        "prompt": "Passe en revue les notes et documents ajoutés cette semaine, classe-les par thème, ajoute des tags et indique ce qui manque encore."
+      }
+    },
+    "runs": {
+      "reasonScheduled": "Planifié",
+      "reasonManual": "Manuel",
+      "durationSeconds": "{value} s",
+      "durationMinutes": "{minutes} min {seconds} s",
+      "output": "Sortie"
+    },
+    "scheduler": {
+      "pid": "PID du processus",
+      "heartbeat": "Heartbeat",
+      "restartAttempts": "Redémarrages",
+      "updatedAt": "Mis à jour",
+      "errorDescription": "Le processus du planificateur est en échec ; les tâches risquent de ne pas s'exécuter à l'heure.",
+      "staleDescription": "L'état du planificateur est indisponible ; les tâches risquent de ne pas s'exécuter à l'heure."
     },
     "status": {
       "state": "État",
@@ -1717,6 +1804,9 @@
       "running": "En cours",
       "idle": "Inactif",
       "error": "Erreur",
+      "ready": "Prêt",
+      "jobDisabled": "Désactivée",
+      "invalidAgentShort": "Agent indisponible",
       "invalidAgent": "L'agent est manquant ou désactivé. Choisissez un autre agent."
     },
     "runNowSuccess": "Tâche planifiée terminée"
