@@ -154,9 +154,10 @@ export function useChatInputFiles(
     }
   }
 
-  const handlePaste = async (e: ClipboardEvent, fromCapture = false) => {
-    if (!fromCapture && (e as any)?._deepchatHandled) return
-    ;(e as any)._deepchatHandled = true
+  const handlePaste = async (e: ClipboardEvent & { _deepchatHandled?: boolean }) => {
+    if (e._deepchatHandled) return
+    // Capture and window listeners can receive the same event before file processing finishes.
+    e._deepchatHandled = true
 
     const files = e.clipboardData?.files
     if (files && files.length > 0) {

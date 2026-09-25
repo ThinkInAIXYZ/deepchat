@@ -743,7 +743,7 @@ function onPaste(event: ClipboardEvent) {
     return
   }
 
-  void files.handlePaste(event, true)
+  void files.handlePaste(event)
 
   if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
     return

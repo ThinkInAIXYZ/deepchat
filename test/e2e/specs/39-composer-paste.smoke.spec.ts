@@ -88,19 +88,35 @@ test('unfocused composer accepts text, links, images and files once @smoke', asy
     document.body.appendChild(input)
   })
   await app.page.locator('#paste-fixture-files').setInputFiles([textPath, imagePath])
-  await app.page.evaluate(() => {
-    const input = document.querySelector<HTMLInputElement>('#paste-fixture-files')!
-    const clipboardData = new DataTransfer()
-    for (const file of Array.from(input.files!)) clipboardData.items.add(file)
-    document.body.dispatchEvent(
-      new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData })
+  for (const [index, target] of [body, app.page.getByTestId('chat-input-editor')].entries()) {
+    if (index > 0) {
+      await editor.press('End')
+      await app.page.getByTestId('app-main').focus()
+      await expect(editor).not.toBeFocused()
+      expect(
+        await editor.evaluate((element) =>
+          element.contains(document.getSelection()?.anchorNode ?? null)
+        )
+      ).toBe(true)
+    }
+    await target.evaluate((element) => {
+      const input = document.querySelector<HTMLInputElement>('#paste-fixture-files')!
+      const clipboardData = new DataTransfer()
+      for (const file of Array.from(input.files!)) clipboardData.items.add(file)
+      element.dispatchEvent(
+        new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData })
+      )
+    })
+    await expect(editor).toBeFocused()
+    await expect(editor.locator('.file-chip')).toHaveCount((index + 1) * 2)
+    await expect(editor.locator('.file-chip').filter({ hasText: 'paste-fixture.txt' })).toHaveCount(
+      index + 1
     )
-    input.remove()
-  })
-  await expect(editor).toBeFocused()
-  await expect(editor.locator('.file-chip')).toHaveCount(2)
-  await expect(editor.locator('.file-chip').filter({ hasText: 'paste-fixture.txt' })).toHaveCount(1)
-  await expect(editor.locator('.file-chip').filter({ hasText: 'paste-fixture.png' })).toHaveCount(1)
+    await expect(editor.locator('.file-chip').filter({ hasText: 'paste-fixture.png' })).toHaveCount(
+      index + 1
+    )
+  }
+  await app.page.locator('#paste-fixture-files').evaluate((element) => element.remove())
   await expect(editor).toContainText('Draft: Rich text')
   await expect(editor).toContainText('Second line')
 

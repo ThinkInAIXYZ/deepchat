@@ -123,6 +123,28 @@ describe('useChatInputFiles', () => {
     consoleSpy.mockRestore()
   })
 
+  it('processes each paste event once while allowing another paste of the same file', async () => {
+    const emit = vi.fn()
+    const files = useChatInputFiles(ref(undefined), emit, t)
+    const image = new File(['image'], 'paste.png', { type: 'image/png' })
+    fileClient.writeImageBase64.mockResolvedValue('/tmp/paste.png')
+    const createPaste = () =>
+      ({ clipboardData: { files: createFileList([image]) } }) as ClipboardEvent
+    const event = createPaste()
+
+    await Promise.all([files.handlePaste(event), files.handlePaste(event)])
+
+    expect(files.selectedFiles.value).toHaveLength(1)
+    expect(fileClient.writeImageBase64).toHaveBeenCalledTimes(1)
+    expect(emit).toHaveBeenCalledTimes(1)
+
+    await files.handlePaste(createPaste())
+
+    expect(files.selectedFiles.value).toHaveLength(2)
+    expect(fileClient.writeImageBase64).toHaveBeenCalledTimes(2)
+    expect(emit).toHaveBeenCalledTimes(2)
+  })
+
   it('updates one attachment representation without mutating the original file object', () => {
     const emit = vi.fn()
     const files = useChatInputFiles(ref(undefined), emit, t)
