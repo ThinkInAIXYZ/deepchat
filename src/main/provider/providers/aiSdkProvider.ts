@@ -1943,11 +1943,8 @@ export class AiSdkProvider extends BaseLLMProvider {
     const append = (records: Array<Record<string, unknown>>, group: string) => {
       for (const model of records) {
         const modelId = typeof model.id === 'string' ? model.id : ''
-        if (
-          !modelId ||
-          seen.has(modelId) ||
-          (typeof model.api === 'string' && model.api !== 'chat')
-        ) {
+        const api = typeof model.api === 'string' ? model.api : 'chat'
+        if (!modelId || seen.has(modelId) || (api !== 'chat' && api !== 'embedding')) {
           continue
         }
         seen.add(modelId)
@@ -1959,6 +1956,7 @@ export class AiSdkProvider extends BaseLLMProvider {
           group,
           providerId: this.provider.id,
           isCustom: false,
+          type: api === 'embedding' ? ModelType.Embedding : ModelType.Chat,
           ...(contextLength !== undefined ? { contextLength } : {}),
           ...(maxTokens !== undefined ? { maxTokens } : {}),
           description: typeof model.description === 'string' ? model.description : undefined,

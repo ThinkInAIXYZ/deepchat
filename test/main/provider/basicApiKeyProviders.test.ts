@@ -348,7 +348,14 @@ describe('basic API-key provider registrations', () => {
         contextLength: 128000,
         maxTokens: 16384,
         description: 'GPT-4o mini',
-        reasoning: false
+        reasoning: false,
+        type: 'chat'
+      }),
+      expect.objectContaining({
+        id: 'openai/text-embedding-3-small',
+        group: 'default',
+        providerId: 'requesty',
+        type: 'embedding'
       })
     ])
     await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
