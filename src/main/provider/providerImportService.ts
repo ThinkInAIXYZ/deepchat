@@ -222,6 +222,15 @@ const normalizeUrl = (value: string | undefined): string => (value ?? '').trim()
 const hasHttpBaseUrl = (value: string | undefined): boolean =>
   /^https?:\/\//i.test(normalizeUrl(value))
 
+const isRequestyHost = (value: string): boolean => {
+  try {
+    const { hostname } = new URL(value)
+    return hostname === 'requesty.ai' || hostname.endsWith('.requesty.ai')
+  } catch {
+    return false
+  }
+}
+
 const normalizeName = (value: string | undefined): string =>
   normalizeToken(value).replace(/[^a-z0-9-]/g, '')
 
@@ -1200,7 +1209,7 @@ export class ProviderImportService {
     if (baseUrl.includes('volces.com') || baseUrl.includes('bytepluses.com')) return 'doubao'
     if (baseUrl.includes('api.siliconflow.cn')) return 'silicon'
     if (baseUrl.includes('openrouter.ai')) return 'openrouter'
-    if (baseUrl.includes('requesty.ai')) return 'requesty'
+    if (isRequestyHost(baseUrl)) return 'requesty'
     if (baseUrl.includes('api.orcarouter.ai')) return 'orcarouter'
     if (baseUrl.includes('synthorai.io')) return 'synthorai'
     if (baseUrl.includes('aihubmix.com')) return 'aihubmix'
