@@ -1642,6 +1642,50 @@ describe('ProviderImportService', () => {
     })
   })
 
+  it('maps a Requesty base URL to the built-in Requesty provider', async () => {
+    homeDir = createHome()
+    const defaultCherryPath = path.join(
+      homeDir,
+      'Library/Application Support/CherryStudio/Local Storage/leveldb'
+    )
+    await createCherryStudioLevelDb(defaultCherryPath, [
+      {
+        id: 'requesty-gateway',
+        name: 'Requesty Gateway',
+        type: 'openai',
+        apiKey: 'rqsty-test',
+        apiHost: 'https://router.requesty.ai/v1',
+        models: [{ id: 'openai/gpt-4o-mini', name: 'GPT-4o mini' }]
+      }
+    ])
+
+    const providerSettings = createProviderSettings([
+      {
+        id: 'requesty',
+        name: 'Requesty',
+        apiType: 'openai-completions',
+        apiKey: '',
+        baseUrl: 'https://router.requesty.ai/v1',
+        enable: false
+      }
+    ] as LLM_PROVIDER[])
+    const service = new ProviderImportService(providerSettings as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const scan = await service.scan()
+
+    expect(scan.providers[0]).toMatchObject({
+      sourceProviderId: 'requesty-gateway',
+      targetKind: 'builtin',
+      targetProviderId: 'requesty',
+      targetApiType: 'openai-completions',
+      modelPreview: ['GPT-4o mini'],
+      warnings: []
+    })
+  })
+
   it('maps a Synthorai base URL to the built-in Synthorai provider', async () => {
     homeDir = createHome()
     const defaultCherryPath = path.join(

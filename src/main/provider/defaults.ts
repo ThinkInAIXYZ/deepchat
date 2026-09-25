@@ -511,6 +511,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'requesty',
+    name: 'Requesty',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://router.requesty.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://www.requesty.ai/',
+      apiKey: 'https://app.requesty.ai/api-keys',
+      docs: 'https://docs.requesty.ai',
+      models: 'https://www.requesty.ai/models'
+    }
+  },
+  {
     id: 'orcarouter',
     name: 'OrcaRouter',
     apiType: 'openai-completions',

@@ -124,6 +124,7 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   ppio: 'ppio',
   ppinfra: 'ppio',
   openrouter: 'openrouter',
+  requesty: 'requesty',
   orcarouter: 'orcarouter',
   synthorai: 'synthorai',
   jiekou: 'jiekou',
@@ -1199,6 +1200,7 @@ export class ProviderImportService {
     if (baseUrl.includes('volces.com') || baseUrl.includes('bytepluses.com')) return 'doubao'
     if (baseUrl.includes('api.siliconflow.cn')) return 'silicon'
     if (baseUrl.includes('openrouter.ai')) return 'openrouter'
+    if (baseUrl.includes('requesty.ai')) return 'requesty'
     if (baseUrl.includes('api.orcarouter.ai')) return 'orcarouter'
     if (baseUrl.includes('synthorai.io')) return 'synthorai'
     if (baseUrl.includes('aihubmix.com')) return 'aihubmix'

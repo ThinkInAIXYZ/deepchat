@@ -77,6 +77,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes Requesty as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'requesty',
+        name: 'Requesty',
+        apiType: 'openai-completions',
+        baseUrl: 'https://router.requesty.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://www.requesty.ai/',
+          apiKey: 'https://app.requesty.ai/api-keys',
+          docs: 'https://docs.requesty.ai',
+          models: 'https://www.requesty.ai/models',
+          defaultBaseUrl: 'https://router.requesty.ai/v1'
+        })
+      })
+    )
+  })
+
   it('includes Cheaper Inference as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

@@ -284,6 +284,84 @@ describe('basic API-key provider registrations', () => {
     expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 
+  it('lists Requesty managed policies ahead of the authenticated catalog', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'requesty')!
+    expect(defaults).toBeDefined()
+    const fetchMock = vi.fn().mockImplementation(async (url: string) =>
+      Response.json({
+        object: 'list',
+        data: url.endsWith('/models/managed')
+          ? [
+              {
+                id: 'gpt-5.4-mini',
+                api: 'chat',
+                context_window: 400000,
+                max_output_tokens: 128000,
+                supports_tool_calling: true,
+                supports_vision: true,
+                supports_reasoning: true
+              }
+            ]
+          : [
+              {
+                id: 'openai/gpt-4o-mini',
+                api: 'chat',
+                context_window: 128000,
+                max_output_tokens: 16384,
+                supports_tool_calling: true,
+                supports_vision: true,
+                supports_reasoning: false,
+                description: 'GPT-4o mini'
+              },
+              { id: 'openai/text-embedding-3-small', api: 'embedding' }
+            ]
+      })
+    )
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const config = { ...defaults, apiKey: 'test-key' }
+    const provider = new AiSdkProvider(config, createProviderSettings())
+    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'requesty',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'openai'
+    })
+
+    await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
+      expect.objectContaining({
+        id: 'gpt-5.4-mini',
+        group: 'Managed',
+        providerId: 'requesty',
+        contextLength: 400000,
+        maxTokens: 128000,
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      }),
+      expect.objectContaining({
+        id: 'openai/gpt-4o-mini',
+        group: 'default',
+        providerId: 'requesty',
+        contextLength: 128000,
+        maxTokens: 16384,
+        description: 'GPT-4o mini',
+        reasoning: false
+      })
+    ])
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://router.requesty.ai/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
+      })
+    )
+    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
+  })
+
   it('resolves Cheaper Inference through authenticated OpenAI-compatible model discovery', () => {
     expect(
       resolveAiSdkProviderDefinition(
