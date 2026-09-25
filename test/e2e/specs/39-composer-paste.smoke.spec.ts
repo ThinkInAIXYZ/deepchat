@@ -6,13 +6,15 @@ import { selectAgent } from '../helpers/chat'
 import { waitForAppReady } from '../helpers/wait'
 
 async function paste(target: Locator, formats: Record<string, string>) {
-  return target.evaluate((element, values) => {
+  return target.evaluate(async (element, values) => {
     const clipboardData = new DataTransfer()
     for (const [format, value] of Object.entries(values)) {
       clipboardData.setData(format, value)
     }
     const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData })
     element.dispatchEvent(event)
+    // Let the editor's scheduled focus finish before the next interaction.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
     return event.defaultPrevented
   }, formats)
 }
@@ -42,6 +44,7 @@ test('unfocused composer accepts text, links, images and files once @smoke', asy
 
   await editor.press('ControlOrMeta+A')
   await paste(editor, { 'text/plain': 'Replacement' })
+  await expect(editor).toBeFocused()
   await expect(editor).toHaveText('Replacement')
 
   await heading.click()
@@ -49,36 +52,30 @@ test('unfocused composer accepts text, links, images and files once @smoke', asy
     'text/plain': 'https://example.com/a?b=1#c',
     'text/html': '<a href="https://example.com/a?b=1#c">Page title</a>'
   })
+  await expect(editor).toBeFocused()
   await expect(editor).toHaveText('Replacementhttps://example.com/a?b=1#c')
 
   await heading.click()
   await paste(body, { 'text/uri-list': 'https://example.com/uri' })
+  await expect(editor).toBeFocused()
   await expect(editor).toHaveText('Replacementhttps://example.com/a?b=1#chttps://example.com/uri')
 
   await editor.fill('Links: ')
   await heading.click()
   await paste(body, { 'text/uri-list': 'https://example.com/one\r\nhttps://example.com/two' })
+  await expect(editor).toBeFocused()
   await expect(editor).toHaveText('Links: https://example.com/one https://example.com/two')
 
   await editor.fill('Draft: ')
   await heading.click()
   await paste(body, { 'text/html': '<p>Rich text</p><p>Second line</p>' })
+  await expect(editor).toBeFocused()
   await expect(editor.locator('p')).toHaveText(['Draft: Rich text', 'Second line'])
 
   await heading.click()
   expect(await paste(body, {})).toBe(false)
   await expect(editor).not.toBeFocused()
 
-  const textPath = join(app.userDataDir, 'paste-fixture.txt')
-  const imagePath = join(app.userDataDir, 'paste-fixture.png')
-  writeFileSync(textPath, 'File paste fixture')
-  writeFileSync(
-    imagePath,
-    Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
-      'base64'
-    )
-  )
   await app.page.evaluate(() => {
     const input = document.createElement('input')
     input.id = 'paste-fixture-files'
@@ -87,8 +84,18 @@ test('unfocused composer accepts text, links, images and files once @smoke', asy
     input.hidden = true
     document.body.appendChild(input)
   })
-  await app.page.locator('#paste-fixture-files').setInputFiles([textPath, imagePath])
   for (const [index, target] of [body, app.page.getByTestId('chat-input-editor')].entries()) {
+    const textPath = join(app.userDataDir, `paste-fixture-${index}.txt`)
+    const imagePath = join(app.userDataDir, `paste-fixture-${index}.png`)
+    writeFileSync(textPath, 'File paste fixture')
+    writeFileSync(
+      imagePath,
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
+        'base64'
+      )
+    )
+    await app.page.locator('#paste-fixture-files').setInputFiles([textPath, imagePath])
     if (index > 0) {
       await editor.press('End')
       await app.page.getByTestId('app-main').focus()
@@ -108,13 +115,13 @@ test('unfocused composer accepts text, links, images and files once @smoke', asy
       )
     })
     await expect(editor).toBeFocused()
-    await expect(editor.locator('.file-chip')).toHaveCount((index + 1) * 2)
-    await expect(editor.locator('.file-chip').filter({ hasText: 'paste-fixture.txt' })).toHaveCount(
-      index + 1
-    )
-    await expect(editor.locator('.file-chip').filter({ hasText: 'paste-fixture.png' })).toHaveCount(
-      index + 1
-    )
+    await expect(editor.locator('[data-file-attachment]')).toHaveCount((index + 1) * 2)
+    await expect(
+      editor.locator('[data-file-attachment]').filter({ hasText: `paste-fixture-${index}.txt` })
+    ).toHaveCount(1)
+    await expect(
+      editor.locator('[data-file-attachment]').filter({ hasText: `paste-fixture-${index}.png` })
+    ).toHaveCount(1)
   }
   await app.page.locator('#paste-fixture-files').evaluate((element) => element.remove())
   await expect(editor).toContainText('Draft: Rich text')
@@ -138,6 +145,7 @@ test('unfocused composer accepts text, links, images and files once @smoke', asy
   await editor.fill('Session draft: ')
   await viewport.focus()
   expect(await paste(viewport, { 'text/plain': 'pasted' })).toBe(true)
+  await expect(editor).toBeFocused()
   await expect(editor).toBeFocused()
   await expect(editor).toHaveText('Session draft: pasted')
 

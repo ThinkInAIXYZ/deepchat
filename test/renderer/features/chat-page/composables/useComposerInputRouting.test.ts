@@ -1,6 +1,6 @@
 import { effectScope, ref, type EffectScope } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useComposerTypeToFocus } from '@/features/chat-page/composables/useComposerTypeToFocus'
+import { useComposerInputRouting } from '@/features/chat-page/composables/useComposerInputRouting'
 
 function createHarness(handle: Record<string, unknown> | null = null) {
   const chatInputRef = ref<any>(handle)
@@ -12,7 +12,7 @@ function createHarness(handle: Record<string, unknown> | null = null) {
   const scope: EffectScope = effectScope()
   const isEnabled = ref(true)
   scope.run(() => {
-    useComposerTypeToFocus({ isEnabled: () => isEnabled.value, chatInputRef })
+    useComposerInputRouting({ isEnabled: () => isEnabled.value, chatInputRef })
   })
 
   return { scope, chatInputRef, focusInput, focusAndInsertText, focusAndPaste, isEnabled }
@@ -28,7 +28,7 @@ function dispatchKeydown(
   return event
 }
 
-describe('useComposerTypeToFocus', () => {
+describe('useComposerInputRouting', () => {
   let harness: ReturnType<typeof createHarness> | null = null
 
   beforeEach(() => {
@@ -158,7 +158,7 @@ describe('useComposerTypeToFocus', () => {
     const chatInputRef = ref<any>(null)
     const scope = effectScope()
     scope.run(() => {
-      useComposerTypeToFocus({ isEnabled: () => true, chatInputRef })
+      useComposerInputRouting({ isEnabled: () => true, chatInputRef })
     })
 
     expect(() => dispatchKeydown('a')).not.toThrow()

@@ -1,18 +1,21 @@
 import { useEventListener } from '@vueuse/core'
 import type { Ref } from 'vue'
 import { hasInteractiveKeyboardFocus, isEditableKeyboardTarget } from '@/lib/keyboardFocus'
-import { resolveComposerTypeToFocusIntent } from '../model/typeToFocus'
+import {
+  resolveComposerKeydownIntent,
+  shouldRouteComposerPaste
+} from '../model/composerInputRouting'
 
-export type ComposerTypeToFocusHandle = {
+export type ComposerInputHandle = {
   focusInput?: () => void
   focusAndInsertText?: (text: string) => void
   focusAndPaste?: (event: ClipboardEvent) => void
 }
 
-type UseComposerTypeToFocusOptions = {
+type UseComposerInputRoutingOptions = {
   /** False for read-only sessions, inert composers, and blocking interactions. */
   isEnabled: () => boolean
-  chatInputRef: Ref<ComposerTypeToFocusHandle | null>
+  chatInputRef: Ref<ComposerInputHandle | null>
 }
 
 /**
@@ -23,15 +26,16 @@ type UseComposerTypeToFocusOptions = {
  * Both pages share this composable; the listener detaches with the component
  * scope.
  */
-export function useComposerTypeToFocus(options: UseComposerTypeToFocusOptions): void {
+export function useComposerInputRouting(options: UseComposerInputRoutingOptions): void {
   useEventListener(window, 'paste', (event: ClipboardEvent) => {
     // Chromium can target the DOM selection inside an unfocused button after a blank-area click.
     const activeElement = document.activeElement
     if (
-      event.defaultPrevented ||
-      !options.isEnabled() ||
-      isEditableKeyboardTarget(activeElement) ||
-      hasInteractiveKeyboardFocus(activeElement)
+      !shouldRouteComposerPaste(event, {
+        isEnabled: options.isEnabled(),
+        isEditableTarget: isEditableKeyboardTarget(activeElement),
+        hasInteractiveFocus: hasInteractiveKeyboardFocus(activeElement)
+      })
     ) {
       return
     }
@@ -40,7 +44,7 @@ export function useComposerTypeToFocus(options: UseComposerTypeToFocusOptions): 
   })
 
   useEventListener(window, 'keydown', (event: KeyboardEvent) => {
-    const intent = resolveComposerTypeToFocusIntent(event, {
+    const intent = resolveComposerKeydownIntent(event, {
       isEnabled: options.isEnabled(),
       isEditableTarget: isEditableKeyboardTarget(event.target),
       hasInteractiveFocus: hasInteractiveKeyboardFocus(event.target)

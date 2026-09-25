@@ -419,7 +419,10 @@ import { useToolInteraction } from './composables/useToolInteraction'
 import { useMessageActions } from './composables/useMessageActions'
 import { usePendingInputActions } from './composables/usePendingInputActions'
 import { useChatPageEventBridge } from './composables/useChatPageEventBridge'
-import { useComposerTypeToFocus } from './composables/useComposerTypeToFocus'
+import {
+  useComposerInputRouting,
+  type ComposerInputHandle
+} from './composables/useComposerInputRouting'
 import { isEditableKeyboardTarget } from '@/lib/keyboardFocus'
 import type { UserMessageInlineItem } from '@shared/types/agent-interface'
 import { findLatestAssistantMessageId } from '@/features/chat-page/model/displayMessage'
@@ -1315,20 +1318,21 @@ function handleWindowKeydown(event: KeyboardEvent) {
   handleSearchKeydown(event)
 }
 
-const chatInputRef = ref<{
-  triggerAttach: () => void
-  focusInput?: () => void
-  focusAndPaste?: (event: ClipboardEvent) => void
-  insertRecognizedText?: (text: string) => void
-  insertWorkspaceReference?: (targetPath: string) => boolean
-  getInlineItemsSnapshot?: () => UserMessageInlineItem[]
-  getPendingSkillsSnapshot?: () => string[]
-  consumePendingSkills?: () => string[]
-  clearPendingSkills?: () => void
-  setPendingSkills?: (skillNames: string[]) => void
-  getDocumentSnapshot?: () => JSONContent
-  restoreDocumentSnapshot?: (document: JSONContent) => void
-} | null>(null)
+const chatInputRef = ref<
+  | (ComposerInputHandle & {
+      triggerAttach: () => void
+      insertRecognizedText?: (text: string) => void
+      insertWorkspaceReference?: (targetPath: string) => boolean
+      getInlineItemsSnapshot?: () => UserMessageInlineItem[]
+      getPendingSkillsSnapshot?: () => string[]
+      consumePendingSkills?: () => string[]
+      clearPendingSkills?: () => void
+      setPendingSkills?: (skillNames: string[]) => void
+      getDocumentSnapshot?: () => JSONContent
+      restoreDocumentSnapshot?: (document: JSONContent) => void
+    })
+  | null
+>(null)
 const chatStatusBarRef = ref<ChatStatusBarModelPicker | null>(null)
 
 function openAttachmentModelPicker(): void {
@@ -1395,15 +1399,15 @@ watch(
  * (subagent) session does not render it at all, and a pending tool interaction
  * leaves it inert.
  */
-const isComposerTypeToFocusEnabled = computed(
+const isComposerInputRoutingEnabled = computed(
   () =>
     !isReadOnlySession.value &&
     !isSessionViewPreparing.value &&
     !activePendingInteraction.value &&
     !isHandlingInteraction.value
 )
-useComposerTypeToFocus({
-  isEnabled: () => isComposerTypeToFocusEnabled.value,
+useComposerInputRouting({
+  isEnabled: () => isComposerInputRoutingEnabled.value,
   chatInputRef
 })
 

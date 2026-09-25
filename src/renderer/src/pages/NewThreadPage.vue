@@ -214,7 +214,10 @@ import {
 import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 import { Icon } from '@iconify/vue'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
-import { useComposerTypeToFocus } from '@/features/chat-page/composables/useComposerTypeToFocus'
+import {
+  useComposerInputRouting,
+  type ComposerInputHandle
+} from '@/features/chat-page/composables/useComposerInputRouting'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
 import AcpAuthDialog from '@/components/acp/AcpAuthDialog.vue'
@@ -312,19 +315,17 @@ const isSearchAvailable = computed(
 )
 const isSearchEnabled = computed(() => isSearchAvailable.value && searchIntent.value)
 const chatInputRef = ref<
-  | (ComposerHandle & {
-      triggerAttach: () => void
-      insertRecognizedText?: (text: string) => void
-      getInlineItemsSnapshot?: () => UserMessageInlineItem[]
-      focusInput?: () => void
-      focusAndInsertText?: (text: string) => void
-      focusAndPaste?: (event: ClipboardEvent) => void
-    })
+  | (ComposerHandle &
+      ComposerInputHandle & {
+        triggerAttach: () => void
+        insertRecognizedText?: (text: string) => void
+        getInlineItemsSnapshot?: () => UserMessageInlineItem[]
+      })
   | null
 >(null)
-// Same type-to-focus behavior as the chat page; the composer is the only
+// Same typing and paste routing as the chat page; the composer is the only
 // editable surface here, and it locks while a submission is in flight.
-useComposerTypeToFocus({
+useComposerInputRouting({
   isEnabled: () => !isSubmittingInput.value,
   chatInputRef
 })
