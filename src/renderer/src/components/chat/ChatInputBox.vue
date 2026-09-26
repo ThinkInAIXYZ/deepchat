@@ -926,7 +926,7 @@ function focusAndPaste(event: ClipboardEvent) {
   focusInput()
   onPaste(event)
 
-  // The event targets the page, so focusing alone cannot run the editor's paste handler.
+  // Routed pastes are handled before reaching their target, so insert through the editor API.
   if (!event.defaultPrevented) {
     if (html) {
       editor.view.pasteHTML(html, event)

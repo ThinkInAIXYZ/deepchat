@@ -72,6 +72,28 @@ test('unfocused composer accepts text, links, images and files once @smoke', asy
   await expect(editor).toBeFocused()
   await expect(editor.locator('p')).toHaveText(['Draft: Rich text', 'Second line'])
 
+  for (const [format, value, expected] of [
+    ['text/plain', 'pasted text', 'pasted text'],
+    ['text/plain', 'https://example.com/retained', 'https://example.com/retained'],
+    ['text/html', '<p>Rich paste</p>', 'Rich paste']
+  ]) {
+    await editor.fill('Retained draft: ')
+    await editor.press('ControlOrMeta+A')
+    await app.page.getByTestId('app-main').focus()
+    await expect(editor).not.toBeFocused()
+    expect(await app.page.evaluate(() => document.getSelection()?.toString())).toBe(
+      'Retained draft: '
+    )
+    await paste(editor, { [format]: value })
+    await expect(editor).toBeFocused()
+    await expect(editor).toHaveText(`Retained draft: ${expected}`)
+  }
+
+  await editor.fill('Draft: ')
+  await heading.click()
+  await paste(body, { 'text/html': '<p>Rich text</p><p>Second line</p>' })
+  await expect(editor).toBeFocused()
+
   await heading.click()
   expect(await paste(body, {})).toBe(false)
   await expect(editor).not.toBeFocused()
@@ -145,7 +167,6 @@ test('unfocused composer accepts text, links, images and files once @smoke', asy
   await editor.fill('Session draft: ')
   await viewport.focus()
   expect(await paste(viewport, { 'text/plain': 'pasted' })).toBe(true)
-  await expect(editor).toBeFocused()
   await expect(editor).toBeFocused()
   await expect(editor).toHaveText('Session draft: pasted')
 

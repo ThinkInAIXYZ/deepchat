@@ -27,21 +27,30 @@ type UseComposerInputRoutingOptions = {
  * scope.
  */
 export function useComposerInputRouting(options: UseComposerInputRoutingOptions): void {
-  useEventListener(window, 'paste', (event: ClipboardEvent) => {
-    // Chromium can target the DOM selection inside an unfocused button after a blank-area click.
-    const activeElement = document.activeElement
-    if (
-      !shouldRouteComposerPaste(event, {
-        isEnabled: options.isEnabled(),
-        isEditableTarget: isEditableKeyboardTarget(activeElement),
-        hasInteractiveFocus: hasInteractiveKeyboardFocus(activeElement)
-      })
-    ) {
-      return
-    }
+  useEventListener(
+    window,
+    'paste',
+    (event: ClipboardEvent) => {
+      // Chromium can target a retained selection even when its editor no longer has focus.
+      const activeElement = document.activeElement
+      if (
+        !shouldRouteComposerPaste(event, {
+          isEnabled: options.isEnabled(),
+          isEditableTarget: isEditableKeyboardTarget(activeElement),
+          hasInteractiveFocus: hasInteractiveKeyboardFocus(activeElement)
+        })
+      ) {
+        return
+      }
 
-    options.chatInputRef.value?.focusAndPaste?.(event)
-  })
+      options.chatInputRef.value?.focusAndPaste?.(event)
+      if (event.defaultPrevented) {
+        // The composer handled this paste; its target must not insert it again.
+        event.stopPropagation()
+      }
+    },
+    { capture: true }
+  )
 
   useEventListener(window, 'keydown', (event: KeyboardEvent) => {
     const intent = resolveComposerKeydownIntent(event, {
