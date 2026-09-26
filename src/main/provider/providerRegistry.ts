@@ -23,6 +23,7 @@ export type AiSdkModelSourceStrategy =
   | 'bedrock'
   | 'new-api'
   | 'openrouter'
+  | 'requesty'
   | 'ppio'
   | 'groq'
   | 'tokenflux'
@@ -543,6 +544,14 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       modelSource: 'ppio',
       checkStrategy: 'key-status',
       keyStatusStrategy: 'ppio'
+    })
+  ],
+  [
+    'requesty',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'requesty',
+      credentialStrategy: 'api-key'
     })
   ],
   [

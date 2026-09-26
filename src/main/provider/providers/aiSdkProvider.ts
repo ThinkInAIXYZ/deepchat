@@ -1739,6 +1739,8 @@ export class AiSdkProvider extends BaseLLMProvider {
       case 'tokenflux':
       case '302ai':
         return this.fetchOpenAiDerivedModels(strategy)
+      case 'requesty':
+        return this.fetchRequestyModels()
       case 'bedrock':
         return this.fetchBedrockModels()
       case 'new-api':
@@ -1918,6 +1920,60 @@ export class AiSdkProvider extends BaseLLMProvider {
       console.error(`Error fetching ${strategy} models:`, error)
       return this.fetchDefaultOpenAIModels({ timeout: this.getModelFetchTimeout() })
     }
+  }
+
+  /**
+   * Requesty lists its curated managed policies (short ids such as `gpt-5.4-mini`) separately from
+   * the full `vendor/model` catalog. Both are valid chat model ids, so both are listed, managed
+   * policies first. The catalog request is authenticated and doubles as the key check.
+   */
+  private async fetchRequestyModels(): Promise<MODEL_META[]> {
+    const timeout = this.getModelFetchTimeout()
+    const catalog = await this.fetchOpenAIModelRecords({ timeout })
+    const managedUrl = `${(this.provider.baseUrl || '').replace(/\/+$/, '')}/models/managed`
+    const managed = await this.requestProviderJson<unknown>(managedUrl, { method: 'GET' }, timeout)
+      .then(toModelRecordArray)
+      .catch((error) => {
+        console.warn('Error fetching Requesty managed models:', error)
+        return []
+      })
+
+    const models: MODEL_META[] = []
+    const seen = new Set<string>()
+    const append = (records: Array<Record<string, unknown>>, group: string) => {
+      for (const model of records) {
+        const modelId = typeof model.id === 'string' ? model.id : ''
+        const api = typeof model.api === 'string' ? model.api : 'chat'
+        if (!modelId || seen.has(modelId) || (api !== 'chat' && api !== 'embedding')) {
+          continue
+        }
+        seen.add(modelId)
+        const contextLength = toPositiveFiniteNumber(model.context_window)
+        const maxTokens = toPositiveFiniteNumber(model.max_output_tokens)
+        models.push({
+          id: modelId,
+          name: modelId,
+          group,
+          providerId: this.provider.id,
+          isCustom: false,
+          type: api === 'embedding' ? ModelType.Embedding : ModelType.Chat,
+          ...(contextLength !== undefined ? { contextLength } : {}),
+          ...(maxTokens !== undefined ? { maxTokens } : {}),
+          description: typeof model.description === 'string' ? model.description : undefined,
+          ...(typeof model.supports_vision === 'boolean' ? { vision: model.supports_vision } : {}),
+          ...(typeof model.supports_tool_calling === 'boolean'
+            ? { functionCall: model.supports_tool_calling }
+            : {}),
+          ...(typeof model.supports_reasoning === 'boolean'
+            ? { reasoning: model.supports_reasoning }
+            : {})
+        })
+      }
+    }
+
+    append(managed, 'Managed')
+    append(catalog, 'default')
+    return models
   }
 
   private async fetchBedrockModels(): Promise<MODEL_META[]> {
