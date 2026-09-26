@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.1.3-beta.2 (2026-09-26)
+- Added the Requesty provider and a ChatGPT sign-in option for OpenAI
+- Focused the composer on paste and kept the slash menu from opening on URLs or file paths
+- Redesigned scheduled tasks into a list-and-detail layout with templates, run history, and a leave guard
+- Repaired auto-approve so reviews follow each tool's execution contract, and closing the last approval no longer leaves a session stuck generating
+- Flattened compatible scalar schema intersections so valid tool schemas convert instead of being rejected
+- 新增 Requesty Provider，并为 OpenAI 增加 ChatGPT 登录选项
+- 粘贴时聚焦输入框，斜杠命令菜单不再在 URL 或文件路径上弹出
+- 重设计时任务为列表+详情布局，提供模板、运行历史与离开保护
+- 修复自动批准：按工具执行契约审查，关闭最后一项批准不再卡住生成中的会话
+- 展平兼容的标量 schema 交集，避免合法工具 schema 被拒绝
+
 ## v1.1.3-beta.1 (2026-09-23)
 - Added automatic two-way device sync and integration with the Codex-compatible Nowledge Mem plugin
 - Added Cloudflare Workers AI and TypeSafe providers, plus an opt-in judgment model that can prune stale tool results to reduce context usage
