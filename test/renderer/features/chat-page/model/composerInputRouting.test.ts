@@ -1,14 +1,34 @@
 import { describe, expect, it } from 'vitest'
 import {
-  resolveComposerTypeToFocusIntent,
-  type ComposerTypeToFocusContext
-} from '@/features/chat-page/model/typeToFocus'
+  resolveComposerKeydownIntent,
+  shouldRouteComposerPaste,
+  type ComposerInputRoutingContext
+} from '@/features/chat-page/model/composerInputRouting'
 
-const ENABLED_CONTEXT: ComposerTypeToFocusContext = {
+const ENABLED_CONTEXT: ComposerInputRoutingContext = {
   isEnabled: true,
   isEditableTarget: false,
   hasInteractiveFocus: false
 }
+
+describe('shouldRouteComposerPaste', () => {
+  it('routes an unhandled paste when the composer is available and no control owns focus', () => {
+    expect(shouldRouteComposerPaste({ defaultPrevented: false }, ENABLED_CONTEXT)).toBe(true)
+  })
+
+  it('leaves already handled pastes alone', () => {
+    expect(shouldRouteComposerPaste({ defaultPrevented: true }, ENABLED_CONTEXT)).toBe(false)
+  })
+
+  it.each([{ isEnabled: false }, { isEditableTarget: true }, { hasInteractiveFocus: true }])(
+    'does not route paste when blocked by %j',
+    (context) => {
+      expect(
+        shouldRouteComposerPaste({ defaultPrevented: false }, { ...ENABLED_CONTEXT, ...context })
+      ).toBe(false)
+    }
+  )
+})
 
 function keyEvent(init: Partial<KeyboardEvent> & { key: string }): KeyboardEvent {
   return {
@@ -24,12 +44,12 @@ function keyEvent(init: Partial<KeyboardEvent> & { key: string }): KeyboardEvent
 
 function resolve(
   init: Partial<KeyboardEvent> & { key: string },
-  context: Partial<ComposerTypeToFocusContext> = {}
+  context: Partial<ComposerInputRoutingContext> = {}
 ) {
-  return resolveComposerTypeToFocusIntent(keyEvent(init), { ...ENABLED_CONTEXT, ...context })
+  return resolveComposerKeydownIntent(keyEvent(init), { ...ENABLED_CONTEXT, ...context })
 }
 
-describe('resolveComposerTypeToFocusIntent', () => {
+describe('resolveComposerKeydownIntent', () => {
   it('focuses and inserts a printable character', () => {
     expect(resolve({ key: 'n' })).toEqual({ kind: 'focus-and-insert', text: 'n' })
     expect(resolve({ key: '你' })).toEqual({ kind: 'focus-and-insert', text: '你' })

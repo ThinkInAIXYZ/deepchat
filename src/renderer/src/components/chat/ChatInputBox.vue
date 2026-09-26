@@ -743,7 +743,7 @@ function onPaste(event: ClipboardEvent) {
     return
   }
 
-  void files.handlePaste(event, true)
+  void files.handlePaste(event)
 
   if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
     return
@@ -911,6 +911,32 @@ function focusInput() {
   setCaretToEnd(editor)
 }
 
+function focusAndPaste(event: ClipboardEvent) {
+  const data = event.clipboardData
+  if (!props.editable || event.defaultPrevented || !data) {
+    return
+  }
+
+  const text = data.getData('text/plain') || data.getData('text/uri-list').replace(/\r?\n/g, ' ')
+  const html = data.getData('text/html')
+  if (!data.files.length && !text && !html) {
+    return
+  }
+
+  focusInput()
+  onPaste(event)
+
+  // Routed pastes are handled before reaching their target, so insert through the editor API.
+  if (!event.defaultPrevented) {
+    if (html) {
+      editor.view.pasteHTML(html, event)
+    } else if (text) {
+      editor.view.pasteText(text, event)
+    }
+    event.preventDefault()
+  }
+}
+
 /**
  * Focuses the composer and types `text` at the end of the existing draft.
  *
@@ -941,6 +967,7 @@ defineExpose({
   getDocumentSnapshot,
   restoreDocumentSnapshot,
   focusInput,
+  focusAndPaste,
   focusAndInsertText
 })
 </script>
