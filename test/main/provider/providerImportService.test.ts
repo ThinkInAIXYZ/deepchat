@@ -1726,6 +1726,90 @@ describe('ProviderImportService', () => {
     })
   })
 
+  it('maps a DemonRoute base URL to the built-in DemonRoute provider', async () => {
+    homeDir = createHome()
+    const defaultCherryPath = path.join(
+      homeDir,
+      'Library/Application Support/CherryStudio/Local Storage/leveldb'
+    )
+    await createCherryStudioLevelDb(defaultCherryPath, [
+      {
+        id: 'demonroute-gateway',
+        name: 'DemonRoute Gateway',
+        type: 'openai',
+        apiKey: 'dr-test',
+        apiHost: 'https://api.demonroute.com/v1',
+        models: [{ id: 'dolphin3-0-llama3-1-8b', name: 'Dolphin3.0-Llama3.1-8B' }]
+      }
+    ])
+
+    const providerSettings = createProviderSettings([
+      {
+        id: 'demonroute',
+        name: 'DemonRoute',
+        apiType: 'openai-completions',
+        apiKey: '',
+        baseUrl: 'https://api.demonroute.com/v1',
+        enable: false
+      }
+    ] as LLM_PROVIDER[])
+    const service = new ProviderImportService(providerSettings as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const scan = await service.scan()
+
+    expect(scan.providers[0]).toMatchObject({
+      sourceProviderId: 'demonroute-gateway',
+      targetKind: 'builtin',
+      targetProviderId: 'demonroute',
+      targetApiType: 'openai-completions',
+      modelPreview: ['Dolphin3.0-Llama3.1-8B'],
+      warnings: []
+    })
+  })
+
+  it('does not map a lookalike DemonRoute host to the built-in DemonRoute provider', async () => {
+    homeDir = createHome()
+    const defaultCherryPath = path.join(
+      homeDir,
+      'Library/Application Support/CherryStudio/Local Storage/leveldb'
+    )
+    await createCherryStudioLevelDb(defaultCherryPath, [
+      {
+        id: 'lookalike-gateway',
+        name: 'Lookalike Gateway',
+        type: 'openai',
+        apiKey: 'sk-test',
+        apiHost: 'https://demonroute.com.example.com/v1',
+        models: [{ id: 'dolphin3-0-llama3-1-8b', name: 'Dolphin3.0-Llama3.1-8B' }]
+      }
+    ])
+
+    const providerSettings = createProviderSettings([
+      {
+        id: 'demonroute',
+        name: 'DemonRoute',
+        apiType: 'openai-completions',
+        apiKey: '',
+        baseUrl: 'https://api.demonroute.com/v1',
+        enable: false
+      }
+    ] as LLM_PROVIDER[])
+    const service = new ProviderImportService(providerSettings as any, {
+      homeDir,
+      platform: 'darwin'
+    })
+
+    const scan = await service.scan()
+
+    expect(scan.providers[0]).toMatchObject({
+      sourceProviderId: 'lookalike-gateway',
+      targetKind: 'custom'
+    })
+  })
+
   it('maps a Synthorai base URL to the built-in Synthorai provider', async () => {
     homeDir = createHome()
     const defaultCherryPath = path.join(

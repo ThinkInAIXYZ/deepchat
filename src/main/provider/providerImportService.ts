@@ -125,6 +125,7 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   ppinfra: 'ppio',
   openrouter: 'openrouter',
   requesty: 'requesty',
+  demonroute: 'demonroute',
   orcarouter: 'orcarouter',
   synthorai: 'synthorai',
   jiekou: 'jiekou',
@@ -226,6 +227,15 @@ const isRequestyHost = (value: string): boolean => {
   try {
     const { hostname } = new URL(value)
     return hostname === 'requesty.ai' || hostname.endsWith('.requesty.ai')
+  } catch {
+    return false
+  }
+}
+
+const isDemonRouteHost = (value: string): boolean => {
+  try {
+    const { hostname } = new URL(value)
+    return hostname === 'demonroute.com' || hostname.endsWith('.demonroute.com')
   } catch {
     return false
   }
@@ -1210,6 +1220,7 @@ export class ProviderImportService {
     if (baseUrl.includes('api.siliconflow.cn')) return 'silicon'
     if (baseUrl.includes('openrouter.ai')) return 'openrouter'
     if (isRequestyHost(baseUrl)) return 'requesty'
+    if (isDemonRouteHost(baseUrl)) return 'demonroute'
     if (baseUrl.includes('api.orcarouter.ai')) return 'orcarouter'
     if (baseUrl.includes('synthorai.io')) return 'synthorai'
     if (baseUrl.includes('aihubmix.com')) return 'aihubmix'

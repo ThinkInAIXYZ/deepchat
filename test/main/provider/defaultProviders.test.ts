@@ -96,6 +96,24 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes DemonRoute as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'demonroute',
+        name: 'DemonRoute',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.demonroute.com/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://demonroute.com/',
+          docs: 'https://demonroute.com/',
+          models: 'https://demonroute.com/models',
+          defaultBaseUrl: 'https://api.demonroute.com/v1'
+        })
+      })
+    )
+  })
+
   it('includes Cheaper Inference as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
