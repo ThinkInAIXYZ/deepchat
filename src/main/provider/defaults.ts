@@ -534,7 +534,7 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     websites: {
       official: 'https://demonroute.com/',
       apiKey: 'https://demonroute.com/',
-      docs: 'https://demonroute.com/',
+      docs: 'https://demonroute.com/integrations',
       models: 'https://demonroute.com/models'
     }
   },

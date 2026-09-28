@@ -106,7 +106,7 @@ describe('DEFAULT_PROVIDERS', () => {
         enable: false,
         websites: expect.objectContaining({
           official: 'https://demonroute.com/',
-          docs: 'https://demonroute.com/',
+          docs: 'https://demonroute.com/integrations',
           models: 'https://demonroute.com/models',
           defaultBaseUrl: 'https://api.demonroute.com/v1'
         })
