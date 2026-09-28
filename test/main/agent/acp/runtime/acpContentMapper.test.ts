@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type * as schema from '@agentclientprotocol/sdk'
 import {
   AcpContentMapper,
   createAcpPromptTerminalEvents
@@ -368,8 +368,8 @@ describe('AcpContentMapper plan handling', () => {
       })
     )
 
-    expect(result.planEntries).toBeUndefined()
-    expect(result.events).toHaveLength(0)
+    expect(result.planEntries).toEqual([])
+    expect(result.events).toEqual([expect.objectContaining({ type: 'plan', plan: [] })])
   })
 })
 

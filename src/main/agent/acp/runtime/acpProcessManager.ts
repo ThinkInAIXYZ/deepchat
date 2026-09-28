@@ -1,3 +1,6 @@
+import { LODY_EXTENSION_METHODS } from 'acp-extension-core'
+import { parseLodyNotification, type AcpExtensionNotification } from './acpLodyExtensions'
+import { AcpElicitationBridge } from './acpElicitationBridge'
 import spawn from 'cross-spawn'
 import type { ChildProcessWithoutNullStreams } from 'child_process'
 import { Readable, Writable } from 'node:stream'
@@ -5,13 +8,12 @@ import { randomUUID } from 'node:crypto'
 import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
-import { ClientSideConnection, PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
-import type {
-  ClientSideConnection as ClientSideConnectionType,
-  Client
-} from '@agentclientprotocol/sdk'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type { Stream } from '@agentclientprotocol/sdk/dist/stream.js'
+import { client, PROTOCOL_VERSION, RequestError } from '@agentclientprotocol/sdk'
+import type { Client } from '@agentclientprotocol/sdk'
+import { connectAcpClient, type AcpConnection } from './acpConnection'
+import type { AcpLegacyModelState } from './acpConfigState'
+import type * as schema from '@agentclientprotocol/sdk'
+import type { Stream } from '@agentclientprotocol/sdk'
 import type {
   AcpAgentConfig,
   AcpAgentState,
@@ -58,7 +60,8 @@ export interface AcpMaterializedLaunch {
 
 export interface AcpProcessHandle extends AgentProcessHandle {
   child: ChildProcessWithoutNullStreams
-  connection: ClientSideConnectionType
+  connection: AcpConnection
+  connectionId: string
   agent: AcpAgentConfig
   readyAt: number
   state: 'warmup' | 'bound'
@@ -92,6 +95,9 @@ interface AcpProcessManagerOptions {
   getNpmRegistry?: () => Promise<string | null>
   getUvRegistry?: () => Promise<string | null>
   terminalAuthAvailable?: boolean
+  enableElicitation?: boolean
+  enablePlans?: boolean
+  enableSubagentEvents?: boolean
 }
 
 interface StoredAuthChallenge {
@@ -106,6 +112,8 @@ interface StoredAuthChallenge {
   active: boolean
 }
 
+export type ExtensionNotificationHandler = (notification: AcpExtensionNotification) => void
+
 export type SessionNotificationHandler = (notification: schema.SessionNotification) => void
 
 export type PermissionResolver = (
@@ -116,6 +124,7 @@ export type ProcessExitHandler = () => void
 
 interface SessionListenerEntry {
   agentId: string
+  connectionId: string
   handlers: Set<SessionNotificationHandler>
 }
 
@@ -142,6 +151,7 @@ function isElectron(): boolean {
 
 interface PermissionResolverEntry {
   agentId: string
+  connectionId: string
   resolver: PermissionResolver
 }
 
@@ -239,15 +249,25 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private readonly getNpmRegistry?: () => Promise<string | null>
   private readonly getUvRegistry?: () => Promise<string | null>
   private readonly terminalAuthAvailable: boolean
+  private readonly replayingSessions = new Set<string>()
+  private readonly enableElicitation: boolean
+  private readonly enablePlans: boolean
+  private readonly enableSubagentEvents: boolean
+  readonly elicitation: AcpElicitationBridge
   private readonly handles = new Map<string, AcpProcessHandle>()
   private readonly boundHandles = new Map<string, AcpProcessHandle>()
   private readonly pendingHandles = new Map<string, Promise<AcpProcessHandle>>()
   private readonly sessionListeners = new Map<string, SessionListenerEntry>()
+  private readonly extensionListeners = new Map<
+    string,
+    { connectionId: string; handler: ExtensionNotificationHandler }
+  >()
+  private readonly bufferedExtensions = new Map<string, AcpExtensionNotification[]>()
   private readonly bufferedSessionUpdates = new Map<string, BufferedSessionUpdate[]>()
   private readonly permissionResolvers = new Map<string, PermissionResolverEntry>()
   private readonly processExitHandlers = new Map<
     string,
-    { agentId: string; handler: ProcessExitHandler }
+    { agentId: string; connectionId: string; handler: ProcessExitHandler }
   >()
   private readonly runtimeHelper = RuntimeHelper.getInstance()
   private readonly terminalManager = new AcpTerminalManager()
@@ -279,6 +299,12 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private shutdownPromise?: Promise<void>
 
   constructor(options: AcpProcessManagerOptions) {
+    this.elicitation = new AcpElicitationBridge(() =>
+      this.publishEvent('acp.elicitation.changed', { version: this.elicitation.version })
+    )
+    this.enableElicitation = options.enableElicitation === true
+    this.enablePlans = options.enablePlans === true
+    this.enableSubagentEvents = options.enableSubagentEvents === true
     this.publishEvent = options.publishEvent
     this.providerId = options.providerId
     this.resolveLaunchSpec = options.resolveLaunchSpec
@@ -296,7 +322,13 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
    * Register a session's working directory for file system operations.
    * This must be called when a session is created, before any fs/terminal operations.
    */
-  registerSessionWorkdir(sessionId: string, workdir: string, conversationId?: string): void {
+  registerSessionWorkdir(
+    sessionId: string,
+    workdir: string,
+    conversationId?: string,
+    connectionId = ''
+  ): void {
+    sessionId = this.sessionKey(sessionId, connectionId)
     this.sessionWorkdirs.set(sessionId, workdir)
     if (conversationId) {
       this.sessionConversations.set(sessionId, conversationId)
@@ -527,10 +559,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
       try {
         const handle = await handlePromise
-        if (
-          this.shuttingDown ||
-          this.pendingHandles.get(warmupKey) !== handlePromise
-        ) {
+        if (this.shuttingDown || this.pendingHandles.get(warmupKey) !== handlePromise) {
           await this.disposeHandle(handle)
           this.assertAcceptingProcesses()
           throw new Error(`[ACP] Stale warmup result for agent ${agent.id}`)
@@ -692,10 +721,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     return this.requireStoredAuthChallenge(challengeId).public
   }
 
-  async inspectAuthentication(
-    agent: AcpAgentConfig,
-    workdir?: string
-  ): Promise<AcpAuthChallenge> {
+  async inspectAuthentication(agent: AcpAgentConfig, workdir?: string): Promise<AcpAuthChallenge> {
     const handle = await this.getConnection(agent, workdir)
     return this.createAuthChallenge(handle, { origin: 'settings_probe' })
   }
@@ -939,6 +965,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     this.boundHandles.clear()
     this.sessionListeners.clear()
     this.bufferedSessionUpdates.clear()
+    this.extensionListeners.clear()
+    this.bufferedExtensions.clear()
     this.permissionResolvers.clear()
     this.processExitHandlers.clear()
     this.pendingHandles.clear()
@@ -1081,13 +1109,15 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   registerSessionListener(
     agentId: string,
     sessionId: string,
-    handler: SessionNotificationHandler
+    handler: SessionNotificationHandler,
+    connectionId = ''
   ): () => void {
+    sessionId = this.sessionKey(sessionId, connectionId)
     const entry = this.sessionListeners.get(sessionId)
     if (entry) {
       entry.handlers.add(handler)
     } else {
-      this.sessionListeners.set(sessionId, { agentId, handlers: new Set([handler]) })
+      this.sessionListeners.set(sessionId, { agentId, connectionId, handlers: new Set([handler]) })
     }
 
     this.flushBufferedSessionUpdates(sessionId)
@@ -1097,22 +1127,73 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       if (!existingEntry) return
       existingEntry.handlers.delete(handler)
       if (existingEntry.handlers.size === 0) {
+        this.replayingSessions.delete(sessionId)
         this.sessionListeners.delete(sessionId)
       }
     }
   }
 
+  beginReplay(sessionId: string, connectionId: string): () => void {
+    const key = this.sessionKey(sessionId, connectionId)
+    if (this.replayingSessions.has(key)) throw new Error('ACP replay is already running')
+    this.replayingSessions.add(key)
+    return () => this.replayingSessions.delete(key)
+  }
+
+  registerExtensionListener(
+    sessionId: string,
+    connectionId: string,
+    handler: ExtensionNotificationHandler
+  ): () => void {
+    const key = this.sessionKey(sessionId, connectionId)
+    this.extensionListeners.set(key, { connectionId, handler })
+    const matches = (notification: AcpExtensionNotification) =>
+      !('sessionId' in notification.params) || notification.params.sessionId === sessionId
+    const buffered = this.bufferedExtensions.get(connectionId) ?? []
+    this.bufferedExtensions.set(
+      connectionId,
+      buffered.filter((notification) => !matches(notification))
+    )
+    buffered.filter(matches).forEach(handler)
+    return () => {
+      if (this.extensionListeners.get(key)?.handler === handler) this.extensionListeners.delete(key)
+    }
+  }
+
+  private dispatchExtensionNotification(
+    notification: AcpExtensionNotification,
+    connectionId: string
+  ): void {
+    let delivered = false
+    const key =
+      'sessionId' in notification.params
+        ? this.sessionKey(notification.params.sessionId, connectionId)
+        : undefined
+    for (const [sessionKey, entry] of this.extensionListeners) {
+      if (entry.connectionId !== connectionId || (key && key !== sessionKey)) continue
+      delivered = true
+      entry.handler(this.elicitation.redact(connectionId, notification))
+    }
+    if (!delivered)
+      this.bufferedExtensions.set(
+        connectionId,
+        [...(this.bufferedExtensions.get(connectionId) ?? []), notification].slice(-100)
+      )
+  }
+
   registerPermissionResolver(
     agentId: string,
     sessionId: string,
-    resolver: PermissionResolver
+    resolver: PermissionResolver,
+    connectionId = ''
   ): () => void {
+    sessionId = this.sessionKey(sessionId, connectionId)
     if (this.permissionResolvers.has(sessionId)) {
       console.warn(
         `[ACP] Overwriting existing permission resolver for session "${sessionId}" (agent ${agentId})`
       )
     }
-    this.permissionResolvers.set(sessionId, { agentId, resolver })
+    this.permissionResolvers.set(sessionId, { agentId, connectionId, resolver })
 
     return () => {
       const entry = this.permissionResolvers.get(sessionId)
@@ -1125,17 +1206,27 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   registerProcessExitHandler(
     agentId: string,
     sessionId: string,
-    handler: ProcessExitHandler
+    handler: ProcessExitHandler,
+    connectionId = ''
   ): () => void {
-    this.processExitHandlers.set(sessionId, { agentId, handler })
+    sessionId = this.sessionKey(sessionId, connectionId)
+    this.processExitHandlers.set(sessionId, { agentId, connectionId, handler })
     return () => {
       const entry = this.processExitHandlers.get(sessionId)
       if (entry?.handler === handler) this.processExitHandlers.delete(sessionId)
     }
   }
 
-  clearSession(sessionId: string): void {
+  private sessionKey(sessionId: string, connectionId: string): string {
+    return connectionId ? JSON.stringify([connectionId, sessionId]) : sessionId
+  }
+
+  clearSession(sessionId: string, connectionId = ''): void {
+    this.elicitation.cancelSession(connectionId, sessionId)
+    sessionId = this.sessionKey(sessionId, connectionId)
+    this.replayingSessions.delete(sessionId)
     this.sessionListeners.delete(sessionId)
+    this.extensionListeners.delete(sessionId)
     this.permissionResolvers.delete(sessionId)
     this.processExitHandlers.delete(sessionId)
     this.sessionWorkdirs.delete(sessionId)
@@ -1248,9 +1339,80 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     materializedLaunch: AcpMaterializedLaunch
   ): Promise<AcpProcessHandle> {
     const stderrChunks: string[] = []
-    const stream = this.createAgentStream(agent.id, child)
-    const client = this.createClientProxy()
-    const connection = new ClientSideConnection(() => client, stream)
+    const connectionId = randomUUID()
+    const stream = this.createAgentStream(agent.id, child, connectionId)
+    const handlers = this.createClientProxy(connectionId)
+    const clientApp = client()
+      .onRequest('session/request_permission', ({ params }) => handlers.requestPermission(params))
+      .onNotification('session/update', ({ params }) => handlers.sessionUpdate(params))
+      .onRequest('fs/read_text_file', ({ params }) => handlers.readTextFile!(params))
+      .onRequest('fs/write_text_file', ({ params }) => handlers.writeTextFile!(params))
+      .onRequest('terminal/create', ({ params }) => handlers.createTerminal!(params))
+      .onRequest('terminal/output', ({ params }) => handlers.terminalOutput!(params))
+      .onRequest('terminal/wait_for_exit', ({ params }) => handlers.waitForTerminalExit!(params))
+      .onRequest('terminal/kill', ({ params }) => handlers.killTerminal!(params))
+      .onRequest('terminal/release', ({ params }) => handlers.releaseTerminal!(params))
+    if (this.enableElicitation) {
+      clientApp.onRequest('elicitation/create', ({ params, signal }) => {
+        if (
+          [...this.replayingSessions].some((key) =>
+            key.startsWith(JSON.stringify([connectionId]).slice(0, -1) + ',')
+          )
+        )
+          return { action: 'cancel' }
+        let conversationId: string | undefined
+        if ('sessionId' in params && typeof params.sessionId === 'string') {
+          conversationId = this.sessionConversations.get(
+            this.sessionKey(params.sessionId, connectionId)
+          )
+          if (!conversationId) return { action: 'cancel' }
+        } else if (
+          !('requestId' in params) ||
+          (typeof params.requestId !== 'string' && typeof params.requestId !== 'number') ||
+          !this.protocolRequestsToAgent.get(connectionId)?.has(params.requestId)
+        ) {
+          throw RequestError.invalidParams('Unknown elicitation origin request')
+        }
+        return this.elicitation.request(params, {
+          connectionId,
+          conversationId,
+          agentId: agent.id,
+          agentName: agent.name,
+          signal
+        })
+      })
+      clientApp.onNotification('elicitation/complete', ({ params }) =>
+        this.elicitation.complete(connectionId, params.elicitationId)
+      )
+    }
+    const notificationCapabilities = {
+      [LODY_EXTENSION_METHODS.sessionUsageUpdate]: 'usage',
+      [LODY_EXTENSION_METHODS.rateLimitsUpdate]: 'rateLimits',
+      [LODY_EXTENSION_METHODS.sessionSteerApplied]: 'steering',
+      [LODY_EXTENSION_METHODS.subagentEvent]: 'subagentEvents'
+    } as const
+    for (const method of Object.keys(notificationCapabilities) as Array<
+      keyof typeof notificationCapabilities
+    >) {
+      clientApp.onNotification(
+        method,
+        (params) => parseLodyNotification(method, params),
+        ({ params }) => {
+          if (
+            !params ||
+            !handleSeed.capabilitySnapshot?.extensions[notificationCapabilities[method]]
+          )
+            return
+          this.dispatchExtensionNotification(params, connectionId)
+        }
+      )
+    }
+    const connection = connectAcpClient(clientApp, stream)
+    const cancel = connection.cancel
+    connection.cancel = async (params) => {
+      this.elicitation.cancelSession(connectionId, params.sessionId)
+      await cancel(params)
+    }
     const handleSeed: Partial<AcpProcessHandle> = {}
     let readyHandle: AcpProcessHandle | null = null
 
@@ -1265,13 +1427,13 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       })
       if (readyHandle) {
         this.removeHandleReferences(readyHandle)
-        this.clearSessionsForAgent(agent.id)
+        this.clearSessionsForAgent(agent.id, connectionId)
       }
     }
 
     child.on('exit', handleProcessExit)
     child.stderr?.on('data', (chunk: Buffer) => {
-      const error = chunk.toString().trim()
+      const error = this.elicitation.redact(connectionId, chunk.toString().trim())
       if (error) {
         stderrChunks.push(error)
         console.error(`[ACP] ${agent.id} stderr: ${error}`)
@@ -1322,7 +1484,10 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
         clientCapabilities: buildClientCapabilities({
           enableFs: true,
           enableTerminal: true,
-          enableTerminalAuth: this.terminalAuthAvailable
+          enableTerminalAuth: this.terminalAuthAvailable,
+          enableElicitation: this.enableElicitation,
+          enablePlans: this.enablePlans,
+          enableSubagentEvents: this.enableSubagentEvents
         }),
         clientInfo: { name: 'DeepChat', version: app.getVersion() }
       }
@@ -1384,7 +1549,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       const resultData = initResult as unknown as {
         sessionId?: string
         configOptions?: schema.SessionConfigOption[] | null
-        models?: schema.SessionModelState | null
+        models?: AcpLegacyModelState | null
         modes?: schema.SessionModeState | null
         protocolVersion?: schema.ProtocolVersion
         agentInfo?: schema.Implementation | null
@@ -1471,6 +1636,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       metadata: { command: agent.command },
       child,
       connection,
+      connectionId,
       readyAt: Date.now(),
       state: 'warmup',
       boundConversationId: undefined,
@@ -1494,9 +1660,13 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       materializedLaunch
     }
     readyHandle = handle
+    void connection.closed.then(() => {
+      this.clearSessionsForAgent(agent.id, connectionId)
+      this.removeHandleReferences(handle)
+    })
     if (!this.isHandleAlive(handle)) {
       this.removeHandleReferences(handle)
-      this.clearSessionsForAgent(agent.id)
+      this.clearSessionsForAgent(agent.id, connectionId)
       throw new Error(
         `[ACP] Agent process ${agent.id} exited before becoming ready (PID: ${child.pid})`
       )
@@ -1871,7 +2041,11 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     return child
   }
 
-  private createAgentStream(agentId: string, child: ChildProcessWithoutNullStreams): Stream {
+  private createAgentStream(
+    agentId: string,
+    child: ChildProcessWithoutNullStreams,
+    connectionId = agentId
+  ): Stream {
     // Add error handler for stdin to prevent EPIPE errors when process exits
     child.stdin.on('error', (error: NodeJS.ErrnoException) => {
       // EPIPE errors occur when trying to write to a closed pipe (process already exited)
@@ -1883,13 +2057,14 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
     const writable = Writable.toWeb(child.stdin) as unknown as WritableStream<Uint8Array>
     const readable = Readable.toWeb(child.stdout) as unknown as ReadableStream<Uint8Array>
-    return this.createTracedNdJsonStream(agentId, writable, readable)
+    return this.createTracedNdJsonStream(agentId, writable, readable, connectionId)
   }
 
   private createTracedNdJsonStream(
     agentId: string,
     output: WritableStream<Uint8Array>,
-    input: ReadableStream<Uint8Array>
+    input: ReadableStream<Uint8Array>,
+    connectionId = agentId
   ): Stream {
     const textEncoder = new TextEncoder()
     const textDecoder = new TextDecoder()
@@ -1905,13 +2080,16 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
           if (!trimmedLine) return
           try {
             const message = JSON.parse(trimmedLine) as JsonRpcMessageRecord
-            this.logProtocolMessage(agentId, 'in', message)
+            this.logProtocolMessage(agentId, 'in', message, connectionId)
             controller.enqueue(message)
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
+            const errorMessage = this.elicitation.redact(
+              connectionId,
+              error instanceof Error ? error.message : String(error)
+            )
             console.error(`[ACP] ${agentId} protocol parse error from stdout:`, {
               error: errorMessage,
-              line: truncateForLog(trimmedLine),
+              line: truncateForLog(this.elicitation.redact(connectionId, trimmedLine)),
               length: trimmedLine.length
             })
             this.debugLog.append(agentId, {
@@ -1919,7 +2097,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
               action,
               message: errorMessage,
               payload: {
-                line: truncateForLog(trimmedLine),
+                line: truncateForLog(this.elicitation.redact(connectionId, trimmedLine)),
                 length: trimmedLine.length
               }
             })
@@ -1965,7 +2143,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
     const writable = new WritableStream<JsonRpcMessageRecord>({
       write: async (message) => {
-        this.logProtocolMessage(agentId, 'out', message)
+        this.logProtocolMessage(agentId, 'out', message, connectionId)
         const content = `${JSON.stringify(message)}\n`
         const writer = output.getWriter()
         try {
@@ -2056,9 +2234,16 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private logProtocolMessage(
     agentId: string,
     direction: ProtocolDirection,
-    message: unknown
+    message: unknown,
+    connectionId = agentId
   ): void {
-    const summary = this.summarizeProtocolMessage(agentId, direction, message)
+    const summary = this.elicitation.redact(
+      connectionId,
+      this.summarizeProtocolMessage(connectionId, direction, message)
+    )
+    if (direction === 'in' && summary.kind === 'response' && summary.id !== undefined) {
+      this.elicitation.cancelOrigin(connectionId, summary.id)
+    }
     const route = direction === 'out' ? 'client->agent' : 'agent->client'
     const isImportant =
       Boolean(summary.error) ||
@@ -2079,47 +2264,71 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     })
   }
 
-  private createClientProxy(): Client {
+  private createClientProxy(connectionId = ''): Client {
+    const key = (id: string) => this.sessionKey(id, connectionId)
+    const assertLive = (sessionId: string) => {
+      if (this.replayingSessions.has(key(sessionId)))
+        throw RequestError.invalidParams('Host actions are unavailable during history replay')
+    }
     return {
-      requestPermission: async (params) => this.dispatchPermissionRequest(params),
+      requestPermission: async (params) =>
+        this.replayingSessions.has(key(params.sessionId))
+          ? { outcome: { outcome: 'cancelled' } }
+          : this.dispatchPermissionRequest(params, connectionId),
       sessionUpdate: async (notification) => {
-        this.dispatchSessionUpdate(notification)
+        this.dispatchSessionUpdate(notification, connectionId)
       },
       // File system operations
       readTextFile: async (params) => {
-        const handler = this.getFsHandler(params.sessionId)
+        assertLive(params.sessionId)
+        const handler = this.getFsHandler(key(params.sessionId))
         return await handler.readTextFile(params)
       },
       writeTextFile: async (params) => {
-        const handler = this.getFsHandler(params.sessionId)
+        assertLive(params.sessionId)
+        const handler = this.getFsHandler(key(params.sessionId))
         return await handler.writeTextFile(params)
       },
       // Terminal operations
       createTerminal: async (params) => {
+        assertLive(params.sessionId)
         return this.terminalManager.createTerminal({
           ...params,
-          cwd: this.resolveTerminalCwd(params.sessionId, params.cwd)
+          sessionId: key(params.sessionId),
+          cwd: this.resolveTerminalCwd(key(params.sessionId), params.cwd)
         })
       },
       terminalOutput: async (params) => {
-        return this.terminalManager.terminalOutput(params)
+        assertLive(params.sessionId)
+        return this.terminalManager.terminalOutput({ ...params, sessionId: key(params.sessionId) })
       },
       waitForTerminalExit: async (params) => {
-        return this.terminalManager.waitForTerminalExit(params)
+        assertLive(params.sessionId)
+        return this.terminalManager.waitForTerminalExit({
+          ...params,
+          sessionId: key(params.sessionId)
+        })
       },
       killTerminal: async (params) => {
-        return this.terminalManager.killTerminal(params)
+        assertLive(params.sessionId)
+        return this.terminalManager.killTerminal({ ...params, sessionId: key(params.sessionId) })
       },
       releaseTerminal: async (params) => {
-        return this.terminalManager.releaseTerminal(params)
+        assertLive(params.sessionId)
+        return this.terminalManager.releaseTerminal({ ...params, sessionId: key(params.sessionId) })
       }
     }
   }
 
-  private dispatchSessionUpdate(notification: schema.SessionNotification): void {
-    const entry = this.sessionListeners.get(notification.sessionId)
+  private dispatchSessionUpdate(notification: schema.SessionNotification, connectionId = ''): void {
+    const sessionKey = this.sessionKey(notification.sessionId, connectionId)
+    notification = {
+      ...notification,
+      update: this.elicitation.redact(connectionId, notification.update)
+    }
+    const entry = this.sessionListeners.get(sessionKey)
     if (!entry) {
-      this.bufferSessionUpdate(notification)
+      this.bufferSessionUpdate(notification, sessionKey)
       return
     }
     this.deliverSessionUpdate(entry, notification)
@@ -2145,10 +2354,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     })
   }
 
-  private bufferSessionUpdate(notification: schema.SessionNotification): void {
+  private bufferSessionUpdate(notification: schema.SessionNotification, sessionId: string): void {
     const now = Date.now()
     this.pruneBufferedSessionUpdates(now)
-    const sessionId = notification.sessionId
     const existing = this.bufferedSessionUpdates.get(sessionId) ?? []
     const next = [
       ...existing,
@@ -2196,9 +2404,10 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   }
 
   private async dispatchPermissionRequest(
-    params: schema.RequestPermissionRequest
+    params: schema.RequestPermissionRequest,
+    connectionId = ''
   ): Promise<schema.RequestPermissionResponse> {
-    const entry = this.permissionResolvers.get(params.sessionId)
+    const entry = this.permissionResolvers.get(this.sessionKey(params.sessionId, connectionId))
     if (!entry) {
       console.warn(
         `[ACP] Missing permission resolver for session "${params.sessionId}", returning cancelled`
@@ -2322,6 +2531,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     if (this.disposedHandles.has(handle)) return
     this.disposedHandles.add(handle)
     this.removeHandleReferences(handle)
+    handle.connection.close?.()
+    this.clearSessionsForAgent(handle.agentId, handle.connectionId)
     this.killChild(handle.child, 'dispose')
   }
 
@@ -2350,35 +2561,39 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     this.notifyModesReady(handle)
   }
 
-  private clearSessionsForAgent(agentId: string): void {
-    this.protocolRequestsToAgent.delete(agentId)
-    this.protocolRequestsFromAgent.delete(agentId)
+  private clearSessionsForAgent(agentId: string, connectionId?: string): void {
+    if (connectionId) {
+      this.elicitation.closeConnection(connectionId)
+      this.bufferedExtensions.delete(connectionId)
+      for (const [key, entry] of this.extensionListeners)
+        if (entry.connectionId === connectionId) this.extensionListeners.delete(key)
+      for (const key of this.bufferedSessionUpdates.keys())
+        if (key.startsWith(`["${connectionId}",`)) this.bufferedSessionUpdates.delete(key)
+    }
+    this.protocolRequestsToAgent.delete(connectionId ?? agentId)
+    this.protocolRequestsFromAgent.delete(connectionId ?? agentId)
 
     for (const [sessionId, entry] of this.sessionListeners.entries()) {
-      if (entry.agentId === agentId) {
+      if (entry.agentId === agentId && (!connectionId || entry.connectionId === connectionId)) {
+        this.replayingSessions.delete(sessionId)
         this.sessionListeners.delete(sessionId)
       }
     }
 
     for (const [sessionId, entry] of this.permissionResolvers.entries()) {
-      if (entry.agentId === agentId) {
+      if (entry.agentId === agentId && (!connectionId || entry.connectionId === connectionId)) {
         this.permissionResolvers.delete(sessionId)
       }
     }
 
     for (const [sessionId, entry] of this.processExitHandlers.entries()) {
-      if (entry.agentId !== agentId) continue
+      if (entry.agentId !== agentId || (connectionId && entry.connectionId !== connectionId))
+        continue
       this.processExitHandlers.delete(sessionId)
       try {
         entry.handler()
       } catch (error) {
         console.warn(`[ACP] Process-exit handler failed for session ${sessionId}:`, error)
-      }
-    }
-
-    for (const [conversationId, handle] of this.boundHandles.entries()) {
-      if (handle.agentId === agentId) {
-        this.boundHandles.delete(conversationId)
       }
     }
   }
@@ -2449,7 +2664,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private isHandleAlive(handle: AcpProcessHandle): boolean {
     return (
       !this.terminatedChildren.has(handle.child) &&
-      !handle.child.killed && handle.child.exitCode === null && handle.child.signalCode === null
+      !handle.child.killed &&
+      handle.child.exitCode === null &&
+      handle.child.signalCode === null
     )
   }
 

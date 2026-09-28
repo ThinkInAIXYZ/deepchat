@@ -647,16 +647,23 @@ describe('AcpProvider runDebugAction error handling', () => {
       mcpServers: [],
       sessionId: 'source-session'
     })
-    expect(registerSessionWorkdir).toHaveBeenCalledWith('forked-session', '/tmp/debug-workdir')
+    expect(registerSessionWorkdir).toHaveBeenCalledWith(
+      'forked-session',
+      '/tmp/debug-workdir',
+      undefined,
+      undefined
+    )
     expect(registerSessionListener).toHaveBeenCalledWith(
       'agent1',
       'forked-session',
-      expect.any(Function)
+      expect.any(Function),
+      undefined
     )
     expect(registerPermissionResolver).toHaveBeenCalledWith(
       'agent1',
       'forked-session',
-      expect.any(Function)
+      expect.any(Function),
+      undefined
     )
   })
 
@@ -1219,7 +1226,10 @@ describe('AcpProvider runDebugAction error handling', () => {
     await runPrompt
 
     expect(cancel).toHaveBeenCalledWith({ sessionId: 'session-cancelled' })
-    expect(provider.promptController.cancel).toHaveBeenCalledWith('session-cancelled')
+    expect(provider.promptController.cancel).toHaveBeenCalledWith(
+      'session-cancelled',
+      'conv-cancelled'
+    )
     expect(provider.promptController.fail).not.toHaveBeenCalled()
     expect(provider.sessionPersistence.finishTurn).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1293,7 +1303,11 @@ describe('AcpProvider runDebugAction error handling', () => {
 
     expect(cancel).not.toHaveBeenCalled()
     expect(provider.promptController.cancel).not.toHaveBeenCalled()
-    expect(provider.promptController.fail).toHaveBeenCalledWith('session-prompt-error')
+    expect(provider.promptController.fail).toHaveBeenCalledWith(
+      'session-prompt-error',
+      'error',
+      'conv-prompt-error'
+    )
     expect(provider.sessionPersistence.finishTurn).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'turn-prompt-error',

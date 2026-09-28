@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type * as schema from '@agentclientprotocol/sdk'
 import { AcpContentMapper } from '@/agent/acp/runtime/acpContentMapper'
 import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
 import {

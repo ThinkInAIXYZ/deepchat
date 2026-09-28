@@ -277,6 +277,74 @@ export class AcpAgentRuntime {
     return record
   }
 
+  async readHistory(sessionId: AppSessionId) {
+    const instance = this.instances.get(sessionId)?.instance
+    if (!instance) throw new Error('ACP session is not initialized')
+    return this.trackOperation(
+      sessionId,
+      instance.runIdleOperation(() =>
+        this.owner.getOrCreate().sessionController.readHistory(sessionId)
+      )
+    )
+  }
+
+  async forkSession(
+    sourceId: AppSessionId,
+    targetId: AppSessionId,
+    turnId: string,
+    operationId: string
+  ) {
+    const instance = this.instances.get(sourceId)?.instance
+    if (!instance) throw new Error('ACP session is not initialized')
+    return this.trackOperation(
+      sourceId,
+      instance.runIdleOperation(() =>
+        this.owner
+          .getOrCreate()
+          .sessionController.forkSession(sourceId, targetId, turnId, operationId)
+      )
+    )
+  }
+
+  async controlGoal(
+    sessionId: AppSessionId,
+    action: 'set' | 'resume' | 'pause' | 'clear',
+    objective?: string
+  ): Promise<void> {
+    const instance = this.instances.get(sessionId)?.instance
+    if (!instance) throw new Error('ACP session is not initialized')
+    instance.assertGoalAction(action, objective)
+    if (action === 'pause' || action === 'clear') {
+      await instance.controlGoal(action)
+      return
+    }
+    const operation = instance.controlGoal(action, objective).finally(() => {
+      if (this.pendingInputs.hasPendingTurnInput(sessionId))
+        void this.drainPendingInputs(sessionId, 'completed')
+    })
+    void this.trackOperation(sessionId, operation).catch(() =>
+      console.warn('[ACP] Goal prompt failed')
+    )
+  }
+
+  private injectSteer(
+    sessionId: AppSessionId,
+    instance: AcpAgentInstance,
+    record: PendingSessionInputRecord
+  ): void {
+    const generation = instance.getActiveGeneration()
+    if (!generation) throw new Error('ACP active turn is unavailable')
+    this.pendingInputs.claimSteerInput(sessionId, record.id, {
+      activeAssistantMessageId: generation.eventId
+    })
+    const operation = instance
+      .steer(record.payload, record.id, (outcome) =>
+        this.pendingInputs.settleSteerInputReceipt(sessionId, record.id, outcome)
+      )
+      .catch(() => this.pendingInputs.settleSteerInputReceipt(sessionId, record.id, 'unknown'))
+    void this.trackOperation(sessionId, operation)
+  }
+
   async steer(input: AcpAgentRuntimeSessionInput, content: SendMessageInput) {
     const instance = await this.getOrHydrate(input)
     this.assertAccepting()
@@ -285,6 +353,11 @@ export class AcpAgentRuntime {
       throw new Error('Wait for the assistant response to start before steering.')
     }
     const pending = this.pendingInputs
+    if (snapshot.active && instance.canSteer()) {
+      const accepted = pending.acceptSteerMessage(input.sessionId, content)
+      this.injectSteer(input.sessionId, instance, accepted.pendingInput)
+      return accepted
+    }
     const existingSteer = pending.getNextSteerInput(input.sessionId)
     const accepted = pending.acceptSteerMessage(input.sessionId, content, {
       mergeItemId: existingSteer?.id ?? null,
@@ -338,6 +411,10 @@ export class AcpAgentRuntime {
         ? { preStreamAnchorMessageId: null }
         : undefined
     ).pendingInput
+    if (snapshot.active && instance.canSteer()) {
+      this.injectSteer(sessionId, instance, record)
+      return record
+    }
     let activeOperations: Promise<unknown>[] = []
     try {
       if (snapshot.active || this.draining.has(sessionId)) {

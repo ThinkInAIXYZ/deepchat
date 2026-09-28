@@ -84,7 +84,7 @@ export class AcpClientRuntime {
       id: session.sessionId,
       acpSessionId: session.sessionId,
       conversationId: session.conversationId,
-      connectionId: `${session.agentId}:${session.workdir}`,
+      connectionId: session.connectionId,
       workdir: session.workdir,
       modeId: session.currentModeId,
       status: session.status

@@ -123,7 +123,16 @@ export interface SessionPendingInputRuntimePort {
   getNextQueuedInput(sessionId: string): PendingSessionInputRecord | null
   getNextSteerInput(sessionId: string): PendingSessionInputRecord | null
   claimQueuedInput(sessionId: string, itemId: string): PendingSessionInputRecord
-  claimSteerInput(sessionId: string, itemId: string): PendingSessionInputRecord
+  claimSteerInput(
+    sessionId: string,
+    itemId: string,
+    options?: { activeAssistantMessageId: string }
+  ): PendingSessionInputRecord
+  settleSteerInputReceipt(
+    sessionId: string,
+    itemId: string,
+    delivery: 'applied' | 'failed' | 'unknown'
+  ): void
   releaseClaimedInput(sessionId: string, itemId: string): PendingSessionInputRecord
   consumeQueuedInput(sessionId: string, itemId: string): void
   consumeSteerInput(sessionId: string, itemId: string): void

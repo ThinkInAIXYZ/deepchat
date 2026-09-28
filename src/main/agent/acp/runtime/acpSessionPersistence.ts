@@ -1,7 +1,8 @@
 import { app } from 'electron'
 import { toAcpRemoteSessionId, type AcpRemoteSessionId } from '@/agent/shared/agentSessionIds'
 import * as fs from 'fs'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import path from 'node:path'
+import type * as schema from '@agentclientprotocol/sdk'
 import type { CONVERSATION_SETTINGS } from '@shared/types/session'
 import type {
   AcpTurnFinishPayload,
@@ -45,6 +46,23 @@ export class AcpSessionPersistence {
     private readonly projectDatabase: ProjectDatabase,
     private readonly notifyEnvironmentProjectionChanged: () => void = () => undefined
   ) {}
+
+  getProjectMetadata(
+    workdir: string,
+    enabled: boolean
+  ): { worktreeProject?: { version: 1; originProjectPath: string } } {
+    if (!enabled) return {}
+    const project = this.projectDatabase.newProjectsTable
+      .getAll()
+      .filter((project) => {
+        const relative = path.relative(project.path, workdir)
+        return (
+          path.isAbsolute(project.path) && !relative.startsWith('..') && !path.isAbsolute(relative)
+        )
+      })
+      .sort((left, right) => right.path.length - left.path.length)[0]
+    return project ? { worktreeProject: { version: 1, originProjectPath: project.path } } : {}
+  }
 
   async getSessionData(conversationId: string, agentId: string): Promise<AcpSessionEntity | null> {
     return this.agentDatabase.getAcpSession(conversationId, agentId)
@@ -102,10 +120,12 @@ export class AcpSessionPersistence {
   async mergeMetadata(
     conversationId: string,
     agentId: string,
-    metadata: Record<string, unknown>
+    metadata: Record<string, unknown>,
+    expectedRemoteSessionId?: string
   ): Promise<void> {
     await this.withKeyLock(this.metadataMergeLocks, `${conversationId}::${agentId}`, async () => {
       const existing = await this.getSessionData(conversationId, agentId)
+      if (expectedRemoteSessionId && existing?.sessionId !== expectedRemoteSessionId) return
       await this.saveSessionData(
         conversationId,
         agentId,

@@ -22,6 +22,7 @@ import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import MessageDialog from '@/components/ui/MessageDialog.vue'
 import McpSamplingDialog from '@/components/mcp/McpSamplingDialog.vue'
+import AcpElicitationDialog from '@/components/acp/AcpElicitationDialog.vue'
 import McpElicitationDialog from '@/components/mcp/McpElicitationDialog.vue'
 import McpAppConsentDialog from '@/components/mcp/McpAppConsentDialog.vue'
 import CliApprovalDialog from '@/components/cli/CliApprovalDialog.vue'
@@ -563,6 +564,7 @@ onBeforeUnmount(() => {
       <MessageDialog />
       <McpSamplingDialog />
       <McpElicitationDialog />
+      <AcpElicitationDialog />
       <McpAppConsentDialog />
       <CliApprovalDialog />
       <NotificationHost surface="main" :theme="toasterTheme" :dir="langStore.dir" />

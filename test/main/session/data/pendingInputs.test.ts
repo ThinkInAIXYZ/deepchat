@@ -226,6 +226,25 @@ function createRecoveryCoordinator(initialRecords: PendingSessionInputRecord[]) 
 }
 
 describe('SessionPendingInputs restart reconciliation', () => {
+  it('marks accepted native steering unknown without replaying it after restart', () => {
+    const record = { ...createRecord('native-steer', 'session-1', 'steer'), messageIds: ['user-1'] }
+    const f = createRecoveryCoordinator([record])
+    f.transcript.getMessage.mockReturnValue({
+      id: 'user-1',
+      sessionId: 'session-1',
+      role: 'user',
+      metadata: JSON.stringify({
+        inputReceipt: { mode: 'steer', delivery: 'accepted', readAt: null }
+      })
+    } as never)
+    const update = vi.fn(() => [])
+    Object.assign(f.transcript, { updateSteerDelivery: update })
+    f.coordinator.recoverInputsAfterRestart()
+    expect(update).toHaveBeenCalledWith(['user-1'], 'unknown')
+    expect(f.records.get(record.id)?.state).toBe('consumed')
+    expect(f.store.releaseClaimedInput).not.toHaveBeenCalled()
+    expect(f.transcript.settleSteerMessages).not.toHaveBeenCalled()
+  })
   it('preserves retry-required Queue inputs without adding a restart hold', () => {
     const released = {
       ...createRecord('queue-retry', 'session-1', 'queue'),

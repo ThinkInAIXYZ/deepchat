@@ -418,6 +418,7 @@ export interface AgentNoProgressToolLoopMetadata {
 export type InteractionResolution = 'cancelled' | 'follow_up' | 'error' | 'pending_input'
 
 export interface MessageMetadata {
+  acp?: { remoteSessionId: string; turnId?: string; historyDigest?: string }
   runId?: string
   runOutcome?: 'completed' | 'paused' | 'aborted' | 'error'
   runStopReason?: string
@@ -450,6 +451,7 @@ export interface MessageMetadata {
   inputReceipt?: {
     mode: 'steer'
     readAt: number | null
+    delivery?: 'accepted' | 'applied' | 'failed' | 'unknown'
   }
 }
 

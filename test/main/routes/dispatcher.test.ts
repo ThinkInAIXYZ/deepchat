@@ -1753,7 +1753,10 @@ function createRuntime() {
       .fn()
       .mockReturnValue({ challengeId: 'challenge-1', state: 'required', version: 1 })
   }
-  const acpRoutes = createAcpRoutes({ auth: acpAuth as never })
+  const acpRoutes = createAcpRoutes({
+    auth: acpAuth as never,
+    owner: { peek: () => undefined } as never
+  })
   const deviceRoutes = createDeviceRoutes({
     device: deviceService,
     resetDataByType: appDataReset.resetDataByType,

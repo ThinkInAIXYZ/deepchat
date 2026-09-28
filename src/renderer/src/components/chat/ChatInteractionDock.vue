@@ -116,6 +116,11 @@
             :collapsed="false"
             :embedded="true"
           />
+          <AcpElicitationForm
+            v-else-if="elicitation"
+            :key="elicitation.requestId"
+            :request="elicitation"
+          />
           <ChatToolInteractionOverlay
             v-else-if="interaction"
             :embedded="true"
@@ -130,6 +135,8 @@
 </template>
 
 <script setup lang="ts">
+import type { AcpElicitationView } from '@shared/types/acp-elicitation'
+import AcpElicitationForm from '@/components/acp/AcpElicitationForm.vue'
 import { computed, nextTick, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
@@ -154,6 +161,7 @@ const props = defineProps<{
   planCollapsed: boolean
   interaction: PendingInteractionView | null
   processing?: boolean
+  elicitation?: AcpElicitationView | null
 }>()
 
 const emit = defineEmits<{
@@ -164,6 +172,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
+const hasQuestion = computed(() => Boolean(props.interaction || props.elicitation))
 const hasPlan = computed(() => Boolean(props.planSnapshot))
 
 // Question expansion is transient per interaction, so it lives here instead of
@@ -174,22 +183,22 @@ const questionExpanded = ref(false)
 // panel area never stacks the two surfaces again.
 const expandedPanel = computed<'plan' | 'question' | null>(() => {
   if (hasPlan.value && !props.planCollapsed) return 'plan'
-  if (props.interaction && questionExpanded.value) return 'question'
+  if (hasQuestion.value && questionExpanded.value) return 'question'
   return null
 })
 
 // An expanded surface leaves the bar: its chip would duplicate the panel
 // header directly above. With nothing docked the bar disappears entirely.
 const planChipVisible = computed(() => hasPlan.value && expandedPanel.value !== 'plan')
-const questionChipVisible = computed(
-  () => Boolean(props.interaction) && expandedPanel.value !== 'question'
-)
+const questionChipVisible = computed(() => hasQuestion.value && expandedPanel.value !== 'question')
 const hasDockChips = computed(() => planChipVisible.value || questionChipVisible.value)
 
 const interactionKey = computed(() =>
-  props.interaction
-    ? `${props.interaction.sessionId}:${props.interaction.messageId}:${props.interaction.toolCallId}`
-    : null
+  props.elicitation
+    ? props.elicitation.requestId
+    : props.interaction
+      ? `${props.interaction.sessionId}:${props.interaction.messageId}:${props.interaction.toolCallId}`
+      : null
 )
 
 const collapsePlanIfExpanded = () => {
@@ -221,7 +230,7 @@ watch(hasPlan, (now, before) => {
   if (now && !before && questionExpanded.value) {
     collapsePlanIfExpanded()
   }
-  if (!now && before && props.interaction) {
+  if (!now && before && hasQuestion.value) {
     questionExpanded.value = true
   }
 })
@@ -275,13 +284,17 @@ const planBadgeText = computed(() =>
 
 const planExplanation = computed(() => props.planSnapshot?.explanation ?? '')
 
-const isQuestion = computed(() => props.interaction?.actionType === 'question_request')
+const isQuestion = computed(
+  () => Boolean(props.elicitation) || props.interaction?.actionType === 'question_request'
+)
 
 const questionChipIcon = computed(() =>
   isQuestion.value ? 'lucide:message-circle-question' : 'lucide:shield'
 )
 
 const questionChipText = computed(() => {
+  if (props.elicitation)
+    return t('chat.acpExtensions.inputTitle', { agent: props.elicitation.agentName })
   if (!props.interaction) return ''
   if (!isQuestion.value) {
     return t('components.messageBlockPermissionRequest.title')

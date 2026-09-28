@@ -201,3 +201,17 @@ metadata、usage/cache fields、provider/tool budgets，不调用真实 provider
 6. `src/main/agent/acp/instance/`
 7. `src/main/agent/acp/runtime/`
 8. `test/main/agent/`
+
+## ACP extension state and interaction ownership
+
+Direct ACP sessions negotiate Lody capabilities per process connection. `AcpElicitationBridge` owns
+live forms and URL consent; typed routes expose opaque request IDs to the question dock and global
+dialog. Answers are ephemeral and bypass ordinary transcript messages. `AcpSessionController` owns
+idle extension state, monotonic accounting, plans, remote task observations and isolated child stream
+mapping. Existing ACP metadata stores snapshots, with source identity and serialized merge guards.
+
+`AcpAgentInstance` retains the prompt slot for goal execution, native request steering and idle history
+or fork operations. No remote task creates a local loop. The parent projection cannot consume child
+output or history replay as live generation. Remote fork imports the target's rewritten anchors and
+records inherited usage independently. See the [Lody extension contract](../features/acp-lody-extensions/spec.md)
+for supported controls, compatibility gates and bounds.

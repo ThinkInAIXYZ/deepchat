@@ -61,6 +61,8 @@ import type {
 import { projectMessagePageForClient } from './clientMessageProjection'
 
 export interface SessionQueryDependencies {
+  usesAgentTitle?(sessionId: string): boolean
+  onTitleRenamed?(sessionId: string, agentId: string): Promise<void>
   sessions: SessionProjectionStorePort
   runtime: SessionProjectionRuntimePort
   transcript: SessionProjectionTranscriptPort
@@ -438,6 +440,7 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
     const normalized = title.trim()
     if (!normalized) throw new Error('Session title cannot be empty.')
 
+    await this.dependencies.onTitleRenamed?.(sessionId, this.requireSession(sessionId).agentId)
     this.dependencies.sessions.update(sessionId, { title: normalized })
     const session = await this.materializeRequired(sessionId)
     this.notify({ sessionIds: [sessionId], reason: 'updated' })
@@ -547,7 +550,7 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
     const { sessionId, initialTitle, fallbackProviderId, fallbackModelId } = input
     try {
       const titleMessages = await this.waitForSessionTitleMessages(sessionId)
-      if (!titleMessages) return
+      if (!titleMessages || this.dependencies.usesAgentTitle?.(sessionId)) return
 
       const currentSession = this.dependencies.sessions.get(sessionId)
       if (!currentSession || currentSession.title !== initialTitle) return

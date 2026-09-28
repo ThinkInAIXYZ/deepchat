@@ -1,4 +1,17 @@
 import {
+  acpElicitationListRoute,
+  acpElicitationRespondRoute,
+  acpExtensionsInspectRoute,
+  acpRateLimitsRefreshRoute,
+  acpTasksListRoute,
+  acpTaskControlRoute,
+  acpPlanReadRoute,
+  acpGoalControlRoute,
+  acpHistoryReadRoute,
+  acpHistoryImportRoute
+} from './routes/acp-extensions.routes'
+export * from './routes/acp-extensions.routes'
+import {
   syncPeerSetAutomaticRoute,
   syncPeerSyncNowRoute,
   syncPeerGetStatusRoute,
@@ -718,6 +731,16 @@ export * from './routes/orchestration.routes'
 // 既绕过上限又保留逐路由精确的输入/输出类型。新增路由追加到任意一块即可，保持各块体量适中。
 const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [approvalsResolveRoute.name]: approvalsResolveRoute,
+  [acpExtensionsInspectRoute.name]: acpExtensionsInspectRoute,
+  [acpRateLimitsRefreshRoute.name]: acpRateLimitsRefreshRoute,
+  [acpTasksListRoute.name]: acpTasksListRoute,
+  [acpTaskControlRoute.name]: acpTaskControlRoute,
+  [acpHistoryReadRoute.name]: acpHistoryReadRoute,
+  [acpHistoryImportRoute.name]: acpHistoryImportRoute,
+  [acpGoalControlRoute.name]: acpGoalControlRoute,
+  [acpPlanReadRoute.name]: acpPlanReadRoute,
+  [acpElicitationListRoute.name]: acpElicitationListRoute,
+  [acpElicitationRespondRoute.name]: acpElicitationRespondRoute,
   [acpAuthInspectRoute.name]: acpAuthInspectRoute,
   [acpAuthStartRoute.name]: acpAuthStartRoute,
   [acpAuthInputRoute.name]: acpAuthInputRoute,

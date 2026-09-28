@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type * as schema from '@agentclientprotocol/sdk'
 import { AcpAgentInstance } from '@/agent/acp/instance/acpAgentInstance'
 import { AcpCompatibilityPromptBuilder } from '@/agent/acp/runtime/acpCompatibilityPromptBuilder'
 import { toAppSessionId, toAcpRemoteSessionId } from '@/agent/shared/agentSessionIds'

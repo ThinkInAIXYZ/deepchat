@@ -1,3 +1,11 @@
+vi.mock('@/stores/acpExtensions', () => ({
+  useAcpExtensionsStore: () => ({
+    requests: [],
+    states: {},
+    inspect: vi.fn(),
+    dockedConversationId: null
+  })
+}))
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, provide, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'

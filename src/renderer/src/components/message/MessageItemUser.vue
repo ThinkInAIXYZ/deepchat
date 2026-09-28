@@ -187,7 +187,11 @@ let receiptTimer: ReturnType<typeof setTimeout> | null = null
 
 const effectiveReadOnly = computed(() => props.isReadOnly || props.message.status === 'pending')
 const receiptLabel = computed(() =>
-  receipt.value ? t(`chat.messageReceipt.${receipt.value}`) : undefined
+  props.message.inputReceipt?.delivery
+    ? t(`chat.acpExtensions.steer_${props.message.inputReceipt.delivery}`)
+    : receipt.value
+      ? t(`chat.messageReceipt.${receipt.value}`)
+      : undefined
 )
 
 const messageFileByKey = computed(() => {

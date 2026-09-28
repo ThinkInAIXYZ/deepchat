@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type * as schema from '@agentclientprotocol/sdk'
 import type { AcpAgentConfig } from '@shared/types/acp'
 import type { AcpAgentInstallState } from '@shared/types/acp'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
@@ -141,9 +141,14 @@ class FakePendingInputs implements SessionPendingInputRuntimePort {
     return this.claim(itemId)
   }
 
-  claimSteerInput(_sessionId: ReturnType<typeof toAppSessionId>, itemId: string) {
+  claimSteerInput(
+    _sessionId: ReturnType<typeof toAppSessionId>,
+    itemId: string,
+    options?: { activeAssistantMessageId?: string }
+  ) {
     const record = this.claim(itemId)
-    record.assistantMessageId = `assistant-${this.nextMessageId++}`
+    record.assistantMessageId =
+      options?.activeAssistantMessageId ?? `assistant-${this.nextMessageId++}`
     return record
   }
 
@@ -158,6 +163,14 @@ class FakePendingInputs implements SessionPendingInputRuntimePort {
   }
 
   consumeSteerInput(_sessionId: ReturnType<typeof toAppSessionId>, itemId: string) {
+    this.require(itemId).state = 'consumed'
+  }
+
+  settleSteerInputReceipt(
+    _sessionId: ReturnType<typeof toAppSessionId>,
+    itemId: string,
+    _delivery: string
+  ) {
     this.require(itemId).state = 'consumed'
   }
 
@@ -303,6 +316,8 @@ function createHarness(options?: {
     setMode: vi.fn(),
     getConfigOptions: vi.fn(() => null),
     setConfigOption: vi.fn(async () => null),
+    steer: vi.fn(async (_id, _steerId, _prompt, settled) => settled('applied')),
+    controlGoal: vi.fn(async () => {}),
     getCommands: vi.fn(() => [])
   }
   const client = {
@@ -858,6 +873,57 @@ describe('AcpAgentRuntime', () => {
 
     expect(harness.runtime.getHydrated(input.sessionId)).toBeUndefined()
     expect(harness.calls).toContain('session.clear')
+  })
+
+  it('injects native steering into the active assistant without cancelling or starting another prompt', async () => {
+    const pendingInputs = new FakePendingInputs()
+    const harness = createHarness({ firstPromptNeverSettles: true, pendingInputs })
+    harness.session.extensions = {
+      steering: { version: 1, transport: 'request', upstreamTurn: 'same', configPolicy: 'active' }
+    }
+    const input = createInput()
+    const active = harness.runtime.send(input, 'active')
+    await vi.waitFor(() => expect(harness.connection.prompt).toHaveBeenCalledOnce())
+    await harness.runtime.steer(input, { text: 'new direction', files: [] })
+    await vi.waitFor(() => expect(harness.sessions.steer).toHaveBeenCalledOnce())
+    expect(harness.sessions.steer.mock.calls[0].slice(0, 3)).toEqual([
+      'session',
+      'pending-1',
+      [{ type: 'text', text: 'new direction' }]
+    ])
+    expect(pendingInputs.records[0].assistantMessageId).toBe('assistant')
+    expect(pendingInputs.records[0].state).toBe('consumed')
+    expect(harness.connection.cancel).not.toHaveBeenCalled()
+    expect(harness.connection.prompt).toHaveBeenCalledOnce()
+    await harness.runtime.cancel(input.sessionId)
+    await active
+  })
+
+  it('owns goal execution in an empty prompt while pause stays in the control channel', async () => {
+    const harness = createHarness({ firstPromptNeverSettles: true })
+    harness.session.extensions = {
+      goal: {
+        version: 1,
+        actions: ['set', 'pause', 'resume', 'clear'],
+        promptActions: ['set', 'resume'],
+        controlActions: ['pause', 'clear']
+      }
+    }
+    const input = createInput()
+    await harness.runtime.getOrHydrate(input)
+    await harness.runtime.controlGoal(input.sessionId, 'set', 'Verify the goal')
+    await vi.waitFor(() => expect(harness.connection.prompt).toHaveBeenCalledOnce())
+    expect(harness.connection.prompt.mock.calls[0][0]).toMatchObject({
+      prompt: [],
+      _meta: { lody: { goalControl: { version: 1, action: 'set', objective: 'Verify the goal' } } }
+    })
+    await harness.runtime.controlGoal(input.sessionId, 'pause')
+    expect(harness.sessions.controlGoal).toHaveBeenCalledWith('session', 'pause')
+    expect(harness.connection.cancel).not.toHaveBeenCalled()
+    await expect(harness.runtime.controlGoal(input.sessionId, 'resume')).rejects.toThrow(
+      'active ACP turn'
+    )
+    await harness.runtime.cancel(input.sessionId)
   })
 
   it('orders and drains steer input before the first ACP projection', async () => {

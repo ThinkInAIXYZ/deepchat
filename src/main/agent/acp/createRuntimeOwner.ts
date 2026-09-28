@@ -11,6 +11,10 @@ export interface AcpRuntimeOwnerDependencies {
   mcpSettings: McpSettings
   sessionPersistence: AcpSessionPersistence
   registry: AcpRegistryPort
+  titles?: {
+    get(conversationId: string): string | undefined
+    apply(conversationId: string, expected: string, title: string): boolean
+  }
   publishEvent: DeepChatEventPublisher
 }
 
@@ -26,6 +30,9 @@ export function createAcpRuntimeOwner(dependencies: AcpRuntimeOwnerDependencies)
       sessionPersistence: dependencies.sessionPersistence,
       registry: dependencies.registry,
       capabilityEvents: {
+        getLocalTitle: dependencies.titles?.get,
+        applyTitle: dependencies.titles?.apply,
+        extensionsChanged: (input) => dependencies.publishEvent('acp.extensions.changed', input),
         modesReady: (input) =>
           dependencies.publishEvent('sessions.acp.modes.ready', {
             ...input,

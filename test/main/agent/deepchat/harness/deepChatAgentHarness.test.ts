@@ -60,7 +60,7 @@ import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
 import type { AcpAgentConfig } from '@shared/types/acp'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type * as schema from '@agentclientprotocol/sdk'
 import { nanoid } from 'nanoid'
 import { createSessionData, createSessionDataFromDatabase } from '@/session/data'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'

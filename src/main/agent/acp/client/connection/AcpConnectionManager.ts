@@ -22,7 +22,10 @@ export class AcpConnectionManager {
       getAgentState: (agentId) => agentSettings.getAcpAgentState(agentId),
       getNpmRegistry: async () => registry.getNpmRegistry(),
       getUvRegistry: async () => registry.getUvRegistry(),
-      terminalAuthAvailable: true
+      terminalAuthAvailable: true,
+      enableElicitation: true,
+      enablePlans: true,
+      enableSubagentEvents: true
     })
   }
 
@@ -37,7 +40,7 @@ export class AcpConnectionManager {
 
   toRef(handle: AcpProcessHandle): AcpConnectionRef {
     return {
-      id: `${handle.agentId}:${handle.workdir}`,
+      id: handle.connectionId,
       agentId: handle.agentId,
       workdir: handle.workdir,
       protocolVersion: String(PROTOCOL_VERSION),

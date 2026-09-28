@@ -271,7 +271,11 @@ export class SessionPendingInputs {
     return record
   }
 
-  claimSteerInput(sessionId: string, itemId: string): PendingSessionInputRecord {
+  claimSteerInput(
+    sessionId: string,
+    itemId: string,
+    options?: { activeAssistantMessageId: string }
+  ): PendingSessionInputRecord {
     this.assertSteerInput(sessionId, itemId)
     let changedMessages: ChatMessageRecord[] = []
     const record = this.store.runInTransaction(() => {
@@ -284,18 +288,26 @@ export class SessionPendingInputs {
       }
 
       const readAt = Date.now()
-      const assistantMessageId = this.transcript.createAssistantMessage(
-        sessionId,
-        this.transcript.getNextOrderSeq(sessionId)
-      )
+      const assistantMessageId =
+        options?.activeAssistantMessageId ??
+        this.transcript.createAssistantMessage(
+          sessionId,
+          this.transcript.getNextOrderSeq(sessionId)
+        )
       const claimed = this.store.claimSteerInput(itemId, {
         claimedAt: readAt,
         assistantMessageId
       })
-      changedMessages = [
-        ...this.transcript.markSteerMessagesRead(claimed.messageIds, readAt),
-        this.requireMessage(assistantMessageId)
-      ]
+      if (options) {
+        const assistant = this.requireMessage(assistantMessageId)
+        if (assistant.sessionId !== sessionId || assistant.role !== 'assistant')
+          throw new Error('Invalid active assistant message')
+        changedMessages = this.transcript.updateSteerDelivery(claimed.messageIds, 'accepted')
+      } else
+        changedMessages = [
+          ...this.transcript.markSteerMessagesRead(claimed.messageIds, readAt),
+          this.requireMessage(assistantMessageId)
+        ]
       return claimed
     })
     this.emitUpdated(sessionId)
@@ -373,6 +385,22 @@ export class SessionPendingInputs {
     this.emitUpdated(sessionId)
   }
 
+  settleSteerInputReceipt(
+    sessionId: string,
+    itemId: string,
+    delivery: 'applied' | 'failed' | 'unknown'
+  ): void {
+    this.assertSteerInputForSession(sessionId, itemId)
+    const messages = this.store.runInTransaction(() => {
+      const record = this.store.getInput(itemId)!
+      const changed = this.transcript.updateSteerDelivery(record.messageIds, delivery)
+      if (record.state !== 'consumed') this.store.consumeSteerInput(itemId)
+      return changed
+    })
+    this.emitUpdated(sessionId)
+    this.events.publishMessagesChanged(sessionId, messages)
+  }
+
   consumeSteerInput(sessionId: string, itemId: string): void {
     this.assertSteerInputForSession(sessionId, itemId)
     let changedMessages: ChatMessageRecord[] = []
@@ -423,7 +451,18 @@ export class SessionPendingInputs {
         }
 
         if (input.state === 'claimed' && input.messageIds.length > 0) {
-          this.transcript.settleSteerMessages(input.messageIds)
+          const injected = input.messageIds.some((id) => {
+            try {
+              return (
+                JSON.parse(this.transcript.getMessage(id)?.metadata ?? '{}').inputReceipt
+                  ?.delivery === 'accepted'
+              )
+            } catch {
+              return false
+            }
+          })
+          if (injected) this.transcript.updateSteerDelivery(input.messageIds, 'unknown')
+          else this.transcript.settleSteerMessages(input.messageIds)
           this.store.consumeSteerInput(input.id)
           affectedSessionIds.add(input.sessionId)
           continue

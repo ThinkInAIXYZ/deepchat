@@ -1,5 +1,18 @@
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import type { AcpAgentRuntime } from './instance'
+import type { AcpRuntimeOwner } from './client/acpRuntimeOwner'
 import {
+  acpExtensionsInspectRoute,
+  acpRateLimitsRefreshRoute,
+  acpTasksListRoute,
+  acpTaskControlRoute,
+  acpPlanReadRoute,
+  acpGoalControlRoute,
+  acpHistoryReadRoute,
+  acpHistoryImportRoute,
   acpAuthCancelRoute,
+  acpElicitationListRoute,
+  acpElicitationRespondRoute,
   acpAuthInputRoute,
   acpAuthInspectRoute,
   acpAuthStartRoute,
@@ -8,8 +21,116 @@ import {
 import { createRouteMap, requireRendererCaller } from '@/routes/routeRegistry'
 import type { AcpAuthService } from './auth/acpAuthService'
 
-export function createAcpRoutes(dependencies: { auth: AcpAuthService }) {
+export function createAcpRoutes(dependencies: {
+  auth: AcpAuthService
+  owner: AcpRuntimeOwner
+  runtime: AcpAgentRuntime
+  importHistory(sessionId: string): Promise<void>
+}) {
+  const controller = () => dependencies.owner.getOrCreate().sessionController
   return createRouteMap([
+    [
+      acpHistoryReadRoute.name,
+      async (rawInput, context) => {
+        requireRendererCaller(context)
+        const { sessionId } = acpHistoryReadRoute.input.parse(rawInput)
+        await dependencies.runtime.readHistory(toAppSessionId(sessionId))
+        return { read: true }
+      }
+    ],
+    [
+      acpHistoryImportRoute.name,
+      async (rawInput, context) => {
+        requireRendererCaller(context)
+        const { sessionId } = acpHistoryImportRoute.input.parse(rawInput)
+        await dependencies.importHistory(sessionId)
+        return { imported: true }
+      }
+    ],
+    [
+      acpGoalControlRoute.name,
+      async (rawInput, context) => {
+        requireRendererCaller(context)
+        const input = acpGoalControlRoute.input.parse(rawInput)
+        await dependencies.runtime.controlGoal(
+          toAppSessionId(input.sessionId),
+          input.action,
+          input.objective
+        )
+        return { started: true }
+      }
+    ],
+    [
+      acpExtensionsInspectRoute.name,
+      async (rawInput, context) => {
+        requireRendererCaller(context)
+        const input = acpExtensionsInspectRoute.input.parse(rawInput)
+        return {
+          state: await controller().getExtensions(toAppSessionId(input.sessionId), input.agentId)
+        }
+      }
+    ],
+    [
+      acpRateLimitsRefreshRoute.name,
+      async (rawInput, context) => {
+        requireRendererCaller(context)
+        const { sessionId, ...filters } = acpRateLimitsRefreshRoute.input.parse(rawInput)
+        await controller().refreshRateLimits(toAppSessionId(sessionId), filters)
+        return { refreshed: true }
+      }
+    ],
+    [
+      acpTasksListRoute.name,
+      async (rawInput, context) => {
+        requireRendererCaller(context)
+        const input = acpTasksListRoute.input.parse(rawInput)
+        await controller().listRemoteTasks(toAppSessionId(input.sessionId))
+        return { refreshed: true }
+      }
+    ],
+    [
+      acpTaskControlRoute.name,
+      async (rawInput, context) => {
+        requireRendererCaller(context)
+        const input = acpTaskControlRoute.input.parse(rawInput)
+        return controller().controlRemoteTask(
+          toAppSessionId(input.sessionId),
+          input.taskId,
+          input.action,
+          input.tail
+        )
+      }
+    ],
+    [
+      acpPlanReadRoute.name,
+      async (rawInput, context) => {
+        requireRendererCaller(context)
+        const input = acpPlanReadRoute.input.parse(rawInput)
+        return controller().readPlanFile(toAppSessionId(input.sessionId), input.planId)
+      }
+    ],
+    [
+      acpElicitationListRoute.name,
+      async (_input, context) => {
+        requireRendererCaller(context)
+        const bridge = dependencies.owner.peek()?.processManager.elicitation
+        return acpElicitationListRoute.output.parse({
+          requests: bridge?.list() ?? [],
+          version: bridge?.version ?? 0
+        })
+      }
+    ],
+    [
+      acpElicitationRespondRoute.name,
+      async (rawInput, context) => {
+        requireRendererCaller(context)
+        const input = acpElicitationRespondRoute.input.parse(rawInput)
+        return {
+          resolved:
+            (await dependencies.owner.peek()?.processManager.elicitation.respond(input)) ?? false
+        }
+      }
+    ],
     [
       acpAuthInspectRoute.name,
       async (rawInput, context) => {

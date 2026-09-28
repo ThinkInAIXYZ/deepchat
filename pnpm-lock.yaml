@@ -20,8 +20,8 @@ importers:
   .:
     dependencies:
       '@agentclientprotocol/sdk':
-        specifier: ^0.16.1
-        version: 0.16.1(zod@4.5.4)
+        specifier: 1.4.0
+        version: 1.4.0(zod@4.5.4)
       '@ai-sdk/amazon-bedrock':
         specifier: ^5.0.78
         version: 5.0.78(zod@4.5.4)
@@ -91,6 +91,9 @@ importers:
       '@zerob13/nativekit':
         specifier: 0.6.3
         version: 0.6.3(electron@43.6.0)
+      acp-extension-core:
+        specifier: 0.1.9
+        version: 0.1.9(zod@4.5.4)
       ai:
         specifier: ^7.0.94
         version: 7.0.94(zod@4.5.4)
@@ -453,8 +456,8 @@ importers:
 
 packages:
 
-  '@agentclientprotocol/sdk@0.16.1':
-    resolution: {integrity: sha512-1ad+Sc/0sCtZGHthxxvgEUo5Wsbw16I+aF+YwdiLnPwkZG8KAGUEAPK6LM6Pf69lCyJPt1Aomk1d+8oE3C4ZEw==}
+  '@agentclientprotocol/sdk@1.4.0':
+    resolution: {integrity: sha512-/eufudw+aFY1LKLolT6yFE6UMmYRl7fMJ/DEONSIyR6wI3slHWITBsANRGqXEY8FRzqUxwh7QEaGiZHcJPVThg==}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
@@ -3427,6 +3430,9 @@ packages:
     resolution: {integrity: sha512-lGq+9yr1/GuAWaVYIHRjvvySG5/4VfKIvC8EWxStPdcDh/Ka7FG3twP6v4d5BkravUilhIAsG4Qj83t02LWUPQ==}
     engines: {node: '>=0.4.0'}
     hasBin: true
+
+  acp-extension-core@0.1.9:
+    resolution: {integrity: sha512-TH10B+4AfXDSjmvSNOOvAWfbDZeT5G8ngdilVjZ7RXvE4sw53IO/TzJokbzjIKaZzo51G4pGqElj9b9kPp7Rkg==}
 
   agent-base@6.0.2:
     resolution: {integrity: sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==}
@@ -7151,7 +7157,7 @@ packages:
 
 snapshots:
 
-  '@agentclientprotocol/sdk@0.16.1(zod@4.5.4)':
+  '@agentclientprotocol/sdk@1.4.0(zod@4.5.4)':
     dependencies:
       zod: 4.5.4
 
@@ -10156,6 +10162,12 @@ snapshots:
       negotiator: 1.0.0
 
   acorn@8.18.0: {}
+
+  acp-extension-core@0.1.9(zod@4.5.4):
+    dependencies:
+      '@agentclientprotocol/sdk': 1.4.0(zod@4.5.4)
+    transitivePeerDependencies:
+      - zod
 
   agent-base@6.0.2:
     dependencies:

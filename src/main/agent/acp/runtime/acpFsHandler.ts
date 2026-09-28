@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import { RequestError } from '@agentclientprotocol/sdk'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type * as schema from '@agentclientprotocol/sdk'
 import { buildBinaryReadGuidance, shouldRejectAcpTextRead } from '@/lib/binaryReadGuard'
 import { AcpPathGuard } from './acpPathGuard'
 

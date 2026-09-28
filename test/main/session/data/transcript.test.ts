@@ -779,6 +779,54 @@ describe('SessionTranscript', () => {
     })
   })
 
+  describe('ACP history import', () => {
+    it('imports target anchors without billing and rejects merging into existing history', () => {
+      const history = {
+        digest: 'ordered-snapshot',
+        verifiedComplete: true,
+        readAt: 1000,
+        entries: [
+          {
+            id: 'ordered-snapshot:0',
+            role: 'user' as const,
+            turnId: 'target-user',
+            text: 'same text',
+            blocks: []
+          },
+          {
+            id: 'ordered-snapshot:1',
+            role: 'assistant' as const,
+            turnId: 'target-assistant',
+            text: '',
+            blocks: [{ type: 'content' as const, content: 'same text', status: 'success' as const }]
+          }
+        ]
+      }
+      store.importAcpHistory('s1', 'agent', 'remote-target', history)
+      expect(sqlitePresenter.deepchatMessagesTable.upsert).toHaveBeenCalledTimes(2)
+      const imported = sqlitePresenter.deepchatMessagesTable.upsert.mock.calls.map(([row]) => row)
+      expect(imported.map((row) => JSON.parse(row.metadata).acp.turnId)).toEqual([
+        'target-user',
+        'target-assistant'
+      ])
+      expect(sqlitePresenter.deepchatUsageStatsTable.upsert).not.toHaveBeenCalled()
+      vi.spyOn(store, 'getMessages').mockReturnValue(
+        imported.map((row) => ({ id: row.id })) as never
+      )
+      store.importAcpHistory('s1', 'agent', 'remote-target', history)
+      expect(sqlitePresenter.deepchatMessagesTable.upsert).toHaveBeenCalledTimes(2)
+      expect(() =>
+        store.importAcpHistory('s1', 'agent', 'remote-target', {
+          ...history,
+          entries: [...history.entries, history.entries[0]]
+        })
+      ).toThrow('empty conversation')
+      expect(() =>
+        store.importAcpHistory('empty', 'agent', 'remote', { ...history, verifiedComplete: false })
+      ).toThrow('completeness')
+    })
+  })
+
   describe('importMessageRow', () => {
     it('turns a legacy row into a message fact and its projection with the row times', () => {
       store.importMessageRow(

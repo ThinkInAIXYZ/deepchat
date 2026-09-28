@@ -1,12 +1,17 @@
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type * as schema from '@agentclientprotocol/sdk'
 import type { AcpConfigOption, AcpConfigOptionValue, AcpConfigState } from '@shared/types/acp'
+
+export type AcpLegacyModelState = {
+  currentModelId: string
+  availableModels: Array<{ modelId: string; name: string; description?: string | null }>
+}
 
 export const LEGACY_MODEL_CONFIG_ID = '__acp_legacy_model__'
 export const LEGACY_MODE_CONFIG_ID = '__acp_legacy_mode__'
 
 type NormalizableConfigStateInput = {
   configOptions?: schema.SessionConfigOption[] | null
-  models?: schema.SessionModelState | null
+  models?: AcpLegacyModelState | null
   modes?: schema.SessionModeState | null
 }
 
@@ -58,7 +63,7 @@ const normalizeConfigOption = (option: schema.SessionConfigOption): AcpConfigOpt
 }
 
 const buildLegacyModelOption = (
-  models?: schema.SessionModelState | null
+  models?: AcpLegacyModelState | null
 ): AcpConfigOption | undefined => {
   if (!models?.availableModels?.length) {
     return undefined

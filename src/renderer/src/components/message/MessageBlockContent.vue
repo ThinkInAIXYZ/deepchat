@@ -1,5 +1,8 @@
 <!-- eslint-disable @typescript-eslint/no-explicit-any -->
 <template>
+  <p v-if="acpPhase" class="mb-1 text-xs text-muted-foreground">
+    {{ t(`chat.acpExtensions.${acpPhase}`) }}
+  </p>
   <template v-for="(part, index) in processedContent" :key="index">
     <!-- 使用结构化渲染器替代 v-html -->
     <MarkdownRenderer
@@ -36,6 +39,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import LegacyArtifactSource from './LegacyArtifactSource.vue'
 import ToolCallPreview from './ToolCallPreview.vue'
@@ -52,6 +56,16 @@ const props = defineProps<{
   hiddenMarkdownImageSources?: readonly string[]
 }>()
 
+const { t } = useI18n()
+const acpPhase = computed(() => {
+  try {
+    const phase = JSON.parse(String(props.block.extra?.providerOptionsJson ?? '{}')).acp
+      ?.messagePhase
+    return phase === 'commentary' || phase === 'final_answer' ? phase : null
+  } catch {
+    return null
+  }
+})
 const { processedContent } = useBlockContent(props)
 const shouldSmoothStream = computed(
   () => props.block.status === 'pending' || props.block.status === 'loading'

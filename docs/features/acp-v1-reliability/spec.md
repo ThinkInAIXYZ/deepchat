@@ -138,3 +138,15 @@ implementation alone does not close those broader validation requirements.
 - [Slash commands](https://agentclientprotocol.com/protocol/v1/slash-commands)
 - [Extensibility](https://agentclientprotocol.com/protocol/v1/extensibility)
 - [Transports](https://agentclientprotocol.com/protocol/v1/transports)
+
+## Negotiated Lody client extensions
+
+Direct ACP sessions use SDK 1.4.0's public typed client API and Core 0.1.9 contracts while keeping
+ACP wire v1. Rich elicitation is owned by an ephemeral ACP bridge; connection-scoped handlers and
+persisted extension snapshots keep idle state separate from the active parent transcript. Remote
+child streams do not create local agent loops. Request steering, goal controls, history and remote
+fork retain the existing instance's execution ownership and capability guards.
+
+See [ACP Lody Extension Client Support](../acp-lody-extensions/spec.md) for the authoritative capability
+matrix, lifecycle, accounting, privacy, verified-adapter gates and validation evidence. ACP-provider
+compatibility connections do not advertise the direct client's new interactive capabilities.
