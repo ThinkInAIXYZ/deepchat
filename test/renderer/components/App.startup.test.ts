@@ -441,6 +441,7 @@ const mountApp = async (options?: {
         MessageDialog: true,
         McpSamplingDialog: true,
         McpElicitationDialog: true,
+        AcpElicitationDialog: true,
         McpAppConsentDialog: true,
         SelectedTextContextMenu: true,
         TranslatePopup: true,
