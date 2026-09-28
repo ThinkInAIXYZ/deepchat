@@ -410,6 +410,12 @@ Common commands include `/start`, `/help`, `/pair`, `/new`, `/sessions`, `/use`,
       <a href="https://synthorai.io/">Synthorai</a>
     </td>
   </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/requesty.png" width="50" height="50" alt="Requesty Icon"><br/>
+      <a href="https://www.requesty.ai/">Requesty</a>
+    </td>
+  </tr>
 
 </table>
 
