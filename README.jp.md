@@ -29,21 +29,6 @@
 <table>
   <tr>
     <td width="25%" align="center">
-      <a href="https://go.apimart.ai/gh-deepchat">
-        <img src="./assets/sponsors/apimart.png" alt="APIMart" width="240" />
-      </a>
-    </td>
-    <td width="75%">
-      APIMart のご支援に感謝します！APIMart は、AI による画像・動画生成に特化した低価格な API
-      プラットフォームです。GPT-Image-2 は 1 枚あたり $0.006 から利用でき、1 ドルで 160
-      枚以上を生成できます。画像と動画を共通の非同期 API で扱い、タスクを送信して ID
-      を取得した後、ポーリングまたはコールバックで結果を受け取れます。
-      数万枚規模のバッチ処理でもタイムアウトせず、コードを変更せずにモデルを切り替えられます。月額料金なしの従量課金制です。<a
-      href="https://go.apimart.ai/gh-deepchat">こちらから登録</a>して利用を開始できます。
-    </td>
-  </tr>
-  <tr>
-    <td width="25%" align="center">
       <a href="https://www.openmodel.ai?ref=ZGLyq8YQ">
         <img src="./assets/sponsors/openmodel.png" alt="OpenModel" width="240" />
       </a>
