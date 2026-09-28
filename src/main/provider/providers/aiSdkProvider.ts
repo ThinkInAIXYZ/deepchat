@@ -1741,6 +1741,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         return this.fetchOpenAiDerivedModels(strategy)
       case 'requesty':
         return this.fetchRequestyModels()
+      case 'demonroute':
+        return this.fetchDemonRouteModels()
       case 'bedrock':
         return this.fetchBedrockModels()
       case 'new-api':
@@ -1973,6 +1975,39 @@ export class AiSdkProvider extends BaseLLMProvider {
 
     append(managed, 'Managed')
     append(catalog, 'default')
+    return models
+  }
+
+  /**
+   * DemonRoute exposes a standard OpenAI-compatible model catalog at `{baseUrl}/models`.
+   * The catalog request is authenticated and doubles as the key check.
+   */
+  private async fetchDemonRouteModels(): Promise<MODEL_META[]> {
+    const timeout = this.getModelFetchTimeout()
+    const catalog = await this.fetchOpenAIModelRecords({ timeout })
+
+    const models: MODEL_META[] = []
+    for (const model of catalog) {
+      const modelId = typeof model.id === 'string' ? model.id : ''
+      if (!modelId) {
+        continue
+      }
+      const contextLength =
+        toPositiveFiniteNumber(model.context_length) ?? toPositiveFiniteNumber(model.context_window)
+      const maxTokens =
+        toPositiveFiniteNumber(model.max_output_tokens) ?? toPositiveFiniteNumber(model.max_tokens)
+      models.push({
+        id: modelId,
+        name: modelId,
+        group: 'default',
+        providerId: this.provider.id,
+        isCustom: false,
+        type: ModelType.Chat,
+        ...(contextLength !== undefined ? { contextLength } : {}),
+        ...(maxTokens !== undefined ? { maxTokens } : {}),
+        ...(typeof model.description === 'string' ? { description: model.description } : {})
+      })
+    }
     return models
   }
 

@@ -24,6 +24,7 @@ export type AiSdkModelSourceStrategy =
   | 'new-api'
   | 'openrouter'
   | 'requesty'
+  | 'demonroute'
   | 'ppio'
   | 'groq'
   | 'tokenflux'
@@ -551,6 +552,14 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     createDefinition({
       ...OPENAI_BASE,
       modelSource: 'requesty',
+      credentialStrategy: 'api-key'
+    })
+  ],
+  [
+    'demonroute',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'demonroute',
       credentialStrategy: 'api-key'
     })
   ],

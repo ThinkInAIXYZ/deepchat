@@ -525,6 +525,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'demonroute',
+    name: 'DemonRoute',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.demonroute.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://demonroute.com/',
+      apiKey: 'https://demonroute.com/',
+      docs: 'https://demonroute.com/integrations',
+      models: 'https://demonroute.com/models'
+    }
+  },
+  {
     id: 'orcarouter',
     name: 'OrcaRouter',
     apiType: 'openai-completions',

@@ -50,6 +50,7 @@ import kimiColorIcon from '@/assets/llm-icons/kimi-color.svg?url'
 import moonshotColorIcon from '@/assets/llm-icons/moonshot.svg?url'
 import openrouterColorIcon from '@/assets/llm-icons/openrouter.svg?url'
 import requestyColorIcon from '@/assets/llm-icons/requesty.png?url'
+import demonrouteColorIcon from '@/assets/llm-icons/demonroute.svg?url'
 import orcarouterColorIcon from '@/assets/llm-icons/orcarouter.svg?url'
 import synthoraiColorIcon from '@/assets/llm-icons/synthorai.svg?url'
 import routerraColorIcon from '@/assets/llm-icons/routerra.svg?url'
@@ -181,6 +182,7 @@ export const modelIcons = {
   moonshot: moonshotColorIcon,
   openrouter: openrouterColorIcon,
   requesty: requestyColorIcon,
+  demonroute: demonrouteColorIcon,
   orcarouter: orcarouterColorIcon,
   synthorai: synthoraiColorIcon,
   routerra: routerraColorIcon,
@@ -257,6 +259,7 @@ const monoIconUrls = new Set<string>([
   rwkvColorIcon,
   moonshotColorIcon,
   openrouterColorIcon,
+  demonrouteColorIcon,
   githubColorIcon,
   qiniuIcon,
   grokColorIcon,
