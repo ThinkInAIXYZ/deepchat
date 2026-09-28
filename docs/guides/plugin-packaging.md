@@ -158,6 +158,20 @@ pnpm run plugin:verify -- --name nowledge-mem --platform darwin --arch arm64 --p
 
 See [local verification](../features/nowledge-mem-plugin/verification.md) for connection setup.
 
+## Memcode Plugin Artifacts
+
+Memcode is a bundled, opt-in HTTP MCP plugin with an explicit save/recall skill.
+It has no native runtime or embedded credentials. In Plugins > Memcode, configure
+the HTTP server URL `https://mcp.memcode.in/mcp` and complete OAuth sign-in
+through DeepChat. Connection settings and tokens remain host-managed. No
+conversation is saved automatically.
+
+```bash
+pnpm run plugin:validate -- --name memcode --platform darwin --arch arm64
+pnpm run plugin:bundle -- --name memcode --platform darwin --arch arm64
+pnpm run plugin:verify -- --name memcode --platform darwin --arch arm64 --plugin-root build/bundled-plugins
+```
+
 ## Output Locations
 
 Standalone packages:
