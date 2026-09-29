@@ -406,6 +406,12 @@ DeepChat 可以通过聊天软件远程控制，让你离开桌面后也能继�
       <a href="https://synthorai.io/">Synthorai</a>
     </td>
   </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/requesty.png" width="50" height="50" alt="Requesty Icon"><br/>
+      <a href="https://www.requesty.ai/">Requesty</a>
+    </td>
+  </tr>
 
 </table>
 
