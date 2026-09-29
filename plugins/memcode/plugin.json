@@ -1,0 +1,31 @@
+{
+  "id": "com.deepchat.plugins.memcode",
+  "name": "Memcode",
+  "version": "0.1.0",
+  "publisher": "DeepChat",
+  "engines": {
+    "deepchat": ">=${app.version}",
+    "platforms": ["darwin", "linux", "win32"]
+  },
+  "activationEvents": ["onEnable"],
+  "capabilities": ["mcp.register", "skills.register"],
+  "source": {
+    "type": "deepchat-official",
+    "url": "${github.release.download}/deepchat-plugin-memcode-${app.version}-${target.platform}-${arch}.dcplugin",
+    "publisher": "DeepChat"
+  },
+  "mcpServers": [
+    {
+      "id": "memcode-connection",
+      "displayName": "Memcode",
+      "transport": "http"
+    }
+  ],
+  "skills": [
+    {
+      "id": "memcode",
+      "path": "skills/memcode/SKILL.md",
+      "scope": "agent"
+    }
+  ]
+}

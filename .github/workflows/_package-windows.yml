@@ -128,6 +128,7 @@ jobs:
           pnpm run plugin:bundle -- --name cua --platform win32 --arch "${TARGET_ARCH}"
           pnpm run plugin:bundle -- --name feishu --platform win32 --arch "${TARGET_ARCH}"
           pnpm run plugin:bundle -- --name nowledge-mem --platform win32 --arch "${TARGET_ARCH}"
+          pnpm run plugin:bundle -- --name memcode --platform win32 --arch "${TARGET_ARCH}"
           pnpm exec electron-builder --win --"${TARGET_ARCH}" --publish=never
         env:
           VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
@@ -178,6 +179,7 @@ jobs:
           pnpm run plugin:verify -- --name cua --platform win32 --arch "${TARGET_ARCH}" --plugin-root "${plugin_root}"
           pnpm run plugin:verify -- --name feishu --platform win32 --arch "${TARGET_ARCH}" --plugin-root "${plugin_root}"
           pnpm run plugin:verify -- --name nowledge-mem --platform win32 --arch "${TARGET_ARCH}" --plugin-root "${plugin_root}"
+          pnpm run plugin:verify -- --name memcode --platform win32 --arch "${TARGET_ARCH}" --plugin-root "${plugin_root}"
 
       - name: Compare installer sizes
         if: inputs.enforce-installer-size
