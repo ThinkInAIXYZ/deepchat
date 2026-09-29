@@ -901,7 +901,7 @@ export class AcpProvider extends BaseLLMProvider {
             payload: body
           })
           const response = await connection.closeSession(body)
-          this.processManager.clearSession(sessionToClose)
+          this.processManager.clearSession(sessionToClose, handle.connectionId)
           activeSessionId = undefined
           pushEvent({
             kind: 'response',

@@ -1755,6 +1755,7 @@ function createRuntime() {
   }
   const acpRoutes = createAcpRoutes({
     auth: acpAuth as never,
+    isMainWindowContext: (caller) => caller.webContentsId === 42,
     owner: { peek: () => undefined } as never
   })
   const deviceRoutes = createDeviceRoutes({
@@ -3253,6 +3254,33 @@ describe('dispatchDeepchatRoute', () => {
     expect(acpAuth.cancel).toHaveBeenCalledWith('run-1', 42)
     expect(inputResult).toEqual({ sent: true })
     expect(cancelResult).toEqual({ cancelled: true })
+  })
+
+  it('restricts cross-session ACP elicitation to the main window', async () => {
+    const { runtime } = createRuntime()
+    const decision = { requestId: 'request', action: 'accept' }
+    await expect(
+      dispatchDeepchatRoute(runtime, 'acp.elicitation.list', {}, createRendererRouteContext(43, 8))
+    ).rejects.toThrow('main window')
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'acp.elicitation.respond',
+        decision,
+        createRendererRouteContext(43, 8)
+      )
+    ).rejects.toThrow('main window')
+    await expect(
+      dispatchDeepchatRoute(runtime, 'acp.elicitation.list', {}, createRendererRouteContext(42, 7))
+    ).resolves.toEqual({ requests: [], version: 0 })
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'acp.elicitation.respond',
+        decision,
+        createRendererRouteContext(42, 7)
+      )
+    ).resolves.toEqual({ resolved: false })
   })
 
   it('dispatches shortcut routes through ShortcutPresenter', async () => {

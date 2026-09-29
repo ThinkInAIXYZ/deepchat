@@ -3207,6 +3207,8 @@ export async function createMainProcessControl(dependencies: {
       auth: acpAuthService,
       owner: acpRuntimeOwner,
       runtime: acpAgentRuntime,
+      isMainWindowContext: (caller) =>
+        windowPresenter.mainWindow?.webContents.id === caller.webContentsId,
       importHistory: async (sessionId) => {
         const localId = toAppSessionId(sessionId)
         const instance = acpAgentRuntime.getHydrated(localId)

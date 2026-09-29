@@ -4,6 +4,8 @@ import {
   AcpContentMapper,
   createAcpPromptTerminalEvents
 } from '@/agent/acp/runtime/acpContentMapper'
+import { buildAcpHistory } from '@/agent/acp/runtime/acpHistory'
+import { readLodySessionMeta } from '@/agent/acp/runtime/acpLodyExtensions'
 
 const createNotification = <T extends schema.SessionNotification['update']>(
   sessionId: string,
@@ -45,6 +47,63 @@ describe('ACP prompt stop reason mapping', () => {
 })
 
 describe('AcpContentMapper tool call handling', () => {
+  it('preserves turn boundaries and child suppression when sibling metadata is invalid', () => {
+    const mapper = new AcpContentMapper()
+    const updates = ['first', 'second'].map((turnId) =>
+      createNotification('session', {
+        sessionUpdate: 'agent_message_chunk' as const,
+        content: { type: 'text' as const, text: 'same answer' },
+        _meta: {
+          lody: {
+            turnId,
+            messagePhase: 'future-phase',
+            toolName: 'x'.repeat(65_537),
+            goal: null,
+            activity: { version: 1, kind: 'future-activity' },
+            notice: { level: 'future-level', message: 'Notice' }
+          }
+        }
+      })
+    )
+    expect(buildAcpHistory(updates, true).entries.map((entry) => entry.turnId)).toEqual([
+      'first',
+      'second'
+    ])
+    expect(readLodySessionMeta(updates[0].update._meta)).toMatchObject({
+      turnId: 'first',
+      goal: null
+    })
+    updates[0].update._meta!.lody = {
+      ...(updates[0].update._meta!.lody as object),
+      task: {
+        version: 1,
+        taskId: 'child',
+        kind: 'subagent',
+        status: 'in_progress',
+        skipTranscript: true
+      }
+    }
+    expect(mapper.map(updates[0]).events).toEqual([])
+    expect(mapper.map(updates[0]).blocks).toEqual([])
+  })
+
+  it('keeps ordinary tool titles and allows an explicit Lody canonical name', () => {
+    for (const canonical of [undefined, 'canonical-tool']) {
+      const mapper = new AcpContentMapper()
+      const result = mapper.map(
+        createNotification('session', {
+          sessionUpdate: 'tool_call',
+          toolCallId: 'tool',
+          title: 'Display title',
+          name: 'legacy-name',
+          _meta: canonical ? { lody: { toolName: canonical } } : undefined
+        })
+      )
+      expect(result.events.find((event) => event.type === 'tool_call_start')).toMatchObject({
+        tool_call_name: canonical ?? 'Display title'
+      })
+    }
+  })
   it('emits tool call start/chunk/end events for ACP fragments', () => {
     const mapper = new AcpContentMapper()
     const toolCallId = 'tool-1'

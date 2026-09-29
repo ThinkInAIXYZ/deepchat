@@ -168,12 +168,12 @@ export const acpRemoteTasksSchema = z.object({
 })
 
 const sessionMetaSchema = z.object({
-  turnId: id.optional(),
-  toolName: text.optional(),
-  titleSource: z.enum(['explicit', 'generated', 'fallback', 'unset']).optional(),
-  messagePhase: z.enum(['commentary', 'final_answer']).optional(),
-  goal: acpGoalSchema.nullish(),
-  task: acpTaskSchema.optional(),
+  turnId: optionalCapability(id),
+  toolName: optionalCapability(text),
+  titleSource: optionalCapability(z.enum(['explicit', 'generated', 'fallback', 'unset'])),
+  messagePhase: optionalCapability(z.enum(['commentary', 'final_answer'])),
+  goal: acpGoalSchema.nullish().catch(undefined),
+  task: optionalCapability(acpTaskSchema),
   activity: v1
     .extend({
       kind: z.enum(['context_compaction', 'retry']),
@@ -183,10 +183,12 @@ const sessionMetaSchema = z.object({
       durationMs: count.optional(),
       failureReason: text.optional()
     })
-    .optional(),
+    .optional()
+    .catch(undefined),
   notice: z
     .object({ level: z.enum(['info', 'warning', 'error']), message: text, source: text.optional() })
     .optional()
+    .catch(undefined)
 })
 
 export function readLodySessionMeta(meta: unknown): z.infer<typeof sessionMetaSchema> {

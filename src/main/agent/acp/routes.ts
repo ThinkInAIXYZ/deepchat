@@ -18,13 +18,18 @@ import {
   acpAuthStartRoute,
   acpAuthStatusRoute
 } from '@shared/contracts/routes'
-import { createRouteMap, requireRendererCaller } from '@/routes/routeRegistry'
+import {
+  createRouteMap,
+  requireRendererCaller,
+  type RendererRouteCaller
+} from '@/routes/routeRegistry'
 import type { AcpAuthService } from './auth/acpAuthService'
 
 export function createAcpRoutes(dependencies: {
   auth: AcpAuthService
   owner: AcpRuntimeOwner
   runtime: AcpAgentRuntime
+  isMainWindowContext(caller: RendererRouteCaller): boolean
   importHistory(sessionId: string): Promise<void>
 }) {
   const controller = () => dependencies.owner.getOrCreate().sessionController
@@ -112,7 +117,8 @@ export function createAcpRoutes(dependencies: {
     [
       acpElicitationListRoute.name,
       async (_input, context) => {
-        requireRendererCaller(context)
+        if (!dependencies.isMainWindowContext(requireRendererCaller(context)))
+          throw new Error('ACP elicitation requires the main window')
         const bridge = dependencies.owner.peek()?.processManager.elicitation
         return acpElicitationListRoute.output.parse({
           requests: bridge?.list() ?? [],
@@ -123,7 +129,8 @@ export function createAcpRoutes(dependencies: {
     [
       acpElicitationRespondRoute.name,
       async (rawInput, context) => {
-        requireRendererCaller(context)
+        if (!dependencies.isMainWindowContext(requireRendererCaller(context)))
+          throw new Error('ACP elicitation requires the main window')
         const input = acpElicitationRespondRoute.input.parse(rawInput)
         return {
           resolved:

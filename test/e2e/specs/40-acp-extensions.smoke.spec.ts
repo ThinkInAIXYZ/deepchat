@@ -67,7 +67,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   const secret = app.page.getByLabel('Private note', { exact: true })
   await expect(secret).toHaveAttribute('type', 'password')
   await secret.fill('fixture-private-value')
-  await app.page.screenshot({ path: '/tmp/deepchat-acp-questions.png' })
+  await app.page.screenshot({ path: test.info().outputPath('acp-questions.png') })
   await secret.locator('xpath=ancestor::form').locator('button[type="submit"]').click()
   await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
     'data-generating',
@@ -101,6 +101,6 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   await expect(app.page.getByText('Child verification')).toBeVisible()
   await app.page.getByText('Child verification').click()
   await expect(app.page.getByText('CHILD_ONLY_OUTPUT')).toBeVisible()
-  await app.page.screenshot({ path: '/tmp/deepchat-acp-status.png' })
+  await app.page.screenshot({ path: test.info().outputPath('acp-status.png') })
   expect(app.pageErrors).toEqual([])
 })

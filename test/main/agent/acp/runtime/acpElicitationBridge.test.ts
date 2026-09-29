@@ -172,6 +172,117 @@ describe('ACP rich elicitation contract', () => {
     })
   })
 
+  it.each([false, true])(
+    'keeps custom answers independent of field order (custom first: %s)',
+    async (customFirst) => {
+      const bridge = new AcpElicitationBridge(vi.fn())
+      const properties = {
+        choice: { type: 'string', enum: ['selected'] },
+        custom: { type: 'string', _meta: hints({ customAnswerFor: 'choice' }) }
+      }
+      for (const custom of ['', '  ', 'another answer']) {
+        const response = bridge.request(
+          {
+            mode: 'form',
+            sessionId: 'remote',
+            message: 'Choose',
+            requestedSchema: {
+              properties: customFirst
+                ? { custom: properties.custom, choice: properties.choice }
+                : properties
+            },
+            _meta: hints({})
+          },
+          context()
+        )
+        await bridge.respond({
+          requestId: bridge.list()[0].requestId,
+          action: 'accept',
+          content: { choice: 'selected', custom }
+        })
+        expect(await response).toMatchObject({
+          content: custom.trim() ? { custom } : { choice: 'selected', custom },
+          _meta: hints({ answers: { choice: custom.trim() ? custom : 'selected' } })
+        })
+      }
+    }
+  )
+
+  it('matches option hints by schema value after unsupported options are omitted', async () => {
+    const bridge = new AcpElicitationBridge(vi.fn())
+    const response = bridge.request(
+      {
+        mode: 'form',
+        sessionId: 'remote',
+        message: 'Choose',
+        requestedSchema: {
+          properties: {
+            choice: {
+              type: 'string',
+              oneOf: [
+                { const: 'unsupported', description: 'Not the retained option' },
+                {
+                  const: 'retained',
+                  title: 'Retained',
+                  _meta: hints({ preview: 'Correct preview' })
+                }
+              ]
+            }
+          }
+        },
+        _meta: hints({
+          questions: [
+            {
+              id: 'choice',
+              question: 'Choose',
+              header: 'Choice',
+              multiSelect: false,
+              options: [
+                { label: 'Unsupported', description: 'Wrong hint' },
+                { label: 'Retained', description: 'Correct hint' }
+              ]
+            }
+          ]
+        })
+      },
+      context()
+    )
+    const request = bridge.list()[0]
+    expect(request.fields[0].options).toEqual([
+      {
+        value: 'retained',
+        title: 'Retained',
+        description: 'Correct hint',
+        preview: 'Correct preview'
+      }
+    ])
+    await bridge.respond({ requestId: request.requestId, action: 'cancel' })
+    await response
+  })
+
+  it.each([false, true])(
+    'expires accepted URL views even if completion is %s',
+    async (completed) => {
+      vi.useFakeTimers()
+      const bridge = new AcpElicitationBridge(vi.fn())
+      const response = bridge.request(
+        {
+          mode: 'url',
+          sessionId: 'remote',
+          message: 'Sign in',
+          elicitationId: 'external',
+          url: 'https://example.com'
+        },
+        context()
+      )
+      await bridge.respond({ requestId: bridge.list()[0].requestId, action: 'accept' })
+      expect(await response).toEqual({ action: 'accept' })
+      if (completed) bridge.complete('connection-a', 'external')
+      await vi.advanceTimersByTimeAsync(15 * 60_000)
+      expect(bridge.list()).toEqual([])
+    }
+  )
+
   it('cancels only the owning connection and request, including expired defaults', async () => {
     vi.useFakeTimers()
     const bridge = new AcpElicitationBridge(vi.fn())
@@ -207,6 +318,9 @@ describe('ACP rich elicitation contract', () => {
       url: 'https://example.com/login'
     }
     expect(() => bridge.request({ ...params, url: 'file:///etc/passwd' }, context())).toThrow(
+      expect.objectContaining({ code: -32602 })
+    )
+    expect(() => bridge.request({ ...params, url: 'https://[' }, context())).toThrow(
       expect.objectContaining({ code: -32602 })
     )
     expect(() =>

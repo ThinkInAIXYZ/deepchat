@@ -168,7 +168,6 @@
         <ChatToolInteractionOverlay
           class="pointer-events-auto mx-auto"
           :interaction="activePendingInteraction"
-          :elicitation="acpElicitation"
           :processing="isHandlingInteraction"
           @respond="onToolInteractionRespond"
         />
@@ -1341,7 +1340,7 @@ const acpElicitation = computed(
   () => acpExtensions.requests.find((request) => request.conversationId === props.sessionId) ?? null
 )
 watch(
-  () => props.sessionId,
+  () => (isReadOnlySession.value ? null : props.sessionId),
   (id) => {
     acpExtensions.dockedConversationId = id
   },

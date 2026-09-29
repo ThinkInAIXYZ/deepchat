@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { SessionNotification } from '@agentclientprotocol/sdk'
+import { RequestError, type SessionNotification } from '@agentclientprotocol/sdk'
 import { LODY_EXTENSION_METHODS as methods } from 'acp-extension-core'
 import { AcpSessionController } from '@/agent/acp/runtime/acpSessionController'
 import type { AcpSessionRecord } from '@/agent/acp/runtime/acpSessionManager'
@@ -312,6 +312,8 @@ describe('ACP extension ownership', () => {
     expect(result.history.entries[0].turnId).toBe('target-turn')
     expect(save.mock.calls[1][5].acpExtensions.usage.sinceFork.inputTokens).toBe(0)
     expect(f.parentEvents).not.toHaveBeenCalled()
+    await f.controller.completeFork(toAppSessionId('first'), 'operation')
+    expect(source.metadata?.acpForks).toEqual({})
     await expect(
       f.controller.forkSession(
         toAppSessionId('first'),
@@ -320,6 +322,61 @@ describe('ACP extension ownership', () => {
         'other'
       )
     ).rejects.toThrow('anchor')
+  })
+
+  it('prunes completed forks, retries explicit rejection, and preserves an unknown outcome', async () => {
+    const f = await fixture()
+    const source = f.sessions.get('first')!
+    source.supportsSessionFork = true
+    source.extensions.forkAtTurn = { version: 1 }
+    source.metadata!.acpForks = Object.fromEntries(
+      Array.from({ length: 64 }, (_, i) => [`old-${i}`, { status: 'complete' }])
+    )
+    const fork = vi
+      .fn()
+      .mockRejectedValueOnce(RequestError.invalidParams('Rejected anchor'))
+      .mockRejectedValue(new Error('Connection closed'))
+    Object.assign(source.connection, { unstable_forkSession: fork })
+    Object.assign(f.persistence, { getProjectMetadata: () => ({}) })
+    f.request.mockImplementation(async () => {
+      f.notify('first', {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text: 'Answer' },
+        _meta: { lody: { turnId: 'turn' } }
+      })
+      return {}
+    })
+    const retry = () =>
+      f.controller.forkSession(
+        toAppSessionId('first'),
+        toAppSessionId('target'),
+        'turn',
+        'operation'
+      )
+    await expect(retry()).rejects.toMatchObject({ code: -32602 })
+    expect(source.metadata?.acpForks).toEqual({})
+    await expect(retry()).rejects.toThrow('Connection closed')
+    await expect(retry()).rejects.toThrow('unknown outcome')
+    expect(fork).toHaveBeenCalledTimes(2)
+  })
+
+  it('bounds an unanswered steer RPC without cancelling the parent connection', async () => {
+    const f = await fixture()
+    vi.useFakeTimers()
+    try {
+      f.request.mockImplementation(() => new Promise(() => {}))
+      const settled = vi.fn()
+      const steer = f.controller.steer(toAppSessionId('first'), 'instruction', [], settled)
+      await vi.advanceTimersByTimeAsync(30_000)
+      await steer
+      expect(settled).toHaveBeenCalledExactlyOnceWith('unknown')
+      expect(f.request.mock.calls.at(-1)?.[2].cancellationSignal.aborted).toBe(true)
+      expect(f.sessions.get('first')!.connection.close).not.toHaveBeenCalled()
+      f.extension('first', methods.sessionSteerApplied, { steerId: 'instruction' })
+      expect(settled).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not cancel an ambiguous remote ID across two local sessions', () => {

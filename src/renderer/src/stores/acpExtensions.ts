@@ -2,6 +2,7 @@ import type { AcpExtensionState } from '@shared/types/acp-extensions'
 import { onScopeDispose, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { createAcpExtensionsClient } from '@api/AcpExtensionsClient'
+import { createSessionClient } from '@api/SessionClient'
 import type {
   AcpElicitationView,
   AcpElicitationValue,
@@ -12,6 +13,15 @@ export const useAcpExtensionsStore = defineStore('acpExtensions', () => {
   const client = createAcpExtensionsClient()
   const states = ref<Record<string, AcpExtensionState | null>>(Object.create(null))
   const stateRequests = new Map<string, number>()
+  onScopeDispose(
+    createSessionClient().onUpdated(({ reason, sessionIds }) => {
+      if (reason !== 'deleted') return
+      for (const sessionId of sessionIds) {
+        delete states.value[sessionId]
+        stateRequests.delete(sessionId)
+      }
+    })
+  )
   async function inspect(sessionId: string, agentId: string) {
     const sequence = (stateRequests.get(sessionId) ?? 0) + 1
     stateRequests.set(sessionId, sequence)

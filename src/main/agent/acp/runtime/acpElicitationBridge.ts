@@ -77,8 +77,12 @@ function normalizeFields(
     }
     const hints = readMeta(raw._meta)
     const rawOptions = raw.oneOf ?? record(raw.items).anyOf
-    const options = field.options?.map((entry, index) => {
-      const rawOption = record(Array.isArray(rawOptions) ? rawOptions[index] : undefined)
+    const options = field.options?.map((entry) => {
+      const rawOption = record(
+        Array.isArray(rawOptions)
+          ? rawOptions.find((candidate) => record(candidate).const === entry.value)
+          : undefined
+      )
       return {
         ...entry,
         description: typeof rawOption.description === 'string' ? rawOption.description : undefined,
@@ -136,11 +140,22 @@ function normalizeFields(
     field.title = question.header || field.title
     field.description = question.question || field.description
     field.secret ||= question.isSecret
-    field.options = field.options?.map((entry, index) => ({
-      ...entry,
-      description: entry.description ?? question.options[index]?.description,
-      preview: entry.preview ?? question.options[index]?.preview
-    }))
+    const raw = record(properties[field.name])
+    const rawOptions = raw.oneOf ?? raw.enum ?? record(raw.items).anyOf ?? record(raw.items).enum
+    field.options = field.options?.map((entry, index) => {
+      const sourceIndex = Array.isArray(rawOptions)
+        ? rawOptions.findIndex((candidate) =>
+            typeof candidate === 'string'
+              ? candidate === entry.value
+              : record(candidate).const === entry.value
+          )
+        : index
+      return {
+        ...entry,
+        description: entry.description ?? question.options[sourceIndex]?.description,
+        preview: entry.preview ?? question.options[sourceIndex]?.preview
+      }
+    })
     if (question.note) {
       const note = byName.get(question.note.fieldId)
       if (
@@ -307,6 +322,7 @@ export class AcpElicitationBridge {
     }
     if (pending.view.status !== 'pending') {
       if (decision.action === 'cancel') {
+        pending.cleanup()
         this.pending.delete(decision.requestId)
         this.notifyChanged()
       }
@@ -348,8 +364,11 @@ export class AcpElicitationBridge {
     const answers: Record<string, string | string[]> = Object.create(null)
     for (const field of pending.view.fields) {
       const value = content[field.name]
-      if (typeof value === 'string' || Array.isArray(value))
-        answers[field.customAnswerFor ?? field.name] = value
+      if (field.customAnswerFor) {
+        if (typeof value === 'string' && value.trim()) answers[field.customAnswerFor] = value
+      } else if (typeof value === 'string' || Array.isArray(value)) {
+        answers[field.name] = value
+      }
       if (field.secret && value !== undefined) {
         const secrets = this.secrets.get(pending.connectionId) ?? new Set<string>()
         for (const secret of Array.isArray(value) ? value : [String(value)])
@@ -450,9 +469,20 @@ export class AcpElicitationBridge {
     const pending = this.pending.get(requestId)
     if (!pending) return
     pending.cleanup()
-    if (pending.elicitationId && response.action === 'accept')
+    if (pending.elicitationId && response.action === 'accept') {
       pending.view.status = 'waiting_external'
-    else this.pending.delete(requestId)
+      // Accepted URL requests are local status views, not unresolved RPCs.
+      pending.view.expiresAt = Math.min(
+        pending.view.expiresAt ?? Infinity,
+        Date.now() + 15 * 60_000
+      )
+      const timeout = setTimeout(
+        () => this.finish(requestId, { action: 'cancel' }),
+        Math.max(0, pending.view.expiresAt - Date.now())
+      )
+      timeout.unref?.()
+      pending.cleanup = () => clearTimeout(timeout)
+    } else this.pending.delete(requestId)
     pending.resolve(response)
     this.notifyChanged()
   }

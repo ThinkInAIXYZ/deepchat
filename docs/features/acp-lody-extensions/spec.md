@@ -2,9 +2,11 @@
 
 ## Scope and protocol baseline
 
-DeepChat 的直接 ACP 会话消费 Lody 扩展。外部 agent 拥有执行循环、工具、子任务和目标；
-DeepChat 拥有连接、用户交互、消息投影及扩展快照。ACP-provider 兼容路径继续提供原有行为，
-不声明没有对应消费端的 elicitation、plan 或 subagentEvents 能力。
+DeepChat 的 ACP 会话消费 Lody 扩展。外部 agent 拥有执行循环、工具、子任务和目标；
+DeepChat 拥有连接、用户交互、消息投影及扩展快照。直接 ACP 和 ACP-provider 兼容路径共用
+同一个 runtime、连接能力声明及提问桥接。Provider 普通会话同样经过 session controller；
+debug 会话没有本地 conversation 绑定，其 session-scoped 提问取消，request-scoped 提问使用
+主窗口全局弹窗。扩展控制和状态界面由直接 ACP 会话提供。
 
 依赖固定为 `@agentclientprotocol/sdk@1.4.0` 和 `acp-extension-core@0.1.9`。SDK 默认入口
 仍使用 ACP wire `protocolVersion: 1`；SDK 版本、wire 版本、每个 Lody capability 的版本互相
@@ -74,8 +76,10 @@ observable until the session or connection ends.
 
 ## Structured elicitation
 
-The bridge uses SDK-owned request cancellation and resolves each request once. Session forms appear
-in `ChatInteractionDock`; request-scoped or background-session forms use the global ACP dialog.
+The bridge uses SDK-owned request cancellation and resolves each request once. Editable session forms
+appear in `ChatInteractionDock`; read-only, request-scoped or background-session forms use the global
+ACP dialog. Only the main window may list or answer forms; it owns the cross-session dialog rather
+than restricting answers to the currently active conversation.
 Both use the typed `acp.elicitation.list/respond` routes and the ACP owner. Forms are ephemeral; they
 do not become assistant action blocks or ordinary chat messages. The shared field normalizer is pure
 and reused by MCP; MCP and ACP retain separate request lifecycles.
@@ -101,6 +105,8 @@ Deadlines are the earlier of relative and absolute metadata; expiration cancels 
 Cancel, origin completion, disconnect and session teardown clean pending resolvers. URL elicitation
 allows only HTTP(S), displays the destination, opens only on explicit user action and treats accept as
 consent, not completion; `elicitation/complete` ends the external waiting state.
+Accepted URL status views expire after at most 15 minutes, including completed views, so missing
+completion notifications cannot occupy the request limit indefinitely.
 
 Bounds: 32 pending requests, 64 fields, 128 options, 256 KiB request and 64 KiB reply. Invalid schema,
 relationships or URL are rejected. Renderer cannot fabricate a remote request identity.
@@ -155,6 +161,8 @@ remain unread. Applied-before-response is supported and cannot be downgraded. Mi
 disconnect or restart becomes unknown with no automatic replay. Ordinary ACP and unsupported steering
 combinations retain the existing explicit cancel/handoff behavior. Prompt-transport steering is gated
 until an adapter's concurrent prompt/output attribution is verified; no additional prompt slot is opened.
+The steer RPC has a 30-second deadline and cooperative request cancellation; timeout settles unknown
+without cancelling the parent prompt or replaying the input.
 
 Goal set/resume use promptActions and an empty wire prompt with `_meta.lody.goalControl`, inside the
 existing local projection and prompt lifecycle. Pause/clear use controlActions and do not create a turn.
@@ -173,6 +181,9 @@ an empty conversation and idempotent for exactly the same snapshot; it creates n
 The complete replay/response delimiter is wire-verified for DimCode 0.5.12. Other producers receive
 read-only preview until that delimiter is verified. Standard resume is preferred to load for a bound
 session; history import is explicit rather than silently appending a second source.
+The verified adapter gate is centralized in `hasVerifiedHistoryBoundary`. Expanding it requires a
+wire probe of ordered replay completion, target turn-ID rewriting and inherited usage; a version bump
+alone is not evidence.
 
 Anchored fork requires standard fork, Lody forkAtTurn, history capability, a completed local assistant
 message, and a turnId confirmed in the current source's remote history. Fork inherits cwd and MCP
@@ -180,9 +191,10 @@ configuration. The target's own history supplies rewritten turn IDs; source IDs 
 target anchors. Inherited cumulative model usage is a baseline; incremental fork usage starts at zero.
 If no baseline arrives, the UI explicitly says it is unknown.
 
-A bounded pending/created/complete record survives remote success followed by local failure. A retry
-reuses a known remote result; an unknown pending outcome blocks automatic retry. Remote fork and replay
-requests have 30-second bounds. Failures do not delete a remote session automatically.
+A bounded pending/created record survives remote success followed by local failure. A retry
+reuses a known remote result; an unknown pending outcome blocks automatic retry. Explicit protocol
+rejection removes the pending record so the user can retry. Completed records are pruned. Remote fork
+and replay requests have 30-second bounds. Failures do not delete a remote session automatically.
 
 worktreeProject is sent only when negotiated and an existing trusted project root contains the chosen
 cwd. It communicates logical identity only; it cannot change cwd, path guards or worktree lifecycle.
@@ -209,6 +221,10 @@ AFTER
                                  Goal [pause] [resume]
                                  Tasks and linked child runs
                                  History preview / import
+
+READ-ONLY SESSION
+[read-only transcript]
+[main-window question dialog]  [Cancel] [Decline] [Submit]
 ```
 
 Existing shadcn popover/dialog, buttons, markdown and tool detail components are reused. Copy uses

@@ -251,8 +251,8 @@ export class AcpContentMapper {
 
     const rawTitle =
       readLodySessionMeta(update._meta).toolName ??
-      ('name' in update ? update.name : undefined) ??
-      ('title' in update ? update.title : undefined)
+      ('title' in update ? update.title : undefined) ??
+      ('name' in update ? update.name : undefined)
     const title = typeof rawTitle === 'string' ? rawTitle.trim() || undefined : undefined
     const status = 'status' in update ? (update.status ?? undefined) : undefined
 

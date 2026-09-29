@@ -1,7 +1,7 @@
 # ACP Lody Extension Delivery
 
 Contract: [spec.md](./spec.md). Branch: `codex/acp-lody-extensions`. PR target: `dev`.
-The direct ACP consumer owns interaction and projection; the external agent owns execution.
+The shared ACP runtime owns interaction and projection; the external agent owns execution.
 
 ## Implementation
 
@@ -26,6 +26,10 @@ The direct ACP consumer owns interaction and projection; the external agent owns
       trusted project metadata without changing workspace permissions.
 - [x] Review connection cleanup, ownership, persistence races, IPC serialization, private answer
       handling, unknown versions and malformed payloads; update maintained architecture docs.
+- [x] Restrict elicitation to the main window, expose read-only questions globally, redact buffered
+      notifications at delivery, retain valid metadata fields independently, and bound URL/steer state.
+- [x] Retry explicitly rejected forks, prune completed operations, clear connection-owned debug
+      resources and discard deleted-session renderer snapshots, including late reads.
 - [x] Remove the model-using temporary probe; retain bounded protocol and UI regression tests.
 - [x] Keep normal build-generated ACP registry refreshes. Provider refresh used its existing
       snapshot when the upstream fetch failed.
@@ -37,10 +41,10 @@ The direct ACP consumer owns interaction and projection; the external agent owns
 - [x] i18n validation: 23 locales, 483 namespaces, 4,732 source message contracts; no missing or
       invalid translations. Added copy is English by default with Simplified/Traditional Chinese.
 - [x] Lint, agent cleanup guard, alert-dialog contract guard, node/web typecheck.
-- [x] Main regression: 77 files / 1,531 tests covering ACP runtime/provider/contracts, session
-      persistence/lifecycle, route dispatch and the native agent harness.
-- [x] Renderer regression: 10 files / 262 tests covering questions, chat page/status, receipts,
-      message blocks, MCP elicitation and plan/interaction stores.
+- [x] Main regression: 31 files / 358 tests covering ACP runtime/provider and route dispatch,
+      including private buffered echoes, fork recovery, metadata isolation and window ownership.
+- [x] Full renderer regression: 279 files / 2,597 tests, including startup, read-only routing,
+      deleted-session snapshots, questions, chat, messages, MCP and application stores.
 - [x] Full application/CLI build and final Electron bundle build.
 - [x] Electron E2E: ACP settings plus a local stdio extension peer. Real transport/IPC submits
       single/multiple answers, redacts a private echo, continues the original prompt, displays

@@ -1154,7 +1154,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       connectionId,
       buffered.filter((notification) => !matches(notification))
     )
-    buffered.filter(matches).forEach(handler)
+    buffered
+      .filter(matches)
+      .forEach((notification) => handler(this.elicitation.redact(connectionId, notification)))
     return () => {
       if (this.extensionListeners.get(key)?.handler === handler) this.extensionListeners.delete(key)
     }

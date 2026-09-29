@@ -21,6 +21,8 @@ import { AcpFsHandler } from './acpFsHandler'
 import { accumulate } from '@/agent/deepchat/runtime/accumulator'
 import { createState, type StreamState } from '@/agent/deepchat/runtime/types'
 import type * as schema from '@agentclientprotocol/sdk'
+import { RequestError } from '@agentclientprotocol/sdk'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type {
   AcpConnection as ClientSideConnectionType,
   AcpSetSessionModelRequest,
@@ -44,6 +46,10 @@ import { AcpContentMapper } from './acpContentMapper'
 import type { AcpProcessManager } from './acpProcessManager'
 import type { AcpSessionManager, AcpSessionRecord } from './acpSessionManager'
 import type { AcpSessionPersistence } from './acpSessionPersistence'
+
+// Expand only after verifying replay completion and rewritten fork anchors on the wire.
+const hasVerifiedHistoryBoundary = (agentInfo: AcpSessionRecord['agentInfo']) =>
+  agentInfo?.name === 'dimcode' && agentInfo.version === '0.5.12'
 
 export interface AcpSessionCapabilityEvents {
   getLocalTitle?(conversationId: string): string | undefined
@@ -497,7 +503,7 @@ export class AcpSessionController {
       ...(source.metadata?.acpForks as Record<string, { status: string; remoteSessionId?: string }>)
     }
     if (!Object.hasOwn(operations, operationId)) return
-    operations[operationId] = { ...operations[operationId], status: 'complete' }
+    delete operations[operationId]
     source.metadata = { ...source.metadata, acpForks: operations }
     await this.persistence.mergeMetadata(sourceId, source.agentId, { acpForks: operations })
   }
@@ -513,8 +519,7 @@ export class AcpSessionController {
       !source.supportsSessionFork ||
       !source.extensions?.forkAtTurn ||
       !source.extensions.sessionHistory ||
-      source.agentInfo?.name !== 'dimcode' ||
-      source.agentInfo.version !== '0.5.12'
+      !hasVerifiedHistoryBoundary(source.agentInfo)
     )
       throw new Error('Verified ACP remote fork is unavailable')
     const operations = z
@@ -526,10 +531,9 @@ export class AcpSessionController {
         })
       )
       .parse(source.metadata?.acpForks ?? {})
-    const prior =
-      Object.hasOwn(operations, operationId) && operations[operationId].status !== 'complete'
-        ? operations[operationId]
-        : undefined
+    for (const [id, operation] of Object.entries(operations))
+      if (operation.status === 'complete') delete operations[id]
+    const prior = Object.hasOwn(operations, operationId) ? operations[operationId] : undefined
     if (prior?.status === 'pending')
       throw new Error(
         'The previous remote fork has an unknown outcome; reconnect and inspect remote sessions before retrying'
@@ -537,8 +541,9 @@ export class AcpSessionController {
     if (!prior && Object.keys(operations).length >= 64)
       throw new Error('ACP fork operation limit reached')
     let remoteSessionId = prior?.remoteSessionId
-    const persist = async (status: 'pending' | 'created' | 'complete') => {
-      operations[operationId] = { status, remoteSessionId }
+    const persist = async (status?: 'pending' | 'created') => {
+      if (status) operations[operationId] = { status, remoteSessionId }
+      else delete operations[operationId]
       source.metadata = { ...source.metadata, acpForks: operations }
       await this.persistence.mergeMetadata(sourceId, source.agentId, { acpForks: operations })
     }
@@ -565,6 +570,10 @@ export class AcpSessionController {
               forkAtTurn: { version: 1, turnId }
             }
           }
+        })
+        .catch(async (error) => {
+          if (error instanceof RequestError) await persist()
+          throw error
         })
         .finally(() => clearTimeout(timeout))
       remoteSessionId = response.sessionId
@@ -654,8 +663,7 @@ export class AcpSessionController {
       )
         throw new Error('ACP session changed during history replay')
       if (staged.overflow) throw new Error('ACP history exceeds the preview limit')
-      const verified =
-        session.agentInfo?.name === 'dimcode' && session.agentInfo.version === '0.5.12'
+      const verified = hasVerifiedHistoryBoundary(session.agentInfo)
       const history = buildAcpHistory(staged.updates, verified)
       this.saveExtensionState(conversationId, session, { ...this.extensionState(session), history })
       return history
@@ -674,14 +682,12 @@ export class AcpSessionController {
     const capability = session.extensions?.goal
     if (!capability?.actions.includes(action) || !capability.controlActions?.includes(action))
       throw new Error('ACP goal action is unavailable')
-    const result = z
-      .object({ goal: acpGoalSchema.nullable() })
-      .parse(
-        await session.connection.request(LODY_EXTENSION_METHODS.sessionGoal, {
-          sessionId: session.sessionId,
-          action
-        })
-      )
+    const result = z.object({ goal: acpGoalSchema.nullable() }).parse(
+      await session.connection.request(LODY_EXTENSION_METHODS.sessionGoal, {
+        sessionId: session.sessionId,
+        action
+      })
+    )
     this.saveExtensionState(conversationId, session, {
       ...this.extensionState(session),
       goal: result.goal
@@ -719,19 +725,26 @@ export class AcpSessionController {
       ...this.extensionState(session),
       steers: { ...steers, [steerId]: 'accepted' }
     })
+    const cancellation = new AbortController()
+    const timeout = setTimeout(() => cancellation.abort(), 30_000)
     try {
       const response = z
         .object({ outcome: z.enum(['injected', 'failed']) })
         .parse(
-          await session.connection.request(LODY_EXTENSION_METHODS.sessionSteer, {
-            sessionId: session.sessionId,
-            steerId,
-            prompt
-          })
+          await awaitWithAbort(
+            session.connection.request(
+              LODY_EXTENSION_METHODS.sessionSteer,
+              { sessionId: session.sessionId, steerId, prompt },
+              { cancellationSignal: cancellation.signal }
+            ),
+            cancellation.signal
+          )
         )
       if (response.outcome === 'failed') this.settleSteer(conversationId, steerId, 'failed')
     } catch {
       this.settleSteer(conversationId, steerId, 'unknown')
+    } finally {
+      clearTimeout(timeout)
     }
   }
 
@@ -836,15 +849,13 @@ export class AcpSessionController {
       })
       return { output: '' }
     }
-    const result = z
-      .object({ output: z.string().max(1_048_576) })
-      .parse(
-        await session.connection.request(LODY_EXTENSION_METHODS.subagentsOutput, {
-          sessionId: session.sessionId,
-          taskId,
-          tail: Math.min(Math.max(tail, 1), 65_536)
-        })
-      )
+    const result = z.object({ output: z.string().max(1_048_576) }).parse(
+      await session.connection.request(LODY_EXTENSION_METHODS.subagentsOutput, {
+        sessionId: session.sessionId,
+        taskId,
+        tail: Math.min(Math.max(tail, 1), 65_536)
+      })
+    )
     return {
       output: this.processManager.elicitation
         .redact(session.connectionId, result.output)

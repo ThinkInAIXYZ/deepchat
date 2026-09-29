@@ -8,7 +8,7 @@ const sdkMock = vi.hoisted(() => ({
     protocolVersion: 1,
     agentInfo: { name: 'Agent One', version: '1.0.0' },
     agentCapabilities: {
-      _meta: { lody: { usage: { version: 1 } } },
+      _meta: { lody: { usage: { version: 1 }, subagentEvents: { version: 1 } } },
       loadSession: true,
       promptCapabilities: {
         image: true,
@@ -67,6 +67,7 @@ describe('AcpProcessManager initialized capabilities', () => {
         publishEvent: vi.fn(),
         providerId: 'acp',
         resolveLaunchSpec: vi.fn(),
+        enableSubagentEvents: true,
         terminalAuthAvailable
       })
       const child = new MockChild()
@@ -148,6 +149,66 @@ describe('AcpProcessManager initialized capabilities', () => {
       )
       await new Promise((resolve) => setTimeout(resolve, 0))
       expect(received).toHaveBeenCalledTimes(1)
+      child.stdout.write(
+        `${JSON.stringify({
+          jsonrpc: '2.0',
+          method: '_lody/subagents/event',
+          params: {
+            sessionId: 'buffered',
+            version: 1,
+            runId: 'child',
+            type: 'output',
+            update: {
+              sessionUpdate: 'tool_call',
+              toolCallId: 'tool',
+              title: 'Inspect',
+              status: 'in_progress',
+              rawInput: { password: 'private-answer' }
+            }
+          }
+        })}\n`
+      )
+      child.stdout.write(
+        `${JSON.stringify({ jsonrpc: '2.0', method: '_lody/session/usage_update', params: usage })}\n`
+      )
+      await vi.waitFor(() => expect(received).toHaveBeenCalledTimes(2))
+      const answer = manager.elicitation.request(
+        {
+          mode: 'form',
+          sessionId: 'remote',
+          message: 'Private input',
+          requestedSchema: {
+            properties: {
+              password: {
+                type: 'string',
+                _meta: { lody: { elicitation: { version: 1, secret: true } } }
+              }
+            }
+          }
+        },
+        {
+          connectionId: handle.connectionId,
+          agentId: 'agent-1',
+          agentName: 'Agent One',
+          signal: new AbortController().signal
+        }
+      )
+      await manager.elicitation.respond({
+        requestId: manager.elicitation.list()[0].requestId,
+        action: 'accept',
+        content: { password: 'private-answer' }
+      })
+      await answer
+      const replayed = vi.fn()
+      manager.registerExtensionListener('buffered', handle.connectionId, replayed)
+      expect(replayed).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          params: expect.objectContaining({
+            update: expect.objectContaining({ rawInput: { password: '[redacted]' } })
+          })
+        })
+      )
+      expect(JSON.stringify(replayed.mock.calls)).not.toContain('private-answer')
       handle.connection.close()
       expect(handle.capabilitySnapshot?.supports).toEqual({
         loadSession: true,
