@@ -1068,6 +1068,16 @@ export async function createMainProcessControl(dependencies: {
     agentSettings,
     mcpSettings: dependencies.mcpSettings,
     sessionPersistence: acpSessionPersistence,
+    titles: {
+      get: (sessionId) => appSessionService.get(sessionId)?.title,
+      apply: (sessionId, expected, title) => {
+        const session = appSessionService.get(sessionId)
+        if (!session || session.title !== expected) return false
+        appSessionService.update(sessionId, { title })
+        publishDeepchatEvent('sessions.updated', { sessionIds: [sessionId], reason: 'updated' })
+        return true
+      }
+    },
     publishEvent: publishDeepchatEvent,
     registry: {
       getNpmRegistry: () => mcpService.getNpmRegistry(),
@@ -2203,6 +2213,15 @@ export async function createMainProcessControl(dependencies: {
     messages: createLivePort(() => sessionData.database.deepchatMessagesTable),
     searchResults: createLivePort(() => sessionData.database.deepchatMessageSearchResultsTable),
     traces: createLivePort(() => sessionData.database.deepchatMessageTracesTable),
+    usesAgentTitle: (sessionId) =>
+      !!acpRuntimeOwner.peek()?.sessionController.getSession(toAppSessionId(sessionId))?.extensions
+        ?.sessionTitle,
+    onTitleRenamed: async (sessionId, agentId) => {
+      if (agentManager.resolveBackend(agentId).kind === 'acp')
+        await acpRuntimeOwner
+          .getOrCreate()
+          .sessionController.markTitleManual(toAppSessionId(sessionId), agentId)
+    },
     titles: providerRuntime,
     agentConfig: {
       getAssistantModel: async (agentId) => {
@@ -2345,6 +2364,43 @@ export async function createMainProcessControl(dependencies: {
     projection: sessionQuery
   })
   sessionLifecycle = new SessionLifecycle({
+    forkAcpSession: async (sourceId, targetId, messageId) => {
+      const message = sessionData.transcript.getMessage(messageId)
+      if (
+        !message ||
+        message.sessionId !== sourceId ||
+        message.role !== 'assistant' ||
+        message.status !== 'sent'
+      )
+        throw new Error('Fork requires a completed ACP assistant message')
+      const metadata = JSON.parse(message.metadata) as { acp?: { turnId?: string } }
+      const blocks = JSON.parse(message.content) as AssistantMessageBlock[]
+      const anchors = blocks.flatMap((block) => {
+        try {
+          const meta = JSON.parse(String(block.extra?.providerOptionsJson ?? '{}'))
+          return typeof meta.acp?.turnId === 'string' ? [meta.acp.turnId] : []
+        } catch {
+          return []
+        }
+      })
+      const turnId = anchors.at(-1) ?? metadata.acp?.turnId
+      if (!turnId) throw new Error('This message has no verified remote turn anchor')
+      const result = await acpAgentRuntime.forkSession(
+        toAppSessionId(sourceId),
+        toAppSessionId(targetId),
+        turnId,
+        messageId
+      )
+      sessionData.transcript.importAcpHistory(
+        targetId,
+        result.agentId,
+        result.remoteSessionId,
+        result.history
+      )
+      await acpRuntimeOwner
+        .getOrCreate()
+        .sessionController.completeFork(toAppSessionId(sourceId), messageId)
+    },
     sessions: appSessionService,
     runtime: {
       resolveSession: (sessionId) => {
@@ -3147,7 +3203,39 @@ export async function createMainProcessControl(dependencies: {
         })
       }
     })
-    const acpRoutes = createAcpRoutes({ auth: acpAuthService })
+    const acpRoutes = createAcpRoutes({
+      auth: acpAuthService,
+      owner: acpRuntimeOwner,
+      runtime: acpAgentRuntime,
+      isMainWindowContext: (caller) =>
+        windowPresenter.mainWindow?.webContents.id === caller.webContentsId,
+      importHistory: async (sessionId) => {
+        const localId = toAppSessionId(sessionId)
+        const instance = acpAgentRuntime.getHydrated(localId)
+        if (!instance) throw new Error('ACP session is not initialized')
+        await instance.runIdleOperation(async () => {
+          const session = acpRuntimeOwner.getOrCreate().sessionController.getSession(localId)
+          const snapshot =
+            session &&
+            (await acpRuntimeOwner
+              .getOrCreate()
+              .sessionController.getExtensions(localId, session.agentId))
+          if (!session || !snapshot?.history) throw new Error('Read ACP history before importing')
+          sessionData.transcript.importAcpHistory(
+            sessionId,
+            session.agentId,
+            session.sessionId,
+            snapshot.history
+          )
+          publishDeepchatEvent('sessions.messages.changed', {
+            sessionId,
+            messages: sessionData.transcript.getMessages(sessionId),
+            version: Date.now()
+          })
+          publishDeepchatEvent('sessions.updated', { sessionIds: [sessionId], reason: 'updated' })
+        })
+      }
+    })
     const deviceRoutes = createDeviceRoutes({
       device: deviceService,
       restartApplication,

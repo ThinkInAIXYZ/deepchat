@@ -86,6 +86,14 @@ const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
   vi.doUnmock('@/features/chat-page/composables/useChatSearch')
 
+  const acpExtensions = reactive({
+    requests: [],
+    states: {},
+    inspect: vi.fn(),
+    dockedConversationId: null as string | null
+  })
+  vi.doMock('@/stores/acpExtensions', () => ({ useAcpExtensionsStore: () => acpExtensions }))
+
   const activeStatus = String(options.activeSessionPatch?.status ?? 'idle')
   const sessionStore = reactive({
     activeSession: {
@@ -695,6 +703,7 @@ const setup = async (options: SetupOptions = {}) => {
 
   return {
     wrapper,
+    acpExtensions,
     chatClient,
     chatRespondToolInteraction,
     sessionClient,
@@ -3798,7 +3807,7 @@ describe('ChatPage', () => {
   })
 
   it('keeps subagent sessions read-only while allowing their pending interaction', async () => {
-    const { wrapper, chatClient, messageStore } = await setup({
+    const { wrapper, chatClient, messageStore, acpExtensions, sessionStore } = await setup({
       sessionKind: 'subagent',
       messages: [
         buildAssistantMessage([
@@ -3847,6 +3856,14 @@ describe('ChatPage', () => {
       }
     })
     expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', undefined)
+    expect(acpExtensions.dockedConversationId).toBeNull()
+    sessionStore.activeSession.sessionKind = 'regular'
+    await flushPromises()
+    expect(acpExtensions.dockedConversationId).toBe('s1')
+    sessionStore.activeSession.sessionKind = 'subagent'
+    await flushPromises()
+    expect(acpExtensions.dockedConversationId).toBeNull()
+    wrapper.unmount()
   })
 
   it('consumes pending spotlight message jumps after loading the target session', async () => {

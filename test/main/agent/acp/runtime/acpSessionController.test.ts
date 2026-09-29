@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type * as schema from '@agentclientprotocol/sdk'
 import { AcpSessionController, type AcpSessionRecord } from '@/agent/acp/runtime'
 import { AcpSessionManager } from '@/agent/acp/runtime/acpSessionManager'
 import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
@@ -81,10 +81,20 @@ describe('AcpSessionController', () => {
       updatedAt: '2026-07-13T00:00:00.000Z'
     })
     notify({ sessionUpdate: 'usage_update', used: 4, size: 10 })
-    await vi.waitFor(() => expect(persistence.mergeMetadata).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() =>
+      expect(persistence.mergeMetadata).toHaveBeenCalledWith(
+        'session',
+        'agent',
+        { acpUsage: expect.objectContaining({ used: 4, size: 10 }) },
+        'remote'
+      )
+    )
 
     expect(onEvents).toHaveBeenCalledWith([
-      expect.objectContaining({ type: 'reasoning', reasoning_content: 'Mode changed to: architect' })
+      expect.objectContaining({
+        type: 'reasoning',
+        reasoning_content: 'Mode changed to: architect'
+      })
     ])
     expect(session.currentModeId).toBe('architect')
     expect(session.availableCommands).toEqual([
@@ -182,6 +192,7 @@ describe('AcpSessionController', () => {
         return vi.fn()
       }),
       registerPermissionResolver: vi.fn(() => vi.fn()),
+      registerExtensionListener: vi.fn(() => vi.fn()),
       registerProcessExitHandler: vi.fn(() => vi.fn()),
       clearSession: vi.fn(),
       updateBoundProcessMode: vi.fn(() => true),
@@ -224,7 +235,14 @@ describe('AcpSessionController', () => {
       { onEvents, onPermission: vi.fn() },
       '/workspace'
     )
-    await vi.waitFor(() => expect(persistence.mergeMetadata).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() =>
+      expect(persistence.mergeMetadata).toHaveBeenCalledWith(
+        'early-conversation',
+        'agent',
+        { acpUsage: expect.objectContaining({ used: 2, size: 8 }) },
+        'remote-early'
+      )
+    )
 
     expect(sessionManager.getSession('early-conversation')).toBe(session)
     expect(session.currentModeId).toBe('architect')
@@ -268,7 +286,7 @@ describe('AcpSessionController', () => {
     const notify = (sessionId: string, update: schema.SessionNotification['update']) =>
       dispatch({ sessionId, update })
     const connection = {
-      unstable_resumeSession: vi.fn(async () => {
+      resumeSession: vi.fn(async () => {
         notify('persisted-session', {
           sessionUpdate: 'current_mode_update',
           currentModeId: 'dead-resume'
@@ -332,6 +350,7 @@ describe('AcpSessionController', () => {
         return () => active.delete(handler)
       }),
       registerPermissionResolver: vi.fn(() => vi.fn()),
+      registerExtensionListener: vi.fn(() => vi.fn()),
       registerProcessExitHandler: vi.fn(() => vi.fn()),
       clearSession: vi.fn((sessionId) => {
         listeners.delete(sessionId)
@@ -379,7 +398,14 @@ describe('AcpSessionController', () => {
       { onEvents, onPermission: vi.fn() },
       '/workspace'
     )
-    await vi.waitFor(() => expect(persistence.mergeMetadata).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() =>
+      expect(persistence.mergeMetadata).toHaveBeenCalledWith(
+        'restore-conversation',
+        'agent',
+        { acpUsage: expect.objectContaining({ used: 2, size: 8 }) },
+        'new-session'
+      )
+    )
 
     expect(session.sessionId).toBe('new-session')
     expect(session.currentModeId).toBe('new-mode')
@@ -390,14 +416,7 @@ describe('AcpSessionController', () => {
       acpSessionInfo: { title: 'Live session' },
       acpUsage: { used: 2, size: 8 }
     })
-    expect(persistence.mergeMetadata.mock.calls[0][2]).toMatchObject({
-      acpSessionInfo: { title: 'Live session' }
-    })
-    expect(persistence.mergeMetadata.mock.calls[0][2]).not.toHaveProperty('acpUsage')
-    expect(persistence.mergeMetadata.mock.calls[1][2]).toMatchObject({
-      acpSessionInfo: { title: 'Live session' },
-      acpUsage: { used: 2, size: 8 }
-    })
+    expect(JSON.stringify(persistence.mergeMetadata.mock.calls)).not.toContain('dead-')
     expect(persistence.saveSessionData).toHaveBeenCalledWith(
       'restore-conversation',
       'agent',
@@ -478,10 +497,7 @@ describe('AcpSessionController', () => {
     resolveOpen(session)
 
     await expect(preparing).rejects.toMatchObject({ name: 'AbortError' })
-    expect(sessionManager.discardLateSession).toHaveBeenCalledWith(
-      'prepare-conversation',
-      session
-    )
+    expect(sessionManager.discardLateSession).toHaveBeenCalledWith('prepare-conversation', session)
     expect(clearSession).toHaveBeenCalledWith('prepare-conversation')
     expect(events.modesReady).not.toHaveBeenCalled()
     expect(events.configOptionsReady).not.toHaveBeenCalled()

@@ -1,11 +1,8 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { describe, expect, it, vi } from 'vitest'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type * as schema from '@agentclientprotocol/sdk'
 import type { AcpAgentConfig, AcpSessionEntity } from '@shared/types/acp'
-import {
-  AcpProcessManager,
-  type AcpProcessHandle
-} from '@/agent/acp/runtime/acpProcessManager'
+import { AcpProcessManager, type AcpProcessHandle } from '@/agent/acp/runtime/acpProcessManager'
 import { AcpSessionManager } from '@/agent/acp/runtime/acpSessionManager'
 import { AcpSessionPersistence } from '@/agent/acp/runtime/acpSessionPersistence'
 import { RequestError } from '@agentclientprotocol/sdk'
@@ -46,7 +43,7 @@ function createHarness(options: HarnessOptions = {}) {
     : null
 
   const connection = {
-    unstable_resumeSession: vi.fn(async () => {
+    resumeSession: vi.fn(async () => {
       calls.push('resume')
       if (options.resumeError) throw options.resumeError
       if (options.resumeRejects) throw new Error('resume failed')
@@ -221,7 +218,9 @@ describe('AcpSessionManager public error handling', () => {
 
   it('rethrows non-shutdown getConnection errors', async () => {
     const { manager } = createHarness({ getConnectionError: new Error('boom') })
-    await expect(manager.getOrCreateSession('conv1', agent, hooks(), '/tmp')).rejects.toThrow('boom')
+    await expect(manager.getOrCreateSession('conv1', agent, hooks(), '/tmp')).rejects.toThrow(
+      'boom'
+    )
   })
 
   it('preserves the initialization error when unbind fails', async () => {
@@ -295,7 +294,7 @@ describe('AcpSessionManager public restore matrix', () => {
     }
     const secondCalls: string[] = []
     const secondConnection = {
-      unstable_resumeSession: vi.fn(async () => {
+      resumeSession: vi.fn(async () => {
         secondCalls.push('resume')
         throw new Error('dead remote')
       }),
@@ -336,7 +335,7 @@ describe('AcpSessionManager public restore matrix', () => {
     expect(harness.updateDisposers[0]).toHaveBeenCalledTimes(1)
     expect(harness.permissionDisposers[0]).toHaveBeenCalledTimes(1)
     expect(harness.exitDisposers[0]).toHaveBeenCalledTimes(1)
-    expect(harness.clearProcessSession).toHaveBeenCalledWith('remote-1')
+    expect(harness.clearProcessSession).toHaveBeenCalledWith('remote-1', undefined)
     expect(harness.sessionPersistence.clearSession).not.toHaveBeenCalled()
 
     const restored = await harness.manager.getOrCreateSession('conv1', agent, hooks(), '/tmp')
@@ -353,7 +352,7 @@ describe('AcpSessionManager public restore matrix', () => {
       newSession: vi.fn().mockResolvedValue({ sessionId: 'new-session' })
     }
     const secondConnection = {
-      unstable_resumeSession: vi.fn().mockResolvedValue({})
+      resumeSession: vi.fn().mockResolvedValue({})
     }
     const harness = createHarness({
       exitOnRegistration: true,
@@ -385,7 +384,7 @@ describe('AcpSessionManager public restore matrix', () => {
 
     expect(harness.manager.getSession('conv1')).toBeNull()
     expect(harness.manager.getSessionById('new-session')).toBeNull()
-    expect(harness.clearProcessSession).toHaveBeenCalledWith('new-session')
+    expect(harness.clearProcessSession).toHaveBeenCalledWith('new-session', undefined)
     expect(harness.updateDisposers[0]).toHaveBeenCalledTimes(1)
     expect(harness.permissionDisposers[0]).toHaveBeenCalledTimes(1)
     expect(harness.exitDisposers[0]).toHaveBeenCalledTimes(1)
@@ -395,7 +394,7 @@ describe('AcpSessionManager public restore matrix', () => {
 
     expect(restored.connection).toBe(secondConnection)
     expect(restored.sessionId).toBe('new-session')
-    expect(secondConnection.unstable_resumeSession).toHaveBeenCalledTimes(1)
+    expect(secondConnection.resumeSession).toHaveBeenCalledTimes(1)
     expect(harness.getConnection).toHaveBeenCalledTimes(2)
   })
 
@@ -405,7 +404,7 @@ describe('AcpSessionManager public restore matrix', () => {
       resolveResume = resolve
     })
     const harness = createHarness({ persisted: true })
-    harness.connection.unstable_resumeSession.mockImplementation(async () => await resume)
+    harness.connection.resumeSession.mockImplementation(async () => await resume)
     const controller = new AbortController()
     const unhandled = vi.fn()
     process.on('unhandledRejection', unhandled)
@@ -418,9 +417,7 @@ describe('AcpSessionManager public restore matrix', () => {
         '/tmp',
         controller.signal
       )
-      await vi.waitFor(() =>
-        expect(harness.connection.unstable_resumeSession).toHaveBeenCalledTimes(1)
-      )
+      await vi.waitFor(() => expect(harness.connection.resumeSession).toHaveBeenCalledTimes(1))
       const second = harness.manager.getOrCreateSession('conv1', agent, hooks(), '/tmp')
 
       controller.abort()

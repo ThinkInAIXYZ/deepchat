@@ -1,4 +1,4 @@
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type * as schema from '@agentclientprotocol/sdk'
 import type { AcpAgentConfig, AcpConfigState } from '@shared/types/acp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent, PermissionRequestPayload } from '@shared/types/core/llm-events'
@@ -99,7 +99,15 @@ export interface AcpSessionRuntimePort {
     workdir: string | null
   ): Promise<string>
   getSession(conversationId: AppSessionId): AcpSessionRecord | null
-  clearMappedSession(sessionId: AcpRemoteSessionId): void
+  steer(
+    conversationId: AppSessionId,
+    steerId: string,
+    prompt: schema.ContentBlock[],
+    settled: (status: 'applied' | 'failed' | 'unknown') => void
+  ): Promise<void>
+  finishSteers(conversationId: AppSessionId): void
+  controlGoal(conversationId: AppSessionId, action: 'pause' | 'clear'): Promise<void>
+  clearMappedSession(conversationId: AppSessionId): void
   clear(conversationId: AppSessionId): Promise<void>
   getModes(conversationId: AppSessionId): { current: string; available: AcpMode[] } | null
   setMode(conversationId: AppSessionId, modeId: string): Promise<void>

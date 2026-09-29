@@ -377,6 +377,36 @@ export class SessionTranscript implements TapeTranscriptProjection {
     return messageIds.map((messageId) => this.requireMessage(messageId))
   }
 
+  updateSteerDelivery(
+    messageIds: string[],
+    delivery: 'accepted' | 'applied' | 'failed' | 'unknown'
+  ): ChatMessageRecord[] {
+    for (const messageId of messageIds) {
+      const message = this.requireMessage(messageId)
+      const metadata = parseMessageMetadata(message.metadata)
+      if (message.role !== 'user' || metadata.inputReceipt?.mode !== 'steer')
+        throw new Error('Invalid steer receipt')
+      if (metadata.inputReceipt.delivery === 'applied') continue
+      this.commitReplacement(
+        {
+          ...message,
+          status: delivery === 'accepted' ? 'pending' : 'sent',
+          metadata: JSON.stringify({
+            ...metadata,
+            inputReceipt: {
+              ...metadata.inputReceipt,
+              delivery,
+              readAt: delivery === 'applied' ? Date.now() : null
+            }
+          } satisfies MessageMetadata),
+          updatedAt: Date.now()
+        },
+        { reason: 'steer_message_settled', revisionKind: 'record' }
+      )
+    }
+    return messageIds.map((id) => this.requireMessage(id))
+  }
+
   settleSteerMessages(messageIds: string[]): ChatMessageRecord[] {
     for (const messageId of messageIds) {
       const message = this.getMessage(messageId)
@@ -889,6 +919,50 @@ export class SessionTranscript implements TapeTranscriptProjection {
     }
 
     return { compacted, retracted, failed }
+  }
+
+  importAcpHistory(
+    sessionId: string,
+    agentId: string,
+    remoteSessionId: string,
+    history: import('@shared/types/acp-extensions').AcpHistorySnapshot
+  ): void {
+    if (!history.verifiedComplete)
+      throw new Error('ACP replay completeness has not been verified for this adapter')
+    this.runInDatabaseTransaction(() => {
+      const existing = this.getMessages(sessionId)
+      if (existing.length) {
+        if (
+          existing.length === history.entries.length &&
+          existing.every(
+            (message, index) => message.id === `${sessionId}:${history.entries[index].id}`
+          )
+        )
+          return
+        throw new Error('ACP history can only be imported into an empty conversation')
+      }
+      for (const [index, entry] of history.entries.entries())
+        this.importMessageRow({
+          id: `${sessionId}:${entry.id}`,
+          session_id: sessionId,
+          order_seq: index + 1,
+          role: entry.role,
+          content: JSON.stringify(
+            entry.role === 'assistant'
+              ? entry.blocks
+              : { text: entry.text, files: [], links: [], think: false, search: false }
+          ),
+          metadata: JSON.stringify({
+            provider: 'acp',
+            model: agentId,
+            acp: { remoteSessionId, turnId: entry.turnId, historyDigest: history.digest }
+          } satisfies MessageMetadata),
+          status: 'sent',
+          is_context_edge: 0,
+          created_at: history.readAt,
+          updated_at: history.readAt
+        })
+    })
   }
 
   /** Legacy chat import: the row becomes a message fact and its transcript projection. */

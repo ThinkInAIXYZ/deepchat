@@ -57,6 +57,7 @@ export interface SessionLifecycleDependencies {
   desktop: SessionLifecycleDesktopPort
   deletion: SessionLifecycleDeletionPort
   deletionGate: SessionDeletionGatePort
+  forkAcpSession?(sourceId: string, targetId: string, messageId: string): Promise<void>
   permissions?: SessionLifecyclePermissionPort
   agentLifecycle: AgentLifecycleGatePort
 }
@@ -487,11 +488,15 @@ export class SessionLifecycle implements SessionLifecyclePort {
         permissionMode: sourceState.permissionMode,
         generationSettings: generationSettings ?? undefined
       })
-      await this.dependencies.transcript.forkSessionFromMessage(
-        sourceSessionId,
-        targetSessionId,
-        targetMessageId
-      )
+      if (sourceRuntime.kind === 'acp') {
+        if (!this.dependencies.forkAcpSession) throw new Error('ACP remote fork is unavailable')
+        await this.dependencies.forkAcpSession(sourceSessionId, targetSessionId, targetMessageId)
+      } else
+        await this.dependencies.transcript.forkSessionFromMessage(
+          sourceSessionId,
+          targetSessionId,
+          targetMessageId
+        )
     } catch (error) {
       try {
         await this.dependencies.runtime.resolveSession(targetSessionId).close()

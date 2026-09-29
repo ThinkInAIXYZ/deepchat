@@ -214,6 +214,7 @@
                   :plan-snapshot="latestPlanSnapshot"
                   :plan-collapsed="isPlanFloatCollapsed"
                   :interaction="activePendingInteraction"
+                  :elicitation="acpElicitation"
                   :processing="isHandlingInteraction"
                   @set-plan-collapsed="agentPlanStore.setCollapsed(props.sessionId, $event)"
                   @dismiss-plan="onDismissPlanFloat"
@@ -362,6 +363,7 @@ import {
   openChatStatusBarModelPicker,
   type ChatStatusBarModelPicker
 } from '@/components/chat/attachmentModelPicker'
+import { useAcpExtensionsStore } from '@/stores/acpExtensions'
 import ChatInteractionDock from '@/components/chat/ChatInteractionDock.vue'
 import ChatMinimap from '@/components/chat/ChatMinimap.vue'
 import PendingInputLane from '@/components/chat/PendingInputLane.vue'
@@ -1333,6 +1335,21 @@ const chatInputRef = ref<
     })
   | null
 >(null)
+const acpExtensions = useAcpExtensionsStore()
+const acpElicitation = computed(
+  () => acpExtensions.requests.find((request) => request.conversationId === props.sessionId) ?? null
+)
+watch(
+  () => (isReadOnlySession.value ? null : props.sessionId),
+  (id) => {
+    acpExtensions.dockedConversationId = id
+  },
+  { immediate: true }
+)
+onUnmounted(() => {
+  if (acpExtensions.dockedConversationId === props.sessionId)
+    acpExtensions.dockedConversationId = null
+})
 const chatStatusBarRef = ref<ChatStatusBarModelPicker | null>(null)
 
 function openAttachmentModelPicker(): void {

@@ -5,7 +5,7 @@ import type { IPty } from 'node-pty'
 import { nanoid } from 'nanoid'
 import { app } from 'electron'
 import { RequestError } from '@agentclientprotocol/sdk'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type * as schema from '@agentclientprotocol/sdk'
 
 interface TerminalState {
   id: string
@@ -133,6 +133,7 @@ export class AcpTerminalManager {
   async terminalOutput(
     params: schema.TerminalOutputRequest
   ): Promise<schema.TerminalOutputResponse> {
+    this.getTerminal(params.terminalId, params.sessionId)
     const snapshot = this.getTerminalSnapshot(params.terminalId)
     if (!snapshot) {
       throw RequestError.resourceNotFound(params.terminalId)
@@ -158,7 +159,7 @@ export class AcpTerminalManager {
   async waitForTerminalExit(
     params: schema.WaitForTerminalExitRequest
   ): Promise<schema.WaitForTerminalExitResponse> {
-    const state = this.getTerminal(params.terminalId)
+    const state = this.getTerminal(params.terminalId, params.sessionId)
     const status = await state.exitPromise
     return status
   }
@@ -167,7 +168,7 @@ export class AcpTerminalManager {
    * Kill a terminal command without releasing the terminal.
    */
   async killTerminal(params: schema.KillTerminalRequest): Promise<schema.KillTerminalResponse> {
-    const state = this.getTerminal(params.terminalId)
+    const state = this.getTerminal(params.terminalId, params.sessionId)
 
     if (!state.killed && !state.exitStatus) {
       try {
@@ -189,6 +190,7 @@ export class AcpTerminalManager {
   ): Promise<schema.ReleaseTerminalResponse> {
     const state = this.terminals.get(params.terminalId)
     if (!state) return {} // Already released, idempotent
+    this.getTerminal(params.terminalId, params.sessionId)
 
     if (!state.killed && !state.exitStatus) {
       try {
@@ -228,9 +230,9 @@ export class AcpTerminalManager {
     )
   }
 
-  private getTerminal(id: string): TerminalState {
+  private getTerminal(id: string, sessionId: string): TerminalState {
     const state = this.terminals.get(id)
-    if (!state) {
+    if (!state || state.sessionId !== sessionId) {
       throw RequestError.resourceNotFound(id)
     }
     return state

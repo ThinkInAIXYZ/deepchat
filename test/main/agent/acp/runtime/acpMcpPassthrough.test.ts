@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type * as schema from '@agentclientprotocol/sdk'
 import { convertMcpConfigToAcpFormat } from '@/agent/acp/runtime/mcpConfigConverter'
 import { filterMcpServersByTransportSupport } from '@/agent/acp/runtime/mcpTransportFilter'
 import { AcpSessionManager } from '@/agent/acp/runtime/acpSessionManager'

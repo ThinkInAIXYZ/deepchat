@@ -1,4 +1,5 @@
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type { LodyGoalPromptControl } from 'acp-extension-core'
+import type * as schema from '@agentclientprotocol/sdk'
 import type { AcpAgentConfig } from '@shared/types/acp'
 import type { MessageStartResult, SendMessageInput } from '@shared/types/agent-interface'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
@@ -95,6 +96,7 @@ export class AcpAgentInstance
   private readonly firstTurnReadyWaiters = new Set<(ready: boolean) => void>()
   private active?: ActivePrompt
   private preparing?: ActivePreparation
+  private remoteOperation = false
   private closed = false
   private closePromise?: Promise<void>
 
@@ -122,10 +124,12 @@ export class AcpAgentInstance
 
   async send(
     content: SendMessageInput,
-    projectionContext?: AcpProjectionContext
+    projectionContext?: AcpProjectionContext,
+    goalControl?: LodyGoalPromptControl
   ): Promise<MessageStartResult> {
     if (this.closed) throw new Error(`ACP session ${this.sessionId} is closed`)
-    if (this.active) throw new Error(`ACP session ${this.sessionId} is already generating`)
+    if (this.active || this.remoteOperation)
+      throw new Error(`ACP session ${this.sessionId} is already generating`)
 
     let settleActive!: () => void
     const active: ActivePrompt = {
@@ -224,7 +228,17 @@ export class AcpAgentInstance
       })
       await this.persistTurnStart(turn)
 
-      const requestBody = { sessionId: session.sessionId, prompt: formatted.blocks }
+      if (
+        goalControl &&
+        (!session.extensions?.goal?.actions.includes(goalControl.action) ||
+          !session.extensions.goal.promptActions?.includes(goalControl.action))
+      )
+        throw new Error('ACP goal prompt action is unavailable')
+      const requestBody: schema.PromptRequest = {
+        sessionId: session.sessionId,
+        prompt: goalControl ? [] : formatted.blocks,
+        ...(goalControl ? { _meta: { lody: { goalControl } } } : {})
+      }
       this.appendDebug('request', session, {
         sessionId: session.sessionId,
         conversationId: this.sessionId,
@@ -247,7 +261,7 @@ export class AcpAgentInstance
       const response = await this.awaitPrompt(
         session.connection.prompt(requestBody),
         signal,
-        resources.requestTimeoutMs
+        goalControl ? undefined : resources.requestTimeoutMs
       )
       if (formatted.includedSystemPrompt) session.systemPromptSent = true
       this.appendDebug('response', session, {
@@ -258,7 +272,11 @@ export class AcpAgentInstance
         stopReason: response.stopReason
       })
 
-      const completedTurn = this.promptController.complete(session.sessionId, response.stopReason)
+      const completedTurn = this.promptController.complete(
+        session.sessionId,
+        response.stopReason,
+        this.sessionId
+      )
       if (completedTurn) {
         await this.persistTurnFinish(completedTurn)
         turnFinished = true
@@ -292,8 +310,8 @@ export class AcpAgentInstance
       }
       if (active.session && turn && !turnFinished) {
         const finished = aborted
-          ? this.promptController.cancel(active.session.sessionId)
-          : this.promptController.fail(active.session.sessionId)
+          ? this.promptController.cancel(active.session.sessionId, this.sessionId)
+          : this.promptController.fail(active.session.sessionId, 'error', this.sessionId)
         if (finished) await this.persistTurnFinish(finished)
       }
       if (active.session) {
@@ -332,7 +350,7 @@ export class AcpAgentInstance
     } finally {
       if (active.session) {
         this.permissionBridge.cancelSession(active.session.sessionId)
-        this.dependencies.sessions.clearMappedSession(active.session.sessionId)
+        this.dependencies.sessions.clearMappedSession(this.sessionId)
         try {
           await active.session.connection.cancel({ sessionId: active.session.sessionId })
         } catch (error) {
@@ -342,6 +360,79 @@ export class AcpAgentInstance
       if (this.active === active) this.active = undefined
       active.settle()
     }
+  }
+
+  async runIdleOperation<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.closed || this.active || this.preparing || this.remoteOperation)
+      throw new Error('Wait for the active ACP operation to finish')
+    this.remoteOperation = true
+    try {
+      return await operation()
+    } finally {
+      this.remoteOperation = false
+    }
+  }
+
+  canSteer(): boolean {
+    const capability = this.active?.session?.extensions?.steering
+    return (
+      !!this.active?.projection &&
+      capability?.transport === 'request' &&
+      capability.upstreamTurn === 'same' &&
+      capability.configPolicy === 'active'
+    )
+  }
+
+  async steer(
+    content: SendMessageInput,
+    steerId: string,
+    settled: (status: 'applied' | 'failed' | 'unknown') => void
+  ): Promise<void> {
+    const active = this.active
+    if (!this.canSteer() || !active?.session)
+      throw new Error('ACP turn is not available for steering')
+    const resources = await this.dependencies.promptResources.resolve({
+      sessionId: this.sessionId,
+      agent: this.options.agent,
+      scope: this.options.scope,
+      workdir: this.workdir,
+      content,
+      signal: active.controller.signal
+    })
+    if (this.active !== active || active.controller.signal.aborted)
+      throw new Error('ACP turn ended before steering')
+    const { blocks } = this.messageFormatter.format([resources.latestUserMessage], {
+      promptCapabilities: active.session.promptCapabilities
+    })
+    await this.dependencies.sessions.steer(this.sessionId, steerId, blocks, settled)
+  }
+
+  assertGoalAction(action: 'set' | 'resume' | 'pause' | 'clear', objective?: string): void {
+    const capability = this.dependencies.sessions.getSession(this.sessionId)?.extensions?.goal
+    const prompt = action === 'set' || action === 'resume'
+    if (
+      this.closed ||
+      !capability?.actions.includes(action) ||
+      !(prompt ? capability.promptActions : capability.controlActions)?.includes(action)
+    )
+      throw new Error('ACP goal action is unavailable')
+    if (prompt && (this.active || this.preparing || this.remoteOperation))
+      throw new Error('Wait for the active ACP turn to finish')
+    if (action === 'set' && !objective?.trim()) throw new Error('Goal objective is required')
+  }
+
+  async controlGoal(
+    action: 'set' | 'resume' | 'pause' | 'clear',
+    objective?: string
+  ): Promise<MessageStartResult | void> {
+    this.assertGoalAction(action, objective)
+    if (action === 'pause' || action === 'clear')
+      return this.dependencies.sessions.controlGoal(this.sessionId, action)
+    const control: LodyGoalPromptControl =
+      action === 'set'
+        ? { version: 1, action, objective: objective!.trim() }
+        : { version: 1, action }
+    return this.send({ text: action === 'set' ? objective!.trim() : '' }, undefined, control)
   }
 
   async cancel(cause: AcpCancelCause = 'user_stop'): Promise<void> {
@@ -381,7 +472,8 @@ export class AcpAgentInstance
 
   async prepare(): Promise<void> {
     if (this.closed) throw new Error(`ACP session ${this.sessionId} is closed`)
-    if (this.active) throw new Error(`ACP session ${this.sessionId} is already generating`)
+    if (this.active || this.remoteOperation)
+      throw new Error(`ACP session ${this.sessionId} is already generating`)
     if (this.preparing) throw new Error(`ACP session ${this.sessionId} is already preparing`)
     let settlePreparation!: () => void
     const preparing: ActivePreparation = {
@@ -410,6 +502,7 @@ export class AcpAgentInstance
   }
 
   async updateWorkdir(workdir: string | null): Promise<string> {
+    if (this.remoteOperation) throw new Error('ACP history or fork is in progress')
     if (this.closed) throw new Error(`ACP session ${this.sessionId} is closed`)
     await this.cancel()
     const resolved = await this.dependencies.sessions.updateWorkdir(
@@ -430,6 +523,7 @@ export class AcpAgentInstance
   }
 
   async setMode(modeId: string): Promise<void> {
+    if (this.remoteOperation) throw new Error('ACP history or fork is in progress')
     await this.dependencies.sessions.setMode(this.sessionId, modeId)
   }
 
@@ -438,6 +532,7 @@ export class AcpAgentInstance
   }
 
   async setConfigOption(configId: string, value: string | boolean) {
+    if (this.remoteOperation) throw new Error('ACP history or fork is in progress')
     return await this.dependencies.sessions.setConfigOption(this.sessionId, configId, value)
   }
 

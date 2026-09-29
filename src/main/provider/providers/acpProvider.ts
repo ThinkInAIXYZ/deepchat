@@ -1,7 +1,11 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type { ClientSideConnection as ClientSideConnectionType } from '@agentclientprotocol/sdk'
+import type * as schema from '@agentclientprotocol/sdk'
+import type {
+  AcpConnection as ClientSideConnectionType,
+  AcpSetSessionModelRequest,
+  AcpSetSessionModelResponse
+} from '@/agent/acp/runtime/acpConnection'
 import {
   BaseLLMProvider,
   SUMMARY_TITLES_PROMPT,
@@ -95,20 +99,16 @@ const ACP_PERMISSION_TIMEOUT_MS = 60_000
 
 type AcpConnectionWithModelSelection = {
   unstable_setSessionModel?: (
-    params: schema.SetSessionModelRequest
-  ) => Promise<schema.SetSessionModelResponse>
+    params: AcpSetSessionModelRequest
+  ) => Promise<AcpSetSessionModelResponse>
 }
 
 type AcpConnectionWithDebugLifecycle = ClientSideConnectionType &
   AcpConnectionWithModelSelection & {
     authenticate?: (params: schema.AuthenticateRequest) => Promise<schema.AuthenticateResponse>
     listSessions?: (params: schema.ListSessionsRequest) => Promise<schema.ListSessionsResponse>
-    unstable_resumeSession?: (
-      params: schema.ResumeSessionRequest
-    ) => Promise<schema.ResumeSessionResponse>
-    unstable_closeSession?: (
-      params: schema.CloseSessionRequest
-    ) => Promise<schema.CloseSessionResponse>
+    resumeSession?: (params: schema.ResumeSessionRequest) => Promise<schema.ResumeSessionResponse>
+    closeSession?: (params: schema.CloseSessionRequest) => Promise<schema.CloseSessionResponse>
     unstable_forkSession?: (
       params: schema.ForkSessionRequest
     ) => Promise<schema.ForkSessionResponse>
@@ -133,8 +133,8 @@ const summarizePromptBlocks = (blocks: schema.ContentBlock[]) =>
 
 async function setSessionModelCompat(
   connection: AcpConnectionWithModelSelection,
-  params: schema.SetSessionModelRequest
-): Promise<schema.SetSessionModelResponse> {
+  params: AcpSetSessionModelRequest
+): Promise<AcpSetSessionModelResponse> {
   if (!connection.unstable_setSessionModel) {
     throw new Error('[ACP] Session model selection is not supported by this SDK connection.')
   }
@@ -437,14 +437,14 @@ export class AcpProvider extends BaseLLMProvider {
       signal?.throwIfAborted()
     } finally {
       if (session) {
-        if (this.promptController.getActiveTurn(session.sessionId)) {
+        if (this.promptController.getActiveTurn(session.sessionId, session.conversationId)) {
           try {
             await session.connection.cancel({ sessionId: session.sessionId })
           } catch (error) {
             console.warn('[ACP] cancel failed:', error)
           }
         }
-        this.acpRuntime.sessionController.clearMappedSession(session.sessionId)
+        this.acpRuntime.sessionController.clearMappedSession(toAppSessionId(session.conversationId))
         this.clearPendingPermissionsForSession(session.sessionId)
       }
     }
@@ -565,7 +565,8 @@ export class AcpProvider extends BaseLLMProvider {
             sessionId,
             payload: notification
           })
-        }
+        },
+        handle.connectionId
       )
       disposePermission = this.processManager.registerPermissionResolver(
         agent.id,
@@ -578,7 +579,8 @@ export class AcpProvider extends BaseLLMProvider {
             payload: params
           })
           return { outcome: { outcome: 'cancelled' } }
-        }
+        },
+        handle.connectionId
       )
     }
 
@@ -694,7 +696,12 @@ export class AcpProvider extends BaseLLMProvider {
           pushEvent({ kind: 'request', action: 'newSession', payload: body })
           const response = await connection.newSession(body)
           activeSessionId = response.sessionId
-          this.processManager.registerSessionWorkdir(activeSessionId, body.cwd)
+          this.processManager.registerSessionWorkdir(
+            activeSessionId,
+            body.cwd,
+            undefined,
+            handle.connectionId
+          )
           attachSession(activeSessionId)
           pushEvent({
             kind: 'response',
@@ -737,7 +744,12 @@ export class AcpProvider extends BaseLLMProvider {
             sessionId: sessionToLoad,
             payload: body
           })
-          this.processManager.registerSessionWorkdir(sessionToLoad, body.cwd)
+          this.processManager.registerSessionWorkdir(
+            sessionToLoad,
+            body.cwd,
+            undefined,
+            handle.connectionId
+          )
           attachSession(sessionToLoad)
           const response = await connection.loadSession(body)
           activeSessionId = sessionToLoad
@@ -809,7 +821,7 @@ export class AcpProvider extends BaseLLMProvider {
           break
         }
         case 'sessionResume': {
-          if (!connection.unstable_resumeSession) {
+          if (!connection.resumeSession) {
             throw new Error('session/resume is not supported by this SDK connection')
           }
           if (!handle.supportsSessionResume) {
@@ -846,9 +858,14 @@ export class AcpProvider extends BaseLLMProvider {
             sessionId: sessionToResume,
             payload: body
           })
-          this.processManager.registerSessionWorkdir(sessionToResume, body.cwd)
+          this.processManager.registerSessionWorkdir(
+            sessionToResume,
+            body.cwd,
+            undefined,
+            handle.connectionId
+          )
           attachSession(sessionToResume)
-          const response = await connection.unstable_resumeSession(body)
+          const response = await connection.resumeSession(body)
           activeSessionId = sessionToResume
           pushEvent({
             kind: 'response',
@@ -859,7 +876,7 @@ export class AcpProvider extends BaseLLMProvider {
           break
         }
         case 'sessionClose': {
-          if (!connection.unstable_closeSession) {
+          if (!connection.closeSession) {
             throw new Error('session/close is not supported by this SDK connection')
           }
           if (!handle.supportsSessionClose) {
@@ -883,8 +900,8 @@ export class AcpProvider extends BaseLLMProvider {
             sessionId: sessionToClose,
             payload: body
           })
-          const response = await connection.unstable_closeSession(body)
-          this.processManager.clearSession(sessionToClose)
+          const response = await connection.closeSession(body)
+          this.processManager.clearSession(sessionToClose, handle.connectionId)
           activeSessionId = undefined
           pushEvent({
             kind: 'response',
@@ -934,7 +951,12 @@ export class AcpProvider extends BaseLLMProvider {
           })
           const response = await connection.unstable_forkSession(body)
           activeSessionId = response.sessionId
-          this.processManager.registerSessionWorkdir(activeSessionId, body.cwd)
+          this.processManager.registerSessionWorkdir(
+            activeSessionId,
+            body.cwd,
+            undefined,
+            handle.connectionId
+          )
           attachSession(activeSessionId)
           pushEvent({
             kind: 'response',
@@ -1029,7 +1051,7 @@ export class AcpProvider extends BaseLLMProvider {
           attachSession(activeSessionId)
           const response = await setSessionModelCompat(
             connection,
-            body as schema.SetSessionModelRequest
+            body as AcpSetSessionModelRequest
           )
           pushEvent({
             kind: 'response',
@@ -1200,7 +1222,11 @@ export class AcpProvider extends BaseLLMProvider {
         sessionId: session.sessionId,
         payload: responseSummary
       })
-      const completedTurn = this.promptController.complete(session.sessionId, response.stopReason)
+      const completedTurn = this.promptController.complete(
+        session.sessionId,
+        response.stopReason,
+        session.conversationId
+      )
       if (completedTurn) {
         await this.persistTurnFinish({
           id: completedTurn.id,
@@ -1241,8 +1267,8 @@ export class AcpProvider extends BaseLLMProvider {
 
       if (turnStarted) {
         const settledTurn = callerCancelled
-          ? this.promptController.cancel(session.sessionId)
-          : this.promptController.fail(session.sessionId)
+          ? this.promptController.cancel(session.sessionId, session.conversationId)
+          : this.promptController.fail(session.sessionId, 'error', session.conversationId)
         if (settledTurn) {
           await this.persistTurnFinish({
             id: settledTurn.id,

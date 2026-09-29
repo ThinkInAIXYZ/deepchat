@@ -603,8 +603,10 @@ describe('AcpProvider runDebugAction error handling', () => {
     )
   })
 
-  it('binds the forked debug session workdir and listeners', async () => {
+  it('binds and closes debug sessions with the owning connection ID', async () => {
     const unstableForkSession = vi.fn().mockResolvedValue({ sessionId: 'forked-session' })
+    const closeSession = vi.fn().mockResolvedValue({})
+    const clearSession = vi.fn()
     const registerSessionWorkdir = vi.fn()
     const registerSessionListener = vi.fn().mockReturnValue(() => {})
     const registerPermissionResolver = vi.fn().mockReturnValue(() => {})
@@ -618,10 +620,14 @@ describe('AcpProvider runDebugAction error handling', () => {
       registerSessionWorkdir,
       registerSessionListener,
       registerPermissionResolver,
+      clearSession,
       getConnection: vi.fn().mockResolvedValue({
         workdir: '/tmp/debug-workdir',
+        connectionId: 'debug-connection',
         supportsSessionFork: true,
+        supportsSessionClose: true,
         connection: {
+          closeSession,
           unstable_forkSession: unstableForkSession
         },
         status: 'ready',
@@ -647,17 +653,33 @@ describe('AcpProvider runDebugAction error handling', () => {
       mcpServers: [],
       sessionId: 'source-session'
     })
-    expect(registerSessionWorkdir).toHaveBeenCalledWith('forked-session', '/tmp/debug-workdir')
+    expect(registerSessionWorkdir).toHaveBeenCalledWith(
+      'forked-session',
+      '/tmp/debug-workdir',
+      undefined,
+      'debug-connection'
+    )
     expect(registerSessionListener).toHaveBeenCalledWith(
       'agent1',
       'forked-session',
-      expect.any(Function)
+      expect.any(Function),
+      'debug-connection'
     )
     expect(registerPermissionResolver).toHaveBeenCalledWith(
       'agent1',
       'forked-session',
-      expect.any(Function)
+      expect.any(Function),
+      'debug-connection'
     )
+    const closed = await provider.runDebugAction({
+      requestId: 'close',
+      agentId: 'agent1',
+      action: 'sessionClose',
+      sessionId: 'forked-session'
+    })
+    expect(closed.status).toBe('ok')
+    expect(closeSession).toHaveBeenCalledWith({ sessionId: 'forked-session' })
+    expect(clearSession).toHaveBeenCalledWith('forked-session', 'debug-connection')
   })
 
   it('uses real ACP MCP selections for debug sessions', async () => {
@@ -1219,7 +1241,10 @@ describe('AcpProvider runDebugAction error handling', () => {
     await runPrompt
 
     expect(cancel).toHaveBeenCalledWith({ sessionId: 'session-cancelled' })
-    expect(provider.promptController.cancel).toHaveBeenCalledWith('session-cancelled')
+    expect(provider.promptController.cancel).toHaveBeenCalledWith(
+      'session-cancelled',
+      'conv-cancelled'
+    )
     expect(provider.promptController.fail).not.toHaveBeenCalled()
     expect(provider.sessionPersistence.finishTurn).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1293,7 +1318,11 @@ describe('AcpProvider runDebugAction error handling', () => {
 
     expect(cancel).not.toHaveBeenCalled()
     expect(provider.promptController.cancel).not.toHaveBeenCalled()
-    expect(provider.promptController.fail).toHaveBeenCalledWith('session-prompt-error')
+    expect(provider.promptController.fail).toHaveBeenCalledWith(
+      'session-prompt-error',
+      'error',
+      'conv-prompt-error'
+    )
     expect(provider.sessionPersistence.finishTurn).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'turn-prompt-error',

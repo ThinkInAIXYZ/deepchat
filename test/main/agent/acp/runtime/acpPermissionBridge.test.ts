@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type * as schema from '@agentclientprotocol/sdk'
 import { AcpPermissionBridge } from '@/agent/acp/runtime/acpPermissionBridge'
 
 function createRequest(): schema.RequestPermissionRequest {

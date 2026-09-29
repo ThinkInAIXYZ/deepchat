@@ -1,4 +1,5 @@
-import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import { readLodySessionMeta } from './acpLodyExtensions'
+import type * as schema from '@agentclientprotocol/sdk'
 import type { AcpConfigState } from '@shared/types/acp'
 import type { AssistantMessageBlock } from '@shared/chat'
 import { normalizeAgentPlanStatus } from '@shared/types/agent-plan'
@@ -104,8 +105,9 @@ export class AcpContentMapper {
     }
   }
 
-  map(notification: schema.SessionNotification): MappedContent {
-    const { update, sessionId } = notification
+  map(notification: schema.SessionNotification, scope = notification.sessionId): MappedContent {
+    const { update } = notification
+    const sessionId = scope
     const payload: MappedContent = { events: [], blocks: [] }
 
     switch (update.sessionUpdate) {
@@ -140,6 +142,9 @@ export class AcpContentMapper {
       case 'session_info_update':
         this.handleSessionInfoUpdate(update, payload)
         break
+      case 'plan_update':
+      case 'plan_removed':
+        break
       case 'usage_update':
         this.handleUsageUpdate(update, payload)
         break
@@ -154,6 +159,19 @@ export class AcpContentMapper {
         break
     }
 
+    const meta = readLodySessionMeta(update._meta)
+    if (meta.task?.skipTranscript) {
+      payload.events = []
+      payload.blocks = []
+    } else if (Object.keys(meta).length) {
+      payload.events = payload.events.map((event) =>
+        ['text', 'reasoning', 'tool_call_start', 'tool_call_chunk', 'tool_call_end'].includes(
+          event.type
+        )
+          ? { ...event, provider_options: { acp: meta } }
+          : event
+      )
+    }
     return payload
   }
 
@@ -231,7 +249,10 @@ export class AcpContentMapper {
     const toolCallId = update.toolCallId
     if (!toolCallId) return
 
-    const rawTitle = 'title' in update ? (update.title ?? undefined) : undefined
+    const rawTitle =
+      readLodySessionMeta(update._meta).toolName ??
+      ('title' in update ? update.title : undefined) ??
+      ('name' in update ? update.name : undefined)
     const title = typeof rawTitle === 'string' ? rawTitle.trim() || undefined : undefined
     const status = 'status' in update ? (update.status ?? undefined) : undefined
 
@@ -285,7 +306,6 @@ export class AcpContentMapper {
     payload: MappedContent
   ) {
     const entries = update.entries || []
-    if (!entries.length) return
 
     // Store structured plan entries
     payload.planEntries = entries.map((entry) => ({

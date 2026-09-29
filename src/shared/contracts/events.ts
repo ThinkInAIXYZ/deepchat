@@ -1,3 +1,8 @@
+import {
+  acpElicitationChangedEvent,
+  acpExtensionsChangedEvent
+} from './events/acp-extensions.events'
+export * from './events/acp-extensions.events'
 import type { z } from 'zod'
 import type { EventContract } from './common'
 import { acpAuthOutputEvent, acpAuthStateChangedEvent } from './events/acp-auth.events'
@@ -199,6 +204,8 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [settingsProviderInstallRequestedEvent.name]: settingsProviderInstallRequestedEvent,
   [settingsCheckForUpdatesRequestedEvent.name]: settingsCheckForUpdatesRequestedEvent,
   [semanticNotificationEvent.name]: semanticNotificationEvent,
+  [acpExtensionsChangedEvent.name]: acpExtensionsChangedEvent,
+  [acpElicitationChangedEvent.name]: acpElicitationChangedEvent,
   [acpAuthOutputEvent.name]: acpAuthOutputEvent,
   [acpAuthStateChangedEvent.name]: acpAuthStateChangedEvent,
   [appRuntimeStartDeeplinkRequestedEvent.name]: appRuntimeStartDeeplinkRequestedEvent,

@@ -8,6 +8,7 @@ const sdkMock = vi.hoisted(() => ({
     protocolVersion: 1,
     agentInfo: { name: 'Agent One', version: '1.0.0' },
     agentCapabilities: {
+      _meta: { lody: { usage: { version: 1 }, subagentEvents: { version: 1 } } },
       loadSession: true,
       promptCapabilities: {
         image: true,
@@ -25,14 +26,6 @@ const sdkMock = vi.hoisted(() => ({
       }
     },
     authMethods: [{ id: 'terminal', name: 'Terminal', type: 'terminal' }]
-  }
-}))
-
-vi.mock('@agentclientprotocol/sdk', () => ({
-  PROTOCOL_VERSION: 1,
-  ClientSideConnection: class {
-    closed = new Promise<void>(() => {})
-    initialize = sdkMock.initialize
   }
 }))
 
@@ -69,15 +62,22 @@ describe('AcpProcessManager initialized capabilities', () => {
     'carries initialize capabilities into the ready process handle when terminal auth is %s',
     async (terminalAuthAvailable) => {
       sdkMock.initialize.mockClear()
-      sdkMock.initialize.mockResolvedValue(sdkMock.initializeResponse)
       const { AcpProcessManager } = await import('@/agent/acp/runtime/acpProcessManager')
       const manager = new AcpProcessManager({
         publishEvent: vi.fn(),
         providerId: 'acp',
         resolveLaunchSpec: vi.fn(),
+        enableSubagentEvents: true,
         terminalAuthAvailable
       })
       const child = new MockChild()
+      child.stdin.on('data', (chunk) => {
+        const request = JSON.parse(chunk.toString())
+        sdkMock.initialize(request.params)
+        child.stdout.write(
+          `${JSON.stringify({ jsonrpc: '2.0', id: request.id, result: sdkMock.initializeResponse })}\n`
+        )
+      })
       vi.spyOn(manager as any, 'materializeAgentLaunch').mockResolvedValue({
         command: 'agent',
         args: [],
@@ -125,6 +125,91 @@ describe('AcpProcessManager initialized capabilities', () => {
       const clientCapabilities = sdkMock.initialize.mock.calls.at(-1)?.[0].clientCapabilities
       if (terminalAuthAvailable) expect(clientCapabilities.auth).toEqual({ terminal: true })
       else expect(clientCapabilities.auth).toBeUndefined()
+      const received = vi.fn()
+      const wrongConnection = vi.fn()
+      manager.registerExtensionListener('remote', handle.connectionId, received)
+      manager.registerExtensionListener('remote', 'other-connection', wrongConnection)
+      const usage = {
+        sessionId: 'remote',
+        usage: { inputTokens: 12, outputTokens: 4, cacheReadInputTokens: 0 },
+        modelUsage: {}
+      }
+      child.stdout.write(
+        `${JSON.stringify({ jsonrpc: '2.0', method: '_lody/session/usage_update', params: usage })}\n`
+      )
+      await vi.waitFor(() =>
+        expect(received).toHaveBeenCalledExactlyOnceWith({
+          method: '_lody/session/usage_update',
+          params: usage
+        })
+      )
+      expect(wrongConnection).not.toHaveBeenCalled()
+      child.stdout.write(
+        `${JSON.stringify({ jsonrpc: '2.0', method: '_lody/session/usage_update', params: { ...usage, usage: { ...usage.usage, inputTokens: -1 } } })}\n`
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(received).toHaveBeenCalledTimes(1)
+      child.stdout.write(
+        `${JSON.stringify({
+          jsonrpc: '2.0',
+          method: '_lody/subagents/event',
+          params: {
+            sessionId: 'buffered',
+            version: 1,
+            runId: 'child',
+            type: 'output',
+            update: {
+              sessionUpdate: 'tool_call',
+              toolCallId: 'tool',
+              title: 'Inspect',
+              status: 'in_progress',
+              rawInput: { password: 'private-answer' }
+            }
+          }
+        })}\n`
+      )
+      child.stdout.write(
+        `${JSON.stringify({ jsonrpc: '2.0', method: '_lody/session/usage_update', params: usage })}\n`
+      )
+      await vi.waitFor(() => expect(received).toHaveBeenCalledTimes(2))
+      const answer = manager.elicitation.request(
+        {
+          mode: 'form',
+          sessionId: 'remote',
+          message: 'Private input',
+          requestedSchema: {
+            properties: {
+              password: {
+                type: 'string',
+                _meta: { lody: { elicitation: { version: 1, secret: true } } }
+              }
+            }
+          }
+        },
+        {
+          connectionId: handle.connectionId,
+          agentId: 'agent-1',
+          agentName: 'Agent One',
+          signal: new AbortController().signal
+        }
+      )
+      await manager.elicitation.respond({
+        requestId: manager.elicitation.list()[0].requestId,
+        action: 'accept',
+        content: { password: 'private-answer' }
+      })
+      await answer
+      const replayed = vi.fn()
+      manager.registerExtensionListener('buffered', handle.connectionId, replayed)
+      expect(replayed).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          params: expect.objectContaining({
+            update: expect.objectContaining({ rawInput: { password: '[redacted]' } })
+          })
+        })
+      )
+      expect(JSON.stringify(replayed.mock.calls)).not.toContain('private-answer')
+      handle.connection.close()
       expect(handle.capabilitySnapshot?.supports).toEqual({
         loadSession: true,
         sessionList: true,

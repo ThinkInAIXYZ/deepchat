@@ -77,6 +77,7 @@ export type DisplayUserMessageContent = {
 export type DisplayInputReceipt = {
   mode: 'steer'
   readAt: number | null
+  delivery?: 'accepted' | 'applied' | 'failed' | 'unknown'
 }
 
 export type DisplayAssistantMessageExtra = Record<string, string | number | object[] | boolean> & {

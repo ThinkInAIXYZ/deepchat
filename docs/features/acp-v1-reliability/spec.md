@@ -13,8 +13,9 @@ lifecycle and interoperability scope.
 
 DeepChat launches Registry and manually configured ACP agents, negotiates their capabilities, and
 exposes supported authentication and session operations through typed application boundaries.
-Optional methods are enabled by the initialized agent’s capabilities, never by its display name
-or a guessed package version.
+Optional methods require the initialized agent’s capabilities. History import and anchored fork
+additionally require the wire-verified adapter identity described below; a display name or guessed
+package version alone never grants a capability.
 
 DeepChat records remain the durable source of truth for local conversations. An agent’s remote
 session list is a workspace-scoped resource catalog. Importing or resuming a remote session must
@@ -138,3 +139,19 @@ implementation alone does not close those broader validation requirements.
 - [Slash commands](https://agentclientprotocol.com/protocol/v1/slash-commands)
 - [Extensibility](https://agentclientprotocol.com/protocol/v1/extensibility)
 - [Transports](https://agentclientprotocol.com/protocol/v1/transports)
+
+## Negotiated Lody client extensions
+
+Direct ACP sessions use SDK 1.4.0's public typed client API and Core 0.1.9 contracts while keeping
+ACP wire v1. Rich elicitation is owned by an ephemeral ACP bridge; connection-scoped handlers and
+persisted extension snapshots keep idle state separate from the active parent transcript. Remote
+child streams do not create local agent loops. Request steering, goal controls, history and remote
+fork retain the existing instance's execution ownership and capability guards.
+
+See [ACP Lody Extension Client Support](../acp-lody-extensions/spec.md) for the authoritative capability
+matrix, lifecycle, accounting, privacy, verified-adapter gates and validation evidence. ACP-provider
+compatibility uses the same runtime and advertises the same connection capabilities; its ordinary
+sessions use the shared controller, and request-scoped questions use the main-window dialog.
+History import and anchored remote fork additionally require a wire-verified adapter identity
+(currently DimCode 0.5.12) because the replay/response delimiter is not negotiated. Other producers
+receive read-only preview. This is the sole exception to the non-goal of agent-specific behavior.

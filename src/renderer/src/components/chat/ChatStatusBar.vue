@@ -337,6 +337,12 @@
           />
         </div>
 
+        <AcpSessionStatus
+          v-if="isAcpAgent && activeAcpSessionId && activeAcpAgentId"
+          :session-id="activeAcpSessionId"
+          :agent-id="activeAcpAgentId"
+        />
+
         <Popover v-if="isAcpAgent && acpOverflowOptions.length > 0">
           <PopoverTrigger as-child>
             <DcButton
@@ -1236,6 +1242,8 @@ import {
   supportsVerbosity
 } from './composables/chatStatusBarReasoningOptions'
 import { useGenerationNumericInputs } from './composables/useGenerationNumericInputs'
+import AcpSessionStatus from '@/components/acp/AcpSessionStatus.vue'
+import { useAcpExtensionsStore } from '@/stores/acpExtensions'
 import SessionSettingsPopover from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import OpenAIImageGenerationSettingsFields from '@/components/settings/OpenAIImageGenerationSettingsFields.vue'
@@ -1486,7 +1494,16 @@ const isAcpAgent = computed(() => {
   return selectedAgentType.value === 'acp'
 })
 
+const acpExtensionsStore = useAcpExtensionsStore()
 const contextOccupancy = computed(() => {
+  const acp = activeAcpSessionId.value ? acpExtensionsStore.states[activeAcpSessionId.value] : null
+  if (isAcpAgent.value && acp?.context && acp.context.size > 0)
+    return {
+      source: 'provider' as const,
+      freshness: acp.connected && !acp.context.stale ? ('current' as const) : ('stale' as const),
+      occupiedTokens: acp.context.used,
+      contextWindowTokens: acp.context.size
+    }
   const snapshot = sessionStore.activeContextOccupancy
   return hasActiveSession.value &&
     executionAgentType.value === 'deepchat' &&
