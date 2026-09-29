@@ -973,6 +973,27 @@ describe('MemoryService.maybeReflect cheap model', () => {
     expect(generateText).not.toHaveBeenCalled()
   })
 
+  it('retries revised evidence when all reflection results became stale', async () => {
+    const generateText = vi.fn(async () => {
+      if (generateText.mock.calls.length === 1) {
+        const row = repo.getById('m5')!
+        repo.rows.set('m5', {
+          ...row,
+          content: 'updated source',
+          decision_revision: row.decision_revision + 1
+        })
+      }
+      return '[{"content":"Supported insight","evidenceIds":["e1"]}]'
+    })
+    const { presenter, repo } = await buildWithMemories({ memoryEnabled: true }, generateText)
+    expect(await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })).toBeNull()
+    expect(repo.derivations.size).toBe(0)
+    const retried = await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })
+    expect(generateText).toHaveBeenCalledTimes(2)
+    expect(retried?.sourceMemoryIds).toEqual(['m5'])
+    expect(retried?.reflectionIds).toHaveLength(1)
+  })
+
   it('does not re-run the model on the same units after an empty reflection', async () => {
     const generateText = vi.fn(async () => '[]')
     const { presenter, repo } = await buildWithMemories({ memoryEnabled: true }, generateText)

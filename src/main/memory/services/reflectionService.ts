@@ -127,6 +127,7 @@ export class ReflectionService {
       const insights = parseReflectionInsights(raw, new Set(evidence.keys()))
       const now = this.ctx.now()
       const sourceMemoryIds = new Set<string>()
+      let rejectedStaleEvidence = false
       const reflectionIds = this.ports.repository.runInTransaction(() => {
         const currentEvidence = new Map(
           [...evidence].map(([id, snapshot]) => {
@@ -144,7 +145,10 @@ export class ReflectionService {
         )
         return insights.flatMap((insight) => {
           const parents = insight.evidenceIds.map((id) => currentEvidence.get(id))
-          if (parents.some((id) => !id)) return []
+          if (parents.some((id) => !id)) {
+            rejectedStaleEvidence = true
+            return []
+          }
           const id = this.insertReflection(agentId, insight.content, sourceSession ?? null, now)
           if (!id) return []
           const parentIds = parents as string[]
@@ -162,7 +166,8 @@ export class ReflectionService {
         })
       })
       if (!reflectionIds.length) {
-        this.reflectionAttemptWatermark.set(agentId, maxUnitCreatedAt)
+        // A concurrent source edit is not an empty result: allow a fresh attempt next pass.
+        if (!rejectedStaleEvidence) this.reflectionAttemptWatermark.set(agentId, maxUnitCreatedAt)
         return finish(null)
       }
       this.reflectionAttemptWatermark.delete(agentId)
