@@ -37,9 +37,9 @@ no manifest or lockfile changes were needed. Both behavior slices are committed 
 
 - [x] Add bounded, Agent-isolated lineage pagination through the existing management service and
       typed route. Review security and pagination, verify and ablate, then commit locally.
-- [ ] Extend existing details with parents/children, unavailable-source states, related-memory
+- [x] Extend existing details with parents/children, unavailable-source states, related-memory
       navigation and selective-delete guidance. Reuse existing components and management actions.
-- [ ] Validate deterministic backend/renderer behavior and rendered UI states with disposable
+- [x] Validate deterministic backend/renderer behavior and rendered UI states with disposable
       fixtures. Review P0–P3 findings, remove redundant design, run full quality gates and commit.
 
 No push, external issue sync, new database, automatic cascade or model invocation is authorized by
@@ -50,3 +50,13 @@ tests passed, along with node typecheck and focused lint. Removing management vi
 exposed a superseded parent's content and failed the regression; restoring it passed. SQLite query
 plans showed the existing child index already covers the full keyset, so the redundant proposed
 index was removed. Only the outbound relation index is added during idempotent table setup.
+
+UI review fixed off-page/filtered relation navigation and an Electron structured-clone failure
+on reactive pagination cursors. Removing filter reconciliation made the archived-relation
+navigation regression fail; restoring it passed all 61 focused renderer tests. Immutable cursors
+use shallow refs, without a generic serialization layer. The required-native Electron acceptance
+fixture exercises 20-to-23 item pagination, an unavailable parent, archived-parent navigation,
+narrow layout, and deletion that retains the derived claim. Screenshots were inspected. The
+fixture uses a closed disposable database, never an existing profile. All 23 locales have localized
+new strings, without English placeholders; Tibetan and traditional Mongolian remain candidates
+for native-speaker copy review. Format, i18n, lint, typecheck and the production build passed.

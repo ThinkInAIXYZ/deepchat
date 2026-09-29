@@ -88,3 +88,27 @@ This extension adds no service, dependency, migration, setting or generation cal
 pagination boundaries, Agent isolation, unavailable sources, clearing, navigation, stale requests,
 and selective-delete copy. Isolated UI fixtures provide repeatable visual and interaction checks;
 real-model attribution quality remains distinct from deterministic correctness tests.
+
+### UI acceptance
+
+```text
+BEFORE                           AFTER
+Memory details                   Memory details
+  Content / category               Content / category
+  Conversation source              Conversation source
+  Lifecycle details                Derived from > current claims / unavailable
+  Delete                           Derived claims > current claims / unavailable
+                                   Lifecycle details
+                                   Delete > derived claims retained warning
+```
+
+Open Settings > Memory, select a claim, and expand either relation section. Relations load only
+when expanded, 20 at a time. Opening a related claim reveals it even outside the loaded page or
+active filters, after the existing unsaved-edit guard. Archived claims retain their read-only
+state. Older claims without recorded edges correctly show no related claims; attribution is not
+backfilled. Deleting one source leaves its derived claim and an unavailable-source entry.
+
+For deterministic acceptance without a model or personal data, run `pnpm run build`, then
+`pnpm exec playwright test -c test/e2e/playwright.config.ts 41-memory-lineage`. The test creates a
+disposable profile, seeds explicit relations while the app is closed, and exercises the real
+renderer, preload, route and SQLite path. It also captures desktop, narrow and deletion states.
