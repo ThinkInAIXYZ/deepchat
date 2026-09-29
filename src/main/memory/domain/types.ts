@@ -569,6 +569,11 @@ export interface MemoryUpdateContext {
   createdIds?: string[]
 }
 
+export interface MemoryExtractionEvidence {
+  sourceEntryId: number
+  text: string
+}
+
 export interface MemoryExtractionInput {
   agentId: string
   spanText: string
@@ -576,6 +581,7 @@ export interface MemoryExtractionInput {
   scope?: MemoryScope
   sourceSession?: string | null
   sourceEntryIds?: number[] | null
+  evidence?: readonly MemoryExtractionEvidence[]
 }
 
 export type MemoryExtractionResult = { ok: true; createdIds: string[] } | { ok: false }

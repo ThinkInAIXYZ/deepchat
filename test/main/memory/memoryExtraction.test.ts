@@ -679,6 +679,77 @@ describe('MemoryService.extractAndStore triage gate, cheap model, lineage', () =
     expect(generateText.mock.calls[0][1]).toBe('main-m')
   })
 
+  it('persists per-candidate evidence and unions only equivalent candidates', async () => {
+    const generateText = vi.fn(async () =>
+      JSON.stringify({
+        memories: [
+          { content: 'User prefers Redis.', evidenceIds: ['e1'] },
+          { content: 'User prefers Redis.', evidenceIds: ['e3', 'e1'] },
+          { content: 'Project uses Vue.', evidenceIds: ['e2'] },
+          { content: 'Forged source.', evidenceIds: ['e1', 'e99'] },
+          { content: 'Uncited.' }
+        ],
+        directiveSuggestions: []
+      })
+    )
+    const { presenter, repo } = await build({ memoryEnabled: true }, generateText)
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'legacy span must not override structured evidence',
+      sourceSession: 's1',
+      sourceEntryIds: [11, 27, 38, 99],
+      evidence: [
+        { sourceEntryId: 11, text: 'User: I prefer Redis.' },
+        { sourceEntryId: 27, text: 'User: This project uses Vue.' },
+        { sourceEntryId: 38, text: 'User: I still prefer Redis.' },
+        { sourceEntryId: 99, text: 'Assistant: Understood.' }
+      ],
+      model: { providerId: 'p', modelId: 'm' }
+    })
+    expect(result.ok).toBe(true)
+    const rows = repo.listByAgent('a')
+    expect(rows).toHaveLength(2)
+    expect(
+      JSON.parse(rows.find((row) => row.content === 'User prefers Redis.')!.source_entry_ids!)
+    ).toEqual([11, 38])
+    expect(
+      JSON.parse(rows.find((row) => row.content === 'Project uses Vue.')!.source_entry_ids!)
+    ).toEqual([27])
+    expect(generateText).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    { evidenceIds: undefined },
+    { evidenceIds: [] },
+    { evidenceIds: ['e1', 'e99'] },
+    { evidenceIds: [27] }
+  ])(
+    'keeps invalid evidence $evidenceIds retryable but accepts a deliberate empty result',
+    async ({ evidenceIds }) => {
+      const generateText = vi.fn(async (_provider: string, _model: string, prompt: string) => {
+        if (prompt.includes('KEEP or SKIP')) return 'KEEP'
+        return JSON.stringify({ memories: [{ content: 'User prefers Redis.', evidenceIds }] })
+      })
+      const { presenter, repo } = await build({ memoryEnabled: true }, generateText)
+      const input = {
+        agentId: 'a',
+        spanText: 'User: I prefer Redis.',
+        sourceSession: 's1',
+        evidence: [{ sourceEntryId: 27, text: 'User: I prefer Redis.' }],
+        model: { providerId: 'p', modelId: 'm' }
+      }
+      await expect(presenter.extractAndStore(input)).resolves.toEqual({ ok: false })
+      expect(repo.listByAgent('a')).toHaveLength(0)
+      generateText.mockImplementation(async (_provider, _model, prompt) =>
+        prompt.includes('KEEP or SKIP') ? 'KEEP' : '{"memories":[]}'
+      )
+      await expect(presenter.extractAndStore(input)).resolves.toMatchObject({
+        ok: true,
+        createdIds: []
+      })
+    }
+  )
+
   it('persists sourceEntryIds lineage scoped by sourceSession', async () => {
     const generateText = vi.fn(
       async () => 'KEEP\n[{"kind":"semantic","content":"user prefers redis"}]'

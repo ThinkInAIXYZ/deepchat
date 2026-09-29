@@ -51,9 +51,14 @@ function buildTemporalReference(clock?: MemoryExtractionClockSnapshot): string[]
   ]
 }
 
+export function renderExtractionEvidence(texts: readonly string[]): string {
+  return texts.map((text, index) => `Evidence e${index + 1}:\n${text}`).join('\n')
+}
+
 export function buildExtractionPrompt(
   spanText: string,
-  clock?: MemoryExtractionClockSnapshot
+  clock?: MemoryExtractionClockSnapshot,
+  citedEvidence = false
 ): string {
   const categories = AGENT_MEMORY_CATEGORIES.join(' | ')
   const temporalContext = buildTemporalReference(clock)
@@ -82,6 +87,11 @@ export function buildExtractionPrompt(
     'Use temporalPrecision exact|day|week|month|quarter|year|unknown. Never invent a precise date from vague language.',
     'Return at most one task_outcome memory.',
     `Return at most ${MAX_CANDIDATES} memories.`,
+    ...(citedEvidence
+      ? [
+          'Each memory must include a nonempty evidenceIds array citing only the supplied Evidence labels (e1, e2, ...) that support it. Never cite an input merely because it appears in the same window.'
+        ]
+      : []),
     '',
     'Separately propose a directive only when the USER explicitly states a persistent instruction.',
     '- instruction: a persistent rule for future responses or behavior.',
@@ -92,7 +102,7 @@ export function buildExtractionPrompt(
     'Do not put secrets or credentials into memories or directiveSuggestions.',
     '',
     'Output ONLY one JSON object, no prose. Both fields must be JSON arrays:',
-    '{"memories":[{"category":"user_preference|project_fact|task_outcome|heuristic|anti_pattern","content":"<concise third-person fact>","importance":<0..1>,"temporal":{"temporalKind":"atemporal|state|event|plan|recurring","validFrom":"<ISO 8601 with offset or null>","validUntil":"<ISO 8601 with offset or null>","temporalConfidence":<0..1 or null>,"temporalPrecision":"exact|day|week|month|quarter|year|unknown or null","timeZone":"<IANA timezone or null>"}}],"directiveSuggestions":[{"kind":"instruction","content":"<explicit persistent user instruction>"},{"kind":"suppress_topic","content":"<explicit suppression instruction>","topic":"<literal topic>"}]}',
+    `{"memories":[{"category":"user_preference|project_fact|task_outcome|heuristic|anti_pattern","content":"<concise third-person fact>",${citedEvidence ? '"evidenceIds":["e1"],' : ''}"importance":<0..1>,"temporal":{"temporalKind":"atemporal|state|event|plan|recurring","validFrom":"<ISO 8601 with offset or null>","validUntil":"<ISO 8601 with offset or null>","temporalConfidence":<0..1 or null>,"temporalPrecision":"exact|day|week|month|quarter|year|unknown or null","timeZone":"<IANA timezone or null>"}}],"directiveSuggestions":[{"kind":"instruction","content":"<explicit persistent user instruction>"},{"kind":"suppress_topic","content":"<explicit suppression instruction>","topic":"<literal topic>"}]}`,
     '',
     '--- BEGIN CONVERSATION SPAN ---',
     spanText,
@@ -100,20 +110,32 @@ export function buildExtractionPrompt(
   ].join('\n')
 }
 
+export interface ExtractedMemoryCandidate extends MemoryCandidate {
+  sourceEntryIds?: number[]
+}
+
 export type MemoryCandidateParseResult =
   | {
       ok: true
-      candidates: MemoryCandidate[]
+      candidates: ExtractedMemoryCandidate[]
       directiveSuggestions: MemoryDirectiveInput[]
     }
   | {
       ok: false
-      reason: 'empty-response' | 'missing-json-array' | 'invalid-json' | 'non-array'
+      reason:
+        | 'empty-response'
+        | 'missing-json-array'
+        | 'invalid-json'
+        | 'non-array'
+        | 'invalid-evidence'
     }
 
 // Tolerant per-entry parse: surrounding noise and malformed entries are ignored, but malformed
 // top-level model output is reported so callers can retry instead of advancing durable cursors.
-export function parseMemoryCandidates(raw: string): MemoryCandidateParseResult {
+export function parseMemoryCandidates(
+  raw: string,
+  evidence?: ReadonlyMap<string, number>
+): MemoryCandidateParseResult {
   if (typeof raw !== 'string' || !raw.trim()) return { ok: false, reason: 'empty-response' }
 
   let parsed: unknown
@@ -155,7 +177,9 @@ export function parseMemoryCandidates(raw: string): MemoryCandidateParseResult {
   }
   if (!Array.isArray(parsed)) return { ok: false, reason: 'non-array' }
 
-  const candidates: MemoryCandidate[] = []
+  const candidates: ExtractedMemoryCandidate[] = []
+  const allowedEvidence = evidence ? new Set(evidence.keys()) : null
+  let rejectedEvidence = false
   let sawTaskOutcome = false
   for (const entry of parsed) {
     if (!entry || typeof entry !== 'object') continue
@@ -178,14 +202,25 @@ export function parseMemoryCandidates(raw: string): MemoryCandidateParseResult {
       ? (tryNormalizeMemoryTemporalMetadata(obj.temporal as RawMemoryTemporalMetadata) ?? undefined)
       : undefined
     if (hasTemporal && !temporal) continue
+    const evidenceIds = allowedEvidence ? parseEvidenceIds(obj.evidenceIds, allowedEvidence) : null
+    if (allowedEvidence && !evidenceIds) {
+      rejectedEvidence = true
+      continue
+    }
     if (isTaskOutcome) sawTaskOutcome = true
-    candidates.push(
-      temporal
-        ? { category, kind, content, importance, temporal }
-        : { category, kind, content, importance }
-    )
+    candidates.push({
+      category,
+      kind,
+      content,
+      importance,
+      ...(temporal ? { temporal } : {}),
+      ...(evidence && evidenceIds
+        ? { sourceEntryIds: [...new Set(evidenceIds.map((id) => evidence.get(id)!))] }
+        : {})
+    })
     if (candidates.length >= MAX_CANDIDATES) break
   }
+  if (rejectedEvidence && candidates.length === 0) return { ok: false, reason: 'invalid-evidence' }
   const directiveSuggestions: MemoryDirectiveInput[] = []
   for (const entry of rawDirectiveSuggestions) {
     if (!entry || typeof entry !== 'object') continue

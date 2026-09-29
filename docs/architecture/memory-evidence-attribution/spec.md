@@ -21,6 +21,12 @@ service, a provider call, a user setting or an executable instruction channel.
 - Extraction retains the existing terminal/compaction cursor and cancellation contracts. Source
   attribution is carried per candidate through normalization, deduplication, decisions and retries.
   Equivalent candidates union their valid evidence; one candidate never borrows another's sources.
+- A nonempty extraction response whose otherwise valid candidates all have invalid citations is
+  retryable failure, not successful empty extraction. A deliberate empty result remains successful;
+  mixed responses retain the existing per-entry tolerance and publish only valid candidates.
+- Newly inserted claims, including superseding and challenging claims, persist the candidate's
+  cited Tape entries. UPDATE and existing-owner folds retain the row's original source metadata;
+  a single source session is not a multi-session revision history. Historical lineage is unchanged.
 - Legacy callers without individually addressable extraction material retain their existing
   coarse provenance contract. The normal chat runtime supplies addressable evidence.
 - A valid citation establishes input identity, not semantic entailment or truth. Recalled data
@@ -44,8 +50,10 @@ No persistence migration or public tool change is required. Existing source arra
 tables can represent the more precise results. The new reflection output is a private model
 contract; uncited legacy model responses are not upgraded to fabricated precise provenance.
 Evidence validation uses bounded lookup maps and source checks, never corpus scans or extra model
-calls. Model failure cannot block the conversation. Rollback is a code revert; stored finer-grained
-lineage remains readable by the previous implementation.
+calls. Runtime chunk limits include the exact model-visible evidence labels. Extraction renders raw
+untrusted fragments without JSON escaping amplification; model output still uses JSON validation.
+Model failure cannot block the conversation. Rollback is a code revert; stored finer-grained lineage
+remains readable by the previous implementation.
 
 ## Acceptance
 

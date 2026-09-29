@@ -239,6 +239,13 @@ vector projection，使重新创建的 Agent identity 从干净状态开始。
 Merge、reflection、supersede 和 manual edit 在 claim mutation 的同一 transaction 中写入 durable
 derivation edge。Audit 可重复记录 ID 供观测，但 retention 清理不能破坏 lineage。
 
+自动生成使用本次输入内的 evidence ID，由 host 映射回 Tape entry 或 parent claim；模型不能直接
+选择持久 ID。Extraction 新建 claim 只记录该候选引用的 Tape entry，同批等价候选合并来源，CAS
+retry 保留候选上下文。UPDATE 和 existing-owner fold 保留原始来源，不把单一 source session
+解释为跨会话修订历史。Reflection 只写被引用的 parent，并在写入 transaction 内重新校验 parent
+的 revision、owner、scope 和 lifecycle。引用有效只证明来源存在，不证明语义蕴含或内容为真。
+完整契约见 [Memory evidence attribution](./memory-evidence-attribution/spec.md)。
+
 Committed episodic、semantic 和 reflection mutation 会 upsert `agent_memory_dirty` generation。
 Maintenance 只处理有界 seed batch 和有界 same-scope vector neighbors；成功或 terminal/stale seed
 才 settle，暂时失败的 generation 会轮转到未处理 work 之后，不能让固定失败前缀饿死队列。Persona

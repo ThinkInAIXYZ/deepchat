@@ -3,6 +3,7 @@ import type { MemoryRetrievalDegradationCause } from '@shared/types/agent-memory
 import type { AgentMemoryKind, MemoryScopeContext, MemoryTemporalTrace } from '../domain/types'
 import type { MemoryExecutionToken } from './executionIdentity'
 import type {
+  MemoryExtractionInput,
   MemoryExtractionResult,
   MemoryPersonaDraftResult,
   MemoryReflectionResult
@@ -143,13 +144,7 @@ export interface MemoryRuntimePort extends MemoryInjectionPort {
   // Extracts memories from a span and writes them (status=pending_embedding).
   // Resolves { ok:true, createdIds } (createdIds may be empty) or { ok:false } on failure.
   // Never throws or blocks the caller; on ok:false the caller must keep its cursor for retry.
-  extractAndStore(input: {
-    agentId: string
-    spanText: string
-    model: { providerId: string; modelId: string }
-    sourceSession?: string | null
-    sourceEntryIds?: number[] | null
-  }): Promise<MemoryExtractionResult>
+  extractAndStore(input: MemoryExtractionInput): Promise<MemoryExtractionResult>
 
   // Reflects over recent atomic memories and writes high-level insight rows (kind=reflection).
   // Throttled on accumulated importance since the last reflection; returns the new reflection rows

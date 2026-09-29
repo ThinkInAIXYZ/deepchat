@@ -1,4 +1,6 @@
 import { estimateTokens, estimateTokenWeight } from '@/memory/core/injectionPort'
+import { renderExtractionEvidence } from '@/memory/core/extraction'
+import type { MemoryExtractionEvidence } from '@/memory/domain/types'
 import { unicodeCodePointLength } from '@shared/lib/unicodeText'
 
 export const MEMORY_EXTRACTION_CHUNK_TOKEN_LIMIT = 4_000
@@ -22,6 +24,7 @@ export interface MemoryExtractionFragment {
 export interface MemoryExtractionChunk {
   text: string
   sourceEntryIds: number[]
+  evidence: MemoryExtractionEvidence[]
   cursorCommitOrderSeq: number | null
   coveredThroughOrderSeq: number
   fragments: MemoryExtractionFragment[]
@@ -52,7 +55,7 @@ function* segmentText(value: string): Iterable<string> {
 
 function renderMessageFragments(message: MemoryExtractionMessage): RenderedFragment[] {
   const whole = `${fragmentPrefix(message.role)}${message.text}`
-  if (fitsBudget(whole)) {
+  if (fitsBudget(renderExtractionEvidence([whole]))) {
     return [
       {
         orderSeq: message.orderSeq,
@@ -87,7 +90,7 @@ function renderMessageFragments(message: MemoryExtractionMessage): RenderedFragm
 
   const appendUnit = (unit: string): void => {
     const fragmentIndex = fragments.length
-    const prefix = fragmentPrefix(message.role, fragmentIndex)
+    const prefix = renderExtractionEvidence([fragmentPrefix(message.role, fragmentIndex)])
     const prefixCodePoints = unicodeCodePointLength(prefix)
     const prefixTokenWeight = estimateTokenWeight(prefix)
     const unitCodePoints = unicodeCodePointLength(unit)
@@ -127,6 +130,10 @@ function buildChunk(fragments: readonly RenderedFragment[]): MemoryExtractionChu
   return {
     text: fragments.map((fragment) => fragment.text).join('\n'),
     sourceEntryIds: [...new Set(fragments.map((fragment) => fragment.entryId))],
+    evidence: fragments.map((fragment) => ({
+      sourceEntryId: fragment.entryId,
+      text: fragment.text
+    })),
     cursorCommitOrderSeq: finalFragments.length
       ? Math.max(...finalFragments.map((fragment) => fragment.orderSeq))
       : null,
@@ -149,10 +156,10 @@ export function buildMemoryExtractionChunks(
 
   for (const message of messages) {
     for (const fragment of renderMessageFragments(message)) {
-      const candidate = [...pending, fragment].map((item) => item.text).join('\n')
+      const candidate = renderExtractionEvidence([...pending, fragment].map((item) => item.text))
       if (pending.length > 0 && !fitsBudget(candidate)) flush()
       pending.push(fragment)
-      if (!fitsBudget(pending.map((item) => item.text).join('\n'))) {
+      if (!fitsBudget(renderExtractionEvidence(pending.map((item) => item.text)))) {
         throw new Error('[Memory] extraction fragment exceeds the configured chunk budget')
       }
     }
