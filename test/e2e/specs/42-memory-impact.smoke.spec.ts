@@ -73,7 +73,10 @@ test('Memory impact review archives only selected reflections @smoke', async ({
   await expect(panel.getByRole('checkbox')).toHaveCount(2)
   await panel.getByRole('checkbox').first().click()
   await panel.getByTestId('memory-impact-archive-selected').click()
-  await expect(panel.getByTestId('memory-impact-status-impact-a')).toContainText(/Archived|已归档/)
+  await expect(panel.getByTestId('memory-impact-status-impact-a')).toHaveAttribute(
+    'data-status',
+    'applied'
+  )
   const preview = await page.evaluate(() =>
     window.deepchat.invoke('memory.getImpact', {
       agentId: 'deepchat',
@@ -82,7 +85,10 @@ test('Memory impact review archives only selected reflections @smoke', async ({
   )
   expect(preview.page?.items.map((item) => item.memory.id)).toEqual(['impact-b'])
   await page.setViewportSize({ width: 760, height: 800 })
-  await expect(panel.getByTestId('memory-impact-status-impact-a')).toContainText(/Archived|已归档/)
+  await expect(panel.getByTestId('memory-impact-status-impact-a')).toHaveAttribute(
+    'data-status',
+    'applied'
+  )
   await panel.screenshot({ path: testInfo.outputPath('memory-impact-edit.png') })
 
   // Deleting the source without another selection must preserve the remaining reflection.

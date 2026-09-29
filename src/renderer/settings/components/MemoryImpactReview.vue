@@ -58,6 +58,7 @@
               class="mt-1 text-[11px]"
               :class="outcome.status === 'applied' ? 'text-muted-foreground' : 'text-destructive'"
               :data-testid="`memory-impact-status-${id}`"
+              :data-status="outcome.status"
             >
               {{ statusLabel(outcome.status) }}
             </p>
@@ -243,6 +244,8 @@ function refresh(): void {
 
 onBeforeUnmount(() => {
   requestId += 1
+  if (archiving.value) emit('busy', false)
+  archiving.value = false
 })
 
 watch(open, (value) => {

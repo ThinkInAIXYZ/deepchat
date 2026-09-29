@@ -57,8 +57,8 @@ afterEach(() => {
 })
 
 describe('MemoryImpactReview', () => {
-  it.each(['source mutation', 'archive batch'])(
-    'reloads after refresh during %s',
+  it.each(['source mutation', 'archive batch', 'unmount'])(
+    'reconciles refresh and busy state after %s',
     async (operation) => {
       vi.resetModules()
       const getImpact = vi.fn().mockResolvedValue({
@@ -79,8 +79,9 @@ describe('MemoryImpactReview', () => {
       const Component = (
         await import('../../../src/renderer/settings/components/MemoryImpactReview.vue')
       ).default
+      const onBusy = vi.fn()
       const wrapper = mount(Component, {
-        props: { agentId: 'agent', memoryId: 'source', refreshToken: 0 },
+        props: { agentId: 'agent', memoryId: 'source', refreshToken: 0, onBusy },
         global: {
           stubs: {
             DcButton: ButtonStub,
@@ -109,6 +110,17 @@ describe('MemoryImpactReview', () => {
       })
       await wrapper.setProps({ refreshToken: 1 })
       expect(getImpact).toHaveBeenCalledTimes(1)
+      if (operation === 'unmount') {
+        expect(onBusy).toHaveBeenLastCalledWith(true)
+        wrapper.unmount()
+        expect(onBusy).toHaveBeenLastCalledWith(false)
+        finish({ action: 'applied' })
+        await flushPromises()
+        expect(onBusy.mock.calls).toEqual([[true], [false]])
+        expect(getImpact).toHaveBeenCalledTimes(1)
+        expect(archiveImpact).toHaveBeenCalledTimes(1)
+        return
+      }
       if (operation === 'source mutation') await wrapper.setProps({ disabled: false })
       else finish({ action: 'applied' })
       await flushPromises()
