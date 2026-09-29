@@ -265,13 +265,17 @@ export class ManagementService {
     agentId: string,
     memoryId: string,
     actorType: 'runtime' | 'user',
-    beforeMutation?: () => void
+    beforeMutation?: () => void,
+    expectedRevision?: number
   ): MemoryCommandResult {
     if (this.ctx.isDisposed) return memoryCommandRejected('unavailable')
     this.ctx.assertSafeAgentId(agentId)
     if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
     const row = this.ports.repository.getById(memoryId)
     if (!row || row.agent_id !== agentId) return memoryCommandRejected('not-found')
+    if (expectedRevision !== undefined && row.decision_revision !== expectedRevision) {
+      return memoryCommandRejected('stale')
+    }
     if (this.ports.repository.isUnresolvedConflictParticipant(agentId, memoryId)) {
       return memoryCommandRejected('conflict')
     }
@@ -285,7 +289,7 @@ export class ManagementService {
         archived = this.ports.repository.archiveActiveMemory({
           agentId,
           id: row.id,
-          expectedRevision: row.decision_revision
+          expectedRevision: expectedRevision ?? row.decision_revision
         })
         if (!archived) return
       }
@@ -305,6 +309,35 @@ export class ManagementService {
       this.ctx.emitChanged(agentId, 'extract')
     }
     return memoryCommandApplied()
+  }
+
+  archiveImpact(
+    agentId: string,
+    memoryId: string,
+    derivedMemoryId: string,
+    expectedRevision: number
+  ): MemoryCommandResult {
+    if (this.ctx.isDisposed) return memoryCommandRejected('unavailable')
+    this.ctx.assertSafeAgentId(agentId)
+    if (!this.ctx.canManageClaimMemory(agentId)) return memoryCommandRejected('unavailable')
+    const [source] = this.ports.repository.listManagementVisibleByIds(agentId, [memoryId])
+    if (!source) return memoryCommandRejected('not-found')
+    if (
+      !this.ports.repository.hasDirectDerivation(agentId, memoryId, derivedMemoryId, 'reflection')
+    ) {
+      return memoryCommandRejected('not-found')
+    }
+    const target = this.ports.repository.getById(derivedMemoryId)
+    if (!target || target.agent_id !== agentId) return memoryCommandRejected('not-found')
+    if (target.decision_revision !== expectedRevision) return memoryCommandRejected('stale')
+    if (
+      target.kind !== 'reflection' ||
+      target.lifecycle_state !== 'active' ||
+      target.superseded_by !== null ||
+      target.conflict_state !== null
+    )
+      return memoryCommandRejected('invalid-state')
+    return this.archiveMemory(agentId, derivedMemoryId, 'user', undefined, expectedRevision)
   }
 
   /** @deprecated Use pageMemories for bounded management reads. */
@@ -402,6 +435,59 @@ export class ManagementService {
           ? {
               createdAt: lastRow.created_at,
               memoryId: lastMemoryId,
+              derivationKind: lastRow.derivation_kind
+            }
+          : null
+    }
+  }
+
+  getImpact(
+    agentId: string,
+    memoryId: string,
+    cursor: MemoryLineageCursor | null,
+    limit: number
+  ): {
+    items: Array<{ memory: AgentMemoryRow; revision: number }>
+    nextCursor: MemoryLineageCursor | null
+  } | null {
+    this.ctx.assertSafeAgentId(agentId)
+    if (!this.ctx.canManageClaimMemory(agentId)) return null
+    const [root] = this.ports.repository.listManagementVisibleByIds(agentId, [memoryId])
+    if (!root) return null
+
+    const normalizedLimit = Number.isFinite(limit)
+      ? Math.min(50, Math.max(1, Math.floor(limit)))
+      : 20
+    const rows = this.ports.repository.listDerivationPage(
+      agentId,
+      memoryId,
+      'children',
+      cursor,
+      normalizedLimit + 1,
+      'reflection'
+    )
+    const pageRows = rows.slice(0, normalizedLimit)
+    const relatedIds = pageRows.map((row) => row.child_memory_id)
+    const visibleRows = this.ports.repository
+      .listManagementVisibleByIds(agentId, relatedIds)
+      .filter(
+        (row) =>
+          row.kind === 'reflection' &&
+          row.lifecycle_state === 'active' &&
+          row.conflict_state === null
+      )
+    const visibleById = new Map(visibleRows.map((row) => [row.id, row]))
+    const lastRow = pageRows.at(-1)
+    return {
+      items: pageRows.flatMap((row) => {
+        const memory = visibleById.get(row.child_memory_id)
+        return memory ? [{ memory, revision: memory.decision_revision }] : []
+      }),
+      nextCursor:
+        rows.length > normalizedLimit && lastRow
+          ? {
+              createdAt: lastRow.created_at,
+              memoryId: lastRow.child_memory_id,
               derivationKind: lastRow.derivation_kind
             }
           : null

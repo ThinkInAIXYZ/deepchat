@@ -381,7 +381,8 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
     memoryId: string,
     direction: MemoryLineageDirection,
     cursor: MemoryLineageCursor | null,
-    limit: number
+    limit: number,
+    derivationKind?: AgentMemoryDerivationRow['derivation_kind']
   ) {
     const relatedId = (row: AgentMemoryDerivationRow) =>
       direction === 'parents' ? row.parent_memory_id : row.child_memory_id
@@ -392,7 +393,8 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
           (direction === 'parents'
             ? row.child_memory_id === memoryId
             : row.parent_memory_id === memoryId) &&
-          row.parent_memory_id !== row.child_memory_id
+          row.parent_memory_id !== row.child_memory_id &&
+          (!derivationKind || row.derivation_kind === derivationKind)
       )
       .filter((row) => {
         if (!cursor) return true
@@ -412,6 +414,17 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
           left.derivation_kind.localeCompare(right.derivation_kind)
       )
       .slice(0, Math.max(1, Math.floor(limit)))
+  }
+
+  hasDirectDerivation(
+    agentId: string,
+    parentMemoryId: string,
+    childMemoryId: string,
+    derivationKind: AgentMemoryDerivationRow['derivation_kind']
+  ): boolean {
+    return this.derivations.has(
+      this.derivationKey({ agentId, parentMemoryId, childMemoryId, derivationKind })
+    )
   }
 
   listDirtySeeds(agentId: string, limit: number): MemoryDirtySeed[] {
@@ -2381,7 +2394,8 @@ const LINEAGE_CAPABILITY_KEYS = [
   'insertDerivations',
   'listDerivationsByChild',
   'listDerivationsByParent',
-  'listDerivationPage'
+  'listDerivationPage',
+  'hasDirectDerivation'
 ] as const satisfies readonly (keyof MemoryLineageRepositoryPort)[]
 
 const DIRTY_CAPABILITY_KEYS = [

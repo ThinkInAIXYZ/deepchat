@@ -193,13 +193,21 @@
       :title="t('settings.deepchatAgents.memoryManager.deleteConfirmTitle')"
       :description="`${t('settings.deepchatAgents.memoryManager.deleteConfirmBody')} ${t('settings.memory.redesign.lineageDeleteRetained')}`"
       :confirm-label="t('settings.deepchatAgents.memoryManager.deletePermanent')"
-      :busy="deleteRequest.status === 'pending'"
+      :busy="deleteRequest.status === 'pending' || deleteImpactBusy"
       :confirm-attrs="{ 'data-testid': 'memory-list-delete-confirm' }"
       :cancel-attrs="{ 'data-testid': 'memory-list-delete-cancel' }"
       busy-data-testid="memory-list-delete-spinner"
       @update:open="onDeleteDialogOpen"
       @confirm="confirmRemove"
     >
+      <MemoryImpactReview
+        v-if="deleteRequest.status !== 'idle'"
+        :agent-id="agentId"
+        :memory-id="deleteRequest.target.id"
+        :disabled="deleteRequest.status === 'pending'"
+        :refresh-token="refreshToken"
+        @busy="deleteImpactBusy = $event"
+      />
       <MemoryInlineFeedback
         v-if="deleteFeedback"
         :feedback="deleteFeedback"
@@ -246,6 +254,7 @@ import {
 } from '../lib/useMemoryInlineFeedback'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 import MemoryEmptyState from './MemoryEmptyState.vue'
+import MemoryImpactReview from './MemoryImpactReview.vue'
 import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
 import MemoryInlinePanel from './MemoryInlinePanel.vue'
 import {
@@ -302,6 +311,7 @@ const pendingAction = ref<PendingPanelAction | null>(null)
 const closePrompt = ref(false)
 const panelDirty = ref(false)
 const panelBusy = ref(false)
+const deleteImpactBusy = ref(false)
 // Preserve request identity so stale async completions cannot overwrite a newer state.
 const deleteRequest = shallowRef<DeleteRequest>({ status: 'idle' })
 let pageGeneration = 0
@@ -672,6 +682,7 @@ function resetForAgentChange(): void {
   pendingAction.value = null
   closePrompt.value = false
   deleteRequest.value = { status: 'idle' }
+  deleteImpactBusy.value = false
   pendingIds.value = new Set()
   clearFeedback()
   clearDeleteFeedback()
@@ -921,14 +932,19 @@ function remove(memory: MemoryItem): void {
 }
 
 function onDeleteDialogOpen(open: boolean): void {
-  if (open || deleteRequest.value.status !== 'confirming') return
+  if (open || deleteRequest.value.status !== 'confirming' || deleteImpactBusy.value) return
   deleteRequest.value = { status: 'idle' }
   clearDeleteFeedback()
 }
 
 async function confirmRemove(): Promise<void> {
   const request = deleteRequest.value
-  if (request.status !== 'confirming' || pendingIds.value.has(request.target.id)) return
+  if (
+    request.status !== 'confirming' ||
+    deleteImpactBusy.value ||
+    pendingIds.value.has(request.target.id)
+  )
+    return
   const memory = request.target
   const pendingRequest = {
     status: 'pending' as const,
@@ -1004,9 +1020,9 @@ const leaveGuardLease = settingsLeaveGuard.register({
   onDiscard: closePanel
 })
 const stopLeaveRiskSync = watch(
-  [panelBusy, panelDirty],
-  ([busy, dirty]) => {
-    leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
+  [panelBusy, panelDirty, deleteImpactBusy],
+  ([busy, dirty, impactBusy]) => {
+    leaveGuardLease.setRisk(busy || impactBusy ? 'busy' : dirty ? 'dirty' : 'clean')
   },
   { immediate: true, flush: 'sync' }
 )

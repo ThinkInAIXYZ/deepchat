@@ -2647,7 +2647,8 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     memoryId: string,
     direction: MemoryLineageDirection,
     cursor: MemoryLineageCursor | null,
-    limit: number
+    limit: number,
+    derivationKind?: AgentMemoryDerivationRow['derivation_kind']
   ): AgentMemoryDerivationRow[] {
     const rootColumn = direction === 'parents' ? 'child_memory_id' : 'parent_memory_id'
     const relatedColumn = direction === 'parents' ? 'parent_memory_id' : 'child_memory_id'
@@ -2662,6 +2663,8 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
     if (cursor) {
       params.push(cursor.createdAt, cursor.memoryId, cursor.derivationKind)
     }
+    const derivationKindClause = derivationKind ? 'AND derivation_kind = ?' : ''
+    if (derivationKind) params.push(derivationKind)
     params.push(Math.max(1, Math.floor(limit)))
     return this.db
       .prepare(
@@ -2670,10 +2673,28 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          WHERE agent_id = ? AND ${rootColumn} = ?
            AND parent_memory_id != child_memory_id
            ${cursorClause}
+           ${derivationKindClause}
          ORDER BY created_at ASC, ${relatedColumn} ASC, derivation_kind ASC
          LIMIT ?`
       )
       .all(...params) as AgentMemoryDerivationRow[]
+  }
+
+  hasDirectDerivation(
+    agentId: string,
+    parentMemoryId: string,
+    childMemoryId: string,
+    derivationKind: AgentMemoryDerivationRow['derivation_kind']
+  ): boolean {
+    return !!this.db
+      .prepare(
+        `SELECT 1
+         FROM agent_memory_derivation
+         WHERE agent_id = ? AND parent_memory_id = ? AND child_memory_id = ?
+           AND derivation_kind = ? AND parent_memory_id != child_memory_id
+         LIMIT 1`
+      )
+      .get(agentId, parentMemoryId, childMemoryId, derivationKind)
   }
 
   listDirtySeeds(agentId: string, limit: number): MemoryDirtySeed[] {

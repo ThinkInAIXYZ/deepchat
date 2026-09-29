@@ -8,6 +8,8 @@ import {
   memoryCreateDirectiveRoute,
   memoryDeleteRoute,
   memoryDeleteDirectiveRoute,
+  memoryGetImpactRoute,
+  memoryArchiveImpactRoute,
   memoryGetArchiveCandidateLifecyclePreviewRoute,
   memoryGetByIdsRoute,
   memoryGetSourceSpanRoute,
@@ -45,6 +47,7 @@ import {
   type MemoryLifecycle,
   type MemoryLineageCursor,
   type MemoryLineagePage,
+  type MemoryImpactPage,
   type MemoryCommandResult,
   type MemorySearchResult,
   type MemoryScopeContextInput,
@@ -134,6 +137,20 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
       agentId,
       memoryId,
       direction,
+      cursor: options.cursor,
+      limit: options.limit
+    })
+    return result.page
+  }
+
+  async function getImpact(
+    agentId: string,
+    memoryId: string,
+    options: { cursor?: MemoryLineageCursor | null; limit?: number } = {}
+  ): Promise<MemoryImpactPage | null> {
+    const result = await bridge.invoke(memoryGetImpactRoute.name, {
+      agentId,
+      memoryId,
       cursor: options.cursor,
       limit: options.limit
     })
@@ -230,6 +247,20 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
 
   async function archive(agentId: string, memoryId: string): Promise<MemoryCommandResult> {
     return bridge.invoke(memoryArchiveRoute.name, { agentId, memoryId })
+  }
+
+  async function archiveImpact(
+    agentId: string,
+    memoryId: string,
+    derivedMemoryId: string,
+    expectedRevision: number
+  ): Promise<MemoryCommandResult> {
+    return bridge.invoke(memoryArchiveImpactRoute.name, {
+      agentId,
+      memoryId,
+      derivedMemoryId,
+      expectedRevision
+    })
   }
 
   async function clear(
@@ -362,6 +393,7 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     getHealth,
     getLifecycle,
     getLineage,
+    getImpact,
     getArchiveCandidateLifecyclePreview,
     search,
     add,
@@ -371,6 +403,7 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     listViewManifests,
     remove,
     archive,
+    archiveImpact,
     clear,
     restore,
     reindex,

@@ -261,6 +261,15 @@
         </CollapsibleContent>
       </Collapsible>
 
+      <MemoryImpactReview
+        v-if="memory && mode === 'edit'"
+        :agent-id="agentId"
+        :memory-id="memory.id"
+        :disabled="saving || pendingMutation !== null"
+        :refresh-token="refreshToken"
+        @busy="impactBusy = $event"
+      />
+
       <footer class="flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center">
         <div v-if="memory" class="flex items-center gap-1">
           <DcButton
@@ -310,6 +319,13 @@
             @update:open="handleDeleteDialogOpenChange"
             @confirm="remove"
           >
+            <MemoryImpactReview
+              :agent-id="agentId"
+              :memory-id="memory.id"
+              :disabled="saving || pendingMutation !== null"
+              :refresh-token="refreshToken"
+              @busy="impactBusy = $event"
+            />
             <MemoryInlineFeedback
               v-if="deleteFeedback"
               :feedback="deleteFeedback"
@@ -398,6 +414,7 @@ import {
   type MemoryInlineFeedbackState
 } from '../lib/useMemoryInlineFeedback'
 import MemoryLifecyclePanel from './MemoryLifecyclePanel.vue'
+import MemoryImpactReview from './MemoryImpactReview.vue'
 import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
 import MemoryLineageSection from './MemoryLineageSection.vue'
 import {
@@ -442,6 +459,7 @@ const deleteFeedback = deleteOperationFeedback.feedback
 const clearDeleteFeedback = deleteOperationFeedback.clear
 
 const saving = ref(false)
+const impactBusy = ref(false)
 const pendingMutation = ref<'archive' | 'restore' | 'remove' | null>(null)
 const sourceOpen = ref(false)
 const sourceLoading = ref(false)
@@ -470,7 +488,7 @@ const canEditMemory = computed(
     props.memory?.conflictState !== 'challenged' &&
     (props.memory?.kind === 'episodic' || props.memory?.kind === 'semantic')
 )
-const busy = computed(() => saving.value || pendingMutation.value !== null)
+const busy = computed(() => saving.value || pendingMutation.value !== null || impactBusy.value)
 const editable = computed(
   () => !busy.value && (props.mode === 'create' || (props.mode === 'edit' && canEditMemory.value))
 )
