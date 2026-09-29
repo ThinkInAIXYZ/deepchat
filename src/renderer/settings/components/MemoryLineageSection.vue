@@ -101,6 +101,7 @@ const props = defineProps<{
   agentId: string
   memoryId: string
   direction: 'parents' | 'children'
+  refreshToken?: number
 }>()
 const emit = defineEmits<{ 'open-memory': [memory: MemoryItem] }>()
 const { t, locale } = useI18n()
@@ -170,15 +171,22 @@ watch(open, (value) => {
 })
 
 watch(
-  () => [props.agentId, props.memoryId, props.direction],
-  () => {
+  () => [props.agentId, props.memoryId, props.direction, props.refreshToken] as const,
+  ([agentId, memoryId, direction], [previousAgent, previousMemory, previousDirection]) => {
     requestId += 1
-    open.value = false
+    if (
+      agentId !== previousAgent ||
+      memoryId !== previousMemory ||
+      direction !== previousDirection
+    ) {
+      open.value = false
+    }
     loading.value = false
     error.value = false
     unavailable.value = false
     items.value = []
     nextCursor.value = null
+    if (open.value) void load(false)
   }
 )
 </script>

@@ -84,6 +84,19 @@ test('Memory evidence pages, navigation and selective deletion @smoke', async ({
     .getByTestId('memory-inline-panel')
     .screenshot({ path: testInfo.outputPath('memory-lineage-desktop.png') })
 
+  // A mutation outside the panel must invalidate already loaded relation content.
+  await page.evaluate(async () => {
+    await window.deepchat.invoke('memory.delete', {
+      agentId: 'deepchat',
+      memoryId: 'lineage-source-1'
+    })
+  })
+  await expect(parents.locator('li')).toHaveCount(20)
+  await expect(page.getByTestId('memory-lineage-open-lineage-source-1')).toHaveCount(0)
+  await expect(parents.locator('li').nth(1)).toContainText(
+    /Related claim unavailable|相关记忆不可用|相關記憶無法使用/
+  )
+
   // Navigation must reveal a related archived row outside the default list filter.
   await page.getByTestId('memory-lineage-open-lineage-source-0').click()
   await expect(page.getByTestId('memory-inline-panel')).toContainText(

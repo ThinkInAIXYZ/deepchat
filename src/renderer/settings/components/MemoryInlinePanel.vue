@@ -227,12 +227,14 @@
         <MemoryLineageSection
           :agent-id="agentId"
           :memory-id="memory.id"
+          :refresh-token="refreshToken"
           direction="parents"
           @open-memory="emit('open-memory', $event)"
         />
         <MemoryLineageSection
           :agent-id="agentId"
           :memory-id="memory.id"
+          :refresh-token="refreshToken"
           direction="children"
           @open-memory="emit('open-memory', $event)"
         />
@@ -414,6 +416,7 @@ const props = defineProps<{
   memory: MemoryItem | null
   mode: 'view' | 'edit' | 'create'
   discardPrompt?: boolean
+  refreshToken?: number
 }>()
 
 const emit = defineEmits<{

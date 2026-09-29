@@ -113,6 +113,36 @@ describe('MemoryLineageSection', () => {
     expect(wrapper.find('[data-testid="memory-lineage-open-missing"]').exists()).toBe(false)
   })
 
+  it('invalidates visible content and pending pages on refresh of the same root', async () => {
+    const related = memory('parent-1', 'deleted claim')
+    const delayed = deferred<MemoryLineagePage | null>()
+    const page: MemoryLineagePage = {
+      items: [
+        { memoryId: related.id, derivationKind: 'reflection', createdAt: 1, memory: related }
+      ],
+      nextCursor: { createdAt: 1, memoryId: related.id, derivationKind: 'reflection' }
+    }
+    const getLineage = vi
+      .fn()
+      .mockResolvedValueOnce(page)
+      .mockReturnValueOnce(delayed.promise)
+      .mockResolvedValueOnce({
+        items: [{ ...page.items[0], memory: null }],
+        nextCursor: null
+      })
+    const wrapper = await setup(getLineage)
+    await wrapper.findAll('button').at(-1)!.trigger('click')
+    await wrapper.setProps({ refreshToken: 1 })
+    await flushPromises()
+    expect(getLineage).toHaveBeenLastCalledWith('deepchat', 'root', 'parents', { cursor: null })
+    expect(wrapper.text()).not.toContain('deleted claim')
+    expect(wrapper.find('[data-testid="memory-lineage-open-parent-1"]').exists()).toBe(false)
+    delayed.resolve(page)
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('deleted claim')
+    expect(wrapper.text()).toContain('settings.memory.redesign.relatedMemoryUnavailable')
+  })
+
   it('shows unavailable roots and fences delayed responses after a memory change', async () => {
     const stale = deferred<MemoryLineagePage | null>()
     const getLineage = vi.fn().mockReturnValueOnce(stale.promise).mockResolvedValueOnce(null)

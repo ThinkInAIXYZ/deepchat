@@ -110,6 +110,7 @@
               <MemoryInlinePanel
                 :agent-id="agentId"
                 :memory="panelMemoryFor(memory)"
+                :refresh-token="refreshToken"
                 :mode="expandedMode ?? 'view'"
                 :discard-prompt="panelDiscardPrompt"
                 @close="requestClosePanel"
@@ -151,6 +152,7 @@
                 <MemoryInlinePanel
                   :agent-id="agentId"
                   :memory="panelMemoryFor(memory)"
+                  :refresh-token="refreshToken"
                   :mode="expandedMode ?? 'view'"
                   :discard-prompt="panelDiscardPrompt"
                   @close="requestClosePanel"
