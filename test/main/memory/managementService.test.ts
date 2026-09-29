@@ -2379,6 +2379,92 @@ describe('MemoryService management', () => {
     expect(repo.getById(id)?.status).toBe('pending_embedding')
   })
 
+  it('archives only eligible direct reflection impact at the preview revision', () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    for (const [id, agentId] of [
+      ['source', 'a'],
+      ['target', 'a'],
+      ['merge-target', 'a'],
+      ['indirect', 'a'],
+      ['foreign', 'other']
+    ] as const) {
+      repo.insert({
+        id,
+        agentId,
+        kind: id === 'source' ? 'semantic' : 'reflection',
+        content: id,
+        status: 'embedded'
+      })
+    }
+    repo.insertDerivations([
+      {
+        agentId: 'a',
+        parentMemoryId: 'source',
+        childMemoryId: 'target',
+        derivationKind: 'reflection',
+        createdAt: 10
+      },
+      {
+        agentId: 'a',
+        parentMemoryId: 'source',
+        childMemoryId: 'merge-target',
+        derivationKind: 'merge',
+        createdAt: 20
+      },
+      {
+        agentId: 'a',
+        parentMemoryId: 'target',
+        childMemoryId: 'indirect',
+        derivationKind: 'reflection',
+        createdAt: 30
+      }
+    ])
+
+    const previewRevision = repo.getById('target')!.decision_revision
+    expect(presenter.archiveImpact('a', 'source', 'merge-target', 1)).toEqual({
+      action: 'rejected',
+      reason: 'not-found'
+    })
+    expect(presenter.archiveImpact('a', 'source', 'indirect', 1)).toEqual({
+      action: 'rejected',
+      reason: 'not-found'
+    })
+    expect(presenter.archiveImpact('a', 'source', 'foreign', 1)).toEqual({
+      action: 'rejected',
+      reason: 'not-found'
+    })
+
+    repo.getById('target')!.decision_revision += 1
+    expect(presenter.archiveImpact('a', 'source', 'target', previewRevision)).toEqual({
+      action: 'rejected',
+      reason: 'stale'
+    })
+    expect(repo.getById('target')?.lifecycle_state).toBe('active')
+
+    let targetReads = 0
+    const originalGetById = repo.getById.bind(repo)
+    const getById = vi.spyOn(repo, 'getById').mockImplementation((id) => {
+      const row = originalGetById(id)
+      if (id === 'target' && ++targetReads === 2 && row) row.decision_revision += 1
+      return row
+    })
+    const racingRevision = repo.getById('target')!.decision_revision
+    targetReads = 0
+    expect(presenter.archiveImpact('a', 'source', 'target', racingRevision)).toEqual({
+      action: 'rejected',
+      reason: 'stale'
+    })
+    getById.mockRestore()
+    expect(repo.getById('target')?.lifecycle_state).toBe('active')
+
+    const currentRevision = repo.getById('target')!.decision_revision
+    expect(presenter.archiveImpact('a', 'source', 'target', currentRevision)).toEqual({
+      action: 'applied'
+    })
+    expect(repo.getById('target')?.lifecycle_state).toBe('archived')
+    expect(repo.getById('source')?.lifecycle_state).toBe('active')
+  })
+
   it('refuses generic lifecycle and delete operations for persona and working rows', async () => {
     const { presenter, repo, auditRepo } = makePresenter(enabledConfig)
     repo.insert({

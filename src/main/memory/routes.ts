@@ -12,6 +12,8 @@ import {
   memoryCreateDirectiveRoute,
   memoryDeleteRoute,
   memoryDeleteDirectiveRoute,
+  memoryGetImpactRoute,
+  memoryArchiveImpactRoute,
   memoryGetArchiveCandidateLifecyclePreviewRoute,
   memoryGetByIdsRoute,
   memoryGetHealthRoute,
@@ -278,6 +280,15 @@ interface MemoryRouteService {
     cursor: MemoryLineageCursor | null,
     limit: number
   ): MemoryLineagePage | null
+  getImpact(
+    agentId: string,
+    memoryId: string,
+    cursor: MemoryLineageCursor | null,
+    limit: number
+  ): {
+    items: Array<{ memory: AgentMemoryRow; revision: number }>
+    nextCursor: MemoryLineageCursor | null
+  } | null
   getStatus(agentId: string): MemoryStatus
   getHealth(agentId: string): MemoryHealthDto
   canReindex(agentId: string): boolean
@@ -287,6 +298,12 @@ interface MemoryRouteService {
   getArchiveCandidateLifecyclePreview(agentId: string): MemoryArchiveCandidateLifecyclePreview
   deleteMemory(agentId: string, memoryId: string): Promise<MemoryCommandResult>
   archiveUserMemory(agentId: string, memoryId: string): Promise<MemoryCommandResult>
+  archiveImpact(
+    agentId: string,
+    memoryId: string,
+    derivedMemoryId: string,
+    expectedRevision: number
+  ): MemoryCommandResult
   clearMemoriesWithCleanup(agentId: string): Promise<MemoryClearResult>
   restoreMemory(agentId: string, memoryId: string): MemoryCommandResult
   listConflicts(agentId: string): MemoryConflictPair[]
@@ -610,6 +627,49 @@ export function createMemoryRoutes(deps: {
         return memoryGetSourceSpanRoute.output.parse({
           span: getSourceSpan(input.agentId, input.memoryId)
         })
+      }
+    ],
+    [
+      memoryGetImpactRoute.name,
+      async (rawInput) => {
+        const input = memoryGetImpactRoute.input.parse(rawInput)
+        const page = memoryService.getImpact(
+          input.agentId,
+          input.memoryId,
+          input.cursor ?? null,
+          input.limit
+        )
+        return memoryGetImpactRoute.output.parse({
+          page: page
+            ? {
+                items: page.items.map((item) => ({
+                  memory: toMemoryItemDto(item.memory),
+                  revision: item.revision
+                })),
+                nextCursor: page.nextCursor
+              }
+            : null
+        })
+      }
+    ],
+    [
+      memoryArchiveImpactRoute.name,
+      async (rawInput) => {
+        const input = memoryArchiveImpactRoute.input.parse(rawInput)
+        if ((await deps.getAgentType(input.agentId)) !== 'deepchat') {
+          return memoryArchiveImpactRoute.output.parse({
+            action: 'rejected',
+            reason: 'unavailable'
+          })
+        }
+        return memoryArchiveImpactRoute.output.parse(
+          memoryService.archiveImpact(
+            input.agentId,
+            input.memoryId,
+            input.derivedMemoryId,
+            input.expectedRevision
+          )
+        )
       }
     ],
     [

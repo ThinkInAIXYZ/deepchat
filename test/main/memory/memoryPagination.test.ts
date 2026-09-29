@@ -136,4 +136,80 @@ describe('MemoryService management pagination', () => {
     const { presenter: clearingPresenter } = makePresenter(enabledConfig, repo)
     expect(clearingPresenter.getLineage('a', 'root', 'parents', null, 20)).toBeNull()
   })
+
+  it('pages only direct reflection impact and preserves sparse-page cursors and isolation', () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    for (const [id, agentId] of [
+      ['source', 'a'],
+      ['hidden', 'a'],
+      ['visible', 'a'],
+      ['merge-child', 'a'],
+      ['grandchild', 'a'],
+      ['foreign', 'other']
+    ] as const) {
+      repo.insert({
+        id,
+        agentId,
+        kind: id === 'source' ? 'semantic' : 'reflection',
+        content: id,
+        status: 'embedded'
+      })
+    }
+    repo.seedArchived('hidden')
+    repo.insertDerivations([
+      {
+        agentId: 'a',
+        parentMemoryId: 'source',
+        childMemoryId: 'hidden',
+        derivationKind: 'reflection',
+        createdAt: 10
+      },
+      {
+        agentId: 'a',
+        parentMemoryId: 'source',
+        childMemoryId: 'visible',
+        derivationKind: 'reflection',
+        createdAt: 20
+      },
+      {
+        agentId: 'a',
+        parentMemoryId: 'source',
+        childMemoryId: 'merge-child',
+        derivationKind: 'merge',
+        createdAt: 15
+      },
+      {
+        agentId: 'a',
+        parentMemoryId: 'visible',
+        childMemoryId: 'grandchild',
+        derivationKind: 'reflection',
+        createdAt: 30
+      },
+      {
+        agentId: 'other',
+        parentMemoryId: 'source',
+        childMemoryId: 'foreign',
+        derivationKind: 'reflection',
+        createdAt: 40
+      }
+    ])
+
+    const first = presenter.getImpact('a', 'source', null, 1)!
+    expect(first.items).toEqual([])
+    expect(first.nextCursor).toEqual({
+      createdAt: 10,
+      memoryId: 'hidden',
+      derivationKind: 'reflection'
+    })
+    expect(presenter.getImpact('a', 'source', first.nextCursor, 1)).toEqual({
+      items: [
+        {
+          memory: expect.objectContaining({ id: 'visible' }),
+          revision: repo.getById('visible')?.decision_revision
+        }
+      ],
+      nextCursor: null
+    })
+    expect(presenter.getImpact('other', 'source', null, 20)).toBeNull()
+  })
 })

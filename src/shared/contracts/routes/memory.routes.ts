@@ -1054,6 +1054,38 @@ const MemoryLineageCursorSchema = z.object({
   derivationKind: MemoryDerivationKindSchema
 })
 
+export const MemoryImpactPageSchema = z.object({
+  items: z.array(
+    z.object({
+      memory: MemoryItemSchema,
+      revision: z.number().int().nonnegative()
+    })
+  ),
+  nextCursor: MemoryLineageCursorSchema.nullable()
+})
+
+export const memoryGetImpactRoute = defineRouteContract({
+  name: 'memory.getImpact',
+  input: z.object({
+    agentId: AgentIdSchema,
+    memoryId: z.string(),
+    cursor: MemoryLineageCursorSchema.nullable().optional(),
+    limit: z.number().int().positive().max(50).optional().default(20)
+  }),
+  output: z.object({ page: MemoryImpactPageSchema.nullable() })
+})
+
+export const memoryArchiveImpactRoute = defineRouteContract({
+  name: 'memory.archiveImpact',
+  input: z.object({
+    agentId: AgentIdSchema,
+    memoryId: z.string(),
+    derivedMemoryId: z.string(),
+    expectedRevision: z.number().int().nonnegative()
+  }),
+  output: MemoryCommandResultSchema
+})
+
 export const memoryGetLineageRoute = defineRouteContract({
   name: 'memory.getLineage',
   input: z.object({
@@ -1187,6 +1219,7 @@ export type MemorySourceSpan = z.infer<typeof memoryGetSourceSpanRoute.output>['
 export type MemoryLineageDirection = z.infer<typeof memoryGetLineageRoute.input>['direction']
 export type MemoryLineageCursor = z.infer<typeof MemoryLineageCursorSchema>
 export type MemoryLineagePage = NonNullable<z.infer<typeof memoryGetLineageRoute.output>['page']>
+export type MemoryImpactPage = z.infer<typeof MemoryImpactPageSchema>
 export type MemoryDirectiveItem = z.infer<typeof MemoryDirectiveItemSchema>
 export type MemoryDirectiveCreateInput = z.infer<typeof MemoryDirectiveInputSchema>
 export type MemoryDirectiveCommandResult = z.infer<typeof MemoryDirectiveCommandResultSchema>

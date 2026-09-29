@@ -525,6 +525,15 @@ export class MemoryService implements MemoryRuntimePort {
     return this.management.archiveUserMemory(agentId, memoryId)
   }
 
+  archiveImpact(
+    agentId: string,
+    memoryId: string,
+    derivedMemoryId: string,
+    expectedRevision: number
+  ): MemoryCommandResult {
+    return this.management.archiveImpact(agentId, memoryId, derivedMemoryId, expectedRevision)
+  }
+
   listConflicts(agentId: string): MemoryConflictPair[] {
     return this.conflict.listConflicts(agentId)
   }
@@ -786,6 +795,10 @@ export class MemoryService implements MemoryRuntimePort {
     limit: number
   ) {
     return this.management.getLineage(agentId, memoryId, direction, cursor, limit)
+  }
+
+  getImpact(agentId: string, memoryId: string, cursor: MemoryLineageCursor | null, limit: number) {
+    return this.management.getImpact(agentId, memoryId, cursor, limit)
   }
 
   getLifecycle(agentId: string, memoryId: string): MemoryLifecycle | null {

@@ -293,8 +293,15 @@ export interface MemoryLineageRepositoryPort {
     memoryId: string,
     direction: MemoryLineageDirection,
     cursor: MemoryLineageCursor | null,
-    limit: number
+    limit: number,
+    derivationKind?: AgentMemoryDerivationRow['derivation_kind']
   ): AgentMemoryDerivationRow[]
+  hasDirectDerivation(
+    agentId: string,
+    parentMemoryId: string,
+    childMemoryId: string,
+    derivationKind: AgentMemoryDerivationRow['derivation_kind']
+  ): boolean
 }
 
 export interface MemoryDirtyRepositoryPort {
