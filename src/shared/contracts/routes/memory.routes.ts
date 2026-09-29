@@ -1047,6 +1047,39 @@ export const memoryGetSourceSpanRoute = defineRouteContract({
   })
 })
 
+const MemoryDerivationKindSchema = z.enum(['merge', 'reflection', 'supersede', 'manual_edit'])
+const MemoryLineageCursorSchema = z.object({
+  createdAt: z.number(),
+  memoryId: z.string(),
+  derivationKind: MemoryDerivationKindSchema
+})
+
+export const memoryGetLineageRoute = defineRouteContract({
+  name: 'memory.getLineage',
+  input: z.object({
+    agentId: AgentIdSchema,
+    memoryId: z.string(),
+    direction: z.enum(['parents', 'children']),
+    cursor: MemoryLineageCursorSchema.nullable().optional(),
+    limit: z.number().int().positive().max(50).optional().default(20)
+  }),
+  output: z.object({
+    page: z
+      .object({
+        items: z.array(
+          z.object({
+            memoryId: z.string(),
+            derivationKind: MemoryDerivationKindSchema,
+            createdAt: z.number(),
+            memory: MemoryItemSchema.nullable()
+          })
+        ),
+        nextCursor: MemoryLineageCursorSchema.nullable()
+      })
+      .nullable()
+  })
+})
+
 export const memoryListConflictsRoute = defineRouteContract({
   name: 'memory.listConflicts',
   input: z.object({ agentId: AgentIdSchema }),
@@ -1151,6 +1184,9 @@ export type MemoryStatusDto = z.infer<typeof MemoryStatusSchema>
 export type MemoryAuditEvent = z.infer<typeof MemoryAuditEventSchema>
 export type MemoryViewManifest = z.infer<typeof MemoryViewManifestSchema>
 export type MemorySourceSpan = z.infer<typeof memoryGetSourceSpanRoute.output>['span']
+export type MemoryLineageDirection = z.infer<typeof memoryGetLineageRoute.input>['direction']
+export type MemoryLineageCursor = z.infer<typeof MemoryLineageCursorSchema>
+export type MemoryLineagePage = NonNullable<z.infer<typeof memoryGetLineageRoute.output>['page']>
 export type MemoryDirectiveItem = z.infer<typeof MemoryDirectiveItemSchema>
 export type MemoryDirectiveCreateInput = z.infer<typeof MemoryDirectiveInputSchema>
 export type MemoryDirectiveCommandResult = z.infer<typeof MemoryDirectiveCommandResultSchema>

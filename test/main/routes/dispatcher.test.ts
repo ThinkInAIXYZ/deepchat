@@ -2891,6 +2891,52 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
+  it('maps lineage pages without reconstructing unavailable memories', async () => {
+    const { runtime } = createRuntime()
+    const getLineage = vi.fn().mockReturnValue({
+      items: [
+        {
+          memoryId: 'deleted-parent',
+          derivationKind: 'reflection',
+          createdAt: 100,
+          memory: null
+        }
+      ],
+      nextCursor: {
+        createdAt: 100,
+        memoryId: 'deleted-parent',
+        derivationKind: 'reflection'
+      }
+    })
+    ;(runtime as any).memoryService = { getLineage }
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'memory.getLineage',
+      { agentId: 'deepchat', memoryId: 'root', direction: 'parents', limit: 1 },
+      createRendererRouteContext(42, 7)
+    )
+
+    expect(getLineage).toHaveBeenCalledWith('deepchat', 'root', 'parents', null, 1)
+    expect(result).toEqual({
+      page: {
+        items: [
+          {
+            memoryId: 'deleted-parent',
+            derivationKind: 'reflection',
+            createdAt: 100,
+            memory: null
+          }
+        ],
+        nextCursor: {
+          createdAt: 100,
+          memoryId: 'deleted-parent',
+          derivationKind: 'reflection'
+        }
+      }
+    })
+  })
+
   it('dispatches memory.getByIds with deepchat guard and input order projection', async () => {
     const { runtime } = createRuntime()
     const getByIds = vi.fn().mockReturnValue([

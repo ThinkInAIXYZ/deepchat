@@ -577,7 +577,8 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
           spanText: chunk.text,
           model: { providerId: state.providerId, modelId: state.modelId },
           sourceSession: sessionId,
-          sourceEntryIds: chunk.sourceEntryIds
+          sourceEntryIds: chunk.sourceEntryIds,
+          evidence: chunk.evidence
         })
         if (!result.ok || !this.canContinueExecution(sessionId, executionToken)) return
         if (!this.isSessionEpochCurrent(sessionId, epoch)) return

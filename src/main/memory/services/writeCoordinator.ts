@@ -21,7 +21,9 @@ import {
   buildExtractionPrompt,
   buildTriagePrompt,
   parseMemoryCandidates,
-  parseTriageDecision
+  parseTriageDecision,
+  renderExtractionEvidence,
+  type ExtractedMemoryCandidate
 } from '../core/extraction'
 import { buildScopedMemoryProvenanceKey, normalizeForProvenanceV2 } from '../core/scoring'
 import { AGENT_MEMORY_AGENT_SCOPE, normalizeMemoryScope, rowsShareMemoryScope } from '../core/scope'
@@ -155,6 +157,7 @@ type CoordinateWriteResult = MemoryWriteOutcome | { action: 'retry' }
 interface IndexedCandidate {
   candidateIndex: number
   candidate: NormalizedMemoryCandidate
+  context: WriteContext
 }
 
 // Everything a single write shares across preparation, decision, and apply. `options.scope` is
@@ -339,7 +342,14 @@ export class WriteCoordinator {
   }
 
   async extractAndStore(input: MemoryExtractionInput): Promise<MemoryExtractionResult> {
-    const span = input.spanText.trim()
+    const evidence = input.evidence?.map((item, index) => ({
+      evidenceId: `e${index + 1}`,
+      content: item.text,
+      sourceEntryId: item.sourceEntryId
+    }))
+    const span = evidence
+      ? renderExtractionEvidence(evidence.map((item) => item.content))
+      : input.spanText.trim()
     if (!span) return { ok: true, createdIds: [] }
     if (!this.ctx.canWriteAgentMemory(input.agentId)) return { ok: false }
     if (this.ctx.isDisposed) return { ok: false }
@@ -382,19 +392,23 @@ export class WriteCoordinator {
         input.agentId,
         model.providerId,
         model.modelId,
-        buildExtractionPrompt(span, { now, timeZone }),
+        buildExtractionPrompt(span, { now, timeZone }, evidence !== undefined),
         'extraction'
       )
       if (!this.ctx.canContinueOperation(operationFence)) {
         extractionOutcome = 'cancelled'
         return { ok: false }
       }
-      const parsed = parseMemoryCandidates(response)
+      const parsed = parseMemoryCandidates(
+        response,
+        evidence
+          ? new Map(evidence.map((item) => [item.evidenceId, item.sourceEntryId]))
+          : undefined
+      )
       if (!parsed.ok) {
         logger.warn(`[Memory] extraction parse failed: ${parsed.reason}`)
         return { ok: false }
       }
-      const candidateStats = this.prepareExtractionCandidates(parsed.candidates)
       const writeContext = createWriteContext(
         {
           agentId: input.agentId,
@@ -404,6 +418,7 @@ export class WriteCoordinator {
         },
         now
       )
+      const candidateStats = this.prepareExtractionCandidates(parsed.candidates, writeContext)
       const batch = await this.coordinateBatchWrites(
         writeContext,
         candidateStats.candidates,
@@ -465,7 +480,10 @@ export class WriteCoordinator {
     }
   }
 
-  private prepareExtractionCandidates(candidates: readonly MemoryCandidate[]): {
+  private prepareExtractionCandidates(
+    candidates: readonly ExtractedMemoryCandidate[],
+    context: WriteContext
+  ): {
     candidates: IndexedCandidate[]
     duplicateCandidateIndexes: number[]
     rejectedCandidates: Array<{ candidateIndex: number; reason: 'candidate-too-large' }>
@@ -491,6 +509,18 @@ export class WriteCoordinator {
         const existing = accepted[acceptedIndex]
         accepted[acceptedIndex] = {
           ...existing,
+          context: createWriteContext(
+            {
+              ...existing.context.options,
+              sourceEntryIds: [
+                ...new Set([
+                  ...(existing.context.options.sourceEntryIds ?? []),
+                  ...(candidate.sourceEntryIds ?? context.options.sourceEntryIds ?? [])
+                ])
+              ]
+            },
+            context.now
+          ),
           candidate: {
             ...existing.candidate,
             temporal: reconcileEquivalentClaimTemporalMetadata(
@@ -502,7 +532,16 @@ export class WriteCoordinator {
         return
       }
       acceptedIndexByKey.set(key, accepted.length)
-      accepted.push({ candidateIndex, candidate: normalized })
+      accepted.push({
+        candidateIndex,
+        candidate: normalized,
+        context: candidate.sourceEntryIds
+          ? createWriteContext(
+              { ...context.options, sourceEntryIds: candidate.sourceEntryIds },
+              context.now
+            )
+          : context
+      })
     })
     return { candidates: accepted, duplicateCandidateIndexes, rejectedCandidates }
   }
@@ -540,10 +579,8 @@ export class WriteCoordinator {
     })
   }
 
-  private prepareCoordinateCandidate(
-    ctx: WriteContext,
-    indexed: IndexedCandidate
-  ): PrepareCoordinateCandidateResult {
+  private prepareCoordinateCandidate(indexed: IndexedCandidate): PrepareCoordinateCandidateResult {
+    const ctx = indexed.context
     const { agentId, scope } = ctx
     const { kind, content } = indexed.candidate
     const ownership = this.ports.rows.resolveClaimOwnership(agentId, kind, content, scope, {
@@ -675,11 +712,11 @@ export class WriteCoordinator {
   // side effects, so the dispatch boundary commits here, right before the first store write.
   // Retries stay conservative: no insert, no fallback ADD, no second retry.
   private applyPreparedCandidate(
-    ctx: WriteContext,
     prepared: PreparedCoordinateCandidate,
     parsed: { decision: MemoryDecision; valid: boolean } | undefined,
     isRetry: boolean
   ): CoordinateWriteResult {
+    const ctx = prepared.context
     ctx.beforeMutation?.()
     if (!prepared.neighbors.length) {
       if (isRetry) return { action: 'noop', reason: 'concurrent-update' }
@@ -777,7 +814,7 @@ export class WriteCoordinator {
     for (const indexed of candidates) {
       if (!this.ctx.canContinueOperation(run.operationFence)) break
       try {
-        const preparation = this.prepareCoordinateCandidate(run.ctx, indexed)
+        const preparation = this.prepareCoordinateCandidate(indexed)
         if ('prepared' in preparation) {
           prepared.push(preparation.prepared)
           continue
@@ -856,7 +893,6 @@ export class WriteCoordinator {
         if (!this.ctx.canContinueOperation(operationFence)) break
         try {
           const applied = this.applyPreparedCandidate(
-            ctx,
             item,
             initialBatch.decisions.get(item.candidateIndex),
             false
@@ -898,11 +934,7 @@ export class WriteCoordinator {
       )
       // Ownership may have moved since the first pass, so retried candidates are re-resolved and
       // may settle immediately instead of asking the model again.
-      const retryBase = this.settleImmediateCandidates(
-        run,
-        retryEligible.map(({ candidateIndex, candidate }) => ({ candidateIndex, candidate })),
-        'retry preparation'
-      )
+      const retryBase = this.settleImmediateCandidates(run, retryEligible, 'retry preparation')
       if (!result.failed && retryBase.length) {
         const retryPrepared = await this.retrievePreparedCandidates(
           ctx,
@@ -924,7 +956,6 @@ export class WriteCoordinator {
           try {
             result.casRetries += 1
             const applied = this.applyPreparedCandidate(
-              ctx,
               item,
               retryBatch.decisions.get(item.candidateIndex),
               true
@@ -1373,7 +1404,7 @@ export class WriteCoordinator {
       // caller's fail-closed contract (for example a journal commit that cannot persist) surfaces.
       const batch = await this.coordinateBatchWrites(
         ctx,
-        [{ candidateIndex: 0, candidate: normalized }],
+        [{ candidateIndex: 0, candidate: normalized, context: ctx }],
         resolvedModel,
         operationFence
       )

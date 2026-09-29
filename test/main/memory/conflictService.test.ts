@@ -817,7 +817,7 @@ describe('MemoryService decision ring (T-A1..T-A5)', () => {
     const generateText = vi.fn(async (_providerId: string, _modelId: string, prompt: string) => {
       if (prompt.includes('KEEP or SKIP')) return 'KEEP'
       if (prompt.includes('JSON array')) {
-        return '[{"kind":"semantic","content":"user changed redis preference","importance":0.8}]'
+        return '[{"kind":"semantic","content":"user changed redis preference","importance":0.8,"evidenceIds":["e2"]}]'
       }
       if (prompt.includes('Choose exactly ONE decision')) {
         decisionCallCount += 1
@@ -839,6 +839,12 @@ describe('MemoryService decision ring (T-A1..T-A5)', () => {
     const result = await presenter.extractAndStore({
       agentId: 'a',
       spanText: 'User: my redis preference changed',
+      sourceSession: 's1',
+      sourceEntryIds: [11, 27],
+      evidence: [
+        { sourceEntryId: 11, text: 'Assistant: What changed?' },
+        { sourceEntryId: 27, text: 'User: my redis preference changed' }
+      ],
       model: { providerId: 'main', modelId: 'main' }
     })
 
@@ -846,10 +852,19 @@ describe('MemoryService decision ring (T-A1..T-A5)', () => {
     expect(decisionCallCount).toBe(2)
     if (decision === 'UPDATE') {
       expect(repo.getById(targetId)?.content).toBe('user strongly prefers redis')
+      expect(repo.getById(targetId)?.source_session).toBeNull()
     } else if (decision === 'SUPERSEDE') {
       expect(repo.getById(targetId)?.superseded_by).not.toBeNull()
     } else {
       expect(repo.getById(targetId)?.conflict_state).toBe('challenged')
+    }
+    if (decision !== 'UPDATE') {
+      const created = repo
+        .listByAgent('a', { statuses: ['pending_embedding', 'conflicted'] })
+        .filter((row) => row.id !== targetId)
+      expect(created).toHaveLength(1)
+      expect(created[0].source_session).toBe('s1')
+      expect(JSON.parse(created[0].source_entry_ids!)).toEqual([27])
     }
   })
 

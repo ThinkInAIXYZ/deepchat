@@ -17,7 +17,9 @@ import type { AgentMemoryRow } from './types'
 import {
   VectorStoreQuarantineMarkerError,
   type DeletedAgentMemoryCleanupResult,
-  type MemoryClearResult
+  type MemoryClearResult,
+  type MemoryLineageCursor,
+  type MemoryLineageDirection
 } from './domain/types'
 import type {
   MemoryCandidate,
@@ -774,6 +776,16 @@ export class MemoryService implements MemoryRuntimePort {
 
   getManagementVisibleByIds(agentId: string, memoryIds: string[]): AgentMemoryRow[] {
     return this.management.getManagementVisibleByIds(agentId, memoryIds)
+  }
+
+  getLineage(
+    agentId: string,
+    memoryId: string,
+    direction: MemoryLineageDirection,
+    cursor: MemoryLineageCursor | null,
+    limit: number
+  ) {
+    return this.management.getLineage(agentId, memoryId, direction, cursor, limit)
   }
 
   getLifecycle(agentId: string, memoryId: string): MemoryLifecycle | null {

@@ -50,11 +50,12 @@ const MemoryInlinePanelStub = defineComponent({
     'feedback',
     'busy',
     'dirty',
+    'open-memory',
     'discard-pending',
     'cancel-pending'
   ],
   template:
-    '<div data-testid="inline-panel" :data-mode="mode" :data-memory-id="memory?.id ?? \'\'" />'
+    '<div data-testid="inline-panel" :data-mode="mode" :data-memory-id="memory?.id ?? \'\'"><button data-testid="open-related" @click="$emit(\'open-memory\', { ...memory, id: \'related\', content: \'related claim\' })">open</button></div>'
 })
 
 const stubs = {
@@ -188,6 +189,46 @@ afterEach(() => {
 })
 
 describe('MemoryListView', () => {
+  it('opens a related claim in the existing detail flow', async () => {
+    const { wrapper } = await setup()
+
+    await wrapper.find('[data-memory-trigger]').trigger('click')
+    await wrapper.get('[data-testid="open-related"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="inline-panel"]').attributes('data-mode')).toBe('view')
+    expect(wrapper.get('[data-testid="inline-panel"]').attributes('data-memory-id')).toBe('related')
+  })
+
+  it('opens an off-page archived relation outside search only after edits are discarded', async () => {
+    vi.useFakeTimers()
+    const { wrapper } = await setup()
+    await wrapper.find('input[type="search"]').setValue('redis')
+    await vi.advanceTimersByTimeAsync(200)
+    await flushPromises()
+    await wrapper.find('[data-memory-trigger]').trigger('click')
+    const panel = wrapper.findComponent(MemoryInlinePanelStub)
+    panel.vm.$emit('dirty', true)
+    await flushPromises()
+    panel.vm.$emit(
+      'open-memory',
+      memory({
+        id: 'archived-relation',
+        content: 'unrelated database choice',
+        status: 'archived'
+      })
+    )
+    await flushPromises()
+    expect(wrapper.get('[data-testid="inline-panel"]').attributes('data-memory-id')).toBe('m1')
+    expect((wrapper.get('input[type="search"]').element as HTMLInputElement).value).toBe('redis')
+    panel.vm.$emit('discard-pending')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="inline-panel"]').attributes('data-memory-id')).toBe(
+      'archived-relation'
+    )
+    expect((wrapper.get('input[type="search"]').element as HTMLInputElement).value).toBe('')
+  })
+
   it('keeps search on refresh, but resets search and selection on agent change', async () => {
     vi.useFakeTimers()
     const { wrapper, memoryClient } = await setup()

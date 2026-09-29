@@ -677,6 +677,7 @@ describe('MemoryRuntimeCoordinator', () => {
     const chunks = [1, 2, 3, 4, 5].map((orderSeq) => ({
       text: `User: memory ${orderSeq}`,
       sourceEntryIds: [orderSeq],
+      evidence: [{ sourceEntryId: orderSeq, text: `User: memory ${orderSeq}` }],
       cursorCommitOrderSeq: orderSeq,
       coveredThroughOrderSeq: orderSeq,
       fragments: [{ orderSeq, entryId: orderSeq, fragmentIndex: 0, isFinalFragment: true }]
@@ -748,6 +749,7 @@ describe('MemoryRuntimeCoordinator', () => {
     const chunk = {
       text: 'User: Remember Redis.',
       sourceEntryIds: [1],
+      evidence: [{ sourceEntryId: 1, text: 'User: Remember Redis.' }],
       cursorCommitOrderSeq: 1,
       coveredThroughOrderSeq: 1,
       fragments: [{ orderSeq: 1, entryId: 1, fragmentIndex: 0, isFinalFragment: true }]
@@ -804,6 +806,7 @@ describe('MemoryRuntimeCoordinator', () => {
     const chunk = {
       text: 'User: Remember Redis.',
       sourceEntryIds: [1],
+      evidence: [{ sourceEntryId: 1, text: 'User: Remember Redis.' }],
       cursorCommitOrderSeq: 1,
       coveredThroughOrderSeq: 1,
       fragments: [{ orderSeq: 1, entryId: 1, fragmentIndex: 0, isFinalFragment: true }]
@@ -1420,7 +1423,7 @@ describe('MemoryRuntimeCoordinator', () => {
           generateText: async (_providerId, _modelId, prompt) => {
             if (prompt.includes('KEEP or SKIP')) return 'KEEP'
             if (prompt.includes('JSON array')) {
-              return '[{"kind":"semantic","content":"late memory preference","importance":0.9}]'
+              return '[{"kind":"semantic","content":"late memory preference","importance":0.9,"evidenceIds":["e1"]}]'
             }
             decisionStarted.resolve()
             return await provider.promise

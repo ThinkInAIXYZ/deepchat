@@ -110,6 +110,7 @@
               <MemoryInlinePanel
                 :agent-id="agentId"
                 :memory="panelMemoryFor(memory)"
+                :refresh-token="refreshToken"
                 :mode="expandedMode ?? 'view'"
                 :discard-prompt="panelDiscardPrompt"
                 @close="requestClosePanel"
@@ -119,6 +120,7 @@
                 @feedback="handlePanelFeedback"
                 @busy="panelBusy = $event"
                 @dirty="panelDirty = $event"
+                @open-memory="requestExpand($event, 'view')"
                 @discard-pending="discardAndSwitch"
                 @cancel-pending="cancelPendingAction"
               />
@@ -150,6 +152,7 @@
                 <MemoryInlinePanel
                   :agent-id="agentId"
                   :memory="panelMemoryFor(memory)"
+                  :refresh-token="refreshToken"
                   :mode="expandedMode ?? 'view'"
                   :discard-prompt="panelDiscardPrompt"
                   @close="requestClosePanel"
@@ -159,6 +162,7 @@
                   @feedback="handlePanelFeedback"
                   @busy="panelBusy = $event"
                   @dirty="panelDirty = $event"
+                  @open-memory="requestExpand($event, 'view')"
                   @discard-pending="discardAndSwitch"
                   @cancel-pending="cancelPendingAction"
                 />
@@ -187,7 +191,7 @@
     <DcConfirmDialog
       :open="deleteDialogOpen"
       :title="t('settings.deepchatAgents.memoryManager.deleteConfirmTitle')"
-      :description="t('settings.deepchatAgents.memoryManager.deleteConfirmBody')"
+      :description="`${t('settings.deepchatAgents.memoryManager.deleteConfirmBody')} ${t('settings.memory.redesign.lineageDeleteRetained')}`"
       :confirm-label="t('settings.deepchatAgents.memoryManager.deletePermanent')"
       :busy="deleteRequest.status === 'pending'"
       :confirm-attrs="{ 'data-testid': 'memory-list-delete-confirm' }"
@@ -720,6 +724,14 @@ function requestExpand(memory: MemoryItem, mode: Exclude<PanelMode, 'create'>): 
 }
 
 function setExpanded(memory: MemoryItem, mode: Exclude<PanelMode, 'create'>): void {
+  // A related claim can live outside the loaded page or current filters. Reconcile only when
+  // navigation is committed, after any pending edit has been saved or explicitly discarded.
+  upsertMemory(memory)
+  if (searchActive.value && !searchResults.value.some((row) => row.id === memory.id)) {
+    searchQuery.value = ''
+  }
+  if (!matchesCategoryFilter(memory, categoryFilter.value)) categoryFilter.value = 'all'
+  if (memory.status === 'archived') includeArchived.value = true
   expandedMemory.value = memory
   expandedMode.value = mode
   pendingAction.value = null
@@ -756,7 +768,6 @@ function removeMemory(memoryId: string): void {
 }
 
 function setPanelSelected(memory: MemoryItem): void {
-  upsertMemory(memory)
   setExpanded(memory, 'view')
 }
 

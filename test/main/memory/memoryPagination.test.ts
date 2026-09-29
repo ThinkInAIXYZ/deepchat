@@ -77,4 +77,63 @@ describe('MemoryService management pagination', () => {
       'visible'
     ])
   })
+
+  it('keeps unavailable lineage sources nullable and rejects isolated or clearing roots', () => {
+    const { presenter, repo } = makePresenter(enabledConfig)
+    for (const [id, agentId] of [
+      ['root', 'a'],
+      ['visible-parent', 'a'],
+      ['hidden-parent', 'a'],
+      ['foreign-root', 'other']
+    ] as const) {
+      repo.insert({ id, agentId, kind: 'semantic', content: id, status: 'embedded' })
+    }
+    repo.seedSupersededBy('hidden-parent', 'visible-parent')
+    repo.insertDerivations([
+      {
+        agentId: 'a',
+        parentMemoryId: 'hidden-parent',
+        childMemoryId: 'root',
+        derivationKind: 'reflection',
+        createdAt: 10
+      },
+      {
+        agentId: 'a',
+        parentMemoryId: 'visible-parent',
+        childMemoryId: 'root',
+        derivationKind: 'merge',
+        createdAt: 20
+      }
+    ])
+
+    expect(presenter.getLineage('a', 'root', 'parents', null, 20)).toEqual({
+      items: [
+        expect.objectContaining({ memoryId: 'hidden-parent', memory: null }),
+        expect.objectContaining({
+          memoryId: 'visible-parent',
+          memory: expect.objectContaining({ id: 'visible-parent' })
+        })
+      ],
+      nextCursor: null
+    })
+    expect(presenter.getLineage('a', 'foreign-root', 'parents', null, 20)).toBeNull()
+    expect(presenter.getLineage('other', 'root', 'parents', null, 20)).toBeNull()
+
+    const first = presenter.getLineage('a', 'root', 'parents', null, 1)!
+    expect(first.items.map((item) => item.memoryId)).toEqual(['hidden-parent'])
+    expect(first.nextCursor).toEqual({
+      createdAt: 10,
+      memoryId: 'hidden-parent',
+      derivationKind: 'reflection'
+    })
+    repo.delete('visible-parent')
+    expect(presenter.getLineage('a', 'root', 'parents', first.nextCursor, 1)).toEqual({
+      items: [expect.objectContaining({ memoryId: 'visible-parent', memory: null })],
+      nextCursor: null
+    })
+
+    repo.beginMemoryClear('a', 100)
+    const { presenter: clearingPresenter } = makePresenter(enabledConfig, repo)
+    expect(clearingPresenter.getLineage('a', 'root', 'parents', null, 20)).toBeNull()
+  })
 })

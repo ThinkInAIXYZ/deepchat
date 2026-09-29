@@ -2714,6 +2714,82 @@ describeIfSqlite('AgentMemoryTable', () => {
     }
   })
 
+  it('pages parent and child lineage by the full asymmetric keyset', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new AgentMemoryTableCtor(db)
+      table.createTable()
+      table.insertDerivations([
+        {
+          agentId: 'a',
+          parentMemoryId: 'parent-a',
+          childMemoryId: 'root',
+          derivationKind: 'merge',
+          createdAt: 100
+        },
+        {
+          agentId: 'a',
+          parentMemoryId: 'parent-a',
+          childMemoryId: 'root',
+          derivationKind: 'reflection',
+          createdAt: 100
+        },
+        {
+          agentId: 'a',
+          parentMemoryId: 'parent-b',
+          childMemoryId: 'root',
+          derivationKind: 'merge',
+          createdAt: 100
+        },
+        {
+          agentId: 'a',
+          parentMemoryId: 'root',
+          childMemoryId: 'child-a',
+          derivationKind: 'manual_edit',
+          createdAt: 90
+        },
+        {
+          agentId: 'a',
+          parentMemoryId: 'root',
+          childMemoryId: 'child-b',
+          derivationKind: 'supersede',
+          createdAt: 110
+        },
+        {
+          agentId: 'other',
+          parentMemoryId: 'other-parent',
+          childMemoryId: 'root',
+          derivationKind: 'merge',
+          createdAt: 1
+        }
+      ])
+
+      const firstParents = table.listDerivationPage('a', 'root', 'parents', null, 2)
+      expect(firstParents.map((row) => [row.parent_memory_id, row.derivation_kind])).toEqual([
+        ['parent-a', 'merge'],
+        ['parent-a', 'reflection']
+      ])
+      expect(
+        table
+          .listDerivationPage(
+            'a',
+            'root',
+            'parents',
+            { createdAt: 100, memoryId: 'parent-a', derivationKind: 'reflection' },
+            2
+          )
+          .map((row) => row.parent_memory_id)
+      ).toEqual(['parent-b'])
+      expect(
+        table
+          .listDerivationPage('a', 'root', 'children', null, 10)
+          .map((row) => row.child_memory_id)
+      ).toEqual(['child-a', 'child-b'])
+    } finally {
+      db.close()
+    }
+  })
+
   it('rejects new lineage self-edges and removes historical ones on reopen', () => {
     const db = new DatabaseCtor(':memory:')
     try {

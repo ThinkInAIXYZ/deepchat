@@ -35,6 +35,9 @@ import {
   VectorStoreQuarantineMarkerError,
   type MemoryClearResult,
   type MemoryDerivationInsertInput,
+  type MemoryLineageCursor,
+  type MemoryLineageDirection,
+  type MemoryLineagePage,
   type MemoryManagementPage,
   type MemoryManagementPageCursor,
   type MemoryStatus,
@@ -351,6 +354,58 @@ export class ManagementService {
     const rows = this.ports.repository.listManagementVisibleByIds(agentId, orderedIds)
     const rowsById = new Map(rows.map((row) => [row.id, row]))
     return orderedIds.map((id) => rowsById.get(id)).filter((row): row is AgentMemoryRow => !!row)
+  }
+
+  getLineage(
+    agentId: string,
+    memoryId: string,
+    direction: MemoryLineageDirection,
+    cursor: MemoryLineageCursor | null,
+    limit: number
+  ): MemoryLineagePage | null {
+    this.ctx.assertSafeAgentId(agentId)
+    if (!this.ctx.canManageClaimMemory(agentId)) return null
+    const [root] = this.ports.repository.listManagementVisibleByIds(agentId, [memoryId])
+    if (!root) return null
+
+    const normalizedLimit = Number.isFinite(limit)
+      ? Math.min(50, Math.max(1, Math.floor(limit)))
+      : 20
+    const rows = this.ports.repository.listDerivationPage(
+      agentId,
+      memoryId,
+      direction,
+      cursor,
+      normalizedLimit + 1
+    )
+    const pageRows = rows.slice(0, normalizedLimit)
+    const relatedIds = pageRows.map((row) =>
+      direction === 'parents' ? row.parent_memory_id : row.child_memory_id
+    )
+    const visibleRows = this.ports.repository.listManagementVisibleByIds(agentId, relatedIds)
+    const visibleById = new Map(visibleRows.map((row) => [row.id, row]))
+    const lastRow = pageRows.at(-1)
+    const lastMemoryId = lastRow
+      ? direction === 'parents'
+        ? lastRow.parent_memory_id
+        : lastRow.child_memory_id
+      : null
+    return {
+      items: pageRows.map((row, index) => ({
+        memoryId: relatedIds[index],
+        derivationKind: row.derivation_kind,
+        createdAt: row.created_at,
+        memory: visibleById.get(relatedIds[index]) ?? null
+      })),
+      nextCursor:
+        rows.length > normalizedLimit && lastRow && lastMemoryId
+          ? {
+              createdAt: lastRow.created_at,
+              memoryId: lastMemoryId,
+              derivationKind: lastRow.derivation_kind
+            }
+          : null
+    }
   }
 
   getLifecycle(agentId: string, memoryId: string): MemoryLifecycle | null {

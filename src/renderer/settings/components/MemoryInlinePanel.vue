@@ -223,6 +223,23 @@
         </CollapsibleContent>
       </Collapsible>
 
+      <template v-if="memory && mode === 'view'">
+        <MemoryLineageSection
+          :agent-id="agentId"
+          :memory-id="memory.id"
+          :refresh-token="refreshToken"
+          direction="parents"
+          @open-memory="emit('open-memory', $event)"
+        />
+        <MemoryLineageSection
+          :agent-id="agentId"
+          :memory-id="memory.id"
+          :refresh-token="refreshToken"
+          direction="children"
+          @open-memory="emit('open-memory', $event)"
+        />
+      </template>
+
       <Collapsible v-if="memory" v-model:open="lifecycleOpen" class="rounded-lg border">
         <CollapsibleTrigger
           class="flex w-full items-center justify-between px-3 py-2 text-left text-sm"
@@ -284,7 +301,7 @@
           <DcConfirmDialog
             :open="deleteDialogOpen"
             :title="t('settings.deepchatAgents.memoryManager.deleteConfirmTitle')"
-            :description="t('settings.deepchatAgents.memoryManager.deleteConfirmBody')"
+            :description="`${t('settings.deepchatAgents.memoryManager.deleteConfirmBody')} ${t('settings.memory.redesign.lineageDeleteRetained')}`"
             :confirm-label="t('settings.deepchatAgents.memoryManager.deletePermanent')"
             :busy="busy"
             :confirm-attrs="{ 'data-testid': 'memory-inline-delete-confirm' }"
@@ -382,6 +399,7 @@ import {
 } from '../lib/useMemoryInlineFeedback'
 import MemoryLifecyclePanel from './MemoryLifecyclePanel.vue'
 import MemoryInlineFeedback from './MemoryInlineFeedback.vue'
+import MemoryLineageSection from './MemoryLineageSection.vue'
 import {
   ADD_CATEGORY_NONE,
   IMPORTANCE_VALUES,
@@ -398,6 +416,7 @@ const props = defineProps<{
   memory: MemoryItem | null
   mode: 'view' | 'edit' | 'create'
   discardPrompt?: boolean
+  refreshToken?: number
 }>()
 
 const emit = defineEmits<{
@@ -408,6 +427,7 @@ const emit = defineEmits<{
   feedback: [feedback: MemoryInlineFeedbackState]
   busy: [value: boolean]
   dirty: [value: boolean]
+  'open-memory': [memory: MemoryItem]
   'discard-pending': []
   'cancel-pending': []
 }>()

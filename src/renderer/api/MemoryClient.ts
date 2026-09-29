@@ -13,6 +13,7 @@ import {
   memoryGetSourceSpanRoute,
   memoryGetHealthRoute,
   memoryGetLifecycleRoute,
+  memoryGetLineageRoute,
   memoryGetStatusRoute,
   memoryListAuditEventsRoute,
   memoryListConflictsRoute,
@@ -42,6 +43,8 @@ import {
   type MemoryItem,
   type MemoryPage,
   type MemoryLifecycle,
+  type MemoryLineageCursor,
+  type MemoryLineagePage,
   type MemoryCommandResult,
   type MemorySearchResult,
   type MemoryScopeContextInput,
@@ -119,6 +122,22 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
   async function getLifecycle(agentId: string, memoryId: string): Promise<MemoryLifecycle | null> {
     const result = await bridge.invoke(memoryGetLifecycleRoute.name, { agentId, memoryId })
     return result.lifecycle
+  }
+
+  async function getLineage(
+    agentId: string,
+    memoryId: string,
+    direction: 'parents' | 'children',
+    options: { cursor?: MemoryLineageCursor | null; limit?: number } = {}
+  ): Promise<MemoryLineagePage | null> {
+    const result = await bridge.invoke(memoryGetLineageRoute.name, {
+      agentId,
+      memoryId,
+      direction,
+      cursor: options.cursor,
+      limit: options.limit
+    })
+    return result.page
   }
 
   async function getArchiveCandidateLifecyclePreview(
@@ -342,6 +361,7 @@ export function createMemoryClient(bridge: DeepchatBridge = getDeepchatBridge())
     getStatus,
     getHealth,
     getLifecycle,
+    getLineage,
     getArchiveCandidateLifecyclePreview,
     search,
     add,

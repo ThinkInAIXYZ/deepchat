@@ -679,6 +679,77 @@ describe('MemoryService.extractAndStore triage gate, cheap model, lineage', () =
     expect(generateText.mock.calls[0][1]).toBe('main-m')
   })
 
+  it('persists per-candidate evidence and unions only equivalent candidates', async () => {
+    const generateText = vi.fn(async () =>
+      JSON.stringify({
+        memories: [
+          { content: 'User prefers Redis.', evidenceIds: ['e1'] },
+          { content: 'User prefers Redis.', evidenceIds: ['e3', 'e1'] },
+          { content: 'Project uses Vue.', evidenceIds: ['e2'] },
+          { content: 'Forged source.', evidenceIds: ['e1', 'e99'] },
+          { content: 'Uncited.' }
+        ],
+        directiveSuggestions: []
+      })
+    )
+    const { presenter, repo } = await build({ memoryEnabled: true }, generateText)
+    const result = await presenter.extractAndStore({
+      agentId: 'a',
+      spanText: 'legacy span must not override structured evidence',
+      sourceSession: 's1',
+      sourceEntryIds: [11, 27, 38, 99],
+      evidence: [
+        { sourceEntryId: 11, text: 'User: I prefer Redis.' },
+        { sourceEntryId: 27, text: 'User: This project uses Vue.' },
+        { sourceEntryId: 38, text: 'User: I still prefer Redis.' },
+        { sourceEntryId: 99, text: 'Assistant: Understood.' }
+      ],
+      model: { providerId: 'p', modelId: 'm' }
+    })
+    expect(result.ok).toBe(true)
+    const rows = repo.listByAgent('a')
+    expect(rows).toHaveLength(2)
+    expect(
+      JSON.parse(rows.find((row) => row.content === 'User prefers Redis.')!.source_entry_ids!)
+    ).toEqual([11, 38])
+    expect(
+      JSON.parse(rows.find((row) => row.content === 'Project uses Vue.')!.source_entry_ids!)
+    ).toEqual([27])
+    expect(generateText).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    { evidenceIds: undefined },
+    { evidenceIds: [] },
+    { evidenceIds: ['e1', 'e99'] },
+    { evidenceIds: [27] }
+  ])(
+    'keeps invalid evidence $evidenceIds retryable but accepts a deliberate empty result',
+    async ({ evidenceIds }) => {
+      const generateText = vi.fn(async (_provider: string, _model: string, prompt: string) => {
+        if (prompt.includes('KEEP or SKIP')) return 'KEEP'
+        return JSON.stringify({ memories: [{ content: 'User prefers Redis.', evidenceIds }] })
+      })
+      const { presenter, repo } = await build({ memoryEnabled: true }, generateText)
+      const input = {
+        agentId: 'a',
+        spanText: 'User: I prefer Redis.',
+        sourceSession: 's1',
+        evidence: [{ sourceEntryId: 27, text: 'User: I prefer Redis.' }],
+        model: { providerId: 'p', modelId: 'm' }
+      }
+      await expect(presenter.extractAndStore(input)).resolves.toEqual({ ok: false })
+      expect(repo.listByAgent('a')).toHaveLength(0)
+      generateText.mockImplementation(async (_provider, _model, prompt) =>
+        prompt.includes('KEEP or SKIP') ? 'KEEP' : '{"memories":[]}'
+      )
+      await expect(presenter.extractAndStore(input)).resolves.toMatchObject({
+        ok: true,
+        createdIds: []
+      })
+    }
+  )
+
   it('persists sourceEntryIds lineage scoped by sourceSession', async () => {
     const generateText = vi.fn(
       async () => 'KEEP\n[{"kind":"semantic","content":"user prefers redis"}]'
@@ -754,7 +825,7 @@ describe('MemoryService.maybeReflect cheap model', () => {
   it('reflects through the configured memoryExtractionModel', async () => {
     const generateText = vi.fn(
       async (_providerId: string, _modelId: string, _prompt: string) =>
-        '["The user prefers concise, technical answers."]'
+        '[{"content":"The user prefers concise, technical answers.","evidenceIds":["e1","e3"]}]'
     )
     const { presenter, repo } = await buildWithMemories(
       {
@@ -784,9 +855,74 @@ describe('MemoryService.maybeReflect cheap model', () => {
     expect([...repo.rows.values()].some((r: any) => r.kind === 'persona')).toBe(false)
   })
 
+  it('attributes each reflection only to its cited evidence', async () => {
+    const generateText = vi.fn(async () =>
+      JSON.stringify([
+        { content: 'First pattern.', evidenceIds: ['e1', 'e3', 'e1'] },
+        { content: 'Second pattern.', evidenceIds: ['e2'] }
+      ])
+    )
+    const { presenter, repo } = await buildWithMemories({ memoryEnabled: true }, generateText)
+    const result = await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })
+    expect(result?.reflectionIds).toHaveLength(2)
+    // The input is ordered by importance, creation time, then descending ID.
+    expect(
+      repo
+        .listDerivationsByChild('a', result!.reflectionIds[0])
+        .map((e) => e.parent_memory_id)
+        .sort()
+    ).toEqual(['m3', 'm5'])
+    expect(
+      repo.listDerivationsByChild('a', result!.reflectionIds[1]).map((e) => e.parent_memory_id)
+    ).toEqual(['m4'])
+    expect(result!.sourceMemoryIds.sort()).toEqual(['m3', 'm4', 'm5'])
+    expect(generateText).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects uncited and partially forged reflection evidence', async () => {
+    const generateText = vi.fn(async () =>
+      JSON.stringify([
+        { content: 'Forged.', evidenceIds: ['e1', 'm5'] },
+        { content: 'Missing.' },
+        { content: 'Valid.', evidenceIds: ['e2'] }
+      ])
+    )
+    const { presenter, repo } = await buildWithMemories({ memoryEnabled: true }, generateText)
+    const result = await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })
+    expect(result?.reflectionIds).toHaveLength(1)
+    expect(repo.getById(result!.reflectionIds[0]).content).toBe('Valid.')
+    expect(result!.sourceMemoryIds).toEqual(['m4'])
+  })
+
+  it.each(['revised', 'challenged', 'deleted'] as const)(
+    'rejects %s evidence without discarding an independent reflection',
+    async (change) => {
+      const generateText = vi.fn(async () => {
+        const row = repo.getById('m5')!
+        if (change === 'deleted') repo.rows.delete('m5')
+        else
+          repo.rows.set('m5', {
+            ...row,
+            decision_revision: row.decision_revision + (change === 'revised' ? 1 : 0),
+            conflict_state: change === 'challenged' ? 'challenged' : null
+          })
+        return JSON.stringify([
+          { content: 'Stale.', evidenceIds: ['e1', 'e3'] },
+          { content: 'Current.', evidenceIds: ['e2'] }
+        ])
+      })
+      const { presenter, repo } = await buildWithMemories({ memoryEnabled: true }, generateText)
+      const result = await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })
+      expect(result?.reflectionIds).toHaveLength(1)
+      expect(repo.getById(result!.reflectionIds[0]).content).toBe('Current.')
+      expect(result!.sourceMemoryIds).toEqual(['m4'])
+    }
+  )
+
   it('never promotes narrow-scope claims into agent-wide reflections', async () => {
     const generateText = vi.fn(
-      async (_providerId: string, _modelId: string, _prompt: string) => '["Agent-wide insight."]'
+      async (_providerId: string, _modelId: string, _prompt: string) =>
+        '[{"content":"Agent-wide insight.","evidenceIds":["e1","e2","e3","e4","e5","e6"]}]'
     )
     const { presenter, repo } = await buildWithMemories({ memoryEnabled: true }, generateText)
     for (const [id, content, scope] of [
@@ -819,7 +955,8 @@ describe('MemoryService.maybeReflect cheap model', () => {
 
   it('falls back to the caller model when no memoryExtractionModel is configured', async () => {
     const generateText = vi.fn(
-      async (_providerId: string, _modelId: string, _prompt: string) => '["An insight."]'
+      async (_providerId: string, _modelId: string, _prompt: string) =>
+        '[{"content":"An insight.","evidenceIds":["e1"]}]'
     )
     const { presenter } = await buildWithMemories({ memoryEnabled: true }, generateText)
     await presenter.maybeReflect('a', { providerId: 'main-p', modelId: 'main-m' })
@@ -834,6 +971,27 @@ describe('MemoryService.maybeReflect cheap model', () => {
     const result = await presenter.maybeReflect('a', { providerId: 'main-p', modelId: 'main-m' })
     expect(result).toBeNull()
     expect(generateText).not.toHaveBeenCalled()
+  })
+
+  it('retries revised evidence when all reflection results became stale', async () => {
+    const generateText = vi.fn(async () => {
+      if (generateText.mock.calls.length === 1) {
+        const row = repo.getById('m5')!
+        repo.rows.set('m5', {
+          ...row,
+          content: 'updated source',
+          decision_revision: row.decision_revision + 1
+        })
+      }
+      return '[{"content":"Supported insight","evidenceIds":["e1"]}]'
+    })
+    const { presenter, repo } = await buildWithMemories({ memoryEnabled: true }, generateText)
+    expect(await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })).toBeNull()
+    expect(repo.derivations.size).toBe(0)
+    const retried = await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })
+    expect(generateText).toHaveBeenCalledTimes(2)
+    expect(retried?.sourceMemoryIds).toEqual(['m5'])
+    expect(retried?.reflectionIds).toHaveLength(1)
   })
 
   it('does not re-run the model on the same units after an empty reflection', async () => {
@@ -861,7 +1019,9 @@ describe('MemoryService.maybeReflect cheap model', () => {
 
   it('does not re-run the model when every insight is a duplicate', async () => {
     const { buildMemoryProvenanceKey } = await import('@/memory/core/scoring')
-    const generateText = vi.fn(async () => '["already known insight"]')
+    const generateText = vi.fn(
+      async () => '[{"content":"already known insight","evidenceIds":["e1"]}]'
+    )
     const { presenter, repo } = await buildWithMemories({ memoryEnabled: true }, generateText)
     // A reflection with this content already exists, so the model's insight dedups to nothing.
     repo.insert({

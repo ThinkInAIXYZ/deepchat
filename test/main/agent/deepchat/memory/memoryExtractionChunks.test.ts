@@ -6,6 +6,7 @@ import {
   buildMemoryExtractionChunks
 } from '@/agent/deepchat/memory/memoryExtractionChunks'
 import { estimateTokens } from '@/memory/core/injectionPort'
+import { renderExtractionEvidence } from '@/memory/core/extraction'
 
 describe('buildMemoryExtractionChunks', () => {
   it('packs complete messages in order with exact lineage', () => {
@@ -18,6 +19,10 @@ describe('buildMemoryExtractionChunks', () => {
       {
         text: 'User: Prefer concise answers.\nAssistant: Understood.',
         sourceEntryIds: [11, 12],
+        evidence: [
+          { sourceEntryId: 11, text: 'User: Prefer concise answers.' },
+          { sourceEntryId: 12, text: 'Assistant: Understood.' }
+        ],
         cursorCommitOrderSeq: 2,
         coveredThroughOrderSeq: 2,
         fragments: [
@@ -35,9 +40,38 @@ describe('buildMemoryExtractionChunks', () => {
 
     expect(chunks.length).toBeGreaterThan(1)
     for (const chunk of chunks) {
-      expect(estimateTokens(chunk.text)).toBeLessThanOrEqual(MEMORY_EXTRACTION_CHUNK_TOKEN_LIMIT)
-      expect(Array.from(chunk.text).length).toBeLessThanOrEqual(MEMORY_EXTRACTION_CHUNK_CHAR_LIMIT)
+      const payload = renderExtractionEvidence(chunk.evidence.map((item) => item.text))
+      expect(estimateTokens(payload)).toBeLessThanOrEqual(MEMORY_EXTRACTION_CHUNK_TOKEN_LIMIT)
+      expect(Array.from(payload).length).toBeLessThanOrEqual(MEMORY_EXTRACTION_CHUNK_CHAR_LIMIT)
     }
+  })
+
+  it('budgets evidence labels and preserves escape-heavy input', () => {
+    const content = '\"\\\t\n'.repeat(4_000)
+    const messages = [
+      { orderSeq: 1, entryId: 11, role: 'user' as const, text: content },
+      ...Array.from({ length: 800 }, (_, index) => ({
+        orderSeq: index + 2,
+        entryId: index + 12,
+        role: 'user' as const,
+        text: 'ok'
+      }))
+    ]
+    const chunks = buildMemoryExtractionChunks(messages)
+    expect(chunks.length).toBeGreaterThan(2)
+    for (const chunk of chunks) {
+      const payload = renderExtractionEvidence(chunk.evidence.map((item) => item.text))
+      expect(estimateTokens(payload)).toBeLessThanOrEqual(MEMORY_EXTRACTION_CHUNK_TOKEN_LIMIT)
+      expect(Array.from(payload).length).toBeLessThanOrEqual(MEMORY_EXTRACTION_CHUNK_CHAR_LIMIT)
+    }
+    expect(
+      chunks
+        .flatMap((chunk) => chunk.evidence)
+        .filter((item) => item.sourceEntryId === 11)
+        .map((item) => item.text.replace(/^User(?: \[fragment \d+\])?: /u, ''))
+        .join('')
+    ).toBe(content)
+    expect(chunks.at(-1)?.cursorCommitOrderSeq).toBe(801)
   })
 
   it('does not commit an oversized message until its final Unicode-safe fragment', () => {
@@ -53,6 +87,15 @@ describe('buildMemoryExtractionChunks', () => {
       Array.from({ length: chunks.length }, () => 70)
     )
     expect(chunks.map((chunk) => chunk.text).join('')).not.toContain('\ud83d\n')
+    expect(chunks.every((chunk) => chunk.evidence.every((item) => item.sourceEntryId === 70))).toBe(
+      true
+    )
+    expect(
+      chunks
+        .flatMap((chunk) => chunk.evidence)
+        .map((item) => item.text)
+        .join('\n')
+    ).toBe(chunks.map((chunk) => chunk.text).join('\n'))
   })
 
   it('treats every message sharing an order sequence as one cursor commit group', () => {

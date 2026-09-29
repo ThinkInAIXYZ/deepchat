@@ -103,6 +103,9 @@ export class ReflectionService {
         (row) => estimateTokens(row.content)
       )
       if (top.length < MIN_MEMORIES_FOR_REFLECTION) return finish(null)
+      const evidence = new Map<string, { id: string; revision: number }>(
+        top.map((row, index) => [`e${index + 1}`, { id: row.id, revision: row.decision_revision }])
+      )
       const reflectionModel = this.ctx.resolveExtractionModel(agentId, model)
       const prompt = buildReflectionInsightsPrompt(top.map((row) => row.content))
       if (!budget.reserve('reflection', estimateTokens(prompt))) return finish(null)
@@ -121,29 +124,50 @@ export class ReflectionService {
         throw error
       }
       if (!this.ctx.canContinueOperation(operationFence)) return finish(null)
-      const insights = parseReflectionInsights(raw)
+      const insights = parseReflectionInsights(raw, new Set(evidence.keys()))
       const now = this.ctx.now()
-      const sourceMemoryIds = top.map((row) => row.id)
+      const sourceMemoryIds = new Set<string>()
+      let rejectedStaleEvidence = false
       const reflectionIds = this.ports.repository.runInTransaction(() => {
-        const insertedIds = insights.flatMap((insight) => {
-          const id = this.insertReflection(agentId, insight, sourceSession ?? null, now)
-          return id ? [id] : []
-        })
-        this.ports.repository.insertDerivations(
-          insertedIds.flatMap((childMemoryId) =>
-            sourceMemoryIds.map((parentMemoryId) => ({
+        const currentEvidence = new Map(
+          [...evidence].map(([id, snapshot]) => {
+            const current = this.ports.repository.getById(snapshot.id)
+            const valid =
+              current?.agent_id === agentId &&
+              current.decision_revision === snapshot.revision &&
+              current.lifecycle_state === 'active' &&
+              current.conflict_state === null &&
+              current.superseded_by === null &&
+              current.scope_type === 'agent' &&
+              current.scope_id === null
+            return [id, valid ? snapshot.id : null] as const
+          })
+        )
+        return insights.flatMap((insight) => {
+          const parents = insight.evidenceIds.map((id) => currentEvidence.get(id))
+          if (parents.some((id) => !id)) {
+            rejectedStaleEvidence = true
+            return []
+          }
+          const id = this.insertReflection(agentId, insight.content, sourceSession ?? null, now)
+          if (!id) return []
+          const parentIds = parents as string[]
+          this.ports.repository.insertDerivations(
+            parentIds.map((parentMemoryId) => ({
               agentId,
               parentMemoryId,
-              childMemoryId,
+              childMemoryId: id,
               derivationKind: 'reflection' as const,
               createdAt: now
             }))
           )
-        )
-        return insertedIds
+          parentIds.forEach((parentId) => sourceMemoryIds.add(parentId))
+          return [id]
+        })
       })
       if (!reflectionIds.length) {
-        this.reflectionAttemptWatermark.set(agentId, maxUnitCreatedAt)
+        // A concurrent source edit is not an empty result: allow a fresh attempt next pass.
+        if (!rejectedStaleEvidence) this.reflectionAttemptWatermark.set(agentId, maxUnitCreatedAt)
         return finish(null)
       }
       this.reflectionAttemptWatermark.delete(agentId)
@@ -154,7 +178,7 @@ export class ReflectionService {
       void this.ports.triggerEmbedding(agentId).catch((error) => {
         logger.warn(`[Memory] background embedding failed: ${String(error)}`)
       })
-      return finish({ reflectionIds, sourceMemoryIds })
+      return finish({ reflectionIds, sourceMemoryIds: [...sourceMemoryIds] })
     } catch (error) {
       logger.warn(`[Memory] reflection skipped: ${String(error)}`)
       return finish(null)
