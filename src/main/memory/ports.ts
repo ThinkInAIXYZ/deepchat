@@ -39,6 +39,8 @@ import type {
   MemoryClearBatchResult,
   MemoryClearJob,
   MemoryDerivationInsertInput,
+  MemoryLineageCursor,
+  MemoryLineageDirection,
   MemoryDirtySeed,
   MemoryModelRef,
   MemoryClaimContentUpdateResult,
@@ -286,6 +288,13 @@ export interface MemoryLineageRepositoryPort {
   insertDerivations(inputs: readonly MemoryDerivationInsertInput[]): number
   listDerivationsByChild(agentId: string, childMemoryId: string): AgentMemoryDerivationRow[]
   listDerivationsByParent(agentId: string, parentMemoryId: string): AgentMemoryDerivationRow[]
+  listDerivationPage(
+    agentId: string,
+    memoryId: string,
+    direction: MemoryLineageDirection,
+    cursor: MemoryLineageCursor | null,
+    limit: number
+  ): AgentMemoryDerivationRow[]
 }
 
 export interface MemoryDirtyRepositoryPort {

@@ -32,3 +32,21 @@ Final combined gates passed: `pnpm run test:memory` (54 files, 962 tests, plus s
 `pnpm run typecheck`, `pnpm run format:check`, `pnpm run lint`, and `pnpm run i18n`. The earlier ACP
 type errors were local dependency drift, resolved with `pnpm install --frozen-lockfile --ignore-scripts`;
 no manifest or lockfile changes were needed. Both behavior slices are committed locally; no push.
+
+## Inspectable evidence extension
+
+- [x] Add bounded, Agent-isolated lineage pagination through the existing management service and
+      typed route. Review security and pagination, verify and ablate, then commit locally.
+- [ ] Extend existing details with parents/children, unavailable-source states, related-memory
+      navigation and selective-delete guidance. Reuse existing components and management actions.
+- [ ] Validate deterministic backend/renderer behavior and rendered UI states with disposable
+      fixtures. Review P0–P3 findings, remove redundant design, run full quality gates and commit.
+
+No push, external issue sync, new database, automatic cascade or model invocation is authorized by
+this extension. Keep commit messages free of agent attribution and thread trailers.
+
+Lineage API validation: 963 memory behavior tests, 104 required-native table tests and 75 dispatcher
+tests passed, along with node typecheck and focused lint. Removing management visibility filtering
+exposed a superseded parent's content and failed the regression; restoring it passed. SQLite query
+plans showed the existing child index already covers the full keyset, so the redundant proposed
+index was removed. Only the outbound relation index is added during idempotent table setup.

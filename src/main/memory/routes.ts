@@ -16,6 +16,7 @@ import {
   memoryGetByIdsRoute,
   memoryGetHealthRoute,
   memoryGetLifecycleRoute,
+  memoryGetLineageRoute,
   memoryGetSourceSpanRoute,
   memoryGetStatusRoute,
   memoryListAuditEventsRoute,
@@ -64,7 +65,13 @@ import type {
   MemoryDirectiveInput,
   MemoryDirectiveListOptions
 } from './domain/directives'
-import type { CanonicalAgentMemoryRow as AgentMemoryRow, MemoryClearResult } from './domain/types'
+import type {
+  CanonicalAgentMemoryRow as AgentMemoryRow,
+  MemoryClearResult,
+  MemoryLineageCursor,
+  MemoryLineageDirection,
+  MemoryLineagePage
+} from './domain/types'
 import { projectLegacyStatus } from './domain/stateModel'
 import type { AgentMemoryAuditRow, MemoryAuditListOptions } from './domain/audit'
 import { temporalMetadataFromRow } from './core/temporal'
@@ -264,6 +271,13 @@ interface MemoryRouteService {
   ): MemoryUpdateResult
   getByIds(agentId: string, memoryIds: string[]): AgentMemoryRow[]
   getManagementVisibleByIds(agentId: string, memoryIds: string[]): AgentMemoryRow[]
+  getLineage(
+    agentId: string,
+    memoryId: string,
+    direction: MemoryLineageDirection,
+    cursor: MemoryLineageCursor | null,
+    limit: number
+  ): MemoryLineagePage | null
   getStatus(agentId: string): MemoryStatus
   getHealth(agentId: string): MemoryHealthDto
   canReindex(agentId: string): boolean
@@ -561,6 +575,32 @@ export function createMemoryRoutes(deps: {
         return memoryRestoreRoute.output.parse(
           memoryService.restoreMemory(input.agentId, input.memoryId)
         )
+      }
+    ],
+    [
+      memoryGetLineageRoute.name,
+      async (rawInput) => {
+        const input = memoryGetLineageRoute.input.parse(rawInput)
+        const page = memoryService.getLineage(
+          input.agentId,
+          input.memoryId,
+          input.direction,
+          input.cursor ?? null,
+          input.limit
+        )
+        return memoryGetLineageRoute.output.parse({
+          page: page
+            ? {
+                items: page.items.map((item) => ({
+                  memoryId: item.memoryId,
+                  derivationKind: item.derivationKind,
+                  createdAt: item.createdAt,
+                  memory: item.memory ? toMemoryItemDto(item.memory) : null
+                })),
+                nextCursor: page.nextCursor
+              }
+            : null
+        })
       }
     ],
     [

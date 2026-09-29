@@ -165,6 +165,24 @@ export interface AgentMemoryDerivationRow {
   created_at: number
 }
 
+export type MemoryLineageDirection = 'parents' | 'children'
+
+export interface MemoryLineageCursor {
+  createdAt: number
+  memoryId: string
+  derivationKind: MemoryDerivationKind
+}
+
+export interface MemoryLineagePage {
+  items: Array<{
+    memoryId: string
+    derivationKind: MemoryDerivationKind
+    createdAt: number
+    memory: CanonicalAgentMemoryRow | null
+  }>
+  nextCursor: MemoryLineageCursor | null
+}
+
 export interface MemoryDirtySeed {
   memoryId: string
   generation: number

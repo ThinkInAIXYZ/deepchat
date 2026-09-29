@@ -67,3 +67,24 @@ guards to show which protections are necessary; it does not claim real-model qua
 ## Open questions
 
 None for this scope. Semantic citation quality and Topic Memory are separate follow-up work.
+
+## Inspectable evidence
+
+Memory details expose direct source conversations and immediate derivation parents/children in
+the existing settings surface. Related claims show current content, not a generation-time snapshot.
+Missing or management-hidden claims appear as unavailable, never as reconstructed deleted text.
+Opening a related claim reuses the existing detail/edit/archive flows. Deletion remains selective:
+the confirmation explains that derived claims are retained; there is no automatic cascade.
+
+One additive read-only `memory.getLineage` route accepts agentId, memoryId, direction
+(`parents` or `children`), an optional keyset cursor (createdAt, memoryId, derivationKind), and
+limit (default 20, maximum 50). It returns a nullable page containing items (memoryId,
+derivationKind, createdAt, nullable current MemoryItem) and nextCursor. Unknown, inaccessible or
+clearing roots return no page. SQL limits the indexed relation lookup before related claims are
+resolved through management visibility checks. Pagination orders by createdAt, related memory ID,
+and derivation kind, with no recursive traversal or unbounded graph load.
+
+This extension adds no service, dependency, migration, setting or generation call. Validation covers
+pagination boundaries, Agent isolation, unavailable sources, clearing, navigation, stale requests,
+and selective-delete copy. Isolated UI fixtures provide repeatable visual and interaction checks;
+real-model attribution quality remains distinct from deterministic correctness tests.

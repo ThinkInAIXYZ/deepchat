@@ -32,6 +32,8 @@ import type {
   MemoryClearBatchResult,
   MemoryClearJob,
   MemoryDerivationInsertInput,
+  MemoryLineageCursor,
+  MemoryLineageDirection,
   MemoryDirtySeed,
   MemoryScope,
   ResolveChallengerTransition,
@@ -224,6 +226,10 @@ const AGENT_MEMORY_DERIVATION_TABLE_SQL = `
   ) WITHOUT ROWID;
   CREATE INDEX IF NOT EXISTS idx_agent_memory_derivation_child_v1
     ON agent_memory_derivation(agent_id, child_memory_id, created_at, parent_memory_id);
+  CREATE INDEX IF NOT EXISTS idx_agent_memory_derivation_parent_page_v2
+    ON agent_memory_derivation(
+      agent_id, parent_memory_id, created_at, child_memory_id, derivation_kind
+    );
 `
 
 const AGENT_MEMORY_DIRTY_TABLE_SQL = `
@@ -2634,6 +2640,40 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
          ORDER BY created_at ASC, child_memory_id ASC, derivation_kind ASC`
       )
       .all(agentId, parentMemoryId) as AgentMemoryDerivationRow[]
+  }
+
+  listDerivationPage(
+    agentId: string,
+    memoryId: string,
+    direction: MemoryLineageDirection,
+    cursor: MemoryLineageCursor | null,
+    limit: number
+  ): AgentMemoryDerivationRow[] {
+    const rootColumn = direction === 'parents' ? 'child_memory_id' : 'parent_memory_id'
+    const relatedColumn = direction === 'parents' ? 'parent_memory_id' : 'child_memory_id'
+    const index =
+      direction === 'parents'
+        ? 'idx_agent_memory_derivation_child_v1'
+        : 'idx_agent_memory_derivation_parent_page_v2'
+    const params: Array<string | number> = [agentId, memoryId]
+    const cursorClause = cursor
+      ? `AND (created_at, ${relatedColumn}, derivation_kind) > (?, ?, ?)`
+      : ''
+    if (cursor) {
+      params.push(cursor.createdAt, cursor.memoryId, cursor.derivationKind)
+    }
+    params.push(Math.max(1, Math.floor(limit)))
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM agent_memory_derivation INDEXED BY ${index}
+         WHERE agent_id = ? AND ${rootColumn} = ?
+           AND parent_memory_id != child_memory_id
+           ${cursorClause}
+         ORDER BY created_at ASC, ${relatedColumn} ASC, derivation_kind ASC
+         LIMIT ?`
+      )
+      .all(...params) as AgentMemoryDerivationRow[]
   }
 
   listDirtySeeds(agentId: string, limit: number): MemoryDirtySeed[] {

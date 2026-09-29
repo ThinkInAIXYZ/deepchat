@@ -67,6 +67,8 @@ import type {
   MemoryClaimContentUpdateResult,
   MemoryDerivationInsertInput,
   MemoryDirtySeed,
+  MemoryLineageCursor,
+  MemoryLineageDirection,
   MemoryTombstoneDeleteInput,
   MemoryTombstoneIdentityKind,
   MemoryTombstoneReason,
@@ -372,6 +374,44 @@ class FakeRepositoryBehavior implements MemoryRepositoryPort {
           left.child_memory_id.localeCompare(right.child_memory_id) ||
           left.derivation_kind.localeCompare(right.derivation_kind)
       )
+  }
+
+  listDerivationPage(
+    agentId: string,
+    memoryId: string,
+    direction: MemoryLineageDirection,
+    cursor: MemoryLineageCursor | null,
+    limit: number
+  ) {
+    const relatedId = (row: AgentMemoryDerivationRow) =>
+      direction === 'parents' ? row.parent_memory_id : row.child_memory_id
+    return [...this.derivations.values()]
+      .filter(
+        (row) =>
+          row.agent_id === agentId &&
+          (direction === 'parents'
+            ? row.child_memory_id === memoryId
+            : row.parent_memory_id === memoryId) &&
+          row.parent_memory_id !== row.child_memory_id
+      )
+      .filter((row) => {
+        if (!cursor) return true
+        const id = relatedId(row)
+        return (
+          row.created_at > cursor.createdAt ||
+          (row.created_at === cursor.createdAt && id > cursor.memoryId) ||
+          (row.created_at === cursor.createdAt &&
+            id === cursor.memoryId &&
+            row.derivation_kind > cursor.derivationKind)
+        )
+      })
+      .sort(
+        (left, right) =>
+          left.created_at - right.created_at ||
+          relatedId(left).localeCompare(relatedId(right)) ||
+          left.derivation_kind.localeCompare(right.derivation_kind)
+      )
+      .slice(0, Math.max(1, Math.floor(limit)))
   }
 
   listDirtySeeds(agentId: string, limit: number): MemoryDirtySeed[] {
@@ -2340,7 +2380,8 @@ const HEALTH_CAPABILITY_KEYS = [
 const LINEAGE_CAPABILITY_KEYS = [
   'insertDerivations',
   'listDerivationsByChild',
-  'listDerivationsByParent'
+  'listDerivationsByParent',
+  'listDerivationPage'
 ] as const satisfies readonly (keyof MemoryLineageRepositoryPort)[]
 
 const DIRTY_CAPABILITY_KEYS = [
