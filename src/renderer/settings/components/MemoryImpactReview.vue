@@ -266,9 +266,10 @@ watch(
   }
 )
 watch(
-  () => props.refreshToken,
+  () => [props.refreshToken, props.disabled, archiving.value],
   () => {
-    if (archiving.value) return
+    // Resume invalidation after either operation, including refreshes received while busy.
+    if (archiving.value || props.disabled) return
     requestId += 1
     loading.value = false
     error.value = false
