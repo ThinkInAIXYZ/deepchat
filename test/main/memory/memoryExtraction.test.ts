@@ -994,28 +994,57 @@ describe('MemoryService.maybeReflect cheap model', () => {
     expect(retried?.reflectionIds).toHaveLength(1)
   })
 
-  it('does not re-run the model on the same units after an empty reflection', async () => {
-    const generateText = vi.fn(async () => '[]')
+  it.each([
+    '',
+    'not JSON',
+    '[{"content":',
+    '[{"content":}]',
+    '{"content":"Wrong container","evidenceIds":[]}',
+    '[null, "invalid entry"]',
+    '[{"content":"Uncited insight"}]',
+    '[{"content":"Unsupported insight","evidenceIds":["e1","foreign"]}]'
+  ])('retries an invalid reflection response without new memories: %j', async (raw) => {
+    const generateText = vi
+      .fn()
+      .mockResolvedValueOnce(raw)
+      .mockResolvedValueOnce('[{"content":"Supported insight","evidenceIds":["e2"]}]')
     const { presenter, repo } = await buildWithMemories({ memoryEnabled: true }, generateText)
     expect(await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })).toBeNull()
     expect(generateText).toHaveBeenCalledTimes(1)
-    // No new units: the same batch must not re-trigger the model.
-    expect(await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })).toBeNull()
-    expect(generateText).toHaveBeenCalledTimes(1)
-    // Fresh high-importance units past the attempt watermark re-open the trigger.
-    for (let i = 0; i < 6; i += 1) {
-      repo.insert({
-        id: `n${i}`,
-        agentId: 'a',
-        kind: 'semantic',
-        content: `new ${i}`,
-        importance: 0.9,
-        createdAt: 2
-      })
-    }
-    expect(await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })).toBeNull()
+    expect(repo.derivations.size).toBe(0)
+
+    const result = await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })
     expect(generateText).toHaveBeenCalledTimes(2)
+    expect(result?.reflectionIds).toHaveLength(1)
+    expect(result?.sourceMemoryIds).toEqual(['m4'])
+    expect(repo.getById(result!.reflectionIds[0]).content).toBe('Supported insight')
   })
+
+  it.each(['[]', '```json\n[]\n```'])(
+    'does not re-run the model after an empty reflection: %j',
+    async (raw) => {
+      const generateText = vi.fn(async () => raw)
+      const { presenter, repo } = await buildWithMemories({ memoryEnabled: true }, generateText)
+      expect(await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })).toBeNull()
+      expect(generateText).toHaveBeenCalledTimes(1)
+      // No new units: the same batch must not re-trigger the model.
+      expect(await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })).toBeNull()
+      expect(generateText).toHaveBeenCalledTimes(1)
+      // Fresh high-importance units past the attempt watermark re-open the trigger.
+      for (let i = 0; i < 6; i += 1) {
+        repo.insert({
+          id: `n${i}`,
+          agentId: 'a',
+          kind: 'semantic',
+          content: `new ${i}`,
+          importance: 0.9,
+          createdAt: 2
+        })
+      }
+      expect(await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })).toBeNull()
+      expect(generateText).toHaveBeenCalledTimes(2)
+    }
+  )
 
   it('does not re-run the model when every insight is a duplicate', async () => {
     const { buildMemoryProvenanceKey } = await import('@/memory/core/scoring')

@@ -316,17 +316,17 @@ export function parseEvidenceIds(value: unknown, allowed: ReadonlySet<string>): 
 export function parseReflectionInsights(
   raw: string,
   allowed: ReadonlySet<string>
-): MemoryReflectionInsight[] {
-  if (!raw) return []
-  const jsonText = extractJsonContainer(raw, 'array')
-  if (!jsonText) return []
+): MemoryReflectionInsight[] | null {
+  if (!raw) return null
+  // Parse the response container, not a nested evidenceIds array inside an invalid object.
+  const jsonText = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1] ?? raw
   let parsed: unknown
   try {
     parsed = JSON.parse(jsonText)
   } catch {
-    return []
+    return null
   }
-  if (!Array.isArray(parsed)) return []
+  if (!Array.isArray(parsed)) return null
   const insights: MemoryReflectionInsight[] = []
   for (const entry of parsed) {
     if (!entry || typeof entry !== 'object') continue
@@ -336,7 +336,8 @@ export function parseReflectionInsights(
     insights.push({ content, evidenceIds })
     if (insights.length >= MAX_REFLECTION_INSIGHTS) break
   }
-  return insights
+  // Only an explicit empty array is a successful no-insight result.
+  return parsed.length > 0 && insights.length === 0 ? null : insights
 }
 
 // A draft whose normalized distance from the current self-model exceeds this is flagged needsReview
