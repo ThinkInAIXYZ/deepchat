@@ -38,7 +38,6 @@ describe('messageStore reactivity', () => {
         streamListeners.failed.push(listener)
         return () => undefined
       }),
-      onPlanUpdated: vi.fn(() => () => undefined),
       onStreamActivity: vi.fn(() => () => undefined)
     }
 

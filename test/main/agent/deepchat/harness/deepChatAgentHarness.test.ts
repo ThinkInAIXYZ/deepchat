@@ -1248,7 +1248,6 @@ function createMockToolService(toolDefs: any[] = []) {
     }),
     preCheckToolPermission: vi.fn().mockResolvedValue(null),
     clearConversationToolMapping: vi.fn(),
-    clearAgentPlanState: vi.fn(),
     buildToolSystemPrompt: vi.fn().mockReturnValue('')
   } as any
 }
@@ -5793,15 +5792,6 @@ describe('DeepChatAgentHarness', () => {
       expect(getPublishedPayloads('chat.stream.failed')).toEqual([])
     })
 
-    it('resets agent plan state for each new assistant turn', async () => {
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-
-      await agent.processMessage('s1', 'Hello')
-
-      expect(toolService.clearAgentPlanState).toHaveBeenCalledTimes(1)
-      expect(toolService.clearAgentPlanState).toHaveBeenCalledWith('s1')
-    })
-
     it('resolves first-turn readiness before processMessage completes', async () => {
       const streamDone = deferred<void>()
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
@@ -10163,7 +10153,6 @@ describe('DeepChatAgentHarness', () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
       instance.replaceRuntimeActivatedSkills(['runtime-skill'])
-      const clearAgentPlanState = vi.spyOn(toolService, 'clearAgentPlanState')
 
       await agent.setSessionAgentContext('s1', {
         agentId: 'strict-agent',
@@ -10174,7 +10163,6 @@ describe('DeepChatAgentHarness', () => {
       })
 
       expect(sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledWith('s1')
-      expect(clearAgentPlanState).toHaveBeenCalledWith('s1')
       expect(instance.getRuntimeActivatedSkills()).toEqual([])
       expect(instance.getAgentId()).toBe('strict-agent')
       expect(skillService.revalidateActiveSkillsForAgent).toHaveBeenCalledWith('s1', 'strict-agent')
@@ -11946,10 +11934,6 @@ describe('DeepChatAgentHarness', () => {
         expect(processStream).toHaveBeenCalledTimes(2)
         expect(await agent.listPendingInputs('s1')).toEqual([])
       })
-
-      expect(toolService.clearAgentPlanState).toHaveBeenCalledTimes(2)
-      expect(toolService.clearAgentPlanState).toHaveBeenNthCalledWith(1, 's1')
-      expect(toolService.clearAgentPlanState).toHaveBeenNthCalledWith(2, 's1')
 
       const userInserts = sqlitePresenter.deepchatMessagesTable.insert.mock.calls
         .map(([row]) => row)

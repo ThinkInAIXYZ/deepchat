@@ -12,7 +12,6 @@ const chatClient = vi.hoisted(() => {
     }),
     onStreamCompleted: vi.fn(() => () => {}),
     onStreamFailed: vi.fn(() => () => {}),
-    onPlanUpdated: vi.fn(() => () => {}),
     onStreamActivity: vi.fn((listener: StreamListener) => {
       listeners.onStreamActivity = listener
       return () => {}

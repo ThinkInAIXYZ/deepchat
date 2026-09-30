@@ -290,7 +290,7 @@ describe('AcpContentMapper tool call handling', () => {
 })
 
 describe('AcpContentMapper plan handling', () => {
-  it('emits structured plan entries', () => {
+  it('ignores legacy plan updates without events or blocks', () => {
     const mapper = new AcpContentMapper()
 
     const result = mapper.map(
@@ -298,137 +298,13 @@ describe('AcpContentMapper plan handling', () => {
         sessionUpdate: 'plan',
         entries: [
           { content: 'Analyze requirements', status: 'completed', priority: 'high' },
-          { content: 'Implement feature', status: 'in_progress', priority: 'high' },
-          { content: 'Write tests', status: 'pending', priority: 'medium' }
+          { content: 'Implement feature', status: 'in_progress', priority: 'high' }
         ]
       })
     )
 
-    expect(result.planEntries).toHaveLength(3)
-    expect(result.planEntries![0]).toMatchObject({
-      step: 'Analyze requirements',
-      status: 'completed',
-      priority: 'high'
-    })
-    expect(result.planEntries![1]).toMatchObject({
-      step: 'Implement feature',
-      status: 'in_progress'
-    })
-  })
-
-  it('emits a plan event without adding content blocks', () => {
-    const mapper = new AcpContentMapper()
-
-    const result = mapper.map(
-      createNotification('session-1', {
-        sessionUpdate: 'plan',
-        entries: [
-          { content: 'Step 1', status: 'completed' },
-          { content: 'Step 2', status: 'in_progress' }
-        ]
-      })
-    )
-
-    const planEvent = result.events.find((e) => e.type === 'plan')
-    expect(planEvent).toMatchObject({
-      type: 'plan',
-      plan: [
-        { step: 'Step 1', status: 'completed' },
-        { step: 'Step 2', status: 'in_progress' }
-      ],
-      revision: 1
-    })
-
-    expect(result.blocks.some((block) => block.type === 'plan')).toBe(false)
-  })
-
-  it('increments plan revisions for successive updates in the same session', () => {
-    const mapper = new AcpContentMapper()
-
-    const first = mapper.map(
-      createNotification('session-1', {
-        sessionUpdate: 'plan',
-        entries: [{ content: 'Step 1', status: 'in_progress' }]
-      })
-    )
-    const second = mapper.map(
-      createNotification('session-1', {
-        sessionUpdate: 'plan',
-        entries: [{ content: 'Step 1', status: 'completed' }]
-      })
-    )
-
-    expect(first.events.find((event) => event.type === 'plan')).toMatchObject({ revision: 1 })
-    expect(second.events.find((event) => event.type === 'plan')).toMatchObject({ revision: 2 })
-  })
-
-  it('clears per-session plan revisions without affecting other sessions', () => {
-    const mapper = new AcpContentMapper()
-
-    mapper.map(
-      createNotification('session-1', {
-        sessionUpdate: 'plan',
-        entries: [{ content: 'Step 1', status: 'in_progress' }]
-      })
-    )
-    mapper.map(
-      createNotification('session-2', {
-        sessionUpdate: 'plan',
-        entries: [{ content: 'Other step', status: 'in_progress' }]
-      })
-    )
-    mapper.clearSession('session-1')
-
-    const reset = mapper.map(
-      createNotification('session-1', {
-        sessionUpdate: 'plan',
-        entries: [{ content: 'Next step', status: 'in_progress' }]
-      })
-    )
-    const preserved = mapper.map(
-      createNotification('session-2', {
-        sessionUpdate: 'plan',
-        entries: [{ content: 'Other step', status: 'completed' }]
-      })
-    )
-
-    expect(reset.events.find((event) => event.type === 'plan')).toMatchObject({ revision: 1 })
-    expect(preserved.events.find((event) => event.type === 'plan')).toMatchObject({ revision: 2 })
-  })
-
-  it('preserves plan entry statuses in the structured payload', () => {
-    const mapper = new AcpContentMapper()
-
-    const result = mapper.map(
-      createNotification('session-1', {
-        sessionUpdate: 'plan',
-        entries: [
-          { content: 'Done task', status: 'completed' },
-          { content: 'Current task', status: 'in_progress' },
-          { content: 'Future task', status: 'pending' }
-        ]
-      })
-    )
-
-    expect(result.planEntries).toEqual([
-      { step: 'Done task', status: 'completed', priority: null },
-      { step: 'Current task', status: 'in_progress', priority: null },
-      { step: 'Future task', status: 'pending', priority: null }
-    ])
-  })
-
-  it('handles empty plan entries gracefully', () => {
-    const mapper = new AcpContentMapper()
-
-    const result = mapper.map(
-      createNotification('session-1', {
-        sessionUpdate: 'plan',
-        entries: []
-      })
-    )
-
-    expect(result.planEntries).toEqual([])
-    expect(result.events).toEqual([expect.objectContaining({ type: 'plan', plan: [] })])
+    expect(result.events).toEqual([])
+    expect(result.blocks).toEqual([])
   })
 })
 

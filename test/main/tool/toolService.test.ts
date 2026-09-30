@@ -4,12 +4,7 @@ import { ToolService } from '@/tool'
 import { RunCodeRuntimeManager } from '@/tool/codeMode/runCodeRuntimeManager'
 import { POSIX_COMMAND_SHELL } from '../../helpers/commandShell'
 import { createToolCatalogPort } from '@/agent/deepchat/runtime/toolAdapters'
-import {
-  AgentToolManager,
-  CronJobToolHandler,
-  TAPE_TOOL_NAMES,
-  UPDATE_PLAN_TOOL_NAME
-} from '@/tool/agentTools'
+import { AgentToolManager, CronJobToolHandler, TAPE_TOOL_NAMES } from '@/tool/agentTools'
 import { CommandPermissionService, ToolPermissionBroker } from '@/tool/permission'
 import { QUESTION_TOOL_NAME } from '@/tool/agentTools/questionTool'
 import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
@@ -1409,20 +1404,8 @@ describe('ToolService', () => {
       ...buildToolDefinition(LIVE_DELEGATION_AGENT_TOOL_NAME, 'agent-core'),
       source: 'agent' as const
     }
-    const updatePlan = {
-      ...buildToolDefinition(UPDATE_PLAN_TOOL_NAME, 'agent-core'),
-      source: 'agent' as const
-    }
     const remote = { ...buildToolDefinition('remote_search', 'remote'), source: 'mcp' as const }
-    const executionCatalog = [
-      exec,
-      ...detailedFilesystem,
-      process,
-      question,
-      subagents,
-      updatePlan,
-      remote
-    ]
+    const executionCatalog = [exec, ...detailedFilesystem, process, question, subagents, remote]
     const commandShell = {
       profile: 'zsh',
       dialect: 'posix',
@@ -1449,7 +1432,6 @@ describe('ToolService', () => {
       'process',
       QUESTION_TOOL_NAME,
       LIVE_DELEGATION_AGENT_TOOL_NAME,
-      UPDATE_PLAN_TOOL_NAME,
       'remote_search'
     ])
     expect(agent[0].function.description).toContain('Selected shell: Zsh (zsh).')
@@ -1474,7 +1456,6 @@ describe('ToolService', () => {
       QUESTION_TOOL_NAME,
       LIVE_DELEGATION_AGENT_TOOL_NAME
     ])
-    expect(code.map((definition) => definition.function.name)).not.toContain(UPDATE_PLAN_TOOL_NAME)
     expect(code[0].function.description).not.toContain(LIVE_DELEGATION_AGENT_TOOL_NAME)
     await expect(
       toolService.callTool(
@@ -1507,12 +1488,6 @@ describe('ToolService', () => {
       QUESTION_TOOL_NAME,
       LIVE_DELEGATION_AGENT_TOOL_NAME
     ])
-    expect(codexCode.map((definition) => definition.function.name)).not.toContain(
-      UPDATE_PLAN_TOOL_NAME
-    )
-    expect(codexCode[0].function.description).toContain(
-      'Use the `update_plan` subtool for non-trivial multi-step tasks'
-    )
     await expect(
       toolService.callTool({
         id: 'direct-question',
@@ -1553,7 +1528,6 @@ describe('ToolService', () => {
       'process',
       QUESTION_TOOL_NAME,
       LIVE_DELEGATION_AGENT_TOOL_NAME,
-      UPDATE_PLAN_TOOL_NAME,
       'remote_search'
     ])
     expect(
@@ -1573,16 +1547,8 @@ describe('ToolService', () => {
       'str_replace_editor',
       QUESTION_TOOL_NAME,
       LIVE_DELEGATION_AGENT_TOOL_NAME,
-      UPDATE_PLAN_TOOL_NAME,
       'remote_search'
     ])
-    expect(minimal.map((definition) => definition.function.name)).toContain(UPDATE_PLAN_TOOL_NAME)
-    expect(
-      toolService.buildToolSystemPrompt({
-        conversationId: 'session-1',
-        toolDefinitions: minimal
-      })
-    ).toContain('Use `update_plan` for non-trivial multi-step tasks.')
     expect(minimal.map((definition) => definition.function.description).join('\n')).not.toContain(
       'Code Mode subtools'
     )
@@ -1599,7 +1565,6 @@ describe('ToolService', () => {
       'process',
       QUESTION_TOOL_NAME,
       LIVE_DELEGATION_AGENT_TOOL_NAME,
-      UPDATE_PLAN_TOOL_NAME,
       'remote_search'
     ])
 
@@ -1616,7 +1581,6 @@ describe('ToolService', () => {
       'apply_patch',
       QUESTION_TOOL_NAME,
       LIVE_DELEGATION_AGENT_TOOL_NAME,
-      UPDATE_PLAN_TOOL_NAME,
       'remote_search'
     ])
     expect(() =>
@@ -2507,37 +2471,6 @@ describe('ToolService', () => {
       'conversation-1',
       expect.objectContaining({ toolCallId: 'tool-1' })
     )
-  })
-
-  it('clears only agent plan state without clearing tool mappings', async () => {
-    const mcpService = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
-      callTool: vi.fn()
-    } as any
-    const providerSettings = {
-      getModelConfig: vi.fn()
-    }
-
-    const toolService = new ToolService({
-      skillSettings: { isEnabled: () => false } as any,
-      mcpService,
-      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
-      providerSettings: providerSettings as any,
-      settings: { get: vi.fn() },
-      commandPermissionHandler: new CommandPermissionService(),
-      agentTools: buildAgentToolRuntimeMock()
-    })
-    await toolService.getAllToolDefinitions({
-      chatMode: 'agent',
-      supportsVision: false,
-      agentWorkspacePath: 'C:\\\\workspace'
-    })
-    const agentToolManager = (toolService as any).agentToolManager
-    agentToolManager.clearPlanState = vi.fn()
-
-    toolService.clearAgentPlanState(' conv-1 ')
-
-    expect(agentToolManager.clearPlanState).toHaveBeenCalledWith('conv-1')
   })
 
   it('falls back to jsonrepair when tool arguments are malformed', async () => {
@@ -3921,14 +3854,14 @@ describe('ToolService', () => {
         {
           id: 'permission-sync-cancel',
           type: 'function',
-          function: { name: UPDATE_PLAN_TOOL_NAME, arguments: '{}' },
+          function: { name: QUESTION_TOOL_NAME, arguments: '{}' },
           conversationId: 'permission-cancel-session'
         },
         { signal: abortController.signal, activeSkillNames: ['message-skill'] }
       )
     ).rejects.toMatchObject({ name: 'AbortError' })
     expect(agentToolManager.preCheckToolPermission).toHaveBeenCalledWith(
-      UPDATE_PLAN_TOOL_NAME,
+      QUESTION_TOOL_NAME,
       {},
       'permission-cancel-session',
       expect.objectContaining({ activeSkillNames: ['message-skill'] })
@@ -4118,51 +4051,6 @@ describe('ToolService', () => {
     expect(withQuestion).toContain(
       'Do not send `questions`, `allowOther`, or stringified `options` JSON.'
     )
-  })
-
-  it('includes progress guidance only when update_plan is enabled', () => {
-    const mcpService = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
-      callTool: vi.fn()
-    } as any
-    const providerSettings = {
-      getModelConfig: vi.fn()
-    }
-
-    const toolService = new ToolService({
-      skillSettings: { isEnabled: () => false } as any,
-      mcpService,
-      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
-      providerSettings: providerSettings as any,
-      settings: { get: vi.fn() },
-      commandPermissionHandler: new CommandPermissionService(),
-      agentTools: buildAgentToolRuntimeMock()
-    })
-
-    const withoutProgress = toolService.buildToolSystemPrompt({
-      conversationId: 'conv-1',
-      toolDefinitions: [
-        {
-          ...buildToolDefinition('read', 'agent-filesystem'),
-          source: 'agent'
-        }
-      ]
-    })
-    const withProgress = toolService.buildToolSystemPrompt({
-      conversationId: 'conv-1',
-      toolDefinitions: [
-        {
-          ...buildToolDefinition(UPDATE_PLAN_TOOL_NAME, 'agent-core'),
-          source: 'agent'
-        }
-      ]
-    })
-
-    expect(withoutProgress).not.toContain('## Progress Checklist Tool')
-    expect(withProgress).toContain('## Progress Checklist Tool')
-    expect(withProgress).toContain('Use `update_plan` for non-trivial multi-step tasks.')
-    expect(withProgress).toContain('Multiple steps may be in_progress when work runs in parallel')
-    expect(withProgress).toContain('Before ending the turn, reconcile the checklist')
   })
 
   it('omits diagnostic and runtime-only Tape capabilities from the model prompt', () => {

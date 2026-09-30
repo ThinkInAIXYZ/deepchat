@@ -27,7 +27,6 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   else if (method === 'session/prompt') {
     promptId = id
     update({ sessionUpdate: 'usage_update', used: 400, size: 1000 })
-    update({ sessionUpdate: 'plan_update', plan: { planId: 'implementation', type: 'items', entries: [{ content: 'Verify structured answers', priority: 'high', status: 'in_progress' }] } })
     send({ method: '_lody/session/usage_update', params: { sessionId: 'remote', usage, modelUsage: { fixture: usage } } })
     send({ method: '_lody/subagents/event', params: { version: 1, sessionId: 'remote', runId: 'child', type: 'snapshot', snapshot: { state: 'running', name: 'Child verification', support: { stream: ['text'], progress: false, outputRead: 'none', cancel: false } } } })
     send({ method: '_lody/subagents/event', params: { version: 1, sessionId: 'remote', runId: 'child', type: 'output', update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'CHILD_ONLY_OUTPUT' } } } })

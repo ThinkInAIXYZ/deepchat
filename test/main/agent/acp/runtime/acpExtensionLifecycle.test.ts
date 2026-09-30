@@ -217,7 +217,6 @@ describe('ACP extension ownership', () => {
     expect(first.digest).toBe(second.digest)
     expect(first.entries.map((entry) => entry.turnId)).toEqual(['one', 'one', 'two', 'two'])
     expect(f.state('first').usage).toBeUndefined()
-    expect(f.state('first').plans).toEqual({})
     expect(f.parentEvents).not.toHaveBeenCalled()
   })
 

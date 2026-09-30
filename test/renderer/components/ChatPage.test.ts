@@ -218,30 +218,6 @@ const setup = async (options: SetupOptions = {}) => {
     ...options.pendingInputStorePatch
   })
 
-  const agentPlanSnapshots = reactive<Record<string, any>>({})
-  const agentPlanCollapsedBySession = reactive<Record<string, boolean>>({})
-  const agentPlanStore = reactive({
-    snapshots: agentPlanSnapshots,
-    applySnapshot: vi.fn((snapshot: any) => {
-      agentPlanSnapshots[snapshot.sessionId] = snapshot
-    }),
-    clearSnapshot: vi.fn((sessionId: string) => {
-      delete agentPlanSnapshots[sessionId]
-    }),
-    beginTurn: vi.fn(),
-    freezeActive: vi.fn(),
-    dismiss: vi.fn(),
-    purge: vi.fn(),
-    isVisible: vi.fn((sessionId: string) => Boolean(agentPlanSnapshots[sessionId]?.plan?.length)),
-    isCollapsed: vi.fn((sessionId: string) => agentPlanCollapsedBySession[sessionId] !== false),
-    setCollapsed: vi.fn((sessionId: string, collapsed: boolean) => {
-      agentPlanCollapsedBySession[sessionId] = collapsed
-    }),
-    toggleCollapsed: vi.fn((sessionId: string) => {
-      agentPlanCollapsedBySession[sessionId] = agentPlanCollapsedBySession[sessionId] === false
-    })
-  })
-
   const modelStore = reactive({
     initialized: true,
     findChatSelectableModel: vi.fn((providerId: string, modelId: string) => ({
@@ -268,7 +244,6 @@ const setup = async (options: SetupOptions = {}) => {
   })
 
   const chatRespondToolInteraction = vi.fn().mockResolvedValue({ accepted: true })
-  let planUpdatedListener: ((payload: any) => void) | null = null
   const chatClient = {
     sendMessage: vi.fn().mockResolvedValue({
       accepted: true,
@@ -281,13 +256,7 @@ const setup = async (options: SetupOptions = {}) => {
     }),
     cancelSubmission: vi.fn().mockResolvedValue({ cancelled: true }),
     stopStream: vi.fn().mockResolvedValue({ stopped: true }),
-    respondToolInteraction: chatRespondToolInteraction,
-    onPlanUpdated: vi.fn((listener: (payload: any) => void) => {
-      planUpdatedListener = listener
-      return () => {
-        planUpdatedListener = null
-      }
-    })
+    respondToolInteraction: chatRespondToolInteraction
   }
   const sessionClient = {
     retryMessage: vi.fn().mockResolvedValue(undefined),
@@ -335,9 +304,6 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@/stores/ui/attachmentPreparation', () => ({
     useAttachmentPreparationStore: () => attachmentPreparationStore
-  }))
-  vi.doMock('@/stores/ui/agentPlan', () => ({
-    useAgentPlanStore: () => agentPlanStore
   }))
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => modelStore
@@ -564,20 +530,6 @@ const setup = async (options: SetupOptions = {}) => {
         '<div class="chat-input-toolbar-stub"><button v-if="isGenerating && hasInput" data-testid="chat-steer-button" :disabled="steerDisabled" @click="$emit(\'steer\')" /><button v-if="isGenerating && !hasInput" data-testid="chat-stop-button" :disabled="isStopping" @click="$emit(\'stop\')" /></div>'
     })
   }))
-  vi.doMock('@/components/chat/AgentProgressFloat.vue', () => ({
-    default: defineComponent({
-      name: 'AgentProgressFloat',
-      props: {
-        snapshot: {
-          type: Object,
-          default: null
-        }
-      },
-      emits: ['toggle-collapse'],
-      template:
-        '<button class="agent-progress-float-stub" :data-session-id="snapshot?.sessionId ?? \'\'" :data-message-id="snapshot?.messageId ?? \'\'" @click="$emit(\'toggle-collapse\')" />'
-    })
-  }))
   vi.doMock('@/components/chat/PendingInputLane.vue', () => ({
     default: defineComponent({
       name: 'PendingInputLane',
@@ -712,7 +664,6 @@ const setup = async (options: SetupOptions = {}) => {
     notify,
     messageStore,
     pendingInputStore,
-    agentPlanStore,
     spotlightStore,
     chatInputInsertWorkspaceReference,
     chatInputTriggerAttach,
@@ -722,9 +673,6 @@ const setup = async (options: SetupOptions = {}) => {
     chatStatusBarOpenModelPicker,
     recentMessageMeasurementCache,
     disposeChatSearch,
-    emitPlanUpdated: (payload: any) => {
-      planUpdatedListener?.(payload)
-    },
     flushStartupDeferredTasks: async () => {
       while (startupDeferredTasks.length > 0) {
         const task = startupDeferredTasks.shift()
@@ -973,40 +921,8 @@ describe('ChatPage', () => {
     expect(recentMessageMeasurementCache.get('s1')).toMatchObject({ m1: 333 })
   })
 
-  it('keeps the agent plan in the composer region outside message scroll geometry', async () => {
-    const { wrapper, agentPlanStore } = await setup({
-      activeSessionPatch: { status: 'working' }
-    })
-
-    agentPlanStore.snapshots.s1 = {
-      sessionId: 's1',
-      messageId: 'm1',
-      plan: [{ step: 'Inspect runtime state', status: 'in_progress' }],
-      explanation: 'Current implementation plan',
-      revision: 1,
-      updatedAt: '2026-05-18T00:00:00.000Z'
-    }
-
-    await flushPromises()
-
-    const layer = wrapper.find('[data-testid="agent-progress-float-layer"]')
-    const composer = wrapper.get('[data-testid="chat-composer-region"]')
-    const viewport = wrapper.get('[data-testid="chat-page"]')
-
-    expect(layer.exists()).toBe(true)
-    expect(layer.classes()).toContain('absolute')
-    expect(layer.classes()).toContain('pointer-events-none')
-    expect(composer.element.contains(layer.element)).toBe(true)
-    expect(viewport.element.contains(layer.element)).toBe(false)
-
-    // Plans start collapsed on the dock bar; expanding docks the panel in the
-    // same composer-region layer.
-    await wrapper.get('[data-testid="agent-interaction-dock-plan-chip"]').trigger('click')
-    expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(true)
-  })
-
-  it('docks combined plan and question surfaces and expands one panel at a time', async () => {
-    const { wrapper, agentPlanStore } = await setup({
+  it('keeps the interaction dock in the composer region outside message scroll geometry', async () => {
+    const { wrapper } = await setup({
       activeSessionPatch: { status: 'working' },
       messages: [
         buildAssistantMessage([
@@ -1024,187 +940,63 @@ describe('ChatPage', () => {
       ]
     })
 
-    // A pending question with no plan opens expanded by default.
-    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
-
-    agentPlanStore.snapshots.s1 = {
-      sessionId: 's1',
-      messageId: 'm1',
-      plan: Array.from({ length: 12 }, (_, index) => ({
-        step: `Plan step ${index}`,
-        status: index === 0 ? 'in_progress' : 'pending'
-      })),
-      revision: 1,
-      updatedAt: '2026-05-18T00:00:00.000Z'
-    }
-
     await flushPromises()
 
-    // A plan arriving mid-question stays docked: it starts collapsed (the
-    // production default), the question keeps the panel (its chip folds into
-    // the panel header) and the plan lands on the bar.
-    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
-    expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(false)
-    const bar = wrapper.get('[data-testid="agent-interaction-dock-bar"]')
-    expect(bar.find('[data-testid="agent-interaction-dock-plan-chip"]').exists()).toBe(true)
-    expect(bar.find('[data-testid="agent-interaction-dock-question-chip"]').exists()).toBe(false)
+    const layer = wrapper.find('[data-testid="agent-progress-float-layer"]')
+    const composer = wrapper.get('[data-testid="chat-composer-region"]')
+    const viewport = wrapper.get('[data-testid="chat-page"]')
 
-    // Expanding the plan swaps the panel content and trades chips on the bar.
-    await bar.get('[data-testid="agent-interaction-dock-plan-chip"]').trigger('click')
-    const planStub = wrapper.get('.agent-progress-float-stub')
-    const panel = planStub.element.closest('[data-testid="agent-interaction-dock-panel"]')
+    expect(layer.exists()).toBe(true)
+    expect(layer.classes()).toContain('absolute')
+    expect(layer.classes()).toContain('pointer-events-none')
+    expect(composer.element.contains(layer.element)).toBe(true)
+    expect(viewport.element.contains(layer.element)).toBe(false)
+  })
+
+  it('docks the pending question surface and expands its chip into a panel', async () => {
+    const { wrapper } = await setup({
+      activeSessionPatch: { status: 'working' },
+      messages: [
+        buildAssistantMessage([
+          {
+            type: 'action',
+            action_type: 'question_request',
+            status: 'pending',
+            tool_call: {
+              id: 'tool-1',
+              name: 'question',
+              params: '{}'
+            }
+          }
+        ])
+      ]
+    })
+
+    // A pending question blocks the turn until the user responds, so it opens
+    // expanded by default; its chip folds into the panel header and the bar
+    // disappears while the panel is open.
+    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="agent-interaction-dock-bar"]').exists()).toBe(false)
+
+    const overlay = wrapper.get('.chat-tool-interaction-overlay-stub')
+    const panel = overlay.element.closest('[data-testid="agent-interaction-dock-panel"]')
     expect(panel?.classList.contains('interaction-dock-panel')).toBe(true)
     expect(
       panel?.querySelector('.interaction-dock-panel__body.dc-overscroll-contain')
     ).not.toBeNull()
-    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="agent-interaction-dock-plan-chip"]').exists()).toBe(false)
 
-    // Expanding the question swaps back instead of stacking both surfaces.
+    // Collapsing the panel trades it back for the chip on the bar.
+    await wrapper.get('[data-testid="agent-interaction-dock-panel-header"]').trigger('click')
+    expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(false)
+    const bar = wrapper.get('[data-testid="agent-interaction-dock-bar"]')
+    expect(bar.find('[data-testid="agent-interaction-dock-question-chip"]').exists()).toBe(true)
+
+    // Expanding the chip swaps the bar back for the panel.
     await wrapper.get('[data-testid="agent-interaction-dock-question-chip"]').trigger('click')
     expect(wrapper.find('.chat-tool-interaction-overlay-stub').exists()).toBe(true)
-    expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(false)
-  })
-
-  it('keeps live plan snapshots for multiple sessions and renders only the active session', async () => {
-    const { wrapper, agentPlanStore, emitPlanUpdated, sessionStore } = await setup({
-      activeSessionPatch: { status: 'working' },
-      sessions: [
-        { id: 's1', title: 'A', agentId: 'default', status: 'working', projectDir: 'C:/a' },
-        { id: 's2', title: 'B', agentId: 'default', status: 'working', projectDir: 'C:/b' },
-        { id: 's3', title: 'C', agentId: 'default', status: 'working', projectDir: 'C:/c' }
-      ]
-    })
-
-    emitPlanUpdated({
-      sessionId: 's1',
-      messageId: 'm-a',
-      plan: [{ step: 'A plan', status: 'in_progress' }],
-      revision: 1,
-      updatedAt: '2026-05-18T00:00:00.000Z'
-    })
-    emitPlanUpdated({
-      sessionId: 's2',
-      messageId: 'm-b',
-      plan: [{ step: 'B plan', status: 'in_progress' }],
-      revision: 1,
-      updatedAt: '2026-05-18T00:00:01.000Z'
-    })
-    emitPlanUpdated({
-      sessionId: 's3',
-      messageId: 'm-c',
-      plan: [{ step: 'C plan', status: 'in_progress' }],
-      revision: 1,
-      updatedAt: '2026-05-18T00:00:02.000Z'
-    })
-    await flushPromises()
-
-    expect(Object.keys(agentPlanStore.snapshots).sort()).toEqual(['s1', 's2', 's3'])
-    await wrapper.get('[data-testid="agent-interaction-dock-plan-chip"]').trigger('click')
-    expect(wrapper.find('.agent-progress-float-stub').attributes('data-session-id')).toBe('s1')
-    expect(wrapper.findAll('.agent-progress-float-stub')).toHaveLength(1)
-
-    sessionStore.activeSession = {
-      ...sessionStore.activeSession,
-      id: 's2',
-      status: 'working'
-    }
-    sessionStore.activeSessionId = 's2'
-    await wrapper.setProps({ sessionId: 's2' })
-    await flushPromises()
-
-    // Collapse state is per session, so the new session docks collapsed first.
-    await wrapper.get('[data-testid="agent-interaction-dock-plan-chip"]').trigger('click')
-    expect(wrapper.find('.agent-progress-float-stub').attributes('data-session-id')).toBe('s2')
-    expect(agentPlanStore.snapshots.s1?.plan[0]?.step).toBe('A plan')
-
-    sessionStore.activeSession = {
-      ...sessionStore.activeSession,
-      id: 's1',
-      status: 'working'
-    }
-    sessionStore.activeSessionId = 's1'
-    await wrapper.setProps({ sessionId: 's1' })
-    await flushPromises()
-
-    expect(wrapper.find('.agent-progress-float-stub').attributes('data-session-id')).toBe('s1')
-    expect(agentPlanStore.snapshots.s2?.plan[0]?.step).toBe('B plan')
-  })
-
-  it('keeps an in-progress plan when the plan event arrives before working status', async () => {
-    const { wrapper, agentPlanStore, emitPlanUpdated, sessionStore } = await setup({
-      activeSessionPatch: { status: 'none' },
-      sessions: [{ id: 's1', title: 'A', agentId: 'default', status: 'none', projectDir: 'C:/a' }]
-    })
-
-    emitPlanUpdated({
-      sessionId: 's1',
-      messageId: 'm-a',
-      plan: [{ step: 'Early plan', status: 'in_progress' }],
-      revision: 1,
-      updatedAt: '2026-05-18T00:00:00.000Z'
-    })
-    await flushPromises()
-
-    expect(agentPlanStore.snapshots.s1?.plan[0]?.step).toBe('Early plan')
-    expect(agentPlanStore.clearSnapshot).not.toHaveBeenCalledWith('s1')
-    expect(wrapper.find('.agent-progress-float-stub').exists()).toBe(false)
-
-    sessionStore.activeSession = {
-      ...sessionStore.activeSession,
-      status: 'working'
-    }
-    sessionStore.sessions = [
-      {
-        ...sessionStore.sessions[0],
-        status: 'working'
-      }
-    ]
-    await flushPromises()
-
-    await wrapper.get('[data-testid="agent-interaction-dock-plan-chip"]').trigger('click')
-    expect(wrapper.find('.agent-progress-float-stub').attributes('data-session-id')).toBe('s1')
-  })
-
-  it('clears a terminal plan without clearing another running session plan', async () => {
-    vi.useFakeTimers()
-    try {
-      const { agentPlanStore, emitPlanUpdated } = await setup({
-        activeSessionPatch: { status: 'idle' },
-        sessions: [
-          { id: 's1', title: 'A', agentId: 'default', status: 'idle', projectDir: 'C:/a' },
-          { id: 's2', title: 'B', agentId: 'default', status: 'working', projectDir: 'C:/b' }
-        ]
-      })
-
-      emitPlanUpdated({
-        sessionId: 's1',
-        messageId: 'm-a',
-        plan: [{ step: 'A plan', status: 'completed' }],
-        terminalReason: 'aborted',
-        revision: 2,
-        updatedAt: '2026-05-18T00:00:00.000Z'
-      })
-      emitPlanUpdated({
-        sessionId: 's2',
-        messageId: 'm-b',
-        plan: [{ step: 'B plan', status: 'in_progress' }],
-        revision: 1,
-        updatedAt: '2026-05-18T00:00:01.000Z'
-      })
-      await flushPromises()
-
-      expect(agentPlanStore.snapshots.s1).toBeDefined()
-      expect(agentPlanStore.snapshots.s2).toBeDefined()
-
-      await vi.advanceTimersByTimeAsync(1_200)
-      await flushPromises()
-
-      expect(agentPlanStore.snapshots.s1).toBeUndefined()
-      expect(agentPlanStore.snapshots.s2?.plan[0]?.step).toBe('B plan')
-    } finally {
-      vi.useRealTimers()
-    }
+    expect(wrapper.find('[data-testid="agent-interaction-dock-question-chip"]').exists()).toBe(
+      false
+    )
   })
 
   it('defers session restore until startup deferred tasks are released', async () => {
@@ -1713,117 +1505,6 @@ describe('ChatPage', () => {
 
     expect(messageStore.loadOlderMessages).toHaveBeenCalledOnce()
     wrapper.unmount()
-  })
-
-  it('does not rehydrate persisted plan blocks when switching sessions', async () => {
-    const { wrapper, messageStore, agentPlanStore, flushStartupDeferredTasks } = await setup({
-      deferStartupTasks: true,
-      messages: []
-    })
-    const messagesBySession = {
-      s1: [
-        buildAssistantMessage([
-          {
-            type: 'plan',
-            content: '',
-            status: 'success',
-            extra: {
-              plan_entries: [{ step: 'Old plan', status: 'completed' }],
-              plan_revision: 1,
-              plan_updated_at: '2026-05-18T00:00:00.000Z'
-            }
-          }
-        ]),
-        {
-          ...buildAssistantMessage([
-            {
-              type: 'plan',
-              content: '',
-              status: 'success',
-              extra: {
-                plan_entries: [{ step: 'Latest A plan', status: 'in_progress' }],
-                plan_revision: 2,
-                plan_updated_at: '2026-05-18T00:01:00.000Z'
-              }
-            }
-          ]),
-          id: 'm2'
-        }
-      ],
-      s2: [
-        {
-          ...buildAssistantMessage([
-            {
-              type: 'plan',
-              content: '',
-              status: 'success',
-              extra: {
-                plan_entries: [{ step: 'B plan', status: 'in_progress' }],
-                plan_revision: 1,
-                plan_updated_at: '2026-05-18T00:02:00.000Z'
-              }
-            }
-          ]),
-          id: 'm3',
-          sessionId: 's2'
-        }
-      ]
-    }
-    messageStore.loadMessages.mockImplementation(async (sessionId: 's1' | 's2') => {
-      messageStore.messages = messagesBySession[sessionId]
-      messageStore.currentSessionId = sessionId
-      messageStore.committedSessionId = sessionId
-      messageStore.committedSession = { id: sessionId }
-      return { id: sessionId }
-    })
-
-    await flushStartupDeferredTasks()
-
-    expect(agentPlanStore.applySnapshot).not.toHaveBeenCalled()
-    expect(agentPlanStore.snapshots.s1).toBeUndefined()
-
-    await wrapper.setProps({ sessionId: 's2' })
-    await flushStartupDeferredTasks()
-
-    expect(agentPlanStore.applySnapshot).not.toHaveBeenCalled()
-    expect(agentPlanStore.snapshots.s2).toBeUndefined()
-
-    await wrapper.setProps({ sessionId: 's1' })
-    await flushStartupDeferredTasks()
-
-    expect(agentPlanStore.applySnapshot).not.toHaveBeenCalled()
-    expect(agentPlanStore.snapshots.s1).toBeUndefined()
-  })
-
-  it('keeps the active live plan snapshot while restoring messages', async () => {
-    const { messageStore, agentPlanStore, flushStartupDeferredTasks } = await setup({
-      deferStartupTasks: true,
-      activeSessionPatch: { status: 'working' },
-      messages: []
-    })
-    agentPlanStore.snapshots.s1 = {
-      sessionId: 's1',
-      messageId: 'm1',
-      plan: [{ step: 'Live plan', status: 'in_progress' }],
-      revision: 1,
-      updatedAt: '2026-05-18T00:00:00.000Z'
-    }
-    messageStore.loadMessages.mockImplementation(async () => {
-      messageStore.messages = [
-        buildAssistantMessage([
-          {
-            type: 'content',
-            content: 'No plan here',
-            status: 'success'
-          }
-        ])
-      ]
-    })
-
-    await flushStartupDeferredTasks()
-
-    expect(agentPlanStore.clearSnapshot).not.toHaveBeenCalledWith('s1')
-    expect(agentPlanStore.snapshots.s1?.plan[0]?.step).toBe('Live plan')
   })
 
   it('does not render legacy plan-only assistant messages as empty rows', async () => {
@@ -2748,46 +2429,6 @@ describe('ChatPage', () => {
     expect(wrapper.find('.alert-dialog-stub').exists()).toBe(false)
   })
 
-  it('clears the live plan snapshot when deleting the associated assistant message', async () => {
-    const { wrapper, agentPlanStore } = await setup()
-    agentPlanStore.snapshots.s1 = {
-      sessionId: 's1',
-      messageId: 'm1',
-      plan: [{ step: 'Associated plan', status: 'in_progress' }],
-      revision: 1,
-      updatedAt: '2026-05-18T00:00:00.000Z'
-    }
-    const messageList = wrapper.findComponent({ name: 'MessageList' })
-
-    messageList.vm.$emit('delete', 'm1')
-    await flushPromises()
-    await wrapper.findComponent({ name: 'AlertDialogAsyncAction' }).trigger('click')
-    await flushPromises()
-
-    expect(agentPlanStore.clearSnapshot).toHaveBeenCalledWith('s1')
-    expect(agentPlanStore.snapshots.s1).toBeUndefined()
-  })
-
-  it('keeps the live plan snapshot when deleting an unrelated message', async () => {
-    const { wrapper, agentPlanStore } = await setup()
-    agentPlanStore.snapshots.s1 = {
-      sessionId: 's1',
-      messageId: 'm2',
-      plan: [{ step: 'Unrelated plan', status: 'in_progress' }],
-      revision: 1,
-      updatedAt: '2026-05-18T00:00:00.000Z'
-    }
-    const messageList = wrapper.findComponent({ name: 'MessageList' })
-
-    messageList.vm.$emit('delete', 'm1')
-    await flushPromises()
-    await wrapper.findComponent({ name: 'AlertDialogAsyncAction' }).trigger('click')
-    await flushPromises()
-
-    expect(agentPlanStore.clearSnapshot).not.toHaveBeenCalledWith('s1')
-    expect(agentPlanStore.snapshots.s1?.plan[0]?.step).toBe('Unrelated plan')
-  })
-
   it('does not delete when the message delete dialog closes without confirmation', async () => {
     const { wrapper, sessionClient } = await setup()
     const messageList = wrapper.findComponent({ name: 'MessageList' })
@@ -2872,70 +2513,6 @@ describe('ChatPage', () => {
     expect(html.indexOf('pending-input-lane-stub')).toBeLessThan(
       html.indexOf('chat-input-box-stub')
     )
-  })
-
-  it('rebaselines the active plan after queued steer succeeds', async () => {
-    const { wrapper, pendingInputStore, agentPlanStore } = await setup({
-      isStreaming: true,
-      pendingInputStorePatch: {
-        items: [
-          {
-            id: 'p1',
-            mode: 'queue',
-            payload: { text: 'queued', files: [] }
-          }
-        ],
-        queueItems: [
-          {
-            id: 'p1',
-            mode: 'queue',
-            payload: { text: 'queued', files: [] }
-          }
-        ]
-      }
-    })
-
-    agentPlanStore.beginTurn.mockClear()
-    await wrapper.get('[data-testid="pending-lane-steer"]').trigger('click')
-    await flushPromises()
-
-    expect(pendingInputStore.steerPendingInput).toHaveBeenCalledWith('s1', 'p1')
-    expect(agentPlanStore.beginTurn).toHaveBeenCalledWith('s1')
-  })
-
-  it('keeps the active plan when queued steer fails', async () => {
-    const { wrapper, pendingInputStore, agentPlanStore, notify } = await setup({
-      isStreaming: true,
-      pendingInputStorePatch: {
-        items: [
-          {
-            id: 'p1',
-            mode: 'queue',
-            payload: { text: 'queued', files: [] }
-          }
-        ],
-        queueItems: [
-          {
-            id: 'p1',
-            mode: 'queue',
-            payload: { text: 'queued', files: [] }
-          }
-        ],
-        steerPendingInput: vi.fn().mockRejectedValue(new Error('boom'))
-      }
-    })
-
-    agentPlanStore.beginTurn.mockClear()
-    await wrapper.get('[data-testid="pending-lane-steer"]').trigger('click')
-    await flushPromises()
-
-    expect(pendingInputStore.steerPendingInput).toHaveBeenCalledWith('s1', 'p1')
-    expect(agentPlanStore.beginTurn).not.toHaveBeenCalled()
-    expect(notify).toHaveBeenCalledWith({
-      kind: 'error',
-      code: 'chat.pendingInput.steerFailed',
-      title: 'chat.pendingInput.steerFailed'
-    })
   })
 
   it('allows sending attachment-only drafts', async () => {
@@ -3132,7 +2709,7 @@ describe('ChatPage', () => {
 
   it('blocks duplicate stop requests while cancellation is pending', async () => {
     const stopping = createDeferred<{ stopped: boolean }>()
-    const { wrapper, chatClient, agentPlanStore } = await setup({ isStreaming: true })
+    const { wrapper, chatClient } = await setup({ isStreaming: true })
     chatClient.stopStream.mockReturnValueOnce(stopping.promise)
     const toolbar = wrapper.findComponent({ name: 'ChatInputToolbar' })
 
@@ -3147,18 +2724,16 @@ describe('ChatPage', () => {
     stopping.resolve({ stopped: true })
     await flushPromises()
 
-    expect(agentPlanStore.freezeActive).toHaveBeenCalledWith('s1')
     expect(toolbar.props('isStopping')).toBe(false)
   })
 
   it('reports stop responses that did not cancel generation', async () => {
-    const { wrapper, chatClient, agentPlanStore, notify } = await setup({ isStreaming: true })
+    const { wrapper, chatClient, notify } = await setup({ isStreaming: true })
     chatClient.stopStream.mockResolvedValueOnce({ stopped: false })
 
     wrapper.findComponent({ name: 'ChatInputToolbar' }).vm.$emit('stop')
     await flushPromises()
 
-    expect(agentPlanStore.freezeActive).not.toHaveBeenCalled()
     expect(notify).toHaveBeenCalledWith({
       kind: 'error',
       code: 'chat.generation.cancelFailed',

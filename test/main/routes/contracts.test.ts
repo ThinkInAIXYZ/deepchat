@@ -2080,7 +2080,6 @@ describe('main kernel contracts', () => {
         'browser.status.changed',
         'computerUse.preview.frame',
         'computerUse.preview.surface.changed',
-        'chat.plan.updated',
         'chat.stream.completed',
         'chat.stream.failed',
         'chat.stream.updated',

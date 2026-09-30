@@ -92,7 +92,7 @@ describe('Tool Surface shadow diagnostics selection', () => {
     const diagnostics = collector()
     const definitions = [
       agentTool('read'),
-      agentTool('update_plan'),
+      agentTool('edit'),
       agentTool('tape_search'),
       agentTool('skill_tool'),
       agentTool('recent_tool')

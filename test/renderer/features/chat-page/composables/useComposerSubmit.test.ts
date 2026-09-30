@@ -128,7 +128,6 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
   }
   const createPendingAssistantPlaceholder = vi.fn(() => 'pending-assistant')
   const clearPendingAssistantPlaceholder = vi.fn()
-  const beginPlanTurn = vi.fn()
   const schedulePostSubmitScrollToBottom = vi.fn()
   const openModelPicker = vi.fn()
   const notify = vi.fn()
@@ -159,7 +158,6 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
       getActiveModelSelection: () => activeModelSelection.value,
       createPendingAssistantPlaceholder,
       clearPendingAssistantPlaceholder,
-      beginPlanTurn,
       schedulePostSubmitScrollToBottom,
       loadMessagesForSession: vi.fn().mockResolvedValue({}),
       applyRestoredSessionSummary: vi.fn(),
@@ -192,7 +190,6 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
     setPendingSkills,
     restoreDocumentSnapshot,
     clearPendingAssistantPlaceholder,
-    beginPlanTurn,
     schedulePostSubmitScrollToBottom,
     openModelPicker,
     notify,
@@ -248,7 +245,6 @@ describe('useComposerSubmit attachment preflight', () => {
       's1'
     )
     expect(harness.clearPendingAssistantPlaceholder).toHaveBeenCalledWith('pending-assistant')
-    expect(harness.beginPlanTurn).not.toHaveBeenCalled()
 
     await harness.actions.sendWithoutImageContent()
 
@@ -264,7 +260,6 @@ describe('useComposerSubmit attachment preflight', () => {
     expect(harness.actions.attachedFiles.value).toEqual([])
     expect(harness.clearPendingSkills).toHaveBeenCalledTimes(1)
     expect(harness.actions.attachmentPreparationSummary.value).toBeNull()
-    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
     harness.stop()
   })
 
@@ -504,7 +499,6 @@ describe('useComposerSubmit attachment preflight', () => {
     await Promise.all([harness.actions.onSubmit(), harness.actions.onSubmit()])
 
     expect(harness.chatClient.sendMessage).toHaveBeenCalledTimes(1)
-    expect(harness.beginPlanTurn).toHaveBeenCalledTimes(1)
     harness.stop()
   })
 
@@ -796,7 +790,6 @@ describe('useComposerSubmit attachment preflight', () => {
       expect.objectContaining({ text: 'tighten the answer', files: [] })
     )
     expect(harness.messageStore.applyPersistedMessageRecords).toHaveBeenCalledWith([steerMessage])
-    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
     expect(harness.actions.message.value).toBe('')
     harness.stop()
   })
@@ -809,7 +802,6 @@ describe('useComposerSubmit attachment preflight', () => {
 
     await harness.actions.onSteer()
 
-    expect(harness.beginPlanTurn).not.toHaveBeenCalled()
     expect(harness.actions.message.value).toBe('keep this draft')
     expect(harness.notify).toHaveBeenCalledWith({
       kind: 'error',
@@ -841,7 +833,6 @@ describe('useComposerSubmit attachment preflight', () => {
     steering.resolve({ accepted: true, message: createSteerMessage() })
     await request
 
-    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
     expect(harness.actions.message.value).toBe('new draft')
     harness.stop()
   })

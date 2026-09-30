@@ -1527,7 +1527,6 @@ describe('renderer api clients', () => {
     chatClient.onStreamUpdated(vi.fn())
     chatClient.onStreamCompleted(vi.fn())
     chatClient.onStreamFailed(vi.fn())
-    chatClient.onPlanUpdated(vi.fn())
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'sessions.create', {
       agentId: 'deepchat',
@@ -1597,7 +1596,6 @@ describe('renderer api clients', () => {
     expect(bridge.on).toHaveBeenNthCalledWith(6, 'chat.stream.updated', expect.any(Function))
     expect(bridge.on).toHaveBeenNthCalledWith(7, 'chat.stream.completed', expect.any(Function))
     expect(bridge.on).toHaveBeenNthCalledWith(8, 'chat.stream.failed', expect.any(Function))
-    expect(bridge.on).toHaveBeenNthCalledWith(9, 'chat.plan.updated', expect.any(Function))
   })
 
   it('reads the race-free compaction snapshot through the session route', async () => {
