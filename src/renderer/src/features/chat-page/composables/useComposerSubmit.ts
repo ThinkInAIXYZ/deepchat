@@ -152,7 +152,6 @@ type UseComposerSubmitOptions = {
   /** Outgoing-turn UX: pending-assistant placeholder + plan turn reset. */
   createPendingAssistantPlaceholder: (sessionId: string) => string
   clearPendingAssistantPlaceholder: (id?: string) => void
-  beginPlanTurn: (sessionId: string) => void
   schedulePostSubmitScrollToBottom: () => void
   loadMessagesForSession: (sessionId: string, count?: number) => Promise<unknown>
   applyRestoredSessionSummary: (session: unknown) => void
@@ -914,7 +913,6 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
           messageStore.invalidateRecentSessionView(sessionId)
         }
       }
-      options.beginPlanTurn(sessionId)
       blockedComposerAttempts.delete(sessionId)
       consumeAcceptedDraft(sessionId, currentAttempt.draft)
       if (options.canWriteSessionView(sessionId, restoreRequestId)) {

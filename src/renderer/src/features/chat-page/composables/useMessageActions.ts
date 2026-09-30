@@ -39,8 +39,6 @@ type UseMessageActionsOptions = {
   sessionStore: SessionStore
   sessionClient: SessionClientLike
   chatClient: ChatClientLike
-  beginPlanTurn: (sessionId: string) => void
-  clearPlanSnapshotForDeletedMessage: (sessionId: string, messageId: string) => void
   loadMessagesForSession: (sessionId: string, count?: number) => Promise<unknown>
   applyRestoredSessionSummary: (session: unknown) => void
   currentRestoreRequestId: () => number
@@ -116,7 +114,6 @@ export function useMessageActions(options: UseMessageActionsOptions) {
         }
         return
       }
-      options.beginPlanTurn(sessionId)
       if (blockedRetryAttempt.value?.sessionId === sessionId) {
         blockedRetryAttempt.value = null
         retryAttachmentPreparationSummary.value = null
@@ -203,9 +200,6 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     try {
       options.messageStore.clearStreamingState()
       await options.sessionClient.deleteMessage(sessionId, messageId)
-      // Plan snapshots are stored per session id, not per view; clean up even
-      // when the user switched sessions while the confirm dialog was open.
-      options.clearPlanSnapshotForDeletedMessage(sessionId, messageId)
       if (!options.canWriteSessionView(sessionId, requestId)) return
       const restoredSession = await options.loadMessagesForSession(sessionId)
       if (!options.canWriteSessionView(sessionId, requestId)) return
@@ -274,7 +268,6 @@ export function useMessageActions(options: UseMessageActionsOptions) {
         options.t('chat.guardStop.continueMessage')
       )
       if (result?.accepted === false) return
-      options.beginPlanTurn(sessionId)
     } catch (error) {
       console.error('[ChatPage] continue message failed:', error)
     } finally {

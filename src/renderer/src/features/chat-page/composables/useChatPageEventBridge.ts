@@ -1,14 +1,7 @@
 import type { ComputedRef, Ref } from 'vue'
-import type { DeepchatEventPayload } from '@shared/contracts/events'
 
 type ChatInputHandle = {
   insertWorkspaceReference?: (targetPath: string) => boolean
-}
-
-type PlanUpdatedPayload = DeepchatEventPayload<'chat.plan.updated'>
-
-type ChatClientLike = {
-  onPlanUpdated: (listener: (payload: PlanUpdatedPayload) => void) => () => void
 }
 
 type UseChatPageEventBridgeOptions = {
@@ -17,18 +10,15 @@ type UseChatPageEventBridgeOptions = {
   chatInputRef: Ref<ChatInputHandle | null>
   setMessage: (text: string) => void
   onWindowKeydown: (event: KeyboardEvent) => void
-  onPlanUpdated: (payload: PlanUpdatedPayload) => void
-  chatClient: ChatClientLike
   workspaceInsertReferenceEvent: string
 }
 
 /**
  * Owns the global event subscriptions that bridge ChatPage-local state to
- * browser events and plan notifications. Lifecycle stays explicit so ChatPage
- * retains its established mount/unmount ordering around viewport setup.
+ * browser events. Lifecycle stays explicit so ChatPage retains its
+ * established mount/unmount ordering around viewport setup.
  */
 export function useChatPageEventBridge(options: UseChatPageEventBridgeOptions) {
-  let unsubscribePlanUpdated: (() => void) | null = null
   let started = false
 
   const onContextMenuAskAI = (event: Event) => {
@@ -72,7 +62,6 @@ export function useChatPageEventBridge(options: UseChatPageEventBridgeOptions) {
       onWorkspaceInsertReferenceRequested
     )
     window.addEventListener('keydown', options.onWindowKeydown)
-    unsubscribePlanUpdated = options.chatClient.onPlanUpdated(options.onPlanUpdated)
   }
 
   function stop() {
@@ -81,8 +70,6 @@ export function useChatPageEventBridge(options: UseChatPageEventBridgeOptions) {
     }
 
     started = false
-    unsubscribePlanUpdated?.()
-    unsubscribePlanUpdated = null
     window.removeEventListener('context-menu-ask-ai', onContextMenuAskAI)
     window.removeEventListener(
       options.workspaceInsertReferenceEvent,
