@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.1.3-beta.3 (2026-09-30)
+- Added a dependent-memory review before editing or deleting a memory, so affected reflections can be inspected and archived explicitly
+- Made memory evidence inspectable with paged lineage views that show derivation sources and derived claims
+- Added the DemonRoute provider
+- Added support for Lody ACP client extensions, covering elicitation forms, plan and usage reporting, subagent events, and session steering
+- Bundled the optional Memcode memory plugin across all release targets
+- Refreshed the bundled model and ACP catalogs
+- 新增依赖记忆复核：编辑或删除记忆前可查看受影响的反思记忆，并显式归档所选项目
+- 新增记忆证据检视：以分页血缘视图展示来源记忆与派生记忆
+- 新增 DemonRoute Provider
+- 支持 Lody ACP 客户端扩展：涵盖 elicitation 表单、计划与用量上报、子代理事件与会话引导
+- 在所有发布目标中内置可选的 Memcode 记忆插件
+- 刷新内置模型与 ACP 目录
+
 ## v1.1.3-beta.2 (2026-09-26)
 - Added the Requesty provider and a ChatGPT sign-in option for OpenAI
 - Focused the composer on paste and kept the slash menu from opening on URLs or file paths
