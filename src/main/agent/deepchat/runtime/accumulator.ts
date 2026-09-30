@@ -170,21 +170,6 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       markStreamChanged(state)
       break
     }
-    case 'plan': {
-      if (finalizeTrailingPendingNarrativeBlocks(state.blocks)) {
-        markStreamChanged(state)
-      }
-      const revision = event.revision ?? (state.latestAgentPlanSnapshot?.revision ?? 0) + 1
-      state.latestAgentPlanSnapshot = {
-        sessionId: '',
-        plan: event.plan,
-        ...(event.explanation ? { explanation: event.explanation } : {}),
-        revision,
-        updatedAt: event.updatedAt ?? new Date().toISOString(),
-        ...(event.terminalReason ? { terminalReason: event.terminalReason } : {})
-      }
-      break
-    }
     case 'tool_call_start': {
       finalizeTrailingPendingNarrativeBlocks(state.blocks)
       const providerOptionsJson = serializeProviderOptions(event.provider_options)
