@@ -319,7 +319,7 @@ export function parseReflectionInsights(
 ): MemoryReflectionInsight[] | null {
   if (!raw) return null
   // Parse the response container, not a nested evidenceIds array inside an invalid object.
-  const jsonText = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1] ?? raw
+  const jsonText = raw.trim().match(/^```(?:json)?\s*([\s\S]*?)```$/i)?.[1] ?? raw
   let parsed: unknown
   try {
     parsed = JSON.parse(jsonText)

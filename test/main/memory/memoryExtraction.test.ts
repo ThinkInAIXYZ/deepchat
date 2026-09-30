@@ -994,6 +994,21 @@ describe('MemoryService.maybeReflect cheap model', () => {
     expect(retried?.reflectionIds).toHaveLength(1)
   })
 
+  it.each([false, true])(
+    'preserves code fences inside reflection content (wrapped: %s)',
+    async (wrapped) => {
+      const content = 'Use ```[]``` when showing an empty-array example.'
+      const json = JSON.stringify([{ content, evidenceIds: ['e2'] }])
+      const generateText = vi.fn(async () => (wrapped ? `\`\`\`json\n${json}\n\`\`\`` : json))
+      const { presenter, repo } = await buildWithMemories({ memoryEnabled: true }, generateText)
+      const result = await presenter.maybeReflect('a', { providerId: 'p', modelId: 'm' })
+      expect(result?.reflectionIds).toHaveLength(1)
+      expect(result?.sourceMemoryIds).toEqual(['m4'])
+      expect(repo.getById(result!.reflectionIds[0]).content).toBe(content)
+      expect(generateText).toHaveBeenCalledTimes(1)
+    }
+  )
+
   it.each([
     '',
     'not JSON',
