@@ -763,11 +763,51 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
     expect(repo.countDirtySeeds('a')).toBe(2)
   })
 
+  it('retries invalid reflections after the failure cooldown without a tight retry loop', async () => {
+    const generateText = vi
+      .fn()
+      .mockResolvedValueOnce('invalid response')
+      .mockResolvedValue('[{"content":"Supported pattern","evidenceIds":["e1"]}]')
+    const { presenter, repo, auditRepo } = makeLLMPresenter(generateText)
+    const now = Date.now()
+    for (let index = 0; index < 6; index += 1) {
+      repo.insert({
+        id: `reflection-source-${index}`,
+        agentId: 'a',
+        kind: 'semantic',
+        content: `durable fact ${index}`,
+        importance: 0.9,
+        createdAt: now,
+        status: 'fts_only'
+      })
+    }
+
+    await presenter.runConsolidationPass('a', now)
+    expect(generateText).toHaveBeenCalledTimes(1)
+    expect(auditRepo.listByAgent('a')[0]).toMatchObject({
+      event_type: 'memory/maintenance_llm',
+      status: 'failed',
+      reason: 'all-llm-steps-failed'
+    })
+    expect(repo.listByAgent('a', { kinds: ['reflection'] })).toHaveLength(0)
+
+    await presenter.runConsolidationPass('a', now + 5 * 60 * 1000)
+    expect(generateText).toHaveBeenCalledTimes(1)
+    await presenter.runConsolidationPass('a', now + 31 * 60 * 1000)
+    expect(generateText).toHaveBeenCalledTimes(2)
+    expect(repo.listByAgent('a', { kinds: ['reflection'] })).toEqual([
+      expect.objectContaining({ content: 'Supported pattern' })
+    ])
+    expect(auditRepo.getLatestCompletedEventAt('a', 'memory/maintenance_llm')).toBe(
+      now + 31 * 60 * 1000
+    )
+  })
+
   it('keeps reflection accounting when its audit write fails', async () => {
     const generateText = vi.fn(async (_providerId: string, _modelId: string, prompt: string) => {
       if (prompt.includes('Choose exactly ONE decision')) throw new Error('decision unavailable')
       if (prompt.includes('durable, high-level insights')) {
-        return '["user consistently prefers redis"]'
+        return '[{"content":"user consistently prefers redis","evidenceIds":["e1"]}]'
       }
       return ''
     })

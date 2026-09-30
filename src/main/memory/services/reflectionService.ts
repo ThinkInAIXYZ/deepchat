@@ -125,6 +125,10 @@ export class ReflectionService {
       }
       if (!this.ctx.canContinueOperation(operationFence)) return finish(null)
       const insights = parseReflectionInsights(raw, new Set(evidence.keys()))
+      if (insights === null) {
+        failures += 1
+        return finish(null)
+      }
       const now = this.ctx.now()
       const sourceMemoryIds = new Set<string>()
       let rejectedStaleEvidence = false
