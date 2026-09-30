@@ -12,23 +12,16 @@ import type {
   ToolOutcomeProjectionRegistrar
 } from '../core/mcp'
 import type { DeepChatSubagentCapability, PermissionMode, SessionKind } from '../agent-interface'
-import type { AgentPlanSnapshot } from '../agent-plan'
 import type { DeepChatExecutionContract } from './execution-contract'
 import type { CommandShellProfile, ResolvedCommandShell } from '../commandShell'
 import type { ToolMode } from '../toolMode'
 
-export type AgentToolProgressUpdate =
-  | {
-      kind: 'subagent_orchestrator'
-      toolCallId: string
-      responseMarkdown: string
-      progressJson: string
-    }
-  | {
-      kind: 'agent_plan'
-      toolCallId: string
-      snapshot: AgentPlanSnapshot
-    }
+export type AgentToolProgressUpdate = {
+  kind: 'subagent_orchestrator'
+  toolCallId: string
+  responseMarkdown: string
+  progressJson: string
+}
 
 export interface ToolDefinitionContext {
   enabledMcpTools?: string[]
@@ -171,11 +164,6 @@ export interface ToolServicePort {
    * Release any cached tool mapping for a conversation.
    */
   clearConversationToolMapping(conversationId: string): void
-
-  /**
-   * Reset only the per-turn agent plan state for a conversation.
-   */
-  clearAgentPlanState(conversationId: string): void
 
   configureToolMode(input: ToolModeConfiguration): MCPToolDefinition[]
 

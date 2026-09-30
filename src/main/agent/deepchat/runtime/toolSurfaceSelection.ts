@@ -42,10 +42,9 @@ const CODE_CORE_TOOL_NAMES = Object.freeze([
   'grep',
   'process',
   'read',
-  'update_plan',
   'write'
 ])
-const GENERAL_CORE_TOOL_NAMES = Object.freeze(['deepchat_question', 'update_plan'])
+const GENERAL_CORE_TOOL_NAMES = Object.freeze(['deepchat_question'])
 
 export interface ToolSurfacePolicySelectionInputs {
   readonly policyRequiredStableTargetKeys: readonly string[]

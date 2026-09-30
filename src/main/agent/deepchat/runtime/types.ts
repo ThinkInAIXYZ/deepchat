@@ -21,7 +21,7 @@ import type { DeepchatEventName } from '@shared/contracts/events'
 import type { DeepChatInternalSessionUpdate } from './sessionUpdates'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type { CacheImageOptions } from '@/platform/imageCache'
-import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
+import type { AgentPlanSnapshot } from '@shared/types/agent-plan'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type {
   DeepChatLoopNotificationObserver,
@@ -131,7 +131,6 @@ export interface StreamState {
   completedToolCalls: ToolCallResult[]
   stopReason: ProviderRoundStopReason | null
   latestAgentPlanSnapshot?: AgentPlanSnapshot
-  planTerminalReason?: AgentPlanTerminalReason
   roundUsage: {
     inputTokens: number
     outputTokens: number

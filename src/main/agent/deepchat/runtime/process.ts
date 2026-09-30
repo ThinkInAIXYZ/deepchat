@@ -21,7 +21,6 @@ import {
   finalize,
   finalizeError,
   finalizePaused,
-  publishPlanUpdated,
   settleToolBatch,
   type ToolBatchDisposition
 } from './dispatch'
@@ -411,7 +410,7 @@ export function resolveProviderTerminalDecision(state: StreamState): ProviderTer
       stopReason: 'provider_error'
     }
   }
-  if (state.blocks.length === 0 && !state.latestAgentPlanSnapshot) {
+  if (state.blocks.length === 0) {
     return {
       type: 'error',
       error: NO_MODEL_RESPONSE_ERROR,
@@ -847,7 +846,6 @@ function settleLoopOutcome(
     logger.info(
       `[ProcessStream] max tool calls reached (${outcome.attemptedToolCount} > ${outcome.limit}), stopping`
     )
-    state.planTerminalReason = 'max_steps'
     markUnexecutedToolCallsForLimit(state)
     stampRunOutcome(state, 'completed', 'max_tool_calls')
     commitRunTerminal({ outcome: 'completed', stopReason: 'max_tool_calls' })
@@ -1163,7 +1161,6 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
           )
         }
         if (resumedObservation.shouldTerminate) {
-          state.planTerminalReason = 'max_steps'
           return settleLoopOutcome(
             {
               type: 'halted',
@@ -1297,14 +1294,6 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
                   searchId: source.searchId
                 }
               })
-            }
-            if (event.type === 'plan' && state.latestAgentPlanSnapshot) {
-              state.latestAgentPlanSnapshot = {
-                ...state.latestAgentPlanSnapshot,
-                sessionId: io.sessionId,
-                messageId: io.messageId
-              }
-              publishPlanUpdated(io, state.latestAgentPlanSnapshot)
             }
             echo.schedule()
           }
@@ -1522,7 +1511,6 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
               logger.warn(
                 `[ProcessStream] ${NO_PROGRESS_TERMINAL_ERROR} session=${io.sessionId} message=${io.messageId}`
               )
-              state.planTerminalReason = 'max_steps'
               return {
                 type: 'halted',
                 result: {
