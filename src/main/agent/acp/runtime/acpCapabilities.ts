@@ -7,7 +7,6 @@ export interface AcpCapabilityOptions {
   enableTerminal?: boolean
   enableTerminalAuth?: boolean
   enableElicitation?: boolean
-  enablePlans?: boolean
   enableSubagentEvents?: boolean
 }
 
@@ -84,7 +83,6 @@ export function buildClientCapabilities(
     }
   }
 
-  if (options.enablePlans) caps.plan = {}
   if (options.enableElicitation) caps.elicitation = { form: {}, url: {} }
   if (options.enableElicitation || options.enableSubagentEvents) {
     caps._meta = {

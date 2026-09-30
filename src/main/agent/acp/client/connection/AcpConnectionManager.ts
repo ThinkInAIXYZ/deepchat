@@ -24,7 +24,6 @@ export class AcpConnectionManager {
       getUvRegistry: async () => registry.getUvRegistry(),
       terminalAuthAvailable: true,
       enableElicitation: true,
-      enablePlans: true,
       enableSubagentEvents: true
     })
   }

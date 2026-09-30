@@ -96,7 +96,6 @@ interface AcpProcessManagerOptions {
   getUvRegistry?: () => Promise<string | null>
   terminalAuthAvailable?: boolean
   enableElicitation?: boolean
-  enablePlans?: boolean
   enableSubagentEvents?: boolean
 }
 
@@ -251,7 +250,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private readonly terminalAuthAvailable: boolean
   private readonly replayingSessions = new Set<string>()
   private readonly enableElicitation: boolean
-  private readonly enablePlans: boolean
   private readonly enableSubagentEvents: boolean
   readonly elicitation: AcpElicitationBridge
   private readonly handles = new Map<string, AcpProcessHandle>()
@@ -303,7 +301,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       this.publishEvent('acp.elicitation.changed', { version: this.elicitation.version })
     )
     this.enableElicitation = options.enableElicitation === true
-    this.enablePlans = options.enablePlans === true
     this.enableSubagentEvents = options.enableSubagentEvents === true
     this.publishEvent = options.publishEvent
     this.providerId = options.providerId
@@ -1488,7 +1485,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
           enableTerminal: true,
           enableTerminalAuth: this.terminalAuthAvailable,
           enableElicitation: this.enableElicitation,
-          enablePlans: this.enablePlans,
           enableSubagentEvents: this.enableSubagentEvents
         }),
         clientInfo: { name: 'DeepChat', version: app.getVersion() }

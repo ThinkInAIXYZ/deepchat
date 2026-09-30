@@ -1,4 +1,4 @@
-import type { Cost, PlanUpdateContent } from '@agentclientprotocol/sdk'
+import type { Cost } from '@agentclientprotocol/sdk'
 import type {
   LodyActivityMeta,
   LodyExtensionCapabilities,
@@ -29,7 +29,6 @@ export type AcpSubagentRun = {
   snapshot?: LodySubagentSnapshot
   progress?: LodySubagentProgress
   blocks: AssistantMessageBlock[]
-  plan?: import('./agent-plan').AgentPlanItem[]
   outputIncomplete?: boolean
   taskId?: string
 }
@@ -53,7 +52,6 @@ export type AcpExtensionState = {
   notice?: LodyNotice
   title?: string | null
   titleSource?: 'explicit' | 'generated' | 'fallback' | 'unset'
-  plans: Record<string, PlanUpdateContent>
   tasks: Record<string, LodyTaskMeta>
   remoteTasks: LodySubagentTask[]
   runs: Record<string, AcpSubagentRun>

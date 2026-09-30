@@ -662,8 +662,6 @@
     "resetsAt": "重置时间",
     "balance": "余额",
     "monthlyUsed": "本月用量",
-    "plans": "计划",
-    "readPlan": "读取计划文件",
     "goal": "目标",
     "goalObjective": "描述目标",
     "setGoal": "启动目标",

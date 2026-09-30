@@ -1,6 +1,5 @@
 import { buildAcpHistory } from './acpHistory'
 import { toAcpRemoteSessionId } from '@/agent/shared/agentSessionIds'
-import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import { type LodySubagentEvent, LODY_EXTENSION_METHODS } from 'acp-extension-core'
 import type { AcpExtensionState, AcpSubagentRun } from '@shared/types/acp-extensions'
@@ -17,7 +16,6 @@ import {
   acpRemoteTasksSchema,
   type AcpExtensionNotification
 } from './acpLodyExtensions'
-import { AcpFsHandler } from './acpFsHandler'
 import { accumulate } from '@/agent/deepchat/runtime/accumulator'
 import { createState, type StreamState } from '@/agent/deepchat/runtime/types'
 import type * as schema from '@agentclientprotocol/sdk'
@@ -863,21 +861,6 @@ export class AcpSessionController {
     }
   }
 
-  async readPlanFile(conversationId: AppSessionId, planId: string) {
-    const session = this.requireSession(conversationId)
-    const plan = this.extensionState(session).plans[planId]
-    if (plan?.type !== 'file') throw new Error('ACP file plan is unavailable')
-    const url = new URL(plan.uri)
-    if (url.protocol !== 'file:') throw new Error('ACP plans must reference a local file')
-    const response = await new AcpFsHandler({
-      workspaceRoot: session.workdir,
-      maxReadSize: 262_144
-    }).readTextFile({ sessionId: session.sessionId, path: fileURLToPath(url) })
-    return {
-      content: this.processManager.elicitation.redact(session.connectionId, response.content)
-    }
-  }
-
   private extensionState(session: AcpSessionRecord): AcpExtensionState {
     const current = session.metadata?.acpExtensions as AcpExtensionState | undefined
     return current?.version === 1
@@ -975,8 +958,7 @@ export class AcpSessionController {
             agent_message_chunk: 'text',
             agent_thought_chunk: 'thought',
             tool_call: 'tool',
-            tool_call_update: 'tool',
-            plan: 'plan'
+            tool_call_update: 'tool'
           } as const
           if (!run.snapshot?.support.stream.includes(kind[event.update.sessionUpdate])) return
           let streaming = this.runStreams.get(key)
@@ -1005,8 +987,6 @@ export class AcpSessionController {
                     notification.params.update.sessionUpdate === 'agent_thought_chunk')
               )
               .forEach((event) => accumulate(streaming!.stream, event))
-            if (streaming.stream.latestAgentPlanSnapshot)
-              run.plan = streaming.stream.latestAgentPlanSnapshot.plan
             run.blocks = structuredClone(streaming.stream.blocks)
           }
         }
@@ -1064,13 +1044,7 @@ export class AcpSessionController {
     const session = this.sessionManager.getSession(conversationId)
     if (!session) return
     const meta = readLodySessionMeta(notification.update._meta)
-    const update = notification.update
-    if (
-      mapped.usage ||
-      mapped.sessionInfo ||
-      Object.keys(meta).length ||
-      ['plan', 'plan_update', 'plan_removed'].includes(update.sessionUpdate)
-    ) {
+    if (mapped.usage || mapped.sessionInfo || Object.keys(meta).length) {
       const state = { ...this.extensionState(session) }
       if (mapped.usage)
         state.context = {
@@ -1120,22 +1094,6 @@ export class AcpSessionController {
             return [id, { ...run, taskId: matches.length === 1 ? matches[0].taskId : undefined }]
           })
         )
-      }
-      if (update.sessionUpdate === 'plan')
-        state.plans = {
-          ...state.plans,
-          legacy: { type: 'items', planId: 'legacy', entries: update.entries }
-        }
-      if (
-        update.sessionUpdate === 'plan_update' &&
-        update.plan.planId.length <= 256 &&
-        JSON.stringify(update.plan).length < 262_144 &&
-        (Object.hasOwn(state.plans, update.plan.planId) || Object.keys(state.plans).length < 32)
-      )
-        state.plans = { ...state.plans, [update.plan.planId]: update.plan }
-      if (update.sessionUpdate === 'plan_removed') {
-        state.plans = { ...state.plans }
-        delete state.plans[update.planId]
       }
       this.saveExtensionState(conversationId, session, state)
     }

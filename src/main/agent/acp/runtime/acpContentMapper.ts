@@ -2,7 +2,6 @@ import { readLodySessionMeta } from './acpLodyExtensions'
 import type * as schema from '@agentclientprotocol/sdk'
 import type { AcpConfigState } from '@shared/types/acp'
 import type { AssistantMessageBlock } from '@shared/chat'
-import { normalizeAgentPlanStatus } from '@shared/types/agent-plan'
 import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import { normalizeAcpConfigState } from './acpConfigState'
 
@@ -35,17 +34,9 @@ export function createAcpPromptTerminalEvents(
   ]
 }
 
-export interface PlanEntry {
-  step: string
-  priority?: string | null
-  status: 'pending' | 'in_progress' | 'completed'
-}
-
 export interface MappedContent {
   events: LLMCoreStreamEvent[]
   blocks: AssistantMessageBlock[]
-  /** Structured plan entries from the agent (optional) */
-  planEntries?: PlanEntry[]
   /** Current mode ID from mode change notification (optional) */
   currentModeId?: string
   /** Available slash commands from ACP session (optional) */
@@ -90,12 +81,10 @@ type TerminalSnapshotResolver = (
 
 export class AcpContentMapper {
   private readonly toolCallStates = new Map<string, ToolCallState>()
-  private readonly planRevisions = new Map<string, number>()
 
   constructor(private readonly resolveTerminalSnapshot?: TerminalSnapshotResolver) {}
 
   clearSession(sessionId: string): void {
-    this.planRevisions.delete(sessionId)
 
     const keyPrefix = `${sessionId}:`
     for (const key of this.toolCallStates.keys()) {
@@ -122,8 +111,9 @@ export class AcpContentMapper {
         this.handleToolCallUpdate(sessionId, update, payload)
         break
       case 'plan':
-        console.info('[ACP] Plan update received:', JSON.stringify(update))
-        this.handlePlanUpdate(sessionId, update, payload)
+      case 'plan_update':
+      case 'plan_removed':
+        // Ignored: DeepChat does not advertise the optional ACP plan client capability.
         break
       case 'current_mode_update':
         console.info('[ACP] Mode update received:', update)
@@ -141,9 +131,6 @@ export class AcpContentMapper {
         break
       case 'session_info_update':
         this.handleSessionInfoUpdate(update, payload)
-        break
-      case 'plan_update':
-      case 'plan_removed':
         break
       case 'usage_update':
         this.handleUsageUpdate(update, payload)
@@ -298,26 +285,6 @@ export class AcpContentMapper {
     if (status === 'completed' || status === 'failed') {
       this.emitToolCallEnd(state, payload, status === 'failed')
     }
-  }
-
-  private handlePlanUpdate(
-    sessionId: string,
-    update: Extract<schema.SessionNotification['update'], { sessionUpdate: 'plan' }>,
-    payload: MappedContent
-  ) {
-    const entries = update.entries || []
-
-    // Store structured plan entries
-    payload.planEntries = entries.map((entry) => ({
-      step: entry.content,
-      priority: entry.priority ?? null,
-      status: normalizeAgentPlanStatus(entry.status)
-    }))
-
-    const updatedAt = new Date().toISOString()
-    const revision = (this.planRevisions.get(sessionId) ?? 0) + 1
-    this.planRevisions.set(sessionId, revision)
-    payload.events.push(createStreamEvent.plan(payload.planEntries, { revision, updatedAt }))
   }
 
   private handleModeUpdate(
