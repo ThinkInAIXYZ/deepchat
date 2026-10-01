@@ -77,6 +77,65 @@ describe('ModelStatusHelper.ensureModelStatus', () => {
     expect(helper.getModelStatus('ollama', 'deepseek-r1:1.5b')).toBe(false)
   })
 
+  it('keeps new hyphenated status separate from dotted legacy fallback across restart', () => {
+    const store = new MockElectronStore()
+    let helper = new ModelStatusHelper({
+      store: store as any,
+      setSetting: (key, value) => store.set(key, value),
+      publishEvent: () => undefined
+    })
+
+    helper.setModelStatus('custom', 'foo-bar', true)
+    expect(helper.getModelStatus('custom', 'foo.bar')).toBe(false)
+
+    helper = new ModelStatusHelper({
+      store: store as any,
+      setSetting: (key, value) => store.set(key, value),
+      publishEvent: () => undefined
+    })
+
+    expect(helper.getBatchModelStatus('custom', ['foo.bar', 'foo-bar'])).toEqual({
+      'foo.bar': false,
+      'foo-bar': true
+    })
+  })
+
+  it('deletes a dotted canonical status without exposing a colliding legacy status', () => {
+    const store = new MockElectronStore()
+    store.set('model_status_custom_foo-bar', true)
+    const helper = new ModelStatusHelper({
+      store: store as any,
+      setSetting: (key, value) => store.set(key, value),
+      publishEvent: () => undefined
+    })
+
+    helper.setModelStatus('custom', 'foo.bar', true)
+    helper.deleteModelStatus('custom', 'foo.bar')
+
+    expect(helper.getModelStatus('custom', 'foo.bar')).toBe(false)
+    expect(helper.getModelStatus('custom', 'foo-bar')).toBe(true)
+    expect(store.has('model_status_custom_foo-bar')).toBe(true)
+    expect(store.get('model_status_v2_custom|foo.bar')).toBe(false)
+  })
+
+  it('reads legacy dotted status and tombstones only that canonical identity on deletion', () => {
+    const store = new MockElectronStore()
+    store.set('model_status_custom_foo-bar', true)
+    const helper = new ModelStatusHelper({
+      store: store as any,
+      setSetting: (key, value) => store.set(key, value),
+      publishEvent: () => undefined
+    })
+
+    expect(helper.getModelStatus('custom', 'foo.bar')).toBe(true)
+
+    helper.deleteModelStatus('custom', 'foo.bar')
+
+    expect(helper.getModelStatus('custom', 'foo.bar')).toBe(false)
+    expect(store.has('model_status_custom_foo-bar')).toBe(true)
+    expect(store.get('model_status_v2_custom|foo.bar')).toBe(false)
+  })
+
   it('builds the persisted snapshot once and reuses it for batch lookups', () => {
     const store = new MockElectronStore()
     store.set('model_status_openai_gpt-5-4', true)
@@ -125,9 +184,9 @@ describe('ModelStatusHelper.ensureModelStatus', () => {
 
   it('removes every persisted model status for a provider in one pass', () => {
     const store = new MockElectronStore()
-    store.set('model_status_openai_gpt-5-4', true)
-    store.set('model_status_openai_gpt-4-1', false)
-    store.set('model_status_anthropic_claude-3-5-sonnet', true)
+    store.set('model_status_v2_openai|gpt-5.4', true)
+    store.set('model_status_v2_openai|gpt-4.1', false)
+    store.set('model_status_v2_anthropic|claude-3.5-sonnet', true)
 
     const helper = new ModelStatusHelper({
       store: store as any,
@@ -148,8 +207,8 @@ describe('ModelStatusHelper.ensureModelStatus', () => {
 
   it('removes cached provider status keys when a raw store snapshot is unavailable', () => {
     const store = new MockElectronStoreWithoutSnapshot()
-    store.set('model_status_openai_gpt-5-4', true)
-    store.set('model_status_anthropic_claude-3-5-sonnet', true)
+    store.set('model_status_v2_openai|gpt-5.4', true)
+    store.set('model_status_v2_anthropic|claude-3.5-sonnet', true)
 
     const helper = new ModelStatusHelper({
       store: store as any,
@@ -160,7 +219,7 @@ describe('ModelStatusHelper.ensureModelStatus', () => {
     expect(helper.getModelStatus('openai', 'gpt-5.4')).toBe(true)
     helper.deleteProviderModelStatuses('openai')
 
-    expect(store.has('model_status_openai_gpt-5-4')).toBe(false)
-    expect(store.has('model_status_anthropic_claude-3-5-sonnet')).toBe(true)
+    expect(store.has('model_status_v2_openai|gpt-5.4')).toBe(false)
+    expect(store.has('model_status_v2_anthropic|claude-3.5-sonnet')).toBe(true)
   })
 })

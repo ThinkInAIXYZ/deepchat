@@ -15,6 +15,7 @@ import {
   USER_MODEL_CONFIG_MIGRATION_ID
 } from '@/provider/userModelConfig'
 import { RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID } from '@/provider/providerModelFacts'
+import { encodeLegacyModelStatusKey, encodeModelStatusKey } from '@/provider/modelStatusKey'
 import { openSQLiteDatabase } from '../data/databaseConnection'
 
 export const CURRENT_SYNC_BACKUP_VERSION = 2
@@ -118,9 +119,6 @@ const normalizeNumberRecord = (value: unknown): Record<string, number> => {
     )
   )
 }
-
-const getStatusKey = (providerId: string, modelId: string): string =>
-  `model_status_${providerId}_${modelId.replace(/\./g, '-')}`
 
 export class SyncConfigImportService {
   constructor(
@@ -500,7 +498,12 @@ export class SyncConfigImportService {
 
     if (payload.modelStatuses.length > 0) {
       for (const status of payload.modelStatuses) {
-        if (overwrite || !providerSettings.hasModelStatus(status.statusKey)) {
+        const legacyStatusKey = encodeLegacyModelStatusKey(status.providerId, status.modelId)
+        if (
+          overwrite ||
+          (!providerSettings.hasModelStatus(status.statusKey) &&
+            !providerSettings.hasModelStatus(legacyStatusKey))
+        ) {
           providerSettings.setModelStatus(
             status.statusKey,
             status.providerId,
@@ -713,9 +716,9 @@ export class SyncConfigImportService {
       const { enabled, ...modelWithoutEnabled } = item as MODEL_META & { enabled?: unknown }
       if (typeof enabled === 'boolean') {
         payload.modelStatuses.push({
-          statusKey: getStatusKey(providerId, item.id),
+          statusKey: encodeModelStatusKey(providerId, item.id),
           providerId,
-          modelId: item.id.replace(/\./g, '-'),
+          modelId: item.id,
           enabled
         })
       }
