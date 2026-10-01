@@ -16,7 +16,6 @@
       <ProviderApiConfig
         :provider="provider"
         :provider-websites="providerWebsites"
-        :uses-provider-db="defaultProvider?.usesProviderDb"
         :save="saveConnection"
         @auth-mode-change="handleAuthModeChange"
         @delete-provider="showDeleteProviderDialog = true"
@@ -41,6 +40,12 @@
         @model-enabled-change="handleModelEnabledChange"
         @config-changed="handleConfigChanged"
       />
+      <p
+        v-if="defaultProvider?.usesProviderDb"
+        class="mt-2 text-xs leading-5 text-muted-foreground"
+      >
+        {{ t('settings.provider.refreshModelsWithMetadataHint') }}
+      </p>
     </template>
 
     <template #advanced>

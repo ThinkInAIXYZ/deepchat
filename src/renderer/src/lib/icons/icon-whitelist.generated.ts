@@ -69,7 +69,6 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'cloud-download',
     'cloud-upload',
     'code',
-    'coins',
     'command',
     'compass',
     'copy',

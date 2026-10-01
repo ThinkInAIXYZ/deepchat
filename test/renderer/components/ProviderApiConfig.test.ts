@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent } from 'vue'
+import { computed, defineComponent, inject, provide } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { LLM_PROVIDER } from '@shared/types/provider'
+
+const dialogKey = Symbol('dialog')
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -9,157 +11,150 @@ const passthrough = (name: string) =>
     template: '<div><slot /></div>'
   })
 
-const createInputStub = () =>
-  defineComponent({
-    name: 'Input',
-    inheritAttrs: false,
-    props: {
-      modelValue: {
-        type: [String, Number],
-        default: ''
-      }
-    },
-    emits: ['update:modelValue', 'update:model-value'],
-    setup(_, { emit }) {
-      const handleInput = (event: Event) => {
-        const value = (event.target as HTMLInputElement).value
-        emit('update:modelValue', value)
-        emit('update:model-value', value)
-      }
-
-      return {
-        handleInput
-      }
-    },
-    template: '<input v-bind="$attrs" :value="modelValue" @input="handleInput" />'
-  })
+const inputStub = defineComponent({
+  name: 'Input',
+  inheritAttrs: false,
+  props: {
+    modelValue: {
+      type: [String, Number],
+      default: ''
+    }
+  },
+  emits: ['update:modelValue'],
+  template:
+    '<input v-bind="$attrs" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
+})
 
 const buttonStub = defineComponent({
   name: 'Button',
   inheritAttrs: false,
   emits: ['click'],
-  template: '<button v-bind="$attrs" type="button" @click="$emit(\'click\')"><slot /></button>'
+  template: '<button v-bind="$attrs" @click="$emit(\'click\', $event)"><slot /></button>'
 })
 
 const copyButtonStub = defineComponent({
   name: 'CopyButton',
   inheritAttrs: false,
-  emits: ['copied', 'error'],
   props: {
     copyText: {
       type: String,
       default: ''
     }
   },
-  template: '<button v-bind="$attrs" type="button" @click="$emit(\'copied\')"><slot /></button>'
+  template: '<button v-bind="$attrs" type="button"><slot /></button>'
 })
 
-const labelStub = defineComponent({
-  name: 'Label',
+const dialogStub = defineComponent({
+  name: 'Dialog',
+  props: {
+    open: Boolean
+  },
+  emits: ['update:open'],
+  setup(props, { emit }) {
+    provide(dialogKey, {
+      open: computed(() => props.open),
+      setOpen: (open: boolean) => emit('update:open', open)
+    })
+  },
+  template: '<div><slot /></div>'
+})
+
+const dialogTriggerStub = defineComponent({
+  name: 'DialogTrigger',
+  setup() {
+    return { dialog: inject(dialogKey) }
+  },
+  template: '<div @click="dialog.setOpen(true)"><slot /></div>'
+})
+
+const dialogContentStub = defineComponent({
+  name: 'DialogContent',
   inheritAttrs: false,
-  template: '<label v-bind="$attrs"><slot /></label>'
+  setup() {
+    return { dialog: inject(dialogKey) }
+  },
+  template:
+    '<div v-if="dialog.open.value" v-bind="$attrs"><button data-testid="dialog-dismiss" type="button" @click="dialog.setOpen(false)">dismiss</button><slot /></div>'
 })
 
 const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   id: 'deepseek',
   name: 'DeepSeek',
   apiType: 'openai-compatible',
-  apiKey: 'test-key',
+  apiKey: 'stored-fake-key',
   baseUrl: 'https://api.deepseek.com/v1',
   enable: true,
   custom: false,
   ...overrides
 })
 
-async function setup(options?: {
-  provider?: LLM_PROVIDER
-  usesProviderDb?: boolean
-  providerWebsites?: {
-    official: string
-    apiKey: string
-    docs: string
-    models: string
-    defaultBaseUrl: string
-  }
-}) {
+async function setup(provider = createProvider()) {
   vi.resetModules()
 
   const providerClient = {
-    getKeyStatus: vi.fn().mockResolvedValue(null),
-    refreshModels: vi.fn().mockResolvedValue(undefined)
+    getKeyStatus: vi.fn().mockResolvedValue(null)
   }
   const modelCheckStore = {
     openDialog: vi.fn()
   }
-  const notifyRenderer = vi.fn(() => true)
+  let wrapper: ReturnType<typeof mount>
   const save = vi.fn(async (_id: string, updates: { apiKey: string; baseUrl: string }) => {
     await wrapper.setProps({ provider: { ...wrapper.props('provider'), ...updates } })
   })
 
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
-      t: (key: string, params?: Record<string, unknown>) => {
-        if (key === 'settings.provider.modifyBaseUrl') return 'Modify'
-        if (key === 'settings.provider.baseUrlLockedHint') {
-          return 'This provider is pinned to the recommended Base URL.'
-        }
-        if (key === 'settings.provider.urlPlaceholder') return 'Enter API URL'
-        if (key === 'settings.provider.urlFormat') {
-          return `Default: ${params?.defaultUrl ?? ''}`
-        }
-        if (key === 'settings.provider.urlFormatFill') return 'Fill into API URL'
-        if (key === 'settings.provider.dialog.baseUrlUnlock.confirm') return 'Continue'
-        if (key === 'settings.provider.amdDeveloperHint') {
-          return 'AMD GPU Cloud provides public model APIs through Radeon Token Factory. Get an API key from AMD to access the currently available models.'
-        }
-        return key
-      }
+      t: (key: string, params?: Record<string, unknown>) =>
+        key === 'settings.provider.urlFormat' ? `Default: ${params?.defaultUrl ?? ''}` : key
     })
   }))
-
   vi.doMock('@api/ProviderClient', () => ({
     createProviderClient: () => providerClient
   }))
-
   vi.doMock('@/stores/modelCheck', () => ({
     useModelCheckStore: () => modelCheckStore
   }))
-  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
-    notifyRenderer
-  }))
-  vi.doMock('@shadcn/components/ui/input', () => ({
-    Input: createInputStub()
-  }))
+  vi.doMock('@shadcn/components/ui/input', () => ({ Input: inputStub }))
   vi.doMock('@dc-ui/components/button', () => ({
     DcButton: buttonStub,
     DcCopyButton: copyButtonStub
   }))
-  vi.doMock('@shadcn/components/ui/label', () => ({
-    Label: labelStub
-  }))
-  vi.doMock('@shadcn/components/ui/tooltip', () => ({
-    Tooltip: passthrough('Tooltip'),
-    TooltipContent: passthrough('TooltipContent'),
-    TooltipProvider: passthrough('TooltipProvider'),
-    TooltipTrigger: passthrough('TooltipTrigger')
-  }))
-  vi.doMock('@iconify/vue', () => ({
-    Icon: defineComponent({
-      name: 'Icon',
-      template: '<i />'
+  vi.doMock('@dc-ui/components/inline-error', () => ({
+    DcInlineError: defineComponent({
+      name: 'DcInlineError',
+      inheritAttrs: false,
+      props: { error: String },
+      template: '<p v-bind="$attrs" role="alert">{{ error }}</p>'
     })
   }))
+  vi.doMock('@shadcn/components/ui/label', () => ({
+    Label: defineComponent({
+      name: 'Label',
+      inheritAttrs: false,
+      template: '<label v-bind="$attrs"><slot /></label>'
+    })
+  }))
+  vi.doMock('@shadcn/components/ui/dialog', () => ({
+    Dialog: dialogStub,
+    DialogContent: dialogContentStub,
+    DialogDescription: passthrough('DialogDescription'),
+    DialogFooter: passthrough('DialogFooter'),
+    DialogHeader: passthrough('DialogHeader'),
+    DialogTitle: passthrough('DialogTitle'),
+    DialogTrigger: dialogTriggerStub
+  }))
+  vi.doMock('@shadcn/components/ui/spinner', () => ({ Spinner: passthrough('Spinner') }))
+  vi.doMock('@iconify/vue', () => ({ Icon: passthrough('Icon') }))
 
   const ProviderApiConfig = (
     await import('../../../src/renderer/settings/components/ProviderApiConfig.vue')
   ).default
 
-  const wrapper = mount(ProviderApiConfig, {
+  wrapper = mount(ProviderApiConfig, {
     props: {
-      provider: options?.provider ?? createProvider(),
+      provider,
       save,
-      usesProviderDb: options?.usesProviderDb,
-      providerWebsites: options?.providerWebsites ?? {
+      providerWebsites: {
         official: 'https://example.com',
         apiKey: 'https://example.com/key',
         docs: 'https://example.com/docs',
@@ -175,20 +170,14 @@ async function setup(options?: {
       }
     }
   })
-
   await flushPromises()
 
-  return {
-    wrapper,
-    providerClient,
-    modelCheckStore,
-    save,
-    notifyRenderer
-  }
+  return { wrapper, providerClient, modelCheckStore, save }
 }
 
-function findButtonByText(wrapper: ReturnType<typeof mount>, text: string) {
-  return wrapper.findAll('button').find((button) => button.text().trim() === text)
+async function openEditor(wrapper: ReturnType<typeof mount>) {
+  await wrapper.get('[data-testid="provider-connection-edit"]').trigger('click')
+  await flushPromises()
 }
 
 describe('ProviderApiConfig', () => {
@@ -196,51 +185,177 @@ describe('ProviderApiConfig', () => {
     vi.clearAllMocks()
   })
 
-  it('switches the OpenAI entry between API Key and ChatGPT sign-in', async () => {
-    const provider = createProvider({
-      id: 'openai',
-      name: 'OpenAI',
-      apiType: 'openai',
-      apiKey: 'saved-key',
-      baseUrl: 'https://api.openai.com/v1'
+  it('shows saved URL and masked key summaries, with editable fields only in the dialog', async () => {
+    const { wrapper } = await setup()
+
+    expect(wrapper.get('[data-testid="provider-url-summary"]').text()).toBe(
+      'https://api.deepseek.com/v1'
+    )
+    expect(wrapper.get('[data-testid="provider-api-key-summary"]').text()).toContain('••••••••-key')
+    expect(wrapper.text()).not.toContain('stored-fake-key')
+    expect(wrapper.findComponent(copyButtonStub).props('copyText')).toBe('stored-fake-key')
+    expect(wrapper.find('[data-testid="provider-api-url-input"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(false)
+
+    await openEditor(wrapper)
+    expect(wrapper.get('[data-testid="provider-api-url-input"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="provider-api-key-input"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="provider-current-key"]').text()).toBe('••••••••-key')
+  })
+
+  it('trims and saves a replacement key and URL together', async () => {
+    const { wrapper, save } = await setup()
+    await openEditor(wrapper)
+    await wrapper.get('[data-testid="provider-api-url-input"]').setValue(' https://new.example/v1 ')
+    await wrapper.get('[data-testid="provider-api-key-input"]').setValue(' replacement-fake-key ')
+    await wrapper.get('[data-testid="provider-api-key-input"]').trigger('blur')
+    expect(save).not.toHaveBeenCalled()
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(save).toHaveBeenCalledExactlyOnceWith('deepseek', {
+      apiKey: 'replacement-fake-key',
+      baseUrl: 'https://new.example/v1'
     })
-    const { wrapper } = await setup({ provider })
+    expect(wrapper.find('[data-testid="provider-connection-dialog"]').exists()).toBe(false)
+  })
 
-    expect(wrapper.find('[data-testid="provider-api-key-summary"]').exists()).toBe(true)
-    await wrapper.find('[data-testid="openai-chatgpt-mode-button"]').trigger('click')
+  it('preserves the stored key when saving only a changed URL', async () => {
+    const { wrapper, save } = await setup()
+    await openEditor(wrapper)
+    await wrapper.get('[data-testid="provider-api-url-input"]').setValue('https://other.example/v1')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(save).toHaveBeenCalledWith('deepseek', {
+      apiKey: 'stored-fake-key',
+      baseUrl: 'https://other.example/v1'
+    })
+  })
+
+  it('blocks controls and dismissal while a save is pending', async () => {
+    const { wrapper, save } = await setup()
+    let finish!: () => void
+    save.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    await openEditor(wrapper)
+    await wrapper
+      .get('[data-testid="provider-api-url-input"]')
+      .setValue('https://pending.example/v1')
+    await wrapper.get('form').trigger('submit')
+
+    expect(
+      wrapper.get('[data-testid="provider-api-url-input"]').attributes('disabled')
+    ).toBeDefined()
+    expect(
+      wrapper.get('[data-testid="provider-connection-cancel"]').attributes('disabled')
+    ).toBeDefined()
+    await wrapper.get('[data-testid="dialog-dismiss"]').trigger('click')
+    expect(wrapper.find('[data-testid="provider-connection-dialog"]').exists()).toBe(true)
+
+    finish()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="provider-connection-dialog"]').exists()).toBe(false)
+  })
+
+  it('retains a failed draft and shows only a generic redacted error', async () => {
+    const { wrapper, save } = await setup()
+    save.mockRejectedValueOnce(new Error('write failed: replacement-fake-key'))
+    await openEditor(wrapper)
+    await wrapper.get('[data-testid="provider-api-key-input"]').setValue('replacement-fake-key')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="provider-connection-error"]').text()).toBe(
+      'settings.deepchatAgents.saveFeedback.saveFailed'
+    )
+    expect(wrapper.text()).not.toContain('write failed')
+    expect(
+      (wrapper.get('[data-testid="provider-api-key-input"]').element as HTMLInputElement).value
+    ).toBe('replacement-fake-key')
+  })
+
+  it('discards drafts on cancel and controlled dismissal before reopening', async () => {
+    const { wrapper, save } = await setup()
+    await openEditor(wrapper)
+    await wrapper.get('[data-testid="provider-api-url-input"]').setValue('https://draft.example/v1')
+    await wrapper.get('[data-testid="provider-connection-cancel"]').trigger('click')
+    await openEditor(wrapper)
+    expect(
+      (wrapper.get('[data-testid="provider-api-url-input"]').element as HTMLInputElement).value
+    ).toBe('https://api.deepseek.com/v1')
+
+    await wrapper.get('[data-testid="provider-api-key-input"]').setValue('discard-fake-key')
+    await wrapper.get('[data-testid="dialog-dismiss"]').trigger('click')
+    await openEditor(wrapper)
+    expect(
+      (wrapper.get('[data-testid="provider-api-key-input"]').element as HTMLInputElement).value
+    ).toBe('')
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  it('switches OpenAI between API key and ChatGPT OAuth modes', async () => {
+    const provider = createProvider({ id: 'openai', apiType: 'openai' })
+    const { wrapper } = await setup(provider)
+
+    await wrapper.get('[data-testid="openai-chatgpt-mode-button"]').trigger('click')
     expect(wrapper.emitted('auth-mode-change')?.[0]).toEqual(['chatgpt'])
-
     await wrapper.setProps({ provider: { ...provider, openaiAuthMode: 'chatgpt' } })
     expect(wrapper.find('[data-testid="provider-api-key-summary"]').exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'OpenAICodexOAuth' }).exists()).toBe(true)
-    await wrapper.find('[data-testid="openai-api-key-mode-button"]').trigger('click')
-    expect(wrapper.emitted('auth-mode-change')?.[1]).toEqual(['api-key'])
   })
 
-  it('shows key status errors, redacts the key, and clears them after a credential update', async () => {
-    const { wrapper, providerClient } = await setup({ provider: createProvider({ apiKey: '' }) })
-    providerClient.getKeyStatus.mockRejectedValueOnce(
-      new Error(
-        "Error invoking remote method 'deepchat:route:invoke': Error: DeepSeek API key check failed: 401 - invalid secret-key"
-      )
+  it('uses OAuth without generic key controls for Codex and Copilot', async () => {
+    for (const provider of [
+      createProvider({ id: 'openai-codex', apiType: 'openai-codex', apiKey: '' }),
+      createProvider({ id: 'github-copilot', apiType: 'github-copilot', apiKey: '' })
+    ]) {
+      const { wrapper } = await setup(provider)
+      expect(wrapper.find('[data-testid="provider-api-key-summary"]').exists()).toBe(false)
+      await openEditor(wrapper)
+      expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(false)
+      wrapper.unmount()
+    }
+  })
+
+  it('shows Grok OAuth only for xAI endpoints while retaining the API key fallback', async () => {
+    const { wrapper } = await setup(
+      createProvider({ id: 'grok', apiType: 'grok', baseUrl: 'https://api.x.ai/v1' })
     )
-    await wrapper.setProps({ provider: createProvider({ apiKey: 'secret-key' }) })
+    expect(wrapper.findComponent({ name: 'GrokOAuth' }).exists()).toBe(true)
+    expect(wrapper.get('[data-testid="provider-api-key-summary"]').exists()).toBe(true)
+
+    await wrapper.setProps({
+      provider: { ...wrapper.props('provider'), baseUrl: 'https://compatible.example/v1' }
+    })
+    expect(wrapper.findComponent({ name: 'GrokOAuth' }).exists()).toBe(false)
+  })
+
+  it('redacts key-status failures and clears them after credentials change', async () => {
+    const { wrapper, providerClient } = await setup(createProvider({ apiKey: '' }))
+    providerClient.getKeyStatus.mockRejectedValueOnce(
+      new Error("Error invoking remote method 'route': Error: 401 invalid secret-fake-key")
+    )
+    await wrapper.setProps({ provider: createProvider({ apiKey: 'secret-fake-key' }) })
     await flushPromises()
-    const error = wrapper.get('[data-testid="provider-key-status-error"]')
-    expect(error.attributes('role')).toBe('alert')
-    expect(error.text()).toContain('401')
-    expect(error.text()).not.toContain('secret-key')
-    expect(error.text()).not.toContain('deepchat:route:invoke')
+
+    expect(wrapper.get('[data-testid="provider-key-status-error"]').text()).toContain('401')
+    expect(wrapper.text()).not.toContain('secret-fake-key')
+    expect(wrapper.text()).not.toContain('invoking remote method')
 
     providerClient.getKeyStatus.mockResolvedValueOnce({ usage: '$1' })
-    await wrapper.setProps({ provider: createProvider({ apiKey: 'replacement-key' }) })
+    await wrapper.setProps({ provider: createProvider({ apiKey: 'other-fake-key' }) })
     await flushPromises()
     expect(wrapper.find('[data-testid="provider-key-status-error"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('$1')
   })
 
-  it('ignores late key status responses after switching credentials or providers', async () => {
-    const { wrapper, providerClient } = await setup({ provider: createProvider({ apiKey: '' }) })
+  it('ignores stale key-status failures and results', async () => {
+    const { wrapper, providerClient } = await setup(createProvider({ apiKey: '' }))
     let rejectOld!: (error: Error) => void
     providerClient.getKeyStatus.mockImplementationOnce(
       () =>
@@ -248,9 +363,9 @@ describe('ProviderApiConfig', () => {
           rejectOld = reject
         })
     )
-    await wrapper.setProps({ provider: createProvider({ apiKey: 'old-key' }) })
-    await wrapper.setProps({ provider: createProvider({ id: 'openai', apiKey: 'other-key' }) })
-    rejectOld(new Error('401 old key failed'))
+    await wrapper.setProps({ provider: createProvider({ apiKey: 'old-fake-key' }) })
+    await wrapper.setProps({ provider: createProvider({ id: 'openai', apiKey: 'new-fake-key' }) })
+    rejectOld(new Error('401 old-fake-key'))
     await flushPromises()
     expect(wrapper.find('[data-testid="provider-key-status-error"]').exists()).toBe(false)
 
@@ -261,481 +376,38 @@ describe('ProviderApiConfig', () => {
           resolveOld = resolve
         })
     )
-    await wrapper.setProps({ provider: createProvider({ apiKey: 'old-key' }) })
+    await wrapper.setProps({ provider: createProvider({ apiKey: 'another-fake-key' }) })
     await wrapper.setProps({ provider: createProvider({ apiKey: '' }) })
     resolveOld({ usage: '$999' })
     await flushPromises()
     expect(wrapper.text()).not.toContain('$999')
   })
 
-  it('shows a locked Base URL display for built-in providers outside the allowlist', async () => {
-    const { wrapper, providerClient } = await setup()
-
-    expect(wrapper.find('input#deepseek-url').exists()).toBe(false)
-    expect(wrapper.text()).toContain('This provider is pinned to the recommended Base URL.')
-    expect(findButtonByText(wrapper, 'Modify')).toBeDefined()
-    expect(wrapper.html()).not.toContain('Fill into API URL')
-    expect(providerClient.getKeyStatus).toHaveBeenCalledWith('deepseek')
-  })
-
-  it('switches directly into edit mode and hides the modify button', async () => {
-    const { wrapper } = await setup()
-    const modifyButton = findButtonByText(wrapper, 'Modify')
-
-    expect(modifyButton).toBeDefined()
-    await modifyButton!.trigger('click')
-    await flushPromises()
-
-    expect(wrapper.find('input#deepseek-url').exists()).toBe(true)
-    expect(findButtonByText(wrapper, 'Modify')).toBeUndefined()
-  })
-
-  it('keeps endpoint edits local until explicitly saved', async () => {
-    const { wrapper, save } = await setup()
-    const modifyButton = findButtonByText(wrapper, 'Modify')
-
-    expect(modifyButton).toBeDefined()
-    await modifyButton!.trigger('click')
-    await flushPromises()
-
-    const input = wrapper.get('input#deepseek-url')
-    await input.setValue('https://custom.deepseek.com/v1')
-    await input.trigger('blur')
-
-    expect(save).not.toHaveBeenCalled()
-    await wrapper.get('[data-testid="provider-connection-save"]').trigger('click')
-    await flushPromises()
-    expect(save).toHaveBeenCalledExactlyOnceWith('deepseek', {
-      apiKey: 'test-key',
-      baseUrl: 'https://custom.deepseek.com/v1'
-    })
-  })
-
-  it('saves a key and endpoint together and blocks checks while dirty or saving', async () => {
-    const { wrapper, save, modelCheckStore } = await setup()
-    await findButtonByText(wrapper, 'Modify')!.trigger('click')
-    await wrapper.get('input#deepseek-url').setValue(' https://replacement.example/v1 ')
-    await wrapper.get('[data-testid="provider-update-key-button"]').trigger('click')
-    await wrapper.get('[data-testid="provider-api-key-input"]').setValue(' replacement-key ')
-    await wrapper.get('[data-testid="provider-api-key-input"]').trigger('blur')
-    expect(save).not.toHaveBeenCalled()
-    expect(
-      wrapper.get('[data-testid="provider-verify-button"]').attributes('disabled')
-    ).toBeDefined()
-
-    // A health/name update must not erase a local draft.
-    await wrapper.setProps({ provider: { ...wrapper.props('provider'), name: 'Renamed' } })
-    expect(
-      (wrapper.get('[data-testid="provider-api-key-input"]').element as HTMLInputElement).value
-    ).toBe(' replacement-key ')
-    let finish!: () => void
-    save.mockImplementationOnce(async (_id, updates) => {
-      await new Promise<void>((resolve) => {
-        finish = resolve
-      })
-      await wrapper.setProps({ provider: { ...wrapper.props('provider'), ...updates } })
-    })
-    await wrapper.get('[data-testid="provider-connection-save"]').trigger('click')
-    expect(
-      wrapper.get('[data-testid="provider-connection-save"]').attributes('disabled')
-    ).toBeDefined()
-    expect(
-      wrapper.get('[data-testid="provider-verify-button"]').attributes('disabled')
-    ).toBeDefined()
-    expect(modelCheckStore.openDialog).not.toHaveBeenCalled()
-    finish()
-    await flushPromises()
-    expect(save).toHaveBeenCalledExactlyOnceWith('deepseek', {
-      apiKey: 'replacement-key',
-      baseUrl: 'https://replacement.example/v1'
-    })
-    expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(false)
-    expect(
-      wrapper.get('[data-testid="provider-verify-button"]').attributes('disabled')
-    ).toBeUndefined()
+  it('opens provider verification only while the saved configuration is available', async () => {
+    const { wrapper, modelCheckStore } = await setup()
     await wrapper.get('[data-testid="provider-verify-button"]').trigger('click')
     expect(modelCheckStore.openDialog).toHaveBeenCalledWith('deepseek')
-  })
 
-  it('retains failed drafts without leaking secrets and cancels back to persisted values', async () => {
-    const { wrapper, save } = await setup()
-    await wrapper.get('[data-testid="provider-update-key-button"]').trigger('click')
-    await wrapper.get('[data-testid="provider-api-key-input"]').setValue('replacement-key')
-    save.mockRejectedValueOnce(new Error('write failed: replacement-key'))
-    await wrapper.get('[data-testid="provider-connection-save"]').trigger('click')
-    await flushPromises()
-    expect(wrapper.get('[data-testid="provider-connection-error"]').text()).not.toContain(
-      'replacement-key'
-    )
+    await openEditor(wrapper)
     expect(
-      (wrapper.get('[data-testid="provider-api-key-input"]').element as HTMLInputElement).value
-    ).toBe('replacement-key')
-    expect(wrapper.props('provider').apiKey).toBe('test-key')
+      wrapper.get('[data-testid="provider-verify-button"]').attributes('disabled')
+    ).toBeDefined()
     await wrapper.get('[data-testid="provider-connection-cancel"]').trigger('click')
-    expect(wrapper.find('[data-testid="provider-connection-error"]').exists()).toBe(false)
-    expect(wrapper.get('[data-testid="provider-api-key-summary"]').text()).toContain('••••••••')
-  })
-
-  it('keeps OpenAI Responses editable without the lock prompt', async () => {
-    const { wrapper } = await setup({
-      provider: createProvider({
-        id: 'openai-responses',
-        name: 'OpenAI Responses',
-        baseUrl: 'https://api.openai.com/v1'
-      })
-    })
-
-    expect(wrapper.find('input#openai-responses-url').exists()).toBe(true)
-    expect(findButtonByText(wrapper, 'Modify')).toBeUndefined()
-    expect(wrapper.text()).not.toContain('This provider is pinned to the recommended Base URL.')
-  })
-
-  it('shows Codex OAuth and hides the generic API key input', async () => {
-    const { wrapper } = await setup({
-      provider: createProvider({
-        id: 'openai-codex',
-        name: 'OpenAI Codex',
-        apiType: 'openai-codex',
-        apiKey: '',
-        baseUrl: 'https://chatgpt.com/backend-api/codex'
-      }),
-      providerWebsites: {
-        official: 'https://developers.openai.com/codex',
-        apiKey: 'https://chatgpt.com/codex',
-        docs: 'https://developers.openai.com/codex/auth',
-        models: 'https://developers.openai.com/codex/models',
-        defaultBaseUrl: 'https://chatgpt.com/backend-api/codex'
-      }
-    })
-
-    expect(wrapper.findComponent({ name: 'OpenAICodexOAuth' }).exists()).toBe(true)
-    expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(false)
-  })
-
-  it('shows Grok OAuth alongside the API key fallback', async () => {
-    const { wrapper } = await setup({
-      provider: createProvider({
-        id: 'grok',
-        name: 'Grok',
-        apiType: 'grok',
-        apiKey: '',
-        baseUrl: 'https://api.x.ai/v1'
-      })
-    })
-
-    expect(wrapper.findComponent({ name: 'GrokOAuth' }).exists()).toBe(true)
-    expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('settings.provider.xaiGrokApiKeyAlternative')
-  })
-
-  it('hides Grok OAuth when the API URL is not an xAI endpoint', async () => {
-    const { wrapper } = await setup({
-      provider: createProvider({
-        id: 'grok',
-        name: 'Grok',
-        apiType: 'grok',
-        apiKey: '',
-        baseUrl: 'https://grok-compatible.example.com/v1'
-      })
-    })
-
-    expect(wrapper.findComponent({ name: 'GrokOAuth' }).exists()).toBe(false)
-    expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(true)
-    expect(wrapper.text()).not.toContain('settings.provider.xaiGrokApiKeyAlternative')
-  })
-
-  it('keeps custom providers editable by default', async () => {
-    const { wrapper } = await setup({
-      provider: createProvider({
-        id: 'custom-demo',
-        name: 'Custom Demo',
-        custom: true,
-        baseUrl: 'https://custom.example.com/v1'
-      })
-    })
-
-    expect(wrapper.find('input#custom-demo-url').exists()).toBe(true)
-    expect(findButtonByText(wrapper, 'Modify')).toBeUndefined()
-  })
-
-  it('shows the AMD GPU Cloud hint and attributed Token Factory link', async () => {
-    const tokenFactoryUrl = 'https://developer.amd.com.cn/radeon/tokenfactory?source=deepchat'
-    const { wrapper } = await setup({
-      provider: createProvider({
-        id: 'amd-developer',
-        name: 'AMD GPU Cloud',
-        apiType: 'openai-completions',
-        baseUrl: 'https://developer.amd.com.cn/radeon/api/v1'
-      }),
-      providerWebsites: {
-        official: 'https://developer.amd.com.cn/radeon/',
-        apiKey: tokenFactoryUrl,
-        docs: 'https://developer.amd.com.cn/radeon/',
-        models: tokenFactoryUrl,
-        defaultBaseUrl: 'https://developer.amd.com.cn/radeon/api/v1'
-      }
-    })
-
-    expect(wrapper.get('[data-testid="amd-developer-hint"]').text()).toBe(
-      'AMD GPU Cloud provides public model APIs through Radeon Token Factory. Get an API key from AMD to access the currently available models.'
-    )
-    const tokenFactoryLink = wrapper
-      .findAll('a')
-      .find((link) => link.attributes('href') === tokenFactoryUrl)
-    expect(tokenFactoryLink?.attributes('target')).toBe('_blank')
-  })
-
-  it.each(['doubao', 'xiaomi-token-plan-sgp'])(
-    'uses main-projected catalog metadata for %s',
-    async (id) => {
-      const { wrapper, providerClient, notifyRenderer } = await setup({
-        usesProviderDb: true,
-        provider: createProvider({
-          id,
-          name: 'Doubao',
-          apiType: 'doubao',
-          baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
-        })
-      })
-
-      expect(wrapper.text()).toContain('settings.provider.refreshModelsWithMetadataHint')
-
-      const refreshButton = findButtonByText(wrapper, 'settings.provider.refreshModels')
-      expect(refreshButton).toBeDefined()
-
-      await refreshButton!.trigger('click')
-      await flushPromises()
-
-      expect(providerClient.refreshModels).toHaveBeenCalledWith(id)
-      expect(notifyRenderer).toHaveBeenCalledWith({
-        kind: 'success',
-        code: 'settings.provider.modelsRefreshed',
-        title: 'settings.provider.toast.refreshModelsSuccessTitle',
-        description: 'settings.provider.toast.refreshModelsSuccessDescriptionWithMetadata'
-      })
-      expect(wrapper.find('[data-testid="inline-operation-feedback"]').exists()).toBe(false)
-      await wrapper.setProps({ usesProviderDb: false })
-      expect(wrapper.text()).not.toContain('settings.provider.refreshModelsWithMetadataHint')
-    }
-  )
-
-  it('refreshes only models for non DB-backed providers', async () => {
-    const { wrapper, providerClient, notifyRenderer } = await setup()
-
-    expect(wrapper.text()).not.toContain('settings.provider.refreshModelsWithMetadataHint')
-
-    const refreshButton = findButtonByText(wrapper, 'settings.provider.refreshModels')
-    expect(refreshButton).toBeDefined()
-
-    await refreshButton!.trigger('click')
-    await flushPromises()
-
-    expect(providerClient.refreshModels).toHaveBeenCalledWith('deepseek')
-    expect(notifyRenderer).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'success',
-        code: 'settings.provider.modelsRefreshed'
-      })
-    )
-  })
-
-  it('disables provider verification when the provider is not enabled', async () => {
-    const { wrapper, modelCheckStore } = await setup({
-      provider: createProvider({
-        enable: false
-      })
-    })
-
-    const verifyButton = wrapper.get('[data-testid="provider-verify-button"]')
-
-    expect(verifyButton.attributes('disabled')).toBeDefined()
-
-    await verifyButton.trigger('click')
-    await flushPromises()
-
+    await wrapper.setProps({ provider: { ...wrapper.props('provider'), enable: false } })
+    modelCheckStore.openDialog.mockClear()
+    await wrapper.get('[data-testid="provider-verify-button"]').trigger('click')
     expect(modelCheckStore.openDialog).not.toHaveBeenCalled()
   })
 
-  it('does not emit validation from the API key enter shortcut when the provider is disabled', async () => {
-    const { wrapper } = await setup({
-      provider: createProvider({
-        enable: false,
-        apiKey: ''
-      })
+  it('preserves the AMD Token Factory hint and attributed key link', async () => {
+    const { wrapper } = await setup(createProvider({ id: 'amd-developer' }))
+    const tokenFactoryUrl = 'https://developer.amd.com.cn/radeon/tokenfactory?source=deepchat'
+    await wrapper.setProps({
+      providerWebsites: { ...wrapper.props('providerWebsites'), apiKey: tokenFactoryUrl }
     })
-
-    await wrapper.get('input#deepseek-apikey').trigger('keyup.enter')
-    await flushPromises()
-
-    expect(wrapper.emitted('validate-key')).toBeUndefined()
-  })
-
-  it('renders a masked key summary once configured and edits via Update key', async () => {
-    const { wrapper } = await setup({
-      provider: createProvider({ apiKey: 'sk-1234567890abcd' })
-    })
-
-    const summary = wrapper.get('[data-testid="provider-api-key-summary"]')
-    expect(summary.text()).toContain('••••••••abcd')
-    expect(summary.text()).not.toContain('sk-1234567890abcd')
-    expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(false)
-
-    await wrapper.get('[data-testid="provider-update-key-button"]').trigger('click')
-
-    const input = wrapper.get('[data-testid="provider-api-key-input"]')
-    expect((input.element as HTMLInputElement).value).toBe('')
-  })
-
-  it('renders a hover-revealed copy button in the masked key summary', async () => {
-    const { wrapper } = await setup({
-      provider: createProvider({ apiKey: 'sk-1234567890abcd' })
-    })
-
-    const summary = wrapper.get('[data-testid="provider-api-key-summary"]')
-    const copyButton = wrapper.get('[data-testid="provider-copy-key-button"]')
-
-    // The button lives inside the summary and stays hidden until hovered or focused.
-    expect(summary.find('[data-testid="provider-copy-key-button"]').exists()).toBe(true)
-    expect(copyButton.classes()).toContain('opacity-0')
-    expect(copyButton.classes()).toContain('pointer-events-none')
-    expect(copyButton.classes()).toContain('group-hover:opacity-100')
-    expect(copyButton.classes()).toContain('group-hover:pointer-events-auto')
-    expect(copyButton.classes()).toContain('focus-visible:opacity-100')
-    expect(copyButton.attributes('tooltip')).toBe('common.copy')
-    expect(wrapper.findComponent(copyButtonStub).props('copyText')).toBe('sk-1234567890abcd')
-  })
-
-  it('keeps the stored key when an empty replacement is cancelled', async () => {
-    const { wrapper } = await setup({
-      provider: createProvider({ apiKey: 'sk-1234567890abcd' })
-    })
-
-    await wrapper.get('[data-testid="provider-update-key-button"]').trigger('click')
-    await wrapper.get('[data-testid="provider-connection-cancel"]').trigger('click')
-    await flushPromises()
-
-    expect(wrapper.emitted('api-key-change')).toBeUndefined()
-    expect(wrapper.find('[data-testid="provider-api-key-summary"]').exists()).toBe(true)
-  })
-
-  it('reports metadata-backed refresh failures as transient feedback', async () => {
-    const { wrapper, providerClient, notifyRenderer } = await setup({
-      usesProviderDb: true,
-      provider: createProvider({
-        id: 'doubao',
-        name: 'Doubao',
-        apiType: 'doubao',
-        baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
-      })
-    })
-    providerClient.refreshModels.mockRejectedValueOnce(new Error('network down'))
-
-    const refreshButton = findButtonByText(wrapper, 'settings.provider.refreshModels')
-    expect(refreshButton).toBeDefined()
-
-    await refreshButton!.trigger('click')
-    await flushPromises()
-
-    expect(providerClient.refreshModels).toHaveBeenCalledWith('doubao')
-    expect(notifyRenderer).toHaveBeenCalledWith({
-      kind: 'error',
-      code: 'settings.provider.modelRefreshFailed',
-      title: 'settings.provider.toast.refreshModelsFailedTitle',
-      description: 'settings.provider.toast.refreshModelsFailedDescriptionWithMetadata'
-    })
-    expect(wrapper.text()).not.toContain('network down')
-  })
-
-  it('does not expose nested provider errors in refresh feedback', async () => {
-    const { wrapper, providerClient, notifyRenderer } = await setup({
-      provider: createProvider({
-        id: 'custom-anthropic',
-        name: 'Custom Anthropic',
-        apiType: 'anthropic',
-        custom: true,
-        baseUrl: 'https://anthropic-proxy.example.com'
-      })
-    })
-    providerClient.refreshModels.mockRejectedValueOnce(
-      new Error('{"error":{"type":"Unauthorized","message":"Invalid API key"}}')
+    expect(wrapper.get('[data-testid="amd-developer-hint"]').text()).toBe(
+      'settings.provider.amdDeveloperHint'
     )
-
-    const refreshButton = findButtonByText(wrapper, 'settings.provider.refreshModels')
-    expect(refreshButton).toBeDefined()
-
-    await refreshButton!.trigger('click')
-    await flushPromises()
-
-    expect(notifyRenderer).toHaveBeenCalledWith({
-      kind: 'error',
-      code: 'settings.provider.modelRefreshFailed',
-      title: 'settings.provider.toast.refreshModelsFailedTitle',
-      description: 'settings.provider.toast.refreshModelsFailedDescription'
-    })
-    expect(wrapper.text()).not.toContain('Invalid API key')
-  })
-
-  it('creates ProviderClient for provider API actions', async () => {
-    const createProviderClient = vi.fn(() => ({
-      getKeyStatus: vi.fn().mockResolvedValue(null),
-      refreshModels: vi.fn().mockResolvedValue(undefined)
-    }))
-
-    vi.resetModules()
-    vi.doMock('vue-i18n', () => ({
-      useI18n: () => ({
-        t: (key: string) => key
-      })
-    }))
-    vi.doMock('@api/ProviderClient', () => ({
-      createProviderClient
-    }))
-    vi.doMock('@/stores/modelCheck', () => ({
-      useModelCheckStore: () => ({ openDialog: vi.fn() })
-    }))
-    vi.doMock('@shadcn/components/ui/input', () => ({ Input: createInputStub() }))
-    vi.doMock('@dc-ui/components/button', () => ({
-      DcButton: buttonStub,
-      DcCopyButton: copyButtonStub
-    }))
-    vi.doMock('@shadcn/components/ui/label', () => ({ Label: labelStub }))
-    vi.doMock('@shadcn/components/ui/tooltip', () => ({
-      Tooltip: passthrough('Tooltip'),
-      TooltipContent: passthrough('TooltipContent'),
-      TooltipProvider: passthrough('TooltipProvider'),
-      TooltipTrigger: passthrough('TooltipTrigger')
-    }))
-    vi.doMock('@iconify/vue', () => ({
-      Icon: defineComponent({
-        name: 'Icon',
-        template: '<i />'
-      })
-    }))
-
-    const ProviderApiConfig = (
-      await import('../../../src/renderer/settings/components/ProviderApiConfig.vue')
-    ).default
-
-    mount(ProviderApiConfig, {
-      props: {
-        provider: createProvider(),
-        save: vi.fn().mockResolvedValue(undefined),
-        providerWebsites: {
-          official: 'https://example.com',
-          apiKey: 'https://example.com/key',
-          docs: 'https://example.com/docs',
-          models: 'https://example.com/models',
-          defaultBaseUrl: 'https://api.deepseek.com/v1'
-        }
-      },
-      global: {
-        stubs: {
-          GitHubCopilotOAuth: true,
-          OpenAICodexOAuth: true
-        }
-      }
-    })
-
-    expect(createProviderClient).toHaveBeenCalledTimes(1)
+    expect(wrapper.get(`a[href="${tokenFactoryUrl}"]`).attributes('target')).toBe('_blank')
   })
 })

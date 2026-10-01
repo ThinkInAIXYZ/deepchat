@@ -2,6 +2,7 @@ import { createServer } from 'node:http'
 import { test, expect } from '../fixtures/electronApp'
 import { openSettings, openSettingsTab, selectProvider } from '../helpers/settings'
 import { waitForAppReady } from '../helpers/wait'
+import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '../../../src/shared/contracts/channels'
 
 test('connection saving does not depend on the fixed probe model @smoke', async ({
   app
@@ -89,17 +90,22 @@ test('connection saving does not depend on the fixed probe model @smoke', async 
       .first()
       .click()
 
-    await page.getByTestId('provider-update-key-button').click()
+    await page.getByTestId('provider-connection-edit').click()
+    await expect(page.getByTestId('provider-current-key')).toContainText('••••••••')
+    await expect(page.getByTestId('provider-api-key-input')).toHaveValue('')
+    await page.getByTestId('provider-api-key-input').fill('discard-fixture-key')
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('provider-connection-dialog')).toHaveCount(0)
+    await expect(page.getByTestId('provider-connection-edit')).toBeFocused()
+    await page.getByTestId('provider-connection-edit').click()
+    await expect(page.getByTestId('provider-api-key-input')).toHaveValue('')
     await page.getByTestId('provider-api-key-input').fill('replacement-fixture-key')
     await page.getByTestId('provider-api-key-input').blur()
     await expect(page.getByTestId('provider-verify-button')).toBeDisabled()
     await expect(page.getByTestId('provider-connection-save')).toBeEnabled()
-    await page.getByTestId('provider-health-pill').scrollIntoViewIfNeeded()
     await page.screenshot({ path: testInfo.outputPath('connection-dirty.png') })
-    await page.setViewportSize({ width: 1100, height: 760 })
-    await page
-      .getByTestId('provider-connection-section')
-      .screenshot({ path: testInfo.outputPath('connection-dirty-compact.png') })
+    await page.setViewportSize({ width: 900, height: 640 })
+    await page.screenshot({ path: testInfo.outputPath('connection-dirty-compact.png') })
     await page.setViewportSize({ width: 1440, height: 1000 })
     const callsBeforeSave = calls.length
     await page.getByTestId('provider-connection-save').click()
@@ -132,7 +138,41 @@ test('connection saving does not depend on the fixed probe model @smoke', async 
       model: 'qwen3.8-flash',
       authorization: 'Bearer replacement-fixture-key'
     })
+    await page
+      .getByTestId('model-check-dialog')
+      .getByRole('button', { name: /^(Close|关闭)$/ })
+      .first()
+      .click()
+    await expect(page.getByTestId('provider-health-pill')).toContainText(
+      /上次测试成功|Last test passed/
+    )
+    await expect(page.getByTestId('provider-health-model')).toContainText('qwen3.8-flash')
+    await expect(page.getByTestId('model-check-dialog')).toHaveCount(0)
+    await page.getByTestId('provider-health-pill').scrollIntoViewIfNeeded()
     await page.screenshot({ path: testInfo.outputPath('connection-verified.png') })
+    await page.setViewportSize({ width: 900, height: 1000 })
+    await page.screenshot({ path: testInfo.outputPath('connection-verified-narrow.png') })
+    await page.setViewportSize({ width: 1440, height: 640 })
+    await page.screenshot({ path: testInfo.outputPath('connection-verified-short.png') })
+    await page.setViewportSize({ width: 900, height: 640 })
+    await page.screenshot({ path: testInfo.outputPath('connection-verified-compact.png') })
+
+    // Simulate a rejected persistence call only in this disposable Electron process.
+    await app.electronApp.evaluate(({ ipcMain }, channel) => {
+      ipcMain.removeHandler(channel)
+    }, DEEPCHAT_ROUTE_INVOKE_CHANNEL)
+    await page.getByTestId('provider-connection-edit').click()
+    await page.getByTestId('provider-api-key-input').fill('failed-fixture-key')
+    await page.getByTestId('provider-connection-save').click()
+    await expect(page.getByTestId('provider-connection-error')).toBeVisible()
+    await expect(page.getByTestId('provider-connection-error')).not.toContainText(
+      'failed-fixture-key'
+    )
+    await expect(page.getByTestId('provider-api-key-input')).toHaveValue('failed-fixture-key')
+    await expect(page.getByTestId('provider-connection-save')).toBeEnabled()
+    await page.screenshot({ path: testInfo.outputPath('connection-save-failed.png') })
+    await page.getByTestId('provider-connection-cancel').click()
+    await expect(page.getByTestId('provider-connection-dialog')).toHaveCount(0)
   } finally {
     server.closeAllConnections()
     await new Promise<void>((resolve) => server.close(() => resolve()))
