@@ -48,13 +48,19 @@
               variant="ghost"
               size="sm"
               class="text-destructive"
+              :disabled="isSaving"
               @click="$emit('delete-provider')"
             >
               <Icon icon="lucide:trash-2" class="size-4" />
               {{ t('settings.provider.delete') }}
             </DcButton>
             <DialogTrigger as-child>
-              <DcButton data-testid="provider-connection-edit" variant="outline" size="sm">
+              <DcButton
+                data-testid="provider-connection-edit"
+                variant="outline"
+                size="sm"
+                :disabled="isSaving"
+              >
                 <Icon icon="lucide:pencil" class="size-3.5" />
                 {{ t('settings.provider.connectionEditor.title') }}
               </DcButton>
@@ -67,6 +73,11 @@
         >
           {{ provider.baseUrl || t('settings.provider.center.noApiUrl') }}
         </p>
+        <DcInlineError
+          v-if="saveError && !editorOpen && !showRemoveKeyDialog"
+          :error="saveError"
+          data-testid="provider-connection-error"
+        />
       </div>
 
       <DialogContent
@@ -181,6 +192,19 @@
       </DialogContent>
     </Dialog>
 
+    <DcConfirmDialog
+      :open="showRemoveKeyDialog"
+      :title="t('settings.provider.connectionEditor.removeKey')"
+      :description="t('settings.provider.connectionEditor.removeKeyDescription')"
+      :confirm-label="t('settings.provider.connectionEditor.removeKey')"
+      :busy="isSaving"
+      :confirm-attrs="{ 'data-testid': 'provider-remove-key-confirm' }"
+      @update:open="handleRemoveKeyDialogOpenChange"
+      @confirm="removeApiKey"
+    >
+      <DcInlineError v-if="saveError" :error="saveError" data-testid="provider-connection-error" />
+    </DcConfirmDialog>
+
     <GitHubCopilotOAuth
       v-if="provider.id === 'github-copilot'"
       :provider="provider"
@@ -230,6 +254,17 @@
             :tooltip="t('common.copy')"
             class="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
           />
+          <DcButton
+            data-testid="provider-remove-key"
+            type="button"
+            variant="ghost"
+            size="sm"
+            class="text-destructive"
+            :disabled="isSaving || editorOpen"
+            @click="showRemoveKeyDialog = true"
+          >
+            {{ t('settings.provider.connectionEditor.removeKey') }}
+          </DcButton>
         </div>
         <p v-else data-testid="provider-key-missing" class="text-sm text-muted-foreground">
           {{ t('settings.toolchains.sources.unconfigured') }}
@@ -284,6 +319,7 @@ import { DcInlineError } from '@dc-ui/components/inline-error'
 import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
 import { DcButton, DcCopyButton } from '@dc-ui/components/button'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import {
   Dialog,
   DialogContent,
@@ -332,6 +368,7 @@ const apiHost = ref('')
 const showApiKey = ref(false)
 const isSaving = ref(false)
 const saveError = ref('')
+const showRemoveKeyDialog = ref(false)
 const keyStatus = ref<KeyStatus | null>(null)
 const keyStatusError = ref('')
 const isOpenAIChatGPTMode = computed(
@@ -373,9 +410,7 @@ const providerApiKeyUrl = computed(() => {
   }
   return props.providerWebsites?.apiKey || ''
 })
-const canVerifyProvider = computed(
-  () => props.provider.enable && !editorOpen.value && !isSaving.value
-)
+const canVerifyProvider = computed(() => !editorOpen.value && !isSaving.value)
 
 const resetDraft = () => {
   apiKey.value = ''
@@ -387,6 +422,10 @@ const handleEditorOpenChange = (open: boolean) => {
   if (isSaving.value) return
   resetDraft()
   editorOpen.value = open
+}
+const handleRemoveKeyDialogOpenChange = (open: boolean) => {
+  if (isSaving.value) return
+  showRemoveKeyDialog.value = open
 }
 const leaveGuardLease = settingsLeaveGuard.register({
   id: 'settings.providerConnection',
@@ -414,6 +453,19 @@ const saveConnection = async () => {
     resetDraft()
   } catch {
     // Persistence errors may contain the submitted credential.
+    saveError.value = t('settings.deepchatAgents.saveFeedback.saveFailed')
+  } finally {
+    isSaving.value = false
+  }
+}
+const removeApiKey = async () => {
+  if (isSaving.value) return
+  isSaving.value = true
+  saveError.value = ''
+  try {
+    await props.save(props.provider.id, { apiKey: '', baseUrl: props.provider.baseUrl })
+    showRemoveKeyDialog.value = false
+  } catch {
     saveError.value = t('settings.deepchatAgents.saveFeedback.saveFailed')
   } finally {
     isSaving.value = false

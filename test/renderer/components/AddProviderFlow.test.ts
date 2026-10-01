@@ -44,6 +44,7 @@ async function setup(options?: {
   vi.resetModules()
 
   const providerStore = {
+    addCustomProvider: vi.fn().mockResolvedValue(undefined),
     validateDraftProvider: vi.fn().mockResolvedValue(
       options?.validateResult ?? {
         isOk: true,
@@ -169,7 +170,28 @@ describe('AddProviderFlow', () => {
     await wrapper.get('[data-testid="add-provider-connect"]').trigger('click')
     await flushPromises()
 
-    expect(providerStore.validateDraftProvider.mock.calls[0][0]).not.toHaveProperty('customHeaders')
+    expect(providerStore.validateDraftProvider).not.toHaveBeenCalled()
+  })
+
+  it('saves a disabled draft without testing or loading recommendations', async () => {
+    const { wrapper, providerStore, modelStore } = await setup()
+    await wrapper.get('[data-testid="add-provider-name"]').setValue('Saved Provider')
+    await wrapper.get('[data-testid="add-provider-base-url"]').setValue('https://api.example.com')
+    await wrapper.get('[data-testid="add-provider-save-only"]').trigger('click')
+    await flushPromises()
+
+    expect(providerStore.validateDraftProvider).not.toHaveBeenCalled()
+    expect(providerStore.commitValidatedDraft).not.toHaveBeenCalled()
+    expect(modelStore.applyInitialModelRecommendations).not.toHaveBeenCalled()
+    expect(providerStore.addCustomProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Saved Provider',
+        apiKey: '',
+        baseUrl: 'https://api.example.com',
+        enable: false
+      })
+    )
+    expect(wrapper.emitted('created')).toHaveLength(1)
   })
 
   it('commits the draft, applies recommendations, and offers Start chatting', async () => {

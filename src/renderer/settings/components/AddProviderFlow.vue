@@ -8,6 +8,7 @@
             size="sm"
             class="h-8 w-8 p-0"
             :aria-label="t('common.back')"
+            :disabled="isBusy"
             @click="$emit('cancel')"
           >
             <Icon icon="lucide:arrow-left" class="h-4 w-4" />
@@ -143,14 +144,27 @@
 
           <DcInlineError v-if="connectError" :error="connectError" />
 
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <DcButton
               data-testid="add-provider-connect"
               :disabled="!canConnect || isBusy"
               @click="connectAndLoad"
             >
-              <Spinner v-if="isBusy" class="size-4" data-icon="inline-start" />
+              <Spinner
+                v-if="phase === 'validating' || phase === 'committing'"
+                class="size-4"
+                data-icon="inline-start"
+              />
               {{ connectButtonLabel }}
+            </DcButton>
+            <DcButton
+              data-testid="add-provider-save-only"
+              variant="outline"
+              :disabled="!canSaveOnly || isBusy"
+              @click="saveWithoutTesting"
+            >
+              <Spinner v-if="phase === 'saving'" class="size-4" data-icon="inline-start" />
+              {{ t('settings.provider.addFlow.saveOnly') }}
             </DcButton>
             <DcButton
               v-if="phase === 'validating'"
@@ -168,7 +182,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { nanoid } from 'nanoid'
 import { Icon } from '@iconify/vue'
@@ -194,6 +208,7 @@ import {
   type ProviderCustomHeaders
 } from '@shared/providerCustomHeaders'
 import ProviderCustomHeadersEditor from './ProviderCustomHeadersEditor.vue'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 const emit = defineEmits<{
   cancel: []
@@ -223,14 +238,14 @@ const form = ref<{
 })
 
 const successPanel = ref<HTMLElement | null>(null)
-const phase = ref<'idle' | 'validating' | 'committing' | 'success'>('idle')
+const phase = ref<'idle' | 'validating' | 'committing' | 'saving' | 'success'>('idle')
 const connectError = ref('')
 // Monotonic attempt counter: a cancelled or superseded attempt's result is
 // ignored instead of committing a stale draft.
 let attemptCounter = 0
 let activeAttempt = 0
 
-const isBusy = computed(() => phase.value === 'validating' || phase.value === 'committing')
+const isBusy = computed(() => ['validating', 'committing', 'saving'].includes(phase.value))
 const loadedModelCount = ref(0)
 const selectedModelCount = ref(0)
 let committedProvider: LLM_PROVIDER | null = null
@@ -250,8 +265,16 @@ const apiEndpointSuffix = computed(() => {
   return ''
 })
 
+const hasValidBaseUrl = computed(() => {
+  try {
+    return ['http:', 'https:'].includes(new URL(form.value.baseUrl.trim()).protocol)
+  } catch {
+    return false
+  }
+})
+const canSaveOnly = computed(() => Boolean(form.value.name.trim()) && hasValidBaseUrl.value)
 const canConnect = computed(() => {
-  if (!form.value.name.trim() || !form.value.baseUrl.trim()) return false
+  if (!canSaveOnly.value) return false
   if (form.value.apiType !== 'ollama' && !form.value.apiKey.trim()) return false
   return true
 })
@@ -326,6 +349,46 @@ const cancelAttempt = () => {
   phase.value = 'idle'
 }
 
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: 'settings.addProviderFlow',
+  onDiscard: cancelAttempt
+})
+watch(
+  phase,
+  (value) =>
+    leaveGuardLease.setRisk(
+      value === 'committing' || value === 'saving'
+        ? 'busy'
+        : value === 'validating'
+          ? 'dirty'
+          : 'clean'
+    ),
+  { immediate: true, flush: 'sync' }
+)
+onUnmounted(() => {
+  activeAttempt = -1
+  leaveGuardLease.release()
+})
+
+const saveWithoutTesting = async () => {
+  if (!canSaveOnly.value || isBusy.value) return
+  const attempt = ++attemptCounter
+  activeAttempt = attempt
+  connectError.value = ''
+  phase.value = 'saving'
+  const draft = buildDraft()
+  try {
+    await providerStore.addCustomProvider(draft)
+    if (activeAttempt !== attempt) return
+    phase.value = 'idle'
+    emit('created', draft)
+  } catch {
+    if (activeAttempt !== attempt) return
+    connectError.value = t('settings.deepchatAgents.saveFeedback.saveFailed')
+    phase.value = 'idle'
+  }
+}
+
 const connectAndLoad = async () => {
   if (!canConnect.value || isBusy.value) {
     return
@@ -367,12 +430,11 @@ const connectAndLoad = async () => {
     phase.value = 'success'
     await nextTick()
     successPanel.value?.focus({ preventScroll: true })
-  } catch (error) {
+  } catch {
     if (activeAttempt !== attempt) {
       return
     }
-    connectError.value =
-      error instanceof Error ? error.message : t('settings.provider.addFlow.failed')
+    connectError.value = t('settings.provider.addFlow.failed')
     phase.value = 'idle'
   }
 }

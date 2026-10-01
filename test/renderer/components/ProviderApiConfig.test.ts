@@ -127,6 +127,16 @@ async function setup(provider = createProvider()) {
       template: '<p v-bind="$attrs" role="alert">{{ error }}</p>'
     })
   }))
+  vi.doMock('@dc-ui/components/confirm-dialog', () => ({
+    DcConfirmDialog: defineComponent({
+      name: 'DcConfirmDialog',
+      inheritAttrs: false,
+      props: { open: Boolean, busy: Boolean, confirmAttrs: Object },
+      emits: ['confirm', 'update:open'],
+      template:
+        '<div v-if="open"><slot /><button v-bind="confirmAttrs" :disabled="busy" @click="$emit(\'confirm\')">confirm</button></div>'
+    })
+  }))
   vi.doMock('@shadcn/components/ui/label', () => ({
     Label: defineComponent({
       name: 'Label',
@@ -231,6 +241,24 @@ describe('ProviderApiConfig', () => {
       apiKey: 'stored-fake-key',
       baseUrl: 'https://other.example/v1'
     })
+  })
+
+  it('removes a stored key only after confirmation and reports write failures safely', async () => {
+    const { wrapper, save } = await setup()
+    await wrapper.get('[data-testid="provider-remove-key"]').trigger('click')
+    expect(save).not.toHaveBeenCalled()
+    save.mockRejectedValueOnce(new Error('write failed: stored-fake-key'))
+    await wrapper.get('[data-testid="provider-remove-key-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(save).toHaveBeenCalledWith('deepseek', {
+      apiKey: '',
+      baseUrl: 'https://api.deepseek.com/v1'
+    })
+    expect(wrapper.get('[data-testid="provider-connection-error"]').text()).toBe(
+      'settings.deepchatAgents.saveFeedback.saveFailed'
+    )
+    expect(wrapper.text()).not.toContain('write failed')
   })
 
   it('blocks controls and dismissal while a save is pending', async () => {
@@ -396,7 +424,7 @@ describe('ProviderApiConfig', () => {
     await wrapper.setProps({ provider: { ...wrapper.props('provider'), enable: false } })
     modelCheckStore.openDialog.mockClear()
     await wrapper.get('[data-testid="provider-verify-button"]').trigger('click')
-    expect(modelCheckStore.openDialog).not.toHaveBeenCalled()
+    expect(modelCheckStore.openDialog).toHaveBeenCalledWith('deepseek')
   })
 
   it('preserves the AMD Token Factory hint and attributed key link', async () => {
