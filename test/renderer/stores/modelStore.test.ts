@@ -129,6 +129,17 @@ const flushMicrotasks = async (times: number = 6) => {
 }
 
 describe('modelStore.refreshProviderModels', () => {
+  it('does not discover models before the provider state arrives', async () => {
+    const { store, modelClient } = await setupStore({
+      providerStore: { providers: [] }
+    })
+
+    await store.ensureProviderModelsReady('new-provider')
+    expect(modelClient.getModelList).not.toHaveBeenCalled()
+    await store.refreshProviderModels('new-provider', true)
+    expect(modelClient.getModelList).toHaveBeenCalledWith('new-provider')
+  })
+
   it('opens disabled catalogs without discovery but allows an explicit refresh', async () => {
     const { store, modelClient } = await setupStore({
       providerStore: { providers: [{ id: 'offline', enable: false, custom: true }] }

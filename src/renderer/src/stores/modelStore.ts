@@ -881,7 +881,7 @@ export const useModelStore = defineStore('model', () => {
 
   const refreshProviderModels = (
     providerId: string,
-    discoverModels = getProviderState(providerId)?.enable !== false
+    discoverModels = getProviderState(providerId)?.enable === true
   ): Promise<boolean> => {
     ensureModelRuntime()
     if (discoverModels) discoveryRequested.add(providerId)
