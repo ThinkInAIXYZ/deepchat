@@ -284,8 +284,7 @@
       "status": {
         "pending": "Đang chờ xử lý",
         "in_progress": "Đang tiến hành",
-        "completed": "Đã hoàn thành",
-        "interrupted": "Đã gián đoạn"
+        "completed": "Đã hoàn thành"
       },
       "completedCount": "{completed}/{total} đã hoàn thành"
     },

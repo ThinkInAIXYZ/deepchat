@@ -272,8 +272,7 @@
       "status": {
         "completed": "تکمیل شد",
         "in_progress": "در حال انجام است",
-        "pending": "در انتظار",
-        "interrupted": "قطع شد"
+        "pending": "در انتظار"
       },
       "completedCount": "{completed}/{total} تکمیل شد"
     },

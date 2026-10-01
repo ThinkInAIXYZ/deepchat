@@ -290,22 +290,38 @@ describe('AcpContentMapper tool call handling', () => {
 })
 
 describe('AcpContentMapper plan handling', () => {
-  it('ignores legacy plan updates without events or blocks', () => {
-    const mapper = new AcpContentMapper()
+  it.each([
+    {
+      sessionUpdate: 'plan',
+      entries: [{ content: 'Analyze requirements', status: 'completed', priority: 'high' }]
+    },
+    {
+      sessionUpdate: 'plan_update',
+      plan: {
+        type: 'items',
+        planId: 'plan-1',
+        entries: [{ content: 'Implement feature', status: 'in_progress', priority: 'high' }]
+      }
+    },
+    {
+      sessionUpdate: 'plan_update',
+      plan: { type: 'markdown', planId: 'plan-1', content: '- [ ] Implement feature' }
+    },
+    {
+      sessionUpdate: 'plan_update',
+      plan: { type: 'file', planId: 'plan-1', uri: 'file:///workspace/plan.md' }
+    },
+    { sessionUpdate: 'plan_removed', planId: 'plan-1' }
+  ] satisfies schema.SessionNotification['update'][])(
+    'ignores retired plan notifications without events or blocks: %j',
+    (update) => {
+      const mapper = new AcpContentMapper()
+      const result = mapper.map(createNotification('session-1', update))
 
-    const result = mapper.map(
-      createNotification('session-1', {
-        sessionUpdate: 'plan',
-        entries: [
-          { content: 'Analyze requirements', status: 'completed', priority: 'high' },
-          { content: 'Implement feature', status: 'in_progress', priority: 'high' }
-        ]
-      })
-    )
-
-    expect(result.events).toEqual([])
-    expect(result.blocks).toEqual([])
-  })
+      expect(result.events).toEqual([])
+      expect(result.blocks).toEqual([])
+    }
+  )
 })
 
 describe('AcpContentMapper mode handling', () => {

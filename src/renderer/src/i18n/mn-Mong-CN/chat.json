@@ -369,8 +369,7 @@
       "status": {
         "pending": "ᠰᠢᠶᠢᠳᠪᠦᠷᠢᠯᠡᠬᠦ ᠪᠡᠷ ᠬᠦᠯᠢᠶᠡᠵᠦ ᠪᠤᠶ",
         "in_progress": "ᠶᠠᠪᠤᠭᠰᠠᠳ ᠢ",
-        "completed": "ᠳᠠᠭᠤᠰᠬᠠᠪᠠ",
-        "interrupted": "ᠲᠠᠰᠤᠯᠠᠭᠳᠠᠭᠰᠠᠨ"
+        "completed": "ᠳᠠᠭᠤᠰᠬᠠᠪᠠ"
       },
       "completedCount": "{completed} {total} ᠢ ᠪᠡᠶᠡᠯᠡᠭᠦᠯᠦᠭᠰᠡᠨ"
     },

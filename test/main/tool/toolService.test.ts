@@ -1363,6 +1363,59 @@ describe('ToolService', () => {
     )
   })
 
+  it.each(['agent', 'code', 'minimal'] as const)(
+    'does not expose the retired built-in plan tool in %s mode',
+    async (mode) => {
+      const mcpService = { getAllToolDefinitions: vi.fn().mockResolvedValue([]) }
+      const toolService = new ToolService({
+        skillSettings: { isEnabled: () => false } as any,
+        mcpService: mcpService as any,
+        agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+        providerSettings: { getModelConfig: vi.fn() } as any,
+        settings: { get: vi.fn() },
+        commandPermissionHandler: new CommandPermissionService(),
+        agentTools: buildAgentToolRuntimeMock()
+      })
+      const executionCatalog = await toolService.getAllToolDefinitions({
+        chatMode: 'agent',
+        conversationId: 'session-1',
+        sessionKind: 'regular',
+        agentWorkspacePath: '/workspace'
+      })
+      expect(executionCatalog.some((tool) => tool.function.name === QUESTION_TOOL_NAME)).toBe(true)
+      expect(executionCatalog.some((tool) => tool.function.name === 'update_plan')).toBe(false)
+
+      const definitions = toolService.configureToolMode({
+        conversationId: 'session-1',
+        mode,
+        providerId: 'deepseek',
+        commandShell: POSIX_COMMAND_SHELL,
+        executionCatalog
+      })
+      expect(definitions.some((tool) => tool.function.name === QUESTION_TOOL_NAME)).toBe(true)
+      expect(JSON.stringify(definitions)).not.toContain('update_plan')
+      const prompt = toolService.buildToolSystemPrompt({
+        conversationId: 'session-1',
+        toolDefinitions: definitions
+      })
+      expect(prompt).toContain(QUESTION_TOOL_NAME)
+      expect(prompt).not.toContain('update_plan')
+
+      // Retirement must not turn the old built-in name into a global MCP prohibition.
+      mcpService.getAllToolDefinitions.mockResolvedValue([
+        buildContractMcpDefinition('update_plan')
+      ])
+      const withRemotePlan = await toolService.getAllToolDefinitions({
+        chatMode: 'agent',
+        conversationId: 'session-1',
+        agentWorkspacePath: '/workspace'
+      })
+      expect(withRemotePlan.filter((tool) => tool.function.name === 'update_plan')).toEqual([
+        expect.objectContaining({ source: 'mcp' })
+      ])
+    }
+  )
+
   it('projects one execution catalog into Agent, Code, and Minimal modes', async () => {
     const toolService = new ToolService({
       skillSettings: { isEnabled: () => false } as any,

@@ -756,7 +756,6 @@ declare module 'vue-i18n' {
           pending: string
           in_progress: string
           completed: string
-          interrupted: string
         }
         completedCount: string
       }

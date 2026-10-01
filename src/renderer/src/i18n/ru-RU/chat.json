@@ -272,8 +272,7 @@
       "status": {
         "completed": "Завершенный",
         "in_progress": "в ходе выполнения",
-        "pending": "В ожидании",
-        "interrupted": "Прервано"
+        "pending": "В ожидании"
       },
       "completedCount": "{completed}/{total} завершено"
     },

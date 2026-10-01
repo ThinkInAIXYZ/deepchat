@@ -369,8 +369,7 @@
       "status": {
         "pending": "ئىشلەش ئۈچۈن ساقلانغان",
         "in_progress": "داۋام قىلىۋاتىدۇ",
-        "completed": "تاماملاندى",
-        "interrupted": "توختىتىلغان"
+        "completed": "تاماملاندى"
       },
       "completedCount": "{completed}/{total} تاماملاندى"
     },

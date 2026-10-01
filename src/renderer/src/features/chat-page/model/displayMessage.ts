@@ -3,7 +3,7 @@ import type {
   SessionCompactionBoundaryReason,
   UserMessageInlineItem
 } from '@shared/types/agent-interface'
-import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from '@shared/types/agent-plan'
+import type { LegacyAgentPlanMetadata } from '@shared/types/legacy-agent-plan'
 import type { PersistedMcpToolResult, ToolCallImagePreview } from '@shared/types/core/mcp'
 
 export type DisplayMessageUsage = {
@@ -80,51 +80,47 @@ export type DisplayInputReceipt = {
   delivery?: 'accepted' | 'applied' | 'failed' | 'unknown'
 }
 
-export type DisplayAssistantMessageExtra = Record<string, string | number | object[] | boolean> & {
-  needsUserAction?: boolean
-  permissionType?: 'read' | 'write' | 'all' | 'command'
-  grantedPermissions?: 'read' | 'write' | 'all' | 'command'
-  toolName?: string
-  toolSource?: 'agent' | 'mcp'
-  serverName?: string
-  providerId?: string
-  providerLogicalRound?: number
-  providerRequestSeq?: number
-  providerPhysicalAttempt?: number
-  permissionRequestId?: string
-  permissionRequest?: string
-  commandInfo?: string
-  rememberable?: boolean
-  questionHeader?: string
-  questionText?: string
-  questionOptions?:
-    | Array<{
-        label: string
-        description?: string
-      }>
-    | string
-  questionMultiple?: boolean
-  questionCustom?: boolean
-  questionResolution?: 'asked' | 'replied' | 'rejected'
-  questionFollowUpPending?: boolean
-  answerText?: string
-  answerMessageId?: string
-  skillDraftAction?: string
-  skillDraftId?: string
-  skillDraftName?: string
-  skillDraftPreview?: string
-  skillDraftStatus?: string
-  skillDraftError?: string
-  internalTool?: boolean
-  plan_entries?: AgentPlanDisplayItem[]
-  plan_explanation?: string
-  plan_revision?: number
-  plan_updated_at?: string
-  plan_terminal_reason?: AgentPlanTerminalReason
-  subagentProgress?: string
-  subagentFinal?: string
-  autoApproveReviewStatus?: 'reviewing'
-}
+export type DisplayAssistantMessageExtra = Record<string, string | number | object[] | boolean> &
+  LegacyAgentPlanMetadata & {
+    needsUserAction?: boolean
+    permissionType?: 'read' | 'write' | 'all' | 'command'
+    grantedPermissions?: 'read' | 'write' | 'all' | 'command'
+    toolName?: string
+    toolSource?: 'agent' | 'mcp'
+    serverName?: string
+    providerId?: string
+    providerLogicalRound?: number
+    providerRequestSeq?: number
+    providerPhysicalAttempt?: number
+    permissionRequestId?: string
+    permissionRequest?: string
+    commandInfo?: string
+    rememberable?: boolean
+    questionHeader?: string
+    questionText?: string
+    questionOptions?:
+      | Array<{
+          label: string
+          description?: string
+        }>
+      | string
+    questionMultiple?: boolean
+    questionCustom?: boolean
+    questionResolution?: 'asked' | 'replied' | 'rejected'
+    questionFollowUpPending?: boolean
+    answerText?: string
+    answerMessageId?: string
+    skillDraftAction?: string
+    skillDraftId?: string
+    skillDraftName?: string
+    skillDraftPreview?: string
+    skillDraftStatus?: string
+    skillDraftError?: string
+    internalTool?: boolean
+    subagentProgress?: string
+    subagentFinal?: string
+    autoApproveReviewStatus?: 'reviewing'
+  }
 
 export type DisplayAssistantMessageBlock = {
   type:

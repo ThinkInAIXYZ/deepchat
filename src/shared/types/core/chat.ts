@@ -1,7 +1,7 @@
 // Core chat types (strong-typed UI blocks)
 
 import type { ToolCallImagePreview } from './mcp'
-import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from '../agent-plan'
+import type { LegacyAgentPlanMetadata } from '../legacy-agent-plan'
 import type { QuestionOption } from './question'
 import type {
   AttachmentRepresentationPreference,
@@ -136,47 +136,43 @@ export type AssistantMessageBlock = {
   reasoning_time?: { start: number; end: number }
 }
 
-export type AssistantMessageExtra = Record<string, string | number | object[] | boolean> & {
-  needsUserAction?: boolean
-  permissionType?: 'read' | 'write' | 'all' | 'command'
-  grantedPermissions?: 'read' | 'write' | 'all' | 'command'
-  toolName?: string
-  toolSource?: 'agent' | 'mcp'
-  serverName?: string
-  providerId?: string
-  providerLogicalRound?: number
-  providerRequestSeq?: number
-  providerPhysicalAttempt?: number
-  permissionRequestId?: string
-  permissionRequest?: string
-  executionContractBinding?: string
-  toolSurfaceBinding?: string
-  commandInfo?: string
-  rememberable?: boolean
-  questionHeader?: string
-  questionText?: string
-  questionOptions?: QuestionOption[] | string
-  questionMultiple?: boolean
-  questionCustom?: boolean
-  questionResolution?: 'asked' | 'replied' | 'rejected'
-  questionFollowUpPending?: boolean
-  answerText?: string
-  answerMessageId?: string
-  skillDraftAction?: string
-  skillDraftId?: string
-  skillDraftName?: string
-  skillDraftPreview?: string
-  skillDraftStatus?: string
-  skillDraftError?: string
-  internalTool?: boolean
-  plan_entries?: AgentPlanDisplayItem[]
-  plan_explanation?: string
-  plan_revision?: number
-  plan_updated_at?: string
-  plan_terminal_reason?: AgentPlanTerminalReason
-  toolCallSkippedReason?: 'max_tool_calls' | 'max_tokens'
-  toolCallIncompleteReason?: 'max_tokens'
-}
+export type AssistantMessageExtra = Record<string, string | number | object[] | boolean> &
+  LegacyAgentPlanMetadata & {
+    needsUserAction?: boolean
+    permissionType?: 'read' | 'write' | 'all' | 'command'
+    grantedPermissions?: 'read' | 'write' | 'all' | 'command'
+    toolName?: string
+    toolSource?: 'agent' | 'mcp'
+    serverName?: string
+    providerId?: string
+    providerLogicalRound?: number
+    providerRequestSeq?: number
+    providerPhysicalAttempt?: number
+    permissionRequestId?: string
+    permissionRequest?: string
+    executionContractBinding?: string
+    toolSurfaceBinding?: string
+    commandInfo?: string
+    rememberable?: boolean
+    questionHeader?: string
+    questionText?: string
+    questionOptions?: QuestionOption[] | string
+    questionMultiple?: boolean
+    questionCustom?: boolean
+    questionResolution?: 'asked' | 'replied' | 'rejected'
+    questionFollowUpPending?: boolean
+    answerText?: string
+    answerMessageId?: string
+    skillDraftAction?: string
+    skillDraftId?: string
+    skillDraftName?: string
+    skillDraftPreview?: string
+    skillDraftStatus?: string
+    skillDraftError?: string
+    internalTool?: boolean
+    toolCallSkippedReason?: 'max_tool_calls' | 'max_tokens'
+    toolCallIncompleteReason?: 'max_tokens'
+  }
 
 export type {
   ChatMessage,

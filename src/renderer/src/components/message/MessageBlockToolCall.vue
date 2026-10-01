@@ -309,8 +309,12 @@ import { useI18n } from 'vue-i18n'
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { CodeBlockNode } from 'markstream-vue'
 import { summarizeToolCallPreview } from '@shared/lib/toolCallSummary'
-import { normalizeAgentPlanEntries, UPDATE_PLAN_TOOL_NAME } from '@shared/types/agent-plan'
-import { entryAriaLabel, resolveStepPresentation } from '@/composables/useAgentPlanStatus'
+import {
+  LEGACY_UPDATE_PLAN_TOOL_NAME,
+  normalizeLegacyPlanEntries,
+  entryAriaLabel,
+  resolveStepPresentation
+} from '@/lib/legacyAgentPlan'
 import { useThemeStore } from '@/stores/theme'
 import { useSessionStore } from '@/stores/ui/session'
 import { getMarkstreamLanguageFromFilename } from '@/lib/markstreamLanguage'
@@ -500,7 +504,8 @@ const normalizeOptionalText = (value: unknown): string =>
   typeof value === 'string' ? value.trim() : ''
 
 const isUpdatePlan = computed(
-  () => rawToolName.value === UPDATE_PLAN_TOOL_NAME && props.block.extra?.toolSource !== 'mcp'
+  () =>
+    rawToolName.value === LEGACY_UPDATE_PLAN_TOOL_NAME && props.block.extra?.toolSource !== 'mcp'
 )
 
 const planSnapshot = computed(() => {
@@ -513,10 +518,10 @@ const planSnapshot = computed(() => {
   }
   const args = parsedParamsRecord.value
   if (!Array.isArray(args?.plan)) return null
-  const plan = normalizeAgentPlanEntries(args.plan)
+  const plan = normalizeLegacyPlanEntries(args.plan)
   if (plan.length !== args.plan.length) return null
 
-  // Each call stores its own full plan; the dock's latest snapshot would rewrite history.
+  // Historical calls are independent snapshots, not a live session plan.
   return { plan, explanation: normalizeOptionalText(args.explanation) }
 })
 
@@ -619,7 +624,8 @@ const toggleExpanded = () => {
 
 const statusIconName = computed(() => {
   if (statusVariant.value === 'error') return 'lucide:circle-alert'
-  if (matchesToolContractName(rawToolName.value, UPDATE_PLAN_TOOL_NAME)) return 'lucide:list-todo'
+  if (matchesToolContractName(rawToolName.value, LEGACY_UPDATE_PLAN_TOOL_NAME))
+    return 'lucide:list-todo'
   if (
     /(^|_)browser_/.test(rawToolName.value) ||
     ['load_url', 'cdp_send'].some((name) => matchesToolContractName(rawToolName.value, name))

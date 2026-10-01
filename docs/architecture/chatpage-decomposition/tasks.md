@@ -1,5 +1,8 @@
 # Tasks: ChatPage 分解与竞态治理
 
+> 以下保留历史完成记录，不代表当前能力。PR #2384 已移除 plan 生命周期和更新订阅；
+> 当前边界见 [spec.md](./spec.md)。
+
 - [x] 写 `spec.md` / `plan.md` / `tasks.md`
 - [x] 删除死代码 `useMessageScroll.ts`(339 行)+ 孤儿测试 + `ScrollInfo` 类型
 - [x] 抽取 `useDisplayMessages`(含占位符四态机,见 spec 决策记录)

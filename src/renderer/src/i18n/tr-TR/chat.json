@@ -284,8 +284,7 @@
       "status": {
         "pending": "Askıda olması",
         "in_progress": "Devam etmekte",
-        "completed": "Tamamlanmış",
-        "interrupted": "Kesintiye uğradı"
+        "completed": "Tamamlanmış"
       },
       "completedCount": "{completed}/{total} tamamlandı"
     },

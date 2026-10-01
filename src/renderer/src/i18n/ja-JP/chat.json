@@ -272,8 +272,7 @@
       "status": {
         "completed": "完了しました",
         "in_progress": "進行中",
-        "pending": "保留中",
-        "interrupted": "中断しました"
+        "pending": "保留中"
       },
       "completedCount": "{completed}/{total} 完了"
     },

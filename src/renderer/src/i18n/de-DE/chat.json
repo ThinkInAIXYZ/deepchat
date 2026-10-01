@@ -284,8 +284,7 @@
       "status": {
         "pending": "Ausstehend",
         "in_progress": "In Bearbeitung",
-        "completed": "Abgeschlossen",
-        "interrupted": "Unterbrochen"
+        "completed": "Abgeschlossen"
       },
       "completedCount": "{completed}/{total} abgeschlossen"
     },

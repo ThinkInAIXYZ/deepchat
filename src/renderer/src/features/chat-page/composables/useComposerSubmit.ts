@@ -149,7 +149,7 @@ type UseComposerSubmitOptions = {
   setManualCompacting: (sessionId: string, compacting: boolean) => void
   hasBlockingInteraction: () => boolean
   getActiveModelSelection: () => { providerId: string; modelId: string } | null
-  /** Outgoing-turn UX: pending-assistant placeholder + plan turn reset. */
+  /** Outgoing-turn UX: pending-assistant placeholder and post-submit scrolling. */
   createPendingAssistantPlaceholder: (sessionId: string) => string
   clearPendingAssistantPlaceholder: (id?: string) => void
   schedulePostSubmitScrollToBottom: () => void

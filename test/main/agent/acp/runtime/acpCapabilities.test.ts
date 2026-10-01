@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  buildCapabilitySnapshot,
-  buildClientCapabilities
-} from '@/agent/acp/runtime'
+import { buildCapabilitySnapshot, buildClientCapabilities } from '@/agent/acp/runtime'
 
 describe('AcpCapabilities', () => {
   describe('buildClientCapabilities', () => {
@@ -14,6 +11,26 @@ describe('AcpCapabilities', () => {
         writeTextFile: true
       })
       expect(caps.terminal).toBe(true)
+    })
+
+    it.each([
+      {},
+      { enableElicitation: true, enableSubagentEvents: true, enableTerminalAuth: true }
+    ])('never advertises the retired plan capability with options %j', (options) => {
+      const caps = buildClientCapabilities(options)
+
+      expect(caps).not.toHaveProperty('plan')
+      expect(caps.fs).toEqual({ readTextFile: true, writeTextFile: true })
+      expect(caps.terminal).toBe(true)
+      if (options.enableElicitation) {
+        expect(caps.elicitation).toEqual({ form: {}, url: {} })
+        expect(caps._meta).toEqual({
+          lody: {
+            elicitation: { version: 1, answerNotes: true },
+            subagentEvents: { version: 1 }
+          }
+        })
+      }
     })
 
     it('allows disabling fs capabilities', () => {

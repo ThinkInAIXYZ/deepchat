@@ -284,8 +284,7 @@
       "status": {
         "pending": "Tertunda",
         "in_progress": "Sedang berlangsung",
-        "completed": "Selesai",
-        "interrupted": "Terinterupsi"
+        "completed": "Selesai"
       },
       "completedCount": "{completed}/{total} selesai"
     },

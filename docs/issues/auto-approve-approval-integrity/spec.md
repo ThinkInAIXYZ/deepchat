@@ -78,8 +78,8 @@ allow path.
 - Two tools declare `write` although they only read (`memory_recall`, `skill_view`). Their
   declarations are left alone because the same contract drives execution parallelism and recovery
   classification; the review policy corrects only what it owns.
-- `update_plan` is declared `write` because it mutates the session plan, but it grants no capability
-  the user would approve.
+- The retired built-in `update_plan` has no execution contract or session-local approval exemption.
+  Historical display compatibility does not authorize tool execution.
 
 | Tool | Operation | Reviewed | Approval scope |
 | --- | --- | --- | --- |
@@ -96,7 +96,7 @@ allow path.
 | `image_generate`, `load_url`, `cdp_send` | — | yes | tool |
 | `deepchat_settings_*` | — | yes | tool: settings lease by tool name |
 | `deepchat_subagents` | `send`, `interrupt` | yes | tool |
-| `cronjob`, `deepchat_question`, `update_plan` | — | no | — |
+| `cronjob`, `deepchat_question` | — | no | — |
 
 Out of scope by decision (unchanged behaviour, recorded so the asymmetry is intentional rather than
 accidental): plain MCP tool calls keep the `full_access` broker short-circuit, and Code Mode nested

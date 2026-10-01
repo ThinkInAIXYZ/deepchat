@@ -2,7 +2,7 @@ import type { ReasoningEffort, ReasoningVisibility, Verbosity } from './model-db
 import type { ImageGenerationOptions } from '../imageGenerationSettings'
 import type { VideoGenerationOptions } from '../videoGenerationSettings'
 import type { PersistedMcpToolResult, ToolCallImagePreview } from './core/mcp'
-import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from './agent-plan'
+import type { LegacyAgentPlanMetadata } from './legacy-agent-plan'
 import type { DeepChatTapeViewManifestRecord } from './tape-view-manifest'
 import type {
   AttachmentFallbackPolicy,
@@ -342,7 +342,7 @@ export interface QuestionOption {
   description?: string
 }
 
-export interface AssistantMessageExtra {
+export interface AssistantMessageExtra extends LegacyAgentPlanMetadata {
   needsUserAction?: boolean
   permissionType?: 'read' | 'write' | 'all' | 'command'
   grantedPermissions?: 'read' | 'write' | 'all' | 'command'
@@ -375,11 +375,6 @@ export interface AssistantMessageExtra {
   skillDraftStatus?: string
   skillDraftError?: string
   internalTool?: boolean
-  plan_entries?: AgentPlanDisplayItem[]
-  plan_explanation?: string
-  plan_revision?: number
-  plan_updated_at?: string
-  plan_terminal_reason?: AgentPlanTerminalReason
   subagentProgress?: string
   subagentFinal?: string
   autoApproveReviewStatus?: 'reviewing'
