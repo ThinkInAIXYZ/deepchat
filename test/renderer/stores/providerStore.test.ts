@@ -78,7 +78,7 @@ describe('provider connection persistence', () => {
   })
 
   it('saves key and URL atomically without requiring access to the default probe model', async () => {
-    const { store, source, providerClient } = await setupStore()
+    const { store, source, providerClient, configClient } = await setupStore()
     await store.checkProvider('p1')
     await store.updateProviderApi('p1', 'replacement', 'https://new.example/v1')
     expect(providerClient.updateProviderAtomic).toHaveBeenCalledExactlyOnceWith('p1', {
@@ -96,7 +96,13 @@ describe('provider connection persistence', () => {
       providerId: 'p1',
       modelId: 'qwen3.8-flash'
     })
-    expect(store.getProviderHealth('p1').status).toBe('verified')
+    expect(store.getProviderHealth('p1')).toMatchObject({
+      status: 'verified',
+      modelId: 'qwen3.8-flash'
+    })
+    expect(configClient.setSetting).toHaveBeenLastCalledWith('providerHealth', {
+      p1: expect.objectContaining({ modelId: 'qwen3.8-flash' })
+    })
   })
 
   it('does not replace persisted configuration when the write fails', async () => {
@@ -153,9 +159,25 @@ describe('provider connection persistence', () => {
         finishOld({ isOk: false, errorMsg: 'late failure' })
         await oldCheck
       }
-      expect(store.getProviderHealth('p1').status).toBe('verified')
+      expect(store.getProviderHealth('p1')).toMatchObject({
+        status: 'verified',
+        modelId: 'available-model'
+      })
     }
   )
+
+  it('records the failed model and clears it for a later default-model check', async () => {
+    const { store, providerClient } = await setupStore()
+    providerClient.testConnection.mockRejectedValueOnce(new Error('model unavailable'))
+    await expect(store.checkProvider('p1', 'denied-model')).rejects.toThrow('model unavailable')
+    expect(store.getProviderHealth('p1')).toMatchObject({
+      status: 'needs_attention',
+      modelId: 'denied-model'
+    })
+    await store.checkProvider('p1')
+    expect(store.getProviderHealth('p1').status).toBe('verified')
+    expect(store.getProviderHealth('p1').modelId).toBeUndefined()
+  })
 
   it('keeps remote validation for custom-provider creation', async () => {
     const { store, source, providerClient } = await setupStore()

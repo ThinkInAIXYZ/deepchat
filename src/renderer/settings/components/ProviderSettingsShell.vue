@@ -5,8 +5,8 @@
         <div class="rounded-lg border border-border bg-card p-4">
           <div class="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div class="min-w-0">
-              <div class="flex items-center gap-2">
-                <h2 class="truncate text-lg font-semibold">{{ title }}</h2>
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 class="text-lg font-semibold break-words">{{ title }}</h2>
                 <DcStatusPill
                   v-if="health"
                   data-testid="provider-health-pill"
@@ -21,9 +21,12 @@
               </p>
               <p
                 v-if="health?.checkedAt"
-                class="mt-1 text-xs text-muted-foreground"
+                class="mt-1 text-xs text-muted-foreground break-all"
                 data-testid="provider-health-checked-at"
               >
+                <span v-if="health.modelId" data-testid="provider-health-model">
+                  {{ health.modelId }} ·
+                </span>
                 {{
                   t('settings.provider.health.lastChecked', {
                     time: new Date(health.checkedAt).toLocaleString(locale)

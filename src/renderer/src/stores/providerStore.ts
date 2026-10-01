@@ -22,6 +22,7 @@ export type ProviderHealthStatus = 'not_checked' | 'checking' | 'verified' | 'ne
 export type ProviderHealthView = {
   status: ProviderHealthStatus
   checkedAt?: number
+  modelId?: string
   errorMsg?: string
 }
 
@@ -247,14 +248,20 @@ export const useProviderStore = defineStore('provider', () => {
     if (!entry || !provider || entry.fingerprint !== computeHealthFingerprint(provider)) {
       return { status: 'not_checked' }
     }
-    return { status: entry.status, checkedAt: entry.checkedAt, errorMsg: entry.errorMsg }
+    return {
+      status: entry.status,
+      checkedAt: entry.checkedAt,
+      modelId: entry.modelId,
+      errorMsg: entry.errorMsg
+    }
   }
 
   const recordProviderHealth = async (
     providerId: string,
     fingerprint: string,
     ok: boolean,
-    errorMsg?: string
+    errorMsg?: string,
+    modelId?: string
   ) => {
     providerHealthCache.value = {
       ...providerHealthCache.value,
@@ -262,6 +269,7 @@ export const useProviderStore = defineStore('provider', () => {
         status: ok ? 'verified' : 'needs_attention',
         fingerprint,
         checkedAt: Date.now(),
+        ...(modelId ? { modelId } : {}),
         ...(ok || !errorMsg ? {} : { errorMsg })
       }
     }
@@ -516,7 +524,8 @@ export const useProviderStore = defineStore('provider', () => {
           providerId,
           fingerprint,
           result.isOk,
-          result.errorMsg ?? undefined
+          result.errorMsg ?? undefined,
+          modelId
         )
       }
       return result
@@ -526,7 +535,8 @@ export const useProviderStore = defineStore('provider', () => {
           providerId,
           fingerprint,
           false,
-          error instanceof Error ? error.message : String(error)
+          error instanceof Error ? error.message : String(error),
+          modelId
         )
       }
       throw error
