@@ -4,7 +4,6 @@ import {
   LIVE_DELEGATION_AGENT_TOOL_NAME,
   SKILL_VIEW_AGENT_TOOL_NAME
 } from '@shared/agentTools'
-import { UPDATE_PLAN_TOOL_NAME } from '@shared/types/agent-plan'
 import { GLOB_TOOL_NAME, GREP_TOOL_NAME } from '@/tool/agentTools/agentFffSearchHandler'
 import { APPLY_PATCH_TOOL_NAME, STR_REPLACE_EDITOR_TOOL_NAME } from '@/tool/codeMode/toolModeTools'
 
@@ -81,12 +80,6 @@ const READ_ONLY_DESPITE_CONTRACT: ReadonlySet<string> = new Set([
 ])
 
 /**
- * Tools that only change session-local presentation state. `update_plan` is declared as a write
- * because it mutates the session plan, but it grants no capability the user would approve.
- */
-const SESSION_LOCAL_TOOLS: ReadonlySet<string> = new Set([UPDATE_PLAN_TOOL_NAME])
-
-/**
  * Agent tools whose approvals authorize filesystem paths: every agent-filesystem tool except
  * `process`, which manages existing exec sessions and touches no path. One list, used by both the
  * synthesizer (to decide the approval's scope) and the allow path (to decide whether paths are
@@ -153,11 +146,7 @@ export function resolveAgentToolReview(input: {
     return NOT_REVIEWED
   }
 
-  if (
-    TOOLS_WITH_OWN_APPROVAL_PATH.has(toolName) ||
-    SESSION_LOCAL_TOOLS.has(toolName) ||
-    READ_ONLY_DESPITE_CONTRACT.has(toolName)
-  ) {
+  if (TOOLS_WITH_OWN_APPROVAL_PATH.has(toolName) || READ_ONLY_DESPITE_CONTRACT.has(toolName)) {
     return NOT_REVIEWED
   }
 

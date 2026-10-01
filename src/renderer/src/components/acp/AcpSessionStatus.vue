@@ -41,7 +41,6 @@ function canGoal(action: 'set' | 'resume' | 'pause' | 'clear') {
   )
 }
 const error = ref(false)
-const planFiles = ref<Record<string, string>>({})
 const outputs = ref<Record<string, string>>({})
 const label = (key: string) => t(`chat.acpExtensions.${key}`)
 const number = (value: number | undefined | null) =>
@@ -59,7 +58,6 @@ const cost = (usage: ModelUsage) =>
 watch(
   () => [props.sessionId, props.agentId],
   () => {
-    planFiles.value = {}
     outputs.value = {}
     void store.inspect(props.sessionId, props.agentId)
   },
@@ -76,11 +74,6 @@ async function perform(operation: () => Promise<unknown>) {
   } finally {
     busy.value = false
   }
-}
-async function readPlan(planId: string) {
-  const sessionId = props.sessionId
-  const { content } = await client.readPlan(sessionId, planId)
-  if (sessionId === props.sessionId) planFiles.value[planId] = content
 }
 async function controlTask(taskId: string, action: 'output' | 'cancel') {
   const sessionId = props.sessionId
@@ -335,42 +328,6 @@ function blocks(run: AcpSubagentRun): DisplayAssistantMessageBlock[] {
           {{ date(state.rateLimits.fetchedAtEpochSeconds) }}
         </p>
       </section>
-      <section v-if="Object.keys(state.plans).length" class="space-y-2">
-        <h3 class="font-medium">{{ label('plans') }}</h3>
-        <details v-for="plan in state.plans" :key="plan.planId" open>
-          <summary class="cursor-pointer text-xs text-muted-foreground">{{ plan.planId }}</summary>
-          <ul v-if="plan.type === 'items'" class="mt-1 space-y-1">
-            <li v-for="(entry, index) in plan.entries" :key="index" class="flex gap-2">
-              <span>{{ label(entry.status ?? 'unknown') }}</span
-              ><span
-                :class="{ 'line-through text-muted-foreground': entry.status === 'completed' }"
-                >{{ entry.content }}</span
-              >
-            </li>
-          </ul>
-          <MarkdownRenderer
-            v-else-if="plan.type === 'markdown'"
-            :content="plan.content"
-            mode="minimal"
-            :smooth-streaming="false"
-          />
-          <template v-else
-            ><p class="break-all text-xs">{{ plan.uri }}</p>
-            <button
-              type="button"
-              :disabled="busy || !state.connected"
-              class="underline"
-              @click="perform(() => readPlan(plan.planId))"
-            >
-              {{ label('readPlan') }}</button
-            ><MarkdownRenderer
-              v-if="planFiles[plan.planId]"
-              :content="planFiles[plan.planId]"
-              mode="minimal"
-              :smooth-streaming="false"
-          /></template>
-        </details>
-      </section>
       <section v-if="state.capabilities.goal" class="space-y-2">
         <form
           v-if="canGoal('set')"
@@ -543,11 +500,6 @@ function blocks(run: AcpSubagentRun): DisplayAssistantMessageBlock[] {
           >
             {{ label('incompleteOutput') }}
           </p>
-          <ul v-if="run.plan">
-            <li v-for="(entry, index) in run.plan" :key="index">
-              {{ label(entry.status) }} · {{ entry.step }}
-            </li>
-          </ul>
           <p v-if="run.snapshot?.reason?.message">{{ run.snapshot.reason.message }}</p>
           <div v-for="(block, index) in blocks(run)" :key="block.id ?? index" class="my-2">
             <MessageBlockToolCall v-if="block.type === 'tool_call'" :block="block" read-only />

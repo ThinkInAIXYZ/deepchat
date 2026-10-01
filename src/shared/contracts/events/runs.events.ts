@@ -77,7 +77,6 @@ export const SESSION_RUN_STREAM_EVENT_NAMES = [
   'chat.stream.updated',
   'chat.stream.completed',
   'chat.stream.failed',
-  'chat.plan.updated',
   'sessions.status.changed',
   'sessions.compaction.changed',
   'sessions.acp.modes.ready',

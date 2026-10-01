@@ -74,7 +74,6 @@ import {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME
 } from './agentImageGenerationTool'
-import { AGENT_CORE_TOOL_SERVER_NAME, AgentPlanTool, UPDATE_PLAN_TOOL_NAME } from './agentPlanTool'
 import { AgentTapeToolHandler } from './agentTapeTools'
 import { AGENT_MEMORY_TOOL_SERVER_NAME, AgentMemoryToolHandler } from './agentMemoryTools'
 import {
@@ -264,7 +263,6 @@ export class AgentToolManager {
   private chatSettingsHandler: ChatSettingsToolHandler | null = null
   private readonly liveDelegationTool: LiveDelegationAgentTool | null
   private readonly imageGenerationTool: AgentImageGenerationTool
-  private readonly planTool: AgentPlanTool
   private readonly tapeToolHandler: AgentTapeToolHandler
   private readonly memoryToolHandler: AgentMemoryToolHandler
   private readonly cronJobToolHandler: CronJobToolHandler
@@ -545,7 +543,6 @@ export class AgentToolManager {
       provider: this.dependencies.provider,
       cacheImage: this.dependencies.cacheImage
     })
-    this.planTool = new AgentPlanTool()
     this.tapeToolHandler = new AgentTapeToolHandler(
       this.dependencies.sessions,
       this.dependencies.tape
@@ -647,11 +644,6 @@ export class AgentToolManager {
 
     // 2. Built-in question tool (all modes)
     appendDefinitions(this.getQuestionToolDefinitions(), 'user-configurable')
-
-    // 2.1. Progress checklist tool (deepchat regular sessions only)
-    if (isAgentMode) {
-      appendDefinitions([this.planTool.getToolDefinition()], 'user-configurable')
-    }
 
     // 2.15. Session tape tools (DeepChat sessions only)
     if (isAgentMode && acceptsExposure('system-model')) {
@@ -813,19 +805,6 @@ export class AgentToolManager {
     conversationId?: string,
     options?: AgentToolExecutionOptions
   ): Promise<AgentToolCallResult | string> {
-    if (toolName === UPDATE_PLAN_TOOL_NAME) {
-      return this.planTool.call(args, conversationId, {
-        toolCallId: options?.toolCallId,
-        onProgress: options?.onProgress,
-        beforeMutation: this.createAgentDispatchCommit(
-          toolName,
-          AGENT_CORE_TOOL_SERVER_NAME,
-          args,
-          options
-        )
-      })
-    }
-
     if (toolName === QUESTION_TOOL_NAME) {
       const parsedQuestion = parseQuestionToolInput(args)
       if (!parsedQuestion.success) {
@@ -1404,10 +1383,6 @@ export class AgentToolManager {
       default:
         throw new Error(`Unknown process action: ${action}`)
     }
-  }
-
-  public clearPlanState(conversationId: string): void {
-    this.planTool.clearState(conversationId)
   }
 
   private async callFileSystemTool(

@@ -46,8 +46,7 @@ export function buildAcpHistory(
               'agent_message_chunk',
               'agent_thought_chunk',
               'tool_call',
-              'tool_call_update',
-              'plan'
+              'tool_call_update'
             ].includes(update.sessionUpdate)
           ? 'assistant'
           : undefined

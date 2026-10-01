@@ -11,7 +11,6 @@ import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { SearchResult } from '@shared/types/core/search'
 import type { AgentToolProgressUpdate, ToolPermissionLeaseCapability } from '@shared/types/tool'
 import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
-import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
 import type { DeepChatExecutionContract } from '@shared/types/execution-contract'
 import type { EffectiveSkillContentResolution } from '@shared/types/skill'
 import { isSkillSourceType } from '@shared/types/skillManagement'
@@ -21,7 +20,6 @@ import {
   parseQuestionToolArgs,
   QUESTION_TOOL_NAME
 } from '@/tool/agentTools/questionTool'
-import { UPDATE_PLAN_TOOL_NAME } from '@/tool/agentTools/agentPlanTool'
 import type {
   InterleavedReasoningConfig,
   IoParams,
@@ -233,7 +231,6 @@ type MutableToolBatchState = {
   executionContract?: DeepChatExecutionContract
 }
 
-const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
 export const TRUNCATED_TOOL_CALL_ERROR =
   'Tool call was not executed because the model response reached the output token limit, so its arguments may be incomplete. Retry the tool call with complete arguments.'
 
@@ -921,63 +918,6 @@ function updateSubagentToolCallBlock(
     ...(typeof progressJson === 'string' ? { subagentProgress: progressJson } : {}),
     ...(typeof finalJson === 'string' ? { subagentFinal: finalJson } : {})
   }
-}
-
-function markInternalPlanToolCallBlock(blocks: AssistantMessageBlock[], toolCallId: string): void {
-  const block = blocks.find(
-    (item) => item.type === 'tool_call' && item.tool_call?.id === toolCallId
-  )
-  if (!block?.tool_call || block.tool_call.name !== UPDATE_PLAN_TOOL_NAME) {
-    return
-  }
-
-  block.extra = {
-    ...block.extra,
-    internalTool: true
-  }
-}
-
-export function publishPlanUpdated(io: IoParams, snapshot: AgentPlanSnapshot): void {
-  io.publishEvent('chat.plan.updated', {
-    sessionId: io.sessionId,
-    messageId: io.messageId,
-    ...(snapshot.toolCallId ? { toolCallId: snapshot.toolCallId } : {}),
-    plan: snapshot.plan,
-    ...(snapshot.explanation ? { explanation: snapshot.explanation } : {}),
-    revision: snapshot.revision,
-    updatedAt: snapshot.updatedAt,
-    ...(snapshot.terminalReason ? { terminalReason: snapshot.terminalReason } : {})
-  })
-}
-
-function stampPlanTerminalIfOpen(
-  state: StreamState,
-  io: IoParams,
-  reason: AgentPlanTerminalReason | undefined
-): boolean {
-  if (!reason) {
-    return false
-  }
-
-  const current = state.latestAgentPlanSnapshot
-  if (
-    !current ||
-    current.terminalReason ||
-    !current.plan.some((entry) => entry.status === 'in_progress')
-  ) {
-    return false
-  }
-
-  const snapshot: AgentPlanSnapshot = {
-    ...current,
-    sessionId: io.sessionId,
-    messageId: io.messageId,
-    terminalReason: reason,
-    updatedAt: new Date().toISOString()
-  }
-  state.latestAgentPlanSnapshot = snapshot
-  publishPlanUpdated(io, snapshot)
-  return true
 }
 
 function extractSubagentToolState(rawData: MCPToolResponse): {
@@ -2056,25 +1996,6 @@ async function runToolCall(params: {
       parents: programmaticToolParents
     })
     const applyProgressUpdate = (update: AgentToolProgressUpdate) => {
-      if (
-        update.kind === 'agent_plan' &&
-        update.toolCallId === completedToolCall.id &&
-        allowProgressUpdates
-      ) {
-        markInternalPlanToolCallBlock(batchToolCallBlocks, completedToolCall.id)
-        const snapshot: AgentPlanSnapshot = {
-          ...update.snapshot,
-          sessionId: io.sessionId,
-          messageId: io.messageId,
-          toolCallId: update.snapshot.toolCallId ?? completedToolCall.id
-        }
-        state.latestAgentPlanSnapshot = snapshot
-        publishPlanUpdated(io, snapshot)
-        markStreamChanged(state)
-        scheduleRendererFlush(state, rendererFlushHandle)
-        return
-      }
-
       if (
         !allowProgressUpdates ||
         update.kind !== 'subagent_orchestrator' ||
@@ -3494,7 +3415,6 @@ export function finalize(state: StreamState, io: IoParams): void {
     if (block.status === 'pending') block.status = 'success'
   }
   markStreamChanged(state)
-  stampPlanTerminalIfOpen(state, io, state.planTerminalReason)
 
   stampGenerationTiming(state)
 
@@ -3516,11 +3436,6 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
   const errorMessage = error instanceof Error ? error.message : String(error)
   state.blocks = buildTerminalErrorBlocks(state.blocks, errorMessage)
   markStreamChanged(state)
-  stampPlanTerminalIfOpen(
-    state,
-    io,
-    errorMessage === USER_CANCELED_GENERATION_ERROR ? 'aborted' : 'error'
-  )
 
   stampGenerationTiming(state)
 
@@ -3533,16 +3448,4 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
     failedAt: Date.now(),
     error: errorMessage
   })
-}
-
-export function persistAbortExceptionPlanState(state: StreamState, io: IoParams): void {
-  const hadPlanSnapshot = Boolean(state.latestAgentPlanSnapshot)
-  stampPlanTerminalIfOpen(state, io, 'aborted')
-
-  if (!hadPlanSnapshot || state.blocks.length === 0) {
-    return
-  }
-
-  io.messageStore.updateAssistantContent(io.messageId, state.blocks)
-  flushBlocksToRenderer(io, state)
 }

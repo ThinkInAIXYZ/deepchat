@@ -5,7 +5,6 @@ import {
   TimestampMsSchema,
   defineEventContract
 } from '../common'
-import { agentPlanItemSchema, agentPlanTerminalReasonSchema } from '../../types/agent-plan'
 
 export const chatStreamUpdatedEvent = defineEventContract({
   name: 'chat.stream.updated',
@@ -40,20 +39,6 @@ export const chatStreamFailedEvent = defineEventContract({
     messageId: EntityIdSchema,
     failedAt: TimestampMsSchema,
     error: z.string()
-  })
-})
-
-export const chatPlanUpdatedEvent = defineEventContract({
-  name: 'chat.plan.updated',
-  payload: z.object({
-    sessionId: EntityIdSchema,
-    messageId: EntityIdSchema,
-    toolCallId: z.string().optional(),
-    plan: z.array(agentPlanItemSchema),
-    explanation: z.string().optional(),
-    revision: z.number().int().positive(),
-    updatedAt: z.string(),
-    terminalReason: agentPlanTerminalReasonSchema.optional()
   })
 })
 

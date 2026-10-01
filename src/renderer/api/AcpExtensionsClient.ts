@@ -11,7 +11,6 @@ import {
   acpRateLimitsRefreshRoute,
   acpTasksListRoute,
   acpTaskControlRoute,
-  acpPlanReadRoute,
   acpGoalControlRoute,
   acpHistoryReadRoute,
   acpHistoryImportRoute
@@ -35,8 +34,6 @@ export function createAcpExtensionsClient(bridge: DeepchatBridge = getDeepchatBr
       action: 'set' | 'pause' | 'resume' | 'clear',
       objective?: string
     ) => bridge.invoke(acpGoalControlRoute.name, { sessionId, action, objective }),
-    readPlan: (sessionId: string, planId: string) =>
-      bridge.invoke(acpPlanReadRoute.name, { sessionId, planId }),
     onExtensionsChanged: (
       listener: (event: DeepchatEventPayload<typeof acpExtensionsChangedEvent.name>) => void
     ) => bridge.on(acpExtensionsChangedEvent.name, listener),

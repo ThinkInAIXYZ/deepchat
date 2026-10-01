@@ -9,25 +9,12 @@ function createHarness() {
   const chatInputRef = ref({ insertWorkspaceReference })
   const setMessage = vi.fn()
   const onWindowKeydown = vi.fn()
-  const onPlanUpdated = vi.fn()
-  let planListener: ((payload: { sessionId: string }) => void) | null = null
-  const unsubscribe = vi.fn(() => {
-    planListener = null
-  })
-  const chatClient = {
-    onPlanUpdated: vi.fn((listener) => {
-      planListener = listener
-      return unsubscribe
-    })
-  }
   const bridge = useChatPageEventBridge({
     sessionId: () => sessionId.value,
     isReadOnlySession: computed(() => isReadOnly.value),
     chatInputRef,
     setMessage,
     onWindowKeydown,
-    onPlanUpdated,
-    chatClient: chatClient as any,
     workspaceInsertReferenceEvent: 'workspace-insert-reference-requested'
   })
 
@@ -37,11 +24,7 @@ function createHarness() {
     isReadOnly,
     insertWorkspaceReference,
     setMessage,
-    onWindowKeydown,
-    onPlanUpdated,
-    chatClient,
-    unsubscribe,
-    emitPlanUpdated: (payload: { sessionId: string }) => planListener?.(payload)
+    onWindowKeydown
   }
 }
 
@@ -84,25 +67,18 @@ describe('useChatPageEventBridge', () => {
     expect(harness.setMessage).toHaveBeenCalledTimes(1)
   })
 
-  it('subscribes once and fully detaches global and plan listeners', () => {
+  it('subscribes once and fully detaches global listeners', () => {
     harness = createHarness()
     harness.bridge.start()
     harness.bridge.start()
-
-    expect(harness.chatClient.onPlanUpdated).toHaveBeenCalledTimes(1)
-    harness.emitPlanUpdated({ sessionId: 's1' })
-    expect(harness.onPlanUpdated).toHaveBeenCalledWith({ sessionId: 's1' })
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }))
     expect(harness.onWindowKeydown).toHaveBeenCalledTimes(1)
 
     harness.bridge.stop()
     harness.bridge.stop()
-    expect(harness.unsubscribe).toHaveBeenCalledTimes(1)
 
-    harness.emitPlanUpdated({ sessionId: 's2' })
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
-    expect(harness.onPlanUpdated).toHaveBeenCalledTimes(1)
     expect(harness.onWindowKeydown).toHaveBeenCalledTimes(1)
   })
 })

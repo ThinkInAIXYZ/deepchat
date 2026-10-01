@@ -24,24 +24,6 @@ export interface AgentPlanDisplayItem {
   priority?: string | null
 }
 
-export interface UpdatePlanArgs {
-  explanation?: string
-  plan: AgentPlanItem[]
-}
-
-export interface AgentPlanSnapshot extends UpdatePlanArgs {
-  sessionId: string
-  messageId?: string
-  toolCallId?: string
-  revision: number
-  updatedAt: string
-  terminalReason?: AgentPlanTerminalReason
-}
-
-export interface AgentPlanState {
-  revision: number
-}
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 

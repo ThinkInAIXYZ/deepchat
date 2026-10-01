@@ -6,7 +6,6 @@ import {
   acpRateLimitsRefreshRoute,
   acpTasksListRoute,
   acpTaskControlRoute,
-  acpPlanReadRoute,
   acpGoalControlRoute,
   acpHistoryReadRoute,
   acpHistoryImportRoute,
@@ -104,14 +103,6 @@ export function createAcpRoutes(dependencies: {
           input.action,
           input.tail
         )
-      }
-    ],
-    [
-      acpPlanReadRoute.name,
-      async (rawInput, context) => {
-        requireRendererCaller(context)
-        const input = acpPlanReadRoute.input.parse(rawInput)
-        return controller().readPlanFile(toAppSessionId(input.sessionId), input.planId)
       }
     ],
     [

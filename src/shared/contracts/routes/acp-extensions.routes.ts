@@ -113,8 +113,3 @@ export const acpGoalControlRoute = defineRouteContract({
   }),
   output: z.object({ started: z.literal(true) })
 })
-export const acpPlanReadRoute = defineRouteContract({
-  name: 'acp.plan.read',
-  input: SessionInput.extend({ planId: z.string().min(1).max(256) }),
-  output: z.object({ content: z.string().max(262_144) })
-})

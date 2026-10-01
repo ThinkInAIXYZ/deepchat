@@ -102,10 +102,6 @@ describe('agent tool review policy', () => {
       expect(review('skill_view', { name: 'demo' }).reviewed).toBe(false)
     })
 
-    it('does not review session-local plan updates', () => {
-      expect(review('update_plan', { plan: [] }).reviewed).toBe(false)
-    })
-
     it('does not review MCP tool calls', () => {
       expect(
         resolveAgentToolReview({

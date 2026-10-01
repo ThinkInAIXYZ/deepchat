@@ -528,7 +528,6 @@ function isProviderOutputEvent(event: LLMCoreStreamEvent): boolean {
     case 'image_data':
     case 'provider_search':
     case 'provider_url_source':
-    case 'plan':
       return true
     case 'permission':
     case 'error':

@@ -26,8 +26,6 @@ function createHarness() {
   const chatClient = {
     sendMessage: vi.fn().mockResolvedValue({ accepted: true })
   }
-  const beginPlanTurn = vi.fn()
-  const clearPlanSnapshotForDeletedMessage = vi.fn()
   const loadMessagesForSession = vi.fn().mockResolvedValue({ id: 'loaded' })
   const applyRestoredSessionSummary = vi.fn()
   const restoreRequestId = ref(0)
@@ -50,8 +48,6 @@ function createHarness() {
       sessionStore: sessionStore as any,
       sessionClient,
       chatClient,
-      beginPlanTurn,
-      clearPlanSnapshotForDeletedMessage,
       loadMessagesForSession,
       applyRestoredSessionSummary,
       currentRestoreRequestId: () => restoreRequestId.value,
@@ -71,8 +67,6 @@ function createHarness() {
     sessionStore,
     sessionClient,
     chatClient,
-    beginPlanTurn,
-    clearPlanSnapshotForDeletedMessage,
     loadMessagesForSession,
     applyRestoredSessionSummary,
     restoreRequestId,
@@ -94,7 +88,6 @@ describe('useMessageActions', () => {
 
     await harness.actions.onMessageRetry('message-1')
 
-    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
     expect(harness.messageStore.clearStreamingState).toHaveBeenCalledTimes(1)
     expect(harness.sessionClient.retryMessage).toHaveBeenCalledWith('s1', 'message-1')
 
@@ -130,7 +123,6 @@ describe('useMessageActions', () => {
     await harness.actions.onMessageRetry('assistant-1')
 
     expect(harness.messageStore.truncateMessagesFromOrderSeq).toHaveBeenCalledWith('s1', 20)
-    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
     harness.stop()
   })
 
@@ -151,7 +143,6 @@ describe('useMessageActions', () => {
     // Truncate from the next order sequence so the retried user prompt stays
     // mounted and is not re-created as a fresh row.
     expect(harness.messageStore.truncateMessagesFromOrderSeq).toHaveBeenCalledWith('s1', 11)
-    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
     harness.stop()
   })
 
@@ -173,7 +164,6 @@ describe('useMessageActions', () => {
     await harness.actions.onMessageRetry('message-ocr')
 
     expect(harness.actions.retryAttachmentPreparationSummary.value).toEqual(attachmentPreparation)
-    expect(harness.beginPlanTurn).not.toHaveBeenCalled()
     expect(harness.loadMessagesForSession).toHaveBeenCalledTimes(1)
 
     await harness.actions.retryBlockedMessageWithoutImageContent()
@@ -182,7 +172,6 @@ describe('useMessageActions', () => {
       attachmentFallbackPolicy: 'send_without_image_content'
     })
     expect(harness.actions.retryAttachmentPreparationSummary.value).toBeNull()
-    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
     harness.stop()
   })
 
@@ -277,7 +266,6 @@ describe('useMessageActions', () => {
     expect(harness.loadMessagesForSession).toHaveBeenCalledTimes(1)
     // Plan snapshots are keyed by session id, so the cleanup still runs for the
     // deleted message even though the stale view restore is skipped.
-    expect(harness.clearPlanSnapshotForDeletedMessage).toHaveBeenCalledWith('s2', 'message-2')
     consoleError.mockRestore()
     harness.stop()
   })
@@ -311,7 +299,6 @@ describe('useMessageActions', () => {
 
     await harness.actions.confirmMessageDelete()
     expect(harness.sessionClient.deleteMessage).toHaveBeenCalledWith('s1', 'message-1')
-    expect(harness.clearPlanSnapshotForDeletedMessage).toHaveBeenCalledWith('s1', 'message-1')
     expect(harness.applyRestoredSessionSummary).toHaveBeenCalledWith({ id: 'loaded' })
 
     await harness.actions.onMessageDelete('message-2')
@@ -341,7 +328,6 @@ describe('useMessageActions', () => {
 
     expect(harness.sessionClient.editUserMessage).toHaveBeenCalledWith('s1', 'message-1', 'updated')
     expect(harness.sessionClient.retryMessage).toHaveBeenCalledWith('s1', 'message-1')
-    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
     harness.stop()
   })
 
@@ -371,7 +357,6 @@ describe('useMessageActions', () => {
       's1',
       'chat.guardStop.continueMessage'
     )
-    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
     harness.stop()
   })
 

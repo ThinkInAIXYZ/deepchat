@@ -30,7 +30,6 @@ import {
 import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'
-import { useAgentPlanStore } from './agentPlan'
 import { useAttachmentPreparationStore } from './attachmentPreparation'
 import { useLiveDelegationStore } from './liveDelegation'
 import { isAbortError } from '@/lib/errors'
@@ -332,7 +331,6 @@ export const useSessionStore = defineStore('session', () => {
   const agentStore = useAgentStore()
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
-  const agentPlanStore = useAgentPlanStore()
   const attachmentPreparationStore = useAttachmentPreparationStore()
   const liveDelegationStore = useLiveDelegationStore()
   const myWebContentsId = ref<number | null>(null)
@@ -679,7 +677,6 @@ export const useSessionStore = defineStore('session', () => {
     }
     sessions.value = sessions.value.filter((session) => !targetIds.has(session.id))
     for (const sessionId of targetIds) {
-      agentPlanStore.purge(sessionId)
       liveDelegationStore.purge(sessionId)
       messageStore.invalidateRecentSessionView(sessionId)
       messageStore.purgeSessionTracking(sessionId)

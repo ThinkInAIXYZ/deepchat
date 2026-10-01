@@ -389,7 +389,6 @@ export class CliComputeService {
           case 'tool_call_chunk':
           case 'tool_call_end':
           case 'permission':
-          case 'plan':
           case 'image_data':
             throw new CliRequestError(
               'conflict',

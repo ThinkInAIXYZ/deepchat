@@ -183,29 +183,6 @@ describe('Tool Mode provider contracts', () => {
     expect(codexDescription).not.toContain('### `deepchat_subagents`')
   })
 
-  it('renders a mode-aware progress strategy for the update_plan subtool', () => {
-    const updatePlan = {
-      ...nestedTool,
-      source: 'agent' as const,
-      function: { ...nestedTool.function, name: 'update_plan' },
-      raw: { ...nestedTool.raw, name: 'update_plan' }
-    }
-
-    const functionSdk = renderCodeModeSdk('function', [updatePlan])
-    const codexDescription = createCodexCodeModeToolDefinitions([updatePlan])[0].function
-      .description
-
-    for (const prompt of [functionSdk, codexDescription]) {
-      expect(prompt).toContain('## Progress Checklist in Code Mode')
-      expect(prompt).toContain('Multiple steps may be in_progress when work runs in parallel')
-      expect(prompt).toContain(
-        'Use the `update_plan` subtool for non-trivial multi-step tasks by calling `await tools.update_plan(args)` inside the code entrypoint.'
-      )
-    }
-    expect(functionSdk).toContain('Top-level tools for this turn: `run_code`.')
-    expect(codexDescription).toContain('Top-level tools for this turn: `exec`, `wait`.')
-  })
-
   it('uses trimmed names for both SDK declarations and runtime bindings', () => {
     const spaced = {
       ...nestedTool,

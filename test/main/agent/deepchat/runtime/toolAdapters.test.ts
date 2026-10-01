@@ -38,7 +38,6 @@ function createToolService(overrides: Partial<ToolServicePort> = {}): ToolServic
     }),
     preCheckToolPermission: vi.fn().mockResolvedValue(null),
     clearConversationToolMapping: vi.fn(),
-    clearAgentPlanState: vi.fn(),
     buildToolSystemPrompt: vi.fn().mockReturnValue(''),
     ...overrides
   }

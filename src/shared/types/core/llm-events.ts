@@ -1,7 +1,6 @@
 // Strong-typed LLM core stream events (discriminated union)
 
 import type { ChatMessageProviderOptions } from './chat-message'
-import type { AgentPlanItem, AgentPlanTerminalReason } from '../agent-plan'
 import type { SearchResult } from './search'
 
 export type StreamEventType =
@@ -18,7 +17,6 @@ export type StreamEventType =
   | 'rate_limit'
   | 'provider_search'
   | 'provider_url_source'
-  | 'plan'
 
 export interface TextStreamEvent {
   type: 'text'
@@ -152,15 +150,6 @@ export interface ProviderUrlSourceStreamEvent {
   provider_url_source: ProviderUrlSourcePayload
 }
 
-export interface PlanStreamEvent {
-  type: 'plan'
-  plan: AgentPlanItem[]
-  explanation?: string
-  revision?: number
-  updatedAt?: string
-  terminalReason?: AgentPlanTerminalReason
-}
-
 export type LLMCoreStreamEvent =
   | TextStreamEvent
   | ReasoningStreamEvent
@@ -175,7 +164,6 @@ export type LLMCoreStreamEvent =
   | RateLimitStreamEvent
   | ProviderSearchStreamEvent
   | ProviderUrlSourceStreamEvent
-  | PlanStreamEvent
 
 export type {
   ChatMessage,
@@ -199,22 +187,6 @@ export const createStreamEvent = {
     type: 'reasoning',
     reasoning_content,
     ...(provider_options ? { provider_options } : {})
-  }),
-  plan: (
-    plan: AgentPlanItem[],
-    options?: {
-      explanation?: string
-      revision?: number
-      updatedAt?: string
-      terminalReason?: AgentPlanTerminalReason
-    }
-  ): PlanStreamEvent => ({
-    type: 'plan',
-    plan,
-    ...(options?.explanation ? { explanation: options.explanation } : {}),
-    ...(typeof options?.revision === 'number' ? { revision: options.revision } : {}),
-    ...(options?.updatedAt ? { updatedAt: options.updatedAt } : {}),
-    ...(options?.terminalReason ? { terminalReason: options.terminalReason } : {})
   }),
   toolCallStart: (
     tool_call_id: string,

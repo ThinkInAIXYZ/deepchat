@@ -6,7 +6,6 @@ import type {
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
 
-import type { ToolServicePort } from '@shared/types/tool'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import type {
   SessionRuntimeScope,
@@ -37,7 +36,6 @@ interface SessionSettingsCoordinatorDependencies {
   promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
   sessionStore: SessionSettingsStore
   toolResolver: DeepChatToolResolver
-  toolService: ToolServicePort
   sessionPermissionPort: SessionPermissionPort
   registry: SessionScopeRegistry
   identity: Pick<SessionIdentityService, 'getAgentId'>
@@ -254,7 +252,6 @@ export class SessionSettingsCoordinator {
       scope.instance.setProjectDir(this.normalizeProjectDir(config.projectDir))
       scope.instance.setGenerationSettings(generationSettings)
       this.deps.sessionPermissionPort.clearSessionPermissions(sessionId)
-      this.deps.toolService.clearAgentPlanState(sessionId)
       scope.instance.replaceRuntimeActivatedSkills([])
       scope.instance.invalidateToolProfileCache()
       await this.deps.toolResolver.revalidateActiveSkillsForAgent(sessionId, nextAgentId)

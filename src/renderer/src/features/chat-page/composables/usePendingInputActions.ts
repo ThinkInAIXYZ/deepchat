@@ -11,7 +11,6 @@ type UsePendingInputActionsOptions = {
   isAcpWorkdirMissing: ComputedRef<boolean>
   hasBlockingInteraction: () => boolean
   pendingInputStore: PendingInputStore
-  beginPlanTurn: (sessionId: string) => void
   notify: RendererNotificationNotifier
   t: (key: string) => string
 }
@@ -63,7 +62,6 @@ export function usePendingInputActions(options: UsePendingInputActionsOptions) {
     const sessionId = options.sessionId()
     try {
       await options.pendingInputStore.steerPendingInput(sessionId, itemId)
-      options.beginPlanTurn(sessionId)
     } catch (error) {
       console.error('[ChatPage] steer queued input failed:', error)
       options.notify({
@@ -81,10 +79,7 @@ export function usePendingInputActions(options: UsePendingInputActionsOptions) {
 
     const sessionId = options.sessionId()
     try {
-      const started = await options.pendingInputStore.resumeQueue(sessionId)
-      if (started) {
-        options.beginPlanTurn(sessionId)
-      }
+      await options.pendingInputStore.resumeQueue(sessionId)
     } catch (error) {
       console.error('[ChatPage] resume queued inputs failed:', error)
       options.notify({
@@ -102,10 +97,7 @@ export function usePendingInputActions(options: UsePendingInputActionsOptions) {
 
     const sessionId = options.sessionId()
     try {
-      const result = await options.pendingInputStore.retryQueueInput(sessionId, itemId)
-      if (result.started) {
-        options.beginPlanTurn(sessionId)
-      }
+      await options.pendingInputStore.retryQueueInput(sessionId, itemId)
     } catch (error) {
       console.error('[ChatPage] retry queued input failed:', error)
       options.notify({

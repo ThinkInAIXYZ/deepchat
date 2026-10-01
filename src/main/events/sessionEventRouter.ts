@@ -14,8 +14,7 @@ const RUN_STREAM_EVENTS = new Set<DeepchatEventName>(SESSION_RUN_STREAM_EVENT_NA
 const RENDERER_BOUND_STREAM_EVENTS = new Set<DeepchatEventName>([
   'chat.stream.updated',
   'chat.stream.completed',
-  'chat.stream.failed',
-  'chat.plan.updated'
+  'chat.stream.failed'
 ])
 
 // The cross-window activity signal is throttled per session so high-frequency

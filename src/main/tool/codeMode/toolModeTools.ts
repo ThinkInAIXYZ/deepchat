@@ -10,7 +10,6 @@ import {
   RUN_CODE_MAX_TIMEOUT_MS
 } from '@shared/codeModeProtocol'
 import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
-import { UPDATE_PLAN_TOOL_NAME } from '@shared/types/agent-plan'
 import { QUESTION_TOOL_NAME } from '../agentTools/questionTool'
 
 export const RUN_CODE_TOOL_NAME = 'run_code'
@@ -55,20 +54,6 @@ function renderCodeModeToolBoundary(
     '## Code Mode Tool Boundary',
     `Top-level tools for this turn: ${topLevelToolNames.map((name) => `\`${name}\``).join(', ')}.`,
     'Every other enabled tool is a Code Mode subtool. Subtools are available only inside the code entrypoint through `await tools.name(args)` and must never be issued as top-level tool calls.'
-  ].join('\n')
-}
-
-function renderCodeModeProgressPrompt(executionCatalog: readonly MCPToolDefinition[]): string {
-  if (!executionCatalog.some((tool) => tool.function.name.trim() === UPDATE_PLAN_TOOL_NAME)) {
-    return ''
-  }
-
-  return [
-    '## Progress Checklist in Code Mode',
-    `Use the \`${UPDATE_PLAN_TOOL_NAME}\` subtool for non-trivial multi-step tasks by calling \`await tools.${UPDATE_PLAN_TOOL_NAME}(args)\` inside the code entrypoint.`,
-    'Each call must provide the complete current checklist snapshot.',
-    'Multiple steps may be in_progress when work runs in parallel, including delegated subagent tasks.',
-    'Keep the checklist current as work progresses and reconcile it before ending the turn.'
   ].join('\n')
 }
 
@@ -245,7 +230,6 @@ export function createCodexCodeModeToolDefinitions(
 ): MCPToolDefinition[] {
   const nestedReference = renderCodexNestedToolReference(executionCatalog)
   const toolBoundary = renderCodeModeToolBoundary('codex', executionCatalog)
-  const progressPrompt = renderCodeModeProgressPrompt(executionCatalog)
   return [
     {
       execution: TOOL_EXECUTION.write,
@@ -257,7 +241,7 @@ export function createCodexCodeModeToolDefinitions(
       },
       function: {
         name: CODE_MODE_EXEC_TOOL_NAME,
-        description: [CODE_MODE_EXEC_DESCRIPTION, toolBoundary, progressPrompt, nestedReference]
+        description: [CODE_MODE_EXEC_DESCRIPTION, toolBoundary, nestedReference]
           .filter(Boolean)
           .join('\n\n'),
         parameters: { type: 'object', properties: {} }
@@ -473,7 +457,6 @@ export function renderCodeModeSdk(
   const tools = filterCodeModeExecutionCatalog(executionCatalog).sort((left, right) =>
     left.function.name.localeCompare(right.function.name)
   )
-  const progressPrompt = renderCodeModeProgressPrompt(tools)
   const argumentMembers = tools.map((tool) => {
     return [
       ...renderToolDescriptionComment(tool.function.description, '  '),
@@ -518,8 +501,6 @@ The top-level \`exec\` starts a Code Mode cell; \`tools.exec\` inside that cell 
 
 ${CODE_MODE_TIMEOUT_DESCRIPTION} Set it in the first-line \`// @exec: {...}\` pragma when needed. Yielding or calling \`wait\` does not reset or extend the cell's execution timeout.
 
-${progressPrompt}
-
 \`\`\`ts
 ${codexDeclaration}
 declare const ALL_TOOLS: ReadonlyArray<{ name: string; description: string }>
@@ -545,8 +526,6 @@ Inside the program:
 - A FAILED subtool call rejects with \`ToolCallError\`, whose \`toolName\` identifies the failed subtool and whose \`message\` is human-readable — \`try/catch\` it to handle and continue.
 - Independent read-only calls MAY overlap under \`Promise.all\` (safe calls run concurrently; mutating calls run alone, in submission order). Sequence dependent work with \`await\`.
 - Emit results with \`return\` and/or \`console.log(...)\`. ONLY what you print or return comes back to you — intermediate subtool results never enter the conversation, so extract just what you need.
-
-${progressPrompt}
 
 Available Code Mode subtools (only callable inside \`run_code.code\` through \`tools\`):
 

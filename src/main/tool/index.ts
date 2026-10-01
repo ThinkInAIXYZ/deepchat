@@ -39,7 +39,6 @@ import {
 import {
   AgentToolManager,
   IMAGE_GENERATE_TOOL_NAME,
-  UPDATE_PLAN_TOOL_NAME,
   AGENT_TAPE_TOOL_SERVER_NAME,
   CRON_JOB_TOOL_SERVER_NAME,
   type AgentToolCallResult
@@ -174,7 +173,6 @@ const UNSAFE_CODE_MODE_TOOL_NAMES = new Set(['__proto__', 'constructor', 'protot
 const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
   ...YO_BROWSER_TOOL_NAMES,
   IMAGE_GENERATE_TOOL_NAME,
-  UPDATE_PLAN_TOOL_NAME,
   CRON_JOB_AGENT_TOOL_NAME,
   LIVE_DELEGATION_AGENT_TOOL_NAME,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
@@ -665,16 +663,6 @@ export class ToolService implements ToolServicePort {
     this.conversationToolModes.delete(normalizedConversationId)
     this.runCodeRuntime.cancelSession(normalizedConversationId)
     this.permissionBroker.cancelConversation(normalizedConversationId)
-    this.clearAgentPlanState(normalizedConversationId)
-  }
-
-  clearAgentPlanState(conversationId: string): void {
-    const normalizedConversationId = conversationId.trim()
-    if (!normalizedConversationId) {
-      return
-    }
-
-    this.agentToolManager?.clearPlanState(normalizedConversationId)
   }
 
   /**
@@ -2167,7 +2155,6 @@ export class ToolService implements ToolServicePort {
       this.buildFilesystemPrompt(toolNames, offloadPath),
       this.buildQuestionPrompt(toolNames),
       this.buildImageGenerationPrompt(toolNames),
-      this.buildProgressPrompt(toolNames),
       this.buildTapePrompt(groupedTools.get(AGENT_TAPE_TOOL_SERVER_NAME) ?? []),
       this.buildCronJobPrompt(groupedTools.get(CRON_JOB_TOOL_SERVER_NAME) ?? []),
       this.buildSkillsPrompt(toolNames),
@@ -2349,25 +2336,6 @@ export class ToolService implements ToolServicePort {
       `Use \`${IMAGE_GENERATE_TOOL_NAME}\` when the user asks to create, draw, render, or generate a new image.`,
       'Keep the prompt visual and specific. Include subject, style, composition, lighting, mood, and important constraints from the user.',
       'Do not use this tool for describing an existing image or reading image files; use the appropriate vision or file tool for that.'
-    ].join('\n')
-  }
-
-  private buildProgressPrompt(toolNames: Set<string>): string {
-    if (!toolNames.has(UPDATE_PLAN_TOOL_NAME)) {
-      return ''
-    }
-
-    return [
-      '## Progress Checklist Tool',
-      `Use \`${UPDATE_PLAN_TOOL_NAME}\` for non-trivial multi-step tasks.`,
-      'Skip it for simple one-shot answers or trivial edits.',
-      'Each call must provide the complete current checklist snapshot.',
-      'Keep each step short, concrete, and verifiable.',
-      'Keep the checklist current as work progresses.',
-      'Multiple steps may be in_progress when work runs in parallel, including delegated subagent tasks.',
-      'When a step completes, mark it completed immediately and keep every other step accurate in the same snapshot.',
-      'Before ending the turn, reconcile the checklist so no step remains in_progress.',
-      'Use explanation only when the plan changes materially or progress would otherwise be unclear.'
     ].join('\n')
   }
 

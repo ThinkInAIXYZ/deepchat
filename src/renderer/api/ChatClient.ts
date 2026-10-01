@@ -1,6 +1,5 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
-  chatPlanUpdatedEvent,
   chatStreamActivityEvent,
   chatStreamCompletedEvent,
   chatStreamFailedEvent,
@@ -96,10 +95,6 @@ export function createChatClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     return bridge.on(chatStreamFailedEvent.name, listener)
   }
 
-  function onPlanUpdated(listener: (payload: DeepchatEventPayload<'chat.plan.updated'>) => void) {
-    return bridge.on(chatPlanUpdatedEvent.name, listener)
-  }
-
   function onStreamActivity(
     listener: (payload: DeepchatEventPayload<'chat.stream.activity'>) => void
   ) {
@@ -116,7 +111,6 @@ export function createChatClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     onStreamUpdated,
     onStreamCompleted,
     onStreamFailed,
-    onPlanUpdated,
     onStreamActivity
   }
 }

@@ -15,7 +15,6 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { DeepChatPromptAssembly } from '@shared/types/prompt-assembly'
 import type { ProviderExecutionPort } from '@shared/types/provider'
-import type { ToolServicePort } from '@shared/types/tool'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import {
@@ -163,7 +162,6 @@ export interface TurnCoordinatorPorts {
   providerRuntime: Pick<ProviderExecutionPort, 'getRuntimeContextLimitTokens'>
   providerSettings: ProviderModelResolutionPort
   traceSettings: AgentTraceSettingsPort
-  toolService: Pick<ToolServicePort, 'clearAgentPlanState'>
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
   pendingInputs: Pick<SessionPendingInputs, 'createClaimedQueueUserMessage'>
@@ -1122,7 +1120,6 @@ export class TurnCoordinator {
       if (!assistantMessageId) {
         throw new Error('Failed to create assistant message.')
       }
-      this.ports.toolService.clearAgentPlanState(sessionId)
       throwIfAbortRequested(preStreamAbortSignal)
 
       if (claimedInput?.source === 'send') {

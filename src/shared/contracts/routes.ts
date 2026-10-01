@@ -5,7 +5,6 @@ import {
   acpRateLimitsRefreshRoute,
   acpTasksListRoute,
   acpTaskControlRoute,
-  acpPlanReadRoute,
   acpGoalControlRoute,
   acpHistoryReadRoute,
   acpHistoryImportRoute
@@ -741,7 +740,6 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [acpHistoryReadRoute.name]: acpHistoryReadRoute,
   [acpHistoryImportRoute.name]: acpHistoryImportRoute,
   [acpGoalControlRoute.name]: acpGoalControlRoute,
-  [acpPlanReadRoute.name]: acpPlanReadRoute,
   [acpElicitationListRoute.name]: acpElicitationListRoute,
   [acpElicitationRespondRoute.name]: acpElicitationRespondRoute,
   [acpAuthInspectRoute.name]: acpAuthInspectRoute,

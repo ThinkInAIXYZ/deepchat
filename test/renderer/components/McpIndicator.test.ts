@@ -155,7 +155,6 @@ const setup = async (options?: {
         buildTool('read', 'agent-filesystem'),
         buildTool('exec', 'agent-filesystem'),
         buildTool('deepchat_question', 'agent-core'),
-        buildTool('update_plan', 'agent-core'),
         buildTool('cdp_send', 'yobrowser'),
         buildTool('mcp_tool', 'demo-server', 'mcp')
       ])
@@ -370,26 +369,25 @@ describe('McpIndicator', () => {
     ])
   })
 
-  it('renders update_plan inside Agent Core and toggles it individually', async () => {
+  it('renders deepchat_question inside Agent Core and toggles it individually', async () => {
     const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeAgentId: 'deepchat'
     })
 
     expect(wrapper.text()).toContain('Agent Core')
-    expect(wrapper.text()).not.toContain('Progress')
-    expect(wrapper.text()).toContain('update_plan')
+    expect(wrapper.text()).toContain('deepchat_question')
 
-    const updatePlanButton = wrapper
+    const questionButton = wrapper
       .findAll('button')
-      .find((button) => button.text() === 'update_plan')
-    expect(updatePlanButton).toBeTruthy()
+      .find((button) => button.text() === 'deepchat_question')
+    expect(questionButton).toBeTruthy()
 
-    await updatePlanButton!.trigger('click')
+    await questionButton!.trigger('click')
     await flushPromises()
 
     expect(agentSessionPresenter.updateSessionDisabledAgentTools).toHaveBeenCalledWith('s1', [
-      'update_plan'
+      'deepchat_question'
     ])
   })
 
@@ -460,15 +458,15 @@ describe('McpIndicator', () => {
       selectedAgentId: 'deepchat'
     })
 
-    const updatePlanButton = wrapper
+    const questionButton = wrapper
       .findAll('button')
-      .find((button) => button.text() === 'update_plan')
-    expect(updatePlanButton).toBeTruthy()
+      .find((button) => button.text() === 'deepchat_question')
+    expect(questionButton).toBeTruthy()
 
-    await updatePlanButton!.trigger('click')
+    await questionButton!.trigger('click')
     await flushPromises()
 
-    expect(draftStore.disabledAgentTools).toEqual(['update_plan'])
+    expect(draftStore.disabledAgentTools).toEqual(['deepchat_question'])
     expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
   })
 
@@ -550,7 +548,6 @@ describe('McpIndicator', () => {
     expect(wrapper.text()).toContain('process')
     expect(wrapper.text()).toContain('str_replace_editor')
     expect(wrapper.findAll('button').some((button) => button.text() === 'read')).toBe(false)
-    expect(wrapper.text()).toContain('update_plan')
     expect(wrapper.text()).toContain('deepchat_question')
     expect(wrapper.text()).toContain('deepchat_subagents')
     expect(wrapper.text()).toContain('demo-server')

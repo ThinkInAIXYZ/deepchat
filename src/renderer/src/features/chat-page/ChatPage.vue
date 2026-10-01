@@ -209,15 +209,11 @@
                 style="z-index: var(--dc-z-float)"
                 data-testid="agent-progress-float-layer"
               >
-                <!-- Slim dock bar with Plan/Question chips; at most one panel expands above it. -->
+                <!-- Slim dock bar with Question chip. -->
                 <ChatInteractionDock
-                  :plan-snapshot="latestPlanSnapshot"
-                  :plan-collapsed="isPlanFloatCollapsed"
                   :interaction="activePendingInteraction"
                   :elicitation="acpElicitation"
                   :processing="isHandlingInteraction"
-                  @set-plan-collapsed="agentPlanStore.setCollapsed(props.sessionId, $event)"
-                  @dismiss-plan="onDismissPlanFloat"
                   @respond="onToolInteractionRespond"
                 />
                 <!-- Last child of the bottom-anchored column, so the pill stays directly above the
@@ -387,7 +383,6 @@ import { useSessionStore } from '@/stores/ui/session'
 import { useMessageStore } from '@/stores/ui/message'
 import { usePendingInputStore } from '@/stores/ui/pendingInput'
 import { useAttachmentPreparationStore } from '@/stores/ui/attachmentPreparation'
-import { useAgentPlanStore } from '@/stores/ui/agentPlan'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useModelStore } from '@/stores/modelStore'
@@ -407,7 +402,6 @@ import {
 } from '@/platform/performance/rendererPerformance'
 import { type ChatScrollReason, type ChatScrollTarget } from '@/composables/chat/chatScrollState'
 import { playChatInputHeroFlight } from '@/lib/chatInputHero'
-import { usePlanFloatLifecycle } from './composables/usePlanFloatLifecycle'
 import { useDisplayMessages } from './composables/useDisplayMessages'
 import { useChatSearch } from './composables/useChatSearch'
 import { useListGestures } from './composables/useListGestures'
@@ -453,7 +447,6 @@ const sessionStore = useSessionStore()
 const messageStore = useMessageStore()
 const pendingInputStore = usePendingInputStore()
 const attachmentPreparationStore = useAttachmentPreparationStore()
-const agentPlanStore = useAgentPlanStore()
 const spotlightStore = useSpotlightStore()
 const modelStore = useModelStore()
 const chatClient = createChatClient()
@@ -1357,7 +1350,6 @@ function openAttachmentModelPicker(): void {
 }
 
 const {
-  pendingInteractions,
   activePendingInteraction,
   isHandlingInteraction,
   onToolInteractionRespond: submitToolInteraction
@@ -1449,22 +1441,6 @@ const generationAnnouncement = computed(() => {
   return latestResponse?.status === 'sent' ? t('chat.notify.generationComplete') : ''
 })
 
-const {
-  latestPlanSnapshot,
-  isPlanFloatCollapsed,
-  beginPlanTurn,
-  clearPlanSnapshotForDeletedMessage,
-  scheduleInactivePlanSnapshotClear,
-  cancelAllPlanSnapshotClearTimers,
-  onDismissPlanFloat
-} = usePlanFloatLifecycle({
-  sessionId: () => props.sessionId,
-  agentPlanStore,
-  sessionStore,
-  isCurrentSessionStreaming,
-  pendingInteractions
-})
-
 function getActiveModelSelection(): { providerId: string; modelId: string } | null {
   const activeSession = sessionStore.activeSession
   if (!activeSession?.providerId || !activeSession?.modelId) {
@@ -1554,7 +1530,6 @@ const {
   getActiveModelSelection,
   createPendingAssistantPlaceholder,
   clearPendingAssistantPlaceholder,
-  beginPlanTurn,
   schedulePostSubmitScrollToBottom,
   loadMessagesForSession,
   applyRestoredSessionSummary,
@@ -1603,8 +1578,6 @@ const {
   sessionStore,
   sessionClient,
   chatClient,
-  beginPlanTurn,
-  clearPlanSnapshotForDeletedMessage,
   loadMessagesForSession,
   applyRestoredSessionSummary,
   currentRestoreRequestId,
@@ -1631,7 +1604,6 @@ const {
   hasBlockingInteraction: () =>
     Boolean(activePendingInteraction.value) || isHandlingInteraction.value,
   pendingInputStore,
-  beginPlanTurn,
   notify: notifyRenderer,
   t
 })
@@ -1663,11 +1635,6 @@ const { start: startChatPageEventBridge, stop: stopChatPageEventBridge } = useCh
     message.value = text
   },
   onWindowKeydown: handleWindowKeydown,
-  onPlanUpdated: (payload) => {
-    agentPlanStore.applySnapshot(payload)
-    scheduleInactivePlanSnapshotClear(payload.sessionId)
-  },
-  chatClient,
   workspaceInsertReferenceEvent: WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED
 })
 
@@ -1695,7 +1662,6 @@ async function onStop() {
     if (!result.stopped) {
       throw new Error('Generation could not be stopped')
     }
-    agentPlanStore.freezeActive(sessionId)
   } catch (error) {
     console.error('[ChatPage] cancel generation failed:', error)
     if (props.sessionId === sessionId) {
@@ -1744,7 +1710,6 @@ onUnmounted(() => {
   deactivateSessionRestore()
   cacheCurrentMessageMeasurements()
   cleanupVoiceInput()
-  cancelAllPlanSnapshotClearTimers()
   stopChatPageEventBridge()
   disposeChatSearch()
   cancelPendingMessageJumps()

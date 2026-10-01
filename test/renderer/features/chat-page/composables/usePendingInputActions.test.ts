@@ -43,7 +43,6 @@ function createHarness() {
     retryQueueInput: vi.fn().mockResolvedValue({ accepted: true, started: false }),
     resolveBlockedInput: vi.fn().mockResolvedValue(undefined)
   }
-  const beginPlanTurn = vi.fn()
   const notify = vi.fn()
   const scope = effectScope()
   let actions!: ReturnType<typeof usePendingInputActions>
@@ -56,7 +55,6 @@ function createHarness() {
       isAcpWorkdirMissing: computed(() => isAcpWorkdirMissing.value),
       hasBlockingInteraction: () => isBlocking.value,
       pendingInputStore: pendingInputStore as any,
-      beginPlanTurn,
       notify,
       t: (key) => key
     })
@@ -70,7 +68,6 @@ function createHarness() {
     isAcpWorkdirMissing,
     isBlocking,
     pendingInputStore,
-    beginPlanTurn,
     notify,
     stop: () => scope.stop()
   }
@@ -81,22 +78,21 @@ describe('usePendingInputActions', () => {
     vi.clearAllMocks()
   })
 
-  it('resumes an idle Queue once and rebaselines plan state only when a turn starts', async () => {
+  it('resumes an idle Queue once', async () => {
     const harness = createHarness()
     harness.isGenerating.value = false
 
     await harness.actions.onPendingInputResume()
 
     expect(harness.pendingInputStore.resumeQueue).toHaveBeenCalledWith('s1')
-    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
 
     harness.pendingInputStore.resumeQueue.mockResolvedValueOnce(false)
     await harness.actions.onPendingInputResume()
-    expect(harness.beginPlanTurn).toHaveBeenCalledTimes(1)
+    expect(harness.pendingInputStore.resumeQueue).toHaveBeenCalledTimes(2)
     harness.stop()
   })
 
-  it('reports Queue resume failures without changing plan state', async () => {
+  it('reports Queue resume failures', async () => {
     const harness = createHarness()
     harness.isGenerating.value = false
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -109,12 +105,11 @@ describe('usePendingInputActions', () => {
       code: 'chat.pendingInput.resumeFailed',
       title: 'chat.pendingInput.resumeFailed'
     })
-    expect(harness.beginPlanTurn).not.toHaveBeenCalled()
     consoleError.mockRestore()
     harness.stop()
   })
 
-  it('retries only retry-required items and rebaselines plan state only when a turn starts', async () => {
+  it('retries only retry-required items', async () => {
     const harness = createHarness()
 
     await harness.actions.onPendingInputRetry('item-1')
@@ -122,18 +117,10 @@ describe('usePendingInputActions', () => {
 
     await harness.actions.onPendingInputRetry('retry-1')
     expect(harness.pendingInputStore.retryQueueInput).toHaveBeenCalledWith('s1', 'retry-1')
-    expect(harness.beginPlanTurn).not.toHaveBeenCalled()
-
-    harness.pendingInputStore.retryQueueInput.mockResolvedValueOnce({
-      accepted: true,
-      started: true
-    })
-    await harness.actions.onPendingInputRetry('retry-1')
-    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
     harness.stop()
   })
 
-  it('reports Queue retry failures without changing plan state', async () => {
+  it('reports Queue retry failures', async () => {
     const harness = createHarness()
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     harness.pendingInputStore.retryQueueInput.mockRejectedValueOnce(new Error('retry failed'))
@@ -145,7 +132,6 @@ describe('usePendingInputActions', () => {
       code: 'chat.pendingInput.retryFailed',
       title: 'chat.pendingInput.retryFailed'
     })
-    expect(harness.beginPlanTurn).not.toHaveBeenCalled()
     consoleError.mockRestore()
     harness.stop()
   })
@@ -185,7 +171,7 @@ describe('usePendingInputActions', () => {
     harness.stop()
   })
 
-  it('keeps queued-input steering and plan state bound to one session', async () => {
+  it('keeps queued-input steering bound to one session', async () => {
     const harness = createHarness()
     let resolveSteer!: () => void
     harness.pendingInputStore.steerPendingInput.mockImplementationOnce(
@@ -201,11 +187,10 @@ describe('usePendingInputActions', () => {
     await steer
 
     expect(harness.pendingInputStore.steerPendingInput).toHaveBeenCalledWith('s1', 'item-1')
-    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
     harness.stop()
   })
 
-  it('steers only after all gates pass and preserves plan state on failure', async () => {
+  it('steers only after all gates pass', async () => {
     const harness = createHarness()
 
     harness.isGenerating.value = false
@@ -225,7 +210,6 @@ describe('usePendingInputActions', () => {
     harness.isBlocking.value = false
     await harness.actions.onPendingInputSteer('item-1')
     expect(harness.pendingInputStore.steerPendingInput).toHaveBeenCalledWith('s1', 'item-1')
-    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
 
     const error = new Error('steer failed')
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -237,7 +221,6 @@ describe('usePendingInputActions', () => {
       code: 'chat.pendingInput.steerFailed',
       title: 'chat.pendingInput.steerFailed'
     })
-    expect(harness.beginPlanTurn).toHaveBeenCalledTimes(1)
     consoleError.mockRestore()
     harness.stop()
   })

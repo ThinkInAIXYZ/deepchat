@@ -966,7 +966,6 @@ function createMockToolService() {
     }),
     preCheckToolPermission: vi.fn().mockResolvedValue(null),
     clearConversationToolMapping: vi.fn(),
-    clearAgentPlanState: vi.fn(),
     buildToolSystemPrompt: vi.fn().mockReturnValue('')
   } as any
 }

@@ -101,9 +101,6 @@ function createHarness() {
     toolResolver: {
       revalidateActiveSkillsForAgent
     } as unknown as Dependencies['toolResolver'],
-    toolService: {
-      clearAgentPlanState: vi.fn()
-    } as unknown as Dependencies['toolService'],
     sessionPermissionPort: {
       clearSessionPermissions: vi.fn()
     },

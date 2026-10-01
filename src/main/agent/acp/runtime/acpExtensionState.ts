@@ -103,7 +103,6 @@ export function createAcpExtensionState(
     remoteSessionId,
     capabilities,
     connected: true,
-    plans: restored?.plans ?? {},
     tasks: restored?.tasks ?? {},
     remoteTasks: restored?.remoteTasks ?? [],
     runs: restored?.runs ?? {},
