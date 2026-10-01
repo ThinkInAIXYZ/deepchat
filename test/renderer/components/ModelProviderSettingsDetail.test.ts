@@ -77,7 +77,7 @@ async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_
     allProviderModels: [],
     customModels: [],
     refreshProviderModels: vi.fn().mockResolvedValue(true),
-    updateModelStatus: vi.fn().mockResolvedValue(undefined),
+    updateModelStatus: vi.fn().mockResolvedValue(true),
     disableAllModels: vi.fn().mockResolvedValue(undefined)
   }
 
@@ -247,5 +247,56 @@ describe('ModelProviderSettingsDetail', () => {
     await flushPromises()
 
     expect(providerStore.updateProviderStatus).toHaveBeenCalledWith('anthropic', false)
+  })
+
+  it('does not emit model-enabled and shows a localized error when persistence fails', async () => {
+    const { wrapper, modelStore, notifyRendererMock } = await setup()
+    modelStore.updateModelStatus.mockResolvedValue(false)
+
+    const vm = wrapper.vm as unknown as {
+      handleModelEnabledChange: (model: { id: string }, enabled: boolean) => Promise<void>
+    }
+    await vm.handleModelEnabledChange({ id: 'claude-test' }, true)
+
+    expect(wrapper.emitted('provider-model-enabled')).toBeUndefined()
+    expect(notifyRendererMock).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'settings.provider.modelStatusUpdateFailed',
+      title: 'common.error.operationFailed',
+      description: 'settings.deepchatAgents.saveFeedback.saveFailed'
+    })
+  })
+
+  it('keeps the disable confirmation open when persistence fails', async () => {
+    const { wrapper, modelStore } = await setup()
+    modelStore.updateModelStatus.mockResolvedValue(false)
+    const model = { id: 'claude-test' }
+    const vm = wrapper.vm as unknown as {
+      handleModelEnabledChange: (
+        model: { id: string },
+        enabled: boolean,
+        confirm: boolean
+      ) => Promise<void>
+      confirmDisable: () => Promise<void>
+      showConfirmDialog: boolean
+      modelToDisable: { id: string } | null
+    }
+
+    await vm.handleModelEnabledChange(model, false, true)
+    await vm.confirmDisable()
+
+    expect(vm.showConfirmDialog).toBe(true)
+    expect(vm.modelToDisable).toEqual(model)
+  })
+
+  it('renders Vertex credentials in the connection section', async () => {
+    const { wrapper } = await setup({
+      provider: createProvider({ id: 'vertex', apiType: 'vertex' })
+    })
+
+    const vertex = wrapper.findComponent({ name: 'VertexProviderSettingsDetail' })
+    expect(vertex.exists()).toBe(true)
+    expect(vertex.element.closest('[data-testid="provider-connection-section"]')).not.toBeNull()
+    expect(vertex.element.closest('[data-testid="provider-advanced-section"]')).toBeNull()
   })
 })

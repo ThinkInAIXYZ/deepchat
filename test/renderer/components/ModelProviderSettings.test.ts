@@ -219,7 +219,7 @@ const setup = async (options?: {
       },
       template: `
         <div data-testid="generic-detail">
-          <button data-testid="provider-update-key-button" type="button">Update key</button>
+          <button data-testid="provider-connection-edit" type="button">Update key</button>
           <button data-testid="generic-detail-complete" @click="$emit('provider-configured')">
             complete
           </button>
@@ -578,7 +578,7 @@ describe('ModelProviderSettings', () => {
       visibleGuideStepId: 'provider-api-key'
     })
     expect(wrapper.get('[data-testid="guided-overlay"]').attributes('data-target-testid')).toBe(
-      'provider-update-key-button'
+      'provider-connection-edit'
     )
     wrapper.unmount()
   })

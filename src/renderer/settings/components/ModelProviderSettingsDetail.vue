@@ -22,6 +22,11 @@
         @oauth-success="handleOAuthSuccess"
         @oauth-error="handleOAuthError"
       />
+      <VertexProviderSettingsDetail
+        v-if="provider.apiType === 'vertex'"
+        :provider="provider as VERTEX_PROVIDER"
+        @config-updated="handleConfigChanged"
+      />
     </template>
 
     <template #models>
@@ -57,13 +62,6 @@
         :provider-id="provider.id"
         :model-value="provider.customHeaders"
         :save="saveCustomHeaders"
-      />
-
-      <VertexProviderSettingsDetail
-        v-if="provider.apiType === 'vertex'"
-        :provider="provider as VERTEX_PROVIDER"
-        @config-updated="handleConfigChanged"
-        @validate-provider="validateApiKey"
       />
 
       <AzureProviderConfig
@@ -127,6 +125,7 @@ import {
   type ProviderCustomHeaders
 } from '@shared/providerCustomHeaders'
 import ProviderCustomHeadersEditor from './ProviderCustomHeadersEditor.vue'
+import { isProviderReadyForOnboarding } from './providerOnboardingReadiness'
 
 interface ProviderWebsites {
   official: string
@@ -217,33 +216,15 @@ const providerWebsites = computed<ProviderWebsites | undefined>(
 
 const providerModelsSource = computed(
   () =>
-    modelStore.allProviderModels.find((p) => p.providerId === props.provider.id)?.models ??
-    emptyModels
+    modelStore.allProviderModels
+      .find((p) => p.providerId === props.provider.id)
+      ?.models.filter((model) => !model.isCustom) ?? emptyModels
 )
 
 const customModelsSource = computed(
   () =>
     modelStore.customModels.find((p) => p.providerId === props.provider.id)?.models ?? emptyModels
 )
-
-const isProviderReadyForOnboarding = (
-  provider: Pick<LLM_PROVIDER, 'apiKey' | 'baseUrl' | 'custom' | 'enable'>
-) => {
-  if (!provider.enable) {
-    return false
-  }
-
-  const hasApiKey = provider.apiKey?.trim().length > 0
-  if (!hasApiKey) {
-    return false
-  }
-
-  if (provider.custom) {
-    return Boolean(provider.baseUrl?.trim())
-  }
-
-  return true
-}
 
 const maybeEmitProviderConfigured = (provider: LLM_PROVIDER) => {
   if (isProviderReadyForOnboarding(provider)) {
@@ -444,6 +425,14 @@ const waitForNextPaint = async () => {
   })
 }
 
+const notifyModelStatusUpdateFailed = () =>
+  notifyRenderer({
+    kind: 'error',
+    code: 'settings.provider.modelStatusUpdateFailed',
+    title: t('common.error.operationFailed'),
+    description: t('settings.deepchatAgents.saveFeedback.saveFailed')
+  })
+
 const handleModelEnabledChange = async (
   model: RENDERER_MODEL_META,
   enabled: boolean,
@@ -461,7 +450,12 @@ const handleModelEnabledChange = async (
     enabled
   })
 
-  await modelStore.updateModelStatus(props.provider.id, model.id, enabled)
+  const updated = await modelStore.updateModelStatus(props.provider.id, model.id, enabled)
+
+  if (!updated) {
+    notifyModelStatusUpdateFailed()
+    return false
+  }
 
   if (enabled) {
     emit('provider-model-enabled')
@@ -469,7 +463,7 @@ const handleModelEnabledChange = async (
 
   const storeComplete = getPerfNow()
   if (!import.meta.env.DEV || !uiSettingsStore.traceDebugEnabled) {
-    return
+    return true
   }
 
   await nextTick()
@@ -486,6 +480,7 @@ const handleModelEnabledChange = async (
     paintMs: Math.round(paintComplete - nextTickComplete),
     totalMs: Math.round(paintComplete - interactionStart)
   })
+  return true
 }
 
 const disableModel = (model: RENDERER_MODEL_META) => {
@@ -498,10 +493,9 @@ const confirmDisable = async () => {
     return
   }
 
-  try {
-    await modelStore.updateModelStatus(props.provider.id, modelToDisable.value.id, false)
-  } catch (error) {
-    console.error('Failed to disable model:', error)
+  const updated = await handleModelEnabledChange(modelToDisable.value, false)
+  if (!updated) {
+    return
   }
 
   showConfirmDialog.value = false
@@ -583,7 +577,7 @@ const handleRefreshModels = async () => {
   isModelListLoading.value = true
 
   try {
-    await modelStore.refreshProviderModels(props.provider.id)
+    await modelStore.refreshProviderModels(props.provider.id, true)
   } finally {
     isRefreshingModels.value = false
     isModelListLoading.value = false
