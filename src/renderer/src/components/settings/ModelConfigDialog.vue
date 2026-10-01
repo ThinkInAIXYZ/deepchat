@@ -1,6 +1,9 @@
 <template>
-  <Dialog :open="open" @update:open="$emit('update:open', $event)">
-    <DialogContent class="sm:max-w-[600px] max-h-[80vh] overflow-hidden flex flex-col">
+  <Dialog :open="open" @update:open="!isSaving && $emit('update:open', $event)">
+    <DialogContent
+      :hide-close="isSaving"
+      class="sm:max-w-[600px] max-h-[80vh] overflow-hidden flex flex-col"
+    >
       <DialogHeader>
         <DialogTitle>{{ dialogTitle }}</DialogTitle>
         <p class="text-sm text-muted-foreground">
@@ -8,7 +11,7 @@
         </p>
       </DialogHeader>
 
-      <div class="overflow-y-auto flex-1 pr-2 -mr-2">
+      <div :inert="isSaving" class="overflow-y-auto flex-1 pr-2 -mr-2">
         <DcForm @submit="handleSave" class="space-y-6">
           <!-- 模型名称 -->
           <div v-if="!showOpenAIMediaGenerationSettings || canEditModelIdentity" class="space-y-2">
@@ -496,13 +499,21 @@
       </div>
 
       <DialogFooter class="gap-2">
-        <DcButton type="button" variant="outline" @click="handleReset">
+        <p v-if="saveError" class="mr-auto text-sm text-destructive">
+          {{ saveError }}
+        </p>
+        <DcButton type="button" variant="outline" :disabled="isSaving" @click="handleReset">
           {{ t('settings.model.modelConfig.resetToDefault') }}
         </DcButton>
-        <DcButton type="button" variant="ghost" @click="$emit('update:open', false)">
+        <DcButton
+          type="button"
+          variant="ghost"
+          :disabled="isSaving"
+          @click="$emit('update:open', false)"
+        >
           {{ t('settings.model.modelConfig.cancel') }}
         </DcButton>
-        <DcButton type="button" @click="handleSave" :disabled="!isValid">
+        <DcButton type="button" @click="handleSave" :disabled="!isValid || isSaving">
           {{ t('settings.model.modelConfig.saveConfig') }}
         </DcButton>
       </DialogFooter>
@@ -782,6 +793,8 @@ const mutualExclusiveAction = ref<{
 
 // 错误信息
 const errors = ref<Record<string, string>>({})
+const isSaving = ref(false)
+const saveError = ref('')
 const capabilityProviderId = computed(
   () => modelCapabilities.identity.value?.providerId ?? props.providerId
 )
@@ -1463,7 +1476,9 @@ const isValid = computed(() => {
 
 // 保存配置
 const handleSave = async () => {
-  if (!isValid.value || !props.providerId) return
+  if (!isValid.value || !props.providerId || isSaving.value) return
+  isSaving.value = true
+  saveError.value = ''
 
   const trimmedName = modelNameField.value.trim()
   const trimmedId = modelIdField.value.trim()
@@ -1493,47 +1508,17 @@ const handleSave = async () => {
   }
 
   try {
-    if (isCreateMode.value) {
-      await modelStore.addCustomModel(
-        props.providerId,
-        buildCustomModelPayload(trimmedId, trimmedName, true)
-      )
-      await modelConfigStore.setModelConfig(trimmedId, props.providerId, configToSave)
-    } else if (props.isCustomModel) {
-      if (!props.modelId) return
-      const previousId = originalModelId.value
+    if (isCreateMode.value || props.isCustomModel) {
+      const previousId = isCreateMode.value ? undefined : originalModelId.value
       const enabledState = currentCustomModel.value?.enabled ?? true
-
-      if (trimmedId !== previousId) {
-        if (previousId) {
-          try {
-            await modelConfigStore.resetModelConfig(previousId, props.providerId)
-          } catch (resetError) {
-            console.warn('Failed to reset previous model config:', resetError)
-          }
-          await modelStore.removeCustomModel(props.providerId, previousId)
-        }
-        await modelStore.addCustomModel(
-          props.providerId,
-          buildCustomModelPayload(trimmedId, trimmedName, enabledState)
-        )
-        if (!enabledState) {
-          await modelStore.updateModelStatus(props.providerId, trimmedId, false)
-        }
-      } else {
-        await modelStore.updateCustomModel(props.providerId, trimmedId, {
-          name: trimmedName,
-          contextLength: config.value.contextLength,
-          maxTokens: config.value.maxTokens,
-          vision: config.value.vision,
-          functionCall: config.value.functionCall,
-          reasoning: config.value.reasoning,
-          type: config.value.type ?? ModelType.Chat,
-          endpointType: config.value.endpointType
-        })
-      }
-
-      await modelConfigStore.setModelConfig(trimmedId, props.providerId, configToSave)
+      await modelStore.saveCustomModel(
+        props.providerId,
+        previousId,
+        buildCustomModelPayload(trimmedId, trimmedName, enabledState),
+        configToSave
+      )
+      modelConfigStore.invalidateModelConfig(trimmedId, props.providerId)
+      if (previousId) modelConfigStore.invalidateModelConfig(previousId, props.providerId)
     } else {
       if (!props.modelId) return
       await modelConfigStore.setModelConfig(props.modelId, props.providerId, configToSave)
@@ -1543,6 +1528,9 @@ const handleSave = async () => {
     emit('update:open', false)
   } catch (error) {
     console.error('Failed to save model config:', error)
+    saveError.value = t('settings.deepchatAgents.saveFeedback.saveFailed')
+  } finally {
+    isSaving.value = false
   }
 }
 
@@ -1577,6 +1565,7 @@ watch(
   () => [props.modelId, props.providerId, props.open],
   () => {
     if (props.open) {
+      saveError.value = ''
       loadConfig()
     }
   },

@@ -76,6 +76,7 @@ export const useModelStore = defineStore('model', () => {
   let removeModelListeners: (() => void) | null = null
   const inFlightRefreshes = new Map<string, Promise<boolean>>()
   const rerunRequested = new Set<string>()
+  const discoveryRequested = new Set<string>()
   const pendingRefreshStarts = new Set<string>()
   const pendingModelStatusEchoes = new Map<string, boolean>()
   const providerModelsReadyAt = new Map<string, number>()
@@ -163,6 +164,7 @@ export const useModelStore = defineStore('model', () => {
     enabledModelQueries.delete(providerId)
     pendingRefreshStarts.delete(providerId)
     rerunRequested.delete(providerId)
+    discoveryRequested.delete(providerId)
     clearProviderModelsReady(providerId)
 
     for (const statusKey of Array.from(pendingModelStatusEchoes.keys())) {
@@ -668,13 +670,17 @@ export const useModelStore = defineStore('model', () => {
     }
   }
 
-  const refreshStandardModels = async (providerId: string): Promise<boolean> => {
+  const refreshStandardModels = async (
+    providerId: string,
+    discoverModels = true
+  ): Promise<boolean> => {
     try {
       await invalidateProviderModelsCache(providerId)
       const providerState = getProviderState(providerId)
       const useRuntimeModelList =
-        isRuntimeModelListProvider(providerId) ||
-        (providerId === 'openai' && providerState?.openaiAuthMode === 'chatgpt')
+        discoverModels &&
+        (isRuntimeModelListProvider(providerId) ||
+          (providerId === 'openai' && providerState?.openaiAuthMode === 'chatgpt'))
       const useProviderDbModels = providerState?.apiType !== 'ollama' && !useRuntimeModelList
       let models: RENDERER_MODEL_META[] = useProviderDbModels
         ? await modelClient.getDbProviderModels(providerId)
@@ -801,7 +807,7 @@ export const useModelStore = defineStore('model', () => {
         models = mergedModels
       }
 
-      if (!models || models.length === 0) {
+      if (models.length === 0 && discoverModels) {
         try {
           const modelMetas = await modelClient.getModelList(providerId)
           if (modelMetas) {
@@ -842,7 +848,10 @@ export const useModelStore = defineStore('model', () => {
     }
   }
 
-  const refreshProviderModelsNow = async (providerId: string): Promise<boolean> => {
+  const refreshProviderModelsNow = async (
+    providerId: string,
+    discoverModels: boolean
+  ): Promise<boolean> => {
     if (providerId === 'acp') {
       try {
         const { rendererModels, modelMetas } = await agentModelStore.refreshAgentModels(providerId)
@@ -859,7 +868,7 @@ export const useModelStore = defineStore('model', () => {
     }
 
     const [standardRefreshed, customRefreshed] = await Promise.all([
-      refreshStandardModels(providerId),
+      refreshStandardModels(providerId, discoverModels),
       refreshCustomModels(providerId)
     ])
 
@@ -870,8 +879,12 @@ export const useModelStore = defineStore('model', () => {
     return standardRefreshed && customRefreshed
   }
 
-  const refreshProviderModels = (providerId: string): Promise<boolean> => {
+  const refreshProviderModels = (
+    providerId: string,
+    discoverModels = getProviderState(providerId)?.enable !== false
+  ): Promise<boolean> => {
     ensureModelRuntime()
+    if (discoverModels) discoveryRequested.add(providerId)
 
     const existingRefresh = inFlightRefreshes.get(providerId)
     if (existingRefresh) {
@@ -891,13 +904,15 @@ export const useModelStore = defineStore('model', () => {
 
         do {
           rerunRequested.delete(providerId)
-          lastRefreshSucceeded = await refreshProviderModelsNow(providerId)
+          const discover = discoveryRequested.delete(providerId)
+          lastRefreshSucceeded = await refreshProviderModelsNow(providerId, discover)
         } while (rerunRequested.has(providerId))
 
         return lastRefreshSucceeded
       } finally {
         pendingRefreshStarts.delete(providerId)
         rerunRequested.delete(providerId)
+        discoveryRequested.delete(providerId)
         if (refreshPromise && inFlightRefreshes.get(providerId) === refreshPromise) {
           inFlightRefreshes.delete(providerId)
         }
@@ -1144,6 +1159,7 @@ export const useModelStore = defineStore('model', () => {
         elapsedMs: Math.round(getPerfNow() - ipcStart),
         totalMs: Math.round(getPerfNow() - actionStart)
       })
+      return true
     } catch (error) {
       console.error('Failed to update model status:', error)
       const statusKey = getModelStatusKey(providerId, modelId)
@@ -1160,6 +1176,7 @@ export const useModelStore = defineStore('model', () => {
         previousState,
         totalMs: Math.round(getPerfNow() - actionStart)
       })
+      return false
     }
   }
 
@@ -1178,6 +1195,22 @@ export const useModelStore = defineStore('model', () => {
       console.error('Failed to add custom model:', error)
       throw error
     }
+  }
+
+  const saveCustomModel = async (
+    providerId: string,
+    originalModelId: string | undefined,
+    model: Omit<RENDERER_MODEL_META, 'providerId' | 'isCustom' | 'group'>,
+    config: ModelConfig
+  ) => {
+    const savedModel = await modelClient.saveCustomModel(
+      providerId,
+      originalModelId,
+      stripDerivedRendererModelFields(model),
+      config
+    )
+    await refreshCustomModels(providerId)
+    return savedModel
   }
 
   const removeCustomModel = async (providerId: string, modelId: string) => {
@@ -1438,6 +1471,7 @@ export const useModelStore = defineStore('model', () => {
     initializationPromise.value = null
     inFlightRefreshes.clear()
     rerunRequested.clear()
+    discoveryRequested.clear()
     pendingRefreshStarts.clear()
     pendingModelStatusEchoes.clear()
     clearProviderModelsReady()
@@ -1564,6 +1598,7 @@ export const useModelStore = defineStore('model', () => {
     updateLocalModelStatus,
     getLocalModelEnabledState,
     addCustomModel,
+    saveCustomModel,
     removeCustomModel,
     updateCustomModel,
     enableAllModels,

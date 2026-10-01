@@ -17,6 +17,7 @@ import {
   modelsListRuntimeRoute,
   modelsRemoveCustomRoute,
   modelsResetConfigRoute,
+  modelsSaveCustomRoute,
   modelsSetBatchStatusRoute,
   modelsSetConfigRoute,
   modelsSetStatusRoute,
@@ -127,6 +128,22 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     model: Omit<RENDERER_MODEL_META, 'providerId' | 'isCustom' | 'group'>
   ) {
     const result = await bridge.invoke(modelsAddCustomRoute.name, { providerId, model })
+    clearProviderCatalogCache(providerId)
+    return result.model
+  }
+
+  async function saveCustomModel(
+    providerId: string,
+    originalModelId: string | undefined,
+    model: Omit<RENDERER_MODEL_META, 'providerId' | 'isCustom' | 'group'>,
+    config: ModelConfig
+  ) {
+    const result = await bridge.invoke(modelsSaveCustomRoute.name, {
+      providerId,
+      originalModelId,
+      model,
+      config: config as any
+    })
     clearProviderCatalogCache(providerId)
     return result.model
   }
@@ -326,6 +343,7 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     updateModelStatus,
     setBatchModelStatus,
     addCustomModel,
+    saveCustomModel,
     removeCustomModel,
     updateCustomModel,
     getModelConfig,

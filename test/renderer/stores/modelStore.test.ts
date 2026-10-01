@@ -129,6 +129,19 @@ const flushMicrotasks = async (times: number = 6) => {
 }
 
 describe('modelStore.refreshProviderModels', () => {
+  it('opens disabled catalogs without discovery but allows an explicit refresh', async () => {
+    const { store, modelClient } = await setupStore({
+      providerStore: { providers: [{ id: 'offline', enable: false, custom: true }] }
+    })
+
+    await store.ensureProviderModelsReady('offline')
+    expect(modelClient.getModelList).not.toHaveBeenCalled()
+    await store.refreshProviderModels('offline')
+    expect(modelClient.getModelList).not.toHaveBeenCalled()
+    await store.refreshProviderModels('offline', true)
+    expect(modelClient.getModelList).toHaveBeenCalledWith('offline')
+  })
+
   it('loads a large catalog without per-model config requests and preserves user overrides', async () => {
     const models = Array.from({ length: 500 }, (_, index) => ({
       id: `model-${index}`,
@@ -1026,9 +1039,27 @@ describe('modelStore.refreshProviderModels', () => {
     })
 
     await store.refreshProviderModels('ollama')
-    await store.updateModelStatus('ollama', 'deepseek-r1:1.5b', false)
+    const updated = await store.updateModelStatus('ollama', 'deepseek-r1:1.5b', false)
 
     expect(modelClient.updateModelStatus).toHaveBeenCalledWith('ollama', 'deepseek-r1:1.5b', false)
+    expect(updated).toBe(true)
+  })
+
+  it('returns false and rolls back when model status persistence fails', async () => {
+    const { store } = await setupStore({
+      modelClient: {
+        updateModelStatus: vi.fn().mockRejectedValue(new Error('backend failure')),
+        getDbProviderModels: vi.fn(async () => []),
+        getProviderModels: vi.fn(async () => [{ id: 'gpt-test', providerId: 'openai' }]),
+        getBatchModelStatus: vi.fn(async () => ({ 'gpt-test': false }))
+      }
+    })
+    await store.refreshProviderModels('openai')
+
+    const updated = await store.updateModelStatus('openai', 'gpt-test', true)
+
+    expect(updated).toBe(false)
+    expect(store.allProviderModels.value[0].models[0].enabled).toBe(false)
   })
 })
 
