@@ -18,7 +18,9 @@
   "actions": {
     "add": "مودېل قوشۇش",
     "enableAll": "ھەممىنى قوزغىتىش",
-    "disableAll": "ھەممىنى چەكلەش"
+    "disableAll": "ھەممىنى چەكلەش",
+    "enableFiltered": "نەتىجىلەرنى قوزغىتىش ({count})",
+    "disableFiltered": "نەتىجىلەرنى چەكلەش ({count})"
   },
   "sort": {
     "status": "ھالەت بويىچە",

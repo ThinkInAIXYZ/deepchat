@@ -18,7 +18,9 @@
   "actions": {
     "add": "ᠶᠢ ᠨᠡᠮᠡᠬᠦ",
     "enableAll": "ᠪᠦᠬᠦᠨ ᠢ ᠪᠠᠳᠠᠷᠠᠭᠤᠯᠬᠤ",
-    "disableAll": "ᠢ ᠴᠥᠮ ᠬᠠᠰᠤᠬᠤ"
+    "disableAll": "ᠢ ᠴᠥᠮ ᠬᠠᠰᠤᠬᠤ",
+    "enableFiltered": "ᠦᠷ᠎ᠡ ᠳ᠋ᠦᠩ ᠢ ᠢᠳᠡᠪᠬᠢᠵᠢᠭᠦᠯᠬᠦ ({count})",
+    "disableFiltered": "ᠦᠷ᠎ᠡ ᠳ᠋ᠦᠩ ᠢ ᠢᠳᠡᠪᠬᠢ ᠦᠭᠡᠢ ᠪᠣᠯᠭᠠᠬᠤ ({count})"
   },
   "sort": {
     "status": "ᠶᠢᠨ ᠪᠠᠶᠢᠳᠠᠯ ᠢᠶᠠᠷ ᠨᠢ",

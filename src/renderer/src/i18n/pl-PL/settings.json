@@ -1600,6 +1600,8 @@
       "currentKey": "Bieżący klucz",
       "newKey": "Nowy klucz API",
       "keepKey": "Pozostaw puste, aby zachować bieżący klucz.",
+      "removeKey": "Usuń klucz API",
+      "removeKeyDescription": "Usunąć zapisany klucz API z tego urządzenia? Dostawca i modele zostaną zachowane. OAuth i niestandardowe nagłówki żądań pozostaną bez zmian.",
       "test": "Testuj połączenie"
     },
     "health": {
@@ -1618,6 +1620,7 @@
     },
     "addFlow": {
       "connect": "Połącz i wczytaj modele",
+      "saveOnly": "Zapisz bez testowania",
       "validating": "Weryfikacja połączenia...",
       "loadingModels": "Wczytywanie modeli...",
       "failed": "Połączenie nie powiodło się. Sprawdź konfigurację i spróbuj ponownie.",

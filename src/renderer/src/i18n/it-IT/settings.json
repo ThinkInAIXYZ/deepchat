@@ -1545,7 +1545,7 @@
     "bedrockLimitTip": "* Supporta solo Anthropic Claude (inclusi modelli Opus, Sonnet, Haiku)",
     "bedrockVerifyTip": "DeepChat usa il modello Claude 3.5 Sonnet per la verifica; se non hai permesso di chiamare questo modello, la verifica fallirà. Questo non influisce sull'uso degli altri modelli.",
     "center": {
-      "title": "Provider Center",
+      "title": "Centro provider",
       "description": "Gestisci connessioni provider, modelli e configurazioni avanzate.",
       "noApiUrl": "API URL non configurato",
       "enabledModels": "{count} modelli attivi",
@@ -1557,9 +1557,9 @@
         "local": "Local"
       },
       "tabs": {
-        "connection": "Connect",
-        "models": "Models",
-        "advanced": "Advanced"
+        "connection": "Connessione",
+        "models": "Modelli",
+        "advanced": "Avanzate"
       }
     },
     "openaiCodexPasteCallback": "Incolla URL di callback",
@@ -1600,6 +1600,8 @@
       "currentKey": "Chiave attuale",
       "newKey": "Nuova chiave API",
       "keepKey": "Lascia vuoto per mantenere la chiave attuale.",
+      "removeKey": "Rimuovi chiave API",
+      "removeKeyDescription": "Rimuovere da questo dispositivo la chiave API salvata? Il provider e i modelli verranno mantenuti. OAuth e le intestazioni di richiesta personalizzate rimarranno invariati.",
       "test": "Verifica connessione"
     },
     "health": {
@@ -1618,6 +1620,7 @@
     },
     "addFlow": {
       "connect": "Connetti e carica i modelli",
+      "saveOnly": "Salva senza verificare",
       "validating": "Verifica della connessione...",
       "loadingModels": "Caricamento dei modelli...",
       "failed": "Connessione non riuscita. Controlla la configurazione e riprova.",

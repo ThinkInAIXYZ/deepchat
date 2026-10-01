@@ -1176,7 +1176,7 @@
     "bedrockLimitTip": "* Anthropic Claude(Opus, Sonnet, Haiku 모델 포함)만 지원합니다.",
     "bedrockVerifyTip": "DeepChat은 검증을 위해 Claude 3.5 Sonnet을 사용합니다. 호출 권한이 없으면 검증이 실패합니다. 이는 다른 모델 사용에는 영향을 미치지 않습니다.",
     "center": {
-      "title": "Provider Center",
+      "title": "제공자 센터",
       "description": "Manage provider connections, models, and advanced configuration.",
       "noApiUrl": "No API URL configured",
       "enabledModels": "{count} models enabled",
@@ -1188,9 +1188,9 @@
         "local": "Local"
       },
       "tabs": {
-        "connection": "Connect",
-        "models": "Models",
-        "advanced": "Advanced"
+        "connection": "연결 설정",
+        "models": "모델",
+        "advanced": "고급"
       }
     },
     "openaiCodexPasteCallback": "콜백 URL 붙여넣기",
@@ -1231,6 +1231,8 @@
       "currentKey": "현재 키",
       "newKey": "새 API 키",
       "keepKey": "현재 키를 유지하려면 비워 두세요.",
+      "removeKey": "API 키 제거",
+      "removeKeyDescription": "이 기기에서 저장된 API 키를 제거할까요? 제공자와 모델은 유지됩니다. OAuth와 사용자 지정 요청 헤더는 변경되지 않습니다.",
       "test": "연결 테스트"
     },
     "health": {
@@ -1249,6 +1251,7 @@
     },
     "addFlow": {
       "connect": "연결하고 모델 불러오기",
+      "saveOnly": "테스트 없이 저장",
       "validating": "연결 확인 중...",
       "loadingModels": "모델 불러오는 중...",
       "failed": "연결에 실패했습니다. 구성을 확인하고 다시 시도하세요.",

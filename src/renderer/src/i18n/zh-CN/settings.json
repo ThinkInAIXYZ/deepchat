@@ -1545,7 +1545,7 @@
     "bedrockLimitTip": "* 仅支持 Anthropic Claude（包括 Opus，Sonnet，Haiku 模型）",
     "bedrockVerifyTip": "DeepChat 使用 Claude 3.5 Sonnet 模型验证，若您无此模型的调用权限验证将失败。这不会影响其他模型的使用。",
     "center": {
-      "title": "Provider Center",
+      "title": "服务商中心",
       "description": "管理服务商连接、模型与高级配置。",
       "noApiUrl": "未配置 API URL",
       "enabledModels": "{count} 个模型已启用",
@@ -1558,8 +1558,8 @@
       },
       "tabs": {
         "connection": "连接设置",
-        "models": "Models",
-        "advanced": "Advanced"
+        "models": "模型",
+        "advanced": "高级设置"
       }
     },
     "openaiCodexPasteCallback": "粘贴回调 URL",
@@ -1600,6 +1600,8 @@
       "currentKey": "当前密钥",
       "newKey": "新 API 密钥",
       "keepKey": "留空以保留当前密钥。",
+      "removeKey": "移除 API 密钥",
+      "removeKeyDescription": "要从此设备移除已保存的 API 密钥吗？服务商和模型将保留。OAuth 和自定义请求头不会更改。",
       "test": "测试连接"
     },
     "health": {
@@ -1618,6 +1620,7 @@
     },
     "addFlow": {
       "connect": "连接并加载模型",
+      "saveOnly": "保存但不测试",
       "validating": "正在验证连接...",
       "loadingModels": "正在加载模型...",
       "failed": "连接失败，请检查配置后重试。",

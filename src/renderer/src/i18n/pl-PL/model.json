@@ -18,7 +18,9 @@
   "actions": {
     "add": "Dodaj model",
     "enableAll": "Włącz wszystko",
-    "disableAll": "Wyłącz wszystko"
+    "disableAll": "Wyłącz wszystko",
+    "enableFiltered": "Włącz wyniki ({count})",
+    "disableFiltered": "Wyłącz wyniki ({count})"
   },
   "sort": {
     "status": "Według statusu",

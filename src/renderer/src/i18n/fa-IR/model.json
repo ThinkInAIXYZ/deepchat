@@ -18,7 +18,9 @@
   "actions": {
     "add": "افزودن مدل",
     "enableAll": "روش ‌کردن همه",
-    "disableAll": "خاموش کردن همه"
+    "disableAll": "خاموش کردن همه",
+    "enableFiltered": "فعال‌سازی نتایج ({count})",
+    "disableFiltered": "غیرفعال‌سازی نتایج ({count})"
   },
   "sort": {
     "status": "بر اساس وضعیت",

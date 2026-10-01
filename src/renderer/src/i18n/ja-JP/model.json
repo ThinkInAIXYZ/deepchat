@@ -18,7 +18,9 @@
   "actions": {
     "add": "モデルを追加",
     "enableAll": "すべて有効にする",
-    "disableAll": "すべて無効にする"
+    "disableAll": "すべて無効にする",
+    "enableFiltered": "検索結果を有効化（{count}）",
+    "disableFiltered": "検索結果を無効化（{count}）"
   },
   "sort": {
     "status": "ステータス順",

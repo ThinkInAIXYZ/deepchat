@@ -18,7 +18,9 @@
   "actions": {
     "add": "Add Model",
     "enableAll": "Enable All",
-    "disableAll": "Disable All"
+    "disableAll": "Disable All",
+    "enableFiltered": "Enable results ({count})",
+    "disableFiltered": "Disable results ({count})"
   },
   "sort": {
     "status": "By Status",

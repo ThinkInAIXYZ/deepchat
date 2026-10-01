@@ -1600,6 +1600,8 @@
       "currentKey": "Clave actual",
       "newKey": "Nueva clave de API",
       "keepKey": "Déjalo en blanco para conservar la clave actual.",
+      "removeKey": "Eliminar clave de API",
+      "removeKeyDescription": "¿Eliminar la clave de API guardada de este dispositivo? Se conservarán el proveedor y los modelos. OAuth y los encabezados de solicitud personalizados no cambiarán.",
       "test": "Probar conexión"
     },
     "health": {
@@ -1618,6 +1620,7 @@
     },
     "addFlow": {
       "connect": "Conectar y cargar modelos",
+      "saveOnly": "Guardar sin probar",
       "validating": "Verificando la conexión...",
       "loadingModels": "Cargando modelos...",
       "failed": "Error de conexión. Revisa la configuración e inténtalo de nuevo.",

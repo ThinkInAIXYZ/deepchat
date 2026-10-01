@@ -18,7 +18,9 @@
   "actions": {
     "add": "Tambah model",
     "enableAll": "Dayakan semua",
-    "disableAll": "Lumpuhkan semua"
+    "disableAll": "Lumpuhkan semua",
+    "enableFiltered": "Dayakan hasil ({count})",
+    "disableFiltered": "Lumpuhkan hasil ({count})"
   },
   "sort": {
     "status": "mengikut status",

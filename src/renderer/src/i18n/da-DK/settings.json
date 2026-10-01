@@ -1109,7 +1109,7 @@
     "vertexServiceEmailPlaceholder": "Indtast venligst tjenestekontoens e-mail",
     "vertexServiceEmail": "Servicekonto-e-mail",
     "center": {
-      "title": "Provider Center",
+      "title": "Udbydercenter",
       "description": "Manage provider connections, models, and advanced configuration.",
       "noApiUrl": "No API URL configured",
       "enabledModels": "{count} models enabled",
@@ -1121,9 +1121,9 @@
         "local": "Local"
       },
       "tabs": {
-        "connection": "Connect",
-        "models": "Models",
-        "advanced": "Advanced"
+        "connection": "Forbindelse",
+        "models": "Modeller",
+        "advanced": "Avanceret"
       }
     },
     "openaiCodexPasteCallback": "Indsæt callback-URL",
@@ -1164,6 +1164,8 @@
       "currentKey": "Nuværende nøgle",
       "newKey": "Ny API-nøgle",
       "keepKey": "Lad feltet stå tomt for at beholde den nuværende nøgle.",
+      "removeKey": "Fjern API-nøgle",
+      "removeKeyDescription": "Vil du fjerne den gemte API-nøgle fra denne enhed? Udbyderen og modellerne bevares. OAuth og brugerdefinerede anmodningsheadere ændres ikke.",
       "test": "Test forbindelse"
     },
     "health": {
@@ -1182,6 +1184,7 @@
     },
     "addFlow": {
       "connect": "Forbind og indlæs modeller",
+      "saveOnly": "Gem uden at teste",
       "validating": "Verificerer forbindelsen...",
       "loadingModels": "Indlæser modeller...",
       "failed": "Forbindelsen mislykkedes. Kontrollér konfigurationen og prøv igen.",

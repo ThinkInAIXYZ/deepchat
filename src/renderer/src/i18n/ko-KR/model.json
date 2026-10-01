@@ -18,7 +18,9 @@
   "actions": {
     "add": "모델 추가",
     "enableAll": "모두 활성화",
-    "disableAll": "모두 비활성화"
+    "disableAll": "모두 비활성화",
+    "enableFiltered": "결과 활성화 ({count})",
+    "disableFiltered": "결과 비활성화 ({count})"
   },
   "sort": {
     "status": "상태별",

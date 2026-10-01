@@ -1600,6 +1600,8 @@
       "currentKey": "Current key",
       "newKey": "New API Key",
       "keepKey": "Leave blank to keep the current key.",
+      "removeKey": "Remove API key",
+      "removeKeyDescription": "Remove the saved API key from this device? The provider and models will be kept. OAuth and custom request headers are unchanged.",
       "test": "Test connection"
     },
     "health": {
@@ -1618,6 +1620,7 @@
     },
     "addFlow": {
       "connect": "Connect and load models",
+      "saveOnly": "Save without testing",
       "validating": "Verifying connection...",
       "loadingModels": "Loading models...",
       "failed": "Connection failed. Check the configuration and try again.",

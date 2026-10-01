@@ -18,7 +18,9 @@
   "actions": {
     "add": "הוסף מודל",
     "enableAll": "הפעל הכל",
-    "disableAll": "השבת הכל"
+    "disableAll": "השבת הכל",
+    "enableFiltered": "הפעלת תוצאות ({count})",
+    "disableFiltered": "השבתת תוצאות ({count})"
   },
   "sort": {
     "status": "לפי סטטוס",
