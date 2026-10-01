@@ -106,8 +106,9 @@ in the JSON editor and returns to the Edit trigger on close. Switching providers
 prevents text from one profile from carrying into another.
 
 In the custom-provider creation flow, dialog Save updates only the form's local parsed header record;
-the provider is not persisted until Connect completes. The record is included in the draft validated
-by `providers.validateDraft`. The compact row then reports the local header count.
+the provider is persisted by Connect and load models or Save without testing. Connect includes the
+record in the draft validated by `providers.validateDraft`; Save without testing persists a disabled
+profile without a probe. Both retain local header validation. The compact row reports the header count.
 
 ### Settings Section Order
 
@@ -216,7 +217,8 @@ JSON draft
 
 Configured and unconfigured providers may save a valid header map without access to a fixed remote
 probe model. Changed configuration remains `not_checked` until explicitly verified. Creating a
-custom provider still validates the headers as part of the connection draft before commit.
+custom provider through Connect validates the connection draft before commit; Save without testing
+only validates the local configuration and retains the profile disabled and unverified.
 
 Changing headers does not require a process-wide refresh. The provider instance receives the updated
 profile through the existing atomic-update event; the next request resolves headers from that profile.

@@ -25,7 +25,10 @@ only to the Models section, outside the modal editor.
 Persistence errors retain the draft with an inline error. Cancel restores the persisted values.
 Switching providers creates a new editor; an in-flight save retains its original provider ID.
 Custom-header saving follows the same persistence-versus-verification separation while preserving
-its existing local validation. Creation via Connect and load models remains unchanged.
+its existing local validation. Creation retains Connect and load models and also offers Save
+without testing, which persists a disabled, unverified profile without contacting its endpoint.
+Testing an existing provider does not require enabling it. Removing its saved API key is a separate
+confirmed action; it does not clear OAuth credentials, custom headers, models or the provider.
 
 The model-check picker includes text-chat models, including custom models, using the existing
 resolved model type. Video/image/audio generation, embedding, rerank and judgment models are not
@@ -47,7 +50,7 @@ Older health records without a model ID remain readable.
 - No remote validation runs merely because a connection field loses focus or is saved.
 - Cancel and persistence failure do not replace the stored configuration.
 - Non-chat models cannot be selected in the text-check dialog.
-- Existing custom-provider creation validation is unchanged.
+- Connect and load models still validates; Save without testing does not probe or enable.
 
 ## Implementation and validation
 
@@ -84,8 +87,8 @@ build, type checks, lint, formatting and i18n validation across all 23 localized
 Electron exercises Escape/focus restoration, save without a model request, immediate testing with
 the saved key, model-specific health and retained drafts after a rejected persistence IPC call.
 Connection summaries and dialogs were inspected at normal size and down to 900×640, including
-independent narrow and short window states. The existing model-list toolbar can overflow at the
-minimum width; its unrelated layout is unchanged by this connection-editor work.
+independent narrow and short window states. The later provider-settings-integrity work addresses
+the model-list toolbar overflow and keeps wrapping batch controls outside fixed-height virtual rows.
 
 The dialog reuses the existing primitives and persistence callback. The URL-unlock allowlist,
 separate key-editing flag and duplicate refresh path are removed. Two additional ablation runs
