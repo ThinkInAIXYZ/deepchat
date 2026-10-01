@@ -60,7 +60,7 @@ export const useProviderStore = defineStore('provider', () => {
   const configuredProviderIds = ref<string[]>([])
   const configuredLoaded = ref(false)
   const providerHealthCache = ref<Record<string, ProviderHealthEntry>>({})
-  const checkingProviderIds = ref<Set<string>>(new Set())
+  const activeProviderChecks = ref(new Map<string, symbol>())
   const listenersRegistered = ref(false)
   const voiceAIConfig = ref<VoiceAIConfig | null>(null)
   const initialized = ref(false)
@@ -239,7 +239,7 @@ export const useProviderStore = defineStore('provider', () => {
   // connection state: a stale fingerprint (config changed since the check) degrades to
   // not_checked instead of showing a misleading verified/failed result.
   const getProviderHealth = (providerId: string): ProviderHealthView => {
-    if (checkingProviderIds.value.has(providerId)) {
+    if (activeProviderChecks.value.has(providerId)) {
       return { status: 'checking' }
     }
     const entry = providerHealthCache.value[providerId]
@@ -468,66 +468,14 @@ export const useProviderStore = defineStore('provider', () => {
     await recordProviderHealth(provider.id, computeHealthFingerprint(provider), true)
   }
 
-  // Serializes staged changes per provider so overlapping credential/endpoint
-  // edits cannot interleave read → validate → persist → health recording: each
-  // edit validates against the latest committed state and only ever persists a
-  // configuration that was actually verified.
-  const stagedApiChangeQueues = new Map<string, Promise<unknown>>()
-
-  const stageProviderApiChange = (
-    providerId: string,
-    updates: {
-      apiKey?: string
-      baseUrl?: string
-      customHeaders?: Record<string, string>
-    }
-  ): Promise<{ isOk: boolean; errorMsg: string | null }> => {
-    const previous = stagedApiChangeQueues.get(providerId) ?? Promise.resolve()
-    const run = previous.then(
-      () => performStageApiChange(providerId, updates),
-      () => performStageApiChange(providerId, updates)
-    )
-    // Keep the queue alive for the next edit regardless of this one's outcome.
-    stagedApiChangeQueues.set(
-      providerId,
-      run.catch(() => undefined)
-    )
-    return run
-  }
-
-  const performStageApiChange = async (
-    providerId: string,
-    updates: {
-      apiKey?: string
-      baseUrl?: string
-      customHeaders?: Record<string, string>
-    }
-  ): Promise<{ isOk: boolean; errorMsg: string | null }> => {
-    const current = providers.value.find((item) => item.id === providerId)
-    if (!current) {
-      throw new Error(`Provider ${providerId} not found`)
-    }
-    const staged: LLM_PROVIDER = { ...current, ...updates }
-    const result = await validateDraftProvider(staged, { loadModels: false })
-    if (!result.isOk) {
-      return { isOk: false, errorMsg: result.errorMsg }
-    }
-    await updateProviderConfig(providerId, updates)
-    await recordProviderHealth(providerId, computeHealthFingerprint(staged), true)
-    return { isOk: true, errorMsg: null }
-  }
-
   const saveProviderCustomHeaders = async (
     providerId: string,
     customHeaders?: Record<string, string>
   ): Promise<{ isOk: boolean; errorMsg: string | null }> => {
-    if (!isProviderConfigured(providerId)) {
-      await updateProviderConfig(providerId, { customHeaders })
-      await clearProviderHealth(providerId)
-      return { isOk: true, errorMsg: null }
-    }
-
-    return stageProviderApiChange(providerId, { customHeaders })
+    // Saving configuration does not assert remote model access. The changed
+    // fingerprint invalidates previous health until an explicit model check.
+    await updateProviderConfig(providerId, { customHeaders })
+    return { isOk: true, errorMsg: null }
   }
 
   const removeProvider = async (providerId: string) => {
@@ -536,7 +484,7 @@ export const useProviderStore = defineStore('provider', () => {
     await saveProviderOrder()
     await unmarkProviderConfigured(providerId)
     await clearProviderHealth(providerId)
-    stagedApiChangeQueues.delete(providerId)
+    activeProviderChecks.value.delete(providerId)
     await refreshProviders()
   }
 
@@ -559,10 +507,11 @@ export const useProviderStore = defineStore('provider', () => {
     // Capture the fingerprint of the configuration actually being tested so a
     // mid-flight config change cannot attach this result to the new configuration.
     const fingerprint = provider ? computeHealthFingerprint(provider) : null
-    checkingProviderIds.value.add(providerId)
+    const checkId = Symbol()
+    activeProviderChecks.value.set(providerId, checkId)
     try {
       const result = await providerClient.testConnection({ providerId, modelId })
-      if (fingerprint) {
+      if (fingerprint && activeProviderChecks.value.get(providerId) === checkId) {
         await recordProviderHealth(
           providerId,
           fingerprint,
@@ -572,7 +521,7 @@ export const useProviderStore = defineStore('provider', () => {
       }
       return result
     } catch (error) {
-      if (fingerprint) {
+      if (fingerprint && activeProviderChecks.value.get(providerId) === checkId) {
         await recordProviderHealth(
           providerId,
           fingerprint,
@@ -582,7 +531,9 @@ export const useProviderStore = defineStore('provider', () => {
       }
       throw error
     } finally {
-      checkingProviderIds.value.delete(providerId)
+      if (activeProviderChecks.value.get(providerId) === checkId) {
+        activeProviderChecks.value.delete(providerId)
+      }
     }
   }
 
@@ -739,7 +690,6 @@ export const useProviderStore = defineStore('provider', () => {
     addCustomProvider,
     validateDraftProvider,
     commitValidatedDraft,
-    stageProviderApiChange,
     saveProviderCustomHeaders,
     removeProvider,
     updateAwsBedrockProviderConfig,

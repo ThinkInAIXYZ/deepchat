@@ -11,18 +11,11 @@ const passthrough = (name: string) =>
 
 const providerApiConfigStub = defineComponent({
   name: 'ProviderApiConfig',
-  emits: [
-    'api-host-change',
-    'api-key-change',
-    'auth-mode-change',
-    'validate-key',
-    'delete-provider',
-    'oauth-success',
-    'oauth-error'
-  ],
+  props: ['provider', 'save'],
+  emits: ['auth-mode-change', 'delete-provider', 'oauth-success', 'oauth-error'],
   template: `
     <div>
-      <button data-testid="save-api-key" @click="$emit('api-key-change', 'updated-key')">save</button>
+      <button data-testid="save-api-key" @click="save(provider.id, { apiKey: 'updated-key', baseUrl: provider.baseUrl })">save</button>
       <button data-testid="use-chatgpt" @click="$emit('auth-mode-change', 'chatgpt')">chatgpt</button>
     </div>
   `
@@ -39,11 +32,7 @@ const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   ...overrides
 })
 
-async function setup(options?: {
-  provider?: LLM_PROVIDER
-  updatedProvider?: LLM_PROVIDER
-  stageResult?: { isOk: boolean; errorMsg: string | null }
-}) {
+async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_PROVIDER }) {
   vi.resetModules()
   const notifyRendererMock = vi.fn()
 
@@ -77,9 +66,11 @@ async function setup(options?: {
     removeProvider: vi.fn().mockResolvedValue(undefined),
     getProviderHealth: vi.fn(() => ({ status: 'not_checked' })),
     saveProviderCustomHeaders: vi.fn().mockResolvedValue({ isOk: true, errorMsg: null }),
-    stageProviderApiChange: vi
-      .fn()
-      .mockResolvedValue(options?.stageResult ?? { isOk: true, errorMsg: null })
+    validateDraftProvider: vi.fn().mockResolvedValue({
+      isOk: false,
+      errorMsg: 'AccessDenied.Unpurchased',
+      models: []
+    })
   }
 
   const modelStore = {
@@ -191,9 +182,9 @@ describe('ModelProviderSettingsDetail', () => {
     expect(providerStore.updateProviderApi).toHaveBeenCalledWith(
       'anthropic',
       'updated-key',
-      undefined
+      'https://api.anthropic.com'
     )
-    expect(providerStore.stageProviderApiChange).not.toHaveBeenCalled()
+    expect(providerStore.validateDraftProvider).not.toHaveBeenCalled()
     expect(wrapper.emitted('provider-configured')).toHaveLength(1)
   })
 
@@ -216,30 +207,18 @@ describe('ModelProviderSettingsDetail', () => {
     expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('openai')
   })
 
-  it('stages a key replacement for an already configured provider', async () => {
+  it('saves a replacement even when the fixed probe model would reject it', async () => {
     const { wrapper, providerStore } = await setup()
 
     await wrapper.get('[data-testid="save-api-key"]').trigger('click')
     await flushPromises()
 
-    expect(providerStore.stageProviderApiChange).toHaveBeenCalledWith('anthropic', {
-      apiKey: 'updated-key'
-    })
-    expect(providerStore.updateProviderApi).not.toHaveBeenCalled()
-  })
-
-  it('keeps the previous configuration and reports when staged verification fails', async () => {
-    const { wrapper, providerStore, notifyRendererMock } = await setup({
-      stageResult: { isOk: false, errorMsg: 'bad key' }
-    })
-
-    await wrapper.get('[data-testid="save-api-key"]').trigger('click')
-    await flushPromises()
-
-    expect(providerStore.updateProviderApi).not.toHaveBeenCalled()
-    expect(notifyRendererMock).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'error', description: 'bad key' })
+    expect(providerStore.updateProviderApi).toHaveBeenCalledWith(
+      'anthropic',
+      'updated-key',
+      'https://api.anthropic.com'
     )
+    expect(providerStore.validateDraftProvider).not.toHaveBeenCalled()
   })
 
   it('does not emit provider-configured while the provider stays disabled', async () => {

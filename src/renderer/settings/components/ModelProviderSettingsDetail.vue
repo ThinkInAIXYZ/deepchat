@@ -17,10 +17,8 @@
         :provider="provider"
         :provider-websites="providerWebsites"
         :uses-provider-db="defaultProvider?.usesProviderDb"
-        @api-host-change="handleApiHostChange"
-        @api-key-change="handleApiKeyChange"
+        :save="saveConnection"
         @auth-mode-change="handleAuthModeChange"
-        @validate-key="openModelCheckDialog"
         @delete-provider="showDeleteProviderDialog = true"
         @oauth-success="handleOAuthSuccess"
         @oauth-error="handleOAuthError"
@@ -115,7 +113,6 @@ import ProviderRateLimitConfig from './ProviderRateLimitConfig.vue'
 import ModelScopeMcpSync from './ModelScopeMcpSync.vue'
 import ProviderModelManager from './ProviderModelManager.vue'
 import ProviderDialogContainer from './ProviderDialogContainer.vue'
-import { useModelCheckStore } from '@/stores/modelCheck'
 import { levelToValueMap, safetyCategories } from '@/lib/gemini'
 import type { SafetyCategoryKey, SafetySettingValue } from '@/lib/gemini'
 import VoiceAIProviderConfig from './VoiceAIProviderConfig.vue'
@@ -157,7 +154,6 @@ const { t } = useI18n()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const uiSettingsStore = useUiSettingsStore()
-const modelCheckStore = useModelCheckStore()
 const azureApiVersion = ref('')
 const geminiSafetyLevels = reactive<Record<string, number>>({})
 
@@ -384,47 +380,15 @@ watch(
   { immediate: true }
 )
 
-// A provider with a working credential gets staged verification: the edited
-// configuration must verify before it atomically replaces the stored one. The
-// first-time setup path keeps the immediate save so onboarding stays fluid.
-const shouldStageApiChanges = computed(() => Boolean(props.provider.apiKey?.trim()))
-
-const applyStagedApiChange = async (updates: { apiKey?: string; baseUrl?: string }) => {
-  try {
-    const result = await providerStore.stageProviderApiChange(props.provider.id, updates)
-    if (!result.isOk) {
-      notifyRenderer({
-        kind: 'error',
-        code: 'settings.provider.stagedUpdateFailed',
-        title: t('settings.provider.stagedUpdate.failedTitle'),
-        description: result.errorMsg || t('settings.provider.stagedUpdate.failedDescription')
-      })
-      return false
-    }
-    return true
-  } catch (error) {
-    console.error('Failed to stage provider api change:', error)
-    notifyRenderer({
-      kind: 'error',
-      code: 'settings.provider.stagedUpdateFailed',
-      title: t('settings.provider.stagedUpdate.failedTitle'),
-      description: t('settings.provider.stagedUpdate.failedDescription')
-    })
-    return false
+const saveConnection = async (providerId: string, updates: { apiKey: string; baseUrl: string }) => {
+  const result = await providerStore.updateProviderApi(providerId, updates.apiKey, updates.baseUrl)
+  if (props.provider.id === providerId) {
+    maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
   }
 }
 
 const saveCustomHeaders = (customHeaders?: ProviderCustomHeaders) =>
   providerStore.saveProviderCustomHeaders(props.provider.id, customHeaders)
-
-const handleApiKeyChange = async (value: string) => {
-  if (shouldStageApiChanges.value && value.trim() && value !== props.provider.apiKey) {
-    await applyStagedApiChange({ apiKey: value })
-    return
-  }
-  const result = await providerStore.updateProviderApi(props.provider.id, value, undefined)
-  maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
-}
 
 const handleAuthModeChange = async (mode: 'api-key' | 'chatgpt') => {
   if (
@@ -452,15 +416,6 @@ const handleAuthModeChange = async (mode: 'api-key' | 'chatgpt') => {
   } finally {
     isAuthModeUpdating.value = false
   }
-}
-
-const handleApiHostChange = async (value: string) => {
-  if (shouldStageApiChanges.value && value.trim() && value !== props.provider.baseUrl) {
-    await applyStagedApiChange({ baseUrl: value })
-    return
-  }
-  const result = await providerStore.updateProviderApi(props.provider.id, undefined, value)
-  maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
 }
 
 const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
@@ -628,14 +583,6 @@ const handleRefreshModels = async () => {
     isRefreshingModels.value = false
     isModelListLoading.value = false
   }
-}
-
-const openModelCheckDialog = () => {
-  if (!props.provider.enable) {
-    return
-  }
-
-  modelCheckStore.openDialog(props.provider.id)
 }
 
 const handleAddModelSaved = () => modelStore.refreshProviderModels(props.provider.id)

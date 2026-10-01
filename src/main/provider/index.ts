@@ -946,8 +946,8 @@ export class ProviderRuntime
    * Validates a draft provider configuration and loads its model catalog in one
    * operation, without persisting the provider or toggling any enable flag.
    * Used by the add-provider "Connect and load models" flow; with
-   * `loadModels: false` it performs the staged verification of an existing
-   * provider's edited configuration without touching its persisted catalog.
+   * `loadModels: false` it only probes the draft without fetching its catalog.
+   * Saving an existing provider is independent of this remote probe.
    */
   async validateDraft(
     draft: LLM_PROVIDER,

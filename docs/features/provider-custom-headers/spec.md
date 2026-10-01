@@ -96,8 +96,9 @@ highlighting, line numbers, and two-space indentation. It is sized for roughly 1
 body capped to the available window height. It starts with `{}`, formats persisted values when the
 dialog opens, and only formats later edits through the explicit Format action. Validation still
 runs as the user types. Save is disabled while the draft is invalid, unchanged, or being submitted.
-A configured provider keeps the dialog open during the staged connection check; success closes it
-and failure shows an inline error without changing the stored provider.
+Saving persists locally validated headers without a remote model probe. Success closes the dialog;
+a persistence failure shows an inline error without discarding the draft. Connection verification is
+a separate explicit action and changed headers invalidate the previous health fingerprint.
 
 Opening the dialog always copies the currently persisted record into a dialog-local text draft.
 Cancel, Escape, or closing the dialog discards that text without a second confirmation. Focus starts
@@ -207,17 +208,15 @@ must use that resolver rather than copying object-spread rules.
 ```text
 JSON draft
   -> renderer parse and shared validation
-  -> providers.validateDraft with candidate customHeaders
-  -> transient provider sends an origin-scoped connection check
-  -> providers.update persists customHeaders on success
+  -> providers.update persists customHeaders
   -> live provider config updates before the next request
   -> provider health fingerprint includes canonical header names and values
+  -> explicit model verification tests the saved configuration
 ```
 
-An already configured provider follows the existing staged API-change behavior: failure does not
-replace the stored headers. An unconfigured provider may persist a valid header map without a
-successful connection and remains `not_checked`. Creating a custom provider validates the headers as
-part of the draft before commit.
+Configured and unconfigured providers may save a valid header map without access to a fixed remote
+probe model. Changed configuration remains `not_checked` until explicitly verified. Creating a
+custom provider still validates the headers as part of the connection draft before commit.
 
 Changing headers does not require a process-wide refresh. The provider instance receives the updated
 profile through the existing atomic-update event; the next request resolves headers from that profile.

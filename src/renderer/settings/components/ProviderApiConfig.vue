@@ -7,6 +7,7 @@
           data-testid="openai-api-key-mode-button"
           :variant="isOpenAIChatGPTMode ? 'outline' : 'default'"
           size="sm"
+          :disabled="isSaving || isDirty"
           @click="$emit('auth-mode-change', 'api-key')"
         >
           {{ t('settings.provider.openaiApiKeyMode') }}
@@ -15,6 +16,7 @@
           data-testid="openai-chatgpt-mode-button"
           :variant="isOpenAIChatGPTMode ? 'default' : 'outline'"
           size="sm"
+          :disabled="isSaving || isDirty"
           @click="$emit('auth-mode-change', 'chatgpt')"
         >
           {{ t('settings.provider.openaiChatGPTMode') }}
@@ -73,8 +75,8 @@
         :id="`${provider.id}-url`"
         :model-value="apiHost"
         :placeholder="t('settings.provider.urlPlaceholder')"
-        @blur="handleApiHostBlur"
-        @keyup.enter="handleApiHostChange(apiHost)"
+        :disabled="isSaving"
+        @keyup.enter="saveConnection"
         @update:model-value="apiHost = String($event)"
       />
       <div class="text-xs text-muted-foreground">
@@ -175,9 +177,9 @@
             :model-value="apiKey"
             :type="showApiKey ? 'text' : 'password'"
             :placeholder="t('settings.provider.keyPlaceholder')"
+            :disabled="isSaving"
             style="padding-right: 2.5rem !important"
-            @blur="handleApiKeyBlur"
-            @keyup.enter="handleValidateKey"
+            @keyup.enter="saveConnection"
             @update:model-value="apiKey = String($event)"
           />
           <DcButton
@@ -218,6 +220,46 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <div
+      v-if="
+        !isOpenAIChatGPTMode &&
+        (isDirty || isEditingKey || baseUrlUnlocked || isSaving || saveError)
+      "
+      class="flex flex-col gap-2"
+      data-testid="provider-connection-actions"
+    >
+      <DcInlineError v-if="saveError" :error="saveError" data-testid="provider-connection-error" />
+      <div class="flex flex-wrap items-center gap-2">
+        <span v-if="isDirty" class="text-xs text-muted-foreground" role="status">
+          {{ t('settings.leaveGuard.dirtyTitle') }}
+        </span>
+        <DcButton
+          data-testid="provider-connection-save"
+          size="sm"
+          :disabled="!isDirty || isSaving || !apiHost.trim()"
+          @click="saveConnection"
+        >
+          <Spinner v-if="isSaving" data-icon="inline-start" />
+          {{ t('common.save') }}
+        </DcButton>
+        <DcButton
+          data-testid="provider-connection-cancel"
+          variant="outline"
+          size="sm"
+          :disabled="isSaving"
+          @click="resetConnection"
+        >
+          {{ t('common.cancel') }}
+        </DcButton>
+      </div>
+    </div>
+
+    <div
+      v-if="!isOpenAIChatGPTMode && !['github-copilot', 'openai-codex'].includes(provider.id)"
+      class="flex flex-col items-start gap-4"
+    >
       <div class="flex flex-row gap-2">
         <DcButton
           data-testid="provider-verify-button"
@@ -236,7 +278,7 @@
           variant="outline"
           size="sm"
           class="text-xs text-normal rounded-lg"
-          :disabled="isRefreshing"
+          :disabled="isRefreshing || isDirty || isSaving"
           @click="refreshModels"
         >
           <Spinner
@@ -277,7 +319,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DcInlineError } from '@dc-ui/components/inline-error'
 import { Label } from '@shadcn/components/ui/label'
@@ -298,6 +340,7 @@ import { createProviderClient } from '@api/ProviderClient'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER, KeyStatus } from '@shared/types/provider'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 interface ProviderWebsites {
   official: string
@@ -329,13 +372,11 @@ const props = defineProps<{
   provider: LLM_PROVIDER
   providerWebsites?: ProviderWebsites
   usesProviderDb?: boolean
+  save: (providerId: string, updates: { apiKey: string; baseUrl: string }) => Promise<void>
 }>()
 
 const emit = defineEmits<{
-  'api-host-change': [value: string]
-  'api-key-change': [value: string]
   'auth-mode-change': [value: 'api-key' | 'chatgpt']
-  'validate-key': [value: string]
   'delete-provider': []
   'oauth-success': []
   'oauth-error': [error: string]
@@ -352,6 +393,14 @@ const isRefreshing = ref(false)
 const showApiKey = ref(false)
 const isEditingKey = ref(false)
 const baseUrlUnlocked = ref(false)
+const isSaving = ref(false)
+const saveError = ref('')
+const replacementKey = computed(() => apiKey.value.trim() || props.provider.apiKey || '')
+const isDirty = computed(
+  () =>
+    replacementKey.value !== (props.provider.apiKey || '') ||
+    apiHost.value.trim() !== (props.provider.baseUrl || '')
+)
 // After setup the stored key renders as a masked summary; the full secret is
 // never shown again — replacing it goes through the explicit Update key action.
 // The copy button writes the plaintext key to the clipboard as an explicit
@@ -398,18 +447,53 @@ const providerApiKeyUrl = computed(() => {
     return props.providerWebsites?.apiKey || ''
   }
 })
-const canVerifyProvider = computed(() => props.provider.enable)
+const canVerifyProvider = computed(() => props.provider.enable && !isDirty.value && !isSaving.value)
+
+const resetConnection = () => {
+  apiKey.value = props.provider.apiKey || ''
+  apiHost.value = props.provider.baseUrl || ''
+  baseUrlUnlocked.value = false
+  isEditingKey.value = false
+  showApiKey.value = false
+  saveError.value = ''
+}
 
 watch(
-  () => props.provider,
-  () => {
-    apiKey.value = props.provider.apiKey || ''
-    apiHost.value = props.provider.baseUrl || ''
-    baseUrlUnlocked.value = false
-    isEditingKey.value = false
-  },
+  [() => props.provider.id, () => props.provider.apiKey, () => props.provider.baseUrl],
+  resetConnection,
   { immediate: true }
 )
+
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: 'settings.providerConnection',
+  onDiscard: resetConnection
+})
+watch(
+  [isSaving, isDirty],
+  ([busy, dirty]) => {
+    leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+onUnmounted(() => leaveGuardLease.release())
+
+const saveConnection = async () => {
+  if (!isDirty.value || isSaving.value || !apiHost.value.trim()) return
+  isSaving.value = true
+  saveError.value = ''
+  try {
+    await props.save(props.provider.id, {
+      apiKey: replacementKey.value,
+      baseUrl: apiHost.value.trim()
+    })
+    resetConnection()
+  } catch {
+    // Do not echo persistence errors that may contain the submitted credential.
+    saveError.value = t('settings.deepchatAgents.saveFeedback.saveFailed')
+  } finally {
+    isSaving.value = false
+  }
+}
 
 const startEditingKey = () => {
   isEditingKey.value = true
@@ -417,41 +501,13 @@ const startEditingKey = () => {
   showApiKey.value = false
 }
 
-const handleApiKeyChange = (value: string) => {
-  emit('api-key-change', value)
-}
-
-const handleApiKeyBlur = (event: FocusEvent) => {
-  const target = event.target as HTMLInputElement | null
-  if (!target) return
-  // Leaving the Update key editor empty keeps the stored key instead of wiping it.
-  if (isEditingKey.value && !target.value.trim()) {
-    isEditingKey.value = false
-    apiKey.value = props.provider.apiKey || ''
-    return
-  }
-  handleApiKeyChange(target.value)
-}
-
-const handleApiHostChange = (value: string) => {
-  emit('api-host-change', value)
-}
-
 const fillDefaultBaseUrl = () => {
   if (!hasDefaultBaseUrl.value) return
   apiHost.value = defaultBaseUrl.value
-  handleApiHostChange(defaultBaseUrl.value)
 }
 
 const requestBaseUrlUnlock = () => {
   baseUrlUnlocked.value = true
-}
-
-const handleApiHostBlur = (event: FocusEvent) => {
-  if (showLockedBaseUrl.value) return
-  const target = event.target as HTMLInputElement | null
-  if (!target) return
-  handleApiHostChange(target.value)
 }
 
 const handleOAuthSuccess = () => {
@@ -460,14 +516,6 @@ const handleOAuthSuccess = () => {
 
 const handleOAuthError = (error: string) => {
   emit('oauth-error', error)
-}
-
-const handleValidateKey = () => {
-  if (!canVerifyProvider.value) {
-    return
-  }
-
-  emit('validate-key', apiKey.value)
 }
 
 const openModelCheckDialog = () => {

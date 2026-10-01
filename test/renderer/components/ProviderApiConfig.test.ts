@@ -92,6 +92,9 @@ async function setup(options?: {
     openDialog: vi.fn()
   }
   const notifyRenderer = vi.fn(() => true)
+  const save = vi.fn(async (_id: string, updates: { apiKey: string; baseUrl: string }) => {
+    await wrapper.setProps({ provider: { ...wrapper.props('provider'), ...updates } })
+  })
 
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
@@ -154,6 +157,7 @@ async function setup(options?: {
   const wrapper = mount(ProviderApiConfig, {
     props: {
       provider: options?.provider ?? createProvider(),
+      save,
       usesProviderDb: options?.usesProviderDb,
       providerWebsites: options?.providerWebsites ?? {
         official: 'https://example.com',
@@ -178,6 +182,7 @@ async function setup(options?: {
     wrapper,
     providerClient,
     modelCheckStore,
+    save,
     notifyRenderer
   }
 }
@@ -285,8 +290,8 @@ describe('ProviderApiConfig', () => {
     expect(findButtonByText(wrapper, 'Modify')).toBeUndefined()
   })
 
-  it('preserves the existing save behavior after unlocking', async () => {
-    const { wrapper } = await setup()
+  it('keeps endpoint edits local until explicitly saved', async () => {
+    const { wrapper, save } = await setup()
     const modifyButton = findButtonByText(wrapper, 'Modify')
 
     expect(modifyButton).toBeDefined()
@@ -297,7 +302,78 @@ describe('ProviderApiConfig', () => {
     await input.setValue('https://custom.deepseek.com/v1')
     await input.trigger('blur')
 
-    expect(wrapper.emitted('api-host-change')).toEqual([['https://custom.deepseek.com/v1']])
+    expect(save).not.toHaveBeenCalled()
+    await wrapper.get('[data-testid="provider-connection-save"]').trigger('click')
+    await flushPromises()
+    expect(save).toHaveBeenCalledExactlyOnceWith('deepseek', {
+      apiKey: 'test-key',
+      baseUrl: 'https://custom.deepseek.com/v1'
+    })
+  })
+
+  it('saves a key and endpoint together and blocks checks while dirty or saving', async () => {
+    const { wrapper, save, modelCheckStore } = await setup()
+    await findButtonByText(wrapper, 'Modify')!.trigger('click')
+    await wrapper.get('input#deepseek-url').setValue(' https://replacement.example/v1 ')
+    await wrapper.get('[data-testid="provider-update-key-button"]').trigger('click')
+    await wrapper.get('[data-testid="provider-api-key-input"]').setValue(' replacement-key ')
+    await wrapper.get('[data-testid="provider-api-key-input"]').trigger('blur')
+    expect(save).not.toHaveBeenCalled()
+    expect(
+      wrapper.get('[data-testid="provider-verify-button"]').attributes('disabled')
+    ).toBeDefined()
+
+    // A health/name update must not erase a local draft.
+    await wrapper.setProps({ provider: { ...wrapper.props('provider'), name: 'Renamed' } })
+    expect(
+      (wrapper.get('[data-testid="provider-api-key-input"]').element as HTMLInputElement).value
+    ).toBe(' replacement-key ')
+    let finish!: () => void
+    save.mockImplementationOnce(async (_id, updates) => {
+      await new Promise<void>((resolve) => {
+        finish = resolve
+      })
+      await wrapper.setProps({ provider: { ...wrapper.props('provider'), ...updates } })
+    })
+    await wrapper.get('[data-testid="provider-connection-save"]').trigger('click')
+    expect(
+      wrapper.get('[data-testid="provider-connection-save"]').attributes('disabled')
+    ).toBeDefined()
+    expect(
+      wrapper.get('[data-testid="provider-verify-button"]').attributes('disabled')
+    ).toBeDefined()
+    expect(modelCheckStore.openDialog).not.toHaveBeenCalled()
+    finish()
+    await flushPromises()
+    expect(save).toHaveBeenCalledExactlyOnceWith('deepseek', {
+      apiKey: 'replacement-key',
+      baseUrl: 'https://replacement.example/v1'
+    })
+    expect(wrapper.find('[data-testid="provider-api-key-input"]').exists()).toBe(false)
+    expect(
+      wrapper.get('[data-testid="provider-verify-button"]').attributes('disabled')
+    ).toBeUndefined()
+    await wrapper.get('[data-testid="provider-verify-button"]').trigger('click')
+    expect(modelCheckStore.openDialog).toHaveBeenCalledWith('deepseek')
+  })
+
+  it('retains failed drafts without leaking secrets and cancels back to persisted values', async () => {
+    const { wrapper, save } = await setup()
+    await wrapper.get('[data-testid="provider-update-key-button"]').trigger('click')
+    await wrapper.get('[data-testid="provider-api-key-input"]').setValue('replacement-key')
+    save.mockRejectedValueOnce(new Error('write failed: replacement-key'))
+    await wrapper.get('[data-testid="provider-connection-save"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="provider-connection-error"]').text()).not.toContain(
+      'replacement-key'
+    )
+    expect(
+      (wrapper.get('[data-testid="provider-api-key-input"]').element as HTMLInputElement).value
+    ).toBe('replacement-key')
+    expect(wrapper.props('provider').apiKey).toBe('test-key')
+    await wrapper.get('[data-testid="provider-connection-cancel"]').trigger('click')
+    expect(wrapper.find('[data-testid="provider-connection-error"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="provider-api-key-summary"]').text()).toContain('••••••••')
   })
 
   it('keeps OpenAI Responses editable without the lock prompt', async () => {
@@ -529,13 +605,13 @@ describe('ProviderApiConfig', () => {
     expect(wrapper.findComponent(copyButtonStub).props('copyText')).toBe('sk-1234567890abcd')
   })
 
-  it('keeps the stored key when the Update key editor is left empty', async () => {
+  it('keeps the stored key when an empty replacement is cancelled', async () => {
     const { wrapper } = await setup({
       provider: createProvider({ apiKey: 'sk-1234567890abcd' })
     })
 
     await wrapper.get('[data-testid="provider-update-key-button"]').trigger('click')
-    await wrapper.get('[data-testid="provider-api-key-input"]').trigger('blur')
+    await wrapper.get('[data-testid="provider-connection-cancel"]').trigger('click')
     await flushPromises()
 
     expect(wrapper.emitted('api-key-change')).toBeUndefined()
@@ -643,6 +719,7 @@ describe('ProviderApiConfig', () => {
     mount(ProviderApiConfig, {
       props: {
         provider: createProvider(),
+        save: vi.fn().mockResolvedValue(undefined),
         providerWebsites: {
           official: 'https://example.com',
           apiKey: 'https://example.com/key',
