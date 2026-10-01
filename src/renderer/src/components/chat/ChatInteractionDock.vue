@@ -201,7 +201,7 @@ const questionChipText = computed(() => {
   box-shadow:
     0 10px 24px -8px rgb(15 23 42 / 0.14),
     0 3px 8px -3px rgb(15 23 42 / 0.1),
-    inset 0 1px 0 rgb(255 255 255 0.45);
+    inset 0 1px 0 rgb(255 255 255 / 0.45);
 }
 
 .dark .interaction-dock-bar {
@@ -214,7 +214,7 @@ const questionChipText = computed(() => {
   box-shadow:
     0 12px 28px -10px rgb(0 0 0 / 0.55),
     0 4px 10px -4px rgb(0 0 0 / 0.35),
-    inset 0 1px 0 rgb(255 255 255 0.1);
+    inset 0 1px 0 rgb(255 255 255 / 0.1);
 }
 
 .interaction-dock-chip {
@@ -295,7 +295,7 @@ const questionChipText = computed(() => {
     0 24px 48px -12px rgb(15 23 42 / 0.16),
     0 8px 20px -8px rgb(15 23 42 / 0.1),
     0 2px 6px -2px rgb(15 23 42 / 0.08),
-    inset 0 1px 0 rgb(255 255 255 0.5);
+    inset 0 1px 0 rgb(255 255 255 / 0.5);
 }
 
 /* Scrolling lives on the body so the header and the inset border/highlight
