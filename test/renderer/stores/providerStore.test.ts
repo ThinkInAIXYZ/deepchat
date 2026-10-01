@@ -35,8 +35,9 @@ async function setupStore() {
     onProvidersChanged: vi.fn(() => vi.fn())
   }
   const configClient = {
-    getSetting: vi.fn(async () => undefined),
-    setSetting: vi.fn(async () => undefined)
+    getSetting: vi.fn(async (_key: string): Promise<unknown> => undefined),
+    setSetting: vi.fn(async () => undefined),
+    setAzureApiVersion: vi.fn(async () => undefined)
   }
   vi.doMock('../../../src/renderer/api/ProviderClient', () => ({
     createProviderClient: () => providerClient
@@ -69,6 +70,53 @@ async function setupStore() {
 }
 
 describe('provider connection persistence', () => {
+  it.each([
+    { location: 'europe-west1' },
+    { accountClientEmail: 'other@example.invalid' },
+    { apiVersion: 'v1beta1' }
+  ])('invalidates health when Vertex connection fields change: %j', async (updates) => {
+    const { store } = await setupStore()
+    await store.updateProviderConfig('p1', { apiType: 'vertex' })
+    await store.checkProvider('p1')
+    await store.updateVertexProviderConfig('p1', updates)
+    expect(store.getProviderHealth('p1').status).toBe('not_checked')
+  })
+
+  it('invalidates an in-flight Azure check when its API version changes', async () => {
+    const { store, source, providerClient } = await setupStore()
+    source.value[0].id = 'azure-openai'
+    await store.refreshProviders()
+    let finish!: (result: { isOk: boolean; errorMsg: null }) => void
+    providerClient.testConnection.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    const check = store.checkProvider('azure-openai')
+    await store.setAzureApiVersion('2025-01-01-preview')
+    finish({ isOk: true, errorMsg: null })
+    await check
+    expect(store.getProviderHealth('azure-openai').status).toBe('not_checked')
+  })
+
+  it('preserves manual order when enabling or disabling a provider', async () => {
+    const { store, source, configClient } = await setupStore()
+    source.value = [
+      { ...source.value[0], id: 'a', enable: false },
+      { ...source.value[0], id: 'b' },
+      { ...source.value[0], id: 'c' }
+    ]
+    configClient.getSetting.mockImplementation(async (key) =>
+      key === 'providerOrder' ? ['a', 'b', 'c'] : undefined
+    )
+    await store.refreshProviders()
+    await store.updateProviderStatus('b', false)
+    expect(store.sortedProviders.value.map((provider) => provider.id)).toEqual(['a', 'b', 'c'])
+    await store.updateProviderStatus('a', true)
+    expect(store.sortedProviders.value.map((provider) => provider.id)).toEqual(['a', 'b', 'c'])
+  })
+
   it('invalidates cached health when the OpenAI authentication mode changes', async () => {
     const { store } = await setupStore()
     await store.checkProvider('p1')

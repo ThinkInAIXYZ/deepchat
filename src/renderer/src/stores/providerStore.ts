@@ -213,7 +213,10 @@ export const useProviderStore = defineStore('provider', () => {
         : '',
       // Vertex keeps its secrets in dedicated fields.
       vertex.projectId ? hashString(vertex.projectId) : '',
-      vertex.accountPrivateKey ? hashString(vertex.accountPrivateKey) : ''
+      vertex.accountPrivateKey ? hashString(vertex.accountPrivateKey) : '',
+      vertex.accountClientEmail ?? '',
+      vertex.location ?? '',
+      vertex.apiVersion ?? ''
     ].join('|')
     return hashString(material)
   }
@@ -402,36 +405,6 @@ export const useProviderStore = defineStore('provider', () => {
     }
   }
 
-  const optimizeProviderOrder = async (providerId: string, enable: boolean) => {
-    try {
-      const currentOrder = [...providerOrder.value]
-      const index = currentOrder.indexOf(providerId)
-      if (index !== -1) {
-        currentOrder.splice(index, 1)
-      }
-      const availableProviders = providers.value
-      const enabledOrder: string[] = []
-      const disabledOrder: string[] = []
-      currentOrder.forEach((id) => {
-        const provider = availableProviders.find((item) => item.id === id)
-        if (!provider || provider.id === providerId) return
-        if (provider.enable) {
-          enabledOrder.push(id)
-        } else {
-          disabledOrder.push(id)
-        }
-      })
-      const newOrder = enable
-        ? [...enabledOrder, providerId, ...disabledOrder]
-        : [...enabledOrder, providerId, ...disabledOrder]
-      const missingIds = availableProviders.map((p) => p.id).filter((id) => !newOrder.includes(id))
-      providerOrder.value = [...newOrder, ...missingIds]
-      await saveProviderOrder()
-    } catch (error) {
-      console.error('Failed to optimize provider order:', error)
-    }
-  }
-
   const updateProviderStatus = async (providerId: string, enable: boolean) => {
     const previousTimestamp = providerTimestamps.value[providerId]
     providerTimestamps.value[providerId] = Date.now()
@@ -441,7 +414,6 @@ export const useProviderStore = defineStore('provider', () => {
       if (enable) {
         await markProviderConfigured(providerId)
       }
-      await optimizeProviderOrder(providerId, enable)
     } catch (error) {
       if (previousTimestamp === undefined) {
         delete providerTimestamps.value[providerId]
@@ -549,6 +521,11 @@ export const useProviderStore = defineStore('provider', () => {
 
   const setAzureApiVersion = async (version: string) => {
     await configClient.setAzureApiVersion(version)
+    for (const provider of providers.value) {
+      if (provider.id !== 'azure-openai') continue
+      activeProviderChecks.value.delete(provider.id)
+      await clearProviderHealth(provider.id)
+    }
   }
 
   const getAzureApiVersion = async (): Promise<string> => {
@@ -691,7 +668,6 @@ export const useProviderStore = defineStore('provider', () => {
     updateProviderApi,
     updateProviderStatus,
     updateProvidersOrder,
-    optimizeProviderOrder,
     updateProviderTimestamp,
     loadProviderOrder,
     saveProviderOrder,
