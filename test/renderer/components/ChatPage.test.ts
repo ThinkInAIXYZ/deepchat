@@ -942,7 +942,7 @@ describe('ChatPage', () => {
 
     await flushPromises()
 
-    const layer = wrapper.find('[data-testid="agent-progress-float-layer"]')
+    const layer = wrapper.find('[data-testid="chat-interaction-layer"]')
     const composer = wrapper.get('[data-testid="chat-composer-region"]')
     const viewport = wrapper.get('[data-testid="chat-page"]')
 

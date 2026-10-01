@@ -1,5 +1,8 @@
 # Plan: ChatPage 分解与竞态治理
 
+> 以下为当时的实施计划。PR #2384 已移除计划清单能力及 `usePlanFloatLifecycle`；
+> 当前边界以 [spec.md](./spec.md) 和 [能力退出说明](../agent-plan-retirement/spec.md) 为准。
+
 ## 实施顺序
 
 按"每抽一个 composable 即 typecheck + 测试"的节奏,从耦合最少的关注点开始,

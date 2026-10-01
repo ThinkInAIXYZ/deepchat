@@ -478,7 +478,6 @@ function createMockToolService(responses: Record<string, string> = {}): ToolServ
     }),
     assertToolSurfaceAuthority: vi.fn(),
     clearConversationToolMapping: vi.fn(),
-    clearAgentPlanState: vi.fn(),
     buildToolSystemPrompt: vi.fn().mockReturnValue('')
   } as unknown as ToolServicePort
 }

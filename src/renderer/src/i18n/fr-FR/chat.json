@@ -272,8 +272,7 @@
       "status": {
         "completed": "Complété",
         "in_progress": "en cours",
-        "pending": "En attente",
-        "interrupted": "Interrompu"
+        "pending": "En attente"
       },
       "completedCount": "{completed}/{total} terminés"
     },

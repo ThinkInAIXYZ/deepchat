@@ -21,14 +21,16 @@ transport。远端计划不自动执行，远端子代理不创建本地会话�
 每次连接 initialize 独立读取 `agentCapabilities._meta.lody`，逐能力验证 version 和字段；
 单项无效不影响其他能力。旧快照不能授权新连接上的操作。普通 ACP agent 保持原行为。
 
-直接 ACP client 声明标准 `elicitation: { form: {}, url: {} }`、`plan: {}`，以及
+直接 ACP client 声明标准 `elicitation: { form: {}, url: {} }`，以及
 `_meta.lody.elicitation = { version: 1, answerNotes: true }` 和
 `_meta.lody.subagentEvents = { version: 1 }`。Agent 不需要声明不存在的 elicitation capability。
+客户端不声明 `plan` capability；计划清单能力已退出，参见
+[能力退出边界](../../architecture/agent-plan-retirement/spec.md)。
 
 | Protocol surface | Consumer behavior |
 | --- | --- |
 | `elicitation/create`, `elicitation/complete` | Session/request scoped forms and explicit URL consent |
-| `plan`, `plan_update`, `plan_removed` | Legacy plan plus items/markdown/file plans keyed by planId |
+| `plan`, `plan_update`, `plan_removed` | Ignored; no stream events, new plan state or plan-file route |
 | `usage_update` | Standard context occupancy, separate from billing |
 | `_lody/session/usage_update` | Cumulative model/scope accounting and latest-operation display |
 | `_lody/rate_limits/update`, `get` | Full quota windows, reset times, wallet and optional query filters |
@@ -111,11 +113,11 @@ completion notifications cannot occupy the request limit indefinitely.
 Bounds: 32 pending requests, 64 fields, 128 options, 256 KiB request and 64 KiB reply. Invalid schema,
 relationships or URL are rejected. Renderer cannot fabricate a remote request identity.
 
-## Plans, context, usage and quotas
+## Historical plans, context, usage and quotas
 
-Plans are keyed by planId, including a dedicated legacy entry. Empty legacy entries clear visible
-steps; plan_removed deletes only its matching plan. File plans require an explicit read, a file URI,
-the existing workspace path guard and a 256 KiB limit. Markdown uses the existing renderer.
+Live plan collection, display and file reading have been removed. Previously saved plan blocks in
+subagent runs retain read-only rendering. Old `plans` and run `plan` fields may survive snapshot
+restoration but are not consumed as live state; no destructive data migration is required.
 `plan_mode` stays in normal session configuration. Titles update only while the local title matches
 the remembered ACP-owned baseline; a manual title disables later automatic overwrites.
 

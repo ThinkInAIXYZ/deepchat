@@ -555,6 +555,42 @@ describe('MessageBlockToolCall', () => {
     wrapper.unmount()
   })
 
+  it('preserves legacy step and status aliases in historical checklists', async () => {
+    const wrapper = mount(MessageBlockToolCall, {
+      props: {
+        block: createBlock({
+          tool_call: {
+            name: 'update_plan',
+            params: JSON.stringify({
+              plan: [
+                { step: '  ', content: ' Inspect code ', status: 'done', priority: 'high' },
+                {
+                  step: ' Apply fix ',
+                  content: 'Unused fallback',
+                  status: 'in_progress',
+                  priority: null
+                },
+                { content: ' Verify fix ', status: 'unknown' }
+              ]
+            }),
+            response: '{}'
+          }
+        })
+      }
+    })
+    await wrapper.get('[data-testid="tool-call-trigger"]').trigger('click')
+    const checklist = wrapper.get('[data-testid="tool-call-plan"]')
+    expect(checklist.text()).toContain('1/3 completed')
+    expect(checklist.findAll('li').map((item) => item.attributes('aria-label'))).toEqual([
+      'Completed: Inspect code',
+      'In Progress: Apply fix',
+      'Pending: Verify fix'
+    ])
+    expect(checklist.text()).not.toContain('Unused fallback')
+    expect(wrapper.find('[data-testid="tool-call-params"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('renders an empty plan update as an empty checklist', async () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
@@ -575,7 +611,8 @@ describe('MessageBlockToolCall', () => {
     { status: 'error', params: '{"plan":[{"step":"Inspect code","status":"pending"}]}' },
     { status: 'cancel', params: '{"plan":[{"step":"Inspect code","status":"pending"}]}' },
     { status: 'success', params: '{"plan":' },
-    { status: 'success', params: '{"plan":[null]}' }
+    { status: 'success', params: '{"plan":[null]}' },
+    { status: 'success', params: '{"plan":[{"step":"Valid step"},{"step":"  "}]}' }
   ] as const)(
     'keeps diagnostic details for an unwritten or unreadable plan: %j',
     async ({ status, params }) => {

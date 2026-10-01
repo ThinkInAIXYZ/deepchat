@@ -1,6 +1,6 @@
 import type { FileMetaData } from './types/file'
 import type { ToolCallImagePreview } from './types/core/mcp'
-import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from './types/agent-plan'
+import type { LegacyAgentPlanMetadata } from './types/legacy-agent-plan'
 import type {
   AttachmentRepresentationPreference,
   AttachmentResolvedRepresentation,
@@ -186,54 +186,50 @@ export type CommandInfo = {
   baseCommand?: string
 }
 
-export type AssistantMessageExtra = Record<string, string | number | object[] | boolean> & {
-  needsUserAction?: boolean
-  permissionType?: PermissionType
-  grantedPermissions?: PermissionType
-  toolName?: string
-  toolSource?: 'agent' | 'mcp'
-  serverName?: string
-  providerId?: string
-  providerLogicalRound?: number
-  providerRequestSeq?: number
-  providerPhysicalAttempt?: number
-  permissionRequestId?: string
-  permissionRequest?: string
-  executionContractBinding?: string
-  toolSurfaceBinding?: string
-  commandInfo?: string
-  rememberable?: boolean
-  questionHeader?: string
-  questionText?: string
-  questionOptions?:
-    | Array<{
-        label: string
-        description?: string
-      }>
-    | string
-  questionMultiple?: boolean
-  questionCustom?: boolean
-  questionResolution?: 'asked' | 'replied' | 'rejected'
-  questionFollowUpPending?: boolean
-  answerText?: string
-  answerMessageId?: string
-  skillDraftAction?: string
-  skillDraftId?: string
-  skillDraftName?: string
-  skillDraftPreview?: string
-  skillDraftStatus?: string
-  skillDraftError?: string
-  internalTool?: boolean
-  plan_entries?: AgentPlanDisplayItem[]
-  plan_explanation?: string
-  plan_revision?: number
-  plan_updated_at?: string
-  plan_terminal_reason?: AgentPlanTerminalReason
-  subagentProgress?: string
-  subagentFinal?: string
-  toolCallSkippedReason?: 'max_tool_calls' | 'max_tokens'
-  toolCallIncompleteReason?: 'max_tokens'
-}
+export type AssistantMessageExtra = Record<string, string | number | object[] | boolean> &
+  LegacyAgentPlanMetadata & {
+    needsUserAction?: boolean
+    permissionType?: PermissionType
+    grantedPermissions?: PermissionType
+    toolName?: string
+    toolSource?: 'agent' | 'mcp'
+    serverName?: string
+    providerId?: string
+    providerLogicalRound?: number
+    providerRequestSeq?: number
+    providerPhysicalAttempt?: number
+    permissionRequestId?: string
+    permissionRequest?: string
+    executionContractBinding?: string
+    toolSurfaceBinding?: string
+    commandInfo?: string
+    rememberable?: boolean
+    questionHeader?: string
+    questionText?: string
+    questionOptions?:
+      | Array<{
+          label: string
+          description?: string
+        }>
+      | string
+    questionMultiple?: boolean
+    questionCustom?: boolean
+    questionResolution?: 'asked' | 'replied' | 'rejected'
+    questionFollowUpPending?: boolean
+    answerText?: string
+    answerMessageId?: string
+    skillDraftAction?: string
+    skillDraftId?: string
+    skillDraftName?: string
+    skillDraftPreview?: string
+    skillDraftStatus?: string
+    skillDraftError?: string
+    internalTool?: boolean
+    subagentProgress?: string
+    subagentFinal?: string
+    toolCallSkippedReason?: 'max_tool_calls' | 'max_tokens'
+    toolCallIncompleteReason?: 'max_tokens'
+  }
 // Search-related message block types
 export type SearchBlock = {
   type: 'search'

@@ -52,10 +52,11 @@ Code Mode 保留当前已启用工具的能力，但不把这些工具逐个发�
 - `deepchat_question` 和 `deepchat_subagents` 依赖顶层 Agent Loop 的交互、确认和持久状态协议，
   因此不进入 Code Mode SDK 或 nested execution binding；
 - 两者在当前会话可用时，作为独立顶层 Provider tools 与 code 入口并列暴露，继续走原有 Loop；
-- `update_plan`、CronJob、文件、MCP、插件等其余已启用能力仍作为 subtools，只能在 code 入口
+- CronJob、文件、MCP、插件等其余已启用能力仍作为 subtools，只能在 code 入口
   内通过 `tools.<name>(...)` 调用。
-- 计划提示按模式投影：Agent Mode 和 Minimal Mode 直接调用顶层 `update_plan`；Code Mode 只在
-  code 入口内调用 `tools.update_plan(...)`，并继续发送完整计划快照。
+- 内置 `update_plan` 已退出所有模式的工具目录和提示词；仅保留历史消息展示兼容。
+  第三方 MCP 同名工具仍按普通 MCP 工具处理，名称不被全局禁用。详见
+  [能力退出边界](../../architecture/agent-plan-retirement/spec.md)。
 
 Code Mode 当前要求 `full_access`，高级配置中的 Code 描述会明确显示该要求；其他权限模式下
 code 入口返回可恢复的工具错误且不启动 cell。这不是把

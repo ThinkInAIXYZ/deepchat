@@ -272,8 +272,7 @@
       "status": {
         "completed": "Afsluttet",
         "in_progress": "i gang",
-        "pending": "Indtil",
-        "interrupted": "Afbrudt"
+        "pending": "Indtil"
       },
       "completedCount": "{completed}/{total} fuldført"
     },

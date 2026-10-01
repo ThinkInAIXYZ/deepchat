@@ -289,8 +289,7 @@
       "status": {
         "completed": "已完成",
         "in_progress": "進行中",
-        "pending": "待處理",
-        "interrupted": "已中斷"
+        "pending": "待處理"
       },
       "completedCount": "{completed}/{total} 已完成"
     },

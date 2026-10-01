@@ -207,7 +207,7 @@
               <div
                 class="pointer-events-none absolute inset-x-0 bottom-[calc(100%+0.75rem)] flex w-full flex-col items-center gap-2"
                 style="z-index: var(--dc-z-float)"
-                data-testid="agent-progress-float-layer"
+                data-testid="chat-interaction-layer"
               >
                 <!-- Slim dock bar with Question chip. -->
                 <ChatInteractionDock
@@ -217,7 +217,7 @@
                   @respond="onToolInteractionRespond"
                 />
                 <!-- Last child of the bottom-anchored column, so the pill stays directly above the
-                     composer instead of riding to the top of an expanded plan panel. -->
+                     composer instead of riding to the top of an expanded interaction panel. -->
                 <ScrollToLatestPill
                   :visible="showScrollToLatest"
                   :count="messagesBelowViewport.length"

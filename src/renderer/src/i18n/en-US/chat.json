@@ -369,8 +369,7 @@
       "status": {
         "pending": "Pending",
         "in_progress": "In Progress",
-        "completed": "Completed",
-        "interrupted": "Interrupted"
+        "completed": "Completed"
       },
       "completedCount": "{completed}/{total} completed"
     },

@@ -272,8 +272,7 @@
       "status": {
         "completed": "הושלם",
         "in_progress": "בתהליך",
-        "pending": "תָלוּי וְעוֹמֵד",
-        "interrupted": "הופסק"
+        "pending": "תָלוּי וְעוֹמֵד"
       },
       "completedCount": "{completed}/{total} הושלמו"
     },

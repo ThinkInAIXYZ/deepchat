@@ -4,10 +4,14 @@
 
 ChatPage 原位于 `src/renderer/src/pages/ChatPage.vue`，膨胀到 3050 行；现已迁至
 `src/renderer/src/features/chat-page/ChatPage.vue`。单个 `<script setup>` 承载 10+ 个关注点：
-会话恢复、消息记录转换、虚拟窗口、测量批处理、手势/滚动、占位符状态机、Plan 快照生命周期、
+会话恢复、消息记录转换、虚拟窗口、测量批处理、手势/滚动、占位符状态机、
 会话内搜索、语音输入、发送/排队/steer、消息操作。竞态治理靠散落的手写令牌
 （`sessionRestoreRequestId`、`voiceInputConfigToken`、`attachmentFilterToken`、
 `chatScrollSessionEpoch`、`pendingAssistantPlaceholderSeq`）和大量模块级 `let`，理解成本极高。
+
+计划清单能力已退出：原 `usePlanFloatLifecycle`、plan store 和浮层已移除，事件桥仅管理
+window 事件；交互 dock 继续承载问题和权限请求。历史数据边界见
+[agent-plan-retirement](../agent-plan-retirement/spec.md)。旧 `plan.md` / `tasks.md` 保留实施历史。
 
 ## 现状边界（已良好分层，不动）
 
@@ -32,7 +36,7 @@ ChatPage 原位于 `src/renderer/src/pages/ChatPage.vue`，膨胀到 3050 行；
 - `composables/message/useMessageScroll.ts`（339 行）— 全项目零引用，旧 vue-virtual-scroller 实现。
 - `composables/message/types.ts` 中的 `ScrollInfo` 接口 — 仅被上文件引用（`CaptureOptions` 仍在用，保留）。
 
-## 分解目标（12 个关注点 → 12 个 composable）
+## 当前分解边界（11 个 composable）
 
 | composable | 职责 | 收编的状态/竞态 |
 |---|---|---|
@@ -40,14 +44,13 @@ ChatPage 原位于 `src/renderer/src/pages/ChatPage.vue`，膨胀到 3050 行；
 | `useDisplayMessages` | 记录→DisplayMessage、稳定/流式分离、缓存；**并含占位符四态机** | `displayMessageCache`、`assistantRenderKeyByMessageId`、`pendingAssistantPlaceholder` 全套 |
 | `useMessageVirtualization` | 窗口范围、测量批处理、锚点补偿、几何观测 | `pendingMeasureQueue`、rAF flush |
 | `useListGestures` | wheel/touch/pointer/键盘手势 → 控制器 | ~15 handler、`isListScrolling` |
-| `usePlanFloatLifecycle` | Plan 快照跨会话生命周期 + 延迟清除 | `planSnapshotClearTimers`、3 lifecycleKey |
 | `useChatSearch` | 会话内搜索（包 `lib/chatSearch`） | 搜索 rAF、highlight 调度 |
 | `useComposerSubmit` | 发送/排队/steer/命令/compaction | 统一 gate 后的提交路径、`attachmentFilterToken` |
 | `useVoiceInput` | 语音输入可用性、识别与转写适配 | `voiceInputConfigToken`、模型配置订阅、speech cleanup |
 | `useToolInteraction` | 待处理工具/问题交互聚合与响应 | 子 agent progress 解析、响应单飞锁、当前页面会话刷新 |
 | `useMessageActions` | 消息重试、编辑、删除确认、fork、continue | 删除确认状态、消息操作刷新策略 |
 | `usePendingInputActions` | 已排队输入的编辑、移动、删除、steer | 队列项附件/技能保留、steer 守卫 |
-| `useChatPageEventBridge` | window 事件和 plan 更新订阅 | 显式 `start`/`stop`，避免监听泄漏与重复订阅 |
+| `useChatPageEventBridge` | window 事件订阅 | 显式 `start`/`stop`，避免监听泄漏与重复订阅 |
 
 > 决策记录：原计划独立的 `useAssistantPlaceholder` 并入 `useDisplayMessages`。占位符的
 > renderKey 交接直接写入消息转换缓存读取的 `assistantRenderKeyByMessageId`，显隐判定依赖
@@ -63,7 +66,7 @@ ChatPage 原位于 `src/renderer/src/pages/ChatPage.vue`，膨胀到 3050 行；
 
 ## 模块位置决策
 
-`ChatPage.vue` 与其 12 个 composable 位于 `features/chat-page/`（分别是
+`ChatPage.vue` 与其 11 个 composable 位于 `features/chat-page/`（分别是
 `features/chat-page/ChatPage.vue` 与 `features/chat-page/composables/`），而非全局 `lib/` /
 `components/`。这是有意的 feature-local 布局：它们是 ChatPage 独占的私有逻辑，强耦合页面
 props 与页面级 store 组合，不面向复用。`ChatTabView` 只通过

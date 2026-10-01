@@ -8,7 +8,6 @@ import {
   ProjectSchema,
   UsageStatsBackfillStatusSchema
 } from '@shared/contracts/domainSchemas'
-import { agentPlanItemSchema, normalizeAgentPlanEntry } from '@shared/types/agent-plan'
 import { questionToolSchema } from '@/tool/agentTools/questionTool'
 
 describe('Zod 4 migration contracts', () => {
@@ -216,64 +215,6 @@ describe('Zod 4 migration contracts', () => {
 
     expect(strictSchema.additionalProperties).toBe(false)
     expect(looseSchema.additionalProperties).toEqual({})
-  })
-
-  it('keeps strict object schemas rejecting unknown keys', () => {
-    const parsed = agentPlanItemSchema.safeParse({
-      step: 'Inspect contracts',
-      status: 'pending',
-      extra: true
-    })
-
-    expect(parsed.success).toBe(false)
-  })
-
-  it('accepts an optional nullable priority field on agent plan items', () => {
-    const withPriority = agentPlanItemSchema.safeParse({
-      step: 'Analyze requirements',
-      status: 'in_progress',
-      priority: 'high'
-    })
-    expect(withPriority.success).toBe(true)
-
-    const withNullPriority = agentPlanItemSchema.safeParse({
-      step: 'Analyze requirements',
-      status: 'in_progress',
-      priority: null
-    })
-    expect(withNullPriority.success).toBe(true)
-
-    const withoutPriority = agentPlanItemSchema.safeParse({
-      step: 'Analyze requirements',
-      status: 'in_progress'
-    })
-    expect(withoutPriority.success).toBe(true)
-  })
-
-  it('falls back to content when normalizing blank agent plan steps', () => {
-    expect(
-      normalizeAgentPlanEntry({
-        step: '   ',
-        content: 'Fallback text',
-        status: 'in_progress'
-      })
-    ).toEqual({
-      step: 'Fallback text',
-      status: 'in_progress'
-    })
-  })
-
-  it('prefers non-blank steps when normalizing agent plan entries', () => {
-    expect(
-      normalizeAgentPlanEntry({
-        step: 'Primary text',
-        content: 'Fallback text',
-        status: 'completed'
-      })
-    ).toEqual({
-      step: 'Primary text',
-      status: 'completed'
-    })
   })
 
   it('preserves usage stats backfill progress fields across contract parsing', () => {
