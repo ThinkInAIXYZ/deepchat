@@ -65,12 +65,12 @@
         </div>
 
         <!-- 模型选择表单 -->
-        <div v-if="!result && hasModels" class="grid gap-4 py-4">
+        <div v-if="hasModels" class="grid gap-4 py-4">
           <div class="grid grid-cols-4 items-center gap-4">
             <Label :for="modelSelectId" class="text-right">
               {{ t('settings.provider.dialog.modelCheck.model') }}
             </Label>
-            <Select v-model="selectedModelId" required>
+            <Select v-model="selectedModelId" :disabled="isChecking" required>
               <SelectTrigger
                 :id="modelSelectId"
                 data-testid="model-check-select"
@@ -112,7 +112,7 @@
         </DcButton>
         <DcButton
           data-testid="model-check-submit"
-          v-if="!result && hasModels"
+          v-if="hasModels"
           type="button"
           :disabled="!selectedModelId || isChecking"
           @click="handleCheck"
@@ -153,6 +153,7 @@ import { computed, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'
+import { ModelType } from '@shared/model'
 
 const { t } = useI18n()
 const modelSelectId = useId()
@@ -172,12 +173,28 @@ const isOpen = ref(props.open)
 const isChecking = ref(false)
 const selectedModelId = ref<string>('')
 const result = ref<{ isOk: boolean; errorMsg: string | null } | null>(null)
+let checkVersion = 0
 
-// 计算可用的模型列表 - 显示所有模型
+// This dialog calls text completions, not media generation or embedding APIs.
 const availableModels = computed(() => {
   const providerModels = modelStore.allProviderModels.find((p) => p.providerId === props.providerId)
-  return providerModels?.models || []
+  const customModels = modelStore.customModels.find((p) => p.providerId === props.providerId)
+  const models = new Map(
+    [...(providerModels?.models || []), ...(customModels?.models || [])].map((model) => [
+      model.id,
+      model
+    ])
+  )
+  return [...models.values()].filter((model) => !model.type || model.type === ModelType.Chat)
 })
+
+watch(selectedModelId, () => {
+  result.value = null
+})
+watch(
+  () => props.providerId,
+  () => resetDialog()
+)
 
 // 检查是否有可用的模型
 const hasModels = computed(() => availableModels.value.length > 0)
@@ -186,7 +203,7 @@ const hasModels = computed(() => availableModels.value.length > 0)
 watch(
   () => props.open,
   (newVal) => {
-    if (newVal && !isOpen.value) {
+    if (newVal !== isOpen.value) {
       resetDialog()
     }
     isOpen.value = newVal
@@ -209,6 +226,7 @@ const onOpenChange = (open: boolean) => {
 }
 
 const resetDialog = () => {
+  checkVersion += 1
   selectedModelId.value = ''
   result.value = null
   isChecking.value = false
@@ -216,10 +234,16 @@ const resetDialog = () => {
 
 const closeDialog = () => {
   isOpen.value = false
+  resetDialog()
 }
 
 const handleCheck = async () => {
-  if (!selectedModelId.value) return
+  if (
+    isChecking.value ||
+    !availableModels.value.some((model) => model.id === selectedModelId.value)
+  )
+    return
+  const version = ++checkVersion
 
   try {
     isChecking.value = true
@@ -227,15 +251,15 @@ const handleCheck = async () => {
 
     // 调用设置store的检查方法
     const checkResult = await providerStore.checkProvider(props.providerId, selectedModelId.value)
-    result.value = checkResult
+    if (version === checkVersion) result.value = checkResult
   } catch (error) {
-    console.error('Model check failed:', error)
+    if (version !== checkVersion) return
     result.value = {
       isOk: false,
       errorMsg: error instanceof Error ? error.message : 'Unknown error occurred'
     }
   } finally {
-    isChecking.value = false
+    if (version === checkVersion) isChecking.value = false
   }
 }
 </script>
