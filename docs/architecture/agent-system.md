@@ -107,10 +107,9 @@ src/main/agent/deepchat/
 - `DeepChatContextCoordinator.streamProviderAttempts` 是 transient retry 的唯一 owner。每个 logical
   round 最多重试两次，使用可取消的指数退避并服从有上限的 `Retry-After`；context recovery 不消耗
   logical-round 或 transient-retry budget，每次实际 attempt 都重新进入 provider rate gate。
-- 透明重放只允许发生在 `outputCommitted` 之前。首个投影的 text、reasoning、tool lifecycle、
-  permission、image、plan 或 provider rate-limit event 会提交输出；usage、stop 和 error 是控制事件，
-  在 retry 决策完成前缓冲。无 stop 且无语义输出视为可重试的 premature EOF，已有 partial output
-  则保留输出并失败，绝不重放。
+- 透明重放只允许发生在 `outputCommitted` 之前。首个投影的非控制事件会提交输出；usage、stop
+  和 error 是控制事件，在 retry 决策完成前缓冲。无 stop 且无语义输出视为可重试的 premature
+  EOF，已有 partial output 则保留输出并失败，绝不重放。
 - message usage 对同一 logical round 内所有 physical attempt 的最终 usage snapshot 做 checked
   aggregation；Tape 仍逐 attempt 保存各自 usage。`retry_scheduled`、`retry_started` 和
   `retry_finished` observer 只用于结构化诊断，不进入 renderer event bus，也不是持久化事实。
@@ -207,8 +206,12 @@ metadata、usage/cache fields、provider/tool budgets，不调用真实 provider
 Direct ACP sessions negotiate Lody capabilities per process connection. `AcpElicitationBridge` owns
 live forms and URL consent; typed routes expose opaque request IDs to the question dock and global
 dialog. Answers are ephemeral and bypass ordinary transcript messages. `AcpSessionController` owns
-idle extension state, monotonic accounting, plans, remote task observations and isolated child stream
+idle extension state, monotonic accounting, remote task observations and isolated child stream
 mapping. Existing ACP metadata stores snapshots, with source identity and serialized merge guards.
+
+The built-in `update_plan` tool and live ACP plan capability are retired. Plan notifications are
+ignored; historical message compatibility does not restore runtime plan state. See the
+[plan retirement contract](./agent-plan-retirement/spec.md) for the retained data and display boundary.
 
 `AcpAgentInstance` retains the prompt slot for goal execution, native request steering and idle history
 or fork operations. No remote task creates a local loop. The parent projection cannot consume child
