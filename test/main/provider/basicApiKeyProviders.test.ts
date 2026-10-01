@@ -452,6 +452,25 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('resolves FutureInfra through authenticated OpenAI-compatible model discovery', () => {
+    expect(
+      resolveAiSdkProviderDefinition(
+        createProvider({
+          id: 'futureinfra',
+          name: 'FutureInfra',
+          baseUrl: 'https://futureinfra.ai/v1/ai'
+        })
+      )
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none'
+    })
+  })
+
   it('resolves API Route through authenticated OpenAI-compatible model discovery', () => {
     expect(
       resolveAiSdkProviderDefinition(

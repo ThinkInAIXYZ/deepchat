@@ -123,6 +123,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'futureinfra',
+    name: 'FutureInfra',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://futureinfra.ai/v1/ai',
+    enable: false,
+    websites: {
+      official: 'https://futureinfra.ai/ai/',
+      apiKey: 'https://futureinfra.ai/console/?screen=ai-router',
+      docs: 'https://futureinfra.ai/docs/',
+      models: 'https://futureinfra.ai/ai/'
+    }
+  },
+  {
     id: 'api-route',
     name: 'API Route',
     apiType: 'openai-completions',
