@@ -25436,43 +25436,6 @@
           "type": "chat"
         },
         {
-          "id": "TEE/qwen3.8-27b-uncensored",
-          "name": "Qwen3.8 27B Uncensored TEE",
-          "display_name": "Qwen3.8 27B Uncensored TEE",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 262144
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "effort_options": [
-                "low",
-                "medium",
-                "xhigh"
-              ]
-            }
-          },
-          "attachment": true,
-          "open_weights": true,
-          "release_date": "2026-09-25",
-          "last_updated": "2026-09-25",
-          "type": "chat"
-        },
-        {
           "id": "TEE/gemma-4-26b-a4b-uncensored",
           "name": "Gemma 4 26B A4B Uncensored TEE",
           "display_name": "Gemma 4 26B A4B Uncensored TEE",
@@ -48645,6 +48608,57 @@
           "type": "chat"
         },
         {
+          "id": "consensusprotocol/deepseek-v4-flash",
+          "name": "DeepSeek V4 Flash (Consensus Protocol)",
+          "display_name": "DeepSeek V4 Flash (Consensus Protocol)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 524288,
+            "output": 384000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "The DeepSeek API maps medium and xhigh to high for V4 models; effort_options lists distinct model-effective levels."
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2025-05",
+          "release_date": "2026-04-24",
+          "last_updated": "2026-04-24",
+          "type": "chat"
+        },
+        {
           "id": "deepinfra/mimo-v2.6-pro",
           "name": "MiMo V2.6 Pro (DeepInfra)",
           "display_name": "MiMo V2.6 Pro (DeepInfra)",
@@ -57905,7 +57919,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 983616,
             "output": 65536
           },
           "temperature": true,
@@ -58096,7 +58110,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 983616,
             "output": 131072
           },
           "temperature": true,
@@ -58310,7 +58324,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 983616,
             "output": 65536
           },
           "temperature": true,
@@ -58586,7 +58600,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 983616,
             "output": 65536
           },
           "temperature": true,
@@ -58634,7 +58648,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 997952,
             "output": 65536
           },
           "temperature": true,
@@ -58692,7 +58706,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 983616,
             "output": 131072
           },
           "tool_call": true,
@@ -58999,7 +59013,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 983616,
             "output": 65536
           },
           "temperature": true,
@@ -59126,7 +59140,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 983616,
             "output": 65536
           },
           "temperature": true,
@@ -69464,8 +69478,8 @@
             ]
           },
           "limit": {
-            "context": 1024000,
-            "output": 384000
+            "context": 1048576,
+            "output": 131072
           },
           "temperature": true,
           "tool_call": true,
@@ -69500,6 +69514,34 @@
           "knowledge": "2025-05",
           "release_date": "2026-04-24",
           "last_updated": "2026-04-24",
+          "type": "chat"
+        },
+        {
+          "id": "unbiased/pareto-26.10-preview",
+          "name": "Pareto 26.10 Preview",
+          "display_name": "Pareto 26.10 Preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-10-01",
+          "last_updated": "2026-10-01",
           "type": "chat"
         },
         {
@@ -216320,7 +216362,7 @@
             ]
           },
           "limit": {
-            "context": 65536,
+            "context": 131072,
             "output": 4096
           },
           "temperature": true,
@@ -218878,6 +218920,121 @@
           "open_weights": true,
           "release_date": "2026-08-12",
           "last_updated": "2026-08-22",
+          "type": "chat"
+        },
+        {
+          "id": "tencent/deepseek-v4-pro-0813",
+          "name": "DeepSeek V4 Pro 0813 (Tencent)",
+          "display_name": "DeepSeek V4 Pro 0813 (Tencent)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 384000
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "effort_options": [
+                "none",
+                "low",
+                "high",
+                "max"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-08-12",
+          "last_updated": "2026-08-22",
+          "type": "chat"
+        },
+        {
+          "id": "tencent/hy3",
+          "name": "Hy3 (Tencent)",
+          "display_name": "Hy3 (Tencent)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 128000
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "effort_options": [
+                "none",
+                "low",
+                "high"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-07-06",
+          "last_updated": "2026-07-06",
+          "type": "chat"
+        },
+        {
+          "id": "tencent/hy4-preview",
+          "name": "Hy4 preview (Tencent)",
+          "display_name": "Hy4 preview (Tencent)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "effort_options": [
+                "none",
+                "low",
+                "high"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-08-28",
+          "last_updated": "2026-08-28",
           "type": "chat"
         },
         {
@@ -256880,7 +257037,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 983616,
             "output": 1000000
           },
           "temperature": true,
@@ -258963,7 +259120,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 983616,
             "output": 65536
           },
           "temperature": true,
@@ -259064,7 +259221,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 997952,
             "output": 65536
           },
           "temperature": true,
@@ -261652,7 +261809,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 983616,
             "output": 65536
           },
           "temperature": true,
@@ -262480,7 +262637,7 @@
             ]
           },
           "limit": {
-            "context": 1000000,
+            "context": 983616,
             "output": 64000
           },
           "temperature": true,
@@ -352072,6 +352229,29 @@
           },
           "limit": {
             "context": 262144,
+            "output": 131072
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "unbiased/pareto-26.10-preview",
+          "name": "Pareto 26.10 Preview",
+          "display_name": "Pareto 26.10 Preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
             "output": 131072
           },
           "tool_call": true,
