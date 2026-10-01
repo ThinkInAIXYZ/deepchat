@@ -1225,10 +1225,18 @@
       "rename": "Renommer",
       "delete": "Supprimer"
     },
+    "connectionEditor": {
+      "title": "Modifier la connexion",
+      "description": "Enregistrez ensemble l’URL de l’API et la clé. L’enregistrement ne teste pas la connexion.",
+      "currentKey": "Clé actuelle",
+      "newKey": "Nouvelle clé API",
+      "keepKey": "Laissez ce champ vide pour conserver la clé actuelle.",
+      "test": "Tester la connexion"
+    },
     "health": {
-      "verified": "Vérifié",
+      "verified": "Dernier test réussi",
       "checking": "Vérification",
-      "needsAttention": "Attention requise",
+      "needsAttention": "Dernier test échoué",
       "notChecked": "Non vérifié",
       "lastChecked": "Dernière vérification {time}"
     },

@@ -1225,10 +1225,18 @@
       "rename": "تغییر نام",
       "delete": "حذف"
     },
+    "connectionEditor": {
+      "title": "ویرایش اتصال",
+      "description": "نشانی API و کلید را با هم ذخیره کنید. ذخیره کردن، اتصال را آزمایش نمی‌کند.",
+      "currentKey": "کلید فعلی",
+      "newKey": "کلید API جدید",
+      "keepKey": "برای حفظ کلید فعلی، این قسمت را خالی بگذارید.",
+      "test": "آزمایش اتصال"
+    },
     "health": {
-      "verified": "تأیید شده",
+      "verified": "آخرین آزمایش موفق بود",
       "checking": "در حال بررسی",
-      "needsAttention": "نیاز به توجه",
+      "needsAttention": "آخرین آزمایش ناموفق بود",
       "notChecked": "بررسی نشده",
       "lastChecked": "آخرین بررسی {time}"
     },

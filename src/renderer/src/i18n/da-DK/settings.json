@@ -1158,10 +1158,18 @@
       "rename": "Omdøb",
       "delete": "Slet"
     },
+    "connectionEditor": {
+      "title": "Rediger forbindelse",
+      "description": "Gem API-URL'en og nøglen sammen. Forbindelsen testes ikke, når du gemmer.",
+      "currentKey": "Nuværende nøgle",
+      "newKey": "Ny API-nøgle",
+      "keepKey": "Lad feltet stå tomt for at beholde den nuværende nøgle.",
+      "test": "Test forbindelse"
+    },
     "health": {
-      "verified": "Verificeret",
+      "verified": "Seneste test bestået",
       "checking": "Kontrollerer",
-      "needsAttention": "Kræver opmærksomhed",
+      "needsAttention": "Seneste test mislykkedes",
       "notChecked": "Ikke kontrolleret",
       "lastChecked": "Sidst kontrolleret {time}"
     },

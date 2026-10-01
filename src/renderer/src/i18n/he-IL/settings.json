@@ -1225,10 +1225,18 @@
       "rename": "שינוי שם",
       "delete": "מחיקה"
     },
+    "connectionEditor": {
+      "title": "עריכת חיבור",
+      "description": "שמירת כתובת ה-API והמפתח יחד. השמירה אינה בודקת את החיבור.",
+      "currentKey": "המפתח הנוכחי",
+      "newKey": "מפתח API חדש",
+      "keepKey": "יש להשאיר ריק כדי לשמור את המפתח הנוכחי.",
+      "test": "בדיקת החיבור"
+    },
     "health": {
-      "verified": "מאומת",
+      "verified": "הבדיקה האחרונה הצליחה",
       "checking": "בבדיקה",
-      "needsAttention": "דורש טיפול",
+      "needsAttention": "הבדיקה האחרונה נכשלה",
       "notChecked": "לא נבדק",
       "lastChecked": "נבדק לאחרונה {time}"
     },

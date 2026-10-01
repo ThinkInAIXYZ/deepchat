@@ -1594,10 +1594,18 @@
       "rename": "Ubah nama",
       "delete": "Hapus"
     },
+    "connectionEditor": {
+      "title": "Edit koneksi",
+      "description": "Simpan URL API dan kunci secara bersamaan. Menyimpan tidak menguji koneksi.",
+      "currentKey": "Kunci saat ini",
+      "newKey": "Kunci API baru",
+      "keepKey": "Biarkan kosong untuk mempertahankan kunci saat ini.",
+      "test": "Uji koneksi"
+    },
     "health": {
-      "verified": "Terverifikasi",
+      "verified": "Pengujian terakhir berhasil",
       "checking": "Memeriksa",
-      "needsAttention": "Perlu perhatian",
+      "needsAttention": "Pengujian terakhir gagal",
       "notChecked": "Belum diperiksa",
       "lastChecked": "Terakhir diperiksa {time}"
     },

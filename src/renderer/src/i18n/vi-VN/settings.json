@@ -1594,10 +1594,18 @@
       "rename": "Đổi tên",
       "delete": "Xóa"
     },
+    "connectionEditor": {
+      "title": "Chỉnh sửa kết nối",
+      "description": "Lưu URL API và khóa cùng nhau. Thao tác lưu không kiểm tra kết nối.",
+      "currentKey": "Khóa hiện tại",
+      "newKey": "Khóa API mới",
+      "keepKey": "Để trống để giữ khóa hiện tại.",
+      "test": "Kiểm tra kết nối"
+    },
     "health": {
-      "verified": "Đã xác minh",
+      "verified": "Lần kiểm tra gần nhất đã thành công",
       "checking": "Đang kiểm tra",
-      "needsAttention": "Cần chú ý",
+      "needsAttention": "Lần kiểm tra gần nhất đã thất bại",
       "notChecked": "Chưa kiểm tra",
       "lastChecked": "Kiểm tra lần cuối {time}"
     },

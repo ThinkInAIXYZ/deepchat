@@ -1594,10 +1594,18 @@
       "rename": "Umbenennen",
       "delete": "Löschen"
     },
+    "connectionEditor": {
+      "title": "Verbindung bearbeiten",
+      "description": "API-URL und Schlüssel gemeinsam speichern. Beim Speichern wird die Verbindung nicht getestet.",
+      "currentKey": "Aktueller Schlüssel",
+      "newKey": "Neuer API-Schlüssel",
+      "keepKey": "Leer lassen, um den aktuellen Schlüssel beizubehalten.",
+      "test": "Verbindung testen"
+    },
     "health": {
-      "verified": "Verifiziert",
+      "verified": "Letzter Test erfolgreich",
       "checking": "Wird geprüft",
-      "needsAttention": "Aufmerksamkeit nötig",
+      "needsAttention": "Letzter Test fehlgeschlagen",
       "notChecked": "Nicht geprüft",
       "lastChecked": "Zuletzt geprüft {time}"
     },

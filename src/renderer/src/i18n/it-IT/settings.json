@@ -1594,10 +1594,18 @@
       "rename": "Rinomina",
       "delete": "Elimina"
     },
+    "connectionEditor": {
+      "title": "Modifica connessione",
+      "description": "Salva insieme l’URL API e la chiave. Il salvataggio non verifica la connessione.",
+      "currentKey": "Chiave attuale",
+      "newKey": "Nuova chiave API",
+      "keepKey": "Lascia vuoto per mantenere la chiave attuale.",
+      "test": "Verifica connessione"
+    },
     "health": {
-      "verified": "Verificato",
+      "verified": "Ultimo test superato",
       "checking": "Verifica in corso",
-      "needsAttention": "Richiede attenzione",
+      "needsAttention": "Ultimo test non riuscito",
       "notChecked": "Non verificato",
       "lastChecked": "Ultimo controllo {time}"
     },

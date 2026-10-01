@@ -1188,7 +1188,7 @@
         "local": "Local"
       },
       "tabs": {
-        "connection": "Connect",
+        "connection": "連線設定",
         "models": "Models",
         "advanced": "Advanced"
       }
@@ -1225,10 +1225,18 @@
       "rename": "重新命名",
       "delete": "刪除"
     },
+    "connectionEditor": {
+      "title": "編輯連線",
+      "description": "同時儲存 API 網址和金鑰。儲存不會測試連線。",
+      "currentKey": "目前金鑰",
+      "newKey": "新 API 金鑰",
+      "keepKey": "留空以保留目前的金鑰。",
+      "test": "測試連線"
+    },
     "health": {
-      "verified": "已驗證",
+      "verified": "上次測試成功",
       "checking": "檢查中",
-      "needsAttention": "需要處理",
+      "needsAttention": "上次測試失敗",
       "notChecked": "未檢查",
       "lastChecked": "上次檢查於 {time}"
     },

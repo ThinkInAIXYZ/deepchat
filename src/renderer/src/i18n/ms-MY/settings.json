@@ -1594,10 +1594,18 @@
       "rename": "Namakan semula",
       "delete": "Padam"
     },
+    "connectionEditor": {
+      "title": "Edit sambungan",
+      "description": "Simpan URL API dan kunci bersama-sama. Menyimpan tidak menguji sambungan.",
+      "currentKey": "Kunci semasa",
+      "newKey": "Kunci API baharu",
+      "keepKey": "Biarkan kosong untuk mengekalkan kunci semasa.",
+      "test": "Uji sambungan"
+    },
     "health": {
-      "verified": "Disahkan",
+      "verified": "Ujian terakhir berjaya",
       "checking": "Menyemak",
-      "needsAttention": "Perlukan perhatian",
+      "needsAttention": "Ujian terakhir gagal",
       "notChecked": "Belum disemak",
       "lastChecked": "Semakan terakhir {time}"
     },

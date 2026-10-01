@@ -1594,10 +1594,18 @@
       "rename": "Renombrar",
       "delete": "Eliminar"
     },
+    "connectionEditor": {
+      "title": "Editar conexión",
+      "description": "Guarda la URL de la API y la clave juntas. Al guardar no se prueba la conexión.",
+      "currentKey": "Clave actual",
+      "newKey": "Nueva clave de API",
+      "keepKey": "Déjalo en blanco para conservar la clave actual.",
+      "test": "Probar conexión"
+    },
     "health": {
-      "verified": "Verificado",
+      "verified": "Última prueba superada",
       "checking": "Comprobando",
-      "needsAttention": "Requiere atención",
+      "needsAttention": "Última prueba fallida",
       "notChecked": "Sin comprobar",
       "lastChecked": "Última comprobación {time}"
     },

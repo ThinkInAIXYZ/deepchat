@@ -1225,10 +1225,18 @@
       "rename": "이름 바꾸기",
       "delete": "삭제"
     },
+    "connectionEditor": {
+      "title": "연결 편집",
+      "description": "API URL과 키를 함께 저장합니다. 저장해도 연결 테스트는 실행되지 않습니다.",
+      "currentKey": "현재 키",
+      "newKey": "새 API 키",
+      "keepKey": "현재 키를 유지하려면 비워 두세요.",
+      "test": "연결 테스트"
+    },
     "health": {
-      "verified": "확인됨",
+      "verified": "마지막 테스트 성공",
       "checking": "확인 중",
-      "needsAttention": "주의 필요",
+      "needsAttention": "마지막 테스트 실패",
       "notChecked": "확인 안 됨",
       "lastChecked": "마지막 확인 {time}"
     },

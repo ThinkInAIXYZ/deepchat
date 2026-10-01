@@ -1225,10 +1225,18 @@
       "rename": "名前を変更",
       "delete": "削除"
     },
+    "connectionEditor": {
+      "title": "接続を編集",
+      "description": "API URLとキーを一緒に保存します。保存しても接続テストは実行されません。",
+      "currentKey": "現在のキー",
+      "newKey": "新しいAPIキー",
+      "keepKey": "現在のキーを保持するには空欄のままにしてください。",
+      "test": "接続をテスト"
+    },
     "health": {
-      "verified": "検証済み",
+      "verified": "前回のテストは成功しました",
       "checking": "確認中",
-      "needsAttention": "要対応",
+      "needsAttention": "前回のテストは失敗しました",
       "notChecked": "未確認",
       "lastChecked": "最終確認 {time}"
     },

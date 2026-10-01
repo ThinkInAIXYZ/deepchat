@@ -1594,10 +1594,18 @@
       "rename": "Yeniden adlandır",
       "delete": "Sil"
     },
+    "connectionEditor": {
+      "title": "Bağlantıyı düzenle",
+      "description": "API URL'sini ve anahtarı birlikte kaydedin. Kaydetme işlemi bağlantıyı test etmez.",
+      "currentKey": "Mevcut anahtar",
+      "newKey": "Yeni API Anahtarı",
+      "keepKey": "Mevcut anahtarı korumak için boş bırakın.",
+      "test": "Bağlantıyı test et"
+    },
     "health": {
-      "verified": "Doğrulandı",
+      "verified": "Son test başarılı",
       "checking": "Kontrol ediliyor",
-      "needsAttention": "İlgilenilmeli",
+      "needsAttention": "Son test başarısız",
       "notChecked": "Kontrol edilmedi",
       "lastChecked": "Son kontrol {time}"
     },

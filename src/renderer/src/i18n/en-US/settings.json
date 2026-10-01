@@ -1594,10 +1594,18 @@
       "rename": "Rename",
       "delete": "Delete"
     },
+    "connectionEditor": {
+      "title": "Edit connection",
+      "description": "Save the API URL and key together. Saving does not test the connection.",
+      "currentKey": "Current key",
+      "newKey": "New API Key",
+      "keepKey": "Leave blank to keep the current key.",
+      "test": "Test connection"
+    },
     "health": {
-      "verified": "Verified",
+      "verified": "Last test passed",
       "checking": "Checking",
-      "needsAttention": "Needs attention",
+      "needsAttention": "Last test failed",
       "notChecked": "Not checked",
       "lastChecked": "Last checked {time}"
     },

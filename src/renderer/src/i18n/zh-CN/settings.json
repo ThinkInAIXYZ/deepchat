@@ -1557,7 +1557,7 @@
         "local": "Local"
       },
       "tabs": {
-        "connection": "Connect",
+        "connection": "连接设置",
         "models": "Models",
         "advanced": "Advanced"
       }
@@ -1594,10 +1594,18 @@
       "rename": "重命名",
       "delete": "删除"
     },
+    "connectionEditor": {
+      "title": "编辑连接",
+      "description": "同时保存 API 地址和密钥。保存不会测试连接。",
+      "currentKey": "当前密钥",
+      "newKey": "新 API 密钥",
+      "keepKey": "留空以保留当前密钥。",
+      "test": "测试连接"
+    },
     "health": {
-      "verified": "已验证",
+      "verified": "上次测试成功",
       "checking": "检查中",
-      "needsAttention": "需要处理",
+      "needsAttention": "上次测试失败",
       "notChecked": "未检查",
       "lastChecked": "上次检查于 {time}"
     },
