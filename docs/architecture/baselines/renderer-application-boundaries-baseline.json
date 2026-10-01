@@ -405,10 +405,6 @@
     },
     {
       "file": "src/renderer/settings/components/ModelProviderSettingsDetail.vue",
-      "specifier": "@/stores/modelCheck"
-    },
-    {
-      "file": "src/renderer/settings/components/ModelProviderSettingsDetail.vue",
       "specifier": "@/stores/modelStore"
     },
     {
@@ -564,5 +560,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 128
+  "settingsToChatAppImportCount": 127
 }
