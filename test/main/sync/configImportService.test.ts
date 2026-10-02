@@ -503,6 +503,27 @@ describe('SyncConfigImportService', () => {
     }
   })
 
+  it('clears v2 statuses before restoring legacy statuses in overwrite mode', () => {
+    writeJson(path.join(extractionDir, 'configs', 'app-settings.json'), {
+      providers: [provider('imported', 'Imported')],
+      model_status_imported_gpt_4: true
+    })
+    const { tables, close } = openAppSettingsTable(dbPath)
+    tables.setModelStatus('model_status_v2_imported|gpt_4', 'imported', 'gpt_4', false)
+    close()
+
+    new SyncConfigImportService(dbPath).importLegacyConfig(extractionDir, 'overwrite')
+
+    const restored = openAppSettingsTable(dbPath)
+    try {
+      expect(restored.tables.listModelStatusEntries()).toEqual({
+        model_status_imported_gpt_4: true
+      })
+    } finally {
+      restored.close()
+    }
+  })
+
   it('clears present-but-empty legacy sections in overwrite mode', () => {
     writeJson(path.join(extractionDir, 'configs', 'app-settings.json'), {
       providers: []
