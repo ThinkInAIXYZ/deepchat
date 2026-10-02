@@ -78,18 +78,13 @@
         <div class="text-sm font-medium">
           {{ t('update.versionAvailable', { version: formattedUpdateVersion }) }}
         </div>
-        <div
+        <ReleaseNotes
           v-if="upgrade.updateInfo?.releaseNotes"
-          class="mt-3 max-h-40 overflow-y-auto pr-2 text-sm text-muted-foreground"
-        >
-          <NodeRenderer
-            :isDark="themeStore.isDark"
-            :content="upgrade.updateInfo.releaseNotes"
-            :typewriter="false"
-            :final="true"
-            :codeBlockStream="false"
-          ></NodeRenderer>
-        </div>
+          :key="upgrade.updateInfo.version"
+          class="mt-3"
+          :content="upgrade.updateInfo.releaseNotes"
+          :release-url="upgrade.updateInfo.githubUrl"
+        />
       </div>
 
       <div
@@ -240,6 +235,7 @@ import type { AcceptableValue } from 'reka-ui'
 import { useThemeStore } from '@/stores/theme'
 import { useRoute } from 'vue-router'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
+import ReleaseNotes from './ReleaseNotes.vue'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import UpdateTaskCheckDialog from '@/components/ui/UpdateTaskCheckDialog.vue'
 

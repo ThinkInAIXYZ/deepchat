@@ -57,6 +57,7 @@ const upgradeStoreMock = {
   shouldShowUpdateNotes: true,
   updateInfo: {
     version: '1.0.0-beta.4',
+    githubUrl: 'https://github.com/ThinkInAIXYZ/deepchat/releases/tag/v1.0.0-beta.4',
     releaseNotes: '- Added floating window'
   },
   showManualDownloadOptions: true,
@@ -158,6 +159,7 @@ describe('AboutUsSettings', () => {
       shouldShowUpdateNotes: true,
       updateInfo: {
         version: '1.0.0-beta.4',
+        githubUrl: 'https://github.com/ThinkInAIXYZ/deepchat/releases/tag/v1.0.0-beta.4',
         releaseNotes: '- Added floating window'
       },
       showManualDownloadOptions: true,
