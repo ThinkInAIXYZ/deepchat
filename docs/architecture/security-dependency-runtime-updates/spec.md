@@ -39,10 +39,17 @@ ignore its additional trailing argument. Review MCP App permission handlers, emb
 behavior, worker settings, and capture APIs before treating the runtime update as compatible. Do not
 weaken permission checks to retain behavior disallowed by the security fixes.
 
-Managed Node and the minimum accepted custom/system Node both move to 24.21.0, while the maximum
-remains below 25. Existing custom paths with older Node must be upgraded; OCR still requires the
-official pinned artifact and standalone Node ABI 137. Electron's distinct ABI is not this OCR ABI.
-Keep the toolchain/OCR version guidance consistent across locales. No database migration is needed.
+The managed install target and development Node requirement move to 24.21.0. OCR accepts Node
+versions from 24.21.0 up to, but not including, 25 with standalone Node ABI 137. The OCR resolver
+checks version and ABI, not an exact Node artifact hash; the managed installer separately verifies
+the official archive checksum. Electron's distinct ABI is not this OCR ABI.
+
+Existing managed, system, and custom selections are preserved rather than automatically upgraded.
+Generic chat/MCP child-process resolution does not enforce the OCR version range, so upgrading the
+app alone does not patch a previously selected external Node. Users should install the new official
+runtime in Settings > Toolchains or upgrade their selected system/custom runtime. An older selection
+fails OCR compatibility checks until upgraded. Keep the toolchain/OCR version guidance consistent
+across locales. No database migration is needed.
 
 Upstream compatibility references:
 
