@@ -47,13 +47,12 @@ export class ModelStatusHelper {
     }
 
     const status = this.store.get(statusKey)
-    if (typeof status === 'boolean' || legacyStatusKey === statusKey) {
-      return typeof status === 'boolean' ? status : undefined
+    if (typeof status === 'boolean') {
+      return status
     }
 
     const legacyStatus = this.store.get(legacyStatusKey)
     if (typeof legacyStatus === 'boolean') {
-      this.cache.set(legacyStatusKey, legacyStatus)
       return legacyStatus
     }
     return undefined
@@ -88,7 +87,6 @@ export class ModelStatusHelper {
       }
 
       snapshot.set(key, value)
-      this.cache.set(key, value)
     }
 
     return snapshot
