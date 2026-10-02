@@ -134,7 +134,23 @@ const documentPreviewUrl = computed(() => {
     return null
   }
 
-  return props.filePreview.previewUrl
+  // Scripts may retain the preview's origin, never the application's origin.
+  // In particular, do not replace this protocol URL with srcdoc or a blob URL.
+  try {
+    const url = new URL(props.filePreview.previewUrl)
+    if (
+      url.protocol !== 'workspace-preview:' ||
+      !url.hostname ||
+      url.username ||
+      url.password ||
+      url.port
+    ) {
+      return null
+    }
+    return url.href
+  } catch {
+    return null
+  }
 })
 const documentPreviewSandbox = computed(() => {
   if (props.previewKind === 'html' || props.previewKind === 'svg') {

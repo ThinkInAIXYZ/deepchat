@@ -32,6 +32,31 @@ const createFilePreview = (overrides: Record<string, unknown> = {}) => ({
 
 describe('WorkspacePreviewPane', () => {
   it.each([
+    'file:///app/renderer/index.html',
+    'http://localhost:5173/',
+    'about:blank',
+    'about:srcdoc',
+    'data:text/html,<script>parent.deepchat</script>',
+    'blob:file:///untrusted',
+    'workspace-preview:///missing-host.html',
+    'workspace-preview://user:password@root-id/index.html',
+    'not a URL'
+  ])('displays literal source instead of framing an untrusted URL: %s', (previewUrl) => {
+    const content = '<script>parent.deepchat.invoke("mcp.startServer")</script>'
+    const wrapper = mount(WorkspacePreviewPane, {
+      props: {
+        previewKind: 'html',
+        filePreview: createFilePreview({ previewUrl, content })
+      },
+      global: { stubs: { MarkdownRenderer: true, WorkspaceSvgPreview: true } }
+    })
+
+    expect(wrapper.find('iframe').exists()).toBe(false)
+    expect(wrapper.find('script').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="workspace-preview-raw"]').text()).toBe(content)
+  })
+
+  it.each([
     ['html', 'workspace-preview://root-id/docs/index.html', 'allow-scripts allow-same-origin'],
     ['pdf', 'workspace-preview://root-id/docs/manual.pdf', undefined],
     ['svg', 'workspace-preview://root-id/docs/diagram.svg', 'allow-scripts allow-same-origin']
