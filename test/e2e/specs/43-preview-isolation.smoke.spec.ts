@@ -2,8 +2,10 @@ import { createHash } from 'node:crypto'
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { test, expect } from '../fixtures/electronApp'
 import { waitForAppReady } from '../helpers/wait'
+import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '../../../src/shared/contracts/channels'
 
 test('workspace HTML keeps modules but cannot access the app bridge @smoke', async ({ app }) => {
   await waitForAppReady(app.page)
@@ -54,5 +56,95 @@ test('workspace HTML keeps modules but cannot access the app bridge @smoke', asy
       await window.deepchat.invoke('workspace.unregister', { mode: 'workspace', workspacePath })
     }, workspacePath)
     rmSync(workspacePath, { recursive: true, force: true })
+  }
+})
+
+test('the app preload does not follow navigation to unrelated files @smoke', async ({ app }) => {
+  await waitForAppReady(app.page)
+  const directory = mkdtempSync(join(tmpdir(), 'deepchat-preload-isolation-'))
+  const file = join(directory, 'untrusted.html')
+  writeFileSync(file, '<!doctype html><html><body>untrusted-document</body></html>')
+  try {
+    const result = await app.electronApp.evaluate(
+      async ({ BrowserWindow }, input) => {
+        const window = new BrowserWindow({
+          show: false,
+          webPreferences: {
+            preload: input.preload,
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: false
+          }
+        })
+        try {
+          await window.loadURL(input.appUrl)
+          const hasBridge = await window.webContents.executeJavaScript(
+            'typeof window.deepchat?.invoke === "function"'
+          )
+          if (!hasBridge) throw new Error('App preload did not expose its bridge before navigation')
+          await window.loadFile(input.file)
+          return await window.webContents.executeJavaScript(`({
+          content: document.body.textContent,
+          api: typeof window.api,
+          deepchat: typeof window.deepchat,
+          dev: typeof window.__deepchatDev
+        })`)
+        } finally {
+          window.destroy()
+        }
+      },
+      {
+        appUrl: app.page.url(),
+        preload: fileURLToPath(new URL('../preload/index.mjs', app.page.url())),
+        file
+      }
+    )
+    expect(result).toEqual({
+      content: 'untrusted-document',
+      api: 'undefined',
+      deepchat: 'undefined',
+      dev: 'undefined'
+    })
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('main process rejects direct IPC from an unrelated document @smoke', async ({ app }) => {
+  await waitForAppReady(app.page)
+  const directory = mkdtempSync(join(tmpdir(), 'deepchat-ipc-isolation-'))
+  const file = join(directory, 'untrusted.html')
+  const preload = join(directory, 'probe.cjs')
+  writeFileSync(file, '<!doctype html><html><body>IPC probe</body></html>')
+  // Deliberately bypass the normal preload gate to exercise the main-process boundary itself.
+  writeFileSync(
+    preload,
+    `
+    const { contextBridge, ipcRenderer } = require('electron')
+    contextBridge.exposeInMainWorld('probe', {
+      invoke: () => ipcRenderer.invoke(${JSON.stringify(DEEPCHAT_ROUTE_INVOKE_CHANNEL)}, 'config.getLanguage', {})
+        .then(() => 'unexpectedly allowed', error => error.message)
+    })
+  `
+  )
+  try {
+    const result = await app.electronApp.evaluate(
+      async ({ BrowserWindow }, input) => {
+        const window = new BrowserWindow({
+          show: false,
+          webPreferences: { preload: input.preload, contextIsolation: true, nodeIntegration: false }
+        })
+        try {
+          await window.loadFile(input.file)
+          return await window.webContents.executeJavaScript('window.probe.invoke()')
+        } finally {
+          window.destroy()
+        }
+      },
+      { file, preload }
+    )
+    expect(result).toContain('Native IPC is not available to this document')
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
   }
 })

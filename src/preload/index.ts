@@ -2,6 +2,7 @@ import path from 'path'
 import { contextBridge, ipcRenderer, webUtils, webFrame, shell } from 'electron'
 import { CLIPBOARD_IPC_CHANNELS } from '@shared/clipboardChannels'
 import { normalizeExternalUrl } from '@shared/externalUrl'
+import { createAppDocumentMatcher } from '@shared/rendererDocument'
 import { createBridge } from './createBridge'
 
 const isDevHiddenApiEnabled =
@@ -109,10 +110,18 @@ const deepchatDevApi = isDevHiddenApiEnabled
   : undefined
 const deepchatBridge = Object.freeze(createBridge(ipcRenderer))
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
-if (process.contextIsolated) {
+const matchDocument = createAppDocumentMatcher(
+  new URL('../renderer/', import.meta.url).href,
+  process.env.ELECTRON_RENDERER_URL
+)
+const document = matchDocument(window.location.href)
+
+// Navigating a window must not grant its preload's native APIs to unrelated documents.
+if (
+  process.contextIsolated &&
+  process.isMainFrame &&
+  (document === 'main' || document === 'settings')
+) {
   try {
     contextBridge.exposeInMainWorld('api', api)
     contextBridge.exposeInMainWorld('deepchat', deepchatBridge)
@@ -121,15 +130,6 @@ if (process.contextIsolated) {
     }
   } catch (error) {
     console.error('Preload: Failed to expose API via contextBridge:', error)
-  }
-} else {
-  // @ts-ignore (define in dts)
-  window.api = api
-  // @ts-ignore (define in dts)
-  window.deepchat = deepchatBridge
-  if (deepchatDevApi) {
-    // @ts-ignore (define in dts)
-    window.__deepchatDev = deepchatDevApi
   }
 }
 window.addEventListener('DOMContentLoaded', () => {

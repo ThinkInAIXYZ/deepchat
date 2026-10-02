@@ -40,8 +40,8 @@ JavaScript execution already inside the top-level application document.
 ## Implementation and validation
 
 - [x] Enforce preview document sources and Chromium same-origin checks; review and commit this slice.
-- [ ] Enforce preload and IPC document identity, preserving scoped callers; review and commit.
-- [ ] Run targeted regression tests and Electron isolation checks, including supported preview assets.
-- [ ] Complete P0–P3 and unnecessary-design review, format, i18n, lint, and typecheck.
+- [x] Enforce preload and IPC document identity, preserving scoped callers; review and commit.
+- [x] Run targeted regression tests and Electron isolation checks, including supported preview assets.
+- [x] Complete P0–P3 and unnecessary-design review, format, i18n, lint, and typecheck.
 
 Security test payloads use inert markers and read-only routes, not command execution or user data.

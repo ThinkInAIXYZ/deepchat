@@ -1,15 +1,18 @@
 import { clipboard, nativeImage, type IpcMain } from 'electron'
 import { CLIPBOARD_IPC_CHANNELS } from '@shared/clipboardChannels'
+import type { AuthorizeRendererIpc } from './rendererIpcSecurity'
 
 // Electron 44 will remove the clipboard module from renderer processes
 // (including non-sandboxed preloads), so the preload `api` already bridges
 // copy/read through these main-process handlers.
-export function registerClipboardIpc(ipcMain: IpcMain): void {
-  ipcMain.handle(CLIPBOARD_IPC_CHANNELS.WRITE_TEXT, (_event, text: string) =>
+export function registerClipboardIpc(ipcMain: IpcMain, authorize: AuthorizeRendererIpc): void {
+  ipcMain.handle(CLIPBOARD_IPC_CHANNELS.WRITE_TEXT, (event, text: string) => {
+    authorize(event)
     clipboard.writeText(text)
-  )
+  })
 
-  ipcMain.handle(CLIPBOARD_IPC_CHANNELS.WRITE_IMAGE, (_event, dataUrl: string) => {
+  ipcMain.handle(CLIPBOARD_IPC_CHANNELS.WRITE_IMAGE, (event, dataUrl: string) => {
+    authorize(event)
     const image = nativeImage.createFromDataURL(dataUrl)
     if (image.isEmpty()) {
       throw new Error('Image data cannot be copied to clipboard')
@@ -17,5 +20,8 @@ export function registerClipboardIpc(ipcMain: IpcMain): void {
     clipboard.writeImage(image)
   })
 
-  ipcMain.handle(CLIPBOARD_IPC_CHANNELS.READ_TEXT, () => clipboard.readText())
+  ipcMain.handle(CLIPBOARD_IPC_CHANNELS.READ_TEXT, (event) => {
+    authorize(event)
+    return clipboard.readText()
+  })
 }

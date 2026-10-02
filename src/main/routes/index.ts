@@ -21,6 +21,7 @@ import {
   type RouteContext
 } from './routeRegistry'
 import type { StartupWorkloadCoordinator } from '@/app/startupWorkloadCoordinator'
+import type { AuthorizeRendererIpc } from '@/app/rendererIpcSecurity'
 
 export type RouteDispatcher = {
   appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort
@@ -219,11 +220,16 @@ export async function dispatchDeepchatRoute(
   throw new Error(`Unhandled deepchat route: ${routeName}`)
 }
 
-export function registerDeepchatRoutes(ipcMain: IpcMain, dispatcher: RouteDispatcher): void {
+export function registerDeepchatRoutes(
+  ipcMain: IpcMain,
+  dispatcher: RouteDispatcher,
+  authorize: AuthorizeRendererIpc
+): void {
   ipcMain.removeHandler(DEEPCHAT_ROUTE_INVOKE_CHANNEL)
   ipcMain.handle(
     DEEPCHAT_ROUTE_INVOKE_CHANNEL,
     async (event: IpcMainInvokeEvent, routeName: string, rawInput: unknown) => {
+      authorize(event, routeName)
       return await dispatchDeepchatRoute(
         dispatcher,
         routeName,

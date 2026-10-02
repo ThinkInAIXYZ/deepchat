@@ -30,6 +30,7 @@ import {
   sessionsUpdatedEvent
 } from '@shared/contracts/events'
 import path from 'path'
+import { pathToFileURL } from 'node:url'
 import { DialogService } from '../desktop/dialog'
 import { safeStorage, app, ipcMain, webContents as electronWebContents } from 'electron'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
@@ -139,6 +140,7 @@ import { createHookRoutes } from '../hook/routes'
 import { createAppSettingsRoutes } from './settingsRoutes'
 import { createAppRoutes } from './routes'
 import { registerClipboardIpc } from './clipboardIpc'
+import { createRendererIpcAuthorizer } from './rendererIpcSecurity'
 import { ApprovalBroker, createApprovalRoutes } from '@/approval'
 import {
   CommandPermissionService,
@@ -3431,8 +3433,13 @@ export async function createMainProcessControl(dependencies: {
       settingsWindow: windowPresenter,
       startupWorkloadCoordinator
     })
-    registerDeepchatRoutes(ipcMain, routeDispatcher)
-    registerClipboardIpc(ipcMain)
+    const authorizeRendererIpc = createRendererIpcAuthorizer({
+      rendererDirectoryUrl: pathToFileURL(path.join(__dirname, '../renderer/')).href,
+      developmentServerUrl: app.isPackaged ? undefined : process.env.ELECTRON_RENDERER_URL,
+      pluginSettingsWindow
+    })
+    registerDeepchatRoutes(ipcMain, routeDispatcher, authorizeRendererIpc)
+    registerClipboardIpc(ipcMain, authorizeRendererIpc)
   }
 
   function setupApplicationListeners(): void {
