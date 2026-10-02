@@ -668,7 +668,7 @@ describe('ToolchainService', () => {
 
   it('keeps a custom path that points inside a managed tree', () => {
     const { service, userDataDir } = createService()
-    const pin = path.join(userDataDir, 'toolchains', 'node', 'v24.18.0')
+    const pin = path.join(userDataDir, 'toolchains', 'node', NODE_PIN)
     const previous = path.join(userDataDir, 'toolchains', 'node', 'v22.14.0')
     seedNodeTree(pin)
     seedNodeTree(previous)
@@ -684,7 +684,7 @@ describe('ToolchainService', () => {
 
   it('still collects an unused managed version when custom path is outside', () => {
     const { service, userDataDir } = createService()
-    const pin = path.join(userDataDir, 'toolchains', 'node', 'v24.18.0')
+    const pin = path.join(userDataDir, 'toolchains', 'node', NODE_PIN)
     const previous = path.join(userDataDir, 'toolchains', 'node', 'v22.14.0')
     const outside = mkdtempSync(path.join(os.tmpdir(), 'dc-custom-'))
     seedNodeTree(pin)

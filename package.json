@@ -6,7 +6,7 @@
   "author": "ThinkInAIXYZ",
   "type": "module",
   "engines": {
-    "node": ">=24.18.0 <25",
+    "node": ">=24.21.0 <25",
     "pnpm": ">=10.34.5 <11"
   },
   "packageManager": "pnpm@10.34.5+sha512.a4ee05f2f73658255bd6a89859c065a45c28a57daefae2c893a168ee2b73168c37b91e83e57ea67654ad03f03031746430e8bce38e362e042605fb8abc80192e",
@@ -203,7 +203,7 @@
     "clsx": "^2.1.1",
     "cross-env": "^10.1.0",
     "dayjs": "^1.11.23",
-    "electron": "43.6.0",
+    "electron": "43.7.0",
     "electron-builder": "26.15.3",
     "electron-vite": "5.0.0",
     "jsdom": "^26.1.0",

@@ -39,6 +39,17 @@ ignore its additional trailing argument. Review MCP App permission handlers, emb
 behavior, worker settings, and capture APIs before treating the runtime update as compatible. Do not
 weaken permission checks to retain behavior disallowed by the security fixes.
 
+Managed Node and the minimum accepted custom/system Node both move to 24.21.0, while the maximum
+remains below 25. Existing custom paths with older Node must be upgraded; OCR still requires the
+official pinned artifact and standalone Node ABI 137. Electron's distinct ABI is not this OCR ABI.
+Keep the toolchain/OCR version guidance consistent across locales. No database migration is needed.
+
+Upstream compatibility references:
+
+- [Electron 43.7.0 release](https://github.com/electron/electron/releases/tag/v43.7.0)
+- [Node 24.21.0 artifacts and checksums](https://nodejs.org/dist/v24.21.0/)
+- [Glob's bundled brace-expansion issue](https://github.com/isaacs/node-glob/issues/657)
+
 ## Acceptance and rollback
 
 - The current audit has no remaining known advisories in the selected dependency graph.

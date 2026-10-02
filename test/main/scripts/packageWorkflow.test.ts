@@ -224,7 +224,7 @@ describe('native package reusable workflows', () => {
       expect(sharpIndex).toBeLessThan(installs[1].index)
       const setupNode = steps.find((step) => step.uses?.startsWith('actions/setup-node@'))
       expect(setupNode?.with).toMatchObject({
-        'node-version': '24.18.0',
+        'node-version': '24.21.0',
         'package-manager-cache': false
       })
     }
@@ -412,7 +412,7 @@ fi
   it('firewalls the same Node binary the Light OCR smoke actually uses', () => {
     const source = readWorkflowSource(reusableWorkflows.windows.name)
     expect(source).toContain("$nodePath = [string](node -p 'process.execPath')")
-    expect(source).toContain("if ($nodeVersion -ne 'v24.18.0')")
+    expect(source).toContain("if ($nodeVersion -ne 'v24.21.0')")
     expect(source).not.toContain('Get-Command node')
   })
 })
