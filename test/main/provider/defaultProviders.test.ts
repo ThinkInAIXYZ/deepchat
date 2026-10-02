@@ -133,6 +133,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes FutureInfra as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'futureinfra',
+        name: 'FutureInfra',
+        apiType: 'openai-completions',
+        baseUrl: 'https://futureinfra.ai/v1/ai',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://futureinfra.ai/ai/',
+          apiKey: 'https://futureinfra.ai/console/?screen=ai-router',
+          docs: 'https://futureinfra.ai/docs/',
+          models: 'https://futureinfra.ai/ai/',
+          defaultBaseUrl: 'https://futureinfra.ai/v1/ai'
+        })
+      })
+    )
+  })
+
   it('includes API Route as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
