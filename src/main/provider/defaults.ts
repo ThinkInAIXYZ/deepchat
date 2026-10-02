@@ -137,6 +137,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'yapi',
+    name: 'Y-API',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.y-api.bestvirtualgoods.com/v1',
+    enable: false,
+    websites: {
+      official: 'https://y-api.bestvirtualgoods.com/',
+      apiKey: 'https://y-api.bestvirtualgoods.com/app/keys',
+      docs: 'https://y-api.bestvirtualgoods.com/docs',
+      models: 'https://y-api.bestvirtualgoods.com/models'
+    }
+  },
+  {
     id: 'api-route',
     name: 'API Route',
     apiType: 'openai-completions',
