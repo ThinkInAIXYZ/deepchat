@@ -2,8 +2,7 @@ import type { LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
 import type { ProviderSettingsTable } from './data/settingsTable'
 import type { StoreLike } from '@/config/storeLike'
 import type { IModelStore } from './providerModelHelper'
-
-const MODEL_STATUS_KEY_PREFIX = 'model_status_'
+import { decodeModelStatusKey, LEGACY_MODEL_STATUS_KEY_PREFIX } from './modelStatusKey'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -121,12 +120,19 @@ export class ProviderDbStore implements StoreLike<Record<string, unknown>> {
       : this.settings.get(key) !== undefined
   }
 
+  deleteProviderModelStatuses(providerId: string): void {
+    this.settingsTable.deleteProviderModelStatuses(providerId)
+  }
+
   private isModelStatusKey(key: string): boolean {
-    return key.startsWith(MODEL_STATUS_KEY_PREFIX)
+    return key.startsWith(LEGACY_MODEL_STATUS_KEY_PREFIX)
   }
 
   private parseModelStatusKey(key: string): { providerId: string; modelId: string } {
-    const suffix = key.slice(MODEL_STATUS_KEY_PREFIX.length)
+    const canonical = decodeModelStatusKey(key)
+    if (canonical) return canonical
+
+    const suffix = key.slice(LEGACY_MODEL_STATUS_KEY_PREFIX.length)
     const providerIds = this.settingsTable
       .listProviders()
       .map((provider) => provider.id)

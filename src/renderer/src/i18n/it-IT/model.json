@@ -18,7 +18,9 @@
   "actions": {
     "add": "Aggiungi modello",
     "enableAll": "Attiva tutti",
-    "disableAll": "Disattiva tutti"
+    "disableAll": "Disattiva tutti",
+    "enableFiltered": "Attiva risultati ({count})",
+    "disableFiltered": "Disattiva risultati ({count})"
   },
   "sort": {
     "status": "Per stato",

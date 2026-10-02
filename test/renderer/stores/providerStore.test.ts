@@ -1,57 +1,44 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
-const createDeferred = <T = unknown>() => {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((res) => {
-    resolve = res
-  })
-  return { promise, resolve }
-}
-
-const flushMicrotasks = async (times: number = 8) => {
-  for (let index = 0; index < times; index += 1) {
-    await Promise.resolve()
-  }
-}
-
 async function setupStore() {
   vi.resetModules()
-
   const source = ref([
     {
       id: 'p1',
       name: 'P1',
       apiType: 'openai',
-      apiKey: '',
+      apiKey: 'old-key',
       baseUrl: 'http://old',
       enable: true
     }
   ])
-
   const providerClient = {
     getProviderSummaries: vi.fn(async () => source.value),
     getDefaultProviders: vi.fn(async () => []),
-    validateDraftProvider: vi.fn(async () => ({ isOk: true, errorMsg: null, models: [] })),
+    validateDraftProvider: vi.fn(async () => ({
+      isOk: false,
+      errorMsg: 'AccessDenied.Unpurchased',
+      models: []
+    })),
     updateProviderAtomic: vi.fn(async (providerId: string, updates: Record<string, unknown>) => {
       source.value = source.value.map((provider) =>
         provider.id === providerId ? { ...provider, ...updates } : provider
       )
       return false
     }),
-    setProviderById: vi.fn(async () => undefined),
-    addProviderAtomic: vi.fn(async () => undefined),
-    removeProviderAtomic: vi.fn(async () => undefined),
-    reorderProvidersAtomic: vi.fn(async () => undefined),
+    setProviderById: vi.fn(),
+    addProviderAtomic: vi.fn(),
+    removeProviderAtomic: vi.fn(),
+    reorderProvidersAtomic: vi.fn(),
     testConnection: vi.fn(async () => ({ isOk: true, errorMsg: null })),
     onProvidersChanged: vi.fn(() => vi.fn())
   }
-
   const configClient = {
-    getSetting: vi.fn(async () => undefined),
-    setSetting: vi.fn(async () => undefined)
+    getSetting: vi.fn(async (_key: string): Promise<unknown> => undefined),
+    setSetting: vi.fn(async () => undefined),
+    setAzureApiVersion: vi.fn(async () => undefined)
   }
-
   vi.doMock('../../../src/renderer/api/ProviderClient', () => ({
     createProviderClient: () => providerClient
   }))
@@ -72,172 +59,181 @@ async function setupStore() {
       }
     }
   }))
-  vi.doMock('pinia', async () => {
-    const actual = await vi.importActual<typeof import('pinia')>('pinia')
-    return {
-      ...actual,
-      defineStore: (_id: string, setup: () => unknown) => setup
-    }
-  })
-
+  vi.doMock('pinia', async () => ({
+    ...(await vi.importActual<typeof import('pinia')>('pinia')),
+    defineStore: (_id: string, setup: () => unknown) => setup
+  }))
   const { useProviderStore } = await import('@/stores/providerStore')
   const store = useProviderStore()
-
-  return { store, providerClient, configClient }
+  await store.refreshProviders()
+  return { store, source, providerClient, configClient }
 }
 
-describe('providerStore.stageProviderApiChange', () => {
+describe('provider connection persistence', () => {
+  it.each([
+    { location: 'europe-west1' },
+    { accountClientEmail: 'other@example.invalid' },
+    { apiVersion: 'v1beta1' }
+  ])('invalidates health when Vertex connection fields change: %j', async (updates) => {
+    const { store } = await setupStore()
+    await store.updateProviderConfig('p1', { apiType: 'vertex' })
+    await store.checkProvider('p1')
+    await store.updateVertexProviderConfig('p1', updates)
+    expect(store.getProviderHealth('p1').status).toBe('not_checked')
+  })
+
+  it('invalidates an in-flight Azure check when its API version changes', async () => {
+    const { store, source, providerClient } = await setupStore()
+    source.value[0].id = 'azure-openai'
+    await store.refreshProviders()
+    let finish!: (result: { isOk: boolean; errorMsg: null }) => void
+    providerClient.testConnection.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    const check = store.checkProvider('azure-openai')
+    await store.setAzureApiVersion('2025-01-01-preview')
+    finish({ isOk: true, errorMsg: null })
+    await check
+    expect(store.getProviderHealth('azure-openai').status).toBe('not_checked')
+  })
+
+  it('preserves manual order when enabling or disabling a provider', async () => {
+    const { store, source, configClient } = await setupStore()
+    source.value = [
+      { ...source.value[0], id: 'a', enable: false },
+      { ...source.value[0], id: 'b' },
+      { ...source.value[0], id: 'c' }
+    ]
+    configClient.getSetting.mockImplementation(async (key) =>
+      key === 'providerOrder' ? ['a', 'b', 'c'] : undefined
+    )
+    await store.refreshProviders()
+    await store.updateProviderStatus('b', false)
+    expect(store.sortedProviders.value.map((provider) => provider.id)).toEqual(['a', 'b', 'c'])
+    await store.updateProviderStatus('a', true)
+    expect(store.sortedProviders.value.map((provider) => provider.id)).toEqual(['a', 'b', 'c'])
+  })
+
   it('invalidates cached health when the OpenAI authentication mode changes', async () => {
     const { store } = await setupStore()
-    await store.refreshProviders()
-
     await store.checkProvider('p1')
     expect(store.getProviderHealth('p1').status).toBe('verified')
-
     await store.updateProviderConfig('p1', { openaiAuthMode: 'chatgpt' })
     expect(store.getProviderHealth('p1').status).toBe('not_checked')
   })
 
-  it('serializes overlapping key and endpoint edits per provider', async () => {
-    const { store, providerClient } = await setupStore()
-
-    const deferreds: ReturnType<typeof createDeferred<{ isOk: boolean }>>[] = []
-    let inFlight = 0
-    let maxInFlight = 0
-    const stagedDrafts: Array<Record<string, unknown>> = []
-
-    providerClient.validateDraftProvider.mockImplementation(
-      async (draft: Record<string, unknown>) => {
-        stagedDrafts.push(draft)
-        inFlight += 1
-        maxInFlight = Math.max(maxInFlight, inFlight)
-        const deferred = createDeferred<{ isOk: boolean }>()
-        deferreds.push(deferred)
-        return deferred.promise.finally(() => {
-          inFlight -= 1
-        })
-      }
-    )
-
-    const keyEdit = store.stageProviderApiChange('p1', { apiKey: 'K1' })
-    const baseEdit = store.stageProviderApiChange('p1', { baseUrl: 'U1' })
-    await flushMicrotasks()
-
-    // Only the first edit may be validating while the second is queued.
-    expect(deferreds).toHaveLength(1)
-
-    deferreds[0].resolve({ isOk: true })
-    await keyEdit
-    await flushMicrotasks()
-
-    // The endpoint edit validates against the state that already includes the
-    // committed key, so a never-validated combination cannot be persisted.
-    expect(deferreds).toHaveLength(2)
-    expect(stagedDrafts[1]).toMatchObject({ apiKey: 'K1', baseUrl: 'U1' })
-
-    deferreds[1].resolve({ isOk: true })
-    await baseEdit
-
-    expect(maxInFlight).toBe(1)
-    expect(providerClient.updateProviderAtomic).toHaveBeenCalledTimes(2)
-    expect(providerClient.updateProviderAtomic).toHaveBeenNthCalledWith(1, 'p1', {
-      apiKey: 'K1'
+  it('saves key and URL atomically without requiring access to the default probe model', async () => {
+    const { store, source, providerClient, configClient } = await setupStore()
+    await store.checkProvider('p1')
+    await store.updateProviderApi('p1', 'replacement', 'https://new.example/v1')
+    expect(providerClient.updateProviderAtomic).toHaveBeenCalledExactlyOnceWith('p1', {
+      apiKey: 'replacement',
+      baseUrl: 'https://new.example/v1'
     })
-    expect(providerClient.updateProviderAtomic).toHaveBeenNthCalledWith(2, 'p1', {
-      baseUrl: 'U1'
+    expect(source.value[0]).toMatchObject({
+      apiKey: 'replacement',
+      baseUrl: 'https://new.example/v1'
+    })
+    expect(providerClient.validateDraftProvider).not.toHaveBeenCalled()
+    expect(store.getProviderHealth('p1').status).toBe('not_checked')
+    await store.checkProvider('p1', 'qwen3.8-flash')
+    expect(providerClient.testConnection).toHaveBeenLastCalledWith({
+      providerId: 'p1',
+      modelId: 'qwen3.8-flash'
+    })
+    expect(store.getProviderHealth('p1')).toMatchObject({
+      status: 'verified',
+      modelId: 'qwen3.8-flash'
+    })
+    expect(configClient.setSetting).toHaveBeenLastCalledWith('providerHealth', {
+      p1: expect.objectContaining({ modelId: 'qwen3.8-flash' })
     })
   })
 
-  it('keeps the previous configuration when the first queued edit fails validation', async () => {
-    const { store, providerClient } = await setupStore()
-
-    const deferreds: ReturnType<typeof createDeferred<{ isOk: boolean }>>[] = []
-    const stagedDrafts: Array<Record<string, unknown>> = []
-
-    providerClient.validateDraftProvider.mockImplementation(
-      async (draft: Record<string, unknown>) => {
-        stagedDrafts.push(draft)
-        const deferred = createDeferred<{ isOk: boolean }>()
-        deferreds.push(deferred)
-        return deferred.promise
-      }
-    )
-
-    const keyEdit = store.stageProviderApiChange('p1', { apiKey: 'K1' })
-    const baseEdit = store.stageProviderApiChange('p1', { baseUrl: 'U1' })
-    await flushMicrotasks()
-
-    // The queued key edit fails verification before the endpoint edit runs.
-    deferreds[0].resolve({ isOk: false })
-    await keyEdit
-    await flushMicrotasks()
-
-    // The endpoint edit then validates against the unchanged key.
-    expect(deferreds).toHaveLength(2)
-    expect(stagedDrafts[1]).toMatchObject({ apiKey: '', baseUrl: 'U1' })
-
-    deferreds[1].resolve({ isOk: true })
-    await baseEdit
-
-    // Only the valid endpoint edit is persisted; the rejected key is not.
-    expect(providerClient.updateProviderAtomic).toHaveBeenCalledTimes(1)
-    expect(providerClient.updateProviderAtomic).toHaveBeenNthCalledWith(1, 'p1', {
-      baseUrl: 'U1'
-    })
+  it('does not replace persisted configuration when the write fails', async () => {
+    const { store, source, providerClient } = await setupStore()
+    providerClient.updateProviderAtomic.mockRejectedValueOnce(new Error('write failed'))
+    await expect(
+      store.updateProviderApi('p1', 'replacement', 'https://new.example')
+    ).rejects.toThrow('write failed')
+    expect(source.value[0]).toMatchObject({ apiKey: 'old-key', baseUrl: 'http://old' })
   })
 
-  it('validates configured custom headers atomically before persisting them', async () => {
-    const { store, providerClient, configClient } = await setupStore()
+  it('saves configured custom headers without remote verification or a false healthy status', async () => {
+    const { store, source, providerClient } = await setupStore()
     await store.markProviderConfigured('p1')
-    providerClient.updateProviderAtomic.mockClear()
-    configClient.setSetting.mockClear()
-
-    providerClient.validateDraftProvider.mockResolvedValueOnce({
-      isOk: false,
-      errorMsg: 'Connection failed',
-      models: []
-    })
-    const rejected = await store.saveProviderCustomHeaders('p1', {
-      'X-Tenant-ID': 'rejected-team'
-    })
-
-    expect(rejected).toEqual({ isOk: false, errorMsg: 'Connection failed' })
-    expect(providerClient.updateProviderAtomic).not.toHaveBeenCalled()
-
-    providerClient.validateDraftProvider.mockResolvedValueOnce({
+    await store.checkProvider('p1')
+    expect(await store.saveProviderCustomHeaders('p1', { 'X-Tenant-ID': 'team-a' })).toEqual({
       isOk: true,
-      errorMsg: null,
-      models: []
+      errorMsg: null
     })
-    const accepted = await store.saveProviderCustomHeaders('p1', {
-      'X-Tenant-ID': 'team-a',
-      'CF-Access-Client-Secret': 'secret'
-    })
+    expect(source.value[0]).toMatchObject({ customHeaders: { 'X-Tenant-ID': 'team-a' } })
+    expect(providerClient.validateDraftProvider).not.toHaveBeenCalled()
+    expect(store.getProviderHealth('p1').status).toBe('not_checked')
+  })
 
-    expect(accepted).toEqual({ isOk: true, errorMsg: null })
-    expect(providerClient.validateDraftProvider).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        id: 'p1',
-        customHeaders: {
-          'X-Tenant-ID': 'team-a',
-          'CF-Access-Client-Secret': 'secret'
-        }
-      }),
-      { loadModels: false }
-    )
-    expect(providerClient.updateProviderAtomic).toHaveBeenCalledWith('p1', {
-      customHeaders: {
-        'X-Tenant-ID': 'team-a',
-        'CF-Access-Client-Secret': 'secret'
+  it.each([true, false])(
+    'keeps the latest check authoritative when old finishes first: %s',
+    async (oldFirst) => {
+      const { store, providerClient } = await setupStore()
+      let finishOld!: (result: { isOk: boolean; errorMsg: string | null }) => void
+      let finishNew!: (result: { isOk: boolean; errorMsg: string | null }) => void
+      providerClient.testConnection
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishOld = resolve
+            })
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishNew = resolve
+            })
+        )
+      const oldCheck = store.checkProvider('p1', 'denied-model')
+      const newCheck = store.checkProvider('p1', 'available-model')
+      if (oldFirst) {
+        finishOld({ isOk: false, errorMsg: 'late failure' })
+        await oldCheck
+        expect(store.getProviderHealth('p1').status).toBe('checking')
       }
-    })
-    expect(configClient.setSetting).toHaveBeenCalledWith(
-      'providerHealth',
-      expect.objectContaining({
-        p1: expect.objectContaining({ status: 'verified', fingerprint: expect.any(String) })
+      finishNew({ isOk: true, errorMsg: null })
+      await newCheck
+      if (!oldFirst) {
+        finishOld({ isOk: false, errorMsg: 'late failure' })
+        await oldCheck
+      }
+      expect(store.getProviderHealth('p1')).toMatchObject({
+        status: 'verified',
+        modelId: 'available-model'
       })
-    )
-    const healthWrite = configClient.setSetting.mock.calls.find(([key]) => key === 'providerHealth')
-    expect(JSON.stringify(healthWrite)).not.toContain('secret')
+    }
+  )
+
+  it('records the failed model and clears it for a later default-model check', async () => {
+    const { store, providerClient } = await setupStore()
+    providerClient.testConnection.mockRejectedValueOnce(new Error('model unavailable'))
+    await expect(store.checkProvider('p1', 'denied-model')).rejects.toThrow('model unavailable')
+    expect(store.getProviderHealth('p1')).toMatchObject({
+      status: 'needs_attention',
+      modelId: 'denied-model'
+    })
+    await store.checkProvider('p1')
+    expect(store.getProviderHealth('p1').status).toBe('verified')
+    expect(store.getProviderHealth('p1').modelId).toBeUndefined()
+  })
+
+  it('keeps remote validation for custom-provider creation', async () => {
+    const { store, source, providerClient } = await setupStore()
+    expect(await store.validateDraftProvider(source.value[0])).toMatchObject({
+      isOk: false,
+      errorMsg: 'AccessDenied.Unpurchased'
+    })
+    expect(providerClient.validateDraftProvider).toHaveBeenCalledTimes(1)
+    expect(providerClient.updateProviderAtomic).not.toHaveBeenCalled()
   })
 })

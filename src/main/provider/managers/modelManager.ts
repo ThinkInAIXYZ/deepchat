@@ -15,7 +15,7 @@ export class ModelManager {
   async getModelList(providerId: string): Promise<MODEL_META[]> {
     logger.info(`[ModelManager] getModelList: fetching models for provider "${providerId}"`)
     const provider = this.options.getProviderInstance(providerId)
-    let models = await provider.fetchModels()
+    let models = await provider.fetchModels({ suppressErrors: false })
 
     logger.info(
       `[ModelManager] getModelList: received ${models.length} models from provider "${providerId}"`

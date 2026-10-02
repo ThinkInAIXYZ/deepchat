@@ -1558,7 +1558,7 @@
       },
       "tabs": {
         "connection": "Kết nối",
-        "models": "Người mẫu",
+        "models": "Mô hình",
         "advanced": "Nâng cao"
       }
     },
@@ -1594,10 +1594,20 @@
       "rename": "Đổi tên",
       "delete": "Xóa"
     },
+    "connectionEditor": {
+      "title": "Chỉnh sửa kết nối",
+      "description": "Lưu URL API và khóa cùng nhau. Thao tác lưu không kiểm tra kết nối.",
+      "currentKey": "Khóa hiện tại",
+      "newKey": "Khóa API mới",
+      "keepKey": "Để trống để giữ khóa hiện tại.",
+      "removeKey": "Xóa khóa API",
+      "removeKeyDescription": "Xóa khóa API đã lưu khỏi thiết bị này? Nhà cung cấp và các mô hình sẽ được giữ lại. OAuth và các tiêu đề yêu cầu tùy chỉnh không thay đổi.",
+      "test": "Kiểm tra kết nối"
+    },
     "health": {
-      "verified": "Đã xác minh",
+      "verified": "Lần kiểm tra gần nhất đã thành công",
       "checking": "Đang kiểm tra",
-      "needsAttention": "Cần chú ý",
+      "needsAttention": "Lần kiểm tra gần nhất đã thất bại",
       "notChecked": "Chưa kiểm tra",
       "lastChecked": "Kiểm tra lần cuối {time}"
     },
@@ -1610,6 +1620,7 @@
     },
     "addFlow": {
       "connect": "Kết nối và tải mô hình",
+      "saveOnly": "Lưu mà không kiểm tra",
       "validating": "Đang xác minh kết nối...",
       "loadingModels": "Đang tải mô hình...",
       "failed": "Kết nối thất bại. Kiểm tra cấu hình và thử lại.",

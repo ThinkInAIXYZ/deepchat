@@ -1594,10 +1594,20 @@
       "rename": "Zmień nazwę",
       "delete": "Usuń"
     },
+    "connectionEditor": {
+      "title": "Edytuj połączenie",
+      "description": "Zapisz razem adres URL API i klucz. Zapisanie nie testuje połączenia.",
+      "currentKey": "Bieżący klucz",
+      "newKey": "Nowy klucz API",
+      "keepKey": "Pozostaw puste, aby zachować bieżący klucz.",
+      "removeKey": "Usuń klucz API",
+      "removeKeyDescription": "Usunąć zapisany klucz API z tego urządzenia? Dostawca i modele zostaną zachowane. OAuth i niestandardowe nagłówki żądań pozostaną bez zmian.",
+      "test": "Testuj połączenie"
+    },
     "health": {
-      "verified": "Zweryfikowano",
+      "verified": "Ostatni test zakończony pomyślnie",
       "checking": "Sprawdzanie",
-      "needsAttention": "Wymaga uwagi",
+      "needsAttention": "Ostatni test nie powiódł się",
       "notChecked": "Nie sprawdzono",
       "lastChecked": "Ostatnie sprawdzenie {time}"
     },
@@ -1610,6 +1620,7 @@
     },
     "addFlow": {
       "connect": "Połącz i wczytaj modele",
+      "saveOnly": "Zapisz bez testowania",
       "validating": "Weryfikacja połączenia...",
       "loadingModels": "Wczytywanie modeli...",
       "failed": "Połączenie nie powiodło się. Sprawdź konfigurację i spróbuj ponownie.",

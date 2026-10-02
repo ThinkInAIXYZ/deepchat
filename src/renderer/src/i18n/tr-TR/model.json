@@ -18,7 +18,9 @@
   "actions": {
     "add": "Model Ekle",
     "enableAll": "Tümünü Etkinleştir",
-    "disableAll": "Tümünü Devre Dışı Bırak"
+    "disableAll": "Tümünü Devre Dışı Bırak",
+    "enableFiltered": "Sonuçları etkinleştir ({count})",
+    "disableFiltered": "Sonuçları devre dışı bırak ({count})"
   },
   "sort": {
     "status": "Duruma Göre",

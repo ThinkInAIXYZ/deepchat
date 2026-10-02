@@ -1,10 +1,14 @@
 import type { StoreLike } from '@/config/storeLike'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import { emitModelBatchStatusChanged, emitModelStatusChanged } from './eventPublishers'
+import {
+  decodeModelStatusKey,
+  encodeLegacyModelStatusKey,
+  encodeModelStatusKey,
+  LEGACY_MODEL_STATUS_KEY_PREFIX
+} from './modelStatusKey'
 
 type SetSetting = <T>(key: string, value: T) => void
-
-const MODEL_STATUS_KEY_PREFIX = 'model_status_'
 
 interface ModelStatusHelperOptions {
   store: StoreLike<any>
@@ -26,8 +30,32 @@ export class ModelStatusHelper {
   }
 
   private getStatusKey(providerId: string, modelId: string): string {
-    const formattedModelId = modelId.replace(/\./g, '-')
-    return `${MODEL_STATUS_KEY_PREFIX}${providerId}_${formattedModelId}`
+    return encodeModelStatusKey(providerId, modelId)
+  }
+
+  private getLegacyStatusKey(providerId: string, modelId: string): string {
+    return encodeLegacyModelStatusKey(providerId, modelId)
+  }
+
+  private getStoredStatus(
+    statusKey: string,
+    legacyStatusKey: string,
+    statusSnapshot: Map<string, boolean> | null
+  ): boolean | undefined {
+    if (statusSnapshot) {
+      return statusSnapshot.get(statusKey) ?? statusSnapshot.get(legacyStatusKey)
+    }
+
+    const status = this.store.get(statusKey)
+    if (typeof status === 'boolean') {
+      return status
+    }
+
+    const legacyStatus = this.store.get(legacyStatusKey)
+    if (typeof legacyStatus === 'boolean') {
+      return legacyStatus
+    }
+    return undefined
   }
 
   private getRawStoreEntries(): [string, unknown][] | null {
@@ -50,7 +78,7 @@ export class ModelStatusHelper {
 
     const snapshot = new Map<string, boolean>()
     for (const [key, value] of rawEntries) {
-      if (!key.startsWith(MODEL_STATUS_KEY_PREFIX)) {
+      if (!key.startsWith(LEGACY_MODEL_STATUS_KEY_PREFIX)) {
         continue
       }
 
@@ -59,7 +87,6 @@ export class ModelStatusHelper {
       }
 
       snapshot.set(key, value)
-      this.cache.set(key, value)
     }
 
     return snapshot
@@ -81,14 +108,8 @@ export class ModelStatusHelper {
     }
 
     const statusSnapshot = this.getStatusSnapshot()
-    if (statusSnapshot) {
-      const status = statusSnapshot.get(statusKey) ?? false
-      this.cache.set(statusKey, status)
-      return status
-    }
-
-    const status = this.store.get(statusKey) as boolean | undefined
-    const finalStatus = typeof status === 'boolean' ? status : false
+    const legacyStatusKey = this.getLegacyStatusKey(providerId, modelId)
+    const finalStatus = this.getStoredStatus(statusKey, legacyStatusKey, statusSnapshot) ?? false
     this.cache.set(statusKey, finalStatus)
     return finalStatus
   }
@@ -100,7 +121,8 @@ export class ModelStatusHelper {
     if (statusSnapshot) {
       for (const modelId of modelIds) {
         const statusKey = this.getStatusKey(providerId, modelId)
-        const status = statusSnapshot.get(statusKey) ?? false
+        const legacyStatusKey = this.getLegacyStatusKey(providerId, modelId)
+        const status = this.getStoredStatus(statusKey, legacyStatusKey, statusSnapshot) ?? false
         this.cache.set(statusKey, status)
         result[modelId] = status
       }
@@ -124,8 +146,8 @@ export class ModelStatusHelper {
     for (let i = 0; i < uncachedModelIds.length; i++) {
       const modelId = uncachedModelIds[i]
       const statusKey = uncachedKeys[i]
-      const status = this.store.get(statusKey) as boolean | undefined
-      const finalStatus = typeof status === 'boolean' ? status : false
+      const legacyStatusKey = this.getLegacyStatusKey(providerId, modelId)
+      const finalStatus = this.getStoredStatus(statusKey, legacyStatusKey, null) ?? false
       this.cache.set(statusKey, finalStatus)
       result[modelId] = finalStatus
     }
@@ -173,16 +195,17 @@ export class ModelStatusHelper {
 
   ensureModelStatus(providerId: string, modelId: string, enabled: boolean): void {
     const statusKey = this.getStatusKey(providerId, modelId)
+    const legacyStatusKey = this.getLegacyStatusKey(providerId, modelId)
 
-    if (this.cache.has(statusKey) || this.hasStoredStatus(statusKey)) {
+    if (
+      this.cache.has(statusKey) ||
+      this.hasStoredStatus(statusKey) ||
+      this.hasStoredStatus(legacyStatusKey)
+    ) {
       if (!this.cache.has(statusKey)) {
         const statusSnapshot = this.getStatusSnapshot()
-        if (statusSnapshot) {
-          this.cache.set(statusKey, statusSnapshot.get(statusKey) ?? false)
-        } else {
-          const status = this.store.get(statusKey) as boolean | undefined
-          this.cache.set(statusKey, typeof status === 'boolean' ? status : false)
-        }
+        const status = this.getStoredStatus(statusKey, legacyStatusKey, statusSnapshot)
+        this.cache.set(statusKey, status ?? false)
       }
       return
     }
@@ -198,14 +221,9 @@ export class ModelStatusHelper {
   }
 
   clearProviderModelStatusCache(providerId: string): void {
-    const prefix = `${MODEL_STATUS_KEY_PREFIX}${providerId}_`
-    const keysToDelete: string[] = []
     for (const key of this.cache.keys()) {
-      if (key.startsWith(prefix)) {
-        keysToDelete.push(key)
-      }
+      if (decodeModelStatusKey(key)?.providerId === providerId) this.cache.delete(key)
     }
-    keysToDelete.forEach((key) => this.cache.delete(key))
     this.statusSnapshot = null
   }
 
@@ -247,43 +265,32 @@ export class ModelStatusHelper {
 
   deleteModelStatus(providerId: string, modelId: string): void {
     const statusKey = this.getStatusKey(providerId, modelId)
-    this.store.delete(statusKey)
-    this.cache.delete(statusKey)
-    this.statusSnapshot?.delete(statusKey)
+    const legacyStatusKey = this.getLegacyStatusKey(providerId, modelId)
+    if (this.hasStoredStatus(legacyStatusKey)) {
+      this.setSetting(statusKey, false)
+      this.cache.set(statusKey, false)
+      this.statusSnapshot?.set(statusKey, false)
+    } else {
+      this.store.delete(statusKey)
+      this.cache.delete(statusKey)
+      this.statusSnapshot?.delete(statusKey)
+    }
   }
 
   deleteProviderModelStatuses(providerId: string): void {
-    const prefix = `${MODEL_STATUS_KEY_PREFIX}${providerId}_`
-    const keysToDelete = new Set<string>()
-
-    const rawEntries = this.getRawStoreEntries()
-    if (rawEntries) {
-      for (const [key] of rawEntries) {
-        if (key.startsWith(prefix)) {
-          keysToDelete.add(key)
-        }
+    const store = this.store as StoreLike<any> & {
+      deleteProviderModelStatuses?: (id: string) => void
+    }
+    if (store.deleteProviderModelStatuses) {
+      store.deleteProviderModelStatuses(providerId)
+    } else {
+      const keys = new Set((this.getRawStoreEntries() ?? []).map(([key]) => key))
+      for (const key of this.cache.keys()) keys.add(key)
+      for (const key of keys) {
+        if (decodeModelStatusKey(key)?.providerId === providerId) this.store.delete(key)
       }
     }
-
-    const statusSnapshot = this.getStatusSnapshot()
-    if (statusSnapshot) {
-      for (const key of statusSnapshot.keys()) {
-        if (key.startsWith(prefix)) {
-          keysToDelete.add(key)
-        }
-      }
-    }
-
-    for (const key of this.cache.keys()) {
-      if (key.startsWith(prefix)) {
-        keysToDelete.add(key)
-      }
-    }
-
-    for (const key of keysToDelete) {
-      this.store.delete(key)
-    }
-
-    this.clearProviderModelStatusCache(providerId)
+    this.cache.clear()
+    this.statusSnapshot = null
   }
 }

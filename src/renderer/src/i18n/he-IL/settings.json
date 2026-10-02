@@ -1176,7 +1176,7 @@
     "bedrockLimitTip": "* נתמך רק עבור Anthropic Claude (כולל מודלי Opus, Sonnet, Haiku)",
     "bedrockVerifyTip": "DeepChat משתמש ב-Claude 3.5 Sonnet לאימות. אם אין לך הרשאה להפעיל אותו, האימות ייכשל. זה לא ישפיע על השימוש במודלים אחרים.",
     "center": {
-      "title": "Provider Center",
+      "title": "מרכז ספקים",
       "description": "Manage provider connections, models, and advanced configuration.",
       "noApiUrl": "No API URL configured",
       "enabledModels": "{count} models enabled",
@@ -1188,9 +1188,9 @@
         "local": "Local"
       },
       "tabs": {
-        "connection": "Connect",
-        "models": "Models",
-        "advanced": "Advanced"
+        "connection": "חיבור",
+        "models": "מודלים",
+        "advanced": "מתקדם"
       }
     },
     "openaiCodexPasteCallback": "הדבק כתובת URL לחזרה",
@@ -1225,10 +1225,20 @@
       "rename": "שינוי שם",
       "delete": "מחיקה"
     },
+    "connectionEditor": {
+      "title": "עריכת חיבור",
+      "description": "שמירת כתובת ה-API והמפתח יחד. השמירה אינה בודקת את החיבור.",
+      "currentKey": "המפתח הנוכחי",
+      "newKey": "מפתח API חדש",
+      "keepKey": "יש להשאיר ריק כדי לשמור את המפתח הנוכחי.",
+      "removeKey": "הסרת מפתח API",
+      "removeKeyDescription": "להסיר מהמכשיר הזה את מפתח ה-API השמור? הספק והמודלים יישמרו. OAuth וכותרות בקשה מותאמות אישית לא ישתנו.",
+      "test": "בדיקת החיבור"
+    },
     "health": {
-      "verified": "מאומת",
+      "verified": "הבדיקה האחרונה הצליחה",
       "checking": "בבדיקה",
-      "needsAttention": "דורש טיפול",
+      "needsAttention": "הבדיקה האחרונה נכשלה",
       "notChecked": "לא נבדק",
       "lastChecked": "נבדק לאחרונה {time}"
     },
@@ -1241,6 +1251,7 @@
     },
     "addFlow": {
       "connect": "התחברות וטעינת מודלים",
+      "saveOnly": "שמירה ללא בדיקה",
       "validating": "מאמת את החיבור...",
       "loadingModels": "טוען מודלים...",
       "failed": "החיבור נכשל. בדקו את התצורה ונסו שוב.",

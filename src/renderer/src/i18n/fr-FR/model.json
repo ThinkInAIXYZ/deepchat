@@ -18,7 +18,9 @@
   "actions": {
     "add": "Ajouter un modèle",
     "enableAll": "Tout activer",
-    "disableAll": "Tout désactiver"
+    "disableAll": "Tout désactiver",
+    "enableFiltered": "Activer les résultats ({count})",
+    "disableFiltered": "Désactiver les résultats ({count})"
   },
   "sort": {
     "status": "Par statut",

@@ -133,14 +133,17 @@
         </div>
       </div>
     </div>
+
+    <DcInlineError v-if="saveError" :error="saveError" data-testid="voiceai-config-save-error" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 import { useI18n } from 'vue-i18n'
 import { useProviderStore } from '@/stores/providerStore'
+import { DcInlineError } from '@dc-ui/components/inline-error'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Separator } from '@shadcn/components/ui/separator'
@@ -153,7 +156,7 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Icon } from '@iconify/vue'
-import { useDebounceFn } from '@vueuse/core'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 defineProps<{
   provider: LLM_PROVIDER
@@ -169,6 +172,7 @@ const temperature = ref(1)
 const topP = ref(0.8)
 const agentId = ref('')
 const isHydrating = ref(true)
+const saveError = ref('')
 
 const languageOptions = [
   { value: 'en', label: 'English (en)' },
@@ -193,9 +197,71 @@ type VoiceAIConfigUpdates = {
   agentId?: string
 }
 
-const persistUpdates = useDebounceFn(async (updates: VoiceAIConfigUpdates) => {
-  await providerStore.updateVoiceAIConfig(updates)
-}, 200)
+let committedConfig: Required<VoiceAIConfigUpdates> | undefined
+let pendingUpdates: VoiceAIConfigUpdates = {}
+let debounceTimer: ReturnType<typeof setTimeout> | undefined
+let isSaving = false
+let isUnmounted = false
+
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: 'settings.voiceAIConfig',
+  onDiscard: () => {
+    if (debounceTimer) clearTimeout(debounceTimer)
+    debounceTimer = undefined
+    pendingUpdates = {}
+    saveError.value = ''
+    if (committedConfig && !isUnmounted) {
+      isHydrating.value = true
+      audioFormat.value = committedConfig.audioFormat
+      ttsModel.value = committedConfig.model
+      language.value = committedConfig.language
+      temperature.value = committedConfig.temperature
+      topP.value = committedConfig.topP
+      agentId.value = committedConfig.agentId
+      isHydrating.value = false
+    }
+    leaveGuardLease.setRisk('clean')
+    if (isUnmounted) leaveGuardLease.release()
+  }
+})
+
+const hasPendingUpdates = () => Object.keys(pendingUpdates).length > 0
+
+const flushUpdates = async () => {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = undefined
+  if (isSaving || !hasPendingUpdates()) return
+
+  const updates = pendingUpdates
+  pendingUpdates = {}
+  isSaving = true
+  leaveGuardLease.setRisk('busy')
+  try {
+    await providerStore.updateVoiceAIConfig(updates)
+    saveError.value = ''
+    if (committedConfig) Object.assign(committedConfig, updates)
+  } catch {
+    pendingUpdates = { ...updates, ...pendingUpdates }
+    saveError.value = t('settings.deepchatAgents.saveFeedback.saveFailed')
+  } finally {
+    isSaving = false
+    if (hasPendingUpdates()) {
+      leaveGuardLease.setRisk('dirty')
+      if (!saveError.value) void flushUpdates()
+    } else {
+      leaveGuardLease.setRisk('clean')
+    }
+    if (isUnmounted && !isSaving) leaveGuardLease.release()
+  }
+}
+
+const persistUpdates = (updates: VoiceAIConfigUpdates) => {
+  pendingUpdates = { ...pendingUpdates, ...updates }
+  saveError.value = ''
+  leaveGuardLease.setRisk(isSaving ? 'busy' : 'dirty')
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => void flushUpdates(), 200)
+}
 
 const loadConfig = async () => {
   isHydrating.value = true
@@ -206,6 +272,7 @@ const loadConfig = async () => {
   temperature.value = config.temperature
   topP.value = config.topP
   agentId.value = config.agentId
+  committedConfig = { ...config }
   isHydrating.value = false
 }
 
@@ -213,37 +280,62 @@ onMounted(() => {
   void loadConfig()
 })
 
-watch(audioFormat, (value) => {
-  if (isHydrating.value) return
-  void persistUpdates({ audioFormat: value })
+onUnmounted(() => {
+  isUnmounted = true
+  if (hasPendingUpdates()) {
+    void flushUpdates()
+  } else if (!isSaving) {
+    leaveGuardLease.release()
+  }
 })
 
-watch(ttsModel, (value) => {
-  if (isHydrating.value) return
-  void persistUpdates({ model: value })
-})
+watch(
+  audioFormat,
+  (value) => {
+    if (isHydrating.value) return
+    persistUpdates({ audioFormat: value })
+  },
+  { flush: 'sync' }
+)
 
-watch(language, (value) => {
-  if (isHydrating.value) return
-  void persistUpdates({ language: value })
-})
+watch(
+  ttsModel,
+  (value) => {
+    if (isHydrating.value) return
+    persistUpdates({ model: value })
+  },
+  { flush: 'sync' }
+)
 
-watch(agentId, (value) => {
-  if (isHydrating.value) return
-  void persistUpdates({ agentId: value })
-})
+watch(
+  language,
+  (value) => {
+    if (isHydrating.value) return
+    persistUpdates({ language: value })
+  },
+  { flush: 'sync' }
+)
+
+watch(
+  agentId,
+  (value) => {
+    if (isHydrating.value) return
+    persistUpdates({ agentId: value })
+  },
+  { flush: 'sync' }
+)
 
 const onTemperatureChange = (value: number[] | undefined) => {
   if (!value || value[0] === undefined) return
   temperature.value = value[0]
   if (isHydrating.value) return
-  void persistUpdates({ temperature: value[0] })
+  persistUpdates({ temperature: value[0] })
 }
 
 const onTopPChange = (value: number[] | undefined) => {
   if (!value || value[0] === undefined) return
   topP.value = value[0]
   if (isHydrating.value) return
-  void persistUpdates({ topP: value[0] })
+  persistUpdates({ topP: value[0] })
 }
 </script>

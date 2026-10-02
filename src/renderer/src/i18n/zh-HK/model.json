@@ -18,7 +18,9 @@
   "actions": {
     "add": "添加模型",
     "enableAll": "啟用全部",
-    "disableAll": "禁用全部"
+    "disableAll": "禁用全部",
+    "enableFiltered": "啟用篩選結果（{count}）",
+    "disableFiltered": "停用篩選結果（{count}）"
   },
   "sort": {
     "status": "按狀態",

@@ -1594,10 +1594,20 @@
       "rename": "Yeniden adlandır",
       "delete": "Sil"
     },
+    "connectionEditor": {
+      "title": "Bağlantıyı düzenle",
+      "description": "API URL'sini ve anahtarı birlikte kaydedin. Kaydetme işlemi bağlantıyı test etmez.",
+      "currentKey": "Mevcut anahtar",
+      "newKey": "Yeni API Anahtarı",
+      "keepKey": "Mevcut anahtarı korumak için boş bırakın.",
+      "removeKey": "API anahtarını kaldır",
+      "removeKeyDescription": "Kaydedilmiş API anahtarı bu cihazdan kaldırılsın mı? Sağlayıcı ve modeller korunacaktır. OAuth ve özel istek başlıkları değişmeyecektir.",
+      "test": "Bağlantıyı test et"
+    },
     "health": {
-      "verified": "Doğrulandı",
+      "verified": "Son test başarılı",
       "checking": "Kontrol ediliyor",
-      "needsAttention": "İlgilenilmeli",
+      "needsAttention": "Son test başarısız",
       "notChecked": "Kontrol edilmedi",
       "lastChecked": "Son kontrol {time}"
     },
@@ -1610,6 +1620,7 @@
     },
     "addFlow": {
       "connect": "Bağlan ve modelleri yükle",
+      "saveOnly": "Test etmeden kaydet",
       "validating": "Bağlantı doğrulanıyor...",
       "loadingModels": "Modeller yükleniyor...",
       "failed": "Bağlantı başarısız. Yapılandırmayı kontrol edip yeniden deneyin.",

@@ -330,7 +330,7 @@ export class ModelConfigHelper {
    * @param modelId - The model ID
    * @returns Safe cache key string
    */
-  private generateCacheKey(providerId: string, modelId: string): string {
+  generateCacheKey(providerId: string, modelId: string): string {
     // Replace dots and other problematic characters that could interfere with electron-store's key parsing
     const sanitizeString = (str: string): string => {
       return str
@@ -535,8 +535,7 @@ export class ModelConfigHelper {
    * @param providerId - The provider ID
    * @param config - The model configuration
    */
-  setModelConfig(modelId: string, providerId: string, config: ModelConfig): ModelConfig {
-    const cacheKey = this.generateCacheKey(providerId, modelId)
+  prepareModelConfig(modelId: string, providerId: string, config: ModelConfig): IModelConfig {
     const normalizedTimeout =
       typeof config.timeout === 'number' && Number.isFinite(config.timeout) && config.timeout > 0
         ? Math.round(config.timeout)
@@ -553,11 +552,18 @@ export class ModelConfigHelper {
       source: 'user'
     }
 
+    return configData
+  }
+
+  setModelConfig(modelId: string, providerId: string, config: ModelConfig): ModelConfig {
+    const cacheKey = this.generateCacheKey(providerId, modelId)
+    const configData = this.prepareModelConfig(modelId, providerId, config)
+
     // Update both store and cache
     this.modelConfigStore.set(cacheKey, configData)
     this.memoryCache.set(cacheKey, configData)
 
-    return storedConfig
+    return configData.config
   }
 
   /**

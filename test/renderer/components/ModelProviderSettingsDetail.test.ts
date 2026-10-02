@@ -11,18 +11,11 @@ const passthrough = (name: string) =>
 
 const providerApiConfigStub = defineComponent({
   name: 'ProviderApiConfig',
-  emits: [
-    'api-host-change',
-    'api-key-change',
-    'auth-mode-change',
-    'validate-key',
-    'delete-provider',
-    'oauth-success',
-    'oauth-error'
-  ],
+  props: ['provider', 'save'],
+  emits: ['auth-mode-change', 'delete-provider', 'oauth-success', 'oauth-error'],
   template: `
     <div>
-      <button data-testid="save-api-key" @click="$emit('api-key-change', 'updated-key')">save</button>
+      <button data-testid="save-api-key" @click="save(provider.id, { apiKey: 'updated-key', baseUrl: provider.baseUrl })">save</button>
       <button data-testid="use-chatgpt" @click="$emit('auth-mode-change', 'chatgpt')">chatgpt</button>
     </div>
   `
@@ -39,11 +32,7 @@ const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   ...overrides
 })
 
-async function setup(options?: {
-  provider?: LLM_PROVIDER
-  updatedProvider?: LLM_PROVIDER
-  stageResult?: { isOk: boolean; errorMsg: string | null }
-}) {
+async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_PROVIDER }) {
   vi.resetModules()
   const notifyRendererMock = vi.fn()
 
@@ -77,16 +66,18 @@ async function setup(options?: {
     removeProvider: vi.fn().mockResolvedValue(undefined),
     getProviderHealth: vi.fn(() => ({ status: 'not_checked' })),
     saveProviderCustomHeaders: vi.fn().mockResolvedValue({ isOk: true, errorMsg: null }),
-    stageProviderApiChange: vi
-      .fn()
-      .mockResolvedValue(options?.stageResult ?? { isOk: true, errorMsg: null })
+    validateDraftProvider: vi.fn().mockResolvedValue({
+      isOk: false,
+      errorMsg: 'AccessDenied.Unpurchased',
+      models: []
+    })
   }
 
   const modelStore = {
     allProviderModels: [],
     customModels: [],
     refreshProviderModels: vi.fn().mockResolvedValue(true),
-    updateModelStatus: vi.fn().mockResolvedValue(undefined),
+    updateModelStatus: vi.fn().mockResolvedValue(true),
     disableAllModels: vi.fn().mockResolvedValue(undefined)
   }
 
@@ -191,9 +182,9 @@ describe('ModelProviderSettingsDetail', () => {
     expect(providerStore.updateProviderApi).toHaveBeenCalledWith(
       'anthropic',
       'updated-key',
-      undefined
+      'https://api.anthropic.com'
     )
-    expect(providerStore.stageProviderApiChange).not.toHaveBeenCalled()
+    expect(providerStore.validateDraftProvider).not.toHaveBeenCalled()
     expect(wrapper.emitted('provider-configured')).toHaveLength(1)
   })
 
@@ -216,30 +207,18 @@ describe('ModelProviderSettingsDetail', () => {
     expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('openai')
   })
 
-  it('stages a key replacement for an already configured provider', async () => {
+  it('saves a replacement even when the fixed probe model would reject it', async () => {
     const { wrapper, providerStore } = await setup()
 
     await wrapper.get('[data-testid="save-api-key"]').trigger('click')
     await flushPromises()
 
-    expect(providerStore.stageProviderApiChange).toHaveBeenCalledWith('anthropic', {
-      apiKey: 'updated-key'
-    })
-    expect(providerStore.updateProviderApi).not.toHaveBeenCalled()
-  })
-
-  it('keeps the previous configuration and reports when staged verification fails', async () => {
-    const { wrapper, providerStore, notifyRendererMock } = await setup({
-      stageResult: { isOk: false, errorMsg: 'bad key' }
-    })
-
-    await wrapper.get('[data-testid="save-api-key"]').trigger('click')
-    await flushPromises()
-
-    expect(providerStore.updateProviderApi).not.toHaveBeenCalled()
-    expect(notifyRendererMock).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'error', description: 'bad key' })
+    expect(providerStore.updateProviderApi).toHaveBeenCalledWith(
+      'anthropic',
+      'updated-key',
+      'https://api.anthropic.com'
     )
+    expect(providerStore.validateDraftProvider).not.toHaveBeenCalled()
   })
 
   it('does not emit provider-configured while the provider stays disabled', async () => {
@@ -268,5 +247,86 @@ describe('ModelProviderSettingsDetail', () => {
     await flushPromises()
 
     expect(providerStore.updateProviderStatus).toHaveBeenCalledWith('anthropic', false)
+  })
+
+  it('does not emit model-enabled and shows a localized error when persistence fails', async () => {
+    const { wrapper, modelStore, notifyRendererMock } = await setup()
+    modelStore.updateModelStatus.mockResolvedValue(false)
+
+    const vm = wrapper.vm as unknown as {
+      handleModelEnabledChange: (model: { id: string }, enabled: boolean) => Promise<void>
+    }
+    await vm.handleModelEnabledChange({ id: 'claude-test' }, true)
+
+    expect(wrapper.emitted('provider-model-enabled')).toBeUndefined()
+    expect(notifyRendererMock).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'settings.provider.modelStatusUpdateFailed',
+      title: 'common.error.operationFailed',
+      description: 'settings.deepchatAgents.saveFeedback.saveFailed'
+    })
+  })
+
+  it('keeps the disable confirmation open when persistence fails', async () => {
+    const { wrapper, modelStore } = await setup()
+    modelStore.updateModelStatus.mockResolvedValue(false)
+    const model = { id: 'claude-test' }
+    const vm = wrapper.vm as unknown as {
+      handleModelEnabledChange: (
+        model: { id: string },
+        enabled: boolean,
+        confirm: boolean
+      ) => Promise<void>
+      confirmDisable: () => Promise<void>
+      showConfirmDialog: boolean
+      modelToDisable: { id: string } | null
+    }
+
+    await vm.handleModelEnabledChange(model, false, true)
+    await vm.confirmDisable()
+
+    expect(vm.showConfirmDialog).toBe(true)
+    expect(vm.modelToDisable).toEqual(model)
+  })
+
+  it.each(['false', 'rejection', 'success'])('reports refresh outcome: %s', async (outcome) => {
+    const { wrapper, modelStore, notifyRendererMock } = await setup()
+    if (outcome === 'rejection') {
+      modelStore.refreshProviderModels.mockRejectedValueOnce(new Error('secret upstream error'))
+    } else {
+      modelStore.refreshProviderModels.mockResolvedValueOnce(outcome === 'success')
+    }
+    const vm = wrapper.vm as unknown as {
+      handleRefreshModels: () => Promise<void>
+      isRefreshingModels: boolean
+      isModelListLoading: boolean
+    }
+
+    await vm.handleRefreshModels()
+
+    expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('anthropic', true)
+    expect(vm.isRefreshingModels).toBe(false)
+    expect(vm.isModelListLoading).toBe(false)
+    if (outcome === 'success') {
+      expect(notifyRendererMock).not.toHaveBeenCalled()
+    } else {
+      expect(notifyRendererMock).toHaveBeenCalledExactlyOnceWith({
+        kind: 'error',
+        code: 'settings.provider.modelRefreshFailed',
+        title: 'settings.provider.toast.refreshModelsFailedTitle',
+        description: 'settings.provider.toast.refreshModelsFailedDescription'
+      })
+    }
+  })
+
+  it('renders Vertex credentials in the connection section', async () => {
+    const { wrapper } = await setup({
+      provider: createProvider({ id: 'vertex', apiType: 'vertex' })
+    })
+
+    const vertex = wrapper.findComponent({ name: 'VertexProviderSettingsDetail' })
+    expect(vertex.exists()).toBe(true)
+    expect(vertex.element.closest('[data-testid="provider-connection-section"]')).not.toBeNull()
+    expect(vertex.element.closest('[data-testid="provider-advanced-section"]')).toBeNull()
   })
 })

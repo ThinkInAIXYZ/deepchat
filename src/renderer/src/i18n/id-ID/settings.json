@@ -1545,7 +1545,7 @@
     "bedrockLimitTip": "* Hanya mendukung Anthropic Claude (termasuk model Opus, Soneta, Haiku)",
     "bedrockVerifyTip": "DeepChat menggunakan Claude 3.5 verifikasi model Soneta. Jika Anda tidak memiliki izin menelepon untuk model ini, verifikasi akan gagal. Hal ini tidak mempengaruhi penggunaan model lainnya.",
     "center": {
-      "title": "Provider Pusat",
+      "title": "Pusat Penyedia",
       "description": "Kelola koneksi penyedia, model, dan konfigurasi lanjutan.",
       "noApiUrl": "Tidak dikonfigurasi API URL",
       "enabledModels": "Model {count} diaktifkan",
@@ -1594,10 +1594,20 @@
       "rename": "Ubah nama",
       "delete": "Hapus"
     },
+    "connectionEditor": {
+      "title": "Edit koneksi",
+      "description": "Simpan URL API dan kunci secara bersamaan. Menyimpan tidak menguji koneksi.",
+      "currentKey": "Kunci saat ini",
+      "newKey": "Kunci API baru",
+      "keepKey": "Biarkan kosong untuk mempertahankan kunci saat ini.",
+      "removeKey": "Hapus kunci API",
+      "removeKeyDescription": "Hapus kunci API yang tersimpan dari perangkat ini? Penyedia dan model akan tetap dipertahankan. OAuth dan header permintaan khusus tidak berubah.",
+      "test": "Uji koneksi"
+    },
     "health": {
-      "verified": "Terverifikasi",
+      "verified": "Pengujian terakhir berhasil",
       "checking": "Memeriksa",
-      "needsAttention": "Perlu perhatian",
+      "needsAttention": "Pengujian terakhir gagal",
       "notChecked": "Belum diperiksa",
       "lastChecked": "Terakhir diperiksa {time}"
     },
@@ -1610,6 +1620,7 @@
     },
     "addFlow": {
       "connect": "Hubungkan dan muat model",
+      "saveOnly": "Simpan tanpa menguji",
       "validating": "Memverifikasi koneksi...",
       "loadingModels": "Memuat model...",
       "failed": "Koneksi gagal. Periksa konfigurasi dan coba lagi.",

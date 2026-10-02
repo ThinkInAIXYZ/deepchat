@@ -1,4 +1,5 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
+import type { MODEL_META } from '@shared/types/provider'
 import type { OAuthServicePort } from '@shared/types/oauth'
 import type { AcpProviderAdminPort } from '@/provider/ports'
 import {
@@ -22,6 +23,7 @@ import {
   modelsListRuntimeRoute,
   modelsRemoveCustomRoute,
   modelsResetConfigRoute,
+  modelsSaveCustomRoute,
   modelsSetBatchStatusRoute,
   modelsSetConfigRoute,
   modelsSetStatusRoute,
@@ -600,6 +602,19 @@ export function createProviderRoutes(deps: {
         const input = modelsAddCustomRoute.input.parse(rawInput)
         return modelsAddCustomRoute.output.parse({
           model: await providerRuntime.addCustomModel(input.providerId, input.model)
+        })
+      }
+    ],
+    [
+      modelsSaveCustomRoute.name,
+      async (rawInput, context) => {
+        requireRendererCaller(context)
+        const input = modelsSaveCustomRoute.input.parse(rawInput)
+        return modelsSaveCustomRoute.output.parse({
+          model: providerSettings.saveCustomModel({
+            ...input,
+            model: input.model as MODEL_META
+          })
         })
       }
     ],

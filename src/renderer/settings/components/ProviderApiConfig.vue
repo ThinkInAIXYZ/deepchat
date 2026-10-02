@@ -7,6 +7,7 @@
           data-testid="openai-api-key-mode-button"
           :variant="isOpenAIChatGPTMode ? 'outline' : 'default'"
           size="sm"
+          :disabled="editorOpen || isSaving"
           @click="$emit('auth-mode-change', 'api-key')"
         >
           {{ t('settings.provider.openaiApiKeyMode') }}
@@ -15,6 +16,7 @@
           data-testid="openai-chatgpt-mode-button"
           :variant="isOpenAIChatGPTMode ? 'default' : 'outline'"
           size="sm"
+          :disabled="editorOpen || isSaving"
           @click="$emit('auth-mode-change', 'chatgpt')"
         >
           {{ t('settings.provider.openaiChatGPTMode') }}
@@ -36,163 +38,237 @@
       </div>
     </div>
 
-    <!-- API URL 配置 -->
-    <div v-if="!isOpenAIChatGPTMode" class="flex flex-col items-start gap-2">
-      <div class="flex justify-between items-center w-full">
-        <Label :for="`${provider.id}-url`" class="flex-1">API URL</Label>
-        <DcButton
-          v-if="provider.custom"
-          variant="destructive"
-          size="sm"
-          class="text-xs rounded-lg"
-          @click="$emit('delete-provider')"
-        >
-          <Icon icon="lucide:trash-2" class="w-4 h-4 mr-1" />{{ t('settings.provider.delete') }}
-        </DcButton>
-      </div>
-      <div v-if="showLockedBaseUrl" class="flex w-full items-center gap-2">
-        <div
-          :id="`${provider.id}-url`"
-          class="flex h-9 flex-1 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
-        >
-          <span class="truncate">
-            {{ apiHost || t('settings.provider.urlPlaceholder') }}
-          </span>
-        </div>
-        <DcButton
-          variant="outline"
-          size="sm"
-          class="shrink-0 text-xs"
-          @click="requestBaseUrlUnlock"
-        >
-          {{ t('settings.provider.modifyBaseUrl') }}
-        </DcButton>
-      </div>
-      <Input
-        v-else
-        :id="`${provider.id}-url`"
-        :model-value="apiHost"
-        :placeholder="t('settings.provider.urlPlaceholder')"
-        @blur="handleApiHostBlur"
-        @keyup.enter="handleApiHostChange(apiHost)"
-        @update:model-value="apiHost = String($event)"
-      />
-      <div class="text-xs text-muted-foreground">
-        <TooltipProvider v-if="hasDefaultBaseUrl && !showLockedBaseUrl" :delayDuration="200">
-          <Tooltip>
-            <TooltipTrigger as-child>
-              <button
-                type="button"
-                class="text-xs text-muted-foreground underline decoration-dotted underline-offset-2 transition-colors hover:text-foreground"
-                :aria-label="t('settings.provider.urlFormatFill')"
-                @click="fillDefaultBaseUrl"
+    <Dialog :open="editorOpen" @update:open="handleEditorOpenChange">
+      <div v-if="!isOpenAIChatGPTMode" class="flex flex-col gap-2">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="text-sm font-medium">API URL</span>
+          <div class="flex items-center gap-2">
+            <DcButton
+              v-if="provider.custom"
+              variant="ghost"
+              size="sm"
+              class="text-destructive"
+              :disabled="isSaving"
+              @click="$emit('delete-provider')"
+            >
+              <Icon icon="lucide:trash-2" class="size-4" />
+              {{ t('settings.provider.delete') }}
+            </DcButton>
+            <DialogTrigger as-child>
+              <DcButton
+                data-testid="provider-connection-edit"
+                variant="outline"
+                size="sm"
+                :disabled="isSaving"
               >
-                {{
-                  t('settings.provider.urlFormat', {
-                    defaultUrl: defaultBaseUrl
-                  })
-                }}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {{ t('settings.provider.urlFormatFill') }}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <span v-else-if="showLockedBaseUrl">
-          {{ t('settings.provider.baseUrlLockedHint') }}
-        </span>
-        <span v-else>
-          {{
-            t('settings.provider.urlFormat', {
-              defaultUrl: defaultBaseUrl
-            })
-          }}
-        </span>
+                <Icon icon="lucide:pencil" class="size-3.5" />
+                {{ t('settings.provider.connectionEditor.title') }}
+              </DcButton>
+            </DialogTrigger>
+          </div>
+        </div>
+        <p
+          data-testid="provider-url-summary"
+          class="text-sm leading-5 text-muted-foreground break-all"
+        >
+          {{ provider.baseUrl || t('settings.provider.center.noApiUrl') }}
+        </p>
+        <DcInlineError
+          v-if="saveError && !editorOpen && !showRemoveKeyDialog"
+          :error="saveError"
+          data-testid="provider-connection-error"
+        />
       </div>
-    </div>
+
+      <DialogContent
+        data-testid="provider-connection-dialog"
+        class="max-h-[85vh] overflow-y-auto sm:max-w-lg"
+        :hide-close="isSaving"
+      >
+        <DialogHeader>
+          <DialogTitle>{{ t('settings.provider.connectionEditor.title') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('settings.provider.connectionEditor.description') }}
+          </DialogDescription>
+        </DialogHeader>
+        <form class="flex min-w-0 flex-col gap-4" @submit.prevent="saveConnection">
+          <div class="flex min-w-0 flex-col gap-2">
+            <Label :for="`${provider.id}-url`">API URL</Label>
+            <Input
+              :id="`${provider.id}-url`"
+              data-testid="provider-api-url-input"
+              v-model="apiHost"
+              :placeholder="t('settings.provider.urlPlaceholder')"
+              :disabled="isSaving"
+              :spellcheck="false"
+              autocomplete="off"
+            />
+            <button
+              v-if="defaultBaseUrl"
+              type="button"
+              class="text-left text-xs leading-5 text-muted-foreground underline decoration-dotted underline-offset-2 break-all hover:text-foreground disabled:pointer-events-none"
+              :aria-label="t('settings.provider.urlFormatFill')"
+              :disabled="isSaving"
+              @click="apiHost = defaultBaseUrl"
+            >
+              {{ t('settings.provider.urlFormat', { defaultUrl: defaultBaseUrl }) }}
+            </button>
+          </div>
+          <template v-if="usesApiKey">
+            <div v-if="hasStoredKey" class="flex flex-col gap-1">
+              <span class="text-sm font-medium">
+                {{ t('settings.provider.connectionEditor.currentKey') }}
+              </span>
+              <span
+                data-testid="provider-current-key"
+                class="font-mono text-sm text-muted-foreground"
+              >
+                {{ maskedApiKey }}
+              </span>
+            </div>
+            <div class="flex flex-col gap-2">
+              <Label :for="`${provider.id}-apikey`">
+                {{ hasStoredKey ? t('settings.provider.connectionEditor.newKey') : 'API Key' }}
+              </Label>
+              <div class="relative">
+                <Input
+                  data-testid="provider-api-key-input"
+                  :id="`${provider.id}-apikey`"
+                  v-model="apiKey"
+                  :type="showApiKey ? 'text' : 'password'"
+                  :placeholder="t('settings.provider.keyPlaceholder')"
+                  :disabled="isSaving"
+                  :spellcheck="false"
+                  :aria-describedby="hasStoredKey ? `${provider.id}-key-hint` : undefined"
+                  autocomplete="new-password"
+                  class="pr-10"
+                />
+                <DcButton
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  class="absolute right-1 top-1/2 -translate-y-1/2"
+                  :disabled="isSaving"
+                  :aria-label="showApiKey ? t('common.hideValue') : t('common.showValue')"
+                  @click="showApiKey = !showApiKey"
+                >
+                  <Icon :icon="showApiKey ? 'lucide:eye-off' : 'lucide:eye'" class="size-4" />
+                </DcButton>
+              </div>
+              <p
+                v-if="hasStoredKey"
+                :id="`${provider.id}-key-hint`"
+                class="text-xs text-muted-foreground"
+              >
+                {{ t('settings.provider.connectionEditor.keepKey') }}
+              </p>
+            </div>
+          </template>
+          <DcInlineError
+            v-if="saveError"
+            :error="saveError"
+            data-testid="provider-connection-error"
+          />
+          <DialogFooter>
+            <DcButton
+              data-testid="provider-connection-cancel"
+              type="button"
+              variant="outline"
+              :disabled="isSaving"
+              @click="handleEditorOpenChange(false)"
+            >
+              {{ t('common.cancel') }}
+            </DcButton>
+            <DcButton
+              data-testid="provider-connection-save"
+              type="submit"
+              :disabled="!isDirty || isSaving || !apiHost.trim()"
+            >
+              <Spinner v-if="isSaving" data-icon="inline-start" />
+              {{ t('common.save') }}
+            </DcButton>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+
+    <DcConfirmDialog
+      :open="showRemoveKeyDialog"
+      :title="t('settings.provider.connectionEditor.removeKey')"
+      :description="t('settings.provider.connectionEditor.removeKeyDescription')"
+      :confirm-label="t('settings.provider.connectionEditor.removeKey')"
+      :busy="isSaving"
+      :confirm-attrs="{ 'data-testid': 'provider-remove-key-confirm' }"
+      @update:open="handleRemoveKeyDialogOpenChange"
+      @confirm="removeApiKey"
+    >
+      <DcInlineError v-if="saveError" :error="saveError" data-testid="provider-connection-error" />
+    </DcConfirmDialog>
 
     <GitHubCopilotOAuth
       v-if="provider.id === 'github-copilot'"
       :provider="provider"
-      @auth-success="handleOAuthSuccess"
-      @auth-error="handleOAuthError"
+      @auth-success="emit('oauth-success')"
+      @auth-error="emit('oauth-error', $event)"
     />
-
     <OpenAICodexOAuth
       v-else-if="provider.id === 'openai-codex' || isOpenAIChatGPTMode"
       :provider="provider"
-      @auth-success="handleOAuthSuccess"
-      @auth-error="handleOAuthError"
+      @auth-success="emit('oauth-success')"
+      @auth-error="emit('oauth-error', $event)"
     />
-
-    <div v-else class="flex flex-col items-start gap-4">
+    <div v-else class="flex flex-col gap-4">
       <GrokOAuth
         v-if="isGrokOAuthAvailable"
         :provider="provider"
-        @auth-success="handleOAuthSuccess"
-        @auth-error="handleOAuthError"
+        @auth-success="emit('oauth-success')"
+        @auth-error="emit('oauth-error', $event)"
       />
-
-      <div
-        v-if="isGrokOAuthAvailable"
-        class="w-full border-t border-border pt-3 text-xs text-muted-foreground"
-      >
+      <p v-if="isGrokOAuthAvailable" class="border-t pt-3 text-xs text-muted-foreground">
         {{ t('settings.provider.xaiGrokApiKeyAlternative') }}
-      </div>
-
-      <div class="flex flex-col gap-2 w-full">
-        <Label :for="`${provider.id}-apikey`" class="w-full">API Key</Label>
-        <div v-if="showKeySummary" class="flex w-full items-center gap-2">
-          <div
-            data-testid="provider-api-key-summary"
-            class="group flex h-9 flex-1 items-center gap-1 rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
+      </p>
+      <div class="flex flex-col gap-2">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <span class="text-sm font-medium">API Key</span>
+          <a
+            v-if="providerApiKeyUrl"
+            :href="providerApiKeyUrl"
+            target="_blank"
+            rel="noreferrer"
+            class="text-xs text-primary hover:underline"
           >
-            <span class="min-w-0 flex-1 truncate font-mono">{{ maskedApiKey }}</span>
-            <DcCopyButton
-              data-testid="provider-copy-key-button"
-              :copy-text="provider.apiKey"
-              variant="ghost"
-              size="icon-xs"
-              :tooltip="t('common.copy')"
-              class="shrink-0 opacity-0 pointer-events-none transition-opacity duration-[var(--dc-motion-fast)] focus-visible:opacity-100 focus-visible:pointer-events-auto group-hover:opacity-100 group-hover:pointer-events-auto"
-            />
-          </div>
-          <DcButton
-            data-testid="provider-update-key-button"
-            variant="outline"
-            size="sm"
-            class="shrink-0 text-xs"
-            @click="startEditingKey"
-          >
-            {{ t('settings.provider.updateKey') }}
-          </DcButton>
+            {{ t('settings.provider.howToGet') }}
+          </a>
         </div>
-        <div v-else class="relative w-full">
-          <Input
-            data-testid="provider-api-key-input"
-            :id="`${provider.id}-apikey`"
-            :model-value="apiKey"
-            :type="showApiKey ? 'text' : 'password'"
-            :placeholder="t('settings.provider.keyPlaceholder')"
-            style="padding-right: 2.5rem !important"
-            @blur="handleApiKeyBlur"
-            @keyup.enter="handleValidateKey"
-            @update:model-value="apiKey = String($event)"
+        <div
+          v-if="hasStoredKey"
+          data-testid="provider-api-key-summary"
+          class="group flex min-h-8 items-center gap-2"
+        >
+          <span class="font-mono text-sm text-muted-foreground">{{ maskedApiKey }}</span>
+          <DcCopyButton
+            data-testid="provider-copy-key-button"
+            :copy-text="provider.apiKey"
+            variant="ghost"
+            size="icon-xs"
+            :tooltip="t('common.copy')"
+            class="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
           />
           <DcButton
+            data-testid="provider-remove-key"
+            type="button"
             variant="ghost"
             size="sm"
-            class="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 hover:bg-transparent"
-            :tooltip="showApiKey ? t('common.hideValue') : t('common.showValue')"
-            @click="showApiKey = !showApiKey"
+            class="text-destructive"
+            :disabled="isSaving || editorOpen"
+            @click="showRemoveKeyDialog = true"
           >
-            <Icon
-              :icon="showApiKey ? 'lucide:eye-off' : 'lucide:eye'"
-              class="w-4 h-4 text-muted-foreground hover:text-foreground"
-            />
+            {{ t('settings.provider.connectionEditor.removeKey') }}
           </DcButton>
         </div>
+        <p v-else data-testid="provider-key-missing" class="text-sm text-muted-foreground">
+          {{ t('settings.toolchains.sources.unconfigured') }}
+        </p>
         <DcInlineError
           v-if="keyStatusError"
           data-testid="provider-key-status-error"
@@ -203,63 +279,28 @@
           v-if="
             keyStatus && (keyStatus.usage !== undefined || keyStatus.limit_remaining !== undefined)
           "
-          class="flex items-center gap-2 text-xs text-muted-foreground"
+          class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
         >
-          <div v-if="keyStatus.usage !== undefined" class="flex items-center gap-1">
-            <Icon icon="lucide:activity" class="w-3 h-3" />
-            <span>{{ t('settings.provider.keyStatus.usage') }}: {{ keyStatus.usage }}</span>
-          </div>
-          <div v-if="keyStatus.limit_remaining !== undefined" class="flex items-center gap-1">
-            <Icon icon="lucide:coins" class="w-3 h-3" />
-            <span
-              >{{ t('settings.provider.keyStatus.remaining') }}:
-              {{ keyStatus.limit_remaining }}</span
-            >
-          </div>
+          <span v-if="keyStatus.usage !== undefined">
+            {{ t('settings.provider.keyStatus.usage') }}: {{ keyStatus.usage }}
+          </span>
+          <span v-if="keyStatus.limit_remaining !== undefined">
+            {{ t('settings.provider.keyStatus.remaining') }}: {{ keyStatus.limit_remaining }}
+          </span>
         </div>
       </div>
-      <div class="flex flex-row gap-2">
+      <div class="flex items-center border-t pt-3">
         <DcButton
           data-testid="provider-verify-button"
           variant="outline"
           size="sm"
-          class="text-xs text-normal rounded-lg"
           :disabled="!canVerifyProvider"
           @click="openModelCheckDialog"
         >
-          <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />{{
-            t('settings.provider.verifyKey')
-          }}
-        </DcButton>
-        <DcButton
-          data-testid="provider-refresh-models-button"
-          variant="outline"
-          size="sm"
-          class="text-xs text-normal rounded-lg"
-          :disabled="isRefreshing"
-          @click="refreshModels"
-        >
-          <Spinner
-            v-if="isRefreshing"
-            class="size-4 text-muted-foreground"
-            data-icon="inline-start"
-          />
-          <Icon
-            v-else
-            icon="lucide:refresh-cw"
-            class="size-4 text-muted-foreground"
-            data-icon="inline-start"
-          />
-          {{
-            isRefreshing
-              ? t('settings.provider.refreshingModels')
-              : t('settings.provider.refreshModels')
-          }}
+          <Icon icon="lucide:check-check" class="size-4 text-muted-foreground" />
+          {{ t('settings.provider.connectionEditor.test') }}
         </DcButton>
       </div>
-      <p v-if="usesProviderDb" class="text-xs leading-5 text-muted-foreground">
-        {{ t('settings.provider.refreshModelsWithMetadataHint') }}
-      </p>
       <p
         v-if="provider.id === 'amd-developer'"
         data-testid="amd-developer-hint"
@@ -267,28 +308,27 @@
       >
         {{ t('settings.provider.amdDeveloperHint') }}
       </p>
-      <div v-if="!provider.custom" class="text-xs text-muted-foreground">
-        {{ t('settings.provider.howToGet') }}: {{ t('settings.provider.getKeyTip') }}
-        <a :href="providerApiKeyUrl" target="_blank" class="text-primary">{{ provider.name }}</a>
-        {{ t('settings.provider.getKeyTipEnd') }}
-      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DcInlineError } from '@dc-ui/components/inline-error'
 import { Label } from '@shadcn/components/ui/label'
 import { Input } from '@shadcn/components/ui/input'
 import { DcButton, DcCopyButton } from '@dc-ui/components/button'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger
-} from '@shadcn/components/ui/tooltip'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '@shadcn/components/ui/dialog'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
@@ -297,7 +337,7 @@ import GrokOAuth from './GrokOAuth.vue'
 import { createProviderClient } from '@api/ProviderClient'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER, KeyStatus } from '@shared/types/provider'
-import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 interface ProviderWebsites {
   official: string
@@ -310,172 +350,130 @@ interface ProviderWebsites {
 const { t } = useI18n()
 const providerClient = createProviderClient()
 const modelCheckStore = useModelCheckStore()
-
-const EDITABLE_BASE_URL_PROVIDER_IDS = new Set([
-  'openai',
-  'openai-responses',
-  'new-api',
-  'anthropic',
-  'gemini',
-  'ollama',
-  'lmstudio',
-  'azure-openai',
-  'vertex',
-  // Tenant-specific endpoint: the Cloudflare account id is a path segment of the base URL.
-  'cloudflare'
-])
-
 const props = defineProps<{
   provider: LLM_PROVIDER
   providerWebsites?: ProviderWebsites
-  usesProviderDb?: boolean
+  save: (providerId: string, updates: { apiKey: string; baseUrl: string }) => Promise<void>
 }>()
-
 const emit = defineEmits<{
-  'api-host-change': [value: string]
-  'api-key-change': [value: string]
   'auth-mode-change': [value: 'api-key' | 'chatgpt']
-  'validate-key': [value: string]
   'delete-provider': []
   'oauth-success': []
   'oauth-error': [error: string]
 }>()
 
-const apiKey = ref(props.provider.apiKey || '')
-const apiHost = ref(props.provider.baseUrl || '')
+const editorOpen = ref(false)
+const apiKey = ref('')
+const apiHost = ref('')
+const showApiKey = ref(false)
+const isSaving = ref(false)
+const saveError = ref('')
+const showRemoveKeyDialog = ref(false)
+const keyStatus = ref<KeyStatus | null>(null)
+const keyStatusError = ref('')
 const isOpenAIChatGPTMode = computed(
   () => props.provider.id === 'openai' && props.provider.openaiAuthMode === 'chatgpt'
 )
-const keyStatus = ref<KeyStatus | null>(null)
-const keyStatusError = ref('')
-const isRefreshing = ref(false)
-const showApiKey = ref(false)
-const isEditingKey = ref(false)
-const baseUrlUnlocked = ref(false)
-// After setup the stored key renders as a masked summary; the full secret is
-// never shown again — replacing it goes through the explicit Update key action.
-// The copy button writes the plaintext key to the clipboard as an explicit
-// user action without ever displaying it on screen.
-const showKeySummary = computed(() => !isEditingKey.value && Boolean(props.provider.apiKey?.trim()))
+const usesApiKey = computed(
+  () =>
+    !isOpenAIChatGPTMode.value && !['github-copilot', 'openai-codex'].includes(props.provider.id)
+)
+const hasStoredKey = computed(() => Boolean(props.provider.apiKey?.trim()))
+const replacementKey = computed(() => apiKey.value.trim() || props.provider.apiKey || '')
+const isDirty = computed(
+  () =>
+    editorOpen.value &&
+    (replacementKey.value !== (props.provider.apiKey || '') ||
+      apiHost.value.trim() !== (props.provider.baseUrl || ''))
+)
 const maskedApiKey = computed(() => {
   const key = props.provider.apiKey?.trim() ?? ''
   return key.length > 8 ? `••••••••${key.slice(-4)}` : '••••••••'
 })
 const defaultBaseUrl = computed(() => props.providerWebsites?.defaultBaseUrl?.trim() || '')
-const hasDefaultBaseUrl = computed(() => defaultBaseUrl.value.length > 0)
-const isBaseUrlEditableByDefault = computed(
-  () => props.provider.custom || EDITABLE_BASE_URL_PROVIDER_IDS.has(props.provider.id)
-)
-const showLockedBaseUrl = computed(
-  () => !isBaseUrlEditableByDefault.value && !baseUrlUnlocked.value
-)
 const isGrokOAuthAvailable = computed(() => {
-  if (props.provider.id !== 'grok') {
-    return false
-  }
-
+  if (props.provider.id !== 'grok') return false
   try {
-    const url = new URL(apiHost.value.trim())
+    const url = new URL(props.provider.baseUrl)
     return url.protocol === 'https:' && (url.hostname === 'x.ai' || url.hostname.endsWith('.x.ai'))
   } catch {
     return false
   }
 })
 const providerApiKeyUrl = computed(() => {
-  if (props.provider.id !== 'new-api') {
-    return props.providerWebsites?.apiKey || ''
+  if (props.provider.id === 'new-api') {
+    try {
+      return `${new URL(props.provider.baseUrl || defaultBaseUrl.value).origin}/console/token`
+    } catch {
+      return props.providerWebsites?.apiKey || ''
+    }
   }
-
-  const normalizedHost = apiHost.value.trim() || defaultBaseUrl.value
-  if (!normalizedHost) {
-    return props.providerWebsites?.apiKey || ''
-  }
-
-  try {
-    const parsedUrl = new URL(normalizedHost)
-    return `${parsedUrl.origin}/console/token`
-  } catch {
-    return props.providerWebsites?.apiKey || ''
-  }
+  return props.providerWebsites?.apiKey || ''
 })
-const canVerifyProvider = computed(() => props.provider.enable)
+const canVerifyProvider = computed(() => !editorOpen.value && !isSaving.value)
 
-watch(
-  () => props.provider,
-  () => {
-    apiKey.value = props.provider.apiKey || ''
-    apiHost.value = props.provider.baseUrl || ''
-    baseUrlUnlocked.value = false
-    isEditingKey.value = false
-  },
-  { immediate: true }
-)
-
-const startEditingKey = () => {
-  isEditingKey.value = true
+const resetDraft = () => {
   apiKey.value = ''
+  apiHost.value = props.provider.baseUrl || ''
   showApiKey.value = false
+  saveError.value = ''
 }
-
-const handleApiKeyChange = (value: string) => {
-  emit('api-key-change', value)
+const handleEditorOpenChange = (open: boolean) => {
+  if (isSaving.value) return
+  resetDraft()
+  editorOpen.value = open
 }
+const handleRemoveKeyDialogOpenChange = (open: boolean) => {
+  if (isSaving.value) return
+  if (!open) saveError.value = ''
+  showRemoveKeyDialog.value = open
+}
+const leaveGuardLease = settingsLeaveGuard.register({
+  id: 'settings.providerConnection',
+  onDiscard: () => handleEditorOpenChange(false)
+})
+watch(
+  [isSaving, isDirty],
+  ([busy, dirty]) => {
+    leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
+  },
+  { immediate: true, flush: 'sync' }
+)
+onUnmounted(() => leaveGuardLease.release())
 
-const handleApiKeyBlur = (event: FocusEvent) => {
-  const target = event.target as HTMLInputElement | null
-  if (!target) return
-  // Leaving the Update key editor empty keeps the stored key instead of wiping it.
-  if (isEditingKey.value && !target.value.trim()) {
-    isEditingKey.value = false
-    apiKey.value = props.provider.apiKey || ''
-    return
+const saveConnection = async () => {
+  if (!isDirty.value || isSaving.value || !apiHost.value.trim()) return
+  isSaving.value = true
+  saveError.value = ''
+  try {
+    await props.save(props.provider.id, {
+      apiKey: replacementKey.value,
+      baseUrl: apiHost.value.trim()
+    })
+    editorOpen.value = false
+    resetDraft()
+  } catch {
+    // Persistence errors may contain the submitted credential.
+    saveError.value = t('settings.deepchatAgents.saveFeedback.saveFailed')
+  } finally {
+    isSaving.value = false
   }
-  handleApiKeyChange(target.value)
 }
-
-const handleApiHostChange = (value: string) => {
-  emit('api-host-change', value)
-}
-
-const fillDefaultBaseUrl = () => {
-  if (!hasDefaultBaseUrl.value) return
-  apiHost.value = defaultBaseUrl.value
-  handleApiHostChange(defaultBaseUrl.value)
-}
-
-const requestBaseUrlUnlock = () => {
-  baseUrlUnlocked.value = true
-}
-
-const handleApiHostBlur = (event: FocusEvent) => {
-  if (showLockedBaseUrl.value) return
-  const target = event.target as HTMLInputElement | null
-  if (!target) return
-  handleApiHostChange(target.value)
-}
-
-const handleOAuthSuccess = () => {
-  emit('oauth-success')
-}
-
-const handleOAuthError = (error: string) => {
-  emit('oauth-error', error)
-}
-
-const handleValidateKey = () => {
-  if (!canVerifyProvider.value) {
-    return
+const removeApiKey = async () => {
+  if (isSaving.value) return
+  isSaving.value = true
+  saveError.value = ''
+  try {
+    await props.save(props.provider.id, { apiKey: '', baseUrl: props.provider.baseUrl })
+    showRemoveKeyDialog.value = false
+  } catch {
+    saveError.value = t('settings.deepchatAgents.saveFeedback.saveFailed')
+  } finally {
+    isSaving.value = false
   }
-
-  emit('validate-key', apiKey.value)
 }
-
 const openModelCheckDialog = () => {
-  if (!canVerifyProvider.value) {
-    return
-  }
-
-  modelCheckStore.openDialog(props.provider.id)
+  if (canVerifyProvider.value) modelCheckStore.openDialog(props.provider.id)
 }
 
 watch(
@@ -487,14 +485,11 @@ watch(
     })
     keyStatus.value = null
     keyStatusError.value = ''
-
     if (
       !storedApiKey ||
       !['ppio', 'openrouter', 'deepseek', '302ai', 'cherryin'].includes(providerId)
-    ) {
+    )
       return
-    }
-
     try {
       const status = await providerClient.getKeyStatus(providerId)
       if (!cancelled) keyStatus.value = status
@@ -509,40 +504,4 @@ watch(
   },
   { immediate: true }
 )
-
-const refreshModels = async () => {
-  if (isRefreshing.value) return
-
-  const providerId = props.provider.id
-  const refreshesMetadata = props.usesProviderDb
-  isRefreshing.value = true
-  try {
-    await providerClient.refreshModels(providerId)
-    notifyRenderer({
-      kind: 'success',
-      code: 'settings.provider.modelsRefreshed',
-      title: t('settings.provider.toast.refreshModelsSuccessTitle'),
-      description: t(
-        refreshesMetadata
-          ? 'settings.provider.toast.refreshModelsSuccessDescriptionWithMetadata'
-          : 'settings.provider.toast.refreshModelsSuccessDescription'
-      )
-    })
-  } catch (error) {
-    console.error('[ProviderApiConfig] Failed to refresh models', error)
-    const fallbackDescription = t(
-      refreshesMetadata
-        ? 'settings.provider.toast.refreshModelsFailedDescriptionWithMetadata'
-        : 'settings.provider.toast.refreshModelsFailedDescription'
-    )
-    notifyRenderer({
-      kind: 'error',
-      code: 'settings.provider.modelRefreshFailed',
-      title: t('settings.provider.toast.refreshModelsFailedTitle'),
-      description: fallbackDescription
-    })
-  } finally {
-    isRefreshing.value = false
-  }
-}
 </script>

@@ -96,8 +96,9 @@ highlighting, line numbers, and two-space indentation. It is sized for roughly 1
 body capped to the available window height. It starts with `{}`, formats persisted values when the
 dialog opens, and only formats later edits through the explicit Format action. Validation still
 runs as the user types. Save is disabled while the draft is invalid, unchanged, or being submitted.
-A configured provider keeps the dialog open during the staged connection check; success closes it
-and failure shows an inline error without changing the stored provider.
+Saving persists locally validated headers without a remote model probe. Success closes the dialog;
+a persistence failure shows an inline error without discarding the draft. Connection verification is
+a separate explicit action and changed headers invalidate the previous health fingerprint.
 
 Opening the dialog always copies the currently persisted record into a dialog-local text draft.
 Cancel, Escape, or closing the dialog discards that text without a second confirmation. Focus starts
@@ -105,8 +106,9 @@ in the JSON editor and returns to the Edit trigger on close. Switching providers
 prevents text from one profile from carrying into another.
 
 In the custom-provider creation flow, dialog Save updates only the form's local parsed header record;
-the provider is not persisted until Connect completes. The record is included in the draft validated
-by `providers.validateDraft`. The compact row then reports the local header count.
+the provider is persisted by Connect and load models or Save without testing. Connect includes the
+record in the draft validated by `providers.validateDraft`; Save without testing persists a disabled
+profile without a probe. Both retain local header validation. The compact row reports the header count.
 
 ### Settings Section Order
 
@@ -162,8 +164,8 @@ use a non-reserved gateway header.
 
 - Renderer: open a provider-scoped dialog, edit its local JSON draft, show validation errors, submit
   a parsed header record, and keep Advanced ahead of Models in the shared provider shell.
-- Provider store: stage configured-provider changes through the existing transient connection check,
-  persist successful changes, refresh provider summaries, and invalidate stale health state.
+- Provider store: persist configured-provider changes without a remote probe, refresh provider
+  summaries, and use the changed health fingerprint to invalidate stale health state.
 - Shared contract: define the provider field and authoritative validation limits.
 - Main provider runtime: merge and scope headers for outbound provider requests.
 - Trace persistence: expose header names when useful but mask every user-configured value.
@@ -207,17 +209,16 @@ must use that resolver rather than copying object-spread rules.
 ```text
 JSON draft
   -> renderer parse and shared validation
-  -> providers.validateDraft with candidate customHeaders
-  -> transient provider sends an origin-scoped connection check
-  -> providers.update persists customHeaders on success
+  -> providers.update persists customHeaders
   -> live provider config updates before the next request
   -> provider health fingerprint includes canonical header names and values
+  -> explicit model verification tests the saved configuration
 ```
 
-An already configured provider follows the existing staged API-change behavior: failure does not
-replace the stored headers. An unconfigured provider may persist a valid header map without a
-successful connection and remains `not_checked`. Creating a custom provider validates the headers as
-part of the draft before commit.
+Configured and unconfigured providers may save a valid header map without access to a fixed remote
+probe model. Changed configuration remains `not_checked` until explicitly verified. Creating a
+custom provider through Connect validates the connection draft before commit; Save without testing
+only validates the local configuration and retains the profile disabled and unverified.
 
 Changing headers does not require a process-wide refresh. The provider instance receives the updated
 profile through the existing atomic-update event; the next request resolves headers from that profile.

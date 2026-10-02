@@ -347,6 +347,8 @@ import {
   type ProviderCustomHeaders
 } from '@shared/providerCustomHeaders'
 import ProviderCustomHeadersEditor from './ProviderCustomHeadersEditor.vue'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import { isProviderReadyForOnboarding } from './providerOnboardingReadiness'
 
 const { t } = useI18n()
 
@@ -379,25 +381,6 @@ const canConfigureCustomHeaders = computed(() => supportsProviderCustomHeaders(p
 
 const saveCustomHeaders = (customHeaders?: ProviderCustomHeaders) =>
   providerStore.saveProviderCustomHeaders(props.provider.id, customHeaders)
-
-const isProviderReadyForOnboarding = (
-  provider: Pick<LLM_PROVIDER, 'apiKey' | 'baseUrl' | 'custom' | 'enable'>
-) => {
-  if (!provider.enable) {
-    return false
-  }
-
-  const hasApiKey = provider.apiKey?.trim().length > 0
-  if (!hasApiKey) {
-    return false
-  }
-
-  if (provider.custom) {
-    return Boolean(provider.baseUrl?.trim())
-  }
-
-  return true
-}
 
 const maybeEmitProviderConfigured = (provider: LLM_PROVIDER) => {
   if (isProviderReadyForOnboarding(provider)) {
@@ -652,7 +635,15 @@ const openPullModelDialog = () => {
 
 // 刷新模型列表 - 使用 settings store
 const refreshModels = async () => {
-  await ollamaStore.refreshOllamaModels(props.provider.id)
+  const refreshed = await ollamaStore.refreshOllamaModels(props.provider.id)
+  if (!refreshed) {
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.provider.modelRefreshFailed',
+      title: t('settings.provider.toast.refreshModelsFailedTitle'),
+      description: t('settings.provider.toast.refreshModelsFailedDescription')
+    })
+  }
 }
 
 // 拉取模型 - 使用 settings store
@@ -672,7 +663,16 @@ const pullModel = async (modelName: string) => {
 
 const handleModelEnabledChange = async (modelName: string, enabled: boolean) => {
   try {
-    await modelStore.updateModelStatus(props.provider.id, modelName, enabled)
+    const updated = await modelStore.updateModelStatus(props.provider.id, modelName, enabled)
+    if (!updated) {
+      notifyRenderer({
+        kind: 'error',
+        code: 'settings.provider.modelStatusUpdateFailed',
+        title: t('common.error.operationFailed'),
+        description: t('settings.deepchatAgents.saveFeedback.saveFailed')
+      })
+      return
+    }
     if (enabled) {
       emit('provider-model-enabled')
     }

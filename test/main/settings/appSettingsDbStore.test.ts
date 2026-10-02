@@ -59,6 +59,29 @@ describe('settings DB-backed stores', () => {
     expect(store.get('model_status_sqlite_gpt-4')).toBe(true)
   })
 
+  it('decodes canonical provider and model identities without underscore ambiguity', () => {
+    const tables = createAppSettingsTable({ providers: [provider('a'), provider('a_b')] })
+    const store = new ProviderDbStore(createLegacyStore({}), () => tables)
+
+    store.set('model_status_v2_a_b|model_x', true)
+    store.set('model_status_v2_a%7Cb|model%7Cx', false)
+
+    expect(tables.setModelStatus).toHaveBeenNthCalledWith(
+      1,
+      'model_status_v2_a_b|model_x',
+      'a_b',
+      'model_x',
+      true
+    )
+    expect(tables.setModelStatus).toHaveBeenNthCalledWith(
+      2,
+      'model_status_v2_a%7Cb|model%7Cx',
+      'a|b',
+      'model|x',
+      false
+    )
+  })
+
   it('reads MCP settings only from sqlite', () => {
     const sqliteServers = { sqlite: mcpServer('sqlite-command') }
     const tables = createAppSettingsTable({
@@ -151,6 +174,8 @@ function createAppSettingsTable(
     listModelStatusEntries: vi.fn(() => modelStatuses),
     getModelStatus: vi.fn((key: string) => modelStatuses[key]),
     hasModelStatus: vi.fn((key: string) => Object.hasOwn(modelStatuses, key)),
+    setModelStatus: vi.fn(),
+    deleteProviderModelStatuses: vi.fn(),
     listMcpServers: vi.fn(() => overrides.mcpServers ?? {}),
     listMcpSettings: vi.fn(() => mcpSettings),
     getMcpSetting: vi.fn((key: string) => mcpSettings[key]),

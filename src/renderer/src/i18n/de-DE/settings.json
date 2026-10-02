@@ -1545,7 +1545,7 @@
     "bedrockLimitTip": "* Unterstützt nur Anthropic Claude (einschließlich Opus-, Sonnet- und Haiku-Modelle)",
     "bedrockVerifyTip": "DeepChat verwendet Claude 3.5 Sonnet zur Prüfung. Wenn Sie keine Aufrufberechtigung für dieses Modell haben, schlägt die Prüfung fehl. Dies wirkt sich nicht auf die Nutzung anderer Modelle aus.",
     "center": {
-      "title": "Provider Center",
+      "title": "Anbieterzentrum",
       "description": "Anbieterverbindungen, Modelle und erweiterte Konfiguration verwalten.",
       "noApiUrl": "Keine API URL konfiguriert",
       "enabledModels": "{count} Modelle aktiviert",
@@ -1557,9 +1557,9 @@
         "local": "Local"
       },
       "tabs": {
-        "connection": "Connect",
-        "models": "Models",
-        "advanced": "Advanced"
+        "connection": "Verbindung",
+        "models": "Modelle",
+        "advanced": "Erweitert"
       }
     },
     "openaiCodexPasteCallback": "Callback-URL einfügen",
@@ -1594,10 +1594,20 @@
       "rename": "Umbenennen",
       "delete": "Löschen"
     },
+    "connectionEditor": {
+      "title": "Verbindung bearbeiten",
+      "description": "API-URL und Schlüssel gemeinsam speichern. Beim Speichern wird die Verbindung nicht getestet.",
+      "currentKey": "Aktueller Schlüssel",
+      "newKey": "Neuer API-Schlüssel",
+      "keepKey": "Leer lassen, um den aktuellen Schlüssel beizubehalten.",
+      "removeKey": "API-Schlüssel entfernen",
+      "removeKeyDescription": "Den gespeicherten API-Schlüssel von diesem Gerät entfernen? Anbieter und Modelle bleiben erhalten. OAuth und benutzerdefinierte Anfrage-Header bleiben unverändert.",
+      "test": "Verbindung testen"
+    },
     "health": {
-      "verified": "Verifiziert",
+      "verified": "Letzter Test erfolgreich",
       "checking": "Wird geprüft",
-      "needsAttention": "Aufmerksamkeit nötig",
+      "needsAttention": "Letzter Test fehlgeschlagen",
       "notChecked": "Nicht geprüft",
       "lastChecked": "Zuletzt geprüft {time}"
     },
@@ -1610,6 +1620,7 @@
     },
     "addFlow": {
       "connect": "Verbinden und Modelle laden",
+      "saveOnly": "Ohne Test speichern",
       "validating": "Verbindung wird geprüft...",
       "loadingModels": "Modelle werden geladen...",
       "failed": "Verbindung fehlgeschlagen. Konfiguration prüfen und erneut versuchen.",

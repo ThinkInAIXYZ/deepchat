@@ -18,7 +18,9 @@
   "actions": {
     "add": "Agregar modelo",
     "enableAll": "Habilitar todo",
-    "disableAll": "Deshabilitar todo"
+    "disableAll": "Deshabilitar todo",
+    "enableFiltered": "Habilitar resultados ({count})",
+    "disableFiltered": "Deshabilitar resultados ({count})"
   },
   "sort": {
     "status": "Por estado",

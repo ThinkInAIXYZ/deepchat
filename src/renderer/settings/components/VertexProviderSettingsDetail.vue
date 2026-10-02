@@ -28,40 +28,19 @@
       />
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div class="flex flex-col items-start gap-2">
-        <Label :for="`${provider.id}-apiVersion`" class="flex-1">
-          {{ t('settings.provider.vertexApiVersion') }}
-        </Label>
-        <Select v-model="apiVersion" @update:model-value="handleApiVersionChange">
-          <SelectTrigger class="w-full">
-            <SelectValue placeholder="v1" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="v1">v1</SelectItem>
-            <SelectItem value="v1beta1">v1beta1</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div class="flex flex-col items-start gap-2">
-        <Label :for="`${provider.id}-endpointMode`" class="flex-1">
-          {{ t('settings.provider.vertexEndpointMode') }}
-        </Label>
-        <Select v-model="endpointMode" @update:model-value="handleEndpointModeChange">
-          <SelectTrigger class="w-full">
-            <SelectValue :placeholder="t('settings.provider.vertexEndpointMode')" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="standard">
-              {{ t('settings.provider.vertexEndpointStandard') }}
-            </SelectItem>
-            <SelectItem value="express">
-              {{ t('settings.provider.vertexEndpointExpress') }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+    <div class="flex flex-col items-start gap-2">
+      <Label :for="`${provider.id}-apiVersion`" class="flex-1">
+        {{ t('settings.provider.vertexApiVersion') }}
+      </Label>
+      <Select v-model="apiVersion" @update:model-value="handleApiVersionChange">
+        <SelectTrigger :id="`${provider.id}-apiVersion`" class="w-full">
+          <SelectValue placeholder="v1" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="v1">v1</SelectItem>
+          <SelectItem value="v1beta1">v1beta1</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
 
     <div class="flex flex-col items-start gap-2">
@@ -107,20 +86,6 @@
         </DcButton>
       </div>
     </div>
-
-    <div class="flex flex-row gap-2">
-      <DcButton
-        variant="outline"
-        size="sm"
-        class="text-xs text-normal rounded-lg"
-        :disabled="!provider.enable"
-        @click="emit('validate-provider')"
-      >
-        <Icon icon="lucide:check-check" class="w-4 h-4 text-muted-foreground" />{{
-          t('settings.provider.verifyKey')
-        }}
-      </DcButton>
-    </div>
   </div>
 </template>
 
@@ -147,7 +112,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'config-updated': []
-  'validate-provider': []
 }>()
 
 const { t } = useI18n()
@@ -156,7 +120,6 @@ const providerStore = useProviderStore()
 const projectId = ref(props.provider.projectId || '')
 const location = ref(props.provider.location || '')
 const apiVersion = ref(props.provider.apiVersion || 'v1')
-const endpointMode = ref(props.provider.endpointMode || 'standard')
 const accountClientEmail = ref(props.provider.accountClientEmail || '')
 const accountPrivateKey = ref(props.provider.accountPrivateKey || '')
 const showPrivateKey = ref(false)
@@ -167,7 +130,6 @@ watch(
     projectId.value = next.projectId || ''
     location.value = next.location || ''
     apiVersion.value = next.apiVersion || 'v1'
-    endpointMode.value = next.endpointMode || 'standard'
     accountClientEmail.value = next.accountClientEmail || ''
     accountPrivateKey.value = next.accountPrivateKey || ''
   },
@@ -195,13 +157,6 @@ const handleApiVersionChange = async (value: any) => {
   if (value && typeof value === 'string') {
     apiVersion.value = value as 'v1' | 'v1beta1'
     await updateConfig({ apiVersion: apiVersion.value })
-  }
-}
-
-const handleEndpointModeChange = async (value: any) => {
-  if (value && typeof value === 'string') {
-    endpointMode.value = value as 'standard' | 'express'
-    await updateConfig({ endpointMode: endpointMode.value })
   }
 }
 

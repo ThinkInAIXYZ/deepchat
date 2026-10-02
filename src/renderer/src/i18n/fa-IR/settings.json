@@ -1176,7 +1176,7 @@
     "bedrockLimitTip": "* فقط از Anthropic Claude (شامل مدل‌های Opus، Sonnet، Haiku) پشتیبانی می‌کند",
     "bedrockVerifyTip": "DeepChat از Claude 3.5 Sonnet برای تأیید استفاده می‌کند. اگر مجوز فراخوانی نداشته باشید، تأیید انجام نخواهد شد. این موضوع تاثیری بر استفاده از مدل‌های دیگر نخواهد داشت.",
     "center": {
-      "title": "Provider Center",
+      "title": "مرکز ارائه‌دهندگان",
       "description": "Manage provider connections, models, and advanced configuration.",
       "noApiUrl": "No API URL configured",
       "enabledModels": "{count} models enabled",
@@ -1188,9 +1188,9 @@
         "local": "Local"
       },
       "tabs": {
-        "connection": "Connect",
-        "models": "Models",
-        "advanced": "Advanced"
+        "connection": "اتصال",
+        "models": "مدل‌ها",
+        "advanced": "پیشرفته"
       }
     },
     "openaiCodexPasteCallback": "چسباندن URL بازگشت",
@@ -1225,10 +1225,20 @@
       "rename": "تغییر نام",
       "delete": "حذف"
     },
+    "connectionEditor": {
+      "title": "ویرایش اتصال",
+      "description": "نشانی API و کلید را با هم ذخیره کنید. ذخیره کردن، اتصال را آزمایش نمی‌کند.",
+      "currentKey": "کلید فعلی",
+      "newKey": "کلید API جدید",
+      "keepKey": "برای حفظ کلید فعلی، این قسمت را خالی بگذارید.",
+      "removeKey": "حذف کلید API",
+      "removeKeyDescription": "کلید API ذخیره‌شده از این دستگاه حذف شود؟ ارائه‌دهنده و مدل‌ها حفظ می‌شوند. OAuth و سرآیندهای سفارشی درخواست بدون تغییر می‌مانند.",
+      "test": "آزمایش اتصال"
+    },
     "health": {
-      "verified": "تأیید شده",
+      "verified": "آخرین آزمایش موفق بود",
       "checking": "در حال بررسی",
-      "needsAttention": "نیاز به توجه",
+      "needsAttention": "آخرین آزمایش ناموفق بود",
       "notChecked": "بررسی نشده",
       "lastChecked": "آخرین بررسی {time}"
     },
@@ -1241,6 +1251,7 @@
     },
     "addFlow": {
       "connect": "اتصال و بارگیری مدل‌ها",
+      "saveOnly": "ذخیره بدون آزمایش",
       "validating": "در حال تأیید اتصال...",
       "loadingModels": "در حال بارگیری مدل‌ها...",
       "failed": "اتصال ناموفق بود. پیکربندی را بررسی کرده و دوباره تلاش کنید.",

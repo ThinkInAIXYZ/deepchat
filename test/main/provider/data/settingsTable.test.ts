@@ -153,6 +153,162 @@ describeIfSqlite('ProviderSettingsTable', () => {
     db.close()
   })
 
+  it('atomically renames a custom model with its config and raw status key', () => {
+    const { db, table } = createTable()
+    const oldModel = {
+      id: 'old.model',
+      name: 'Old Model',
+      providerId: 'openai',
+      isCustom: true
+    } as MODEL_META
+    table.replaceProviderModels('openai', 'custom', [oldModel])
+    table.setModelConfigStoreEntry('old-key', {
+      id: oldModel.id,
+      providerId: 'openai',
+      source: 'user',
+      config: { temperature: 0.2, isUserDefined: true }
+    })
+    table.setModelStatus('model_status_v2_openai|old.model', 'openai', oldModel.id, false)
+
+    table.saveCustomModel({
+      providerId: 'openai',
+      originalModelId: oldModel.id,
+      model: { ...oldModel, id: 'new.model', name: 'New Model' },
+      configKey: 'new-key',
+      config: {
+        id: 'new.model',
+        providerId: 'openai',
+        source: 'user',
+        config: { temperature: 0.4, isUserDefined: true }
+      },
+      enabled: false
+    })
+
+    expect(table.getProviderModel('openai', oldModel.id, 'custom')).toBeUndefined()
+    expect(table.getProviderModel('openai', 'new.model', 'custom')).toMatchObject({
+      name: 'New Model'
+    })
+    expect(table.getModelConfigStoreEntry('old-key')).toBeUndefined()
+    expect(table.getModelConfigStoreEntry('new-key')).toMatchObject({ id: 'new.model' })
+    expect(table.getModelStatus('model_status_v2_openai|old.model')).toBeUndefined()
+    expect(table.getModelStatus('model_status_v2_openai|new.model')).toBe(false)
+    db.close()
+  })
+
+  it('keeps colliding legacy status while disabling a renamed identity', () => {
+    const { db, table } = createTable()
+    const model = { id: 'old.model', name: 'Old', providerId: 'openai' } as MODEL_META
+    table.replaceProviderModels('openai', 'custom', [model])
+    table.setModelStatus('model_status_openai_old-model', 'openai', 'old-model', true)
+
+    table.saveCustomModel({
+      providerId: 'openai',
+      originalModelId: model.id,
+      model: { ...model, id: 'new.model' },
+      configKey: 'new-key',
+      config: {
+        id: 'new.model',
+        providerId: 'openai',
+        source: 'user',
+        config: { isUserDefined: true }
+      },
+      enabled: true
+    })
+
+    expect(table.getModelStatus('model_status_openai_old-model')).toBe(true)
+    expect(table.getModelStatus('model_status_v2_openai|old.model')).toBe(false)
+    expect(table.getModelStatus('model_status_v2_openai|new.model')).toBe(true)
+    db.close()
+  })
+
+  it('rolls back a custom model rename when any persistence write fails', () => {
+    const { db, table } = createTable()
+    const oldModel = {
+      id: 'old-model',
+      name: 'Old Model',
+      providerId: 'openai',
+      isCustom: true
+    } as MODEL_META
+    table.replaceProviderModels('openai', 'custom', [oldModel])
+    table.setModelConfigStoreEntry('old-key', {
+      id: oldModel.id,
+      providerId: 'openai',
+      source: 'user',
+      config: { temperature: 0.2, isUserDefined: true }
+    })
+    db.exec(`CREATE TRIGGER fail_custom_config BEFORE INSERT ON model_configs
+      WHEN NEW.model_id = 'new-model' BEGIN SELECT RAISE(ABORT, 'injected failure'); END`)
+
+    expect(() =>
+      table.saveCustomModel({
+        providerId: 'openai',
+        originalModelId: oldModel.id,
+        model: { ...oldModel, id: 'new-model' },
+        configKey: 'new-key',
+        config: {
+          id: 'new-model',
+          providerId: 'openai',
+          source: 'user',
+          config: { temperature: 0.4, isUserDefined: true }
+        },
+        enabled: true
+      })
+    ).toThrow('injected failure')
+
+    expect(table.getProviderModel('openai', oldModel.id, 'custom')).toMatchObject(oldModel)
+    expect(table.getProviderModel('openai', 'new-model', 'custom')).toBeUndefined()
+    expect(table.getModelConfigStoreEntry('old-key')).toMatchObject({ id: oldModel.id })
+    expect(table.getModelConfigStoreEntry('new-key')).toBeUndefined()
+    db.close()
+  })
+
+  it('rejects a duplicate custom model ID without changing the original', () => {
+    const { db, table } = createTable()
+    const models = ['original', 'duplicate'].map(
+      (id) => ({ id, name: id, providerId: 'openai', isCustom: true }) as MODEL_META
+    )
+    table.replaceProviderModels('openai', 'custom', models)
+
+    expect(() =>
+      table.saveCustomModel({
+        providerId: 'openai',
+        originalModelId: 'original',
+        model: { ...models[0], id: 'duplicate' },
+        configKey: 'duplicate-key',
+        config: {
+          id: 'duplicate',
+          providerId: 'openai',
+          source: 'user',
+          config: { temperature: 0.4, isUserDefined: true }
+        },
+        enabled: true
+      })
+    ).toThrow('Model ID already exists')
+
+    expect(table.listProviderModels('openai', 'custom').map((model) => model.id)).toEqual([
+      'original',
+      'duplicate'
+    ])
+    expect(table.getModelConfigStoreEntry('duplicate-key')).toBeUndefined()
+    db.close()
+  })
+
+  it('deletes both status namespaces by exact provider identity', () => {
+    const { db, table } = createTable()
+    table.setModelStatus('model_status_a_old', 'a', 'old', true)
+    table.setModelStatus('model_status_v2_a|new', 'a', 'new', true)
+    table.setModelStatus('model_status_a_b_old', 'a_b', 'old', true)
+    table.setModelStatus('model_status_v2_a_b|new', 'a_b', 'new', true)
+
+    table.deleteProviderModelStatuses('a')
+
+    expect(table.listModelStatusEntries()).toEqual({
+      model_status_a_b_old: true,
+      'model_status_v2_a_b|new': true
+    })
+    db.close()
+  })
+
   it('migrates legacy rows using explicit user intent without value heuristics', () => {
     const { db, table } = createTable()
     const insert = db.prepare(

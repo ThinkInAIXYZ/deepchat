@@ -117,7 +117,8 @@ const setup = async (options: SetupOptions) => {
       .fn()
       .mockImplementation(options.getModelConfig ?? (() => Promise.resolve(defaultModelConfig))),
     setModelConfig: vi.fn().mockResolvedValue(undefined),
-    resetModelConfig: vi.fn().mockResolvedValue(undefined)
+    resetModelConfig: vi.fn().mockResolvedValue(undefined),
+    invalidateModelConfig: vi.fn()
   }
 
   const modelStore = reactive({
@@ -134,6 +135,7 @@ const setup = async (options: SetupOptions) => {
       }
     ],
     addCustomModel: vi.fn().mockResolvedValue(undefined),
+    saveCustomModel: vi.fn().mockResolvedValue(undefined),
     removeCustomModel: vi.fn().mockResolvedValue(undefined),
     updateCustomModel: vi.fn().mockResolvedValue(undefined),
     updateModelStatus: vi.fn().mockResolvedValue(undefined)
@@ -236,6 +238,37 @@ describe('ModelConfigDialog confirmation labels', () => {
     expect(dialogs[0].attributes('data-cancel-label')).toBe('settings.model.modelConfig.cancel')
     expect(dialogs[1].attributes('data-confirm-label')).toBe('dialog.mutualExclusive.confirmEnable')
     expect(dialogs[1].attributes('data-cancel-label')).toBe('dialog.cancel')
+  })
+})
+
+describe('ModelConfigDialog custom model persistence', () => {
+  it('blocks duplicate saves and keeps the dialog open with localized feedback on failure', async () => {
+    const deferred = createDeferred<void>()
+    const { wrapper, modelStore } = await setup({
+      providerId: 'openai',
+      modelId: '',
+      modelName: '',
+      mode: 'create'
+    })
+    modelStore.saveCustomModel.mockReturnValue(deferred.promise)
+    ;(wrapper.vm as any).modelIdField = 'custom-model'
+    ;(wrapper.vm as any).modelNameField = 'Custom Model'
+    ;(wrapper.vm as any).queueCapabilityRefresh()
+    await flushPromises()
+
+    const firstSave = (wrapper.vm as any).handleSave()
+    const duplicateSave = (wrapper.vm as any).handleSave()
+    expect(modelStore.saveCustomModel).toHaveBeenCalledTimes(1)
+
+    deferred.reject(new Error('injected failure'))
+    await Promise.all([firstSave, duplicateSave])
+    await nextTick()
+
+    expect(wrapper.text()).toContain('settings.deepchatAgents.saveFeedback.saveFailed')
+    expect(wrapper.get('[role="alert"]').text()).toBe(
+      'settings.deepchatAgents.saveFeedback.saveFailed'
+    )
+    expect(wrapper.emitted('update:open')).toBeUndefined()
   })
 })
 
@@ -983,7 +1016,7 @@ describe('ModelConfigDialog reasoning portraits', () => {
       },
       getCapabilities: () => Promise.reject(new Error('ipc unavailable'))
     }
-    const { wrapper, modelConfigStore } = await setup(options)
+    const { wrapper, modelStore } = await setup(options)
 
     expect((wrapper.vm as any).temperatureControl).toEqual({ mode: 'hidden' })
     expect((wrapper.vm as any).topPControl).toEqual({ mode: 'hidden' })
@@ -998,9 +1031,10 @@ describe('ModelConfigDialog reasoning portraits', () => {
     ;(wrapper.vm as any).topPInputValue = '0.6'
     await (wrapper.vm as any).handleSave()
 
-    expect(modelConfigStore.setModelConfig).toHaveBeenCalledWith(
-      'kimi-k3',
+    expect(modelStore.saveCustomModel).toHaveBeenCalledWith(
       'aihubmix',
+      'kimi-k3',
+      expect.objectContaining({ id: 'kimi-k3' }),
       expect.objectContaining({
         temperature: 0.9,
         topP: 0.6
@@ -1241,7 +1275,7 @@ describe('ModelConfigDialog new-api endpoint normalization', () => {
   })
 
   it('filters endpoint choices from model type for custom models', async () => {
-    const { wrapper, modelConfigStore } = await setup({
+    const { wrapper, modelStore } = await setup({
       providerId: 'new-api',
       modelId: '',
       modelName: '',
@@ -1297,9 +1331,10 @@ describe('ModelConfigDialog new-api endpoint normalization', () => {
     await flushPromises()
     await (wrapper.vm as any).handleSave()
 
-    expect(modelConfigStore.setModelConfig).toHaveBeenCalledWith(
-      'custom-image-model',
+    expect(modelStore.saveCustomModel).toHaveBeenCalledWith(
       'new-api',
+      undefined,
+      expect.objectContaining({ id: 'custom-image-model' }),
       expect.objectContaining({
         endpointType: 'openai',
         apiEndpoint: ApiEndpointType.Chat,

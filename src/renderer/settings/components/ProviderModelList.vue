@@ -13,50 +13,6 @@
       >
         {{ item.label }}
       </div>
-      <div
-        v-else-if="isProviderActionsItem(item)"
-        class="flex h-14 items-center justify-between gap-3 overflow-hidden px-3 py-2 bg-muted/30"
-      >
-        <div class="min-w-0 flex-1 truncate text-sm font-medium">
-          {{ getProviderName(item.providerId) }}
-        </div>
-        <div class="flex shrink-0 gap-2">
-          <DcButton
-            variant="outline"
-            size="sm"
-            class="h-8 min-w-8 max-w-[9rem] whitespace-nowrap rounded-lg px-2 text-xs text-normal"
-            :disabled="isProviderBatchPending(item.providerId)"
-            :title="t('model.actions.enableAll')"
-            @click="enableAllModels(item.providerId)"
-          >
-            <Spinner
-              v-if="getProviderPendingAction(item.providerId) === 'enable'"
-              class="size-3.5 shrink-0 sm:mr-1"
-            />
-            <Icon v-else icon="lucide:check-circle" class="size-3.5 shrink-0 sm:mr-1" />
-            <span class="hidden min-w-0 truncate sm:inline">
-              {{ t('model.actions.enableAll') }}
-            </span>
-          </DcButton>
-          <DcButton
-            variant="outline"
-            size="sm"
-            class="h-8 min-w-8 max-w-[9rem] whitespace-nowrap rounded-lg px-2 text-xs text-normal"
-            :disabled="isProviderBatchPending(item.providerId)"
-            :title="t('model.actions.disableAll')"
-            @click="disableAllModels(item.providerId)"
-          >
-            <Spinner
-              v-if="getProviderPendingAction(item.providerId) === 'disable'"
-              class="size-3.5 shrink-0 sm:mr-1"
-            />
-            <Icon v-else icon="lucide:x-circle" class="size-3.5 shrink-0 sm:mr-1" />
-            <span class="hidden min-w-0 truncate sm:inline">
-              {{ t('model.actions.disableAll') }}
-            </span>
-          </DcButton>
-        </div>
-      </div>
       <div v-else-if="isModelItem(item)" :key="item.id" class="h-12 overflow-hidden bg-card">
         <ModelConfigItem
           :key="item.id"
@@ -83,9 +39,9 @@
       class="sticky z-30 border-b border-border/60 py-2 backdrop-blur supports-backdrop-filter:bg-background/80"
       :style="{ top: `${searchStickyTop}px` }"
     >
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2">
         <Input
-          class="flex-1"
+          class="min-w-40 flex-[1_1_12rem]"
           v-model="modelSearchQuery"
           :placeholder="t('model.search.placeholder')"
         />
@@ -228,6 +184,47 @@
       </div>
     </div>
 
+    <div
+      v-for="providerId in batchProviderIds"
+      :key="providerId"
+      class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-muted/30"
+      data-testid="model-batch-actions"
+    >
+      <div class="min-w-0 flex-1 text-sm font-medium break-words">
+        {{ getProviderName(providerId) }}
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <DcButton
+          variant="outline"
+          size="sm"
+          class="min-h-8 h-auto max-w-full whitespace-normal rounded-lg px-2 text-xs text-normal"
+          :disabled="isProviderBatchPending(providerId)"
+          @click="enableAllModels(providerId)"
+        >
+          <Spinner
+            v-if="getProviderPendingAction(providerId) === 'enable'"
+            class="mr-1 size-3.5 shrink-0"
+          />
+          <Icon v-else icon="lucide:check-circle" class="mr-1 size-3.5 shrink-0" />
+          {{ getBatchActionLabel(providerId, 'enable') }}
+        </DcButton>
+        <DcButton
+          variant="outline"
+          size="sm"
+          class="min-h-8 h-auto max-w-full whitespace-normal rounded-lg px-2 text-xs text-normal"
+          :disabled="isProviderBatchPending(providerId)"
+          @click="disableAllModels(providerId)"
+        >
+          <Spinner
+            v-if="getProviderPendingAction(providerId) === 'disable'"
+            class="mr-1 size-3.5 shrink-0"
+          />
+          <Icon v-else icon="lucide:x-circle" class="mr-1 size-3.5 shrink-0" />
+          {{ getBatchActionLabel(providerId, 'disable') }}
+        </DcButton>
+      </div>
+    </div>
+
     <div v-if="filteredCustomModels.length > 0" class="relative">
       <div
         class="sticky z-20 backdrop-blur supports-backdrop-filter:bg-background/80 px-3 py-2 text-xs font-medium text-muted-foreground"
@@ -345,7 +342,6 @@ const modelStore = useModelStore()
 const uiSettingsStore = useUiSettingsStore()
 const LABEL_ITEM_HEIGHT = 36
 const MODEL_ITEM_HEIGHT = 48
-const PROVIDER_ACTIONS_ITEM_HEIGHT = 56
 const modelNameCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
 const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
 const getPerfNow = () =>
@@ -700,7 +696,6 @@ const visibleModelCount = computed(
 
 type VirtualModelListItem =
   | { id: string; type: 'label'; label: string; size: number }
-  | { id: string; type: 'provider-actions'; providerId: string; size: number }
   | {
       id: string
       type: 'model'
@@ -751,17 +746,9 @@ const syncVirtualItemCache = (activeIds: Set<string>) => {
 const createLabelItem = (label: string) =>
   getCachedVirtualItem({ id: 'label-official', type: 'label', label, size: LABEL_ITEM_HEIGHT })
 
-const createProviderActionsItem = (providerId: string) =>
-  getCachedVirtualItem({
-    id: `${providerId}-actions`,
-    type: 'provider-actions',
-    providerId,
-    size: PROVIDER_ACTIONS_ITEM_HEIGHT
-  })
-
 const createModelItem = (model: RENDERER_MODEL_META) =>
   getCachedVirtualItem<VirtualModelItem>({
-    id: `${model.providerId}-${model.id}`,
+    id: `model:${model.providerId}:${model.id}`,
     type: 'model',
     size: MODEL_ITEM_HEIGHT,
     providerId: model.providerId,
@@ -783,27 +770,24 @@ const createModelItem = (model: RENDERER_MODEL_META) =>
     endpointType: model.endpointType
   })
 
+const batchProviderIds = computed(() => [
+  ...new Set([
+    ...filteredProviderModels.value.map((provider) => provider.providerId),
+    ...filteredCustomModels.value.map((model) => model.providerId)
+  ])
+])
+
 const virtualItems = computed<VirtualModelListItem[]>(() => {
   const start = getPerfNow()
   const items: VirtualModelListItem[] = []
   const activeIds = new Set<string>()
   let officialLabelInserted = false
   filteredProviderModels.value.forEach((provider) => {
-    if (provider.models.length === 0) {
-      return
-    }
-
     if (!officialLabelInserted) {
       const labelItem = createLabelItem(t('model.type.official'))
       items.push(labelItem)
       activeIds.add(labelItem.id)
       officialLabelInserted = true
-    }
-
-    if (!hasListRefinements.value) {
-      const providerActionsItem = createProviderActionsItem(provider.providerId)
-      items.push(providerActionsItem)
-      activeIds.add(providerActionsItem.id)
     }
 
     provider.models.forEach((model) => {
@@ -830,16 +814,6 @@ const isLabelItem = (item: unknown): item is Extract<VirtualModelListItem, { typ
   )
 }
 
-const isProviderActionsItem = (
-  item: unknown
-): item is Extract<VirtualModelListItem, { type: 'provider-actions' }> => {
-  return (
-    typeof item === 'object' &&
-    item !== null &&
-    (item as VirtualModelListItem).type === 'provider-actions'
-  )
-}
-
 const isModelItem = (item: unknown): item is Extract<VirtualModelListItem, { type: 'model' }> => {
   return (
     typeof item === 'object' && item !== null && (item as VirtualModelListItem).type === 'model'
@@ -849,6 +823,17 @@ const isModelItem = (item: unknown): item is Extract<VirtualModelListItem, { typ
 const getProviderName = (providerId: string) => {
   const provider = props.providers.find((p) => p.id === providerId)
   return provider?.name || providerId
+}
+
+const getBatchActionLabel = (providerId: string, action: BatchAction) => {
+  if (hasListRefinements.value) {
+    return t(
+      action === 'enable' ? 'model.actions.enableFiltered' : 'model.actions.disableFiltered',
+      { count: getBatchTargetModels(providerId).length }
+    )
+  }
+
+  return t(action === 'enable' ? 'model.actions.enableAll' : 'model.actions.disableAll')
 }
 
 const getProviderPendingAction = (providerId: string) => providerBatchPending.value[providerId]
@@ -1025,31 +1010,4 @@ const customLabelStickyTop = computed(() => {
   }
   return stickyBaseOffset.value + (searchContainerHeight.value || 53) + 8
 })
-
-const stickyHeaderInfo = ref<{
-  provider?: { providerId: string }
-}>({})
-
-const updateStickyHeader = (startIndex: number) => {
-  if (startIndex < 0 || startIndex >= virtualItems.value.length) return
-
-  const currentItem = virtualItems.value[startIndex]
-  let providerItem: { providerId: string } | undefined
-
-  if (currentItem.type === 'model' || currentItem.type === 'provider-actions') {
-    providerItem = { providerId: currentItem.providerId }
-  }
-
-  stickyHeaderInfo.value = {
-    provider: providerItem
-  }
-}
-
-watch(
-  virtualItems,
-  () => {
-    updateStickyHeader(0)
-  },
-  { immediate: true }
-)
 </script>

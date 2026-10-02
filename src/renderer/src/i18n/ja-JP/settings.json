@@ -1176,7 +1176,7 @@
     "bedrockLimitTip": "* Anthropic Claude（Opus、Sonnet、Haikuモデルを含む）のみをサポート",
     "bedrockVerifyTip": "DeepChatは検証にClaude 3.5 Sonnetを使用しています。起動権限がない場合、検証は失敗します。ただし、他のモデルの使用には影響しません。",
     "center": {
-      "title": "Provider Center",
+      "title": "プロバイダーセンター",
       "description": "Manage provider connections, models, and advanced configuration.",
       "noApiUrl": "No API URL configured",
       "enabledModels": "{count} models enabled",
@@ -1188,9 +1188,9 @@
         "local": "Local"
       },
       "tabs": {
-        "connection": "Connect",
-        "models": "Models",
-        "advanced": "Advanced"
+        "connection": "接続設定",
+        "models": "モデル",
+        "advanced": "詳細設定"
       }
     },
     "openaiCodexPasteCallback": "コールバックURLを貼り付け",
@@ -1225,10 +1225,20 @@
       "rename": "名前を変更",
       "delete": "削除"
     },
+    "connectionEditor": {
+      "title": "接続を編集",
+      "description": "API URLとキーを一緒に保存します。保存しても接続テストは実行されません。",
+      "currentKey": "現在のキー",
+      "newKey": "新しいAPIキー",
+      "keepKey": "現在のキーを保持するには空欄のままにしてください。",
+      "removeKey": "APIキーを削除",
+      "removeKeyDescription": "このデバイスから保存済みのAPIキーを削除しますか？プロバイダーとモデルは保持されます。OAuthとカスタムリクエストヘッダーは変更されません。",
+      "test": "接続をテスト"
+    },
     "health": {
-      "verified": "検証済み",
+      "verified": "前回のテストは成功しました",
       "checking": "確認中",
-      "needsAttention": "要対応",
+      "needsAttention": "前回のテストは失敗しました",
       "notChecked": "未確認",
       "lastChecked": "最終確認 {time}"
     },
@@ -1241,6 +1251,7 @@
     },
     "addFlow": {
       "connect": "接続してモデルを読み込む",
+      "saveOnly": "テストせずに保存",
       "validating": "接続を検証中...",
       "loadingModels": "モデルを読み込み中...",
       "failed": "接続に失敗しました。設定を確認して再試行してください。",

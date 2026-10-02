@@ -4,7 +4,12 @@ import { flushPromises, shallowMount } from '@vue/test-utils'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 import OllamaProviderSettingsDetail from '../../../src/renderer/settings/components/OllamaProviderSettingsDetail.vue'
 
-const { useProviderStore } = vi.hoisted(() => ({ useProviderStore: vi.fn() }))
+const { useProviderStore, refreshOllamaModels, notifyRenderer } = vi.hoisted(() => ({
+  useProviderStore: vi.fn(),
+  refreshOllamaModels: vi.fn(),
+  notifyRenderer: vi.fn()
+}))
+vi.mock('@renderer-notifications/rendererNotificationPort', () => ({ notifyRenderer }))
 vi.mock('@/stores/providerStore', () => ({ useProviderStore }))
 vi.mock('@/stores/modelStore', () => ({
   useModelStore: () => ({
@@ -17,6 +22,7 @@ vi.mock('@/stores/ollamaStore', () => ({
     getOllamaRunningModels: () => [],
     getOllamaLocalModels: () => [],
     getOllamaPullingModels: () => ({}),
+    refreshOllamaModels,
     ensureProviderReady: vi.fn()
   })
 }))
@@ -28,9 +34,9 @@ vi.mock('../../../src/renderer/settings/components/ProviderCustomHeadersEditor.v
 }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
-describe('Ollama default URL reset', () => {
+describe('Ollama provider settings actions', () => {
   it.each(['ollama', 'custom-ollama'])(
-    'resets %s only on user action after defaults load',
+    'keeps URL reset explicit and reports refresh failures for %s',
     async (id) => {
       const provider: LLM_PROVIDER = {
         id,
@@ -58,6 +64,16 @@ describe('Ollama default URL reset', () => {
       await flushPromises()
       expect(store.updateProviderApi).toHaveBeenCalledWith(id, undefined, 'http://localhost:11434')
       expect(provider.baseUrl).toBe('http://my-server:21434')
+
+      refreshOllamaModels.mockResolvedValueOnce(false)
+      notifyRenderer.mockClear()
+      await (wrapper.vm as unknown as { refreshModels: () => Promise<void> }).refreshModels()
+      expect(notifyRenderer).toHaveBeenCalledExactlyOnceWith({
+        kind: 'error',
+        code: 'settings.provider.modelRefreshFailed',
+        title: 'settings.provider.toast.refreshModelsFailedTitle',
+        description: 'settings.provider.toast.refreshModelsFailedDescription'
+      })
       wrapper.unmount()
     }
   )

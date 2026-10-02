@@ -368,6 +368,7 @@ import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOve
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
 import { createWindowClient } from '@api/WindowClient'
 import { continueGuidedOnboardingFromSettings } from '../lib/guidedOnboardingSettings'
+import { isProviderReadyForOnboarding } from './providerOnboardingReadiness'
 
 const route = useRoute()
 const router = useRouter()
@@ -590,7 +591,9 @@ const guideCandidateProviders = computed(() =>
 const canAdvanceProviderSelection = computed(() =>
   Boolean(activeProvider.value ?? guideCandidateProviders.value[0])
 )
-const canAdvanceProviderApiKey = computed(() => Boolean(activeProvider.value?.apiKey?.trim()))
+const canAdvanceProviderApiKey = computed(() =>
+  activeProvider.value ? isProviderReadyForOnboarding(activeProvider.value) : false
+)
 const getCurrentProviderModels = () => {
   const providerId = typeof route.params.providerId === 'string' ? route.params.providerId : null
   if (!providerId) {
@@ -688,10 +691,10 @@ const syncGuideTargets = () => {
     : null
   providerApiKeyTargetRef.value =
     (detailRoot?.querySelector(
-      '[data-testid="provider-api-key-input"], [data-testid="provider-update-key-button"]'
+      '[data-testid="provider-connection-edit"], [data-testid="provider-api-key-input"]'
     ) as HTMLElement | null) ??
     (document.querySelector(
-      '[data-testid="provider-api-key-input"], [data-testid="provider-update-key-button"]'
+      '[data-testid="provider-connection-edit"], [data-testid="provider-api-key-input"]'
     ) as HTMLElement | null)
   providerModelTargetRef.value =
     (activeProviderId

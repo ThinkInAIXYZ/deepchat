@@ -210,6 +210,8 @@ import ProviderSettingsShell from './ProviderSettingsShell.vue'
 import ProviderModelManager from './ProviderModelManager.vue'
 import ProviderDialogContainer from './ProviderDialogContainer.vue'
 import ProviderRateLimitConfig from './ProviderRateLimitConfig.vue'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import { isProviderReadyForOnboarding } from './providerOnboardingReadiness'
 
 const props = defineProps<{
   provider: AWS_BEDROCK_PROVIDER
@@ -246,19 +248,6 @@ const showConfirmDialog = ref(false)
 const showCheckModelDialog = ref(false)
 const showDisableAllConfirmDialog = ref(false)
 const showDeleteProviderDialog = ref(false)
-
-const isProviderReadyForOnboarding = (
-  provider: Pick<AWS_BEDROCK_PROVIDER, 'credential' | 'enable'>
-) => {
-  if (!provider.enable) return false
-  const credential = provider.credential
-  if (!credential?.region?.trim()) return false
-
-  if (credential.authMode === 'profile') {
-    return Boolean(credential.profile?.trim())
-  }
-  return Boolean(credential.accessKeyId?.trim() && credential.secretAccessKey?.trim())
-}
 
 const maybeEmitProviderConfigured = (provider: AWS_BEDROCK_PROVIDER) => {
   if (isProviderReadyForOnboarding(provider)) {
@@ -305,9 +294,9 @@ const buildCredential = () => ({
 const initData = async () => {
   const providerData = modelStore.allProviderModels.find((p) => p.providerId === props.provider.id)
   if (providerData) {
-    providerModels.value = providerData.models.sort(
-      (a, b) => a.group.localeCompare(b.group) || a.providerId.localeCompare(b.providerId)
-    )
+    providerModels.value = providerData.models
+      .filter((model) => !model.isCustom)
+      .sort((a, b) => a.group.localeCompare(b.group) || a.providerId.localeCompare(b.providerId))
   } else {
     providerModels.value = []
   }
@@ -401,10 +390,9 @@ const handleVerifyCredential = async () => {
 
 const confirmDisable = async () => {
   if (modelToDisable.value) {
-    try {
-      await modelStore.updateModelStatus(props.provider.id, modelToDisable.value.id, false)
-    } catch (error) {
-      console.error('Failed to disable model:', error)
+    const updated = await handleModelEnabledChange(modelToDisable.value, false)
+    if (!updated) {
+      return
     }
     showConfirmDialog.value = false
     modelToDisable.value = null
@@ -423,11 +411,22 @@ const handleModelEnabledChange = async (
 ) => {
   if (!enabled && comfirm) {
     disableModel(model)
+    return true
   } else {
-    await modelStore.updateModelStatus(props.provider.id, model.id, enabled)
+    const updated = await modelStore.updateModelStatus(props.provider.id, model.id, enabled)
+    if (!updated) {
+      notifyRenderer({
+        kind: 'error',
+        code: 'settings.provider.modelStatusUpdateFailed',
+        title: t('common.error.operationFailed'),
+        description: t('settings.deepchatAgents.saveFeedback.saveFailed')
+      })
+      return false
+    }
     if (enabled) {
       emit('provider-model-enabled')
     }
+    return true
   }
 }
 

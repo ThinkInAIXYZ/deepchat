@@ -174,6 +174,25 @@ export const modelsAddCustomRoute = defineRouteContract({
   })
 })
 
+export const modelsSaveCustomRoute = defineRouteContract({
+  name: 'models.saveCustom',
+  input: z.object({
+    providerId: EntityIdSchema,
+    originalModelId: z.string().min(1).optional(),
+    model: z.looseObject(
+      ProviderModelSummarySchema.omit({
+        providerId: true,
+        group: true,
+        isCustom: true
+      }).shape
+    ),
+    config: ModelConfigSchema
+  }),
+  output: z.object({
+    model: ProviderModelSummarySchema
+  })
+})
+
 export const modelsRemoveCustomRoute = defineRouteContract({
   name: 'models.removeCustom',
   input: z.object({

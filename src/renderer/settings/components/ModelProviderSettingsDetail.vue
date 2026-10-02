@@ -16,14 +16,16 @@
       <ProviderApiConfig
         :provider="provider"
         :provider-websites="providerWebsites"
-        :uses-provider-db="defaultProvider?.usesProviderDb"
-        @api-host-change="handleApiHostChange"
-        @api-key-change="handleApiKeyChange"
+        :save="saveConnection"
         @auth-mode-change="handleAuthModeChange"
-        @validate-key="openModelCheckDialog"
         @delete-provider="showDeleteProviderDialog = true"
         @oauth-success="handleOAuthSuccess"
         @oauth-error="handleOAuthError"
+      />
+      <VertexProviderSettingsDetail
+        v-if="provider.apiType === 'vertex'"
+        :provider="provider as VERTEX_PROVIDER"
+        @config-updated="handleConfigChanged"
       />
     </template>
 
@@ -43,6 +45,12 @@
         @model-enabled-change="handleModelEnabledChange"
         @config-changed="handleConfigChanged"
       />
+      <p
+        v-if="defaultProvider?.usesProviderDb"
+        class="mt-2 text-xs leading-5 text-muted-foreground"
+      >
+        {{ t('settings.provider.refreshModelsWithMetadataHint') }}
+      </p>
     </template>
 
     <template #advanced>
@@ -54,13 +62,6 @@
         :provider-id="provider.id"
         :model-value="provider.customHeaders"
         :save="saveCustomHeaders"
-      />
-
-      <VertexProviderSettingsDetail
-        v-if="provider.apiType === 'vertex'"
-        :provider="provider as VERTEX_PROVIDER"
-        @config-updated="handleConfigChanged"
-        @validate-provider="validateApiKey"
       />
 
       <AzureProviderConfig
@@ -115,7 +116,6 @@ import ProviderRateLimitConfig from './ProviderRateLimitConfig.vue'
 import ModelScopeMcpSync from './ModelScopeMcpSync.vue'
 import ProviderModelManager from './ProviderModelManager.vue'
 import ProviderDialogContainer from './ProviderDialogContainer.vue'
-import { useModelCheckStore } from '@/stores/modelCheck'
 import { levelToValueMap, safetyCategories } from '@/lib/gemini'
 import type { SafetyCategoryKey, SafetySettingValue } from '@/lib/gemini'
 import VoiceAIProviderConfig from './VoiceAIProviderConfig.vue'
@@ -125,6 +125,7 @@ import {
   type ProviderCustomHeaders
 } from '@shared/providerCustomHeaders'
 import ProviderCustomHeadersEditor from './ProviderCustomHeadersEditor.vue'
+import { isProviderReadyForOnboarding } from './providerOnboardingReadiness'
 
 interface ProviderWebsites {
   official: string
@@ -157,7 +158,6 @@ const { t } = useI18n()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
 const uiSettingsStore = useUiSettingsStore()
-const modelCheckStore = useModelCheckStore()
 const azureApiVersion = ref('')
 const geminiSafetyLevels = reactive<Record<string, number>>({})
 
@@ -216,33 +216,15 @@ const providerWebsites = computed<ProviderWebsites | undefined>(
 
 const providerModelsSource = computed(
   () =>
-    modelStore.allProviderModels.find((p) => p.providerId === props.provider.id)?.models ??
-    emptyModels
+    modelStore.allProviderModels
+      .find((p) => p.providerId === props.provider.id)
+      ?.models.filter((model) => !model.isCustom) ?? emptyModels
 )
 
 const customModelsSource = computed(
   () =>
     modelStore.customModels.find((p) => p.providerId === props.provider.id)?.models ?? emptyModels
 )
-
-const isProviderReadyForOnboarding = (
-  provider: Pick<LLM_PROVIDER, 'apiKey' | 'baseUrl' | 'custom' | 'enable'>
-) => {
-  if (!provider.enable) {
-    return false
-  }
-
-  const hasApiKey = provider.apiKey?.trim().length > 0
-  if (!hasApiKey) {
-    return false
-  }
-
-  if (provider.custom) {
-    return Boolean(provider.baseUrl?.trim())
-  }
-
-  return true
-}
 
 const maybeEmitProviderConfigured = (provider: LLM_PROVIDER) => {
   if (isProviderReadyForOnboarding(provider)) {
@@ -384,47 +366,15 @@ watch(
   { immediate: true }
 )
 
-// A provider with a working credential gets staged verification: the edited
-// configuration must verify before it atomically replaces the stored one. The
-// first-time setup path keeps the immediate save so onboarding stays fluid.
-const shouldStageApiChanges = computed(() => Boolean(props.provider.apiKey?.trim()))
-
-const applyStagedApiChange = async (updates: { apiKey?: string; baseUrl?: string }) => {
-  try {
-    const result = await providerStore.stageProviderApiChange(props.provider.id, updates)
-    if (!result.isOk) {
-      notifyRenderer({
-        kind: 'error',
-        code: 'settings.provider.stagedUpdateFailed',
-        title: t('settings.provider.stagedUpdate.failedTitle'),
-        description: result.errorMsg || t('settings.provider.stagedUpdate.failedDescription')
-      })
-      return false
-    }
-    return true
-  } catch (error) {
-    console.error('Failed to stage provider api change:', error)
-    notifyRenderer({
-      kind: 'error',
-      code: 'settings.provider.stagedUpdateFailed',
-      title: t('settings.provider.stagedUpdate.failedTitle'),
-      description: t('settings.provider.stagedUpdate.failedDescription')
-    })
-    return false
+const saveConnection = async (providerId: string, updates: { apiKey: string; baseUrl: string }) => {
+  const result = await providerStore.updateProviderApi(providerId, updates.apiKey, updates.baseUrl)
+  if (props.provider.id === providerId) {
+    maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
   }
 }
 
 const saveCustomHeaders = (customHeaders?: ProviderCustomHeaders) =>
   providerStore.saveProviderCustomHeaders(props.provider.id, customHeaders)
-
-const handleApiKeyChange = async (value: string) => {
-  if (shouldStageApiChanges.value && value.trim() && value !== props.provider.apiKey) {
-    await applyStagedApiChange({ apiKey: value })
-    return
-  }
-  const result = await providerStore.updateProviderApi(props.provider.id, value, undefined)
-  maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
-}
 
 const handleAuthModeChange = async (mode: 'api-key' | 'chatgpt') => {
   if (
@@ -454,15 +404,6 @@ const handleAuthModeChange = async (mode: 'api-key' | 'chatgpt') => {
   }
 }
 
-const handleApiHostChange = async (value: string) => {
-  if (shouldStageApiChanges.value && value.trim() && value !== props.provider.baseUrl) {
-    await applyStagedApiChange({ baseUrl: value })
-    return
-  }
-  const result = await providerStore.updateProviderApi(props.provider.id, undefined, value)
-  maybeEmitProviderConfigured(result.updated as LLM_PROVIDER)
-}
-
 const MODEL_TOGGLE_PERF_LOG_PREFIX = '[ModelTogglePerf]'
 const getPerfNow = () =>
   import.meta.env.DEV ? (typeof performance !== 'undefined' ? performance.now() : Date.now()) : 0
@@ -484,6 +425,14 @@ const waitForNextPaint = async () => {
   })
 }
 
+const notifyModelStatusUpdateFailed = () =>
+  notifyRenderer({
+    kind: 'error',
+    code: 'settings.provider.modelStatusUpdateFailed',
+    title: t('common.error.operationFailed'),
+    description: t('settings.deepchatAgents.saveFeedback.saveFailed')
+  })
+
 const handleModelEnabledChange = async (
   model: RENDERER_MODEL_META,
   enabled: boolean,
@@ -501,7 +450,12 @@ const handleModelEnabledChange = async (
     enabled
   })
 
-  await modelStore.updateModelStatus(props.provider.id, model.id, enabled)
+  const updated = await modelStore.updateModelStatus(props.provider.id, model.id, enabled)
+
+  if (!updated) {
+    notifyModelStatusUpdateFailed()
+    return false
+  }
 
   if (enabled) {
     emit('provider-model-enabled')
@@ -509,7 +463,7 @@ const handleModelEnabledChange = async (
 
   const storeComplete = getPerfNow()
   if (!import.meta.env.DEV || !uiSettingsStore.traceDebugEnabled) {
-    return
+    return true
   }
 
   await nextTick()
@@ -526,6 +480,7 @@ const handleModelEnabledChange = async (
     paintMs: Math.round(paintComplete - nextTickComplete),
     totalMs: Math.round(paintComplete - interactionStart)
   })
+  return true
 }
 
 const disableModel = (model: RENDERER_MODEL_META) => {
@@ -538,10 +493,9 @@ const confirmDisable = async () => {
     return
   }
 
-  try {
-    await modelStore.updateModelStatus(props.provider.id, modelToDisable.value.id, false)
-  } catch (error) {
-    console.error('Failed to disable model:', error)
+  const updated = await handleModelEnabledChange(modelToDisable.value, false)
+  if (!updated) {
+    return
   }
 
   showConfirmDialog.value = false
@@ -622,20 +576,23 @@ const handleRefreshModels = async () => {
   isRefreshingModels.value = true
   isModelListLoading.value = true
 
+  let refreshed = false
   try {
-    await modelStore.refreshProviderModels(props.provider.id)
+    refreshed = await modelStore.refreshProviderModels(props.provider.id, true)
+  } catch {
+    // Do not expose upstream errors, which can contain connection credentials.
   } finally {
     isRefreshingModels.value = false
     isModelListLoading.value = false
   }
-}
-
-const openModelCheckDialog = () => {
-  if (!props.provider.enable) {
-    return
+  if (!refreshed) {
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.provider.modelRefreshFailed',
+      title: t('settings.provider.toast.refreshModelsFailedTitle'),
+      description: t('settings.provider.toast.refreshModelsFailedDescription')
+    })
   }
-
-  modelCheckStore.openDialog(props.provider.id)
 }
 
 const handleAddModelSaved = () => modelStore.refreshProviderModels(props.provider.id)

@@ -101,6 +101,9 @@ async function setup(ready = true) {
         if (key === 'model.filter.visibleCount') {
           return `visible:${params?.visible}/${params?.total}`
         }
+        if (key === 'model.actions.enableFiltered' || key === 'model.actions.disableFiltered') {
+          return `${key}:${params?.count}`
+        }
         return key
       }
     })
@@ -158,7 +161,7 @@ async function setup(ready = true) {
     }
   })
   await flushPromises()
-  return { wrapper, providerModels, accessibilityEnabled, accessibilityReady }
+  return { wrapper, providerModels, modelStore, accessibilityEnabled, accessibilityReady }
 }
 
 describe('ProviderModelList', () => {
@@ -293,5 +296,55 @@ describe('ProviderModelList', () => {
     expect(getVisibleIds()).toHaveLength(250)
     expect(getVisibleIds().at(-1)).toBe('model-250')
     wrapper.unmount()
+  })
+
+  it('keeps count-labelled batch actions scoped to a filtered official subset', async () => {
+    const { wrapper, modelStore } = await setup()
+
+    await wrapper.get('input').setValue('Alpha')
+    await flushPromises()
+
+    const enableFiltered = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('model.actions.enableFiltered:1'))
+    expect(enableFiltered).toBeDefined()
+    expect(wrapper.text()).not.toContain('model.actions.enableAll')
+
+    await enableFiltered!.trigger('click')
+    expect(modelStore.enableAllModels).toHaveBeenCalledWith(
+      'anthropic',
+      expect.arrayContaining([expect.objectContaining({ id: 'alpha-vision' })])
+    )
+    expect(modelStore.enableAllModels.mock.calls[0][1]).toHaveLength(1)
+  })
+
+  it('keeps filtered batch actions for a custom-only result', async () => {
+    const { wrapper, modelStore } = await setup()
+    await wrapper.setProps({
+      customModels: [
+        {
+          id: 'custom-reasoner',
+          name: 'Custom Reasoner',
+          group: 'default',
+          providerId: 'anthropic',
+          enabled: false,
+          type: ModelType.Chat,
+          isCustom: true
+        }
+      ]
+    })
+
+    await wrapper.get('input').setValue('Custom Reasoner')
+    await flushPromises()
+
+    const disableFiltered = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('model.actions.disableFiltered:1'))
+    expect(disableFiltered).toBeDefined()
+
+    await disableFiltered!.trigger('click')
+    expect(modelStore.disableAllModels).toHaveBeenCalledWith('anthropic', [
+      expect.objectContaining({ id: 'custom-reasoner', isCustom: true })
+    ])
   })
 })

@@ -47,6 +47,7 @@ import {
   emitModelConfigChanged,
   emitModelConfigReset,
   emitModelConfigsImported,
+  emitModelStatusChanged,
   emitModelsChanged
 } from '@/provider/eventPublishers'
 import { ModelConfigDbStore, ProviderDbStore, ProviderModelDbStore } from './settingsDbStores'
@@ -269,6 +270,12 @@ export interface ProviderSettingsPort {
   getCustomModels(providerId: string): MODEL_META[]
   setCustomModels(providerId: string, models: MODEL_META[]): void
   addCustomModel(providerId: string, model: MODEL_META): void
+  saveCustomModel(input: {
+    providerId: string
+    originalModelId?: string
+    model: MODEL_META
+    config: ModelConfig
+  }): MODEL_META
   removeCustomModel(providerId: string, modelId: string): void
   updateCustomModel(providerId: string, modelId: string, updates: Partial<MODEL_META>): void
   getModelStatus(providerId: string, modelId: string): boolean
@@ -342,12 +349,12 @@ export class ProviderSettings implements ProviderSettingsPort {
   constructor(
     settings: SettingsStore,
     private readonly privacy: PrivacySettingsPort,
-    database: ProviderDatabase,
+    private readonly database: ProviderDatabase,
     private readonly publishEvent: DeepchatEventPublisher,
     previousAppVersion?: string
   ) {
     this.appSettings = settings
-    this.store = new ProviderDbStore(settings, () => database.settingsTable)
+    this.store = new ProviderDbStore(settings, () => this.database.settingsTable)
     this.userDataPath = app.getPath('userData')
     this.currentAppVersion = app.getVersion()
     this.providerHelper = new ProviderHelper({
@@ -365,7 +372,7 @@ export class ProviderSettings implements ProviderSettingsPort {
 
     // Initialize model configuration helper
     this.modelConfigHelper = new ModelConfigHelper(
-      new ModelConfigDbStore(() => database.settingsTable)
+      new ModelConfigDbStore(() => this.database.settingsTable)
     )
 
     this.providerModelHelper = new ProviderModelHelper({
@@ -375,7 +382,7 @@ export class ProviderSettings implements ProviderSettingsPort {
       publishEvent: this.publishEvent
     })
     this.providerModelHelper.setStoreFactory(
-      (providerId) => new ProviderModelDbStore(providerId, () => database.settingsTable)
+      (providerId) => new ProviderModelDbStore(providerId, () => this.database.settingsTable)
     )
     this.providerHelper.setCleanupHooks({
       deleteProviderModelStatuses: this.modelStatusHelper.deleteProviderModelStatuses.bind(
@@ -1286,6 +1293,56 @@ export class ProviderSettings implements ProviderSettingsPort {
 
   addCustomModel(providerId: string, model: MODEL_META): void {
     this.providerModelHelper.addCustomModel(providerId, model)
+  }
+
+  saveCustomModel(input: {
+    providerId: string
+    originalModelId?: string
+    model: MODEL_META
+    config: ModelConfig
+  }): MODEL_META {
+    const { providerId, originalModelId } = input
+    if (!this.getProviderById(providerId)) {
+      throw new Error(`Provider was not found: ${providerId}`)
+    }
+    const model: MODEL_META = {
+      ...input.model,
+      providerId,
+      group: input.model.group || 'default',
+      isCustom: true
+    }
+    const preparedConfig = this.modelConfigHelper.prepareModelConfig(
+      model.id,
+      providerId,
+      input.config
+    )
+    const enabled = originalModelId
+      ? this.modelStatusHelper.getModelStatus(providerId, originalModelId)
+      : Boolean(model.enabled)
+
+    this.database.settingsTable.saveCustomModel({
+      providerId,
+      originalModelId,
+      model,
+      configKey: this.modelConfigHelper.generateCacheKey(providerId, model.id),
+      config: preparedConfig,
+      enabled
+    })
+
+    this.providerModelHelper.invalidateAllProviderModelsCache()
+    this.modelConfigHelper.clearMemoryCache()
+    this.modelStatusHelper.clearModelStatusCache()
+    emitModelsChanged(this.publishEvent, providerId)
+    emitModelConfigChanged(
+      this.publishEvent,
+      providerId,
+      model.id,
+      preparedConfig.config as unknown as NonNullable<
+        DeepchatEventPayload<'models.config.changed'>['config']
+      >
+    )
+    emitModelStatusChanged({ providerId, modelId: model.id, enabled }, this.publishEvent)
+    return { ...model, enabled }
   }
 
   removeCustomModel(providerId: string, modelId: string): void {

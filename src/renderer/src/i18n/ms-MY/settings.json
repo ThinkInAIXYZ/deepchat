@@ -1545,7 +1545,7 @@
     "bedrockLimitTip": "*Hanya menyokong model Anthropic Claude (termasuk model Opus, Sonnet, Haiku)",
     "bedrockVerifyTip": "DeepChat menggunakan model Claude 3.5 Sonnet untuk pengesahan. Jika anda tidak mempunyai kebenaran memanggil untuk model ini, pengesahan akan gagal. Ini tidak menjejaskan penggunaan model lain.",
     "center": {
-      "title": "Provider Center",
+      "title": "Pusat Pembekal",
       "description": "Urus sambungan pembekal, model dan konfigurasi lanjutan.",
       "noApiUrl": "API URL tidak dikonfigurasikan",
       "enabledModels": "Model {count} didayakan",
@@ -1557,9 +1557,9 @@
         "local": "Local"
       },
       "tabs": {
-        "connection": "Connect",
-        "models": "Models",
-        "advanced": "Advanced"
+        "connection": "Sambungan",
+        "models": "Model",
+        "advanced": "Lanjutan"
       }
     },
     "openaiCodexPasteCallback": "Tampal URL panggil balik",
@@ -1594,10 +1594,20 @@
       "rename": "Namakan semula",
       "delete": "Padam"
     },
+    "connectionEditor": {
+      "title": "Edit sambungan",
+      "description": "Simpan URL API dan kunci bersama-sama. Menyimpan tidak menguji sambungan.",
+      "currentKey": "Kunci semasa",
+      "newKey": "Kunci API baharu",
+      "keepKey": "Biarkan kosong untuk mengekalkan kunci semasa.",
+      "removeKey": "Alih keluar kunci API",
+      "removeKeyDescription": "Alih keluar kunci API yang disimpan daripada peranti ini? Pembekal dan model akan dikekalkan. OAuth dan pengepala permintaan tersuai tidak berubah.",
+      "test": "Uji sambungan"
+    },
     "health": {
-      "verified": "Disahkan",
+      "verified": "Ujian terakhir berjaya",
       "checking": "Menyemak",
-      "needsAttention": "Perlukan perhatian",
+      "needsAttention": "Ujian terakhir gagal",
       "notChecked": "Belum disemak",
       "lastChecked": "Semakan terakhir {time}"
     },
@@ -1610,6 +1620,7 @@
     },
     "addFlow": {
       "connect": "Sambung dan muatkan model",
+      "saveOnly": "Simpan tanpa menguji",
       "validating": "Mengesahkan sambungan...",
       "loadingModels": "Memuatkan model...",
       "failed": "Sambungan gagal. Semak konfigurasi dan cuba lagi.",

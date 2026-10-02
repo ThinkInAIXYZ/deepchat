@@ -385,8 +385,8 @@ describe('SyncConfigImportService', () => {
         'custom-store'
       ])
       expect(tables.listModelStatusEntries()).toEqual({
-        'model_status_imported_custom-1': false,
-        'model_status_imported_gpt-4': true
+        'model_status_v2_imported|custom-1': false,
+        'model_status_v2_imported|gpt-4': true
       })
       expect(tables.getModelConfigStoreEntry('imported:gpt-4')).toMatchObject({
         id: 'gpt-4',
@@ -485,7 +485,7 @@ describe('SyncConfigImportService', () => {
         'Imported'
       )
       expect(overwriteTables.listProviderModels('imported', 'provider')[0].name).toBe('GPT 4')
-      expect(overwriteTables.listModelStatusEntries()['model_status_imported_gpt-4']).toBe(true)
+      expect(overwriteTables.listModelStatusEntries()['model_status_v2_imported|gpt-4']).toBe(true)
       expect(overwriteTables.getModelConfigStoreEntry('imported:gpt-4')).toMatchObject({
         config: { maxTokens: 123 }
       })
@@ -500,6 +500,27 @@ describe('SyncConfigImportService', () => {
       expect(overwriteTables.getAgentMcpSelections()).toEqual(['server-a', 'server-b'])
     } finally {
       closeOverwriteTables()
+    }
+  })
+
+  it('clears v2 statuses before restoring legacy statuses in overwrite mode', () => {
+    writeJson(path.join(extractionDir, 'configs', 'app-settings.json'), {
+      providers: [provider('imported', 'Imported')],
+      model_status_imported_gpt_4: true
+    })
+    const { tables, close } = openAppSettingsTable(dbPath)
+    tables.setModelStatus('model_status_v2_imported|gpt_4', 'imported', 'gpt_4', false)
+    close()
+
+    new SyncConfigImportService(dbPath).importLegacyConfig(extractionDir, 'overwrite')
+
+    const restored = openAppSettingsTable(dbPath)
+    try {
+      expect(restored.tables.listModelStatusEntries()).toEqual({
+        model_status_imported_gpt_4: true
+      })
+    } finally {
+      restored.close()
     }
   })
 

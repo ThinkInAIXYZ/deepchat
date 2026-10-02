@@ -4,6 +4,22 @@ import { ModelType } from '@shared/model'
 import type { MODEL_META } from '@shared/types/provider'
 
 describe('ModelManager model resolution', () => {
+  it('rejects failed discovery instead of returning an empty catalog', async () => {
+    const error = new Error('discovery unavailable')
+    const manager = new ModelManager({
+      providerSettings: { resolveEffectiveModels: (models: MODEL_META[]) => models } as never,
+      getProviderInstance: () =>
+        ({
+          fetchModels: async (options?: { suppressErrors?: boolean }) => {
+            if (options?.suppressErrors === false) throw error
+            return []
+          }
+        }) as never
+    })
+
+    await expect(manager.getModelList('custom')).rejects.toBe(error)
+  })
+
   it('delegates runtime list projection to ProviderSettings', async () => {
     const rawModel: MODEL_META = {
       id: 'gpt-5.6-sol',

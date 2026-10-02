@@ -18,7 +18,9 @@
   "actions": {
     "add": "Добавить модель",
     "enableAll": "Включить все",
-    "disableAll": "Выключить все"
+    "disableAll": "Выключить все",
+    "enableFiltered": "Включить результаты ({count})",
+    "disableFiltered": "Отключить результаты ({count})"
   },
   "sort": {
     "status": "По статусу",

@@ -130,6 +130,7 @@ export const ProviderHealthEntrySchema = z.object({
   status: z.enum(['verified', 'needs_attention']),
   fingerprint: z.string(),
   checkedAt: z.number().int(),
+  modelId: z.string().optional(),
   errorMsg: z.string().optional()
 })
 

@@ -18,7 +18,9 @@
   "actions": {
     "add": "Thêm mô hình",
     "enableAll": "Bật tất cả",
-    "disableAll": "Vô hiệu hóa tất cả"
+    "disableAll": "Vô hiệu hóa tất cả",
+    "enableFiltered": "Bật kết quả ({count})",
+    "disableFiltered": "Tắt kết quả ({count})"
   },
   "sort": {
     "status": "Theo trạng thái",

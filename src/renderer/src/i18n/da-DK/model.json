@@ -18,7 +18,9 @@
   "actions": {
     "add": "Tilføj model",
     "enableAll": "Aktiver alle",
-    "disableAll": "Deaktiver alle"
+    "disableAll": "Deaktiver alle",
+    "enableFiltered": "Aktivér resultater ({count})",
+    "disableFiltered": "Deaktivér resultater ({count})"
   },
   "sort": {
     "status": "Efter status",

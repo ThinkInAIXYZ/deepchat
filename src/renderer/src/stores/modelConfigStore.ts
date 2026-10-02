@@ -31,6 +31,10 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     delete cache.value[getCacheKey(modelId, providerId)]
   }
 
+  const invalidateModelConfig = (modelId: string, providerId: string) => {
+    delete cache.value[getCacheKey(modelId, providerId)]
+  }
+
   const getProviderModelConfigs = async (providerId: string) => {
     return await modelClient.getProviderModelConfigs(providerId)
   }
@@ -51,6 +55,7 @@ export const useModelConfigStore = defineStore('modelConfig', () => {
     getModelConfig,
     setModelConfig,
     resetModelConfig,
+    invalidateModelConfig,
     getProviderModelConfigs,
     hasUserModelConfig,
     importConfigs,

@@ -7,6 +7,7 @@ import {
   hasPersistedDerivedProviderModelFields,
   stripDerivedProviderModelFields
 } from '../providerModelFacts'
+import { encodeLegacyModelStatusKey, encodeModelStatusKey } from '../modelStatusKey'
 
 type ProviderRow = {
   id: string
@@ -44,6 +45,15 @@ type ModelConfigRow = {
   config_json: string
   created_at: number
   updated_at: number
+}
+
+export type SaveCustomModelInput = {
+  providerId: string
+  originalModelId?: string
+  model: MODEL_META
+  configKey: string
+  config: IModelConfig
+  enabled: boolean
 }
 
 const parseJson = <T>(raw: string | null | undefined, fallback: T): T => {
@@ -280,6 +290,76 @@ export class ProviderSettingsTable extends BaseTable {
           source === 'provider' ? stripDerivedProviderModelFields(model, providerId) : model
         this.upsertProviderModel(providerId, source, storedModel, index)
       })
+    })()
+  }
+
+  saveCustomModel(input: SaveCustomModelInput): void {
+    const { providerId, originalModelId, model, configKey, config, enabled } = input
+    const targetId = model.id
+    const statusKey = encodeModelStatusKey(providerId, targetId)
+
+    this.db.transaction(() => {
+      const duplicate = this.db
+        .prepare(
+          `SELECT 1 FROM provider_models
+           WHERE provider_id = ? AND model_id = ?
+             AND NOT (source = 'custom' AND model_id = ?)`
+        )
+        .get(providerId, targetId, originalModelId ?? '')
+      if (duplicate) {
+        throw new Error(`Model ID already exists: ${targetId}`)
+      }
+
+      const existing = originalModelId
+        ? this.getProviderModel(providerId, originalModelId, 'custom')
+        : undefined
+      if (originalModelId && !existing) {
+        throw new Error(`Custom model was not found: ${originalModelId}`)
+      }
+
+      const sortOrder = originalModelId
+        ? (
+            this.db
+              .prepare(
+                `SELECT sort_order FROM provider_models
+                 WHERE provider_id = ? AND model_id = ? AND source = 'custom'`
+              )
+              .get(providerId, originalModelId) as { sort_order: number }
+          ).sort_order
+        : (
+            this.db
+              .prepare(
+                `SELECT COALESCE(MAX(sort_order), -1) + 1 AS sort_order
+                 FROM provider_models WHERE provider_id = ? AND source = 'custom'`
+              )
+              .get(providerId) as { sort_order: number }
+          ).sort_order
+
+      this.upsertProviderModel(providerId, 'custom', model, sortOrder)
+      if (!this.setModelConfigStoreEntry(configKey, config)) {
+        throw new Error('Invalid custom model configuration')
+      }
+      this.setModelStatus(statusKey, providerId, targetId, enabled)
+
+      if (originalModelId && originalModelId !== targetId) {
+        this.db
+          .prepare(
+            "DELETE FROM provider_models WHERE provider_id = ? AND model_id = ? AND source = 'custom'"
+          )
+          .run(providerId, originalModelId)
+        this.db
+          .prepare('DELETE FROM model_configs WHERE provider_id = ? AND model_id = ?')
+          .run(providerId, originalModelId)
+        const originalStatusKey = encodeModelStatusKey(providerId, originalModelId)
+        if (
+          this.getModelStatus(encodeLegacyModelStatusKey(providerId, originalModelId)) !== undefined
+        ) {
+          // Legacy keys may also belong to a dotted/hyphenated sibling ID.
+          this.setModelStatus(originalStatusKey, providerId, originalModelId, false)
+        } else {
+          this.deleteModelStatus(originalStatusKey)
+        }
+      }
     })()
   }
 
