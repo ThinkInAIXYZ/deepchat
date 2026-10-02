@@ -164,8 +164,8 @@ use a non-reserved gateway header.
 
 - Renderer: open a provider-scoped dialog, edit its local JSON draft, show validation errors, submit
   a parsed header record, and keep Advanced ahead of Models in the shared provider shell.
-- Provider store: stage configured-provider changes through the existing transient connection check,
-  persist successful changes, refresh provider summaries, and invalidate stale health state.
+- Provider store: persist configured-provider changes without a remote probe, refresh provider
+  summaries, and use the changed health fingerprint to invalidate stale health state.
 - Shared contract: define the provider field and authoritative validation limits.
 - Main provider runtime: merge and scope headers for outbound provider requests.
 - Trace persistence: expose header names when useful but mask every user-configured value.

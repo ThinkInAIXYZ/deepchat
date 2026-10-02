@@ -33,8 +33,9 @@ the need for transaction rollback, legacy-status tombstones, VoiceAI partial-upd
 connection fingerprint fields and filtered batch scoping. The unknown-provider discovery test
 failed on the previous default before passing on the corrected condition.
 
-Validation: 962 main-process tests and the full renderer suite (2,624 tests) passed. The three
-Electron scenarios passed three consecutive runs (9 passes), using fake keys and disposable
+Validation: the provider/settings/sync main-process slice (962 tests) and the full renderer suite
+(2,624 tests) passed. The three Electron scenarios passed three consecutive runs (9 passes),
+using fake keys and disposable
 profiles. Build/typecheck, format, lint, 23-locale i18n validation, icons and renderer architecture
 checks passed. Screenshots were inspected at normal and compact sizes, including retained drafts,
 failed saves, key-removal confirmation, filtered actions and visible Vertex connection fields.
