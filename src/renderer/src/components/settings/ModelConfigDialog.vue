@@ -499,7 +499,7 @@
       </div>
 
       <DialogFooter class="gap-2">
-        <p v-if="saveError" class="mr-auto text-sm text-destructive">
+        <p v-if="saveError" role="alert" class="mr-auto text-sm text-destructive">
           {{ saveError }}
         </p>
         <DcButton type="button" variant="outline" :disabled="isSaving" @click="handleReset">

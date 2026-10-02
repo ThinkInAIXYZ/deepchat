@@ -425,6 +425,7 @@ const handleEditorOpenChange = (open: boolean) => {
 }
 const handleRemoveKeyDialogOpenChange = (open: boolean) => {
   if (isSaving.value) return
+  if (!open) saveError.value = ''
   showRemoveKeyDialog.value = open
 }
 const leaveGuardLease = settingsLeaveGuard.register({

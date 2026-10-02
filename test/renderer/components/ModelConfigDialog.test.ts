@@ -265,6 +265,9 @@ describe('ModelConfigDialog custom model persistence', () => {
     await nextTick()
 
     expect(wrapper.text()).toContain('settings.deepchatAgents.saveFeedback.saveFailed')
+    expect(wrapper.get('[role="alert"]').text()).toBe(
+      'settings.deepchatAgents.saveFeedback.saveFailed'
+    )
     expect(wrapper.emitted('update:open')).toBeUndefined()
   })
 })

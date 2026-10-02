@@ -259,6 +259,12 @@ describe('ProviderApiConfig', () => {
       'settings.deepchatAgents.saveFeedback.saveFailed'
     )
     expect(wrapper.text()).not.toContain('write failed')
+
+    wrapper.findComponent({ name: 'DcConfirmDialog' }).vm.$emit('update:open', false)
+    await flushPromises()
+    expect(wrapper.find('[data-testid="provider-connection-error"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="provider-remove-key"]').trigger('click')
+    expect(wrapper.find('[data-testid="provider-connection-error"]').exists()).toBe(false)
   })
 
   it('blocks controls and dismissal while a save is pending', async () => {
