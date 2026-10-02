@@ -212,6 +212,9 @@ describe('AboutUsSettings', () => {
 
     await flushPromises()
 
+    expect(wrapper.findAll('p').map((paragraph) => paragraph.text())).toContain('v1.0.0-beta.3')
+    expect(wrapper.text()).toContain('v1.0.0-beta.4 可用')
+
     const buttons = wrapper.findAll('button').map((button) => button.text())
     expect(buttons).toEqual(['意见反馈', '免责声明', 'GitHub 下载', '官网下载', '关闭'])
     expect(wrapper.text()).not.toContain('检查更新')

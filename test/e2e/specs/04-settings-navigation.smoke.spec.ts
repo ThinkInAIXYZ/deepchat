@@ -226,6 +226,9 @@ test('release notes retain document typography for Atom HTML and Markdown @smoke
   const settingsPage = await openSettings(app)
   await openSettingsTab(settingsPage, 'settings-tab-about', 'settings-about')
   await expect(settingsPage.getByTestId('settings-about-page')).toBeVisible()
+  const installedVersion = await app.electronApp.evaluate(({ app }) => app.getVersion())
+  await expect(settingsPage.getByText(`v${installedVersion}`, { exact: true })).toBeVisible()
+  await captureSettingsPage(settingsPage, testInfo, 'about-installed-version')
   const settingsWindow = await app.electronApp.browserWindow(settingsPage)
   const items = Array.from({ length: 20 }, (_, index) => `Change ${index + 1}: 修复更新日志显示`)
 
