@@ -90,7 +90,7 @@ export class FloatingChatWindow {
           nodeIntegration: false,
           contextIsolation: true,
           preload: path.join(__dirname, '../preload/index.mjs'),
-          webSecurity: false,
+          webSecurity: true,
           devTools: is.dev,
           sandbox: false
         }

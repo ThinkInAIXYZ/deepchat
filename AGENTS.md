@@ -15,6 +15,8 @@
   persistence or migration, lifecycle or concurrency, recovery, security boundaries, or proven
   regressions. Prefer no new test to implementation-coupled coverage.
 - Keep native capabilities behind typed preload/IPC boundaries with context isolation enabled.
+- Keep executable previews on a separate origin with web security enabled; never give app-origin
+  `srcdoc` both scripts and same-origin access. Validate native IPC senders before dispatch.
 - Use vue-i18n for user copy; prefer existing shadcn-vue primitives and VueUse utilities.
 - Follow Oxfmt: single quotes, no semicolons, 100 columns.
 - Before editing, inspect ownership, callers, tests, and nearby patterns; fix the root cause.
