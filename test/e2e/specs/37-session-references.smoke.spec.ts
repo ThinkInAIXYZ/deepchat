@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
 import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
+import type { SessionReference } from '../../../src/shared/sessionReferences'
 import { test, expect } from '../fixtures/electronApp'
 import {
   selectAgent,
@@ -18,6 +19,8 @@ test('session references survive drafts and retrieve evidence without injecting 
   let sawReader = false
   let referenceRequest = ''
   let evidence = ''
+  let holdNextStream = false
+  let releaseStream: (() => void) | undefined
   const marker = 'violet-harbor-73'
   const server = createServer(async (request, response) => {
     let body = ''
@@ -44,6 +47,12 @@ test('session references survive drafts and retrieve evidence without injecting 
         })
       )
       return
+    }
+    if (holdNextStream) {
+      holdNextStream = false
+      await new Promise<void>((resolve) => {
+        releaseStream = resolve
+      })
     }
     const toolResult = input.messages.findLast(
       (message: { role: string }) => message.role === 'tool'
@@ -239,8 +248,70 @@ test('session references survive drafts and retrieve evidence without injecting 
     await openSessionById(app.page, targetId)
     await expect(chip).toHaveText('Cross-workspace notes')
     await expect(app.page.getByTestId('chat-send-button')).toBeEnabled()
+
+    // Keep a real turn active while editing queued references through the UI.
+    await chip.getByRole('button', { name: /Delete|删除/ }).click()
+    holdNextStream = true
+    await sendMessage(app.page, 'Keep this turn open for queue editing.')
+    await expect.poll(() => !!releaseStream).toBe(true)
+    const itemId = await app.page.evaluate(
+      async ({ sessionId, sourceId }) => {
+        const { reference } = (await window.deepchat.invoke('sessions.resolveReference', {
+          sessionId: sourceId
+        })) as { reference: SessionReference }
+        const text = 'Review this source after the current turn.'
+        const { item } = (await window.deepchat.invoke('sessions.queuePendingInput', {
+          sessionId,
+          content: {
+            text,
+            files: [],
+            inlineItems: [{ type: 'session', offset: text.length, ...reference }]
+          }
+        })) as { item: { id: string } }
+        return item.id
+      },
+      { sessionId: targetId, sourceId }
+    )
+    const readQueue = () =>
+      app.page.evaluate(
+        (sessionId) => window.deepchat.invoke('sessions.listPendingInputs', { sessionId }),
+        targetId
+      )
+    const queueRow = app.page.getByTestId('pending-row-main')
+    await expect(queueRow).toContainText('Review this source')
+    await queueRow.click()
+    await app.page.getByTestId('pending-edit-textarea').fill('go')
+    await app.page.getByTestId('pending-edit-textarea').press('Enter')
+    await expect.poll(readQueue).toMatchObject({
+      items: [
+        { id: itemId, payload: { text: 'go', inlineItems: [{ sessionId: sourceId, offset: 2 }] } }
+      ]
+    })
+    await queueRow.click()
+    await app.page.getByTestId('pending-edit-textarea').fill('')
+    await app.page.getByTestId('pending-edit-textarea').press('Enter')
+    await expect(queueRow).toHaveText('Launch research')
+    await expect.poll(readQueue).toMatchObject({
+      items: [
+        { id: itemId, payload: { text: '', inlineItems: [{ sessionId: sourceId, offset: 0 }] } }
+      ]
+    })
+    await app.page.getByTestId('pending-rail').screenshot({
+      path: resolve(artifacts, 'session-reference-queue.png')
+    })
+    await app.page.evaluate(
+      ({ sessionId, itemId }) =>
+        window.deepchat.invoke('sessions.deletePendingInput', { sessionId, itemId }),
+      { sessionId: targetId, itemId }
+    )
+    releaseStream!()
+    await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
+      'data-generating',
+      'false'
+    )
     expect(app.pageErrors).toEqual([])
   } finally {
+    releaseStream?.()
     server.closeAllConnections()
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }

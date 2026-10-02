@@ -71,3 +71,13 @@ from the cost of FTS/literal matching; do not claim constant-time search.
   The completed-reference screenshot was inspected. Seven regressions cover pending submission,
   cancellation, stale completions overlapping new selections, and failure recovery. No unresolved
   P0–P3 finding remains in the reviewed scope; production-scale latency was not benchmarked.
+- Second deep review fixed P2 concurrent-drop cancellation, P2 stale reference offsets after queue
+  text edits, and P3 reference-only queue labeling/save admission. Independent backend review
+  found no new authorization or pagination defect. Both fixes have failing pre-fix regressions.
+- Kept one composer resolution gate, distinguishing live-selection drops from captured-range
+  mentions; queue saving now reuses the button's admission condition instead of duplicating it.
+  No new persistence or service. Added five regressions and extended the existing Electron smoke
+  to edit a queued reference to shorter/empty text and check persisted offsets and the visible title.
+- Second review verification: format, i18n, lint, node/web typechecks, production build, 2,122 main
+  tests (one existing skip), all 2,642 renderer tests, and both Electron draft/reference smoke tests
+  passed. The reference-only queue screenshot was inspected. Two local fix commits; no push.

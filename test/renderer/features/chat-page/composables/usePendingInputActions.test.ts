@@ -1,6 +1,7 @@
 import { computed, effectScope, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePendingInputActions } from '@/features/chat-page/composables/usePendingInputActions'
+import { getVisibleUserContentBlocks } from '@/features/chat-page/model/displayUserMessageText'
 
 function createHarness() {
   const sessionId = ref('s1')
@@ -154,6 +155,37 @@ describe('usePendingInputActions', () => {
     expect(harness.pendingInputStore.updateQueueInput).toHaveBeenCalledTimes(1)
     harness.stop()
   })
+
+  it.each([
+    ['go', 2],
+    ['', 0]
+  ] as const)(
+    'keeps references visible when queued text is replaced with %j',
+    async (text, offset) => {
+      const harness = createHarness()
+      const reference = {
+        type: 'session' as const,
+        offset: 14,
+        sessionId: 'source',
+        title: 'Research',
+        projectDir: null,
+        tapeIncarnationId: 'incarnation'
+      }
+      Object.assign(harness.pendingInputStore.queueItems[0].payload, {
+        text: 'Original draft',
+        files: [],
+        inlineItems: [reference]
+      })
+      await harness.actions.onPendingInputUpdate({ itemId: 'item-1', text })
+      const updated = harness.pendingInputStore.updateQueueInput.mock.calls[0][2]
+      expect(updated.inlineItems).toEqual([{ ...reference, offset }])
+      expect(getVisibleUserContentBlocks(updated)).toContainEqual(
+        expect.objectContaining({ type: 'session', sessionId: 'source', title: 'Research' })
+      )
+      expect(reference.offset).toBe(14)
+      harness.stop()
+    }
+  )
 
   it('delegates move and delete only when writable', async () => {
     const harness = createHarness()

@@ -24,6 +24,8 @@ Search, clipboard text, and text exports retain the reference title and source I
 text preserves attached session references and places them after the replacement text; the existing
 text-only editor does not implicitly remove source grants. Deleting the referencing message removes
 that message's grant.
+Queue text edits apply the same reference re-anchoring rule. Reference-only queued inputs display
+their source titles and remain saveable without adding placeholder text.
 
 ## Reading and authorization
 

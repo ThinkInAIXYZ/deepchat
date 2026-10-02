@@ -143,6 +143,47 @@ function buildPendingInput(
 }
 
 describe('PendingInputLane', () => {
+  it('labels reference-only inputs and permits saving them without text', async () => {
+    const wrapper = mount(PendingInputLane, {
+      props: {
+        queueItems: [
+          buildPendingInput('queue-1', 'queue', {
+            payload: {
+              text: '',
+              files: [],
+              inlineItems: [
+                {
+                  type: 'session',
+                  offset: 0,
+                  sessionId: 'source',
+                  title: 'Launch research',
+                  projectDir: null,
+                  tapeIncarnationId: 'incarnation'
+                }
+              ]
+            }
+          })
+        ]
+      }
+    })
+    const row = wrapper.get('[data-testid="pending-row-main"]')
+    expect(row.text()).toBe('Launch research')
+    await row.trigger('click')
+    const save = wrapper.findAll('button').find((button) => button.text() === 'Save')!
+    expect((save.element as HTMLButtonElement).disabled).toBe(false)
+    await save.trigger('click')
+    expect(wrapper.emitted('update-queue')).toEqual([[{ itemId: 'queue-1', text: '' }]])
+    await wrapper.setProps({
+      queueItems: [buildPendingInput('queue-1', 'queue', { payload: { text: '', files: [] } })]
+    })
+    await wrapper.get('[data-testid="pending-row-main"]').trigger('click')
+    const emptySave = wrapper.findAll('button').find((button) => button.text() === 'Save')!
+    expect((emptySave.element as HTMLButtonElement).disabled).toBe(true)
+    await wrapper.get('[data-testid="pending-edit-textarea"]').trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('update-queue')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
   it('shows every recovered input and its actual count even above the admission limit', async () => {
     const queueItems = Array.from({ length: 11 }, (_, index) =>
       buildPendingInput(`queue-${index + 1}`, 'queue')
