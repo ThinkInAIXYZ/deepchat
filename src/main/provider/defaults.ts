@@ -320,7 +320,7 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     websites: {
       official: 'https://tokenlab.sh/',
       apiKey: 'https://tokenlab.sh/dashboard',
-      docs: 'https://docs.tokenlab.sh/',
+      docs: 'https://tokenlab.sh/docs',
       models: 'https://api.tokenlab.sh/v1/models'
     }
   },
