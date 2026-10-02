@@ -20798,6 +20798,33 @@
           "type": "chat"
         },
         {
+          "id": "unbiased/pareto-26.10-preview",
+          "name": "Pareto 26.10 Preview",
+          "display_name": "Pareto 26.10 Preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-10-01",
+          "last_updated": "2026-10-01",
+          "type": "chat"
+        },
+        {
           "id": "unbiased/pareto",
           "name": "Pareto",
           "display_name": "Pareto",
@@ -48463,7 +48490,7 @@
             ]
           },
           "limit": {
-            "context": 32768,
+            "context": 262000,
             "output": 32768
           },
           "temperature": true,
@@ -48582,7 +48609,7 @@
             ]
           },
           "limit": {
-            "context": 65536,
+            "context": 128000,
             "output": 32768
           },
           "temperature": true,
@@ -69277,8 +69304,8 @@
             ]
           },
           "limit": {
-            "context": 163840,
-            "output": 147456
+            "context": 128000,
+            "output": 115200
           },
           "temperature": true,
           "tool_call": true,
@@ -74898,6 +74925,42 @@
           "open_weights": false,
           "release_date": "2026-03-20",
           "last_updated": "2026-03-20",
+          "type": "chat"
+        },
+        {
+          "id": "apodex/apodex-1.1-mini:free",
+          "name": "Apodex: Apodex 1.1 Mini (free)",
+          "display_name": "Apodex: Apodex 1.1 Mini (free)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 235929
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "high"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-10-01",
+          "last_updated": "2026-10-01",
           "type": "chat"
         },
         {
@@ -83996,6 +84059,33 @@
           "knowledge": "2026-01",
           "release_date": "2026-05-28",
           "last_updated": "2026-06-11",
+          "type": "chat"
+        },
+        {
+          "id": "abliteration-abliterated-model-large-v2",
+          "name": "Abliterated Large V2",
+          "display_name": "Abliterated Large V2",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 32768
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-10-01",
+          "last_updated": "2026-10-01",
           "type": "chat"
         },
         {
@@ -155452,6 +155542,32 @@
           "type": "chat"
         },
         {
+          "id": "spacexai/grok-imagine-video-1.5-lite",
+          "name": "Grok Imagine Video 1.5 Lite",
+          "display_name": "Grok Imagine Video 1.5 Lite",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-10-01",
+          "last_updated": "2026-10-01",
+          "type": "chat"
+        },
+        {
           "id": "spacexai/grok-voice-think-fast-1.0",
           "name": "Grok Voice Think Fast 1.0",
           "display_name": "Grok Voice Think Fast 1.0",
@@ -161334,32 +161450,6 @@
           "knowledge": "2024-10",
           "release_date": "2025-09-01",
           "last_updated": "2025-09",
-          "type": "chat"
-        },
-        {
-          "id": "liquid/d1",
-          "name": "Liquid d1",
-          "display_name": "Liquid d1",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 65536,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": false,
-          "open_weights": false,
-          "release_date": "2026-09-29",
-          "last_updated": "2026-09-29",
           "type": "chat"
         },
         {
@@ -168228,6 +168318,188 @@
           "release_date": "2024-05-13",
           "last_updated": "2024-08-06",
           "type": "chat"
+        },
+        {
+          "id": "microsoft/mai-voice-2.1-flash",
+          "name": "MAI-Voice-2.1-Flash",
+          "display_name": "MAI-Voice-2.1-Flash",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-10-01",
+          "last_updated": "2026-10-01",
+          "type": "chat"
+        },
+        {
+          "id": "microsoft/mai-transcribe-2-streaming",
+          "name": "MAI-Transcribe-2-Streaming",
+          "display_name": "MAI-Transcribe-2-Streaming",
+          "modalities": {
+            "input": [
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-10-01",
+          "last_updated": "2026-10-01",
+          "type": "chat"
+        },
+        {
+          "id": "microsoft/mai-transcribe-2",
+          "name": "MAI-Transcribe 2",
+          "display_name": "MAI-Transcribe 2",
+          "modalities": {
+            "input": [
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-09-03",
+          "last_updated": "2026-09-03",
+          "type": "chat"
+        },
+        {
+          "id": "microsoft/mai-transcribe-1.5",
+          "name": "MAI-Transcribe-1.5",
+          "display_name": "MAI-Transcribe-1.5",
+          "modalities": {
+            "input": [
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-06-01",
+          "last_updated": "2026-06-01",
+          "type": "chat"
+        },
+        {
+          "id": "microsoft/mai-voice-2",
+          "name": "MAI-Voice-2",
+          "display_name": "MAI-Voice-2",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-06-02",
+          "last_updated": "2026-06-02",
+          "type": "chat"
+        },
+        {
+          "id": "microsoft/mai-voice-2.1",
+          "name": "MAI-Voice-2.1",
+          "display_name": "MAI-Voice-2.1",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-10-01",
+          "last_updated": "2026-10-01",
+          "type": "chat"
+        },
+        {
+          "id": "microsoft/mai-voice-2-flash",
+          "name": "MAI-Voice-2-Flash",
+          "display_name": "MAI-Voice-2-Flash",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-07-23",
+          "last_updated": "2026-07-23",
+          "type": "chat"
         }
       ]
     },
@@ -170686,7 +170958,7 @@
           },
           "limit": {
             "context": 1048576,
-            "output": 32768
+            "output": 262144
           },
           "temperature": true,
           "tool_call": true,
@@ -201996,6 +202268,49 @@
           "type": "chat"
         },
         {
+          "id": "google/diffusiongemma-26b-a4b-it",
+          "name": "DiffusionGemma 26B A4B IT",
+          "display_name": "DiffusionGemma 26B A4B IT",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 250000,
+            "output": 32768
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "knowledge": "2025-01",
+          "release_date": "2026-06-09",
+          "last_updated": "2026-07-15",
+          "type": "chat"
+        },
+        {
           "id": "google/gemma-4-31b-it",
           "name": "Gemma-4-31B-IT",
           "display_name": "Gemma-4-31B-IT",
@@ -202312,6 +202627,53 @@
           "knowledge": "2025-05",
           "release_date": "2026-07-31",
           "last_updated": "2026-07-31",
+          "type": "chat"
+        },
+        {
+          "id": "deepseek-ai/deepseek-v4.1-flash",
+          "name": "DeepSeek V4.1 Flash",
+          "display_name": "DeepSeek V4.1 Flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 384000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "effort_options": [
+                "none",
+                "low",
+                "high",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "knowledge": "2025-05",
+          "release_date": "2026-09-10",
+          "last_updated": "2026-09-10",
           "type": "chat"
         },
         {
@@ -203875,6 +204237,46 @@
           "open_weights": true,
           "release_date": "2025-10-28",
           "last_updated": "2025-10-28",
+          "type": "chat"
+        },
+        {
+          "id": "nvidia/nemotron-3.5-content-safety",
+          "name": "Nemotron 3.5 Content Safety",
+          "display_name": "Nemotron 3.5 Content Safety",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-06-04",
+          "last_updated": "2026-06-04",
           "type": "chat"
         },
         {
@@ -231124,6 +231526,44 @@
           "type": "chat"
         },
         {
+          "id": "fledge-alpha-free",
+          "name": "Fledge Alpha Free",
+          "display_name": "Fledge Alpha Free",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-10-01",
+          "last_updated": "2026-10-01",
+          "type": "chat"
+        },
+        {
           "id": "qwen3.6-plus-free",
           "name": "Qwen3.6 Plus Free",
           "display_name": "Qwen3.6 Plus Free",
@@ -255092,7 +255532,7 @@
             ]
           },
           "limit": {
-            "context": 32768,
+            "context": 262000,
             "output": 32768
           },
           "temperature": true,
@@ -339943,6 +340383,35 @@
           "type": "chat"
         },
         {
+          "id": "apodex/apodex-1.1-mini:free",
+          "name": "Apodex: Apodex 1.1 Mini (free)",
+          "display_name": "Apodex: Apodex 1.1 Mini (free)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 235929
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true
+            }
+          },
+          "type": "chat"
+        },
+        {
           "id": "arcee-ai/trinity-large-thinking",
           "name": "Arcee AI: Trinity Large Thinking",
           "display_name": "Arcee AI: Trinity Large Thinking",
@@ -340442,8 +340911,8 @@
             ]
           },
           "limit": {
-            "context": 163840,
-            "output": 147456
+            "context": 128000,
+            "output": 115200
           },
           "tool_call": true,
           "reasoning": {
@@ -340654,8 +341123,8 @@
             ]
           },
           "limit": {
-            "context": 1048576,
-            "output": 131072
+            "context": 1024000,
+            "output": 384000
           },
           "tool_call": true,
           "reasoning": {
@@ -344560,7 +345029,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 235929
+            "output": 98304
           },
           "tool_call": true,
           "reasoning": {
@@ -345101,8 +345570,8 @@
             ]
           },
           "limit": {
-            "context": 202800,
-            "output": 182520
+            "context": 262144,
+            "output": 16384
           },
           "temperature": true,
           "tool_call": true,
@@ -345236,7 +345705,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 131072
+            "output": 32768
           },
           "tool_call": true,
           "reasoning": {
@@ -349916,8 +350385,8 @@
             ]
           },
           "limit": {
-            "context": 128000,
-            "output": 32000
+            "context": 262144,
+            "output": 235929
           },
           "tool_call": true,
           "reasoning": {
@@ -352035,7 +352504,7 @@
           },
           "limit": {
             "context": 524288,
-            "output": 471859
+            "output": 262144
           },
           "tool_call": true,
           "reasoning": {
@@ -353256,7 +353725,7 @@
           },
           "limit": {
             "context": 1048576,
-            "output": 943718
+            "output": 131072
           },
           "temperature": true,
           "tool_call": true,
