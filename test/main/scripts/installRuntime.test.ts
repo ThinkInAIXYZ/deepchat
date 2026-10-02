@@ -23,7 +23,7 @@ describe('install-runtime', () => {
   it('loads every pinned toolchain version from one manifest', () => {
     expect(loadRuntimeVersions()).toMatchObject({
       tinyRuntimeInjector: '1.2.0',
-      node: 'v24.18.0',
+      node: 'v24.21.0',
       uv: '0.9.18',
       rtk: 'v0.43.0'
     })

@@ -2,41 +2,41 @@
   "schemaVersion": 3,
   "tinyRuntimeInjector": "1.2.0",
   "artifactVersions": {
-    "node": "v24.18.0",
+    "node": "v24.21.0",
     "uv": "0.9.18",
     "cloudflared": "2026.9.1"
   },
-  "node": "v24.18.0",
+  "node": "v24.21.0",
   "nodeArtifacts": {
     "darwin-arm64": {
-      "filename": "node-v24.18.0-darwin-arm64.tar.gz",
-      "archiveSha256": "e1a97e14c99c803e96c7339403282ea05a499c32f8d83defe9ef5ec66f979ed1",
-      "executableSha256": "ee6fb0e015284d83a91e8ec5213f43a157f8a392b58555301682892ba928c04a"
+      "filename": "node-v24.21.0-darwin-arm64.tar.gz",
+      "archiveSha256": "bed7eea5325e1108f32ce5228ddd6a5f0f08a499ee42aa7442aea583702f6057",
+      "executableSha256": "e4b5a3af0e05c75de2eae013904145f40fe7fc2a6e6f17510128bf45cca4e79b"
     },
     "darwin-x64": {
-      "filename": "node-v24.18.0-darwin-x64.tar.gz",
-      "archiveSha256": "dfd0dbd3e721503434df7b7205e719f61b3a3a31b2bcf9729b8b91fea240f080",
-      "executableSha256": "c5afe80c9fd47c0e1ba3a7221173d061dae04577acc67e21e945d16e34c696c8"
+      "filename": "node-v24.21.0-darwin-x64.tar.gz",
+      "archiveSha256": "1462cb3b3046b815cf8ea436d3da450ec1a9f11dac7e5a46b0ada5305d7e8097",
+      "executableSha256": "7abcf39bd37ab251015337ff75304d7555f0d8e88c6e0fbf04bce8ce34636f49"
     },
     "linux-arm64": {
-      "filename": "node-v24.18.0-linux-arm64.tar.gz",
-      "archiveSha256": "6b4484c2190274175df9aa8f28e2d758a819cb1c1fe6ab481e2f95b463ab8508",
-      "executableSha256": "6bf69d0eda41a12030d5f28d958cd09ce323bc0c13f1ab4d8bb426933aa08812"
+      "filename": "node-v24.21.0-linux-arm64.tar.gz",
+      "archiveSha256": "724282c3b43aec998aa9527380465b45d229e021b58035f5f4f63095eabfe5d5",
+      "executableSha256": "0f8949d1028f6d61506b2d5bc57e7e6fe893d7b1997509b7847294fc9c616584"
     },
     "linux-x64": {
-      "filename": "node-v24.18.0-linux-x64.tar.gz",
-      "archiveSha256": "783130984963db7ba9cbd01089eaf2c2efb055c7c1693c943174b967b3050cb8",
-      "executableSha256": "41a74efb34cbde5c7632cdac0cf8bd1a14d0b8d73dc1e82755014d9a9ce70f5c"
+      "filename": "node-v24.21.0-linux-x64.tar.gz",
+      "archiveSha256": "6e1db87ef58b8819e5d5402eff1536491b18edd8eb7bee5ef7897876e88dc5ff",
+      "executableSha256": "7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c"
     },
     "win32-arm64": {
-      "filename": "node-v24.18.0-win-arm64.zip",
-      "archiveSha256": "f274669adb93b1fd0fbf8f21fd078609e9dcc84333d4f2718d2dde3f9a161a01",
-      "executableSha256": "c7225670c3f477778e18c43a55867f7a0d76468221245e5981ab80eb953c8102"
+      "filename": "node-v24.21.0-win-arm64.zip",
+      "archiveSha256": "8779b1bde1d39f8d420e3b57aa657b39891af434d3de44a919044cec06785921",
+      "executableSha256": "dff59da18b6ffe1bf1ca99e1d2af4906080c481740619f5b5098c0fca28bd9b7"
     },
     "win32-x64": {
-      "filename": "node-v24.18.0-win-x64.zip",
-      "archiveSha256": "0ae68406b42d7725661da979b1403ec9926da205c6770827f33aac9d8f26e821",
-      "executableSha256": "9a4eb5f1c29c6a2e93852ead46b999e284a6a5ca8bab4d4e241d587d025a52de"
+      "filename": "node-v24.21.0-win-x64.zip",
+      "archiveSha256": "158f7685b44de51f6c0df1d153526cbcd3e1bc739a8dfc607721cef75de9e541",
+      "executableSha256": "ba4e6d110e8c1592a1ecd390f6b05f3da124b13871a5be62b341a07a853c6c32"
     }
   },
   "uv": "0.9.18",

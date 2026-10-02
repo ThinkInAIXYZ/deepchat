@@ -37807,6 +37807,33 @@
           "type": "chat"
         },
         {
+          "id": "tiny-aya-fire",
+          "name": "Tiny Aya Fire",
+          "display_name": "Tiny Aya Fire",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8000,
+            "output": 8000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-02-17",
+          "last_updated": "2026-02-17",
+          "type": "chat"
+        },
+        {
           "id": "command-r7b-arabic-02-2025",
           "name": "Command R7B Arabic",
           "display_name": "Command R7B Arabic",
@@ -37832,6 +37859,33 @@
           "knowledge": "2024-06-01",
           "release_date": "2025-02-27",
           "last_updated": "2025-02-27",
+          "type": "chat"
+        },
+        {
+          "id": "tiny-aya-earth",
+          "name": "Tiny Aya Earth",
+          "display_name": "Tiny Aya Earth",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8000,
+            "output": 8000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-02-17",
+          "last_updated": "2026-02-17",
           "type": "chat"
         },
         {
@@ -37954,6 +38008,60 @@
           "type": "chat"
         },
         {
+          "id": "tiny-aya-global",
+          "name": "Tiny Aya Global",
+          "display_name": "Tiny Aya Global",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8000,
+            "output": 8000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-02-17",
+          "last_updated": "2026-02-17",
+          "type": "chat"
+        },
+        {
+          "id": "north-small-translate-09-2026",
+          "name": "North Small Translate",
+          "display_name": "North Small Translate",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 32768,
+            "output": 16000
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-09-09",
+          "last_updated": "2026-09-09",
+          "type": "chat"
+        },
+        {
           "id": "command-r7b-12-2024",
           "name": "Command R7B",
           "display_name": "Command R7B",
@@ -38036,6 +38144,33 @@
           "knowledge": "2024-06-01",
           "release_date": "2025-07-31",
           "last_updated": "2025-07-31",
+          "type": "chat"
+        },
+        {
+          "id": "tiny-aya-water",
+          "name": "Tiny Aya Water",
+          "display_name": "Tiny Aya Water",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8000,
+            "output": 8000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-02-17",
+          "last_updated": "2026-02-17",
           "type": "chat"
         },
         {
@@ -69505,8 +69640,8 @@
             ]
           },
           "limit": {
-            "context": 1048576,
-            "output": 131072
+            "context": 1024000,
+            "output": 384000
           },
           "temperature": true,
           "tool_call": true,
@@ -70753,7 +70888,7 @@
           },
           "limit": {
             "context": 1048576,
-            "output": 943718
+            "output": 131072
           },
           "temperature": true,
           "tool_call": true,
@@ -70931,7 +71066,7 @@
           },
           "limit": {
             "context": 524288,
-            "output": 471859
+            "output": 262144
           },
           "temperature": true,
           "tool_call": true,
@@ -74552,7 +74687,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 235929
+            "output": 98304
           },
           "temperature": true,
           "tool_call": true,
@@ -75051,7 +75186,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 131072
+            "output": 32768
           },
           "temperature": true,
           "tool_call": true,
@@ -75201,8 +75336,8 @@
             ]
           },
           "limit": {
-            "context": 202800,
-            "output": 182520
+            "context": 262144,
+            "output": 16384
           },
           "temperature": true,
           "tool_call": true,
@@ -77844,7 +77979,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 65536
+            "output": 235929
           },
           "temperature": true,
           "tool_call": true,
@@ -78117,8 +78252,8 @@
             ]
           },
           "limit": {
-            "context": 128000,
-            "output": 32000
+            "context": 262144,
+            "output": 235929
           },
           "temperature": true,
           "tool_call": true,
@@ -146403,6 +146538,52 @@
           "type": "chat"
         },
         {
+          "id": "deepseek-ai/deepseek-v4.1-flash",
+          "name": "DeepSeek V4.1 Flash",
+          "display_name": "DeepSeek V4.1 Flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 384000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "effort_options": [
+                "none",
+                "high",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "knowledge": "2025-05",
+          "release_date": "2026-09-10",
+          "last_updated": "2026-09-10",
+          "type": "chat"
+        },
+        {
           "id": "deepseek-ai/deepseek-v4-pro",
           "name": "DeepSeek V4 Pro",
           "display_name": "DeepSeek V4 Pro",
@@ -146593,6 +146774,52 @@
           "knowledge": "2025-01",
           "release_date": "2026-06-12",
           "last_updated": "2026-06-12",
+          "type": "chat"
+        },
+        {
+          "id": "zai-org/glm-5.3-flash",
+          "name": "GLM-5.3-Flash",
+          "display_name": "GLM-5.3-Flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048550,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "effort_options": [
+                "low",
+                "high",
+                "max"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-08-26",
+          "last_updated": "2026-08-26",
           "type": "chat"
         },
         {
@@ -270271,89 +270498,6 @@
           "type": "chat"
         },
         {
-          "id": "meta-llama/Meta-Llama-3-8B-Instruct-Lite",
-          "name": "Meta Llama 3 8B Instruct Lite",
-          "display_name": "Meta Llama 3 8B Instruct Lite",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "temperature": true,
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": false,
-          "open_weights": true,
-          "release_date": "2024-04-18",
-          "last_updated": "2024-04-18",
-          "type": "chat"
-        },
-        {
-          "id": "pearl-ai/gemma-4-31b-it",
-          "name": "Pearl AI Gemma 4 31B Instruct",
-          "display_name": "Pearl AI Gemma 4 31B Instruct",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 32000,
-            "output": 32000
-          },
-          "temperature": true,
-          "tool_call": false,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": false,
-          "open_weights": false,
-          "release_date": "2026-04-07",
-          "last_updated": "2026-04-07",
-          "type": "chat"
-        },
-        {
-          "id": "deepcogito/cogito-v2-1-671b",
-          "name": "Cogito v2.1 671B",
-          "display_name": "Cogito v2.1 671B",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 163840,
-            "output": 163840
-          },
-          "temperature": true,
-          "tool_call": false,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": false,
-          "open_weights": false,
-          "release_date": "2025-11-13",
-          "last_updated": "2025-11-13",
-          "type": "chat"
-        },
-        {
           "id": "thinkingmachines/Inkling",
           "name": "Inkling",
           "display_name": "Inkling",
@@ -270421,63 +270565,6 @@
           "knowledge": "2024-10",
           "release_date": "2025-12-05",
           "last_updated": "2025-12-05",
-          "type": "chat"
-        },
-        {
-          "id": "google/gemma-3n-E4B-it",
-          "name": "Gemma 3N E4B Instruct",
-          "display_name": "Gemma 3N E4B Instruct",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 32768,
-            "output": 32768
-          },
-          "temperature": true,
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "attachment": false,
-          "open_weights": true,
-          "release_date": "2025-05-20",
-          "last_updated": "2025-05-20",
-          "type": "chat"
-        },
-        {
-          "id": "google/gemma-4-31B-it",
-          "name": "Gemma 4 31B Instruct",
-          "display_name": "Gemma 4 31B Instruct",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 262144,
-            "output": 131072
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": true,
-          "open_weights": true,
-          "knowledge": "2025-01",
-          "release_date": "2026-04-07",
-          "last_updated": "2026-04-07",
           "type": "chat"
         },
         {
@@ -270973,56 +271060,6 @@
           "type": "chat"
         },
         {
-          "id": "deepseek-ai/DeepSeek-V4-Pro",
-          "name": "DeepSeek V4 Pro",
-          "display_name": "DeepSeek V4 Pro",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 512000,
-            "output": 384000
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "default_enabled": true,
-              "mode": "effort",
-              "effort": "high",
-              "effort_options": [
-                "low",
-                "high",
-                "max"
-              ],
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ],
-              "notes": [
-                "The DeepSeek API maps medium and xhigh to high for V4 models; effort_options lists distinct model-effective levels."
-              ]
-            }
-          },
-          "attachment": false,
-          "open_weights": true,
-          "release_date": "2026-04-24",
-          "last_updated": "2026-04-24",
-          "type": "chat"
-        },
-        {
           "id": "deepseek-ai/DeepSeek-V3",
           "name": "DeepSeek-V3",
           "display_name": "DeepSeek-V3",
@@ -271439,44 +271476,6 @@
           "open_weights": true,
           "release_date": "2026-06-04",
           "last_updated": "2026-06-04",
-          "type": "chat"
-        },
-        {
-          "id": "openai/gpt-oss-20b",
-          "name": "GPT OSS 20B",
-          "display_name": "GPT OSS 20B",
-          "modalities": {
-            "input": [
-              "text"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 131072
-          },
-          "temperature": true,
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "effort_options": [
-                "low",
-                "medium",
-                "high"
-              ]
-            }
-          },
-          "attachment": false,
-          "open_weights": true,
-          "release_date": "2025-08-05",
-          "last_updated": "2025-08-05",
           "type": "chat"
         },
         {
@@ -351041,7 +351040,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 65536
+            "output": 235929
           },
           "temperature": true,
           "tool_call": true,

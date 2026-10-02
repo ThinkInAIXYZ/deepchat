@@ -151,9 +151,9 @@
       "runtime_manifest_invalid": "Das Manifest der integrierten OCR-Laufzeit ist ungültig.",
       "service_closed": "Der OCR-Dienst wird beendet.",
       "unsupported_platform": "OCR ist für diese Plattform und Architektur nicht verfügbar.",
-      "toolchain_unavailable": "OCR benötigt das offizielle Node.js v24.18.0. Öffnen Sie Einstellungen → Toolchains und installieren Sie die offizielle Runtime.",
-      "version_mismatch": "OCR benötigt Node.js v24.18.0. Diese Node-Version liegt außerhalb der Pin-Spanne. Öffnen Sie Einstellungen → Toolchains und installieren Sie die offizielle Runtime.",
-      "abi_mismatch": "OCR benötigt Node.js ABI 137 (v24.18.0). Öffnen Sie Einstellungen → Toolchains und installieren Sie die offizielle Runtime."
+      "toolchain_unavailable": "OCR benötigt das offizielle Node.js v24.21.0. Öffnen Sie Einstellungen → Toolchains und installieren Sie die offizielle Runtime.",
+      "version_mismatch": "OCR benötigt Node.js v24.21.0. Diese Node-Version liegt außerhalb der Pin-Spanne. Öffnen Sie Einstellungen → Toolchains und installieren Sie die offizielle Runtime.",
+      "abi_mismatch": "OCR benötigt Node.js ABI 137 (v24.21.0). Öffnen Sie Einstellungen → Toolchains und installieren Sie die offizielle Runtime."
     },
     "processStates": {
       "idle": "Leerlauf",
@@ -3472,7 +3472,7 @@
       "activation_failed": "Die Runtime konnte nicht aktiviert werden.",
       "unsupported_platform": "Für diese Plattform gibt es keine offizielle Runtime."
     },
-    "ocrPinHint": "OCR benötigt offizielles Node v24.18.0 (ABI 137). Diese Runtime ist für Chat und MCP bereit, aber nicht für OCR. Installieren Sie die offizielle Runtime.",
+    "ocrPinHint": "OCR benötigt offizielles Node v24.21.0 (ABI 137). Diese Runtime ist für Chat und MCP bereit, aber nicht für OCR. Installieren Sie die offizielle Runtime.",
     "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {

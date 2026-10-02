@@ -151,9 +151,9 @@
       "runtime_manifest_invalid": "Il manifesto del runtime OCR integrato non è valido.",
       "service_closed": "Il servizio OCR è in fase di arresto.",
       "unsupported_platform": "L’OCR non è disponibile per questa piattaforma e architettura.",
-      "toolchain_unavailable": "OCR richiede Node.js ufficiale v24.18.0. Apri Impostazioni → Toolchain e installa il runtime ufficiale.",
-      "version_mismatch": "OCR richiede Node.js v24.18.0. Questa versione è fuori intervallo. Apri Impostazioni → Toolchain e installa il runtime ufficiale.",
-      "abi_mismatch": "OCR richiede Node.js ABI 137 (v24.18.0). Apri Impostazioni → Toolchain e installa il runtime ufficiale."
+      "toolchain_unavailable": "OCR richiede Node.js ufficiale v24.21.0. Apri Impostazioni → Toolchain e installa il runtime ufficiale.",
+      "version_mismatch": "OCR richiede Node.js v24.21.0. Questa versione è fuori intervallo. Apri Impostazioni → Toolchain e installa il runtime ufficiale.",
+      "abi_mismatch": "OCR richiede Node.js ABI 137 (v24.21.0). Apri Impostazioni → Toolchain e installa il runtime ufficiale."
     },
     "processStates": {
       "idle": "Inattivo",
@@ -3472,7 +3472,7 @@
       "activation_failed": "Impossibile attivare il runtime.",
       "unsupported_platform": "Questa piattaforma non ha un runtime ufficiale."
     },
-    "ocrPinHint": "OCR richiede Node ufficiale v24.18.0 (ABI 137). Questo runtime va bene per chat e MCP, ma non per OCR. Installa il runtime ufficiale.",
+    "ocrPinHint": "OCR richiede Node ufficiale v24.21.0 (ABI 137). Questo runtime va bene per chat e MCP, ma non per OCR. Installa il runtime ufficiale.",
     "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {

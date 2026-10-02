@@ -8,7 +8,8 @@ import { minimatch } from 'minimatch'
 import { diffLines } from 'diff'
 import { validateGlobPattern, validateRegexPattern } from '@shared/regexValidator'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
-import { glob } from 'glob'
+// The default entry bundles stale dependencies; raw uses our patched brace-expansion resolution.
+import { glob } from 'glob/raw'
 import type { CommandShellPathStyle } from '@shared/commandShell'
 import { normalizeCommandShellFilePath } from '@/agent/shared/process/commandShellPath'
 import {

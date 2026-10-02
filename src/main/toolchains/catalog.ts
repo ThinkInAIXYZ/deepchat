@@ -4,7 +4,7 @@ import type { ToolchainKind } from '@shared/types/toolchains'
 export const NODE_PIN = runtimeVersions.node
 export const UV_PIN = runtimeVersions.uv
 export const NODE_MODULE_VERSION = 137
-export const NODE_COMPAT_MIN_INCLUSIVE = '24.18.0'
+export const NODE_COMPAT_MIN_INCLUSIVE = '24.21.0'
 export const NODE_COMPAT_MAX_EXCLUSIVE = '25.0.0'
 
 export type ToolchainTargetArch = 'arm64' | 'x64'

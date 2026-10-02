@@ -22,6 +22,24 @@ describe('AgentFileSystemHandler diff responses', () => {
     }
   })
 
+  it.each([
+    ['nested groups', '{'.repeat(4000) + 'a,b' + '}'.repeat(4000)],
+    ['comma-separated groups', '{' + '{a},'.repeat(8000) + 'b}']
+  ])('keeps glob exclusions usable with adversarial %s', async (_label, exclusion) => {
+    await fs.writeFile(path.join(testDir, 'keep.ts'), '')
+    await fs.writeFile(path.join(testDir, 'skip.ts'), '')
+    await fs.writeFile(path.join(testDir, 'notes.md'), '')
+
+    const result = await handler.globSearch({
+      pattern: '*.ts',
+      root: testDir,
+      excludePatterns: ['{skip,other}.ts', exclusion]
+    })
+
+    const expectedPath = path.join(await fs.realpath(testDir), 'keep.ts')
+    expect(result).toBe(`Found 1 files matching pattern "*.ts":\n\n${expectedPath} [0 bytes]`)
+  })
+
   it('returns structured diff for editText', async () => {
     const filePath = path.join(testDir, 'edit.ts')
     const content = Array.from({ length: 12 }, (_, index) => `line${index + 1}`).join('\n')

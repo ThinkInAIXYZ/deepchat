@@ -151,9 +151,9 @@
       "runtime_manifest_invalid": "Tệp kê khai runtime OCR tích hợp không hợp lệ.",
       "service_closed": "Dịch vụ OCR đang tắt.",
       "unsupported_platform": "OCR không khả dụng cho nền tảng và kiến trúc này.",
-      "toolchain_unavailable": "OCR cần Node.js chính thức v24.18.0. Mở Cài đặt → Toolchain và cài runtime chính thức.",
-      "version_mismatch": "OCR cần Node.js v24.18.0. Phiên bản hiện tại nằm ngoài phạm vi. Mở Cài đặt → Toolchain và cài runtime chính thức.",
-      "abi_mismatch": "OCR cần Node.js ABI 137 (v24.18.0). Mở Cài đặt → Toolchain và cài runtime chính thức."
+      "toolchain_unavailable": "OCR cần Node.js chính thức v24.21.0. Mở Cài đặt → Toolchain và cài runtime chính thức.",
+      "version_mismatch": "OCR cần Node.js v24.21.0. Phiên bản hiện tại nằm ngoài phạm vi. Mở Cài đặt → Toolchain và cài runtime chính thức.",
+      "abi_mismatch": "OCR cần Node.js ABI 137 (v24.21.0). Mở Cài đặt → Toolchain và cài runtime chính thức."
     },
     "processStates": {
       "idle": "Không hoạt động",
@@ -3472,7 +3472,7 @@
       "activation_failed": "Không kích hoạt được runtime.",
       "unsupported_platform": "Nền tảng này không có runtime chính thức."
     },
-    "ocrPinHint": "OCR cần Node chính thức v24.18.0 (ABI 137). Runtime này dùng được cho chat và MCP, nhưng không dùng cho OCR. Hãy cài runtime chính thức.",
+    "ocrPinHint": "OCR cần Node chính thức v24.21.0 (ABI 137). Runtime này dùng được cho chat và MCP, nhưng không dùng cho OCR. Hãy cài runtime chính thức.",
     "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {

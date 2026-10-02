@@ -3,6 +3,7 @@ import runtimeVersions from '../../../resources/runtime-versions.json'
 
 import {
   defaultNodeMirrorUrl,
+  isNodeVersionInCompatRange,
   NODE_PIN,
   resolveToolchainArtifact,
   UV_PIN
@@ -33,13 +34,22 @@ describe('toolchain catalog', () => {
   it('uses the Windows ARM64 archive hash, not the installed executable hash', () => {
     expect(resolveToolchainArtifact('node', 'win32', 'arm64')).toEqual({
       kind: 'node',
-      version: 'v24.18.0',
+      version: 'v24.21.0',
       platform: 'win32',
       arch: 'arm64',
-      filename: 'node-v24.18.0-win-arm64.zip',
-      officialUrl: 'https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-arm64.zip',
-      sha256: 'f274669adb93b1fd0fbf8f21fd078609e9dcc84333d4f2718d2dde3f9a161a01'
+      filename: 'node-v24.21.0-win-arm64.zip',
+      officialUrl: 'https://nodejs.org/dist/v24.21.0/node-v24.21.0-win-arm64.zip',
+      sha256: '8779b1bde1d39f8d420e3b57aa657b39891af434d3de44a919044cec06785921'
     })
+  })
+
+  it.each([
+    ['24.20.9', false],
+    ['v24.21.0', true],
+    ['24.22.0', true],
+    ['25.0.0', false]
+  ])('requires the patched Node 24 line for %s', (version, compatible) => {
+    expect(isNodeVersionInCompatRange(version)).toBe(compatible)
   })
 
   it.each(['node', 'uv'] as const)('rejects unsupported %s targets', (kind) => {

@@ -1288,7 +1288,7 @@ export async function runPackagedLightOcr(layout, options = {}) {
     await createFixtures(fixturePath, documentFixturePath, chineseDocumentFixturePath)
     const nativeRuntimeOverride = await materializePackagedNativeRuntime(layout, tempRoot)
     // Packaged builds omit bundled Node. The helper then uses this process
-    // Node, which CI pins to 24.18.0 to match resources/runtime-versions.json.
+    // Node, which CI pins to 24.21.0 to match resources/runtime-versions.json.
     child = spawn(
       layout.nodeExecutable ?? process.execPath,
       [
