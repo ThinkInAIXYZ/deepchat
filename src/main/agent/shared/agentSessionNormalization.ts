@@ -47,6 +47,11 @@ export const normalizeActiveSkills = (activeSkills?: string[]): string[] => {
   )
 }
 
+export const isSendMessageInputEmpty = (input: SendMessageInput): boolean =>
+  !input.text.trim() &&
+  (input.files?.length ?? 0) === 0 &&
+  !input.inlineItems?.some((item) => item.type === 'session')
+
 export const normalizeSendMessageInput = (content: string | SendMessageInput): SendMessageInput => {
   if (typeof content === 'string') {
     return { text: content, files: [] }

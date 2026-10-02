@@ -82,6 +82,7 @@
                 :content="visibleContentBlocks"
                 @mention-click="handleMentionClick"
                 @file-click="previewFile"
+                @session-click="openSessionReference"
               />
               <MessageTextContent v-else :content="message.content.text || ''" />
             </div>
@@ -141,6 +142,9 @@ import MessageContent from './MessageContent.vue'
 import MessageTextContent from './MessageTextContent.vue'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
+import { createSessionClient } from '@api/SessionClient'
+import { useSessionStore } from '@/stores/ui/session'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 
 const COLLAPSE_CHAR_THRESHOLD = 600
@@ -170,6 +174,8 @@ const countExplicitLines = (value: string) => {
 
 const deviceClient = createDeviceClient()
 const windowClient = createWindowClient()
+const sessionClient = createSessionClient()
+const sessionStore = useSessionStore()
 const { t } = useI18n()
 
 const props = defineProps<{
@@ -261,6 +267,23 @@ const emit = defineEmits<{
 
 const previewFile = (filePath: string) => {
   void windowClient.previewFile(filePath)
+}
+
+const openSessionReference = async (sessionId: string, tapeIncarnationId: string) => {
+  try {
+    await sessionClient.resolveReference({
+      sessionId,
+      expectedTapeIncarnationId: tapeIncarnationId
+    })
+    await sessionStore.selectSession(sessionId)
+  } catch {
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.sessionReference.unavailable',
+      title: t('common.error.operationFailed'),
+      description: t('chat.collaboration.errors.session_unavailable')
+    })
+  }
 }
 
 const toggleExpanded = () => {

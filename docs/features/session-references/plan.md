@@ -3,7 +3,7 @@
 - [x] Add bounded transcript reader and reference resolution in the session data owner; reuse
       projections and Tape identity. Reviewed and validated before the first local commit.
 - [x] Wire typed renderer routes to the reader.
-- [ ] Connect the native tool and structured reference model input/persistence. Enforce caller-owned
+- [x] Connect the native tool and structured reference model input/persistence. Enforce caller-owned
       reference authorization without widening Tape tools. Review and validate before commit.
 - [ ] Add composer session candidates, chips, drafts, sent display, and sidebar drag. Preserve file
       mentions and reorder behavior. Review, render affected states, and validate before commit.
@@ -31,3 +31,13 @@ from the cost of FTS/literal matching; do not claim constant-time search.
 - Native wiring verification: main session/runtime/tool suites 1,151/1,151 passed; catalog regression
   suite 54/54 passed; both typechecks, format, lint, and i18n validation passed. UI verification is
   still in progress and is not covered by this commit.
+- Structured-input review: fixed reference-only admission across initial/send/queue/steer/retry,
+  preserved initial runtime-error containment, and explicitly rejected ACP submissions. No P0/P1
+  finding; the empty-input defects were P2. Existing empty and skill-only behavior stays unchanged.
+- Ablation: reuse inline-items persistence instead of another reference store; emit reader guidance
+  once per input rather than once per reference. Sent chips retain source ID and incarnation.
+- Expanded verification: 2,097 main tests passed (one existing skipped test); all 2,630 renderer tests
+  passed. Initial-turn/context suites passed again after guidance simplification (125 tests).
+  Disposable-profile Electron exercised real native-tool retrieval without source-history injection,
+  source navigation, keyboard controls, draft reload, and cross-workspace drag. Sent/composer/menu
+  screenshots were inspected. New-thread reference-only admission required an additional P2 fix.

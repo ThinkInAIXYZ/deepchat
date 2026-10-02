@@ -14,6 +14,7 @@ import {
   type SessionScopeRegistry
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { isSendMessageInputEmpty } from '@/agent/shared/agentSessionNormalization'
 import type { SessionPendingInputs } from '@/session/data/pendingInputs'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type {
@@ -116,7 +117,7 @@ export class PendingInputAdmissionCoordinator {
         : this.ports.sessionSettings.resolveProjectDir(sessionId)
     const input = typeof content === 'string' ? { text: content, files: [] } : content
     if (options?.signal?.aborted) throw createAbortError()
-    if (!input.text.trim() && (input.files?.length ?? 0) === 0) {
+    if (isSendMessageInputEmpty(input)) {
       throw new Error('Message cannot be empty.')
     }
 
@@ -210,7 +211,7 @@ export class PendingInputAdmissionCoordinator {
       if (this.ports.pump.hasInteractionBlocker(sessionId)) {
         throw new Error('Please resolve pending tool interactions before steering.')
       }
-      if (!input.text.trim() && (input.files?.length ?? 0) === 0) {
+      if (isSendMessageInputEmpty(input)) {
         throw new Error('Message cannot be empty.')
       }
 
@@ -295,7 +296,7 @@ export class PendingInputAdmissionCoordinator {
   ): Promise<PendingSessionInputRecord> {
     await this.ensureSessionReady(sessionId)
     const input = typeof content === 'string' ? { text: content, files: [] } : content
-    if (!input.text.trim() && (input.files?.length ?? 0) === 0) {
+    if (isSendMessageInputEmpty(input)) {
       throw new Error('Message cannot be empty.')
     }
     const record = this.ports.pendingInputs.updateQueuedInput(sessionId, itemId, input)

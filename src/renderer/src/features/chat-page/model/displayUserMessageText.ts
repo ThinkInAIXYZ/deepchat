@@ -51,12 +51,20 @@ export function getVisibleUserContentBlocks(
 
     if (item.type === 'skill') {
       blocks.push({ type: 'skill', skillName: item.skillName })
-    } else {
+    } else if (item.type === 'file') {
       blocks.push({
         type: 'file',
         fileName: item.fileName,
         filePath: item.filePath,
         mimeType: item.mimeType
+      })
+    } else {
+      blocks.push({
+        type: 'session',
+        sessionId: item.sessionId,
+        title: item.title,
+        projectDir: item.projectDir,
+        tapeIncarnationId: item.tapeIncarnationId
       })
     }
 
@@ -87,6 +95,9 @@ export function collectVisibleUserMessageText(content: DisplayUserMessageContent
       }
       if (block.type === 'file') {
         return block.fileName
+      }
+      if (block.type === 'session') {
+        return block.title
       }
       return block.content
     })

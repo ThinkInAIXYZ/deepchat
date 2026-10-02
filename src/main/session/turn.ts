@@ -1,5 +1,8 @@
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { normalizeSendMessageInput } from '@/agent/shared/agentSessionNormalization'
+import {
+  isSendMessageInputEmpty,
+  normalizeSendMessageInput
+} from '@/agent/shared/agentSessionNormalization'
 import type {
   AttachmentFallbackPolicy,
   ChatMessageRecord,
@@ -35,16 +38,35 @@ function isAbortError(error: unknown, signal?: AbortSignal): boolean {
   return signal?.aborted === true || (error instanceof Error && error.name === 'AbortError')
 }
 
+function assertSessionReferencesSupported(
+  runtimeKind: 'deepchat' | 'acp',
+  content: SendMessageInput
+): void {
+  if (runtimeKind !== 'deepchat' && content.inlineItems?.some((item) => item.type === 'session')) {
+    throw new Error(
+      'Session references require the native read_session tool and are unavailable for ACP sessions.'
+    )
+  }
+}
+
 export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   constructor(private readonly dependencies: SessionTurnDependencies) {}
 
   async startInitialTurn(input: SessionInitialTurnInput): Promise<MessageStartResult | undefined> {
     const content = input.content
-    if (!content.text.trim() && (content.files?.length ?? 0) === 0) return undefined
+    if (isSendMessageInputEmpty(content)) return undefined
     input.signal?.throwIfAborted()
 
+    let runtime
     try {
-      const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(input.sessionId))
+      runtime = this.dependencies.runtime.resolveSession(toAppSessionId(input.sessionId))
+    } catch (error) {
+      if (isAbortError(error, input.signal)) throw error
+      console.error('[SessionTurn] initial send failed:', error)
+      return undefined
+    }
+    assertSessionReferencesSupported(runtime.kind, content)
+    try {
       let result: MessageStartResult = { requestId: null, messageId: null }
       if (runtime.kind === 'deepchat') {
         try {
@@ -122,6 +144,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     const normalizedInput = normalizeSendMessageInput(content)
 
     const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+    assertSessionReferencesSupported(runtime.kind, normalizedInput)
     const state = await runtime.snapshot()
     const hadMessages = await this.dependencies.transcript.hasMessages(sessionId)
     const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
@@ -185,6 +208,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     const normalizedInput = normalizeSendMessageInput(content)
 
     const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+    assertSessionReferencesSupported(runtime.kind, normalizedInput)
     const state = await runtime.snapshot()
     const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
     this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
@@ -265,6 +289,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     }
 
     const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+    assertSessionReferencesSupported(runtime.kind, normalizedInput)
     const state = await runtime.snapshot()
     const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
     this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
@@ -286,9 +311,10 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     content: string | SendMessageInput
   ): Promise<PendingSessionInputRecord> {
     this.requireSession(sessionId)
-    return await this.dependencies.runtime
-      .resolveSession(toAppSessionId(sessionId))
-      .pending.update(itemId, normalizeSendMessageInput(content))
+    const normalizedInput = normalizeSendMessageInput(content)
+    const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+    assertSessionReferencesSupported(runtime.kind, normalizedInput)
+    return await runtime.pending.update(itemId, normalizedInput)
   }
 
   async moveQueuedInput(
