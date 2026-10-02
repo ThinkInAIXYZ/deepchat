@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
+import { buildEditedUserContent } from '@/session/data/userMessageContent'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const mainDatabaseModule = sqliteModule ? await import('@/data/mainDatabase') : null
@@ -48,6 +49,42 @@ describeIfSqlite('SessionTranscript follows the Tape through the projection curs
     const cursor = () => database.deepchatTranscriptProjectionMetaTable.get('s1')
     return { connection, database, tape, transcript, head, cursor }
   }
+
+  it('indexes reference-only messages and preserves attached references through text edits', () => {
+    const { connection, database, transcript } = createSession()
+    const reference = {
+      type: 'session' as const,
+      offset: 0,
+      sessionId: 'source',
+      title: 'Launch notes',
+      projectDir: null,
+      tapeIncarnationId: 'source-incarnation'
+    }
+    try {
+      const messageId = transcript.createUserMessage('s1', 1, {
+        ...userContent,
+        text: '',
+        inlineItems: [reference]
+      })
+      expect(database.deepchatSearchDocumentsTable.searchLike('Launch notes', 10)).toEqual([
+        expect.objectContaining({
+          message_id: messageId,
+          content: '[Session: Launch notes (source)]'
+        })
+      ])
+      const edited = buildEditedUserContent(transcript.getMessage(messageId)!.content, 'Compare')
+      transcript.updateMessageContent(messageId, edited)
+      expect(JSON.parse(transcript.getMessage(messageId)!.content)).toMatchObject({
+        text: 'Compare',
+        inlineItems: [{ ...reference, offset: 7 }]
+      })
+      expect(database.deepchatSearchDocumentsTable.searchLike('Launch notes', 10)).toEqual([
+        expect.objectContaining({ content: 'Compare\n[Session: Launch notes (source)]' })
+      ])
+    } finally {
+      connection.close()
+    }
+  })
 
   it('establishes the cursor through readiness and moves it with every terminal write', () => {
     const { connection, tape, transcript, head, cursor } = createSession()

@@ -1,4 +1,5 @@
 import type { ChatMessageRecord, UserMessageContent } from '@shared/types/agent-interface'
+import { getSessionReferenceText } from '@shared/sessionReferences'
 import { getAttachmentSearchableText } from '@shared/utils/attachmentRepresentation'
 import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import {
@@ -170,6 +171,8 @@ function extractSearchableMessageContent(rawContent: string): string {
       if (typeof parsed.text === 'string' && parsed.text.trim()) {
         segments.push(parsed.text.trim())
       }
+      const references = getSessionReferenceText(parsed.inlineItems)
+      if (references) segments.push(references)
       const searchableAttachmentText = buildSearchableAttachmentText(parsed.files)
       if (searchableAttachmentText) segments.push(searchableAttachmentText)
       return segments.join('\n')

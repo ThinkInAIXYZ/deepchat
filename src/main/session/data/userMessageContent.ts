@@ -83,6 +83,14 @@ export function buildEditedUserContent(rawContent: string, text: string): string
 
     const next = { ...parsed, text } as Record<string, unknown>
     delete next.inlineItems
+    // The text-only editor cannot remove attached session references. Re-anchor them after
+    // the replacement text instead of silently revoking the user's explicit source grants.
+    const references = Array.isArray(parsed.inlineItems)
+      ? parsed.inlineItems
+          .filter((item) => item?.type === 'session')
+          .map((item) => ({ ...item, offset: text.length }))
+      : []
+    if (references.length > 0) next.inlineItems = references
     if (!Array.isArray(next.files)) next.files = []
     if (!Array.isArray(next.links)) next.links = []
     if (typeof next.search !== 'boolean') next.search = false

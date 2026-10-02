@@ -143,6 +143,7 @@ import MessageTextContent from './MessageTextContent.vue'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
 import { createSessionClient } from '@api/SessionClient'
+import { getSessionReferenceText } from '@shared/sessionReferences'
 import { useSessionStore } from '@/stores/ui/session'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
@@ -350,7 +351,12 @@ const getCopyText = () => {
       .join('')
       .trim()
   }
-  return props.message.content.text || ''
+  return [
+    props.message.content.text || '',
+    getSessionReferenceText(props.message.content.inlineItems)
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 const copyText = computed(() => getCopyText())

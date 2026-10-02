@@ -20,6 +20,10 @@ same `session` inline item: offset, sessionId, title, projectDir, and tapeIncarn
 draft persistence, queueing, sending, and transcript display through the existing inline-items
 path. Labels are snapshots; rename never changes identity. Source reset invalidates the reference.
 References do not copy, summarize, or inject the source history.
+Search, clipboard text, and text exports retain the reference title and source ID. Editing message
+text preserves attached session references and places them after the replacement text; the existing
+text-only editor does not implicitly remove source grants. Deleting the referencing message removes
+that message's grant.
 
 ## Reading and authorization
 

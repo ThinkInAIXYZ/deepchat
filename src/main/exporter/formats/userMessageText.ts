@@ -4,6 +4,7 @@ import type {
   UserMessageMentionBlock,
   UserMessageTextBlock
 } from '@shared/chat'
+import { getSessionReferenceText } from '@shared/sessionReferences'
 import {
   isPdfAttachment,
   normalizeAttachmentResolvedRepresentation
@@ -87,7 +88,9 @@ export function getNormalizedUserMessageText(content: UserMessageContent | undef
   if (content.content && Array.isArray(content.content) && content.content.length > 0) {
     return formatUserMessageContent(content.content)
   }
-  return content.text || ''
+  return [content.text || '', getSessionReferenceText(content.inlineItems)]
+    .filter(Boolean)
+    .join('\n')
 }
 
 export function getExportedUserMessageText(content: UserMessageContent | undefined): string {

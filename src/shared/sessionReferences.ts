@@ -11,6 +11,20 @@ export const SessionReferenceSchema = z.object({
 
 export type SessionReference = z.infer<typeof SessionReferenceSchema>
 
+/** Plain-text provenance for search/copy/export; never expands source content. */
+export function getSessionReferenceText(inlineItems: unknown): string {
+  if (!Array.isArray(inlineItems)) return ''
+  return inlineItems
+    .flatMap((item) => {
+      if (item?.type !== 'session') return []
+      const reference = SessionReferenceSchema.safeParse(item)
+      return reference.success
+        ? [`[Session: ${reference.data.title} (${reference.data.sessionId})]`]
+        : []
+    })
+    .join('\n')
+}
+
 export const SessionReferenceCandidateSchema = z.object({
   sessionId: z.string(),
   title: z.string(),

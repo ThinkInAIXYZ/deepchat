@@ -41,3 +41,8 @@ from the cost of FTS/literal matching; do not claim constant-time search.
   Disposable-profile Electron exercised real native-tool retrieval without source-history injection,
   source navigation, keyboard controls, draft reload, and cross-workspace drag. Sent/composer/menu
   screenshots were inspected. New-thread reference-only admission required an additional P2 fix.
+- Projection review found P2 omissions in reference-only search/export/copy and text edits. The
+  existing projection/export owners now retain a plain title/ID label; text edits re-anchor session
+  references rather than dropping them. A shared formatter removes four duplicate metadata parsers,
+  with no source-history expansion or additional storage. Native projection/edit, legacy search,
+  and full exporter regressions pass in the expanded 2,122-test main run (one existing test skipped).
