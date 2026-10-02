@@ -58,3 +58,16 @@ from the cost of FTS/literal matching; do not claim constant-time search.
   this unrelated assertion was left unchanged and the broader smoke run is not reported green.
 - Generated provider/ACP registry refreshes from normal builds are retained separately, as required
   by repository guidance. Delivery is local signed commits only; no push, PR, or release.
+- Follow-up deep review confirmed a P2 race: send/queue/steer/command dispatch could precede async
+  reference resolution. The composer now owns one shared resolution gate for mentions and drops,
+  cancelling it on document/target changes. Validation and insertion share one continuation;
+  rejected or stale requests release only their own token. New-thread and existing-session
+  regressions failed with the dispatch fix removed, then passed after restoration.
+- Follow-up ablation removed duplicated mention/drop target checks and the redundant document
+  snapshot. No new service, storage, timeout, or signing layer was added. A native SQLite Unicode
+  title probe disproved a suspected validation bug and was removed rather than retained as noise.
+- Follow-up verification: format, i18n, lint, node/web typechecks, production build, 2,122 main tests
+  (one existing skip), all 2,637 renderer tests, and both Electron draft/reference smoke tests passed.
+  The completed-reference screenshot was inspected. Seven regressions cover pending submission,
+  cancellation, stale completions overlapping new selections, and failure recovery. No unresolved
+  P0–P3 finding remains in the reviewed scope; production-scale latency was not benchmarked.

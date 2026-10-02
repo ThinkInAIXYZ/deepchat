@@ -58,6 +58,9 @@ removing the feature does not delete source history.
 
 - Workspace title matches include older sessions, while existing file mentions continue to work.
 - `@` and cross-workspace drag produce the same removable, source-identifiable reference.
+- While a selected reference resolves, send, queue, steer, and command submission wait. Editing
+  the draft or changing its target cancels the insertion and releases the wait; stale completions
+  cannot insert into a new draft or release another pending reference's submission gate.
 - Draft reload and sent-message rendering preserve stable identity and open the source by ID.
 - Model input contains references and accurate native reader guidance, not source history.
 - Search, role filtering, cursors, detail continuation, and neighboring context compose correctly.

@@ -91,6 +91,7 @@ type ProviderClientLike = {
 }
 
 type ComposerInputHandle = {
+  isResolvingSessionReferences?: () => boolean
   getInlineItemsSnapshot?: () => UserMessageInlineItem[]
   getPendingSkillsSnapshot?: () => string[]
   clearPendingSkills?: () => void
@@ -263,8 +264,12 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     () => hasInputText.value || hasAttachments.value || hasSessionReference.value
   )
   const isSteering = computed(() => steeringSessionIds.value.has(options.sessionId()))
+  const isResolvingSessionReferences = computed(
+    () => chatInputRef.value?.isResolvingSessionReferences?.() ?? false
+  )
   const isQueueSubmitDisabled = computed(
     () =>
+      isResolvingSessionReferences.value ||
       isSessionViewPreparing.value ||
       isDispatchingInput.value ||
       isAcpWorkdirMissing.value ||
@@ -274,6 +279,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   )
   const isInputSubmitDisabled = computed(
     () =>
+      isResolvingSessionReferences.value ||
       isSessionViewPreparing.value ||
       isDispatchingInput.value ||
       isAcpWorkdirMissing.value ||
@@ -283,6 +289,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   )
   const disableQueueSteerAction = computed(
     () =>
+      isResolvingSessionReferences.value ||
       isSessionViewPreparing.value ||
       isDispatchingInput.value ||
       !isGenerating.value ||
@@ -454,6 +461,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   }
 
   function canSubmitNow(): boolean {
+    if (isResolvingSessionReferences.value) return false
     if (isReadOnlySession.value) return false
     if (isSteering.value) return false
     if (isSessionViewPreparing.value) return false

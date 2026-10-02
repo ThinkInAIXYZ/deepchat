@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, inject, ref, nextTick } from 'vue'
 import { CHAT_INPUT_WORKSPACE_ITEM_MIME } from '@/lib/chatInputWorkspaceReference'
+import { SESSION_REFERENCE_DRAG_TYPE } from '@shared/sessionReferences'
 import {
   ATTACHMENT_NODE_CONTEXT,
   INPUT_NODE_ACTIONS,
@@ -25,6 +26,10 @@ const activateSkillMock = vi.fn().mockResolvedValue(undefined)
 const deactivateSkillMock = vi.fn().mockResolvedValue(undefined)
 const removeSessionActiveSkillMock = vi.fn().mockResolvedValue(undefined)
 const notifyRendererMock = vi.hoisted(() => vi.fn())
+const resolveReferenceMock = vi.hoisted(() => vi.fn())
+vi.mock('@api/SessionClient', () => ({
+  createSessionClient: () => ({ resolveReference: resolveReferenceMock })
+}))
 const closeDialogMock = vi.fn()
 const getOcrRuntimeStatusMock = vi.fn()
 const isSuggestionMenuOpenRef = ref(false)
@@ -542,6 +547,106 @@ describe('ChatInputBox attachments', () => {
 
     expect((wrapper.vm as any).insertWorkspaceReference('/repo/src/App.vue')).toBe(true)
     expect(insertContentMock).toHaveBeenCalledWith('@src/App.vue ')
+  })
+
+  it.each(['drop', 'mention'])('blocks submission until a %s reference resolves', async (entry) => {
+    const wrapper = await mountComponent()
+    await wrapper.setProps({ queueSubmitEnabled: true })
+    const deferred = createDeferred<{ reference: object }>()
+    resolveReferenceMock.mockReturnValueOnce(deferred.promise)
+    const insertReference = vi.fn()
+    let resolution: Promise<unknown> | undefined
+    if (entry === 'drop') {
+      await wrapper.trigger('drop', {
+        dataTransfer: { types: [SESSION_REFERENCE_DRAG_TYPE], getData: () => 'source' }
+      })
+    } else {
+      const mentions = useChatInputMentionsMock.mock.calls.at(-1)![0] as {
+        resolveSessionReference: (id: string, insert: (reference: object) => void) => Promise<void>
+      }
+      resolution = mentions.resolveSessionReference('source', insertReference)
+    }
+    expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(true)
+    await wrapper.find('.chat-input-editor').trigger('keydown', { key: 'Enter' })
+    await wrapper.find('.chat-input-editor').trigger('keydown', { key: 'Tab' })
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    expect(wrapper.emitted('queue-submit')).toBeUndefined()
+    const reference = {
+      sessionId: 'source',
+      title: 'Notes',
+      projectDir: null,
+      tapeIncarnationId: 'tape-1'
+    }
+    deferred.resolve({ reference })
+    await flushPromises()
+    expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(false)
+    if (entry === 'drop') {
+      expect(insertContentMock).toHaveBeenCalledExactlyOnceWith({
+        type: 'sessionReference',
+        attrs: reference
+      })
+    } else {
+      await resolution
+      expect(insertReference).toHaveBeenCalledExactlyOnceWith(reference)
+    }
+    await wrapper.find('.chat-input-editor').trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('submit')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it.each(['target', 'document'])(
+    'cancels pending references when the %s changes',
+    async (change) => {
+      const wrapper = await mountComponent()
+      const deferred = createDeferred<{ reference: object }>()
+      resolveReferenceMock.mockReturnValueOnce(deferred.promise)
+      await wrapper.trigger('drop', {
+        dataTransfer: { types: [SESSION_REFERENCE_DRAG_TYPE], getData: () => 'source' }
+      })
+      if (change === 'target') {
+        await wrapper.setProps({ sessionId: 'another-session' })
+      } else {
+        lastEditorOptions.onTransaction({ transaction: { docChanged: true } })
+      }
+      expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(false)
+      const next = createDeferred<{ reference: object }>()
+      resolveReferenceMock.mockReturnValueOnce(next.promise)
+      await wrapper.trigger('drop', {
+        dataTransfer: { types: [SESSION_REFERENCE_DRAG_TYPE], getData: () => 'next-source' }
+      })
+      deferred.resolve({ reference: { sessionId: 'source' } })
+      await flushPromises()
+      expect(insertContentMock).not.toHaveBeenCalled()
+      expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(true)
+      expect(notifyRendererMock).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'chat.sessionReference.targetChanged' })
+      )
+      next.resolve({ reference: { sessionId: 'next-source' } })
+      await flushPromises()
+      expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(false)
+      expect(insertContentMock).toHaveBeenCalledExactlyOnceWith({
+        type: 'sessionReference',
+        attrs: { sessionId: 'next-source' }
+      })
+      wrapper.unmount()
+    }
+  )
+
+  it('releases the submission gate when reference resolution fails', async () => {
+    const wrapper = await mountComponent()
+    resolveReferenceMock.mockRejectedValueOnce(new Error('Source deleted'))
+    await wrapper.trigger('drop', {
+      dataTransfer: { types: [SESSION_REFERENCE_DRAG_TYPE], getData: () => 'source' }
+    })
+    await flushPromises()
+    expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(false)
+    expect(insertContentMock).not.toHaveBeenCalled()
+    expect(notifyRendererMock).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'chat.sessionReference.unavailable' })
+    )
+    await wrapper.find('.chat-input-editor').trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('submit')).toHaveLength(1)
+    wrapper.unmount()
   })
 
   it('handles paste files via composable', async () => {

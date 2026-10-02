@@ -107,7 +107,12 @@
             :is-acp-session="isAcpSelectedAgent"
             :supports-vision="composerSupportsVision"
             :editable="!isSubmittingInput"
-            :submit-disabled="isAcpWorkdirUnavailable || isSubmittingInput || isAcpAuthRequired"
+            :submit-disabled="
+              isAcpWorkdirUnavailable ||
+              isSubmittingInput ||
+              isAcpAuthRequired ||
+              isResolvingSessionReferences
+            "
             :is-attachment-preparation-pending="isPreparingAttachments"
             @update:model-value="onMessageChange"
             @update:files="onFilesChange"
@@ -130,6 +135,7 @@
                   isAcpWorkdirUnavailable ||
                   isSubmittingInput ||
                   isAcpAuthRequired ||
+                  isResolvingSessionReferences ||
                   !hasDraftInput
                 "
                 :is-preparing-attachments="isPreparingAttachments"
@@ -320,9 +326,13 @@ const chatInputRef = ref<
         triggerAttach: () => void
         insertRecognizedText?: (text: string) => void
         getInlineItemsSnapshot?: () => UserMessageInlineItem[]
+        isResolvingSessionReferences?: () => boolean
       })
   | null
 >(null)
+const isResolvingSessionReferences = computed(
+  () => chatInputRef.value?.isResolvingSessionReferences?.() ?? false
+)
 // Same typing and paste routing as the chat page; the composer is the only
 // editable surface here, and it locks while a submission is in flight.
 useComposerInputRouting({
@@ -987,6 +997,7 @@ const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
 }
 
 async function onSubmit() {
+  if (isResolvingSessionReferences.value) return
   if (isAcpWorkdirUnavailable.value || isSubmittingInput.value) return
   const text = message.value.trim()
   if (!hasDraftInput.value) return
@@ -1035,6 +1046,7 @@ async function onSubmit() {
 }
 
 async function onCommandSubmit(command: string) {
+  if (isResolvingSessionReferences.value) return
   if (isAcpWorkdirUnavailable.value || isSubmittingInput.value) return
   const text = command.trim()
   if (!text) return

@@ -8,6 +8,7 @@ import { createWorkspaceClient } from '@api/WorkspaceClient'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import type { WorkspaceFileNode } from '@shared/types/workspace'
 import type { PromptListEntry } from '@shared/types/mcp'
+import type { SessionReference } from '@shared/sessionReferences'
 import { useMcpStore } from '@/stores/mcp'
 import { useSkillsStore } from '@/stores/skillsStore'
 import {
@@ -38,6 +39,10 @@ export interface UseChatInputMentionsOptions {
   isAcpSession: Ref<boolean>
   isGenerating?: Ref<boolean>
   compactCommandDescription?: Ref<string>
+  resolveSessionReference: (
+    sessionId: string,
+    insert: (reference: SessionReference) => void
+  ) => Promise<void>
   onCommandSubmit: (command: string) => void
   onActivateSkill: (skillName: string) => Promise<void> | void
 }
@@ -549,32 +554,8 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
         return
       }
 
-      const target = {
-        sessionId: options.sessionId.value,
-        agentId: options.agentId.value,
-        isAcpSession: options.isAcpSession.value,
-        workspacePath: options.workspacePath.value,
-        document: editor.state.doc
-      }
-      void sessionClient
-        .resolveReference({ sessionId: props.payload.sessionId })
-        .then(({ reference }) => {
-          if (
-            options.sessionId.value !== target.sessionId ||
-            options.agentId.value !== target.agentId ||
-            options.isAcpSession.value !== target.isAcpSession ||
-            options.workspacePath.value !== target.workspacePath ||
-            editor.isDestroyed ||
-            editor.state.doc !== target.document
-          ) {
-            notifyRenderer({
-              kind: 'warning',
-              code: 'chat.sessionReference.targetChanged',
-              title: t('chat.sessionReference.unavailableTitle'),
-              description: t('chat.sessionReference.targetChangedDescription')
-            })
-            return
-          }
+      void options
+        .resolveSessionReference(props.payload.sessionId, (reference) => {
           editor
             .chain()
             .focus()

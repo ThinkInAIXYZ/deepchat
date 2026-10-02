@@ -48,6 +48,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
   const activeModelSelection = ref<{ providerId: string; modelId: string } | null>(null)
   const pendingSkills = ref<string[]>(['ocr-skill'])
   const inlineItems = ref<UserMessageInlineItem[]>([])
+  const resolvingSessionReferences = ref(false)
   const document = ref<JSONContent>({ type: 'doc', content: [{ type: 'paragraph' }] })
   const clearPendingSkills = vi.fn(() => {
     pendingSkills.value = []
@@ -59,6 +60,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
     document.value = JSON.parse(JSON.stringify(snapshot)) as JSONContent
   })
   const inputHandle = {
+    isResolvingSessionReferences: () => resolvingSessionReferences.value,
     getPendingSkillsSnapshot: () => [...pendingSkills.value],
     getInlineItemsSnapshot: () => inlineItems.value.map((item) => ({ ...item })),
     clearPendingSkills,
@@ -177,6 +179,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
     activeModelSelection,
     pendingSkills,
     inlineItems,
+    resolvingSessionReferences,
     document,
     messageStore,
     sessionStore,
@@ -224,6 +227,31 @@ describe('useComposerSubmit attachment preflight', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+  })
+
+  it('blocks send, commands, queue and steer while a reference is resolving', async () => {
+    const harness = createHarness()
+    harness.actions.message.value = 'use the source'
+    harness.resolvingSessionReferences.value = true
+    await harness.actions.onSubmit()
+    await harness.actions.onCommandSubmit('review')
+    expect(harness.chatClient.sendMessage).not.toHaveBeenCalled()
+    harness.isGenerating.value = true
+    await harness.actions.onQueueSubmit()
+    await harness.actions.onSteer()
+    await harness.actions.onSubmit()
+    expect(harness.pendingInputStore.queueInput).not.toHaveBeenCalled()
+    expect(harness.chatClient.steerActiveTurn).not.toHaveBeenCalled()
+    expect(harness.actions.isInputSubmitDisabled.value).toBe(true)
+    expect(harness.actions.isQueueSubmitDisabled.value).toBe(true)
+    expect(harness.actions.disableQueueSteerAction.value).toBe(true)
+    expect(harness.actions.message.value).toBe('use the source')
+    harness.resolvingSessionReferences.value = false
+    expect(harness.actions.isInputSubmitDisabled.value).toBe(false)
+    harness.isGenerating.value = false
+    await harness.actions.onSubmit()
+    expect(harness.chatClient.sendMessage).toHaveBeenCalledOnce()
+    harness.stop()
   })
 
   it('enables and sends a session-reference-only draft with aligned offsets', async () => {

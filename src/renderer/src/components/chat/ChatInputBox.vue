@@ -58,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { watch, ref, computed, onUnmounted, provide, nextTick } from 'vue'
+import { watch, ref, computed, onUnmounted, provide, nextTick, shallowReactive } from 'vue'
 import { Editor as VueEditor, EditorContent } from '@tiptap/vue-3'
 import type { Editor, JSONContent } from '@tiptap/core'
 import Mention from '@tiptap/extension-mention'
@@ -70,7 +70,10 @@ import HardBreak from '@tiptap/extension-hard-break'
 import History from '@tiptap/extension-history'
 import { TextSelection } from '@tiptap/pm/state'
 import type { MessageFile, UserMessageInlineItem } from '@shared/types/agent-interface'
-import { SESSION_REFERENCE_DRAG_TYPE } from '@shared/sessionReferences'
+import {
+  SESSION_REFERENCE_DRAG_TYPE,
+  type SessionReference as ResolvedSessionReference
+} from '@shared/sessionReferences'
 import { useI18n } from 'vue-i18n'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { createOcrClient, type OcrClient } from '@api/OcrClient'
@@ -155,6 +158,33 @@ const { t } = useI18n()
 const resolvedPlaceholder = computed(() => props.placeholder?.trim() || t('chat.input.placeholder'))
 let editorInstance: Editor | null = null
 const getEditor = () => editorInstance
+const pendingSessionReferences = shallowReactive(new Set<symbol>())
+const isResolvingSessionReferences = () => pendingSessionReferences.size > 0
+
+async function resolveSessionReference(
+  sessionId: string,
+  insert: (reference: ResolvedSessionReference) => void
+) {
+  const request = Symbol()
+  pendingSessionReferences.add(request)
+  try {
+    const { reference } = await createSessionClient().resolveReference({ sessionId })
+    if (!pendingSessionReferences.has(request) || !props.editable || editor.isDestroyed) {
+      notifyRenderer({
+        kind: 'warning',
+        code: 'chat.sessionReference.targetChanged',
+        title: t('chat.sessionReference.unavailableTitle'),
+        description: t('chat.sessionReference.targetChangedDescription')
+      })
+      return
+    }
+    // Validate and insert in the same continuation; no intervening draft-restore microtask.
+    insert(reference)
+  } finally {
+    pendingSessionReferences.delete(request)
+  }
+}
+
 const conversationId = computed(() => props.sessionId)
 const skillAgentId = computed(() => props.agentId?.trim() || 'deepchat')
 const skillsData = useSkillsData(
@@ -187,6 +217,7 @@ const mentions = useChatInputMentions({
   isAcpSession: computed(() => props.isAcpSession),
   isGenerating: computed(() => props.isGenerating),
   compactCommandDescription: computed(() => t('chat.compaction.commandDescription')),
+  resolveSessionReference,
   onCommandSubmit: (command) => {
     if (!props.editable) return
     emit('command-submit', command)
@@ -559,6 +590,10 @@ const editor = new VueEditor({
     })
   ],
   content: toEditorDoc(props.modelValue || ''),
+  onTransaction: ({ transaction }) => {
+    // A changed draft invalidates the insertion range, including silent draft restores.
+    if (transaction.docChanged) pendingSessionReferences.clear()
+  },
   onUpdate: ({ editor, transaction }) => {
     const isInternalSync = Boolean(transaction.getMeta(CHAT_INPUT_SYNC_META) || isSyncingNodes)
     if (!isInternalSync) {
@@ -584,6 +619,12 @@ const editor = new VueEditor({
 editorInstance = editor
 
 // ── Watchers ───────────────────────────────────────────────────
+
+watch(
+  () => [props.sessionId, props.agentId, props.workspacePath, props.isAcpSession, props.editable],
+  () => pendingSessionReferences.clear(),
+  { flush: 'sync' }
+)
 
 watch(
   () => props.editable,
@@ -710,6 +751,10 @@ function handleKeydown(e: KeyboardEvent) {
   }
 
   const isPlainTab = e.key === 'Tab' && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey
+  if (isResolvingSessionReferences() && ((e.key === 'Enter' && !e.shiftKey) || isPlainTab)) {
+    e.preventDefault()
+    return
+  }
   if (isPlainTab && props.queueSubmitEnabled && !props.queueSubmitDisabled) {
     if (mentions.hasSelectableSuggestions.value || mentions.shouldSuppressSubmit()) {
       return
@@ -812,42 +857,16 @@ function onDrop(event: DragEvent) {
       })
       return
     }
-    const target = {
-      sessionId: props.sessionId,
-      agentId: props.agentId,
-      isAcpSession: props.isAcpSession,
-      workspacePath: props.workspacePath,
-      document: editor.state.doc
-    }
-    void createSessionClient()
-      .resolveReference({ sessionId: sourceSessionId })
-      .then(({ reference }) => {
-        if (
-          props.sessionId !== target.sessionId ||
-          props.agentId !== target.agentId ||
-          props.isAcpSession !== target.isAcpSession ||
-          props.workspacePath !== target.workspacePath ||
-          editor.isDestroyed ||
-          editor.state.doc !== target.document
-        ) {
-          notifyRenderer({
-            kind: 'warning',
-            code: 'chat.sessionReference.targetChanged',
-            title: t('chat.sessionReference.unavailableTitle'),
-            description: t('chat.sessionReference.targetChangedDescription')
-          })
-          return
-        }
-        editor.chain().focus().insertContent({ type: 'sessionReference', attrs: reference }).run()
+    void resolveSessionReference(sourceSessionId, (reference) => {
+      editor.chain().focus().insertContent({ type: 'sessionReference', attrs: reference }).run()
+    }).catch(() => {
+      notifyRenderer({
+        kind: 'error',
+        code: 'chat.sessionReference.unavailable',
+        title: t('chat.sessionReference.unavailableTitle'),
+        description: t('chat.sessionReference.unavailableDescription')
       })
-      .catch(() => {
-        notifyRenderer({
-          kind: 'error',
-          code: 'chat.sessionReference.unavailable',
-          title: t('chat.sessionReference.unavailableTitle'),
-          description: t('chat.sessionReference.unavailableDescription')
-        })
-      })
+    })
     return
   }
 
@@ -1025,6 +1044,7 @@ function focusAndInsertText(text: string) {
 
 defineExpose({
   triggerAttach,
+  isResolvingSessionReferences,
   insertRecognizedText,
   insertWorkspaceReference,
   getInlineItemsSnapshot,

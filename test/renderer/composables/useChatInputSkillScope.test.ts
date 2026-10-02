@@ -91,6 +91,7 @@ describe('chat input Skill Agent scope', () => {
             sessionId: conversationId,
             agentId,
             isAcpSession: ref(false),
+            resolveSessionReference: vi.fn(),
             onCommandSubmit: vi.fn(),
             onActivateSkill: skillsData.activateSkill
           })
