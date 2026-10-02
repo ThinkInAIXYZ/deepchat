@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.1.3-beta.4 (2026-10-02)
+- Removed the built-in agent plan tool and plan progress panel, including ACP plan updates, while keeping existing plan tool records readable
+- Added the FutureInfra provider
+- Added explicit Save and Cancel actions for API keys and service URLs, with saving separate from connection testing and drafts retained when saving fails
+- Allowed custom providers to be saved without testing, and made connection checks use a chosen text model so one successful test does not imply every model is available
+- Fixed custom-model edits losing the original model when saving fails and similarly named models sharing enablement status
+- Preserved offline model lists, limited filtered batch actions to matching models, and made model controls fit smaller windows
+- Fixed failed memory reflections being treated as complete, so invalid model responses can be retried
+- Improved update-note readability with formatted headings and lists, a larger reading area, and links that open in the browser
+- Isolated workspace HTML and SVG previews from the app so preview scripts cannot access the app's native APIs
+- Updated Electron to 43.7.0, bundled Node.js to 24.21.0, and dependencies with security fixes
+- Refreshed the bundled model and ACP catalogs
+- 移除内置 Agent 计划工具、计划进度面板及 ACP 计划更新，旧对话中的计划工具记录仍可查看
+- 新增 FutureInfra 模型服务商
+- 修改 API 密钥和服务地址后可明确保存或取消，保存不再依赖连接测试，保存失败时保留已填写的内容
+- 新建自定义服务商时可跳过测试直接保存，连接测试可选择具体的文本模型，单个模型测试通过不再被视为所有模型都可用
+- 修复编辑自定义模型时保存失败可能丢失原模型的问题，避免名称相近的模型互相影响启用状态
+- 保留离线模型列表，筛选后的批量操作只影响匹配的模型，并改善小窗口下模型操作区的显示
+- 修复记忆反思失败后被误认为已完成的问题，模型返回无效内容时可继续重试
+- 改善应用内更新日志的阅读体验，正确显示标题和列表，扩大阅读区域，并在浏览器中打开链接
+- 隔离工作区 HTML 和 SVG 预览，防止预览脚本调用应用的原生接口
+- 将 Electron 升级至 43.7.0、内置 Node.js 升级至 24.21.0，并升级相关依赖以修复安全问题
+- 刷新内置模型与 ACP 目录
+
 ## v1.1.3-beta.3 (2026-09-30)
 - Added a dependent-memory review before editing or deleting a memory, so affected reflections can be inspected and archived explicitly
 - Made memory evidence inspectable with paged lineage views that show derivation sources and derived claims
