@@ -635,7 +635,15 @@ const openPullModelDialog = () => {
 
 // 刷新模型列表 - 使用 settings store
 const refreshModels = async () => {
-  await ollamaStore.refreshOllamaModels(props.provider.id)
+  const refreshed = await ollamaStore.refreshOllamaModels(props.provider.id)
+  if (!refreshed) {
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.provider.modelRefreshFailed',
+      title: t('settings.provider.toast.refreshModelsFailedTitle'),
+      description: t('settings.provider.toast.refreshModelsFailedDescription')
+    })
+  }
 }
 
 // 拉取模型 - 使用 settings store

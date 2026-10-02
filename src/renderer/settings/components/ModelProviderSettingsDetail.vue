@@ -576,11 +576,22 @@ const handleRefreshModels = async () => {
   isRefreshingModels.value = true
   isModelListLoading.value = true
 
+  let refreshed = false
   try {
-    await modelStore.refreshProviderModels(props.provider.id, true)
+    refreshed = await modelStore.refreshProviderModels(props.provider.id, true)
+  } catch {
+    // Do not expose upstream errors, which can contain connection credentials.
   } finally {
     isRefreshingModels.value = false
     isModelListLoading.value = false
+  }
+  if (!refreshed) {
+    notifyRenderer({
+      kind: 'error',
+      code: 'settings.provider.modelRefreshFailed',
+      title: t('settings.provider.toast.refreshModelsFailedTitle'),
+      description: t('settings.provider.toast.refreshModelsFailedDescription')
+    })
   }
 }
 

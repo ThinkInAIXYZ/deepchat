@@ -808,15 +808,8 @@ export const useModelStore = defineStore('model', () => {
       }
 
       if (models.length === 0 && discoverModels) {
-        try {
-          const modelMetas = await modelClient.getModelList(providerId)
-          if (modelMetas) {
-            models = modelMetas.map(mapRuntimeModel)
-          }
-        } catch (error) {
-          console.error(`Failed to fetch models for provider ${providerId}:`, error)
-          models = []
-        }
+        const modelMetas = await modelClient.getModelList(providerId)
+        models = modelMetas.map(mapRuntimeModel)
       }
 
       const modelIds = models.map((model) => model.id)

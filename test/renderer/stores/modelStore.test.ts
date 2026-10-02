@@ -129,6 +129,26 @@ const flushMicrotasks = async (times: number = 6) => {
 }
 
 describe('modelStore.refreshProviderModels', () => {
+  it('preserves displayed models when discovery fails and allows retry', async () => {
+    const { store, modelClient } = await setupStore()
+    modelClient.getModelList.mockResolvedValueOnce([
+      { id: 'cached-model', name: 'Cached', providerId: 'openai', group: 'default' }
+    ])
+    expect(await store.refreshProviderModels('openai', true)).toBe(true)
+
+    modelClient.getModelList.mockRejectedValueOnce(new Error('discovery unavailable'))
+    expect(await store.refreshProviderModels('openai', true)).toBe(false)
+    expect(store.allProviderModels.value[0].models.map((model) => model.id)).toEqual([
+      'cached-model'
+    ])
+
+    modelClient.getModelList.mockResolvedValueOnce([
+      { id: 'new-model', name: 'New', providerId: 'openai', group: 'default' }
+    ])
+    expect(await store.refreshProviderModels('openai', true)).toBe(true)
+    expect(store.allProviderModels.value[0].models.map((model) => model.id)).toEqual(['new-model'])
+  })
+
   it('does not discover models before the provider state arrives', async () => {
     const { store, modelClient } = await setupStore({
       providerStore: { providers: [] }

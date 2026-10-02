@@ -289,6 +289,36 @@ describe('ModelProviderSettingsDetail', () => {
     expect(vm.modelToDisable).toEqual(model)
   })
 
+  it.each(['false', 'rejection', 'success'])('reports refresh outcome: %s', async (outcome) => {
+    const { wrapper, modelStore, notifyRendererMock } = await setup()
+    if (outcome === 'rejection') {
+      modelStore.refreshProviderModels.mockRejectedValueOnce(new Error('secret upstream error'))
+    } else {
+      modelStore.refreshProviderModels.mockResolvedValueOnce(outcome === 'success')
+    }
+    const vm = wrapper.vm as unknown as {
+      handleRefreshModels: () => Promise<void>
+      isRefreshingModels: boolean
+      isModelListLoading: boolean
+    }
+
+    await vm.handleRefreshModels()
+
+    expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('anthropic', true)
+    expect(vm.isRefreshingModels).toBe(false)
+    expect(vm.isModelListLoading).toBe(false)
+    if (outcome === 'success') {
+      expect(notifyRendererMock).not.toHaveBeenCalled()
+    } else {
+      expect(notifyRendererMock).toHaveBeenCalledExactlyOnceWith({
+        kind: 'error',
+        code: 'settings.provider.modelRefreshFailed',
+        title: 'settings.provider.toast.refreshModelsFailedTitle',
+        description: 'settings.provider.toast.refreshModelsFailedDescription'
+      })
+    }
+  })
+
   it('renders Vertex credentials in the connection section', async () => {
     const { wrapper } = await setup({
       provider: createProvider({ id: 'vertex', apiType: 'vertex' })

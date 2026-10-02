@@ -221,6 +221,15 @@ test('connection saving does not depend on the fixed probe model @smoke', async 
       .getByRole('alertdialog')
       .getByRole('button', { name: /^(取消|Cancel)$/ })
       .click()
+    await expect(page.getByTestId('provider-connection-error')).toHaveCount(0)
+    await page.getByTestId('provider-remove-key').click()
+    await expect(
+      page.getByRole('alertdialog').getByTestId('provider-connection-error')
+    ).toHaveCount(0)
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: /^(取消|Cancel)$/ })
+      .click()
     await page.getByRole('button', { name: /^(添加模型|Add Model)$/ }).click()
     await page.locator('#modelId').fill('unsaved-custom-fixture')
     await page.locator('#modelName').fill('Unsaved custom fixture')
@@ -228,7 +237,9 @@ test('connection saving does not depend on the fixed probe model @smoke', async 
       .getByRole('dialog')
       .getByRole('button', { name: /^(保存配置|Save Configuration)$/ })
       .click()
-    await expect(page.getByRole('dialog')).toContainText(/保存失败|Failed to save/)
+    await expect(page.getByRole('dialog').getByRole('alert')).toContainText(
+      /保存失败|Failed to save/
+    )
     await expect(page.locator('#modelId')).toHaveValue('unsaved-custom-fixture')
     await page.screenshot({ path: testInfo.outputPath('custom-model-save-failed.png') })
     await page.locator('#contextLength').scrollIntoViewIfNeeded()
@@ -270,6 +281,13 @@ test('custom providers can be saved without a probe @smoke', async ({ app }, tes
     await page.screenshot({ path: testInfo.outputPath('saved-disabled-provider.png') })
     await page.getByTestId('provider-models-refresh-button').click()
     await expect.poll(() => requests).toEqual(['GET /v1/models'])
+    await expect(
+      page.getByText(/暂时无法刷新该服务商的模型列表|Unable to refresh models for this provider/)
+    ).toBeVisible()
+    await page.screenshot({
+      path: testInfo.outputPath('model-refresh-failed.png'),
+      animations: 'disabled'
+    })
   } finally {
     server.closeAllConnections()
     await new Promise<void>((resolve) => server.close(() => resolve()))
