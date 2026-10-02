@@ -6,40 +6,47 @@
       :aria-label="label"
       class="dc-overscroll-contain max-h-72 overflow-y-auto"
     >
-      <button
-        v-for="(item, index) in filteredItems"
-        :key="item.id"
-        :id="optionId(index)"
-        role="option"
-        type="button"
-        tabindex="-1"
-        :aria-selected="index === selectedIndex"
-        @mousedown.prevent
-        :ref="(el) => (itemElements[index] = el as HTMLButtonElement)"
-        class="w-full rounded-sm px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent"
-        :class="index === selectedIndex ? 'bg-accent text-accent-foreground' : ''"
-        @click="selectIndex(index)"
-      >
-        <div class="flex items-start gap-2">
-          <span
-            class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center text-xs text-muted-foreground"
-          >
-            <Icon
-              v-if="item.category === 'command'"
-              icon="lucide:command"
-              data-icon="lucide:command"
-              class="h-3.5 w-3.5"
-            />
-            <span v-else>{{ categoryTag(item.category) }}</span>
-          </span>
-          <div class="flex-1 min-w-0">
-            <div class="truncate font-medium">{{ item.label }}</div>
-            <div v-if="item.description" class="truncate text-xs text-muted-foreground">
-              {{ item.description }}
+      <template v-for="(item, index) in filteredItems" :key="item.id">
+        <div
+          v-if="groupLabelForIndex(index)"
+          class="px-2 pb-1 pt-2 text-[11px] font-medium text-muted-foreground"
+          role="presentation"
+        >
+          {{ groupLabelForIndex(index) }}
+        </div>
+        <button
+          :id="optionId(index)"
+          role="option"
+          type="button"
+          tabindex="-1"
+          :aria-selected="index === selectedIndex"
+          @mousedown.prevent
+          :ref="(el) => (itemElements[index] = el as HTMLButtonElement)"
+          class="w-full rounded-sm px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent"
+          :class="index === selectedIndex ? 'bg-accent text-accent-foreground' : ''"
+          @click="selectIndex(index)"
+        >
+          <div class="flex items-start gap-2">
+            <span
+              class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center text-xs text-muted-foreground"
+            >
+              <Icon
+                v-if="item.category === 'command'"
+                icon="lucide:command"
+                data-icon="lucide:command"
+                class="h-3.5 w-3.5"
+              />
+              <span v-else>{{ categoryTag(item.category) }}</span>
+            </span>
+            <div class="flex-1 min-w-0">
+              <div class="truncate font-medium">{{ item.label }}</div>
+              <div v-if="item.description" class="truncate text-xs text-muted-foreground">
+                {{ item.description }}
+              </div>
             </div>
           </div>
-        </div>
-      </button>
+        </button>
+      </template>
     </div>
     <div
       :id="`${listId}-status`"
@@ -54,8 +61,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
+import { useI18n } from 'vue-i18n'
 
-export type SuggestionCategory = 'file' | 'command' | 'skill' | 'prompt' | 'tool'
+export type SuggestionCategory = 'file' | 'session' | 'command' | 'skill' | 'prompt' | 'tool'
 
 export interface SuggestionListItem {
   id: string
@@ -75,11 +83,19 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ activeChange: [id: string | null] }>()
+const { t } = useI18n()
 const optionId = (index: number) => `${props.listId}-option-${index}`
 const selectedIndex = ref(0)
 const itemElements = ref<(HTMLButtonElement | null)[]>([])
 
 const filteredItems = computed(() => props.items)
+
+const groupLabelForIndex = (index: number) => {
+  const category = filteredItems.value[index]?.category
+  if (category !== 'session' && category !== 'file') return ''
+  if (index > 0 && filteredItems.value[index - 1]?.category === category) return ''
+  return t(`chat.sessionReference.groups.${category}`)
+}
 
 watch(
   () => filteredItems.value.length,
@@ -116,6 +132,8 @@ const categoryTag = (category: SuggestionCategory) => {
       return 'TL'
     case 'file':
       return '@'
+    case 'session':
+      return '↗'
     default:
       return ''
   }

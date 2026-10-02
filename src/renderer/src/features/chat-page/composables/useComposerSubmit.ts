@@ -188,6 +188,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
 
   const message = ref('')
   const attachedFiles = ref<MessageFile[]>([])
+  const composerDocumentRevision = ref(0)
   const sessionDrafts = new Map<string, ComposerSessionDraft>()
   const draftRevisions = new Map<string, number>()
   const observedDraftFingerprints = new Map<string, string>()
@@ -254,7 +255,13 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
 
   const hasInputText = computed(() => Boolean(message.value.trim()))
   const hasAttachments = computed(() => attachedFiles.value.length > 0)
-  const hasDraftInput = computed(() => hasInputText.value || hasAttachments.value)
+  const hasSessionReference = computed(() => {
+    void composerDocumentRevision.value
+    return getComposerInlineItemsSnapshot().some((item) => item.type === 'session')
+  })
+  const hasDraftInput = computed(
+    () => hasInputText.value || hasAttachments.value || hasSessionReference.value
+  )
   const isSteering = computed(() => steeringSessionIds.value.has(options.sessionId()))
   const isQueueSubmitDisabled = computed(
     () =>
@@ -431,7 +438,12 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     seed: ComposerSubmissionSeed
   ): SendMessageInput => {
     const activeSkills = seed.draft.activeSkills
-    const inlineItems = seed.inlineItems
+    const leadingWhitespace =
+      seed.draft.rawMessage.length - seed.draft.rawMessage.trimStart().length
+    const inlineItems = seed.inlineItems.map((item) => ({
+      ...item,
+      offset: Math.max(0, Math.min(text.length, item.offset - leadingWhitespace))
+    }))
     return {
       text,
       files: copyComposerFiles(files),
@@ -653,6 +665,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   }
 
   function recordComposerDocumentChange(): void {
+    composerDocumentRevision.value += 1
     markCurrentDraftChanged()
   }
 
@@ -1009,7 +1022,8 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       const files = await prepareFilesForCurrentModel(seed.draft.files)
       if (preparation.cancelled) return
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
-      if (!text && files.length === 0) return
+      if (!text && files.length === 0 && !seed.inlineItems.some((item) => item.type === 'session'))
+        return
       const handledCompaction = await handleManualCompactionCommand(
         text,
         sessionId,
@@ -1109,7 +1123,8 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       const files = await prepareFilesForCurrentModel(seed.draft.files)
       if (preparation.cancelled) return
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
-      if (!text && files.length === 0) return
+      if (!text && files.length === 0 && !seed.inlineItems.some((item) => item.type === 'session'))
+        return
       const handledCompaction = await handleManualCompactionCommand(
         text,
         sessionId,
@@ -1143,7 +1158,8 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       const files = await prepareFilesForCurrentModel(seed.draft.files)
       if (preparation.cancelled) return
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
-      if (!text && files.length === 0) return
+      if (!text && files.length === 0 && !seed.inlineItems.some((item) => item.type === 'session'))
+        return
       const handledCompaction = await handleManualCompactionCommand(
         text,
         sessionId,

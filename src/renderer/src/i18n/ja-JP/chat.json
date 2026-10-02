@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "セッション", "file": "ファイル" },
+    "open": "{title} を開く",
+    "unavailableTitle": "セッション参照を利用できません",
+    "unavailableDescription": "このセッションは削除、リセットされたか、利用できなくなりました。",
+    "unsupportedTitle": "セッション参照は未対応です",
+    "unsupportedDescription": "ACP セッションではセッション参照を使用できません。",
+    "targetChangedDescription": "参照の準備中に下書きが変更されました。現在の下書きでもう一度追加してください。"
+  },
   "input": {
     "suggestions": "候補",
     "placeholder": "DeepChat に何でも聞いてください。{'@'} でファイルをメンション、/ でコマンドを使用できます",

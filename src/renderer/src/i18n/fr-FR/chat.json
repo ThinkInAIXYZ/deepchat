@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "Sessions", "file": "Fichiers" },
+    "open": "Ouvrir {title}",
+    "unavailableTitle": "Référence de session indisponible",
+    "unavailableDescription": "Cette session a été supprimée, réinitialisée ou n’est plus disponible.",
+    "unsupportedTitle": "Références de session non prises en charge",
+    "unsupportedDescription": "Les références de session ne sont pas disponibles dans les sessions ACP.",
+    "targetChangedDescription": "Le brouillon a changé avant que la référence soit prête. Ajoutez-la de nouveau."
+  },
   "input": {
     "suggestions": "Suggestions",
     "placeholder": "Demandez n'importe quoi à DeepChat, {'@'} pour mentionner des fichiers, / pour les commandes",

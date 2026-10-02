@@ -85,4 +85,32 @@ describe('SuggestionList', () => {
 
     expect(command).toHaveBeenCalledWith(items[24])
   })
+
+  it('labels session and file groups without changing option indices', async () => {
+    const items: SuggestionListItem[] = [
+      { id: 'session:1', label: 'Earlier chat', category: 'session', payload: {} },
+      { id: 'session:2', label: 'Other chat', category: 'session', payload: {} },
+      { id: 'file:1', label: 'notes.md', category: 'file', payload: {} }
+    ]
+    const command = vi.fn()
+    const wrapper = mount(SuggestionList, {
+      props: {
+        listId: 'suggestions',
+        label: 'Suggestions',
+        emptyLabel: 'No results',
+        items,
+        query: '',
+        command
+      }
+    })
+
+    expect(wrapper.text()).toContain('chat.sessionReference.groups.session')
+    expect(wrapper.text()).toContain('chat.sessionReference.groups.file')
+    expect(wrapper.findAll('[role="option"]')).toHaveLength(3)
+    ;(wrapper.vm as any).onKeyDown({ event: new KeyboardEvent('keydown', { key: 'ArrowDown' }) })
+    ;(wrapper.vm as any).onKeyDown({ event: new KeyboardEvent('keydown', { key: 'ArrowDown' }) })
+    ;(wrapper.vm as any).onKeyDown({ event: new KeyboardEvent('keydown', { key: 'Enter' }) })
+
+    expect(command).toHaveBeenCalledWith(items[2])
+  })
 })

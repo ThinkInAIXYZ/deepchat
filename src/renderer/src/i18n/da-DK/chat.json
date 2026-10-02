@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "Sessioner", "file": "Filer" },
+    "open": "Åbn {title}",
+    "unavailableTitle": "Sessionsreference er ikke tilgængelig",
+    "unavailableDescription": "Sessionen er slettet, nulstillet eller ikke længere tilgængelig.",
+    "unsupportedTitle": "Sessionsreferencer understøttes ikke",
+    "unsupportedDescription": "Sessionsreferencer kan ikke bruges i ACP-sessioner.",
+    "targetChangedDescription": "Kladden blev ændret, før referencen var klar. Tilføj den igen."
+  },
   "features": {
     "artifactThinking": "artifact tænkning",
     "thoughtForLessThanOneSecond": "Tænkte i under 1 sekund",

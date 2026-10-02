@@ -166,4 +166,46 @@ describe('composerDraftState', () => {
 
     expect(original.pdfTextCoverage?.lowTextPageSamples).toEqual([2])
   })
+
+  it('keeps a newer incarnation of the same referenced session after send', () => {
+    const sessionNode = (tapeIncarnationId: string) => ({
+      type: 'sessionReference',
+      attrs: { sessionId: 'session-1', title: 'Source', projectDir: null, tapeIncarnationId }
+    })
+    const current: ComposerSessionDraft = {
+      revision: 2,
+      rawMessage: '',
+      files: [],
+      activeSkills: [],
+      document: {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [sessionNode('new-incarnation')] }]
+      }
+    }
+    const submitted: ComposerSubmissionSnapshot = {
+      revision: 1,
+      rawMessage: '',
+      files: [],
+      activeSkills: [],
+      document: {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [sessionNode('old-incarnation')] }]
+      },
+      inlineItems: [
+        {
+          type: 'session',
+          offset: 0,
+          sessionId: 'session-1',
+          title: 'Source',
+          projectDir: null,
+          tapeIncarnationId: 'old-incarnation'
+        }
+      ],
+      clearText: true
+    }
+
+    expect(JSON.stringify(applyAcceptedComposerSubmission(current, submitted).document)).toContain(
+      'new-incarnation'
+    )
+  })
 })

@@ -5,11 +5,11 @@
 - [x] Wire typed renderer routes to the reader.
 - [x] Connect the native tool and structured reference model input/persistence. Enforce caller-owned
       reference authorization without widening Tape tools. Review and validate before commit.
-- [ ] Add composer session candidates, chips, drafts, sent display, and sidebar drag. Preserve file
+- [x] Add composer session candidates, chips, drafts, sent display, and sidebar drag. Preserve file
       mentions and reorder behavior. Review, render affected states, and validate before commit.
-- [ ] Review the complete change for P0–P3 defects and remove unnecessary abstractions. Record
+- [x] Review the complete change for P0–P3 defects and remove unnecessary abstractions. Record
       ablations and the smallest durable regression coverage for the actual failure boundaries.
-- [ ] Run format, i18n, lint, typecheck, relevant tests, and rendered UI verification. Re-read changed
+- [x] Run format, i18n, lint, typecheck, relevant tests, and rendered UI verification. Re-read changed
       files and final Git state. Commit review-sized slices locally; do not push.
 
 ## Validation and review record
@@ -43,6 +43,18 @@ from the cost of FTS/literal matching; do not claim constant-time search.
   screenshots were inspected. New-thread reference-only admission required an additional P2 fix.
 - Projection review found P2 omissions in reference-only search/export/copy and text edits. The
   existing projection/export owners now retain a plain title/ID label; text edits re-anchor session
-  references rather than dropping them. A shared formatter removes four duplicate metadata parsers,
+  references rather than dropping them. A shared formatter avoids four copies of metadata parsing,
   with no source-history expansion or additional storage. Native projection/edit, legacy search,
   and full exporter regressions pass in the expanded 2,122-test main run (one existing test skipped).
+- UI ablation removed an unused notification wrapper and redundant trigger/range checks already
+  covered by immutable editor-document identity. Kept receiving-composer guards and incarnation
+  checks. Keyboard activation no longer bubbles into send. No unresolved feature P0–P3 findings.
+- Final verification: format, lint, i18n (23 locales), both typechecks, and production build passed;
+  main 2,122 passed / one skipped; renderer 2,630 passed; Electron draft/reference specs 2/2 passed.
+  Captured menu, composer, and sent-result states were inspected. SQL results are bounded; no
+  claim of constant-time search or production-scale latency is made.
+- Additional existing streaming E2E reached its completion assertion but failed because it expects
+  “生成完成” / “生成已完成” while the baseline locale says “生成完毕”. The baseline source was checked;
+  this unrelated assertion was left unchanged and the broader smoke run is not reported green.
+- Generated provider/ACP registry refreshes from normal builds are retained separately, as required
+  by repository guidance. Delivery is local signed commits only; no push, PR, or release.

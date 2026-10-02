@@ -3,6 +3,7 @@ import { computed, toRefs } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
+import { SESSION_REFERENCE_DRAG_TYPE } from '@shared/sessionReferences'
 
 import type { UISession } from '@/stores/ui/session'
 
@@ -89,6 +90,12 @@ const statusIcon = computed<SessionStatusIcon>(() => {
   return null
 })
 
+const startSessionReferenceDrag = (event: DragEvent) => {
+  if (!event.dataTransfer) return
+  event.dataTransfer.setData(SESSION_REFERENCE_DRAG_TYPE, session.value.id)
+  event.dataTransfer.effectAllowed = 'copyMove'
+}
+
 const titleSegments = computed(() => {
   const title = session.value.title
   const query = props.searchQuery?.trim()
@@ -144,6 +151,8 @@ const titleSegments = computed(() => {
     :data-active="String(active)"
     :data-session-region="region"
     :data-session-id="session.id"
+    draggable="true"
+    @dragstart="startSessionReferenceDrag"
     @click="emit('select', session)"
   >
     <button

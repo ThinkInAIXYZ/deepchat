@@ -1,0 +1,247 @@
+import { createServer } from 'node:http'
+import { mkdirSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { test, expect } from '../fixtures/electronApp'
+import {
+  selectAgent,
+  selectModel,
+  sendMessage,
+  getActiveSessionId,
+  openSessionById
+} from '../helpers/chat'
+import { waitForAppReady } from '../helpers/wait'
+
+test('session references survive drafts and retrieve evidence without injecting history @smoke', async ({
+  app
+}) => {
+  let sourceId = ''
+  let sawReader = false
+  let referenceRequest = ''
+  let evidence = ''
+  const marker = 'violet-harbor-73'
+  const server = createServer(async (request, response) => {
+    let body = ''
+    for await (const chunk of request) body += chunk
+    if (request.url !== '/v1/chat/completions') {
+      response.writeHead(404).end()
+      return
+    }
+    const input = JSON.parse(body)
+    if (!input.stream) {
+      response.writeHead(200, { 'Content-Type': 'application/json' }).end(
+        JSON.stringify({
+          id: 'title',
+          object: 'chat.completion',
+          created: 1,
+          model: 'fixture-model',
+          choices: [
+            {
+              index: 0,
+              message: { role: 'assistant', content: 'Session fixture' },
+              finish_reason: 'stop'
+            }
+          ]
+        })
+      )
+      return
+    }
+    const toolResult = input.messages.findLast(
+      (message: { role: string }) => message.role === 'tool'
+    )
+    let delta: object = { content: `Source evidence: ${marker}` }
+    let finishReason = 'stop'
+    if (toolResult) {
+      evidence = JSON.stringify(toolResult)
+      delta = { content: 'Reference evidence retrieved.' }
+    } else if (JSON.stringify(input.messages).includes('Session reference metadata:')) {
+      referenceRequest = JSON.stringify(input.messages)
+      const reader = input.tools?.find((tool: { function: { name: string } }) =>
+        tool.function.name.endsWith('read_session')
+      )
+      sawReader = !!reader
+      delta = reader
+        ? {
+            tool_calls: [
+              {
+                index: 0,
+                id: 'read-reference',
+                type: 'function',
+                function: {
+                  name: reader.function.name,
+                  arguments: JSON.stringify({
+                    sessionId: sourceId,
+                    action: 'search',
+                    query: 'violet'
+                  })
+                }
+              }
+            ]
+          }
+        : { content: 'Reader unavailable.' }
+      finishReason = reader ? 'tool_calls' : 'stop'
+    }
+    response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+    response.write(
+      `data: ${JSON.stringify({
+        id: 'fixture-stream',
+        object: 'chat.completion.chunk',
+        created: 1,
+        model: 'fixture-model',
+        choices: [{ index: 0, delta, finish_reason: null }]
+      })}\n\n`
+    )
+    response.end(
+      `data: ${JSON.stringify({
+        id: 'fixture-stream',
+        object: 'chat.completion.chunk',
+        created: 1,
+        model: 'fixture-model',
+        choices: [{ index: 0, delta: {}, finish_reason: finishReason }]
+      })}\n\ndata: [DONE]\n\n`
+    )
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const { port } = server.address() as { port: number }
+  try {
+    await waitForAppReady(app.page)
+    const providerId = await app.page.evaluate(async (baseUrl) => {
+      const id = `custom-${crypto.randomUUID()}`
+      await window.deepchat.invoke('providers.add', {
+        provider: {
+          id,
+          name: 'Reference fixture',
+          apiType: 'openai-completions',
+          baseUrl,
+          apiKey: 'fixture-key',
+          enable: true,
+          custom: true
+        }
+      })
+      await window.deepchat.invoke('models.addCustom', {
+        providerId: id,
+        model: {
+          id: 'fixture-model',
+          name: 'Fixture',
+          enabled: true,
+          vision: false,
+          functionCall: true,
+          reasoning: false,
+          contextLength: 32000,
+          maxTokens: 8000
+        }
+      })
+      await window.deepchat.invoke('models.setStatus', {
+        providerId: id,
+        modelId: 'fixture-model',
+        enabled: true
+      })
+      return id
+    }, `http://127.0.0.1:${port}/v1`)
+    await selectAgent(app.page)
+    await selectModel(app.page, 'fixture-model', providerId)
+    await sendMessage(app.page, `The launch codename is ${marker}.`)
+    await expect(app.page.getByTestId('chat-message-assistant')).toContainText(marker)
+    await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
+      'data-generating',
+      'false'
+    )
+    sourceId = await getActiveSessionId(app.page)
+    await app.page.evaluate(async (sessionId) => {
+      await window.deepchat.invoke('sessions.rename', { sessionId, title: 'Launch research' })
+    }, sourceId)
+    await app.page.getByTestId('app-new-chat-button').click()
+    const editor = app.page.getByTestId('chat-input-contenteditable')
+    await expect(editor).toHaveCount(1)
+    await editor.fill('@Launch')
+    const candidate = app.page.getByRole('option', { name: /Launch research/ })
+    await expect(candidate).toBeVisible()
+    const artifacts = resolve('.amp/in/artifacts')
+    mkdirSync(artifacts, { recursive: true })
+    await app.page.screenshot({ path: resolve(artifacts, 'session-reference-candidates.png') })
+    await candidate.click()
+    const chip = editor.locator('[data-session-reference]')
+    await expect(chip).toContainText('Launch research')
+    await expect(app.page.getByTestId('chat-send-button')).toBeEnabled()
+    await app.page.reload()
+    await waitForAppReady(app.page)
+    await selectAgent(app.page)
+    await expect(chip).toContainText('Launch research')
+    await expect(app.page.getByTestId('chat-send-button')).toBeEnabled()
+    await chip.getByRole('button', { name: /Open|打开/ }).focus()
+    await app.page.keyboard.press('Enter')
+    await expect.poll(() => getActiveSessionId(app.page)).toBe(sourceId)
+    await expect(app.page.getByTestId('sidebar-session-item')).toHaveCount(1)
+    await app.page.getByTestId('app-new-chat-button').click()
+    await expect(editor).toHaveCount(1)
+    await expect(chip).toContainText('Launch research')
+    await chip.getByRole('button', { name: /Delete|删除/ }).focus()
+    await app.page.keyboard.press('Space')
+    await expect(chip).toHaveCount(0)
+    const sourceRow = app.page
+      .locator(`[data-testid="sidebar-session-item"][data-session-id="${sourceId}"]`)
+      .first()
+    await sourceRow.dragTo(editor)
+    await expect(chip).toContainText('Launch research')
+    await app.page.screenshot({ path: resolve(artifacts, 'session-reference-composer.png') })
+    await app.page.getByTestId('chat-send-button').click()
+    await expect(app.page.getByTestId('chat-message-assistant')).toContainText(
+      'Reference evidence retrieved.'
+    )
+    expect(sawReader).toBe(true)
+    expect(referenceRequest).toContain(sourceId)
+    expect(referenceRequest).not.toContain(marker)
+    expect(evidence).toContain(marker)
+    const targetId = await getActiveSessionId(app.page)
+    const sentChip = app.page.getByTestId('user-message-inline-session')
+    await expect(sentChip).toHaveText('Launch research')
+    await app.page.screenshot({ path: resolve(artifacts, 'session-reference-result.png') })
+    await sentChip.click()
+    expect(await getActiveSessionId(app.page)).toBe(sourceId)
+    await openSessionById(app.page, targetId)
+    await expect(sentChip).toHaveText('Launch research')
+
+    const crossId = await app.page.evaluate(
+      async ({ providerId, projectDir }) => {
+        const result = (await window.deepchat.invoke('sessions.create', {
+          agentId: 'deepchat',
+          message: '',
+          providerId,
+          modelId: 'fixture-model',
+          projectDir
+        })) as { session: { id: string } }
+        await window.deepchat.invoke('sessions.rename', {
+          sessionId: result.session.id,
+          title: 'Cross-workspace notes'
+        })
+        return result.session.id
+      },
+      { providerId, projectDir: app.userDataDir }
+    )
+    await openSessionById(app.page, targetId)
+    await expect(editor).toHaveCount(1)
+    const candidates = await app.page.evaluate(async (sessionId) => {
+      const { session } = (await window.deepchat.invoke('sessions.restore', { sessionId })) as {
+        session: { projectDir: string | null }
+      }
+      return window.deepchat.invoke('sessions.searchReferenceCandidates', {
+        projectDir: session.projectDir,
+        query: 'Cross-workspace'
+      })
+    }, targetId)
+    expect(candidates).toEqual({ items: [] })
+    await app.page
+      .locator(`[data-testid="sidebar-session-item"][data-session-id="${crossId}"]`)
+      .first()
+      .dragTo(editor)
+    await expect(chip).toHaveText('Cross-workspace notes')
+    expect(await getActiveSessionId(app.page)).toBe(targetId)
+    await openSessionById(app.page, sourceId)
+    await openSessionById(app.page, targetId)
+    await expect(chip).toHaveText('Cross-workspace notes')
+    await expect(app.page.getByTestId('chat-send-button')).toBeEnabled()
+    expect(app.pageErrors).toEqual([])
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})

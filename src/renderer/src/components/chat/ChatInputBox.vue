@@ -70,9 +70,11 @@ import HardBreak from '@tiptap/extension-hard-break'
 import History from '@tiptap/extension-history'
 import { TextSelection } from '@tiptap/pm/state'
 import type { MessageFile, UserMessageInlineItem } from '@shared/types/agent-interface'
+import { SESSION_REFERENCE_DRAG_TYPE } from '@shared/sessionReferences'
 import { useI18n } from 'vue-i18n'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { createOcrClient, type OcrClient } from '@api/OcrClient'
+import { createSessionClient } from '@api/SessionClient'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import {
   buildChatInputWorkspaceReferenceText,
@@ -85,6 +87,7 @@ import { useSkillsData } from '@/components/chat-input/composables/useSkillsData
 import SessionSkillsIndicator from '@/components/chat-input/SessionSkillsIndicator.vue'
 import { SkillChip } from './nodes/skillChip'
 import { FileAttachment } from './nodes/fileAttachment'
+import { SessionReference } from './nodes/sessionReference'
 import { CommandForm } from './nodes/commandForm'
 import {
   ATTACHMENT_NODE_CONTEXT,
@@ -534,6 +537,7 @@ const editor = new VueEditor({
     History,
     SkillChip,
     FileAttachment,
+    SessionReference,
     CommandForm,
     Mention.configure({
       suggestion: mentions.atSuggestion as any,
@@ -795,6 +799,58 @@ function onDrop(event: DragEvent) {
   event.preventDefault()
   if (!props.editable) return
 
+  const sourceSessionId = event.dataTransfer?.types?.includes(SESSION_REFERENCE_DRAG_TYPE)
+    ? event.dataTransfer.getData(SESSION_REFERENCE_DRAG_TYPE)
+    : ''
+  if (sourceSessionId) {
+    if (props.isAcpSession) {
+      notifyRenderer({
+        kind: 'error',
+        code: 'chat.sessionReference.unsupported',
+        title: t('chat.sessionReference.unsupportedTitle'),
+        description: t('chat.sessionReference.unsupportedDescription')
+      })
+      return
+    }
+    const target = {
+      sessionId: props.sessionId,
+      agentId: props.agentId,
+      isAcpSession: props.isAcpSession,
+      workspacePath: props.workspacePath,
+      document: editor.state.doc
+    }
+    void createSessionClient()
+      .resolveReference({ sessionId: sourceSessionId })
+      .then(({ reference }) => {
+        if (
+          props.sessionId !== target.sessionId ||
+          props.agentId !== target.agentId ||
+          props.isAcpSession !== target.isAcpSession ||
+          props.workspacePath !== target.workspacePath ||
+          editor.isDestroyed ||
+          editor.state.doc !== target.document
+        ) {
+          notifyRenderer({
+            kind: 'warning',
+            code: 'chat.sessionReference.targetChanged',
+            title: t('chat.sessionReference.unavailableTitle'),
+            description: t('chat.sessionReference.targetChangedDescription')
+          })
+          return
+        }
+        editor.chain().focus().insertContent({ type: 'sessionReference', attrs: reference }).run()
+      })
+      .catch(() => {
+        notifyRenderer({
+          kind: 'error',
+          code: 'chat.sessionReference.unavailable',
+          title: t('chat.sessionReference.unavailableTitle'),
+          description: t('chat.sessionReference.unavailableDescription')
+        })
+      })
+    return
+  }
+
   const workspaceItem = getChatInputWorkspaceItemDragData(event.dataTransfer)
   if (workspaceItem && insertWorkspaceReference(workspaceItem.path)) {
     return
@@ -865,6 +921,18 @@ function getInlineItemsSnapshot(): UserMessageInlineItem[] {
           fileName: node.attrs.fileName as string,
           filePath: node.attrs.filePath as string,
           mimeType: node.attrs.mimeType as string
+        })
+        return
+      }
+
+      if (node.type.name === 'sessionReference') {
+        inlineItems.push({
+          type: 'session',
+          offset,
+          sessionId: node.attrs.sessionId as string,
+          title: node.attrs.title as string,
+          projectDir: (node.attrs.projectDir as string | null) ?? null,
+          tapeIncarnationId: node.attrs.tapeIncarnationId as string
         })
       }
     })

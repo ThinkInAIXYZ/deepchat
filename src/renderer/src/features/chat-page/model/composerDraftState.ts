@@ -105,7 +105,7 @@ export function applyAcceptedComposerSubmission(
     return {
       ...copyComposerDraft(current),
       files,
-      document: removeDocumentNodes(current.document, submitted.files, [])
+      document: removeDocumentNodes(current.document, submitted.files, [], submitted.inlineItems)
     }
   }
 
@@ -125,7 +125,12 @@ export function applyAcceptedComposerSubmission(
     rawMessage: current.rawMessage,
     files,
     activeSkills,
-    document: removeDocumentNodes(current.document, submitted.files, submitted.activeSkills)
+    document: removeDocumentNodes(
+      current.document,
+      submitted.files,
+      submitted.activeSkills,
+      submitted.inlineItems
+    )
   }
 }
 
@@ -195,10 +200,12 @@ function subtractStrings(current: string[], submitted: string[]): string[] {
 function removeDocumentNodes(
   document: JSONContent,
   files: MessageFile[],
-  activeSkills: string[]
+  activeSkills: string[],
+  inlineItems: UserMessageInlineItem[] = []
 ): JSONContent {
   const remainingFiles = copyComposerFiles(files)
   const remainingSkills = [...activeSkills]
+  const remainingInlineItems = [...inlineItems]
   return transformDocument(document, (node) => {
     if (node.type === 'fileAttachment') {
       const index = remainingFiles.findIndex((file) => fileMatchesDocumentNode(file, node))
@@ -210,6 +217,17 @@ function removeDocumentNodes(
       const index = remainingSkills.indexOf(String(node.attrs?.skillName ?? ''))
       if (index < 0) return true
       remainingSkills.splice(index, 1)
+      return false
+    }
+    if (node.type === 'sessionReference') {
+      const index = remainingInlineItems.findIndex(
+        (item) =>
+          item.type === 'session' &&
+          item.sessionId === String(node.attrs?.sessionId ?? '') &&
+          item.tapeIncarnationId === String(node.attrs?.tapeIncarnationId ?? '')
+      )
+      if (index < 0) return true
+      remainingInlineItems.splice(index, 1)
       return false
     }
     return true

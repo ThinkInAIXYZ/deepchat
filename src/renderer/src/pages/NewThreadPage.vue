@@ -332,6 +332,7 @@ useComposerInputRouting({
 const {
   message,
   attachedFiles,
+  hasSessionReference,
   onMessageChange,
   onPendingSkillsChange,
   recordComposerChange,
@@ -354,7 +355,8 @@ let attachmentFilterToken = 0
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
 const hasDraftInput = computed(
   () =>
-    message.value.trim().length > 0 || (!isAcpSelectedAgent.value && attachedFiles.value.length > 0)
+    message.value.trim().length > 0 ||
+    (!isAcpSelectedAgent.value && (attachedFiles.value.length > 0 || hasSessionReference.value))
 )
 
 const resolveChatInputBoxElement = () =>
@@ -987,7 +989,7 @@ const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
 async function onSubmit() {
   if (isAcpWorkdirUnavailable.value || isSubmittingInput.value) return
   const text = message.value.trim()
-  if (!text && (isAcpSelectedAgent.value || attachedFiles.value.length === 0)) return
+  if (!hasDraftInput.value) return
   if (shouldIgnoreManualCompactionDraft(text)) return
   const submission: ActiveNewThreadSubmission = {
     submissionId: nanoid(),
@@ -1089,7 +1091,12 @@ async function submitText(
   submission: ActiveNewThreadSubmission,
   search: boolean
 ): Promise<boolean> {
-  if (!text.trim() && files.length === 0) return false
+  if (
+    !text.trim() &&
+    files.length === 0 &&
+    !submission.draft.inlineItems.some((item) => item.type === 'session')
+  )
+    return false
   if (isAcpWorkdirUnavailable.value) return false
   const isAcp = isAcpSelectedAgent.value
   if (isAcp && !text.trim()) return false
@@ -1107,7 +1114,12 @@ async function submitText(
 
   try {
     const dedupedPendingSkills = Array.from(new Set(submission.draft.activeSkills))
-    const inlineItems = submission.draft.inlineItems
+    const leadingWhitespace =
+      submission.draft.rawMessage.length - submission.draft.rawMessage.trimStart().length
+    const inlineItems = submission.draft.inlineItems.map((item) => ({
+      ...item,
+      offset: Math.max(0, Math.min(text.length, item.offset - leadingWhitespace))
+    }))
     const messagePayload = {
       text,
       files,

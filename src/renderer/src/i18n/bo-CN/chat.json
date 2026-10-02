@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "གླེང་མོལ།", "file": "ཡིག་ཆ།" },
+    "open": "{title} ཁ་ཕྱེ།",
+    "unavailableTitle": "གླེང་མོལ་གྱི་ལུང་འདྲེན་མི་འདུག",
+    "unavailableDescription": "གླེང་མོལ་འདི་བསུབས་པའམ་བསྐྱར་སྒྲིག་བྱས་ཟིན།",
+    "unsupportedTitle": "གླེང་མོལ་ལུང་འདྲེན་ལ་རྒྱབ་སྐྱོར་མེད།",
+    "unsupportedDescription": "ACP གླེང་མོལ་ནང་ལུང་འདྲེན་སྤྱོད་མི་ཐུབ།",
+    "targetChangedDescription": "ལུང་འདྲེན་གྲ་སྒྲིག་མ་ཚར་གོང་ཟིན་བྲིས་བསྒྱུར་འདུག ཡང་བསྐྱར་སྣོན།"
+  },
   "input": {
     "placeholder": "DeepChat ལ་འཕྲིན་ཐུང་སྐུར། {'@'} ཡིས་ཡིག་ཆ་འདྲེན་ཆོག །/ ཡིས་བཀའ་བརྡ་སྤྱོད་ཆོག",
     "fileArea": "ཡིག་ཆའི་ཁུལ།",

@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "سۆھبەتلەر", "file": "ھۆججەتلەر" },
+    "open": "{title} نى ئېچىش",
+    "unavailableTitle": "سۆھبەت نەقىلىنى ئىشلەتكىلى بولمايدۇ",
+    "unavailableDescription": "بۇ سۆھبەت ئۆچۈرۈلگەن، قايتا تەڭشەلگەن ياكى مەۋجۇت ئەمەس.",
+    "unsupportedTitle": "سۆھبەت نەقىلىنى قوللىمايدۇ",
+    "unsupportedDescription": "ACP سۆھبىتىدە سۆھبەت نەقىلىنى ئىشلەتكىلى بولمايدۇ.",
+    "targetChangedDescription": "نەقىل تەييار بولۇشتىن بۇرۇن لايىھە ئۆزگەردى. قايتا قوشۇڭ."
+  },
   "input": {
     "placeholder": "DeepChat غا ئۇچۇر يوللاش، {'@'} ھۆججەتنى ئىسەلەشكە بولىدۇ، / بۇيرۇقنى ئىشلىتىشكە بولىدۇ",
     "fileArea": "ھۆججەت رايونى",

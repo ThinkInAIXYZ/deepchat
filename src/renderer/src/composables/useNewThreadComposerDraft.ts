@@ -56,6 +56,12 @@ export function useNewThreadComposerDraft(
     get: () => draft.value.files,
     set: (files: MessageFile[]) => updateDraft({ files })
   })
+  const hasSessionReference = computed(
+    () =>
+      draft.value.document.content?.some((block) =>
+        block.content?.some((node) => node.type === 'sessionReference')
+      ) ?? false
+  )
 
   function recordComposerChange() {
     if (restoring || disposed || !input.value) return
@@ -171,6 +177,7 @@ export function useNewThreadComposerDraft(
   return {
     message,
     attachedFiles,
+    hasSessionReference,
     onMessageChange,
     onPendingSkillsChange,
     recordComposerChange,

@@ -226,6 +226,61 @@ describe('useComposerSubmit attachment preflight', () => {
     localStorage.clear()
   })
 
+  it('enables and sends a session-reference-only draft with aligned offsets', async () => {
+    const harness = createHarness()
+    harness.actions.message.value = '  '
+    harness.inlineItems.value = [
+      {
+        type: 'session',
+        offset: 2,
+        sessionId: 'source',
+        title: 'Source',
+        projectDir: null,
+        tapeIncarnationId: 'incarnation'
+      }
+    ]
+    harness.actions.recordComposerDocumentChange()
+    await nextTick()
+
+    expect(harness.actions.isInputSubmitDisabled.value).toBe(false)
+    await harness.actions.onSubmit()
+
+    expect(harness.chatClient.sendMessage).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({
+        text: '',
+        inlineItems: [expect.objectContaining({ type: 'session', offset: 0 })]
+      })
+    )
+    harness.stop()
+  })
+
+  it('adjusts inline offsets when trimming surrounding whitespace', async () => {
+    const harness = createHarness()
+    harness.actions.message.value = '  hello  '
+    harness.inlineItems.value = [
+      {
+        type: 'session',
+        offset: 9,
+        sessionId: 'source',
+        title: 'Source',
+        projectDir: null,
+        tapeIncarnationId: 'incarnation'
+      }
+    ]
+
+    await harness.actions.onSubmit()
+
+    expect(harness.chatClient.sendMessage).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({
+        text: 'hello',
+        inlineItems: [expect.objectContaining({ offset: 5 })]
+      })
+    )
+    harness.stop()
+  })
+
   it('preserves a rejected draft and sends only after explicit degradation', async () => {
     const harness = createHarness()
     const summary = blockedSummary()
