@@ -485,6 +485,8 @@ import {
 } from './routes/runs.routes'
 import {
   sessionsActivateRoute,
+  sessionsSearchReferenceCandidatesRoute,
+  sessionsResolveReferenceRoute,
   sessionsClearMessagesRoute,
   sessionsCompactRoute,
   sessionsConvertPendingInputToSteerRoute,
@@ -1002,6 +1004,8 @@ const DEEPCHAT_ROUTE_CATALOG_PART_3 = {
 } satisfies Record<string, RouteContract>
 
 const DEEPCHAT_ROUTE_CATALOG_PART_4 = {
+  [sessionsSearchReferenceCandidatesRoute.name]: sessionsSearchReferenceCandidatesRoute,
+  [sessionsResolveReferenceRoute.name]: sessionsResolveReferenceRoute,
   [sessionsCreateRoute.name]: sessionsCreateRoute,
   [sessionsRestoreRoute.name]: sessionsRestoreRoute,
   [sessionsListMessagesPageRoute.name]: sessionsListMessagesPageRoute,

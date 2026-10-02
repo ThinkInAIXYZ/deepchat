@@ -143,6 +143,28 @@ describe('AgentToolManager read routing', () => {
     )
   })
 
+  it('exposes the bounded reader only to regular native sessions', async () => {
+    const context = {
+      chatMode: 'agent' as const,
+      supportsVision: false,
+      agentWorkspacePath: workspaceDir,
+      conversationId: 'conv1'
+    }
+    const definitions = await manager.getAllToolDefinitions(context)
+    expect(definitions.find((tool) => tool.function.name === 'read_session')).toMatchObject({
+      execution: { effect: 'read', mode: 'parallel' },
+      server: { name: 'agent-session' }
+    })
+    for (const session of [
+      { agentType: 'acp', sessionKind: 'regular' },
+      { agentType: 'deepchat', sessionKind: 'subagent' }
+    ]) {
+      resolveConversationSessionInfo.mockResolvedValue(session)
+      const tools = await manager.getAllToolDefinitions(context)
+      expect(tools.some((tool) => tool.function.name === 'read_session')).toBe(false)
+    }
+  })
+
   it('resolves approval paths against the base directory the call will run under', async () => {
     await expect(
       manager.resolveApprovalPaths('write', { path: 'note.txt' }, 'conv1')

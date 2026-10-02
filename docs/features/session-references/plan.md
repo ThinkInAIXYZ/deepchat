@@ -2,7 +2,7 @@
 
 - [x] Add bounded transcript reader and reference resolution in the session data owner; reuse
       projections and Tape identity. Reviewed and validated before the first local commit.
-- [ ] Wire typed renderer routes to the reader.
+- [x] Wire typed renderer routes to the reader.
 - [ ] Connect the native tool and structured reference model input/persistence. Enforce caller-owned
       reference authorization without widening Tape tools. Review and validate before commit.
 - [ ] Add composer session candidates, chips, drafts, sent display, and sidebar drag. Preserve file
@@ -25,3 +25,9 @@ from the cost of FTS/literal matching; do not claim constant-time search.
   broke restart continuation), its crypto dependency, and duplicate full-message length/slice work.
   Kept source/incarnation/query/role cursor validation and SQL limits. No additional persistence.
 - Reader verification: native SQLite suite 9/9 passed; node typecheck and focused lint passed.
+- Native wiring review: renderer-only selection routes and model-only read dispatch preserve the
+  independent reader authorization; child sessions and ACP are excluded from the native catalog.
+  Tool metadata declares parallel read execution. No wrapper handler or second registry added.
+- Native wiring verification: main session/runtime/tool suites 1,151/1,151 passed; catalog regression
+  suite 54/54 passed; both typechecks, format, lint, and i18n validation passed. UI verification is
+  still in progress and is not covered by this commit.
