@@ -158,14 +158,16 @@ const { t } = useI18n()
 const resolvedPlaceholder = computed(() => props.placeholder?.trim() || t('chat.input.placeholder'))
 let editorInstance: Editor | null = null
 const getEditor = () => editorInstance
-const pendingSessionReferences = shallowReactive(new Set<symbol>())
+const pendingSessionReferences = shallowReactive(new Set<{ kind: 'mention' | 'drop' }>())
 const isResolvingSessionReferences = () => pendingSessionReferences.size > 0
+let isInsertingSessionReference = false
 
 async function resolveSessionReference(
   sessionId: string,
-  insert: (reference: ResolvedSessionReference) => void
+  insert: (reference: ResolvedSessionReference) => void,
+  kind: 'mention' | 'drop' = 'mention'
 ) {
-  const request = Symbol()
+  const request = { kind }
   pendingSessionReferences.add(request)
   try {
     const { reference } = await createSessionClient().resolveReference({ sessionId })
@@ -179,8 +181,10 @@ async function resolveSessionReference(
       return
     }
     // Validate and insert in the same continuation; no intervening draft-restore microtask.
+    isInsertingSessionReference = true
     insert(reference)
   } finally {
+    isInsertingSessionReference = false
     pendingSessionReferences.delete(request)
   }
 }
@@ -591,8 +595,14 @@ const editor = new VueEditor({
   ],
   content: toEditorDoc(props.modelValue || ''),
   onTransaction: ({ transaction }) => {
-    // A changed draft invalidates the insertion range, including silent draft restores.
-    if (transaction.docChanged) pendingSessionReferences.clear()
+    if (!transaction.docChanged) return
+    for (const request of pendingSessionReferences) {
+      // Mentions replace a captured range. Drops use the live selection and can coexist with
+      // other reference insertions, but user edits and silent draft restores cancel both.
+      if (!isInsertingSessionReference || request.kind === 'mention') {
+        pendingSessionReferences.delete(request)
+      }
+    }
   },
   onUpdate: ({ editor, transaction }) => {
     const isInternalSync = Boolean(transaction.getMeta(CHAT_INPUT_SYNC_META) || isSyncingNodes)
@@ -857,9 +867,13 @@ function onDrop(event: DragEvent) {
       })
       return
     }
-    void resolveSessionReference(sourceSessionId, (reference) => {
-      editor.chain().focus().insertContent({ type: 'sessionReference', attrs: reference }).run()
-    }).catch(() => {
+    void resolveSessionReference(
+      sourceSessionId,
+      (reference) => {
+        editor.chain().focus().insertContent({ type: 'sessionReference', attrs: reference }).run()
+      },
+      'drop'
+    ).catch(() => {
       notifyRenderer({
         kind: 'error',
         code: 'chat.sessionReference.unavailable',

@@ -147,6 +147,7 @@ vi.mock('@tiptap/vue-3', () => {
         scrollIntoView: () => api,
         insertContent: (content: string) => {
           insertContentMock(content)
+          lastEditorOptions?.onTransaction?.({ transaction: { docChanged: true } })
           return api
         },
         insertContentAt: vi.fn((...args: any[]) => {
@@ -591,6 +592,64 @@ describe('ChatInputBox attachments', () => {
     }
     await wrapper.find('.chat-input-editor').trigger('keydown', { key: 'Enter' })
     expect(wrapper.emitted('submit')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('keeps concurrent drops pending until both references are inserted', async () => {
+    const wrapper = await mountComponent()
+    const first = createDeferred<{ reference: object }>()
+    const second = createDeferred<{ reference: object }>()
+    resolveReferenceMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    for (const id of ['source-a', 'source-b']) {
+      await wrapper.trigger('drop', {
+        dataTransfer: { types: [SESSION_REFERENCE_DRAG_TYPE], getData: () => id }
+      })
+    }
+    // Resolve in reverse order: one reference's insertion must not cancel the other request.
+    second.resolve({ reference: { sessionId: 'source-b' } })
+    await flushPromises()
+    expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(true)
+    await wrapper.find('.chat-input-editor').trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    first.resolve({ reference: { sessionId: 'source-a' } })
+    await flushPromises()
+    expect(insertContentMock.mock.calls.map(([node]) => node.attrs.sessionId)).toEqual([
+      'source-b',
+      'source-a'
+    ])
+    expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(false)
+    expect(notifyRendererMock).not.toHaveBeenCalled()
+    await wrapper.find('.chat-input-editor').trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('submit')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('still cancels a captured mention range when another reference inserts', async () => {
+    const wrapper = await mountComponent()
+    const mention = createDeferred<{ reference: object }>()
+    const drop = createDeferred<{ reference: object }>()
+    resolveReferenceMock.mockReturnValueOnce(mention.promise).mockReturnValueOnce(drop.promise)
+    const mentions = useChatInputMentionsMock.mock.calls.at(-1)![0] as {
+      resolveSessionReference: (id: string, insert: (reference: object) => void) => Promise<void>
+    }
+    const insertMention = vi.fn()
+    const resolution = mentions.resolveSessionReference('mention-source', insertMention)
+    await wrapper.trigger('drop', {
+      dataTransfer: { types: [SESSION_REFERENCE_DRAG_TYPE], getData: () => 'drop-source' }
+    })
+    drop.resolve({ reference: { sessionId: 'drop-source' } })
+    await flushPromises()
+    expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(false)
+    mention.resolve({ reference: { sessionId: 'mention-source' } })
+    await resolution
+    expect(insertMention).not.toHaveBeenCalled()
+    expect(insertContentMock).toHaveBeenCalledExactlyOnceWith({
+      type: 'sessionReference',
+      attrs: { sessionId: 'drop-source' }
+    })
+    expect(notifyRendererMock).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'chat.sessionReference.targetChanged' })
+    )
     wrapper.unmount()
   })
 
