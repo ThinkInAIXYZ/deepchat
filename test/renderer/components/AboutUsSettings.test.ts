@@ -57,6 +57,7 @@ const upgradeStoreMock = {
   shouldShowUpdateNotes: true,
   updateInfo: {
     version: '1.0.0-beta.4',
+    githubUrl: 'https://github.com/ThinkInAIXYZ/deepchat/releases/tag/v1.0.0-beta.4',
     releaseNotes: '- Added floating window'
   },
   showManualDownloadOptions: true,
@@ -158,6 +159,7 @@ describe('AboutUsSettings', () => {
       shouldShowUpdateNotes: true,
       updateInfo: {
         version: '1.0.0-beta.4',
+        githubUrl: 'https://github.com/ThinkInAIXYZ/deepchat/releases/tag/v1.0.0-beta.4',
         releaseNotes: '- Added floating window'
       },
       showManualDownloadOptions: true,
@@ -209,6 +211,9 @@ describe('AboutUsSettings', () => {
     })
 
     await flushPromises()
+
+    expect(wrapper.findAll('p').map((paragraph) => paragraph.text())).toContain('v1.0.0-beta.3')
+    expect(wrapper.text()).toContain('v1.0.0-beta.4 可用')
 
     const buttons = wrapper.findAll('button').map((button) => button.text())
     expect(buttons).toEqual(['意见反馈', '免责声明', 'GitHub 下载', '官网下载', '关闭'])

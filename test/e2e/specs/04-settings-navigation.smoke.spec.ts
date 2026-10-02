@@ -1,4 +1,6 @@
 import type { Page, TestInfo } from '@playwright/test'
+import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
+import { upgradeStatusChangedEvent } from '../../../src/shared/contracts/events/upgrade.events'
 import {
   getSettingsRouteItems,
   type SettingsNavigationItem
@@ -215,4 +217,68 @@ test('settings control center navigation and screenshots @smoke', async ({ app }
 
   await settingsPage.setViewportSize(desktopViewport)
   await applyVisualState(settingsPage, { dark: false, rtl: false })
+})
+
+test('release notes retain document typography for Atom HTML and Markdown @smoke', async ({
+  app
+}, testInfo) => {
+  await waitForAppReady(app.page)
+  const settingsPage = await openSettings(app)
+  await openSettingsTab(settingsPage, 'settings-tab-about', 'settings-about')
+  await expect(settingsPage.getByTestId('settings-about-page')).toBeVisible()
+  const installedVersion = await app.electronApp.evaluate(({ app }) => app.getVersion())
+  await expect(settingsPage.getByText(`v${installedVersion}`, { exact: true })).toBeVisible()
+  await captureSettingsPage(settingsPage, testInfo, 'about-installed-version')
+  const settingsWindow = await app.electronApp.browserWindow(settingsPage)
+  const items = Array.from({ length: 20 }, (_, index) => `Change ${index + 1}: 修复更新日志显示`)
+
+  for (const [format, releaseNotes] of Object.entries({
+    html: `<h2>HTML changes</h2><ul>${items.map((item) => `<li>${item}</li>`).join('')}</ul>`,
+    markdown: `## Markdown changes\n\n${items.map((item) => `- ${item}`).join('\n')}`
+  })) {
+    await settingsWindow.evaluate(
+      (window, { channel, name, payload }) => {
+        window.webContents.send(channel, { name, payload })
+      },
+      {
+        channel: DEEPCHAT_EVENT_CHANNEL,
+        name: upgradeStatusChangedEvent.name,
+        payload: upgradeStatusChangedEvent.payload.parse({
+          status: 'available',
+          info: {
+            version: format === 'html' ? '99.0.0' : '99.0.1',
+            releaseDate: '2026-10-02',
+            releaseNotes,
+            githubUrl: 'https://github.com/ThinkInAIXYZ/deepchat/releases/tag/v99.0.0'
+          },
+          version: Date.now()
+        })
+      }
+    )
+
+    const notes = settingsPage.getByTestId('settings-about-page').locator('.markdown-renderer')
+    await expect(
+      notes.getByRole('heading', { name: format === 'html' ? 'HTML changes' : 'Markdown changes' })
+    ).toBeVisible()
+    await expect
+      .poll(() => settingsPage.locator('.release-notes').evaluate((el) => el.scrollTop))
+      .toBe(0)
+    await expect(notes.locator('li')).toHaveCount(20)
+    await expect(notes.locator('li').last()).toHaveText(items[19])
+    for (const dark of [false, true]) {
+      await applyVisualState(settingsPage, { dark })
+      await expect(notes.locator('ul')).toHaveCSS('list-style-type', 'disc')
+      await expect(notes.locator('h2')).toHaveCSS('font-weight', '600')
+      await expect(notes.locator('li').first()).toHaveCSS('font-size', '14px')
+    }
+
+    await settingsPage.setViewportSize(minimumViewport)
+    const region = settingsPage.locator('.release-notes')
+    await expect(region).toHaveAttribute('tabindex', '0')
+    expect(await region.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    await region.focus()
+    await settingsPage.keyboard.press('End')
+    await expect.poll(() => region.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+    await captureSettingsPage(settingsPage, testInfo, `release-notes-${format}-minimum-dark`)
+  }
 })
