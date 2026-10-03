@@ -181,43 +181,59 @@ describe('useModelCapabilities', () => {
     scope.stop()
   })
 
-  it('keeps an edited input mounted and focused throughout a background refresh', async () => {
-    modelClient.getCapabilities.mockResolvedValue(createCapabilities())
-    let api!: ReturnType<typeof useModelCapabilities>
-    const render = vi.fn(() =>
-      api.temperatureControl.value.mode === 'editable' ? h('input') : h('span', 'loading')
-    )
-    const wrapper = mount(
-      defineComponent({
-        setup() {
-          api = useModelCapabilities()
-          return render
-        }
-      }),
-      { attachTo: document.body }
-    )
-    await api.load({ providerId: 'demo', modelId: 'model' })
-    await nextTick()
-    const input = wrapper.get('input').element
-    input.value = '0.75'
-    input.focus()
-    render.mockClear()
-    const pending = deferred<ReturnType<typeof createCapabilities>>()
-    modelClient.getCapabilities.mockReturnValueOnce(pending.promise)
-    const listener = modelClient.onModelsChanged.mock.calls[0][0] as any
-    listener({ reason: 'provider-db-updated' })
-    await flushPromises()
-    expect(document.activeElement).toBe(input)
-    expect(input.isConnected).toBe(true)
-    expect(render).not.toHaveBeenCalled()
-    pending.resolve(createCapabilities({ supportsSearch: true }))
-    await flushPromises()
-    expect(wrapper.get('input').element).toBe(input)
-    expect(input.value).toBe('0.75')
-    expect(document.activeElement).toBe(input)
-    expect(render).toHaveBeenCalledTimes(1)
-    wrapper.unmount()
-  })
+  it.each([false, true])(
+    'keeps input focus across a background refresh (failure: %s)',
+    async (fails) => {
+      modelClient.getCapabilities.mockResolvedValue(createCapabilities())
+      let api!: ReturnType<typeof useModelCapabilities>
+      const render = vi.fn(() =>
+        api.temperatureControl.value.mode === 'editable' ? h('input') : h('span', 'loading')
+      )
+      const wrapper = mount(
+        defineComponent({
+          setup() {
+            api = useModelCapabilities()
+            return render
+          }
+        }),
+        { attachTo: document.body }
+      )
+      await api.load({ providerId: 'demo', modelId: 'model' })
+      await nextTick()
+      const input = wrapper.get('input').element
+      input.value = '0.75'
+      input.focus()
+      render.mockClear()
+      const pending = deferred<ReturnType<typeof createCapabilities>>()
+      modelClient.getCapabilities.mockReturnValueOnce(pending.promise)
+      const listener = modelClient.onModelsChanged.mock.calls[0][0] as any
+      listener({ reason: 'provider-db-updated' })
+      await flushPromises()
+      expect(document.activeElement).toBe(input)
+      expect(input.isConnected).toBe(true)
+      expect(render).not.toHaveBeenCalled()
+      const failure = new Error('background IPC failure')
+      if (fails) pending.reject(failure)
+      else pending.resolve(createCapabilities({ supportsSearch: true }))
+      await flushPromises()
+      expect(wrapper.get('input').element).toBe(input)
+      expect(input.value).toBe('0.75')
+      expect(document.activeElement).toBe(input)
+      expect(render).toHaveBeenCalledTimes(fails ? 0 : 1)
+      expect(api.status.value).toBe(fails ? 'error' : 'ready')
+      expect(api.error.value).toBe(fails ? failure : null)
+      expect(api.topPControl.value).toEqual({ mode: 'editable' })
+      if (fails) {
+        listener({ reason: 'provider-db-updated' })
+        await flushPromises()
+        expect(api.status.value).toBe('ready')
+        expect(api.error.value).toBeNull()
+        expect(wrapper.get('input').element).toBe(input)
+        expect(document.activeElement).toBe(input)
+      }
+      wrapper.unmount()
+    }
+  )
 
   it('fetches one atomic snapshot and resets when ids are missing', async () => {
     const providerId = ref<string | undefined>('openai')

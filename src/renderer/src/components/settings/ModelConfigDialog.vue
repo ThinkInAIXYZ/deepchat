@@ -1008,7 +1008,7 @@ const providerStandardModelList = computed(() => {
 const capabilitySnapshotMatchesCurrentModel = computed(
   () =>
     !currentModelLookupId.value ||
-    (modelCapabilities.status.value === 'ready' &&
+    (modelCapabilities.snapshot.value !== null &&
       modelCapabilities.identity.value?.requestModelId === currentModelLookupId.value)
 )
 const capabilityQueryMatchesCurrentModel = computed(
@@ -1078,7 +1078,7 @@ const topPPolicyHint = computed(() =>
 const isGenerationSettingReadOnly = (control: GenerationParameterControl) =>
   control.mode === 'fixed' ||
   control.mode === 'loading' ||
-  (control.mode === 'hidden' && modelCapabilities.status.value === 'ready')
+  (control.mode === 'hidden' && modelCapabilities.snapshot.value !== null)
 const temperatureSettingReadOnly = computed(() =>
   isGenerationSettingReadOnly(temperatureControl.value)
 )

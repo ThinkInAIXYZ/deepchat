@@ -148,7 +148,7 @@ export function useModelCapabilities(options?: UseModelCapabilitiesOptions) {
     } catch (caught) {
       if (currentRequestId !== requestId) return null
 
-      snapshot.value = null
+      // Foreground loads already clear the snapshot; background failures keep the last result.
       error.value = caught
       status.value = 'error'
       console.warn('[ModelCapabilities] Failed to load model capabilities:', caught)
@@ -235,10 +235,16 @@ export function useModelCapabilities(options?: UseModelCapabilitiesOptions) {
   })
   const searchDefaults = computed(() => snapshot.value?.searchDefaults ?? null)
   const temperatureControl = computed(() =>
-    resolveGenerationParameterControl(requestPolicy.value?.temperature, status.value)
+    resolveGenerationParameterControl(
+      requestPolicy.value?.temperature,
+      snapshot.value ? 'ready' : status.value
+    )
   )
   const topPControl = computed(() =>
-    resolveGenerationParameterControl(requestPolicy.value?.topP, status.value)
+    resolveGenerationParameterControl(
+      requestPolicy.value?.topP,
+      snapshot.value ? 'ready' : status.value
+    )
   )
   const isLoading = computed(() => status.value === 'loading')
 

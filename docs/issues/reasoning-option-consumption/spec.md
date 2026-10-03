@@ -73,6 +73,8 @@ Catalog updates refresh active capability consumers with stale-response protecti
 cleanup. Event refreshes wait for foreground capability loads, coalesce bursts, and retain the
 current snapshot until replacement so editing controls do not unmount. Explicit model/route changes
 still clear stale controls immediately; failures remain distinct from successful capability resolution.
+Failed background refreshes retain the last successful snapshot for the same query, including sampling
+policies, while recording the error. Initial failures without a snapshot do not imply known capabilities.
 Successful refreshes reconcile newly exclusive controls in an open settings dialog using the same
 effort-first rule as initial loading, while preserving a budget-only selection.
 Closed dialogs clear their query and invalidate pending configuration loads. No new polling,

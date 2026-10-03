@@ -274,6 +274,52 @@ describe('ModelConfigDialog custom model persistence', () => {
 })
 
 describe('ModelConfigDialog reasoning portraits', () => {
+  it('preserves reasoning controls and sampling policies after a failed background refresh', async () => {
+    const { wrapper, modelClient, modelConfigStore } = await setup({
+      providerId: 'dashscope',
+      modelId: 'qwen3.8-max',
+      modelName: 'Qwen3.8 Max',
+      modelConfig: { reasoningEffort: undefined, thinkingBudget: 8192, topP: 0.6 },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'effort',
+        effort: 'xhigh',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true,
+        budget: { min: 0, max: 32768, default: 8192 }
+      },
+      requestPolicy: {
+        temperature: { mode: 'fixed', value: 1 },
+        topP: { mode: 'omit' },
+        reasoning: { mode: 'passthrough' },
+        legacyThinking: { mode: 'passthrough' }
+      }
+    })
+    const vm = wrapper.vm as any
+    const budgetSelector = '[placeholder="settings.model.modelConfig.thinkingBudget.placeholder"]'
+    const budgetInput = wrapper.get(budgetSelector).element
+    modelClient.getCapabilities.mockRejectedValueOnce(new Error('background IPC failure'))
+    const listener = modelClient.onModelsChanged.mock.calls[0][0] as any
+    listener({ reason: 'provider-db-updated' })
+    await flushPromises()
+
+    expect(wrapper.get(budgetSelector).element).toBe(budgetInput)
+    expect(vm.supportsReasoningEffort).toBe(true)
+    expect(vm.temperatureControl).toEqual({ mode: 'fixed', value: 1 })
+    expect(vm.topPControl).toEqual({ mode: 'hidden' })
+    expect(vm.temperatureSettingReadOnly).toBe(true)
+    expect(vm.topPSettingReadOnly).toBe(true)
+    expect(vm.isValid).toBe(true)
+    await vm.handleSave()
+    expect(modelConfigStore.setModelConfig.mock.calls.at(-1)![2]).toMatchObject({
+      reasoningEffort: undefined,
+      thinkingBudget: 8192,
+      temperature: 0.7,
+      topP: 0.6
+    })
+    wrapper.unmount()
+  })
+
   it('stops refreshing a closed mounted dialog and ignores late configuration loads', async () => {
     const { wrapper, modelClient, modelConfigStore } = await setup({
       providerId: 'openai',
