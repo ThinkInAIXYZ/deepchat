@@ -63,9 +63,7 @@ describeIfNativeSqlite('SessionReferences', () => {
       database,
       {
         getSessionReferenceIdentity(sessionId: string) {
-          const incarnation = incarnations.get(sessionId)
-          if (!incarnation) throw new Error('missing tape')
-          return incarnation
+          return incarnations.get(sessionId) ?? null
         },
         getProjectedMessageRevision(sessionId: string, messageId: string) {
           return database.deepchatTapeEntriesTable.getProjectedMessageRevision(sessionId, messageId)
@@ -167,6 +165,26 @@ describeIfNativeSqlite('SessionReferences', () => {
     addSession('source')
   })
 
+  it('initializes an absent Tape only during explicit selection, never during model reads', async () => {
+    database.deepchatTranscriptProjectionMetaTable.createTable()
+    const table = database.deepchatTapeEntriesTable
+    const data = createSessionDataFromDatabase(database, {
+      publishMessagesChanged() {},
+      publishPendingInputsChanged() {}
+    })
+    await expect(
+      data.sessionReferences.read('source', { sessionId: 'source', action: 'messages' })
+    ).rejects.toThrow(/bootstrap.*missing/i)
+    expect(table.getBySession('source')).toEqual([])
+
+    const reference = await data.sessionReferences.resolve('source')
+    expect(reference.tapeIncarnationId).toBe(data.tapeStore.getTapeIncarnationId('source'))
+    const initialized = table.getBySession('source')
+    expect(initialized[0]).toMatchObject({ entry_id: 1, name: 'session/start' })
+    await expect(data.sessionReferences.resolve('source')).resolves.toEqual(reference)
+    expect(table.getBySession('source')).toEqual(initialized)
+  })
+
   it('reads unmarked legacy Tape sources without mutation and revokes their grants on reset', async () => {
     database.deepchatTranscriptProjectionMetaTable.createTable()
     database.deepchatTapeSearchProjectionTable.createTable()
@@ -242,6 +260,7 @@ describeIfNativeSqlite('SessionReferences', () => {
     ['{"tapeIncarnationId":"legacy:forged"}', 0],
     ['{}', 9]
   ])('does not treat invalid bootstrap metadata %s / sequence %s as legacy', async (meta, seq) => {
+    database.deepchatTranscriptProjectionMetaTable.createTable()
     const table = database.deepchatTapeEntriesTable
     table.ensureBootstrapAnchor('source')
     db.prepare(
@@ -257,6 +276,10 @@ describeIfNativeSqlite('SessionReferences', () => {
         action: 'messages'
       })
     ).rejects.toThrow(/bootstrap.*invalid/i)
+    const before = table.getBySession('source')
+    await expect(data.sessionReferences.resolve('source')).rejects.toThrow(/bootstrap.*invalid/i)
+    expect(table.getBySession('source')).toEqual(before)
+    expect(database.deepchatTranscriptProjectionMetaTable.get('source')).toBeNull()
   })
 
   it('authorizes only a structured persisted user grant and revokes it on reset or deletion', async () => {

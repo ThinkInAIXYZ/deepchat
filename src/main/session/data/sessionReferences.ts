@@ -77,14 +77,13 @@ export class SessionReferences {
 
   async resolve(sessionId: string, expectedIncarnation?: string): Promise<SessionReference> {
     this.requireRegularSession(sessionId)
-    let incarnation: string
-    try {
-      incarnation = this.tape.getSessionReferenceIdentity(sessionId)
-    } catch {
-      // Selection can reconcile a legacy session once; model reads never initialize another Tape.
+    let incarnation = this.tape.getSessionReferenceIdentity(sessionId)
+    if (incarnation === null) {
+      // Only an absent Tape may be initialized during selection, never malformed existing facts.
       await this.initializeTape(sessionId)
       incarnation = this.tape.getSessionReferenceIdentity(sessionId)
     }
+    if (incarnation === null) throw new Error('Session Tape bootstrap is missing or invalid.')
     if (expectedIncarnation && expectedIncarnation !== incarnation) {
       throw new Error('Session reference is stale because the source session was reset.')
     }
@@ -112,9 +111,12 @@ export class SessionReferences {
     `)
       .get(callerSessionId)
     if (!caller) throw new Error('read_session is available only in regular DeepChat sessions.')
+    const session = this.requireRegularSession(input.sessionId)
+    const tapeIncarnationId = this.tape.getSessionReferenceIdentity(input.sessionId)
+    if (tapeIncarnationId === null) throw new Error('Session Tape bootstrap is missing or invalid.')
     const source: SessionReference = {
-      ...this.requireRegularSession(input.sessionId),
-      tapeIncarnationId: this.tape.getSessionReferenceIdentity(input.sessionId)
+      ...session,
+      tapeIncarnationId
     }
     this.assertAuthorized(callerSessionId, source)
     // No await after checking authority/identity: reset and deletion cannot interleave these reads.

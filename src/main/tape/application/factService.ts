@@ -190,25 +190,24 @@ export class TapeFactService
   }
 
   /** Read-only source identity; legacy hashes must never become runtime incarnation UUIDs. */
-  getSessionReferenceIdentity(sessionId: string): string {
+  getSessionReferenceIdentity(sessionId: string): string | null {
     const first = this.table.getFirstEntriesBySessions([sessionId])[0]
-    if (first) {
-      const incarnation = readCanonicalTapeIncarnationId(first)
-      if (incarnation) return incarnation
-      const meta = parseJsonValue(first.meta_json)
-      if (
-        first.entry_id === 1 &&
-        first.kind === 'anchor' &&
-        first.name === 'session/start' &&
-        first.source_type === 'session' &&
-        first.source_id === sessionId &&
-        first.source_seq === 0 &&
-        isRecordObject(meta) &&
-        !Object.hasOwn(meta, TAPE_INCARNATION_META_KEY)
-      ) {
-        // Do not stamp the old anchor: its exact bytes identify existing lineage snapshots.
-        return `legacy:${computeTapeIdentity(first)}`
-      }
+    if (!first) return null
+    const incarnation = readCanonicalTapeIncarnationId(first)
+    if (incarnation) return incarnation
+    const meta = parseJsonValue(first.meta_json)
+    if (
+      first.entry_id === 1 &&
+      first.kind === 'anchor' &&
+      first.name === 'session/start' &&
+      first.source_type === 'session' &&
+      first.source_id === sessionId &&
+      first.source_seq === 0 &&
+      isRecordObject(meta) &&
+      !Object.hasOwn(meta, TAPE_INCARNATION_META_KEY)
+    ) {
+      // Do not stamp the old anchor: its exact bytes identify existing lineage snapshots.
+      return `legacy:${computeTapeIdentity(first)}`
     }
     throw new Error('Session Tape bootstrap is missing or invalid.')
   }

@@ -239,7 +239,7 @@ export class SessionTape implements SessionTapeCapabilities {
     return this.facts.getTapeIncarnationId(sessionId)
   }
 
-  getSessionReferenceIdentity(sessionId: string): string {
+  getSessionReferenceIdentity(sessionId: string): string | null {
     return this.facts.getSessionReferenceIdentity(sessionId)
   }
 

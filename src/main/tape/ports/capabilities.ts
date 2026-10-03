@@ -107,7 +107,8 @@ export interface TapeProjectionHeadReader {
 
 /** Read-only reference identity and exact transcript-content revision, not runtime authority. */
 export interface TapeSessionReferenceReader {
-  getSessionReferenceIdentity(sessionId: string): string
+  /** Null only for an absent Tape; existing malformed state throws and must not be initialized. */
+  getSessionReferenceIdentity(sessionId: string): string | null
   /** Read in the same database snapshot as the caller's transcript slice. */
   getProjectedMessageRevision(sessionId: string, messageId: string): number | null
 }

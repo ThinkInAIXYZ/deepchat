@@ -25,6 +25,8 @@ derived from the unchanged canonical bootstrap row using Tape's existing identit
 genuinely absent marker qualifies; malformed metadata or a present invalid marker is rejected.
 This read-only compatibility path does not stamp old anchors, alter linked histories, or grant
 UUID-only runtime capabilities. Reset replaces it with a new UUID and invalidates old references.
+Explicit selection initializes only a genuinely absent Tape. Existing malformed bootstrap data or
+storage errors fail without reconciliation or writes; model reads never initialize a source Tape.
 Search, clipboard text, and text exports retain the reference title and source ID. Editing message
 text preserves attached session references and places them after the replacement text; the existing
 text-only editor does not implicitly remove source grants. Deleting the referencing message removes
