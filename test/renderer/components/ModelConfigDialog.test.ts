@@ -274,6 +274,35 @@ describe('ModelConfigDialog custom model persistence', () => {
 })
 
 describe('ModelConfigDialog reasoning portraits', () => {
+  it('stops refreshing a closed mounted dialog and ignores late configuration loads', async () => {
+    const { wrapper, modelClient, modelConfigStore } = await setup({
+      providerId: 'openai',
+      modelId: 'gpt-4.1',
+      modelName: 'GPT-4.1'
+    })
+    const listener = modelClient.onModelsChanged.mock.calls[0][0] as any
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(1)
+    await wrapper.setProps({ open: false })
+    listener({ reason: 'provider-db-updated' })
+    await flushPromises()
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(1)
+
+    const pending = createDeferred<Record<string, unknown>>()
+    modelConfigStore.getModelConfig.mockReturnValueOnce(pending.promise)
+    await wrapper.setProps({ open: true })
+    await wrapper.setProps({ open: false })
+    pending.resolve({ reasoning: true })
+    await flushPromises()
+    listener({ reason: 'provider-db-updated' })
+    await flushPromises()
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(1)
+
+    await wrapper.setProps({ open: true })
+    await flushPromises()
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
   it('clears a saved budget when the route only supports effort', async () => {
     const { wrapper, modelConfigStore } = await setup({
       providerId: 'dashscope',

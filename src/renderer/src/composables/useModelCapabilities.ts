@@ -84,9 +84,13 @@ export function useModelCapabilities(options?: UseModelCapabilitiesOptions) {
   const error = shallowRef<unknown>(null)
   const lastQuery = shallowRef<CapabilitySnapshotQuery | null>(null)
   let requestId = 0
+  let requestInFlight = false
+  let refreshPending = false
 
   const beginLoading = () => {
     requestId += 1
+    requestInFlight = false
+    refreshPending = false
     snapshot.value = null
     error.value = null
     lastQuery.value = null
@@ -95,6 +99,8 @@ export function useModelCapabilities(options?: UseModelCapabilitiesOptions) {
 
   const clear = () => {
     requestId += 1
+    requestInFlight = false
+    refreshPending = false
     snapshot.value = null
     error.value = null
     lastQuery.value = null
@@ -102,16 +108,19 @@ export function useModelCapabilities(options?: UseModelCapabilitiesOptions) {
   }
 
   const load = async (
-    query: CapabilitySnapshotQuery | null | undefined
+    query: CapabilitySnapshotQuery | null | undefined,
+    background = false
   ): Promise<RendererModelCapabilities | null> => {
     const currentRequestId = ++requestId
+    refreshPending = false
     const normalizedProviderId = query?.providerId.trim()
     const normalizedModelId = query?.modelId.trim()
 
-    snapshot.value = null
     error.value = null
 
     if (!query || !normalizedProviderId || !normalizedModelId) {
+      requestInFlight = false
+      snapshot.value = null
       lastQuery.value = null
       status.value = 'idle'
       return null
@@ -122,8 +131,12 @@ export function useModelCapabilities(options?: UseModelCapabilitiesOptions) {
       providerId: normalizedProviderId,
       modelId: normalizedModelId
     }
-    lastQuery.value = normalizedQuery
-    status.value = 'loading'
+    requestInFlight = true
+    if (!background || !snapshot.value) {
+      snapshot.value = null
+      status.value = 'loading'
+    }
+    if (!background) lastQuery.value = normalizedQuery
 
     try {
       const capabilities = await modelClient.getCapabilities(normalizedQuery)
@@ -135,11 +148,32 @@ export function useModelCapabilities(options?: UseModelCapabilitiesOptions) {
     } catch (caught) {
       if (currentRequestId !== requestId) return null
 
+      snapshot.value = null
       error.value = caught
       status.value = 'error'
       console.warn('[ModelCapabilities] Failed to load model capabilities:', caught)
       return null
+    } finally {
+      if (currentRequestId === requestId) {
+        requestInFlight = false
+        if (refreshPending) {
+          refreshPending = false
+          scheduleRefresh()
+        }
+      }
     }
+  }
+
+  // Catalog events must not supersede a foreground caller or unmount its controls.
+  // Coalesce a burst, then allow at most one follow-up after the current request.
+  const scheduleRefresh = () => {
+    if (refreshPending) return
+    refreshPending = true
+    queueMicrotask(() => {
+      if (!refreshPending || requestInFlight) return
+      refreshPending = false
+      if (lastQuery.value) void load(lastQuery.value, true)
+    })
   }
 
   const refresh = async (): Promise<RendererModelCapabilities | null> => {
@@ -157,7 +191,7 @@ export function useModelCapabilities(options?: UseModelCapabilitiesOptions) {
     const unsubscribe = modelClient.onModelsChanged(({ providerId, reason }) => {
       const query = lastQuery.value
       if (query && reason !== 'agents' && (!providerId || providerId === query.providerId)) {
-        void refresh()
+        scheduleRefresh()
       }
     })
     onScopeDispose(() => {

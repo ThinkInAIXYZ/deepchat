@@ -1581,6 +1581,9 @@ watch(
     if (props.open) {
       saveError.value = ''
       loadConfig()
+    } else {
+      loadConfigRequestId += 1
+      modelCapabilities.clear()
     }
   },
   { immediate: true }

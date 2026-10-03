@@ -66,7 +66,11 @@ When the active route no longer supports the alternative, settings normalization
 budget and the UI must not label it as active.
 
 Catalog updates refresh active capability consumers with stale-response protection and lifecycle
-cleanup. No new polling, network request per generation, service, or dependency is introduced.
+cleanup. Event refreshes wait for foreground capability loads, coalesce bursts, and retain the
+current snapshot until replacement so editing controls do not unmount. Explicit model/route changes
+still clear stale controls immediately; failures remain distinct from successful capability resolution.
+Closed dialogs clear their query and invalidate pending configuration loads. No new polling,
+network request per generation, service, or dependency is introduced.
 
 Acceptance includes fresh defaults, existing dual-field sessions, switching either way, clearing
 overrides, catalog refresh, and unchanged budget-only / Anthropic behavior. Regression checks must
