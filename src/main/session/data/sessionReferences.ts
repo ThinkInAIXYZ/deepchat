@@ -37,9 +37,11 @@ const READABLE = `m.status IN ('sent', 'error') AND m.role IN ('user', 'assistan
   AND (CASE WHEN json_valid(m.metadata) THEN json_extract(m.metadata, '$.messageType') END) IS NOT 'compaction'`
 const DOCUMENT_JOIN = `LEFT JOIN deepchat_search_documents d ON d.document_key = 'message:' || m.id
   AND d.session_id = m.session_id`
+// SQLite text length/substr stop at NUL. Such previews cannot claim complete text coverage.
 const PREVIEW_COLUMNS = `m.id AS messageId, m.order_seq AS orderSeq, m.role, m.status,
-  m.created_at AS createdAt, length(d.content) AS totalCharacters,
-  d.message_id IS NULL AS previewUnavailable`
+  m.created_at AS createdAt,
+  CASE WHEN instr(d.content, char(0)) = 0 THEN length(d.content) END AS totalCharacters,
+  (d.message_id IS NULL OR instr(d.content, char(0)) > 0) AS previewUnavailable`
 
 export class SessionReferences {
   constructor(
@@ -220,6 +222,32 @@ export class SessionReferences {
       match = 'literal'
       rows = run(match)
     }
+    if (query !== null && rows.length === 0) {
+      // Sync can drop the rebuildable search documents while keeping transcript messages.
+      // Check missing coverage only for an empty search, without slowing successful FTS pages.
+      const unindexed = db
+        .prepare(`
+          SELECT 1 FROM deepchat_messages m ${DOCUMENT_JOIN}
+          WHERE m.session_id = @sessionId AND ${READABLE} AND d.message_id IS NULL
+            AND (@role IS NULL OR m.role = @role)
+            AND (m.order_seq < @highWater OR (m.order_seq = @highWater AND m.id <= @highWaterMessageId))
+            AND (m.order_seq > @seq OR (m.order_seq = @seq AND m.id > @id))
+          LIMIT 1
+        `)
+        .get({
+          sessionId: source.sessionId,
+          role,
+          highWater,
+          highWaterMessageId,
+          seq: cursor?.orderSeq ?? -1,
+          id: cursor?.messageId ?? ''
+        })
+      if (unindexed) {
+        throw new Error(
+          'Session search index is incomplete. Use action=messages, then action=message with a returned messageId to read the evidence.'
+        )
+      }
+    }
     const hasMore = rows.length > limit
     const items = rows.slice(0, limit).map(toPreview)
     const last = items.at(-1)
@@ -247,7 +275,7 @@ export class SessionReferences {
       previewFormat: 'search_text',
       previewMaxCharacters: PREVIEW_CHARS,
       guidance:
-        'Previews locate evidence, not necessarily final conclusions. Use action=message with messageId for typed message content.'
+        'Previews locate evidence, not necessarily final conclusions. If previewUnavailable is true, the preview cannot represent the full message. Use action=message with messageId for typed message content.'
     }
   }
 
@@ -385,7 +413,7 @@ export class SessionReferences {
 function toPreview(row: Preview) {
   return {
     ...row,
-    truncated: (row.totalCharacters ?? 0) > [...row.preview].length,
+    truncated: !!row.previewUnavailable || (row.totalCharacters ?? 0) > [...row.preview].length,
     previewUnavailable: !!row.previewUnavailable
   }
 }

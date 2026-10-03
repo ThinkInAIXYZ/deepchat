@@ -483,6 +483,60 @@ describeIfNativeSqlite('SessionReferences', () => {
     expect(result.items.every((item) => item.role === 'user')).toBe(true)
   })
 
+  it('reports an unavailable search index instead of an empty match after projection removal', async () => {
+    grant()
+    const raw = JSON.stringify({ text: 'needle evidence' })
+    addMessage({ id: 'evidence', orderSeq: 1, content: raw, searchText: 'needle evidence' })
+    const input = { sessionId: 'source', action: 'search', query: 'needle' } as const
+    await expect(reader.read('caller', input)).resolves.toMatchObject({
+      items: [{ messageId: 'evidence' }]
+    })
+
+    // Sync replaces transcript/Tape rows, then removes the rebuildable search documents.
+    search.deleteBySession('source')
+    await expect(reader.read('caller', input)).rejects.toThrow(/index is incomplete.*messages/i)
+    // Missing user previews must not make an empty assistant-only search fail.
+    await expect(reader.read('caller', { ...input, role: 'assistant' })).resolves.toMatchObject({
+      items: [],
+      hasMore: false
+    })
+    await expect(
+      reader.read('caller', { sessionId: 'source', action: 'messages' })
+    ).resolves.toMatchObject({ items: [{ messageId: 'evidence', previewUnavailable: true }] })
+    await expect(
+      reader.read('caller', { sessionId: 'source', action: 'message', messageId: 'evidence' })
+    ).resolves.toMatchObject({ message: { content: raw } })
+    expect(
+      db.prepare('SELECT 1 FROM deepchat_search_documents WHERE session_id = ?').get('source')
+    ).toBeUndefined()
+  })
+
+  it('marks NUL-containing previews incomplete while preserving the full stored JSON detail', async () => {
+    grant()
+    const text = `before\0${'x'.repeat(150)} needle`
+    const raw = JSON.stringify({ text })
+    addMessage({ id: 'nul', orderSeq: 1, content: raw, searchText: text })
+    for (const input of [
+      { action: 'messages' },
+      { action: 'search', query: 'needle' },
+      { action: 'context', messageId: 'nul' }
+    ] as const) {
+      await expect(reader.read('caller', { sessionId: 'source', ...input })).resolves.toMatchObject(
+        {
+          items: [
+            { messageId: 'nul', totalCharacters: null, truncated: true, previewUnavailable: true }
+          ]
+        }
+      )
+    }
+    await expect(
+      reader.read('caller', { sessionId: 'source', action: 'message', messageId: 'nul' })
+    ).resolves.toMatchObject({
+      message: { content: raw, totalCharacters: raw.length },
+      hasMore: false
+    })
+  })
+
   it('returns search projections for lists/context without leaking raw assistant JSON or roles', async () => {
     grant()
     addMessage({

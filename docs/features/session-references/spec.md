@@ -69,6 +69,13 @@ the matching revision ID. The bounded transcript slice and revision check share 
 full-content comparison stays inside SQLite and cannot observe a different snapshot from the slice.
 Filtering occurs before pagination. Limits bound row count and output size; FTS is preferred for
 search, with scoped literal fallback. No read path loads an entire source transcript into JavaScript.
+An empty search checks for missing documents in its remaining readable scope: missing projections
+(for example after sync) produce an index-unavailable error, not a successful no-match claim. The
+reader does not rebuild them; message listing and detail remain available. Positive search results
+are indexed evidence, not a guarantee that every transcript message has a current search document.
+Previews missing their projection or containing NUL are marked unavailable and truncated; unknown
+character counts remain null. Read stored JSON detail to recover the complete message rather than
+trusting SQLite text functions that stop at NUL in the decoded search projection.
 Search text is a locator, not necessarily an assistant conclusion; detail preserves block types.
 Returned source material is reference data, never an instruction or permission grant.
 
