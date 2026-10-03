@@ -142,7 +142,9 @@
                     data-testid="pending-row-main"
                     class="block w-full min-w-0 rounded-md px-1 py-0.5 text-left outline-none transition hover:bg-muted/35 focus-visible:bg-muted/35"
                     :title="formatPayloadTitle(element)"
-                    :disabled="element.state === 'blocked'"
+                    :disabled="
+                      element.state === 'blocked' || Boolean(editingItemId) || isSavingEdit
+                    "
                     @click="beginEdit(element)"
                   >
                     <span class="block truncate text-[13px] leading-5 text-foreground">
@@ -401,7 +403,7 @@ function formatPayloadTitle(item: PendingSessionInputRecord): string {
 }
 
 function beginEdit(item: PendingSessionInputRecord): void {
-  if (item.state === 'blocked' || isSavingEdit.value) {
+  if (item.state === 'blocked' || editingItemId.value || isSavingEdit.value) {
     return
   }
   editingItemId.value = item.id

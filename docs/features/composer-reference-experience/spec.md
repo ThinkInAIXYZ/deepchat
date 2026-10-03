@@ -44,6 +44,8 @@ Sent-message and queue editors await an explicit asynchronous save result. Only 
 closes the editor; a rejected write keeps its local document and shows an error. While saving, the
 document and save/cancel controls are locked to prevent duplicate writes or losing newer changes.
 These callbacks stay in the renderer; IPC payloads and stored messages do not carry UI callbacks.
+The queue permits one active editor. Other rows cannot replace that editor until the user saves or
+cancels, including after a failed save; switching rows must not silently discard a local draft.
 
 References share restrained baseline-aligned styling, readable labels, keyboard-accessible details,
 and explicit source-opening actions. Clicking a session reference first opens details, not another

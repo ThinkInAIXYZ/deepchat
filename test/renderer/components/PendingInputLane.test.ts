@@ -146,6 +146,14 @@ function buildPendingInput(
 
 describe('PendingInputLane', () => {
   it('retains a failed draft and blocks duplicate saves until the callback resolves', async () => {
+    // jsdom lacks the Range geometry used by Tiptap's deferred focus scrolling.
+    const createRange = document.createRange.bind(document)
+    vi.spyOn(document, 'createRange').mockImplementation(() =>
+      Object.assign(createRange(), {
+        getClientRects: () => [],
+        getBoundingClientRect: () => new DOMRect()
+      })
+    )
     const pending = createDeferred<boolean>()
     const saveEdit = vi.fn().mockReturnValueOnce(pending.promise).mockResolvedValue(true)
     const wrapper = mount(PendingInputLane, {
@@ -166,16 +174,22 @@ describe('PendingInputLane', () => {
                 }
               ]
             }
-          })
+          }),
+          buildPendingInput('queue-2', 'queue')
         ],
         saveEdit
       },
       attachTo: document.body
     })
-    await wrapper.get('[data-testid="pending-row-main"]').trigger('click')
+    await wrapper.findAll('[data-testid="pending-row-main"]')[0].trigger('click')
     const editor = wrapper.getComponent(EditorContent).props('editor')!
     editor.commands.insertContentAt(1, 'Changed: ')
+    const otherRow = wrapper.get('[data-testid="pending-row-main"]')
+    ;(otherRow.element as HTMLButtonElement).click()
+    await flushPromises()
     const textbox = wrapper.get('[role="textbox"]')
+    expect(textbox.text()).toContain('Changed: Read')
+    expect(otherRow.element.matches(':disabled')).toBe(true)
     await textbox.trigger('keydown', { key: 'Enter', ctrlKey: true })
     expect(saveEdit).toHaveBeenCalledTimes(1)
     expect(textbox.attributes('contenteditable')).toBe('false')
@@ -184,6 +198,8 @@ describe('PendingInputLane', () => {
     expect(saveEdit).toHaveBeenCalledTimes(1)
     pending.resolve(false)
     await flushPromises()
+    expect(otherRow.element.matches(':disabled')).toBe(true)
+    ;(otherRow.element as HTMLButtonElement).click()
     expect(textbox.attributes('contenteditable')).toBe('true')
     expect(textbox.text()).toContain('Changed: Read')
     expect(wrapper.findAll('[data-session-reference]')).toHaveLength(1)
@@ -205,6 +221,13 @@ describe('PendingInputLane', () => {
       ]
     })
     expect(wrapper.find('[role="textbox"]').exists()).toBe(false)
+    expect(otherRow.element.matches(':disabled')).toBe(false)
+    await otherRow.trigger('click')
+    expect(wrapper.get('[role="textbox"]').text()).toBe('queue-queue-2')
+    await wrapper.get('[role="textbox"]').trigger('keydown', { key: 'Escape' })
+    await wrapper.findAll('[data-testid="pending-row-main"]')[0].trigger('click')
+    expect(wrapper.get('[role="textbox"]').text()).toContain('Read')
+    expect(saveEdit).toHaveBeenCalledTimes(2)
     wrapper.unmount()
   })
 
