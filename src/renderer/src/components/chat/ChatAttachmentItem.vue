@@ -84,12 +84,13 @@
     <DcButton
       v-if="removable"
       type="button"
+      variant="ghost"
       size="icon-xs"
       icon="lucide:x"
       icon-size="3.5"
       :label="`${t('common.delete')} ${file.name}`"
       :tooltip="t('chat.pendingInput.remove')"
-      class="size-[18px] rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      class="size-[18px] rounded-full p-0.5"
       @click.stop.prevent="$emit('remove')"
     />
   </span>
