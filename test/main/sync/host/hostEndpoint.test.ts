@@ -33,6 +33,7 @@ describe('SyncHostService endpoint', () => {
   let baseUrl: string
   let backupBytes: Buffer
   let publicationDir: string
+  let changed: ReturnType<typeof vi.fn>
 
   beforeEach(async () => {
     tempDir = await mkdtemp(path.join(os.tmpdir(), 'deepchat-sync-host-'))
@@ -52,7 +53,9 @@ describe('SyncHostService endpoint', () => {
     await writeFile(path.join(syncDir, BACKUP_FILE_NAME), backupBytes)
 
     publicationDir = path.join(tempDir, 'sync-host', 'snapshots')
+    changed = vi.fn()
     service = new SyncHostService({
+      changed,
       createBackup: async () => ({
         fileName: BACKUP_FILE_NAME,
         createdAt: 1_700_000_000_000,
@@ -688,6 +691,30 @@ describe('SyncHostService endpoint', () => {
     expect(service.getEnabled()).toBe(false)
     await expect(stat(descriptorPath)).rejects.toThrow()
     await expect(fetch(`${baseUrl}${SYNC_HOST_PATH_PREFIX}/handshake`)).rejects.toThrow()
+  })
+
+  it('keeps status refreshes silent while notifying host lifecycle changes', async () => {
+    changed.mockClear()
+    await service.initialize()
+    const statuses = await Promise.all([service.getStatus(), service.getStatus()])
+    expect(statuses.map(({ running }) => running)).toEqual([true, true])
+    expect(changed).not.toHaveBeenCalled()
+
+    const disabled = await service.setEnabled(false)
+    expect(disabled.running).toBe(false)
+    expect(changed).toHaveBeenCalled()
+
+    changed.mockClear()
+    const enabled = await service.setEnabled(true, {
+      port: Number(new URL(baseUrl).port),
+      consent: true
+    })
+    expect(enabled.running).toBe(true)
+    expect(changed).toHaveBeenCalled()
+
+    changed.mockClear()
+    expect((await service.getStatus()).running).toBe(true)
+    expect(changed).not.toHaveBeenCalled()
   })
 
   it('keeps the listener and the enabled flag consistent under interleaved enable/disable', async () => {
