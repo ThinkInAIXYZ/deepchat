@@ -129,6 +129,12 @@ export class SessionTranscriptMutations {
     }
 
     await this.dependencies.runtime.cancelForTranscriptMutation(sessionId)
+    // Cancellation yields to other transcript mutations. Never restore grants or content from
+    // a snapshot that another edit has replaced (and fail before invalidation if it was deleted).
+    const current = this.requireMessage(sessionId, messageId)
+    if (current.content !== target.content) {
+      throw new Error('Message changed while editing. Reload it before trying again.')
+    }
     this.dependencies.runtime.invalidateTranscriptFrom(sessionId, target.orderSeq)
     this.dependencies.transcript.updateMessageContent(messageId, nextContent)
 

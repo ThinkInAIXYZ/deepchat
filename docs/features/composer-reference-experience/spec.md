@@ -53,7 +53,8 @@ attachment labels opt into highlighting without making action buttons or draft e
 
 Shared types/contracts own persisted reference metadata and edit payload validation. Renderer
 composer document helpers own projection between text/inline items and Tiptap. Session transcript
-mutations validate edited grants against the original message before writing. Model providers and
+mutations validate edited grants against the original message before writing and reject edits if
+that message changed or disappeared while cancellation was pending. Model providers and
 attachment preparation retain their existing responsibilities.
 Path labels are calculated together and reused across node views of the same immutable document.
 Grant validation indexes canonical identities once; repeated occurrences of an already granted

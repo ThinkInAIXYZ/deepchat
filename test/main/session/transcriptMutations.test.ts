@@ -286,6 +286,74 @@ describe('SessionTranscriptMutations', () => {
     expect(transcript.updateMessageContent).not.toHaveBeenCalled()
   })
 
+  it('rejects a stale edit rather than restoring a concurrently removed session grant', async () => {
+    const reference = {
+      type: 'session' as const,
+      offset: 0,
+      sessionId: 'source',
+      title: 'Source',
+      projectDir: null,
+      tapeIncarnationId: 'original-incarnation'
+    }
+    let message = {
+      id: 'message-1',
+      sessionId: 's1',
+      orderSeq: 7,
+      role: 'user',
+      content: JSON.stringify({ text: 'old', inlineItems: [reference] })
+    }
+    const cancellations: Array<() => void> = []
+    const runtime = {
+      assertNoActivePendingInputs: vi.fn(),
+      cancelForTranscriptMutation: vi.fn(
+        () => new Promise<void>((resolve) => cancellations.push(resolve))
+      ),
+      invalidateTranscriptFrom: vi.fn()
+    }
+    const transcript = {
+      getMessage: vi.fn(() => ({ ...message })),
+      updateMessageContent: vi.fn((_id: string, content: string) => {
+        message = { ...message, content }
+      })
+    }
+    const mutations = new SessionTranscriptMutations({ transcript, runtime } as any)
+    const removing = mutations.editUserMessage('s1', 'message-1', 'removed', [])
+    const retaining = mutations.editUserMessage('s1', 'message-1', 'stale', [reference])
+    cancellations[0]()
+    await removing
+    cancellations[1]()
+    await expect(retaining).rejects.toThrow('Message changed while editing')
+    expect(JSON.parse(message.content)).toMatchObject({ text: 'removed' })
+    expect(JSON.parse(message.content).inlineItems).toBeUndefined()
+    expect(transcript.updateMessageContent).toHaveBeenCalledTimes(1)
+    expect(runtime.invalidateTranscriptFrom).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not invalidate or write a message deleted during cancellation', async () => {
+    const transcript = {
+      getMessage: vi
+        .fn()
+        .mockReturnValueOnce({
+          id: 'message-1',
+          sessionId: 's1',
+          orderSeq: 7,
+          role: 'user',
+          content: JSON.stringify({ text: 'old' })
+        })
+        .mockReturnValue(null),
+      updateMessageContent: vi.fn()
+    }
+    const runtime = {
+      assertNoActivePendingInputs: vi.fn(),
+      cancelForTranscriptMutation: vi.fn().mockResolvedValue(undefined),
+      invalidateTranscriptFrom: vi.fn()
+    }
+    const mutations = new SessionTranscriptMutations({ transcript, runtime } as any)
+    await expect(mutations.editUserMessage('s1', 'message-1', 'new')).rejects.toThrow('not found')
+    expect(runtime.invalidateTranscriptFrom).not.toHaveBeenCalled()
+    expect(transcript.updateMessageContent).not.toHaveBeenCalled()
+  })
+
   it('hands the extracted cloned prefix cursor to the fork target reset', async () => {
     const runtime = { resetForkTarget: vi.fn() }
     const transcript = {
