@@ -1,4 +1,8 @@
-import type { ChatMessageRecord, SendMessageInput } from '@shared/types/agent-interface'
+import type {
+  ChatMessageRecord,
+  SendMessageInput,
+  UserMessageInlineItem
+} from '@shared/types/agent-interface'
 import { isSendMessageInputEmpty } from '@/agent/shared/agentSessionNormalization'
 import type { SessionPendingInputs } from './data/pendingInputs'
 import type { SessionSettingsStore } from './data/settings'
@@ -111,21 +115,22 @@ export class SessionTranscriptMutations {
   async editUserMessage(
     sessionId: string,
     messageId: string,
-    text: string
+    text: string,
+    inlineItems?: UserMessageInlineItem[]
   ): Promise<ChatMessageRecord> {
     this.dependencies.runtime.assertNoActivePendingInputs(sessionId)
     const target = this.requireMessage(sessionId, messageId)
     if (target.role !== 'user') throw new Error('Only user messages can be edited.')
 
-    const nextText = text.trim()
-    if (!nextText) throw new Error('Edited message cannot be empty.')
+    const nextText = inlineItems ? text : text.trim()
+    const nextContent = buildEditedUserContent(target.content, nextText, inlineItems)
+    if (isSendMessageInputEmpty(extractUserMessageInput(nextContent))) {
+      throw new Error('Edited message cannot be empty.')
+    }
 
     await this.dependencies.runtime.cancelForTranscriptMutation(sessionId)
     this.dependencies.runtime.invalidateTranscriptFrom(sessionId, target.orderSeq)
-    this.dependencies.transcript.updateMessageContent(
-      messageId,
-      buildEditedUserContent(target.content, nextText)
-    )
+    this.dependencies.transcript.updateMessageContent(messageId, nextContent)
 
     const updated = this.dependencies.transcript.getMessage(messageId)
     if (!updated) throw new Error(`Message ${messageId} not found after edit`)

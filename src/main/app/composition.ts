@@ -2361,8 +2361,8 @@ export async function createMainProcessControl(dependencies: {
         sessionTranscriptMutations.commitRetryMessage(sessionId, sourceOrderSeq),
       deleteMessage: (sessionId, messageId) =>
         sessionTranscriptMutations.deleteMessage(sessionId, messageId),
-      editUserMessage: (sessionId, messageId, text) =>
-        sessionTranscriptMutations.editUserMessage(sessionId, messageId, text)
+      editUserMessage: (sessionId, messageId, text, inlineItems) =>
+        sessionTranscriptMutations.editUserMessage(sessionId, messageId, text, inlineItems)
     },
     workdir: sessionAssignment,
     projection: sessionQuery

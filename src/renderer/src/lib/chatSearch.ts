@@ -492,6 +492,8 @@ const appendDisplayContentText = (content: unknown, output: string[]): void => {
       output.push(block.skillName)
     } else if (block.type === 'file') {
       output.push(block.fileName)
+    } else if (block.type === 'file-reference') {
+      output.push(block.relativePath)
     } else if (block.type === 'session') {
       output.push(block.title)
     } else {

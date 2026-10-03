@@ -18,7 +18,8 @@ import type {
   SessionAgentContextUpdate,
   SessionGenerationSettings,
   SubagentTapeLinkInput,
-  SubagentTapeLinkReceipt
+  SubagentTapeLinkReceipt,
+  UserMessageInlineItem
 } from '@shared/types/agent-interface'
 import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
 import type { DeepChatNestedExecutionAudit } from '@shared/types/execution-journal-audit'
@@ -77,7 +78,12 @@ export interface SessionTranscriptMutationPort {
   }>
   commitRetryMessage(sessionId: string, orderSeq: number): void
   deleteMessage(sessionId: string, messageId: string): Promise<void>
-  editUserMessage(sessionId: string, messageId: string, text: string): Promise<ChatMessageRecord>
+  editUserMessage(
+    sessionId: string,
+    messageId: string,
+    text: string,
+    inlineItems?: UserMessageInlineItem[]
+  ): Promise<ChatMessageRecord>
   forkSessionFromMessage(
     sourceSessionId: string,
     targetSessionId: string,

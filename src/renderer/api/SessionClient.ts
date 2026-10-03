@@ -86,7 +86,8 @@ import type {
   ChatMessageRecord,
   CreateSessionInput,
   PermissionMode,
-  SendMessageInput
+  SendMessageInput,
+  UserMessageInlineItem
 } from '@shared/types/agent-interface'
 import type { ToolModeOverride } from '@shared/toolMode'
 import type {
@@ -281,11 +282,17 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     await bridge.invoke(sessionsDeleteMessageRoute.name, { sessionId, messageId })
   }
 
-  async function editUserMessage(sessionId: string, messageId: string, text: string) {
+  async function editUserMessage(
+    sessionId: string,
+    messageId: string,
+    text: string,
+    inlineItems?: UserMessageInlineItem[]
+  ) {
     const result = await bridge.invoke(sessionsEditUserMessageRoute.name, {
       sessionId,
       messageId,
-      text
+      text,
+      ...(inlineItems ? { inlineItems } : {})
     })
     return result.message
   }

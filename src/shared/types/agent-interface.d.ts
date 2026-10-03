@@ -234,6 +234,12 @@ export type UserMessageInlineItem =
       filePath: string
       mimeType?: string
     }
+  | {
+      type: 'file-reference'
+      offset: number
+      filePath: string
+      relativePath: string
+    }
   | ({ type: 'session'; offset: number } & import('../sessionReferences').SessionReference)
 
 export interface UserMessageContent {

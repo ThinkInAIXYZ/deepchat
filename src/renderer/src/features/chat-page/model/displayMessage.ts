@@ -57,12 +57,19 @@ export type DisplayUserMessageSessionBlock = {
   tapeIncarnationId: string
 }
 
+export type DisplayUserMessageFileReferenceBlock = {
+  type: 'file-reference'
+  filePath: string
+  relativePath: string
+}
+
 export type DisplayUserMessageInlineBlock =
   | DisplayUserMessageTextBlock
   | DisplayUserMessageMentionBlock
   | DisplayUserMessageCodeBlock
   | DisplayUserMessageSkillBlock
   | DisplayUserMessageFileBlock
+  | DisplayUserMessageFileReferenceBlock
   | DisplayUserMessageSessionBlock
 
 export type DisplayUserMessageContent = {

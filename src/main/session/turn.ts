@@ -13,7 +13,8 @@ import type {
   SessionCompactionState,
   SessionContextOccupancySnapshot,
   ToolInteractionResponse,
-  ToolInteractionResult
+  ToolInteractionResult,
+  UserMessageInlineItem
 } from '@shared/types/agent-interface'
 import type {
   SessionAssignmentWorkdirPort,
@@ -414,10 +415,16 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   async editUserMessage(
     sessionId: string,
     messageId: string,
-    text: string
+    text: string,
+    inlineItems?: UserMessageInlineItem[]
   ): Promise<ChatMessageRecord> {
     this.requireSession(sessionId)
-    return await this.dependencies.transcript.editUserMessage(sessionId, messageId, text)
+    return await this.dependencies.transcript.editUserMessage(
+      sessionId,
+      messageId,
+      text,
+      inlineItems
+    )
   }
 
   async getSessionCompactionSnapshot(sessionId: string): Promise<SessionCompactionSnapshot> {

@@ -614,7 +614,8 @@ export const sessionsEditUserMessageRoute = defineRouteContract({
   input: z.object({
     sessionId: EntityIdSchema,
     messageId: EntityIdSchema,
-    text: z.string()
+    text: z.string(),
+    inlineItems: z.array(UserMessageInlineItemSchema).optional()
   }),
   output: z.object({
     message: ChatMessageRecordSchema

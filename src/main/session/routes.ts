@@ -418,7 +418,12 @@ export function createSessionRoutes(deps: {
       async (rawInput) => {
         const input = sessionsEditUserMessageRoute.input.parse(rawInput)
         return sessionsEditUserMessageRoute.output.parse({
-          message: await deps.turn.editUserMessage(input.sessionId, input.messageId, input.text)
+          message: await deps.turn.editUserMessage(
+            input.sessionId,
+            input.messageId,
+            input.text,
+            input.inlineItems
+          )
         })
       }
     ],

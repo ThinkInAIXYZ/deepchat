@@ -1,5 +1,6 @@
 import type { JSONContent } from '@tiptap/core'
 import type { MessageFile, UserMessageInlineItem } from '@shared/types/agent-interface'
+import { getValidInlineItems } from '@shared/messageInlineItems'
 
 export interface ComposerSessionDraft {
   revision: number
@@ -42,11 +43,7 @@ export function createComposerTextDocument(
   text: string,
   inlineItems: UserMessageInlineItem[] = []
 ): JSONContent {
-  // Files and skills have backing state that the editor syncs; session references live only
-  // in the document. Recreate them before handing a recovered draft to the editor.
-  const references = inlineItems
-    .filter((item) => item.type === 'session')
-    .sort((left, right) => left.offset - right.offset)
+  const references = getValidInlineItems(text, inlineItems)
   let referenceIndex = 0
   let lineOffset = 0
   return {
@@ -58,14 +55,25 @@ export function createComposerTextDocument(
         referenceIndex < references.length &&
         references[referenceIndex].offset <= lineOffset + line.length
       ) {
-        const { type: _type, offset, ...attrs } = references[referenceIndex++]
+        const item = references[referenceIndex++]
+        const { type, offset, ...attrs } = item
         const nextColumn = offset - lineOffset
-        const precedingText = line.slice(column, nextColumn).replace(/\r/g, '')
+        const precedingText = line.slice(column, nextColumn)
         if (precedingText) content.push({ type: 'text', text: precedingText })
-        content.push({ type: 'sessionReference', attrs })
-        column = nextColumn
+        content.push({
+          type:
+            type === 'session'
+              ? 'sessionReference'
+              : type === 'file-reference'
+                ? 'fileReference'
+                : type === 'skill'
+                  ? 'skillChip'
+                  : 'fileAttachment',
+          attrs
+        })
+        column = nextColumn + (item.type === 'file-reference' ? `@${item.relativePath}`.length : 0)
       }
-      const remainingText = line.slice(column).replace(/\r/g, '')
+      const remainingText = line.slice(column)
       if (remainingText) content.push({ type: 'text', text: remainingText })
       lineOffset += line.length + 1
       return { type: 'paragraph', ...(content.length > 0 ? { content } : {}) }

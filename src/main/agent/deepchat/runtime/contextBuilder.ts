@@ -718,7 +718,9 @@ function buildInlineDisplayText(input: SendMessageInput): string {
   const validItems = inlineItems
     .map((item, index) => ({ item, index }))
     .filter(
-      ({ item }) => Number.isInteger(item.offset) && item.offset >= 0 && item.offset <= text.length
+      ({ item }) =>
+        item.type !== 'file-reference' &&
+        Number.isInteger(item.offset) && item.offset >= 0 && item.offset <= text.length
     )
     .sort((left, right) => left.item.offset - right.item.offset || left.index - right.index)
   if (validItems.length === 0) {
@@ -737,7 +739,7 @@ function buildInlineDisplayText(input: SendMessageInput): string {
       parts.push(
         `[Session reference metadata: ${JSON.stringify({ title: sanitizeAttachmentMetadata(item.title, 1024), sessionId: item.sessionId, tapeIncarnationId: item.tapeIncarnationId })}]`
       )
-    } else {
+    } else if (item.type === 'file') {
       parts.push(`[File: ${item.fileName}]`)
     }
     cursor = item.offset

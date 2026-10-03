@@ -240,6 +240,52 @@ describe('SessionTranscriptMutations', () => {
     expect(transcript.updateMessageContent).not.toHaveBeenCalled()
   })
 
+  it('rejects a new structured session grant before cancelling the active Run', async () => {
+    const runtime = {
+      assertNoActivePendingInputs: vi.fn(),
+      cancelForTranscriptMutation: vi.fn(),
+      invalidateTranscriptFrom: vi.fn()
+    }
+    const transcript = {
+      getMessage: vi.fn(() => ({
+        id: 'message-1',
+        sessionId: 's1',
+        orderSeq: 7,
+        role: 'user',
+        content: JSON.stringify({
+          text: 'old text',
+          inlineItems: [
+            {
+              type: 'session',
+              offset: 8,
+              sessionId: 'source',
+              title: 'Source',
+              projectDir: null,
+              tapeIncarnationId: 'original-incarnation'
+            }
+          ]
+        })
+      })),
+      updateMessageContent: vi.fn()
+    }
+    const mutations = new SessionTranscriptMutations({ transcript, runtime } as any)
+
+    await expect(
+      mutations.editUserMessage('s1', 'message-1', 'edited', [
+        {
+          type: 'session',
+          offset: 0,
+          sessionId: 'source',
+          title: 'Source',
+          projectDir: null,
+          tapeIncarnationId: 'different-incarnation'
+        }
+      ])
+    ).rejects.toThrow('not originally granted')
+    expect(runtime.cancelForTranscriptMutation).not.toHaveBeenCalled()
+    expect(transcript.updateMessageContent).not.toHaveBeenCalled()
+  })
+
   it('hands the extracted cloned prefix cursor to the fork target reset', async () => {
     const runtime = { resetForkTarget: vi.fn() }
     const transcript = {
