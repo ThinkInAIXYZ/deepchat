@@ -370,7 +370,9 @@ const toEditorDoc = (text: string) => {
 }
 
 const getEditorText = (editor: Editor): string => {
-  return editor.getText({ blockSeparator: '\n' })
+  // Clipboard serialization keeps reference labels; the submitted text excludes inline atoms
+  // because getInlineItems stores their metadata and offsets separately.
+  return editor.getText({ blockSeparator: '\n', textSerializers: { sessionReference: () => '' } })
 }
 
 const setCaretToEnd = (editor: Editor) => {

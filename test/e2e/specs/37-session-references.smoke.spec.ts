@@ -192,12 +192,38 @@ test('session references survive drafts and retrieve evidence without injecting 
     await sourceRow.dragTo(editor)
     await expect(chip).toContainText('Launch research')
     await app.page.screenshot({ path: resolve(artifacts, 'session-reference-composer.png') })
+    await editor.focus()
+    await app.page.keyboard.press('ControlOrMeta+a')
+    const copied = await editor.evaluate((element) => {
+      const clipboardData = new DataTransfer()
+      element.dispatchEvent(
+        new ClipboardEvent('copy', { bubbles: true, cancelable: true, clipboardData })
+      )
+      return {
+        text: clipboardData.getData('text/plain'),
+        html: clipboardData.getData('text/html')
+      }
+    })
+    expect(copied.text).toBe(`[Session: Launch research (${sourceId})]`)
+    expect(copied.html).toContain('data-session-reference')
+    await editor.press('Backspace')
+    await expect(chip).toHaveCount(0)
+    await editor.evaluate((element, copied) => {
+      const clipboardData = new DataTransfer()
+      clipboardData.setData('text/plain', copied.text)
+      clipboardData.setData('text/html', copied.html)
+      element.dispatchEvent(
+        new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData })
+      )
+    }, copied)
+    await expect(chip).toHaveText('Launch research')
     await app.page.getByTestId('chat-send-button').click()
     await expect(app.page.getByTestId('chat-message-assistant')).toContainText(
       'Reference evidence retrieved.'
     )
     expect(sawReader).toBe(true)
     expect(referenceRequest).toContain(sourceId)
+    expect(referenceRequest).not.toContain('[Session: Launch research')
     expect(referenceRequest).not.toContain(marker)
     expect(evidence).toContain(marker)
     const targetId = await getActiveSessionId(app.page)

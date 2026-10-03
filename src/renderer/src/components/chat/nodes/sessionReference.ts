@@ -1,5 +1,6 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
+import { getSessionReferenceText } from '@shared/sessionReferences'
 import SessionReferenceView from './SessionReferenceView.vue'
 
 export const SessionReference = Node.create({
@@ -27,8 +28,8 @@ export const SessionReference = Node.create({
   renderHTML({ HTMLAttributes }) {
     return ['span', mergeAttributes(HTMLAttributes, { 'data-session-reference': '' })]
   },
-  renderText() {
-    return ''
+  renderText({ node }) {
+    return getSessionReferenceText([{ ...node.attrs, type: 'session' }])
   },
   addNodeView() {
     return VueNodeViewRenderer(SessionReferenceView)
