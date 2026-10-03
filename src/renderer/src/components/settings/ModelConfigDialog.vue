@@ -391,6 +391,16 @@
                 />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem v-if="exclusiveReasoningControls" value="__default">
+                  {{ t('chat.advancedSettings.useDefault') }}
+                </SelectItem>
+                <SelectItem
+                  v-if="exclusiveReasoningControls && config.thinkingBudget !== undefined"
+                  value="__budget"
+                  disabled
+                >
+                  {{ t('chat.advancedSettings.thinkingBudget') }}
+                </SelectItem>
                 <SelectItem
                   v-for="option in reasoningEffortOptions"
                   :key="option.value"
@@ -461,17 +471,28 @@
               <div class="space-y-0.5">
                 <Label>{{ t('settings.model.modelConfig.thinkingBudget.label') }}</Label>
               </div>
+              <Switch
+                v-if="exclusiveReasoningControls"
+                class="mr-2 shrink-0"
+                data-setting-control="thinkingBudget-toggle"
+                :aria-label="t('settings.model.modelConfig.thinkingBudget.label')"
+                :model-value="config.thinkingBudget !== undefined"
+                @update:model-value="toggleThinkingBudget"
+              />
             </div>
 
             <!-- 思考预算详细配置 -->
-            <div class="space-y-3 pl-4 border-l-2 border-muted">
+            <div
+              v-if="!exclusiveReasoningControls || config.thinkingBudget !== undefined"
+              class="space-y-3 pl-4 border-l-2 border-muted"
+            >
               <!-- 数值输入 -->
               <div class="space-y-2">
                 <Label class="text-sm">{{
                   t('settings.model.modelConfig.thinkingBudget.label')
                 }}</Label>
                 <Input
-                  v-model.number="config.thinkingBudget"
+                  v-model.number="effectiveThinkingBudget"
                   type="number"
                   :min="thinkingBudgetRange?.min"
                   :max="thinkingBudgetRange?.max"
@@ -567,12 +588,12 @@ import {
   getReasoningControlModeForProvider,
   getReasoningEffectiveEnabledForProvider,
   hasAnthropicReasoningToggle,
+  hasThinkingBudgetSupport,
   normalizeAnthropicReasoningVisibilityValue,
   isVerbosity,
   normalizeReasoningEffortValue,
   type AnthropicReasoningVisibility,
   supportsReasoningCapability,
-  type ReasoningEffort,
   type ReasoningPortrait
 } from '@shared/types/model-db'
 import {
@@ -704,7 +725,7 @@ const createDefaultConfig = (): ModelConfig => ({
   type: ModelType.Chat,
   apiEndpoint: ApiEndpointType.Chat,
   endpointType: undefined,
-  reasoningEffort: 'medium',
+  reasoningEffort: undefined,
   reasoningVisibility: undefined,
   verbosity: 'medium'
 })
@@ -804,6 +825,9 @@ const capabilityRequestPolicy = computed<ModelRequestPolicy | null>(
 const capabilityReasoningPortrait = computed(
   () => modelCapabilities.reasoningPortrait.value as ReasoningPortrait | null
 )
+const exclusiveReasoningControls = computed(
+  () => capabilityReasoningPortrait.value?.budgetExclusiveWithEffort === true
+)
 const capabilitySupportsReasoning = computed(() => modelCapabilities.supportsReasoning.value)
 const capabilityBudgetRange = computed(
   () => modelCapabilities.snapshot.value?.thinkingBudgetRange ?? null
@@ -841,20 +865,6 @@ const getReasoningVisibilityOptions = (
   hasAnthropicReasoningToggle(providerId, portrait)
     ? [...ANTHROPIC_REASONING_VISIBILITY_VALUES]
     : []
-
-const hasThinkingBudgetSupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
-  Boolean(
-    portrait &&
-    portrait.mode !== 'effort' &&
-    portrait.mode !== 'level' &&
-    portrait.mode !== 'fixed' &&
-    portrait.budget &&
-    (portrait.budget.default !== undefined ||
-      portrait.budget.min !== undefined ||
-      portrait.budget.max !== undefined ||
-      portrait.budget.auto !== undefined ||
-      portrait.budget.off !== undefined)
-  )
 
 const normalizeVerbosityValue = (
   portrait: ReasoningPortrait | null | undefined,
@@ -1328,7 +1338,8 @@ const loadConfig = async () => {
     if (config.value.isUserDefined !== true) {
       const normalizedEffort = normalizeReasoningEffortValue(
         capabilityReasoningPortrait.value,
-        config.value.reasoningEffort ?? capabilityEffortDefault.value
+        config.value.reasoningEffort ??
+          (exclusiveReasoningControls.value ? undefined : capabilityEffortDefault.value)
       )
       if (supportsReasoningEffort.value) {
         config.value.reasoningEffort = normalizedEffort
@@ -1360,7 +1371,7 @@ const loadConfig = async () => {
 
     if (config.value.thinkingBudget === undefined) {
       const range = capabilityBudgetRange.value
-      if (range && typeof range.default === 'number') {
+      if (!exclusiveReasoningControls.value && range && typeof range.default === 'number') {
         config.value.thinkingBudget = range.default
       }
     } else {
@@ -1370,6 +1381,9 @@ const loadConfig = async () => {
         capabilityReasoningPortrait.value?.budget?.min,
         capabilityReasoningPortrait.value?.budget?.max
       )
+    }
+    if (exclusiveReasoningControls.value && config.value.reasoningEffort !== undefined) {
+      config.value.thinkingBudget = undefined
     }
 
     syncNewApiDerivedFields()
@@ -1733,16 +1747,39 @@ const reasoningEffortOptions = computed(() =>
     label: t(`settings.model.modelConfig.reasoningEffort.options.${value}`)
   }))
 )
-const effectiveReasoningEffort = computed<ReasoningEffort | undefined>({
+const effectiveReasoningEffort = computed<string | undefined>({
   get: () =>
     normalizeReasoningEffortValue(
       capabilityReasoningPortrait.value,
       config.value.reasoningEffort
-    ) ?? capabilityEffortDefault.value,
+    ) ??
+    (exclusiveReasoningControls.value
+      ? config.value.thinkingBudget === undefined
+        ? '__default'
+        : '__budget'
+      : capabilityEffortDefault.value),
   set: (value) => {
-    config.value.reasoningEffort = value
+    config.value.reasoningEffort = normalizeReasoningEffortValue(
+      capabilityReasoningPortrait.value,
+      value
+    )
+    if (exclusiveReasoningControls.value) config.value.thinkingBudget = undefined
   }
 })
+const effectiveThinkingBudget = computed<number | undefined>({
+  get: () => config.value.thinkingBudget,
+  set: (value) => {
+    config.value.thinkingBudget = value
+    if (exclusiveReasoningControls.value && value !== undefined) {
+      config.value.reasoningEffort = undefined
+    }
+  }
+})
+const toggleThinkingBudget = (enabled: boolean) => {
+  effectiveThinkingBudget.value = enabled
+    ? (capabilityReasoningPortrait.value?.budget?.min ?? 0)
+    : undefined
+}
 const verbosityOptions = computed(() =>
   getVerbosityOptions(capabilityReasoningPortrait.value).map((value) => ({
     value,
@@ -1769,7 +1806,7 @@ const showThinkingBudget = computed(() => {
   )
   const supported = supportsReasoningCapability(capabilityReasoningPortrait.value)
   const hasRange = hasThinkingBudgetSupport(capabilityReasoningPortrait.value)
-  return hasReasoning && supported && hasRange
+  return (hasReasoning || exclusiveReasoningControls.value) && supported && hasRange
 })
 
 const showInterleavedThinking = computed(() => {
@@ -1815,7 +1852,9 @@ const genericThinkingBudgetError = computed(() => {
   const value = config.value.thinkingBudget
   const range = thinkingBudgetRange.value
   if (value === undefined || value === null) {
-    return t('settings.model.modelConfig.thinkingBudget.validation.required')
+    return exclusiveReasoningControls.value
+      ? ''
+      : t('settings.model.modelConfig.thinkingBudget.validation.required')
   }
   if (!range) return ''
   if (isThinkingBudgetSentinel(capabilityReasoningPortrait.value, value)) {

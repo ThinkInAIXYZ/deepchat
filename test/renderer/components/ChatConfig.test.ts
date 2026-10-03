@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const modelClient = vi.hoisted(() => ({
+  onModelsChanged: vi.fn(() => vi.fn()),
   getCapabilities: vi.fn()
 }))
 

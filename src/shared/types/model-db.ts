@@ -209,6 +209,20 @@ export const getReasoningEffortDefault = (
   return isReasoningEffort(value) ? value : undefined
 }
 
+export const hasThinkingBudgetSupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
+  Boolean(
+    portrait &&
+    (portrait.mode !== 'effort' || portrait.budgetExclusiveWithEffort === true) &&
+    portrait.mode !== 'level' &&
+    portrait.mode !== 'fixed' &&
+    portrait.budget &&
+    (portrait.budget.default !== undefined ||
+      portrait.budget.min !== undefined ||
+      portrait.budget.max !== undefined ||
+      portrait.budget.auto !== undefined ||
+      portrait.budget.off !== undefined)
+  )
+
 export const isVerbosity = (value: unknown): value is Verbosity =>
   VerbositySchema.safeParse(value).success
 

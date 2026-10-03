@@ -1,7 +1,8 @@
-import { ref } from 'vue'
+import { effectScope, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const modelClient = vi.hoisted(() => ({
+  onModelsChanged: vi.fn(() => vi.fn()),
   getCapabilities: vi.fn()
 }))
 
@@ -66,6 +67,36 @@ function deferred<T>() {
 describe('useModelCapabilities', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('refreshes the current query on catalog updates and discards results after disposal', async () => {
+    const scope = effectScope()
+    modelClient.getCapabilities.mockResolvedValue(createCapabilities())
+    const api = scope.run(() => useModelCapabilities())!
+    const query = { providerId: 'demo', modelId: 'model', reasoningEnabled: false }
+    await api.load(query)
+    const listener = modelClient.onModelsChanged.mock.calls[0][0] as any
+    listener({ reason: 'provider-models', providerId: 'other' })
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(1)
+    modelClient.getCapabilities.mockResolvedValue(
+      createCapabilities({
+        reasoningPortrait: { mode: 'effort', effortOptions: ['none', 'low', 'xhigh'] }
+      })
+    )
+    listener({ reason: 'provider-db-updated' })
+    await vi.waitFor(() =>
+      expect(api.reasoningPortrait.value?.effortOptions).toEqual(['none', 'low', 'xhigh'])
+    )
+    expect(modelClient.getCapabilities).toHaveBeenLastCalledWith(query)
+    const pending = deferred<ReturnType<typeof createCapabilities>>()
+    modelClient.getCapabilities.mockReturnValue(pending.promise)
+    listener({ reason: 'provider-db-updated' })
+    scope.stop()
+    expect(modelClient.onModelsChanged.mock.results[0].value).toHaveBeenCalledTimes(1)
+    pending.resolve(createCapabilities({ supportsReasoning: true }))
+    await pending.promise
+    expect(api.snapshot.value).toBeNull()
+    expect(api.status.value).toBe('idle')
   })
 
   it('fetches one atomic snapshot and resets when ids are missing', async () => {

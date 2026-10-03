@@ -1,4 +1,4 @@
-import { computed, ref, shallowRef, watch, type Ref } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref, shallowRef, watch, type Ref } from 'vue'
 
 import { createModelClient } from '@api/ModelClient'
 import type { RequestParameterPolicy } from '@shared/modelRequestPolicy'
@@ -151,6 +151,19 @@ export function useModelCapabilities(options?: UseModelCapabilitiesOptions) {
 
     const query = lastQuery.value
     return query ? await load(query) : null
+  }
+
+  if (getCurrentScope()) {
+    const unsubscribe = modelClient.onModelsChanged(({ providerId, reason }) => {
+      const query = lastQuery.value
+      if (query && reason !== 'agents' && (!providerId || providerId === query.providerId)) {
+        void refresh()
+      }
+    })
+    onScopeDispose(() => {
+      unsubscribe()
+      clear()
+    })
   }
 
   if (options) {

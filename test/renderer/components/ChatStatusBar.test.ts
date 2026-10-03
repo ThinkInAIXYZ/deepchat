@@ -504,6 +504,7 @@ const setup = async (options: SetupOptions = {}) => {
   }
 
   const modelClient = {
+    onModelsChanged: vi.fn(() => vi.fn()),
     getModelConfig: vi.fn().mockResolvedValue({
       temperature: 0.7,
       contextLength: 16000,
@@ -859,6 +860,43 @@ const commitNumericInput = async (
 }
 
 describe('ChatStatusBar model and session panels', () => {
+  it('switches between default, effort and advanced budget without retaining the counterpart', async () => {
+    const { wrapper, draftStore } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      modelConfig: { reasoningEffort: undefined, thinkingBudget: undefined },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'effort',
+        effort: 'xhigh',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true,
+        budget: { min: 0, max: 262144 }
+      }
+    })
+    const vm = wrapper.vm as any
+    expect(vm.effectiveReasoningEffortValue).toBe('__default')
+    expect(
+      wrapper
+        .findAll('[data-reasoning-effort]')
+        .map((node) => node.attributes('data-reasoning-effort'))
+    ).toEqual(['__default', 'none', 'low', 'medium', 'xhigh'])
+    await wrapper.find('[data-reasoning-effort="low"]').trigger('click')
+    expect(vm.localSettings.reasoningEffort).toBe('low')
+    expect(vm.localSettings.thinkingBudget).toBeUndefined()
+    await wrapper.find('[data-setting-control="thinkingBudget-toggle"]').trigger('click')
+    expect(vm.localSettings.reasoningEffort).toBeUndefined()
+    expect(vm.localSettings.thinkingBudget).toBe(0)
+    expect(vm.reasoningEffortDisplayLabel).toBe('chat.advancedSettings.thinkingBudget')
+    await wrapper.find('[data-reasoning-effort="__default"]').trigger('click')
+    await vi.waitFor(() => expect(draftStore.updateGenerationSettings).toHaveBeenCalled())
+    expect(draftStore.updateGenerationSettings).toHaveBeenLastCalledWith({
+      reasoningEffort: undefined,
+      thinkingBudget: undefined
+    })
+    wrapper.unmount()
+  })
+
   it('shows provider-measured context occupancy for an active DeepChat session', async () => {
     const { wrapper } = await setup({
       hasActiveSession: true,

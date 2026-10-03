@@ -58,6 +58,8 @@ Selecting one control clears its counterpart. Legacy configurations containing b
 effort, the ordinary control. The request boundary also enforces that rule without rewriting saved
 history. Budget remains an advanced alternative only when the portrait declares it. Provider-local
 identity remains authoritative, including custom endpoints; do not infer support by model family.
+The optional token-budget alternative is exposed only on the OpenAI-compatible transport; Responses
+does not advertise a budget that its adapter cannot send. Effort remains available on supported routes.
 
 Catalog updates refresh active capability consumers with stale-response protection and lifecycle
 cleanup. No new polling, network request per generation, service, or dependency is introduced.
@@ -68,6 +70,11 @@ fail with the relevant normalization or conflict guard removed. Authenticated pr
 separate from captured request and rendered UI checks.
 
 ```text
+BEFORE  Qwen3.8  [Budget only / no effort choices]
+AFTER   Qwen3.8  [Use default / none / low / medium / xhigh]
+        Settings: [Explicit budget: Off/On] [tokens]
+        Effort and budget clear each other; Use default omits both.
+
 BEFORE  GLM-5.3  Reasoning [On]
 AFTER   GLM-5.3  Reasoning [On]  Effort [low / high / max]
 

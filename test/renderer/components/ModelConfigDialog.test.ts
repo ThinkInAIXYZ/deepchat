@@ -148,6 +148,7 @@ const setup = async (options: SetupOptions) => {
   const defaultGetCapabilities = ({ modelId }: { providerId: string; modelId: string }) =>
     Promise.resolve(createCapabilityResult(options, modelId))
   const modelClient = {
+    onModelsChanged: vi.fn(() => vi.fn()),
     getCapabilities: vi.fn().mockImplementation(options.getCapabilities ?? defaultGetCapabilities)
   }
 
@@ -273,6 +274,43 @@ describe('ModelConfigDialog custom model persistence', () => {
 })
 
 describe('ModelConfigDialog reasoning portraits', () => {
+  it('offers default, effort and an explicit alternative budget without inventing defaults', async () => {
+    const { wrapper, modelConfigStore } = await setup({
+      providerId: 'dashscope',
+      modelId: 'qwen3.8-max',
+      modelName: 'Qwen3.8 Max',
+      modelConfig: { reasoningEffort: undefined, thinkingBudget: undefined },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'effort',
+        effort: 'xhigh',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true,
+        budget: { min: 0, max: 262144 }
+      }
+    })
+    const vm = wrapper.vm as any
+    expect(vm.effectiveReasoningEffort).toBe('__default')
+    expect(vm.config.thinkingBudget).toBeUndefined()
+    expect(vm.genericThinkingBudgetError).toBe('')
+    expect(wrapper.find('[value="__default"]').exists()).toBe(true)
+    const toggle = wrapper.findComponent('[data-setting-control="thinkingBudget-toggle"]')
+    toggle.vm.$emit('update:modelValue', true)
+    await flushPromises()
+    vm.effectiveThinkingBudget = 8192
+    expect(vm.effectiveReasoningEffort).toBe('__budget')
+    expect(vm.config.reasoningEffort).toBeUndefined()
+    vm.effectiveReasoningEffort = 'low'
+    expect(vm.config.thinkingBudget).toBeUndefined()
+    vm.effectiveReasoningEffort = '__default'
+    await vm.handleSave()
+    expect(modelConfigStore.setModelConfig).toHaveBeenCalled()
+    const saved = modelConfigStore.setModelConfig.mock.calls.at(-1)![2]
+    expect(saved.reasoningEffort).toBeUndefined()
+    expect(saved.thinkingBudget).toBeUndefined()
+    wrapper.unmount()
+  })
+
   it('renders the speech recognition model setting for chat models', async () => {
     const { wrapper } = await setup({
       providerId: 'openai',

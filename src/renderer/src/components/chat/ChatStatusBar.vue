@@ -1828,7 +1828,12 @@ const contextLengthInputValue = computed(() => getNumericInputValue('contextLeng
 const maxTokensInputValue = computed(() => getNumericInputValue('maxTokens'))
 const timeoutInputValue = computed(() => getNumericInputValue('timeout'))
 const thinkingBudgetInputValue = computed(() => getNumericInputValue('thinkingBudget'))
-const isThinkingBudgetEnabled = computed(() => localSettings.value?.thinkingBudget !== undefined)
+const isThinkingBudgetEnabled = computed(
+  () =>
+    localSettings.value?.thinkingBudget !== undefined &&
+    (!capabilityReasoningPortrait.value?.budgetExclusiveWithEffort ||
+      localSettings.value.reasoningEffort === undefined)
+)
 const isInterleavedThinkingEnabled = computed(
   () => localSettings.value?.forceInterleavedThinkingCompat === true
 )
@@ -1909,10 +1914,13 @@ const showReasoningVisibility = computed(
 )
 
 const effortOptions = computed(() => {
-  return getReasoningEffortOptions(capabilityReasoningPortrait.value).map((value) => ({
+  const options = getReasoningEffortOptions(capabilityReasoningPortrait.value).map((value) => ({
     value,
     label: t(`settings.model.modelConfig.reasoningEffort.options.${value}`)
   }))
+  return capabilityReasoningPortrait.value?.budgetExclusiveWithEffort
+    ? [{ value: '__default', label: t('chat.advancedSettings.useDefault') }, ...options]
+    : options
 })
 const effectiveReasoningEffortValue = computed(
   () =>
@@ -1920,16 +1928,20 @@ const effectiveReasoningEffortValue = computed(
       capabilityReasoningPortrait.value,
       localSettings.value?.reasoningEffort
     ) ??
-    normalizeReasoningEffort(
-      capabilityReasoningPortrait.value,
-      capabilityReasoningPortrait.value?.effort
-    ) ??
-    effortOptions.value[0]?.value
+    (capabilityReasoningPortrait.value?.budgetExclusiveWithEffort
+      ? isThinkingBudgetEnabled.value
+        ? '__budget'
+        : '__default'
+      : (normalizeReasoningEffort(
+          capabilityReasoningPortrait.value,
+          capabilityReasoningPortrait.value?.effort
+        ) ?? effortOptions.value[0]?.value))
 )
-const reasoningEffortDisplayLabel = computed(
-  () =>
-    effortOptions.value.find((option) => option.value === effectiveReasoningEffortValue.value)
-      ?.label ?? t('chat.advancedSettings.useDefault')
+const reasoningEffortDisplayLabel = computed(() =>
+  effectiveReasoningEffortValue.value === '__budget'
+    ? t('chat.advancedSettings.thinkingBudget')
+    : (effortOptions.value.find((option) => option.value === effectiveReasoningEffortValue.value)
+        ?.label ?? t('chat.advancedSettings.useDefault'))
 )
 const orchestrationControlTitle = computed(() => {
   const effort = reasoningEffortDisplayLabel.value
@@ -2216,7 +2228,8 @@ const resolveDefaultGenerationSettings = async (
 
   if (portrait?.supported === true && hasThinkingBudgetSupport(portrait)) {
     const defaultBudget = normalizeLegacyThinkingBudgetValue(
-      modelConfig.thinkingBudget ?? portrait.budget?.default
+      modelConfig.thinkingBudget ??
+        (portrait.budgetExclusiveWithEffort ? undefined : portrait.budget?.default)
     )
     if (defaultBudget !== undefined) {
       defaults.thinkingBudget = defaultBudget
@@ -2237,10 +2250,12 @@ const resolveDefaultGenerationSettings = async (
   if (supportsReasoningEffort(portrait) && anthropicReasoningEnabled) {
     const effort = normalizeReasoningEffort(
       portrait,
-      modelConfig.reasoningEffort ?? getReasoningEffortDefault(portrait)
+      modelConfig.reasoningEffort ??
+        (portrait?.budgetExclusiveWithEffort ? undefined : getReasoningEffortDefault(portrait))
     )
     if (effort) {
       defaults.reasoningEffort = effort
+      if (portrait?.budgetExclusiveWithEffort) delete defaults.thinkingBudget
     }
   }
 
@@ -2325,6 +2340,13 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
   generationLocalRevision += 1
 
   const nextPatch = { ...patch }
+  if (capabilityReasoningPortrait.value?.budgetExclusiveWithEffort) {
+    if (nextPatch.reasoningEffort !== undefined) {
+      nextPatch.thinkingBudget = undefined
+    } else if (nextPatch.thinkingBudget !== undefined) {
+      nextPatch.reasoningEffort = undefined
+    }
+  }
   if (isTemperatureFixed.value) {
     delete nextPatch.temperature
   }
@@ -3125,6 +3147,10 @@ function onReasoningEffortSelect(value: string) {
     return
   }
 
+  if (value === '__default') {
+    updateLocalGenerationSettings({ reasoningEffort: undefined, thinkingBudget: undefined })
+    return
+  }
   const normalized = normalizeReasoningEffort(capabilityReasoningPortrait.value, value)
   if (!normalized) {
     return
