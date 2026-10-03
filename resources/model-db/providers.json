@@ -69950,8 +69950,8 @@
             ]
           },
           "limit": {
-            "context": 131072,
-            "output": 65536
+            "context": 163840,
+            "output": 147456
           },
           "temperature": true,
           "tool_call": true,
@@ -75258,7 +75258,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 235929
+            "output": 32768
           },
           "temperature": true,
           "tool_call": true,
@@ -75373,7 +75373,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 98304
+            "output": 235929
           },
           "temperature": true,
           "tool_call": true,
@@ -76022,8 +76022,8 @@
             ]
           },
           "limit": {
-            "context": 202800,
-            "output": 182520
+            "context": 262144,
+            "output": 16384
           },
           "temperature": true,
           "tool_call": true,
@@ -342028,8 +342028,8 @@
             ]
           },
           "limit": {
-            "context": 131072,
-            "output": 65536
+            "context": 163840,
+            "output": 147456
           },
           "tool_call": true,
           "reasoning": {
@@ -346052,7 +346052,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 98304
+            "output": 235929
           },
           "tool_call": true,
           "reasoning": {
@@ -346593,8 +346593,8 @@
             ]
           },
           "limit": {
-            "context": 202800,
-            "output": 182520
+            "context": 262144,
+            "output": 16384
           },
           "temperature": true,
           "tool_call": true,
@@ -346728,7 +346728,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 32768
+            "output": 131072
           },
           "tool_call": true,
           "reasoning": {
@@ -346769,6 +346769,28 @@
               "supported": true,
               "default_enabled": true
             }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "nvidia/switchyard",
+          "name": "NVIDIA: Switchyard",
+          "display_name": "NVIDIA: Switchyard",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
           },
           "type": "chat"
         },
@@ -351408,8 +351430,8 @@
             ]
           },
           "limit": {
-            "context": 128000,
-            "output": 32000
+            "context": 262144,
+            "output": 235929
           },
           "tool_call": true,
           "reasoning": {
@@ -351739,8 +351761,8 @@
             ]
           },
           "limit": {
-            "context": 262144,
-            "output": 235929
+            "context": 131072,
+            "output": 32768
           },
           "tool_call": true,
           "reasoning": {
@@ -363532,7 +363554,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 235929
+            "output": 32768
           },
           "temperature": true,
           "tool_call": true,
