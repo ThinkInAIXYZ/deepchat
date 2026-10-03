@@ -99,6 +99,9 @@ const sanitizeExtraReasoning = (value) => {
   }
   const budget = sanitizeReasoningBudget(value.budget)
   if (budget) reasoning.budget = budget
+  if (typeof value.budget_exclusive_with_effort === 'boolean') {
+    reasoning.budget_exclusive_with_effort = value.budget_exclusive_with_effort
+  }
   if (typeof value.effort === 'string' && REASONING_EFFORT_VALUES.includes(value.effort)) {
     reasoning.effort = value.effort
   }
@@ -212,6 +215,20 @@ export function sanitizeAggregateJson(json) {
         if (options.length) {
           extraReasoning = { ...extraReasoning, effort_options: [...new Set(options)] }
         }
+      }
+      if (Array.isArray(m.reasoning_options)) {
+        const options = m.reasoning_options.filter(
+          (option) => option && typeof option === 'object' && !Array.isArray(option)
+        )
+        const effort = options.find((option) => option.type === 'effort')
+        const exclusive = options.some(
+          (option) =>
+            (option.type === 'budget' || option.type === 'budget_tokens') &&
+            effort &&
+            ((Array.isArray(effort.exclusive_with) && effort.exclusive_with.includes(option.type)) ||
+              (Array.isArray(option.exclusive_with) && option.exclusive_with.includes('effort')))
+        )
+        if (exclusive) extraReasoning = { ...extraReasoning, budget_exclusive_with_effort: true }
       }
       if (extraReasoning) {
         extra_capabilities = { reasoning: extraReasoning }

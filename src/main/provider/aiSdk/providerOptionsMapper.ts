@@ -288,11 +288,14 @@ export function buildProviderOptions(
           config.enable_thinking = true
         }
         const budget =
-          typeof modelConfig.thinkingBudget === 'number' && reasoningPortrait?.supported !== false
-            ? modelConfig.thinkingBudget
-            : supportsThinking
-              ? reasoningPortrait.budget?.default
-              : undefined
+          reasoningPortrait?.budgetExclusiveWithEffort && modelConfig.reasoningEffort
+            ? undefined
+            : typeof modelConfig.thinkingBudget === 'number' &&
+                reasoningPortrait?.supported !== false
+              ? modelConfig.thinkingBudget
+              : supportsThinking && !reasoningPortrait.budgetExclusiveWithEffort
+                ? reasoningPortrait.budget?.default
+                : undefined
         if (typeof budget === 'number') {
           config.thinking_budget = budget
         }

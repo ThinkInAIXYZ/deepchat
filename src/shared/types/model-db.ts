@@ -74,6 +74,7 @@ export const ExtraReasoningSchema = z
     default_enabled: z.boolean().optional(),
     mode: ReasoningModeSchema.optional(),
     budget: ReasoningBudgetSchema,
+    budget_exclusive_with_effort: z.boolean().optional(),
     effort: ReasoningEffortSchema.optional(),
     effort_options: z.array(ReasoningEffortSchema).optional(),
     verbosity: VerbositySchema.optional(),
@@ -159,6 +160,7 @@ export type ReasoningPortrait = {
   supported?: boolean
   defaultEnabled?: boolean
   mode?: ReasoningMode
+  budgetExclusiveWithEffort?: boolean
   budget?: {
     default?: number
     min?: number
@@ -558,6 +560,7 @@ function getExtraReasoning(
   const default_enabled = getBoolean(obj, 'default_enabled')
   const mode = getReasoningModeValue(obj['mode'])
   const budget = getReasoningBudget(obj['budget'])
+  const budget_exclusive_with_effort = getBoolean(obj, 'budget_exclusive_with_effort')
   const effort = getEffortValue(obj['effort'])
   const effort_options = getNonEmptyStringArray(obj, 'effort_options')?.filter(
     (value) => ReasoningEffortSchema.safeParse(value).success
@@ -579,6 +582,7 @@ function getExtraReasoning(
     default_enabled !== undefined ||
     mode !== undefined ||
     budget !== undefined ||
+    budget_exclusive_with_effort !== undefined ||
     effort !== undefined ||
     effort_options !== undefined ||
     verbosity !== undefined ||
@@ -596,6 +600,7 @@ function getExtraReasoning(
       default_enabled,
       mode,
       budget,
+      budget_exclusive_with_effort,
       effort,
       effort_options,
       verbosity,
@@ -629,6 +634,18 @@ function getExtraCapabilities(
         : []
     )
     if (options.length) reasoning = { ...reasoning, effort_options: [...new Set(options)] }
+  }
+  if (Array.isArray(reasoningOptions)) {
+    const options = reasoningOptions.filter(isRecord)
+    const effort = options.find((option) => option.type === 'effort')
+    const exclusive = options.some(
+      (option) =>
+        (option.type === 'budget' || option.type === 'budget_tokens') &&
+        effort &&
+        ((Array.isArray(effort.exclusive_with) && effort.exclusive_with.includes(option.type)) ||
+          (Array.isArray(option.exclusive_with) && option.exclusive_with.includes('effort')))
+    )
+    if (exclusive) reasoning = { ...reasoning, budget_exclusive_with_effort: true }
   }
   if (reasoning) {
     return { reasoning }

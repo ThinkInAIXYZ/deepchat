@@ -72,6 +72,34 @@ describe.each([
   ['build', sanitizeAggregateJson],
   ['runtime', sanitizeAggregate]
 ] as const)('%s reasoning option ingestion', (_name, sanitize) => {
+  it.each(['budget', 'budget_tokens'])('preserves %s exclusivity in either direction', (type) => {
+    const result = sanitize({
+      providers: {
+        demo: {
+          id: 'demo',
+          models: [
+            [{ type: 'effort', exclusive_with: [type] }, { type }],
+            [{ type: 'effort' }, { type, exclusive_with: ['effort'] }],
+            [{ type: 'effort', exclusive_with: ['missing'] }, { type }],
+            [{ type: 'effort', exclusive_with: [type] }],
+            [null, { type: 'effort', exclusive_with: type }, { type }]
+          ].map((reasoning_options, index) => ({
+            id: `model-${index}`,
+            reasoning_options,
+            extra_capabilities: {
+              reasoning: { mode: 'effort', effort_options: ['none', 'low', 'medium', 'xhigh'] }
+            }
+          }))
+        }
+      }
+    })
+    for (const catalog of [result, sanitizeAggregate(JSON.parse(JSON.stringify(result)))]) {
+      expect(catalog!.providers.demo.models.map(
+        (model) => model.extra_capabilities?.reasoning?.budget_exclusive_with_effort
+      )).toEqual([true, true, undefined, undefined, undefined])
+    }
+  })
+
   it.each([
     ['glm-5.2', ['high', 'max']],
     ['glm-5.3', ['low', 'high', 'max']],

@@ -42,6 +42,31 @@ support. Existing renderer selectors consume these facts; the AI SDK adapter own
 Both existing selectors offer the actual catalog tiers. Selecting a tier survives saving,
 reopening a session, and generation. Toggle-only and fixed models acquire no fictitious tiers.
 
+### Exclusive effort and budget controls
+
+PublicProviderConf declares Qwen3.8 effort tiers and an optional token budget. Its
+`reasoning_options[].exclusive_with` names option types in the same list; a declaration in either
+direction makes effort and budget mutually exclusive. Both importers normalize this to
+`budget_exclusive_with_effort`, projected as `ReasoningPortrait.budgetExclusiveWithEffort`.
+Missing metadata does not grant new controls or change existing provider-specific combinations.
+
+For these portraits, catalog defaults describe provider behavior, not client overrides. With no
+user override, omit effort and budget. This matters because the provider's implicit budget can
+differ from explicitly selecting its default effort. Model settings and session settings retain
+the existing optional fields; no database migration or persistent mode flag is required.
+Selecting one control clears its counterpart. Legacy configurations containing both resolve to
+effort, the ordinary control. The request boundary also enforces that rule without rewriting saved
+history. Budget remains an advanced alternative only when the portrait declares it. Provider-local
+identity remains authoritative, including custom endpoints; do not infer support by model family.
+
+Catalog updates refresh active capability consumers with stale-response protection and lifecycle
+cleanup. No new polling, network request per generation, service, or dependency is introduced.
+
+Acceptance includes fresh defaults, existing dual-field sessions, switching either way, clearing
+overrides, catalog refresh, and unchanged budget-only / Anthropic behavior. Regression checks must
+fail with the relevant normalization or conflict guard removed. Authenticated provider calls are
+separate from captured request and rendered UI checks.
+
 ```text
 BEFORE  GLM-5.3  Reasoning [On]
 AFTER   GLM-5.3  Reasoning [On]  Effort [low / high / max]
