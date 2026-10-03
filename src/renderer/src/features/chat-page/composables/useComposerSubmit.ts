@@ -657,6 +657,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       }
       inputHandle.restoreDocumentSnapshot?.(copyComposerDocument(copiedDraft.document))
     }
+    composerDocumentRevision.value += 1
     void nextTick(() => {
       if (activeDraftSessionId === sessionId) {
         captureLiveDraft(sessionId)

@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
@@ -8,14 +8,25 @@ import type {
 import { getVisibleMentionLabel } from '@/features/chat-page/model/displayUserMessageText'
 import type { MessageFile } from '@shared/types/agent-interface'
 import MessageItemUser from '@/components/message/MessageItemUser.vue'
+import * as notifications from '@renderer-notifications/rendererNotificationPort'
+import enChat from '@/i18n/en-US/chat.json'
 
 const originalApi = window.api
+const { selectSession } = vi.hoisted(() => ({ selectSession: vi.fn() }))
+
+vi.mock('@/stores/ui/session', () => ({
+  useSessionStore: () => ({ selectSession })
+}))
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string) => {
       if (key === 'common.expand') return '展开'
       if (key === 'common.collapse') return '收起'
+      if (key === 'chat.sessionReference.unavailableTitle')
+        return enChat.sessionReference.unavailableTitle
+      if (key === 'chat.sessionReference.unavailableDescription')
+        return enChat.sessionReference.unavailableDescription
       return key
     }
   })
@@ -100,7 +111,7 @@ vi.mock('@/components/message/MessageContent.vue', () => ({
         required: true
       }
     },
-    emits: ['mentionClick'],
+    emits: ['mentionClick', 'sessionClick'],
     methods: {
       renderBlock(block: {
         type: string
@@ -203,8 +214,29 @@ describe('MessageItemUser', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.restoreAllMocks()
     window.api = originalApi
     document.body.innerHTML = ''
+  })
+
+  it('shows a localized error when a sent session reference cannot be opened', async () => {
+    selectSession.mockRejectedValueOnce(new Error('Source unavailable'))
+    const notify = vi.spyOn(notifications, 'notifyRenderer').mockReturnValue(true)
+    const wrapper = mount(MessageItemUser, {
+      props: { message: createMessage({}, { content: [{ type: 'text', content: 'Reference' }] }) },
+      ...globalMountOptions
+    })
+
+    wrapper.findComponent({ name: 'MessageContent' }).vm.$emit('sessionClick', 'source', 'tape')
+    await flushPromises()
+
+    expect(selectSession).toHaveBeenCalledWith('source', 'tape')
+    expect(notify).toHaveBeenCalledWith({
+      kind: 'error',
+      code: 'chat.sessionReference.unavailable',
+      title: 'Session reference unavailable',
+      description: 'This session was deleted, reset, or is no longer available.'
+    })
   })
 
   it('does not show a collapse toggle for short text', async () => {

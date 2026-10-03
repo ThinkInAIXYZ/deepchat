@@ -2,6 +2,7 @@ import { computed, effectScope, nextTick, ref, shallowReactive } from 'vue'
 import type { JSONContent } from '@tiptap/core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerSubmit } from '@/features/chat-page/composables/useComposerSubmit'
+import { createComposerTextDocument } from '@/features/chat-page/model/composerDraftState'
 import {
   loadComposerDraftFromStorage,
   saveComposerDraftToStorage
@@ -282,6 +283,53 @@ describe('useComposerSubmit attachment preflight', () => {
     )
     harness.stop()
   })
+
+  it.each([false, true])(
+    'refreshes send and queue state after silently restoring references=%s',
+    async (hasReference) => {
+      const harness = createHarness()
+      const reference: UserMessageInlineItem = {
+        type: 'session',
+        offset: 0,
+        sessionId: 'source',
+        title: 'Source',
+        projectDir: null,
+        tapeIncarnationId: 'incarnation'
+      }
+      // Tiptap snapshots are not reactive; only explicit editor events invalidate the cache.
+      let liveDocument = createComposerTextDocument('', hasReference ? [] : [reference])
+      harness.inputHandle.getDocumentSnapshot = () => JSON.parse(JSON.stringify(liveDocument))
+      harness.inputHandle.getInlineItemsSnapshot = () =>
+        liveDocument.content?.[0]?.content?.some((node) => node.type === 'sessionReference')
+          ? [reference]
+          : []
+      harness.restoreDocumentSnapshot.mockImplementation((snapshot) => {
+        liveDocument = JSON.parse(JSON.stringify(snapshot))
+      })
+      saveComposerDraftToStorage('s2', {
+        revision: 1,
+        rawMessage: '',
+        files: [],
+        activeSkills: [],
+        document: createComposerTextDocument('', hasReference ? [reference] : [])
+      })
+
+      try {
+        expect(harness.actions.isInputSubmitDisabled.value).toBe(hasReference)
+        expect(harness.actions.isQueueSubmitDisabled.value).toBe(hasReference)
+
+        harness.sessionId.value = 's2'
+        harness.actions.switchComposerSession('s1', 's2')
+        await nextTick()
+
+        expect(harness.actions.message.value).toBe('')
+        expect(harness.actions.isInputSubmitDisabled.value).toBe(!hasReference)
+        expect(harness.actions.isQueueSubmitDisabled.value).toBe(!hasReference)
+      } finally {
+        harness.stop()
+      }
+    }
+  )
 
   it('adjusts inline offsets when trimming surrounding whitespace', async () => {
     const harness = createHarness()

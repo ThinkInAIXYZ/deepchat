@@ -221,6 +221,9 @@ test('session references survive drafts and retrieve evidence without injecting 
     await expect(app.page.getByTestId('chat-message-assistant')).toContainText(
       'Reference evidence retrieved.'
     )
+    await expect(
+      app.page.getByTestId('chat-input-memory-host').getByTestId('chat-send-button')
+    ).toBeDisabled()
     expect(sawReader).toBe(true)
     expect(referenceRequest).toContain(sourceId)
     expect(referenceRequest).not.toContain('[Session: Launch research')
@@ -271,6 +274,10 @@ test('session references survive drafts and retrieve evidence without injecting 
     await expect(chip).toHaveText('Cross-workspace notes')
     expect(await getActiveSessionId(app.page)).toBe(targetId)
     await openSessionById(app.page, sourceId)
+    await expect(chip).toHaveCount(0)
+    await expect(
+      app.page.getByTestId('chat-input-memory-host').getByTestId('chat-send-button')
+    ).toBeDisabled()
     await openSessionById(app.page, targetId)
     await expect(chip).toHaveText('Cross-workspace notes')
     await expect(app.page.getByTestId('chat-send-button')).toBeEnabled()
@@ -368,6 +375,25 @@ test('session references survive drafts and retrieve evidence without injecting 
       'Reference evidence retrieved.'
     )
     await expect(sentChip).toHaveText('Launch research')
+    await app.page.evaluate(
+      (sessionId) => window.deepchat.invoke('sessions.delete', { sessionId }),
+      sourceId
+    )
+    await sentChip.click()
+    const unavailable = app.page.getByText(
+      /This session was deleted, reset, or is no longer available\.|该会话已删除、重置或不再可用。/
+    )
+    await expect(unavailable).toBeVisible()
+    await expect(
+      app.page.getByText(/^(Session reference unavailable|会话引用不可用)$/)
+    ).toBeVisible()
+    await app.page
+      .locator('[data-sonner-toast]')
+      .filter({ has: unavailable })
+      .screenshot({
+        path: resolve(artifacts, 'session-reference-unavailable.png'),
+        animations: 'disabled'
+      })
     expect(app.pageErrors).toEqual([])
   } finally {
     releaseStream?.()

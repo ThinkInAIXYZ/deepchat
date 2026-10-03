@@ -275,8 +275,8 @@ const openSessionReference = async (sessionId: string, tapeIncarnationId: string
     notifyRenderer({
       kind: 'error',
       code: 'chat.sessionReference.unavailable',
-      title: t('common.error.operationFailed'),
-      description: t('chat.collaboration.errors.session_unavailable')
+      title: t('chat.sessionReference.unavailableTitle'),
+      description: t('chat.sessionReference.unavailableDescription')
     })
   }
 }
