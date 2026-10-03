@@ -51,19 +51,24 @@ export class SessionReferences {
   ) {}
 
   searchCandidates(input: { projectDir: string | null; query: string; excludeSessionId?: string }) {
-    return this.database
-      .getDatabase()
+    const db = this.database.getDatabase()
+    // SQLite lower() only folds ASCII. Fold titles one row at a time inside the query so
+    // Unicode matches still happen before LIMIT without materializing every session in JS.
+    db.function('deepchat_reference_title_lower', { deterministic: true }, (title: string) =>
+      title.toLowerCase()
+    )
+    return db
       .prepare(`
       SELECT id AS sessionId, substr(title, 1, 1024) AS title, project_dir AS projectDir, agent_id AS agentId,
              updated_at AS updatedAt
       FROM new_sessions WHERE session_kind = 'regular' AND is_draft = 0
-        AND project_dir IS ? AND instr(lower(title), lower(?)) > 0
+        AND project_dir IS ? AND instr(deepchat_reference_title_lower(title), ?) > 0
         AND (? IS NULL OR id <> ?)
       ORDER BY updated_at DESC, id ASC LIMIT 20
     `)
       .all(
         input.projectDir,
-        input.query.trim(),
+        input.query.trim().toLowerCase(),
         input.excludeSessionId ?? null,
         input.excludeSessionId ?? null
       )

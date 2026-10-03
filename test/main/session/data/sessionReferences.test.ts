@@ -490,6 +490,18 @@ describeIfNativeSqlite('SessionReferences', () => {
     ])
   })
 
+  it('matches Unicode title casing in either direction without ignoring accents', () => {
+    addSession('swedish', { title: 'Ärende' })
+    addSession('plain', { title: 'Arende' })
+    addSession('cyrillic', { title: 'заметки' })
+    expect(reader.searchCandidates({ projectDir: '/workspace', query: 'är' })).toEqual([
+      expect.objectContaining({ sessionId: 'swedish', title: 'Ärende' })
+    ])
+    expect(reader.searchCandidates({ projectDir: '/workspace', query: 'ЗАМ' })).toEqual([
+      expect.objectContaining({ sessionId: 'cyrillic', title: 'заметки' })
+    ])
+  })
+
   it('bounds huge-message materialization and rejects invalid action arguments', async () => {
     grant()
     const long = `${'irrelevant '.repeat(100_000)}needle at end`
