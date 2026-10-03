@@ -143,18 +143,18 @@ export function buildEditedUserContent(
     delete next.content
   } else if (Array.isArray(next.content)) {
     let replaced = false
-    const mapped = next.content.map((item) => {
+    const mapped = next.content.flatMap((item) => {
       if (
-        !replaced &&
         item &&
         typeof item === 'object' &&
         !Array.isArray(item) &&
         (item as { type?: unknown }).type === 'text'
       ) {
+        if (replaced) return []
         replaced = true
-        return { ...(item as Record<string, unknown>), content: text }
+        return [{ ...(item as Record<string, unknown>), content: text }]
       }
-      return item
+      return [item]
     })
     if (!replaced) mapped.unshift({ type: 'text', content: text })
     next.content = mapped

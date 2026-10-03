@@ -313,6 +313,10 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   ): Promise<PendingSessionInputRecord> {
     this.requireSession(sessionId)
     const normalizedInput = normalizeSendMessageInput(content)
+    // Queue edits distinguish omitted references from an explicit removal of every reference.
+    if (typeof content !== 'string' && Array.isArray(content.inlineItems)) {
+      normalizedInput.inlineItems = content.inlineItems
+    }
     const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
     assertSessionReferencesSupported(runtime.kind, normalizedInput)
     return await runtime.pending.update(itemId, normalizedInput)

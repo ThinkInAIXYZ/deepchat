@@ -225,10 +225,11 @@ export class SessionPendingInputs {
     this.assertQueueInput(sessionId, itemId)
     const original = this.store.getInput(itemId)
     if (!original) throw new Error(`Pending queue item not found: ${itemId}`)
-    const inlineItems = retainEditedSessionGrants(
-      original.payload.inlineItems,
-      input.inlineItems ?? []
-    )
+    const inlineItems = input.inlineItems
+      ? retainEditedSessionGrants(original.payload.inlineItems, input.inlineItems)
+      : (original.payload.inlineItems ?? [])
+          .filter((item) => item.type === 'session')
+          .map((item) => ({ ...item, offset: input.text.length }))
     const record = this.store.updateQueueInput(itemId, { ...input, inlineItems })
     this.emitUpdated(sessionId)
     return record

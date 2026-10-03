@@ -214,6 +214,49 @@ describe('SessionTranscriptMutations', () => {
     expect(calls).toEqual(['cancel', 'invalidate', 'update'])
   })
 
+  it('replaces all legacy text blocks while preserving non-text blocks and attachments', async () => {
+    const mention = { type: 'mention', category: 'prompts', id: 'review', content: 'Prompt' }
+    const code = { type: 'code', content: 'const n = 7', language: 'ts' }
+    const files = [{ name: 'notes.txt', path: '/repo/notes.txt' }]
+    const message = {
+      id: 'message-1',
+      sessionId: 's1',
+      orderSeq: 7,
+      role: 'user',
+      content: JSON.stringify({
+        text: 'FirstSecondThird',
+        files,
+        content: [
+          mention,
+          { type: 'text', content: 'First' },
+          code,
+          { type: 'text', content: 'Second' },
+          { type: 'text', content: 'Third' }
+        ]
+      })
+    }
+    const mutations = new SessionTranscriptMutations({
+      transcript: {
+        getMessage: () => message,
+        updateMessageContent: (_id: string, content: string) => {
+          message.content = content
+        }
+      },
+      runtime: {
+        assertNoActivePendingInputs: vi.fn(),
+        cancelForTranscriptMutation: vi.fn(),
+        invalidateTranscriptFrom: vi.fn()
+      }
+    } as any)
+
+    const saved = await mutations.editUserMessage('s1', 'message-1', 'Replacement')
+    expect(JSON.parse(saved.content)).toMatchObject({
+      text: 'Replacement',
+      files,
+      content: [mention, { type: 'text', content: 'Replacement' }, code]
+    })
+  })
+
   it('does not edit transcript history when active Run cancellation fails', async () => {
     const cancellationError = new Error('cancellation failed')
     const runtime = {
