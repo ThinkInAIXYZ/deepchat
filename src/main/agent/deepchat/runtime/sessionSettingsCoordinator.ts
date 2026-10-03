@@ -164,7 +164,12 @@ export class SessionSettingsCoordinator {
       this.deps.promptSettings,
       providerId,
       modelId,
-      snapshot.generationSettings
+      {
+        ...snapshot.generationSettings,
+        // A complete snapshot must not re-inherit model-level reasoning overrides.
+        thinkingBudget: snapshot.generationSettings.thinkingBudget,
+        reasoningEffort: snapshot.generationSettings.reasoningEffort
+      }
     )
     scope.assertCurrent()
     const currentState = scope.state()

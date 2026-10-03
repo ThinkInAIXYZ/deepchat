@@ -56,6 +56,9 @@ differ from explicitly selecting its default effort. Model settings and session 
 the existing optional fields; no database migration or persistent mode flag is required.
 Drafts distinguish untouched fields from explicitly cleared overrides. Explicit `undefined` fields
 must survive new-session input serialization and draft UI reloads; model changes reset that intent.
+Forks and restored execution snapshots copy complete settings, not incremental overrides. Missing
+reasoning fields in those snapshots must remain cleared even after JSON serialization, rather than
+re-inheriting current model preferences. Fresh session creation still inherits untouched defaults.
 Selecting one control clears its counterpart. Legacy configurations containing both resolve to
 effort, the ordinary control. The request boundary also enforces that rule without rewriting saved
 history. Budget remains an advanced alternative only when the portrait declares it. Provider-local
