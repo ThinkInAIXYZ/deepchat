@@ -1331,6 +1331,24 @@ export class DeepChatTapeEntriesTable
       .all(sessionId, messageId) as DeepChatTapeEntryRow[]
   }
 
+  getProjectedMessageRevision(sessionId: string, messageId: string): number | null {
+    // Compare full content inside SQLite; only the revision crosses the storage boundary.
+    // Without the source index SQLite favors entry ordering and scans newer messages first.
+    const row = this.db
+      .prepare(`
+        SELECT CASE WHEN json_extract(t.payload_json, '$.record.content') =
+          (SELECT m.content FROM deepchat_messages m
+           WHERE m.session_id = @sessionId AND m.id = @messageId)
+          THEN t.entry_id END AS revisionEntryId
+        FROM deepchat_tape_entries t INDEXED BY idx_deepchat_tape_entries_session_source
+        WHERE t.session_id = @sessionId AND t.source_type = 'message'
+          AND t.source_id = @messageId AND t.kind = 'message'
+        ORDER BY t.entry_id DESC LIMIT 1
+      `)
+      .get({ sessionId, messageId }) as { revisionEntryId: number | null } | undefined
+    return row?.revisionEntryId ?? null
+  }
+
   getBootstrapIncarnation(sessionId: string): string | undefined {
     const row = this.db
       .prepare(

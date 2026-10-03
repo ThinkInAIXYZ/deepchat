@@ -94,6 +94,7 @@ export interface TapeEntryStore {
   getEffectiveMessageInputRowsAfter(sessionId: string, afterEntryId: number): DeepChatTapeEntryRow[]
   getByEntryIds(sessionId: string, entryIds: readonly number[]): DeepChatTapeEntryRow[]
   getMessageSourceEntries(sessionId: string, messageId: string): DeepChatTapeEntryRow[]
+  getProjectedMessageRevision(sessionId: string, messageId: string): number | null
   getLatestViewManifestEvent(sessionId: string): DeepChatTapeEntryRow | undefined
   getViewManifestEventsByMessage(sessionId: string, messageId: string): DeepChatTapeEntryRow[]
   getMaxEventSourceSeq(

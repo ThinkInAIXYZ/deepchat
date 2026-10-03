@@ -61,6 +61,10 @@ message's latest Tape entry. A replaced message requires restarting at offset ze
 same-timestamp replacements; unrelated appended messages do not invalidate the continuation.
 If the projected content disagrees with that Tape entry, detail reads fail instead of mixing versions.
 Revision lookup uses the existing per-source index, not a backward scan of the session's messages.
+Session consumes the narrow `TapeSessionReferenceReader` capability, never the physical Tape table.
+Tape's SQLite adapter compares the latest message fact against transcript content and returns only
+the matching revision ID. The bounded transcript slice and revision check share a read transaction;
+full-content comparison stays inside SQLite and cannot observe a different snapshot from the slice.
 Filtering occurs before pagination. Limits bound row count and output size; FTS is preferred for
 search, with scoped literal fallback. No read path loads an entire source transcript into JavaScript.
 Search text is a locator, not necessarily an assistant conclusion; detail preserves block types.

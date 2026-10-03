@@ -4,6 +4,7 @@ import {
   type ReadSessionInput,
   type SessionReference
 } from '@shared/sessionReferences'
+import type { TapeSessionReferenceReader } from '@/tape/ports/capabilities'
 import type { SessionDatabase } from './database'
 
 const PREVIEW_CHARS = 800
@@ -46,7 +47,7 @@ export class SessionReferences {
       SessionDatabase,
       'getDatabase' | 'deepchatSearchDocumentsTable'
     >,
-    private readonly tapeIdentity: { getSessionReferenceIdentity(sessionId: string): string },
+    private readonly tape: TapeSessionReferenceReader,
     private readonly initializeTape: (sessionId: string) => Promise<unknown>
   ) {}
 
@@ -78,11 +79,11 @@ export class SessionReferences {
     this.requireRegularSession(sessionId)
     let incarnation: string
     try {
-      incarnation = this.tapeIdentity.getSessionReferenceIdentity(sessionId)
+      incarnation = this.tape.getSessionReferenceIdentity(sessionId)
     } catch {
       // Selection can reconcile a legacy session once; model reads never initialize another Tape.
       await this.initializeTape(sessionId)
-      incarnation = this.tapeIdentity.getSessionReferenceIdentity(sessionId)
+      incarnation = this.tape.getSessionReferenceIdentity(sessionId)
     }
     if (expectedIncarnation && expectedIncarnation !== incarnation) {
       throw new Error('Session reference is stale because the source session was reset.')
@@ -113,11 +114,14 @@ export class SessionReferences {
     if (!caller) throw new Error('read_session is available only in regular DeepChat sessions.')
     const source: SessionReference = {
       ...this.requireRegularSession(input.sessionId),
-      tapeIncarnationId: this.tapeIdentity.getSessionReferenceIdentity(input.sessionId)
+      tapeIncarnationId: this.tape.getSessionReferenceIdentity(input.sessionId)
     }
     this.assertAuthorized(callerSessionId, source)
     // No await after checking authority/identity: reset and deletion cannot interleave these reads.
-    if (input.action === 'message') return this.readMessage(source, input)
+    if (input.action === 'message') {
+      // The bounded slice and Tape's content comparison must observe the same SQLite snapshot.
+      return this.database.getDatabase().transaction(() => this.readMessage(source, input))()
+    }
     if (input.action === 'context') return this.readContext(source, input)
     return this.readPage(source, input)
   }
@@ -251,19 +255,12 @@ export class SessionReferences {
     if (offset > 0 && !input.revision) {
       throw new Error('Message continuation requires revision from the first chunk at offset 0.')
     }
-    // Without the source index SQLite favors entry ordering and scans newer messages first.
     const row = this.database
       .getDatabase()
       .prepare(`
       SELECT m.id AS messageId, m.role, m.status, m.order_seq AS orderSeq,
         substr(m.content, @offset + 1, ${DETAIL_CHARS}) AS content,
-        length(m.content) AS totalCharacters, json_valid(m.content) AS isJson,
-        (SELECT CASE WHEN json_extract(t.payload_json, '$.record.content') = m.content
-                     THEN t.entry_id END FROM deepchat_tape_entries t
-         INDEXED BY idx_deepchat_tape_entries_session_source
-         WHERE t.session_id = m.session_id AND t.source_type = 'message'
-           AND t.source_id = m.id AND t.kind = 'message'
-         ORDER BY t.entry_id DESC LIMIT 1) AS revisionEntryId
+        length(m.content) AS totalCharacters, json_valid(m.content) AS isJson
       FROM deepchat_messages m WHERE m.session_id = @sessionId AND m.id = @messageId
         AND ${READABLE} AND (@role IS NULL OR m.role = @role)
     `)
@@ -281,19 +278,19 @@ export class SessionReferences {
           content: string
           totalCharacters: number
           isJson: number
-          revisionEntryId: number | null
         }
       | undefined
     if (!row) throw new Error('Referenced message was not found or is not readable.')
-    if (row.revisionEntryId === null) {
+    const revisionEntryId = this.tape.getProjectedMessageRevision(source.sessionId, input.messageId)
+    if (revisionEntryId === null) {
       throw new Error('Referenced message does not match its current Tape revision.')
     }
-    const revision = `${source.tapeIncarnationId}/${row.revisionEntryId}`
+    const revision = `${source.tapeIncarnationId}/${revisionEntryId}`
     if (input.revision && input.revision !== revision) {
       throw new Error('Referenced message changed. Restart this read at offset 0 without revision.')
     }
     if (offset > row.totalCharacters) throw new Error('Message offset exceeds content length.')
-    const { isJson, revisionEntryId: _revisionEntryId, ...message } = row
+    const { isJson, ...message } = row
     const nextOffset = Math.min(offset + DETAIL_CHARS, row.totalCharacters)
     return {
       source,

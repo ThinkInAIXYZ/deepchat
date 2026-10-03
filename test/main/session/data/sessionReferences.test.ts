@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionReferences } from '@/session/data/sessionReferences'
 import { SessionDatabase } from '@/session/data/database'
@@ -64,6 +66,9 @@ describeIfNativeSqlite('SessionReferences', () => {
           const incarnation = incarnations.get(sessionId)
           if (!incarnation) throw new Error('missing tape')
           return incarnation
+        },
+        getProjectedMessageRevision(sessionId: string, messageId: string) {
+          return database.deepchatTapeEntriesTable.getProjectedMessageRevision(sessionId, messageId)
         }
       },
       async (sessionId) => {
@@ -583,6 +588,67 @@ describeIfNativeSqlite('SessionReferences', () => {
     await expect(reader.read('caller', input)).resolves.toMatchObject({
       message: { content: 'B'.repeat(8192) }
     })
+    // A match with an older fact must not hide disagreement with the latest revision.
+    db.prepare('UPDATE deepchat_messages SET content = ? WHERE id = ?').run(
+      'A'.repeat(9000),
+      'long'
+    )
+    await expect(reader.read('caller', input)).rejects.toThrow(/current Tape revision/i)
+  })
+
+  it('keeps the detail slice and revision in one snapshot across concurrent replacement', async () => {
+    grant()
+    addMessage({ id: 'long', orderSeq: 1, content: 'A'.repeat(9000) })
+    const { mkdtempSync, rmSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const dir = mkdtempSync(path.join(tmpdir(), 'session-reference-snapshot-'))
+    const file = path.join(dir, 'session.db')
+    let snapshotDb: InstanceType<typeof DatabaseCtor> | undefined
+    let writer: InstanceType<typeof DatabaseCtor> | undefined
+    try {
+      await db.backup(file)
+      snapshotDb = new DatabaseCtor(file)
+      snapshotDb.pragma('journal_mode = WAL')
+      writer = new DatabaseCtor(file)
+      const snapshotDatabase = new SessionDatabase({ getDatabase: () => snapshotDb! } as never)
+      let replace = true
+      const snapshotReader = new SessionReferences(
+        snapshotDatabase,
+        {
+          getSessionReferenceIdentity: (id) => incarnations.get(id)!,
+          getProjectedMessageRevision(sessionId, messageId) {
+            if (replace) {
+              replace = false
+              writer!.transaction(() => {
+                writer!
+                  .prepare('UPDATE deepchat_messages SET content = ? WHERE id = ?')
+                  .run('B'.repeat(9000), 'long')
+                writer!
+                  .prepare(`INSERT INTO deepchat_tape_entries
+                  (session_id, entry_id, kind, source_type, source_id, payload_json, created_at)
+                  VALUES ('source', 2, 'message', 'message', 'long', ?, 2)`)
+                  .run(JSON.stringify({ record: { content: 'B'.repeat(9000) } }))
+              })()
+            }
+            return snapshotDatabase.deepchatTapeEntriesTable.getProjectedMessageRevision(
+              sessionId,
+              messageId
+            )
+          }
+        },
+        async () => {}
+      )
+      const input = { sessionId: 'source', action: 'message', messageId: 'long' } as const
+      await expect(snapshotReader.read('caller', input)).resolves.toMatchObject({
+        message: { content: 'A'.repeat(8192), revision: 'inc-source/1' }
+      })
+      await expect(snapshotReader.read('caller', input)).resolves.toMatchObject({
+        message: { content: 'B'.repeat(8192), revision: 'inc-source/2' }
+      })
+    } finally {
+      writer?.close()
+      snapshotDb?.close()
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('looks up detail revisions by message rather than walking the session backwards', async () => {
@@ -598,9 +664,7 @@ describeIfNativeSqlite('SessionReferences', () => {
 
     const plan = db.prepare(`EXPLAIN QUERY PLAN ${detailSql}`).all({
       sessionId: 'source',
-      messageId: 'old',
-      offset: 0,
-      role: null
+      messageId: 'old'
     }) as Array<{ detail: string }>
     // The bound lookup predicates matter, not an index's name or wall-clock timing.
     expect(plan.map((row) => row.detail).join('\n')).toContain(

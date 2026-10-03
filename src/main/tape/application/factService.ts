@@ -31,6 +31,7 @@ import type {
   TapeMessageFactWriter,
   TapeProjectionCursor,
   TapeProjectionHeadReader,
+  TapeSessionReferenceReader,
   TapeToolFactAppendReceipt,
   TapeSkillViewResultFactWriter,
   TapeToolFactWriter
@@ -115,6 +116,7 @@ export class TapeFactService
     TapeIncarnationReader,
     TapeMessageFactWriter,
     TapeProjectionHeadReader,
+    TapeSessionReferenceReader,
     TapeAnchorWriter
 {
   constructor(private readonly providers: TapeFactProviders) {}
@@ -209,6 +211,10 @@ export class TapeFactService
       }
     }
     throw new Error('Session Tape bootstrap is missing or invalid.')
+  }
+
+  getProjectedMessageRevision(sessionId: string, messageId: string): number | null {
+    return this.table.getProjectedMessageRevision(sessionId, messageId)
   }
 
   appendSkillViewResultFact(input: TapeSkillViewResultFactInput): TapeSkillViewResultFactReceipt {
