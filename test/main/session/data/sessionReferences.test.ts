@@ -537,6 +537,23 @@ describeIfNativeSqlite('SessionReferences', () => {
     })
   })
 
+  it.each([0, 8192])(
+    'rejects raw NUL at offset %i instead of returning incomplete detail',
+    async (offset) => {
+      grant()
+      const raw = `${'x'.repeat(offset)}\0hidden evidence`
+      addMessage({ id: 'raw-nul', orderSeq: 1, content: raw })
+      await expect(
+        reader.read('caller', { sessionId: 'source', action: 'message', messageId: 'raw-nul' })
+      ).rejects.toThrow(/NUL.*cannot be read safely/)
+      expect(
+        db.prepare('SELECT content FROM deepchat_messages WHERE id = ?').get('raw-nul')
+      ).toEqual({
+        content: raw
+      })
+    }
+  )
+
   it('returns search projections for lists/context without leaking raw assistant JSON or roles', async () => {
     grant()
     addMessage({

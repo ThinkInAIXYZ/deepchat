@@ -290,7 +290,8 @@ export class SessionReferences {
       .prepare(`
       SELECT m.id AS messageId, m.role, m.status, m.order_seq AS orderSeq,
         substr(m.content, @offset + 1, ${DETAIL_CHARS}) AS content,
-        length(m.content) AS totalCharacters, json_valid(m.content) AS isJson
+        CASE WHEN instr(m.content, char(0)) = 0 THEN length(m.content) END AS totalCharacters,
+        json_valid(m.content) AS isJson
       FROM deepchat_messages m WHERE m.session_id = @sessionId AND m.id = @messageId
         AND ${READABLE} AND (@role IS NULL OR m.role = @role)
     `)
@@ -306,11 +307,14 @@ export class SessionReferences {
           status: string
           orderSeq: number
           content: string
-          totalCharacters: number
+          totalCharacters: number | null
           isJson: number
         }
       | undefined
     if (!row) throw new Error('Referenced message was not found or is not readable.')
+    if (row.totalCharacters === null) {
+      throw new Error('Referenced message contains NUL in stored text and cannot be read safely.')
+    }
     const revisionEntryId = this.tape.getProjectedMessageRevision(source.sessionId, input.messageId)
     if (revisionEntryId === null) {
       throw new Error('Referenced message does not match its current Tape revision.')
