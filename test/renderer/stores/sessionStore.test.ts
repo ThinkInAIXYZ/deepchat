@@ -1115,6 +1115,40 @@ describe('sessionStore onboarding progress', () => {
     })
   })
 
+  it.each([true, false])(
+    'recognizes an initial turn with no text when it has a reference=%s',
+    async (hasReference) => {
+      const { store, onboardingClient } = await setupStore({
+        onboardingCurrentStepId: 'first-chat'
+      })
+      await store.createSession({
+        agentId: 'deepchat',
+        message: '',
+        inlineItems: hasReference
+          ? [
+              {
+                type: 'session',
+                offset: 0,
+                sessionId: 'source',
+                title: 'Source',
+                projectDir: null,
+                tapeIncarnationId: 'inc-source'
+              }
+            ]
+          : []
+      })
+
+      expect(store.activeSession.value?.status).toBe(hasReference ? 'working' : 'none')
+      expect(onboardingClient.getState).toHaveBeenCalledTimes(hasReference ? 1 : 0)
+      if (hasReference) {
+        expect(onboardingClient.setStepStatus).toHaveBeenCalledWith({
+          stepId: 'first-chat',
+          status: 'completed'
+        })
+      }
+    }
+  )
+
   it('does not publish a store error when new-session preparation is cancelled', async () => {
     const { store, sessionClient } = await setupStore()
     const abortError = new Error('Aborted')

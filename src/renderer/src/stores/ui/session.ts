@@ -1135,7 +1135,10 @@ export const useSessionStore = defineStore('session', () => {
         : await sessionClient.create(input)
       const session = result.session
       setSearchIntent(session.id, input.search === true)
-      const hasInitialTurn = input.message.trim().length > 0 || (input.files?.length ?? 0) > 0
+      const hasInitialTurn =
+        input.message.trim().length > 0 ||
+        (input.files?.length ?? 0) > 0 ||
+        input.inlineItems?.some((item) => item.type === 'session') === true
       const attachmentPreparation = result.initialTurn?.attachmentPreparation
       const initialTurnNeedsUserAction = attachmentPreparation?.status === 'needs_user_action'
       const hasAcceptedInitialTurn = hasInitialTurn && !initialTurnNeedsUserAction
