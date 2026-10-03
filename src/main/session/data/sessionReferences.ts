@@ -46,7 +46,7 @@ export class SessionReferences {
       SessionDatabase,
       'getDatabase' | 'deepchatSearchDocumentsTable'
     >,
-    private readonly tapeIdentity: { getTapeIncarnationId(sessionId: string): string },
+    private readonly tapeIdentity: { getSessionReferenceIdentity(sessionId: string): string },
     private readonly initializeTape: (sessionId: string) => Promise<unknown>
   ) {}
 
@@ -78,11 +78,11 @@ export class SessionReferences {
     this.requireRegularSession(sessionId)
     let incarnation: string
     try {
-      incarnation = this.tapeIdentity.getTapeIncarnationId(sessionId)
+      incarnation = this.tapeIdentity.getSessionReferenceIdentity(sessionId)
     } catch {
       // Selection can reconcile a legacy session once; model reads never initialize another Tape.
       await this.initializeTape(sessionId)
-      incarnation = this.tapeIdentity.getTapeIncarnationId(sessionId)
+      incarnation = this.tapeIdentity.getSessionReferenceIdentity(sessionId)
     }
     if (expectedIncarnation && expectedIncarnation !== incarnation) {
       throw new Error('Session reference is stale because the source session was reset.')
@@ -113,7 +113,7 @@ export class SessionReferences {
     if (!caller) throw new Error('read_session is available only in regular DeepChat sessions.')
     const source: SessionReference = {
       ...this.requireRegularSession(input.sessionId),
-      tapeIncarnationId: this.tapeIdentity.getTapeIncarnationId(input.sessionId)
+      tapeIncarnationId: this.tapeIdentity.getSessionReferenceIdentity(input.sessionId)
     }
     this.assertAuthorized(callerSessionId, source)
     // No await after checking authority/identity: reset and deletion cannot interleave these reads.

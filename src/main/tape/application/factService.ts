@@ -1,6 +1,12 @@
 import type { AgentTapeHandoffState, ChatMessageRecord } from '@shared/types/agent-interface'
 import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
-import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry'
+import {
+  TAPE_INCARNATION_META_KEY,
+  type DeepChatTapeEntryRow,
+  type TapeAnchorAppendInput
+} from '../domain/entry'
+import { computeTapeIdentity } from '../domain/tapeIdentity'
+import { isRecordObject } from '../domain/primitives'
 import {
   toTapeSessionId,
   type TapeMessageReplacementOptions,
@@ -37,7 +43,7 @@ import {
   appendTapeToolFact,
   assertTapeToolFactPhysicalEnvelope
 } from './factPersistence'
-import { parseJsonObject, readCanonicalTapeIncarnationId } from './common'
+import { parseJsonObject, parseJsonValue, readCanonicalTapeIncarnationId } from './common'
 
 type TapeFactProviders = Pick<TapeApplicationProviders, 'getEntryStore'>
 
@@ -179,6 +185,30 @@ export class TapeFactService
     const incarnation = this.table.getBootstrapIncarnation(sessionId)
     if (!incarnation) throw new Error('Session Tape bootstrap is missing or invalid.')
     return incarnation
+  }
+
+  /** Read-only source identity; legacy hashes must never become runtime incarnation UUIDs. */
+  getSessionReferenceIdentity(sessionId: string): string {
+    const first = this.table.getFirstEntriesBySessions([sessionId])[0]
+    if (first) {
+      const incarnation = readCanonicalTapeIncarnationId(first)
+      if (incarnation) return incarnation
+      const meta = parseJsonValue(first.meta_json)
+      if (
+        first.entry_id === 1 &&
+        first.kind === 'anchor' &&
+        first.name === 'session/start' &&
+        first.source_type === 'session' &&
+        first.source_id === sessionId &&
+        first.source_seq === 0 &&
+        isRecordObject(meta) &&
+        !Object.hasOwn(meta, TAPE_INCARNATION_META_KEY)
+      ) {
+        // Do not stamp the old anchor: its exact bytes identify existing lineage snapshots.
+        return `legacy:${computeTapeIdentity(first)}`
+      }
+    }
+    throw new Error('Session Tape bootstrap is missing or invalid.')
   }
 
   appendSkillViewResultFact(input: TapeSkillViewResultFactInput): TapeSkillViewResultFactReceipt {

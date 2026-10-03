@@ -20,6 +20,11 @@ same `session` inline item: offset, sessionId, title, projectDir, and tapeIncarn
 draft persistence, queueing, sending, and transcript display through the existing inline-items
 path. Labels are snapshots; rename never changes identity. Source reset invalidates the reference.
 References do not copy, summarize, or inject the source history.
+For pre-incarnation Tapes, the reference's `tapeIncarnationId` is an opaque `legacy:` identity
+derived from the unchanged canonical bootstrap row using Tape's existing identity hash. Only a
+genuinely absent marker qualifies; malformed metadata or a present invalid marker is rejected.
+This read-only compatibility path does not stamp old anchors, alter linked histories, or grant
+UUID-only runtime capabilities. Reset replaces it with a new UUID and invalidates old references.
 Search, clipboard text, and text exports retain the reference title and source ID. Editing message
 text preserves attached session references and places them after the replacement text; the existing
 text-only editor does not implicitly remove source grants. Deleting the referencing message removes

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionReferences } from '@/session/data/sessionReferences'
 import { SessionDatabase } from '@/session/data/database'
+import { createSessionDataFromDatabase } from '@/session/data'
 import { DeepChatMessagesTable } from '@/session/data/tables/deepchatMessages'
 import { DeepChatSearchDocumentsTable } from '@/session/data/tables/deepchatSearchDocuments'
 import { DeepChatSessionsTable } from '@/session/data/tables/deepchatSessions'
@@ -59,7 +60,7 @@ describeIfNativeSqlite('SessionReferences', () => {
     return new SessionReferences(
       database,
       {
-        getTapeIncarnationId(sessionId: string) {
+        getSessionReferenceIdentity(sessionId: string) {
           const incarnation = incarnations.get(sessionId)
           if (!incarnation) throw new Error('missing tape')
           return incarnation
@@ -159,6 +160,98 @@ describeIfNativeSqlite('SessionReferences', () => {
   beforeEach(() => {
     addSession('caller')
     addSession('source')
+  })
+
+  it('reads unmarked legacy Tape sources without mutation and revokes their grants on reset', async () => {
+    database.deepchatTranscriptProjectionMetaTable.createTable()
+    database.deepchatTapeSearchProjectionTable.createTable()
+    const table = database.deepchatTapeEntriesTable
+    const bootstrap = table.appendAnchor({
+      sessionId: 'source',
+      name: 'session/start',
+      source: { type: 'session', id: 'source', seq: 0 },
+      state: { owner: 'human' },
+      meta: {},
+      createdAt: 1,
+      idempotent: true
+    })
+    const data = createSessionDataFromDatabase(database, {
+      publishMessagesChanged() {},
+      publishPendingInputsChanged() {}
+    })
+    const liveReader = data.sessionReferences
+    const reference = await liveReader.resolve('source')
+    expect(reference.tapeIncarnationId).toMatch(/^legacy:[0-9a-f]{64}$/)
+    // Historical sources must not be silently promoted to UUID-only runtime authority.
+    expect(() => data.tapeStore.getTapeIncarnationId('source')).toThrow(/bootstrap/i)
+    grant('source', reference.tapeIncarnationId)
+    addMessage({ id: 'old', orderSeq: 1, content: 'old evidence', searchText: 'old evidence' })
+    addMessage({ id: 'new', orderSeq: 2, content: 'new evidence', searchText: 'new evidence' })
+    const before = table.getBySession('source')
+    const first = (await liveReader.read('caller', {
+      sessionId: 'source',
+      action: 'messages',
+      limit: 1
+    })) as Page
+    expect(first.items.map((item) => item.messageId)).toEqual(['old'])
+    await expect(
+      liveReader.read('caller', {
+        sessionId: 'source',
+        action: 'message',
+        messageId: 'old'
+      })
+    ).resolves.toMatchObject({ message: { content: 'old evidence' } })
+    await expect(liveReader.resolve('source')).resolves.toEqual(reference)
+    expect(table.getBySession('source')).toEqual(before)
+    expect(table.getFirstEntriesBySessions(['source'])).toEqual([bootstrap])
+
+    data.tapeStore.resetSessionTape('source')
+    const reset = await liveReader.resolve('source')
+    expect(reset.tapeIncarnationId).toBe(data.tapeStore.getTapeIncarnationId('source'))
+    expect(reset.tapeIncarnationId).not.toBe(reference.tapeIncarnationId)
+    await expect(liveReader.resolve('source', reference.tapeIncarnationId)).rejects.toThrow(
+      /stale/i
+    )
+    await expect(
+      liveReader.read('caller', {
+        sessionId: 'source',
+        action: 'messages'
+      })
+    ).rejects.toThrow(/not authorized/i)
+    grant('source', reset.tapeIncarnationId)
+    await expect(
+      liveReader.read('caller', {
+        sessionId: 'source',
+        action: 'messages',
+        cursor: first.nextCursor!
+      })
+    ).rejects.toThrow(/cursor/i)
+  })
+
+  it.each([
+    ['{bad json', 0],
+    ['null', 0],
+    ['[]', 0],
+    ['{"tapeIncarnationId":null}', 0],
+    ['{"tapeIncarnationId":""}', 0],
+    ['{"tapeIncarnationId":"legacy:forged"}', 0],
+    ['{}', 9]
+  ])('does not treat invalid bootstrap metadata %s / sequence %s as legacy', async (meta, seq) => {
+    const table = database.deepchatTapeEntriesTable
+    table.ensureBootstrapAnchor('source')
+    db.prepare(
+      'UPDATE deepchat_tape_entries SET meta_json = ?, source_seq = ? WHERE session_id = ?'
+    ).run(meta, seq, 'source')
+    const data = createSessionDataFromDatabase(database, {
+      publishMessagesChanged() {},
+      publishPendingInputsChanged() {}
+    })
+    await expect(
+      data.sessionReferences.read('caller', {
+        sessionId: 'source',
+        action: 'messages'
+      })
+    ).rejects.toThrow(/bootstrap.*invalid/i)
   })
 
   it('authorizes only a structured persisted user grant and revokes it on reset or deletion', async () => {

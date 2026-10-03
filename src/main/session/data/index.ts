@@ -123,7 +123,7 @@ export function createSessionDataFromDatabase(
     transcript,
     tape,
     tapeStore,
-    sessionReferences: new SessionReferences(database, tapeStore, (sessionId) =>
+    sessionReferences: new SessionReferences(database, sessionTape, (sessionId) =>
       tape.getTapeInfo(sessionId)
     ),
     programmaticExecutionJournal,
