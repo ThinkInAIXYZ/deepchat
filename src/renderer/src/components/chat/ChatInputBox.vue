@@ -762,6 +762,12 @@ function handleKeydown(e: KeyboardEvent) {
     return
   }
 
+  // IME confirmation belongs to the editor, even while submission is blocked.
+  const isImeComposing = isComposing.value || e.isComposing || e.keyCode === 229
+  if (isImeComposing) {
+    return
+  }
+
   const isPlainTab = e.key === 'Tab' && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey
   if (isResolvingSessionReferences() && ((e.key === 'Enter' && !e.shiftKey) || isPlainTab)) {
     e.preventDefault()
@@ -786,11 +792,6 @@ function handleKeydown(e: KeyboardEvent) {
 
   if (props.submitDisabled) {
     e.preventDefault()
-    return
-  }
-
-  const isImeComposing = isComposing.value || e.isComposing || e.keyCode === 229
-  if (isImeComposing) {
     return
   }
 

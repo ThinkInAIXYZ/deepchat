@@ -595,6 +595,42 @@ describe('ChatInputBox attachments', () => {
     wrapper.unmount()
   })
 
+  it.each(['composition-event', 'isComposing', 'keyCode'])(
+    'preserves IME confirmation with %s while a reference is resolving',
+    async (signal) => {
+      const wrapper = await mountComponent()
+      await wrapper.setProps({ queueSubmitEnabled: true })
+      const deferred = createDeferred<{ reference: object }>()
+      resolveReferenceMock.mockReturnValueOnce(deferred.promise)
+      await wrapper.trigger('drop', {
+        dataTransfer: { types: [SESSION_REFERENCE_DRAG_TYPE], getData: () => 'source' }
+      })
+      const editor = wrapper.get('[data-testid="editor-content"]')
+      if (signal === 'composition-event') await editor.trigger('compositionstart')
+      for (const key of ['Enter', 'Tab']) {
+        const event = new KeyboardEvent('keydown', {
+          key,
+          bubbles: true,
+          cancelable: true,
+          isComposing: signal === 'isComposing',
+          keyCode: signal === 'keyCode' ? 229 : 0
+        })
+        editor.element.dispatchEvent(event)
+        expect(event.defaultPrevented).toBe(false)
+      }
+      expect(wrapper.emitted('submit')).toBeUndefined()
+      expect(wrapper.emitted('queue-submit')).toBeUndefined()
+      if (signal === 'composition-event') await editor.trigger('compositionend')
+      const submit = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+      editor.element.dispatchEvent(submit)
+      expect(submit.defaultPrevented).toBe(true)
+      expect(wrapper.emitted('submit')).toBeUndefined()
+      deferred.resolve({ reference: { sessionId: 'source' } })
+      await flushPromises()
+      wrapper.unmount()
+    }
+  )
+
   it('keeps concurrent drops pending until both references are inserted', async () => {
     const wrapper = await mountComponent()
     const first = createDeferred<{ reference: object }>()
