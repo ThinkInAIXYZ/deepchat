@@ -152,6 +152,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes Y-API as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'yapi',
+        name: 'Y-API',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.y-api.bestvirtualgoods.com/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://y-api.bestvirtualgoods.com/',
+          apiKey: 'https://y-api.bestvirtualgoods.com/app/keys',
+          docs: 'https://y-api.bestvirtualgoods.com/docs',
+          models: 'https://y-api.bestvirtualgoods.com/models',
+          defaultBaseUrl: 'https://api.y-api.bestvirtualgoods.com/v1'
+        })
+      })
+    )
+  })
+
   it('includes API Route as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

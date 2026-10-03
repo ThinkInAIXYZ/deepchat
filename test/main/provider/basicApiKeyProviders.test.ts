@@ -471,6 +471,25 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('resolves Y-API through authenticated OpenAI-compatible model discovery', () => {
+    expect(
+      resolveAiSdkProviderDefinition(
+        createProvider({
+          id: 'yapi',
+          name: 'Y-API',
+          baseUrl: 'https://api.y-api.bestvirtualgoods.com/v1'
+        })
+      )
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none'
+    })
+  })
+
   it('resolves API Route through authenticated OpenAI-compatible model discovery', () => {
     expect(
       resolveAiSdkProviderDefinition(
