@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.1.3-beta.5 (2026-10-03)
+- Reference past conversations in native DeepChat chats with @ or by dragging from the sidebar, so the agent can look up their content when needed
+- File references now show their paths to distinguish same-named files, with smoother keyboard selection and IME input in the @ menu
+- Uploaded files now appear in a separate, collapsible attachment area, and removing one returns focus to the message input
+- Failed edits now keep your draft, and references stay intact through queued messages, retries, copying, searching, and exporting
+- Fixed conflicts between reasoning effort and thinking budget, preserved reasoning settings across conversations, and added checks for invalid budget values
+- Model settings now update with the catalog, without losing available controls when a background refresh fails
+- Fixed device sync getting stuck while enabling it
+- Updated the built-in model and ACP catalogs and corrected the TokenLab documentation link
+- 原生 DeepChat 对话支持用 @ 或从侧栏拖入历史会话，让 Agent 按需查阅之前聊过的内容
+- 文件引用显示路径，方便区分同名文件，并改善 @ 菜单的键盘操作和输入法体验
+- 上传文件集中显示在可折叠的附件栏中，删除附件后可直接继续输入
+- 编辑保存失败时保留草稿，消息排队、重试、复制、搜索和导出时也会保留引用信息
+- 修复推理强度与思考预算冲突、切换对话后设置未保留的问题，并检查预算数值是否有效
+- 模型目录更新后，设置选项随之刷新，后台刷新失败也不会让已有选项消失
+- 修复开启设备同步时一直加载的问题
+- 更新内置模型与 ACP 目录，修正 TokenLab 文档链接
+
 ## v1.1.3-beta.4 (2026-10-02)
 - Removed the built-in agent plan tool and plan progress panel, including ACP plan updates, while keeping existing plan tool records readable
 - Added the FutureInfra provider
