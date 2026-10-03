@@ -256,6 +256,57 @@ describeIfNativeSqlite('SessionReferences', () => {
     expect(resumed.items.map((item) => item.messageId)).not.toContain('appended')
   })
 
+  it.each([
+    ['messages', 1],
+    ['messages', 3],
+    ['search', 1],
+    ['search', 3]
+  ] as const)('rejects %s continuation after compaction shifts from %i', async (action, from) => {
+    grant()
+    for (let index = 1; index <= 4; index++) {
+      addMessage({ id: `m${index}`, orderSeq: index, searchText: `needle ${index}` })
+    }
+    const input = {
+      sessionId: 'source',
+      action,
+      ...(action === 'search' ? { query: 'needle' } : {}),
+      limit: 2
+    }
+    const first = (await reader.read('caller', input)) as Page
+    expect(first.items.map((item) => item.messageId)).toEqual(['m1', 'm2'])
+    expect(first.nextCursor).toEqual(expect.any(String))
+
+    // Use the same mutation as SessionTranscript.shiftMessagesFrom. Shifting only unread
+    // messages also invalidates the high-water, even if the last returned message stays put.
+    messages.incrementOrderSeqFrom('source', from, 100)
+    await expect(
+      makeReader().read('caller', { ...input, cursor: first.nextCursor! })
+    ).rejects.toThrow(/order changed.*without a cursor/i)
+    const restarted = (await reader.read('caller', { ...input, limit: 20 })) as Page
+    expect(restarted.items.map((item) => item.messageId)).toEqual(['m1', 'm2', 'm3', 'm4'])
+  })
+
+  it('allows non-boundary deletion but rejects a removed high-water even if its position is reused', async () => {
+    grant()
+    for (let index = 1; index <= 4; index++) {
+      addMessage({ id: `m${index}`, orderSeq: index, searchText: `needle ${index}` })
+    }
+    const input = { sessionId: 'source', action: 'messages', limit: 2 } as const
+    const first = (await reader.read('caller', input)) as Page
+    db.prepare('DELETE FROM deepchat_messages WHERE id = ?').run('m3')
+    const continued = (await reader.read('caller', {
+      ...input,
+      cursor: first.nextCursor!
+    })) as Page
+    expect(continued.items.map((item) => item.messageId)).toEqual(['m4'])
+
+    db.prepare('DELETE FROM deepchat_messages WHERE id = ?').run('m4')
+    addMessage({ id: 'replacement', orderSeq: 4, searchText: 'new evidence' })
+    await expect(reader.read('caller', { ...input, cursor: first.nextCursor! })).rejects.toThrow(
+      /order changed.*without a cursor/i
+    )
+  })
+
   it('paginates equal order sequences without gaps or duplicates in ascending id order', async () => {
     grant()
     for (const id of ['z', 'a', 'm', 'b']) addMessage({ id, orderSeq: 7, searchText: id })

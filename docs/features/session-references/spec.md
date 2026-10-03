@@ -40,6 +40,9 @@ unavailable tools are errors rather than empty successful histories. A cursor is
 incarnation, query/role, and a fixed transcript high-water mark. Appends do not change the page set;
 edits/deletions can change current evidence and do not resurrect old messages. Message IDs and Tape
 entry IDs are not interchangeable.
+The high-water includes its boundary message identity. Compaction that shifts that boundary, or
+deletion/retry that removes it, rejects continuation with an instruction to restart without a cursor;
+it never silently continues against reused or moved positions.
 
 List/search/context read existing search-text projections with SQL-level text bounds. Details read
 bounded slices of stored message JSON and identify their format and character-offset semantics.

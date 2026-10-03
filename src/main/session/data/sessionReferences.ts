@@ -16,6 +16,7 @@ const cursorSchema = z.object({
   query: z.string().nullable(),
   match: z.enum(['none', 'fts', 'literal']),
   highWater: z.number().int().nonnegative().safe(),
+  highWaterMessageId: z.string().min(1),
   orderSeq: z.number().int().nonnegative().safe(),
   messageId: z.string().min(1)
 })
@@ -132,16 +133,25 @@ export class SessionReferences {
     )
       throw new Error('Invalid read_session cursor for this request scope.')
     const db = this.database.getDatabase()
-    const highWater =
-      cursor?.highWater ??
-      (
-        db
-          .prepare(`
-      SELECT coalesce(max(m.order_seq), 0) AS value FROM deepchat_messages m
-      WHERE m.session_id = ? AND ${READABLE}
-    `)
-          .get(source.sessionId) as { value: number }
-      ).value
+    const boundary = db
+      .prepare(
+        cursor
+          ? `SELECT m.id, m.order_seq FROM deepchat_messages m
+             WHERE m.session_id = ? AND m.id = ?`
+          : `SELECT m.id, m.order_seq FROM deepchat_messages m
+             WHERE m.session_id = ? AND ${READABLE}
+             ORDER BY m.order_seq DESC, m.id DESC LIMIT 1`
+      )
+      .get(...(cursor ? [source.sessionId, cursor.highWaterMessageId] : [source.sessionId])) as
+      | { id: string; order_seq: number }
+      | undefined
+    // Compaction shifts order_seq. A numeric high-water alone would silently repeat or omit
+    // evidence. Anchor it to a message; deletion/retry or reordering requires a fresh page set.
+    if (cursor && boundary?.order_seq !== cursor.highWater) {
+      throw new Error('Session transcript order changed. Restart this read without a cursor.')
+    }
+    const highWater = boundary?.order_seq ?? 0
+    const highWaterMessageId = boundary?.id ?? ''
     const limit = input.limit ?? 20
     let match: Cursor['match'] =
       cursor?.match ??
@@ -162,7 +172,8 @@ export class SessionReferences {
         SELECT ${PREVIEW_COLUMNS}, substr(coalesce(${excerpt}, ''), 1, ${PREVIEW_CHARS}) AS preview
         FROM deepchat_messages m ${DOCUMENT_JOIN}
         ${fts ? 'JOIN deepchat_search_documents_fts ON deepchat_search_documents_fts.rowid = d.rowid' : ''}
-        WHERE m.session_id = @sessionId AND ${READABLE} AND m.order_seq <= @highWater
+        WHERE m.session_id = @sessionId AND ${READABLE}
+          AND (m.order_seq < @highWater OR (m.order_seq = @highWater AND m.id <= @highWaterMessageId))
           AND (@role IS NULL OR m.role = @role)
           ${fts ? 'AND deepchat_search_documents_fts.content MATCH @matchQuery' : mode === 'literal' ? 'AND instr(lower(d.content), lower(@query)) > 0' : ''}
           AND (m.order_seq > @seq OR (m.order_seq = @seq AND m.id > @id))
@@ -171,6 +182,7 @@ export class SessionReferences {
         .all({
           sessionId: source.sessionId,
           highWater,
+          highWaterMessageId,
           role,
           query,
           matchQuery:
@@ -214,6 +226,7 @@ export class SessionReferences {
                 query,
                 match,
                 highWater,
+                highWaterMessageId,
                 orderSeq: last.orderSeq,
                 messageId: last.messageId
               } satisfies Cursor)
