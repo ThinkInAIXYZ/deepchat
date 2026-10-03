@@ -363,6 +363,66 @@ describe('ModelConfigDialog reasoning portraits', () => {
     wrapper.unmount()
   })
 
+  it.each(['', 0.5])('rejects invalid explicit budgets (%s) before saving', async (value) => {
+    const { wrapper, modelConfigStore } = await setup({
+      providerId: 'dashscope',
+      modelId: 'qwen3.8-max',
+      modelName: 'Qwen3.8 Max',
+      modelConfig: { reasoningEffort: undefined, thinkingBudget: 8192 },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'effort',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true,
+        budget: { min: 0, max: 262144 }
+      }
+    })
+    const input = wrapper.findComponent(
+      '[placeholder="settings.model.modelConfig.thinkingBudget.placeholder"]'
+    )
+    input.vm.$emit('update:modelValue', value)
+    await nextTick()
+    await (wrapper.vm as any).handleSave()
+    expect(modelConfigStore.setModelConfig).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain(
+      value === ''
+        ? 'chat.advancedSettings.validation.finiteNumber'
+        : 'chat.advancedSettings.validation.nonNegativeInteger'
+    )
+
+    for (const validValue of [0, 262144]) {
+      input.vm.$emit('update:modelValue', validValue)
+      await nextTick()
+      await (wrapper.vm as any).handleSave()
+      expect(modelConfigStore.setModelConfig.mock.calls.at(-1)![2].thinkingBudget).toBe(validValue)
+    }
+    wrapper.unmount()
+  })
+
+  it('keeps integer auto budgets valid but rejects fractional sentinel lookalikes', async () => {
+    const { wrapper, modelConfigStore } = await setup({
+      providerId: 'gemini',
+      modelId: 'gemini-2.5-flash',
+      modelName: 'Gemini 2.5 Flash',
+      modelConfig: { reasoningEffort: undefined, thinkingBudget: -1 },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'budget',
+        budget: { min: 0, max: 24576, auto: -1 }
+      }
+    })
+    await (wrapper.vm as any).handleSave()
+    expect(modelConfigStore.setModelConfig.mock.calls.at(-1)![2].thinkingBudget).toBe(-1)
+    modelConfigStore.setModelConfig.mockClear()
+    wrapper
+      .findComponent('[placeholder="settings.model.modelConfig.thinkingBudget.placeholder"]')
+      .vm.$emit('update:modelValue', -1.2)
+    await nextTick()
+    await (wrapper.vm as any).handleSave()
+    expect(modelConfigStore.setModelConfig).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('renders the speech recognition model setting for chat models', async () => {
     const { wrapper } = await setup({
       providerId: 'openai',

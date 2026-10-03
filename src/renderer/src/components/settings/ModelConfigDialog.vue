@@ -1865,6 +1865,12 @@ const genericThinkingBudgetError = computed(() => {
       ? ''
       : t('settings.model.modelConfig.thinkingBudget.validation.required')
   }
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return t('chat.advancedSettings.validation.finiteNumber')
+  }
+  if (!Number.isInteger(value)) {
+    return t('chat.advancedSettings.validation.nonNegativeInteger')
+  }
   if (!range) return ''
   if (isThinkingBudgetSentinel(capabilityReasoningPortrait.value, value)) {
     return ''
