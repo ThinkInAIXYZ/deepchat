@@ -23,9 +23,11 @@ source grants. Legacy text-only edits retain their existing re-anchoring behavio
 Uploaded files remain owned by the message's files array. New uploads appear in a separate shelf,
 not automatically in the sentence. Existing inline attachment references remain readable and can be
 restored without losing material. Removing a sentence reference does not remove its material from
-the shelf; removing a shelf item also prunes its legacy inline references. Attachment presentation
-retains representation choices, explicit
-failures, and partial OCR coverage. A sentence reference must not duplicate uploaded material.
+the shelf; removing a shelf item also prunes all its legacy inline references, including duplicates
+restored by undo. Legacy nodes mirror the shelf's representation choice. Attachment presentation
+retains representation choices, explicit failures, and partial OCR coverage. A sentence reference
+must not duplicate uploaded material. While editing a sent message, all retained files and active
+skills stay visible outside the editable sentence, even after their sentence references are removed.
 
 ## Interaction
 
@@ -33,6 +35,8 @@ The @ picker identifies files by basename plus distinguishing path and groups fi
 It exposes loading, empty, workspace-unavailable, and search-failure states. Keyboard selection uses
 arrows and Enter/Tab; Escape closes; IME confirmation never selects or submits. Suggestions take
 precedence over send/queue shortcuts. The picker stays within the available viewport.
+Changing the session, workspace, or agent closes the reference picker and invalidates pending search
+results and selections. A read-only editor cannot accept a previously displayed reference selection.
 
 References share restrained baseline-aligned styling, readable labels, keyboard-accessible details,
 and explicit source-opening actions. Clicking a session reference first opens details, not another

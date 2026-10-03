@@ -394,6 +394,17 @@ describe('MessageItemUser', () => {
     expect(wrapper.get('[data-message-content="true"]').text()).toContain(
       '我想要使用skillA ，把 file.pdf 文件怎么样怎么样'
     )
+
+    // Editing/removing sentence references must not hide the material/skills still used on retry.
+    await wrapper.get('[data-action="edit"]').trigger('click')
+    expect(wrapper.get('[data-testid="user-message-active-skill"]').text()).toBe('skillA')
+    expect(wrapper.get('.attachment-stub').text()).toBe('file.pdf')
+    await wrapper.get('.reference-editor [data-file-attachment] button').trigger('click')
+    await wrapper.get('.reference-editor [data-skill-chip] button').trigger('click')
+    expect(wrapper.find('.reference-editor [data-file-attachment]').exists()).toBe(false)
+    expect(wrapper.find('.reference-editor [data-skill-chip]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="user-message-active-skill"]').text()).toBe('skillA')
+    expect(wrapper.get('.attachment-stub').text()).toBe('file.pdf')
   })
 
   it('uses persisted rich content instead of raw text and inline metadata', async () => {

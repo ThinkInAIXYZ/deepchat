@@ -1,7 +1,9 @@
-import { computed, onMounted, onUnmounted, ref, useId, watch, type Ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, toRaw, useId, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { VueRenderer } from '@tiptap/vue-3'
 import type { Editor, Range } from '@tiptap/core'
+import { PluginKey } from '@tiptap/pm/state'
+import { exitSuggestion } from '@tiptap/suggestion'
 import tippy from 'tippy.js'
 import { createSessionClient } from '@api/SessionClient'
 import { createWorkspaceClient } from '@api/WorkspaceClient'
@@ -93,6 +95,7 @@ const normalizeAcpCommands = (commands: unknown): AcpSessionCommand[] => {
 export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   const { t } = useI18n()
   const suggestionListId = useId()
+  const referenceSuggestionKey = new PluginKey('chatInputReferences')
   const activeSuggestionId = ref<string | null>(null)
   const workspaceClient = createWorkspaceClient()
   const sessionClient = createSessionClient()
@@ -106,6 +109,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   const suggestionLoading = ref(false)
   const referenceSearchFailed = ref(false)
   let referenceSearchSequence = 0
+  let referenceItems = new Set<AtSuggestionItem>()
   // The menu may only claim Enter/Tab while it can act on them: an open menu that has nothing to
   // pick (or is still resolving items) must not block sending the draft.
   const hasSelectableSuggestions = computed(
@@ -553,17 +557,21 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   }
 
   const atSuggestion = {
+    pluginKey: referenceSuggestionKey,
     char: '@',
     allowedPrefixes: [' ', '\n'],
     items: async ({ query }: { query: string }) => {
       const sequence = ++referenceSearchSequence
+      referenceItems.clear()
       referenceSearchFailed.value = false
       const results = await Promise.allSettled([searchWorkspaceFiles(query), searchSessions(query)])
-      if (sequence === referenceSearchSequence)
-        referenceSearchFailed.value = results.some((result) => result.status === 'rejected')
-      return results.flatMap<AtSuggestionItem>((result) =>
+      if (sequence !== referenceSearchSequence) return []
+      referenceSearchFailed.value = results.some((result) => result.status === 'rejected')
+      const items = results.flatMap<AtSuggestionItem>((result) =>
         result.status === 'fulfilled' ? result.value : []
       )
+      referenceItems = new Set(items)
+      return items
     },
     command: ({
       editor,
@@ -574,6 +582,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       range: Range
       props: AtSuggestionItem
     }) => {
+      if (!editor.isEditable || !referenceItems.has(toRaw(props))) return
       markSuggestionSelected()
       if (props.category === 'file') {
         editor
@@ -643,6 +652,22 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   }
 
   watch(
+    () => [
+      options.sessionId.value,
+      options.workspacePath.value,
+      options.agentId.value,
+      options.isAcpSession.value
+    ],
+    () => {
+      referenceSearchSequence += 1
+      referenceItems.clear()
+      const editor = options.getEditor()
+      if (editor && !editor.isDestroyed) exitSuggestion(editor.view, referenceSuggestionKey)
+    },
+    { flush: 'sync' }
+  )
+
+  watch(
     () => options.workspacePath.value,
     (workspacePath) => {
       if (!workspacePath || workspacePath !== registeredWorkspacePath.value) {
@@ -678,6 +703,8 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   })
 
   onUnmounted(() => {
+    referenceSearchSequence += 1
+    referenceItems.clear()
     unsubscribeAcpCommandsReady?.()
     unsubscribeAcpCommandsReady = null
   })

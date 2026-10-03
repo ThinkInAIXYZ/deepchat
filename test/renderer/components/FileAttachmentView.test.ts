@@ -164,7 +164,7 @@ describe('FileAttachmentView', () => {
       .vm.$emit('update:modelValue', 'ocr_text')
     await wrapper.vm.$nextTick()
 
-    expect(updateAttributes).toHaveBeenCalledWith({ requestedRepresentation: 'ocr_text' })
+    expect(updateAttributes).not.toHaveBeenCalled()
     expect(actions.setFileRepresentation).toHaveBeenCalledWith('/tmp/report.pdf', 'ocr_text')
   })
 
@@ -261,7 +261,7 @@ describe('FileAttachmentView', () => {
     wrapper.findComponent({ name: 'DropdownMenuRadioGroup' }).vm.$emit('update:modelValue', 'image')
     await wrapper.vm.$nextTick()
 
-    expect(updateAttributes).toHaveBeenCalledWith({ requestedRepresentation: 'image' })
+    expect(updateAttributes).not.toHaveBeenCalled()
     expect(actions.setFileRepresentation).toHaveBeenCalledWith('/tmp/scan.png', 'image')
   })
 

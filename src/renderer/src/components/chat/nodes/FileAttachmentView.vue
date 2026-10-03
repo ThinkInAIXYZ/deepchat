@@ -70,7 +70,6 @@ function handleRepresentationChange(preference: AttachmentRepresentationPreferen
     return
   }
 
-  props.updateAttributes({ requestedRepresentation: preference })
   actions?.setFileRepresentation?.(filePath, preference)
 }
 

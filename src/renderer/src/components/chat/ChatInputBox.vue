@@ -494,27 +494,38 @@ function syncSkillNodes() {
   })
 }
 
-/** Remove legacy inline attachment nodes after their backing file is removed. */
+/** Keep every legacy inline reference consistent with its authoritative shelf material. */
 function syncFileNodes() {
   if (isSyncingNodes) return
 
   syncEditorContent(() => {
-    const existing = new Map<string, InlineNodeRange>()
+    const currentFiles = new Map(
+      files.selectedFiles.value.map((file) => [file.path || file.name, file])
+    )
+    const removed: InlineNodeRange[] = []
+    const tr = editor.state.tr
 
     editor.state.doc.descendants((node, pos) => {
       if (node.type.name === 'fileAttachment') {
-        const path = node.attrs.filePath as string
-        existing.set(path, { pos, size: node.nodeSize })
+        const file = currentFiles.get(node.attrs.filePath as string)
+        if (!file) {
+          removed.push({ pos, size: node.nodeSize })
+        } else if (
+          (node.attrs.requestedRepresentation || 'auto') !==
+          (file.requestedRepresentation || 'auto')
+        ) {
+          tr.setNodeMarkup(pos, undefined, {
+            ...node.attrs,
+            requestedRepresentation: file.requestedRepresentation || 'auto'
+          })
+        }
       }
     })
 
-    const currentPaths = new Set(files.selectedFiles.value.map((file) => file.path || file.name))
-
-    deleteInlineNodes(
-      Array.from(existing.entries())
-        .filter(([path]) => !currentPaths.has(path))
-        .map(([, range]) => range)
-    )
+    for (const { pos, size } of removed.reverse()) tr.delete(pos, pos + size)
+    if (tr.docChanged) {
+      editor.view.dispatch(tr.setMeta(CHAT_INPUT_SYNC_META, true).setMeta('addToHistory', false))
+    }
   })
 }
 

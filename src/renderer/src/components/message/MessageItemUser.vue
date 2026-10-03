@@ -227,12 +227,14 @@ const inlineFileKeys = computed(
 
 const standaloneActiveSkills = computed(() =>
   (props.message.content.activeSkills ?? []).filter(
-    (skillName) => !inlineSkillNames.value.has(skillName)
+    (skillName) => isEditMode.value || !inlineSkillNames.value.has(skillName)
   )
 )
 
 const standaloneFiles = computed(() =>
-  props.message.content.files.filter((file) => !inlineFileKeys.value.has(file.path || file.name))
+  props.message.content.files.filter(
+    (file) => isEditMode.value || !inlineFileKeys.value.has(file.path || file.name)
+  )
 )
 
 const isCollapsible = computed(() => renderedContentHeight.value > COLLAPSE_HEIGHT_PX)

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, inject, ref, nextTick } from 'vue'
+import { Schema } from '@tiptap/pm/model'
+import { EditorState } from '@tiptap/pm/state'
+import { closeHistory, history, undo } from '@tiptap/pm/history'
 import { CHAT_INPUT_WORKSPACE_ITEM_MIME } from '@/lib/chatInputWorkspaceReference'
 import { SESSION_REFERENCE_DRAG_TYPE } from '@shared/sessionReferences'
 import {
@@ -199,7 +202,10 @@ vi.mock('@tiptap/extension-text', () => ({ default: {} }))
 vi.mock('@tiptap/extension-placeholder', () => ({ default: { configure: () => ({}) } }))
 vi.mock('@tiptap/extension-hard-break', () => ({ default: { extend: () => ({}) } }))
 vi.mock('@tiptap/extension-history', () => ({ default: {} }))
-vi.mock('@tiptap/pm/state', () => ({ TextSelection: { atEnd: () => ({}) } }))
+vi.mock('@tiptap/pm/state', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tiptap/pm/state')>()),
+  TextSelection: { atEnd: () => ({}) }
+}))
 
 vi.mock('@/components/chat/composables/useChatInputFiles', () => ({
   useChatInputFiles: () => ({
@@ -987,6 +993,66 @@ describe('ChatInputBox attachments', () => {
 
     expect(closeDialogMock).toHaveBeenCalled()
   })
+
+  it.each([false, true])(
+    'synchronizes legacy materials through undo (remove a reference first: %s)',
+    async (removeReferenceFirst) => {
+      const file = { name: 'file.pdf', path: '/tmp/file.pdf', mimeType: 'application/pdf' }
+      const wrapper = await mountComponent({ files: [file] })
+      const editor = lastEditorInstance
+      const schema = new Schema({
+        nodes: {
+          doc: { content: 'paragraph+' },
+          paragraph: { content: 'inline*', group: 'block' },
+          text: { group: 'inline' },
+          fileAttachment: {
+            inline: true,
+            group: 'inline',
+            atom: true,
+            attrs: { filePath: {}, requestedRepresentation: { default: 'auto' } }
+          }
+        }
+      })
+      const attachment = schema.node('fileAttachment', { filePath: file.path })
+      editor.state = EditorState.create({
+        schema,
+        doc: schema.node('doc', null, [
+          schema.node('paragraph', null, [
+            schema.text('before '),
+            attachment,
+            schema.text(' after')
+          ])
+        ]),
+        plugins: [history()]
+      })
+      editor.view.dispatch = (tr: any) => {
+        editor.state = editor.state.apply(tr)
+        lastEditorOptions.onUpdate({ editor, transaction: tr })
+      }
+      const attachments = () => {
+        const result: any[] = []
+        editor.state.doc.descendants((node: any) => {
+          if (node.type.name === 'fileAttachment') result.push(node.attrs)
+        })
+        return result
+      }
+      // Repeated references share one material, but occupy different document positions.
+      editor.view.dispatch(editor.state.tr.insert(2, attachment))
+      expect(attachments()).toHaveLength(2)
+      await wrapper.setProps({ files: [{ ...file, requestedRepresentation: 'ocr_text' }] })
+      expect(attachments().map((attrs) => attrs.requestedRepresentation)).toEqual([
+        'ocr_text',
+        'ocr_text'
+      ])
+      if (removeReferenceFirst) editor.view.dispatch(closeHistory(editor.state.tr.delete(2, 3)))
+      await wrapper.setProps({ files: [] })
+      expect(attachments()).toEqual([])
+      expect(undo(editor.state, editor.view.dispatch)).toBe(true)
+      expect(attachments()).toEqual([])
+      expect(editor.state.doc.textContent).toBe('before  after')
+      wrapper.unmount()
+    }
+  )
 
   it('does not reconcile inline nodes for internal sync transactions', async () => {
     const wrapper = await mountComponent()

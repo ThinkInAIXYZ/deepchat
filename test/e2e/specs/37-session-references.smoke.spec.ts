@@ -349,6 +349,47 @@ test('session references survive drafts and retrieve evidence without injecting 
       })
     ).toHaveCount(0)
 
+    // Restore the legacy inline representation without changing its backing uploaded material.
+    const attachmentMessageId = await sentAttachment.getAttribute('data-message-id')
+    await app.page.evaluate(
+      async ({ sessionId, messageId }) => {
+        const { messages } = await window.deepchat.invoke('sessions.restore', { sessionId })
+        const message = messages.find((item) => item.id === messageId)!
+        const content = JSON.parse(message.content)
+        const file = content.files[0]
+        await window.deepchat.invoke('sessions.editUserMessage', {
+          sessionId,
+          messageId: message.id,
+          text: content.text,
+          inlineItems: [
+            {
+              type: 'file',
+              offset: 0,
+              fileName: file.name,
+              filePath: file.path,
+              mimeType: file.mimeType
+            }
+          ]
+        })
+      },
+      { sessionId: workspaceSessionId, messageId: attachmentMessageId }
+    )
+    await app.page.reload()
+    await waitForAppReady(app.page)
+    await expect(sentAttachment.getByTestId('chat-attachment-item')).toHaveCount(0)
+    await sentAttachment.hover()
+    await sentAttachment.getByRole('button', { name: /Edit|编辑/ }).click()
+    const attachmentEditor = sentAttachment.getByRole('textbox')
+    await expect(attachmentEditor.locator('[data-file-attachment]')).toHaveCount(1)
+    await attachmentEditor.getByRole('button', { name: /Delete|删除/ }).click()
+    await expect(attachmentEditor.locator('[data-file-attachment]')).toHaveCount(0)
+    await expect(sentAttachment.getByTestId('chat-attachment-item')).toBeVisible()
+    await expect(sentAttachment.getByTestId('chat-attachment-item')).toContainText(
+      'composer-attachment.png'
+    )
+    await app.page.screenshot({ path: resolve(artifacts, 'composer-review-edit-material.png') })
+    await attachmentEditor.press('Escape')
+
     const longMessage = Array.from(
       { length: 18 },
       (_, index) => `Section ${index + 1}: Composer verification 文本高度与展开行为。`
