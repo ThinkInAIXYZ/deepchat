@@ -105,7 +105,9 @@ export function applyAcceptedComposerSubmission(
     return {
       ...copyComposerDraft(current),
       files,
-      document: removeDocumentNodes(current.document, submitted.files, [], submitted.inlineItems)
+      // A reinserted reference can have the same source identity as a submitted one. Preserve
+      // inline draft content after edits, just as we preserve its text and active skills.
+      document: removeDocumentNodes(current.document, submitted.files, [])
     }
   }
 

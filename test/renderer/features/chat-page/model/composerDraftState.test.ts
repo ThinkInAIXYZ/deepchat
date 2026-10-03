@@ -208,4 +208,37 @@ describe('composerDraftState', () => {
       'new-incarnation'
     )
   })
+
+  it('preserves reinserted references after an in-flight edit but clears an unchanged submission', () => {
+    const reference = {
+      type: 'session' as const,
+      offset: 0,
+      sessionId: 'source',
+      title: 'Source',
+      projectDir: null,
+      tapeIncarnationId: 'inc-source'
+    }
+    const current: ComposerSessionDraft = {
+      revision: 2,
+      rawMessage: '',
+      files: [],
+      activeSkills: [],
+      document: {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'sessionReference', attrs: reference }] }]
+      }
+    }
+    const submitted: ComposerSubmissionSnapshot = {
+      ...current,
+      revision: 1,
+      inlineItems: [reference],
+      clearText: true
+    }
+
+    // Deleting and pasting the same reference restores identical content, but not the revision.
+    expect(applyAcceptedComposerSubmission(current, submitted).document).toEqual(current.document)
+    expect(
+      applyAcceptedComposerSubmission(current, { ...submitted, revision: 2 }).document
+    ).toEqual(createComposerTextDocument(''))
+  })
 })
