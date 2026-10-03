@@ -1190,9 +1190,22 @@ export const useSessionStore = defineStore('session', () => {
     commitSessionSnapshot(session)
   }
 
-  async function selectSession(sessionId: string): Promise<void> {
+  async function selectSession(
+    sessionId: string,
+    expectedTapeIncarnationId?: string
+  ): Promise<void> {
     error.value = null
     const requestId = createActivationNavigationRequest()
+    if (expectedTapeIncarnationId !== undefined) {
+      // Reference validation is part of navigation, so newer selections/close cancel it too.
+      try {
+        await sessionClient.resolveReference({ sessionId, expectedTapeIncarnationId })
+      } catch (referenceError) {
+        if (activationNavigationRequestId === requestId) throw referenceError
+        return
+      }
+      if (activationNavigationRequestId !== requestId) return
+    }
     try {
       if (activeSessionId.value && activeSessionId.value !== sessionId) {
         messageStore.clearStreamingState()

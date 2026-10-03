@@ -142,7 +142,6 @@ import MessageContent from './MessageContent.vue'
 import MessageTextContent from './MessageTextContent.vue'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
-import { createSessionClient } from '@api/SessionClient'
 import { getSessionReferenceText } from '@shared/sessionReferences'
 import { useSessionStore } from '@/stores/ui/session'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
@@ -175,7 +174,6 @@ const countExplicitLines = (value: string) => {
 
 const deviceClient = createDeviceClient()
 const windowClient = createWindowClient()
-const sessionClient = createSessionClient()
 const sessionStore = useSessionStore()
 const { t } = useI18n()
 
@@ -272,11 +270,7 @@ const previewFile = (filePath: string) => {
 
 const openSessionReference = async (sessionId: string, tapeIncarnationId: string) => {
   try {
-    await sessionClient.resolveReference({
-      sessionId,
-      expectedTapeIncarnationId: tapeIncarnationId
-    })
-    await sessionStore.selectSession(sessionId)
+    await sessionStore.selectSession(sessionId, tapeIncarnationId)
   } catch {
     notifyRenderer({
       kind: 'error',

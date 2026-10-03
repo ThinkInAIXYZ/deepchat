@@ -36,13 +36,11 @@ import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/vue-3'
 import { useI18n } from 'vue-i18n'
-import { createSessionClient } from '@api/SessionClient'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useSessionStore } from '@/stores/ui/session'
 
 const props = defineProps<NodeViewProps>()
 const { t } = useI18n()
-const sessionClient = createSessionClient()
 const sessionStore = useSessionStore()
 const tooltip = computed(() =>
   [props.node.attrs.projectDir, props.node.attrs.sessionId].filter(Boolean).join('\n')
@@ -54,11 +52,7 @@ function remove() {
 
 async function open() {
   try {
-    await sessionClient.resolveReference({
-      sessionId: props.node.attrs.sessionId,
-      expectedTapeIncarnationId: props.node.attrs.tapeIncarnationId
-    })
-    await sessionStore.selectSession(props.node.attrs.sessionId)
+    await sessionStore.selectSession(props.node.attrs.sessionId, props.node.attrs.tapeIncarnationId)
   } catch {
     notifyRenderer({
       kind: 'error',
