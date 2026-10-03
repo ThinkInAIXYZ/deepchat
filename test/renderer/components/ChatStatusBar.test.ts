@@ -433,6 +433,7 @@ const setup = async (options: SetupOptions = {}) => {
     })
   })
 
+  let draftGenerationSettings = { ...options.draftGenerationSettings }
   const draftStore = reactive({
     providerId: undefined as string | undefined,
     modelId: undefined as string | undefined,
@@ -449,10 +450,13 @@ const setup = async (options: SetupOptions = {}) => {
     verbosity: undefined as 'low' | 'medium' | 'high' | undefined,
     imageGeneration: undefined as ImageGenerationOptions | undefined,
     ...options.draftGenerationSettings,
-    updateGenerationSettings: vi.fn((patch: Record<string, unknown>) =>
+    toGenerationSettings: vi.fn(() => ({ ...draftGenerationSettings })),
+    updateGenerationSettings: vi.fn((patch: Record<string, unknown>) => {
+      draftGenerationSettings = { ...draftGenerationSettings, ...patch }
       Object.assign(draftStore, patch)
-    ),
+    }),
     resetGenerationSettings: vi.fn(() => {
+      draftGenerationSettings = {}
       draftStore.systemPrompt = undefined
       draftStore.temperature = undefined
       draftStore.contextLength = undefined
@@ -504,6 +508,7 @@ const setup = async (options: SetupOptions = {}) => {
   }
 
   const modelClient = {
+    onModelsChanged: vi.fn(() => vi.fn()),
     getModelConfig: vi.fn().mockResolvedValue({
       temperature: 0.7,
       contextLength: 16000,
@@ -859,6 +864,135 @@ const commitNumericInput = async (
 }
 
 describe('ChatStatusBar model and session panels', () => {
+  it('seeds, validates and steps budget overrides within the model range', async () => {
+    const { wrapper, draftStore } = await setup({
+      hasActiveSession: false,
+      modelConfig: { reasoningEffort: undefined, thinkingBudget: undefined },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'effort',
+        effortOptions: ['low', 'high'],
+        budgetExclusiveWithEffort: true,
+        budget: { min: 1024, max: 1300, off: 0 }
+      }
+    })
+    await findThinkingBudgetToggle(wrapper).trigger('click')
+    expect(draftStore.thinkingBudget).toBe(1024)
+    expect(
+      findNumericButton(wrapper, 'thinkingBudget', 'decrement').attributes('disabled')
+    ).toBeDefined()
+
+    for (const [value, message] of [
+      ['1023', 'settings.model.modelConfig.thinkingBudget.validation.minValue'],
+      ['1301', 'settings.model.modelConfig.thinkingBudget.validation.maxValue'],
+      ['1100.5', 'chat.advancedSettings.validation.nonNegativeInteger']
+    ]) {
+      draftStore.updateGenerationSettings.mockClear()
+      await commitNumericInput(wrapper, 'thinkingBudget', value)
+      expect(draftStore.updateGenerationSettings).not.toHaveBeenCalled()
+      expect(draftStore.thinkingBudget).toBe(1024)
+      const input = findNumericInput(wrapper, 'thinkingBudget')
+      expect((input.element as HTMLInputElement).value).toBe(value)
+      expect(input.attributes('aria-invalid')).toBe('true')
+      expect(wrapper.get(`#${input.attributes('aria-describedby')}`).text()).toBe(message)
+    }
+
+    await commitNumericInput(wrapper, 'thinkingBudget', '1299')
+    expect(draftStore.thinkingBudget).toBe(1299)
+    expect(findNumericInput(wrapper, 'thinkingBudget').attributes('aria-invalid')).toBe('false')
+    await findNumericButton(wrapper, 'thinkingBudget', 'increment').trigger('click')
+    expect(draftStore.thinkingBudget).toBe(1300)
+    expect(
+      findNumericButton(wrapper, 'thinkingBudget', 'increment').attributes('disabled')
+    ).toBeDefined()
+
+    await commitNumericInput(wrapper, 'thinkingBudget', '1025')
+    await findNumericButton(wrapper, 'thinkingBudget', 'decrement').trigger('click')
+    expect(draftStore.thinkingBudget).toBe(1024)
+    await commitNumericInput(wrapper, 'thinkingBudget', '0')
+    expect(draftStore.thinkingBudget).toBe(0)
+    await findNumericButton(wrapper, 'thinkingBudget', 'increment').trigger('click')
+    expect(draftStore.thinkingBudget).toBe(1024)
+    wrapper.unmount()
+  })
+
+  it('does not label an old session budget as active on an effort-only transport', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: true,
+      sessionSettings: { thinkingBudget: 8192, reasoningEffort: undefined },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'effort',
+        effort: 'xhigh',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true
+      }
+    })
+    expect(wrapper.get('[data-testid="orchestration-control"]').text()).toContain(
+      'chat.advancedSettings.useDefault'
+    )
+    expect(wrapper.find('[data-setting-control="thinkingBudget-toggle"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('restores explicit draft clears instead of showing the model effort default', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      modelConfig: { reasoningEffort: 'low', thinkingBudget: undefined },
+      draftGenerationSettings: { reasoningEffort: undefined, thinkingBudget: undefined },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'effort',
+        effort: 'xhigh',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true,
+        budget: { min: 0, max: 262144 }
+      }
+    })
+    expect((wrapper.vm as any).effectiveReasoningEffortValue).toBe('__default')
+    expect(wrapper.get('[data-testid="orchestration-control"]').text()).toContain(
+      'chat.advancedSettings.useDefault'
+    )
+    wrapper.unmount()
+  })
+
+  it('switches between default, effort and advanced budget without retaining the counterpart', async () => {
+    const { wrapper, draftStore } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      modelConfig: { reasoningEffort: undefined, thinkingBudget: undefined },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'effort',
+        effort: 'xhigh',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true,
+        budget: { min: 0, max: 262144 }
+      }
+    })
+    const vm = wrapper.vm as any
+    expect(vm.effectiveReasoningEffortValue).toBe('__default')
+    expect(
+      wrapper
+        .findAll('[data-reasoning-effort]')
+        .map((node) => node.attributes('data-reasoning-effort'))
+    ).toEqual(['__default', 'none', 'low', 'medium', 'xhigh'])
+    await wrapper.find('[data-reasoning-effort="low"]').trigger('click')
+    expect(vm.localSettings.reasoningEffort).toBe('low')
+    expect(vm.localSettings.thinkingBudget).toBeUndefined()
+    await wrapper.find('[data-setting-control="thinkingBudget-toggle"]').trigger('click')
+    expect(vm.localSettings.reasoningEffort).toBeUndefined()
+    expect(vm.localSettings.thinkingBudget).toBe(0)
+    expect(vm.reasoningEffortDisplayLabel).toBe('chat.advancedSettings.thinkingBudget')
+    await wrapper.find('[data-reasoning-effort="__default"]').trigger('click')
+    await vi.waitFor(() => expect(draftStore.updateGenerationSettings).toHaveBeenCalled())
+    expect(draftStore.updateGenerationSettings).toHaveBeenLastCalledWith({
+      reasoningEffort: undefined,
+      thinkingBudget: undefined
+    })
+    wrapper.unmount()
+  })
+
   it('shows provider-measured context occupancy for an active DeepChat session', async () => {
     const { wrapper } = await setup({
       hasActiveSession: true,

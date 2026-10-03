@@ -20,7 +20,7 @@ const DEFAULT_VERBOSITY_OPTIONS: SessionGenerationSettings['verbosity'][] = [
   'high'
 ]
 
-export { getReasoningEffortOptions } from '@shared/types/model-db'
+export { getReasoningEffortOptions, hasThinkingBudgetSupport } from '@shared/types/model-db'
 
 export const getVerbosityOptions = (
   portrait: ReasoningPortrait | null | undefined
@@ -45,20 +45,6 @@ export const supportsReasoningEffort = (portrait: ReasoningPortrait | null | und
 
 export const supportsVerbosity = (portrait: ReasoningPortrait | null | undefined): boolean =>
   portrait?.supported !== false && getVerbosityOptions(portrait).length > 0
-
-export const hasThinkingBudgetSupport = (portrait: ReasoningPortrait | null | undefined): boolean =>
-  Boolean(
-    portrait &&
-    portrait.mode !== 'effort' &&
-    portrait.mode !== 'level' &&
-    portrait.mode !== 'fixed' &&
-    portrait.budget &&
-    (portrait.budget.default !== undefined ||
-      portrait.budget.min !== undefined ||
-      portrait.budget.max !== undefined ||
-      portrait.budget.auto !== undefined ||
-      portrait.budget.off !== undefined)
-  )
 
 export const normalizeReasoningEffort = (
   portrait: ReasoningPortrait | null | undefined,

@@ -117,6 +117,7 @@ function createHarness() {
     finishSessionAgentReassignment,
     getDefaultSystemPrompt,
     instance,
+    providerSettings: dependencies.providerSettings,
     revalidateActiveSkillsForAgent,
     runtime,
     sessionStore,
@@ -290,6 +291,43 @@ describe('SessionSettingsCoordinator', () => {
       permissionMode: 'default'
     })
     expect(harness.instance.getGenerationSettings()).toMatchObject(generationSettings)
+  })
+
+  it.each([
+    { reasoningEffort: undefined, thinkingBudget: undefined },
+    { reasoningEffort: undefined, thinkingBudget: 4096 },
+    { reasoningEffort: 'none' as const, thinkingBudget: undefined }
+  ])('preserves snapshot reasoning controls without re-inheriting defaults: %j', async (controls) => {
+    const harness = createHarness()
+    vi.mocked(harness.providerSettings.getModelConfig).mockReturnValue({
+      reasoning: true,
+      reasoningEffort: 'low',
+      thinkingBudget: 8192
+    })
+    const snapshot = harness.providerSettings.getCapabilitySnapshot({
+      providerId: 'dashscope', modelId: 'qwen3.8-max'
+    })
+    vi.mocked(harness.providerSettings.getCapabilitySnapshot).mockReturnValue({
+      ...snapshot,
+      supportsReasoningEffort: true,
+      reasoningPortrait: {
+        supported: true, mode: 'effort', effort: 'xhigh',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true,
+        budget: { min: 0, max: 262144 }
+      }
+    })
+    // Persisted execution snapshots lose explicit undefined fields in JSON.
+    const generationSettings = JSON.parse(JSON.stringify({ ...BASE_SETTINGS, ...controls }))
+    await harness.coordinator.applyTurnExecutionSnapshot(SESSION_ID, {
+      providerId: 'dashscope', modelId: 'qwen3.8-max', generationSettings
+    })
+    const restored = harness.instance.getGenerationSettings()!
+    expect(restored.reasoningEffort).toBe(controls.reasoningEffort)
+    expect(restored.thinkingBudget).toBe(controls.thinkingBudget)
+    expect(harness.sessionStore.updateSessionConfiguration).toHaveBeenCalledWith(
+      SESSION_ID, 'dashscope', 'qwen3.8-max', expect.objectContaining(controls)
+    )
   })
 
   it('refuses to apply a turn snapshot after generation has started', async () => {

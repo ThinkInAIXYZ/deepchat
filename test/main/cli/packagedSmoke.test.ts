@@ -236,23 +236,31 @@ describe('packaged CLI smoke', () => {
         stdout: expect.stringContaining('"code":"permission_denied"')
       })
 
-      const activeCli = runPackagedCli([
-        'model',
-        'invoke',
-        '--provider',
-        'fixture-provider',
-        '--model',
-        'fixture-model',
-        '--prompt',
-        'wait-for-shutdown',
-        '--jsonl'
+      // Observe rejection immediately: the CLI can exit before server cleanup finishes.
+      const activeCli = Promise.allSettled([
+        runPackagedCli([
+          'model',
+          'invoke',
+          '--provider',
+          'fixture-provider',
+          '--model',
+          'fixture-model',
+          '--prompt',
+          'wait-for-shutdown',
+          '--jsonl'
+        ])
       ])
       await shutdownDispatchStarted
       await server.stop()
-      await expect(activeCli).rejects.toMatchObject({
-        code: 3,
-        stdout: expect.stringContaining('"code":"unavailable"')
-      })
+      expect(await activeCli).toMatchObject([
+        {
+          status: 'rejected',
+          reason: {
+            code: 3,
+            stdout: expect.stringContaining('"code":"unavailable"')
+          }
+        }
+      ])
     } finally {
       await server?.stop()
       await spool.close()

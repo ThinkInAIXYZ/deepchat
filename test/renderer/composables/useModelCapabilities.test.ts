@@ -1,7 +1,9 @@
-import { ref } from 'vue'
+import { defineComponent, effectScope, h, nextTick, ref } from 'vue'
+import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const modelClient = vi.hoisted(() => ({
+  onModelsChanged: vi.fn(() => vi.fn()),
   getCapabilities: vi.fn()
 }))
 
@@ -67,6 +69,171 @@ describe('useModelCapabilities', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
+
+  it('refreshes the current query on catalog updates and discards results after disposal', async () => {
+    const scope = effectScope()
+    modelClient.getCapabilities.mockResolvedValue(createCapabilities())
+    const api = scope.run(() => useModelCapabilities())!
+    const query = { providerId: 'demo', modelId: 'model', reasoningEnabled: false }
+    await api.load(query)
+    const listener = modelClient.onModelsChanged.mock.calls[0][0] as any
+    listener({ reason: 'provider-models', providerId: 'other' })
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(1)
+    modelClient.getCapabilities.mockResolvedValue(
+      createCapabilities({
+        reasoningPortrait: { mode: 'effort', effortOptions: ['none', 'low', 'xhigh'] }
+      })
+    )
+    listener({ reason: 'provider-db-updated' })
+    await vi.waitFor(() =>
+      expect(api.reasoningPortrait.value?.effortOptions).toEqual(['none', 'low', 'xhigh'])
+    )
+    expect(modelClient.getCapabilities).toHaveBeenLastCalledWith(query)
+    const pending = deferred<ReturnType<typeof createCapabilities>>()
+    modelClient.getCapabilities.mockReturnValue(pending.promise)
+    listener({ reason: 'provider-db-updated' })
+    await nextTick()
+    scope.stop()
+    expect(modelClient.onModelsChanged.mock.results[0].value).toHaveBeenCalledTimes(1)
+    pending.resolve(createCapabilities({ supportsReasoning: true }))
+    await pending.promise
+    expect(api.snapshot.value).toBeNull()
+    expect(api.status.value).toBe('idle')
+  })
+
+  it('lets foreground consumers receive their snapshot before a catalog refresh', async () => {
+    const scope = effectScope()
+    const initial = deferred<ReturnType<typeof createCapabilities>>()
+    const updated = deferred<ReturnType<typeof createCapabilities>>()
+    modelClient.getCapabilities
+      .mockReturnValueOnce(initial.promise)
+      .mockReturnValueOnce(updated.promise)
+    const api = scope.run(() => useModelCapabilities())!
+    const foreground = api.load({ providerId: 'demo', modelId: 'model' })
+    const listener = modelClient.onModelsChanged.mock.calls[0][0] as any
+    listener({ reason: 'provider-db-updated' })
+    const firstSnapshot = createCapabilities()
+    initial.resolve(firstSnapshot)
+    expect(await foreground).toEqual(firstSnapshot)
+    await flushPromises()
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(2)
+    updated.resolve(createCapabilities({ supportsReasoning: true }))
+    await flushPromises()
+    expect(api.supportsReasoning.value).toBe(true)
+    scope.stop()
+  })
+
+  it('coalesces event bursts and runs one trailing refresh with the full draft query', async () => {
+    const scope = effectScope()
+    modelClient.getCapabilities.mockResolvedValue(createCapabilities())
+    const api = scope.run(() => useModelCapabilities())!
+    const query = {
+      providerId: 'demo',
+      modelId: 'model',
+      reasoningEnabled: false,
+      routeOverride: { endpointType: 'openai-response' as const }
+    }
+    await api.load(query)
+    const pending = deferred<ReturnType<typeof createCapabilities>>()
+    modelClient.getCapabilities
+      .mockReturnValueOnce(pending.promise)
+      .mockResolvedValueOnce(createCapabilities({ supportsSearch: true }))
+    const listener = modelClient.onModelsChanged.mock.calls[0][0] as any
+    for (let i = 0; i < 100; i++) listener({ reason: 'runtime-refresh', providerId: 'demo' })
+    await nextTick()
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(2)
+    for (let i = 0; i < 100; i++) listener({ reason: 'provider-db-updated' })
+    await nextTick()
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(2)
+    pending.resolve(createCapabilities())
+    await flushPromises()
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(3)
+    expect(modelClient.getCapabilities).toHaveBeenLastCalledWith(query)
+    expect(api.supportsSearch.value).toBe(true)
+
+    listener({ reason: 'provider-db-updated' })
+    scope.stop()
+    await flushPromises()
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(3)
+  })
+
+  it('drops a queued refresh when the model changes without letting a late failure clear it', async () => {
+    const scope = effectScope()
+    modelClient.getCapabilities.mockResolvedValue(createCapabilities())
+    const api = scope.run(() => useModelCapabilities())!
+    await api.load({ providerId: 'demo', modelId: 'old' })
+    const pending = deferred<ReturnType<typeof createCapabilities>>()
+    const nextSnapshot = createCapabilities({ supportsSearch: true })
+    modelClient.getCapabilities
+      .mockReturnValueOnce(pending.promise)
+      .mockResolvedValueOnce(nextSnapshot)
+    const listener = modelClient.onModelsChanged.mock.calls[0][0] as any
+    listener({ reason: 'provider-db-updated' })
+    await nextTick()
+    listener({ reason: 'provider-db-updated' })
+    await api.load({ providerId: 'demo', modelId: 'new' })
+    pending.reject(new Error('stale request failed'))
+    await flushPromises()
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(3)
+    expect(api.snapshot.value).toEqual(nextSnapshot)
+    expect(api.queryIdentity.value?.modelId).toBe('new')
+    expect(api.status.value).toBe('ready')
+    scope.stop()
+  })
+
+  it.each([false, true])(
+    'keeps input focus across a background refresh (failure: %s)',
+    async (fails) => {
+      modelClient.getCapabilities.mockResolvedValue(createCapabilities())
+      let api!: ReturnType<typeof useModelCapabilities>
+      const render = vi.fn(() =>
+        api.temperatureControl.value.mode === 'editable' ? h('input') : h('span', 'loading')
+      )
+      const wrapper = mount(
+        defineComponent({
+          setup() {
+            api = useModelCapabilities()
+            return render
+          }
+        }),
+        { attachTo: document.body }
+      )
+      await api.load({ providerId: 'demo', modelId: 'model' })
+      await nextTick()
+      const input = wrapper.get('input').element
+      input.value = '0.75'
+      input.focus()
+      render.mockClear()
+      const pending = deferred<ReturnType<typeof createCapabilities>>()
+      modelClient.getCapabilities.mockReturnValueOnce(pending.promise)
+      const listener = modelClient.onModelsChanged.mock.calls[0][0] as any
+      listener({ reason: 'provider-db-updated' })
+      await flushPromises()
+      expect(document.activeElement).toBe(input)
+      expect(input.isConnected).toBe(true)
+      expect(render).not.toHaveBeenCalled()
+      const failure = new Error('background IPC failure')
+      if (fails) pending.reject(failure)
+      else pending.resolve(createCapabilities({ supportsSearch: true }))
+      await flushPromises()
+      expect(wrapper.get('input').element).toBe(input)
+      expect(input.value).toBe('0.75')
+      expect(document.activeElement).toBe(input)
+      expect(render).toHaveBeenCalledTimes(fails ? 0 : 1)
+      expect(api.status.value).toBe(fails ? 'error' : 'ready')
+      expect(api.error.value).toBe(fails ? failure : null)
+      expect(api.topPControl.value).toEqual({ mode: 'editable' })
+      if (fails) {
+        listener({ reason: 'provider-db-updated' })
+        await flushPromises()
+        expect(api.status.value).toBe('ready')
+        expect(api.error.value).toBeNull()
+        expect(wrapper.get('input').element).toBe(input)
+        expect(document.activeElement).toBe(input)
+      }
+      wrapper.unmount()
+    }
+  )
 
   it('fetches one atomic snapshot and resets when ids are missing', async () => {
     const providerId = ref<string | undefined>('openai')

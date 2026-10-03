@@ -41,8 +41,59 @@ support. Existing renderer selectors consume these facts; the AI SDK adapter own
 
 Both existing selectors offer the actual catalog tiers. Selecting a tier survives saving,
 reopening a session, and generation. Toggle-only and fixed models acquire no fictitious tiers.
+The composer seeds explicit budgets at the non-negative model minimum and bounds step buttons to
+the model range. Invalid numeric drafts remain visible but are not persisted. Declared non-negative
+budget sentinels bypass range bounds; negative legacy sentinels retain their switch-off semantics.
+
+### Exclusive effort and budget controls
+
+PublicProviderConf declares Qwen3.8 effort tiers and an optional token budget. Its
+`reasoning_options[].exclusive_with` names option types in the same list; a declaration in either
+direction makes effort and budget mutually exclusive. Both importers normalize this to
+`budget_exclusive_with_effort`, projected as `ReasoningPortrait.budgetExclusiveWithEffort`.
+Missing metadata does not grant new controls or change existing provider-specific combinations.
+
+For these portraits, catalog defaults describe provider behavior, not client overrides. With no
+user override, omit effort and budget. This matters because the provider's implicit budget can
+differ from explicitly selecting its default effort. Model settings and session settings retain
+the existing optional fields; no database migration or persistent mode flag is required.
+Drafts distinguish untouched fields from explicitly cleared overrides. Explicit `undefined` fields
+must survive new-session input serialization and draft UI reloads; model changes reset that intent.
+Forks, initial delegated children, and restored execution snapshots copy complete settings, not
+incremental overrides. Missing reasoning fields in those snapshots must remain cleared even after
+JSON serialization, rather than re-inheriting current model preferences. Fresh session creation
+without an inherited snapshot still inherits untouched defaults.
+Selecting one control clears its counterpart. Legacy configurations containing both resolve to
+effort, the ordinary control. The request boundary also enforces that rule without rewriting saved
+history. Budget remains an advanced alternative only when the portrait declares it. Provider-local
+identity remains authoritative, including custom endpoints; do not infer support by model family.
+The optional token-budget alternative is exposed only on the OpenAI-compatible transport; Responses
+does not advertise a budget that its adapter cannot send. Effort remains available on supported routes.
+When the active route no longer supports the alternative, settings normalization drops the stale
+budget and the UI must not label it as active.
+
+Catalog updates refresh active capability consumers with stale-response protection and lifecycle
+cleanup. Event refreshes wait for foreground capability loads, coalesce bursts, and retain the
+current snapshot until replacement so editing controls do not unmount. Explicit model/route changes
+still clear stale controls immediately; failures remain distinct from successful capability resolution.
+Failed background refreshes retain the last successful snapshot for the same query, including sampling
+policies, while recording the error. Initial failures without a snapshot do not imply known capabilities.
+Successful refreshes reconcile newly exclusive controls in an open settings dialog using the same
+effort-first rule as initial loading, while preserving a budget-only selection.
+Closed dialogs clear their query and invalidate pending configuration loads. No new polling,
+network request per generation, service, or dependency is introduced.
+
+Acceptance includes fresh defaults, existing dual-field sessions, switching either way, clearing
+overrides, catalog refresh, and unchanged budget-only / Anthropic behavior. Regression checks must
+fail with the relevant normalization or conflict guard removed. Authenticated provider calls are
+separate from captured request and rendered UI checks.
 
 ```text
+BEFORE  Qwen3.8  [Budget only / no effort choices]
+AFTER   Qwen3.8  [Use default / none / low / medium / xhigh]
+        Settings: [Explicit budget: Off/On] [tokens]
+        Effort and budget clear each other; Use default omits both.
+
 BEFORE  GLM-5.3  Reasoning [On]
 AFTER   GLM-5.3  Reasoning [On]  Effort [low / high / max]
 

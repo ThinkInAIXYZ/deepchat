@@ -207,6 +207,9 @@ const mergeReasoningPortraits = (
     if (portrait.supported !== undefined) merged.supported = portrait.supported
     if (portrait.defaultEnabled !== undefined) merged.defaultEnabled = portrait.defaultEnabled
     if (portrait.mode !== undefined) merged.mode = portrait.mode
+    if (portrait.budgetExclusiveWithEffort !== undefined) {
+      merged.budgetExclusiveWithEffort = portrait.budgetExclusiveWithEffort
+    }
     if (portrait.budget) {
       merged.budget = {
         ...merged.budget,
@@ -285,6 +288,7 @@ const portraitFromExtraCapabilities = (
     supported: reasoning.supported,
     defaultEnabled: reasoning.default_enabled,
     mode: reasoning.mode,
+    budgetExclusiveWithEffort: reasoning.budget_exclusive_with_effort,
     budget: reasoning.budget
       ? {
           default: reasoning.budget.default,
@@ -311,6 +315,7 @@ const portraitFromExtraCapabilities = (
         supported: reasoning.supported,
         defaultEnabled: reasoning.default_enabled,
         mode: reasoning.mode,
+        budgetExclusiveWithEffort: reasoning.budget_exclusive_with_effort,
         budget: reasoning.budget
           ? {
               default: reasoning.budget.default,

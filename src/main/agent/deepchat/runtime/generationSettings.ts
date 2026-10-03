@@ -6,6 +6,7 @@ import type { ResolvedModelCapabilitySnapshot } from '@shared/types/model-capabi
 import {
   getReasoningEffectiveEnabledForProvider,
   hasAnthropicReasoningToggle,
+  hasThinkingBudgetSupport,
   isReasoningEffort,
   normalizeAnthropicReasoningVisibilityValue,
   normalizeReasoningEffortValue,
@@ -76,6 +77,15 @@ export function mapPersistedGenerationPatch(
   capabilitySnapshot?: ResolvedModelCapabilitySnapshot
 ): Partial<SessionGenerationSettings> {
   const patch: Partial<SessionGenerationSettings> = {}
+  const snapshot = capabilitySnapshot ?? providerSettings.getCapabilitySnapshot({
+    providerId: sessionRow.provider_id,
+    modelId: sessionRow.model_id
+  })
+  if (snapshot.reasoningPortrait?.budgetExclusiveWithEffort) {
+    // Persisted null means no session override, not a new model-level default.
+    patch.thinkingBudget = undefined
+    patch.reasoningEffort = undefined
+  }
 
   if (sessionRow.system_prompt !== null) {
     patch.systemPrompt = sessionRow.system_prompt
@@ -102,12 +112,6 @@ export function mapPersistedGenerationPatch(
     patch.reasoningEffort = sessionRow.reasoning_effort
   }
   if (sessionRow.reasoning_visibility !== null) {
-    const snapshot =
-      capabilitySnapshot ??
-      providerSettings.getCapabilitySnapshot({
-        providerId: sessionRow.provider_id,
-        modelId: sessionRow.model_id
-      })
     const reasoningVisibility = normalizeReasoningVisibility(
       snapshot.identity.providerId,
       snapshot.reasoningPortrait,
@@ -163,10 +167,12 @@ export function buildPersistedGenerationSettingsPatch(
   if (Object.prototype.hasOwnProperty.call(requestedPatch, 'timeout')) {
     patch.timeout = sanitized.timeout
   }
-  if (Object.prototype.hasOwnProperty.call(requestedPatch, 'thinkingBudget')) {
+  if (
+    Object.prototype.hasOwnProperty.call(requestedPatch, 'thinkingBudget') ||
+    Object.prototype.hasOwnProperty.call(requestedPatch, 'reasoningEffort')
+  ) {
+    // Sanitization can clear the counterpart; persist the pair atomically.
     patch.thinkingBudget = sanitized.thinkingBudget
-  }
-  if (Object.prototype.hasOwnProperty.call(requestedPatch, 'reasoningEffort')) {
     patch.reasoningEffort = sanitized.reasoningEffort
   }
   if (Object.prototype.hasOwnProperty.call(requestedPatch, 'reasoningVisibility')) {
@@ -288,7 +294,8 @@ async function buildDefaultGenerationSettings(
 
   if (snapshot.supportsReasoning) {
     const defaultBudget = normalizeLegacyThinkingBudgetValue(
-      modelConfig.thinkingBudget ?? snapshot.thinkingBudgetRange.default
+      modelConfig.thinkingBudget ??
+        (portrait?.budgetExclusiveWithEffort ? undefined : snapshot.thinkingBudgetRange.default)
     )
     if (defaultBudget !== undefined) {
       defaults.thinkingBudget = defaultBudget
@@ -299,7 +306,8 @@ async function buildDefaultGenerationSettings(
     snapshot.supportsReasoningEffort &&
     (!anthropicReasoningToggle || anthropicReasoningEnabled)
   ) {
-    const rawEffort = modelConfig.reasoningEffort ?? snapshot.reasoningEffortDefault
+    const rawEffort = modelConfig.reasoningEffort ??
+      (portrait?.budgetExclusiveWithEffort ? undefined : snapshot.reasoningEffortDefault)
     const normalizedEffort = normalizeReasoningEffort(
       portrait,
       rawEffort
@@ -429,7 +437,10 @@ export async function sanitizeGenerationSettings(
     }
   }
 
-  if (snapshot.supportsReasoning) {
+  if (
+    snapshot.supportsReasoning &&
+    (!portrait?.budgetExclusiveWithEffort || hasThinkingBudgetSupport(portrait))
+  ) {
     if (Object.prototype.hasOwnProperty.call(patch, 'thinkingBudget')) {
       const raw = patch.thinkingBudget
       if (raw === undefined) {
@@ -438,6 +449,9 @@ export async function sanitizeGenerationSettings(
         const numeric = toValidNonNegativeInteger(raw)
         if (numeric !== undefined) {
           next.thinkingBudget = numeric
+          if (portrait?.budgetExclusiveWithEffort && patch.reasoningEffort === undefined) {
+            delete next.reasoningEffort
+          }
         }
       }
     }
@@ -452,12 +466,15 @@ export async function sanitizeGenerationSettings(
     const fromPatch = Object.prototype.hasOwnProperty.call(patch, 'reasoningEffort')
       ? patch.reasoningEffort
       : next.reasoningEffort
-    const defaultEffort = snapshot.reasoningEffortDefault
+    const defaultEffort = portrait?.budgetExclusiveWithEffort
+      ? undefined
+      : snapshot.reasoningEffortDefault
     const normalizedEffort =
       normalizeReasoningEffort(portrait, fromPatch) ??
       normalizeReasoningEffort(portrait, defaultEffort)
     if (normalizedEffort) {
       next.reasoningEffort = normalizedEffort
+      if (portrait?.budgetExclusiveWithEffort) delete next.thinkingBudget
     } else {
       delete next.reasoningEffort
     }

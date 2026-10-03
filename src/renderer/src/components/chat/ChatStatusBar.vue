@@ -1031,7 +1031,7 @@
                             "
                             :disabled="
                               hasNumericInputError('thinkingBudget') ||
-                              (localSettings.thinkingBudget ?? 0) <= 0
+                              (localSettings.thinkingBudget ?? 0) <= thinkingBudgetMin
                             "
                             @click="stepThinkingBudget(-1)"
                             :tooltip="
@@ -1074,7 +1074,10 @@
                                 label: t('chat.advancedSettings.thinkingBudget')
                               })
                             "
-                            :disabled="hasNumericInputError('thinkingBudget')"
+                            :disabled="
+                              hasNumericInputError('thinkingBudget') ||
+                              (localSettings.thinkingBudget ?? 0) >= thinkingBudgetMax
+                            "
                             @click="stepThinkingBudget(1)"
                             :tooltip="
                               t('chat.advancedSettings.increaseValue', {
@@ -1384,6 +1387,7 @@ const {
   getNumericInputErrorMessage
 } = useGenerationNumericInputs({
   localSettings,
+  thinkingBudgetRange: modelCapabilities.budgetRange,
   t,
   onDraftChange: () => {
     generationLocalRevision += 1
@@ -1828,7 +1832,15 @@ const contextLengthInputValue = computed(() => getNumericInputValue('contextLeng
 const maxTokensInputValue = computed(() => getNumericInputValue('maxTokens'))
 const timeoutInputValue = computed(() => getNumericInputValue('timeout'))
 const thinkingBudgetInputValue = computed(() => getNumericInputValue('thinkingBudget'))
-const isThinkingBudgetEnabled = computed(() => localSettings.value?.thinkingBudget !== undefined)
+const thinkingBudgetMin = computed(() => Math.max(0, modelCapabilities.budgetRange.value?.min ?? 0))
+const thinkingBudgetMax = computed(() => modelCapabilities.budgetRange.value?.max ?? Infinity)
+const isThinkingBudgetEnabled = computed(
+  () =>
+    localSettings.value?.thinkingBudget !== undefined &&
+    (!capabilityReasoningPortrait.value?.budgetExclusiveWithEffort ||
+      (hasThinkingBudgetSupport(capabilityReasoningPortrait.value) &&
+        localSettings.value.reasoningEffort === undefined))
+)
 const isInterleavedThinkingEnabled = computed(
   () => localSettings.value?.forceInterleavedThinkingCompat === true
 )
@@ -1909,10 +1921,13 @@ const showReasoningVisibility = computed(
 )
 
 const effortOptions = computed(() => {
-  return getReasoningEffortOptions(capabilityReasoningPortrait.value).map((value) => ({
+  const options = getReasoningEffortOptions(capabilityReasoningPortrait.value).map((value) => ({
     value,
     label: t(`settings.model.modelConfig.reasoningEffort.options.${value}`)
   }))
+  return capabilityReasoningPortrait.value?.budgetExclusiveWithEffort
+    ? [{ value: '__default', label: t('chat.advancedSettings.useDefault') }, ...options]
+    : options
 })
 const effectiveReasoningEffortValue = computed(
   () =>
@@ -1920,16 +1935,20 @@ const effectiveReasoningEffortValue = computed(
       capabilityReasoningPortrait.value,
       localSettings.value?.reasoningEffort
     ) ??
-    normalizeReasoningEffort(
-      capabilityReasoningPortrait.value,
-      capabilityReasoningPortrait.value?.effort
-    ) ??
-    effortOptions.value[0]?.value
+    (capabilityReasoningPortrait.value?.budgetExclusiveWithEffort
+      ? isThinkingBudgetEnabled.value
+        ? '__budget'
+        : '__default'
+      : (normalizeReasoningEffort(
+          capabilityReasoningPortrait.value,
+          capabilityReasoningPortrait.value?.effort
+        ) ?? effortOptions.value[0]?.value))
 )
-const reasoningEffortDisplayLabel = computed(
-  () =>
-    effortOptions.value.find((option) => option.value === effectiveReasoningEffortValue.value)
-      ?.label ?? t('chat.advancedSettings.useDefault')
+const reasoningEffortDisplayLabel = computed(() =>
+  effectiveReasoningEffortValue.value === '__budget'
+    ? t('chat.advancedSettings.thinkingBudget')
+    : (effortOptions.value.find((option) => option.value === effectiveReasoningEffortValue.value)
+        ?.label ?? t('chat.advancedSettings.useDefault'))
 )
 const orchestrationControlTitle = computed(() => {
   const effort = reasoningEffortDisplayLabel.value
@@ -2216,7 +2235,8 @@ const resolveDefaultGenerationSettings = async (
 
   if (portrait?.supported === true && hasThinkingBudgetSupport(portrait)) {
     const defaultBudget = normalizeLegacyThinkingBudgetValue(
-      modelConfig.thinkingBudget ?? portrait.budget?.default
+      modelConfig.thinkingBudget ??
+        (portrait.budgetExclusiveWithEffort ? undefined : portrait.budget?.default)
     )
     if (defaultBudget !== undefined) {
       defaults.thinkingBudget = defaultBudget
@@ -2237,10 +2257,12 @@ const resolveDefaultGenerationSettings = async (
   if (supportsReasoningEffort(portrait) && anthropicReasoningEnabled) {
     const effort = normalizeReasoningEffort(
       portrait,
-      modelConfig.reasoningEffort ?? getReasoningEffortDefault(portrait)
+      modelConfig.reasoningEffort ??
+        (portrait?.budgetExclusiveWithEffort ? undefined : getReasoningEffortDefault(portrait))
     )
     if (effort) {
       defaults.reasoningEffort = effort
+      if (portrait?.budgetExclusiveWithEffort) delete defaults.thinkingBudget
     }
   }
 
@@ -2325,6 +2347,13 @@ const updateLocalGenerationSettings = (patch: Partial<SessionGenerationSettings>
   generationLocalRevision += 1
 
   const nextPatch = { ...patch }
+  if (capabilityReasoningPortrait.value?.budgetExclusiveWithEffort) {
+    if (nextPatch.reasoningEffort !== undefined) {
+      nextPatch.thinkingBudget = undefined
+    } else if (nextPatch.thinkingBudget !== undefined) {
+      nextPatch.reasoningEffort = undefined
+    }
+  }
   if (isTemperatureFixed.value) {
     delete nextPatch.temperature
   }
@@ -2450,6 +2479,17 @@ const runSyncGenerationSettings = async () => {
   )
   if (token !== generationSyncToken) {
     return
+  }
+  const draftOverrides = draftStore.toGenerationSettings()
+  if (capabilities?.reasoningPortrait?.budgetExclusiveWithEffort && draftOverrides) {
+    if (Object.prototype.hasOwnProperty.call(draftOverrides, 'thinkingBudget')) {
+      defaults.thinkingBudget = draftOverrides.thinkingBudget
+      if (draftOverrides.thinkingBudget !== undefined) defaults.reasoningEffort = undefined
+    }
+    if (Object.prototype.hasOwnProperty.call(draftOverrides, 'reasoningEffort')) {
+      defaults.reasoningEffort = draftOverrides.reasoningEffort
+      if (draftOverrides.reasoningEffort !== undefined) defaults.thinkingBudget = undefined
+    }
   }
   localSettings.value = defaults
   loadedSettingsSelection.value = { ...selection }
@@ -2748,21 +2788,7 @@ async function changeModelSelection(
   const previousDraftSelection = draftModelSelection.value ? { ...draftModelSelection.value } : null
   const previousDraftProviderId = draftStore.providerId
   const previousDraftModelId = draftStore.modelId
-  const previousDraftGenerationSettings = {
-    systemPrompt: draftStore.systemPrompt,
-    temperature: draftStore.temperature,
-    topP: draftStore.topP,
-    contextLength: draftStore.contextLength,
-    maxTokens: draftStore.maxTokens,
-    timeout: draftStore.timeout,
-    thinkingBudget: draftStore.thinkingBudget,
-    reasoningEffort: draftStore.reasoningEffort,
-    reasoningVisibility: draftStore.reasoningVisibility,
-    verbosity: draftStore.verbosity,
-    forceInterleavedThinkingCompat: draftStore.forceInterleavedThinkingCompat,
-    imageGeneration: draftStore.imageGeneration,
-    videoGeneration: draftStore.videoGeneration
-  } as Partial<SessionGenerationSettings>
+  const previousDraftGenerationSettings = draftStore.toGenerationSettings() ?? {}
   const clearedDraftModelOverrides = {
     temperature: undefined,
     topP: undefined,
@@ -2839,19 +2865,6 @@ function onSystemPromptSelect(optionId: string) {
   updateLocalGenerationSettings({ systemPrompt: option.content })
 }
 
-const getNumericValidationContext = (
-  field: GenerationNumericField
-): Pick<SessionGenerationSettings, 'contextLength' | 'maxTokens'> => ({
-  contextLength:
-    field === 'contextLength'
-      ? (localSettings.value?.contextLength ?? 0)
-      : (localSettings.value?.contextLength ?? 0),
-  maxTokens:
-    field === 'maxTokens'
-      ? (localSettings.value?.maxTokens ?? 0)
-      : (localSettings.value?.maxTokens ?? 0)
-})
-
 const commitNumericField = (
   field: GenerationNumericField,
   rawValue: string | number
@@ -2862,7 +2875,11 @@ const commitNumericField = (
     return undefined
   }
 
-  const error = validateGenerationNumericField(field, rawValue, getNumericValidationContext(field))
+  const error = validateGenerationNumericField(field, rawValue, {
+    contextLength: localSettings.value.contextLength,
+    maxTokens: localSettings.value.maxTokens,
+    thinkingBudgetRange: modelCapabilities.budgetRange.value ?? undefined
+  })
   if (error) {
     stopNumericInputEdit(field)
     setNumericInputError(field, error)
@@ -3085,7 +3102,8 @@ function onThinkingBudgetToggle(enabled: boolean) {
     return
   }
 
-  const preferred = normalizeLegacyThinkingBudgetValue(localSettings.value.thinkingBudget) ?? 0
+  const preferred = commitNumericField('thinkingBudget', thinkingBudgetMin.value)
+  if (preferred === undefined) return
   updateLocalGenerationSettings({ thinkingBudget: preferred })
   resetNumericInputFieldState('thinkingBudget')
 }
@@ -3098,7 +3116,10 @@ function stepThinkingBudget(direction: -1 | 1) {
     return
   }
   const current = localSettings.value.thinkingBudget ?? 0
-  const next = Math.max(0, current + direction * THINKING_BUDGET_STEP)
+  const next = Math.min(
+    thinkingBudgetMax.value,
+    Math.max(thinkingBudgetMin.value, current + direction * THINKING_BUDGET_STEP)
+  )
   const committed = commitNumericField('thinkingBudget', next)
   if (committed === undefined) {
     return
@@ -3125,6 +3146,10 @@ function onReasoningEffortSelect(value: string) {
     return
   }
 
+  if (value === '__default') {
+    updateLocalGenerationSettings({ reasoningEffort: undefined, thinkingBudget: undefined })
+    return
+  }
   const normalized = normalizeReasoningEffort(capabilityReasoningPortrait.value, value)
   if (!normalized) {
     return

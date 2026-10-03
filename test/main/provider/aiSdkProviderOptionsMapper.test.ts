@@ -754,6 +754,36 @@ describe('AI SDK provider options', () => {
     })
   })
 
+  it.each([
+    [
+      { reasoningEffort: 'low', thinkingBudget: 8192 },
+      { reasoningEffort: 'low', enable_thinking: true }
+    ],
+    [{ reasoningEffort: 'none', thinkingBudget: 8192 }, { reasoningEffort: 'none' }],
+    [{ thinkingBudget: 8192 }, { enable_thinking: true, thinking_budget: 8192 }],
+    [{}, { enable_thinking: true }]
+  ] as const)('respects exclusive DashScope controls: %j', (modelConfig, expected) => {
+    const result = buildProviderOptions({
+      providerId: 'dashscope',
+      capabilityProviderId: 'alibaba-cn',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_chat',
+      modelId: 'qwen3.8-max',
+      modelConfig,
+      reasoningPortrait: {
+        supported: true,
+        mode: 'effort',
+        effort: 'xhigh',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true,
+        budget: { min: 0, max: 262144, default: 131072 }
+      },
+      tools: [],
+      messages: []
+    })
+    expect(result.providerOptions).toEqual({ openai: expected })
+  })
+
   it('uses supported DashScope portrait defaults for automatic thinking', () => {
     const result = buildProviderOptions({
       providerId: 'dashscope',

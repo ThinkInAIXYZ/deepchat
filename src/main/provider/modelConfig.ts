@@ -221,13 +221,16 @@ export class ModelConfigHelper {
     ).reasoningPortrait
     const reasoningEnabled =
       portrait?.defaultEnabled ?? model.reasoning?.default ?? portrait?.supported ?? false
-    const thinkingBudget =
-      portrait?.budget?.default ?? model.reasoning?.budget?.default ?? undefined
+    const thinkingBudget = portrait?.budgetExclusiveWithEffort
+      ? undefined
+      : (portrait?.budget?.default ?? model.reasoning?.budget?.default ?? undefined)
     const forceInterleavedThinkingCompat = portrait?.interleaved === true ? true : undefined
-    const reasoningEffort = normalizeReasoningEffortValue(
-      portrait,
-      getReasoningEffortDefault(portrait) ?? model.reasoning?.effort
-    )
+    const reasoningEffort = portrait?.budgetExclusiveWithEffort
+      ? undefined
+      : normalizeReasoningEffortValue(
+          portrait,
+          getReasoningEffortDefault(portrait) ?? model.reasoning?.effort
+        )
     const reasoningVisibility = hasAnthropicReasoningToggle(providerId, portrait)
       ? (normalizeAnthropicReasoningVisibilityValue(portrait?.visibility) ??
         normalizeReasoningVisibilityValue(portrait?.visibility))

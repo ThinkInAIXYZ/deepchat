@@ -148,6 +148,7 @@ const setup = async (options: SetupOptions) => {
   const defaultGetCapabilities = ({ modelId }: { providerId: string; modelId: string }) =>
     Promise.resolve(createCapabilityResult(options, modelId))
   const modelClient = {
+    onModelsChanged: vi.fn(() => vi.fn()),
     getCapabilities: vi.fn().mockImplementation(options.getCapabilities ?? defaultGetCapabilities)
   }
 
@@ -273,6 +274,246 @@ describe('ModelConfigDialog custom model persistence', () => {
 })
 
 describe('ModelConfigDialog reasoning portraits', () => {
+  it('preserves reasoning controls and sampling policies after a failed background refresh', async () => {
+    const { wrapper, modelClient, modelConfigStore } = await setup({
+      providerId: 'dashscope',
+      modelId: 'qwen3.8-max',
+      modelName: 'Qwen3.8 Max',
+      modelConfig: { reasoningEffort: undefined, thinkingBudget: 8192, topP: 0.6 },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'effort',
+        effort: 'xhigh',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true,
+        budget: { min: 0, max: 32768, default: 8192 }
+      },
+      requestPolicy: {
+        temperature: { mode: 'fixed', value: 1 },
+        topP: { mode: 'omit' },
+        reasoning: { mode: 'passthrough' },
+        legacyThinking: { mode: 'passthrough' }
+      }
+    })
+    const vm = wrapper.vm as any
+    const budgetSelector = '[placeholder="settings.model.modelConfig.thinkingBudget.placeholder"]'
+    const budgetInput = wrapper.get(budgetSelector).element
+    modelClient.getCapabilities.mockRejectedValueOnce(new Error('background IPC failure'))
+    const listener = modelClient.onModelsChanged.mock.calls[0][0] as any
+    listener({ reason: 'provider-db-updated' })
+    await flushPromises()
+
+    expect(wrapper.get(budgetSelector).element).toBe(budgetInput)
+    expect(vm.supportsReasoningEffort).toBe(true)
+    expect(vm.temperatureControl).toEqual({ mode: 'fixed', value: 1 })
+    expect(vm.topPControl).toEqual({ mode: 'hidden' })
+    expect(vm.temperatureSettingReadOnly).toBe(true)
+    expect(vm.topPSettingReadOnly).toBe(true)
+    expect(vm.isValid).toBe(true)
+    await vm.handleSave()
+    expect(modelConfigStore.setModelConfig.mock.calls.at(-1)![2]).toMatchObject({
+      reasoningEffort: undefined,
+      thinkingBudget: 8192,
+      temperature: 0.7,
+      topP: 0.6
+    })
+    wrapper.unmount()
+  })
+
+  it('stops refreshing a closed mounted dialog and ignores late configuration loads', async () => {
+    const { wrapper, modelClient, modelConfigStore } = await setup({
+      providerId: 'openai',
+      modelId: 'gpt-4.1',
+      modelName: 'GPT-4.1'
+    })
+    const listener = modelClient.onModelsChanged.mock.calls[0][0] as any
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(1)
+    await wrapper.setProps({ open: false })
+    listener({ reason: 'provider-db-updated' })
+    await flushPromises()
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(1)
+
+    const pending = createDeferred<Record<string, unknown>>()
+    modelConfigStore.getModelConfig.mockReturnValueOnce(pending.promise)
+    await wrapper.setProps({ open: true })
+    await wrapper.setProps({ open: false })
+    pending.resolve({ reasoning: true })
+    await flushPromises()
+    listener({ reason: 'provider-db-updated' })
+    await flushPromises()
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(1)
+
+    await wrapper.setProps({ open: true })
+    await flushPromises()
+    expect(modelClient.getCapabilities).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('clears a saved budget when the route only supports effort', async () => {
+    const { wrapper, modelConfigStore } = await setup({
+      providerId: 'dashscope',
+      modelId: 'qwen3.8-max',
+      modelName: 'Qwen3.8 Max',
+      modelConfig: { reasoningEffort: undefined, thinkingBudget: 8192 },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'effort',
+        effort: 'xhigh',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true
+      }
+    })
+    const vm = wrapper.vm as any
+    expect(vm.effectiveReasoningEffort).toBe('__default')
+    expect(wrapper.find('[data-setting-control="thinkingBudget-toggle"]').exists()).toBe(false)
+    await vm.handleSave()
+    expect(modelConfigStore.setModelConfig).toHaveBeenCalled()
+    expect(modelConfigStore.setModelConfig.mock.calls.at(-1)![2].thinkingBudget).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it.each(['low', undefined] as const)(
+    'reconciles exclusive controls after a catalog refresh with effort %s',
+    async (reasoningEffort) => {
+      const options: SetupOptions = {
+        providerId: 'dashscope',
+        modelId: 'qwen3.8-max',
+        modelName: 'Qwen3.8 Max',
+        modelConfig: { reasoningEffort, thinkingBudget: 8192 },
+        reasoningPortrait: {
+          supported: true,
+          mode: 'effort',
+          effortOptions: ['none', 'low', 'medium', 'xhigh'],
+          budget: { min: 0, max: 262144 }
+        }
+      }
+      const { wrapper, modelClient, modelConfigStore } = await setup(options)
+      const vm = wrapper.vm as any
+      expect(vm.config.thinkingBudget).toBe(8192)
+      modelClient.getCapabilities.mockResolvedValue(
+        createCapabilityResult({
+          ...options,
+          reasoningPortrait: { ...options.reasoningPortrait, budgetExclusiveWithEffort: true }
+        })
+      )
+      const listener = modelClient.onModelsChanged.mock.calls[0][0] as any
+      listener({ reason: 'provider-db-updated' })
+      await flushPromises()
+
+      const expectedBudget = reasoningEffort === undefined ? 8192 : undefined
+      expect(vm.effectiveReasoningEffort).toBe(reasoningEffort ?? '__budget')
+      expect(
+        wrapper
+          .find('[placeholder="settings.model.modelConfig.thinkingBudget.placeholder"]')
+          .exists()
+      ).toBe(reasoningEffort === undefined)
+      await vm.handleSave()
+      expect(modelConfigStore.setModelConfig).toHaveBeenCalledOnce()
+      expect(modelConfigStore.setModelConfig.mock.calls[0][2]).toMatchObject({
+        reasoningEffort,
+        thinkingBudget: expectedBudget
+      })
+      wrapper.unmount()
+    }
+  )
+
+  it('offers default, effort and an explicit alternative budget without inventing defaults', async () => {
+    const { wrapper, modelConfigStore } = await setup({
+      providerId: 'dashscope',
+      modelId: 'qwen3.8-max',
+      modelName: 'Qwen3.8 Max',
+      modelConfig: { reasoningEffort: undefined, thinkingBudget: undefined },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'effort',
+        effort: 'xhigh',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true,
+        budget: { min: 0, max: 262144 }
+      }
+    })
+    const vm = wrapper.vm as any
+    expect(vm.effectiveReasoningEffort).toBe('__default')
+    expect(vm.config.thinkingBudget).toBeUndefined()
+    expect(vm.genericThinkingBudgetError).toBe('')
+    expect(wrapper.find('[value="__default"]').exists()).toBe(true)
+    const toggle = wrapper.findComponent('[data-setting-control="thinkingBudget-toggle"]')
+    toggle.vm.$emit('update:modelValue', true)
+    await flushPromises()
+    vm.effectiveThinkingBudget = 8192
+    expect(vm.effectiveReasoningEffort).toBe('__budget')
+    expect(vm.config.reasoningEffort).toBeUndefined()
+    vm.effectiveReasoningEffort = 'low'
+    expect(vm.config.thinkingBudget).toBeUndefined()
+    vm.effectiveReasoningEffort = '__default'
+    await vm.handleSave()
+    expect(modelConfigStore.setModelConfig).toHaveBeenCalled()
+    const saved = modelConfigStore.setModelConfig.mock.calls.at(-1)![2]
+    expect(saved.reasoningEffort).toBeUndefined()
+    expect(saved.thinkingBudget).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it.each(['', 0.5])('rejects invalid explicit budgets (%s) before saving', async (value) => {
+    const { wrapper, modelConfigStore } = await setup({
+      providerId: 'dashscope',
+      modelId: 'qwen3.8-max',
+      modelName: 'Qwen3.8 Max',
+      modelConfig: { reasoningEffort: undefined, thinkingBudget: 8192 },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'effort',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true,
+        budget: { min: 0, max: 262144 }
+      }
+    })
+    const input = wrapper.findComponent(
+      '[placeholder="settings.model.modelConfig.thinkingBudget.placeholder"]'
+    )
+    input.vm.$emit('update:modelValue', value)
+    await nextTick()
+    await (wrapper.vm as any).handleSave()
+    expect(modelConfigStore.setModelConfig).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain(
+      value === ''
+        ? 'chat.advancedSettings.validation.finiteNumber'
+        : 'chat.advancedSettings.validation.nonNegativeInteger'
+    )
+
+    for (const validValue of [0, 262144]) {
+      input.vm.$emit('update:modelValue', validValue)
+      await nextTick()
+      await (wrapper.vm as any).handleSave()
+      expect(modelConfigStore.setModelConfig.mock.calls.at(-1)![2].thinkingBudget).toBe(validValue)
+    }
+    wrapper.unmount()
+  })
+
+  it('keeps integer auto budgets valid but rejects fractional sentinel lookalikes', async () => {
+    const { wrapper, modelConfigStore } = await setup({
+      providerId: 'gemini',
+      modelId: 'gemini-2.5-flash',
+      modelName: 'Gemini 2.5 Flash',
+      modelConfig: { reasoningEffort: undefined, thinkingBudget: -1 },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'budget',
+        budget: { min: 0, max: 24576, auto: -1 }
+      }
+    })
+    await (wrapper.vm as any).handleSave()
+    expect(modelConfigStore.setModelConfig.mock.calls.at(-1)![2].thinkingBudget).toBe(-1)
+    modelConfigStore.setModelConfig.mockClear()
+    wrapper
+      .findComponent('[placeholder="settings.model.modelConfig.thinkingBudget.placeholder"]')
+      .vm.$emit('update:modelValue', -1.2)
+    await nextTick()
+    await (wrapper.vm as any).handleSave()
+    expect(modelConfigStore.setModelConfig).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('renders the speech recognition model setting for chat models', async () => {
     const { wrapper } = await setup({
       providerId: 'openai',

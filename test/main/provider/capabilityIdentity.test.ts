@@ -247,8 +247,55 @@ import {
   resolveCapabilityIdentity
 } from '../../../src/main/provider/capabilityIdentity'
 import { ProviderSettings } from '../../../src/main/provider/settings'
+import { modelCapabilities } from '../../../src/main/provider/modelCapabilities'
 
 describe('capability identity resolution', () => {
+  it.each(['openai', 'openai-response'] as const)(
+    'projects exclusive token budgets only onto a sendable route: %s',
+    (endpointType) => {
+      const original = modelCapabilities.getCatalogCapabilitySnapshot('moonshot', 'kimi-k3')
+      const spy = vi.spyOn(modelCapabilities, 'getCatalogCapabilitySnapshot').mockReturnValue({
+        ...original,
+        reasoningPortrait: {
+          supported: true,
+          mode: 'effort',
+          effort: 'xhigh',
+          effortOptions: ['none', 'low', 'medium', 'xhigh'],
+          budgetExclusiveWithEffort: true,
+          budget: { min: 0, max: 262144 }
+        },
+        thinkingBudgetRange: { min: 0, max: 262144 }
+      })
+      try {
+        const settings = Object.create(ProviderSettings.prototype) as ProviderSettings
+        Object.assign(settings, {
+          providerHelper: { getProviderById: () => ({ id: 'new-api', apiType: 'new-api' }) },
+          resolveCapabilityRouteWithProvider: () => ({ endpointType }),
+          resolveCapabilityIdentityFromRoute: () => ({
+            providerId: 'moonshot',
+            requestModelId: 'qwen3.8-max',
+            catalogMatched: true,
+            catalogModelId: 'kimi-k3'
+          }),
+          getModelRouteConfig: () => ({ endpointType })
+        })
+        const snapshot = settings.getCapabilitySnapshot({
+          providerId: 'new-api',
+          modelId: 'qwen3.8-max'
+        })
+        expect(snapshot.reasoningPortrait?.budgetExclusiveWithEffort).toBe(true)
+        expect(snapshot.reasoningPortrait?.budget).toEqual(
+          endpointType === 'openai' ? { min: 0, max: 262144 } : undefined
+        )
+        expect(snapshot.thinkingBudgetRange).toEqual(
+          endpointType === 'openai' ? { min: 0, max: 262144 } : {}
+        )
+      } finally {
+        spy.mockRestore()
+      }
+    }
+  )
+
   it('resolves New API K3 to the Moonshot catalog record before transport', () => {
     const identity = resolveCapabilityIdentity({
       providerId: 'new-api',

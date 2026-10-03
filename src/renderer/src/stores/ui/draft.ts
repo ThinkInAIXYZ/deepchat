@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, shallowReactive, shallowRef, toRaw } from 'vue'
+import { ref, shallowReactive, shallowRef, toRaw, watch } from 'vue'
 import {
   copyComposerDraft,
   createEmptyComposerDraft,
@@ -45,6 +45,8 @@ export const useDraftStore = defineStore('draft', () => {
   const timeout = ref<number | undefined>(undefined)
   const thinkingBudget = ref<number | undefined>(undefined)
   const reasoningEffort = ref<SessionGenerationSettings['reasoningEffort'] | undefined>(undefined)
+  const touchedReasoningFields = shallowReactive(new Set<'thinkingBudget' | 'reasoningEffort'>())
+  watch([providerId, modelId], () => touchedReasoningFields.clear(), { flush: 'sync' })
   const reasoningVisibility = ref<SessionGenerationSettings['reasoningVisibility'] | undefined>(
     undefined
   )
@@ -99,8 +101,13 @@ export const useDraftStore = defineStore('draft', () => {
     if (contextLength.value !== undefined) settings.contextLength = contextLength.value
     if (maxTokens.value !== undefined) settings.maxTokens = maxTokens.value
     if (timeout.value !== undefined) settings.timeout = timeout.value
-    if (thinkingBudget.value !== undefined) settings.thinkingBudget = thinkingBudget.value
-    if (reasoningEffort.value !== undefined) settings.reasoningEffort = reasoningEffort.value
+    // An untouched draft inherits model defaults; an explicit clear must survive IPC.
+    if (touchedReasoningFields.has('thinkingBudget') || thinkingBudget.value !== undefined) {
+      settings.thinkingBudget = thinkingBudget.value
+    }
+    if (touchedReasoningFields.has('reasoningEffort') || reasoningEffort.value !== undefined) {
+      settings.reasoningEffort = reasoningEffort.value
+    }
     if (reasoningVisibility.value !== undefined) {
       settings.reasoningVisibility = reasoningVisibility.value
     }
@@ -156,9 +163,11 @@ export const useDraftStore = defineStore('draft', () => {
     }
     if (Object.prototype.hasOwnProperty.call(settings, 'thinkingBudget')) {
       thinkingBudget.value = settings.thinkingBudget
+      touchedReasoningFields.add('thinkingBudget')
     }
     if (Object.prototype.hasOwnProperty.call(settings, 'reasoningEffort')) {
       reasoningEffort.value = settings.reasoningEffort
+      touchedReasoningFields.add('reasoningEffort')
     }
     if (Object.prototype.hasOwnProperty.call(settings, 'reasoningVisibility')) {
       reasoningVisibility.value = settings.reasoningVisibility
@@ -186,6 +195,7 @@ export const useDraftStore = defineStore('draft', () => {
     timeout.value = undefined
     thinkingBudget.value = undefined
     reasoningEffort.value = undefined
+    touchedReasoningFields.clear()
     reasoningVisibility.value = undefined
     verbosity.value = undefined
     forceInterleavedThinkingCompat.value = undefined

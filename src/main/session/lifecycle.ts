@@ -480,7 +480,14 @@ export class SessionLifecycle implements SessionLifecyclePort {
         modelId: sourceState.modelId,
         projectDir: sourceSession.projectDir ?? null,
         permissionMode: sourceState.permissionMode,
-        generationSettings: generationSettings ?? undefined
+        generationSettings: generationSettings
+          ? {
+              ...generationSettings,
+              // Copy the source's absence of overrides, not the model's current defaults.
+              thinkingBudget: generationSettings.thinkingBudget,
+              reasoningEffort: generationSettings.reasoningEffort
+            }
+          : undefined
       })
       if (sourceRuntime.kind === 'acp') {
         if (!this.dependencies.forkAcpSession) throw new Error('ACP remote fork is unavailable')

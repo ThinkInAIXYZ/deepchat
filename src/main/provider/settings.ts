@@ -575,6 +575,16 @@ export class ProviderSettings implements ProviderSettingsPort {
       )
     })
     if (
+      snapshot.reasoningPortrait?.budgetExclusiveWithEffort &&
+      transport &&
+      transport.providerKind !== 'openai-compatible'
+    ) {
+      // This optional token-budget control uses the Chat Completions extension.
+      // Responses and other transports must not advertise an unsendable override.
+      snapshot.reasoningPortrait = { ...snapshot.reasoningPortrait, budget: undefined }
+      snapshot.thinkingBudgetRange = {}
+    }
+    if (
       resolveDeepSeekResponsesRoute({
         providerId,
         modelId,

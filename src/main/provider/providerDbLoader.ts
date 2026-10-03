@@ -12,7 +12,7 @@ import { resolveProviderId } from './providerId'
 const DEFAULT_PROVIDER_DB_URL =
   'https://raw.githubusercontent.com/ThinkInAIXYZ/PublicProviderConf/refs/heads/dev/dist/all.json'
 const MAX_PROVIDER_DB_PAYLOAD_BYTES = 10 * 1024 * 1024
-const PROVIDER_DB_SCHEMA_VERSION = 1
+const PROVIDER_DB_SCHEMA_VERSION = 2
 
 async function readResponseTextWithLimit(
   response: Response,

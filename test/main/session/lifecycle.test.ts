@@ -1081,6 +1081,40 @@ describe('SessionLifecycle', () => {
     warn.mockRestore()
   })
 
+  it.each([undefined, 4096])(
+    'forks reasoning overrides explicitly, including absent effort (%s)',
+    async (budget) => {
+      const harness = createHarness([createRecord({ id: 'source', title: 'Source' })])
+      const sourceRuntime = harness.getRuntime('source')
+      sourceRuntime.snapshot.mockResolvedValue({
+        status: 'idle',
+        providerId: 'dashscope',
+        modelId: 'qwen3.8-max',
+        permissionMode: 'default'
+      })
+      const settings = {
+        systemPrompt: 'Keep this',
+        temperature: 0.2,
+        contextLength: 32000,
+        maxTokens: 2048,
+        timeout: 60000,
+        ...(budget === undefined ? {} : { thinkingBudget: budget })
+      }
+      sourceRuntime.getGenerationSettings.mockResolvedValue(settings)
+
+      await harness.coordinator.forkSession('source', 'message-1')
+
+      const config = harness.getRuntime('session-1').initialize.mock.calls[0][0]
+      expect(config.generationSettings).toStrictEqual({
+        ...settings,
+        thinkingBudget: budget,
+        reasoningEffort: undefined
+      })
+      expect(sourceRuntime.getGenerationSettings).toHaveBeenCalledOnce()
+      expect(settings).not.toHaveProperty('reasoningEffort')
+    }
+  )
+
   it('preserves orchestration policy and disabled Agent tools when forking a session', async () => {
     const harness = createHarness([
       createRecord({ id: 'source', title: 'Source', orchestrationPolicy: 'proactive' })

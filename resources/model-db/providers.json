@@ -29634,34 +29634,6 @@
           "type": "chat"
         },
         {
-          "id": "kitani/clover-1-150b",
-          "name": "Clover 1 150B Preview",
-          "display_name": "Clover 1 150B Preview",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 200000,
-            "output": 100000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "attachment": true,
-          "open_weights": false,
-          "release_date": "2026-09-24",
-          "last_updated": "2026-09-24",
-          "type": "chat"
-        },
-        {
           "id": "soob3123/GrayLine-Qwen3-8B",
           "name": "Grayline Qwen3 8B",
           "display_name": "Grayline Qwen3 8B",
@@ -78938,8 +78910,8 @@
             ]
           },
           "limit": {
-            "context": 262144,
-            "output": 235929
+            "context": 128000,
+            "output": 32000
           },
           "temperature": true,
           "tool_call": true,
@@ -120080,17 +120052,31 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "budget": {
+                "min": 0,
+                "max": 262144,
+                "unit": "tokens"
+              },
+              "effort": "xhigh",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "xhigh"
+              ],
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
               "continuation": [
                 "thinking_blocks"
               ],
-              "effort_options": [
-                "low",
-                "medium",
-                "xhigh"
-              ]
+              "notes": [
+                "Prefer reasoning_effort; thinking_budget is an alternative, not an additional control.",
+                "Omitting both controls differs from explicitly selecting xhigh, which maps to 262144 budget tokens."
+              ],
+              "budget_exclusive_with_effort": true
             }
           },
           "attachment": true,
@@ -120615,17 +120601,20 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ],
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "xhigh",
               "effort_options": [
                 "none",
                 "low",
                 "medium",
                 "xhigh"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
               ]
             }
           },
@@ -121245,17 +121234,31 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "budget": {
+                "min": 0,
+                "max": 262144,
+                "unit": "tokens"
+              },
+              "effort": "xhigh",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "xhigh"
+              ],
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
               "continuation": [
                 "thinking_blocks"
               ],
-              "effort_options": [
-                "low",
-                "medium",
-                "xhigh"
-              ]
+              "notes": [
+                "Prefer reasoning_effort; thinking_budget is an alternative, not an additional control.",
+                "Omitting both controls differs from explicitly selecting xhigh, which maps to 262144 budget tokens."
+              ],
+              "budget_exclusive_with_effort": true
             }
           },
           "attachment": true,
@@ -220335,6 +220338,42 @@
           "type": "chat"
         },
         {
+          "id": "tencent/step-5-preview",
+          "name": "Step 5 Preview (Tencent)",
+          "display_name": "Step 5 Preview (Tencent)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 1000000
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-09-16",
+          "last_updated": "2026-09-20",
+          "type": "chat"
+        },
+        {
           "id": "tencent/deepseek-v4-pro-0813",
           "name": "DeepSeek V4 Pro 0813 (Tencent)",
           "display_name": "DeepSeek V4 Pro 0813 (Tencent)",
@@ -220935,6 +220974,46 @@
           "knowledge": "2025-05",
           "release_date": "2026-07-31",
           "last_updated": "2026-07-31",
+          "type": "chat"
+        },
+        {
+          "id": "flexai/DeepSeek-V4.1-Flash",
+          "name": "DeepSeek V4.1 Flash (FlexAI)",
+          "display_name": "DeepSeek V4.1 Flash (FlexAI)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 384000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "effort_options": [
+                "none",
+                "low",
+                "high",
+                "max"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "knowledge": "2025-05",
+          "release_date": "2026-09-10",
+          "last_updated": "2026-09-10",
           "type": "chat"
         },
         {
@@ -223233,6 +223312,44 @@
           "knowledge": "2025-01",
           "release_date": "2026-05-07",
           "last_updated": "2026-05-07",
+          "type": "chat"
+        },
+        {
+          "id": "greenference/gpt-oss-20b",
+          "name": "GPT OSS 20B (Greenference)",
+          "display_name": "GPT OSS 20B (Greenference)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "effort_options": [
+                "low",
+                "medium",
+                "high"
+              ]
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2025-08-05",
+          "last_updated": "2025-08-05",
           "type": "chat"
         },
         {
@@ -292804,17 +292921,31 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "budget": {
+                "min": 0,
+                "max": 262144,
+                "unit": "tokens"
+              },
+              "effort": "xhigh",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "xhigh"
+              ],
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
               "continuation": [
                 "thinking_blocks"
               ],
-              "effort_options": [
-                "low",
-                "medium",
-                "xhigh"
-              ]
+              "notes": [
+                "Prefer reasoning_effort; thinking_budget is an alternative, not an additional control.",
+                "Omitting both controls differs from explicitly selecting xhigh, which maps to 262144 budget tokens."
+              ],
+              "budget_exclusive_with_effort": true
             }
           },
           "attachment": true,
@@ -293668,17 +293799,20 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ],
+              "default_enabled": true,
+              "mode": "effort",
+              "effort": "xhigh",
               "effort_options": [
                 "none",
                 "low",
                 "medium",
                 "xhigh"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
               ]
             }
           },
@@ -294378,17 +294512,31 @@
           "extra_capabilities": {
             "reasoning": {
               "supported": true,
+              "default_enabled": true,
+              "mode": "effort",
+              "budget": {
+                "min": 0,
+                "max": 262144,
+                "unit": "tokens"
+              },
+              "effort": "xhigh",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "xhigh"
+              ],
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
               "continuation": [
                 "thinking_blocks"
               ],
-              "effort_options": [
-                "low",
-                "medium",
-                "xhigh"
-              ]
+              "notes": [
+                "Prefer reasoning_effort; thinking_budget is an alternative, not an additional control.",
+                "Omitting both controls differs from explicitly selecting xhigh, which maps to 262144 budget tokens."
+              ],
+              "budget_exclusive_with_effort": true
             }
           },
           "attachment": true,
@@ -320422,12 +320570,19 @@
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "budget",
+              "mode": "effort",
               "budget": {
-                "default": 262144,
+                "min": 0,
                 "max": 262144,
                 "unit": "tokens"
               },
+              "effort": "xhigh",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "xhigh"
+              ],
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -320435,8 +320590,11 @@
                 "thinking_blocks"
               ],
               "notes": [
-                "enable_thinking toggles reasoning; thinking_budget caps it. Set preserve_thinking=true to retain reasoning_content across turns."
-              ]
+                "Prefer reasoning_effort; none disables thinking. thinking_budget is an alternative control and must not be sent with effort.",
+                "Omitting both controls uses the API default; explicitly selecting xhigh maps to 262144 budget tokens, not the omitted budget default of 131072.",
+                "Set preserve_thinking=true to retain reasoning_content across turns."
+              ],
+              "budget_exclusive_with_effort": true
             }
           },
           "attachment": true,
@@ -320471,12 +320629,19 @@
             "reasoning": {
               "supported": true,
               "default_enabled": true,
-              "mode": "budget",
+              "mode": "effort",
               "budget": {
-                "default": 262144,
+                "min": 0,
                 "max": 262144,
                 "unit": "tokens"
               },
+              "effort": "xhigh",
+              "effort_options": [
+                "none",
+                "low",
+                "medium",
+                "xhigh"
+              ],
               "interleaved": true,
               "summaries": true,
               "visibility": "summary",
@@ -320484,8 +320649,11 @@
                 "thinking_blocks"
               ],
               "notes": [
-                "enable_thinking toggles reasoning; thinking_budget caps it. Set preserve_thinking=true to retain reasoning_content across turns."
-              ]
+                "Prefer reasoning_effort; none disables thinking. thinking_budget is an alternative control and must not be sent with effort.",
+                "Omitting both controls uses the API default; explicitly selecting xhigh maps to 262144 budget tokens, not the omitted budget default of 131072.",
+                "Set preserve_thinking=true to retain reasoning_content across turns."
+              ],
+              "budget_exclusive_with_effort": true
             }
           },
           "attachment": true,
@@ -320525,12 +320693,9 @@
               "effort": "xhigh",
               "effort_options": [
                 "none",
-                "minimal",
                 "low",
                 "medium",
-                "high",
-                "xhigh",
-                "max"
+                "xhigh"
               ],
               "interleaved": true,
               "summaries": true,
