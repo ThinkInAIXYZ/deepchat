@@ -46,6 +46,9 @@ document and save/cancel controls are locked to prevent duplicate writes or losi
 These callbacks stay in the renderer; IPC payloads and stored messages do not carry UI callbacks.
 The queue permits one active editor. Other rows cannot replace that editor until the user saves or
 cancels, including after a failed save; switching rows must not silently discard a local draft.
+After a session switch, an accepted edit still retries its original session. The newly visible
+session's read-only or pending-interaction state must neither suppress that retry nor be modified
+by it; the main process continues to enforce the target session's admission rules.
 
 References share restrained baseline-aligned styling, readable labels, keyboard-accessible details,
 and explicit source-opening actions. Clicking a session reference first opens details, not another

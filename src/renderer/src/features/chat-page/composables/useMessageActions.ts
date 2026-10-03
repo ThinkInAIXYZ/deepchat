@@ -81,8 +81,12 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     sessionId = options.sessionId(),
     attachmentFallbackPolicy?: AttachmentFallbackPolicy
   ) {
-    if (options.isReadOnlySession.value || !messageId) return
-    if (blocksInteraction && options.hasBlockingInteraction()) return
+    if (!messageId) return
+    // These flags describe the visible session, not an edit completing in the background.
+    if (sessionId === options.sessionId()) {
+      if (options.isReadOnlySession.value) return
+      if (blocksInteraction && options.hasBlockingInteraction()) return
+    }
     if (activeRetrySessionIds.has(sessionId)) return
 
     const requestId = options.currentRestoreRequestId()
