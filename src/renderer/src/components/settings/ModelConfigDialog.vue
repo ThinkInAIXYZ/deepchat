@@ -1848,7 +1848,11 @@ watch(
 )
 
 watch(capabilityReasoningPortrait, (portrait) => {
-  if (portrait?.budgetExclusiveWithEffort && !hasThinkingBudgetSupport(portrait)) {
+  if (
+    portrait?.budgetExclusiveWithEffort &&
+    (!hasThinkingBudgetSupport(portrait) ||
+      normalizeReasoningEffortValue(portrait, config.value.reasoningEffort) !== undefined)
+  ) {
     config.value.thinkingBudget = undefined
   }
 })

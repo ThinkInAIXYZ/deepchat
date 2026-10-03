@@ -1059,7 +1059,14 @@ export class LiveDelegationService {
           modelId: executionSnapshot.modelId,
           permissionMode: safety.parent.permissionMode,
           toolModeOverride: executionSnapshot.toolModeOverride,
-          generationSettings: executionSnapshot.generationSettings ?? undefined,
+          generationSettings: executionSnapshot.generationSettings
+            ? {
+                ...executionSnapshot.generationSettings,
+                // The inherited snapshot includes the parent's cleared reasoning overrides.
+                thinkingBudget: executionSnapshot.generationSettings.thinkingBudget,
+                reasoningEffort: executionSnapshot.generationSettings.reasoningEffort
+              }
+            : undefined,
           disabledAgentTools: safety.parent.disabledAgentTools,
           activeSkills: safety.parent.activeSkills,
           liveDelegationContext: { delegationId: delegation.id }

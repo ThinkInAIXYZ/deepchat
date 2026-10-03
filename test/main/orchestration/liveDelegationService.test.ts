@@ -1075,6 +1075,11 @@ describeIfSqlite('LiveDelegationService', () => {
         generationSettings: expect.objectContaining({ systemPrompt: 'Frozen prompt' })
       })
     )
+    const inheritedSettings =
+      harness.sessions.createSubagentSession.mock.calls[0][0].generationSettings
+    // Omitted snapshot fields must become explicit clears at the partial-init boundary.
+    expect(inheritedSettings).toHaveProperty('thinkingBudget', undefined)
+    expect(inheritedSettings).toHaveProperty('reasoningEffort', undefined)
     const childId = repository.require(spawned.delegation.id).childSessionId!
     await expect(
       service.beforeToolAuthorization({

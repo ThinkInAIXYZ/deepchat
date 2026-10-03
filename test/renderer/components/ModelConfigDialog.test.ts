@@ -326,6 +326,51 @@ describe('ModelConfigDialog reasoning portraits', () => {
     wrapper.unmount()
   })
 
+  it.each(['low', undefined] as const)(
+    'reconciles exclusive controls after a catalog refresh with effort %s',
+    async (reasoningEffort) => {
+      const options: SetupOptions = {
+        providerId: 'dashscope',
+        modelId: 'qwen3.8-max',
+        modelName: 'Qwen3.8 Max',
+        modelConfig: { reasoningEffort, thinkingBudget: 8192 },
+        reasoningPortrait: {
+          supported: true,
+          mode: 'effort',
+          effortOptions: ['none', 'low', 'medium', 'xhigh'],
+          budget: { min: 0, max: 262144 }
+        }
+      }
+      const { wrapper, modelClient, modelConfigStore } = await setup(options)
+      const vm = wrapper.vm as any
+      expect(vm.config.thinkingBudget).toBe(8192)
+      modelClient.getCapabilities.mockResolvedValue(
+        createCapabilityResult({
+          ...options,
+          reasoningPortrait: { ...options.reasoningPortrait, budgetExclusiveWithEffort: true }
+        })
+      )
+      const listener = modelClient.onModelsChanged.mock.calls[0][0] as any
+      listener({ reason: 'provider-db-updated' })
+      await flushPromises()
+
+      const expectedBudget = reasoningEffort === undefined ? 8192 : undefined
+      expect(vm.effectiveReasoningEffort).toBe(reasoningEffort ?? '__budget')
+      expect(
+        wrapper
+          .find('[placeholder="settings.model.modelConfig.thinkingBudget.placeholder"]')
+          .exists()
+      ).toBe(reasoningEffort === undefined)
+      await vm.handleSave()
+      expect(modelConfigStore.setModelConfig).toHaveBeenCalledOnce()
+      expect(modelConfigStore.setModelConfig.mock.calls[0][2]).toMatchObject({
+        reasoningEffort,
+        thinkingBudget: expectedBudget
+      })
+      wrapper.unmount()
+    }
+  )
+
   it('offers default, effort and an explicit alternative budget without inventing defaults', async () => {
     const { wrapper, modelConfigStore } = await setup({
       providerId: 'dashscope',

@@ -56,9 +56,10 @@ differ from explicitly selecting its default effort. Model settings and session 
 the existing optional fields; no database migration or persistent mode flag is required.
 Drafts distinguish untouched fields from explicitly cleared overrides. Explicit `undefined` fields
 must survive new-session input serialization and draft UI reloads; model changes reset that intent.
-Forks and restored execution snapshots copy complete settings, not incremental overrides. Missing
-reasoning fields in those snapshots must remain cleared even after JSON serialization, rather than
-re-inheriting current model preferences. Fresh session creation still inherits untouched defaults.
+Forks, initial delegated children, and restored execution snapshots copy complete settings, not
+incremental overrides. Missing reasoning fields in those snapshots must remain cleared even after
+JSON serialization, rather than re-inheriting current model preferences. Fresh session creation
+without an inherited snapshot still inherits untouched defaults.
 Selecting one control clears its counterpart. Legacy configurations containing both resolve to
 effort, the ordinary control. The request boundary also enforces that rule without rewriting saved
 history. Budget remains an advanced alternative only when the portrait declares it. Provider-local
@@ -72,6 +73,8 @@ Catalog updates refresh active capability consumers with stale-response protecti
 cleanup. Event refreshes wait for foreground capability loads, coalesce bursts, and retain the
 current snapshot until replacement so editing controls do not unmount. Explicit model/route changes
 still clear stale controls immediately; failures remain distinct from successful capability resolution.
+Successful refreshes reconcile newly exclusive controls in an open settings dialog using the same
+effort-first rule as initial loading, while preserving a budget-only selection.
 Closed dialogs clear their query and invalidate pending configuration loads. No new polling,
 network request per generation, service, or dependency is introduced.
 
