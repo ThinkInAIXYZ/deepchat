@@ -1,5 +1,6 @@
 import { ref, type Ref } from 'vue'
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
+import type { ReasoningPortrait } from '@shared/types/model-db'
 import type {
   GenerationNumericField,
   GenerationNumericValidationCode
@@ -14,7 +15,8 @@ import type {
  */
 export function useGenerationNumericInputs(options: {
   localSettings: Ref<SessionGenerationSettings | null>
-  t: (key: string) => string
+  thinkingBudgetRange: Ref<ReasoningPortrait['budget'] | null>
+  t: (key: string, values?: Record<string, unknown>) => string
   /** Called whenever a draft value actually changes (drives persistence revision tracking) */
   onDraftChange: () => void
 }) {
@@ -153,6 +155,12 @@ export function useGenerationNumericInputs(options: {
         return t('settings.model.modelConfig.validation.timeoutMax')
       case 'top_p_out_of_range':
         return t('chat.advancedSettings.validation.topPRange')
+      case 'thinking_budget_too_small':
+        return t('settings.model.modelConfig.thinkingBudget.validation.minValue')
+      case 'thinking_budget_too_large':
+        return t('settings.model.modelConfig.thinkingBudget.validation.maxValue', {
+          max: options.thinkingBudgetRange.value?.max
+        })
     }
   }
 

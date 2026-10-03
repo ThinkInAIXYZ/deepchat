@@ -41,6 +41,9 @@ support. Existing renderer selectors consume these facts; the AI SDK adapter own
 
 Both existing selectors offer the actual catalog tiers. Selecting a tier survives saving,
 reopening a session, and generation. Toggle-only and fixed models acquire no fictitious tiers.
+The composer seeds explicit budgets at the non-negative model minimum and bounds step buttons to
+the model range. Invalid numeric drafts remain visible but are not persisted. Declared non-negative
+budget sentinels bypass range bounds; negative legacy sentinels retain their switch-off semantics.
 
 ### Exclusive effort and budget controls
 

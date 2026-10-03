@@ -1,5 +1,6 @@
 import { MODEL_TIMEOUT_MAX_MS, MODEL_TIMEOUT_MIN_MS } from '../modelConfigDefaults'
 import type { SessionGenerationSettings } from '../types/agent-interface'
+import type { ReasoningPortrait } from '../types/model-db'
 
 export type GenerationNumericField =
   | 'temperature'
@@ -18,8 +19,12 @@ export type GenerationNumericValidationCode =
   | 'timeout_too_small'
   | 'timeout_too_large'
   | 'top_p_out_of_range'
+  | 'thinking_budget_too_small'
+  | 'thinking_budget_too_large'
 
-type GenerationRelationContext = Pick<SessionGenerationSettings, 'contextLength' | 'maxTokens'>
+type GenerationRelationContext = Pick<SessionGenerationSettings, 'contextLength' | 'maxTokens'> & {
+  thinkingBudgetRange?: ReasoningPortrait['budget']
+}
 
 export const parseFiniteNumericValue = (value: unknown): number | undefined => {
   if (typeof value === 'number') {
@@ -70,6 +75,14 @@ export const validateGenerationNumericField = (
 
   if (!isNonNegativeInteger(numeric)) {
     return 'non_negative_integer'
+  }
+
+  if (field === 'thinkingBudget') {
+    const range = context.thinkingBudgetRange
+    if (range && ![range.default, range.auto, range.off].includes(numeric)) {
+      if (range.min !== undefined && numeric < range.min) return 'thinking_budget_too_small'
+      if (range.max !== undefined && numeric > range.max) return 'thinking_budget_too_large'
+    }
   }
 
   if (field === 'contextLength') {

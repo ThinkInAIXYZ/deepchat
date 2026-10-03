@@ -1031,7 +1031,7 @@
                             "
                             :disabled="
                               hasNumericInputError('thinkingBudget') ||
-                              (localSettings.thinkingBudget ?? 0) <= 0
+                              (localSettings.thinkingBudget ?? 0) <= thinkingBudgetMin
                             "
                             @click="stepThinkingBudget(-1)"
                             :tooltip="
@@ -1074,7 +1074,10 @@
                                 label: t('chat.advancedSettings.thinkingBudget')
                               })
                             "
-                            :disabled="hasNumericInputError('thinkingBudget')"
+                            :disabled="
+                              hasNumericInputError('thinkingBudget') ||
+                              (localSettings.thinkingBudget ?? 0) >= thinkingBudgetMax
+                            "
                             @click="stepThinkingBudget(1)"
                             :tooltip="
                               t('chat.advancedSettings.increaseValue', {
@@ -1384,6 +1387,7 @@ const {
   getNumericInputErrorMessage
 } = useGenerationNumericInputs({
   localSettings,
+  thinkingBudgetRange: modelCapabilities.budgetRange,
   t,
   onDraftChange: () => {
     generationLocalRevision += 1
@@ -1828,6 +1832,8 @@ const contextLengthInputValue = computed(() => getNumericInputValue('contextLeng
 const maxTokensInputValue = computed(() => getNumericInputValue('maxTokens'))
 const timeoutInputValue = computed(() => getNumericInputValue('timeout'))
 const thinkingBudgetInputValue = computed(() => getNumericInputValue('thinkingBudget'))
+const thinkingBudgetMin = computed(() => Math.max(0, modelCapabilities.budgetRange.value?.min ?? 0))
+const thinkingBudgetMax = computed(() => modelCapabilities.budgetRange.value?.max ?? Infinity)
 const isThinkingBudgetEnabled = computed(
   () =>
     localSettings.value?.thinkingBudget !== undefined &&
@@ -2859,19 +2865,6 @@ function onSystemPromptSelect(optionId: string) {
   updateLocalGenerationSettings({ systemPrompt: option.content })
 }
 
-const getNumericValidationContext = (
-  field: GenerationNumericField
-): Pick<SessionGenerationSettings, 'contextLength' | 'maxTokens'> => ({
-  contextLength:
-    field === 'contextLength'
-      ? (localSettings.value?.contextLength ?? 0)
-      : (localSettings.value?.contextLength ?? 0),
-  maxTokens:
-    field === 'maxTokens'
-      ? (localSettings.value?.maxTokens ?? 0)
-      : (localSettings.value?.maxTokens ?? 0)
-})
-
 const commitNumericField = (
   field: GenerationNumericField,
   rawValue: string | number
@@ -2882,7 +2875,11 @@ const commitNumericField = (
     return undefined
   }
 
-  const error = validateGenerationNumericField(field, rawValue, getNumericValidationContext(field))
+  const error = validateGenerationNumericField(field, rawValue, {
+    contextLength: localSettings.value.contextLength,
+    maxTokens: localSettings.value.maxTokens,
+    thinkingBudgetRange: modelCapabilities.budgetRange.value ?? undefined
+  })
   if (error) {
     stopNumericInputEdit(field)
     setNumericInputError(field, error)
@@ -3105,7 +3102,8 @@ function onThinkingBudgetToggle(enabled: boolean) {
     return
   }
 
-  const preferred = normalizeLegacyThinkingBudgetValue(localSettings.value.thinkingBudget) ?? 0
+  const preferred = commitNumericField('thinkingBudget', thinkingBudgetMin.value)
+  if (preferred === undefined) return
   updateLocalGenerationSettings({ thinkingBudget: preferred })
   resetNumericInputFieldState('thinkingBudget')
 }
@@ -3118,7 +3116,10 @@ function stepThinkingBudget(direction: -1 | 1) {
     return
   }
   const current = localSettings.value.thinkingBudget ?? 0
-  const next = Math.max(0, current + direction * THINKING_BUDGET_STEP)
+  const next = Math.min(
+    thinkingBudgetMax.value,
+    Math.max(thinkingBudgetMin.value, current + direction * THINKING_BUDGET_STEP)
+  )
   const committed = commitNumericField('thinkingBudget', next)
   if (committed === undefined) {
     return
