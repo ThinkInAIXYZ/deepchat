@@ -282,7 +282,11 @@ export function buildProviderOptions(
       ) {
         config.enable_thinking = true
       }
-      if (params.providerId === 'dashscope' && reasoningEnabled) {
+      if (
+        (params.providerId === 'dashscope' ||
+          (params.apiType === 'openai_chat' && reasoningPortrait?.budgetExclusiveWithEffort)) &&
+        reasoningEnabled
+      ) {
         const supportsThinking = reasoningPortrait?.supported === true
         if (supportsThinking) {
           config.enable_thinking = true

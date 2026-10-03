@@ -37,6 +37,67 @@ describe('AI SDK reasoning wire payloads', () => {
     vi.unstubAllGlobals()
   })
 
+  it.each(['dashscope', 'custom-provider'])(
+    'serializes exclusive controls through the real %s adapter',
+    async (providerId) => {
+      for (const [overrides, expected] of [
+        [{}, {}],
+        [{ reasoningEffort: 'low', thinkingBudget: 8192 }, { reasoning_effort: 'low' }],
+        [{ thinkingBudget: 8192 }, { thinking_budget: 8192 }],
+        [{ reasoningEffort: 'none', thinkingBudget: 8192 }, { reasoning_effort: 'none' }]
+      ]) {
+        const body = await captureRequestBody(() =>
+          runAiSdkGenerateText(
+            {
+              providerKind: 'openai-compatible',
+              provider: {
+                id: providerId,
+                name: providerId,
+                apiType: 'openai-compatible',
+                apiKey: 'test-key',
+                baseUrl: 'https://reasoning.example.com/v1',
+                enable: true
+              } as any,
+              capabilitySnapshot: {
+                identity: {
+                  providerId,
+                  requestModelId: 'qwen3.8-max',
+                  catalogMatched: true,
+                  catalogModelId: 'qwen3.8-max'
+                },
+                requestPolicy: resolveModelRequestPolicy(providerId, 'qwen3.8-max', true),
+                reasoningPortrait: {
+                  supported: true,
+                  mode: 'effort',
+                  effort: 'xhigh',
+                  effortOptions: ['none', 'low', 'medium', 'xhigh'],
+                  budgetExclusiveWithEffort: true,
+                  budget: { min: 0, max: 262144 }
+                },
+                supportsReasoningEffort: true,
+                reasoningEffortDefault: 'xhigh'
+              } as any,
+              providerSettings,
+              defaultHeaders: {}
+            },
+            [{ role: 'user', content: 'Hello' }],
+            'qwen3.8-max',
+            {
+              ...overrides,
+              functionCall: false
+            },
+            0.6,
+            1024
+          )
+        )
+        expect({
+          reasoning_effort: body.reasoning_effort,
+          thinking_budget: body.thinking_budget
+        }).toEqual(expected)
+      }
+    }
+  )
+
   it.each(['kimi-k3', 'kimi-k3-free', 'coding-kimi-k3', 'coding-kimi-k3-free', 'kimi_k3'])(
     'emits K3 reasoning effort while omitting unsupported fields for %s',
     async (modelId) => {

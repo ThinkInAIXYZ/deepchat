@@ -501,6 +501,39 @@ describe('ModelConfigHelper', () => {
       expect(config.isUserDefined).toBe(true)
     })
 
+    it('keeps exclusive reasoning defaults implicit and preserves budget intent', () => {
+      vi.spyOn(providerDbLoader, 'getDb').mockReturnValue({
+        providers: {
+          demo: {
+            id: 'demo',
+            models: [
+              {
+                id: 'qwen3.8-max',
+                extra_capabilities: {
+                  reasoning: {
+                    supported: true,
+                    mode: 'effort',
+                    effort: 'xhigh',
+                    effort_options: ['none', 'low', 'medium', 'xhigh'],
+                    budget_exclusive_with_effort: true,
+                    budget: { min: 0, max: 262144, default: 131072 }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      })
+      rebuildModelCapabilities()
+      const defaults = modelConfigHelper.getModelConfig('qwen3.8-max', 'demo')
+      expect(defaults.reasoningEffort).toBeUndefined()
+      expect(defaults.thinkingBudget).toBeUndefined()
+      modelConfigHelper.setModelConfig('qwen3.8-max', 'demo', { thinkingBudget: 8192 })
+      const budget = modelConfigHelper.getModelConfig('qwen3.8-max', 'demo')
+      expect(budget.thinkingBudget).toBe(8192)
+      expect(budget.reasoningEffort).toBeUndefined()
+    })
+
     it('uses the catalog level as the Gemini model default and preserves an explicit choice', () => {
       vi.spyOn(providerDbLoader, 'getDb').mockReturnValue({
         providers: {

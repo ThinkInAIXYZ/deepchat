@@ -52,6 +52,56 @@ function createProviderSettings(): ProviderSettingsPort {
 }
 
 describe('generation settings policy', () => {
+  it('switches exclusive controls, persists both fields and restores implicit defaults', async () => {
+    const providerSettings = createProviderSettings()
+    const snapshot = {
+      ...createCapabilitySnapshot(),
+      supportsReasoning: true,
+      supportsReasoningEffort: true,
+      reasoningEffortDefault: 'xhigh' as const,
+      thinkingBudgetRange: { min: 0, max: 262144, default: 131072 },
+      reasoningPortrait: {
+        supported: true, mode: 'effort' as const, effort: 'xhigh' as const,
+        effortOptions: ['none', 'low', 'medium', 'xhigh'] as const,
+        budgetExclusiveWithEffort: true, budget: { min: 0, max: 262144 }
+      }
+    }
+    vi.mocked(providerSettings.getCapabilitySnapshot).mockReturnValue(snapshot as any)
+    const prompts = { getDefaultSystemPrompt: vi.fn().mockResolvedValue('') }
+    const resolve = (patch: Partial<SessionGenerationSettings>, base?: SessionGenerationSettings) =>
+      sanitizeGenerationSettings(providerSettings, prompts, 'openai', 'gpt-4o', patch, base)
+    const defaults = await resolve({})
+    expect(defaults.reasoningEffort).toBeUndefined()
+    expect(defaults.thinkingBudget).toBeUndefined()
+    const legacy = await resolve({ reasoningEffort: 'low', thinkingBudget: 8192 })
+    expect(legacy.reasoningEffort).toBe('low')
+    expect(legacy.thinkingBudget).toBeUndefined()
+    const budget = await resolve({ thinkingBudget: 8192 }, legacy)
+    expect(budget.reasoningEffort).toBeUndefined()
+    expect(budget.thinkingBudget).toBe(8192)
+    expect(buildPersistedGenerationSettingsPatch({ thinkingBudget: 8192 }, budget))
+      .toStrictEqual({ thinkingBudget: 8192, reasoningEffort: undefined })
+    const effort = await resolve({ reasoningEffort: 'none' }, budget)
+    expect(effort.reasoningEffort).toBe('none')
+    expect(effort.thinkingBudget).toBeUndefined()
+    expect(buildPersistedGenerationSettingsPatch({ reasoningEffort: 'none' }, effort))
+      .toStrictEqual({ reasoningEffort: 'none', thinkingBudget: undefined })
+    const cleared = await resolve({ reasoningEffort: undefined, thinkingBudget: undefined }, effort)
+    expect(cleared.reasoningEffort).toBeUndefined()
+    expect(cleared.thinkingBudget).toBeUndefined()
+
+    // A model-level preference must not resurrect a cleared session override on restart.
+    vi.mocked(providerSettings.getModelConfig).mockReturnValue({ reasoningEffort: 'medium' })
+    const restored = mapPersistedGenerationPatch(providerSettings, {
+      provider_id: 'openai', model_id: 'gpt-4o', permission_mode: 'default',
+      system_prompt: null, temperature: null, top_p: null, context_length: null,
+      max_tokens: null, timeout_ms: null, thinking_budget: null, reasoning_effort: null,
+      reasoning_visibility: null, verbosity: null, force_interleaved_thinking_compat: null,
+      image_generation_options_json: null, video_generation_options_json: null
+    })
+    expect((await resolve(restored)).reasoningEffort).toBeUndefined()
+  })
+
   it('falls back from a non-positive model context window', async () => {
     const providerSettings = createProviderSettings()
     vi.mocked(providerSettings.getModelConfig).mockReturnValue({
