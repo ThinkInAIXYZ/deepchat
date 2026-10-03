@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, inject, ref, nextTick } from 'vue'
 import { CHAT_INPUT_WORKSPACE_ITEM_MIME } from '@/lib/chatInputWorkspaceReference'
+import { SESSION_REFERENCE_DRAG_TYPE } from '@shared/sessionReferences'
 import {
   ATTACHMENT_NODE_CONTEXT,
   INPUT_NODE_ACTIONS,
@@ -25,6 +26,10 @@ const activateSkillMock = vi.fn().mockResolvedValue(undefined)
 const deactivateSkillMock = vi.fn().mockResolvedValue(undefined)
 const removeSessionActiveSkillMock = vi.fn().mockResolvedValue(undefined)
 const notifyRendererMock = vi.hoisted(() => vi.fn())
+const resolveReferenceMock = vi.hoisted(() => vi.fn())
+vi.mock('@api/SessionClient', () => ({
+  createSessionClient: () => ({ resolveReference: resolveReferenceMock })
+}))
 const closeDialogMock = vi.fn()
 const getOcrRuntimeStatusMock = vi.fn()
 const isSuggestionMenuOpenRef = ref(false)
@@ -142,6 +147,7 @@ vi.mock('@tiptap/vue-3', () => {
         scrollIntoView: () => api,
         insertContent: (content: string) => {
           insertContentMock(content)
+          lastEditorOptions?.onTransaction?.({ transaction: { docChanged: true } })
           return api
         },
         insertContentAt: vi.fn((...args: any[]) => {
@@ -542,6 +548,200 @@ describe('ChatInputBox attachments', () => {
 
     expect((wrapper.vm as any).insertWorkspaceReference('/repo/src/App.vue')).toBe(true)
     expect(insertContentMock).toHaveBeenCalledWith('@src/App.vue ')
+  })
+
+  it.each(['drop', 'mention'])('blocks submission until a %s reference resolves', async (entry) => {
+    const wrapper = await mountComponent()
+    await wrapper.setProps({ queueSubmitEnabled: true })
+    const deferred = createDeferred<{ reference: object }>()
+    resolveReferenceMock.mockReturnValueOnce(deferred.promise)
+    const insertReference = vi.fn()
+    let resolution: Promise<unknown> | undefined
+    if (entry === 'drop') {
+      await wrapper.trigger('drop', {
+        dataTransfer: { types: [SESSION_REFERENCE_DRAG_TYPE], getData: () => 'source' }
+      })
+    } else {
+      const mentions = useChatInputMentionsMock.mock.calls.at(-1)![0] as {
+        resolveSessionReference: (id: string, insert: (reference: object) => void) => Promise<void>
+      }
+      resolution = mentions.resolveSessionReference('source', insertReference)
+    }
+    expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(true)
+    await wrapper.find('.chat-input-editor').trigger('keydown', { key: 'Enter' })
+    await wrapper.find('.chat-input-editor').trigger('keydown', { key: 'Tab' })
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    expect(wrapper.emitted('queue-submit')).toBeUndefined()
+    const reference = {
+      sessionId: 'source',
+      title: 'Notes',
+      projectDir: null,
+      tapeIncarnationId: 'tape-1'
+    }
+    deferred.resolve({ reference })
+    await flushPromises()
+    expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(false)
+    if (entry === 'drop') {
+      expect(insertContentMock).toHaveBeenCalledExactlyOnceWith({
+        type: 'sessionReference',
+        attrs: reference
+      })
+    } else {
+      await resolution
+      expect(insertReference).toHaveBeenCalledExactlyOnceWith(reference)
+    }
+    await wrapper.find('.chat-input-editor').trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('submit')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it.each(['composition-event', 'isComposing', 'keyCode'])(
+    'preserves IME confirmation with %s while a reference is resolving',
+    async (signal) => {
+      const wrapper = await mountComponent()
+      await wrapper.setProps({ queueSubmitEnabled: true })
+      const deferred = createDeferred<{ reference: object }>()
+      resolveReferenceMock.mockReturnValueOnce(deferred.promise)
+      await wrapper.trigger('drop', {
+        dataTransfer: { types: [SESSION_REFERENCE_DRAG_TYPE], getData: () => 'source' }
+      })
+      const editor = wrapper.get('[data-testid="editor-content"]')
+      if (signal === 'composition-event') await editor.trigger('compositionstart')
+      for (const key of ['Enter', 'Tab']) {
+        const event = new KeyboardEvent('keydown', {
+          key,
+          bubbles: true,
+          cancelable: true,
+          isComposing: signal === 'isComposing',
+          keyCode: signal === 'keyCode' ? 229 : 0
+        })
+        editor.element.dispatchEvent(event)
+        expect(event.defaultPrevented).toBe(false)
+      }
+      expect(wrapper.emitted('submit')).toBeUndefined()
+      expect(wrapper.emitted('queue-submit')).toBeUndefined()
+      if (signal === 'composition-event') await editor.trigger('compositionend')
+      const submit = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+      editor.element.dispatchEvent(submit)
+      expect(submit.defaultPrevented).toBe(true)
+      expect(wrapper.emitted('submit')).toBeUndefined()
+      deferred.resolve({ reference: { sessionId: 'source' } })
+      await flushPromises()
+      wrapper.unmount()
+    }
+  )
+
+  it('keeps concurrent drops pending until both references are inserted', async () => {
+    const wrapper = await mountComponent()
+    const first = createDeferred<{ reference: object }>()
+    const second = createDeferred<{ reference: object }>()
+    resolveReferenceMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    for (const id of ['source-a', 'source-b']) {
+      await wrapper.trigger('drop', {
+        dataTransfer: { types: [SESSION_REFERENCE_DRAG_TYPE], getData: () => id }
+      })
+    }
+    // Resolve in reverse order: one reference's insertion must not cancel the other request.
+    second.resolve({ reference: { sessionId: 'source-b' } })
+    await flushPromises()
+    expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(true)
+    await wrapper.find('.chat-input-editor').trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    first.resolve({ reference: { sessionId: 'source-a' } })
+    await flushPromises()
+    expect(insertContentMock.mock.calls.map(([node]) => node.attrs.sessionId)).toEqual([
+      'source-b',
+      'source-a'
+    ])
+    expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(false)
+    expect(notifyRendererMock).not.toHaveBeenCalled()
+    await wrapper.find('.chat-input-editor').trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('submit')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('still cancels a captured mention range when another reference inserts', async () => {
+    const wrapper = await mountComponent()
+    const mention = createDeferred<{ reference: object }>()
+    const drop = createDeferred<{ reference: object }>()
+    resolveReferenceMock.mockReturnValueOnce(mention.promise).mockReturnValueOnce(drop.promise)
+    const mentions = useChatInputMentionsMock.mock.calls.at(-1)![0] as {
+      resolveSessionReference: (id: string, insert: (reference: object) => void) => Promise<void>
+    }
+    const insertMention = vi.fn()
+    const resolution = mentions.resolveSessionReference('mention-source', insertMention)
+    await wrapper.trigger('drop', {
+      dataTransfer: { types: [SESSION_REFERENCE_DRAG_TYPE], getData: () => 'drop-source' }
+    })
+    drop.resolve({ reference: { sessionId: 'drop-source' } })
+    await flushPromises()
+    expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(false)
+    mention.resolve({ reference: { sessionId: 'mention-source' } })
+    await resolution
+    expect(insertMention).not.toHaveBeenCalled()
+    expect(insertContentMock).toHaveBeenCalledExactlyOnceWith({
+      type: 'sessionReference',
+      attrs: { sessionId: 'drop-source' }
+    })
+    expect(notifyRendererMock).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'chat.sessionReference.targetChanged' })
+    )
+    wrapper.unmount()
+  })
+
+  it.each(['target', 'document'])(
+    'cancels pending references when the %s changes',
+    async (change) => {
+      const wrapper = await mountComponent()
+      const deferred = createDeferred<{ reference: object }>()
+      resolveReferenceMock.mockReturnValueOnce(deferred.promise)
+      await wrapper.trigger('drop', {
+        dataTransfer: { types: [SESSION_REFERENCE_DRAG_TYPE], getData: () => 'source' }
+      })
+      if (change === 'target') {
+        await wrapper.setProps({ sessionId: 'another-session' })
+      } else {
+        lastEditorOptions.onTransaction({ transaction: { docChanged: true } })
+      }
+      expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(false)
+      const next = createDeferred<{ reference: object }>()
+      resolveReferenceMock.mockReturnValueOnce(next.promise)
+      await wrapper.trigger('drop', {
+        dataTransfer: { types: [SESSION_REFERENCE_DRAG_TYPE], getData: () => 'next-source' }
+      })
+      deferred.resolve({ reference: { sessionId: 'source' } })
+      await flushPromises()
+      expect(insertContentMock).not.toHaveBeenCalled()
+      expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(true)
+      expect(notifyRendererMock).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'chat.sessionReference.targetChanged' })
+      )
+      next.resolve({ reference: { sessionId: 'next-source' } })
+      await flushPromises()
+      expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(false)
+      expect(insertContentMock).toHaveBeenCalledExactlyOnceWith({
+        type: 'sessionReference',
+        attrs: { sessionId: 'next-source' }
+      })
+      wrapper.unmount()
+    }
+  )
+
+  it('releases the submission gate when reference resolution fails', async () => {
+    const wrapper = await mountComponent()
+    resolveReferenceMock.mockRejectedValueOnce(new Error('Source deleted'))
+    await wrapper.trigger('drop', {
+      dataTransfer: { types: [SESSION_REFERENCE_DRAG_TYPE], getData: () => 'source' }
+    })
+    await flushPromises()
+    expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(false)
+    expect(insertContentMock).not.toHaveBeenCalled()
+    expect(notifyRendererMock).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'chat.sessionReference.unavailable' })
+    )
+    await wrapper.find('.chat-input-editor').trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('submit')).toHaveLength(1)
+    wrapper.unmount()
   })
 
   it('handles paste files via composable', async () => {

@@ -338,7 +338,9 @@ const canSaveEdit = computed(() => {
     return false
   }
   return (
-    editingText.value.trim().length > 0 || (editingQueueItem.value?.payload.files?.length ?? 0) > 0
+    editingText.value.trim().length > 0 ||
+    (editingQueueItem.value?.payload.files?.length ?? 0) > 0 ||
+    editingQueueItem.value?.payload.inlineItems?.some((item) => item.type === 'session') === true
   )
 })
 
@@ -359,6 +361,11 @@ function formatPayloadText(item: PendingSessionInputRecord): string {
   if (text) {
     return text
   }
+  const references = item.payload.inlineItems
+    ?.filter((entry) => entry.type === 'session')
+    .map((entry) => entry.title || entry.sessionId)
+    .join(' · ')
+  if (references) return references
   const fileCount = item.payload.files?.length ?? 0
   if (fileCount > 0) {
     return t('chat.pendingInput.attachmentsOnly', { count: fileCount })
@@ -404,16 +411,11 @@ function cancelEdit(): void {
 
 function saveEdit(): void {
   const itemId = editingItemId.value
-  if (!itemId) {
+  if (!itemId || !canSaveEdit.value) {
     return
   }
 
   const text = editingText.value.trim()
-  const currentItem = props.queueItems.find((item) => item.id === itemId)
-  if (!text && (currentItem?.payload.files?.length ?? 0) === 0) {
-    return
-  }
-
   emit('update-queue', { itemId, text })
   cancelEdit()
 }

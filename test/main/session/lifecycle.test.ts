@@ -605,6 +605,76 @@ describe('SessionLifecycle', () => {
     expect(harness.skills.setActiveSkills).not.toHaveBeenCalled()
   })
 
+  it('cleans up an empty ACP session when its initial reference input is rejected', async () => {
+    const harness = createHarness()
+    const error = new Error('Session references are unavailable for ACP sessions.')
+    harness.initialTurn.startInitialTurn.mockRejectedValueOnce(error)
+    harness.deletion.deleteSessionTree.mockImplementationOnce(async (sessionId) => {
+      harness.sessions.delete(sessionId)
+      return [sessionId]
+    })
+
+    await expect(
+      harness.coordinator.createSession(
+        {
+          agentId: 'acp-coder',
+          providerId: 'acp',
+          message: '',
+          inlineItems: [
+            {
+              type: 'session',
+              offset: 0,
+              sessionId: 'source',
+              title: 'Source',
+              projectDir: '/repo',
+              tapeIncarnationId: 'source-tape'
+            }
+          ]
+        },
+        42
+      )
+    ).rejects.toBe(error)
+
+    expect(harness.initialTurn.startInitialTurn).toHaveBeenCalledOnce()
+    expect(harness.transcript.hasMessages).toHaveBeenCalledWith('session-1')
+    expect(harness.desktop.unbind).toHaveBeenCalledWith(42)
+    expect(harness.deletion.deleteSessionTree).toHaveBeenCalledWith('session-1')
+    expect(harness.records.has('session-1')).toBe(false)
+    expect(harness.records.has('parent')).toBe(true)
+    expect(harness.projection.notify).toHaveBeenLastCalledWith({
+      sessionIds: ['session-1'],
+      reason: 'deleted'
+    })
+  })
+
+  it.each(['messages already exist', 'message inspection fails'])(
+    'preserves a rejected new session when %s',
+    async (reason) => {
+      const harness = createHarness()
+      const error = new Error('Initial turn failed')
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+      harness.initialTurn.startInitialTurn.mockRejectedValueOnce(error)
+      if (reason === 'messages already exist') {
+        harness.transcript.hasMessages.mockResolvedValueOnce(true)
+      } else {
+        harness.transcript.hasMessages.mockRejectedValueOnce(new Error('Storage unavailable'))
+      }
+
+      try {
+        await expect(
+          harness.coordinator.createSession({ agentId: 'deepchat', message: 'Hello' }, 42)
+        ).rejects.toBe(error)
+
+        expect(harness.transcript.hasMessages).toHaveBeenCalledWith('session-1')
+        expect(harness.deletion.deleteSessionTree).not.toHaveBeenCalled()
+        expect(harness.desktop.unbind).not.toHaveBeenCalled()
+        expect(harness.records.has('session-1')).toBe(true)
+      } finally {
+        warn.mockRestore()
+      }
+    }
+  )
+
   it('deletes an empty new session when initial attachment preparation is cancelled', async () => {
     const harness = createHarness()
     const controller = new AbortController()

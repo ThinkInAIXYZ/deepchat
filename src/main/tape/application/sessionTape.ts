@@ -239,6 +239,14 @@ export class SessionTape implements SessionTapeCapabilities {
     return this.facts.getTapeIncarnationId(sessionId)
   }
 
+  getSessionReferenceIdentity(sessionId: string): string | null {
+    return this.facts.getSessionReferenceIdentity(sessionId)
+  }
+
+  getProjectedMessageRevision(sessionId: string, messageId: string): number | null {
+    return this.facts.getProjectedMessageRevision(sessionId, messageId)
+  }
+
   appendSkillViewResultFact(input: TapeSkillViewResultFactInput): TapeSkillViewResultFactReceipt {
     return this.facts.appendSkillViewResultFact(input)
   }

@@ -58,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { watch, ref, computed, onUnmounted, provide, nextTick } from 'vue'
+import { watch, ref, computed, onUnmounted, provide, nextTick, shallowReactive } from 'vue'
 import { Editor as VueEditor, EditorContent } from '@tiptap/vue-3'
 import type { Editor, JSONContent } from '@tiptap/core'
 import Mention from '@tiptap/extension-mention'
@@ -70,9 +70,14 @@ import HardBreak from '@tiptap/extension-hard-break'
 import History from '@tiptap/extension-history'
 import { TextSelection } from '@tiptap/pm/state'
 import type { MessageFile, UserMessageInlineItem } from '@shared/types/agent-interface'
+import {
+  SESSION_REFERENCE_DRAG_TYPE,
+  type SessionReference as ResolvedSessionReference
+} from '@shared/sessionReferences'
 import { useI18n } from 'vue-i18n'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { createOcrClient, type OcrClient } from '@api/OcrClient'
+import { createSessionClient } from '@api/SessionClient'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import {
   buildChatInputWorkspaceReferenceText,
@@ -85,6 +90,7 @@ import { useSkillsData } from '@/components/chat-input/composables/useSkillsData
 import SessionSkillsIndicator from '@/components/chat-input/SessionSkillsIndicator.vue'
 import { SkillChip } from './nodes/skillChip'
 import { FileAttachment } from './nodes/fileAttachment'
+import { SessionReference } from './nodes/sessionReference'
 import { CommandForm } from './nodes/commandForm'
 import {
   ATTACHMENT_NODE_CONTEXT,
@@ -152,6 +158,37 @@ const { t } = useI18n()
 const resolvedPlaceholder = computed(() => props.placeholder?.trim() || t('chat.input.placeholder'))
 let editorInstance: Editor | null = null
 const getEditor = () => editorInstance
+const pendingSessionReferences = shallowReactive(new Set<{ kind: 'mention' | 'drop' }>())
+const isResolvingSessionReferences = () => pendingSessionReferences.size > 0
+let isInsertingSessionReference = false
+
+async function resolveSessionReference(
+  sessionId: string,
+  insert: (reference: ResolvedSessionReference) => void,
+  kind: 'mention' | 'drop' = 'mention'
+) {
+  const request = { kind }
+  pendingSessionReferences.add(request)
+  try {
+    const { reference } = await createSessionClient().resolveReference({ sessionId })
+    if (!pendingSessionReferences.has(request) || !props.editable || editor.isDestroyed) {
+      notifyRenderer({
+        kind: 'warning',
+        code: 'chat.sessionReference.targetChanged',
+        title: t('chat.sessionReference.unavailableTitle'),
+        description: t('chat.sessionReference.targetChangedDescription')
+      })
+      return
+    }
+    // Validate and insert in the same continuation; no intervening draft-restore microtask.
+    isInsertingSessionReference = true
+    insert(reference)
+  } finally {
+    isInsertingSessionReference = false
+    pendingSessionReferences.delete(request)
+  }
+}
+
 const conversationId = computed(() => props.sessionId)
 const skillAgentId = computed(() => props.agentId?.trim() || 'deepchat')
 const skillsData = useSkillsData(
@@ -184,6 +221,7 @@ const mentions = useChatInputMentions({
   isAcpSession: computed(() => props.isAcpSession),
   isGenerating: computed(() => props.isGenerating),
   compactCommandDescription: computed(() => t('chat.compaction.commandDescription')),
+  resolveSessionReference,
   onCommandSubmit: (command) => {
     if (!props.editable) return
     emit('command-submit', command)
@@ -332,7 +370,9 @@ const toEditorDoc = (text: string) => {
 }
 
 const getEditorText = (editor: Editor): string => {
-  return editor.getText({ blockSeparator: '\n' })
+  // Clipboard serialization keeps reference labels; the submitted text excludes inline atoms
+  // because getInlineItems stores their metadata and offsets separately.
+  return editor.getText({ blockSeparator: '\n', textSerializers: { sessionReference: () => '' } })
 }
 
 const setCaretToEnd = (editor: Editor) => {
@@ -534,6 +574,7 @@ const editor = new VueEditor({
     History,
     SkillChip,
     FileAttachment,
+    SessionReference,
     CommandForm,
     Mention.configure({
       suggestion: mentions.atSuggestion as any,
@@ -555,6 +596,16 @@ const editor = new VueEditor({
     })
   ],
   content: toEditorDoc(props.modelValue || ''),
+  onTransaction: ({ transaction }) => {
+    if (!transaction.docChanged) return
+    for (const request of pendingSessionReferences) {
+      // Mentions replace a captured range. Drops use the live selection and can coexist with
+      // other reference insertions, but user edits and silent draft restores cancel both.
+      if (!isInsertingSessionReference || request.kind === 'mention') {
+        pendingSessionReferences.delete(request)
+      }
+    }
+  },
   onUpdate: ({ editor, transaction }) => {
     const isInternalSync = Boolean(transaction.getMeta(CHAT_INPUT_SYNC_META) || isSyncingNodes)
     if (!isInternalSync) {
@@ -580,6 +631,12 @@ const editor = new VueEditor({
 editorInstance = editor
 
 // ── Watchers ───────────────────────────────────────────────────
+
+watch(
+  () => [props.sessionId, props.agentId, props.workspacePath, props.isAcpSession, props.editable],
+  () => pendingSessionReferences.clear(),
+  { flush: 'sync' }
+)
 
 watch(
   () => props.editable,
@@ -705,7 +762,17 @@ function handleKeydown(e: KeyboardEvent) {
     return
   }
 
+  // IME confirmation belongs to the editor, even while submission is blocked.
+  const isImeComposing = isComposing.value || e.isComposing || e.keyCode === 229
+  if (isImeComposing) {
+    return
+  }
+
   const isPlainTab = e.key === 'Tab' && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey
+  if (isResolvingSessionReferences() && ((e.key === 'Enter' && !e.shiftKey) || isPlainTab)) {
+    e.preventDefault()
+    return
+  }
   if (isPlainTab && props.queueSubmitEnabled && !props.queueSubmitDisabled) {
     if (mentions.hasSelectableSuggestions.value || mentions.shouldSuppressSubmit()) {
       return
@@ -725,11 +792,6 @@ function handleKeydown(e: KeyboardEvent) {
 
   if (props.submitDisabled) {
     e.preventDefault()
-    return
-  }
-
-  const isImeComposing = isComposing.value || e.isComposing || e.keyCode === 229
-  if (isImeComposing) {
     return
   }
 
@@ -794,6 +856,36 @@ function insertWorkspaceReference(targetPath: string) {
 function onDrop(event: DragEvent) {
   event.preventDefault()
   if (!props.editable) return
+
+  const sourceSessionId = event.dataTransfer?.types?.includes(SESSION_REFERENCE_DRAG_TYPE)
+    ? event.dataTransfer.getData(SESSION_REFERENCE_DRAG_TYPE)
+    : ''
+  if (sourceSessionId) {
+    if (props.isAcpSession) {
+      notifyRenderer({
+        kind: 'error',
+        code: 'chat.sessionReference.unsupported',
+        title: t('chat.sessionReference.unsupportedTitle'),
+        description: t('chat.sessionReference.unsupportedDescription')
+      })
+      return
+    }
+    void resolveSessionReference(
+      sourceSessionId,
+      (reference) => {
+        editor.chain().focus().insertContent({ type: 'sessionReference', attrs: reference }).run()
+      },
+      'drop'
+    ).catch(() => {
+      notifyRenderer({
+        kind: 'error',
+        code: 'chat.sessionReference.unavailable',
+        title: t('chat.sessionReference.unavailableTitle'),
+        description: t('chat.sessionReference.unavailableDescription')
+      })
+    })
+    return
+  }
 
   const workspaceItem = getChatInputWorkspaceItemDragData(event.dataTransfer)
   if (workspaceItem && insertWorkspaceReference(workspaceItem.path)) {
@@ -865,6 +957,18 @@ function getInlineItemsSnapshot(): UserMessageInlineItem[] {
           fileName: node.attrs.fileName as string,
           filePath: node.attrs.filePath as string,
           mimeType: node.attrs.mimeType as string
+        })
+        return
+      }
+
+      if (node.type.name === 'sessionReference') {
+        inlineItems.push({
+          type: 'session',
+          offset,
+          sessionId: node.attrs.sessionId as string,
+          title: node.attrs.title as string,
+          projectDir: (node.attrs.projectDir as string | null) ?? null,
+          tapeIncarnationId: node.attrs.tapeIncarnationId as string
         })
       }
     })
@@ -957,6 +1061,7 @@ function focusAndInsertText(text: string) {
 
 defineExpose({
   triggerAttach,
+  isResolvingSessionReferences,
   insertRecognizedText,
   insertWorkspaceReference,
   getInlineItemsSnapshot,

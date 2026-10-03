@@ -1,4 +1,5 @@
 import type { ChatMessageRecord, SendMessageInput } from '@shared/types/agent-interface'
+import { isSendMessageInputEmpty } from '@/agent/shared/agentSessionNormalization'
 import type { SessionPendingInputs } from './data/pendingInputs'
 import type { SessionSettingsStore } from './data/settings'
 import type { SessionTranscript } from './data/transcript'
@@ -64,7 +65,7 @@ export class SessionTranscriptMutations {
     })
 
     const content = extractUserMessageInput(sourceUserMessage.content)
-    if (!content.text.trim() && (content.files?.length ?? 0) === 0) {
+    if (isSendMessageInputEmpty(content)) {
       throw new Error('Cannot retry an empty user message.')
     }
 

@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "Сеансы", "file": "Файлы" },
+    "open": "Открыть {title}",
+    "unavailableTitle": "Ссылка на сеанс недоступна",
+    "unavailableDescription": "Этот сеанс удалён, сброшен или больше недоступен.",
+    "unsupportedTitle": "Ссылки на сеансы не поддерживаются",
+    "unsupportedDescription": "Ссылки на сеансы нельзя использовать в сеансах ACP.",
+    "targetChangedDescription": "Черновик изменился до готовности ссылки. Добавьте её снова."
+  },
   "input": {
     "suggestions": "Подсказки",
     "placeholder": "Спросите DeepChat о чем угодно, {'@'} чтобы упомянуть файлы, / для команд",

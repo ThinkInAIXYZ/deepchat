@@ -139,6 +139,27 @@ describe('AgentSessionExportService', () => {
     vi.unstubAllGlobals()
   })
 
+  it('exports the title and source ID of reference-only user messages', async () => {
+    const { service, messages } = createFixture()
+    messages.find((message) => message.id === 'user-1')!.content = JSON.stringify({
+      text: '',
+      files: [],
+      inlineItems: [
+        {
+          type: 'session',
+          offset: 0,
+          sessionId: 'source-42',
+          title: 'Launch notes',
+          projectDir: null,
+          tapeIncarnationId: 'source-incarnation'
+        }
+      ]
+    })
+    const exported = await service.export('session-1', 'markdown')
+    expect(exported.content).toContain('[Session: Launch notes (source-42)]')
+    expect(exported.content).not.toContain('source-incarnation')
+  })
+
   it('sends only committed transcript messages to the confirmed destination captured before export', async () => {
     const options = {
       nowledgeConfig: {

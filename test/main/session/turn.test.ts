@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type {
   ChatMessageRecord,
   PendingSessionInputRecord,
+  SendMessageInput,
   SessionRecord
 } from '@shared/types/agent-interface'
 import { SessionTurn, type SessionTurnDependencies } from '@/session/turn'
@@ -729,6 +730,42 @@ describe('SessionTurn', () => {
     expect(harness.resolveSession).not.toHaveBeenCalled()
     expect(harness.projection.scheduleTitleGeneration).not.toHaveBeenCalled()
   })
+
+  it.each(['deepchat', 'acp'] as const)(
+    'accepts reference-only initial input only for the native runtime (%s)',
+    async (kind) => {
+      const harness = createHarness({ kind })
+      const content: SendMessageInput = {
+        text: '',
+        files: [],
+        inlineItems: [
+          {
+            type: 'session',
+            offset: 0,
+            sessionId: 'source',
+            title: 'Source',
+            projectDir: '/another-workspace',
+            tapeIncarnationId: 'incarnation'
+          }
+        ]
+      }
+      const result = harness.coordinator.startInitialTurn({
+        sessionId: 's1',
+        content,
+        projectDir: '/repo',
+        initialTitle: 'Reference',
+        fallbackProviderId: 'openai',
+        fallbackModelId: 'model-1'
+      })
+      if (kind === 'acp') {
+        await expect(result).rejects.toThrow('unavailable for ACP sessions')
+        expect(harness.send).not.toHaveBeenCalled()
+      } else {
+        await expect(result).resolves.toMatchObject({ messageId: 'message-1' })
+        expect(harness.send).toHaveBeenCalledWith(expect.objectContaining({ content }))
+      }
+    }
+  )
 
   it('contains rejected DeepChat initial-turn acceptance', async () => {
     const harness = createHarness()

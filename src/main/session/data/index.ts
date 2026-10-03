@@ -18,6 +18,7 @@ import type {
 } from '@/tape/ports/capabilities'
 import { SessionTranscript } from './transcript'
 import { SessionDatabase } from './database'
+import { SessionReferences } from './sessionReferences'
 
 export function createSessionData(
   connection: DatabaseConnectionProvider,
@@ -122,6 +123,9 @@ export function createSessionDataFromDatabase(
     transcript,
     tape,
     tapeStore,
+    sessionReferences: new SessionReferences(database, sessionTape, (sessionId) =>
+      tape.getTapeInfo(sessionId)
+    ),
     programmaticExecutionJournal,
     pendingInputs: new SessionPendingInputs(pendingInputStore, transcript, events)
   }

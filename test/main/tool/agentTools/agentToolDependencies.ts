@@ -117,5 +117,6 @@ export const createAgentToolDependencies = (
     getApprovedFilePaths: overrides.getApprovedFilePaths ?? vi.fn().mockReturnValue([]),
     consumeSettingsApproval: overrides.consumeSettingsApproval ?? vi.fn().mockReturnValue(false)
   },
+  readSession: overrides.readSession ?? vi.fn(),
   cacheImage: overrides.cacheImage ?? vi.fn(async (data: string) => data)
 })

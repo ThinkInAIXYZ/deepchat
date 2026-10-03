@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SessionReferenceSchema } from '../sessionReferences'
 import { OrchestrationPolicySchema } from '../orchestration/policy'
 import { ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
 import type { Agent } from '../types/agent-interface'
@@ -359,6 +360,10 @@ export const UserMessageInlineItemSchema = z.discriminatedUnion('type', [
     fileName: z.string(),
     filePath: z.string(),
     mimeType: z.string().optional()
+  }),
+  SessionReferenceSchema.extend({
+    type: z.literal('session'),
+    offset: z.number().int().nonnegative()
   })
 ])
 

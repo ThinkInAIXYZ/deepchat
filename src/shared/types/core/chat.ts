@@ -46,6 +46,7 @@ export type UserMessageInlineItem =
       filePath: string
       mimeType?: string
     }
+  | ({ type: 'session'; offset: number } & import('../../sessionReferences').SessionReference)
 
 export type UserMessageContent = {
   continue?: boolean

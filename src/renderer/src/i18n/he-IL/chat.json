@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "הפעלות", "file": "קבצים" },
+    "open": "פתיחת {title}",
+    "unavailableTitle": "הפניית ההפעלה אינה זמינה",
+    "unavailableDescription": "הפעלה זו נמחקה, אופסה או אינה זמינה עוד.",
+    "unsupportedTitle": "הפניות להפעלות אינן נתמכות",
+    "unsupportedDescription": "לא ניתן להשתמש בהפניות להפעלות בהפעלות ACP.",
+    "targetChangedDescription": "הטיוטה השתנתה לפני שההפניה הייתה מוכנה. יש להוסיף אותה שוב."
+  },
   "input": {
     "suggestions": "הצעות",
     "placeholder": "שאלו את DeepChat כל דבר, השתמשו ב-{'@'} כדי להזכיר קבצים וב-/ לפקודות",

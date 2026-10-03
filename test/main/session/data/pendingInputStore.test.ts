@@ -340,6 +340,35 @@ describe('SessionPendingInputStore', () => {
     }
   )
 
+  it('preserves whitespace and both reference positions when merging steer inputs', () => {
+    const row = createQueueRow('steer-1', 'session-1', 0, 'pending')
+    row.mode = 'steer'
+    const reference = {
+      type: 'session' as const,
+      sessionId: 'source',
+      title: 'Source',
+      projectDir: null,
+      tapeIncarnationId: 'inc-source'
+    }
+    row.payload_json = JSON.stringify({
+      text: '  first  ',
+      inlineItems: [{ ...reference, offset: 9 }]
+    })
+    const { store } = createStore([row])
+    const merged = store.appendSteerInput(
+      row.id,
+      { text: '\n next ', inlineItems: [{ ...reference, sessionId: 'other', offset: 2 }] },
+      'message-2'
+    )
+
+    expect(merged.payload.text).toBe('  first  \n\n\n next ')
+    expect(merged.payload.inlineItems).toEqual([
+      { ...reference, offset: 9 },
+      { ...reference, sessionId: 'other', offset: 13 }
+    ])
+    expect(store.getInput(row.id)?.payload).toEqual(merged.payload)
+  })
+
   it.each([
     [false, true, true],
     [true, false, true],

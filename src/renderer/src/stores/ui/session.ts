@@ -1135,7 +1135,10 @@ export const useSessionStore = defineStore('session', () => {
         : await sessionClient.create(input)
       const session = result.session
       setSearchIntent(session.id, input.search === true)
-      const hasInitialTurn = input.message.trim().length > 0 || (input.files?.length ?? 0) > 0
+      const hasInitialTurn =
+        input.message.trim().length > 0 ||
+        (input.files?.length ?? 0) > 0 ||
+        input.inlineItems?.some((item) => item.type === 'session') === true
       const attachmentPreparation = result.initialTurn?.attachmentPreparation
       const initialTurnNeedsUserAction = attachmentPreparation?.status === 'needs_user_action'
       const hasAcceptedInitialTurn = hasInitialTurn && !initialTurnNeedsUserAction
@@ -1187,9 +1190,22 @@ export const useSessionStore = defineStore('session', () => {
     commitSessionSnapshot(session)
   }
 
-  async function selectSession(sessionId: string): Promise<void> {
+  async function selectSession(
+    sessionId: string,
+    expectedTapeIncarnationId?: string
+  ): Promise<void> {
     error.value = null
     const requestId = createActivationNavigationRequest()
+    if (expectedTapeIncarnationId !== undefined) {
+      // Reference validation is part of navigation, so newer selections/close cancel it too.
+      try {
+        await sessionClient.resolveReference({ sessionId, expectedTapeIncarnationId })
+      } catch (referenceError) {
+        if (activationNavigationRequestId === requestId) throw referenceError
+        return
+      }
+      if (activationNavigationRequestId !== requestId) return
+    }
     try {
       if (activeSessionId.value && activeSessionId.value !== sessionId) {
         messageStore.clearStreamingState()

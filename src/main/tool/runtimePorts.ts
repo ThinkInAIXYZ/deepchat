@@ -43,6 +43,7 @@ import type {
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
 import type { z } from 'zod'
 import type { LiveDelegationConsentReceipt } from '@/orchestration/liveDelegationConsent'
+import type { ReadSessionInput } from '@shared/sessionReferences'
 
 export type AgentToolCronJobUpsertInput = z.input<typeof cronJobsUpsertInputSchema>
 
@@ -276,5 +277,6 @@ export interface AgentToolDependencies {
   provider: AgentProviderToolPort
   desktop: AgentDesktopToolPort
   permissions: AgentToolPermissionPort
+  readSession(callerSessionId: string, input: ReadSessionInput): Promise<unknown>
   cacheImage(data: string, options?: CacheImageOptions): Promise<string>
 }

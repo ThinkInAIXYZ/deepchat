@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "Sesje", "file": "Pliki" },
+    "open": "Otwórz {title}",
+    "unavailableTitle": "Odwołanie do sesji jest niedostępne",
+    "unavailableDescription": "Ta sesja została usunięta, zresetowana lub nie jest już dostępna.",
+    "unsupportedTitle": "Odwołania do sesji nie są obsługiwane",
+    "unsupportedDescription": "Odwołań do sesji nie można używać w sesjach ACP.",
+    "targetChangedDescription": "Wersja robocza zmieniła się przed przygotowaniem odwołania. Dodaj je ponownie."
+  },
   "input": {
     "suggestions": "Sugestie",
     "placeholder": "Zapytaj DeepChat o cokolwiek, {'@'} o wzmiankę o plikach, / o polecenia",

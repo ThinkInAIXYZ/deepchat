@@ -1780,6 +1780,8 @@ export async function createMainProcessControl(dependencies: {
     }
   }
   const agentToolDependencies: AgentToolDependencies = {
+    readSession: (callerSessionId, input) =>
+      sessionData.sessionReferences.read(callerSessionId, input),
     agentInvocationAdmission,
     sessions: {
       resolveConversationWorkdir: async (conversationId) => {
@@ -3184,7 +3186,8 @@ export async function createMainProcessControl(dependencies: {
       translation: sessionTranslation,
       usageStats: usageStatsService,
       rtkRuntime: rtkRuntimeService,
-      tapeInspectorHeadWatcher
+      tapeInspectorHeadWatcher,
+      sessionReferences: sessionData.sessionReferences
     })
     const agentRoutes = createAgentRoutes({
       agentSettings,

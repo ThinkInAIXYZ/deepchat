@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "Sesi", "file": "Fail" },
+    "open": "Buka {title}",
+    "unavailableTitle": "Rujukan sesi tidak tersedia",
+    "unavailableDescription": "Sesi ini telah dipadam, ditetapkan semula atau tidak lagi tersedia.",
+    "unsupportedTitle": "Rujukan sesi tidak disokong",
+    "unsupportedDescription": "Rujukan sesi tidak boleh digunakan dalam sesi ACP.",
+    "targetChangedDescription": "Draf berubah sebelum rujukan sedia. Tambahkannya semula."
+  },
   "input": {
     "suggestions": "Cadangan",
     "placeholder": "Hantar mesej kepada DeepChat, {'@'} boleh merujuk fail, / boleh menggunakan arahan",

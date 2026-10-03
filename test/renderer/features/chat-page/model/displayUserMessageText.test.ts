@@ -66,6 +66,34 @@ describe('displayUserMessageText', () => {
     expect(collectVisibleUserMessageText(content)).toBe('before notes.mdreviewafter')
   })
 
+  it('projects a persisted session reference for display and search', () => {
+    const content = createContent({
+      text: 'See ',
+      inlineItems: [
+        {
+          type: 'session',
+          offset: 4,
+          sessionId: 'source-session',
+          title: 'Earlier investigation',
+          projectDir: '/workspace',
+          tapeIncarnationId: 'tape-1'
+        }
+      ]
+    })
+
+    expect(getVisibleUserContentBlocks(content)).toEqual([
+      { type: 'text', content: 'See ' },
+      {
+        type: 'session',
+        sessionId: 'source-session',
+        title: 'Earlier investigation',
+        projectDir: '/workspace',
+        tapeIncarnationId: 'tape-1'
+      }
+    ])
+    expect(collectVisibleUserMessageText(content)).toBe('See Earlier investigation')
+  })
+
   it('falls back to raw text without renderable inline items', () => {
     const content = createContent({
       text: 'raw text',

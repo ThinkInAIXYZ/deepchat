@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "Sessões", "file": "Arquivos" },
+    "open": "Abrir {title}",
+    "unavailableTitle": "Referência de sessão indisponível",
+    "unavailableDescription": "Esta sessão foi excluída, redefinida ou não está mais disponível.",
+    "unsupportedTitle": "Referências de sessão não compatíveis",
+    "unsupportedDescription": "Referências de sessão não podem ser usadas em sessões ACP.",
+    "targetChangedDescription": "O rascunho mudou antes de a referência ficar pronta. Adicione-a novamente."
+  },
   "input": {
     "suggestions": "Sugestões",
     "placeholder": "Pergunte qualquer coisa ao DeepChat, {'@'} para mencionar arquivos, / para comandos",

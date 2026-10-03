@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "Sessions", "file": "Files" },
+    "open": "Open {title}",
+    "unavailableTitle": "Session reference unavailable",
+    "unavailableDescription": "This session was deleted, reset, or is no longer available.",
+    "unsupportedTitle": "Session references are not supported",
+    "unsupportedDescription": "Session references cannot be used in ACP sessions.",
+    "targetChangedDescription": "The draft changed before the reference was ready. Add it again in the current draft."
+  },
   "input": {
     "suggestions": "Suggestions",
     "placeholder": "Ask DeepChat anything, {'@'} to mention files, / for commands",

@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "Sitzungen", "file": "Dateien" },
+    "open": "{title} öffnen",
+    "unavailableTitle": "Sitzungsreferenz nicht verfügbar",
+    "unavailableDescription": "Diese Sitzung wurde gelöscht, zurückgesetzt oder ist nicht mehr verfügbar.",
+    "unsupportedTitle": "Sitzungsreferenzen werden nicht unterstützt",
+    "unsupportedDescription": "Sitzungsreferenzen können in ACP-Sitzungen nicht verwendet werden.",
+    "targetChangedDescription": "Der Entwurf wurde geändert, bevor die Referenz bereit war. Fügen Sie sie erneut hinzu."
+  },
   "input": {
     "suggestions": "Vorschläge",
     "placeholder": "Nachricht an DeepChat senden, {'@'} zum Verweisen auf Dateien, / für Befehle",

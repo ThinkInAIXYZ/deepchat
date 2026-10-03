@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SessionReferenceSchema, SessionReferenceCandidateSchema } from '../../sessionReferences'
 import { OrchestrationPolicySchema } from '../../orchestration/policy'
 import { ToolModeSchema } from '../../toolMode'
 import type { SearchResult } from '@shared/types/core/search'
@@ -630,6 +631,25 @@ export const sessionsForkRoute = defineRouteContract({
   output: z.object({
     session: SessionWithStateSchema
   })
+})
+
+export const sessionsSearchReferenceCandidatesRoute = defineRouteContract({
+  name: 'sessions.searchReferenceCandidates',
+  input: z.object({
+    projectDir: z.string().max(4096).nullable(),
+    query: z.string().max(500),
+    excludeSessionId: EntityIdSchema.optional()
+  }),
+  output: z.object({ items: z.array(SessionReferenceCandidateSchema).max(20) })
+})
+
+export const sessionsResolveReferenceRoute = defineRouteContract({
+  name: 'sessions.resolveReference',
+  input: z.object({
+    sessionId: EntityIdSchema,
+    expectedTapeIncarnationId: z.string().min(1).max(256).optional()
+  }),
+  output: z.object({ reference: SessionReferenceSchema })
 })
 
 export const sessionsSearchHistoryRoute = defineRouteContract({

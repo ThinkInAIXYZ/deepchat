@@ -2,6 +2,7 @@ import { computed, effectScope, nextTick, ref, shallowReactive } from 'vue'
 import type { JSONContent } from '@tiptap/core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useComposerSubmit } from '@/features/chat-page/composables/useComposerSubmit'
+import { createComposerTextDocument } from '@/features/chat-page/model/composerDraftState'
 import {
   loadComposerDraftFromStorage,
   saveComposerDraftToStorage
@@ -48,6 +49,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
   const activeModelSelection = ref<{ providerId: string; modelId: string } | null>(null)
   const pendingSkills = ref<string[]>(['ocr-skill'])
   const inlineItems = ref<UserMessageInlineItem[]>([])
+  const resolvingSessionReferences = ref(false)
   const document = ref<JSONContent>({ type: 'doc', content: [{ type: 'paragraph' }] })
   const clearPendingSkills = vi.fn(() => {
     pendingSkills.value = []
@@ -59,6 +61,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
     document.value = JSON.parse(JSON.stringify(snapshot)) as JSONContent
   })
   const inputHandle = {
+    isResolvingSessionReferences: () => resolvingSessionReferences.value,
     getPendingSkillsSnapshot: () => [...pendingSkills.value],
     getInlineItemsSnapshot: () => inlineItems.value.map((item) => ({ ...item })),
     clearPendingSkills,
@@ -177,6 +180,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
     activeModelSelection,
     pendingSkills,
     inlineItems,
+    resolvingSessionReferences,
     document,
     messageStore,
     sessionStore,
@@ -224,6 +228,133 @@ describe('useComposerSubmit attachment preflight', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+  })
+
+  it('blocks send, commands, queue and steer while a reference is resolving', async () => {
+    const harness = createHarness()
+    harness.actions.message.value = 'use the source'
+    harness.resolvingSessionReferences.value = true
+    await harness.actions.onSubmit()
+    await harness.actions.onCommandSubmit('review')
+    expect(harness.chatClient.sendMessage).not.toHaveBeenCalled()
+    harness.isGenerating.value = true
+    await harness.actions.onQueueSubmit()
+    await harness.actions.onSteer()
+    await harness.actions.onSubmit()
+    expect(harness.pendingInputStore.queueInput).not.toHaveBeenCalled()
+    expect(harness.chatClient.steerActiveTurn).not.toHaveBeenCalled()
+    expect(harness.actions.isInputSubmitDisabled.value).toBe(true)
+    expect(harness.actions.isQueueSubmitDisabled.value).toBe(true)
+    expect(harness.actions.disableQueueSteerAction.value).toBe(true)
+    expect(harness.actions.message.value).toBe('use the source')
+    harness.resolvingSessionReferences.value = false
+    expect(harness.actions.isInputSubmitDisabled.value).toBe(false)
+    harness.isGenerating.value = false
+    await harness.actions.onSubmit()
+    expect(harness.chatClient.sendMessage).toHaveBeenCalledOnce()
+    harness.stop()
+  })
+
+  it('enables and sends a session-reference-only draft with aligned offsets', async () => {
+    const harness = createHarness()
+    harness.actions.message.value = '  '
+    harness.inlineItems.value = [
+      {
+        type: 'session',
+        offset: 2,
+        sessionId: 'source',
+        title: 'Source',
+        projectDir: null,
+        tapeIncarnationId: 'incarnation'
+      }
+    ]
+    harness.actions.recordComposerDocumentChange()
+    await nextTick()
+
+    expect(harness.actions.isInputSubmitDisabled.value).toBe(false)
+    await harness.actions.onSubmit()
+
+    expect(harness.chatClient.sendMessage).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({
+        text: '',
+        inlineItems: [expect.objectContaining({ type: 'session', offset: 0 })]
+      })
+    )
+    harness.stop()
+  })
+
+  it.each([false, true])(
+    'refreshes send and queue state after silently restoring references=%s',
+    async (hasReference) => {
+      const harness = createHarness()
+      const reference: UserMessageInlineItem = {
+        type: 'session',
+        offset: 0,
+        sessionId: 'source',
+        title: 'Source',
+        projectDir: null,
+        tapeIncarnationId: 'incarnation'
+      }
+      // Tiptap snapshots are not reactive; only explicit editor events invalidate the cache.
+      let liveDocument = createComposerTextDocument('', hasReference ? [] : [reference])
+      harness.inputHandle.getDocumentSnapshot = () => JSON.parse(JSON.stringify(liveDocument))
+      harness.inputHandle.getInlineItemsSnapshot = () =>
+        liveDocument.content?.[0]?.content?.some((node) => node.type === 'sessionReference')
+          ? [reference]
+          : []
+      harness.restoreDocumentSnapshot.mockImplementation((snapshot) => {
+        liveDocument = JSON.parse(JSON.stringify(snapshot))
+      })
+      saveComposerDraftToStorage('s2', {
+        revision: 1,
+        rawMessage: '',
+        files: [],
+        activeSkills: [],
+        document: createComposerTextDocument('', hasReference ? [reference] : [])
+      })
+
+      try {
+        expect(harness.actions.isInputSubmitDisabled.value).toBe(hasReference)
+        expect(harness.actions.isQueueSubmitDisabled.value).toBe(hasReference)
+
+        harness.sessionId.value = 's2'
+        harness.actions.switchComposerSession('s1', 's2')
+        await nextTick()
+
+        expect(harness.actions.message.value).toBe('')
+        expect(harness.actions.isInputSubmitDisabled.value).toBe(!hasReference)
+        expect(harness.actions.isQueueSubmitDisabled.value).toBe(!hasReference)
+      } finally {
+        harness.stop()
+      }
+    }
+  )
+
+  it('adjusts inline offsets when trimming surrounding whitespace', async () => {
+    const harness = createHarness()
+    harness.actions.message.value = '  hello  '
+    harness.inlineItems.value = [
+      {
+        type: 'session',
+        offset: 9,
+        sessionId: 'source',
+        title: 'Source',
+        projectDir: null,
+        tapeIncarnationId: 'incarnation'
+      }
+    ]
+
+    await harness.actions.onSubmit()
+
+    expect(harness.chatClient.sendMessage).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({
+        text: 'hello',
+        inlineItems: [expect.objectContaining({ offset: 5 })]
+      })
+    )
+    harness.stop()
   })
 
   it('preserves a rejected draft and sends only after explicit degradation', async () => {
@@ -620,6 +751,66 @@ describe('useComposerSubmit attachment preflight', () => {
     })
     harness.stop()
   })
+
+  it.each([true, false])(
+    'restores initial reference positions with composer mounted=%s',
+    async (composerMounted) => {
+      const harness = createHarness({ composerMounted })
+      harness.pendingSkills.value = []
+      const source = {
+        sessionId: 'source',
+        title: 'Source',
+        projectDir: null,
+        tapeIncarnationId: 'inc-source'
+      }
+      const other = { ...source, sessionId: 'other', title: 'Other' }
+      harness.actions.restoreInitialBlockedDraft(
+        {
+          text: 'A🙂\r\n\nB',
+          files: [imageFile()],
+          inlineItems: [
+            { type: 'session', offset: 7, ...other },
+            { type: 'session', offset: 3, ...source },
+            { type: 'session', offset: 5, ...source },
+            { type: 'session', offset: 5, ...other }
+          ]
+        },
+        blockedSummary()
+      )
+      if (!composerMounted) harness.chatInputRef.value = harness.inputHandle
+
+      await vi.waitFor(() =>
+        expect(harness.document.value).toEqual({
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'text', text: 'A🙂' },
+                { type: 'sessionReference', attrs: source }
+              ]
+            },
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'sessionReference', attrs: source },
+                { type: 'sessionReference', attrs: other }
+              ]
+            },
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'text', text: 'B' },
+                { type: 'sessionReference', attrs: other }
+              ]
+            }
+          ]
+        })
+      )
+      expect(harness.actions.attachedFiles.value).toEqual([imageFile()])
+      harness.stop()
+    }
+  )
 
   it('keeps a blocked attempt scoped to its session across navigation', async () => {
     const harness = createHarness()

@@ -5,8 +5,10 @@ import type { Editor, Range } from '@tiptap/core'
 import tippy from 'tippy.js'
 import { createSessionClient } from '@api/SessionClient'
 import { createWorkspaceClient } from '@api/WorkspaceClient'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import type { WorkspaceFileNode } from '@shared/types/workspace'
 import type { PromptListEntry } from '@shared/types/mcp'
+import type { SessionReference } from '@shared/sessionReferences'
 import { useMcpStore } from '@/stores/mcp'
 import { useSkillsStore } from '@/stores/skillsStore'
 import {
@@ -37,6 +39,10 @@ export interface UseChatInputMentionsOptions {
   isAcpSession: Ref<boolean>
   isGenerating?: Ref<boolean>
   compactCommandDescription?: Ref<string>
+  resolveSessionReference: (
+    sessionId: string,
+    insert: (reference: SessionReference) => void
+  ) => Promise<void>
   onCommandSubmit: (command: string) => void
   onActivateSkill: (skillName: string) => Promise<void> | void
 }
@@ -49,7 +55,16 @@ interface FileSuggestionItem {
   payload: { path: string; insertText: string }
 }
 
-type SuggestionItem = FileSuggestionItem | SlashSuggestionItem
+interface SessionSuggestionItem {
+  id: string
+  category: 'session'
+  label: string
+  description: string
+  payload: { sessionId: string }
+}
+
+type AtSuggestionItem = FileSuggestionItem | SessionSuggestionItem
+type SuggestionItem = AtSuggestionItem | SlashSuggestionItem
 
 const normalizeAcpCommands = (commands: unknown): AcpSessionCommand[] => {
   if (!Array.isArray(commands)) {
@@ -188,6 +203,29 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       })
     } catch (error) {
       console.warn('[ChatInputMentions] searchFiles failed:', error)
+      return []
+    }
+  }
+
+  const searchSessions = async (query: string): Promise<SessionSuggestionItem[]> => {
+    if (options.isAcpSession.value) return []
+    const sessionId = options.sessionId.value
+    const projectDir = options.workspacePath.value
+    try {
+      const result = await sessionClient.searchReferenceCandidates({
+        projectDir,
+        query,
+        ...(sessionId ? { excludeSessionId: sessionId } : {})
+      })
+      return result.items.map((item) => ({
+        id: `session:${item.sessionId}`,
+        category: 'session' as const,
+        label: item.title,
+        description: `${item.agentId} · ${new Date(item.updatedAt).toLocaleString()}`,
+        payload: { sessionId: item.sessionId }
+      }))
+    } catch (error) {
+      console.warn('[ChatInputMentions] searchReferenceCandidates failed:', error)
       return []
     }
   }
@@ -495,7 +533,11 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     char: '@',
     allowedPrefixes: null,
     items: async ({ query }: { query: string }) => {
-      return await searchWorkspaceFiles(query)
+      const [sessions, files] = await Promise.all([
+        searchSessions(query),
+        searchWorkspaceFiles(query)
+      ])
+      return [...sessions, ...files]
     },
     command: ({
       editor,
@@ -504,10 +546,31 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     }: {
       editor: Editor
       range: Range
-      props: FileSuggestionItem
+      props: AtSuggestionItem
     }) => {
       markSuggestionSelected()
-      editor.chain().focus().insertContentAt(range, props.payload.insertText).run()
+      if (props.category === 'file') {
+        editor.chain().focus().insertContentAt(range, props.payload.insertText).run()
+        return
+      }
+
+      void options
+        .resolveSessionReference(props.payload.sessionId, (reference) => {
+          editor
+            .chain()
+            .focus()
+            .insertContentAt(range, { type: 'sessionReference', attrs: reference })
+            .run()
+        })
+        .catch((error) => {
+          console.warn('[ChatInputMentions] resolveReference failed:', error)
+          notifyRenderer({
+            kind: 'error',
+            code: 'chat.sessionReference.unavailable',
+            title: t('chat.sessionReference.unavailableTitle'),
+            description: t('chat.sessionReference.unavailableDescription')
+          })
+        })
     },
     render: createRenderer
   }

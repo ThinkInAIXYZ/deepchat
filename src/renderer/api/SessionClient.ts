@@ -62,10 +62,12 @@ import {
   sessionsRetryPendingQueueInputRoute,
   sessionsRetryRtkHealthCheckRoute,
   sessionsRetryMessageRoute,
+  sessionsResolveReferenceRoute,
   sessionsRestoreRoute
 } from '@shared/contracts/routes'
 import {
   sessionsSearchHistoryRoute,
+  sessionsSearchReferenceCandidatesRoute,
   sessionsSetAcpSessionConfigOptionRoute,
   sessionsSetModelRoute,
   sessionsSetToolModeRoute,
@@ -109,6 +111,27 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
 
   async function restore(sessionId: string, limit?: number) {
     return await bridge.invoke(sessionsRestoreRoute.name, { sessionId, limit })
+  }
+
+  async function searchReferenceCandidates(input: {
+    projectDir: string | null
+    query: string
+    excludeSessionId?: string
+  }) {
+    return await bridge.invoke(
+      sessionsSearchReferenceCandidatesRoute.name,
+      sessionsSearchReferenceCandidatesRoute.input.parse(input)
+    )
+  }
+
+  async function resolveReference(input: {
+    sessionId: string
+    expectedTapeIncarnationId?: string
+  }) {
+    return await bridge.invoke(
+      sessionsResolveReferenceRoute.name,
+      sessionsResolveReferenceRoute.input.parse(input)
+    )
   }
 
   async function listMessagesPage(
@@ -654,6 +677,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
   return {
     create,
     restore,
+    searchReferenceCandidates,
+    resolveReference,
     listMessagesPage,
     activate,
     deactivate,

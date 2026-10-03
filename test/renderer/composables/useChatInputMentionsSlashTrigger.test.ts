@@ -54,6 +54,7 @@ const loadSlashSuggestion = async () => {
         sessionId: ref(null),
         agentId: ref('deepchat'),
         isAcpSession: ref(false),
+        resolveSessionReference: vi.fn(),
         onCommandSubmit: vi.fn(),
         onActivateSkill: vi.fn()
       })

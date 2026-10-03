@@ -52,11 +52,13 @@ import {
   sessionsRenameRoute,
   sessionsResumePendingQueueRoute,
   sessionsRestoreRoute,
+  sessionsResolveReferenceRoute,
   sessionsResolveBlockedPendingInputRoute,
   sessionsRetryMessageRoute,
   sessionsRetryPendingQueueInputRoute,
   sessionsRetryRtkHealthCheckRoute,
   sessionsSearchHistoryRoute,
+  sessionsSearchReferenceCandidatesRoute,
   sessionsSetAcpSessionConfigOptionRoute,
   sessionsSetModelRoute,
   sessionsSetToolModeRoute,
@@ -92,6 +94,7 @@ import type { SessionHistorySearch } from './sessionHistorySearch'
 import type { SessionTranslation } from './sessionTranslation'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { SubmissionCancellationRegistry } from './submissionCancellationRegistry'
+import type { SessionReferences } from './data/sessionReferences'
 
 export type SessionRouteProjectionPort = SessionServiceProjectionPort &
   ChatServiceProjectionPort &
@@ -129,6 +132,7 @@ export function createSessionRoutes(deps: {
   usageStats: Pick<UsageStatsService, 'getDashboard'>
   rtkRuntime: { retryHealthCheck(): Promise<unknown> }
   tapeInspectorHeadWatcher: Pick<TapeInspectorHeadWatcher, 'subscribe' | 'unsubscribe'>
+  sessionReferences: Pick<SessionReferences, 'searchCandidates' | 'resolve'>
 }): DeepchatRouteMap {
   const submissionCancellations = new SubmissionCancellationRegistry()
   const sessionService = new SessionService({
@@ -216,6 +220,29 @@ export function createSessionRoutes(deps: {
         return sessionsListLightweightRoute.output.parse(
           await deps.projection.listLightweight(input)
         )
+      }
+    ],
+    [
+      sessionsSearchReferenceCandidatesRoute.name,
+      async (rawInput, context) => {
+        const input = sessionsSearchReferenceCandidatesRoute.input.parse(rawInput)
+        requireRendererCaller(context)
+        return sessionsSearchReferenceCandidatesRoute.output.parse({
+          items: deps.sessionReferences.searchCandidates(input)
+        })
+      }
+    ],
+    [
+      sessionsResolveReferenceRoute.name,
+      async (rawInput, context) => {
+        const input = sessionsResolveReferenceRoute.input.parse(rawInput)
+        requireRendererCaller(context)
+        return sessionsResolveReferenceRoute.output.parse({
+          reference: await deps.sessionReferences.resolve(
+            input.sessionId,
+            input.expectedTapeIncarnationId
+          )
+        })
       }
     ],
     [

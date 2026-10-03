@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "Oturumlar", "file": "Dosyalar" },
+    "open": "{title} öğesini aç",
+    "unavailableTitle": "Oturum başvurusu kullanılamıyor",
+    "unavailableDescription": "Bu oturum silindi, sıfırlandı veya artık kullanılamıyor.",
+    "unsupportedTitle": "Oturum başvuruları desteklenmiyor",
+    "unsupportedDescription": "ACP oturumlarında oturum başvuruları kullanılamaz.",
+    "targetChangedDescription": "Başvuru hazır olmadan taslak değişti. Geçerli taslağa yeniden ekleyin."
+  },
   "input": {
     "suggestions": "Öneriler",
     "placeholder": "DeepChat'ye herhangi bir şey sor, {'@'}'a dosyalardan bahsetmesini ve / komutlarını sor",

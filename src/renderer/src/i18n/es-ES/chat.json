@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "Sesiones", "file": "Archivos" },
+    "open": "Abrir {title}",
+    "unavailableTitle": "Referencia de sesión no disponible",
+    "unavailableDescription": "Esta sesión se eliminó, reinició o ya no está disponible.",
+    "unsupportedTitle": "Referencias de sesión no compatibles",
+    "unsupportedDescription": "Las referencias de sesión no se pueden usar en sesiones ACP.",
+    "targetChangedDescription": "El borrador cambió antes de que la referencia estuviera lista. Añádela de nuevo."
+  },
   "input": {
     "suggestions": "Sugerencias",
     "placeholder": "Envía un mensaje a DeepChat, {'@'} para mencionar archivos, / para comandos",

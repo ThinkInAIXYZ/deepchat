@@ -136,6 +136,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
       ),
     activate: vi.fn().mockResolvedValue({ activated: true }),
     deactivate: vi.fn().mockResolvedValue({ deactivated: true }),
+    resolveReference: vi.fn().mockResolvedValue({}),
     getCompactionSnapshot: vi.fn().mockResolvedValue({
       state: {
         status: 'idle',
@@ -1115,6 +1116,40 @@ describe('sessionStore onboarding progress', () => {
     })
   })
 
+  it.each([true, false])(
+    'recognizes an initial turn with no text when it has a reference=%s',
+    async (hasReference) => {
+      const { store, onboardingClient } = await setupStore({
+        onboardingCurrentStepId: 'first-chat'
+      })
+      await store.createSession({
+        agentId: 'deepchat',
+        message: '',
+        inlineItems: hasReference
+          ? [
+              {
+                type: 'session',
+                offset: 0,
+                sessionId: 'source',
+                title: 'Source',
+                projectDir: null,
+                tapeIncarnationId: 'inc-source'
+              }
+            ]
+          : []
+      })
+
+      expect(store.activeSession.value?.status).toBe(hasReference ? 'working' : 'none')
+      expect(onboardingClient.getState).toHaveBeenCalledTimes(hasReference ? 1 : 0)
+      if (hasReference) {
+        expect(onboardingClient.setStepStatus).toHaveBeenCalledWith({
+          stepId: 'first-chat',
+          status: 'completed'
+        })
+      }
+    }
+  )
+
   it('does not publish a store error when new-session preparation is cancelled', async () => {
     const { store, sessionClient } = await setupStore()
     const abortError = new Error('Aborted')
@@ -1803,6 +1838,58 @@ describe('sessionStore streaming cleanup', () => {
     expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
     expect(pageRouter.goToChat).not.toHaveBeenCalledWith('session-stale')
   })
+
+  it.each(['selection', 'reference', 'close'])(
+    'does not let delayed reference validation override a newer %s',
+    async (action) => {
+      const { store, pageRouter, sessionClient, clearStreamingState } = await setupStore()
+      store.activeSessionId.value = 'session-current'
+      const validation = createDeferred<object>()
+      sessionClient.resolveReference.mockReturnValueOnce(validation.promise)
+      const first = store.selectSession('session-a', 'inc-a')
+      expect(sessionClient.resolveReference).toHaveBeenCalledWith({
+        sessionId: 'session-a',
+        expectedTapeIncarnationId: 'inc-a'
+      })
+      expect(sessionClient.activate).not.toHaveBeenCalled()
+      expect(clearStreamingState).not.toHaveBeenCalled()
+      if (action === 'close') {
+        await store.closeSession()
+      } else {
+        await store.selectSession('session-b', action === 'reference' ? 'inc-b' : undefined)
+      }
+      validation.resolve({})
+      await first
+      expect(sessionClient.activate).not.toHaveBeenCalledWith('session-a')
+      expect(pageRouter.goToChat).not.toHaveBeenCalledWith('session-a')
+      expect(store.activeSessionId.value).toBe(action === 'close' ? null : 'session-b')
+      if (action !== 'close') {
+        expect(sessionClient.activate).toHaveBeenCalledExactlyOnceWith('session-b')
+        expect(pageRouter.goToChat).toHaveBeenCalledWith('session-b')
+      }
+    }
+  )
+
+  it.each([false, true])(
+    'only reports reference validation failure if still current (superseded=%s)',
+    async (superseded) => {
+      const { store, sessionClient, clearStreamingState } = await setupStore()
+      store.activeSessionId.value = 'session-current'
+      const validation = createDeferred<object>()
+      sessionClient.resolveReference.mockReturnValueOnce(validation.promise)
+      const selection = store.selectSession('session-a', 'stale-incarnation')
+      const assertion = superseded
+        ? expect(selection).resolves.toBeUndefined()
+        : expect(selection).rejects.toThrow('reference reset')
+      if (superseded) await store.selectSession('session-b')
+      validation.reject(new Error('reference reset'))
+      await assertion
+      expect(sessionClient.activate).not.toHaveBeenCalledWith('session-a')
+      expect(store.activeSessionId.value).toBe(superseded ? 'session-b' : 'session-current')
+      if (!superseded) expect(clearStreamingState).not.toHaveBeenCalled()
+      expect(store.error.value).toBeNull()
+    }
+  )
 
   it('lets the latest selected session win when hydration resolves out of order', async () => {
     const { store, pageRouter, sessionClient } = await setupStore()

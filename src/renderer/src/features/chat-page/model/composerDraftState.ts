@@ -38,14 +38,38 @@ export function copyComposerDocument(document: JSONContent): JSONContent {
   return JSON.parse(JSON.stringify(document)) as JSONContent
 }
 
-export function createComposerTextDocument(text: string): JSONContent {
-  const lines = text.replace(/\r/g, '').split('\n')
+export function createComposerTextDocument(
+  text: string,
+  inlineItems: UserMessageInlineItem[] = []
+): JSONContent {
+  // Files and skills have backing state that the editor syncs; session references live only
+  // in the document. Recreate them before handing a recovered draft to the editor.
+  const references = inlineItems
+    .filter((item) => item.type === 'session')
+    .sort((left, right) => left.offset - right.offset)
+  let referenceIndex = 0
+  let lineOffset = 0
   return {
     type: 'doc',
-    content: lines.map((line) => ({
-      type: 'paragraph',
-      ...(line ? { content: [{ type: 'text', text: line }] } : {})
-    }))
+    content: text.split('\n').map((line) => {
+      const content: JSONContent[] = []
+      let column = 0
+      while (
+        referenceIndex < references.length &&
+        references[referenceIndex].offset <= lineOffset + line.length
+      ) {
+        const { type: _type, offset, ...attrs } = references[referenceIndex++]
+        const nextColumn = offset - lineOffset
+        const precedingText = line.slice(column, nextColumn).replace(/\r/g, '')
+        if (precedingText) content.push({ type: 'text', text: precedingText })
+        content.push({ type: 'sessionReference', attrs })
+        column = nextColumn
+      }
+      const remainingText = line.slice(column).replace(/\r/g, '')
+      if (remainingText) content.push({ type: 'text', text: remainingText })
+      lineOffset += line.length + 1
+      return { type: 'paragraph', ...(content.length > 0 ? { content } : {}) }
+    })
   }
 }
 
@@ -105,6 +129,8 @@ export function applyAcceptedComposerSubmission(
     return {
       ...copyComposerDraft(current),
       files,
+      // A reinserted reference can have the same source identity as a submitted one. Preserve
+      // inline draft content after edits, just as we preserve its text and active skills.
       document: removeDocumentNodes(current.document, submitted.files, [])
     }
   }
@@ -125,7 +151,12 @@ export function applyAcceptedComposerSubmission(
     rawMessage: current.rawMessage,
     files,
     activeSkills,
-    document: removeDocumentNodes(current.document, submitted.files, submitted.activeSkills)
+    document: removeDocumentNodes(
+      current.document,
+      submitted.files,
+      submitted.activeSkills,
+      submitted.inlineItems
+    )
   }
 }
 
@@ -195,10 +226,12 @@ function subtractStrings(current: string[], submitted: string[]): string[] {
 function removeDocumentNodes(
   document: JSONContent,
   files: MessageFile[],
-  activeSkills: string[]
+  activeSkills: string[],
+  inlineItems: UserMessageInlineItem[] = []
 ): JSONContent {
   const remainingFiles = copyComposerFiles(files)
   const remainingSkills = [...activeSkills]
+  const remainingInlineItems = [...inlineItems]
   return transformDocument(document, (node) => {
     if (node.type === 'fileAttachment') {
       const index = remainingFiles.findIndex((file) => fileMatchesDocumentNode(file, node))
@@ -210,6 +243,17 @@ function removeDocumentNodes(
       const index = remainingSkills.indexOf(String(node.attrs?.skillName ?? ''))
       if (index < 0) return true
       remainingSkills.splice(index, 1)
+      return false
+    }
+    if (node.type === 'sessionReference') {
+      const index = remainingInlineItems.findIndex(
+        (item) =>
+          item.type === 'session' &&
+          item.sessionId === String(node.attrs?.sessionId ?? '') &&
+          item.tapeIncarnationId === String(node.attrs?.tapeIncarnationId ?? '')
+      )
+      if (index < 0) return true
+      remainingInlineItems.splice(index, 1)
       return false
     }
     return true

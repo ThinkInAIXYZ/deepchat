@@ -3,6 +3,7 @@ export const SUBAGENT_ORCHESTRATOR_TOOL_NAME = 'subagent_orchestrator'
 export const LIVE_DELEGATION_AGENT_TOOL_NAME = 'deepchat_subagents'
 export const LIVE_DELEGATION_AGENT_TOOL_SERVER_NAME = 'agent-live-delegation'
 export const TOOL_SEARCH_AGENT_TOOL_NAME = 'tool_search'
+export const READ_SESSION_AGENT_TOOL_NAME = 'read_session'
 export const TOOL_SEARCH_AGENT_TOOL_SERVER_NAME = 'agent-tool-surface'
 export const TOOL_SEARCH_AGENT_TOOL_MAX_RESULTS = 8
 export const TOOL_SEARCH_AGENT_TOOL_MAX_CALLS_PER_BATCH = 8
@@ -39,6 +40,7 @@ const AGENT_TOOL_EXPOSURE_BY_NAME: Readonly<Record<string, AgentToolExposure>> =
   [SUBAGENT_ORCHESTRATOR_TOOL_NAME]: 'system-model',
   [LIVE_DELEGATION_AGENT_TOOL_NAME]: 'system-model',
   [TOOL_SEARCH_AGENT_TOOL_NAME]: 'system-model',
+  [READ_SESSION_AGENT_TOOL_NAME]: 'system-model',
   [SKILL_LIST_AGENT_TOOL_NAME]: 'system-model',
   [SKILL_VIEW_AGENT_TOOL_NAME]: 'system-model',
   [SKILL_MANAGE_AGENT_TOOL_NAME]: 'system-model',

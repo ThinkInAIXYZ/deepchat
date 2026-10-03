@@ -18,6 +18,7 @@ const chatInputClearPendingSkillsMock = vi.fn(() => {
 })
 const chatInputPendingSkillsSnapshotRef: { value: string[] } = { value: [] }
 const chatInputDocumentSnapshotRef: { value: JSONContent | undefined } = { value: undefined }
+const resolvingSessionReferences = reactive({ value: false })
 const chatStatusBarOpenModelPickerMock = vi.fn(() => true)
 
 const createChatInputBoxStub = () =>
@@ -45,6 +46,7 @@ const createChatInputBoxStub = () =>
     setup(props, { expose }) {
       expose({
         triggerAttach: chatInputTriggerAttachMock,
+        isResolvingSessionReferences: () => resolvingSessionReferences.value,
         getPendingSkillsSnapshot: () => [...chatInputPendingSkillsSnapshotRef.value],
         setPendingSkills: (skills: string[]) => {
           chatInputPendingSkillsSnapshotRef.value = [...skills]
@@ -436,6 +438,31 @@ const setup = async (options?: {
 
 describe('NewThreadPage ACP draft session bootstrap', () => {
   beforeEach(() => localStorage.clear())
+
+  it('does not create a session before reference resolution finishes', async () => {
+    const { wrapper, sessionStore, modelStore } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat'
+    })
+    modelStore.enabledModels = [{ providerId: 'openai', models: [{ id: 'gpt-4', name: 'GPT-4' }] }]
+    const input = wrapper.getComponent({ name: 'ChatInputBox' })
+    input.vm.$emit('update:modelValue', 'use the source')
+    resolvingSessionReferences.value = true
+    await flushPromises()
+    expect(input.props('submitDisabled')).toBe(true)
+    input.vm.$emit('submit')
+    input.vm.$emit('command-submit', 'review')
+    await flushPromises()
+    expect(sessionStore.createSession).not.toHaveBeenCalled()
+    expect(input.props('modelValue')).toBe('use the source')
+    resolvingSessionReferences.value = false
+    await flushPromises()
+    expect(input.props('submitDisabled')).toBe(false)
+    input.vm.$emit('submit')
+    await flushPromises()
+    expect(sessionStore.createSession).toHaveBeenCalledOnce()
+    wrapper.unmount()
+  })
 
   it('restores separate agent drafts with attachments, skills and inline references', async () => {
     const { wrapper, agentStore } = await setup()

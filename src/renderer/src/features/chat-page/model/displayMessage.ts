@@ -49,12 +49,21 @@ export type DisplayUserMessageFileBlock = {
   file?: MessageFile
 }
 
+export type DisplayUserMessageSessionBlock = {
+  type: 'session'
+  sessionId: string
+  title: string
+  projectDir: string | null
+  tapeIncarnationId: string
+}
+
 export type DisplayUserMessageInlineBlock =
   | DisplayUserMessageTextBlock
   | DisplayUserMessageMentionBlock
   | DisplayUserMessageCodeBlock
   | DisplayUserMessageSkillBlock
   | DisplayUserMessageFileBlock
+  | DisplayUserMessageSessionBlock
 
 export type DisplayUserMessageContent = {
   continue?: boolean

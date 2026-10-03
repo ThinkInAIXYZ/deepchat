@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "Sesi", "file": "File" },
+    "open": "Buka {title}",
+    "unavailableTitle": "Referensi sesi tidak tersedia",
+    "unavailableDescription": "Sesi ini telah dihapus, diatur ulang, atau tidak lagi tersedia.",
+    "unsupportedTitle": "Referensi sesi tidak didukung",
+    "unsupportedDescription": "Referensi sesi tidak dapat digunakan dalam sesi ACP.",
+    "targetChangedDescription": "Draf berubah sebelum referensi siap. Tambahkan lagi ke draf saat ini."
+  },
   "input": {
     "suggestions": "Saran",
     "placeholder": "Kirim pesan ke DeepChat, {'@'} bisa referensi filenya, / bisa pakai perintah",

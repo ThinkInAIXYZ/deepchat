@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "Phiên", "file": "Tệp" },
+    "open": "Mở {title}",
+    "unavailableTitle": "Tham chiếu phiên không khả dụng",
+    "unavailableDescription": "Phiên này đã bị xóa, đặt lại hoặc không còn khả dụng.",
+    "unsupportedTitle": "Không hỗ trợ tham chiếu phiên",
+    "unsupportedDescription": "Không thể dùng tham chiếu phiên trong phiên ACP.",
+    "targetChangedDescription": "Bản nháp đã thay đổi trước khi tham chiếu sẵn sàng. Hãy thêm lại."
+  },
   "input": {
     "suggestions": "Gợi ý",
     "placeholder": "Hỏi DeepChat bất cứ điều gì, {'@'} đề cập đến các tập tin, / cho các lệnh",

@@ -16,6 +16,7 @@ import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { DeepChatPromptAssembly } from '@shared/types/prompt-assembly'
 import type { ProviderExecutionPort } from '@shared/types/provider'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { isSendMessageInputEmpty } from '@/agent/shared/agentSessionNormalization'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import {
   isStaleDeepChatInstanceError,
@@ -510,7 +511,7 @@ export class TurnCoordinator {
       if (this.ports.runLifecycle.hasPendingInteractions(sessionId)) {
         throw new Error('Pending tool interactions must be resolved before sending a new message.')
       }
-      if (!content.text.trim() && (content.files?.length ?? 0) === 0) {
+      if (isSendMessageInputEmpty(content)) {
         throw new Error('Message cannot be empty.')
       }
 

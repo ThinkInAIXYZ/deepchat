@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "工作階段", "file": "檔案" },
+    "open": "開啟 {title}",
+    "unavailableTitle": "工作階段引用無法使用",
+    "unavailableDescription": "此工作階段已刪除、重設或不再可用。",
+    "unsupportedTitle": "不支援工作階段引用",
+    "unsupportedDescription": "ACP 工作階段無法使用工作階段引用。",
+    "targetChangedDescription": "引用準備完成前草稿已變更，請在目前草稿重新加入。"
+  },
   "input": {
     "suggestions": "補全建議",
     "placeholder": "向 DeepChat 傳送訊息，{'@'} 可引用檔案，/ 可使用指令",

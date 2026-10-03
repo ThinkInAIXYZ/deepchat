@@ -206,6 +206,9 @@ export class AgentSessionExportService {
         text: typeof record.text === 'string' ? record.text : '',
         files,
         links,
+        ...(Array.isArray(record.inlineItems)
+          ? { inlineItems: record.inlineItems as UserMessageContent['inlineItems'] }
+          : {}),
         search: Boolean(record.search),
         think: Boolean(record.think)
       }

@@ -82,6 +82,7 @@
                 :content="visibleContentBlocks"
                 @mention-click="handleMentionClick"
                 @file-click="previewFile"
+                @session-click="openSessionReference"
               />
               <MessageTextContent v-else :content="message.content.text || ''" />
             </div>
@@ -141,6 +142,9 @@ import MessageContent from './MessageContent.vue'
 import MessageTextContent from './MessageTextContent.vue'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
+import { getSessionReferenceText } from '@shared/sessionReferences'
+import { useSessionStore } from '@/stores/ui/session'
+import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 
 const COLLAPSE_CHAR_THRESHOLD = 600
@@ -170,6 +174,7 @@ const countExplicitLines = (value: string) => {
 
 const deviceClient = createDeviceClient()
 const windowClient = createWindowClient()
+const sessionStore = useSessionStore()
 const { t } = useI18n()
 
 const props = defineProps<{
@@ -263,6 +268,19 @@ const previewFile = (filePath: string) => {
   void windowClient.previewFile(filePath)
 }
 
+const openSessionReference = async (sessionId: string, tapeIncarnationId: string) => {
+  try {
+    await sessionStore.selectSession(sessionId, tapeIncarnationId)
+  } catch {
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.sessionReference.unavailable',
+      title: t('chat.sessionReference.unavailableTitle'),
+      description: t('chat.sessionReference.unavailableDescription')
+    })
+  }
+}
+
 const toggleExpanded = () => {
   if (!isCollapsible.value) {
     return
@@ -327,7 +345,12 @@ const getCopyText = () => {
       .join('')
       .trim()
   }
-  return props.message.content.text || ''
+  return [
+    props.message.content.text || '',
+    getSessionReferenceText(props.message.content.inlineItems)
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 const copyText = computed(() => getCopyText())

@@ -34,7 +34,9 @@ export function usePendingInputActions(options: UsePendingInputActionsOptions) {
       files: target.payload.files ?? [],
       search: target.payload.search === true,
       activeSkills: target.payload.activeSkills ?? [],
-      inlineItems: target.payload.inlineItems ?? [],
+      inlineItems: (target.payload.inlineItems ?? []).map((item) =>
+        item.type === 'session' ? { ...item, offset: payload.text.length } : item
+      ),
       attachmentFallbackPolicy: target.payload.attachmentFallbackPolicy
     })
   }

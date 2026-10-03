@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "نشست‌ها", "file": "فایل‌ها" },
+    "open": "باز کردن {title}",
+    "unavailableTitle": "ارجاع نشست در دسترس نیست",
+    "unavailableDescription": "این نشست حذف یا بازنشانی شده یا دیگر در دسترس نیست.",
+    "unsupportedTitle": "ارجاع نشست پشتیبانی نمی‌شود",
+    "unsupportedDescription": "ارجاع نشست در نشست‌های ACP قابل استفاده نیست.",
+    "targetChangedDescription": "پیش‌نویس پیش از آماده شدن ارجاع تغییر کرد. دوباره آن را اضافه کنید."
+  },
   "input": {
     "suggestions": "پیشنهادها",
     "placeholder": "هر چیزی از DeepChat بپرسید، با {'@'} به فایل‌ها اشاره کنید و با / از دستورها استفاده کنید",

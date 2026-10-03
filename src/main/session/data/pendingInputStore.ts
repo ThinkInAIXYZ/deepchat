@@ -148,8 +148,9 @@ export class SessionPendingInputStore {
 
     const existing = this.decodePayload(row)
     const next = input
-    const existingText = existing.text.trim()
-    const nextText = next.text.trim()
+    // Inline offsets refer to these exact strings, including whitespace around reference atoms.
+    const existingText = existing.text
+    const nextText = next.text
     const separator = existingText && nextText ? '\n\n' : ''
     const text = [existingText, nextText].filter(Boolean).join(separator)
     const nextOffset = existingText.length + separator.length

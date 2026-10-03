@@ -41,6 +41,17 @@
         data-testid="user-message-inline-file"
         @click="emit('fileClick', block.filePath)"
       />
+      <button
+        v-else-if="block.type === 'session'"
+        type="button"
+        data-testid="user-message-inline-session"
+        class="inline-flex max-w-64 items-center gap-1 rounded-md border border-muted-foreground/25 bg-muted/25 px-1.5 py-0.5 text-xs text-muted-foreground align-middle hover:text-foreground"
+        :title="[block.projectDir, block.sessionId].filter(Boolean).join('\n')"
+        @click="emit('sessionClick', block.sessionId, block.tapeIncarnationId)"
+      >
+        <Icon icon="lucide:messages-square" class="h-3 w-3 shrink-0" />
+        <span class="truncate">{{ block.title }}</span>
+      </button>
     </template>
   </div>
 </template>
@@ -53,6 +64,7 @@ import type {
   DisplayUserMessageFileBlock,
   DisplayUserMessageMentionBlock,
   DisplayUserMessageSkillBlock,
+  DisplayUserMessageSessionBlock,
   DisplayUserMessageTextBlock
 } from '@/features/chat-page/model/displayMessage'
 import { getVisibleMentionLabel } from '@/features/chat-page/model/displayUserMessageText'
@@ -79,6 +91,7 @@ type ContentBlock =
   | DisplayUserMessageCodeBlock
   | DisplayUserMessageSkillBlock
   | DisplayUserMessageFileBlock
+  | DisplayUserMessageSessionBlock
 
 const props = defineProps<{
   content: ContentBlock[]
@@ -87,6 +100,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   mentionClick: [block: DisplayUserMessageMentionBlock]
   fileClick: [filePath: string]
+  sessionClick: [sessionId: string, tapeIncarnationId: string]
 }>()
 const langStore = useLanguageStore()
 // 计算属性：处理内容块

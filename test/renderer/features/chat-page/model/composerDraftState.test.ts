@@ -166,4 +166,79 @@ describe('composerDraftState', () => {
 
     expect(original.pdfTextCoverage?.lowTextPageSamples).toEqual([2])
   })
+
+  it('keeps a newer incarnation of the same referenced session after send', () => {
+    const sessionNode = (tapeIncarnationId: string) => ({
+      type: 'sessionReference',
+      attrs: { sessionId: 'session-1', title: 'Source', projectDir: null, tapeIncarnationId }
+    })
+    const current: ComposerSessionDraft = {
+      revision: 2,
+      rawMessage: '',
+      files: [],
+      activeSkills: [],
+      document: {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [sessionNode('new-incarnation')] }]
+      }
+    }
+    const submitted: ComposerSubmissionSnapshot = {
+      revision: 1,
+      rawMessage: '',
+      files: [],
+      activeSkills: [],
+      document: {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [sessionNode('old-incarnation')] }]
+      },
+      inlineItems: [
+        {
+          type: 'session',
+          offset: 0,
+          sessionId: 'session-1',
+          title: 'Source',
+          projectDir: null,
+          tapeIncarnationId: 'old-incarnation'
+        }
+      ],
+      clearText: true
+    }
+
+    expect(JSON.stringify(applyAcceptedComposerSubmission(current, submitted).document)).toContain(
+      'new-incarnation'
+    )
+  })
+
+  it('preserves reinserted references after an in-flight edit but clears an unchanged submission', () => {
+    const reference = {
+      type: 'session' as const,
+      offset: 0,
+      sessionId: 'source',
+      title: 'Source',
+      projectDir: null,
+      tapeIncarnationId: 'inc-source'
+    }
+    const current: ComposerSessionDraft = {
+      revision: 2,
+      rawMessage: '',
+      files: [],
+      activeSkills: [],
+      document: {
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'sessionReference', attrs: reference }] }]
+      }
+    }
+    const submitted: ComposerSubmissionSnapshot = {
+      ...current,
+      revision: 1,
+      inlineItems: [reference],
+      clearText: true
+    }
+
+    // Deleting and pasting the same reference restores identical content, but not the revision.
+    expect(applyAcceptedComposerSubmission(current, submitted).document).toEqual(current.document)
+    expect(
+      applyAcceptedComposerSubmission(current, { ...submitted, revision: 2 }).document
+    ).toEqual(createComposerTextDocument(''))
+  })
 })

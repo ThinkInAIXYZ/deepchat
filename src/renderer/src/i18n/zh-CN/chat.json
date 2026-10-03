@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "会话", "file": "文件" },
+    "open": "打开 {title}",
+    "unavailableTitle": "会话引用不可用",
+    "unavailableDescription": "该会话已删除、重置或不再可用。",
+    "unsupportedTitle": "不支持会话引用",
+    "unsupportedDescription": "ACP 会话中无法使用会话引用。",
+    "targetChangedDescription": "引用就绪前草稿已更改，请在当前草稿中重新添加。"
+  },
   "input": {
     "suggestions": "补全建议",
     "placeholder": "向 DeepChat 发送消息，{'@'} 可引用文件，/ 可使用命令",

@@ -40,6 +40,41 @@ describe('SessionHistorySearch', () => {
     expect(fixture.getDatabase).not.toHaveBeenCalled()
   })
 
+  it.each([{ text: 'Compare' }, { text: ' ', content: [{ text: ' Compare ' }] }])(
+    'finds reference titles and message text in the unindexed fallback: %j',
+    async (body) => {
+      const fixture = createFixture()
+      fixture.messageRows.push({
+        id: 'message-1',
+        sessionId: 'session-1',
+        title: 'Other',
+        role: 'user',
+        updatedAt: 1,
+        content: JSON.stringify({
+          ...body,
+          inlineItems: [
+            {
+              type: 'session',
+              offset: 7,
+              sessionId: 'source',
+              title: 'Launch notes',
+              projectDir: null,
+              tapeIncarnationId: 'incarnation'
+            }
+          ]
+        })
+      })
+      for (const query of ['Launch notes', 'Compare']) {
+        await expect(fixture.service.search(query)).resolves.toEqual([
+          expect.objectContaining({
+            messageId: 'message-1',
+            snippet: 'Compare\n[Session: Launch notes (source)]'
+          })
+        ])
+      }
+    }
+  )
+
   it('prefers FTS rows, deduplicates, ranks, builds snippets, and clamps limits', async () => {
     const fixture = createFixture()
     fixture.sessions.set('session-1', { id: 'session-1', projectDir: '/repo' })

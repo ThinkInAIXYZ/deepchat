@@ -91,6 +91,7 @@ type ProviderClientLike = {
 }
 
 type ComposerInputHandle = {
+  isResolvingSessionReferences?: () => boolean
   getInlineItemsSnapshot?: () => UserMessageInlineItem[]
   getPendingSkillsSnapshot?: () => string[]
   clearPendingSkills?: () => void
@@ -188,6 +189,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
 
   const message = ref('')
   const attachedFiles = ref<MessageFile[]>([])
+  const composerDocumentRevision = ref(0)
   const sessionDrafts = new Map<string, ComposerSessionDraft>()
   const draftRevisions = new Map<string, number>()
   const observedDraftFingerprints = new Map<string, string>()
@@ -254,10 +256,20 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
 
   const hasInputText = computed(() => Boolean(message.value.trim()))
   const hasAttachments = computed(() => attachedFiles.value.length > 0)
-  const hasDraftInput = computed(() => hasInputText.value || hasAttachments.value)
+  const hasSessionReference = computed(() => {
+    void composerDocumentRevision.value
+    return getComposerInlineItemsSnapshot().some((item) => item.type === 'session')
+  })
+  const hasDraftInput = computed(
+    () => hasInputText.value || hasAttachments.value || hasSessionReference.value
+  )
   const isSteering = computed(() => steeringSessionIds.value.has(options.sessionId()))
+  const isResolvingSessionReferences = computed(
+    () => chatInputRef.value?.isResolvingSessionReferences?.() ?? false
+  )
   const isQueueSubmitDisabled = computed(
     () =>
+      isResolvingSessionReferences.value ||
       isSessionViewPreparing.value ||
       isDispatchingInput.value ||
       isAcpWorkdirMissing.value ||
@@ -267,6 +279,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   )
   const isInputSubmitDisabled = computed(
     () =>
+      isResolvingSessionReferences.value ||
       isSessionViewPreparing.value ||
       isDispatchingInput.value ||
       isAcpWorkdirMissing.value ||
@@ -276,6 +289,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   )
   const disableQueueSteerAction = computed(
     () =>
+      isResolvingSessionReferences.value ||
       isSessionViewPreparing.value ||
       isDispatchingInput.value ||
       !isGenerating.value ||
@@ -431,7 +445,12 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     seed: ComposerSubmissionSeed
   ): SendMessageInput => {
     const activeSkills = seed.draft.activeSkills
-    const inlineItems = seed.inlineItems
+    const leadingWhitespace =
+      seed.draft.rawMessage.length - seed.draft.rawMessage.trimStart().length
+    const inlineItems = seed.inlineItems.map((item) => ({
+      ...item,
+      offset: Math.max(0, Math.min(text.length, item.offset - leadingWhitespace))
+    }))
     return {
       text,
       files: copyComposerFiles(files),
@@ -442,6 +461,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   }
 
   function canSubmitNow(): boolean {
+    if (isResolvingSessionReferences.value) return false
     if (isReadOnlySession.value) return false
     if (isSteering.value) return false
     if (isSessionViewPreparing.value) return false
@@ -637,6 +657,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       }
       inputHandle.restoreDocumentSnapshot?.(copyComposerDocument(copiedDraft.document))
     }
+    composerDocumentRevision.value += 1
     void nextTick(() => {
       if (activeDraftSessionId === sessionId) {
         captureLiveDraft(sessionId)
@@ -653,6 +674,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   }
 
   function recordComposerDocumentChange(): void {
+    composerDocumentRevision.value += 1
     markCurrentDraftChanged()
   }
 
@@ -1009,7 +1031,8 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       const files = await prepareFilesForCurrentModel(seed.draft.files)
       if (preparation.cancelled) return
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
-      if (!text && files.length === 0) return
+      if (!text && files.length === 0 && !seed.inlineItems.some((item) => item.type === 'session'))
+        return
       const handledCompaction = await handleManualCompactionCommand(
         text,
         sessionId,
@@ -1109,7 +1132,8 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       const files = await prepareFilesForCurrentModel(seed.draft.files)
       if (preparation.cancelled) return
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
-      if (!text && files.length === 0) return
+      if (!text && files.length === 0 && !seed.inlineItems.some((item) => item.type === 'session'))
+        return
       const handledCompaction = await handleManualCompactionCommand(
         text,
         sessionId,
@@ -1143,7 +1167,8 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       const files = await prepareFilesForCurrentModel(seed.draft.files)
       if (preparation.cancelled) return
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
-      if (!text && files.length === 0) return
+      if (!text && files.length === 0 && !seed.inlineItems.some((item) => item.type === 'session'))
+        return
       const handledCompaction = await handleManualCompactionCommand(
         text,
         sessionId,
@@ -1219,7 +1244,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
         rawMessage: input.text,
         files: copyComposerFiles(payload.files ?? []),
         activeSkills: [...(payload.activeSkills ?? [])],
-        document: createComposerTextDocument(input.text)
+        document: createComposerTextDocument(input.text, payload.inlineItems)
       })
     }
 
@@ -1230,7 +1255,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
           rawMessage: input.text,
           files: copyComposerFiles(payload.files ?? []),
           activeSkills: [...(payload.activeSkills ?? [])],
-          document: createComposerTextDocument(input.text),
+          document: createComposerTextDocument(input.text, payload.inlineItems),
           inlineItems: copyInlineItems(payload.inlineItems ?? []),
           clearText: true
         }

@@ -1,5 +1,6 @@
 import type { SessionDatabase } from '@/session/data/database'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
+import { getSessionReferenceText } from '@shared/sessionReferences'
 import type {
   HistorySearchHit,
   HistorySearchMessageHit,
@@ -48,7 +49,7 @@ const buildSnippet = (content: string, query: string, maxLength = 120): string =
 const extractMessageContent = (rawContent: string): string => {
   try {
     const parsed = JSON.parse(rawContent) as
-      | { text?: string; content?: Array<{ text?: string }> }
+      | { text?: string; inlineItems?: unknown; content?: Array<{ text?: string }> }
       | Array<{ content?: string; text?: string; error?: string }>
     if (Array.isArray(parsed)) {
       const segments = parsed
@@ -57,13 +58,15 @@ const extractMessageContent = (rawContent: string): string => {
         .map((value) => value.trim())
       if (segments.length > 0) return segments.join('\n')
     } else if (parsed && typeof parsed === 'object') {
-      if (typeof parsed.text === 'string' && parsed.text.trim()) return parsed.text.trim()
-      if (Array.isArray(parsed.content)) {
-        const segments = parsed.content
+      let text = typeof parsed.text === 'string' ? parsed.text.trim() : ''
+      if (!text && Array.isArray(parsed.content)) {
+        text = parsed.content
           .filter((item) => typeof item?.text === 'string' && item.text.trim().length > 0)
           .map((item) => item.text!.trim())
-        if (segments.length > 0) return segments.join('\n')
+          .join('\n')
       }
+      const content = [text, getSessionReferenceText(parsed.inlineItems)].filter(Boolean).join('\n')
+      if (content) return content
     }
   } catch {}
   return rawContent

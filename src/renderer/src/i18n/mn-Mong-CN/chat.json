@@ -1,4 +1,13 @@
 {
+  "sessionReference": {
+    "groups": { "session": "ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ", "file": "ᠹᠠᠶᠢᠯ" },
+    "open": "{title} ᠨᠡᠭᠡᠭᠡᠬᠦ",
+    "unavailableTitle": "ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠤ ᠡᠰᠢᠯᠡᠯ ᠠᠰᠢᠭᠯᠠᠬᠤ ᠪᠣᠯᠣᠮᠵᠢ ᠦᠭᠡᠢ",
+    "unavailableDescription": "ᠡᠨᠡ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ ᠤᠰᠠᠳᠬᠠᠭᠳᠠᠭᠰᠠᠨ ᠪᠤᠶᠤ ᠳᠠᠬᠢᠨ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠤᠭᠳᠠᠪᠠ.",
+    "unsupportedTitle": "ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠤ ᠡᠰᠢᠯᠡᠯ ᠢ ᠳᠡᠮᠵᠢᠬᠦ ᠦᠭᠡᠢ",
+    "unsupportedDescription": "ACP ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠳᠤ ᠡᠰᠢᠯᠡᠯ ᠠᠰᠢᠭᠯᠠᠬᠤ ᠦᠭᠡᠢ.",
+    "targetChangedDescription": "ᠡᠰᠢᠯᠡᠯ ᠪᠡᠯᠡᠨ ᠪᠣᠯᠬᠤ ᠠᠴᠠ ᠡᠮᠦᠨ᠎ᠡ ᠨᠣᠣᠷᠠᠭ ᠥᠭᠡᠷᠡᠴᠢᠯᠡᠭᠳᠡᠪᠡ."
+  },
   "input": {
     "placeholder": "ᠮᠡᠳᠡᠭᠡ ᠪᠡᠨ DeepChat ᠂ {'@'} ᠨᠢ ᠪᠢᠴᠢᠭ᠌ ᠮᠠᠲ᠋ᠧᠷᠢᠶᠠᠯ ᠢ ᠯᠠᠪᠯᠠᠵᠤ ᠪᠣᠯᠬᠤ / ᠵᠠᠷᠯᠢᠭ ᠢ ᠬᠡᠷᠡᠭᠯᠡᠵᠦ ᠪᠣᠯᠣᠨ᠎ᠠ",
     "fileArea": "ᠳᠠᠩᠰᠠ ᠡᠪᠬᠡᠮᠡᠯ ᠦᠨ ᠣᠷᠣᠨ",
