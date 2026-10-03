@@ -508,9 +508,12 @@ describe('ChatInputBox attachments', () => {
   it('locks editor mutations when editable is disabled', async () => {
     const wrapper = await mountComponent()
     expect(lastEditorOptions?.editable).toBe(true)
+    const nodeButton = document.createElement('button')
+    wrapper.get('[data-testid="editor-content"]').element.appendChild(nodeButton)
 
     await wrapper.setProps({ editable: false })
 
+    expect(nodeButton.matches(':disabled')).toBe(true)
     expect(lastEditorInstance.setEditable).toHaveBeenCalledWith(false)
     expect(wrapper.get('[data-testid="chat-input-editor"]').attributes('aria-disabled')).toBe(
       'true'
@@ -518,6 +521,8 @@ describe('ChatInputBox attachments', () => {
     ;(wrapper.vm as any).triggerAttach()
     expect(openFilePickerMock).not.toHaveBeenCalled()
     expect((wrapper.vm as any).insertWorkspaceReference('/repo/locked.txt')).toBe(false)
+    await wrapper.setProps({ editable: true })
+    expect(nodeButton.matches(':disabled')).toBe(false)
   })
 
   it('preserves copy, selection, and focus navigation while editing is disabled', async () => {

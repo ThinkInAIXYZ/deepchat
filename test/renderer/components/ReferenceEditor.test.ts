@@ -5,6 +5,41 @@ import { describe, expect, it, vi } from 'vitest'
 import ReferenceEditor from '@/components/chat/ReferenceEditor.vue'
 
 describe('ReferenceEditor', () => {
+  it('locks embedded controls and shortcuts without losing references while saving', async () => {
+    const wrapper = mount(ReferenceEditor, {
+      props: {
+        text: '@src/App.vue',
+        inlineItems: [
+          {
+            type: 'file-reference',
+            offset: 0,
+            filePath: '/repo/src/App.vue',
+            relativePath: 'src/App.vue'
+          }
+        ],
+        ariaLabel: 'Edit message'
+      },
+      attachTo: document.body
+    })
+    await nextTick()
+    const remove = wrapper.get('[data-file-reference] button[aria-label^="common.delete"]')
+    await wrapper.setProps({ editable: false })
+    expect(remove.element.matches(':disabled')).toBe(true)
+    ;(remove.element as HTMLButtonElement).click()
+    await wrapper.get('[role="textbox"]').trigger('keydown', { key: 'Enter', ctrlKey: true })
+    await wrapper.get('[role="textbox"]').trigger('keydown', { key: 'Escape' })
+    expect(wrapper.get('[role="textbox"]').attributes('contenteditable')).toBe('false')
+    expect(wrapper.findAll('[data-file-reference]')).toHaveLength(1)
+    expect(wrapper.emitted('save')).toBeUndefined()
+    expect(wrapper.emitted('cancel')).toBeUndefined()
+    await wrapper.setProps({ editable: true })
+    expect(remove.element.matches(':disabled')).toBe(false)
+    ;(remove.element as HTMLButtonElement).click()
+    await nextTick()
+    expect(wrapper.findAll('[data-file-reference]')).toHaveLength(0)
+    wrapper.unmount()
+  })
+
   it('updates both file labels when inserting and undoing a colliding reference', async () => {
     const wrapper = mount(ReferenceEditor, {
       props: {

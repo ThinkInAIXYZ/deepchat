@@ -34,12 +34,14 @@
       @keydown="handleKeydown"
       @paste.capture="onPaste"
     >
-      <EditorContent
-        :editor="editor"
-        class="min-h-[60px]"
-        @compositionstart="onCompositionStart"
-        @compositionend="onCompositionEnd"
-      />
+      <fieldset :disabled="!editable" class="contents">
+        <EditorContent
+          :editor="editor"
+          class="min-h-[60px]"
+          @compositionstart="onCompositionStart"
+          @compositionend="onCompositionEnd"
+        />
+      </fieldset>
     </div>
 
     <AttachmentShelf

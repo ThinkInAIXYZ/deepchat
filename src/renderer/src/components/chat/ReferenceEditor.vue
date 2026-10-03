@@ -1,5 +1,7 @@
 <template>
-  <EditorContent :editor="editor" class="reference-editor" />
+  <fieldset :disabled="!editable" class="contents">
+    <EditorContent :editor="editor" class="reference-editor" />
+  </fieldset>
 </template>
 
 <script setup lang="ts">
@@ -10,7 +12,7 @@ import HardBreak from '@tiptap/extension-hard-break'
 import History from '@tiptap/extension-history'
 import Paragraph from '@tiptap/extension-paragraph'
 import Text from '@tiptap/extension-text'
-import { onBeforeUnmount } from 'vue'
+import { onBeforeUnmount, watch } from 'vue'
 import { createComposerTextDocument } from '@/features/chat-page/model/composerDraftState'
 import { serializeComposerDocument } from '@/features/chat-page/model/composerDocumentSerialization'
 import { FileAttachment } from './nodes/fileAttachment'
@@ -18,15 +20,20 @@ import { FileReference } from './nodes/fileReference'
 import { SessionReference } from './nodes/sessionReference'
 import { SkillChip } from './nodes/skillChip'
 
-const props = defineProps<{
-  text: string
-  inlineItems?: UserMessageInlineItem[]
-  ariaLabel: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    text: string
+    inlineItems?: UserMessageInlineItem[]
+    ariaLabel: string
+    editable?: boolean
+  }>(),
+  { editable: true }
+)
 
 const emit = defineEmits<{ save: []; cancel: []; contentChange: [hasContent: boolean] }>()
 
 const editor = new VueEditor({
+  editable: props.editable,
   extensions: [
     Document,
     Paragraph,
@@ -48,6 +55,7 @@ const editor = new VueEditor({
   },
   editorProps: {
     handleKeyDown: (view, event) => {
+      if (!props.editable) return false
       if (event.isComposing || event.keyCode === 229 || view.composing) return false
       if (event.key === 'Escape') {
         emit('cancel')
@@ -78,5 +86,10 @@ function focus() {
 }
 
 defineExpose({ getValue, focus })
+watch(
+  () => props.editable,
+  (editable) => editor.setEditable(editable),
+  { flush: 'sync' }
+)
 onBeforeUnmount(() => editor.destroy())
 </script>
