@@ -60,6 +60,14 @@ export const ReadSessionInputSchema = z
       .max(256)
       .optional()
       .describe('Required for message/context; use a returned messageId, not a Tape entry ID.'),
+    revision: z
+      .string()
+      .min(1)
+      .max(4096)
+      .optional()
+      .describe(
+        'message only: required with nonzero offset. Copy message.revision from the first chunk.'
+      ),
     offset: z
       .number()
       .int()
@@ -67,7 +75,7 @@ export const ReadSessionInputSchema = z
       .max(Number.MAX_SAFE_INTEGER)
       .optional()
       .describe(
-        'message only: Unicode code-point offset, initially 0. Continue with message.nextOffset while hasMore.'
+        'message only: Unicode code-point offset, initially 0. Continue with message.nextOffset and message.revision while hasMore.'
       ),
     limit: z
       .number()

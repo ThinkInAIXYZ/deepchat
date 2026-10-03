@@ -26,6 +26,9 @@ text-only editor does not implicitly remove source grants. Deleting the referenc
 that message's grant.
 Queue text edits apply the same reference re-anchoring rule. Reference-only queued inputs display
 their source titles and remain saveable without adding placeholder text.
+Merging steer inputs preserves their original text so inline offsets remain valid. If a draft is
+edited while submission is pending, acceptance preserves its inline session references along with
+its text; source identity alone cannot distinguish a submitted node from a newly pasted copy.
 
 ## Reading and authorization
 
@@ -46,6 +49,10 @@ it never silently continues against reused or moved positions.
 
 List/search/context read existing search-text projections with SQL-level text bounds. Details read
 bounded slices of stored message JSON and identify their format and character-offset semantics.
+Detail continuation requires the first chunk's revision token, bound to source incarnation and the
+message's latest Tape entry. A replaced message requires restarting at offset zero, including
+same-timestamp replacements; unrelated appended messages do not invalidate the continuation.
+If the projected content disagrees with that Tape entry, detail reads fail instead of mixing versions.
 Filtering occurs before pagination. Limits bound row count and output size; FTS is preferred for
 search, with scoped literal fallback. No read path loads an entire source transcript into JavaScript.
 Search text is a locator, not necessarily an assistant conclusion; detail preserves block types.

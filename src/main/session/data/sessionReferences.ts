@@ -99,6 +99,7 @@ export class SessionReferences {
       (input.limit !== undefined && !page) ||
       (input.messageId !== undefined && page) ||
       (input.offset !== undefined && input.action !== 'message') ||
+      (input.revision !== undefined && input.action !== 'message') ||
       ((input.before !== undefined || input.after !== undefined) && input.action !== 'context')
     )
       throw new Error('Arguments do not match the requested read_session action.')
@@ -247,12 +248,20 @@ export class SessionReferences {
   private readMessage(source: SessionReference, input: ReadSessionInput) {
     if (!input.messageId) throw new Error('Message detail requires messageId.')
     const offset = input.offset ?? 0
+    if (offset > 0 && !input.revision) {
+      throw new Error('Message continuation requires revision from the first chunk at offset 0.')
+    }
     const row = this.database
       .getDatabase()
       .prepare(`
       SELECT m.id AS messageId, m.role, m.status, m.order_seq AS orderSeq,
         substr(m.content, @offset + 1, ${DETAIL_CHARS}) AS content,
-        length(m.content) AS totalCharacters, json_valid(m.content) AS isJson
+        length(m.content) AS totalCharacters, json_valid(m.content) AS isJson,
+        (SELECT CASE WHEN json_extract(t.payload_json, '$.record.content') = m.content
+                     THEN t.entry_id END FROM deepchat_tape_entries t
+         WHERE t.session_id = m.session_id AND t.source_type = 'message'
+           AND t.source_id = m.id AND t.kind = 'message'
+         ORDER BY t.entry_id DESC LIMIT 1) AS revisionEntryId
       FROM deepchat_messages m WHERE m.session_id = @sessionId AND m.id = @messageId
         AND ${READABLE} AND (@role IS NULL OR m.role = @role)
     `)
@@ -270,15 +279,29 @@ export class SessionReferences {
           content: string
           totalCharacters: number
           isJson: number
+          revisionEntryId: number | null
         }
       | undefined
     if (!row) throw new Error('Referenced message was not found or is not readable.')
+    if (row.revisionEntryId === null) {
+      throw new Error('Referenced message does not match its current Tape revision.')
+    }
+    const revision = `${source.tapeIncarnationId}/${row.revisionEntryId}`
+    if (input.revision && input.revision !== revision) {
+      throw new Error('Referenced message changed. Restart this read at offset 0 without revision.')
+    }
     if (offset > row.totalCharacters) throw new Error('Message offset exceeds content length.')
-    const { isJson, ...message } = row
+    const { isJson, revisionEntryId: _revisionEntryId, ...message } = row
     const nextOffset = Math.min(offset + DETAIL_CHARS, row.totalCharacters)
     return {
       source,
-      message: { ...message, format: isJson ? 'stored_message_json' : 'text', offset, nextOffset },
+      message: {
+        ...message,
+        format: isJson ? 'stored_message_json' : 'text',
+        revision,
+        offset,
+        nextOffset
+      },
       hasMore: nextOffset < row.totalCharacters,
       maxCharacters: DETAIL_CHARS,
       offsetUnit: 'unicode_code_points'

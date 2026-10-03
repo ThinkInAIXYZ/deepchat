@@ -5,6 +5,7 @@ import { DeepChatMessagesTable } from '@/session/data/tables/deepchatMessages'
 import { DeepChatSearchDocumentsTable } from '@/session/data/tables/deepchatSearchDocuments'
 import { DeepChatSessionsTable } from '@/session/data/tables/deepchatSessions'
 import { NewSessionsTable } from '@/session/data/tables/newSessions'
+import { DeepChatTapeEntriesTable } from '@/tape/infrastructure/sqlite/tapeEntryStore'
 import { Database, nativeSqliteDescribeIf } from '../../nativeSqliteHarness'
 
 const DatabaseCtor = Database!
@@ -41,6 +42,7 @@ describeIfNativeSqlite('SessionReferences', () => {
     db = new DatabaseCtor(':memory:')
     new NewSessionsTable(db).createTable()
     new DeepChatSessionsTable(db).createTable()
+    new DeepChatTapeEntriesTable(db).createTable()
     messages = new DeepChatMessagesTable(db)
     messages.createTable()
     search = new DeepChatSearchDocumentsTable(db)
@@ -118,6 +120,7 @@ describeIfNativeSqlite('SessionReferences', () => {
       createdAt: options.orderSeq,
       updatedAt: options.orderSeq
     })
+    recordRevision(options.id)
     if (options.searchText !== undefined) {
       search.upsert({
         documentKey: `message:${options.id}`,
@@ -130,6 +133,15 @@ describeIfNativeSqlite('SessionReferences', () => {
         updatedAt: options.orderSeq
       })
     }
+  }
+
+  function recordRevision(messageId: string) {
+    db.prepare(`INSERT INTO deepchat_tape_entries
+      (session_id, entry_id, kind, source_type, source_id, payload_json, created_at)
+      SELECT m.session_id,
+        (SELECT coalesce(max(entry_id), 0) + 1 FROM deepchat_tape_entries WHERE session_id = m.session_id),
+        'message', 'message', m.id, json_object('record', json_object('content', m.content)), m.updated_at
+      FROM deepchat_messages m WHERE m.id = ?`).run(messageId)
   }
 
   function grant(source = 'source', incarnation = `inc-${source}`, caller = 'caller') {
@@ -416,6 +428,7 @@ describeIfNativeSqlite('SessionReferences', () => {
     expect([...page.items[0]!.preview]).toHaveLength(800)
 
     let offset = 0
+    let revision: string | undefined
     let reconstructed = ''
     let hasMore = true
     while (hasMore) {
@@ -423,9 +436,16 @@ describeIfNativeSqlite('SessionReferences', () => {
         sessionId: 'source',
         action: 'message',
         messageId: 'long',
-        offset
+        offset,
+        revision
       })) as {
-        message: { content: string; format: string; offset: number; nextOffset: number }
+        message: {
+          content: string
+          format: string
+          offset: number
+          nextOffset: number
+          revision: string
+        }
         hasMore: boolean
         offsetUnit: string
       }
@@ -436,10 +456,40 @@ describeIfNativeSqlite('SessionReferences', () => {
       expect(detail.offsetUnit).toBe('unicode_code_points')
       reconstructed += detail.message.content
       offset = detail.message.nextOffset
+      revision = detail.message.revision
       hasMore = detail.hasMore
     }
     expect(reconstructed).toBe(raw)
     expect(page.items[0]!.truncated).toBe(true)
+  })
+
+  it('binds detail continuation to a Tape revision, not a timestamp or session head', async () => {
+    grant()
+    addMessage({ id: 'long', orderSeq: 1, content: 'A'.repeat(9000) })
+    const input = { sessionId: 'source', action: 'message', messageId: 'long' } as const
+    const first = (await reader.read('caller', input)) as {
+      message: { nextOffset: number; revision: string }
+    }
+    expect(first.message.revision).toEqual(expect.any(String))
+    const continuation = { ...input, offset: 8192, revision: first.message.revision }
+    await expect(reader.read('caller', { ...input, offset: 8192 })).rejects.toThrow(/revision/i)
+
+    addMessage({ id: 'unrelated', orderSeq: 2 })
+    await expect(makeReader().read('caller', continuation)).resolves.toMatchObject({
+      message: { content: 'A'.repeat(808) },
+      hasMore: false
+    })
+    // A replacement within the same millisecond and with the same length must still invalidate.
+    db.prepare('UPDATE deepchat_messages SET content = ? WHERE id = ?').run(
+      'B'.repeat(9000),
+      'long'
+    )
+    await expect(reader.read('caller', continuation)).rejects.toThrow(/current Tape revision/i)
+    recordRevision('long')
+    await expect(reader.read('caller', continuation)).rejects.toThrow(/changed.*offset 0/i)
+    await expect(reader.read('caller', input)).resolves.toMatchObject({
+      message: { content: 'B'.repeat(8192) }
+    })
   })
 
   it('includes sent and error terminals but excludes pending and control compaction messages', async () => {
