@@ -1351,6 +1351,101 @@ describe('CompactionService', () => {
     )
   })
 
+  it('retries the summary call with a larger output budget when the first attempt yields no content', async () => {
+    const previousState: SessionSummaryState = {
+      summaryText: null,
+      summaryCursorOrderSeq: 1,
+      summaryUpdatedAt: null
+    }
+    const { service, providerRuntime, sessionStore } = createService({
+      summaryState: previousState
+    })
+    // A reasoning-heavy model can burn the whole output budget on thinking and
+    // return nothing usable, which is how a span ends up unsummarized.
+    providerRuntime.generateText
+      .mockResolvedValueOnce({ content: '<think>reasoning only, truncated at max_tokens</think>' })
+      .mockResolvedValueOnce({ content: '## Current Goal\nrecovered handoff' })
+
+    const result = await service.applyCompaction({
+      compactionAttemptId: 'compaction-attempt-retry',
+      sessionId: 's1',
+      previousState,
+      targetCursorOrderSeq: 7,
+      summaryBlocks: ['next span'],
+      currentCheckpointTokenEstimate: 0,
+      newlyHiddenVisibleTokenEstimate: 10_000,
+      currentModel: {
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        contextLength: 4096
+      },
+      reserveTokens: 512,
+      anchorName: 'compaction/auto',
+      summaryRange: { fromOrderSeq: 1, toOrderSeq: 6 },
+      sourceMessageIds: ['m1', 'm2'],
+      retainedTurnCount: 1,
+      retainedTokenEstimate: 300,
+      retainedTokenTarget: 256
+    })
+
+    expect(providerRuntime.generateText).toHaveBeenCalledTimes(2)
+    const budgets = providerRuntime.generateText.mock.calls.map((call) => call[4])
+    expect(budgets[0]).toBe(512)
+    expect(budgets[1]).toBeGreaterThan(budgets[0])
+    expect(result.outcome).toBe('summarized')
+    expect(sessionStore.compareAndSetSummaryState.mock.calls[0]?.[3]?.state).toMatchObject({
+      summary: '## Current Goal\nrecovered handoff'
+    })
+  })
+
+  it('still commits a summary_unavailable boundary when every attempt returns no content', async () => {
+    const previousState: SessionSummaryState = {
+      summaryText: null,
+      summaryCursorOrderSeq: 1,
+      summaryUpdatedAt: null
+    }
+    const boundaryState: SessionSummaryState = {
+      summaryText: null,
+      summaryCursorOrderSeq: 7,
+      summaryUpdatedAt: null
+    }
+    const { service, providerRuntime, sessionStore } = createService({
+      summaryState: previousState,
+      compareAndSetResult: { applied: true, currentState: boundaryState }
+    })
+    providerRuntime.generateText.mockResolvedValue({ content: '<think>truncated</think>' })
+
+    const result = await service.applyCompaction({
+      compactionAttemptId: 'compaction-attempt-empty',
+      sessionId: 's1',
+      previousState,
+      targetCursorOrderSeq: 7,
+      summaryBlocks: ['next span'],
+      currentCheckpointTokenEstimate: 0,
+      newlyHiddenVisibleTokenEstimate: 10_000,
+      currentModel: {
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        contextLength: 4096
+      },
+      reserveTokens: 512,
+      anchorName: 'compaction/auto',
+      summaryRange: { fromOrderSeq: 1, toOrderSeq: 6 },
+      sourceMessageIds: ['m1', 'm2'],
+      retainedTurnCount: 1,
+      retainedTokenEstimate: 300,
+      retainedTokenTarget: 256
+    })
+
+    expect(providerRuntime.generateText).toHaveBeenCalledTimes(2)
+    expect(result.outcome).toBe('boundary_only')
+    expect(result.summaryError).toBe('Compaction summary generation returned empty content.')
+    expect(sessionStore.compareAndSetSummaryState.mock.calls[0]?.[3]?.state).toMatchObject({
+      reason: 'summary_unavailable',
+      summaryGap: { fromOrderSeq: 1, toOrderSeq: 6 }
+    })
+  })
+
   it('merges consecutive summary gaps into the latest boundary', async () => {
     const previousState: SessionSummaryState = {
       summaryText: null,

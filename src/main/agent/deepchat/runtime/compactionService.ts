@@ -44,6 +44,11 @@ import { redactRuntimeErrorForLog } from './runtimeErrorLogging'
 const SAFETY_MARGIN = 1.2
 const SUMMARIZATION_OVERHEAD_TOKENS = 4096
 const SUMMARY_OUTPUT_TOKENS_CAP = 2048
+// A model that spends its whole output budget on reasoning (or is cut off at the
+// cap) hands back an empty summary, and the span then disappears behind a
+// `summary_unavailable` boundary. Retry once with a larger budget before giving
+// up so a truncation does not cost the conversation its handoff.
+const SUMMARY_OUTPUT_TOKENS_RETRY_CAP = 8192
 const RETAINED_TAIL_INPUT_RATIO = 0.25
 const RETAINED_TAIL_TOKEN_CAP = 20_000
 
@@ -1329,8 +1334,35 @@ export class CompactionService {
       observeModelCall?: CompactionModelCallObserver
     }
   ): Promise<string> {
-    throwIfAbortRequested(signal)
     const prompt = this.buildSummaryPrompt(previousSummary, spanText)
+    const firstBudget = this.getSummaryOutputTokens(reserveTokens)
+    const budgets =
+      SUMMARY_OUTPUT_TOKENS_RETRY_CAP > firstBudget
+        ? [firstBudget, SUMMARY_OUTPUT_TOKENS_RETRY_CAP]
+        : [firstBudget]
+
+    for (const maxOutputTokens of budgets) {
+      const summary = await this.requestSummaryText(model, prompt, maxOutputTokens, signal, callContext)
+      if (summary) {
+        return summary
+      }
+    }
+
+    throw new Error('Compaction summary generation returned empty content.')
+  }
+
+  private async requestSummaryText(
+    model: ModelSpec,
+    prompt: string,
+    maxOutputTokens: number,
+    signal: AbortSignal | undefined,
+    callContext: {
+      sessionId: string
+      compactionAttemptId: string
+      observeModelCall?: CompactionModelCallObserver
+    }
+  ): Promise<string> {
+    throwIfAbortRequested(signal)
     if (signal) {
       await this.providerRuntime.executeWithRateLimit(model.providerId, { signal })
     } else {
@@ -1347,7 +1379,7 @@ export class CompactionService {
           prompt,
           model.modelId,
           0.2,
-          this.getSummaryOutputTokens(reserveTokens),
+          maxOutputTokens,
           { signal }
         ),
         signal
@@ -1378,11 +1410,7 @@ export class CompactionService {
       completedAt: Math.max(startedAt, Date.now())
     })
     throwIfAbortRequested(signal)
-    const summary = sanitizeSummaryContent(response.content || '')
-    if (!summary) {
-      throw new Error('Compaction summary generation returned empty content.')
-    }
-    return summary
+    return sanitizeSummaryContent(response.content || '')
   }
 
   private normalizeModelCallUsage(
