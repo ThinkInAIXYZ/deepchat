@@ -110,8 +110,8 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   const referenceSearchFailed = ref(false)
   let referenceSearchSequence = 0
   let referenceItems = new Set<AtSuggestionItem>()
-  // The menu may only claim Enter/Tab while it can act on them: an open menu that has nothing to
-  // pick (or is still resolving items) must not block sending the draft.
+  // Reserve Enter/Tab while results are loading or selectable, so choosing a reference cannot
+  // accidentally submit the draft. An empty, settled menu leaves send/queue shortcuts available.
   const hasSelectableSuggestions = computed(
     () => isSuggestionMenuOpen.value && (suggestionLoading.value || suggestionItemCount.value > 0)
   )
