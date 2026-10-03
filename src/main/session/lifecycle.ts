@@ -41,10 +41,6 @@ import { normalizeToolModeOverride } from '@shared/toolMode'
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 
-function isAbortError(error: unknown, signal?: AbortSignal): boolean {
-  return signal?.aborted === true || (error instanceof Error && error.name === 'AbortError')
-}
-
 export interface SessionLifecycleDependencies {
   sessions: SessionLifecycleStorePort
   runtime: SessionLifecycleRuntimePort
@@ -132,9 +128,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       })
       return { ...result, ...(initialTurn ? { initialTurn } : {}) }
     } catch (error) {
-      if (isAbortError(error, options?.signal)) {
-        await this.cleanupCancelledNewSession(sessionId, webContentsId)
-      }
+      await this.cleanupFailedNewSession(sessionId, webContentsId)
       throw error
     }
   }
@@ -610,15 +604,12 @@ export class SessionLifecycle implements SessionLifecyclePort {
     }
   }
 
-  private async cleanupCancelledNewSession(
-    sessionId: string,
-    webContentsId: number
-  ): Promise<void> {
+  private async cleanupFailedNewSession(sessionId: string, webContentsId: number): Promise<void> {
     try {
       if (await this.dependencies.transcript.hasMessages(sessionId)) return
     } catch (error) {
       console.warn(
-        `[SessionLifecycle] Failed to inspect cancelled session ${sessionId}; preserving it:`,
+        `[SessionLifecycle] Failed to inspect failed new session ${sessionId}; preserving it:`,
         error
       )
       return
@@ -633,7 +624,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
         this.dependencies.projection.notify({ sessionIds: deletedSessionIds, reason: 'deleted' })
       }
     } catch (error) {
-      console.warn(`[SessionLifecycle] Failed to cleanup cancelled session ${sessionId}:`, error)
+      console.warn(`[SessionLifecycle] Failed to cleanup failed new session ${sessionId}:`, error)
     }
   }
 
