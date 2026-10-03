@@ -59,6 +59,7 @@ import {
   type MessageListItem
 } from '@/features/chat-page/model/displayMessage'
 import MessageListRow from './MessageListRow.vue'
+import type { UserMessageInlineItem } from '@shared/types/agent-interface'
 
 const props = withDefaults(
   defineProps<{
@@ -98,7 +99,7 @@ const emit = defineEmits<{
   continue: [conversationId: string, messageId: string]
   trace: [messageId: string]
   tapeInspector: [messageId: string]
-  editSave: [payload: { messageId: string; text: string }]
+  editSave: [payload: { messageId: string; text: string; inlineItems?: UserMessageInlineItem[] }]
   measure: [payload: { messageId: string; height: number }]
 }>()
 
@@ -179,7 +180,11 @@ const onContinue = (conversationId: string, messageId: string) =>
   emit('continue', conversationId, messageId)
 const onTrace = (messageId: string) => emit('trace', messageId)
 const onTapeInspector = (messageId: string) => emit('tapeInspector', messageId)
-const onEditSave = (payload: { messageId: string; text: string }) => emit('editSave', payload)
+const onEditSave = (payload: {
+  messageId: string
+  text: string
+  inlineItems?: UserMessageInlineItem[]
+}) => emit('editSave', payload)
 const onMeasure = (payload: { messageId: string; height: number }) => emit('measure', payload)
 
 const resolveVisibleCaptureParentId = (

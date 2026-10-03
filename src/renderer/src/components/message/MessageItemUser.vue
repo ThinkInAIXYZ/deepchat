@@ -38,33 +38,24 @@
       </div>
       <!-- 消息内容 -->
       <div
-        class="text-sm bg-muted dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5"
+        class="max-w-full text-sm bg-muted dark:bg-muted rounded-lg p-3 border flex flex-col gap-2"
         data-message-content="true"
       >
-        <div
-          v-show="standaloneFiles.length > 0"
-          class="flex flex-wrap gap-1.5"
+        <AttachmentShelf
+          :files="standaloneFiles"
+          class="border-0 p-0"
           data-chat-search-exclude="true"
-        >
-          <ChatAttachmentItem
-            v-for="(file, index) in standaloneFiles"
-            :key="file.path || `${file.name}-${index}`"
-            :file="file"
-            @click="previewFile(file.path)"
+          @file-click="previewFile"
+        />
+        <div v-if="isEditMode" class="w-full min-w-[40vw] text-sm">
+          <ReferenceEditor
+            ref="referenceEditor"
+            :text="editText"
+            :inline-items="message.content.content?.length ? [] : message.content.inlineItems"
+            :ariaLabel="t('thread.toolbar.edit')"
+            @save="saveEdit"
+            @cancel="cancelEdit"
           />
-        </div>
-        <div v-if="isEditMode" class="text-sm w-full min-w-[40vw] whitespace-pre-wrap break-all">
-          <textarea
-            ref="editTextarea"
-            :aria-label="t('thread.toolbar.edit')"
-            v-model="editedText"
-            class="text-sm bg-muted dark:bg-muted rounded-lg p-2 border flex flex-col gap-1.5 resize-none overflow-y-auto overscroll-contain min-w-[40vw] w-full max-h-[60vh]"
-            rows="1"
-            @input="autoResize"
-            @keydown.meta.enter.prevent="saveEdit"
-            @keydown.ctrl.enter.prevent="saveEdit"
-            @keydown.esc="cancelEdit"
-          ></textarea>
         </div>
         <div v-else class="flex w-full min-w-0 flex-col items-end gap-1.5">
           <div
@@ -74,6 +65,7 @@
             class="relative w-full min-w-0"
           >
             <div
+              ref="contentMeasureRef"
               class="w-full min-w-0"
               :class="{ 'user-message-content--clamped': shouldClampContent }"
             >
@@ -136,40 +128,25 @@ import {
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import MessageInfo from './MessageInfo.vue'
-import ChatAttachmentItem from '../chat/ChatAttachmentItem.vue'
+import AttachmentShelf from '../chat/AttachmentShelf.vue'
 import MessageToolbar from './MessageToolbar.vue'
 import MessageContent from './MessageContent.vue'
 import MessageTextContent from './MessageTextContent.vue'
+import ReferenceEditor from '../chat/ReferenceEditor.vue'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
 import { getSessionReferenceText } from '@shared/sessionReferences'
 import { useSessionStore } from '@/stores/ui/session'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
+import type { UserMessageInlineItem } from '@shared/types/agent-interface'
 
-const COLLAPSE_CHAR_THRESHOLD = 600
-const COLLAPSE_EXPLICIT_LINE_THRESHOLD = 8
+const COLLAPSE_HEIGHT_PX = 192
 const READ_RECEIPT_VISIBLE_MS = 1500
 
-const countExplicitLines = (value: string) => {
-  if (!value) {
-    return 0
-  }
-
-  let count = 1
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index)
-    if (code === 10) {
-      count += 1
-    } else if (code === 13) {
-      count += 1
-      if (value.charCodeAt(index + 1) === 10) {
-        index += 1
-      }
-    }
-  }
-
-  return count
+type ReferenceEditorApi = {
+  getValue: () => { text: string; inlineItems: UserMessageInlineItem[] }
+  focus: () => void
 }
 
 const deviceClient = createDeviceClient()
@@ -183,8 +160,9 @@ const props = defineProps<{
 }>()
 
 const isEditMode = ref(false)
-const editedText = ref('')
-const editTextarea = ref<HTMLTextAreaElement | null>(null)
+const referenceEditor = ref<ReferenceEditorApi | null>(null)
+const contentMeasureRef = ref<HTMLElement | null>(null)
+const renderedContentHeight = ref(0)
 const isExpanded = ref(true)
 const hasManualCollapsePreference = ref(false)
 const receipt = ref<'unread' | 'read' | null>(null)
@@ -217,6 +195,14 @@ const visibleContentBlocks = computed<DisplayUserMessageInlineBlock[]>(() =>
   })
 )
 const visibleMessageText = computed(() => collectVisibleUserMessageText(props.message.content))
+const editText = computed(() =>
+  props.message.content.content?.length
+    ? props.message.content.content
+        .filter((block) => block.type === 'text')
+        .map((block) => block.content)
+        .join('')
+    : props.message.content.text || ''
+)
 
 const inlineSkillNames = computed(
   () =>
@@ -248,12 +234,7 @@ const standaloneFiles = computed(() =>
   props.message.content.files.filter((file) => !inlineFileKeys.value.has(file.path || file.name))
 )
 
-const explicitLineCount = computed(() => countExplicitLines(visibleMessageText.value))
-const isCollapsible = computed(
-  () =>
-    visibleMessageText.value.length >= COLLAPSE_CHAR_THRESHOLD ||
-    explicitLineCount.value >= COLLAPSE_EXPLICIT_LINE_THRESHOLD
-)
+const isCollapsible = computed(() => renderedContentHeight.value > COLLAPSE_HEIGHT_PX)
 const shouldClampContent = computed(() => isCollapsible.value && !isExpanded.value)
 const showFadeMask = computed(() => shouldClampContent.value)
 
@@ -261,7 +242,7 @@ const emit = defineEmits<{
   fileClick: [fileName: string]
   retry: [messageId: string]
   delete: [messageId: string]
-  editSave: [payload: { messageId: string; text: string }]
+  editSave: [payload: { messageId: string; text: string; inlineItems?: UserMessageInlineItem[] }]
 }>()
 
 const previewFile = (filePath: string) => {
@@ -286,6 +267,7 @@ const toggleExpanded = () => {
     return
   }
 
+  // MessageListRow measures the new height; the chat scroll controller owns anchoring.
   isExpanded.value = !isExpanded.value
   hasManualCollapsePreference.value = true
 }
@@ -296,13 +278,7 @@ const startEdit = () => {
   }
 
   isEditMode.value = true
-  if (props.message.content?.content && props.message.content.content.length > 0) {
-    const textBlocks = props.message.content.content.filter((block) => block.type === 'text')
-    editedText.value = textBlocks.map((block) => block.content).join('')
-  } else {
-    editedText.value = props.message.content.text || ''
-  }
-  nextTick(() => autoResize())
+  void nextTick(() => referenceEditor.value?.focus())
 }
 
 const saveEdit = async () => {
@@ -310,13 +286,20 @@ const saveEdit = async () => {
     return
   }
 
-  const nextText = editedText.value.trim()
-  if (!nextText) return
+  const value = referenceEditor.value?.getValue()
+  if (
+    !value ||
+    (!value.text.trim() &&
+      !value.inlineItems.some((item) => item.type === 'session') &&
+      !props.message.content.files.length)
+  )
+    return
 
   try {
     emit('editSave', {
       messageId: props.message.id,
-      text: nextText
+      text: value.text,
+      ...(props.message.content.content?.length ? {} : { inlineItems: value.inlineItems })
     })
 
     // Exit edit mode
@@ -345,12 +328,17 @@ const getCopyText = () => {
       .join('')
       .trim()
   }
-  return [
-    props.message.content.text || '',
-    getSessionReferenceText(props.message.content.inlineItems)
-  ]
-    .filter(Boolean)
-    .join('\n')
+  const blocks = visibleContentBlocks.value
+  if (!blocks.length) return props.message.content.text || ''
+  return blocks
+    .map((block) => {
+      if (block.type === 'text' || block.type === 'code' || block.type === 'mention')
+        return block.content
+      if (block.type === 'file-reference') return `@${block.relativePath}`
+      if (block.type === 'session') return getSessionReferenceText([{ ...block, offset: 0 }])
+      return ''
+    })
+    .join('')
 }
 
 const copyText = computed(() => getCopyText())
@@ -374,36 +362,18 @@ const handleMentionClick = async (_block: DisplayUserMessageMentionBlock) => {
   return
 }
 
-let pendingResizeFrame: number | null = null
+let contentResizeObserver: ResizeObserver | null = null
 
-const runAutoResize = () => {
-  const el = editTextarea.value
-  if (!el) return
-  el.style.height = 'auto'
-  const maxH = Math.max(120, Math.floor(window.innerHeight * 0.6))
-  const scrollH = el.scrollHeight
-  const target = Math.min(scrollH, maxH)
-  el.style.height = target + 'px'
-  if (scrollH > target) {
-    el.style.overflowY = 'auto'
-  } else {
-    el.style.overflowY = 'hidden'
-  }
+const measureRenderedContent = () => {
+  renderedContentHeight.value = contentMeasureRef.value?.scrollHeight ?? 0
 }
 
-const autoResize = () => {
-  if (pendingResizeFrame !== null) {
-    window.cancelAnimationFrame(pendingResizeFrame)
-  }
-
-  pendingResizeFrame = window.requestAnimationFrame(() => {
-    pendingResizeFrame = null
-    runAutoResize()
-  })
-}
-
-watch(editedText, () => {
-  if (isEditMode.value) nextTick(() => autoResize())
+watch(contentMeasureRef, (element) => {
+  contentResizeObserver?.disconnect()
+  measureRenderedContent()
+  if (typeof ResizeObserver === 'undefined' || !element) return
+  contentResizeObserver = new ResizeObserver(measureRenderedContent)
+  contentResizeObserver.observe(element.firstElementChild ?? element)
 })
 
 watch(
@@ -461,22 +431,17 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  contentResizeObserver?.disconnect()
   if (receiptTimer) {
     clearTimeout(receiptTimer)
     receiptTimer = null
-  }
-  if (pendingResizeFrame !== null) {
-    window.cancelAnimationFrame(pendingResizeFrame)
-    pendingResizeFrame = null
   }
 })
 </script>
 
 <style scoped>
 .user-message-content--clamped {
-  display: -webkit-box;
   overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 12;
+  max-height: 192px;
 }
 </style>

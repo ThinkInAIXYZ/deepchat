@@ -3,7 +3,8 @@ import type { useMessageStore } from '@/stores/ui/message'
 import type { useSessionStore } from '@/stores/ui/session'
 import type {
   AttachmentFallbackPolicy,
-  AttachmentPreparationSummary
+  AttachmentPreparationSummary,
+  UserMessageInlineItem
 } from '@shared/types/agent-interface'
 import type { RendererNotificationNotifier } from '@renderer-notifications/rendererNotificationPort'
 
@@ -23,7 +24,12 @@ type SessionClientLike = {
     | undefined
   >
   deleteMessage: (sessionId: string, messageId: string) => Promise<unknown>
-  editUserMessage: (sessionId: string, messageId: string, text: string) => Promise<unknown>
+  editUserMessage: (
+    sessionId: string,
+    messageId: string,
+    text: string,
+    inlineItems?: UserMessageInlineItem[]
+  ) => Promise<unknown>
   forkSession: (sessionId: string, messageId: string) => Promise<{ id: string }>
 }
 
@@ -227,15 +233,23 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     }
   }
 
-  async function onMessageEditSave(payload: { messageId: string; text: string }) {
+  async function onMessageEditSave(payload: {
+    messageId: string
+    text: string
+    inlineItems?: UserMessageInlineItem[]
+  }) {
     if (options.isReadOnlySession.value) return
     const messageId = payload?.messageId
-    const text = payload?.text?.trim()
-    if (!messageId || !text) return
+    const text = payload.inlineItems ? payload.text : payload.text?.trim()
+    if (!messageId || (!payload.inlineItems && !text?.trim())) return
 
     const sessionId = options.sessionId()
     try {
-      await options.sessionClient.editUserMessage(sessionId, messageId, text)
+      if (payload.inlineItems) {
+        await options.sessionClient.editUserMessage(sessionId, messageId, text, payload.inlineItems)
+      } else {
+        await options.sessionClient.editUserMessage(sessionId, messageId, text)
+      }
       await onMessageRetry(messageId, sessionId)
     } catch (error) {
       console.error('[ChatPage] edit message failed:', error)

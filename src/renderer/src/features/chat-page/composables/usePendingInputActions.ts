@@ -1,6 +1,7 @@
 import type { ComputedRef } from 'vue'
 import type { usePendingInputStore } from '@/stores/ui/pendingInput'
 import type { RendererNotificationNotifier } from '@renderer-notifications/rendererNotificationPort'
+import type { UserMessageInlineItem } from '@shared/types/agent-interface'
 
 type PendingInputStore = ReturnType<typeof usePendingInputStore>
 
@@ -21,7 +22,11 @@ type UsePendingInputActionsOptions = {
  * dispatch, so queue-item mutations retain a narrow dependency surface.
  */
 export function usePendingInputActions(options: UsePendingInputActionsOptions) {
-  async function onPendingInputUpdate(payload: { itemId: string; text: string }) {
+  async function onPendingInputUpdate(payload: {
+    itemId: string
+    text: string
+    inlineItems: UserMessageInlineItem[]
+  }) {
     if (options.isReadOnlySession.value) return
 
     const target = options.pendingInputStore.queueItems.find((item) => item.id === payload.itemId)
@@ -34,9 +39,7 @@ export function usePendingInputActions(options: UsePendingInputActionsOptions) {
       files: target.payload.files ?? [],
       search: target.payload.search === true,
       activeSkills: target.payload.activeSkills ?? [],
-      inlineItems: (target.payload.inlineItems ?? []).map((item) =>
-        item.type === 'session' ? { ...item, offset: payload.text.length } : item
-      ),
+      inlineItems: payload.inlineItems,
       attachmentFallbackPolicy: target.payload.attachmentFallbackPolicy
     })
   }

@@ -79,6 +79,7 @@ const useSkillsDataMock = vi.fn((_conversationId?: unknown, _agentId?: unknown) 
 let lastEditorOptions: any = null
 let lastEditorInstance: any = null
 let mockEditorText = ''
+let mockEditorJson: any = { type: 'doc', content: [{ type: 'paragraph' }] }
 const consumePendingSkillsMock = vi.fn(() => {
   const copied = [...pendingSkillsRef.value]
   pendingSkillsRef.value = []
@@ -139,7 +140,7 @@ vi.mock('@tiptap/vue-3', () => {
       return mockEditorText
     }
     getJSON() {
-      return { type: 'doc', content: [{ type: 'paragraph' }] }
+      return mockEditorJson
     }
     chain() {
       const api = {
@@ -264,6 +265,7 @@ describe('ChatInputBox attachments', () => {
     lastEditorOptions = null
     lastEditorInstance = null
     mockEditorText = ''
+    mockEditorJson = { type: 'doc', content: [{ type: 'paragraph' }] }
     closeDialogMock.mockClear()
     getOcrRuntimeStatusMock.mockReset()
     isSuggestionMenuOpenRef.value = false
@@ -337,6 +339,18 @@ describe('ChatInputBox attachments', () => {
       'chat.skills.indicator.active'
     )
     expect(activeSkillsRef.value).toEqual([])
+  })
+
+  it('renders new files in the attachment shelf without inserting editor nodes', async () => {
+    const wrapper = await mountComponent({
+      files: [{ name: 'notes.txt', path: '/tmp/notes.txt', mimeType: 'text/plain' }]
+    })
+
+    expect(wrapper.get('[data-testid="attachment-shelf"]').text()).toContain('notes.txt')
+    expect(lastEditorInstance.commandMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'insertContentAt' })
+    )
+    expect(deleteFileMock).not.toHaveBeenCalled()
   })
 
   it('delegates Session Skill removal and reports route failures', async () => {
@@ -547,7 +561,13 @@ describe('ChatInputBox attachments', () => {
     await wrapper.setProps({ workspacePath: '/repo' })
 
     expect((wrapper.vm as any).insertWorkspaceReference('/repo/src/App.vue')).toBe(true)
-    expect(insertContentMock).toHaveBeenCalledWith('@src/App.vue ')
+    expect(insertContentMock).toHaveBeenCalledWith([
+      {
+        type: 'fileReference',
+        attrs: { filePath: '/repo/src/App.vue', relativePath: 'src/App.vue' }
+      },
+      { type: 'text', text: ' ' }
+    ])
   })
 
   it.each(['drop', 'mention'])('blocks submission until a %s reference resolves', async (entry) => {
@@ -853,7 +873,13 @@ describe('ChatInputBox attachments', () => {
     })
     await wrapper.trigger('drop', { dataTransfer })
 
-    expect(insertContentMock).toHaveBeenCalledWith('@src/App.vue ')
+    expect(insertContentMock).toHaveBeenCalledWith([
+      {
+        type: 'fileReference',
+        attrs: { filePath: '/repo/src/App.vue', relativePath: 'src/App.vue' }
+      },
+      { type: 'text', text: ' ' }
+    ])
     expect(handleDropMock).not.toHaveBeenCalled()
   })
 
@@ -870,14 +896,10 @@ describe('ChatInputBox attachments', () => {
     expect(deleteFileMock).toHaveBeenCalledWith(0)
   })
 
-  const textNode = (text: string) => ({ type: { name: 'text' }, text, attrs: {} })
   const node = (name: string, attrs: Record<string, string>, nodeSize = 1) => ({
     type: { name },
     attrs,
     nodeSize
-  })
-  const block = (children: any[]) => ({
-    forEach: (callback: (node: any) => void) => children.forEach(callback)
   })
 
   it('exposes inline item snapshots at plain text offsets', async () => {
@@ -886,22 +908,27 @@ describe('ChatInputBox attachments', () => {
     expect(lastEditorOptions).toBeTruthy()
     const editor = lastEditorInstance
     expect(editor).toBeTruthy()
-    editor.state.doc.forEach = (callback: (block: any, offset: number, index: number) => void) => {
-      callback(
-        block([
-          textNode('我想要使用'),
-          node('skillChip', { skillName: 'skillA' }),
-          textNode(' ，把 '),
-          node('fileAttachment', {
-            fileName: 'file.pdf',
-            filePath: '/tmp/file.pdf',
-            mimeType: 'application/pdf'
-          })
-        ]),
-        0,
-        0
-      )
-      callback(block([textNode('文件怎么样怎么样')]), 0, 1)
+    mockEditorJson = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: '我想要使用' },
+            { type: 'skillChip', attrs: { skillName: 'skillA' } },
+            { type: 'text', text: ' ，把 ' },
+            {
+              type: 'fileAttachment',
+              attrs: {
+                fileName: 'file.pdf',
+                filePath: '/tmp/file.pdf',
+                mimeType: 'application/pdf'
+              }
+            }
+          ]
+        },
+        { type: 'paragraph', content: [{ type: 'text', text: '文件怎么样怎么样' }] }
+      ]
     }
 
     expect((wrapper.vm as any).getInlineItemsSnapshot()).toEqual([
@@ -916,7 +943,7 @@ describe('ChatInputBox attachments', () => {
     ])
   })
 
-  it('syncs deleted inline editor nodes back to backing state on editor update', async () => {
+  it('removes inline references without deleting shelf attachments needed by undo', async () => {
     const wrapper = await mountComponent()
     activeSkillsRef.value = ['skillA']
     selectedFilesRef.value = [
@@ -924,6 +951,12 @@ describe('ChatInputBox attachments', () => {
     ]
     const editor = lastEditorInstance
     expect(editor).toBeTruthy()
+    editor.state.doc.descendants = (callback: (node: any, pos: number) => void) => {
+      callback(node('fileAttachment', { filePath: '/tmp/file.pdf' }, 1), 0)
+    }
+    ;(wrapper.vm as any).restoreDocumentSnapshot({ type: 'doc', content: [] })
+    await nextTick()
+
     editor.state.doc.descendants = (callback: (node: any, pos: number) => void) => {
       callback(node('paragraph', {}, 1), 0)
     }
@@ -934,7 +967,8 @@ describe('ChatInputBox attachments', () => {
     })
 
     expect(deactivateSkillMock).toHaveBeenCalledWith('skillA')
-    expect(deleteFileMock).toHaveBeenCalledWith(0)
+    expect(deleteFileMock).not.toHaveBeenCalled()
+    expect(selectedFilesRef.value).toHaveLength(1)
     expect(wrapper.emitted('draft-change')).toHaveLength(1)
   })
 

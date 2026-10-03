@@ -13,6 +13,8 @@ import enChat from '@/i18n/en-US/chat.json'
 
 const originalApi = window.api
 const { selectSession } = vi.hoisted(() => ({ selectSession: vi.fn() }))
+let measuredContentHeight = 0
+let notifyContentResize = () => undefined
 
 vi.mock('@/stores/ui/session', () => ({
   useSessionStore: () => ({ selectSession })
@@ -207,6 +209,20 @@ const globalMountOptions = {
 
 describe('MessageItemUser', () => {
   beforeEach(() => {
+    measuredContentHeight = 0
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(
+      () => measuredContentHeight
+    )
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          notifyContentResize = callback
+        }
+        observe() {}
+        disconnect() {}
+      }
+    )
     window.api = {
       copyText: vi.fn()
     } as typeof window.api
@@ -215,6 +231,7 @@ describe('MessageItemUser', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
     window.api = originalApi
     document.body.innerHTML = ''
   })
@@ -246,6 +263,7 @@ describe('MessageItemUser', () => {
       },
       ...globalMountOptions
     })
+    await nextTick()
 
     const body = wrapper.get('[data-user-message-content-body="true"]')
     expect(body.attributes('data-user-message-collapsible')).toBe('false')
@@ -254,12 +272,14 @@ describe('MessageItemUser', () => {
   })
 
   it('collapses long plain text by default and toggles expansion', async () => {
+    measuredContentHeight = 260
     const wrapper = mount(MessageItemUser, {
       props: {
         message: createMessage({}, { text: 'a'.repeat(700) })
       },
       ...globalMountOptions
     })
+    await nextTick()
 
     const body = wrapper.get('[data-user-message-content-body="true"]')
     const toggle = wrapper.get('[data-user-message-toggle="true"]')
@@ -282,6 +302,7 @@ describe('MessageItemUser', () => {
   })
 
   it('keeps structured user content rendering while collapsed', async () => {
+    measuredContentHeight = 260
     const wrapper = mount(MessageItemUser, {
       props: {
         message: createMessage(
@@ -312,6 +333,7 @@ describe('MessageItemUser', () => {
       },
       ...globalMountOptions
     })
+    await nextTick()
 
     expect(wrapper.find('[data-user-message-toggle="true"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('prompt-name')
@@ -396,46 +418,54 @@ describe('MessageItemUser', () => {
   })
 
   it('keeps attachments visible when long text collapses', async () => {
+    measuredContentHeight = 260
     const wrapper = mount(MessageItemUser, {
       props: {
         message: createMessage({}, { text: 'b'.repeat(700), files: [createFile()] })
       },
       ...globalMountOptions
     })
+    await nextTick()
 
     expect(wrapper.findAll('.attachment-stub')).toHaveLength(1)
     expect(wrapper.find('[data-user-message-toggle="true"]').exists()).toBe(true)
   })
 
-  it('shows full textarea content in edit mode even when the message is collapsible', async () => {
+  it('shows full reference editor content in edit mode even when the message is collapsible', async () => {
+    measuredContentHeight = 260
     const wrapper = mount(MessageItemUser, {
       props: {
         message: createMessage({}, { text: 'c'.repeat(700) })
       },
       ...globalMountOptions
     })
+    await nextTick()
 
     await wrapper.get('[data-action="edit"]').trigger('click')
     await nextTick()
 
-    expect(wrapper.find('textarea').exists()).toBe(true)
+    expect(wrapper.find('.reference-editor').exists()).toBe(true)
     expect(wrapper.find('[data-user-message-content-body="true"]').exists()).toBe(false)
-    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('c'.repeat(700))
+    expect(wrapper.find('.reference-editor').text()).toBe('c'.repeat(700))
   })
 
   it('re-evaluates collapse state when content length drops below the collapse threshold', async () => {
+    measuredContentHeight = 260
     const wrapper = mount(MessageItemUser, {
       props: {
         message: createMessage({}, { text: 'd'.repeat(700) })
       },
       ...globalMountOptions
     })
+    await nextTick()
 
     expect(wrapper.find('[data-user-message-toggle="true"]').exists()).toBe(true)
 
+    measuredContentHeight = 80
     await wrapper.setProps({
       message: createMessage({}, { text: 'short again' })
     })
+    notifyContentResize()
     await nextTick()
 
     const body = wrapper.get('[data-user-message-content-body="true"]')

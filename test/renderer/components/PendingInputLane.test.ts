@@ -172,7 +172,24 @@ describe('PendingInputLane', () => {
     const save = wrapper.findAll('button').find((button) => button.text() === 'Save')!
     expect((save.element as HTMLButtonElement).disabled).toBe(false)
     await save.trigger('click')
-    expect(wrapper.emitted('update-queue')).toEqual([[{ itemId: 'queue-1', text: '' }]])
+    expect(wrapper.emitted('update-queue')).toEqual([
+      [
+        {
+          itemId: 'queue-1',
+          text: '',
+          inlineItems: [
+            {
+              type: 'session',
+              offset: 0,
+              sessionId: 'source',
+              title: 'Launch research',
+              projectDir: null,
+              tapeIncarnationId: 'incarnation'
+            }
+          ]
+        }
+      ]
+    ])
     await wrapper.setProps({
       queueItems: [buildPendingInput('queue-1', 'queue', { payload: { text: '', files: [] } })]
     })

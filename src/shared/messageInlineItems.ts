@@ -16,6 +16,9 @@ export function getValidInlineItems(
       if (item.type !== 'file-reference') return true
       const token = `@${item.relativePath}`
       if (!item.relativePath || /[\r\n]/.test(item.relativePath)) return false
+      const path = item.filePath.replace(/\\/g, '/')
+      const relativePath = item.relativePath.replace(/\\/g, '/')
+      if (path !== relativePath && !path.endsWith(`/${relativePath}`)) return false
       if (text.slice(item.offset, item.offset + token.length) !== token) return false
       end = item.offset + token.length
       return true
@@ -29,7 +32,10 @@ export function getReferencePathLabel(path: string, peers: readonly string[] = [
   const otherPaths = peers.filter((peer) => peer !== path).map((peer) => peer.replace(/\\/g, '/'))
   while (
     count < parts.length &&
-    otherPaths.some((peer) => peer.endsWith(`/${parts.slice(-count).join('/')}`))
+    otherPaths.some(
+      (peer) =>
+        peer === parts.slice(-count).join('/') || peer.endsWith(`/${parts.slice(-count).join('/')}`)
+    )
   )
     count++
   return parts.slice(-count).join('/') || path

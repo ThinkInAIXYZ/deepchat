@@ -1,5 +1,5 @@
 <template>
-  <div class="text-sm whitespace-pre-wrap break-all">
+  <div class="text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
     {{ content }}
   </div>
 </template>

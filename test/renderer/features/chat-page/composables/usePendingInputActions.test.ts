@@ -26,7 +26,7 @@ function createHarness() {
           files: [{ name: 'file.txt' }],
           search: true,
           activeSkills: ['skill-a'],
-          inlineItems: [{ type: 'file', path: 'workspace://file.txt' }],
+          inlineItems: [],
           attachmentFallbackPolicy: 'send_without_image_content'
         }
       },
@@ -140,18 +140,32 @@ describe('usePendingInputActions', () => {
   it('updates an existing queue item without dropping files, search, or skills', async () => {
     const harness = createHarness()
 
-    await harness.actions.onPendingInputUpdate({ itemId: 'item-1', text: 'updated' })
+    const inlineItems = [
+      {
+        type: 'session' as const,
+        offset: 7,
+        sessionId: 'source',
+        title: 'Source',
+        projectDir: null,
+        tapeIncarnationId: 'incarnation'
+      }
+    ]
+    await harness.actions.onPendingInputUpdate({ itemId: 'item-1', text: 'updated', inlineItems })
 
     expect(harness.pendingInputStore.updateQueueInput).toHaveBeenCalledWith('s1', 'item-1', {
       text: 'updated',
       files: [{ name: 'file.txt' }],
       search: true,
       activeSkills: ['skill-a'],
-      inlineItems: [{ type: 'file', path: 'workspace://file.txt' }],
+      inlineItems,
       attachmentFallbackPolicy: 'send_without_image_content'
     })
 
-    await harness.actions.onPendingInputUpdate({ itemId: 'missing', text: 'ignored' })
+    await harness.actions.onPendingInputUpdate({
+      itemId: 'missing',
+      text: 'ignored',
+      inlineItems: []
+    })
     expect(harness.pendingInputStore.updateQueueInput).toHaveBeenCalledTimes(1)
     harness.stop()
   })
@@ -176,7 +190,11 @@ describe('usePendingInputActions', () => {
         files: [],
         inlineItems: [reference]
       })
-      await harness.actions.onPendingInputUpdate({ itemId: 'item-1', text })
+      await harness.actions.onPendingInputUpdate({
+        itemId: 'item-1',
+        text,
+        inlineItems: [{ ...reference, offset }]
+      })
       const updated = harness.pendingInputStore.updateQueueInput.mock.calls[0][2]
       expect(updated.inlineItems).toEqual([{ ...reference, offset }])
       expect(getVisibleUserContentBlocks(updated)).toContainEqual(
@@ -186,6 +204,19 @@ describe('usePendingInputActions', () => {
       harness.stop()
     }
   )
+
+  it('persists intentional removal of all inline references', async () => {
+    const harness = createHarness()
+
+    await harness.actions.onPendingInputUpdate({
+      itemId: 'item-1',
+      text: 'draft without references',
+      inlineItems: []
+    })
+
+    expect(harness.pendingInputStore.updateQueueInput.mock.calls[0][2].inlineItems).toEqual([])
+    harness.stop()
+  })
 
   it('delegates move and delete only when writable', async () => {
     const harness = createHarness()

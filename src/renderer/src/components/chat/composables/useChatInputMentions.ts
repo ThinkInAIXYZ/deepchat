@@ -11,10 +11,7 @@ import type { PromptListEntry } from '@shared/types/mcp'
 import type { SessionReference } from '@shared/sessionReferences'
 import { useMcpStore } from '@/stores/mcp'
 import { useSkillsStore } from '@/stores/skillsStore'
-import {
-  buildChatInputWorkspaceReferenceText,
-  resolveChatInputWorkspaceReferencePath
-} from '@/lib/chatInputWorkspaceReference'
+import { resolveChatInputWorkspaceReferencePath } from '@/lib/chatInputWorkspaceReference'
 import SuggestionList from '../mentions/SuggestionList.vue'
 import {
   buildCommandText,
@@ -52,7 +49,7 @@ interface FileSuggestionItem {
   category: 'file'
   label: string
   description?: string
-  payload: { path: string; insertText: string }
+  payload: { path: string; relativePath: string }
 }
 
 interface SessionSuggestionItem {
@@ -107,6 +104,8 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   const isSuggestionMenuOpen = ref(false)
   const suggestionItemCount = ref(0)
   const suggestionLoading = ref(false)
+  const referenceSearchFailed = ref(false)
+  let referenceSearchSequence = 0
   // The menu may only claim Enter/Tab while it can act on them: an open menu that has nothing to
   // pick (or is still resolving items) must not block sending the draft.
   const hasSelectableSuggestions = computed(
@@ -175,7 +174,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
 
     const registered = await ensureWorkspaceRegistered()
     if (!registered) {
-      return []
+      throw new Error('Workspace registration failed')
     }
 
     try {
@@ -193,17 +192,17 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
         return {
           id: `file:${file.path}`,
           category: 'file' as const,
-          label: displayPath,
-          description: file.path,
+          label: file.name,
+          description: displayPath,
           payload: {
             path: file.path,
-            insertText: `${buildChatInputWorkspaceReferenceText(file.path, workspacePath, file.name)} `
+            relativePath: displayPath
           }
         }
       })
     } catch (error) {
       console.warn('[ChatInputMentions] searchFiles failed:', error)
-      return []
+      throw error
     }
   }
 
@@ -226,7 +225,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       }))
     } catch (error) {
       console.warn('[ChatInputMentions] searchReferenceCandidates failed:', error)
-      return []
+      throw error
     }
   }
 
@@ -444,9 +443,17 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     return filterSlashSuggestionItems(slashItems.value, query)
   }
 
-  const createRenderer = () => {
+  const createRenderer = (isReference = false) => {
     let component: VueRenderer | null = null
     let popup: ReturnType<typeof tippy> | null = null
+    const statusLabel = () =>
+      suggestionLoading.value
+        ? t('common.loading')
+        : isReference && referenceSearchFailed.value
+          ? t('chat.search.error')
+          : isReference && !options.workspacePath.value
+            ? t('chat.workspace.files.noWorkspace.description')
+            : ''
 
     const syncAvailability = (props: any) => {
       suggestionItemCount.value = Array.isArray(props?.items) ? props.items.length : 0
@@ -473,6 +480,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
             listId: suggestionListId,
             label: t('chat.input.suggestions'),
             emptyLabel: t('chat.spotlight.emptyTitle'),
+            statusLabel: statusLabel(),
             onActiveChange: (id: string | null) => {
               activeSuggestionId.value = id
             },
@@ -504,6 +512,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
         component?.updateProps({
           items: props.items,
           query: props.query,
+          statusLabel: statusLabel(),
           command: (item: SuggestionItem) => props.command(item)
         })
 
@@ -514,12 +523,26 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
         popup[0].setProps({ getReferenceClientRect: props.clientRect })
       },
       onKeyDown: (props: any) => {
+        const event = props.event as KeyboardEvent
+        if (event.isComposing || event.keyCode === 229 || props.view?.composing) return false
         if (!popup?.[0]) {
           return false
         }
 
         if (props.event.key === 'Escape') {
           close()
+          return true
+        }
+
+        if (
+          suggestionLoading.value &&
+          !event.shiftKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey &&
+          (event.key === 'Enter' || event.key === 'Tab')
+        ) {
+          event.preventDefault()
           return true
         }
 
@@ -531,13 +554,16 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
 
   const atSuggestion = {
     char: '@',
-    allowedPrefixes: null,
+    allowedPrefixes: [' ', '\n'],
     items: async ({ query }: { query: string }) => {
-      const [sessions, files] = await Promise.all([
-        searchSessions(query),
-        searchWorkspaceFiles(query)
-      ])
-      return [...sessions, ...files]
+      const sequence = ++referenceSearchSequence
+      referenceSearchFailed.value = false
+      const results = await Promise.allSettled([searchWorkspaceFiles(query), searchSessions(query)])
+      if (sequence === referenceSearchSequence)
+        referenceSearchFailed.value = results.some((result) => result.status === 'rejected')
+      return results.flatMap<AtSuggestionItem>((result) =>
+        result.status === 'fulfilled' ? result.value : []
+      )
     },
     command: ({
       editor,
@@ -550,7 +576,17 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
     }) => {
       markSuggestionSelected()
       if (props.category === 'file') {
-        editor.chain().focus().insertContentAt(range, props.payload.insertText).run()
+        editor
+          .chain()
+          .focus()
+          .insertContentAt(range, [
+            {
+              type: 'fileReference',
+              attrs: { filePath: props.payload.path, relativePath: props.payload.relativePath }
+            },
+            { type: 'text', text: ' ' }
+          ])
+          .run()
         return
       }
 
@@ -572,7 +608,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
           })
         })
     },
-    render: createRenderer
+    render: () => createRenderer(true)
   }
 
   const slashSuggestion = {

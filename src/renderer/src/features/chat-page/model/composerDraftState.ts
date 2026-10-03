@@ -58,7 +58,7 @@ export function createComposerTextDocument(
         const item = references[referenceIndex++]
         const { type, offset, ...attrs } = item
         const nextColumn = offset - lineOffset
-        const precedingText = line.slice(column, nextColumn)
+        const precedingText = line.slice(column, nextColumn).replace(/\r/g, '')
         if (precedingText) content.push({ type: 'text', text: precedingText })
         content.push({
           type:
@@ -73,7 +73,7 @@ export function createComposerTextDocument(
         })
         column = nextColumn + (item.type === 'file-reference' ? `@${item.relativePath}`.length : 0)
       }
-      const remainingText = line.slice(column)
+      const remainingText = line.slice(column).replace(/\r/g, '')
       if (remainingText) content.push({ type: 'text', text: remainingText })
       lineOffset += line.length + 1
       return { type: 'paragraph', ...(content.length > 0 ? { content } : {}) }

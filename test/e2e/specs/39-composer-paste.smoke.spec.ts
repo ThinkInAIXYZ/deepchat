@@ -137,13 +137,10 @@ test('unfocused composer accepts text, links, images and files once @smoke', asy
       )
     })
     await expect(editor).toBeFocused()
-    await expect(editor.locator('[data-file-attachment]')).toHaveCount((index + 1) * 2)
-    await expect(
-      editor.locator('[data-file-attachment]').filter({ hasText: `paste-fixture-${index}.txt` })
-    ).toHaveCount(1)
-    await expect(
-      editor.locator('[data-file-attachment]').filter({ hasText: `paste-fixture-${index}.png` })
-    ).toHaveCount(1)
+    const shelfItems = app.page.getByTestId('attachment-shelf').getByTestId('chat-attachment-item')
+    await expect(shelfItems).toHaveCount((index + 1) * 2)
+    await expect(shelfItems.filter({ hasText: `paste-fixture-${index}.txt` })).toHaveCount(1)
+    await expect(shelfItems.filter({ hasText: `paste-fixture-${index}.png` })).toHaveCount(1)
   }
   await app.page.locator('#paste-fixture-files').evaluate((element) => element.remove())
   await expect(editor).toContainText('Draft: Rich text')

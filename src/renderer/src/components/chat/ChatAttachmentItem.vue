@@ -3,23 +3,39 @@
     class="group inline-flex max-w-full items-center gap-2 rounded-full border bg-background/70 px-2.5 py-1 text-xs text-foreground shadow-sm transition-colors hover:bg-accent"
     :class="compact ? 'align-middle' : ''"
     data-testid="chat-attachment-item"
-    @click="$emit('click')"
   >
-    <img
-      v-if="thumbnail"
-      :src="thumbnail"
-      class="h-5 w-5 shrink-0 rounded-full border object-cover"
-      alt="attachment"
+    <button
+      type="button"
+      class="inline-flex min-w-0 items-center gap-2 rounded focus-visible:ring-2 focus-visible:ring-ring"
+      :title="file.name"
+      @click="$emit('click')"
+    >
+      <img
+        v-if="thumbnail"
+        :src="thumbnail"
+        class="h-5 w-5 shrink-0 rounded-full border object-cover"
+        alt="attachment"
+      />
+      <Icon
+        v-else
+        :icon="fileIcon"
+        class="h-4 w-4 shrink-0 text-muted-foreground"
+        aria-hidden="true"
+      />
+      <span :class="compact ? 'max-w-[120px]' : 'max-w-[180px]'" class="truncate">
+        {{ file.name }}
+      </span>
+    </button>
+    <AttachmentRepresentationMenu
+      v-if="editable"
+      :file="file"
+      :is-acp-session="attachmentContext?.isAcpSession.value ?? false"
+      :supports-vision="attachmentContext?.supportsVision.value ?? null"
+      :ocr-availability="attachmentContext?.ocrAvailability.value ?? { status: 'unknown' }"
+      @refresh-ocr-availability="attachmentContext?.refreshOcrAvailability()"
+      @update:representation="$emit('update:representation', $event)"
+      @switch-vision-model="$emit('switch-vision-model')"
     />
-    <Icon
-      v-else
-      :icon="fileIcon"
-      class="h-4 w-4 shrink-0 text-muted-foreground"
-      aria-hidden="true"
-    />
-    <span :class="compact ? 'max-w-[120px]' : 'max-w-[180px]'" class="truncate">
-      {{ file.name }}
-    </span>
     <button
       v-if="resolvedRepresentation?.kind === 'ocr_text'"
       type="button"
@@ -71,7 +87,7 @@
       size="icon-xs"
       icon="lucide:x"
       icon-size="3.5"
-      :label="t('chat.pendingInput.remove')"
+      :label="`${t('common.delete')} ${file.name}`"
       :tooltip="t('chat.pendingInput.remove')"
       class="size-[18px] rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       @click.stop.prevent="$emit('remove')"
@@ -111,7 +127,7 @@
 <script setup lang="ts">
 import type { MessageFile } from '@shared/types/agent-interface'
 import { Icon } from '@iconify/vue'
-import { computed, ref } from 'vue'
+import { computed, inject, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getMimeTypeIcon } from '@/lib/utils'
 import { DcBadge } from '@dc-ui/components/badge'
@@ -124,25 +140,33 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { getAttachmentResolvedRepresentation } from '@shared/utils/attachmentRepresentation'
+import type { AttachmentRepresentationPreference } from '@shared/types/attachment'
+import AttachmentRepresentationMenu from './AttachmentRepresentationMenu.vue'
+import { ATTACHMENT_NODE_CONTEXT } from './nodes/symbols'
 
 const props = withDefaults(
   defineProps<{
     file: MessageFile
     removable?: boolean
     compact?: boolean
+    editable?: boolean
   }>(),
   {
     removable: false,
-    compact: false
+    compact: false,
+    editable: false
   }
 )
 
 defineEmits<{
   click: []
   remove: []
+  'update:representation': [preference: AttachmentRepresentationPreference]
+  'switch-vision-model': []
 }>()
 
 const { t } = useI18n()
+const attachmentContext = inject(ATTACHMENT_NODE_CONTEXT)
 const mimeType = computed(() => props.file.mimeType || 'application/octet-stream')
 const thumbnail = computed(() => props.file.thumbnail || '')
 const fileIcon = computed(() => getMimeTypeIcon(mimeType.value))

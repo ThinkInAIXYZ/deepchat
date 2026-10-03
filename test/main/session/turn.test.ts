@@ -537,7 +537,12 @@ describe('SessionTurn', () => {
 
     harness.cancel.mockClear()
     await harness.coordinator.editUserMessage('s1', 'message-1', 'Edited')
-    expect(harness.transcript.editUserMessage).toHaveBeenCalledWith('s1', 'message-1', 'Edited')
+    expect(harness.transcript.editUserMessage).toHaveBeenCalledWith(
+      's1',
+      'message-1',
+      'Edited',
+      undefined
+    )
     expect(harness.cancel).not.toHaveBeenCalled()
 
     await harness.coordinator.clearSessionMessages('s1')

@@ -124,43 +124,41 @@ export function buildEditedUserContent(
     })
   }
 
-  {
-    const next = { ...parsed, text } as Record<string, unknown>
-    delete next.inlineItems
-    const references = inlineItems
-      ? getValidInlineItems(text, inlineItems)
-      : Array.isArray(parsed.inlineItems)
-        ? parsed.inlineItems
-            .filter((item) => item?.type === 'session')
-            .map((item) => ({ ...item, offset: text.length }))
-        : []
-    if (references.length > 0) next.inlineItems = references
-    if (!Array.isArray(next.files)) next.files = []
-    if (!Array.isArray(next.links)) next.links = []
-    if (typeof next.search !== 'boolean') next.search = false
-    if (typeof next.think !== 'boolean') next.think = false
+  const next = { ...parsed, text } as Record<string, unknown>
+  delete next.inlineItems
+  const references = inlineItems
+    ? getValidInlineItems(text, inlineItems)
+    : Array.isArray(parsed.inlineItems)
+      ? parsed.inlineItems
+          .filter((item) => item?.type === 'session')
+          .map((item) => ({ ...item, offset: text.length }))
+      : []
+  if (references.length > 0) next.inlineItems = references
+  if (!Array.isArray(next.files)) next.files = []
+  if (!Array.isArray(next.links)) next.links = []
+  if (typeof next.search !== 'boolean') next.search = false
+  if (typeof next.think !== 'boolean') next.think = false
 
-    if (inlineItems) {
-      delete next.content
-    } else if (Array.isArray(next.content)) {
-      let replaced = false
-      const mapped = next.content.map((item) => {
-        if (
-          !replaced &&
-          item &&
-          typeof item === 'object' &&
-          !Array.isArray(item) &&
-          (item as { type?: unknown }).type === 'text'
-        ) {
-          replaced = true
-          return { ...(item as Record<string, unknown>), content: text }
-        }
-        return item
-      })
-      if (!replaced) mapped.unshift({ type: 'text', content: text })
-      next.content = mapped
-    }
-
-    return JSON.stringify(next)
+  if (inlineItems) {
+    delete next.content
+  } else if (Array.isArray(next.content)) {
+    let replaced = false
+    const mapped = next.content.map((item) => {
+      if (
+        !replaced &&
+        item &&
+        typeof item === 'object' &&
+        !Array.isArray(item) &&
+        (item as { type?: unknown }).type === 'text'
+      ) {
+        replaced = true
+        return { ...(item as Record<string, unknown>), content: text }
+      }
+      return item
+    })
+    if (!replaced) mapped.unshift({ type: 'text', content: text })
+    next.content = mapped
   }
+
+  return JSON.stringify(next)
 }

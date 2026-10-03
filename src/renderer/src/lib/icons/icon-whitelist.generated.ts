@@ -20,6 +20,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'arrow-right',
     'arrow-up',
     'arrow-up-down',
+    'arrow-up-right',
     'arrow-up-to-line',
     'arrow-up-wide-narrow',
     'at-sign',

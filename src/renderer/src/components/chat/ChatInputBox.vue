@@ -42,6 +42,15 @@
       />
     </div>
 
+    <AttachmentShelf
+      :files="files.selectedFiles.value"
+      :editable="editable"
+      @file-click="windowClient.previewFile"
+      @remove="files.deleteFile"
+      @update:representation="updateShelfFileRepresentation"
+      @switch-vision-model="emit('switch-vision-model')"
+    />
+
     <div
       v-if="isAttachmentPreparationPending"
       data-testid="attachment-preparation-pending"
@@ -78,18 +87,22 @@ import { useI18n } from 'vue-i18n'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { createOcrClient, type OcrClient } from '@api/OcrClient'
 import { createSessionClient } from '@api/SessionClient'
+import { createWindowClient } from '@api/WindowClient'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import {
   buildChatInputWorkspaceReferenceText,
   getChatInputWorkspaceItemDragData
 } from '@/lib/chatInputWorkspaceReference'
 import { extractPlainUrlFromClipboard } from '@/lib/clipboardUrlPaste'
+import { serializeComposerDocument } from '@/features/chat-page/model/composerDocumentSerialization'
 import { useChatInputMentions } from './composables/useChatInputMentions'
 import { useChatInputFiles } from './composables/useChatInputFiles'
 import { useSkillsData } from '@/components/chat-input/composables/useSkillsData'
 import SessionSkillsIndicator from '@/components/chat-input/SessionSkillsIndicator.vue'
+import AttachmentShelf from './AttachmentShelf.vue'
 import { SkillChip } from './nodes/skillChip'
 import { FileAttachment } from './nodes/fileAttachment'
+import { FileReference } from './nodes/fileReference'
 import { SessionReference } from './nodes/sessionReference'
 import { CommandForm } from './nodes/commandForm'
 import {
@@ -155,6 +168,7 @@ const emit = defineEmits<{
 const isComposing = ref(false)
 const fileInput = ref<HTMLInputElement>()
 const { t } = useI18n()
+const windowClient = createWindowClient()
 const resolvedPlaceholder = computed(() => props.placeholder?.trim() || t('chat.input.placeholder'))
 let editorInstance: Editor | null = null
 const getEditor = () => editorInstance
@@ -244,6 +258,14 @@ const files = useChatInputFiles(
 let isSyncingNodes = false
 let isSubmittingCommandForm = false
 
+function updateShelfFileRepresentation(
+  index: number,
+  requestedRepresentation: MessageFile['requestedRepresentation']
+) {
+  if (!props.editable) return
+  files.updateFile(index, { requestedRepresentation })
+}
+
 const actions: InputNodeActions = {
   prepareCommandFormSubmit: () => {
     if (!props.editable) return
@@ -252,13 +274,6 @@ const actions: InputNodeActions = {
   removeSkill: (skillName) => {
     if (!props.editable) return
     void skillsData.deactivateSkill(skillName)
-  },
-  removeFile: (filePath) => {
-    if (!props.editable) return
-    const idx = files.selectedFiles.value.findIndex((f) => (f.path || f.name) === filePath)
-    if (idx >= 0) {
-      files.deleteFile(idx)
-    }
   },
   setFileRepresentation: (filePath, preference) => {
     if (!props.editable) return
@@ -370,9 +385,7 @@ const toEditorDoc = (text: string) => {
 }
 
 const getEditorText = (editor: Editor): string => {
-  // Clipboard serialization keeps reference labels; the submitted text excludes inline atoms
-  // because getInlineItems stores their metadata and offsets separately.
-  return editor.getText({ blockSeparator: '\n', textSerializers: { sessionReference: () => '' } })
+  return serializeComposerDocument(editor.getJSON()).text
 }
 
 const setCaretToEnd = (editor: Editor) => {
@@ -415,16 +428,6 @@ function getEditorSkillNames(): string[] {
   return names
 }
 
-function getEditorFilePaths(): string[] {
-  const paths: string[] = []
-  editor.state.doc.descendants((node) => {
-    if (node.type.name === 'fileAttachment') {
-      paths.push(node.attrs.filePath as string)
-    }
-  })
-  return paths
-}
-
 function hasCommandFormNode(): boolean {
   let hasForm = false
   editor.state.doc.descendants((node) => {
@@ -447,13 +450,8 @@ function reconcileEditorNodes() {
       void skillsData.deactivateSkill(name)
     })
 
-  const editorFilePaths = new Set(getEditorFilePaths())
-  for (let i = files.selectedFiles.value.length - 1; i >= 0; i -= 1) {
-    const file = files.selectedFiles.value[i]
-    if (!editorFilePaths.has(file.path || file.name)) {
-      files.deleteFile(i)
-    }
-  }
+  // Undo can restore an old reference after its material was explicitly removed from the shelf.
+  syncFileNodes()
 
   if (!hasCommandFormNode() && !isSubmittingCommandForm) {
     mentions.closeDialog()
@@ -496,12 +494,11 @@ function syncSkillNodes() {
   })
 }
 
-/** Ensure editor FileAttachment nodes mirror files.selectedFiles */
+/** Remove legacy inline attachment nodes after their backing file is removed. */
 function syncFileNodes() {
   if (isSyncingNodes) return
 
   syncEditorContent(() => {
-    const currentFiles = files.selectedFiles.value
     const existing = new Map<string, InlineNodeRange>()
 
     editor.state.doc.descendants((node, pos) => {
@@ -511,46 +508,14 @@ function syncFileNodes() {
       }
     })
 
-    const currentPaths = new Set(currentFiles.map((f) => f.path || f.name))
+    const currentPaths = new Set(files.selectedFiles.value.map((file) => file.path || file.name))
 
     deleteInlineNodes(
       Array.from(existing.entries())
         .filter(([path]) => !currentPaths.has(path))
         .map(([, range]) => range)
     )
-
-    const newFileNodes = currentFiles
-      .filter((file) => !existing.has(file.path || file.name))
-      .map((file) => {
-        const path = file.path || file.name
-        return {
-          type: 'fileAttachment',
-          attrs: {
-            fileName: file.name || 'file',
-            filePath: path,
-            mimeType: file.mimeType || '',
-            requestedRepresentation: file.requestedRepresentation || 'auto'
-          }
-        }
-      })
-
-    if (newFileNodes.length > 0) {
-      editor
-        .chain()
-        .insertContentAt(findFileInsertPos(), newFileNodes, { updateSelection: false })
-        .run()
-    }
   })
-}
-
-function findFileInsertPos(): number {
-  let maxEnd = 1
-  editor.state.doc.descendants((node, pos) => {
-    if (node.type.name === 'fileAttachment') {
-      maxEnd = pos + node.nodeSize
-    }
-  })
-  return maxEnd
 }
 
 // ── Editor setup ───────────────────────────────────────────────
@@ -574,6 +539,7 @@ const editor = new VueEditor({
     History,
     SkillChip,
     FileAttachment,
+    FileReference,
     SessionReference,
     CommandForm,
     Mention.configure({
@@ -849,7 +815,18 @@ function insertWorkspaceReference(targetPath: string) {
   const prefix = before && !/\s/.test(before) ? ' ' : ''
   const suffix = after && /\s/.test(after) ? '' : ' '
 
-  editor.chain().focus().insertContent(`${prefix}${referenceText}${suffix}`).run()
+  editor
+    .chain()
+    .focus()
+    .insertContent([
+      ...(prefix ? [{ type: 'text', text: prefix }] : []),
+      {
+        type: 'fileReference',
+        attrs: { filePath: targetPath, relativePath: referenceText.slice(1) }
+      },
+      ...(suffix ? [{ type: 'text', text: suffix }] : [])
+    ])
+    .run()
   return true
 }
 
@@ -922,59 +899,7 @@ function onFileSelect(event: Event) {
 }
 
 function getInlineItemsSnapshot(): UserMessageInlineItem[] {
-  const inlineItems: UserMessageInlineItem[] = []
-  let offset = 0
-
-  editor.state.doc.forEach((block, _blockOffset, blockIndex) => {
-    if (blockIndex > 0) {
-      offset += 1
-    }
-
-    block.forEach((node) => {
-      if (node.type.name === 'text') {
-        offset += node.text?.length ?? 0
-        return
-      }
-
-      if (node.type.name === 'hardBreak') {
-        offset += 1
-        return
-      }
-
-      if (node.type.name === 'skillChip') {
-        inlineItems.push({
-          type: 'skill',
-          offset,
-          skillName: node.attrs.skillName as string
-        })
-        return
-      }
-
-      if (node.type.name === 'fileAttachment') {
-        inlineItems.push({
-          type: 'file',
-          offset,
-          fileName: node.attrs.fileName as string,
-          filePath: node.attrs.filePath as string,
-          mimeType: node.attrs.mimeType as string
-        })
-        return
-      }
-
-      if (node.type.name === 'sessionReference') {
-        inlineItems.push({
-          type: 'session',
-          offset,
-          sessionId: node.attrs.sessionId as string,
-          title: node.attrs.title as string,
-          projectDir: (node.attrs.projectDir as string | null) ?? null,
-          tapeIncarnationId: node.attrs.tapeIncarnationId as string
-        })
-      }
-    })
-  })
-
-  return inlineItems
+  return serializeComposerDocument(editor.getJSON()).inlineItems
 }
 
 function getPendingSkillsSnapshot(): string[] {

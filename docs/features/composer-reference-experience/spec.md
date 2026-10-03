@@ -22,7 +22,9 @@ source grants. Legacy text-only edits retain their existing re-anchoring behavio
 
 Uploaded files remain owned by the message's files array. New uploads appear in a separate shelf,
 not automatically in the sentence. Existing inline attachment references remain readable and can be
-restored without losing material. Attachment presentation retains representation choices, explicit
+restored without losing material. Removing a sentence reference does not remove its material from
+the shelf; removing a shelf item also prunes its legacy inline references. Attachment presentation
+retains representation choices, explicit
 failures, and partial OCR coverage. A sentence reference must not duplicate uploaded material.
 
 ## Interaction

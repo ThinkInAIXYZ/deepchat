@@ -20,7 +20,8 @@ same `session` inline item: offset, sessionId, title, projectDir, and tapeIncarn
 draft persistence, queueing, sending, and transcript display through the existing inline-items
 path. Labels are snapshots; rename never changes identity. Source reset invalidates the reference.
 References do not copy, summarize, or inject the source history.
-Opening a reference validates its identity within the shared session-navigation request. Later
+Clicking a reference opens source details; the explicit Open action validates its identity within
+the shared session-navigation request. Later
 session selections or closing the session supersede both delayed validation success and failure.
 For pre-incarnation Tapes, the reference's `tapeIncarnationId` is an opaque `legacy:` identity
 derived from the unchanged canonical bootstrap row using Tape's existing identity hash. Only a
@@ -29,12 +30,12 @@ This read-only compatibility path does not stamp old anchors, alter linked histo
 UUID-only runtime capabilities. Reset replaces it with a new UUID and invalidates old references.
 Explicit selection initializes only a genuinely absent Tape. Existing malformed bootstrap data or
 storage errors fail without reconciliation or writes; model reads never initialize a source Tape.
-Search, clipboard text, and text exports retain the reference title and source ID. Editing message
-text preserves attached session references and places them after the replacement text; the existing
-text-only editor does not implicitly remove source grants. Deleting the referencing message removes
-that message's grant.
-Queue text edits apply the same reference re-anchoring rule. Reference-only queued inputs display
-their source titles and remain saveable without adding placeholder text.
+Search, clipboard text, and text exports retain the reference title and source ID. Structured
+message and queue editors preserve reference positions and permit explicit removal. Edits may only
+retain the original canonical session ID and incarnation; they cannot add source grants. Legacy
+text-only edits still re-anchor retained session references after the replacement text. Deleting
+the referencing message removes that message's grant. Reference-only queued inputs display their
+source titles and remain saveable without adding placeholder text.
 Merging steer inputs preserves their original text so inline offsets remain valid. If a draft is
 edited while submission is pending, acceptance preserves its inline session references along with
 its text; source identity alone cannot distinguish a submitted node from a newly pasted copy.
