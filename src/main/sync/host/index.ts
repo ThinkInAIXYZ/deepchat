@@ -135,7 +135,7 @@ export class SyncHostService {
         state.hostId = state.hostId ?? created
       })
       this.pendingHostId = null
-    })
+    }, false)
   }
 
   getEnabled(): boolean {
@@ -436,8 +436,11 @@ export class SyncHostService {
     }
   }
 
-  private serialize<T>(step: () => Promise<T>): Promise<T> {
-    const next = this.lifecycle.then(step, step).finally(() => this.deps.changed?.())
+  private serialize<T>(step: () => Promise<T>, notify = true): Promise<T> {
+    const next = this.lifecycle.then(step, step).finally(() => {
+      // Status reads initialize state too; notifying here would trigger another status read.
+      if (notify) this.deps.changed?.()
+    })
     this.lifecycle = next.catch(() => undefined)
     return next
   }

@@ -69,6 +69,9 @@ test('local streaming preserves an editable composer and completes the response 
   const address = server.address() as { port: number }
   try {
     await waitForAppReady(app.page)
+    await app.page.evaluate(async () => {
+      await window.deepchat.invoke('config.setLanguage', { language: 'en-US' })
+    })
     const providerId = await app.page.evaluate(async (baseUrl) => {
       const id = `custom-${crypto.randomUUID()}`
       await window.deepchat.invoke('providers.add', {
@@ -130,7 +133,9 @@ test('local streaming preserves an editable composer and completes the response 
       await app.page.getByRole('button', { name: /^(Attach|添加附件)$/ }).focus()
       await app.page.keyboard.press('Enter')
       await (await chooser).setFiles(attachmentPath)
-      const remove = editor.getByRole('button', { name: /keyboard-removal.txt/ })
+      const remove = shell
+        .getByTestId('attachment-shelf')
+        .getByRole('button', { name: 'Delete keyboard-removal.txt', exact: true })
       await remove.focus()
       await app.page.keyboard.press(key)
       await expect(remove).toHaveCount(0)

@@ -48,7 +48,7 @@
       :files="files.selectedFiles.value"
       :editable="editable"
       @file-click="windowClient.previewFile"
-      @remove="files.deleteFile"
+      @remove="removeShelfFile"
       @update:representation="updateShelfFileRepresentation"
       @switch-vision-model="emit('switch-vision-model')"
     />
@@ -259,6 +259,12 @@ const files = useChatInputFiles(
 // ── Inline Node action wiring ──────────────────────────────────
 let isSyncingNodes = false
 let isSubmittingCommandForm = false
+
+function removeShelfFile(index: number) {
+  if (!props.editable) return
+  files.deleteFile(index)
+  focusInput()
+}
 
 function updateShelfFileRepresentation(
   index: number,
