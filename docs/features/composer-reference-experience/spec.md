@@ -45,6 +45,9 @@ configuration, not ordinary reference candidates.
 Message text wraps naturally. Long-message disclosure is based on measured rendered height rather
 than character count, with a stable scroll anchor. Editing references does not move them to the end
 of the message. Draft restoration and submission races preserve edits made after submission.
+Keyboard focus entering collapsed message content expands it before the referenced control is used.
+Chat search indexes the same distinguishing labels that messages display; reference and inline
+attachment labels opt into highlighting without making action buttons or draft editors searchable.
 
 ## Ownership and compatibility
 
@@ -52,6 +55,9 @@ Shared types/contracts own persisted reference metadata and edit payload validat
 composer document helpers own projection between text/inline items and Tiptap. Session transcript
 mutations validate edited grants against the original message before writing. Model providers and
 attachment preparation retain their existing responsibilities.
+Path labels are calculated together and reused across node views of the same immutable document.
+Grant validation indexes canonical identities once; repeated occurrences of an already granted
+source remain allowed at different sentence positions without granting access to another source.
 
 Old messages and drafts remain supported without a database migration. A workspace reference whose
 metadata no longer matches its text degrades to the original text, not a different linked object.

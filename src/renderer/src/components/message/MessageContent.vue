@@ -56,7 +56,7 @@
         v-else-if="block.type === 'file-reference'"
         data-testid="user-message-file-reference"
         kind="file"
-        :label="getReferencePathLabel(block.relativePath, referencePaths)"
+        :label="referenceLabels.get(block.relativePath) ?? block.relativePath"
         :source="block.filePath"
         @open="emit('fileClick', block.filePath)"
       />
@@ -80,7 +80,7 @@ import { getVisibleMentionLabel } from '@/features/chat-page/model/displayUserMe
 import { useLanguageStore } from '@/stores/language'
 import ChatAttachmentItem from '@/components/chat/ChatAttachmentItem.vue'
 import ReferenceChip from '@/components/chat/ReferenceChip.vue'
-import { getReferencePathLabel } from '@shared/messageInlineItems'
+import { getReferencePathLabels } from '@shared/messageInlineItems'
 
 const MENTION_ICON_MAP: Record<string, string> = {
   context: 'lucide:quote',
@@ -115,8 +115,10 @@ const emit = defineEmits<{
   sessionClick: [sessionId: string, tapeIncarnationId: string]
 }>()
 const langStore = useLanguageStore()
-const referencePaths = computed(() =>
-  props.content.flatMap((block) => (block.type === 'file-reference' ? [block.relativePath] : []))
+const referenceLabels = computed(() =>
+  getReferencePathLabels(
+    props.content.flatMap((block) => (block.type === 'file-reference' ? [block.relativePath] : []))
+  )
 )
 // 计算属性：处理内容块
 const contentBlocks = computed(() => {

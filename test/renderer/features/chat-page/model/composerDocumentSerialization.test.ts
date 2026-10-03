@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { serializeComposerDocument } from '@/features/chat-page/model/composerDocumentSerialization'
 import { createComposerTextDocument } from '@/features/chat-page/model/composerDraftState'
 import type { UserMessageInlineItem } from '@shared/types/agent-interface'
-import { getReferencePathLabel } from '@shared/messageInlineItems'
+import { getReferencePathLabels } from '@shared/messageInlineItems'
 
 describe('composer document serialization', () => {
   it('round-trips asymmetric non-ASCII file and session offsets', () => {
@@ -47,12 +47,14 @@ describe('composer document serialization', () => {
   it('disambiguates same-name references with the shortest distinct parent path', () => {
     const peers = ['src/client/index.ts', 'src/server/index.ts', 'test/index.ts']
 
-    expect(getReferencePathLabel(peers[0], peers)).toBe('client/index.ts')
-    expect(getReferencePathLabel(peers[1], peers)).toBe('server/index.ts')
-    expect(getReferencePathLabel(peers[2], peers)).toBe('test/index.ts')
-    expect(getReferencePathLabel('test/src/foo.ts', ['src/foo.ts', 'test/src/foo.ts'])).toBe(
-      'test/src/foo.ts'
-    )
+    expect([...getReferencePathLabels(peers).values()]).toEqual([
+      'client/index.ts',
+      'server/index.ts',
+      'test/index.ts'
+    ])
+    expect([
+      ...getReferencePathLabels(['src/foo.ts', 'test/src/foo.ts', 'test/src/foo.ts']).values()
+    ]).toEqual(['src/foo.ts', 'test/src/foo.ts'])
   })
 
   it('degrades mismatched file identities to their original text', () => {

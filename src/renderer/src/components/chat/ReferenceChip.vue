@@ -17,7 +17,7 @@ const { t } = useI18n()
   <span
     class="group/reference inline-flex max-w-full items-center rounded bg-accent/70 px-1 align-baseline text-[0.93em] leading-[1.4] text-foreground"
     contenteditable="false"
-    @keydown.stop
+    @keydown="removable && $event.stopPropagation()"
   >
     <Popover>
       <PopoverTrigger as-child>
@@ -31,7 +31,7 @@ const { t } = useI18n()
             :icon="kind === 'session' ? 'lucide:messages-square' : 'lucide:file-text'"
             class="size-3 shrink-0 self-center text-muted-foreground"
           />
-          <span class="min-w-0 [overflow-wrap:anywhere]">{{ label }}</span>
+          <span data-chat-search-text class="min-w-0 [overflow-wrap:anywhere]">{{ label }}</span>
         </button>
       </PopoverTrigger>
       <PopoverContent

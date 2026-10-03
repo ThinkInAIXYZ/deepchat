@@ -72,15 +72,15 @@ export function retainEditedSessionGrants(
   originalItems: unknown,
   editedItems: readonly UserMessageInlineItem[]
 ): UserMessageInlineItem[] {
-  const originals = Array.isArray(originalItems) ? originalItems : []
+  const originals = new Map<string, Extract<UserMessageInlineItem, { type: 'session' }>>()
+  for (const source of Array.isArray(originalItems) ? originalItems : []) {
+    if (source?.type !== 'session') continue
+    const key = JSON.stringify([source.sessionId, source.tapeIncarnationId])
+    if (!originals.has(key)) originals.set(key, source)
+  }
   return editedItems.map((item) => {
     if (item.type !== 'session') return item
-    const original = originals.find(
-      (source) =>
-        source?.type === 'session' &&
-        source.sessionId === item.sessionId &&
-        source.tapeIncarnationId === item.tapeIncarnationId
-    )
+    const original = originals.get(JSON.stringify([item.sessionId, item.tapeIncarnationId]))
     if (!original) {
       throw new Error(
         'Edited message contains a session reference that was not originally granted.'

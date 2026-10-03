@@ -15,6 +15,29 @@ vi.mock('@shadcn/components/ui/popover', () => ({
 import ReferenceChip from '@/components/chat/ReferenceChip.vue'
 
 describe('ReferenceChip', () => {
+  it('allows message shortcuts through read-only references but isolates editor nodes', async () => {
+    const wrapper = mount(ReferenceChip, {
+      props: { kind: 'file', label: 'src/App.vue', source: '/repo/src/App.vue' },
+      attachTo: document.body
+    })
+    const shortcut = vi.fn()
+    window.addEventListener('keydown', shortcut)
+    try {
+      await wrapper
+        .get('button[aria-label="common.preview src/App.vue"]')
+        .trigger('keydown', { key: 'f', metaKey: true })
+      expect(shortcut).toHaveBeenCalledTimes(1)
+      await wrapper.setProps({ removable: true })
+      await wrapper
+        .get('button[aria-label="common.preview src/App.vue"]')
+        .trigger('keydown', { key: 'Enter' })
+      expect(shortcut).toHaveBeenCalledTimes(1)
+    } finally {
+      window.removeEventListener('keydown', shortcut)
+      wrapper.unmount()
+    }
+  })
+
   it('opens the source popover without opening the target until Open is chosen', async () => {
     const wrapper = mount(ReferenceChip, {
       props: { kind: 'file', label: 'src/App.vue', source: '/repo/src/App.vue' }

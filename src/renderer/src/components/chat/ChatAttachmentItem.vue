@@ -22,7 +22,11 @@
         class="h-4 w-4 shrink-0 text-muted-foreground"
         aria-hidden="true"
       />
-      <span :class="compact ? 'max-w-[120px]' : 'max-w-[180px]'" class="truncate">
+      <span
+        data-chat-search-text
+        :class="compact ? 'max-w-[120px]' : 'max-w-[180px]'"
+        class="truncate"
+      >
         {{ file.name }}
       </span>
     </button>

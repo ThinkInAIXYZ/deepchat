@@ -25,18 +25,23 @@ export function getValidInlineItems(
     })
 }
 
-/** Keep the shortest distinguishing suffix, including a parent directory when available. */
-export function getReferencePathLabel(path: string, peers: readonly string[] = []): string {
-  const parts = path.replace(/\\/g, '/').split('/').filter(Boolean)
-  let count = Math.min(2, parts.length)
-  const otherPaths = peers.filter((peer) => peer !== path).map((peer) => peer.replace(/\\/g, '/'))
-  while (
-    count < parts.length &&
-    otherPaths.some(
-      (peer) =>
-        peer === parts.slice(-count).join('/') || peer.endsWith(`/${parts.slice(-count).join('/')}`)
-    )
+/** Resolve all labels together, rather than scanning every peer for each reference. */
+export function getReferencePathLabels(paths: readonly string[]): Map<string, string> {
+  const segments = new Map(
+    paths.map((path) => [path, path.replace(/\\/g, '/').split('/').filter(Boolean)])
   )
-    count++
-  return parts.slice(-count).join('/') || path
+  const suffixCounts = new Map<string, number>()
+  for (const parts of segments.values()) {
+    for (let count = 1; count <= parts.length; count++) {
+      const suffix = parts.slice(-count).join('/')
+      suffixCounts.set(suffix, (suffixCounts.get(suffix) ?? 0) + 1)
+    }
+  }
+  return new Map(
+    Array.from(segments, ([path, parts]) => {
+      let count = Math.min(2, parts.length)
+      while (count < parts.length && suffixCounts.get(parts.slice(-count).join('/'))! > 1) count++
+      return [path, parts.slice(-count).join('/') || path]
+    })
+  )
 }

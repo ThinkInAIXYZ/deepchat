@@ -299,6 +299,10 @@ describe('MessageItemUser', () => {
     await wrapper.get('[data-user-message-toggle="true"]').trigger('click')
 
     expect(body.attributes('data-user-message-expanded')).toBe('false')
+    // A keyboard focus entering the clipped content must reveal its target.
+    await wrapper.get('.message-text-stub').trigger('focusin')
+    expect(body.attributes('data-user-message-expanded')).toBe('true')
+    expect(wrapper.find('.user-message-content--clamped').exists()).toBe(false)
   })
 
   it('keeps structured user content rendering while collapsed', async () => {

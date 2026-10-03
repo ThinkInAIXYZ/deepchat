@@ -297,6 +297,17 @@ test('session references survive drafts and retrieve evidence without injecting 
     const sentFileReference = app.page.getByTestId('user-message-file-reference')
     await expect(sentFileReference).toHaveText(['src/foo.ts', 'test/src/foo.ts'])
 
+    await sentFileReference.nth(0).getByRole('button').focus()
+    await app.page.keyboard.press('ControlOrMeta+f')
+    const searchInput = app.page.locator('.chat-search-bar input')
+    await searchInput.fill('foo.ts')
+    await expect(sentFileReference.locator('[data-chat-search-match]')).toHaveCount(2)
+    await expect(sentFileReference.nth(0).locator('[data-chat-search-active]')).toBeVisible()
+    await searchInput.press('Enter')
+    await expect(sentFileReference.nth(1).locator('[data-chat-search-active]')).toBeVisible()
+    await app.page.screenshot({ path: resolve(artifacts, 'composer-review-reference-search.png') })
+    await searchInput.press('Escape')
+
     const attachmentPath = resolve(app.userDataDir, 'composer-attachment.png')
     writeFileSync(
       attachmentPath,
@@ -343,6 +354,11 @@ test('session references survive drafts and retrieve evidence without injecting 
       (_, index) => `Section ${index + 1}: Composer verification 文本高度与展开行为。`
     ).join('\n')
     await editor.fill(longMessage)
+    await editor.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End')
+    await editor.pressSequentially(' @foo')
+    await expect(fileOptions).toHaveCount(2)
+    await fileOptions.nth(0).click()
+    await expect(editor).toContainText(longMessage, { useInnerText: true })
     await app.page.getByTestId('chat-send-button').click()
     await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
       'data-generating',
@@ -353,8 +369,13 @@ test('session references survive drafts and retrieve evidence without injecting 
     const longBody = longUserMessage.locator('[data-user-message-content-body="true"]')
     await expect(longBody).toHaveAttribute('data-user-message-collapsible', 'true')
     await expect(longBody).toHaveAttribute('data-user-message-expanded', 'false')
-    await longUserMessage.locator('[data-user-message-toggle="true"]').click()
+    await longUserMessage.locator('[data-user-message-toggle="true"]').focus()
+    await app.page.keyboard.press('Shift+Tab')
+    await expect(
+      longUserMessage.getByTestId('user-message-file-reference').getByRole('button')
+    ).toBeFocused()
     await expect(longBody).toHaveAttribute('data-user-message-expanded', 'true')
+    await app.page.screenshot({ path: resolve(artifacts, 'composer-review-expanded-focus.png') })
 
     await app.page.setViewportSize({ width: 1280, height: 900 })
     await app.page.screenshot({

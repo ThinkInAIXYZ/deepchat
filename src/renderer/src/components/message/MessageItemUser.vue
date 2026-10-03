@@ -68,6 +68,7 @@
               ref="contentMeasureRef"
               class="w-full min-w-0"
               :class="{ 'user-message-content--clamped': shouldClampContent }"
+              @focusin="shouldClampContent && toggleExpanded()"
             >
               <MessageContent
                 v-if="visibleContentBlocks.length > 0"
