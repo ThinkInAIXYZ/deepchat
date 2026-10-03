@@ -33,20 +33,7 @@ export type UserMessageMentionBlock = {
   id: string
   category: string
 }
-export type UserMessageInlineItem =
-  | {
-      type: 'skill'
-      offset: number
-      skillName: string
-    }
-  | {
-      type: 'file'
-      offset: number
-      fileName: string
-      filePath: string
-      mimeType?: string
-    }
-  | ({ type: 'session'; offset: number } & import('../../sessionReferences').SessionReference)
+export type UserMessageInlineItem = import('../agent-interface').UserMessageInlineItem
 
 export type UserMessageContent = {
   continue?: boolean

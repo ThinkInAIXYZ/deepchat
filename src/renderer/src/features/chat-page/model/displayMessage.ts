@@ -6,6 +6,12 @@ import type {
 import type { LegacyAgentPlanMetadata } from '@shared/types/legacy-agent-plan'
 import type { PersistedMcpToolResult, ToolCallImagePreview } from '@shared/types/core/mcp'
 
+export type UserMessageEdit = {
+  messageId: string
+  text: string
+  inlineItems?: UserMessageInlineItem[]
+}
+
 export type DisplayMessageUsage = {
   context_usage: number
   tokens_per_second: number
@@ -57,12 +63,19 @@ export type DisplayUserMessageSessionBlock = {
   tapeIncarnationId: string
 }
 
+export type DisplayUserMessageFileReferenceBlock = {
+  type: 'file-reference'
+  filePath: string
+  relativePath: string
+}
+
 export type DisplayUserMessageInlineBlock =
   | DisplayUserMessageTextBlock
   | DisplayUserMessageMentionBlock
   | DisplayUserMessageCodeBlock
   | DisplayUserMessageSkillBlock
   | DisplayUserMessageFileBlock
+  | DisplayUserMessageFileReferenceBlock
   | DisplayUserMessageSessionBlock
 
 export type DisplayUserMessageContent = {

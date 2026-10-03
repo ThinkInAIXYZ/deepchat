@@ -1,4 +1,5 @@
 import type { DisplayUserMessageContent } from '@/features/chat-page/model/displayMessage'
+import { getReferencePathLabels } from '@shared/messageInlineItems'
 import {
   getVisibleMentionLabel,
   getVisibleUserContentBlocks
@@ -23,12 +24,17 @@ export type ChatSearchResult = {
   matchIndex: number
 }
 
-const isIgnoredElement = (element: HTMLElement | null): boolean =>
-  Boolean(
+const isIgnoredElement = (element: HTMLElement | null): boolean => {
+  if (
     element?.closest(
-      'input, textarea, select, button, [contenteditable="true"], [data-chat-search-exclude], [data-chat-search-match]'
+      'input, textarea, select, [contenteditable="true"], [data-chat-search-exclude], [data-chat-search-match]'
     )
   )
+    return true
+  const button = element?.closest('button')
+  // Only message labels opt in. Tool/action buttons and composer controls stay excluded.
+  return Boolean(button && !button.contains(element?.closest('[data-chat-search-text]') ?? null))
+}
 
 const isElementVisible = (element: HTMLElement | null): boolean => {
   let currentElement = element
@@ -485,6 +491,9 @@ const appendDisplayContentText = (content: unknown, output: string[]): void => {
     return
   }
 
+  const referenceLabels = getReferencePathLabels(
+    visibleBlocks.flatMap((block) => (block.type === 'file-reference' ? [block.relativePath] : []))
+  )
   visibleBlocks.forEach((block) => {
     if (block.type === 'mention') {
       output.push(getVisibleMentionLabel(block))
@@ -492,6 +501,8 @@ const appendDisplayContentText = (content: unknown, output: string[]): void => {
       output.push(block.skillName)
     } else if (block.type === 'file') {
       output.push(block.fileName)
+    } else if (block.type === 'file-reference') {
+      output.push(referenceLabels.get(block.relativePath) ?? block.relativePath)
     } else if (block.type === 'session') {
       output.push(block.title)
     } else {

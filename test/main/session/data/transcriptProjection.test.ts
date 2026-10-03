@@ -81,6 +81,21 @@ describeIfSqlite('SessionTranscript follows the Tape through the projection curs
       expect(database.deepchatSearchDocumentsTable.searchLike('Launch notes', 10)).toEqual([
         expect.objectContaining({ content: 'Compare\n[Session: Launch notes (source)]' })
       ])
+
+      const structured = buildEditedUserContent(
+        transcript.getMessage(messageId)!.content,
+        '  Compare ',
+        [{ ...reference, offset: 2 }]
+      )
+      expect(JSON.parse(structured)).toMatchObject({
+        text: '  Compare ',
+        inlineItems: [{ ...reference, offset: 2 }]
+      })
+      expect(() =>
+        buildEditedUserContent(transcript.getMessage(messageId)!.content, 'Compare', [
+          { ...reference, sessionId: 'ungranted', offset: 0 }
+        ])
+      ).toThrow('not originally granted')
     } finally {
       connection.close()
     }

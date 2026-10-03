@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { SessionReference } from '../../../src/shared/sessionReferences'
 import { test, expect } from '../fixtures/electronApp'
@@ -166,7 +166,7 @@ test('session references survive drafts and retrieve evidence without injecting 
     await expect(candidate).toBeVisible()
     const artifacts = resolve('.amp/in/artifacts')
     mkdirSync(artifacts, { recursive: true })
-    await app.page.screenshot({ path: resolve(artifacts, 'session-reference-candidates.png') })
+    await app.page.screenshot({ path: resolve(artifacts, 'composer-experience-candidates.png') })
     await candidate.click()
     const chip = editor.locator('[data-session-reference]')
     await expect(chip).toContainText('Launch research')
@@ -176,8 +176,8 @@ test('session references survive drafts and retrieve evidence without injecting 
     await selectAgent(app.page)
     await expect(chip).toContainText('Launch research')
     await expect(app.page.getByTestId('chat-send-button')).toBeEnabled()
-    await chip.getByRole('button', { name: /Open|打开/ }).focus()
-    await app.page.keyboard.press('Enter')
+    await chip.getByRole('button', { name: /Preview|预览/ }).click()
+    await app.page.getByRole('button', { name: /Open|打开/ }).click()
     await expect.poll(() => getActiveSessionId(app.page)).toBe(sourceId)
     await expect(app.page.getByTestId('sidebar-session-item')).toHaveCount(1)
     await app.page.getByTestId('app-new-chat-button').click()
@@ -191,7 +191,7 @@ test('session references survive drafts and retrieve evidence without injecting 
       .first()
     await sourceRow.dragTo(editor)
     await expect(chip).toContainText('Launch research')
-    await app.page.screenshot({ path: resolve(artifacts, 'session-reference-composer.png') })
+    await app.page.screenshot({ path: resolve(artifacts, 'composer-experience-composer.png') })
     await editor.focus()
     await app.page.keyboard.press('ControlOrMeta+a')
     const copied = await editor.evaluate((element) => {
@@ -232,11 +232,241 @@ test('session references survive drafts and retrieve evidence without injecting 
     const targetId = await getActiveSessionId(app.page)
     const sentChip = app.page.getByTestId('user-message-inline-session')
     await expect(sentChip).toHaveText('Launch research')
-    await app.page.screenshot({ path: resolve(artifacts, 'session-reference-result.png') })
+    await expect(app.page.locator('[data-hero-clone="chat-input"]')).toHaveCount(0)
+    await app.page.screenshot({ path: resolve(artifacts, 'composer-experience-sent.png') })
     await sentChip.click()
-    expect(await getActiveSessionId(app.page)).toBe(sourceId)
+    expect(await getActiveSessionId(app.page)).toBe(targetId)
+    await app.page.getByRole('button', { name: /Open|打开/ }).click()
+    await expect.poll(() => getActiveSessionId(app.page)).toBe(sourceId)
     await openSessionById(app.page, targetId)
     await expect(sentChip).toHaveText('Launch research')
+    const sentUserMessage = app.page.getByTestId('chat-message-user').last()
+    await sentUserMessage.hover()
+    await sentUserMessage.getByRole('button', { name: /Edit|编辑/ }).click()
+    await expect(
+      sentUserMessage.getByRole('textbox').locator('[data-session-reference]')
+    ).toHaveText('Launch research')
+    await sentUserMessage.getByRole('textbox').press('Escape')
+    await expect(sentChip).toHaveText('Launch research')
+
+    const workspaceDir = resolve(app.userDataDir, 'composer-reference-workspace')
+    mkdirSync(resolve(workspaceDir, 'src'), { recursive: true })
+    mkdirSync(resolve(workspaceDir, 'test/src'), { recursive: true })
+    writeFileSync(resolve(workspaceDir, 'src/foo.ts'), 'export const origin = "source"\n')
+    writeFileSync(resolve(workspaceDir, 'test/src/foo.ts'), 'export const origin = "test"\n')
+    const workspaceSessionId = await app.page.evaluate(
+      async ({ providerId, projectDir }) => {
+        const result = (await window.deepchat.invoke('sessions.create', {
+          agentId: 'deepchat',
+          message: '',
+          providerId,
+          modelId: 'fixture-model',
+          projectDir
+        })) as { session: { id: string } }
+        return result.session.id
+      },
+      { providerId, projectDir: workspaceDir }
+    )
+    await openSessionById(app.page, workspaceSessionId)
+    await expect(editor).toHaveCount(1)
+    await editor.fill('@foo')
+    const fileOptions = app.page.getByRole('option', { name: /foo\.ts/ })
+    await expect(fileOptions).toHaveCount(2)
+    await expect(fileOptions.nth(0)).toContainText('src/foo.ts')
+    await expect(fileOptions.nth(0)).not.toContainText('test/src/foo.ts')
+    await expect(fileOptions.nth(1)).toContainText('test/src/foo.ts')
+    await app.page.screenshot({
+      path: resolve(artifacts, 'composer-experience-file-picker.png')
+    })
+    await editor.press('Tab')
+    const fileReference = editor.locator('[data-file-reference]')
+    await expect(fileReference).toContainText('src/foo.ts')
+    await editor.pressSequentially('and @foo')
+    await expect(fileOptions).toHaveCount(2)
+    await fileOptions.nth(1).click()
+    await expect(fileReference).toHaveText(['src/foo.ts', 'test/src/foo.ts'])
+    await app.page.reload()
+    await waitForAppReady(app.page)
+    await expect(fileReference).toHaveText(['src/foo.ts', 'test/src/foo.ts'])
+    await app.page.getByTestId('chat-send-button').click()
+    await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
+      'data-generating',
+      'false'
+    )
+    await expect(app.page.locator('[data-hero-clone="chat-input"]')).toHaveCount(0)
+    const sentFileReference = app.page.getByTestId('user-message-file-reference')
+    await expect(sentFileReference).toHaveText(['src/foo.ts', 'test/src/foo.ts'])
+
+    await sentFileReference.nth(0).getByRole('button').focus()
+    await app.page.keyboard.press('ControlOrMeta+f')
+    const searchInput = app.page.locator('.chat-search-bar input')
+    await searchInput.fill('foo.ts')
+    await expect(sentFileReference.locator('[data-chat-search-match]')).toHaveCount(2)
+    await expect(sentFileReference.nth(0).locator('[data-chat-search-active]')).toBeVisible()
+    await searchInput.press('Enter')
+    await expect(sentFileReference.nth(1).locator('[data-chat-search-active]')).toBeVisible()
+    await app.page.screenshot({ path: resolve(artifacts, 'composer-review-reference-search.png') })
+    await searchInput.press('Escape')
+
+    const attachmentPath = resolve(app.userDataDir, 'composer-attachment.png')
+    writeFileSync(
+      attachmentPath,
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
+        'base64'
+      )
+    )
+    await app.page
+      .getByTestId('chat-input-box')
+      .locator('input[type="file"]')
+      .setInputFiles(attachmentPath)
+    const shelf = app.page.getByTestId('attachment-shelf')
+    await expect(shelf.getByTestId('chat-attachment-item')).toContainText('composer-attachment.png')
+    await expect(shelf.getByTestId('attachment-representation-trigger')).toBeVisible()
+    await expect(
+      shelf.getByRole('button', {
+        name: /Delete composer-attachment\.png|删除 composer-attachment\.png/
+      })
+    ).toBeVisible()
+    await editor.fill('Attachment shelf editable before send.')
+    await app.page.screenshot({
+      path: resolve(artifacts, 'composer-experience-attachment-editable.png')
+    })
+    await app.page.getByTestId('chat-send-button').click()
+    await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
+      'data-generating',
+      'false'
+    )
+    await expect(app.page.locator('[data-hero-clone="chat-input"]')).toHaveCount(0)
+    const sentAttachment = app.page.getByTestId('chat-message-user').last()
+    await expect(sentAttachment.getByTestId('chat-attachment-item')).toContainText(
+      'composer-attachment.png'
+    )
+    await expect(sentAttachment.getByTestId('attachment-representation-trigger')).toHaveCount(0)
+    await expect(
+      sentAttachment.getByRole('button', {
+        name: /Delete composer-attachment\.png|删除 composer-attachment\.png/
+      })
+    ).toHaveCount(0)
+
+    // Restore the legacy inline representation without changing its backing uploaded material.
+    const attachmentMessageId = await sentAttachment.getAttribute('data-message-id')
+    await app.page.evaluate(
+      async ({ sessionId, messageId }) => {
+        const { messages } = await window.deepchat.invoke('sessions.restore', { sessionId })
+        const message = messages.find((item) => item.id === messageId)!
+        const content = JSON.parse(message.content)
+        const file = content.files[0]
+        await window.deepchat.invoke('sessions.editUserMessage', {
+          sessionId,
+          messageId: message.id,
+          text: content.text,
+          inlineItems: [
+            {
+              type: 'file',
+              offset: 0,
+              fileName: file.name,
+              filePath: file.path,
+              mimeType: file.mimeType
+            }
+          ]
+        })
+      },
+      { sessionId: workspaceSessionId, messageId: attachmentMessageId }
+    )
+    await app.page.reload()
+    await waitForAppReady(app.page)
+    await expect(sentAttachment.getByTestId('chat-attachment-item')).toHaveCount(0)
+    await sentAttachment.hover()
+    await sentAttachment.getByRole('button', { name: /Edit|编辑/ }).click()
+    const attachmentEditor = sentAttachment.getByRole('textbox')
+    await expect(attachmentEditor.locator('[data-file-attachment]')).toHaveCount(1)
+    await attachmentEditor.getByRole('button', { name: /Delete|删除/ }).click()
+    await expect(attachmentEditor.locator('[data-file-attachment]')).toHaveCount(0)
+    await expect(sentAttachment.getByTestId('chat-attachment-item')).toBeVisible()
+    await expect(sentAttachment.getByTestId('chat-attachment-item')).toContainText(
+      'composer-attachment.png'
+    )
+    await app.page.screenshot({ path: resolve(artifacts, 'composer-review-edit-material.png') })
+    await attachmentEditor.press('ControlOrMeta+Enter')
+    await expect(attachmentEditor).toHaveCount(0)
+    await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
+      'data-generating',
+      'false'
+    )
+    const editedAttachment = await app.page.evaluate(
+      async ({ sessionId, messageId }) => {
+        const { messages } = await window.deepchat.invoke('sessions.restore', { sessionId })
+        return JSON.parse(messages.find((item) => item.id === messageId)!.content)
+      },
+      { sessionId: workspaceSessionId, messageId: attachmentMessageId }
+    )
+    expect(editedAttachment.inlineItems ?? []).toEqual([])
+    expect(editedAttachment.files).toHaveLength(1)
+    expect(editedAttachment.text).toBe('Attachment shelf editable before send.')
+
+    const longMessage = Array.from(
+      { length: 18 },
+      (_, index) => `Section ${index + 1}: Composer verification 文本高度与展开行为。`
+    ).join('\n')
+    await editor.fill(longMessage)
+    await editor.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End')
+    await editor.pressSequentially(' @foo')
+    await expect(fileOptions).toHaveCount(2)
+    await fileOptions.nth(0).click()
+    await expect(editor).toContainText(longMessage, { useInnerText: true })
+    await app.page.getByTestId('chat-send-button').click()
+    await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
+      'data-generating',
+      'false'
+    )
+    await expect(app.page.locator('[data-hero-clone="chat-input"]')).toHaveCount(0)
+    const longUserMessage = app.page.getByTestId('chat-message-user').last()
+    const longBody = longUserMessage.locator('[data-user-message-content-body="true"]')
+    await expect(longBody).toHaveAttribute('data-user-message-collapsible', 'true')
+    await expect(longBody).toHaveAttribute('data-user-message-expanded', 'false')
+    await longUserMessage.locator('[data-user-message-toggle="true"]').focus()
+    await app.page.keyboard.press('Shift+Tab')
+    await expect(
+      longUserMessage.getByTestId('user-message-file-reference').getByRole('button')
+    ).toBeFocused()
+    await expect(longBody).toHaveAttribute('data-user-message-expanded', 'true')
+    await app.page.screenshot({ path: resolve(artifacts, 'composer-review-expanded-focus.png') })
+
+    await app.page.setViewportSize({ width: 1280, height: 900 })
+    await app.page.screenshot({
+      path: resolve(artifacts, 'composer-experience-light-normal.png'),
+      fullPage: false
+    })
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (await app.page.locator('html').evaluate((element) => element.classList.contains('dark')))
+        break
+      await app.page.getByTestId('window-sidebar-theme-toggle').click()
+    }
+    await expect(app.page.locator('html')).toHaveClass(/dark/)
+    await app.page.screenshot({
+      path: resolve(artifacts, 'composer-experience-dark-normal.png'),
+      fullPage: false
+    })
+    await app.page.setViewportSize({ width: 720, height: 820 })
+    await app.page.screenshot({
+      path: resolve(artifacts, 'composer-experience-dark-narrow.png'),
+      fullPage: false
+    })
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (await app.page.locator('html').evaluate((element) => element.classList.contains('light')))
+        break
+      await app.page.getByTestId('window-sidebar-theme-toggle').click()
+    }
+    await expect(app.page.locator('html')).not.toHaveClass(/dark/)
+    await app.page.screenshot({
+      path: resolve(artifacts, 'composer-experience-light-narrow.png'),
+      fullPage: false
+    })
+    await app.page.setViewportSize({ width: 1280, height: 900 })
+    await app.page.reload()
+    await waitForAppReady(app.page)
+    await openSessionById(app.page, targetId)
 
     const crossId = await app.page.evaluate(
       async ({ providerId, projectDir }) => {
@@ -292,13 +522,13 @@ test('session references survive drafts and retrieve evidence without injecting 
         const { reference } = (await window.deepchat.invoke('sessions.resolveReference', {
           sessionId: sourceId
         })) as { reference: SessionReference }
-        const text = 'Review this source after the current turn.'
+        const text = 'Review  after the current turn.'
         const { item } = (await window.deepchat.invoke('sessions.queuePendingInput', {
           sessionId,
           content: {
             text,
             files: [],
-            inlineItems: [{ type: 'session', offset: text.length, ...reference }]
+            inlineItems: [{ type: 'session', offset: 7, ...reference }]
           }
         })) as { item: { id: string } }
         return item.id
@@ -311,26 +541,42 @@ test('session references survive drafts and retrieve evidence without injecting 
         targetId
       )
     const queueRow = app.page.getByTestId('pending-row-main')
-    await expect(queueRow).toContainText('Review this source')
+    await expect(queueRow).toContainText('Review Launch research after the current turn.')
     await queueRow.click()
-    await app.page.getByTestId('pending-edit-textarea').fill('go')
-    await app.page.getByTestId('pending-edit-textarea').press('Enter')
+    const queueEditor = app.page.getByTestId('pending-edit-textarea').getByRole('textbox')
+    await expect(queueEditor).toHaveAttribute('contenteditable', 'true')
+    expect(await queueEditor.evaluate((element) => element.tagName)).toBe('DIV')
+    await queueEditor.press('End')
+    await queueEditor.pressSequentially(' Please proceed.')
+    await queueEditor.press('ControlOrMeta+Enter')
     await expect.poll(readQueue).toMatchObject({
       items: [
-        { id: itemId, payload: { text: 'go', inlineItems: [{ sessionId: sourceId, offset: 2 }] } }
+        {
+          id: itemId,
+          payload: {
+            text: 'Review  after the current turn. Please proceed.',
+            inlineItems: [{ sessionId: sourceId, offset: 7 }]
+          }
+        }
       ]
     })
     await queueRow.click()
-    await app.page.getByTestId('pending-edit-textarea').fill('')
-    await app.page.getByTestId('pending-edit-textarea').press('Enter')
-    await expect(queueRow).toHaveText('Launch research')
+    await app.page
+      .getByTestId('pending-edit-textarea')
+      .getByRole('button', { name: /Delete Launch research|删除 Launch research/ })
+      .click()
+    await queueEditor.press('ControlOrMeta+Enter')
+    await expect(queueRow).toHaveText('Review after the current turn. Please proceed.')
     await expect.poll(readQueue).toMatchObject({
       items: [
-        { id: itemId, payload: { text: '', inlineItems: [{ sessionId: sourceId, offset: 0 }] } }
+        {
+          id: itemId,
+          payload: { text: 'Review  after the current turn. Please proceed.', inlineItems: [] }
+        }
       ]
     })
     await app.page.getByTestId('pending-rail').screenshot({
-      path: resolve(artifacts, 'session-reference-queue.png')
+      path: resolve(artifacts, 'composer-experience-queue.png')
     })
     await app.page.evaluate(
       ({ sessionId, itemId }) =>
@@ -369,7 +615,7 @@ test('session references survive drafts and retrieve evidence without injecting 
     await expect(chip).toHaveText('Launch research')
     await app.page.getByRole('button', { name: /(?:Delete|删除) missing.png/ }).click()
     await expect(editor.locator('[data-file-attachment]')).toHaveCount(0)
-    await app.page.screenshot({ path: resolve(artifacts, 'session-reference-recovery.png') })
+    await app.page.screenshot({ path: resolve(artifacts, 'composer-experience-recovery.png') })
     await app.page.getByTestId('chat-send-button').click()
     await expect(app.page.getByTestId('chat-message-assistant')).toContainText(
       'Reference evidence retrieved.'
@@ -380,6 +626,7 @@ test('session references survive drafts and retrieve evidence without injecting 
       sourceId
     )
     await sentChip.click()
+    await app.page.getByRole('button', { name: /Open|打开/ }).click()
     const unavailable = app.page.getByText(
       /This session was deleted, reset, or is no longer available\.|该会话已删除、重置或不再可用。/
     )
@@ -391,9 +638,45 @@ test('session references survive drafts and retrieve evidence without injecting 
       .locator('[data-sonner-toast]')
       .filter({ has: unavailable })
       .screenshot({
-        path: resolve(artifacts, 'session-reference-unavailable.png'),
+        path: resolve(artifacts, 'composer-experience-unavailable.png'),
         animations: 'disabled'
       })
+
+    // Revoke the stored grant while an editor still holds it. A rejected IPC save must retain
+    // the local draft, rather than silently close it and discard the user's changes.
+    const recoveryMessage = app.page.getByTestId('chat-message-user').last()
+    await recoveryMessage.hover()
+    await recoveryMessage.getByRole('button', { name: /Edit|编辑/ }).click()
+    const recoveryEditor = recoveryMessage.getByRole('textbox')
+    await recoveryEditor.press('End')
+    await recoveryEditor.pressSequentially(' Keep my draft.')
+    const recoverySessionId = await getActiveSessionId(app.page)
+    const recoveryMessageId = (await recoveryMessage.getAttribute('data-message-id'))!
+    await app.page.evaluate(
+      ({ sessionId, messageId }) =>
+        window.deepchat.invoke('sessions.editUserMessage', {
+          sessionId,
+          messageId,
+          text: 'Changed elsewhere.',
+          inlineItems: []
+        }),
+      { sessionId: recoverySessionId, messageId: recoveryMessageId }
+    )
+    await recoveryEditor.press('ControlOrMeta+Enter')
+    await expect(
+      app.page.getByText(
+        /Edited message contains a session reference that was not originally granted/
+      )
+    ).toBeVisible()
+    await expect(recoveryEditor).toHaveAttribute('contenteditable', 'true')
+    await expect(recoveryEditor).toContainText('Keep my draft.')
+    await expect(recoveryEditor.locator('[data-session-reference]')).toHaveCount(1)
+    await recoveryEditor
+      .getByRole('button', { name: /Delete Launch research|删除 Launch research/ })
+      .click()
+    await recoveryEditor.press('ControlOrMeta+Enter')
+    await expect(recoveryEditor).toHaveCount(0)
+    await expect(recoveryMessage).toContainText('Keep my draft.')
     expect(app.pageErrors).toEqual([])
   } finally {
     releaseStream?.()

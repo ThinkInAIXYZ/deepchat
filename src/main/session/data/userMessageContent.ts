@@ -1,8 +1,10 @@
 import type {
   MessageFile,
   SendMessageInput,
-  UserMessageContent
+  UserMessageContent,
+  UserMessageInlineItem
 } from '@shared/types/agent-interface'
+import { getValidInlineItems } from '@shared/messageInlineItems'
 
 const normalizeStringList = (values: string[]): string[] =>
   Array.from(new Set(values.map((value) => value.trim()).filter(Boolean))).sort((a, b) =>
@@ -66,7 +68,33 @@ export function normalizeUserMessageInput(input: string | SendMessageInput): Sen
   }
 }
 
-export function buildEditedUserContent(rawContent: string, text: string): string {
+export function retainEditedSessionGrants(
+  originalItems: unknown,
+  editedItems: readonly UserMessageInlineItem[]
+): UserMessageInlineItem[] {
+  const originals = new Map<string, Extract<UserMessageInlineItem, { type: 'session' }>>()
+  for (const source of Array.isArray(originalItems) ? originalItems : []) {
+    if (source?.type !== 'session') continue
+    const key = JSON.stringify([source.sessionId, source.tapeIncarnationId])
+    if (!originals.has(key)) originals.set(key, source)
+  }
+  return editedItems.map((item) => {
+    if (item.type !== 'session') return item
+    const original = originals.get(JSON.stringify([item.sessionId, item.tapeIncarnationId]))
+    if (!original) {
+      throw new Error(
+        'Edited message contains a session reference that was not originally granted.'
+      )
+    }
+    return { ...original, offset: item.offset }
+  })
+}
+
+export function buildEditedUserContent(
+  rawContent: string,
+  text: string,
+  inlineItems?: UserMessageInlineItem[]
+): string {
   const fallback: UserMessageContent = {
     text,
     files: [],
@@ -75,48 +103,62 @@ export function buildEditedUserContent(rawContent: string, text: string): string
     think: false
   }
 
+  let parsed: Record<string, unknown> | string
   try {
-    const parsed = JSON.parse(rawContent) as Record<string, unknown> | string
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return JSON.stringify(fallback)
-    }
+    parsed = JSON.parse(rawContent) as Record<string, unknown> | string
+  } catch {
+    parsed = rawContent
+  }
 
-    const next = { ...parsed, text } as Record<string, unknown>
-    delete next.inlineItems
-    // The text-only editor cannot remove attached session references. Re-anchor them after
-    // the replacement text instead of silently revoking the user's explicit source grants.
-    const references = Array.isArray(parsed.inlineItems)
+  if (inlineItems) {
+    inlineItems = retainEditedSessionGrants(
+      typeof parsed === 'object' && parsed && !Array.isArray(parsed) ? parsed.inlineItems : [],
+      inlineItems
+    )
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return JSON.stringify({
+      ...fallback,
+      ...(inlineItems?.length ? { inlineItems: getValidInlineItems(text, inlineItems) } : {})
+    })
+  }
+
+  const next = { ...parsed, text } as Record<string, unknown>
+  delete next.inlineItems
+  const references = inlineItems
+    ? getValidInlineItems(text, inlineItems)
+    : Array.isArray(parsed.inlineItems)
       ? parsed.inlineItems
           .filter((item) => item?.type === 'session')
           .map((item) => ({ ...item, offset: text.length }))
       : []
-    if (references.length > 0) next.inlineItems = references
-    if (!Array.isArray(next.files)) next.files = []
-    if (!Array.isArray(next.links)) next.links = []
-    if (typeof next.search !== 'boolean') next.search = false
-    if (typeof next.think !== 'boolean') next.think = false
+  if (references.length > 0) next.inlineItems = references
+  if (!Array.isArray(next.files)) next.files = []
+  if (!Array.isArray(next.links)) next.links = []
+  if (typeof next.search !== 'boolean') next.search = false
+  if (typeof next.think !== 'boolean') next.think = false
 
-    if (Array.isArray(next.content)) {
-      let replaced = false
-      const mapped = next.content.map((item) => {
-        if (
-          !replaced &&
-          item &&
-          typeof item === 'object' &&
-          !Array.isArray(item) &&
-          (item as { type?: unknown }).type === 'text'
-        ) {
-          replaced = true
-          return { ...(item as Record<string, unknown>), content: text }
-        }
-        return item
-      })
-      if (!replaced) mapped.unshift({ type: 'text', content: text })
-      next.content = mapped
-    }
-
-    return JSON.stringify(next)
-  } catch {
-    return JSON.stringify(fallback)
+  if (inlineItems) {
+    delete next.content
+  } else if (Array.isArray(next.content)) {
+    let replaced = false
+    const mapped = next.content.flatMap((item) => {
+      if (
+        item &&
+        typeof item === 'object' &&
+        !Array.isArray(item) &&
+        (item as { type?: unknown }).type === 'text'
+      ) {
+        if (replaced) return []
+        replaced = true
+        return [{ ...(item as Record<string, unknown>), content: text }]
+      }
+      return [item]
+    })
+    if (!replaced) mapped.unshift({ type: 'text', content: text })
+    next.content = mapped
   }
+
+  return JSON.stringify(next)
 }

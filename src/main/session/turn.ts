@@ -13,7 +13,8 @@ import type {
   SessionCompactionState,
   SessionContextOccupancySnapshot,
   ToolInteractionResponse,
-  ToolInteractionResult
+  ToolInteractionResult,
+  UserMessageInlineItem
 } from '@shared/types/agent-interface'
 import type {
   SessionAssignmentWorkdirPort,
@@ -312,6 +313,10 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   ): Promise<PendingSessionInputRecord> {
     this.requireSession(sessionId)
     const normalizedInput = normalizeSendMessageInput(content)
+    // Queue edits distinguish omitted references from an explicit removal of every reference.
+    if (typeof content !== 'string' && Array.isArray(content.inlineItems)) {
+      normalizedInput.inlineItems = content.inlineItems
+    }
     const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
     assertSessionReferencesSupported(runtime.kind, normalizedInput)
     return await runtime.pending.update(itemId, normalizedInput)
@@ -414,10 +419,16 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   async editUserMessage(
     sessionId: string,
     messageId: string,
-    text: string
+    text: string,
+    inlineItems?: UserMessageInlineItem[]
   ): Promise<ChatMessageRecord> {
     this.requireSession(sessionId)
-    return await this.dependencies.transcript.editUserMessage(sessionId, messageId, text)
+    return await this.dependencies.transcript.editUserMessage(
+      sessionId,
+      messageId,
+      text,
+      inlineItems
+    )
   }
 
   async getSessionCompactionSnapshot(sessionId: string): Promise<SessionCompactionSnapshot> {

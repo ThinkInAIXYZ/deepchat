@@ -73,7 +73,6 @@ function mountAttachment(
   actions: InputNodeActions = {
     prepareCommandFormSubmit: vi.fn(),
     removeSkill: vi.fn(),
-    removeFile: vi.fn(),
     setFileRepresentation: vi.fn(),
     switchToVisionModel: vi.fn(),
     submitCommandForm: vi.fn(),
@@ -134,15 +133,14 @@ function mountAttachment(
 }
 
 describe('FileAttachmentView', () => {
-  it('removes an attachment through the keyboard button click', async () => {
-    const { wrapper, actions, deleteNode } = mountAttachment({
+  it('removes the inline reference through the keyboard button click', async () => {
+    const { wrapper, deleteNode } = mountAttachment({
       fileName: 'notes.txt',
       filePath: '/tmp/notes.txt',
       mimeType: 'text/plain'
     })
     await wrapper.get('button[aria-label="common.delete notes.txt"]').trigger('click')
     expect(deleteNode).toHaveBeenCalledTimes(1)
-    expect(actions.removeFile).toHaveBeenCalledWith('/tmp/notes.txt')
   })
 
   it('offers Auto, embedded text, and OCR for PDFs with a compact intent badge', async () => {
@@ -166,7 +164,7 @@ describe('FileAttachmentView', () => {
       .vm.$emit('update:modelValue', 'ocr_text')
     await wrapper.vm.$nextTick()
 
-    expect(updateAttributes).toHaveBeenCalledWith({ requestedRepresentation: 'ocr_text' })
+    expect(updateAttributes).not.toHaveBeenCalled()
     expect(actions.setFileRepresentation).toHaveBeenCalledWith('/tmp/report.pdf', 'ocr_text')
   })
 
@@ -201,7 +199,6 @@ describe('FileAttachmentView', () => {
     const actions: InputNodeActions = {
       prepareCommandFormSubmit: vi.fn(),
       removeSkill: vi.fn(),
-      removeFile: vi.fn(),
       setFileRepresentation: vi.fn(),
       switchToVisionModel: vi.fn(),
       submitCommandForm: vi.fn(),
@@ -264,7 +261,7 @@ describe('FileAttachmentView', () => {
     wrapper.findComponent({ name: 'DropdownMenuRadioGroup' }).vm.$emit('update:modelValue', 'image')
     await wrapper.vm.$nextTick()
 
-    expect(updateAttributes).toHaveBeenCalledWith({ requestedRepresentation: 'image' })
+    expect(updateAttributes).not.toHaveBeenCalled()
     expect(actions.setFileRepresentation).toHaveBeenCalledWith('/tmp/scan.png', 'image')
   })
 

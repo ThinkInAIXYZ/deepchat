@@ -361,6 +361,16 @@ export const UserMessageInlineItemSchema = z.discriminatedUnion('type', [
     filePath: z.string(),
     mimeType: z.string().optional()
   }),
+  z.object({
+    type: z.literal('file-reference'),
+    offset: z.number().int().nonnegative(),
+    filePath: z.string().min(1).max(4096),
+    relativePath: z
+      .string()
+      .min(1)
+      .max(4096)
+      .regex(/^[^\r\n]+$/)
+  }),
   SessionReferenceSchema.extend({
     type: z.literal('session'),
     offset: z.number().int().nonnegative()

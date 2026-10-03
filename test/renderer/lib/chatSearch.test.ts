@@ -1,4 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import MessageContent from '@/components/message/MessageContent.vue'
+import type { DisplayUserMessageInlineBlock } from '@/features/chat-page/model/displayMessage'
+
+vi.mock('@/stores/language', () => ({ useLanguageStore: () => ({ dir: 'ltr' }) }))
 
 import {
   applyChatSearchHighlights,
@@ -9,6 +14,50 @@ import {
 } from '@/lib/chatSearch'
 
 describe('chatSearch', () => {
+  it('keeps reference labels, search counts and active DOM marks in the same order', () => {
+    const blocks: DisplayUserMessageInlineBlock[] = [
+      {
+        type: 'file-reference',
+        filePath: '/repo/src/needle.ts',
+        relativePath: 'repo/src/needle.ts'
+      },
+      {
+        type: 'session',
+        title: 'needle plan',
+        sessionId: 'source',
+        projectDir: null,
+        tapeIncarnationId: 'inc'
+      },
+      { type: 'file', fileName: 'needle.png', filePath: '/needle.png' },
+      { type: 'text', content: 'last needle' }
+    ]
+    const message = { id: 'm1', content: { text: '', content: blocks } }
+    const wrapper = mount(MessageContent, {
+      props: { content: blocks },
+      attrs: { 'data-message-id': 'm1', 'data-message-content': 'true' }
+    })
+    wrapper.element.insertAdjacentHTML(
+      'beforeend',
+      `
+      <button>needle action</button>
+      <div data-chat-search-exclude><button><span data-chat-search-text>needle excluded</span></button></div>
+      <div contenteditable="true"><button><span data-chat-search-text>needle draft</span></button></div>
+    `
+    )
+    const results = collectChatSearchResults([message], 'needle')
+    const marks = applyChatSearchHighlights(wrapper.element, 'needle')
+    expect(results).toEqual([0, 1, 2, 3].map((matchIndex) => ({ messageId: 'm1', matchIndex })))
+    expect(marks).toHaveLength(4)
+    results.forEach((result, index) => {
+      expect(setActiveChatSearchResult(wrapper.element, result, { scroll: false })).toBe(
+        marks[index]
+      )
+    })
+    expect(collectChatSearchResults([message], 'repo')).toEqual([])
+    clearChatSearchHighlights(wrapper.element)
+    wrapper.unmount()
+  })
+
   it('highlights case-insensitive matches and activates the selected one', () => {
     const container = document.createElement('div')
     container.innerHTML = `

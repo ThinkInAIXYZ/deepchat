@@ -43,6 +43,7 @@ import type {
   SessionMetadata,
   SubagentTapeLinkInput,
   SubagentTapeLinkReceipt,
+  UserMessageInlineItem,
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
@@ -365,7 +366,12 @@ export interface SessionTurnPort {
     options?: { attachmentFallbackPolicy?: AttachmentFallbackPolicy }
   ): Promise<MessageStartResult>
   deleteMessage(sessionId: string, messageId: string): Promise<void>
-  editUserMessage(sessionId: string, messageId: string, text: string): Promise<ChatMessageRecord>
+  editUserMessage(
+    sessionId: string,
+    messageId: string,
+    text: string,
+    inlineItems?: UserMessageInlineItem[]
+  ): Promise<ChatMessageRecord>
   getSessionCompactionSnapshot(sessionId: string): Promise<SessionCompactionSnapshot>
   getSessionContextOccupancy(sessionId: string): Promise<SessionContextOccupancySnapshot>
   compactSession(sessionId: string): Promise<{ compacted: boolean; state: SessionCompactionState }>

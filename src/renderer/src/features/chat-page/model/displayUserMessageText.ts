@@ -3,6 +3,7 @@ import type {
   DisplayUserMessageInlineBlock,
   DisplayUserMessageMentionBlock
 } from './displayMessage'
+import { getValidInlineItems } from '@shared/messageInlineItems'
 
 export function getVisibleMentionLabel(block: DisplayUserMessageMentionBlock): string {
   if (block.category === 'prompts') {
@@ -30,12 +31,7 @@ export function getVisibleUserContentBlocks(
   }
 
   const text = content.text || ''
-  const inlineItems = (content.inlineItems ?? [])
-    .map((item, index) => ({ item, index }))
-    .filter(
-      ({ item }) => Number.isInteger(item.offset) && item.offset >= 0 && item.offset <= text.length
-    )
-    .sort((left, right) => left.item.offset - right.item.offset || left.index - right.index)
+  const inlineItems = getValidInlineItems(text, content.inlineItems)
 
   if (inlineItems.length === 0) {
     return []
@@ -44,7 +40,7 @@ export function getVisibleUserContentBlocks(
   const blocks: DisplayUserMessageInlineBlock[] = []
   let cursor = 0
 
-  for (const { item } of inlineItems) {
+  for (const item of inlineItems) {
     if (item.offset > cursor) {
       blocks.push({ type: 'text', content: text.slice(cursor, item.offset) })
     }
@@ -58,6 +54,12 @@ export function getVisibleUserContentBlocks(
         filePath: item.filePath,
         mimeType: item.mimeType
       })
+    } else if (item.type === 'file-reference') {
+      blocks.push({
+        type: 'file-reference',
+        filePath: item.filePath,
+        relativePath: item.relativePath
+      })
     } else {
       blocks.push({
         type: 'session',
@@ -68,7 +70,7 @@ export function getVisibleUserContentBlocks(
       })
     }
 
-    cursor = item.offset
+    cursor = item.offset + (item.type === 'file-reference' ? `@${item.relativePath}`.length : 0)
   }
 
   if (cursor < text.length) {
@@ -95,6 +97,9 @@ export function collectVisibleUserMessageText(content: DisplayUserMessageContent
       }
       if (block.type === 'file') {
         return block.fileName
+      }
+      if (block.type === 'file-reference') {
+        return block.relativePath
       }
       if (block.type === 'session') {
         return block.title

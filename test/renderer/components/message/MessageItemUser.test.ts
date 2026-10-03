@@ -1,5 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
+import { EditorContent } from '@tiptap/vue-3'
+import { createDeferred } from '../../utils/deferred'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   DisplayUserMessage,
@@ -13,6 +15,8 @@ import enChat from '@/i18n/en-US/chat.json'
 
 const originalApi = window.api
 const { selectSession } = vi.hoisted(() => ({ selectSession: vi.fn() }))
+let measuredContentHeight = 0
+let notifyContentResize = () => undefined
 
 vi.mock('@/stores/ui/session', () => ({
   useSessionStore: () => ({ selectSession })
@@ -207,6 +211,20 @@ const globalMountOptions = {
 
 describe('MessageItemUser', () => {
   beforeEach(() => {
+    measuredContentHeight = 0
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(
+      () => measuredContentHeight
+    )
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          notifyContentResize = callback
+        }
+        observe() {}
+        disconnect() {}
+      }
+    )
     window.api = {
       copyText: vi.fn()
     } as typeof window.api
@@ -215,8 +233,70 @@ describe('MessageItemUser', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
     window.api = originalApi
     document.body.innerHTML = ''
+  })
+
+  it('retains edited text and references after a failed save, then closes on success', async () => {
+    const pending = createDeferred<boolean>()
+    const saveEdit = vi.fn().mockReturnValueOnce(pending.promise).mockResolvedValue(true)
+    const wrapper = mount(MessageItemUser, {
+      props: {
+        message: createMessage(
+          {},
+          {
+            text: 'Read ',
+            inlineItems: [
+              {
+                type: 'session',
+                offset: 5,
+                sessionId: 'source',
+                title: 'Research',
+                projectDir: null,
+                tapeIncarnationId: 'tape'
+              }
+            ]
+          }
+        ),
+        saveEdit
+      },
+      ...globalMountOptions
+    })
+    await wrapper.get('[data-action="edit"]').trigger('click')
+    const editor = wrapper.getComponent(EditorContent).props('editor')!
+    editor.commands.insertContentAt(1, 'Changed: ')
+    const textbox = wrapper.get('[role="textbox"]')
+    await textbox.trigger('keydown', { key: 'Enter', ctrlKey: true })
+    expect(saveEdit).toHaveBeenCalledTimes(1)
+    expect(textbox.attributes('contenteditable')).toBe('false')
+    await textbox.trigger('keydown', { key: 'Enter', ctrlKey: true })
+    await textbox.trigger('keydown', { key: 'Escape' })
+    expect(saveEdit).toHaveBeenCalledTimes(1)
+    pending.resolve(false)
+    await flushPromises()
+    expect(textbox.attributes('contenteditable')).toBe('true')
+    expect(textbox.text()).toContain('Changed: Read')
+    expect(wrapper.findAll('[data-session-reference]')).toHaveLength(1)
+    await textbox.trigger('keydown', { key: 'Enter', ctrlKey: true })
+    await flushPromises()
+    expect(saveEdit.mock.calls[1]).toEqual(saveEdit.mock.calls[0])
+    expect(saveEdit).toHaveBeenLastCalledWith({
+      messageId: 'u1',
+      text: 'Changed: Read ',
+      inlineItems: [
+        {
+          type: 'session',
+          offset: 14,
+          sessionId: 'source',
+          title: 'Research',
+          projectDir: null,
+          tapeIncarnationId: 'tape'
+        }
+      ]
+    })
+    expect(wrapper.find('[role="textbox"]').exists()).toBe(false)
+    wrapper.unmount()
   })
 
   it('shows a localized error when a sent session reference cannot be opened', async () => {
@@ -246,6 +326,7 @@ describe('MessageItemUser', () => {
       },
       ...globalMountOptions
     })
+    await nextTick()
 
     const body = wrapper.get('[data-user-message-content-body="true"]')
     expect(body.attributes('data-user-message-collapsible')).toBe('false')
@@ -254,12 +335,14 @@ describe('MessageItemUser', () => {
   })
 
   it('collapses long plain text by default and toggles expansion', async () => {
+    measuredContentHeight = 260
     const wrapper = mount(MessageItemUser, {
       props: {
         message: createMessage({}, { text: 'a'.repeat(700) })
       },
       ...globalMountOptions
     })
+    await nextTick()
 
     const body = wrapper.get('[data-user-message-content-body="true"]')
     const toggle = wrapper.get('[data-user-message-toggle="true"]')
@@ -279,9 +362,14 @@ describe('MessageItemUser', () => {
     await wrapper.get('[data-user-message-toggle="true"]').trigger('click')
 
     expect(body.attributes('data-user-message-expanded')).toBe('false')
+    // A keyboard focus entering the clipped content must reveal its target.
+    await wrapper.get('.message-text-stub').trigger('focusin')
+    expect(body.attributes('data-user-message-expanded')).toBe('true')
+    expect(wrapper.find('.user-message-content--clamped').exists()).toBe(false)
   })
 
   it('keeps structured user content rendering while collapsed', async () => {
+    measuredContentHeight = 260
     const wrapper = mount(MessageItemUser, {
       props: {
         message: createMessage(
@@ -312,6 +400,7 @@ describe('MessageItemUser', () => {
       },
       ...globalMountOptions
     })
+    await nextTick()
 
     expect(wrapper.find('[data-user-message-toggle="true"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('prompt-name')
@@ -368,6 +457,17 @@ describe('MessageItemUser', () => {
     expect(wrapper.get('[data-message-content="true"]').text()).toContain(
       '我想要使用skillA ，把 file.pdf 文件怎么样怎么样'
     )
+
+    // Editing/removing sentence references must not hide the material/skills still used on retry.
+    await wrapper.get('[data-action="edit"]').trigger('click')
+    expect(wrapper.get('[data-testid="user-message-active-skill"]').text()).toBe('skillA')
+    expect(wrapper.get('.attachment-stub').text()).toBe('file.pdf')
+    await wrapper.get('.reference-editor [data-file-attachment] button').trigger('click')
+    await wrapper.get('.reference-editor [data-skill-chip] button').trigger('click')
+    expect(wrapper.find('.reference-editor [data-file-attachment]').exists()).toBe(false)
+    expect(wrapper.find('.reference-editor [data-skill-chip]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="user-message-active-skill"]').text()).toBe('skillA')
+    expect(wrapper.get('.attachment-stub').text()).toBe('file.pdf')
   })
 
   it('uses persisted rich content instead of raw text and inline metadata', async () => {
@@ -396,46 +496,54 @@ describe('MessageItemUser', () => {
   })
 
   it('keeps attachments visible when long text collapses', async () => {
+    measuredContentHeight = 260
     const wrapper = mount(MessageItemUser, {
       props: {
         message: createMessage({}, { text: 'b'.repeat(700), files: [createFile()] })
       },
       ...globalMountOptions
     })
+    await nextTick()
 
     expect(wrapper.findAll('.attachment-stub')).toHaveLength(1)
     expect(wrapper.find('[data-user-message-toggle="true"]').exists()).toBe(true)
   })
 
-  it('shows full textarea content in edit mode even when the message is collapsible', async () => {
+  it('shows full reference editor content in edit mode even when the message is collapsible', async () => {
+    measuredContentHeight = 260
     const wrapper = mount(MessageItemUser, {
       props: {
         message: createMessage({}, { text: 'c'.repeat(700) })
       },
       ...globalMountOptions
     })
+    await nextTick()
 
     await wrapper.get('[data-action="edit"]').trigger('click')
     await nextTick()
 
-    expect(wrapper.find('textarea').exists()).toBe(true)
+    expect(wrapper.find('.reference-editor').exists()).toBe(true)
     expect(wrapper.find('[data-user-message-content-body="true"]').exists()).toBe(false)
-    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('c'.repeat(700))
+    expect(wrapper.find('.reference-editor').text()).toBe('c'.repeat(700))
   })
 
   it('re-evaluates collapse state when content length drops below the collapse threshold', async () => {
+    measuredContentHeight = 260
     const wrapper = mount(MessageItemUser, {
       props: {
         message: createMessage({}, { text: 'd'.repeat(700) })
       },
       ...globalMountOptions
     })
+    await nextTick()
 
     expect(wrapper.find('[data-user-message-toggle="true"]').exists()).toBe(true)
 
+    measuredContentHeight = 80
     await wrapper.setProps({
       message: createMessage({}, { text: 'short again' })
     })
+    notifyContentResize()
     await nextTick()
 
     const body = wrapper.get('[data-user-message-content-body="true"]')

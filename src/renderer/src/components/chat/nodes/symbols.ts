@@ -5,7 +5,6 @@ import type { AttachmentRepresentationPreference } from '@shared/types/attachmen
 export interface InputNodeActions {
   prepareCommandFormSubmit: () => void
   removeSkill: (skillName: string) => void
-  removeFile: (filePath: string) => void
   setFileRepresentation: (filePath: string, preference: AttachmentRepresentationPreference) => void
   switchToVisionModel: () => void
   submitCommandForm: (values: Record<string, string>) => void

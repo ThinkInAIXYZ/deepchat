@@ -313,21 +313,56 @@ describe('useMessageActions', () => {
     harness.stop()
   })
 
-  it('keeps an edited message retry bound to its original session', async () => {
+  it.each(['normal', 'read-only', 'blocked'] as const)(
+    'keeps an edited message retry bound to its original session when the new view is %s',
+    async (viewState) => {
+      const harness = createHarness()
+      let resolveEdit!: () => void
+      harness.sessionClient.editUserMessage.mockImplementationOnce(
+        () => new Promise<void>((resolve) => (resolveEdit = resolve))
+      )
+
+      const edit = harness.actions.onMessageEditSave({ messageId: 'message-1', text: 'updated' })
+      await vi.waitFor(() => expect(harness.sessionClient.editUserMessage).toHaveBeenCalledTimes(1))
+      harness.sessionId.value = 's2'
+      harness.isReadOnly.value = viewState === 'read-only'
+      harness.isBlocking.value = viewState === 'blocked'
+      resolveEdit()
+      expect(await edit).toBe(true)
+
+      expect(harness.sessionClient.editUserMessage).toHaveBeenCalledWith(
+        's1',
+        'message-1',
+        'updated'
+      )
+      expect(harness.sessionClient.retryMessage).toHaveBeenCalledWith('s1', 'message-1')
+      expect(harness.messageStore.clearStreamingState).not.toHaveBeenCalled()
+      expect(harness.messageStore.truncateMessagesFromOrderSeq).not.toHaveBeenCalled()
+      if (viewState !== 'normal') {
+        await harness.actions.onMessageRetry('message-in-s2')
+        expect(harness.sessionClient.retryMessage).toHaveBeenCalledTimes(1)
+      }
+      harness.stop()
+    }
+  )
+
+  it('reports rejected edits without retrying and lets the editor retain its draft', async () => {
     const harness = createHarness()
-    let resolveEdit!: () => void
-    harness.sessionClient.editUserMessage.mockImplementationOnce(
-      () => new Promise<void>((resolve) => (resolveEdit = resolve))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    harness.sessionClient.editUserMessage.mockRejectedValueOnce(new Error('Transcript changed'))
+
+    expect(await harness.actions.onMessageEditSave({ messageId: 'message-1', text: 'draft' })).toBe(
+      false
     )
-
-    const edit = harness.actions.onMessageEditSave({ messageId: 'message-1', text: 'updated' })
-    await vi.waitFor(() => expect(harness.sessionClient.editUserMessage).toHaveBeenCalledTimes(1))
-    harness.sessionId.value = 's2'
-    resolveEdit()
-    await edit
-
-    expect(harness.sessionClient.editUserMessage).toHaveBeenCalledWith('s1', 'message-1', 'updated')
-    expect(harness.sessionClient.retryMessage).toHaveBeenCalledWith('s1', 'message-1')
+    expect(harness.sessionClient.retryMessage).not.toHaveBeenCalled()
+    expect(harness.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'chat.message.editFailed',
+        description: 'Transcript changed'
+      })
+    )
+    consoleError.mockRestore()
     harness.stop()
   })
 

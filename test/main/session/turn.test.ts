@@ -6,6 +6,7 @@ import type {
   SessionRecord
 } from '@shared/types/agent-interface'
 import { SessionTurn, type SessionTurnDependencies } from '@/session/turn'
+import { SessionPendingInputs } from '@/session/data/pendingInputs'
 
 const createSession = (overrides: Partial<SessionRecord> = {}): SessionRecord => ({
   id: 's1',
@@ -461,6 +462,69 @@ describe('SessionTurn', () => {
     expect(harness.projection.notify).not.toHaveBeenCalled()
   })
 
+  it('preserves omitted queue grants but honors explicit removal through normalization', async () => {
+    const harness = createHarness()
+    const reference = {
+      type: 'session' as const,
+      offset: 1,
+      sessionId: 'source',
+      tapeIncarnationId: 'inc-source',
+      title: 'Original title',
+      projectDir: null
+    }
+    let record = createPending({
+      payload: {
+        text: 'Original',
+        files: [],
+        inlineItems: [reference, { type: 'skill', offset: 3, skillName: 'review' }]
+      }
+    })
+    const updateQueueInput = vi.fn((_id: string, payload: SendMessageInput) => {
+      record = { ...record, payload }
+      return record
+    })
+    const pendingInputs = new SessionPendingInputs(
+      {
+        listPendingInputs: () => [record],
+        getInput: () => record,
+        updateQueueInput
+      } as any,
+      {} as any,
+      { publishPendingInputsChanged: vi.fn(), publishMessagesChanged: vi.fn() }
+    )
+    harness.pending.update.mockImplementation(async (itemId, input) =>
+      pendingInputs.updateQueuedInput('s1', itemId, input)
+    )
+
+    await harness.coordinator.updateQueuedInput('s1', 'pending-1', '甲🙂')
+    expect(record.payload.inlineItems).toEqual([{ ...reference, offset: 3 }])
+    await harness.coordinator.updateQueuedInput('s1', 'pending-1', { text: 'Next', files: [] })
+    expect(record.payload.inlineItems).toEqual([{ ...reference, offset: 4 }])
+
+    await harness.coordinator.updateQueuedInput('s1', 'pending-1', {
+      text: 'Next',
+      files: [],
+      inlineItems: [{ ...reference, offset: 2, title: 'Untrusted title' }]
+    })
+    expect(record.payload.inlineItems).toEqual([{ ...reference, offset: 2 }])
+    await harness.coordinator.updateQueuedInput('s1', 'pending-1', {
+      text: 'Next',
+      files: [],
+      inlineItems: []
+    })
+    expect(record.payload.inlineItems).toEqual([])
+
+    updateQueueInput.mockClear()
+    await expect(
+      harness.coordinator.updateQueuedInput('s1', 'pending-1', {
+        text: 'Next',
+        files: [],
+        inlineItems: [reference]
+      })
+    ).rejects.toThrow('not originally granted')
+    expect(updateQueueInput).not.toHaveBeenCalled()
+  })
+
   it('owns pending mutations and preserves missing-session behavior', async () => {
     const harness = createHarness()
 
@@ -537,7 +601,12 @@ describe('SessionTurn', () => {
 
     harness.cancel.mockClear()
     await harness.coordinator.editUserMessage('s1', 'message-1', 'Edited')
-    expect(harness.transcript.editUserMessage).toHaveBeenCalledWith('s1', 'message-1', 'Edited')
+    expect(harness.transcript.editUserMessage).toHaveBeenCalledWith(
+      's1',
+      'message-1',
+      'Edited',
+      undefined
+    )
     expect(harness.cancel).not.toHaveBeenCalled()
 
     await harness.coordinator.clearSessionMessages('s1')

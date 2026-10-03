@@ -93,13 +93,16 @@
 
                 <div class="min-w-0 flex-1">
                   <template v-if="editingItemId === element.id">
-                    <textarea
-                      v-model="editingText"
+                    <ReferenceEditor
+                      ref="referenceEditor"
                       data-testid="pending-edit-textarea"
-                      class="min-h-[88px] w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none ring-0"
-                      @click.stop
-                      @keydown.enter.exact.prevent="saveEdit"
-                      @keydown.esc.stop.prevent="cancelEdit"
+                      :text="element.payload.text ?? ''"
+                      :inline-items="element.payload.inlineItems"
+                      :ariaLabel="t('thread.toolbar.edit')"
+                      :editable="!isSavingEdit"
+                      @content-change="editingHasContent = $event"
+                      @save="submitEdit"
+                      @cancel="cancelEdit"
                     />
                     <div class="mt-2 flex items-center justify-between gap-2">
                       <div class="text-xs text-muted-foreground">
@@ -116,6 +119,7 @@
                           variant="ghost"
                           size="sm"
                           class="h-7 rounded-full px-2 text-xs"
+                          :disabled="isSavingEdit"
                           @click.stop="cancelEdit"
                         >
                           {{ t('common.cancel') }}
@@ -124,7 +128,7 @@
                           size="sm"
                           class="h-7 rounded-full px-2 text-xs"
                           :disabled="!canSaveEdit"
-                          @click.stop="saveEdit"
+                          @click.stop="submitEdit"
                         >
                           {{ t('common.save') }}
                         </DcButton>
@@ -138,7 +142,9 @@
                     data-testid="pending-row-main"
                     class="block w-full min-w-0 rounded-md px-1 py-0.5 text-left outline-none transition hover:bg-muted/35 focus-visible:bg-muted/35"
                     :title="formatPayloadTitle(element)"
-                    :disabled="element.state === 'blocked'"
+                    :disabled="
+                      element.state === 'blocked' || Boolean(editingItemId) || isSavingEdit
+                    "
                     @click="beginEdit(element)"
                   >
                     <span class="block truncate text-[13px] leading-5 text-foreground">
@@ -273,17 +279,30 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
 import { DcButton } from '@dc-ui/components/button'
 import { useI18n } from 'vue-i18n'
 import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
 import { MAX_PENDING_INPUTS } from '@shared/pendingInput'
+import type { UserMessageInlineItem } from '@shared/types/agent-interface'
+import { collectVisibleUserMessageText } from '@/features/chat-page/model/displayUserMessageText'
+import ReferenceEditor from './ReferenceEditor.vue'
+
+type ReferenceEditorApi = {
+  getValue: () => { text: string; inlineItems: UserMessageInlineItem[] }
+  focus: () => void
+}
 
 const props = withDefaults(
   defineProps<{
     queueItems: PendingSessionInputRecord[]
+    saveEdit?: (payload: {
+      itemId: string
+      text: string
+      inlineItems: UserMessageInlineItem[]
+    }) => Promise<boolean>
     activeLimit?: number
     disableSteerAction?: boolean
     disableQueueSteerAction?: boolean
@@ -304,7 +323,6 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  'update-queue': [payload: { itemId: string; text: string }]
   'move-queue': [payload: { itemId: string; toIndex: number }]
   'steer-queue': [itemId: string]
   'delete-queue': [itemId: string]
@@ -316,7 +334,9 @@ const { t } = useI18n()
 
 const localQueueItems = ref<PendingSessionInputRecord[]>([])
 const editingItemId = ref<string | null>(null)
-const editingText = ref('')
+const editingHasContent = ref(false)
+const isSavingEdit = ref(false)
+const referenceEditor = ref<ReferenceEditorApi | null>(null)
 
 const showLane = computed(() => props.queueItems.length > 0)
 const blockedCount = computed(
@@ -334,13 +354,10 @@ const editingQueueItem = computed(
   () => props.queueItems.find((item) => item.id === editingItemId.value) ?? null
 )
 const canSaveEdit = computed(() => {
-  if (!editingItemId.value) {
-    return false
-  }
-  return (
-    editingText.value.trim().length > 0 ||
-    (editingQueueItem.value?.payload.files?.length ?? 0) > 0 ||
-    editingQueueItem.value?.payload.inlineItems?.some((item) => item.type === 'session') === true
+  return Boolean(
+    editingItemId.value &&
+    !isSavingEdit.value &&
+    (editingHasContent.value || editingQueueItem.value?.payload.files?.length)
   )
 })
 
@@ -350,22 +367,24 @@ watch(
     localQueueItems.value = [...nextQueueItems]
     if (editingItemId.value && !nextQueueItems.some((item) => item.id === editingItemId.value)) {
       editingItemId.value = null
-      editingText.value = ''
+      editingHasContent.value = false
     }
   },
   { deep: true, immediate: true }
 )
 
 function formatPayloadText(item: PendingSessionInputRecord): string {
-  const text = item.payload.text?.trim()
+  const text = collectVisibleUserMessageText({
+    text: item.payload.text || '',
+    inlineItems: item.payload.inlineItems,
+    files: [],
+    links: [],
+    think: false,
+    search: false
+  }).trim()
   if (text) {
     return text
   }
-  const references = item.payload.inlineItems
-    ?.filter((entry) => entry.type === 'session')
-    .map((entry) => entry.title || entry.sessionId)
-    .join(' · ')
-  if (references) return references
   const fileCount = item.payload.files?.length ?? 0
   if (fileCount > 0) {
     return t('chat.pendingInput.attachmentsOnly', { count: fileCount })
@@ -384,11 +403,14 @@ function formatPayloadTitle(item: PendingSessionInputRecord): string {
 }
 
 function beginEdit(item: PendingSessionInputRecord): void {
-  if (item.state === 'blocked') {
+  if (item.state === 'blocked' || editingItemId.value || isSavingEdit.value) {
     return
   }
   editingItemId.value = item.id
-  editingText.value = item.payload.text ?? ''
+  editingHasContent.value = Boolean(
+    item.payload.text?.trim() || item.payload.inlineItems?.some((entry) => entry.type === 'session')
+  )
+  void nextTick(() => referenceEditor.value?.focus())
 }
 
 function formatBlockingText(item: PendingSessionInputRecord): string {
@@ -405,19 +427,35 @@ function formatBlockingText(item: PendingSessionInputRecord): string {
 }
 
 function cancelEdit(): void {
+  if (isSavingEdit.value) return
   editingItemId.value = null
-  editingText.value = ''
+  editingHasContent.value = false
 }
 
-function saveEdit(): void {
+async function submitEdit(): Promise<void> {
   const itemId = editingItemId.value
-  if (!itemId || !canSaveEdit.value) {
+  if (!itemId || !canSaveEdit.value || !props.saveEdit) {
     return
   }
 
-  const text = editingText.value.trim()
-  emit('update-queue', { itemId, text })
-  cancelEdit()
+  const value = referenceEditor.value?.getValue()
+  if (!value) return
+  if (
+    !value.text.trim() &&
+    (editingQueueItem.value?.payload.files?.length ?? 0) === 0 &&
+    !value.inlineItems.some((item) => item.type === 'session')
+  )
+    return
+  isSavingEdit.value = true
+  try {
+    const saved = await props.saveEdit({ itemId, ...value })
+    if (saved && editingItemId.value === itemId) {
+      editingItemId.value = null
+      editingHasContent.value = false
+    }
+  } finally {
+    isSavingEdit.value = false
+  }
 }
 
 function onDragEnd(event: { oldIndex?: number; newIndex?: number }): void {

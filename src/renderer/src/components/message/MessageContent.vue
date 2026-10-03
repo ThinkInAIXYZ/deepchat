@@ -1,5 +1,8 @@
 <template>
-  <div class="text-sm whitespace-pre-wrap break-all" :dir="langStore.dir">
+  <div
+    class="text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]"
+    :dir="langStore.dir"
+  >
     <template v-for="(block, index) in contentBlocks" :key="index">
       <!-- 文本块 -->
       <span v-if="block.type === 'text'">{{ block.content }}</span>
@@ -41,17 +44,22 @@
         data-testid="user-message-inline-file"
         @click="emit('fileClick', block.filePath)"
       />
-      <button
+      <ReferenceChip
         v-else-if="block.type === 'session'"
-        type="button"
         data-testid="user-message-inline-session"
-        class="inline-flex max-w-64 items-center gap-1 rounded-md border border-muted-foreground/25 bg-muted/25 px-1.5 py-0.5 text-xs text-muted-foreground align-middle hover:text-foreground"
-        :title="[block.projectDir, block.sessionId].filter(Boolean).join('\n')"
-        @click="emit('sessionClick', block.sessionId, block.tapeIncarnationId)"
-      >
-        <Icon icon="lucide:messages-square" class="h-3 w-3 shrink-0" />
-        <span class="truncate">{{ block.title }}</span>
-      </button>
+        kind="session"
+        :label="block.title"
+        :source="[block.projectDir, block.sessionId].filter(Boolean).join('\n')"
+        @open="emit('sessionClick', block.sessionId, block.tapeIncarnationId)"
+      />
+      <ReferenceChip
+        v-else-if="block.type === 'file-reference'"
+        data-testid="user-message-file-reference"
+        kind="file"
+        :label="referenceLabels.get(block.relativePath) ?? block.relativePath"
+        :source="block.filePath"
+        @open="emit('fileClick', block.filePath)"
+      />
     </template>
   </div>
 </template>
@@ -62,6 +70,7 @@ import { Icon } from '@iconify/vue'
 import type {
   DisplayUserMessageCodeBlock,
   DisplayUserMessageFileBlock,
+  DisplayUserMessageFileReferenceBlock,
   DisplayUserMessageMentionBlock,
   DisplayUserMessageSkillBlock,
   DisplayUserMessageSessionBlock,
@@ -70,6 +79,8 @@ import type {
 import { getVisibleMentionLabel } from '@/features/chat-page/model/displayUserMessageText'
 import { useLanguageStore } from '@/stores/language'
 import ChatAttachmentItem from '@/components/chat/ChatAttachmentItem.vue'
+import ReferenceChip from '@/components/chat/ReferenceChip.vue'
+import { getReferencePathLabels } from '@shared/messageInlineItems'
 
 const MENTION_ICON_MAP: Record<string, string> = {
   context: 'lucide:quote',
@@ -91,6 +102,7 @@ type ContentBlock =
   | DisplayUserMessageCodeBlock
   | DisplayUserMessageSkillBlock
   | DisplayUserMessageFileBlock
+  | DisplayUserMessageFileReferenceBlock
   | DisplayUserMessageSessionBlock
 
 const props = defineProps<{
@@ -103,6 +115,11 @@ const emit = defineEmits<{
   sessionClick: [sessionId: string, tapeIncarnationId: string]
 }>()
 const langStore = useLanguageStore()
+const referenceLabels = computed(() =>
+  getReferencePathLabels(
+    props.content.flatMap((block) => (block.type === 'file-reference' ? [block.relativePath] : []))
+  )
+)
 // 计算属性：处理内容块
 const contentBlocks = computed(() => {
   return props.content || []

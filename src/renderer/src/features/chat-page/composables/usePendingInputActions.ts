@@ -1,6 +1,7 @@
 import type { ComputedRef } from 'vue'
 import type { usePendingInputStore } from '@/stores/ui/pendingInput'
 import type { RendererNotificationNotifier } from '@renderer-notifications/rendererNotificationPort'
+import type { UserMessageInlineItem } from '@shared/types/agent-interface'
 
 type PendingInputStore = ReturnType<typeof usePendingInputStore>
 
@@ -21,24 +22,42 @@ type UsePendingInputActionsOptions = {
  * dispatch, so queue-item mutations retain a narrow dependency surface.
  */
 export function usePendingInputActions(options: UsePendingInputActionsOptions) {
-  async function onPendingInputUpdate(payload: { itemId: string; text: string }) {
-    if (options.isReadOnlySession.value) return
+  async function onPendingInputUpdate(payload: {
+    itemId: string
+    text: string
+    inlineItems: UserMessageInlineItem[]
+  }): Promise<boolean> {
+    if (options.isReadOnlySession.value) return false
 
     const target = options.pendingInputStore.queueItems.find((item) => item.id === payload.itemId)
     if (!target) {
-      return
+      return false
     }
 
-    await options.pendingInputStore.updateQueueInput(options.sessionId(), payload.itemId, {
-      text: payload.text,
-      files: target.payload.files ?? [],
-      search: target.payload.search === true,
-      activeSkills: target.payload.activeSkills ?? [],
-      inlineItems: (target.payload.inlineItems ?? []).map((item) =>
-        item.type === 'session' ? { ...item, offset: payload.text.length } : item
-      ),
-      attachmentFallbackPolicy: target.payload.attachmentFallbackPolicy
-    })
+    const sessionId = options.sessionId()
+    try {
+      await options.pendingInputStore.updateQueueInput(sessionId, payload.itemId, {
+        text: payload.text,
+        files: target.payload.files ?? [],
+        search: target.payload.search === true,
+        activeSkills: target.payload.activeSkills ?? [],
+        inlineItems: payload.inlineItems,
+        attachmentFallbackPolicy: target.payload.attachmentFallbackPolicy
+      })
+      return true
+    } catch (error) {
+      console.error('[ChatPage] update queued input failed:', error)
+      if (options.sessionId() === sessionId) {
+        options.notify({
+          kind: 'error',
+          code: 'chat.pendingInput.updateFailed',
+          title: options.t('common.save'),
+          description:
+            error instanceof Error ? error.message : options.t('common.error.requestFailed')
+        })
+      }
+      return false
+    }
   }
 
   async function onPendingInputMove(payload: { itemId: string; toIndex: number }) {

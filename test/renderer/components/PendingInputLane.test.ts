@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
+import { EditorContent } from '@tiptap/vue-3'
+import { createDeferred } from '../utils/deferred'
 import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
 
 vi.mock('vue-i18n', () => ({
@@ -143,9 +145,97 @@ function buildPendingInput(
 }
 
 describe('PendingInputLane', () => {
-  it('labels reference-only inputs and permits saving them without text', async () => {
+  it('retains a failed draft and blocks duplicate saves until the callback resolves', async () => {
+    // jsdom lacks the Range geometry used by Tiptap's deferred focus scrolling.
+    const createRange = document.createRange.bind(document)
+    vi.spyOn(document, 'createRange').mockImplementation(() =>
+      Object.assign(createRange(), {
+        getClientRects: () => [],
+        getBoundingClientRect: () => new DOMRect()
+      })
+    )
+    const pending = createDeferred<boolean>()
+    const saveEdit = vi.fn().mockReturnValueOnce(pending.promise).mockResolvedValue(true)
     const wrapper = mount(PendingInputLane, {
       props: {
+        queueItems: [
+          buildPendingInput('queue-1', 'queue', {
+            payload: {
+              text: 'Read ',
+              files: [],
+              inlineItems: [
+                {
+                  type: 'session',
+                  offset: 5,
+                  sessionId: 'source',
+                  title: 'Research',
+                  projectDir: null,
+                  tapeIncarnationId: 'tape'
+                }
+              ]
+            }
+          }),
+          buildPendingInput('queue-2', 'queue')
+        ],
+        saveEdit
+      },
+      attachTo: document.body
+    })
+    await wrapper.findAll('[data-testid="pending-row-main"]')[0].trigger('click')
+    const editor = wrapper.getComponent(EditorContent).props('editor')!
+    editor.commands.insertContentAt(1, 'Changed: ')
+    const otherRow = wrapper.get('[data-testid="pending-row-main"]')
+    ;(otherRow.element as HTMLButtonElement).click()
+    await flushPromises()
+    const textbox = wrapper.get('[role="textbox"]')
+    expect(textbox.text()).toContain('Changed: Read')
+    expect(otherRow.element.matches(':disabled')).toBe(true)
+    await textbox.trigger('keydown', { key: 'Enter', ctrlKey: true })
+    expect(saveEdit).toHaveBeenCalledTimes(1)
+    expect(textbox.attributes('contenteditable')).toBe('false')
+    await textbox.trigger('keydown', { key: 'Enter', ctrlKey: true })
+    await textbox.trigger('keydown', { key: 'Escape' })
+    expect(saveEdit).toHaveBeenCalledTimes(1)
+    pending.resolve(false)
+    await flushPromises()
+    expect(otherRow.element.matches(':disabled')).toBe(true)
+    ;(otherRow.element as HTMLButtonElement).click()
+    expect(textbox.attributes('contenteditable')).toBe('true')
+    expect(textbox.text()).toContain('Changed: Read')
+    expect(wrapper.findAll('[data-session-reference]')).toHaveLength(1)
+    await textbox.trigger('keydown', { key: 'Enter', ctrlKey: true })
+    await flushPromises()
+    expect(saveEdit.mock.calls[1]).toEqual(saveEdit.mock.calls[0])
+    expect(saveEdit).toHaveBeenLastCalledWith({
+      itemId: 'queue-1',
+      text: 'Changed: Read ',
+      inlineItems: [
+        {
+          type: 'session',
+          offset: 14,
+          sessionId: 'source',
+          title: 'Research',
+          projectDir: null,
+          tapeIncarnationId: 'tape'
+        }
+      ]
+    })
+    expect(wrapper.find('[role="textbox"]').exists()).toBe(false)
+    expect(otherRow.element.matches(':disabled')).toBe(false)
+    await otherRow.trigger('click')
+    expect(wrapper.get('[role="textbox"]').text()).toBe('queue-queue-2')
+    await wrapper.get('[role="textbox"]').trigger('keydown', { key: 'Escape' })
+    await wrapper.findAll('[data-testid="pending-row-main"]')[0].trigger('click')
+    expect(wrapper.get('[role="textbox"]').text()).toContain('Read')
+    expect(saveEdit).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('labels reference-only inputs and permits saving them without text', async () => {
+    const saveEdit = vi.fn().mockResolvedValue(true)
+    const wrapper = mount(PendingInputLane, {
+      props: {
+        saveEdit,
         queueItems: [
           buildPendingInput('queue-1', 'queue', {
             payload: {
@@ -172,7 +262,24 @@ describe('PendingInputLane', () => {
     const save = wrapper.findAll('button').find((button) => button.text() === 'Save')!
     expect((save.element as HTMLButtonElement).disabled).toBe(false)
     await save.trigger('click')
-    expect(wrapper.emitted('update-queue')).toEqual([[{ itemId: 'queue-1', text: '' }]])
+    expect(saveEdit.mock.calls).toEqual([
+      [
+        {
+          itemId: 'queue-1',
+          text: '',
+          inlineItems: [
+            {
+              type: 'session',
+              offset: 0,
+              sessionId: 'source',
+              title: 'Launch research',
+              projectDir: null,
+              tapeIncarnationId: 'incarnation'
+            }
+          ]
+        }
+      ]
+    ])
     await wrapper.setProps({
       queueItems: [buildPendingInput('queue-1', 'queue', { payload: { text: '', files: [] } })]
     })
@@ -180,7 +287,7 @@ describe('PendingInputLane', () => {
     const emptySave = wrapper.findAll('button').find((button) => button.text() === 'Save')!
     expect((emptySave.element as HTMLButtonElement).disabled).toBe(true)
     await wrapper.get('[data-testid="pending-edit-textarea"]').trigger('keydown', { key: 'Enter' })
-    expect(wrapper.emitted('update-queue')).toHaveLength(1)
+    expect(saveEdit).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
 

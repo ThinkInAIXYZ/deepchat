@@ -1,10 +1,12 @@
 <template>
-  <div class="min-w-64 max-w-96 rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+  <div
+    class="w-80 max-w-[calc(100vw-2rem)] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+  >
     <div
       :id="listId"
       role="listbox"
       :aria-label="label"
-      class="dc-overscroll-contain max-h-72 overflow-y-auto"
+      class="dc-overscroll-contain max-h-[min(18rem,45vh)] overflow-y-auto"
     >
       <template v-for="(item, index) in filteredItems" :key="item.id">
         <div
@@ -40,7 +42,10 @@
             </span>
             <div class="flex-1 min-w-0">
               <div class="truncate font-medium">{{ item.label }}</div>
-              <div v-if="item.description" class="truncate text-xs text-muted-foreground">
+              <div
+                v-if="item.description"
+                class="text-xs text-muted-foreground [overflow-wrap:anywhere]"
+              >
                 {{ item.description }}
               </div>
             </div>
@@ -51,9 +56,11 @@
     <div
       :id="`${listId}-status`"
       role="status"
-      :class="filteredItems.length ? 'sr-only' : 'px-3 py-2 text-sm text-muted-foreground'"
+      :class="
+        filteredItems.length && !statusLabel ? 'sr-only' : 'px-3 py-2 text-xs text-muted-foreground'
+      "
     >
-      {{ filteredItems.length ? '' : emptyLabel }}
+      {{ statusLabel || (filteredItems.length ? '' : emptyLabel) }}
     </div>
   </div>
 </template>
@@ -77,6 +84,7 @@ const props = defineProps<{
   listId: string
   label: string
   emptyLabel: string
+  statusLabel?: string
   items: SuggestionListItem[]
   query: string
   command: (item: SuggestionListItem) => void
@@ -146,6 +154,15 @@ const selectIndex = (index: number) => {
 }
 
 const onKeyDown = ({ event }: { event: KeyboardEvent }): boolean => {
+  if (
+    event.isComposing ||
+    event.keyCode === 229 ||
+    event.shiftKey ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.altKey
+  )
+    return false
   if (event.key === 'ArrowUp') {
     event.preventDefault()
     if (!filteredItems.value.length) return true
@@ -161,7 +178,7 @@ const onKeyDown = ({ event }: { event: KeyboardEvent }): boolean => {
     return true
   }
 
-  if (event.key === 'Enter') {
+  if ((event.key === 'Enter' || event.key === 'Tab') && filteredItems.value.length) {
     event.preventDefault()
     selectIndex(selectedIndex.value)
     return true

@@ -16,6 +16,7 @@
         :show-trace="traceMessageIdSet.has(item.id)"
         :is-capturing="isCapturingValue"
         :is-read-only="isReadOnly"
+        :save-edit="saveEdit"
         :allow-guard-stop-continue="item.id === latestAssistantMessageId"
         :disable-markdown-virtualization="shouldDisableMarkdownVirtualization"
         :class="entranceClassFor(item)"
@@ -27,7 +28,6 @@
         @continue="onContinue"
         @trace="onTrace"
         @tape-inspector="onTapeInspector"
-        @edit-save="onEditSave"
         @copy-image="handleCopyImage"
         @measure="onMeasure"
       />
@@ -56,7 +56,8 @@ import { useMessageCapture } from '@/composables/message/useMessageCapture'
 import {
   type DisplayAssistantMessageBlock,
   type DisplayMessage,
-  type MessageListItem
+  type MessageListItem,
+  type UserMessageEdit
 } from '@/features/chat-page/model/displayMessage'
 import MessageListRow from './MessageListRow.vue'
 
@@ -70,6 +71,7 @@ const props = withDefaults(
     streamingMessageId?: string | null
     traceMessageIds?: string[]
     isReadOnly?: boolean
+    saveEdit?: (payload: UserMessageEdit) => Promise<boolean>
     resolveCaptureParentId?: (messageId: string, parentId?: string) => string | undefined
     beforeSpacerHeight?: number
     afterSpacerHeight?: number
@@ -98,7 +100,6 @@ const emit = defineEmits<{
   continue: [conversationId: string, messageId: string]
   trace: [messageId: string]
   tapeInspector: [messageId: string]
-  editSave: [payload: { messageId: string; text: string }]
   measure: [payload: { messageId: string; height: number }]
 }>()
 
@@ -179,7 +180,6 @@ const onContinue = (conversationId: string, messageId: string) =>
   emit('continue', conversationId, messageId)
 const onTrace = (messageId: string) => emit('trace', messageId)
 const onTapeInspector = (messageId: string) => emit('tapeInspector', messageId)
-const onEditSave = (payload: { messageId: string; text: string }) => emit('editSave', payload)
 const onMeasure = (payload: { messageId: string; height: number }) => emit('measure', payload)
 
 const resolveVisibleCaptureParentId = (
