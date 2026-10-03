@@ -58,19 +58,15 @@ const extractMessageContent = (rawContent: string): string => {
         .map((value) => value.trim())
       if (segments.length > 0) return segments.join('\n')
     } else if (parsed && typeof parsed === 'object') {
-      const references = getSessionReferenceText(parsed.inlineItems)
-      if (references) {
-        return [typeof parsed.text === 'string' ? parsed.text.trim() : '', references]
-          .filter(Boolean)
-          .join('\n')
-      }
-      if (typeof parsed.text === 'string' && parsed.text.trim()) return parsed.text.trim()
-      if (Array.isArray(parsed.content)) {
-        const segments = parsed.content
+      let text = typeof parsed.text === 'string' ? parsed.text.trim() : ''
+      if (!text && Array.isArray(parsed.content)) {
+        text = parsed.content
           .filter((item) => typeof item?.text === 'string' && item.text.trim().length > 0)
           .map((item) => item.text!.trim())
-        if (segments.length > 0) return segments.join('\n')
+          .join('\n')
       }
+      const content = [text, getSessionReferenceText(parsed.inlineItems)].filter(Boolean).join('\n')
+      if (content) return content
     }
   } catch {}
   return rawContent
