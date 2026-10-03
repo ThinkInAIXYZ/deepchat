@@ -29,6 +29,8 @@ their source titles and remain saveable without adding placeholder text.
 Merging steer inputs preserves their original text so inline offsets remain valid. If a draft is
 edited while submission is pending, acceptance preserves its inline session references along with
 its text; source identity alone cannot distinguish a submitted node from a newly pasted copy.
+Initial attachment recovery reconstructs reference nodes at their original text offsets, including
+when the editor mounts later. Keeping the recovered draft must not hide or discard its references.
 
 ## Reading and authorization
 

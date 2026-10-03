@@ -1243,7 +1243,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
         rawMessage: input.text,
         files: copyComposerFiles(payload.files ?? []),
         activeSkills: [...(payload.activeSkills ?? [])],
-        document: createComposerTextDocument(input.text)
+        document: createComposerTextDocument(input.text, payload.inlineItems)
       })
     }
 
@@ -1254,7 +1254,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
           rawMessage: input.text,
           files: copyComposerFiles(payload.files ?? []),
           activeSkills: [...(payload.activeSkills ?? [])],
-          document: createComposerTextDocument(input.text),
+          document: createComposerTextDocument(input.text, payload.inlineItems),
           inlineItems: copyInlineItems(payload.inlineItems ?? []),
           clearText: true
         }

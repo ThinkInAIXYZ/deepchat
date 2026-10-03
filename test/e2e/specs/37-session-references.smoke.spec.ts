@@ -335,6 +335,39 @@ test('session references survive drafts and retrieve evidence without injecting 
       'data-generating',
       'false'
     )
+
+    // Exercise native attachment rejection and the renderer's initial-draft handoff together.
+    const recovery = await app.page.evaluate(
+      async ({ providerId, sourceId, missingFile }) => {
+        const { reference } = (await window.deepchat.invoke('sessions.resolveReference', {
+          sessionId: sourceId
+        })) as { reference: SessionReference }
+        const pinia = Reflect.get(document.getElementById('app')!, '__vue_app__').config
+          .globalProperties.$pinia
+        const result = await pinia._s.get('session').createSession({
+          agentId: 'deepchat',
+          providerId,
+          modelId: 'fixture-model',
+          message: '',
+          files: [{ name: 'missing.png', path: missingFile, mimeType: 'image/png' }],
+          inlineItems: [{ type: 'session', offset: 0, ...reference }]
+        })
+        return result.initialTurn?.attachmentPreparation?.status
+      },
+      { providerId, sourceId, missingFile: resolve(app.userDataDir, 'missing.png') }
+    )
+    expect(recovery).toBe('needs_user_action')
+    await expect(app.page.getByTestId('attachment-preparation-dialog')).toBeVisible()
+    await app.page.getByRole('button', { name: /Keep draft|保留草稿/ }).click()
+    await expect(chip).toHaveText('Launch research')
+    await app.page.getByRole('button', { name: /(?:Delete|删除) missing.png/ }).click()
+    await expect(editor.locator('[data-file-attachment]')).toHaveCount(0)
+    await app.page.screenshot({ path: resolve(artifacts, 'session-reference-recovery.png') })
+    await app.page.getByTestId('chat-send-button').click()
+    await expect(app.page.getByTestId('chat-message-assistant')).toContainText(
+      'Reference evidence retrieved.'
+    )
+    await expect(sentChip).toHaveText('Launch research')
     expect(app.pageErrors).toEqual([])
   } finally {
     releaseStream?.()

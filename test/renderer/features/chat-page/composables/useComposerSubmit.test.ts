@@ -704,6 +704,66 @@ describe('useComposerSubmit attachment preflight', () => {
     harness.stop()
   })
 
+  it.each([true, false])(
+    'restores initial reference positions with composer mounted=%s',
+    async (composerMounted) => {
+      const harness = createHarness({ composerMounted })
+      harness.pendingSkills.value = []
+      const source = {
+        sessionId: 'source',
+        title: 'Source',
+        projectDir: null,
+        tapeIncarnationId: 'inc-source'
+      }
+      const other = { ...source, sessionId: 'other', title: 'Other' }
+      harness.actions.restoreInitialBlockedDraft(
+        {
+          text: 'A🙂\r\n\nB',
+          files: [imageFile()],
+          inlineItems: [
+            { type: 'session', offset: 7, ...other },
+            { type: 'session', offset: 3, ...source },
+            { type: 'session', offset: 5, ...source },
+            { type: 'session', offset: 5, ...other }
+          ]
+        },
+        blockedSummary()
+      )
+      if (!composerMounted) harness.chatInputRef.value = harness.inputHandle
+
+      await vi.waitFor(() =>
+        expect(harness.document.value).toEqual({
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'text', text: 'A🙂' },
+                { type: 'sessionReference', attrs: source }
+              ]
+            },
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'sessionReference', attrs: source },
+                { type: 'sessionReference', attrs: other }
+              ]
+            },
+            {
+              type: 'paragraph',
+              content: [
+                { type: 'text', text: 'B' },
+                { type: 'sessionReference', attrs: other }
+              ]
+            }
+          ]
+        })
+      )
+      expect(harness.actions.attachedFiles.value).toEqual([imageFile()])
+      harness.stop()
+    }
+  )
+
   it('keeps a blocked attempt scoped to its session across navigation', async () => {
     const harness = createHarness()
     const summary = blockedSummary()
