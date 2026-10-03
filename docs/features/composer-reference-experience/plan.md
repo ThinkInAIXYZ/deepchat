@@ -20,6 +20,13 @@
 Implementation precedes new tests. Existing tests may run during each slice. The final review covers
 all commits from the branch base, not only the last working diff.
 
+## Save-recovery follow-up
+
+- [x] Enforce read-only embedded controls at editor boundaries without per-node state.
+- [x] Replace fire-and-forget edit saves with awaited renderer callbacks; retain failed drafts.
+- [x] Verify rejected/successful saves, duplicate submissions, keyboard locks, and full regression
+      checks; review and commit locally without pushing.
+
 ## Review and simplification
 
 Reviewed the branch for P0–P3 findings across grant validation, serialization, legacy compatibility,
@@ -27,8 +34,9 @@ component ownership, keyboard handling, and asynchronous lifecycle behavior. Con
 fixed: nested same-name paths lost their distinguishing prefix; stale or mismatched file metadata
 could render a different source; save shortcuts inserted a newline before saving; and direct scroll
 writes bypassed the existing scroll controller. No confirmed introduced finding remains unresolved.
-Pre-existing asynchronous edit-failure handling and same-ID queue refresh behavior are outside this
-change; the review does not claim application-wide absence of bugs.
+The follow-up also fixes asynchronous edit-failure handling, read-only embedded controls, and stale
+retry UI writes after a session switch. Same-ID queue refresh behavior remains outside this change;
+the review does not claim application-wide absence of bugs.
 
 Removed attachment-reference tracking state and implicit material deletion, redundant inline-item
 types, a redundant mutation scope, and local scroll correction. The shelf owns material deletion;
@@ -40,14 +48,20 @@ metadata, removing the path-identity guard accepts a mismatched source, and remo
 collision check gives `src/foo.ts` and `test/src/foo.ts` the same label. Those guards were retained;
 the temporary probe was removed.
 
+Save recovery removes two event-forwarding wrappers in favor of one awaited callback through the
+existing component tree. Native disabled fieldsets lock embedded buttons without per-node reactive
+state. Regression checks fail on the pre-fix implementation and pass with the guards retained.
+
 ## Validation
 
 - Format, i18n validation/check (23 locales), lint, node/web typecheck, and build passed.
-- Full renderer suite: 288 files, 2670 tests passed, including architecture ownership checks.
-- Session, context-builder, and exporter main suites: 47 files, 948 tests passed.
+- Full renderer suite: 289 files, 2683 tests passed, including architecture ownership checks.
+- Session, context-builder, and exporter main suites: 47 files, 950 tests passed.
 - Isolated Electron Playwright specs 37 and 39 passed. These exercised draft restoration, reference
   retrieval, two same-name file selections, details/open, queue editing/removal, attachment shelves,
-  unavailable sources, long-message disclosure, and composer paste.
+  unavailable sources, long-message disclosure, and composer paste. Save recovery also exercises a
+  real IPC grant rejection, retained local text/reference, and successful save after removing the
+  revoked reference, plus sent attachment edits without material deletion.
 - Inspected normal/narrow and light/dark captures, picker, editable/sent attachments, queue,
   recovery, and unavailable-source states. Captures use disposable fixture data under `.amp/in/`.
 - Native runtime validation was on macOS; Windows/Linux were not separately exercised. External

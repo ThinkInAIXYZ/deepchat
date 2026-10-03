@@ -99,8 +99,9 @@
                       :text="element.payload.text ?? ''"
                       :inline-items="element.payload.inlineItems"
                       :ariaLabel="t('thread.toolbar.edit')"
+                      :editable="!isSavingEdit"
                       @content-change="editingHasContent = $event"
-                      @save="saveEdit"
+                      @save="submitEdit"
                       @cancel="cancelEdit"
                     />
                     <div class="mt-2 flex items-center justify-between gap-2">
@@ -118,6 +119,7 @@
                           variant="ghost"
                           size="sm"
                           class="h-7 rounded-full px-2 text-xs"
+                          :disabled="isSavingEdit"
                           @click.stop="cancelEdit"
                         >
                           {{ t('common.cancel') }}
@@ -126,7 +128,7 @@
                           size="sm"
                           class="h-7 rounded-full px-2 text-xs"
                           :disabled="!canSaveEdit"
-                          @click.stop="saveEdit"
+                          @click.stop="submitEdit"
                         >
                           {{ t('common.save') }}
                         </DcButton>
@@ -294,6 +296,11 @@ type ReferenceEditorApi = {
 const props = withDefaults(
   defineProps<{
     queueItems: PendingSessionInputRecord[]
+    saveEdit?: (payload: {
+      itemId: string
+      text: string
+      inlineItems: UserMessageInlineItem[]
+    }) => Promise<boolean>
     activeLimit?: number
     disableSteerAction?: boolean
     disableQueueSteerAction?: boolean
@@ -314,7 +321,6 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  'update-queue': [payload: { itemId: string; text: string; inlineItems: UserMessageInlineItem[] }]
   'move-queue': [payload: { itemId: string; toIndex: number }]
   'steer-queue': [itemId: string]
   'delete-queue': [itemId: string]
@@ -327,6 +333,7 @@ const { t } = useI18n()
 const localQueueItems = ref<PendingSessionInputRecord[]>([])
 const editingItemId = ref<string | null>(null)
 const editingHasContent = ref(false)
+const isSavingEdit = ref(false)
 const referenceEditor = ref<ReferenceEditorApi | null>(null)
 
 const showLane = computed(() => props.queueItems.length > 0)
@@ -347,6 +354,7 @@ const editingQueueItem = computed(
 const canSaveEdit = computed(() => {
   return Boolean(
     editingItemId.value &&
+    !isSavingEdit.value &&
     (editingHasContent.value || editingQueueItem.value?.payload.files?.length)
   )
 })
@@ -393,7 +401,7 @@ function formatPayloadTitle(item: PendingSessionInputRecord): string {
 }
 
 function beginEdit(item: PendingSessionInputRecord): void {
-  if (item.state === 'blocked') {
+  if (item.state === 'blocked' || isSavingEdit.value) {
     return
   }
   editingItemId.value = item.id
@@ -417,13 +425,14 @@ function formatBlockingText(item: PendingSessionInputRecord): string {
 }
 
 function cancelEdit(): void {
+  if (isSavingEdit.value) return
   editingItemId.value = null
   editingHasContent.value = false
 }
 
-function saveEdit(): void {
+async function submitEdit(): Promise<void> {
   const itemId = editingItemId.value
-  if (!itemId || !canSaveEdit.value) {
+  if (!itemId || !canSaveEdit.value || !props.saveEdit) {
     return
   }
 
@@ -435,8 +444,16 @@ function saveEdit(): void {
     !value.inlineItems.some((item) => item.type === 'session')
   )
     return
-  emit('update-queue', { itemId, ...value })
-  cancelEdit()
+  isSavingEdit.value = true
+  try {
+    const saved = await props.saveEdit({ itemId, ...value })
+    if (saved && editingItemId.value === itemId) {
+      editingItemId.value = null
+      editingHasContent.value = false
+    }
+  } finally {
+    isSavingEdit.value = false
+  }
 }
 
 function onDragEnd(event: { oldIndex?: number; newIndex?: number }): void {

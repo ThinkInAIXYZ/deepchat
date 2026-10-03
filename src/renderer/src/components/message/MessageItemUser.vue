@@ -53,7 +53,8 @@
             :text="editText"
             :inline-items="message.content.content?.length ? [] : message.content.inlineItems"
             :ariaLabel="t('thread.toolbar.edit')"
-            @save="saveEdit"
+            :editable="!isSavingEdit && !effectiveReadOnly"
+            @save="submitEdit"
             @cancel="cancelEdit"
           />
         </div>
@@ -99,7 +100,7 @@
       <MessageToolbar
         class="flex-row-reverse"
         :usage="message.usage"
-        :loading="false"
+        :loading="isSavingEdit"
         :is-assistant="false"
         :is-edit-mode="isEditMode"
         :is-capturing-image="false"
@@ -109,7 +110,7 @@
         @delete="handleAction('delete')"
         @copy="handleAction('copy')"
         @edit="startEdit"
-        @save="saveEdit"
+        @save="submitEdit"
         @cancel="cancelEdit"
       />
     </div>
@@ -120,7 +121,8 @@
 import type {
   DisplayUserMessage,
   DisplayUserMessageInlineBlock,
-  DisplayUserMessageMentionBlock
+  DisplayUserMessageMentionBlock,
+  UserMessageEdit
 } from '@/features/chat-page/model/displayMessage'
 import {
   collectVisibleUserMessageText,
@@ -158,9 +160,11 @@ const { t } = useI18n()
 const props = defineProps<{
   message: DisplayUserMessage
   isReadOnly?: boolean
+  saveEdit?: (payload: UserMessageEdit) => Promise<boolean>
 }>()
 
 const isEditMode = ref(false)
+const isSavingEdit = ref(false)
 const referenceEditor = ref<ReferenceEditorApi | null>(null)
 const contentMeasureRef = ref<HTMLElement | null>(null)
 const renderedContentHeight = ref(0)
@@ -245,7 +249,6 @@ const emit = defineEmits<{
   fileClick: [fileName: string]
   retry: [messageId: string]
   delete: [messageId: string]
-  editSave: [payload: { messageId: string; text: string; inlineItems?: UserMessageInlineItem[] }]
 }>()
 
 const previewFile = (filePath: string) => {
@@ -284,8 +287,8 @@ const startEdit = () => {
   void nextTick(() => referenceEditor.value?.focus())
 }
 
-const saveEdit = async () => {
-  if (effectiveReadOnly.value) {
+const submitEdit = async () => {
+  if (effectiveReadOnly.value || isSavingEdit.value || !props.saveEdit) {
     return
   }
 
@@ -299,16 +302,18 @@ const saveEdit = async () => {
     return
 
   try {
-    emit('editSave', {
+    isSavingEdit.value = true
+    const saved = await props.saveEdit({
       messageId: props.message.id,
       text: value.text,
       ...(props.message.content.content?.length ? {} : { inlineItems: value.inlineItems })
     })
 
-    // Exit edit mode
-    isEditMode.value = false
+    if (saved) isEditMode.value = false
   } catch (error) {
     console.error('Failed to save edit:', error)
+  } finally {
+    isSavingEdit.value = false
   }
 }
 
@@ -347,6 +352,7 @@ const getCopyText = () => {
 const copyText = computed(() => getCopyText())
 
 const cancelEdit = () => {
+  if (isSavingEdit.value) return
   isEditMode.value = false
 }
 

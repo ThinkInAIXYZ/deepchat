@@ -7,6 +7,7 @@ import type {
   UserMessageInlineItem
 } from '@shared/types/agent-interface'
 import type { RendererNotificationNotifier } from '@renderer-notifications/rendererNotificationPort'
+import type { UserMessageEdit } from '../model/displayMessage'
 
 type MessageStore = ReturnType<typeof useMessageStore>
 type SessionStore = ReturnType<typeof useSessionStore>
@@ -87,7 +88,8 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     const requestId = options.currentRestoreRequestId()
     try {
       activeRetrySessionIds.add(sessionId)
-      options.messageStore.clearStreamingState()
+      const canUpdateView = options.canWriteSessionView(sessionId, requestId)
+      if (canUpdateView) options.messageStore.clearStreamingState()
       // The main process truncates from the retried message onward (the user
       // prompt survives) and re-streams with fresh ids. Mirror that in the UI
       // BEFORE the IPC: the main starts streaming before the retry IPC resolves,
@@ -95,7 +97,7 @@ export function useMessageActions(options: UseMessageActionsOptions) {
       // the new stream. When the retried message IS the user prompt, keep it in
       // place and truncate from the next order sequence instead. The blocked/
       // failure paths below restore via a reload.
-      const target = options.messageStore.messageCache.get(messageId)
+      const target = canUpdateView ? options.messageStore.messageCache.get(messageId) : undefined
       // Optimistic truncation shortens messageIds; remember the pre-truncation
       // window so a blocked retry can restore the full loaded view.
       const priorMessageCount = options.messageStore.messageIds.length
@@ -233,17 +235,14 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     }
   }
 
-  async function onMessageEditSave(payload: {
-    messageId: string
-    text: string
-    inlineItems?: UserMessageInlineItem[]
-  }) {
-    if (options.isReadOnlySession.value) return
+  async function onMessageEditSave(payload: UserMessageEdit): Promise<boolean> {
+    if (options.isReadOnlySession.value) return false
     const messageId = payload?.messageId
     const text = payload.inlineItems ? payload.text : payload.text?.trim()
-    if (!messageId || (!payload.inlineItems && !text?.trim())) return
+    if (!messageId || (!payload.inlineItems && !text?.trim())) return false
 
     const sessionId = options.sessionId()
+    const requestId = options.currentRestoreRequestId()
     try {
       if (payload.inlineItems) {
         await options.sessionClient.editUserMessage(sessionId, messageId, text, payload.inlineItems)
@@ -251,8 +250,19 @@ export function useMessageActions(options: UseMessageActionsOptions) {
         await options.sessionClient.editUserMessage(sessionId, messageId, text)
       }
       await onMessageRetry(messageId, sessionId)
+      return true
     } catch (error) {
       console.error('[ChatPage] edit message failed:', error)
+      if (options.canWriteSessionView(sessionId, requestId)) {
+        options.notify({
+          kind: 'error',
+          code: 'chat.message.editFailed',
+          title: options.t('thread.toolbar.save'),
+          description:
+            error instanceof Error ? error.message : options.t('common.error.requestFailed')
+        })
+      }
+      return false
     }
   }
 

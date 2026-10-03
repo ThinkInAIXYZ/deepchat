@@ -388,7 +388,22 @@ test('session references survive drafts and retrieve evidence without injecting 
       'composer-attachment.png'
     )
     await app.page.screenshot({ path: resolve(artifacts, 'composer-review-edit-material.png') })
-    await attachmentEditor.press('Escape')
+    await attachmentEditor.press('ControlOrMeta+Enter')
+    await expect(attachmentEditor).toHaveCount(0)
+    await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute(
+      'data-generating',
+      'false'
+    )
+    const editedAttachment = await app.page.evaluate(
+      async ({ sessionId, messageId }) => {
+        const { messages } = await window.deepchat.invoke('sessions.restore', { sessionId })
+        return JSON.parse(messages.find((item) => item.id === messageId)!.content)
+      },
+      { sessionId: workspaceSessionId, messageId: attachmentMessageId }
+    )
+    expect(editedAttachment.inlineItems ?? []).toEqual([])
+    expect(editedAttachment.files).toHaveLength(1)
+    expect(editedAttachment.text).toBe('Attachment shelf editable before send.')
 
     const longMessage = Array.from(
       { length: 18 },
@@ -626,6 +641,42 @@ test('session references survive drafts and retrieve evidence without injecting 
         path: resolve(artifacts, 'composer-experience-unavailable.png'),
         animations: 'disabled'
       })
+
+    // Revoke the stored grant while an editor still holds it. A rejected IPC save must retain
+    // the local draft, rather than silently close it and discard the user's changes.
+    const recoveryMessage = app.page.getByTestId('chat-message-user').last()
+    await recoveryMessage.hover()
+    await recoveryMessage.getByRole('button', { name: /Edit|编辑/ }).click()
+    const recoveryEditor = recoveryMessage.getByRole('textbox')
+    await recoveryEditor.press('End')
+    await recoveryEditor.pressSequentially(' Keep my draft.')
+    const recoverySessionId = await getActiveSessionId(app.page)
+    const recoveryMessageId = (await recoveryMessage.getAttribute('data-message-id'))!
+    await app.page.evaluate(
+      ({ sessionId, messageId }) =>
+        window.deepchat.invoke('sessions.editUserMessage', {
+          sessionId,
+          messageId,
+          text: 'Changed elsewhere.',
+          inlineItems: []
+        }),
+      { sessionId: recoverySessionId, messageId: recoveryMessageId }
+    )
+    await recoveryEditor.press('ControlOrMeta+Enter')
+    await expect(
+      app.page.getByText(
+        /Edited message contains a session reference that was not originally granted/
+      )
+    ).toBeVisible()
+    await expect(recoveryEditor).toHaveAttribute('contenteditable', 'true')
+    await expect(recoveryEditor).toContainText('Keep my draft.')
+    await expect(recoveryEditor.locator('[data-session-reference]')).toHaveCount(1)
+    await recoveryEditor
+      .getByRole('button', { name: /Delete Launch research|删除 Launch research/ })
+      .click()
+    await recoveryEditor.press('ControlOrMeta+Enter')
+    await expect(recoveryEditor).toHaveCount(0)
+    await expect(recoveryMessage).toContainText('Keep my draft.')
     expect(app.pageErrors).toEqual([])
   } finally {
     releaseStream?.()

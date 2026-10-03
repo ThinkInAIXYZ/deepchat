@@ -6,6 +6,12 @@ import type {
 import type { LegacyAgentPlanMetadata } from '@shared/types/legacy-agent-plan'
 import type { PersistedMcpToolResult, ToolCallImagePreview } from '@shared/types/core/mcp'
 
+export type UserMessageEdit = {
+  messageId: string
+  text: string
+  inlineItems?: UserMessageInlineItem[]
+}
+
 export type DisplayMessageUsage = {
   context_usage: number
   tokens_per_second: number

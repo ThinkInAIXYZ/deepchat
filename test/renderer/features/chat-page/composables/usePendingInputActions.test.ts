@@ -79,6 +79,30 @@ describe('usePendingInputActions', () => {
     vi.clearAllMocks()
   })
 
+  it('reports a rejected update and returns failure without losing the draft', async () => {
+    const harness = createHarness()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    harness.pendingInputStore.updateQueueInput.mockRejectedValueOnce(
+      new Error('Reference unavailable')
+    )
+    expect(
+      await harness.actions.onPendingInputUpdate({
+        itemId: 'item-1',
+        text: 'updated',
+        inlineItems: []
+      })
+    ).toBe(false)
+    expect(harness.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'chat.pendingInput.updateFailed',
+        description: 'Reference unavailable'
+      })
+    )
+    consoleError.mockRestore()
+    harness.stop()
+  })
+
   it('resumes an idle Queue once', async () => {
     const harness = createHarness()
     harness.isGenerating.value = false

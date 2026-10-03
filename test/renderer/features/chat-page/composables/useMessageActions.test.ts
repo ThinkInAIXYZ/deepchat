@@ -328,6 +328,28 @@ describe('useMessageActions', () => {
 
     expect(harness.sessionClient.editUserMessage).toHaveBeenCalledWith('s1', 'message-1', 'updated')
     expect(harness.sessionClient.retryMessage).toHaveBeenCalledWith('s1', 'message-1')
+    expect(harness.messageStore.clearStreamingState).not.toHaveBeenCalled()
+    expect(harness.messageStore.truncateMessagesFromOrderSeq).not.toHaveBeenCalled()
+    harness.stop()
+  })
+
+  it('reports rejected edits without retrying and lets the editor retain its draft', async () => {
+    const harness = createHarness()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    harness.sessionClient.editUserMessage.mockRejectedValueOnce(new Error('Transcript changed'))
+
+    expect(await harness.actions.onMessageEditSave({ messageId: 'message-1', text: 'draft' })).toBe(
+      false
+    )
+    expect(harness.sessionClient.retryMessage).not.toHaveBeenCalled()
+    expect(harness.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'error',
+        code: 'chat.message.editFailed',
+        description: 'Transcript changed'
+      })
+    )
+    consoleError.mockRestore()
     harness.stop()
   })
 

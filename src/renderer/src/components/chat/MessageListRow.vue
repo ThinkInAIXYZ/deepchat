@@ -75,9 +75,9 @@
       v-else-if="item.role === 'user'"
       :message="item as DisplayUserMessage"
       :is-read-only="isReadOnly"
+      :save-edit="saveEdit"
       @retry="onRetry"
       @delete="onDelete"
-      @edit-save="onEditSave"
     />
     <MessageItemAssistant
       v-else-if="item.role === 'assistant'"
@@ -112,9 +112,9 @@ import {
   type DisplayAssistantMessage,
   isCompactionMessageItem,
   type DisplayUserMessage,
-  type MessageListItem
+  type MessageListItem,
+  type UserMessageEdit
 } from '@/features/chat-page/model/displayMessage'
-import type { UserMessageInlineItem } from '@shared/types/agent-interface'
 
 const props = withDefaults(
   defineProps<{
@@ -124,6 +124,7 @@ const props = withDefaults(
     showTrace?: boolean
     isCapturing?: boolean
     isReadOnly?: boolean
+    saveEdit?: (payload: UserMessageEdit) => Promise<boolean>
     disableMarkdownVirtualization?: boolean
     allowGuardStopContinue?: boolean
   }>(),
@@ -145,7 +146,6 @@ const emit = defineEmits<{
   continue: [conversationId: string, messageId: string]
   trace: [messageId: string]
   tapeInspector: [messageId: string]
-  editSave: [payload: { messageId: string; text: string; inlineItems?: UserMessageInlineItem[] }]
   copyImage: [
     messageId: string,
     parentId: string | undefined,
@@ -261,11 +261,6 @@ const onContinue = (conversationId: string, messageId: string) =>
   emit('continue', conversationId, messageId)
 const onTrace = (messageId: string) => emit('trace', messageId)
 const onTapeInspector = (messageId: string) => emit('tapeInspector', messageId)
-const onEditSave = (payload: {
-  messageId: string
-  text: string
-  inlineItems?: UserMessageInlineItem[]
-}) => emit('editSave', payload)
 const onCopyImage = (
   messageId: string,
   parentId: string | undefined,

@@ -131,7 +131,7 @@
               @continue="onMessageContinue"
               @trace="onMessageTrace"
               @tape-inspector="onMessageTapeInspector"
-              @edit-save="onMessageEditSave"
+              :save-edit="onMessageEditSave"
               @measure="onMessageMeasure"
             />
             <div class="h-px w-full" aria-hidden="true" />
@@ -190,7 +190,7 @@
               :resume-loading="pendingInputStore.resumingQueue"
               :retrying-item-id="pendingInputStore.retryingItemId"
               class="mx-auto mb-1.5 max-w-4xl"
-              @update-queue="onPendingInputUpdate"
+              :save-edit="onPendingInputUpdate"
               @move-queue="onPendingInputMove"
               @steer-queue="onPendingInputSteer"
               @delete-queue="onPendingInputDelete"

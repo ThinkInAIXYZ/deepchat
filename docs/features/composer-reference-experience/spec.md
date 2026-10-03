@@ -37,6 +37,13 @@ arrows and Enter/Tab; Escape closes; IME confirmation never selects or submits. 
 precedence over send/queue shortcuts. The picker stays within the available viewport.
 Changing the session, workspace, or agent closes the reference picker and invalidates pending search
 results and selections. A read-only editor cannot accept a previously displayed reference selection.
+Read-only editor boundaries disable embedded controls as well as text entry, including keyboard
+activation while an initial submission or edit save is pending.
+
+Sent-message and queue editors await an explicit asynchronous save result. Only a successful write
+closes the editor; a rejected write keeps its local document and shows an error. While saving, the
+document and save/cancel controls are locked to prevent duplicate writes or losing newer changes.
+These callbacks stay in the renderer; IPC payloads and stored messages do not carry UI callbacks.
 
 References share restrained baseline-aligned styling, readable labels, keyboard-accessible details,
 and explicit source-opening actions. Clicking a session reference first opens details, not another

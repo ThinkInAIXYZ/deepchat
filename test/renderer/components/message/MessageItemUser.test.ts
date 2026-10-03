@@ -1,5 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
+import { EditorContent } from '@tiptap/vue-3'
+import { createDeferred } from '../../utils/deferred'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   DisplayUserMessage,
@@ -234,6 +236,67 @@ describe('MessageItemUser', () => {
     vi.unstubAllGlobals()
     window.api = originalApi
     document.body.innerHTML = ''
+  })
+
+  it('retains edited text and references after a failed save, then closes on success', async () => {
+    const pending = createDeferred<boolean>()
+    const saveEdit = vi.fn().mockReturnValueOnce(pending.promise).mockResolvedValue(true)
+    const wrapper = mount(MessageItemUser, {
+      props: {
+        message: createMessage(
+          {},
+          {
+            text: 'Read ',
+            inlineItems: [
+              {
+                type: 'session',
+                offset: 5,
+                sessionId: 'source',
+                title: 'Research',
+                projectDir: null,
+                tapeIncarnationId: 'tape'
+              }
+            ]
+          }
+        ),
+        saveEdit
+      },
+      ...globalMountOptions
+    })
+    await wrapper.get('[data-action="edit"]').trigger('click')
+    const editor = wrapper.getComponent(EditorContent).props('editor')!
+    editor.commands.insertContentAt(1, 'Changed: ')
+    const textbox = wrapper.get('[role="textbox"]')
+    await textbox.trigger('keydown', { key: 'Enter', ctrlKey: true })
+    expect(saveEdit).toHaveBeenCalledTimes(1)
+    expect(textbox.attributes('contenteditable')).toBe('false')
+    await textbox.trigger('keydown', { key: 'Enter', ctrlKey: true })
+    await textbox.trigger('keydown', { key: 'Escape' })
+    expect(saveEdit).toHaveBeenCalledTimes(1)
+    pending.resolve(false)
+    await flushPromises()
+    expect(textbox.attributes('contenteditable')).toBe('true')
+    expect(textbox.text()).toContain('Changed: Read')
+    expect(wrapper.findAll('[data-session-reference]')).toHaveLength(1)
+    await textbox.trigger('keydown', { key: 'Enter', ctrlKey: true })
+    await flushPromises()
+    expect(saveEdit.mock.calls[1]).toEqual(saveEdit.mock.calls[0])
+    expect(saveEdit).toHaveBeenLastCalledWith({
+      messageId: 'u1',
+      text: 'Changed: Read ',
+      inlineItems: [
+        {
+          type: 'session',
+          offset: 14,
+          sessionId: 'source',
+          title: 'Research',
+          projectDir: null,
+          tapeIncarnationId: 'tape'
+        }
+      ]
+    })
+    expect(wrapper.find('[role="textbox"]').exists()).toBe(false)
+    wrapper.unmount()
   })
 
   it('shows a localized error when a sent session reference cannot be opened', async () => {
