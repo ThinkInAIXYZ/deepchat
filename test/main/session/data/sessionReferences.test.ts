@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionReferences } from '@/session/data/sessionReferences'
 import { SessionDatabase } from '@/session/data/database'
 import { DeepChatMessagesTable } from '@/session/data/tables/deepchatMessages'
@@ -490,6 +490,29 @@ describeIfNativeSqlite('SessionReferences', () => {
     await expect(reader.read('caller', input)).resolves.toMatchObject({
       message: { content: 'B'.repeat(8192) }
     })
+  })
+
+  it('looks up detail revisions by message rather than walking the session backwards', async () => {
+    grant()
+    addMessage({ id: 'old', orderSeq: 1, content: 'old evidence' })
+    addMessage({ id: 'new', orderSeq: 2, content: 'new evidence' })
+    const prepare = vi.spyOn(db, 'prepare')
+    await expect(
+      reader.read('caller', { sessionId: 'source', action: 'message', messageId: 'old' })
+    ).resolves.toMatchObject({ message: { content: 'old evidence' } })
+    const detailSql = prepare.mock.calls.find(([sql]) => sql.includes('AS revisionEntryId'))![0]
+    prepare.mockRestore()
+
+    const plan = db.prepare(`EXPLAIN QUERY PLAN ${detailSql}`).all({
+      sessionId: 'source',
+      messageId: 'old',
+      offset: 0,
+      role: null
+    }) as Array<{ detail: string }>
+    // The bound lookup predicates matter, not an index's name or wall-clock timing.
+    expect(plan.map((row) => row.detail).join('\n')).toContain(
+      '(session_id=? AND source_type=? AND source_id=?)'
+    )
   })
 
   it('includes sent and error terminals but excludes pending and control compaction messages', async () => {

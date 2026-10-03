@@ -251,6 +251,7 @@ export class SessionReferences {
     if (offset > 0 && !input.revision) {
       throw new Error('Message continuation requires revision from the first chunk at offset 0.')
     }
+    // Without the source index SQLite favors entry ordering and scans newer messages first.
     const row = this.database
       .getDatabase()
       .prepare(`
@@ -259,6 +260,7 @@ export class SessionReferences {
         length(m.content) AS totalCharacters, json_valid(m.content) AS isJson,
         (SELECT CASE WHEN json_extract(t.payload_json, '$.record.content') = m.content
                      THEN t.entry_id END FROM deepchat_tape_entries t
+         INDEXED BY idx_deepchat_tape_entries_session_source
          WHERE t.session_id = m.session_id AND t.source_type = 'message'
            AND t.source_id = m.id AND t.kind = 'message'
          ORDER BY t.entry_id DESC LIMIT 1) AS revisionEntryId

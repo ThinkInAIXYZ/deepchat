@@ -55,6 +55,7 @@ Detail continuation requires the first chunk's revision token, bound to source i
 message's latest Tape entry. A replaced message requires restarting at offset zero, including
 same-timestamp replacements; unrelated appended messages do not invalidate the continuation.
 If the projected content disagrees with that Tape entry, detail reads fail instead of mixing versions.
+Revision lookup uses the existing per-source index, not a backward scan of the session's messages.
 Filtering occurs before pagination. Limits bound row count and output size; FTS is preferred for
 search, with scoped literal fallback. No read path loads an entire source transcript into JavaScript.
 Search text is a locator, not necessarily an assistant conclusion; detail preserves block types.
