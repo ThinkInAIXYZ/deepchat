@@ -1832,7 +1832,8 @@ const isThinkingBudgetEnabled = computed(
   () =>
     localSettings.value?.thinkingBudget !== undefined &&
     (!capabilityReasoningPortrait.value?.budgetExclusiveWithEffort ||
-      localSettings.value.reasoningEffort === undefined)
+      (hasThinkingBudgetSupport(capabilityReasoningPortrait.value) &&
+        localSettings.value.reasoningEffort === undefined))
 )
 const isInterleavedThinkingEnabled = computed(
   () => localSettings.value?.forceInterleavedThinkingCompat === true
@@ -2473,6 +2474,17 @@ const runSyncGenerationSettings = async () => {
   if (token !== generationSyncToken) {
     return
   }
+  const draftOverrides = draftStore.toGenerationSettings()
+  if (capabilities?.reasoningPortrait?.budgetExclusiveWithEffort && draftOverrides) {
+    if (Object.prototype.hasOwnProperty.call(draftOverrides, 'thinkingBudget')) {
+      defaults.thinkingBudget = draftOverrides.thinkingBudget
+      if (draftOverrides.thinkingBudget !== undefined) defaults.reasoningEffort = undefined
+    }
+    if (Object.prototype.hasOwnProperty.call(draftOverrides, 'reasoningEffort')) {
+      defaults.reasoningEffort = draftOverrides.reasoningEffort
+      if (draftOverrides.reasoningEffort !== undefined) defaults.thinkingBudget = undefined
+    }
+  }
   localSettings.value = defaults
   loadedSettingsSelection.value = { ...selection }
 }
@@ -2770,21 +2782,7 @@ async function changeModelSelection(
   const previousDraftSelection = draftModelSelection.value ? { ...draftModelSelection.value } : null
   const previousDraftProviderId = draftStore.providerId
   const previousDraftModelId = draftStore.modelId
-  const previousDraftGenerationSettings = {
-    systemPrompt: draftStore.systemPrompt,
-    temperature: draftStore.temperature,
-    topP: draftStore.topP,
-    contextLength: draftStore.contextLength,
-    maxTokens: draftStore.maxTokens,
-    timeout: draftStore.timeout,
-    thinkingBudget: draftStore.thinkingBudget,
-    reasoningEffort: draftStore.reasoningEffort,
-    reasoningVisibility: draftStore.reasoningVisibility,
-    verbosity: draftStore.verbosity,
-    forceInterleavedThinkingCompat: draftStore.forceInterleavedThinkingCompat,
-    imageGeneration: draftStore.imageGeneration,
-    videoGeneration: draftStore.videoGeneration
-  } as Partial<SessionGenerationSettings>
+  const previousDraftGenerationSettings = draftStore.toGenerationSettings() ?? {}
   const clearedDraftModelOverrides = {
     temperature: undefined,
     topP: undefined,

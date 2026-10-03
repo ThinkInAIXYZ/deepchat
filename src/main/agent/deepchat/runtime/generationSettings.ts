@@ -6,6 +6,7 @@ import type { ResolvedModelCapabilitySnapshot } from '@shared/types/model-capabi
 import {
   getReasoningEffectiveEnabledForProvider,
   hasAnthropicReasoningToggle,
+  hasThinkingBudgetSupport,
   isReasoningEffort,
   normalizeAnthropicReasoningVisibilityValue,
   normalizeReasoningEffortValue,
@@ -436,7 +437,10 @@ export async function sanitizeGenerationSettings(
     }
   }
 
-  if (snapshot.supportsReasoning) {
+  if (
+    snapshot.supportsReasoning &&
+    (!portrait?.budgetExclusiveWithEffort || hasThinkingBudgetSupport(portrait))
+  ) {
     if (Object.prototype.hasOwnProperty.call(patch, 'thinkingBudget')) {
       const raw = patch.thinkingBudget
       if (raw === undefined) {

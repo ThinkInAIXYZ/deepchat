@@ -27,3 +27,10 @@ and reopened through real IPC, and clearing both overrides. Inspected screenshot
 budget states, including the effort menu at a 900-pixel viewport. No authenticated inference request
 was sent; captured SDK requests verify serialization, not live provider acceptance. Review logs and
 screenshots remain under ignored `.amp/in/artifacts/`; disposable probes are not shipped.
+
+Follow-up deep review found two P2 issues: draft serialization dropped explicit clears and restored
+model overrides on first send; unsupported routes retained stale budgets in settings and UI labels.
+Both are fixed without a schema change. New-session contract parsing preserves explicit clears,
+model changes reset draft clear intent, and unsupported budget alternatives are discarded. All 2692
+renderer tests and 2043 provider/runtime/importer tests pass (one existing skip). Five regression
+assertions fail on the pre-review commit and pass with the fixes.

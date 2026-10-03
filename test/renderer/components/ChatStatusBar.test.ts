@@ -433,6 +433,7 @@ const setup = async (options: SetupOptions = {}) => {
     })
   })
 
+  let draftGenerationSettings = { ...options.draftGenerationSettings }
   const draftStore = reactive({
     providerId: undefined as string | undefined,
     modelId: undefined as string | undefined,
@@ -449,10 +450,13 @@ const setup = async (options: SetupOptions = {}) => {
     verbosity: undefined as 'low' | 'medium' | 'high' | undefined,
     imageGeneration: undefined as ImageGenerationOptions | undefined,
     ...options.draftGenerationSettings,
-    updateGenerationSettings: vi.fn((patch: Record<string, unknown>) =>
+    toGenerationSettings: vi.fn(() => ({ ...draftGenerationSettings })),
+    updateGenerationSettings: vi.fn((patch: Record<string, unknown>) => {
+      draftGenerationSettings = { ...draftGenerationSettings, ...patch }
       Object.assign(draftStore, patch)
-    ),
+    }),
     resetGenerationSettings: vi.fn(() => {
+      draftGenerationSettings = {}
       draftStore.systemPrompt = undefined
       draftStore.temperature = undefined
       draftStore.contextLength = undefined
@@ -860,6 +864,46 @@ const commitNumericInput = async (
 }
 
 describe('ChatStatusBar model and session panels', () => {
+  it('does not label an old session budget as active on an effort-only transport', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: true,
+      sessionSettings: { thinkingBudget: 8192, reasoningEffort: undefined },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'effort',
+        effort: 'xhigh',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true
+      }
+    })
+    expect(wrapper.get('[data-testid="orchestration-control"]').text()).toContain(
+      'chat.advancedSettings.useDefault'
+    )
+    expect(wrapper.find('[data-setting-control="thinkingBudget-toggle"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('restores explicit draft clears instead of showing the model effort default', async () => {
+    const { wrapper } = await setup({
+      hasActiveSession: false,
+      modelConfig: { reasoningEffort: 'low', thinkingBudget: undefined },
+      draftGenerationSettings: { reasoningEffort: undefined, thinkingBudget: undefined },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'effort',
+        effort: 'xhigh',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true,
+        budget: { min: 0, max: 262144 }
+      }
+    })
+    expect((wrapper.vm as any).effectiveReasoningEffortValue).toBe('__default')
+    expect(wrapper.get('[data-testid="orchestration-control"]').text()).toContain(
+      'chat.advancedSettings.useDefault'
+    )
+    wrapper.unmount()
+  })
+
   it('switches between default, effort and advanced budget without retaining the counterpart', async () => {
     const { wrapper, draftStore } = await setup({
       agentId: 'deepchat',

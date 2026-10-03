@@ -1844,6 +1844,12 @@ watch(
   { immediate: true }
 )
 
+watch(capabilityReasoningPortrait, (portrait) => {
+  if (portrait?.budgetExclusiveWithEffort && !hasThinkingBudgetSupport(portrait)) {
+    config.value.thinkingBudget = undefined
+  }
+})
+
 // 思考预算范围（完全由能力提供，上游保证存在）
 const thinkingBudgetRange = computed(() => capabilityBudgetRange.value)
 

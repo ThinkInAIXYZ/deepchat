@@ -54,12 +54,16 @@ For these portraits, catalog defaults describe provider behavior, not client ove
 user override, omit effort and budget. This matters because the provider's implicit budget can
 differ from explicitly selecting its default effort. Model settings and session settings retain
 the existing optional fields; no database migration or persistent mode flag is required.
+Drafts distinguish untouched fields from explicitly cleared overrides. Explicit `undefined` fields
+must survive new-session input serialization and draft UI reloads; model changes reset that intent.
 Selecting one control clears its counterpart. Legacy configurations containing both resolve to
 effort, the ordinary control. The request boundary also enforces that rule without rewriting saved
 history. Budget remains an advanced alternative only when the portrait declares it. Provider-local
 identity remains authoritative, including custom endpoints; do not infer support by model family.
 The optional token-budget alternative is exposed only on the OpenAI-compatible transport; Responses
 does not advertise a budget that its adapter cannot send. Effort remains available on supported routes.
+When the active route no longer supports the alternative, settings normalization drops the stale
+budget and the UI must not label it as active.
 
 Catalog updates refresh active capability consumers with stale-response protection and lifecycle
 cleanup. No new polling, network request per generation, service, or dependency is introduced.

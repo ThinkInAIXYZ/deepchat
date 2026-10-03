@@ -274,6 +274,29 @@ describe('ModelConfigDialog custom model persistence', () => {
 })
 
 describe('ModelConfigDialog reasoning portraits', () => {
+  it('clears a saved budget when the route only supports effort', async () => {
+    const { wrapper, modelConfigStore } = await setup({
+      providerId: 'dashscope',
+      modelId: 'qwen3.8-max',
+      modelName: 'Qwen3.8 Max',
+      modelConfig: { reasoningEffort: undefined, thinkingBudget: 8192 },
+      reasoningPortrait: {
+        supported: true,
+        mode: 'effort',
+        effort: 'xhigh',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true
+      }
+    })
+    const vm = wrapper.vm as any
+    expect(vm.effectiveReasoningEffort).toBe('__default')
+    expect(wrapper.find('[data-setting-control="thinkingBudget-toggle"]').exists()).toBe(false)
+    await vm.handleSave()
+    expect(modelConfigStore.setModelConfig).toHaveBeenCalled()
+    expect(modelConfigStore.setModelConfig.mock.calls.at(-1)![2].thinkingBudget).toBeUndefined()
+    wrapper.unmount()
+  })
+
   it('offers default, effort and an explicit alternative budget without inventing defaults', async () => {
     const { wrapper, modelConfigStore } = await setup({
       providerId: 'dashscope',

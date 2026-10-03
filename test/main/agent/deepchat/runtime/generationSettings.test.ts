@@ -102,6 +102,29 @@ describe('generation settings policy', () => {
     expect((await resolve(restored)).reasoningEffort).toBeUndefined()
   })
 
+  it('discards exclusive budgets when the current transport cannot send them', async () => {
+    const providerSettings = createProviderSettings()
+    vi.mocked(providerSettings.getModelConfig).mockReturnValue({ thinkingBudget: 8192 })
+    vi.mocked(providerSettings.getCapabilitySnapshot).mockReturnValue({
+      ...createCapabilitySnapshot(),
+      supportsReasoning: true,
+      supportsReasoningEffort: true,
+      reasoningEffortDefault: 'xhigh',
+      reasoningPortrait: {
+        supported: true, mode: 'effort', effort: 'xhigh',
+        effortOptions: ['none', 'low', 'medium', 'xhigh'],
+        budgetExclusiveWithEffort: true
+      }
+    })
+    const result = await sanitizeGenerationSettings(
+      providerSettings,
+      { getDefaultSystemPrompt: vi.fn().mockResolvedValue('') },
+      'openai', 'gpt-4o', { thinkingBudget: 8192 }
+    )
+    expect(result.thinkingBudget).toBeUndefined()
+    expect(result.reasoningEffort).toBeUndefined()
+  })
+
   it('falls back from a non-positive model context window', async () => {
     const providerSettings = createProviderSettings()
     vi.mocked(providerSettings.getModelConfig).mockReturnValue({
