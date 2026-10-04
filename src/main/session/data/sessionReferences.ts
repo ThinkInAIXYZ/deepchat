@@ -12,6 +12,10 @@ const PREVIEW_CHARS = 800
 const DETAIL_CHARS = 8192
 // SQLite lower() only folds ASCII, so titles and search text must be folded in JS instead.
 const UNICODE_LOWER = 'deepchat_reference_lower'
+// Folding can lengthen text ('İ' folds to two code points), so a position found in folded content
+// does not address the original content. Report the literal match against the original instead,
+// or the excerpt window would start past the hit it is meant to show.
+const UNICODE_MATCH_INDEX = 'deepchat_reference_match_index'
 const cursorSchema = z.object({
   source: z.string(),
   incarnation: z.string(),
@@ -57,7 +61,7 @@ export class SessionReferences {
   ) {}
 
   searchCandidates(input: { projectDir: string | null; query: string; excludeSessionId?: string }) {
-    const db = this.registerUnicodeLower(this.database.getDatabase())
+    const db = this.registerUnicodeSearch(this.database.getDatabase())
     return db
       .prepare(`
       SELECT id AS sessionId, substr(title, 1, 1024) AS title, project_dir AS projectDir, agent_id AS agentId,
@@ -144,7 +148,7 @@ export class SessionReferences {
         (input.action === 'messages' ? cursor.match !== 'none' : cursor.match === 'none'))
     )
       throw new Error('Invalid read_session cursor for this request scope.')
-    const db = this.registerUnicodeLower(this.database.getDatabase())
+    const db = this.registerUnicodeSearch(this.database.getDatabase())
     const boundary = db
       .prepare(
         cursor
@@ -177,7 +181,7 @@ export class SessionReferences {
       const excerpt = fts
         ? `snippet(deepchat_search_documents_fts, 1, '', '', ' … ', 48)`
         : mode === 'literal'
-          ? `substr(d.content, max(1, instr(${UNICODE_LOWER}(d.content), @loweredQuery) - 120))`
+          ? `substr(d.content, max(1, ${UNICODE_MATCH_INDEX}(d.content, @loweredQuery) - 120))`
           : 'd.content'
       return db
         .prepare(`
@@ -187,7 +191,7 @@ export class SessionReferences {
         WHERE m.session_id = @sessionId AND ${READABLE}
           AND (m.order_seq < @highWater OR (m.order_seq = @highWater AND m.id <= @highWaterMessageId))
           AND (@role IS NULL OR m.role = @role)
-          ${fts ? 'AND deepchat_search_documents_fts.content MATCH @matchQuery' : mode === 'literal' ? `AND instr(${UNICODE_LOWER}(d.content), @loweredQuery) > 0` : ''}
+          ${fts ? 'AND deepchat_search_documents_fts.content MATCH @matchQuery' : mode === 'literal' ? `AND ${UNICODE_MATCH_INDEX}(d.content, @loweredQuery) > 0` : ''}
           AND (m.order_seq > @seq OR (m.order_seq = @seq AND m.id > @id))
         ORDER BY m.order_seq ASC, m.id ASC LIMIT @limit
       `)
@@ -393,10 +397,26 @@ export class SessionReferences {
 
   // Fold one row at a time inside the query so Unicode matches still happen before LIMIT
   // without materializing every session or search document in JS.
-  private registerUnicodeLower(db: Database.Database): Database.Database {
+  private registerUnicodeSearch(db: Database.Database): Database.Database {
     db.function(UNICODE_LOWER, { deterministic: true }, (text: unknown) =>
       typeof text === 'string' ? text.toLowerCase() : null
     )
+    db.function(UNICODE_MATCH_INDEX, { deterministic: true }, (text: unknown, lowered: unknown) => {
+      if (typeof text !== 'string' || typeof lowered !== 'string') return null
+      const foldedAt = text.toLowerCase().indexOf(lowered)
+      if (foldedAt < 0) return 0
+      // Consume as many original code points as fit before the folded hit, so the returned
+      // position counts the same characters substr() does.
+      let folded = 0
+      let position = 0
+      for (const character of text) {
+        const next = folded + character.toLowerCase().length
+        if (next > foldedAt) break
+        folded = next
+        position += 1
+      }
+      return position + 1
+    })
     return db
   }
 

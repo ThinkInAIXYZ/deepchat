@@ -497,6 +497,21 @@ describeIfNativeSqlite('SessionReferences', () => {
     expect(result.items[0]?.preview).toContain('RÉUNION du projet')
   })
 
+  it('anchors the literal search excerpt on the original text when folding lengthens it', async () => {
+    grant()
+    // 'İ' folds to two code points, so 121 of them push the folded hit more than 120 characters
+    // past its position in the stored text.
+    addMessage({ id: 'expanded', orderSeq: 1, searchText: `${'İ'.repeat(121)}RÉUNION du projet` })
+
+    const result = (await reader.read('caller', {
+      sessionId: 'source',
+      action: 'search',
+      query: 'éunion'
+    })) as Page
+    expect(result.items.map((item) => item.messageId)).toEqual(['expanded'])
+    expect(result.items[0]?.preview).toContain('RÉUNION du projet')
+  })
+
   it('reports an unavailable search index instead of an empty match after projection removal', async () => {
     grant()
     const raw = JSON.stringify({ text: 'needle evidence' })
