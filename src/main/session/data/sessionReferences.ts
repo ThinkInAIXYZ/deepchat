@@ -1,3 +1,4 @@
+import type Database from 'better-sqlite3-multiple-ciphers'
 import { z } from 'zod'
 import {
   ReadSessionInputSchema,
@@ -9,6 +10,8 @@ import type { SessionDatabase } from './database'
 
 const PREVIEW_CHARS = 800
 const DETAIL_CHARS = 8192
+// SQLite lower() only folds ASCII, so titles and search text must be folded in JS instead.
+const UNICODE_LOWER = 'deepchat_reference_lower'
 const cursorSchema = z.object({
   source: z.string(),
   incarnation: z.string(),
@@ -54,18 +57,13 @@ export class SessionReferences {
   ) {}
 
   searchCandidates(input: { projectDir: string | null; query: string; excludeSessionId?: string }) {
-    const db = this.database.getDatabase()
-    // SQLite lower() only folds ASCII. Fold titles one row at a time inside the query so
-    // Unicode matches still happen before LIMIT without materializing every session in JS.
-    db.function('deepchat_reference_title_lower', { deterministic: true }, (title: string) =>
-      title.toLowerCase()
-    )
+    const db = this.registerUnicodeLower(this.database.getDatabase())
     return db
       .prepare(`
       SELECT id AS sessionId, substr(title, 1, 1024) AS title, project_dir AS projectDir, agent_id AS agentId,
              updated_at AS updatedAt
       FROM new_sessions WHERE session_kind = 'regular' AND is_draft = 0
-        AND project_dir IS ? AND instr(deepchat_reference_title_lower(title), ?) > 0
+        AND project_dir IS ? AND instr(${UNICODE_LOWER}(title), ?) > 0
         AND (? IS NULL OR id <> ?)
       ORDER BY updated_at DESC, id ASC LIMIT 20
     `)
@@ -146,7 +144,7 @@ export class SessionReferences {
         (input.action === 'messages' ? cursor.match !== 'none' : cursor.match === 'none'))
     )
       throw new Error('Invalid read_session cursor for this request scope.')
-    const db = this.database.getDatabase()
+    const db = this.registerUnicodeLower(this.database.getDatabase())
     const boundary = db
       .prepare(
         cursor
@@ -179,7 +177,7 @@ export class SessionReferences {
       const excerpt = fts
         ? `snippet(deepchat_search_documents_fts, 1, '', '', ' … ', 48)`
         : mode === 'literal'
-          ? `substr(d.content, max(1, instr(lower(d.content), lower(@query)) - 120))`
+          ? `substr(d.content, max(1, instr(${UNICODE_LOWER}(d.content), @loweredQuery) - 120))`
           : 'd.content'
       return db
         .prepare(`
@@ -189,7 +187,7 @@ export class SessionReferences {
         WHERE m.session_id = @sessionId AND ${READABLE}
           AND (m.order_seq < @highWater OR (m.order_seq = @highWater AND m.id <= @highWaterMessageId))
           AND (@role IS NULL OR m.role = @role)
-          ${fts ? 'AND deepchat_search_documents_fts.content MATCH @matchQuery' : mode === 'literal' ? 'AND instr(lower(d.content), lower(@query)) > 0' : ''}
+          ${fts ? 'AND deepchat_search_documents_fts.content MATCH @matchQuery' : mode === 'literal' ? `AND instr(${UNICODE_LOWER}(d.content), @loweredQuery) > 0` : ''}
           AND (m.order_seq > @seq OR (m.order_seq = @seq AND m.id > @id))
         ORDER BY m.order_seq ASC, m.id ASC LIMIT @limit
       `)
@@ -198,7 +196,7 @@ export class SessionReferences {
           highWater,
           highWaterMessageId,
           role,
-          query,
+          loweredQuery: query?.toLowerCase() ?? null,
           matchQuery:
             query
               ?.split(/\s+/u)
@@ -391,6 +389,15 @@ export class SessionReferences {
       throw new Error(
         'This session is not authorized to read this source or its reference is stale after reset.'
       )
+  }
+
+  // Fold one row at a time inside the query so Unicode matches still happen before LIMIT
+  // without materializing every session or search document in JS.
+  private registerUnicodeLower(db: Database.Database): Database.Database {
+    db.function(UNICODE_LOWER, { deterministic: true }, (text: unknown) =>
+      typeof text === 'string' ? text.toLowerCase() : null
+    )
+    return db
   }
 
   private requireRegularSession(sessionId: string) {
