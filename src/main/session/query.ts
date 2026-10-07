@@ -124,6 +124,8 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
       cursor: options?.cursor,
       agentId: options?.agentId,
       projectDir: options?.projectDir,
+      projectDirs: options?.projectDirs,
+      isPinned: options?.isPinned,
       includeDrafts: options?.includeDrafts,
       includeSubagents: options?.includeSubagents
     })
@@ -542,6 +544,8 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
   ): boolean {
     if (options?.agentId && record.agentId !== options.agentId) return false
     if (options?.projectDir !== undefined && record.projectDir !== options.projectDir) return false
+    if (options?.projectDirs && !options.projectDirs.includes(record.projectDir)) return false
+    if (options?.isPinned !== undefined && record.isPinned !== options.isPinned) return false
     if (options?.includeDrafts === false && record.isDraft) return false
     return options?.includeSubagents === true || record.sessionKind !== 'subagent'
   }

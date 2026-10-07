@@ -470,6 +470,8 @@
     "fullAccess": "ᠪᠦᠬᠦᠨ  ᠢ ᠵᠥᠪᠰᠢᠶᠡᠷᠡᠬᠦ"
   },
   "sidebar": {
+    "showMore": "ᠨᠡᠮᠡᠵᠦ ᠬᠠᠷᠠᠭᠤᠯᠬᠤ",
+    "loadMoreFailed": "ᠠᠴᠢᠶᠠᠯᠠᠬᠤ ᠳᠤ ᠠᠯᠳᠠᠭ᠎ᠠ ᠭᠠᠷᠪᠠ᠂ ᠳᠠᠬᠢᠨ ᠣᠷᠣᠯᠳᠣᠬᠤ",
     "allAgents": "ᠪᠦᠬᠦ Agents",
     "expandSidebar": "ᠶᠢᠨ ᠬᠠᠪᠲᠠᠰᠤ ᠶᠢ ᠥᠷᠭᠡᠨ ᠢᠶᠡᠷ ᠨᠡᠭᠡᠭᠡᠬᠦ",
     "collapseSidebar": "ᠶᠢᠨ ᠪᠠᠭᠤᠷᠠᠬᠤ ᠬᠠᠵᠠᠭᠤ ᠶᠢᠨ ᠪᠠᠳᠠᠷ",

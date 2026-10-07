@@ -385,6 +385,8 @@
     "autoApprove": "Luluskan untuk saya"
   },
   "sidebar": {
+    "showMore": "Tunjukkan lagi",
+    "loadMoreFailed": "Gagal memuatkan. Cuba lagi",
     "allAgents": "Semua Agents",
     "expandSidebar": "Kembangkan bar sisi",
     "collapseSidebar": "Runtuhkan bar sisi",

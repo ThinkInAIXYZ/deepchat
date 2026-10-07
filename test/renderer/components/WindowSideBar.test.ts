@@ -2,11 +2,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createPinia } from 'pinia'
 import { defineComponent, nextTick, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
-import type { EnvironmentSummary } from '../../../src/shared/types/agent-interface'
+import type {
+  EnvironmentSummary,
+  SessionPageCursor
+} from '../../../src/shared/types/agent-interface'
 
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 
 type SetupOptions = {
+  realDraggable?: boolean
   groupMode?: 'time' | 'project'
   selectedAgentId?: string | null
   filterAgentId?: string | null
@@ -19,6 +23,12 @@ type SetupOptions = {
   loading?: boolean
   loadingMore?: boolean
   error?: string | null
+  onLoadSessionGroupPage?: (input: {
+    projectDirs?: Array<string | null>
+    agentId?: string
+    limit?: number
+    cursor?: SessionPageCursor | null
+  }) => Promise<{ hasMore: boolean; nextCursor: SessionPageCursor | null }>
   nextPages?: Array<{ items: Array<{ id: string }>; hasMore: boolean }>
   onLoadNextPage?: (sessionStore: {
     loadingMore: boolean
@@ -226,6 +236,12 @@ const setup = async (options: SetupOptions = {}) => {
     loading: options.loading ?? false,
     loadingMore: options.loadingMore ?? false,
     error: options.error ?? null,
+    historyRevision: 0,
+    loadSessionGroupPage: vi.fn(async (input) =>
+      options.onLoadSessionGroupPage
+        ? options.onLoadSessionGroupPage(input)
+        : { hasMore: false, nextCursor: null }
+    ),
     loadNextPage: vi.fn(async () => {
       if (options.onLoadNextPage) {
         await options.onLoadNextPage(sessionStore)
@@ -574,9 +590,8 @@ const setup = async (options: SetupOptions = {}) => {
       '<button type="button" :disabled="disabled" @click="$emit(\'select\')"><slot /></button>'
   })
 
-  vi.doMock('vuedraggable', () => ({
-    default: draggableStub
-  }))
+  if (options.realDraggable) vi.doUnmock('vuedraggable')
+  else vi.doMock('vuedraggable', () => ({ default: draggableStub }))
   vi.doMock('@shadcn/components/ui/dropdown-menu', () => ({
     DropdownMenu: passthrough,
     DropdownMenuTrigger: passthrough,
@@ -600,7 +615,7 @@ const setup = async (options: SetupOptions = {}) => {
           ContextMenuContent: passthrough,
           ContextMenuSeparator: passthrough,
           ContextMenuItem: contextMenuItemStub,
-          draggable: draggableStub,
+          draggable: options.realDraggable ? false : draggableStub,
           Dialog: dialogStub,
           DialogContent: passthrough,
           DialogDescription: passthrough,
@@ -1382,7 +1397,8 @@ describe('WindowSideBar agent switch', () => {
       const groupedSessions = Array.from({ length: 9 }, (_, index) => ({
         id: `group-${index + 1}`,
         title: `Group Session ${index + 1}`,
-        status: 'none'
+        status: 'none',
+        projectDir: '/work/project'
       }))
       const { sessionStore } = await setup({
         pinnedSessions: [
@@ -2980,6 +2996,209 @@ describe('WindowSideBar session row transitions', () => {
     },
     TEST_TIMEOUT_MS
   )
+})
+
+describe('WindowSideBar session batches', () => {
+  const sessions = (prefix: string, count: number, projectDir = '') =>
+    Array.from({ length: count }, (_, index) => ({
+      id: `${prefix}-${index + 1}`,
+      title: `${prefix} ${index + 1}`,
+      status: 'none',
+      updatedAt: 100 - index,
+      projectDir
+    }))
+
+  const groupRows = (wrapper: Awaited<ReturnType<typeof setup>>['wrapper'], prefix: string) =>
+    wrapper
+      .findAll('[data-testid="sidebar-session-item"]')
+      .filter(
+        (row) => row.isVisible() && row.attributes('data-session-id')?.startsWith(`${prefix}-`)
+      )
+      .map((row) => row.attributes('data-session-id'))
+
+  it('expands groups independently, resets on collapse and preserves limits across sidebar collapse', async () => {
+    const { wrapper, sidebarStore, sessionStore } = await setup({
+      realDraggable: true,
+      groupMode: 'project',
+      groups: [
+        { id: '__no_project__', label: 'Chat', sessions: sessions('chat', 12) },
+        { id: '/work/a', label: 'A', sessions: sessions('a', 8, '/work/a') },
+        { id: '/work/b', label: 'B', sessions: sessions('b', 8, '/work/b') }
+      ]
+    })
+    expect(groupRows(wrapper, 'chat')).toHaveLength(5)
+    expect(groupRows(wrapper, 'a')).toHaveLength(5)
+    expect(groupRows(wrapper, 'b')).toHaveLength(5)
+
+    dispatchWindowKeydown('6', { metaKey: true })
+    await flushPromises()
+    expect(sessionStore.selectSession).toHaveBeenLastCalledWith('a-1')
+
+    await wrapper.get('[data-group-id="__chat__:more"]').trigger('click')
+    expect(groupRows(wrapper, 'chat')).toHaveLength(10)
+    expect(groupRows(wrapper, 'a')).toHaveLength(5)
+    await wrapper.get('[data-group-id="/work/a:more"]').trigger('click')
+    expect(groupRows(wrapper, 'a')).toHaveLength(8)
+    expect(wrapper.find('[data-group-id="/work/a:more"]').exists()).toBe(false)
+    expect(groupRows(wrapper, 'b')).toHaveLength(5)
+
+    sidebarStore.collapsed = true
+    await nextTick()
+    sidebarStore.collapsed = false
+    await nextTick()
+    expect(groupRows(wrapper, 'chat')).toHaveLength(10)
+
+    await wrapper.get('[data-group-id="__chat__:more"]').trigger('click')
+    expect(groupRows(wrapper, 'chat')).toHaveLength(12)
+    expect(wrapper.find('[data-group-id="__chat__:more"]').exists()).toBe(false)
+    await wrapper.get('[data-group-id="__chat__"]').trigger('click')
+    expect(wrapper.get('[data-group-id="__chat__"]').attributes('aria-expanded')).toBe('false')
+    await wrapper.get('[data-group-id="__chat__"]').trigger('click')
+    expect(groupRows(wrapper, 'chat')).toHaveLength(5)
+    expect(groupRows(wrapper, 'a')).toHaveLength(8)
+  })
+
+  it('keeps one active row, restores limits after search, and respects explicit collapse on updates', async () => {
+    const chat = sessions('chat', 12)
+    const { wrapper, filteredGroups } = await setup({
+      groupMode: 'project',
+      activeSession: { id: 'chat-12', agentId: 'deepchat' },
+      groups: [{ id: '__no_project__', label: 'Chat', sessions: chat }]
+    })
+    expect(groupRows(wrapper, 'chat')).toEqual([
+      'chat-1',
+      'chat-2',
+      'chat-3',
+      'chat-4',
+      'chat-5',
+      'chat-12'
+    ])
+    await wrapper.get('[data-group-id="__chat__:more"]').trigger('click')
+    expect(groupRows(wrapper, 'chat')).toHaveLength(11)
+    const search = wrapper.get('[data-testid="sidebar-session-search-input"]')
+    await search.setValue('chat')
+    expect(groupRows(wrapper, 'chat')).toHaveLength(12)
+    expect(wrapper.find('[data-testid="sidebar-group-show-more"]').exists()).toBe(false)
+    await search.setValue('')
+    expect(groupRows(wrapper, 'chat')).toHaveLength(11)
+
+    await wrapper.get('[data-group-id="__chat__"]').trigger('click')
+    filteredGroups[0].sessions[0].title = 'Updated title'
+    await nextTick()
+    expect(wrapper.get('[data-group-id="__chat__"]').attributes('aria-expanded')).toBe('false')
+    await wrapper.get('[data-group-id="__chat__"]').trigger('click')
+    expect(groupRows(wrapper, 'chat')).toHaveLength(6)
+  })
+
+  it('loads old workspace pages, retries in place and keeps a collapsed group closed when a page arrives', async () => {
+    const history = sessions('old', 12, '/work/old')
+    const groups = reactive([{ id: '/work/old', label: 'Old', sessions: history.slice(0, 1) }])
+    let attempts = 0
+    let resolveInitialPage: (() => void) | undefined
+    let resolvePage: (() => void) | undefined
+    const { wrapper, sessionStore } = await setup({
+      groupMode: 'project',
+      hasMore: true,
+      groups,
+      onLoadSessionGroupPage: async (input) => {
+        if (!input.projectDirs?.includes('/work/old')) return { hasMore: false, nextCursor: null }
+        attempts += 1
+        if (attempts === 1) {
+          await new Promise<void>((resolve) => {
+            resolveInitialPage = resolve
+          })
+          groups[0].sessions = history.slice(0, 5)
+          return { hasMore: true, nextCursor: { id: 'old-5', updatedAt: 96 } }
+        }
+        if (attempts === 2) throw new Error('Temporary read failure')
+        if (attempts === 3) {
+          await new Promise<void>((resolve) => {
+            resolvePage = resolve
+          })
+          groups[0].sessions = history.slice(0, 10)
+          return { hasMore: true, nextCursor: { id: 'old-10', updatedAt: 91 } }
+        }
+        groups[0].sessions = history
+        return { hasMore: false, nextCursor: null }
+      }
+    })
+    const initialLoadButton = wrapper.get<HTMLButtonElement>('[data-group-id="/work/old:more"]')
+    expect(initialLoadButton.element.disabled).toBe(true)
+    initialLoadButton.element.click()
+    resolveInitialPage?.()
+    await flushPromises()
+    expect(attempts).toBe(1)
+    expect(groupRows(wrapper, 'old')).toHaveLength(5)
+    setSidebarListSize(wrapper, { scrollHeight: 80, clientHeight: 500 })
+    await flushSidebarFillFrame()
+    expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
+    expect(sessionStore.loadSessionGroupPage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectDirs: ['/work/old'],
+        agentId: 'deepchat',
+        isPinned: false,
+        includeDrafts: false,
+        limit: 5
+      })
+    )
+
+    await wrapper.get('[data-group-id="/work/old:more"]').trigger('click')
+    await flushPromises()
+    expect(groupRows(wrapper, 'old')).toHaveLength(5)
+    expect(wrapper.get('[data-group-id="/work/old:more"]').text()).toBe(
+      'chat.sidebar.loadMoreFailed'
+    )
+    await wrapper.get('[data-group-id="/work/old:more"]').trigger('click')
+    expect(wrapper.get('[data-group-id="/work/old:more"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-group-id="/work/old:more"]').trigger('click')
+    expect(attempts).toBe(3)
+    await wrapper.get('[data-group-id="/work/old"]').trigger('click')
+    resolvePage?.()
+    await flushPromises()
+    expect(wrapper.get('[data-group-id="/work/old"]').attributes('aria-expanded')).toBe('false')
+    await wrapper.get('[data-group-id="/work/old"]').trigger('click')
+    expect(groupRows(wrapper, 'old')).toHaveLength(5)
+    await wrapper.get('[data-group-id="/work/old:more"]').trigger('click')
+    expect(groupRows(wrapper, 'old')).toHaveLength(10)
+    expect(attempts).toBe(3)
+    await wrapper.get('[data-group-id="/work/old:more"]').trigger('click')
+    await flushPromises()
+    expect(groupRows(wrapper, 'old')).toHaveLength(12)
+    expect(wrapper.find('[data-group-id="/work/old:more"]').exists()).toBe(false)
+  })
+
+  it('discards stale group state after changing the Agent filter', async () => {
+    const groups = reactive([{ id: '/work/a', label: 'A', sessions: sessions('a', 6, '/work/a') }])
+    let rejectOldPage: ((error: Error) => void) | undefined
+    const { wrapper, agentStore, sessionStore } = await setup({
+      groupMode: 'project',
+      hasMore: true,
+      groups,
+      onLoadSessionGroupPage: async (input) => {
+        if (input.projectDirs?.includes('/work/a') && input.agentId === 'deepchat') {
+          await new Promise<void>((_resolve, reject) => {
+            rejectOldPage = reject
+          })
+        }
+        return { hasMore: false, nextCursor: null }
+      }
+    })
+    agentStore.filterAgentId = 'acp-a'
+    await flushPromises()
+    rejectOldPage?.(new Error('Old Agent request failed'))
+    await flushPromises()
+    expect(wrapper.get('[data-group-id="/work/a:more"]').text()).toBe('chat.sidebar.showMore')
+    expect(sessionStore.loadSessionGroupPage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectDirs: ['/work/a'],
+        agentId: 'acp-a',
+        cursor: null,
+        limit: 5
+      })
+    )
+    await wrapper.get('[data-group-id="/work/a:more"]').trigger('click')
+    expect(groupRows(wrapper, 'a')).toHaveLength(6)
+  })
 })
 
 describe('WindowSideBar viewport auto-fill', () => {

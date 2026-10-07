@@ -107,6 +107,61 @@ describeIfSqlite('NewSessionsTable', () => {
     )
   })
 
+  it('pages Chat directory unions independently and excludes hidden rows before applying the limit', async () => {
+    const insert = db!.prepare(`INSERT INTO new_sessions
+      (id, agent_id, title, project_dir, session_kind, is_draft, is_pinned, created_at, updated_at)
+      VALUES (?, ?, 'Session', ?, ?, ?, ?, 100, ?)`)
+    insert.run('unassigned', 'deepchat', null, 'regular', 0, 0, 100)
+    insert.run('empty-path', 'deepchat', '', 'regular', 0, 0, 150)
+    insert.run('chat-workspace', 'deepchat', '/work/chat', 'regular', 0, 0, 200)
+    insert.run('pinned', 'deepchat', '/work/chat', 'regular', 0, 1, 300)
+    insert.run('draft', 'deepchat', '/work/chat', 'regular', 1, 0, 400)
+    insert.run('child', 'deepchat', '/work/chat', 'subagent', 0, 0, 500)
+    insert.run('different-agent', 'acp', '/work/chat', 'regular', 0, 0, 600)
+    for (let index = 0; index < 40; index++) {
+      insert.run(`other-${index}`, 'deepchat', '/work/other', 'regular', 0, 0, 700 + index)
+    }
+    const sessions = new AppSessionService(
+      {} as ConstructorParameters<typeof AppSessionService>[0],
+      { newSessionsTable: table } as ConstructorParameters<typeof AppSessionService>[1]
+    )
+    const query = new SessionQuery({
+      sessions,
+      runtime: { snapshotIfHydrated: async () => null }
+    } as unknown as SessionQueryDependencies)
+    const options = sessionsListLightweightRoute.input.parse({
+      projectDirs: [null, '', '/work/chat'],
+      agentId: 'deepchat',
+      isPinned: false,
+      includeDrafts: false,
+      includeSubagents: false,
+      limit: 2
+    })
+    const first = await query.listLightweight(options)
+    expect(first).toMatchObject({
+      items: [{ id: 'chat-workspace' }, { id: 'empty-path' }],
+      hasMore: true,
+      nextCursor: { id: 'empty-path', updatedAt: 150 }
+    })
+    await expect(
+      query.listLightweight({ ...options, cursor: first.nextCursor })
+    ).resolves.toMatchObject({
+      items: [{ id: 'unassigned' }],
+      hasMore: false,
+      nextCursor: null
+    })
+    for (const prioritizeSessionId of ['pinned', 'draft', 'child', 'different-agent', 'other-0']) {
+      expect(await query.listLightweight({ ...options, prioritizeSessionId })).toEqual(first)
+    }
+    await expect(
+      query.listLightweight({ ...options, projectDirs: ['/work/empty'] })
+    ).resolves.toMatchObject({
+      items: [],
+      hasMore: false,
+      nextCursor: null
+    })
+  })
+
   it('clears regular project_dir, advances revision, and leaves subagent rows untouched', () => {
     db!
       .prepare(

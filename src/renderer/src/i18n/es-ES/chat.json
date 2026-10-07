@@ -385,6 +385,8 @@
     "autoApprove": "Aprobar por mí"
   },
   "sidebar": {
+    "showMore": "Mostrar más",
+    "loadMoreFailed": "Error al cargar. Reintentar",
     "allAgents": "Todos los Agents",
     "expandSidebar": "Expandir barra lateral",
     "collapseSidebar": "Contraer barra lateral",

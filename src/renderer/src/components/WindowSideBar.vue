@@ -330,7 +330,7 @@
               :class="{ 'chat-session-rows-static': chatSessionRowsStatic }"
             >
               <WindowSideBarSessionItem
-                v-for="session in chatSectionGroup.sessions"
+                v-for="session in getVisibleGroupSessions(chatSectionGroup)"
                 :key="session.id"
                 :session="session"
                 :active="sessionStore.activeSessionId === session.id"
@@ -347,6 +347,19 @@
                 @delete="openDeleteDialog"
               />
             </TransitionGroup>
+            <button
+              v-if="!isGroupCollapsed(chatSectionGroup) && hasMoreGroupSessions(chatSectionGroup)"
+              type="button"
+              data-testid="sidebar-group-show-more"
+              :data-group-id="`${getGroupIdentifier(chatSectionGroup)}:more`"
+              :disabled="isGroupLoading(chatSectionGroup)"
+              :aria-busy="isGroupLoading(chatSectionGroup)"
+              :aria-label="`${getGroupLabel(chatSectionGroup)}: ${getShowMoreLabel(chatSectionGroup)}`"
+              class="w-full rounded-md px-2.5 py-2 text-left text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-wait"
+              @click="handleShowMoreGroup(chatSectionGroup, $event)"
+            >
+              {{ getShowMoreLabel(chatSectionGroup) }}
+            </button>
           </div>
 
           <div
@@ -591,7 +604,7 @@
 
                 <div v-show="!isGroupCollapsed(group)" class="space-y-0.5">
                   <WindowSideBarSessionItem
-                    v-for="session in group.sessions"
+                    v-for="session in getVisibleGroupSessions(group)"
                     :key="session.id"
                     :session="session"
                     :active="sessionStore.activeSessionId === session.id"
@@ -609,6 +622,19 @@
                     @toggle-pin="handleTogglePin"
                     @delete="openDeleteDialog"
                   />
+                  <button
+                    v-if="hasMoreGroupSessions(group)"
+                    type="button"
+                    data-testid="sidebar-group-show-more"
+                    :data-group-id="`${getGroupIdentifier(group)}:more`"
+                    :disabled="isGroupLoading(group)"
+                    :aria-busy="isGroupLoading(group)"
+                    :aria-label="`${getGroupLabel(group)}: ${getShowMoreLabel(group)}`"
+                    class="w-full rounded-md px-2.5 py-2 text-left text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-wait"
+                    @click="handleShowMoreGroup(group, $event)"
+                  >
+                    {{ getShowMoreLabel(group) }}
+                  </button>
                 </div>
               </div>
             </template>
@@ -711,7 +737,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
 import { Icon } from '@iconify/vue'
@@ -756,7 +782,10 @@ import {
   CHAT_SECTION_GROUP_ID,
   useSidebarWorkspaceGroups
 } from '@/composables/sidebar/useSidebarWorkspaceGroups'
-import { useSessionListAutoFill } from '@/composables/sidebar/useSessionListAutoFill'
+import {
+  restoreSessionListScrollTop,
+  useSessionListAutoFill
+} from '@/composables/sidebar/useSessionListAutoFill'
 import { useSessionPinFlight } from '@/composables/sidebar/useSessionPinFlight'
 import { useSidebarSessionShortcuts } from '@/composables/sidebar/useSidebarSessionShortcuts'
 import { useProjectGroupReorder } from '@/composables/sidebar/useProjectGroupReorder'
@@ -868,6 +897,12 @@ const {
   chatSectionGroup,
   workspaceGroups,
   visibleGroups,
+  renderedGroups,
+  getVisibleGroupSessions,
+  hasMoreGroupSessions,
+  isGroupLoading,
+  hasGroupLoadError,
+  showMoreGroupSessions,
   isPinnedSectionCollapsed,
   isProjectDirectoryGroup,
   isActiveProjectDirectoryGroup,
@@ -888,6 +923,7 @@ const {
   sessionStore,
   projectStore,
   selectedAgentId: sidebarSelectedAgentId,
+  sidebarCollapsed: collapsed,
   searchQuery: sessionSearchQuery,
   suspendCollapseSync: isProjectGroupDragging
 })
@@ -909,7 +945,7 @@ const { getShortcutBadgeLabelForSession, hasShortcutBadgeForSession, hideShortcu
   useSidebarSessionShortcuts({
     collapsed,
     pinnedSessions,
-    visibleGroups,
+    visibleGroups: renderedGroups,
     isPinnedSectionCollapsed,
     isGroupCollapsed,
     excludedSessionId: pinFlightSessionId,
@@ -1012,6 +1048,44 @@ watch(
 )
 
 const getGroupLabel = (group: SessionGroup) => (group.labelKey ? t(group.labelKey) : group.label)
+
+const getShowMoreLabel = (group: SessionGroup) =>
+  isGroupLoading(group)
+    ? t('common.loading')
+    : hasGroupLoadError(group)
+      ? t('chat.sidebar.loadMoreFailed')
+      : t('chat.sidebar.showMore')
+
+const handleShowMoreGroup = async (group: SessionGroup, event: MouseEvent) => {
+  const button = event.currentTarget as HTMLButtonElement
+  const hadFocus = document.activeElement === button
+  const list = sessionListRef.value
+  const scrollTop = list?.scrollTop ?? 0
+  let scrolled = false
+  const onScroll = () => {
+    scrolled = true
+  }
+  list?.addEventListener('scroll', onScroll, { once: true })
+  const previousIds = new Set(getVisibleGroupSessions(group).map((session) => session.id))
+  await showMoreGroupSessions(group)
+  await nextTick()
+  list?.removeEventListener('scroll', onScroll)
+  if (!scrolled) restoreSessionListScrollTop(list, scrollTop)
+  if (hadFocus && document.activeElement === document.body) {
+    if (button.isConnected) {
+      button.focus({ preventScroll: true })
+      return
+    }
+    const currentGroup = visibleGroups.value.find((candidate) => candidate.id === group.id)
+    const currentSessions = currentGroup ? getVisibleGroupSessions(currentGroup) : []
+    const nextSession =
+      currentSessions.find((session) => !previousIds.has(session.id)) ?? currentSessions.at(-1)
+    const row = Array.from(
+      sessionListRef.value?.querySelectorAll<HTMLElement>('[data-session-id]') ?? []
+    ).find((element) => element.dataset.sessionId === nextSession?.id)
+    row?.querySelector<HTMLElement>('.session-content')?.focus({ preventScroll: true })
+  }
+}
 
 const handleWorkspaceGroupClick = (group: SessionGroup) => {
   if (isTrueEmptyWorkspaceGroup(group)) {

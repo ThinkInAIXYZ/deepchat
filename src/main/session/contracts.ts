@@ -229,6 +229,8 @@ export interface SessionLightweightOptions {
   includeSubagents?: boolean
   includeDrafts?: boolean
   projectDir?: string
+  projectDirs?: Array<string | null>
+  isPinned?: boolean
   agentId?: string
   prioritizeSessionId?: string
 }

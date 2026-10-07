@@ -179,10 +179,15 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     includeSubagents?: boolean
     includeDrafts?: boolean
     projectDir?: string
+    projectDirs?: Array<string | null>
+    isPinned?: boolean
     agentId?: string
     prioritizeSessionId?: string
   }) {
-    return await bridge.invoke(sessionsListLightweightRoute.name, input ?? {})
+    return await bridge.invoke(
+      sessionsListLightweightRoute.name,
+      sessionsListLightweightRoute.input.parse(input ?? {})
+    )
   }
 
   async function getLightweightByIds(sessionIds: string[]) {

@@ -29,6 +29,23 @@ import { createToolClient } from '../../../src/renderer/api/ToolClient'
 import { createWindowClient } from '../../../src/renderer/api/WindowClient'
 
 describe('renderer api clients', () => {
+  it('serializes reactive session group cursors and directory filters for IPC', async () => {
+    const bridge = createBridge()
+    const cursor = reactive({ id: 'session-5', updatedAt: 123 })
+    const projectDirs = reactive([null, '/work/chat'])
+    vi.mocked(bridge.invoke).mockImplementation(async (_route, input) => {
+      expect(structuredClone(input)).toEqual({ cursor, projectDirs, isPinned: false, limit: 5 })
+      return { items: [], hasMore: false, nextCursor: null } as never
+    })
+    await createSessionClient(bridge).listLightweight({
+      cursor,
+      projectDirs,
+      isPinned: false,
+      limit: 5
+    })
+    expect(bridge.invoke).toHaveBeenCalledOnce()
+  })
+
   it('omits absent Nowledge fields at the JSON IPC boundary', async () => {
     const bridge = createBridge()
     vi.mocked(bridge.invoke).mockImplementation(async (_route, input) => {

@@ -470,6 +470,8 @@
     "fullAccess": "完全访问"
   },
   "sidebar": {
+    "showMore": "显示更多",
+    "loadMoreFailed": "加载失败，重试",
     "allAgents": "所有 Agents",
     "expandSidebar": "展开侧边栏",
     "collapseSidebar": "收起侧边栏",

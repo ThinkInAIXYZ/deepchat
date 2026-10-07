@@ -470,6 +470,8 @@
     "fullAccess": "تولا كىرىش"
   },
   "sidebar": {
+    "showMore": "تېخىمۇ كۆپ كۆرسىتىش",
+    "loadMoreFailed": "يۈكلەش مەغلۇپ بولدى، قايتا سىناڭ",
     "allAgents": "بارلىق Agents",
     "expandSidebar": "يېنىك سەھىپىنى كېڭەيتىش",
     "collapseSidebar": "يېنىك سەھىپىنى يىغىش",

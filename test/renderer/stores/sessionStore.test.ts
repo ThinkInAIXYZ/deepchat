@@ -519,6 +519,60 @@ describe('sessionStore.getFilteredGroups', () => {
     expect(pinnedIds).toEqual(['pinned-1'])
   })
 
+  it('merges group pages without changing global pagination or resurrecting deleted or stale rows', async () => {
+    const { store, sessionClient, emitSessionUpdate } = await setupStore()
+    store.sessions.value = [createSession({ id: 'current', title: 'Current', revision: 5 })]
+    store.hasMore.value = true
+    store.nextCursor.value = { id: 'global', updatedAt: 100 }
+    const pending = createDeferred<{
+      items: ReturnType<typeof createSession>[]
+      hasMore: boolean
+      nextCursor: { id: string; updatedAt: number }
+    }>()
+    sessionClient.listLightweight.mockReturnValueOnce(pending.promise)
+    const request = store.loadSessionGroupPage({ projectDirs: ['/work/a'], limit: 5 })
+    emitSessionUpdate({ reason: 'deleted', sessionIds: ['deleted'] })
+    pending.resolve({
+      items: [
+        createSession({ id: 'current', title: 'Stale', revision: 4 }),
+        createSession({ id: 'deleted' }),
+        createSession({ id: 'old-workspace', projectDir: '/work/a' })
+      ],
+      hasMore: true,
+      nextCursor: { id: 'old-workspace', updatedAt: 1 }
+    })
+    await request
+    expect(store.sessions.value.map((session: { id: string }) => session.id).sort()).toEqual([
+      'current',
+      'old-workspace'
+    ])
+    expect(
+      store.sessions.value.find((session: { id: string }) => session.id === 'current').title
+    ).toBe('Current')
+    expect(store.nextCursor.value).toEqual({ id: 'global', updatedAt: 100 })
+    expect(store.hasMore.value).toBe(true)
+  })
+
+  it('discards a pending group page when history is imported', async () => {
+    const { store, sessionClient, emitImportCompleted } = await setupStore()
+    const pending = createDeferred<{
+      items: ReturnType<typeof createSession>[]
+      hasMore: boolean
+      nextCursor: null
+    }>()
+    sessionClient.listLightweight.mockReturnValueOnce(pending.promise)
+    const request = store.loadSessionGroupPage({ projectDirs: ['/work/a'] })
+    emitImportCompleted('overwrite')
+    pending.resolve({
+      items: [createSession({ id: 'old-database' })],
+      hasMore: false,
+      nextCursor: null
+    })
+    expect(await request).toBeNull()
+    expect(store.sessions.value).toEqual([])
+    expect(store.historyRevision.value).toBe(1)
+  })
+
   it('sorts fetched sessions alphabetically by title', async () => {
     const { store, sessionClient } = await setupStore()
 

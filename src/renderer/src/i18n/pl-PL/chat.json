@@ -385,6 +385,8 @@
     "autoApprove": "Zatwierdź za mnie"
   },
   "sidebar": {
+    "showMore": "Pokaż więcej",
+    "loadMoreFailed": "Nie udało się wczytać. Spróbuj ponownie",
     "allAgents": "Wszystkie Agents",
     "expandSidebar": "Rozwiń pasek boczny",
     "collapseSidebar": "Zwiń pasek boczny",

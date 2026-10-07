@@ -369,6 +369,8 @@
     "autoApprove": "אשר עבורי"
   },
   "sidebar": {
+    "showMore": "הצגת עוד",
+    "loadMoreFailed": "הטעינה נכשלה. ניסיון חוזר",
     "allAgents": "כל הסוכנים",
     "expandSidebar": "הרחב את הסרגל הצדדי",
     "collapseSidebar": "כווץ את הסרגל הצדדי",

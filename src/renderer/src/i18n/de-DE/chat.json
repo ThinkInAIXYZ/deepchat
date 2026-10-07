@@ -385,6 +385,8 @@
     "autoApprove": "Für mich genehmigen"
   },
   "sidebar": {
+    "showMore": "Mehr anzeigen",
+    "loadMoreFailed": "Laden fehlgeschlagen. Erneut versuchen",
     "allAgents": "Alle Agents",
     "expandSidebar": "Seitenleiste ausklappen",
     "collapseSidebar": "Seitenleiste einklappen",
