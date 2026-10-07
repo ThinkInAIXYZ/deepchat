@@ -298,6 +298,17 @@ const DEFAULT_MCP_SERVERS = {
         'X-Api-Key': 'YOUR_SERPLY_API_KEY'
       }
     },
+    'skyaccess-empty-legs': {
+      command: '',
+      args: [],
+      env: {},
+      descriptions:
+        'SkyAccess private jet empty leg MCP. Search 5,000+ live empty leg flights, get charter price estimates and booking links. No account or API key. Tool reference: https://github.com/sky-access/skyaccess-mcp.',
+      icons: '✈️',
+      disable: false,
+      type: 'http' as MCPServerType,
+      baseUrl: 'https://mcp.skyaccess.com/mcp'
+    },
     cohesivity: {
       command: '',
       args: [],

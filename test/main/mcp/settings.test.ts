@@ -207,6 +207,22 @@ describe('McpSettings', () => {
     })
   })
 
+  it('adds the disabled SkyAccess empty leg MCP server (keyless) for existing users', async () => {
+    const { McpSettings } = await loadHelper('darwin')
+    const helper = new McpSettings()
+    const mcpStore = (helper as any).mcpStore
+
+    mcpStore.set('mcpServers', {})
+
+    const servers = await helper.getMcpServers()
+
+    expect(servers['skyaccess-empty-legs']).toMatchObject({
+      type: 'http',
+      baseUrl: 'https://mcp.skyaccess.com/mcp',
+      enabled: false
+    })
+  })
+
   it('adds the disabled Cohesivity backend infrastructure MCP server (keyless) for existing users', async () => {
     const { McpSettings } = await loadHelper('darwin')
     const helper = new McpSettings()
