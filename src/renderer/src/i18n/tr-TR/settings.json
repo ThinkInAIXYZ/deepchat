@@ -1484,7 +1484,9 @@
         "checking": "Test...",
         "success": "Model testi başarılı",
         "failed": "Model testi başarısız oldu",
-        "noModels": "Bu sağlayıcı için mevcut model yok"
+        "noModels": "Bu sağlayıcı için mevcut model yok",
+        "enabledOnly": "Yalnızca etkin olanlar",
+        "noMatch": "Eşleşen model yok"
       }
     },
     "pullModels": "Çekme Modelleri",

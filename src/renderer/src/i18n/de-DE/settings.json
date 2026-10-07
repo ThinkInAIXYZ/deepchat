@@ -1484,7 +1484,9 @@
         "checking": "Test läuft...",
         "success": "Modelltest erfolgreich",
         "failed": "Modelltest fehlgeschlagen",
-        "noModels": "Dieser Anbieter hat keine verfügbaren Modelle"
+        "noModels": "Dieser Anbieter hat keine verfügbaren Modelle",
+        "enabledOnly": "Nur aktivierte",
+        "noMatch": "Keine passenden Modelle"
       }
     },
     "pullModels": "Modelle abrufen",

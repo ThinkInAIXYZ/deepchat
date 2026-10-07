@@ -1484,7 +1484,9 @@
         "checking": "Test...",
         "success": "Test modello riuscito",
         "failed": "Test modello non riuscito",
-        "noModels": "Questo provider non ha modelli disponibili"
+        "noModels": "Questo provider non ha modelli disponibili",
+        "enabledOnly": "Solo abilitati",
+        "noMatch": "Nessun modello corrispondente"
       }
     },
     "pullModels": "Pull modelli",

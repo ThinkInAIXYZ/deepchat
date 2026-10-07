@@ -1042,7 +1042,9 @@
         "noModels": "該服務商沒有可用的模型",
         "success": "模型測試成功",
         "test": "開始測試",
-        "title": "模型檢查"
+        "title": "模型檢查",
+        "enabledOnly": "只看已啟用",
+        "noMatch": "沒有符合的模型"
       }
     },
     "pullModels": "下載模型",

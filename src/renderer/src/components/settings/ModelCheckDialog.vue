@@ -70,28 +70,72 @@
             <Label :for="modelSelectId" class="text-right">
               {{ t('settings.provider.dialog.modelCheck.model') }}
             </Label>
-            <Select v-model="selectedModelId" :disabled="isChecking" required>
-              <SelectTrigger
-                :id="modelSelectId"
-                data-testid="model-check-select"
-                class="col-span-3"
-              >
-                <SelectValue
-                  :placeholder="t('settings.provider.dialog.modelCheck.modelPlaceholder')"
-                />
-              </SelectTrigger>
-              <SelectContent class="max-h-60">
-                <SelectItem
-                  v-for="model in availableModels"
-                  :key="model.id"
-                  :value="model.id"
-                  data-testid="model-check-option"
-                  :data-model-id="model.id"
+            <Popover v-model:open="isModelPickerOpen">
+              <PopoverTrigger as-child>
+                <DcButton
+                  :id="modelSelectId"
+                  data-testid="model-check-select"
+                  type="button"
+                  variant="outline"
+                  class="col-span-3 justify-between font-normal"
+                  :disabled="isChecking"
                 >
-                  {{ model.name }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
+                  <span class="truncate" :class="{ 'text-muted-foreground': !selectedModel }">
+                    {{
+                      selectedModel?.name ??
+                      t('settings.provider.dialog.modelCheck.modelPlaceholder')
+                    }}
+                  </span>
+                  <Icon icon="lucide:chevron-down" class="h-4 w-4 opacity-50" />
+                </DcButton>
+              </PopoverTrigger>
+              <PopoverContent align="start" class="w-(--reka-popover-trigger-width) p-0">
+                <Input
+                  v-model="keyword"
+                  data-testid="model-check-search"
+                  class="rounded-b-none border-none text-sm ring-0 focus-visible:ring-0"
+                  :placeholder="t('model.search.placeholder')"
+                />
+                <div
+                  v-if="hasEnabledModels"
+                  class="flex items-center justify-between gap-2 border-y px-3 py-2"
+                >
+                  <Label :for="enabledOnlyId" class="text-xs font-normal">
+                    {{ t('settings.provider.dialog.modelCheck.enabledOnly') }}
+                  </Label>
+                  <Switch
+                    :id="enabledOnlyId"
+                    v-model="enabledOnly"
+                    data-testid="model-check-enabled-only"
+                  />
+                </div>
+                <div class="flex max-h-60 flex-col overflow-y-auto p-1">
+                  <button
+                    v-for="model in visibleModels"
+                    :key="model.id"
+                    type="button"
+                    data-testid="model-check-option"
+                    :data-model-id="model.id"
+                    class="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted dark:hover:bg-accent"
+                    :class="{ 'bg-muted': model.id === selectedModelId }"
+                    @click="selectModel(model.id)"
+                  >
+                    <span class="flex-1 truncate">{{ model.name }}</span>
+                    <Icon
+                      v-if="model.id === selectedModelId"
+                      icon="lucide:check"
+                      class="h-4 w-4 shrink-0 text-primary"
+                    />
+                  </button>
+                  <p
+                    v-if="visibleModels.length === 0"
+                    class="py-6 text-center text-sm text-muted-foreground"
+                  >
+                    {{ t('settings.provider.dialog.modelCheck.noMatch') }}
+                  </p>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 
@@ -139,15 +183,11 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
+import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@shadcn/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Spinner } from '@shadcn/components/ui/spinner'
+import { Switch } from '@shadcn/components/ui/switch'
 import { Icon } from '@iconify/vue'
 import { computed, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -157,6 +197,7 @@ import { ModelType } from '@shared/model'
 
 const { t } = useI18n()
 const modelSelectId = useId()
+const enabledOnlyId = useId()
 const modelStore = useModelStore()
 const providerStore = useProviderStore()
 
@@ -172,6 +213,9 @@ const emit = defineEmits<{
 const isOpen = ref(props.open)
 const isChecking = ref(false)
 const selectedModelId = ref<string>('')
+const isModelPickerOpen = ref(false)
+const keyword = ref('')
+const enabledOnly = ref(true)
 const result = ref<{ isOk: boolean; errorMsg: string | null } | null>(null)
 let checkVersion = 0
 
@@ -187,6 +231,28 @@ const availableModels = computed(() => {
   )
   return [...models.values()].filter((model) => !model.type || model.type === ModelType.Chat)
 })
+
+const hasEnabledModels = computed(() => availableModels.value.some((model) => model.enabled))
+
+// With no enabled models the enabled-only filter would leave nothing to pick, so show all.
+const visibleModels = computed(() => {
+  const query = keyword.value.trim().toLowerCase()
+  const filterEnabled = enabledOnly.value && hasEnabledModels.value
+  return availableModels.value.filter(
+    (model) =>
+      (!filterEnabled || model.enabled) &&
+      (!query || model.name.toLowerCase().includes(query) || model.id.toLowerCase().includes(query))
+  )
+})
+
+const selectedModel = computed(() =>
+  availableModels.value.find((model) => model.id === selectedModelId.value)
+)
+
+const selectModel = (modelId: string) => {
+  selectedModelId.value = modelId
+  isModelPickerOpen.value = false
+}
 
 watch(selectedModelId, () => {
   result.value = null
@@ -228,6 +294,9 @@ const onOpenChange = (open: boolean) => {
 const resetDialog = () => {
   checkVersion += 1
   selectedModelId.value = ''
+  isModelPickerOpen.value = false
+  keyword.value = ''
+  enabledOnly.value = true
   result.value = null
   isChecking.value = false
 }

@@ -1042,7 +1042,9 @@
         "noModels": "Il n'y a aucun modèle disponible pour ce fournisseur de services",
         "success": "Le test du modèle a réussi",
         "test": "Commencer le test",
-        "title": "Chèque de modèle"
+        "title": "Chèque de modèle",
+        "enabledOnly": "Activés uniquement",
+        "noMatch": "Aucun modèle correspondant"
       }
     },
     "pullModels": "Récupérer les modèles",

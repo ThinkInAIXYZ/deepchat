@@ -1379,7 +1379,9 @@
         "checking": "Testowanie...",
         "success": "Test modelu udany",
         "failed": "Test modelu nie powiódł się",
-        "noModels": "Brak dostępnych modeli tego dostawcy"
+        "noModels": "Brak dostępnych modeli tego dostawcy",
+        "enabledOnly": "Tylko włączone",
+        "noMatch": "Brak pasujących modeli"
       }
     },
     "pullModels": "Modele ciągnione",
