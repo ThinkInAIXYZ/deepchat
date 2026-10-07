@@ -322,9 +322,8 @@
               />
             </div>
 
-            <!-- Remount on expansion so FLIP never reuses hidden rows' zero-position bounds. -->
             <TransitionGroup
-              v-if="!isGroupCollapsed(chatSectionGroup)"
+              v-show="!isGroupCollapsed(chatSectionGroup)"
               name="chat-session-row"
               tag="div"
               class="space-y-0.5"
