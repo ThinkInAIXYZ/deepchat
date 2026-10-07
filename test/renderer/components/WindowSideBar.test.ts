@@ -3089,6 +3089,7 @@ describe('WindowSideBar session batches', () => {
     const history = sessions('old', 12, '/work/old')
     const groups = reactive([{ id: '/work/old', label: 'Old', sessions: history.slice(0, 1) }])
     let attempts = 0
+    let resolveInitialPage: (() => void) | undefined
     let resolvePage: (() => void) | undefined
     const { wrapper, sessionStore } = await setup({
       groupMode: 'project',
@@ -3098,6 +3099,9 @@ describe('WindowSideBar session batches', () => {
         if (!input.projectDirs?.includes('/work/old')) return { hasMore: false, nextCursor: null }
         attempts += 1
         if (attempts === 1) {
+          await new Promise<void>((resolve) => {
+            resolveInitialPage = resolve
+          })
           groups[0].sessions = history.slice(0, 5)
           return { hasMore: true, nextCursor: { id: 'old-5', updatedAt: 96 } }
         }
@@ -3113,6 +3117,12 @@ describe('WindowSideBar session batches', () => {
         return { hasMore: false, nextCursor: null }
       }
     })
+    const initialLoadButton = wrapper.get<HTMLButtonElement>('[data-group-id="/work/old:more"]')
+    expect(initialLoadButton.element.disabled).toBe(true)
+    initialLoadButton.element.click()
+    resolveInitialPage?.()
+    await flushPromises()
+    expect(attempts).toBe(1)
     expect(groupRows(wrapper, 'old')).toHaveLength(5)
     setSidebarListSize(wrapper, { scrollHeight: 80, clientHeight: 500 })
     await flushSidebarFillFrame()

@@ -783,7 +783,10 @@ import {
   CHAT_SECTION_GROUP_ID,
   useSidebarWorkspaceGroups
 } from '@/composables/sidebar/useSidebarWorkspaceGroups'
-import { useSessionListAutoFill } from '@/composables/sidebar/useSessionListAutoFill'
+import {
+  restoreSessionListScrollTop,
+  useSessionListAutoFill
+} from '@/composables/sidebar/useSessionListAutoFill'
 import { useSessionPinFlight } from '@/composables/sidebar/useSessionPinFlight'
 import { useSidebarSessionShortcuts } from '@/composables/sidebar/useSidebarSessionShortcuts'
 import { useProjectGroupReorder } from '@/composables/sidebar/useProjectGroupReorder'
@@ -1048,7 +1051,7 @@ const handleShowMoreGroup = async (group: SessionGroup, event: MouseEvent) => {
   await showMoreGroupSessions(group)
   await nextTick()
   list?.removeEventListener('scroll', onScroll)
-  if (list && !scrolled) list.scrollTop = scrollTop
+  if (!scrolled) restoreSessionListScrollTop(list, scrollTop)
   if (hadFocus && document.activeElement === document.body) {
     if (button.isConnected) {
       button.focus({ preventScroll: true })
