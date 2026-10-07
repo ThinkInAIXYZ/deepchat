@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.3-beta.6 (2026-10-07)
+- Added the Y-API provider and SkyAccess and Cohesivity MCP server presets
+- Fixed case-insensitive matching of non-ASCII text in literal conversation searches and kept excerpts aligned with the original text
+- Refreshed the built-in provider and model catalog
+- 新增 Y-API 模型服务商，以及 SkyAccess 和 Cohesivity MCP 服务预设
+- 修复会话字面搜索中非 ASCII 文本的大小写匹配，并确保搜索摘要准确定位原文
+- 刷新内置服务商与模型目录
+
 ## v1.1.3-beta.5 (2026-10-03)
 - Reference past conversations in native DeepChat chats with @ or by dragging from the sidebar, so the agent can look up their content when needed
 - File references now show their paths to distinguish same-named files, with smoother keyboard selection and IME input in the @ menu
