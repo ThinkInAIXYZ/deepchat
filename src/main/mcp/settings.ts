@@ -308,6 +308,17 @@ const DEFAULT_MCP_SERVERS = {
       disable: false,
       type: 'http' as MCPServerType,
       baseUrl: 'https://mcp.skyaccess.com/mcp'
+    },
+    cohesivity: {
+      command: '',
+      args: [],
+      env: {},
+      descriptions:
+        'Cohesivity backend infrastructure MCP — provision Postgres databases, hosting, deploy previews, object storage, auth, and email for AI agents. No account or API key required.',
+      icons: '🏗️',
+      disable: false,
+      type: 'http' as MCPServerType,
+      baseUrl: 'https://cohesivity.ai/mcp'
     }
   } satisfies Record<string, Omit<MCPServerConfig, 'enabled'>>,
   mcpEnabled: false // MCP functionality is disabled by default
