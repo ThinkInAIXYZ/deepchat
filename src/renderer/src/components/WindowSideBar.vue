@@ -968,8 +968,16 @@ const {
 })
 
 const sessionRowsStatic = ref(sessionStore.loading || sessionStore.loadingMore)
+// A collapsed chat section hides its rows with `display: none`, so their layout boxes measure as
+// (0, 0) and TransitionGroup's FLIP would slide every row in from the viewport origin on expand.
+// This watcher runs pre-flush, so the patch that re-shows the section already renders the rows
+// static; motion resumes a frame later for regular list changes.
+const chatSectionVisibilityStatic = ref(false)
 const chatSessionRowsStatic = computed(
-  () => sessionRowsStatic.value || pinFlightSessionId.value !== null
+  () =>
+    sessionRowsStatic.value ||
+    chatSectionVisibilityStatic.value ||
+    pinFlightSessionId.value !== null
 )
 
 watch(
@@ -989,6 +997,18 @@ watch(
     })
   },
   { immediate: true }
+)
+
+watch(
+  () => chatSectionGroup.value !== null && isGroupCollapsed(chatSectionGroup.value),
+  () => {
+    chatSectionVisibilityStatic.value = true
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        chatSectionVisibilityStatic.value = false
+      })
+    })
+  }
 )
 
 const getGroupLabel = (group: SessionGroup) => (group.labelKey ? t(group.labelKey) : group.label)
