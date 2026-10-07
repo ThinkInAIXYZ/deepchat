@@ -298,7 +298,7 @@ const DEFAULT_MCP_SERVERS = {
         'X-Api-Key': 'YOUR_SERPLY_API_KEY'
       }
     },
-    'cohesivity': {
+    cohesivity: {
       command: '',
       args: [],
       env: {},
