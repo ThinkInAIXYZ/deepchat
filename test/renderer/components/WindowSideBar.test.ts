@@ -852,12 +852,7 @@ describe('WindowSideBar agent switch', () => {
       await wrapper.vm.$nextTick()
 
       expect(wrapper.get('[data-group-id="__chat__"]').attributes('aria-expanded')).toBe('false')
-      expect(
-        (
-          wrapper.get('[data-group-id="__chat__"]').element.parentElement
-            ?.nextElementSibling as HTMLElement
-        ).style.display
-      ).toBe('none')
+      expect(wrapper.find('[data-session-id="chat-1"]').exists()).toBe(false)
 
       await wrapper.find('[data-group-id="__chat__"]').trigger('click')
       await wrapper.vm.$nextTick()
