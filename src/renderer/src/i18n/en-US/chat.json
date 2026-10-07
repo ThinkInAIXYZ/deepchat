@@ -470,6 +470,8 @@
     "fullAccess": "Full access"
   },
   "sidebar": {
+    "showMore": "Show more",
+    "loadMoreFailed": "Could not load more. Retry",
     "allAgents": "All Agents",
     "expandSidebar": "Expand sidebar",
     "collapseSidebar": "Collapse sidebar",

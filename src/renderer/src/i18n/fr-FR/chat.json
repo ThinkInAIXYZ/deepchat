@@ -369,6 +369,8 @@
     "autoApprove": "Approuver pour moi"
   },
   "sidebar": {
+    "showMore": "Afficher plus",
+    "loadMoreFailed": "Échec du chargement. Réessayer",
     "allAgents": "Tous les agents",
     "expandSidebar": "Développer la barre latérale",
     "collapseSidebar": "Réduire la barre latérale",

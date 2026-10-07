@@ -385,6 +385,8 @@
     "autoApprove": "Phê duyệt thay tôi"
   },
   "sidebar": {
+    "showMore": "Hiển thị thêm",
+    "loadMoreFailed": "Không tải được. Thử lại",
     "allAgents": "Tất cả Agents",
     "expandSidebar": "Mở rộng thanh bên",
     "collapseSidebar": "Thu gọn thanh bên",

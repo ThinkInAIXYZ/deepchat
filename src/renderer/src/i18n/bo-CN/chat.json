@@ -470,6 +470,8 @@
     "fullAccess": "ཆ་ཚང་འཛུལ་ཆོག་པ།"
   },
   "sidebar": {
+    "showMore": "དེ་ལས་མང་བ་སྟོན།",
+    "loadMoreFailed": "ཕབ་ལེན་མ་ཐུབ། ཡང་བསྐྱར་ཚོད་ལྟ།",
     "allAgents": "ཚང་མ་Agents",
     "expandSidebar": "ཟུར་སྟེགས་རྒྱ་ཆེར་གཏོང་",
     "collapseSidebar": "གཞོགས་སྡེ་བསྡུ།",

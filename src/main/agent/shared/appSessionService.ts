@@ -111,6 +111,8 @@ export class AppSessionService implements AppSessionReadPort {
     cursor?: SessionPageCursor | null
     agentId?: string
     projectDir?: string
+    projectDirs?: Array<string | null>
+    isPinned?: boolean
     includeDrafts?: boolean
     includeSubagents?: boolean
     parentSessionId?: string
@@ -124,6 +126,8 @@ export class AppSessionService implements AppSessionReadPort {
       cursor: options?.cursor as SessionListPageCursor | null | undefined,
       agentId: options?.agentId,
       projectDir: options?.projectDir,
+      projectDirs: options?.projectDirs,
+      isPinned: options?.isPinned,
       includeDrafts: options?.includeDrafts,
       includeSubagents: options?.includeSubagents,
       parentSessionId: options?.parentSessionId

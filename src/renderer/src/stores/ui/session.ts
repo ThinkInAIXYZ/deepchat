@@ -373,6 +373,7 @@ export const useSessionStore = defineStore('session', () => {
   const loading = ref(false)
   const loadingMore = ref(false)
   const hasLoadedInitialPage = ref(false)
+  const historyRevision = ref(0)
   const hasMore = ref(false)
   const nextCursor = ref<{ updatedAt: number; id: string } | null>(null)
   const error = ref<string | null>(null)
@@ -1040,6 +1041,16 @@ export const useSessionStore = defineStore('session', () => {
     await loadSessionPage({ reset: false })
   }
 
+  async function loadSessionGroupPage(
+    input: NonNullable<Parameters<typeof sessionClient.listLightweight>[0]>
+  ) {
+    const revision = historyRevision.value
+    const result = await sessionClient.listLightweight(input)
+    if (revision !== historyRevision.value) return null
+    commitSessionSnapshots(result.items)
+    return result
+  }
+
   async function refreshSessionsByIds(sessionIds: string[]): Promise<void> {
     const normalizedIds = Array.from(
       new Set(sessionIds.map((sessionId) => sessionId.trim()).filter(Boolean))
@@ -1580,6 +1591,7 @@ export const useSessionStore = defineStore('session', () => {
       if (id && ids.includes(id)) await messageStore.loadMessages(id)
     },
     onImported: (mode) => {
+      historyRevision.value += 1
       if (mode === 'overwrite') {
         const replacedIds = sessions.value.map((session) => session.id)
         if (activeSessionId.value) replacedIds.push(activeSessionId.value)
@@ -1641,6 +1653,7 @@ export const useSessionStore = defineStore('session', () => {
     loading,
     loadingMore,
     hasLoadedInitialPage,
+    historyRevision,
     hasMore,
     nextCursor,
     error,
@@ -1655,6 +1668,7 @@ export const useSessionStore = defineStore('session', () => {
     applyRestoredSession,
     fetchSessions,
     loadNextPage,
+    loadSessionGroupPage,
     refreshSessionsByIds,
     createSession,
     sendMessage,

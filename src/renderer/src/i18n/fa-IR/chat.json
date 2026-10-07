@@ -369,6 +369,8 @@
     "autoApprove": "به جای من تأیید کن"
   },
   "sidebar": {
+    "showMore": "نمایش بیشتر",
+    "loadMoreFailed": "بارگیری ناموفق بود. تلاش دوباره",
     "allAgents": "همه عامل‌ها",
     "expandSidebar": "گسترش نوار کناری",
     "collapseSidebar": "جمع کردن نوار کناری",

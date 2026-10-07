@@ -1,5 +1,6 @@
 import { computed, ref, watch, type ComputedRef, type MaybeRefOrGetter, toValue } from 'vue'
-import type { EnvironmentSummary } from '@shared/types/agent-interface'
+import { tryOnScopeDispose } from '@vueuse/core'
+import type { EnvironmentSummary, SessionPageCursor } from '@shared/types/agent-interface'
 import { normalizeWorkspacePath } from '@shared/utils/filesystem'
 import { disambiguateWorkspaceLabels } from '@shared/utils/workspaceLabels'
 import type { useProjectStore } from '@/stores/ui/project'
@@ -7,6 +8,16 @@ import type { SessionGroup, UISession, useSessionStore } from '@/stores/ui/sessi
 
 export const CHAT_SECTION_GROUP_ID = '__chat__'
 export const NO_PROJECT_GROUP_ID = '__no_project__'
+const SESSION_BATCH_SIZE = 5
+
+type SessionBatch = {
+  limit: number
+  cursor: SessionPageCursor | null
+  initialized: boolean
+  hasMore: boolean
+  loading: boolean
+  error: boolean
+}
 
 export type SidebarWorkspaceGroup = SessionGroup & {
   environment?: EnvironmentSummary
@@ -19,6 +30,7 @@ interface UseSidebarWorkspaceGroupsOptions {
   searchQuery: MaybeRefOrGetter<string>
   /** While true (e.g. during a group drag) the collapse-state sync watcher is paused. */
   suspendCollapseSync: MaybeRefOrGetter<boolean>
+  sidebarCollapsed: MaybeRefOrGetter<boolean>
 }
 
 /**
@@ -31,6 +43,11 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
 
   const isPinnedSectionCollapsed = ref(false)
   const collapsedGroupIds = ref<Set<string>>(new Set())
+  const sessionBatches = ref<Record<string, SessionBatch>>({})
+  let disposed = false
+  tryOnScopeDispose(() => {
+    disposed = true
+  })
 
   const normalizedSessionSearchQuery = computed(() =>
     toValue(options.searchQuery).trim().toLowerCase()
@@ -266,7 +283,8 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
   })
   const chatSectionGroup = computed<SessionGroup | null>(() => {
     const sessions = sessionSections.value.chatSessions
-    if (sessions.length === 0) {
+    const batch = sessionBatches.value[CHAT_SECTION_GROUP_ID]
+    if (sessions.length === 0 && !(batch?.loading || batch?.error)) {
       return null
     }
 
@@ -315,11 +333,152 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
   const getWorkspaceGroupAriaExpanded = (group: SessionGroup) =>
     isTrueEmptyWorkspaceGroup(group) ? undefined : !isGroupCollapsed(group)
 
+  const isBatchedGroup = (group: SessionGroup) =>
+    group.id === CHAT_SECTION_GROUP_ID || isProjectDirectoryGroup(group)
+
+  const readBatch = (group: SessionGroup): SessionBatch => {
+    const fullyLoaded = sessionStore.hasLoadedInitialPage && !sessionStore.hasMore
+    return (
+      sessionBatches.value[getGroupIdentifier(group)] ?? {
+        limit: SESSION_BATCH_SIZE,
+        cursor: null,
+        initialized: fullyLoaded,
+        hasMore: !fullyLoaded,
+        loading: false,
+        error: false
+      }
+    )
+  }
+
+  const getBatch = (group: SessionGroup) => {
+    const id = getGroupIdentifier(group)
+    sessionBatches.value[id] ??= readBatch(group)
+    return sessionBatches.value[id]
+  }
+
+  const getLoadedBatchSessions = (group: SessionGroup, batch: SessionBatch) => {
+    const cursor = batch.cursor
+    if (!sessionStore.hasMore || !batch.initialized || !batch.hasMore || !cursor) {
+      return group.sessions
+    }
+    // An individually restored old session does not prove that intervening pages were loaded.
+    return group.sessions.filter(
+      (session) =>
+        session.updatedAt > cursor.updatedAt ||
+        (session.updatedAt === cursor.updatedAt && session.id >= cursor.id)
+    )
+  }
+
+  const getVisibleGroupSessions = (group: SessionGroup) => {
+    if (normalizedSessionSearchQuery.value || !isBatchedGroup(group)) return group.sessions
+    const batch = readBatch(group)
+    const sessions = getLoadedBatchSessions(group, batch).slice(0, batch.limit)
+    const active = group.sessions.find((session) => session.id === sessionStore.activeSessionId)
+    if (active && !sessions.some((session) => session.id === active.id)) sessions.push(active)
+    return sessions
+  }
+
+  const hasMoreGroupSessions = (group: SessionGroup) => {
+    if (normalizedSessionSearchQuery.value || !isBatchedGroup(group)) return false
+    const batch = readBatch(group)
+    return (
+      batch.loading ||
+      batch.error ||
+      (sessionStore.hasMore && batch.hasMore) ||
+      getLoadedBatchSessions(group, batch)
+        .slice(batch.limit)
+        .some((session) => session.id !== sessionStore.activeSessionId)
+    )
+  }
+
+  const isGroupLoading = (group: SessionGroup) =>
+    Boolean(sessionBatches.value[getGroupIdentifier(group)]?.loading)
+  const hasGroupLoadError = (group: SessionGroup) =>
+    Boolean(sessionBatches.value[getGroupIdentifier(group)]?.error)
+
+  const ensureGroupSessions = async (group: SessionGroup) => {
+    const batch = getBatch(group)
+    if (batch.loading || batch.error) return
+    if (!sessionStore.hasMore) {
+      batch.initialized = true
+      batch.hasMore = false
+      return
+    }
+    const id = getGroupIdentifier(group)
+    const agentId = toValue(options.selectedAgentId) ?? undefined
+    const projectDirs =
+      group.id === CHAT_SECTION_GROUP_ID
+        ? [null, '', ...(defaultChatWorkspacePath.value ? [defaultChatWorkspacePath.value] : [])]
+        : [getWorkspacePath(group)]
+    batch.loading = true
+    try {
+      while (
+        !disposed &&
+        sessionBatches.value[id] === batch &&
+        !normalizedSessionSearchQuery.value &&
+        !toValue(options.sidebarCollapsed) &&
+        !toValue(options.suspendCollapseSync) &&
+        !isGroupCollapsed(group) &&
+        batch.hasMore
+      ) {
+        const currentGroup =
+          visibleGroups.value.find((candidate) => getGroupIdentifier(candidate) === id) ?? group
+        const loadedCount = batch.initialized
+          ? getLoadedBatchSessions(currentGroup, batch).length
+          : 0
+        if (batch.initialized && loadedCount >= batch.limit) break
+        const previousCursor = batch.cursor
+        const page = await sessionStore.loadSessionGroupPage({
+          projectDirs,
+          agentId,
+          isPinned: false,
+          includeDrafts: false,
+          includeSubagents: false,
+          limit: Math.min(100, Math.max(SESSION_BATCH_SIZE, batch.limit - loadedCount)),
+          cursor: previousCursor
+        })
+        if (!page || disposed || sessionBatches.value[id] !== batch) return
+        if (
+          page.hasMore &&
+          (!page.nextCursor ||
+            (page.nextCursor.id === previousCursor?.id &&
+              page.nextCursor.updatedAt === previousCursor.updatedAt))
+        )
+          throw new Error('Session group cursor did not advance')
+        batch.cursor = page.nextCursor
+        batch.hasMore = page.hasMore
+        batch.initialized = true
+      }
+    } catch (error) {
+      if (!disposed && sessionBatches.value[id] === batch) {
+        batch.error = true
+        console.warn('[Sidebar] Failed to load session group:', error)
+      }
+    } finally {
+      batch.loading = false
+    }
+  }
+
+  const showMoreGroupSessions = async (group: SessionGroup) => {
+    const batch = getBatch(group)
+    if (batch.loading) return
+    if (batch.error) batch.error = false
+    else batch.limit += SESSION_BATCH_SIZE
+    await ensureGroupSessions(group)
+  }
+
+  const renderedGroups = computed(() =>
+    visibleGroups.value.map((group) => ({
+      ...group,
+      sessions: getVisibleGroupSessions(group)
+    }))
+  )
+
   const canAutoFillSessionList = computed(
     () =>
       normalizedSessionSearchQuery.value.length === 0 &&
       !isPinnedSectionCollapsed.value &&
-      !visibleGroups.value.some(isGroupCollapsed)
+      !visibleGroups.value.some((group) => isGroupCollapsed(group) || hasMoreGroupSessions(group))
   )
 
   const visibleSessionFingerprint = computed(() =>
@@ -328,7 +487,9 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
       ...pinnedSessions.value.map((session) => `pinned:${session.id}`),
       ...visibleGroups.value.flatMap((group) => [
         `group:${getGroupIdentifier(group)}:${isGroupCollapsed(group) ? 'collapsed' : 'expanded'}`,
-        ...(!isGroupCollapsed(group) ? group.sessions.map((session) => session.id) : [])
+        ...(!isGroupCollapsed(group)
+          ? getVisibleGroupSessions(group).map((session) => session.id)
+          : [])
       ])
     ].join('|')
   )
@@ -345,6 +506,7 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
       nextCollapsedGroupIds.delete(groupId)
     } else {
       nextCollapsedGroupIds.add(groupId)
+      if (isBatchedGroup(group)) getBatch(group).limit = SESSION_BATCH_SIZE
     }
 
     collapsedGroupIds.value = nextCollapsedGroupIds
@@ -367,7 +529,7 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
 
   watch(
     [visibleGroups, () => sessionStore.activeSessionId],
-    ([groups, activeSessionId]) => {
+    ([groups, activeSessionId], previous) => {
       if (toValue(options.suspendCollapseSync)) {
         return
       }
@@ -376,10 +538,12 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
         groups.filter((group) => !isTrueEmptyWorkspaceGroup(group)).map(getGroupIdentifier)
       )
       const nextCollapsedGroupIds = new Set(
-        [...collapsedGroupIds.value].filter((groupId) => validGroupIds.has(groupId))
+        normalizedSessionSearchQuery.value
+          ? collapsedGroupIds.value
+          : [...collapsedGroupIds.value].filter((groupId) => validGroupIds.has(groupId))
       )
 
-      if (activeSessionId) {
+      if (activeSessionId && activeSessionId !== previous?.[1]) {
         const activeGroup = groups.find((group) =>
           group.sessions.some((session) => session.id === activeSessionId)
         )
@@ -400,6 +564,59 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
     { immediate: true }
   )
 
+  watch(
+    [
+      () => toValue(options.selectedAgentId),
+      () => sessionStore.groupMode,
+      defaultChatWorkspacePath,
+      () => sessionStore.historyRevision
+    ],
+    () => {
+      sessionBatches.value = {}
+    },
+    { flush: 'sync' }
+  )
+
+  watch(
+    [
+      visibleGroups,
+      collapsedGroupIds,
+      normalizedSessionSearchQuery,
+      () => sessionStore.hasLoadedInitialPage,
+      () => sessionStore.hasMore,
+      () => projectStore.snapshotReady,
+      () => toValue(options.sidebarCollapsed),
+      () => toValue(options.suspendCollapseSync),
+      () => toValue(options.selectedAgentId),
+      () => sessionStore.historyRevision
+    ],
+    () => {
+      if (
+        !sessionStore.hasLoadedInitialPage ||
+        !projectStore.snapshotReady ||
+        normalizedSessionSearchQuery.value ||
+        toValue(options.sidebarCollapsed) ||
+        toValue(options.suspendCollapseSync)
+      )
+        return
+      const chatGroup = chatSectionGroup.value ?? {
+        id: CHAT_SECTION_GROUP_ID,
+        label: '',
+        sessions: []
+      }
+      for (const group of [chatGroup, ...workspaceGroups.value]) {
+        if (
+          isBatchedGroup(group) &&
+          !isGroupCollapsed(group) &&
+          !isTrueEmptyWorkspaceGroup(group)
+        ) {
+          void ensureGroupSessions(group)
+        }
+      }
+    },
+    { immediate: true }
+  )
+
   return {
     normalizedSessionSearchQuery,
     matchesSessionSearch,
@@ -408,6 +625,12 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
     chatSectionGroup,
     workspaceGroups: workspaceGroups as ComputedRef<SidebarWorkspaceGroup[]>,
     visibleGroups,
+    renderedGroups,
+    getVisibleGroupSessions,
+    hasMoreGroupSessions,
+    isGroupLoading,
+    hasGroupLoadError,
+    showMoreGroupSessions,
     isPinnedSectionCollapsed,
     isChatProjectGroup,
     isProjectDirectoryGroup,

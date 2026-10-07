@@ -369,6 +369,8 @@
     "autoApprove": "代わりに承認"
   },
   "sidebar": {
+    "showMore": "もっと表示",
+    "loadMoreFailed": "読み込みに失敗しました。再試行",
     "allAgents": "すべてのエージェント",
     "expandSidebar": "サイドバーを展開",
     "collapseSidebar": "サイドバーを折りたたむ",

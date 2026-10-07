@@ -369,6 +369,8 @@
     "autoApprove": "대신 승인"
   },
   "sidebar": {
+    "showMore": "더 보기",
+    "loadMoreFailed": "불러오지 못했습니다. 다시 시도",
     "allAgents": "모든 에이전트",
     "expandSidebar": "사이드바 펼치기",
     "collapseSidebar": "사이드바 접기",

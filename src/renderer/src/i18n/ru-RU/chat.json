@@ -369,6 +369,8 @@
     "autoApprove": "Одобрять за меня"
   },
   "sidebar": {
+    "showMore": "Показать ещё",
+    "loadMoreFailed": "Не удалось загрузить. Повторить",
     "allAgents": "Все агенты",
     "expandSidebar": "Развернуть боковую панель",
     "collapseSidebar": "Свернуть боковую панель",

@@ -251,6 +251,9 @@ conversation.
 - Use vue-i18n and existing `DcButton`, tooltip, notification, dropdown, and draggable primitives.
 - Preserve the existing Sidebar pagination, scroll restoration, shortcut badges, pin animation,
   and drag gates.
+- Chat and workspace children use independent five-row batches as defined in
+  [Sidebar Session Batches](../sidebar-session-batches/spec.md). Group registration, durable empty
+  state, ordering and lifecycle actions remain independent of the visible child prefix.
 
 ## Non-Goals
 

@@ -369,6 +369,8 @@
     "autoApprove": "助手代審"
   },
   "sidebar": {
+    "showMore": "顯示更多",
+    "loadMoreFailed": "載入失敗，重試",
     "allAgents": "所有 Agents",
     "expandSidebar": "展開側邊欄",
     "collapseSidebar": "收起側邊欄",

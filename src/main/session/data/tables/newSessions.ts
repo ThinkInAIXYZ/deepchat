@@ -272,6 +272,8 @@ export class NewSessionsTable extends BaseTable {
     cursor?: SessionListPageCursor | null
     agentId?: string
     projectDir?: string
+    projectDirs?: Array<string | null>
+    isPinned?: boolean
     includeDrafts?: boolean
     includeSubagents?: boolean
     parentSessionId?: string
@@ -284,6 +286,16 @@ export class NewSessionsTable extends BaseTable {
     if (options?.projectDir !== undefined) {
       conditions.push('project_dir = ?')
       params.push(options.projectDir)
+    }
+
+    if (options?.projectDirs) {
+      conditions.push(`(${options.projectDirs.map(() => 'project_dir IS ?').join(' OR ')})`)
+      params.push(...options.projectDirs)
+    }
+
+    if (options?.isPinned !== undefined) {
+      conditions.push('is_pinned = ?')
+      params.push(Number(options.isPinned))
     }
 
     if (options?.includeDrafts === false) {

@@ -401,6 +401,8 @@ export const sessionsListLightweightRoute = defineRouteContract({
     includeSubagents: z.boolean().optional(),
     includeDrafts: z.boolean().optional(),
     projectDir: z.string().min(1).optional(),
+    projectDirs: z.array(z.string().nullable()).min(1).max(100).optional(),
+    isPinned: z.boolean().optional(),
     agentId: EntityIdSchema.optional(),
     prioritizeSessionId: EntityIdSchema.optional()
   }),

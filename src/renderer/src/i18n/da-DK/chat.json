@@ -369,6 +369,8 @@
     "autoApprove": "Godkend for mig"
   },
   "sidebar": {
+    "showMore": "Vis flere",
+    "loadMoreFailed": "Indlæsning mislykkedes. Prøv igen",
     "allAgents": "Alle agenter",
     "expandSidebar": "Udvid sidepanelet",
     "collapseSidebar": "Skjul sidepanelet",

@@ -369,6 +369,8 @@
     "autoApprove": "Aprovar por mim"
   },
   "sidebar": {
+    "showMore": "Mostrar mais",
+    "loadMoreFailed": "Falha ao carregar. Tentar novamente",
     "allAgents": "Todos os agentes",
     "expandSidebar": "Expandir barra lateral",
     "collapseSidebar": "Recolher barra lateral",
