@@ -234,6 +234,94 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('loads CC Switch Codex catalogs and preserves stack IDs on the Responses transport', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'cc-switch')!
+    expect(defaults).toMatchObject({
+      name: 'CC Switch',
+      apiType: 'openai-responses',
+      apiKey: 'PROXY_MANAGED',
+      baseUrl: 'http://127.0.0.1:15721/v1',
+      enable: false
+    })
+    const modelId = 'ccs-local/openai/gpt-5.6-sol'
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      Response.json({
+        models: [
+          {
+            slug: modelId,
+            display_name: 'GPT-5.6 Sol (Local)',
+            context_window: 1_000_000,
+            input_modalities: ['text', 'image'],
+            supported_reasoning_levels: [{ effort: 'high' }]
+          },
+          {
+            slug: 'text-only',
+            input_modalities: ['text'],
+            supported_reasoning_levels: [{ effort: 'none' }]
+          },
+          { slug: 'unknown-model' },
+          { slug: '' },
+          { slug: null }
+        ]
+      })
+    )
+    global.fetch = fetchMock as typeof fetch
+    const provider = new AiSdkProvider(defaults, createProviderSettings())
+    const models = await provider.fetchModels({ suppressErrors: false })
+    expect(models).toEqual([
+      expect.objectContaining({
+        id: modelId,
+        name: 'GPT-5.6 Sol (Local)',
+        providerId: 'cc-switch',
+        contextLength: 1_000_000,
+        vision: true,
+        reasoning: true
+      }),
+      expect.objectContaining({
+        id: 'text-only',
+        name: 'text-only',
+        vision: false,
+        reasoning: false
+      }),
+      {
+        id: 'unknown-model',
+        name: 'unknown-model',
+        group: 'default',
+        providerId: 'cc-switch',
+        isCustom: false
+      }
+    ])
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:15721/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer PROXY_MANAGED' })
+      })
+    )
+
+    ;(provider as any).isInitialized = true
+    await provider.generateText('Hello', modelId, 0.2, 16)
+    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerKind: 'openai-responses',
+        provider: expect.objectContaining({
+          id: 'cc-switch',
+          baseUrl: 'http://127.0.0.1:15721/v1',
+          apiKey: 'PROXY_MANAGED'
+        })
+      }),
+      expect.any(Array),
+      modelId,
+      expect.any(Object),
+      expect.any(Number),
+      expect.any(Number)
+    )
+    fetchMock.mockResolvedValue(Response.json({ models: [] }))
+    await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([])
+    fetchMock.mockResolvedValue(Response.json({ error: 'Gateway unavailable' }, { status: 503 }))
+    await expect(provider.check()).resolves.toMatchObject({ isOk: false })
+  })
+
   it('discovers Magpie models and routing groups with the built-in local credentials', async () => {
     const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'magpie')!
     expect(defaults).toMatchObject({

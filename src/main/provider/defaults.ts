@@ -109,6 +109,22 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'cc-switch',
+    name: 'CC Switch',
+    apiType: 'openai-responses',
+    apiKey: 'PROXY_MANAGED',
+    baseUrl: 'http://127.0.0.1:15721/v1',
+    enable: false,
+    websites: {
+      official: 'https://ccswitch.io/',
+      apiKey:
+        'https://github.com/farion1231/cc-switch/blob/main/docs/user-manual/en/4-proxy/4.1-service.md',
+      docs: 'https://github.com/farion1231/cc-switch/blob/main/docs/user-manual/en/4-proxy/4.1-service.md',
+      models:
+        'https://github.com/farion1231/cc-switch/blob/main/docs/user-manual/en/4-proxy/4.2-routing.md'
+    }
+  },
+  {
     id: 'deepseek',
     name: 'Deepseek',
     apiType: 'deepseek',

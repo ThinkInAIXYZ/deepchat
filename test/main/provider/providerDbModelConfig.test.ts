@@ -302,48 +302,52 @@ describe('Provider DB strict matching and user overrides', () => {
     expect(cfg.temperature).toBe(0.6)
   })
 
-  it('matches Magpie source-prefixed models without changing their request IDs', () => {
-    state.mockDb.providers.aihubmix.models.push({
-      id: 'gpt-5.6-sol',
-      modalities: { input: ['text'] },
-      reasoning: { supported: false }
-    })
-    ;(modelCapabilities as any).rebuildIndexFromDb()
-    const helper = new ModelConfigHelper()
-
-    for (const prefix of ['codex', 'cursor', 'custom-source']) {
-      const modelId = `${prefix}/gpt-5.6-sol`
-      const identity = resolveCapabilityIdentity({ providerId: 'magpie', modelId })
-      expect(identity).toEqual({
-        providerId: 'openai',
-        requestModelId: modelId,
-        catalogMatched: true,
-        catalogModelId: 'gpt-5.6-sol'
+  it.each(['magpie', 'cc-switch'])(
+    'matches %s source-prefixed models without changing their request IDs',
+    (providerId) => {
+      state.mockDb.providers.aihubmix.models.push({
+        id: 'gpt-5.6-sol',
+        modalities: { input: ['text'] },
+        reasoning: { supported: false }
       })
-      expect(helper.getModelConfig(modelId, 'magpie')).toMatchObject({
-        contextLength: 1_050_000,
+      ;(modelCapabilities as any).rebuildIndexFromDb()
+      const helper = new ModelConfigHelper()
+
+      for (const prefix of ['codex', 'cursor', 'custom-source', 'ccs-source/openai']) {
+        const modelId = `${prefix}/gpt-5.6-sol`
+        const identity = resolveCapabilityIdentity({ providerId, modelId })
+        expect(identity).toEqual({
+          providerId: 'openai',
+          requestModelId: modelId,
+          catalogMatched: true,
+          catalogModelId: 'gpt-5.6-sol'
+        })
+        expect(helper.getModelConfig(modelId, providerId)).toMatchObject({
+          contextLength: 1_050_000,
+          vision: true,
+          reasoning: true,
+          functionCall: true
+        })
+      }
+
+      expect(helper.getModelConfig('cursor/kimi-k3', providerId)).toMatchObject({
+        contextLength: 1_048_576,
         vision: true,
-        reasoning: true,
-        functionCall: true
+        reasoning: true
+      })
+      expect(helper.getModelConfig('codex/gpt-5.6-sol', providerId, 'aihubmix')).toMatchObject({
+        vision: false,
+        reasoning: false
+      })
+      expect(
+        resolveCapabilityIdentity({ providerId: 'custom-relay', modelId: 'codex/gpt-5.6-sol' })
+      ).toMatchObject({ catalogMatched: false })
+      expect(resolveCapabilityIdentity({ providerId, modelId: 'cursor/auto' })).toMatchObject({
+        requestModelId: 'cursor/auto',
+        catalogMatched: false
       })
     }
-
-    expect(helper.getModelConfig('cursor/kimi-k3', 'magpie')).toMatchObject({
-      contextLength: 1_048_576,
-      vision: true,
-      reasoning: true
-    })
-    expect(helper.getModelConfig('codex/gpt-5.6-sol', 'magpie', 'aihubmix')).toMatchObject({
-      vision: false,
-      reasoning: false
-    })
-    expect(
-      resolveCapabilityIdentity({ providerId: 'custom-relay', modelId: 'codex/gpt-5.6-sol' })
-    ).toMatchObject({ catalogMatched: false })
-    expect(
-      resolveCapabilityIdentity({ providerId: 'magpie', modelId: 'cursor/auto' })
-    ).toMatchObject({ requestModelId: 'cursor/auto', catalogMatched: false })
-  })
+  )
 
   it('resolves OpenAI Codex models through the OpenAI catalog identity', () => {
     const helper = new ModelConfigHelper()

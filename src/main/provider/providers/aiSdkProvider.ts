@@ -1636,6 +1636,36 @@ export class AiSdkProvider extends BaseLLMProvider {
         return this.mapProviderDbModels(this.definition.providerDbGroup || 'default')
       case 'openai-codex':
         return this.mapOpenAICodexModels()
+      case 'cc-switch': {
+        const records = await this.fetchOpenAIModelRecords({ timeout: this.getModelFetchTimeout() })
+        return records.flatMap((model) => {
+          if (typeof model.slug !== 'string' || !model.slug.trim()) return []
+          const contextLength = toPositiveFiniteNumber(model.context_window)
+          return [
+            {
+              id: model.slug,
+              name:
+                typeof model.display_name === 'string' && model.display_name.trim()
+                  ? model.display_name
+                  : model.slug,
+              group: 'default',
+              providerId: this.provider.id,
+              isCustom: false,
+              ...(contextLength !== undefined ? { contextLength } : {}),
+              ...(Array.isArray(model.input_modalities)
+                ? { vision: model.input_modalities.includes('image') }
+                : {}),
+              ...(Array.isArray(model.supported_reasoning_levels)
+                ? {
+                    reasoning: model.supported_reasoning_levels.some(
+                      (level) => typeof level?.effort === 'string' && level.effort !== 'none'
+                    )
+                  }
+                : {})
+            }
+          ]
+        })
+      }
       case 'opencode-go':
         return this.fetchOpenCodeGoModels()
       case 'kimi-for-coding':
