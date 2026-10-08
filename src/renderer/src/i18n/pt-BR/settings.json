@@ -1042,7 +1042,9 @@
         "checking": "Testando...",
         "success": "Teste do modelo bem-sucedido",
         "failed": "Falha no teste do modelo",
-        "noModels": "Nenhum modelo disponível para este provedor"
+        "noModels": "Nenhum modelo disponível para este provedor",
+        "enabledOnly": "Somente habilitados",
+        "noMatch": "Nenhum modelo correspondente"
       }
     },
     "pullModels": "Baixar Modelos",

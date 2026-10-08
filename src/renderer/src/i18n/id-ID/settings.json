@@ -1484,7 +1484,9 @@
         "checking": "Menguji...",
         "success": "Uji model berhasil",
         "failed": "Uji model gagal",
-        "noModels": "Tidak ada model yang tersedia untuk penyedia ini"
+        "noModels": "Tidak ada model yang tersedia untuk penyedia ini",
+        "enabledOnly": "Hanya yang diaktifkan",
+        "noMatch": "Tidak ada model yang cocok"
       }
     },
     "pullModels": "Model tarik",

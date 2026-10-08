@@ -1484,7 +1484,9 @@
         "checking": "Probando...",
         "success": "Prueba del modelo exitosa",
         "failed": "La prueba del modelo falló",
-        "noModels": "No hay modelos disponibles para este provider"
+        "noModels": "No hay modelos disponibles para este provider",
+        "enabledOnly": "Solo habilitados",
+        "noMatch": "No hay modelos coincidentes"
       }
     },
     "pullModels": "Modelos de tracción",

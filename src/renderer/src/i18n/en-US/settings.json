@@ -1379,7 +1379,9 @@
         "checking": "Testing...",
         "success": "Model test successful",
         "failed": "Model test failed",
-        "noModels": "No available models for this provider"
+        "noModels": "No available models for this provider",
+        "enabledOnly": "Enabled only",
+        "noMatch": "No matching models"
       }
     },
     "pullModels": "Pull Models",

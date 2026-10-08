@@ -116,6 +116,14 @@ export async function verifyProviderConnection(settingsPage: Page, modelId: stri
   await expect(dialog).toBeVisible({ timeout: 30_000 })
 
   await dialog.getByTestId('model-check-select').click()
+  await settingsPage.getByTestId('model-check-search').fill(modelId)
+  const enabledOnly = settingsPage.getByTestId('model-check-enabled-only')
+  if (
+    (await enabledOnly.count()) > 0 &&
+    (await enabledOnly.getAttribute('aria-checked')) === 'true'
+  ) {
+    await enabledOnly.click()
+  }
 
   const option = settingsPage
     .locator(`[data-testid="model-check-option"][data-model-id="${modelId}"]`)

@@ -4,31 +4,33 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { ModelType } from '@shared/model'
 
 const passthrough = defineComponent({ template: '<div><slot /></div>' })
-const selectStub = defineComponent({
-  name: 'Select',
-  props: ['modelValue', 'disabled'],
+const inputStub = defineComponent({
+  props: ['modelValue'],
   emits: ['update:modelValue'],
-  template: '<div><slot /></div>'
+  template:
+    '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
+})
+const switchStub = defineComponent({
+  props: ['modelValue'],
+  emits: ['update:modelValue'],
+  template: '<button @click="$emit(\'update:modelValue\', !modelValue)" />'
 })
 
-async function setup() {
+const defaultProviderModels = [
+  { id: 'text', name: 'Text', type: ModelType.Chat },
+  { id: 'video', name: 'Video', type: ModelType.VideoGeneration },
+  { id: 'image', name: 'Image', type: ModelType.ImageGeneration },
+  { id: 'embed', name: 'Embedding', type: ModelType.Embedding }
+]
+
+async function setup(providerModels: object[] = defaultProviderModels) {
   vi.resetModules()
   const checkProvider = vi.fn().mockResolvedValue({ isOk: true, errorMsg: null })
   vi.doMock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
   vi.doMock('@/stores/providerStore', () => ({ useProviderStore: () => ({ checkProvider }) }))
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => ({
-      allProviderModels: [
-        {
-          providerId: 'p1',
-          models: [
-            { id: 'text', name: 'Text', type: ModelType.Chat },
-            { id: 'video', name: 'Video', type: ModelType.VideoGeneration },
-            { id: 'image', name: 'Image', type: ModelType.ImageGeneration },
-            { id: 'embed', name: 'Embedding', type: ModelType.Embedding }
-          ]
-        }
-      ],
+      allProviderModels: [{ providerId: 'p1', models: providerModels }],
       customModels: [
         { providerId: 'p1', models: [{ id: 'custom', name: 'Custom', type: ModelType.Chat }] }
       ]
@@ -46,30 +48,30 @@ async function setup() {
       ].map((name) => [name, passthrough])
     )
   )
-  vi.doMock('@shadcn/components/ui/select', () => ({
-    Select: selectStub,
-    SelectContent: passthrough,
-    SelectItem: passthrough,
-    SelectTrigger: passthrough,
-    SelectValue: passthrough
+  vi.doMock('@shadcn/components/ui/popover', () => ({
+    Popover: passthrough,
+    PopoverContent: passthrough,
+    PopoverTrigger: passthrough
   }))
+  vi.doMock('@shadcn/components/ui/input', () => ({ Input: inputStub }))
+  vi.doMock('@shadcn/components/ui/switch', () => ({ Switch: switchStub }))
   const component = (await import('@/components/settings/ModelCheckDialog.vue')).default
   const wrapper = mount(component, { props: { providerId: 'p1', open: true } })
   const choose = async (id: string) => {
-    wrapper.findComponent(selectStub).vm.$emit('update:modelValue', id)
+    await wrapper.get(`[data-testid="model-check-option"][data-model-id="${id}"]`).trigger('click')
     await flushPromises()
   }
-  return { wrapper, choose, checkProvider }
+  const optionIds = () =>
+    wrapper
+      .findAll('[data-testid="model-check-option"]')
+      .map((item) => item.attributes('data-model-id'))
+  return { wrapper, choose, optionIds, checkProvider }
 }
 
 describe('text model checks', () => {
   it('offers only text models, includes custom models, and allows retry after a model error', async () => {
-    const { wrapper, choose, checkProvider } = await setup()
-    expect(
-      wrapper
-        .findAll('[data-testid="model-check-option"]')
-        .map((item) => item.attributes('data-model-id'))
-    ).toEqual(['text', 'custom'])
+    const { wrapper, choose, optionIds, checkProvider } = await setup()
+    expect(optionIds()).toEqual(['text', 'custom'])
     checkProvider.mockResolvedValueOnce({ isOk: false, errorMsg: 'AccessDenied.Unpurchased' })
     await choose('text')
     await wrapper.get('[data-testid="model-check-submit"]').trigger('click')
@@ -109,5 +111,20 @@ describe('text model checks', () => {
       'true'
     )
     expect(wrapper.text()).not.toContain('stale failure')
+  })
+
+  it('shows enabled models by default and filters by name or id', async () => {
+    const { wrapper, optionIds } = await setup([
+      { id: 'gpt-4o', name: 'GPT-4o', type: ModelType.Chat, enabled: true },
+      { id: 'gpt-4o-mini', name: 'GPT-4o mini', type: ModelType.Chat },
+      { id: 'deepseek-chat', name: 'DeepSeek V3', type: ModelType.Chat, enabled: true }
+    ])
+    expect(optionIds()).toEqual(['gpt-4o', 'deepseek-chat'])
+    await wrapper.get('[data-testid="model-check-enabled-only"]').trigger('click')
+    expect(optionIds()).toEqual(['gpt-4o', 'gpt-4o-mini', 'deepseek-chat', 'custom'])
+    await wrapper.get('[data-testid="model-check-search"]').setValue('MINI')
+    expect(optionIds()).toEqual(['gpt-4o-mini'])
+    await wrapper.get('[data-testid="model-check-search"]').setValue('deepseek-chat')
+    expect(optionIds()).toEqual(['deepseek-chat'])
   })
 })

@@ -1484,7 +1484,9 @@
         "checking": "测试中...",
         "success": "模型测试成功",
         "failed": "模型测试失败",
-        "noModels": "该服务商没有可用的模型"
+        "noModels": "该服务商没有可用的模型",
+        "enabledOnly": "只看已启用",
+        "noMatch": "没有匹配的模型"
       }
     },
     "pullModels": "拉取模型",

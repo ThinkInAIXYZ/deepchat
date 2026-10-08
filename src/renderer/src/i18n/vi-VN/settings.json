@@ -1379,7 +1379,9 @@
         "checking": "Đang thử nghiệm...",
         "success": "Thử nghiệm mô hình thành công",
         "failed": "Thử nghiệm mô hình không thành công",
-        "noModels": "Không có mẫu nào có sẵn cho nhà cung cấp này"
+        "noModels": "Không có mẫu nào có sẵn cho nhà cung cấp này",
+        "enabledOnly": "Chỉ hiện đã bật",
+        "noMatch": "Không có mô hình phù hợp"
       }
     },
     "pullModels": "Mô hình kéo",

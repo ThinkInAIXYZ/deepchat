@@ -963,7 +963,9 @@
         "checking": "Tester...",
         "success": "Modeltest gennemført",
         "failed": "Modeltest mislykkedes",
-        "noModels": "Ingen tilgængelige modeller for denne udbyder"
+        "noModels": "Ingen tilgængelige modeller for denne udbyder",
+        "enabledOnly": "Kun aktiverede",
+        "noMatch": "Ingen matchende modeller"
       }
     },
     "pullModels": "Hent modeller",
