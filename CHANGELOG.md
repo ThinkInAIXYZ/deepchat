@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.3-beta.7 (2026-10-08)
+- Added the Magpie gateway provider
+- Added search and an enabled-only filter to the model picker in provider connection tests
+- Chat and workspace sidebar groups now show five recent conversations at a time, with Show more to load older conversations
+- Fixed conversation rows moving and overlapping the header when expanding the Chat sidebar group
+- 新增 Magpie 网关模型服务商
+- 服务商连接测试的模型选择器支持搜索和仅显示已启用模型
+- 侧栏的 Chat 与工作区分组每次显示五个最近会话，可通过“显示更多”加载更早的会话
+- 修复展开侧栏 Chat 分组时，会话行发生位移并与标题重叠的问题
+
 ## v1.1.3-beta.6 (2026-10-07)
 - Added the Y-API provider and SkyAccess and Cohesivity MCP server presets
 - Fixed case-insensitive matching of non-ASCII text in literal conversation searches and kept excerpts aligned with the original text
