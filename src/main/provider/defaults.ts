@@ -95,6 +95,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'magpie',
+    name: 'Magpie',
+    apiType: 'openai-completions',
+    apiKey: 'magpie',
+    baseUrl: 'http://127.0.0.1:3425/v1',
+    enable: false,
+    websites: {
+      official: 'https://usemagpie.ai/',
+      apiKey: 'https://usemagpie.ai/docs/zh/integrate#gateway',
+      docs: 'https://usemagpie.ai/docs/zh/integrate#gateway',
+      models: 'https://usemagpie.ai/docs/zh/integrate#gateway'
+    }
+  },
+  {
     id: 'deepseek',
     name: 'Deepseek',
     apiType: 'deepseek',

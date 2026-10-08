@@ -234,6 +234,57 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('discovers Magpie models and routing groups with the built-in local credentials', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'magpie')!
+    expect(defaults).toMatchObject({
+      name: 'Magpie',
+      apiType: 'openai-completions',
+      apiKey: 'magpie',
+      baseUrl: 'http://127.0.0.1:3425/v1',
+      enable: false,
+      websites: { defaultBaseUrl: 'http://127.0.0.1:3425/v1' }
+    })
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      Response.json({
+        object: 'list',
+        data: [
+          { id: 'codex/gpt-5.6-luna', owned_by: 'codex' },
+          { id: 'group/auto-gpt-5-6-luna', owned_by: 'codex' }
+        ]
+      })
+    )
+    global.fetch = fetchMock as typeof fetch
+
+    const provider = new AiSdkProvider(defaults, createProviderSettings())
+    expect(resolveAiSdkProviderDefinition(defaults)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      embeddingStrategy: 'none'
+    })
+    await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
+      expect.objectContaining({
+        id: 'codex/gpt-5.6-luna',
+        providerId: 'magpie',
+        ownedBy: 'codex'
+      }),
+      expect.objectContaining({
+        id: 'group/auto-gpt-5-6-luna',
+        providerId: 'magpie',
+        ownedBy: 'codex'
+      })
+    ])
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:3425/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer magpie' })
+      })
+    )
+    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
+  })
+
   it('discovers AnonRouter models over authenticated OpenAI-compatible discovery', async () => {
     const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'anonrouter')!
     expect(defaults).toBeDefined()
