@@ -557,6 +557,13 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'opper',
+    createDefinition({
+      ...OPENAI_BASE,
+      credentialStrategy: 'api-key'
+    })
+  ],
+  [
     'poe',
     createDefinition({
       ...OPENAI_BASE
