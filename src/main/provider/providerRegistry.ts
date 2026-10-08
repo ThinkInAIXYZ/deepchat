@@ -13,7 +13,6 @@ export type AiSdkModelSourceStrategy =
   | 'openai'
   | 'apimart'
   | 'openai-codex'
-  | 'cc-switch'
   | 'opencode-go'
   | 'kimi-for-coding'
   | 'github'
@@ -251,16 +250,6 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     createDefinition({
       ...OPENAI_BASE,
       runtimeKind: 'azure'
-    })
-  ],
-  [
-    'cc-switch',
-    createDefinition({
-      ...OPENAI_BASE,
-      runtimeKind: 'openai-responses',
-      modelSource: 'cc-switch',
-      credentialStrategy: 'api-key',
-      embeddingStrategy: 'none'
     })
   ],
   [
