@@ -357,7 +357,10 @@ export const resolveCapabilityIdentity = (
 
   const transportProviderId = resolveTransportCapabilityFallback(
     input.providerId,
-    input.endpointType
+    // Magpie's gateway uses OpenAI chat; its source prefixes (e.g. codex/) are already
+    // stripped by catalog lookup, but do not identify a catalog provider themselves.
+    input.endpointType ??
+      (input.providerId.trim().toLowerCase() === 'magpie' ? 'openai' : undefined)
   )
   const transportIdentity = resolveProviderMatch([transportProviderId], input.modelId)
   if (transportIdentity) {

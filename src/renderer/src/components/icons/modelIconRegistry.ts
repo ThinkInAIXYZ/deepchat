@@ -76,6 +76,7 @@ import aihubmixColorIcon from '@/assets/llm-icons/aihubmix.png?url'
 import defaultIcon from '@/assets/logo.png?url'
 import metaColorIcon from '@/assets/llm-icons/meta.svg?url'
 import lmstudioColorIcon from '@/assets/llm-icons/lmstudio.svg?url'
+import magpieIcon from '@/assets/llm-icons/magpie.png?url'
 import _302aiIcon from '@/assets/llm-icons/302ai.svg?url'
 import modelscopeColorIcon from '@/assets/llm-icons/modelscope-color.svg?url'
 import awsBedrockIcon from '@/assets/llm-icons/aws-bedrock.svg?url'
@@ -219,6 +220,7 @@ export const modelIcons = {
   'novita.ai': novitaAiIcon,
   astraflow: astraflowIcon,
   'astraflow-cn': astraflowIcon,
+  magpie: magpieIcon,
   default: defaultIcon
 } as const
 
