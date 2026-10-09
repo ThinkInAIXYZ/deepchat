@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <!-- AstrLink official icon, Apache-2.0. Source: https://github.com/Calcium-Ion/AstrLink/blob/78cc0dc9fdd29d362fde3f5781bd7dcd2c0fd688/apps/desktop/src-tauri/icons/icon.svg -->
+  <title>AstrLink 星澜</title>
+  <desc>字母 A 与渐变环带前后穿插，下方延伸轻盈尾迹，右上方点缀星芒，象征流畅的智能连接。</desc>
+  <defs>
+    <linearGradient id="star-trail-color" x1="108" y1="318" x2="403" y2="224" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#20BBC7"/>
+      <stop offset=".56" stop-color="#7F8FE8"/>
+      <stop offset="1" stop-color="#DA7BAF"/>
+    </linearGradient>
+    <filter id="star-trail-shadow" x="24" y="28" width="464" height="468" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#26345E" flood-opacity=".14"/>
+    </filter>
+    <path id="star-trail-ring" d="M111 286C130 254 190 258 247 251C315 243 368 196 397 211C430 236 377 278 295 307C224 333 136 353 112 327C103 317 101 303 111 286Z M134 292C131 301 130 308 136 311C158 325 220 312 287 288C349 266 391 239 383 229C374 220 312 264 252 271C193 278 150 276 134 292Z" fill-rule="evenodd" transform="translate(256 0) scale(1.1 1) translate(-256 0)"/>
+    <path id="star-trail-front" d="M111 286C101 303 103 317 112 327C136 353 224 333 295 307C377 278 430 236 397 211L383 229C391 239 349 266 287 288C220 312 158 325 136 311C130 308 131 301 134 292Z" transform="translate(256 0) scale(1.1 1) translate(-256 0)"/>
+    <mask id="star-trail-crossing" x="88" y="104" width="340" height="306" maskUnits="userSpaceOnUse">
+      <rect x="88" y="104" width="340" height="306" fill="#FFFFFF"/>
+      <use href="#star-trail-front" fill="#000000" stroke="#000000" stroke-width="14" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <rect x="52" y="52" width="408" height="408" rx="92" fill="#F9FAFE" filter="url(#star-trail-shadow)"/>
+  <g id="star-trail-mark">
+    <g stroke-linecap="round">
+      <path d="M103 350C119 381 185 371 249 349" stroke="url(#star-trail-color)" stroke-width="7"/>
+      <circle cx="269" cy="341" r="5" fill="#9290DF"/>
+      <circle cx="286" cy="333" r="3.5" fill="#B185CA"/>
+    </g>
+    <use href="#star-trail-ring" fill="url(#star-trail-color)"/>
+    <path d="M150 365L236 155Q256 117 276 155L362 365" stroke="#304074" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" mask="url(#star-trail-crossing)"/>
+    <use href="#star-trail-front" fill="url(#star-trail-color)"/>
+    <path d="M359 140C363 157 369 163 386 167C369 171 363 177 359 194C355 177 349 171 332 167C349 163 355 157 359 140Z" fill="#8B88DD"/>
+  </g>
+</svg>

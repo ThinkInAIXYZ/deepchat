@@ -95,6 +95,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'astrlink',
+    name: 'AstrLink',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'http://127.0.0.1:18317/v1',
+    enable: false,
+    websites: {
+      official: 'https://github.com/Calcium-Ion/AstrLink',
+      apiKey: 'https://github.com/Calcium-Ion/AstrLink#2-create-an-access-token',
+      docs: 'https://github.com/Calcium-Ion/AstrLink#3-connect-your-ai-agent',
+      models: 'https://github.com/Calcium-Ion/AstrLink#3-connect-your-ai-agent'
+    }
+  },
+  {
     id: 'magpie',
     name: 'Magpie',
     apiType: 'openai-completions',
