@@ -85,6 +85,7 @@ describe('ModelIcon', () => {
     const ModelIcon = (await import('@/components/icons/ModelIcon.vue')).default
     const nvidiaIcon = (await import('@/assets/llm-icons/nvidia-color.svg?url')).default
     const huggingFaceIcon = (await import('@/assets/llm-icons/huggingface-color.svg?url')).default
+    const astrlinkIcon = (await import('@/assets/llm-icons/astrlink.svg?url')).default
     const alibabaIcon = (await import('@/assets/llm-icons/alibabacloud-color.svg?url')).default
     const tokenlabIcon = (await import('@/assets/llm-icons/tokenlab.webp?url')).default
     const daoxeIcon = (await import('@/assets/llm-icons/daoxe.png?url')).default
@@ -103,6 +104,12 @@ describe('ModelIcon', () => {
     const huggingface = mount(ModelIcon, {
       props: {
         modelId: 'huggingface'
+      }
+    })
+    const astrlink = mount(ModelIcon, {
+      props: {
+        modelId: 'astrlink',
+        isDark: true
       }
     })
     const alibabaTokenPlan = mount(ModelIcon, {
@@ -155,6 +162,8 @@ describe('ModelIcon', () => {
 
     expect(nvidia.get('img').attributes('src')).toBe(nvidiaIcon)
     expect(huggingface.get('img').attributes('src')).toBe(huggingFaceIcon)
+    expect(astrlink.get('img').attributes('src')).toBe(astrlinkIcon)
+    expect(astrlink.get('img').classes()).not.toContain('invert')
     expect(alibabaTokenPlan.get('img').attributes('src')).toBe(alibabaIcon)
     expect(tokenlab.get('img').attributes('src')).toBe(tokenlabIcon)
     expect(daoxe.get('img').attributes('src')).toBe(daoxeIcon)

@@ -234,6 +234,69 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('discovers AstrLink models with a user token and the configured local port', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'astrlink')!
+    expect(defaults).toMatchObject({
+      name: 'AstrLink',
+      apiType: 'openai-completions',
+      apiKey: '',
+      baseUrl: 'http://127.0.0.1:18317/v1',
+      enable: false,
+      websites: { defaultBaseUrl: 'http://127.0.0.1:18317/v1' }
+    })
+    expect(DEFAULT_PROVIDERS.indexOf(defaults)).toBeLessThan(
+      DEFAULT_PROVIDERS.findIndex(({ id }) => id === 'magpie')
+    )
+    expect(resolveAiSdkProviderDefinition(defaults)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none'
+    })
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      Response.json({
+        object: 'list',
+        data: [
+          { id: 'claude-sonnet-4-6', owned_by: 'anthropic' },
+          { id: 'my-routing-alias', owned_by: 'system' }
+        ],
+        has_more: false
+      })
+    )
+    global.fetch = fetchMock
+    const missingToken = new AiSdkProvider(defaults, createProviderSettings())
+    fetchMock.mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }))
+    expect(await missingToken.check()).toMatchObject({ isOk: false })
+
+    const provider = new AiSdkProvider(
+      { ...defaults, apiKey: 'astrlink-test-token', baseUrl: 'http://127.0.0.1:28419/v1' },
+      createProviderSettings()
+    )
+    await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
+      expect.objectContaining({
+        id: 'claude-sonnet-4-6',
+        providerId: 'astrlink',
+        ownedBy: 'anthropic'
+      }),
+      expect.objectContaining({
+        id: 'my-routing-alias',
+        providerId: 'astrlink',
+        ownedBy: 'system'
+      })
+    ])
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:28419/v1/models',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer astrlink-test-token' })
+      })
+    )
+
+    fetchMock.mockImplementation(async () => new Response('Unauthorized', { status: 401 }))
+    expect(await provider.check()).toMatchObject({ isOk: false })
+  })
+
   it('discovers Magpie models and routing groups with the built-in local credentials', async () => {
     const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'magpie')!
     expect(defaults).toMatchObject({
