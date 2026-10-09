@@ -49,6 +49,7 @@ import daoxeColorIcon from '@/assets/llm-icons/daoxe.png?url'
 import kimiColorIcon from '@/assets/llm-icons/kimi-color.svg?url'
 import moonshotColorIcon from '@/assets/llm-icons/moonshot.svg?url'
 import openrouterColorIcon from '@/assets/llm-icons/openrouter.svg?url'
+import atlascloudIcon from '@/assets/llm-icons/atlascloud.svg?url'
 import requestyColorIcon from '@/assets/llm-icons/requesty.png?url'
 import opperColorIcon from '@/assets/llm-icons/opper.svg?url'
 import demonrouteColorIcon from '@/assets/llm-icons/demonroute.svg?url'
@@ -188,6 +189,7 @@ export const modelIcons = {
   qwen: qwenColorIcon,
   moonshot: moonshotColorIcon,
   openrouter: openrouterColorIcon,
+  atlascloud: atlascloudIcon,
   requesty: requestyColorIcon,
   opper: opperColorIcon,
   demonroute: demonrouteColorIcon,
@@ -269,6 +271,7 @@ const monoIconUrls = new Set<string>([
   rwkvColorIcon,
   moonshotColorIcon,
   openrouterColorIcon,
+  atlascloudIcon,
   opperColorIcon,
   demonrouteColorIcon,
   githubColorIcon,
