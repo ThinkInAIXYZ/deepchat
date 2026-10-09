@@ -96,6 +96,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes Opper as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'opper',
+        name: 'Opper',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.opper.ai/v3/compat',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://opper.ai/',
+          apiKey: 'https://platform.opper.ai',
+          docs: 'https://docs.opper.ai',
+          models: 'https://opper.ai/models',
+          defaultBaseUrl: 'https://api.opper.ai/v3/compat'
+        })
+      })
+    )
+  })
+
   it('includes DemonRoute as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

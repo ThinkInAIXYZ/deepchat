@@ -567,6 +567,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'opper',
+    name: 'Opper',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.opper.ai/v3/compat',
+    enable: false,
+    websites: {
+      official: 'https://opper.ai/',
+      apiKey: 'https://platform.opper.ai',
+      docs: 'https://docs.opper.ai',
+      models: 'https://opper.ai/models'
+    }
+  },
+  {
     id: 'demonroute',
     name: 'DemonRoute',
     apiType: 'openai-completions',

@@ -484,6 +484,56 @@ describe('basic API-key provider registrations', () => {
     expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 
+  it('discovers Opper pool and pinned-route models over authenticated discovery', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'opper')!
+    expect(defaults).toBeDefined()
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      Response.json({
+        object: 'list',
+        data: [
+          { id: 'claude-sonnet-4-6', object: 'model', owned_by: 'opper' },
+          { id: 'anthropic/claude-sonnet-4-6', object: 'model', owned_by: 'anthropic' }
+        ]
+      })
+    )
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const config = { ...defaults, apiKey: 'test-key' }
+    const provider = new AiSdkProvider(config, createProviderSettings())
+    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'openai'
+    })
+
+    // Pool names and provider/model route ids must both survive discovery unchanged.
+    await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
+      expect.objectContaining({
+        id: 'claude-sonnet-4-6',
+        name: 'claude-sonnet-4-6',
+        providerId: 'opper',
+        ownedBy: 'opper'
+      }),
+      expect.objectContaining({
+        id: 'anthropic/claude-sonnet-4-6',
+        providerId: 'opper',
+        ownedBy: 'anthropic'
+      })
+    ])
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.opper.ai/v3/compat/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
+      })
+    )
+    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
+  })
+
   it('resolves Cheaper Inference through authenticated OpenAI-compatible model discovery', () => {
     expect(
       resolveAiSdkProviderDefinition(
