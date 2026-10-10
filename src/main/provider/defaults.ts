@@ -567,6 +567,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'atlascloud',
+    name: 'Atlas Cloud',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.atlascloud.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://atlascloud.ai/',
+      apiKey: 'https://console.atlascloud.ai/api-keys',
+      docs: 'https://docs.atlascloud.ai/',
+      models: 'https://console.atlascloud.ai/models'
+    }
+  },
+  {
     id: 'requesty',
     name: 'Requesty',
     apiType: 'openai-completions',
