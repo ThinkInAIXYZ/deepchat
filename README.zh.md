@@ -13,7 +13,6 @@
   <a href="https://github.com/ThinkInAIXYZ/deepchat/issues"><img src="https://img.shields.io/github/issues/ThinkInAIXYZ/deepchat" alt="Issues Badge"/></a>
   <a href="https://github.com/ThinkInAIXYZ/deepchat/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ThinkInAIXYZ/deepchat" alt="License Badge"/></a>
   <a href="https://github.com/ThinkInAIXYZ/deepchat/releases/latest"><img src="https://img.shields.io/endpoint?url=https://api.pinstudios.net/api/badges/downloads/ThinkInAIXYZ/deepchat/total" alt="Downloads"></a>
-  <a href="https://deepwiki.com/ThinkInAIXYZ/deepchat"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 </p>
 
 <div align="center">
@@ -62,6 +61,10 @@
 - [📑 目录](#-目录)
 - [🚀 项目简介](#-项目简介)
 - [💡 为什么选择DeepChat](#-为什么选择deepchat)
+- [📦 快速开始](#-快速开始)
+  - [下载安装](#下载安装)
+  - [配置模型](#配置模型)
+  - [开始对话](#开始对话)
 - [🔥 主要功能](#-主要功能)
 - [📼 Tape 与 Trace](#-tape-与-trace)
 - [🧠 Skills 支持](#-skills-支持)
@@ -70,10 +73,6 @@
 - [🤖 支持的模型提供商](#-支持的模型提供商)
   - [兼容任何OpenAI/Gemini/Anthropic API格式的模型提供商](#兼容任何openaigeminianthropic-api格式的模型提供商)
 - [🔍 使用场景](#-使用场景)
-- [📦 快速开始](#-快速开始)
-  - [下载安装](#下载安装)
-  - [配置模型](#配置模型)
-  - [开始对话](#开始对话)
 - [💻 开发指南](#-开发指南)
   - [安装依赖](#安装依赖)
   - [开始开发](#开始开发)
@@ -115,6 +114,45 @@ DeepChat 的会话与 Agent 过程基于 Tape.systems 的哲学设计：把过�
 - **多模型统一管理**：一个应用支持主流云端 LLM 和本地 Ollama 模型，无需在多个应用间切换
 - **注重隐私保护**：本地数据存储，支持网络代理，减少信息泄露风险
 - **开源友好**：基于 Apache License 2.0 协议，适合商业和个人使用
+
+## 📦 快速开始
+
+### 下载安装
+
+您可以通过以下任一方式安装 DeepChat：
+
+**方式一：GitHub Releases**
+
+从[GitHub Releases](https://github.com/ThinkInAIXYZ/deepchat/releases)页面下载适合您系统的最新版本：
+
+- Windows: `.exe`安装文件
+- macOS: `.dmg`安装文件
+- Linux: `.AppImage`或`.deb`安装文件
+
+**方式二：官网下载**
+
+从[官网下载页面](https://deepchatai.cn/#/download)获取安装包。
+
+**方式三：Homebrew（仅 macOS）**
+
+macOS 用户可以使用 Homebrew 安装：
+
+```bash
+brew install --cask deepchat
+```
+
+### 配置模型
+
+1. 启动DeepChat应用
+2. 点击设置图标
+3. 选择"模型提供商"选项卡
+4. 添加您的API密钥或配置本地Ollama
+
+### 开始对话
+
+1. 点击"+"按钮创建新对话
+2. 选择您想使用的模型
+3. 开始与AI助手交流
 
 ## 🔥 主要功能
 
@@ -177,7 +215,7 @@ DeepChat Skills 是兼容标准 Agent Skills 规范的设计。一个 Skill 可�
 
 你可以从文件夹、ZIP 文件或 URL 安装 Skills，也可以与 Claude Code、Codex、Cursor、Windsurf、GitHub Copilot、Kiro、Antigravity、OpenCode、Goose、Kilo Code 等兼容工具导入/导出。
 
-内置 Skills 覆盖算法艺术、代码审查、DeepChat 设置、文档协作、DOCX、前端设计、git commit 信息、信息图语法、MCP 构建、PDF、PPTX、Skill 创建、Web Artifacts 和 XLSX 工作流。
+内置 Skills 覆盖算法艺术、代码审查、DeepChat CLI、DeepChat 设置、文档协作、DOCX、前端设计、git commit 信息、信息图语法、MCP 构建、记忆管理、PDF、PPTX、Skill 创建和 XLSX 工作流。
 
 快速上手：
 
@@ -421,6 +459,8 @@ DeepChat 可以通过聊天软件远程控制，让你离开桌面后也能继�
 
 ### 兼容任何OpenAI/Gemini/Anthropic API格式的模型提供商
 
+除了上方的内置提供商，任何兼容 OpenAI、Gemini 或 Anthropic API 格式的服务都可以作为自定义提供商接入。
+
 ## 🔍 使用场景
 
 DeepChat适用于多种AI应用场景：
@@ -431,48 +471,9 @@ DeepChat适用于多种AI应用场景：
 - **内容创作**：文案撰写、创意激发、内容优化
 - **数据分析**：数据解读、图表生成、报告撰写
 
-## 📦 快速开始
-
-### 下载安装
-
-您可以通过以下任一方式安装 DeepChat：
-
-**方式一：GitHub Releases**
-
-从[GitHub Releases](https://github.com/ThinkInAIXYZ/deepchat/releases)页面下载适合您系统的最新版本：
-
-- Windows: `.exe`安装文件
-- macOS: `.dmg`安装文件
-- Linux: `.AppImage`或`.deb`安装文件
-
-**方式二：官网下载**
-
-从[官网下载页面](https://deepchatai.cn/#/download)获取安装包。
-
-**方式三：Homebrew（仅 macOS）**
-
-macOS 用户可以使用 Homebrew 安装：
-
-```bash
-brew install --cask deepchat
-```
-
-### 配置模型
-
-1. 启动DeepChat应用
-2. 点击设置图标
-3. 选择"模型提供商"选项卡
-4. 添加您的API密钥或配置本地Ollama
-
-### 开始对话
-
-1. 点击"+"按钮创建新对话
-2. 选择您想使用的模型
-3. 开始与AI助手交流
-
 ## 💻 开发指南
 
-请阅读[贡献指南](./CONTRIBUTING.md)
+请阅读[贡献指南](./CONTRIBUTING.zh.md)
 
 Windows和Linux通过GitHub Action打包。
 对于Mac相关的签名和打包，请参考[Mac发布指南](https://github.com/ThinkInAIXYZ/deepchat/wiki/Mac-Release-Guide)。
@@ -515,6 +516,8 @@ $ pnpm run build:linux:x64
 $ pnpm run build:linux:arm64
 ```
 
+开发环境、项目结构与架构说明请见[开发者指南](./docs/guides/getting-started.md)和[文档索引](./docs/README.md)。
+
 ## 👥 社区与贡献
 
 DeepChat是一个活跃的开源社区项目，我们欢迎各种形式的贡献：
@@ -523,9 +526,9 @@ DeepChat是一个活跃的开源社区项目，我们欢迎各种形式的贡献
 - 💡 [提交功能建议](https://github.com/ThinkInAIXYZ/deepchat/issues)
 - 🔧 [提交代码改进](https://github.com/ThinkInAIXYZ/deepchat/pulls)
 - 📚 [完善文档](https://github.com/ThinkInAIXYZ/deepchat/wiki)
-- 🌍 [帮助翻译](https://github.com/ThinkInAIXYZ/deepchat/tree/main/locales)
+- 🌍 [帮助翻译](https://github.com/ThinkInAIXYZ/deepchat/tree/main/src/renderer/src/i18n)
 
-查看[贡献指南](./CONTRIBUTING.md)了解更多参与项目的方式。
+查看[贡献指南](./CONTRIBUTING.zh.md)了解更多参与项目的方式。
 
 ## ⭐ Star历史
 
@@ -533,7 +536,7 @@ DeepChat是一个活跃的开源社区项目，我们欢迎各种形式的贡献
 
 ## 👨‍💻 贡献者
 
-感谢您考虑为deepchat做出贡献！贡献指南可以在[贡献指南](./CONTRIBUTING.md)中找到。
+感谢您考虑为deepchat做出贡献！贡献指南可以在[贡献指南](./CONTRIBUTING.zh.md)中找到。
 
 <a href="https://openomy.com/thinkinaixyz/deepchat" target="_blank" style="display: block; width: 100%;" align="center">
   <img src="https://openomy.com/svg?repo=thinkinaixyz/deepchat&chart=bubble&latestMonth=3" target="_blank" alt="Contribution Leaderboard" style="display: block; width: 100%;" />

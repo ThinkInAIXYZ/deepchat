@@ -13,7 +13,6 @@
   <a href="https://github.com/ThinkInAIXYZ/deepchat/issues"><img src="https://img.shields.io/github/issues/ThinkInAIXYZ/deepchat" alt="Issues Badge"/></a>
   <a href="https://github.com/ThinkInAIXYZ/deepchat/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ThinkInAIXYZ/deepchat" alt="License Badge"/></a>
   <a href="https://github.com/ThinkInAIXYZ/deepchat/releases/latest"><img src="https://img.shields.io/endpoint?url=https://api.pinstudios.net/api/badges/downloads/ThinkInAIXYZ/deepchat/total" alt="Downloads"></a>
-  <a href="https://deepwiki.com/ThinkInAIXYZ/deepchat"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 </p>
 
 <div align="center">
@@ -65,6 +64,10 @@
 - [📑 目次](#-目次)
 - [🚀 プロジェクト紹介](#-プロジェクト紹介)
 - [💡 なぜDeepChatを選ぶのか](#-なぜdeepchatを選ぶのか)
+- [📦 クイックスタート](#-クイックスタート)
+  - [ダウンロードとインストール](#ダウンロードとインストール)
+  - [モデルの設定](#モデルの設定)
+  - [会話を開始](#会話を開始)
 - [🔥 主な機能](#-主な機能)
 - [📼 Tape と Trace](#-tape-と-trace)
 - [🧠 Skills サポート](#-skills-サポート)
@@ -73,10 +76,6 @@
 - [🤖 サポートされているモデルプロバイダー](#-サポートされているモデルプロバイダー)
   - [OpenAI/Gemini/Anthropic API形式の任意のモデルプロバイダーと互換性あり](#openaigeminianthropic-api形式の任意のモデルプロバイダーと互換性あり)
 - [🔍 ユースケース](#-ユースケース)
-- [📦 クイックスタート](#-クイックスタート)
-  - [ダウンロードとインストール](#ダウンロードとインストール)
-  - [モデルの設定](#モデルの設定)
-  - [会話を開始](#会話を開始)
 - [💻 開発ガイド](#-開発ガイド)
   - [依存関係のインストール](#依存関係のインストール)
   - [開発を開始](#開発を開始)
@@ -119,6 +118,45 @@ DeepChatのセッションとAgentプロセスはTape.systemsの哲学に基づ�
 - **プライバシー重視**: ローカルデータストレージとネットワークプロキシのサポートにより、情報漏洩のリスクを軽減します
 - **ビジネスフレンドリー**: Apache License 2.0の下でオープンソース化され、商用・個人利用の両方に適しています
 
+## 📦 クイックスタート
+
+### ダウンロードとインストール
+
+以下のいずれかの方法で DeepChat をインストールできます：
+
+**方法1：GitHub Releases**
+
+[GitHub Releases](https://github.com/ThinkInAIXYZ/deepchat/releases)ページからお使いのシステム用の最新バージョンをダウンロードしてください：
+
+- Windows: `.exe`インストールファイル
+- macOS: `.dmg`インストールファイル
+- Linux: `.AppImage`または`.deb`インストールファイル
+
+**方法2：公式ウェブサイト**
+
+[公式ウェブサイト](https://deepchatai.cn/#/download)からダウンロードできます。
+
+**方法3：Homebrew（macOS のみ）**
+
+macOS ユーザーは Homebrew を使用してインストールできます：
+
+```bash
+brew install --cask deepchat
+```
+
+### モデルの設定
+
+1. DeepChatアプリケーションを起動
+2. 設定アイコンをクリック
+3. "モデルプロバイダー"タブを選択
+4. APIキーを追加するか、ローカルOllamaを設定
+
+### 会話を開始
+
+1. "+"ボタンをクリックして新しい会話を作成
+2. 使用したいモデルを選択
+3. AIアシスタントとの対話を開始
+
 ## 🔥 主な機能
 
 - 🤖 **ローカルファーストAgentデスクトップクライアント**
@@ -149,13 +187,13 @@ DeepChatのセッションとAgentプロセスはTape.systemsの哲学に基づ�
   - 画像、Mermaidダイアグラム、その他のマルチモーダルコンテンツのレンダリングをサポート。GPT-4o、Gemini、Grokのテキストから画像生成機能をサポート
   - 検索結果などの外部情報ソースをコンテンツ内でハイライト表示
 - 🔍 **強力な検索強化機能**
-  - 博查搜索、Brave Searchなどの主要な検索APIを組み込み、モデルが検索のタイミングを賢く判断
+  - Bocha Search、Brave Searchなどの主要な検索APIを統合し、モデルが検索のタイミングを賢く判断
   - ユーザーのウェブブラウジングをシミュレートすることで、Google、Bing、Baidu、Sogou公式アカウント検索などの主要検索エンジンをサポート
   - あらゆる検索エンジンの読み取りをサポート。検索アシスタントモデルを設定するだけで、内部ネットワーク、APIなしのエンジン、垂直ドメイン検索エンジンなど、様々な情報ソースをモデルに接続可能
 - 🔧 **優れたMCP（Model Context Protocol）サポート**
   - Resources / Prompts / Tools の三大コア機能をサポート
   - StreamableHTTP、SSE、StdioなどのTransportに対応
-  - 組み込みNode.jsランタイムにより、npx/node系サービスがすぐに利用可能
+  - npx/node系サービス向けの公式Node.jsツールチェーンを、必要なときに設定からインストール可能
   - コード実行、Web情報取得、ファイル操作などのinMemoryサービスに対応
   - ツール呼び出し、パラメータ、戻り値を見やすくデバッグ可能
   - DeepLinkによるMCPサービスのワンクリックインストールに対応
@@ -180,7 +218,7 @@ DeepChat Skills は標準の Agent Skills 仕様と互換性のある設計で�
 
 Skillsはフォルダー、ZIPファイル、URLからインストールできます。Claude Code、Codex、Cursor、Windsurf、GitHub Copilot、Kiro、Antigravity、OpenCode、Goose、Kilo Code などの互換ツールとのインポート/エクスポートにも対応します。
 
-組み込みSkillsは、生成アート、コードレビュー、DeepChat設定、ドキュメント共同作成、DOCX、フロントエンド設計、git commitメッセージ、インフォグラフィック構文、MCP構築、PDF、PPTX、Skill作成、Web Artifacts、XLSXワークフローをカバーします。
+組み込みSkillsは、アルゴリズムアート、コードレビュー、DeepChat CLI、DeepChat設定、ドキュメント共同作成、DOCX、フロントエンド設計、git commitメッセージ、インフォグラフィック構文、MCP構築、メモリ管理、PDF、PPTX、Skill作成、XLSXワークフローをカバーします。
 
 クイックスタート：
 
@@ -424,6 +462,8 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
 
 ### OpenAI/Gemini/Anthropic API形式の任意のモデルプロバイダーと互換性あり
 
+上記の組み込みプロバイダーに加えて、OpenAI、Gemini、Anthropic API形式と互換性のある任意のサービスをカスタムプロバイダーとして追加できます。
+
 ## 🔍 ユースケース
 
 DeepChatは様々なAIアプリケーションシナリオに適しています：
@@ -433,45 +473,6 @@ DeepChatは様々なAIアプリケーションシナリオに適しています�
 - **学習ツール**: 概念の説明、知識の探求、学習ガイダンス
 - **コンテンツ作成**: コピーライティング、クリエイティブなインスピレーション、コンテンツの最適化
 - **データ分析**: データの解釈、チャート生成、レポート作成
-
-## 📦 クイックスタート
-
-### ダウンロードとインストール
-
-以下のいずれかの方法で DeepChat をインストールできます：
-
-**方法1：GitHub Releases**
-
-[GitHub Releases](https://github.com/ThinkInAIXYZ/deepchat/releases)ページからお使いのシステム用の最新バージョンをダウンロードしてください：
-
-- Windows: `.exe`インストールファイル
-- macOS: `.dmg`インストールファイル
-- Linux: `.AppImage`または`.deb`インストールファイル
-
-**方法2：公式ウェブサイト**
-
-[公式ウェブサイト](https://deepchatai.cn/#/download)からダウンロードできます。
-
-**方法3：Homebrew（macOS のみ）**
-
-macOS ユーザーは Homebrew を使用してインストールできます：
-
-```bash
-brew install --cask deepchat
-```
-
-### モデルの設定
-
-1. DeepChatアプリケーションを起動
-2. 設定アイコンをクリック
-3. "モデルプロバイダー"タブを選択
-4. APIキーを追加するか、ローカルOllamaを設定
-
-### 会話を開始
-
-1. "+"ボタンをクリックして新しい会話を作成
-2. 使用したいモデルを選択
-3. AIアシスタントとの対話を開始
 
 ## 💻 開発ガイド
 
@@ -518,6 +519,8 @@ $ pnpm run build:linux:x64
 $ pnpm run build:linux:arm64
 ```
 
+開発環境、プロジェクト構成、アーキテクチャの詳細は[開発者ガイド](./docs/guides/getting-started.md)と[ドキュメント索引](./docs/README.md)を参照してください。
+
 ## 👥 コミュニティと貢献
 
 DeepChatはアクティブなオープンソースコミュニティプロジェクトであり、様々な形での貢献を歓迎します：
@@ -526,7 +529,7 @@ DeepChatはアクティブなオープンソースコミュニティプロジェ
 - 💡 [機能の提案を提出する](https://github.com/ThinkInAIXYZ/deepchat/issues)
 - 🔧 [コードの改善を提出する](https://github.com/ThinkInAIXYZ/deepchat/pulls)
 - 📚 [ドキュメントを改善する](https://github.com/ThinkInAIXYZ/deepchat/wiki)
-- 🌍 [翻訳を手伝う](https://github.com/ThinkInAIXYZ/deepchat/tree/main/locales)
+- 🌍 [翻訳を手伝う](https://github.com/ThinkInAIXYZ/deepchat/tree/main/src/renderer/src/i18n)
 
 プロジェクトへの参加方法について詳しく知るには、[貢献ガイドライン](./CONTRIBUTING.md)をご確認ください。
 
