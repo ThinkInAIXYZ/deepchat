@@ -13,7 +13,6 @@
   <a href="https://github.com/ThinkInAIXYZ/deepchat/issues"><img src="https://img.shields.io/github/issues/ThinkInAIXYZ/deepchat" alt="Issues Badge"/></a>
   <a href="https://github.com/ThinkInAIXYZ/deepchat/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ThinkInAIXYZ/deepchat" alt="License Badge"/></a>
   <a href="https://github.com/ThinkInAIXYZ/deepchat/releases/latest"><img src="https://img.shields.io/endpoint?url=https://api.pinstudios.net/api/badges/downloads/ThinkInAIXYZ/deepchat/total" alt="Downloads"></a>
-  <a href="https://deepwiki.com/ThinkInAIXYZ/deepchat"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 </p>
 
 <div align="center">
@@ -64,6 +63,10 @@
 - [📑 Table of Contents](#-table-of-contents)
 - [🚀 Project Introduction](#-project-introduction)
 - [💡 Why Choose DeepChat](#-why-choose-deepchat)
+- [📦 Quick Start](#-quick-start)
+  - [Download and Install](#download-and-install)
+  - [Configure Models](#configure-models)
+  - [Start Conversations](#start-conversations)
 - [🔥 Main Features](#-main-features)
 - [📼 Tape & Trace](#-tape--trace)
 - [🧠 Skills Support](#-skills-support)
@@ -72,10 +75,6 @@
 - [🤖 Supported Model Providers](#-supported-model-providers)
   - [Compatible with any model provider in OpenAI/Gemini/Anthropic API format](#compatible-with-any-model-provider-in-openaigeminianthropic-api-format)
 - [🔍 Use Cases](#-use-cases)
-- [📦 Quick Start](#-quick-start)
-  - [Download and Install](#download-and-install)
-  - [Configure Models](#configure-models)
-  - [Start Conversations](#start-conversations)
 - [💻 Development Guide](#-development-guide)
   - [Install Dependencies](#install-dependencies)
   - [Start Development](#start-development)
@@ -118,6 +117,45 @@ Compared to other AI tools, DeepChat offers the following unique advantages:
 - **Privacy-Focused**: Local data storage and network proxy support reduce the risk of information leakage
 - **Business-Friendly**: Embraces open source under the Apache License 2.0, suitable for both commercial and personal use
 
+## 📦 Quick Start
+
+### Download and Install
+
+You can install DeepChat using one of the following methods:
+
+**Option 1: GitHub Releases**
+
+Download the latest version for your system from the [GitHub Releases](https://github.com/ThinkInAIXYZ/deepchat/releases) page:
+
+- Windows: `.exe` installation file
+- macOS: `.dmg` installation file
+- Linux: `.AppImage` or `.deb` installation file
+
+**Option 2: Official Website**
+
+Download from the [official website](https://deepchatai.cn/#/download).
+
+**Option 3: Homebrew (macOS only)**
+
+For macOS users, you can install DeepChat using Homebrew:
+
+```bash
+brew install --cask deepchat
+```
+
+### Configure Models
+
+1. Launch the DeepChat application
+2. Click the settings icon
+3. Select the "Model Providers" tab
+4. Add your API keys or configure local Ollama
+
+### Start Conversations
+
+1. Click the "+" button to create a new conversation
+2. Select the model you want to use
+3. Start communicating with your AI assistant
+
 ## 🔥 Main Features
 
 - 🤖 **Local-First Agent Desktop Client**
@@ -148,7 +186,7 @@ Compared to other AI tools, DeepChat offers the following unique advantages:
   - Supports rendering images, Mermaid diagrams, and other multi-modal content; supports GPT-4o, Gemini, Grok text-to-image capabilities
   - Supports highlighting external information sources like search results within the content
 - 🔍 **Robust Search Extension Capabilities**
-  - Built-in integration with leading search APIs like BoSearch and Brave Search, allowing the model to intelligently decide when to search
+  - Built-in integration with leading search APIs like Bocha Search and Brave Search, allowing the model to intelligently decide when to search
   - Supports mainstream search engines like Google, Bing, Baidu, and Sogou Official Accounts search by simulating user web browsing, enabling the LLM to read search engines like a human
   - Supports reading any search engine; simply configure a search assistant model to connect various search sources, whether internal networks, API-less engines, or vertical domain search engines, as information sources for the model
 - 🔧 **Strong MCP (Model Context Protocol) Support**
@@ -169,8 +207,6 @@ Compared to other AI tools, DeepChat offers the following unique advantages:
   - Clear code structure, both model providers and MCP services are highly decoupled, can be freely customized with minimal cost
   - Reasonable architecture, data interaction and UI behavior separation, fully utilizing Electron's capabilities, rejecting simple web wrappers, excellent performance
 
-For more details on how to use these features, see the [documentation index](./docs/README.md).
-
 ## 📼 Tape & Trace
 
 DeepChat's session Tape follows the Tape.systems philosophy and keeps agent work recoverable and inspectable. Trace previews expose request sequences, provider/model metadata, Tape view manifests, included or excluded entries, and token budgets, making long-running agent sessions easier to debug and resume.
@@ -181,7 +217,7 @@ DeepChat Skills are designed to be compatible with the standard Agent Skills spe
 
 You can install Skills from folders, ZIP files, or URLs, and import/export them with Claude Code, Codex, Cursor, Windsurf, GitHub Copilot, Kiro, Antigravity, OpenCode, Goose, Kilo Code, and other compatible tools.
 
-Built-in Skills cover generative art, code review, DeepChat settings, document collaboration, DOCX, frontend design, git commit messages, infographic syntax, MCP building, PDF, PPTX, Skill creation, Web Artifacts, and XLSX workflows.
+Built-in Skills cover algorithmic art, code review, DeepChat CLI, DeepChat settings, document collaboration, DOCX, frontend design, git commit messages, infographic syntax, MCP building, memory management, PDF, PPTX, Skill creation, and XLSX workflows.
 
 Quick start:
 
@@ -425,6 +461,8 @@ Common commands include `/start`, `/help`, `/pair`, `/new`, `/sessions`, `/use`,
 
 ### Compatible with any model provider in OpenAI/Gemini/Anthropic API format
 
+Any service that speaks the OpenAI, Gemini, or Anthropic API format can be added as a custom provider next to the built-in ones.
+
 ## 🔍 Use Cases
 
 DeepChat is suitable for various AI application scenarios:
@@ -434,47 +472,6 @@ DeepChat is suitable for various AI application scenarios:
 - **Learning Tool**: Concept explanation, knowledge exploration, learning guidance
 - **Content Creation**: Copywriting, creative inspiration, content optimization
 - **Data Analysis**: Data interpretation, chart generation, report writing
-
-## 📦 Quick Start
-
-### Download and Install
-
-You can install DeepChat using one of the following methods:
-
-**Option 1: GitHub Releases**
-
-Download the latest version for your system from the [GitHub Releases](https://github.com/ThinkInAIXYZ/deepchat/releases) page:
-
-- Windows: `.exe` installation file
-- macOS: `.dmg` installation file
-- Linux: `.AppImage` or `.deb` installation file
-
-**Option 2: Official Website**
-
-Download from the [official website](https://deepchatai.cn/#/download).
-
-**Option 3: Homebrew (macOS only)**
-
-For macOS users, you can install DeepChat using Homebrew:
-
-```bash
-brew install --cask deepchat
-```
-
-### Configure Models
-
-1. Launch the DeepChat application
-2. Click the settings icon
-3. Select the "Model Providers" tab
-4. Add your API keys or configure local Ollama
-
-### Start Conversations
-
-1. Click the "+" button to create a new conversation
-2. Select the model you want to use
-3. Start communicating with your AI assistant
-
-For a comprehensive guide on getting started and using all features, please refer to the [documentation index](./docs/README.md).
 
 ## 💻 Development Guide
 
@@ -521,7 +518,7 @@ $ pnpm run build:linux:x64
 $ pnpm run build:linux:arm64
 ```
 
-For a more detailed guide on development, project structure, and architecture, please see the [Developer Guide](./docs/guides/getting-started.md).
+For a more detailed guide on development, project structure, and architecture, please see the [Developer Guide](./docs/guides/getting-started.md) and the maintained [documentation index](./docs/README.md).
 
 ## 👥 Community & Contribution
 
@@ -531,7 +528,7 @@ DeepChat is an active open-source community project, and we welcome various form
 - 💡 [Submit feature suggestions](https://github.com/ThinkInAIXYZ/deepchat/issues)
 - 🔧 [Submit code improvements](https://github.com/ThinkInAIXYZ/deepchat/pulls)
 - 📚 [Improve documentation](https://github.com/ThinkInAIXYZ/deepchat/wiki)
-- 🌍 [Help with translation](https://github.com/ThinkInAIXYZ/deepchat/tree/main/locales)
+- 🌍 [Help with translation](https://github.com/ThinkInAIXYZ/deepchat/tree/main/src/renderer/src/i18n)
 
 Check the [Contribution Guidelines](./CONTRIBUTING.md) to learn more about ways to participate in the project.
 
