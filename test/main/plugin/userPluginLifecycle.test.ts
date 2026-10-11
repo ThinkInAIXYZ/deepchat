@@ -507,6 +507,49 @@ it('clears interrupted-update state even when restoring MCP settings fails', asy
   expect(f.store.pending()).toBeNull()
 })
 
+it('installs Sem disabled and retains its explicit repository binding through enable and removal', async () => {
+  const f = fixture()
+  const existing = await f.mcpSettings.getMcpServers()
+  const inspected = await f.service.inspect(
+    { kind: 'directory', path: path.resolve('examples/user-plugins/sem') },
+    randomUUID()
+  )
+  expect(inspected.package).toMatchObject({
+    name: 'sem-code-review',
+    skills: [],
+    hooks: [],
+    findings: [],
+    mcpServers: [{ name: 'sem', type: 'stdio', requiredVariables: ['SEM_REPO'] }]
+  })
+  const installed = await f.service.install({
+    operationId: inspected.operationId,
+    selection: { skills: false, hooks: false, mcp: true }
+  })
+  expect(installed.ok).toBe(true)
+  expect(installed.status).toMatchObject({ enabled: false })
+  expect(await f.mcpSettings.getMcpServers()).toEqual(existing)
+  const id = installed.status!.id
+  const key = `${id}.sem`
+  expect((await f.service.enable(id)).ok).toBe(true)
+  expect((await f.service.get(id)).userPlugin?.setup[key]).toEqual(['SEM_REPO'])
+  expect((await f.service.configureMcp(id, key, { SEM_REPO: '' })).ok).toBe(false)
+  const repository = path.join(f.root, 'repository with spaces')
+  expect((await f.service.configureMcp(id, key, { SEM_REPO: repository })).ok).toBe(true)
+  const config = (await f.mcpSettings.getMcpServers())[key]
+  expect(config).toMatchObject({
+    type: 'stdio',
+    command: 'npx',
+    args: ['-y', '@ataraxy-labs/sem@0.27.0', 'mcp'],
+    env: { SEM_REPO: '${SEM_REPO}', SEM_NO_NETWORK: '1', SEM_NO_TELEMETRY: '1' },
+    environmentVariables: ['SEM_REPO']
+  })
+  expect(f.mcpSettings.getMcpVariableBindings(config)).toEqual({ SEM_REPO: repository })
+  expect((await f.service.disable(id)).ok).toBe(true)
+  expect((await f.mcpSettings.getMcpServers())[key].enabled).toBe(false)
+  expect((await f.service.uninstall(id)).ok).toBe(true)
+  expect(await f.mcpSettings.getMcpServers()).toEqual(existing)
+})
+
 it('installs the anonymous Parallel ZIP without changing existing MCP settings', async () => {
   const f = fixture()
   const source = path.resolve('examples/user-plugins/parallel-search')
