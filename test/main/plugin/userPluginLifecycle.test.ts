@@ -506,3 +506,67 @@ it('clears interrupted-update state even when restoring MCP settings fails', asy
   await new UserPlugins(f.deps).initialize()
   expect(f.store.pending()).toBeNull()
 })
+
+it('installs the anonymous Parallel ZIP without changing existing MCP settings', async () => {
+  const f = fixture()
+  const source = path.resolve('examples/user-plugins/parallel-search')
+  const archive = path.join(f.root, 'parallel-search.zip')
+  fs.writeFileSync(
+    archive,
+    zipSync(
+      Object.fromEntries(
+        fs
+          .readdirSync(source, { recursive: true, encoding: 'utf8' })
+          .filter((relative) => fs.statSync(path.join(source, relative)).isFile())
+          .map((relative) => [
+            relative.split(path.sep).join('/'),
+            fs.readFileSync(path.join(source, relative))
+          ])
+      )
+    )
+  )
+  const existing = await f.mcpSettings.getMcpServers()
+  const inspected = await f.service.inspect({ kind: 'zip', path: archive }, randomUUID())
+  expect(inspected.package).toMatchObject({
+    name: 'parallel-search',
+    skills: [],
+    hooks: [],
+    findings: [],
+    mcpServers: [
+      {
+        name: 'parallel-search',
+        type: 'http',
+        url: 'https://search.parallel.ai/mcp',
+        headers: {
+          'User-Agent': 'DeepChat-Parallel-Search/0.1.0 (https://github.com/ThinkInAIXYZ/deepchat)'
+        },
+        requiredVariables: []
+      }
+    ]
+  })
+  const installed = await f.service.install({
+    operationId: inspected.operationId,
+    selection: { skills: false, hooks: false, mcp: true }
+  })
+  expect(installed.ok).toBe(true)
+  expect(installed.status).toMatchObject({ enabled: false })
+  expect(await f.mcpSettings.getMcpServers()).toEqual(existing)
+  const id = installed.status!.id
+  expect((await f.service.enable(id)).ok).toBe(true)
+  const key = `${id}.parallel-search`
+  const enabled = await f.mcpSettings.getMcpServers()
+  expect(enabled[key]).toMatchObject({
+    type: 'http',
+    baseUrl: 'https://search.parallel.ai/mcp',
+    customHeaders: {
+      'User-Agent': 'DeepChat-Parallel-Search/0.1.0 (https://github.com/ThinkInAIXYZ/deepchat)'
+    },
+    environmentVariables: []
+  })
+  expect(f.mcpSettings.getMcpVariableBindings(enabled[key])).toEqual({})
+  for (const [name, config] of Object.entries(existing)) expect(enabled[name]).toEqual(config)
+  expect((await f.service.disable(id)).ok).toBe(true)
+  expect((await f.mcpSettings.getMcpServers())[key].enabled).toBe(false)
+  expect((await f.service.uninstall(id)).ok).toBe(true)
+  expect(await f.mcpSettings.getMcpServers()).toEqual(existing)
+})

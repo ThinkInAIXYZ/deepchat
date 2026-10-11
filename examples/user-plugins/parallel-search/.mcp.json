@@ -1,0 +1,9 @@
+{
+  "parallel-search": {
+    "type": "http",
+    "url": "https://search.parallel.ai/mcp",
+    "headers": {
+      "User-Agent": "DeepChat-Parallel-Search/0.1.0 (https://github.com/ThinkInAIXYZ/deepchat)"
+    }
+  }
+}
