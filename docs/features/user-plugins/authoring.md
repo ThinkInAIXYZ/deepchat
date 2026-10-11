@@ -17,6 +17,11 @@ password field for a user-supplied Bearer key and includes ZIP packaging instruc
 rotation and removal guidance. The hosted service requires a separate account and may charge for
 usage; the example is optional and is not bundled or auto-enabled.
 
+For anonymous web search and page fetching, see
+[Parallel Search](../../../examples/user-plugins/parallel-search/README.md). This MCP-only example
+uses Streamable HTTP with no account or API key required. Package it as a small ZIP and explicitly
+enable it after installation; anonymous service rate limits apply.
+
 ## A complete skills-and-hooks package
 
 ```text

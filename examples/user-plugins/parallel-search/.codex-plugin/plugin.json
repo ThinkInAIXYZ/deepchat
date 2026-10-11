@@ -1,0 +1,10 @@
+{
+  "name": "parallel-search",
+  "version": "0.1.0",
+  "description": "Free web search and page fetching through Parallel Search MCP. No account or API key required.",
+  "author": {
+    "name": "Parallel"
+  },
+  "license": "Apache-2.0",
+  "mcpServers": "./.mcp.json"
+}
