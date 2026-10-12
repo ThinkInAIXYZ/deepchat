@@ -74,13 +74,16 @@ import {
 } from '../deepseekResponsesAdapter'
 
 const OPENAI_CODEX_RECOMMENDED_MODEL_IDS = [
+  'gpt-6.1-sol',
+  'gpt-6-astra',
+  'gpt-6-sol',
+  'gpt-6-luna',
   'gpt-5.5',
   'gpt-5.6-sol',
   'gpt-5.6-terra',
   'gpt-5.6-luna',
-  'gpt-5.4',
-  'gpt-5.4-mini',
-  'gpt-5.3-codex-spark',
+  'gpt-image-2.5-sunburst',
+  'gpt-image-2.5-flare',
   'gpt-image-2'
 ]
 const GREENPT_RECOMMENDED_MODEL_IDS = [
@@ -1605,19 +1608,12 @@ export class AiSdkProvider extends BaseLLMProvider {
   private mapOpenAICodexModels(): MODEL_META[] {
     const models = this.mapProviderDbModels(this.definition.providerDbGroup || 'Codex')
     const modelsById = new Map(models.map((model) => [model.id, model]))
-    const recommended = OPENAI_CODEX_RECOMMENDED_MODEL_IDS.flatMap((id) => {
+    return OPENAI_CODEX_RECOMMENDED_MODEL_IDS.flatMap((id) => {
       const model = modelsById.get(id)
-      return model ? [model] : []
+      if (model) return [model]
+      if (!isOpenAIImageGenerationModelId(id)) return []
+      return [{ id, name: id, group: 'Codex', providerId: this.provider.id, isCustom: false }]
     })
-
-    if (recommended.length > 0) {
-      return recommended
-    }
-
-    return models.filter(
-      (model) =>
-        model.id.toLowerCase().includes('codex') || model.name.toLowerCase().includes('codex')
-    )
   }
 
   private mapKimiForCodingModels(): MODEL_META[] {

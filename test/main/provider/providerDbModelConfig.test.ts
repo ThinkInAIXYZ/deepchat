@@ -372,6 +372,36 @@ describe('Provider DB strict matching and user overrides', () => {
     expect(helper.getModelConfig('gpt-image-2', 'openai').vision).toBe(true)
   })
 
+  it.each(['gpt-image-2.5-sunburst', 'gpt-image-2.5-flare'])(
+    'routes Codex image model %s without catalog metadata and preserves user settings',
+    (modelId) => {
+      const helper = new ModelConfigHelper()
+      expect(helper.getModelConfig(modelId, 'openai-codex')).toMatchObject({
+        type: ModelType.ImageGeneration,
+        apiEndpoint: ApiEndpointType.Image,
+        vision: false,
+        functionCall: false,
+        reasoning: false,
+        isUserDefined: false
+      })
+      expect(helper.getModelConfig(modelId, 'openai')).toMatchObject({
+        type: ModelType.Chat,
+        apiEndpoint: ApiEndpointType.Chat
+      })
+
+      helper.setModelConfig(modelId, 'openai-codex', {
+        ...helper.getModelConfig(modelId, 'openai-codex'),
+        type: ModelType.Chat,
+        apiEndpoint: ApiEndpointType.Chat
+      })
+      expect(helper.getModelConfig(modelId, 'openai-codex')).toMatchObject({
+        type: ModelType.Chat,
+        apiEndpoint: ApiEndpointType.Chat,
+        isUserDefined: true
+      })
+    }
+  )
+
   it('applies partial fallbacks when limit fields are missing', () => {
     const helper = new ModelConfigHelper()
     const cfg1 = helper.getModelConfig('partial-limit', 'test-provider')

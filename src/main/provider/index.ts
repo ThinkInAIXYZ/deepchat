@@ -685,7 +685,7 @@ export class ProviderRuntime
           })
         }
         if (event.type === 'error') {
-          throw new Error(event.error_message)
+          throw Object.assign(new Error(event.error_message), { failure: event.failure })
         }
       }
     }
@@ -769,7 +769,7 @@ export class ProviderRuntime
           })
         }
         if (event.type === 'error') {
-          throw new Error(event.error_message)
+          throw Object.assign(new Error(event.error_message), { failure: event.failure })
         }
       }
     }
@@ -856,7 +856,7 @@ export class ProviderRuntime
           }
         }
         if (event.type === 'error') {
-          throw new Error(event.error_message)
+          throw Object.assign(new Error(event.error_message), { failure: event.failure })
         }
       }
     }

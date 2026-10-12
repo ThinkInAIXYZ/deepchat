@@ -193,6 +193,34 @@ describe('OpenAI Codex auth', () => {
     expect(store.load()?.refreshToken).toBe('new-refresh-token')
   })
 
+  it('requires sign-in after a rejected refresh token without deleting credentials', async () => {
+    const store = new OpenAICodexCredentialStore(path.join(tempDir, 'credentials.json'))
+    store.save({
+      accessToken: 'expired-token',
+      refreshToken: 'rejected-refresh-token',
+      tokenType: 'Bearer',
+      expiresAt: Date.now() - 1000,
+      updatedAt: Date.now()
+    })
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: { code: 'invalid_refresh_token', message: 'private upstream response' }
+        }),
+        { status: 400 }
+      )
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const auth = new OpenAICodexAuth(store, vi.fn())
+
+    await expect(auth.getBackendAuth()).rejects.toMatchObject({
+      message: 'OpenAI Codex sign-in has expired. Sign in again.',
+      failure: { statusCode: 400, code: 'openai_codex_sign_in_required', retryable: false }
+    })
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(store.load()?.refreshToken).toBe('rejected-refresh-token')
+  })
+
   it('opens browser login externally and completes from a pasted callback URL', async () => {
     startOAuthLoopbackCallbackSessionMock.mockImplementationOnce(
       async (options: { expectedState: string; path: string }) => {

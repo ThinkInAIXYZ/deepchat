@@ -729,6 +729,21 @@ describe('ProviderRuntime Integration Tests', () => {
       expect(call?.[6]).toEqual([])
     }, 15000)
 
+    it.each([
+      'generateImageStandalone',
+      'generateVideoStandalone',
+      'generateSpeechStandalone'
+    ] as const)('preserves provider failure metadata from %s error events', async (method) => {
+      const failure = { statusCode: 401, retryable: false }
+      mockRunAiSdkCoreStream.mockImplementationOnce(async function* () {
+        yield { type: 'error', error_message: 'provider rejected request', failure }
+      })
+
+      await expect(
+        providerRuntime[method]('mock-openai-api', 'hello', 'mock-gpt-thinking')
+      ).rejects.toMatchObject({ message: 'provider rejected request', failure })
+    })
+
     it('should summarize titles', async () => {
       const messages = [
         { role: 'user' as const, content: 'Hello, I want to learn about artificial intelligence' },

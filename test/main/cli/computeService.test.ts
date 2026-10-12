@@ -16,6 +16,7 @@ import type { MODEL_META, ModelConfig } from '@shared/types/provider'
 import { CliComputeService, type CliComputeServiceOptions } from '@/cli/computeService'
 import { ArtifactSpool } from '@/cli/artifactSpool'
 import type { CliRouteCaller } from '@/routes/routeRegistry'
+import { ProviderHttpError } from '@/provider/providerFailure'
 
 const mediaSpools: ArtifactSpool[] = []
 const temporaryDirectories: string[] = []
@@ -634,6 +635,86 @@ describe('CLI compute service', () => {
     ).rejects.toMatchObject({ code: 'unavailable' })
     expect(await readdir(media.artifactDirectory)).toEqual([])
   })
+
+  it.each([
+    [400, false],
+    [401, false],
+    [403, false],
+    [429, true],
+    [500, true],
+    [200, false]
+  ] as const)(
+    'preserves media provider status %i and retryability %s without private data',
+    async (statusCode, retryable) => {
+      const error = Object.assign(new Error('private upstream response'), {
+        statusCode,
+        ...(statusCode === 200 ? { isRetryable: false } : {}),
+        code: 'SECRET_PROVIDER_CODE',
+        responseHeaders: { 'retry-after': 'secret-header-value' }
+      })
+      const media = await createMediaService(ModelType.ImageGeneration, {
+        generateImageStandalone: vi.fn(async () => {
+          throw error
+        })
+      })
+      await expect(
+        media.service.dispatchStream(
+          imagesGenerateRoute.name,
+          { providerId: provider.id, modelId: media.mediaModel.id, prompt: 'hello' },
+          caller,
+          'request-error',
+          new AbortController().signal,
+          async () => undefined
+        )
+      ).rejects.toMatchObject({
+        code: 'unavailable',
+        retriable: retryable,
+        options: { details: { providerFailure: { statusCode, retryable } } }
+      })
+      expect(JSON.stringify(media.log.warn.mock.calls)).not.toMatch(
+        /private upstream response|SECRET_PROVIDER_CODE|secret-header-value/
+      )
+    }
+  )
+
+  it.each([
+    [ModelType.ImageGeneration, imagesGenerateRoute.name, 'generateImageStandalone'],
+    [ModelType.VideoGeneration, videosGenerateRoute.name, 'generateVideoStandalone'],
+    [ModelType.TTS, speechGenerateRoute.name, 'generateSpeechStandalone']
+  ] as const)(
+    'reports expired Codex sign-in for %s without requesting retries',
+    async (type, route, method) => {
+      const media = await createMediaService(type, {
+        [method]: vi.fn(async () => {
+          throw new ProviderHttpError('private OAuth response', {
+            statusCode: 400,
+            code: 'openai_codex_sign_in_required',
+            retryable: false
+          })
+        })
+      })
+      await expect(
+        media.service.dispatchStream(
+          route,
+          {
+            providerId: provider.id,
+            modelId: media.mediaModel.id,
+            ...(type === ModelType.TTS ? { text: 'hello' } : { prompt: 'hello' })
+          },
+          caller,
+          'request-auth-error',
+          new AbortController().signal,
+          async () => undefined
+        )
+      ).rejects.toMatchObject({
+        code: 'authentication_failed',
+        message: 'OpenAI Codex sign-in is required. Sign in again.',
+        retriable: false,
+        options: { details: { providerFailure: { statusCode: 400, retryable: false } } }
+      })
+      expect(media.log.warn).not.toHaveBeenCalled()
+    }
+  )
 
   it('normalizes media failures without logging provider response text', async () => {
     const media = await createMediaService(ModelType.TTS, {

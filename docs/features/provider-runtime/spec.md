@@ -99,12 +99,19 @@ and [GPT OSS 120B model ID](https://fireworks.ai/models/fireworks/gpt-oss-120b).
 ## OpenAI Codex
 
 `openai-codex` is separate from standard `openai`: distinct provider ID, runtime kind, credential store,
-routes and request adapter. Current recommended catalog includes `gpt-5.5`, `gpt-5.6-sol`,
-`gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex-spark` and `gpt-image-2`
-when provider-db metadata contains them; connection check uses `gpt-5.6-luna`.
+routes and request adapter. Current recommended catalog includes `gpt-6.1-sol`, `gpt-6-astra`,
+`gpt-6-sol`, `gpt-6-luna`, `gpt-5.5`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`,
+`gpt-image-2.5-sunburst`, `gpt-image-2.5-flare` and `gpt-image-2`. Chat models require provider-db
+metadata. Curated image models remain listed when metadata is missing and use the OpenAI image-route
+compatibility fallback; explicit user model settings retain precedence. Connection check uses
+`gpt-5.6-luna`. GPT-5.4, GPT-5.4 mini and Codex Spark are omitted following their
+[Codex retirement](https://learn.chatgpt.com/docs/models#deprecated-codex-models).
 
 Codex requests include required instructions and backend routing headers, preserve streaming/tool/reasoning
-behavior, and surface entitlement failure without logging token or account identifiers. Image generation
+behavior, and surface entitlement failure without logging token or account identifiers. Rejected refresh
+tokens retain their HTTP failure metadata and require sign-in again; media CLI calls return
+`authentication_failed` with `retriable: false`. Other media provider failures expose only normalized
+HTTP status and retryability. Image generation
 uses the same OAuth credential path with `/images/generations`; Responses-only body normalization does not
 apply to image requests. The image-generation projection preserves shared OpenAI image settings but disables
 vision input because the standalone route accepts only text prompts. Background provider-db refresh skips

@@ -25,6 +25,7 @@ import {
 import { OpenAICodexCredentialStore, type OpenAICodexTokenSet } from './credentialStore'
 import { createOpenAICodexPkcePair, createOpenAICodexState } from './pkce'
 import type { OpenAICodexAuthStatus } from '@shared/types/openai-codex'
+import { ProviderHttpError } from '../../providerFailure'
 
 export type OpenAICodexBackendAuth = {
   accessToken: string
@@ -306,7 +307,11 @@ export class OpenAICodexAuth {
 
     const tokens = this.store.load()
     if (!tokens) {
-      throw new Error(this.store.getLoadError() ?? 'OpenAI Codex sign-in is required')
+      throw new ProviderHttpError(this.store.getLoadError() ?? 'OpenAI Codex sign-in is required', {
+        statusCode: 401,
+        code: 'openai_codex_sign_in_required',
+        retryable: false
+      })
     }
 
     const current =
@@ -323,7 +328,10 @@ export class OpenAICodexAuth {
     this.assertEnabled()
     const tokens = this.store.load()
     if (!tokens?.refreshToken) {
-      throw new Error(this.store.getLoadError() ?? 'OpenAI Codex refresh token is unavailable')
+      throw new ProviderHttpError(
+        this.store.getLoadError() ?? 'OpenAI Codex refresh token is unavailable',
+        { statusCode: 401, code: 'openai_codex_sign_in_required', retryable: false }
+      )
     }
 
     const refreshed = await this.refreshAccessToken(tokens, true)
@@ -427,7 +435,11 @@ export class OpenAICodexAuth {
     currentTokens: OpenAICodexTokenSet
   ): Promise<OpenAICodexTokenSet> {
     if (!currentTokens.refreshToken) {
-      throw new Error('OpenAI Codex refresh token is unavailable')
+      throw new ProviderHttpError('OpenAI Codex refresh token is unavailable', {
+        statusCode: 401,
+        code: 'openai_codex_sign_in_required',
+        retryable: false
+      })
     }
 
     const payload = await this.postForm(OPENAI_CODEX_TOKEN_URL, {
@@ -498,7 +510,20 @@ export class OpenAICodexAuth {
     })
 
     if (!response.ok) {
-      throw new Error(await readErrorBody(response))
+      const errorBody = await readErrorBody(response)
+      let requiresSignIn = false
+      if (params.grant_type === 'refresh_token') {
+        try {
+          requiresSignIn = JSON.parse(errorBody)?.error?.code === 'invalid_refresh_token'
+        } catch {}
+      }
+      throw new ProviderHttpError(
+        requiresSignIn ? 'OpenAI Codex sign-in has expired. Sign in again.' : errorBody,
+        {
+          statusCode: response.status,
+          ...(requiresSignIn ? { code: 'openai_codex_sign_in_required', retryable: false } : {})
+        }
+      )
     }
 
     return (await response.json()) as TokenResponse
