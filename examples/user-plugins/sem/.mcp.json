@@ -1,0 +1,11 @@
+{
+  "sem": {
+    "command": "npx",
+    "args": ["-y", "@ataraxy-labs/sem@0.27.0", "mcp"],
+    "env": {
+      "SEM_REPO": "${SEM_REPO}",
+      "SEM_NO_NETWORK": "1",
+      "SEM_NO_TELEMETRY": "1"
+    }
+  }
+}

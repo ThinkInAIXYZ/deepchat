@@ -1,0 +1,8 @@
+{
+  "name": "sem-code-review",
+  "version": "0.1.0",
+  "description": "Local code-entity search, caller inspection and structural diffs with Sem.",
+  "author": { "name": "Ataraxy Labs" },
+  "license": "Apache-2.0",
+  "mcpServers": "./.mcp.json"
+}

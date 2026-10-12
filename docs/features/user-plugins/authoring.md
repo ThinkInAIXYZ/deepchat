@@ -22,6 +22,10 @@ For anonymous web search and page fetching, see
 uses Streamable HTTP with no account or API key required. Package it as a small ZIP and explicitly
 enable it after installation; anonymous service rate limits apply.
 
+For local code-entity search and structural diffs, see
+[Sem](../../../examples/user-plugins/sem/README.md). This optional stdio example asks for an explicit
+Git repository path and keeps normal tool approvals; its validation tools can execute repository commands.
+
 ## A complete skills-and-hooks package
 
 ```text
