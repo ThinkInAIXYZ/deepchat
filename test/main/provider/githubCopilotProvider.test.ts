@@ -466,29 +466,76 @@ describe('GithubCopilotProvider request timeout', () => {
     expect(getGitHubCopilotToken).toHaveBeenCalledOnce()
   })
 
-  it('does not cache an old account session after configuration changes during exchange', async () => {
+  it('keeps the request valid when unrelated provider settings change during exchange', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ choices: [{ message: { content: 'hello' } }] }))
+    vi.stubGlobal('fetch', fetchMock)
     const provider = Object.create(GithubCopilotProvider.prototype) as any
-    provider.provider = { id: 'github-copilot', apiKey: 'old-account' }
+    provider.provider = { id: 'github-copilot', apiKey: 'same-account', name: 'Copilot' }
+    provider.baseApiUrl = 'https://api.githubcopilot.com'
     provider.providerSettings = {
       getProviderModels: vi.fn(() => []),
-      getCustomModels: vi.fn(() => [])
+      getCustomModels: vi.fn(() => []),
+      getModelConfig: vi.fn(() => ({}))
     }
-    let finishExchange!: (value: { token: string; expires_at: number }) => void
-    vi.mocked(getGitHubCopilotToken).mockImplementationOnce(() => {
-      return new Promise((resolve) => {
-        finishExchange = resolve
-      })
-    })
-    const oldCheck = provider.check()
-    provider.updateConfig({ id: 'github-copilot', apiKey: 'new-account' })
-    finishExchange({ token: 'old-session', expires_at: Date.now() / 1000 + 3600 })
-    await oldCheck
-    vi.mocked(getGitHubCopilotToken).mockResolvedValueOnce({
-      token: 'new-session',
-      expires_at: Date.now() / 1000 + 3600
+    vi.mocked(getGitHubCopilotToken).mockImplementationOnce(async () => {
+      provider.updateConfig({ ...provider.provider, name: 'Renamed Copilot' })
+      return { token: 'same-account-session', expires_at: Date.now() / 1000 + 3600 }
     })
 
-    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
-    expect(getGitHubCopilotToken).toHaveBeenLastCalledWith('new-account', undefined)
+    await expect(
+      provider.completions([{ role: 'user', content: 'hello' }], 'gpt-4o')
+    ).resolves.toEqual({
+      content: 'hello'
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.githubcopilot.com/chat/completions',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer same-account-session' })
+      })
+    )
   })
+
+  it.each([true, false])(
+    'rejects the original request when accounts change during exchange (stream=%s)',
+    async (stream) => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const provider = Object.create(GithubCopilotProvider.prototype) as any
+      provider.provider = { id: 'github-copilot', apiKey: 'old-account' }
+      provider.baseApiUrl = 'https://api.githubcopilot.com'
+      provider.providerSettings = {
+        getProviderModels: vi.fn(() => []),
+        getCustomModels: vi.fn(() => []),
+        getModelConfig: vi.fn(() => ({}))
+      }
+      let finishExchange!: (value: { token: string; expires_at: number }) => void
+      vi.mocked(getGitHubCopilotToken).mockImplementationOnce(() => {
+        return new Promise((resolve) => {
+          finishExchange = resolve
+        })
+      })
+      const oldRequest = stream
+        ? provider
+            .coreStream([{ role: 'user', content: 'hello' }], 'gpt-4o', {}, 0.7, 1024, [])
+            .next()
+        : provider.completions([{ role: 'user', content: 'hello' }], 'gpt-4o')
+      const rejection = expect(oldRequest).rejects.toThrow(
+        'GitHub Copilot configuration changed during token exchange'
+      )
+      provider.updateConfig({ id: 'github-copilot', apiKey: 'new-account' })
+      finishExchange({ token: 'old-session', expires_at: Date.now() / 1000 + 3600 })
+      await rejection
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(getGitHubCopilotToken).toHaveBeenCalledOnce()
+      vi.mocked(getGitHubCopilotToken).mockResolvedValueOnce({
+        token: 'new-session',
+        expires_at: Date.now() / 1000 + 3600
+      })
+
+      await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+      expect(getGitHubCopilotToken).toHaveBeenLastCalledWith('new-account', undefined)
+    }
+  )
 })

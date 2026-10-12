@@ -75,7 +75,9 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     const provider = this.provider
     const data = await getGitHubCopilotToken(provider.apiKey, signal)
     signal?.throwIfAborted()
-    // An exchange started before an account change must not populate the new account's cache.
+    if (this.provider.apiKey !== provider.apiKey) {
+      throw new Error('GitHub Copilot configuration changed during token exchange. Please retry.')
+    }
     if (this.provider === provider) {
       this.copilotToken = data.token
       this.tokenExpiresAt = data.expires_at * 1000

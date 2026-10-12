@@ -44,8 +44,11 @@ describe('GitHub Copilot login validation', () => {
     mocks.startLogin.mockResolvedValue('auth-code')
     mocks.exchangeCodeForToken.mockResolvedValue('new-oauth-token')
     const setProviderById = vi.fn()
-    const service = new OAuthService({ getProviderById: () => provider, setProviderById }, vi.fn())
-    return { provider, service, setProviderById }
+    const getProviderById = vi.fn((_providerId: string): LLM_PROVIDER | undefined => ({
+      ...provider
+    }))
+    const service = new OAuthService({ getProviderById, setProviderById }, vi.fn())
+    return { provider, service, setProviderById, getProviderById }
   }
 
   for (const method of ['startGitHubCopilotDeviceFlowLogin', 'startGitHubCopilotLogin'] as const) {
@@ -88,6 +91,47 @@ describe('GitHub Copilot login validation', () => {
       expect(fetchMock).toHaveBeenCalledOnce()
       expect(setProviderById).not.toHaveBeenCalled()
       expect(provider.apiKey).toBe('saved-oauth-token')
+    })
+
+    it.each(['credentials', 'client', 'protocol', 'removal'] as const)(
+      `${method} rejects stale authentication after a provider change: %s`,
+      async (change) => {
+        const { provider, service, setProviderById, getProviderById } = setup()
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(async () => {
+            if (change === 'credentials') provider.apiKey = 'newer-oauth-token'
+            if (change === 'client') provider.copilotClientId = 'new-client'
+            if (change === 'protocol') provider.apiType = 'openai'
+            if (change === 'removal') getProviderById.mockReturnValue(undefined)
+            return Response.json({ token: 'copilot-session', expires_at: 2_000_000_000 })
+          })
+        )
+
+        await expect(service[method](provider.id)).rejects.toThrow(
+          'GitHub Copilot configuration changed during sign-in'
+        )
+        expect(setProviderById).not.toHaveBeenCalled()
+      }
+    )
+
+    it(`${method} preserves unrelated settings changed during authentication`, async () => {
+      const { provider, service, setProviderById } = setup()
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => {
+          provider.name = 'Renamed Copilot'
+          provider.enable = false
+          provider.customHeaders = { 'X-Custom': 'current' }
+          return Response.json({ token: 'copilot-session', expires_at: 2_000_000_000 })
+        })
+      )
+
+      await expect(service[method](provider.id)).resolves.toBe(true)
+      expect(setProviderById).toHaveBeenCalledWith(provider.id, {
+        ...provider,
+        apiKey: 'new-oauth-token'
+      })
     })
   }
 })

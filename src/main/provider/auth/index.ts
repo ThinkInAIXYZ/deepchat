@@ -10,6 +10,7 @@ import { getGlobalXaiGrokAuth, initializeGlobalXaiGrokAuth } from './xaiGrok'
 import type { OpenAICodexAuthStatus } from '@shared/types/openai-codex'
 import type { XaiGrokAuthStatus } from '@shared/types/xai-grok'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 
 import type { OAuthConfig, OAuthServicePort } from '@shared/types/oauth'
 
@@ -29,6 +30,19 @@ export class OAuthService implements OAuthServicePort {
     initializeGlobalXaiGrokAuth(publishEvent)
   }
 
+  private saveGitHubCopilotCredential(provider: LLM_PROVIDER, apiKey: string): void {
+    const current = this.providerSettings.getProviderById(provider.id)
+    if (
+      !current ||
+      current.apiType !== provider.apiType ||
+      current.apiKey !== provider.apiKey ||
+      (current.copilotClientId?.trim() || '') !== (provider.copilotClientId?.trim() || '')
+    ) {
+      throw new Error('GitHub Copilot configuration changed during sign-in. Please try again.')
+    }
+    this.providerSettings.setProviderById(provider.id, { ...current, apiKey })
+  }
+
   /**
    * Start GitHub Copilot Device Flow login process (recommended)
    */
@@ -42,7 +56,7 @@ export class OAuthService implements OAuthServicePort {
       const accessToken = await githubDeviceFlow.startDeviceFlow()
 
       await getGitHubCopilotToken(accessToken)
-      this.providerSettings.setProviderById(providerId, { ...provider, apiKey: accessToken })
+      this.saveGitHubCopilotCredential(provider, accessToken)
       logger.info('[GitHub Copilot] Device Flow login completed successfully')
 
       return true
@@ -133,7 +147,7 @@ export class OAuthService implements OAuthServicePort {
       }
 
       await getGitHubCopilotToken(accessToken)
-      this.providerSettings.setProviderById(providerId, { ...provider, apiKey: accessToken })
+      this.saveGitHubCopilotCredential(provider, accessToken)
       logger.info('[GitHub Copilot][OAuth] Traditional OAuth login completed successfully')
 
       return true
