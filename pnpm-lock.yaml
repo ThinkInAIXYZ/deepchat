@@ -15,6 +15,11 @@ overrides:
   qs: 6.16.0
   typescript: npm:typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2
 
+patchedDependencies:
+  '@electron/notarize@3.1.1':
+    hash: b2e4a3334f86d72808116962914a4a2062da8c99b2d5cb86e67b73eb5ce3ab87
+    path: patches/@electron__notarize@3.1.1.patch
+
 importers:
 
   .:
@@ -211,7 +216,7 @@ importers:
         version: 2.0.0(@types/node@24.13.3)
       '@electron/notarize':
         specifier: ^3.1.1
-        version: 3.1.1
+        version: 3.1.1(patch_hash=b2e4a3334f86d72808116962914a4a2062da8c99b2d5cb86e67b73eb5ce3ab87)
       '@iconify-json/lucide':
         specifier: 1.2.130
         version: 1.2.130
@@ -7983,7 +7988,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@electron/notarize@3.1.1':
+  '@electron/notarize@3.1.1(patch_hash=b2e4a3334f86d72808116962914a4a2062da8c99b2d5cb86e67b73eb5ce3ab87)':
     dependencies:
       debug: 4.4.3
       promise-retry: 2.0.1

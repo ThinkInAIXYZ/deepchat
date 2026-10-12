@@ -1,0 +1,13 @@
+diff --git a/lib/index.js b/lib/index.js
+index cac4d36a61dc4de0a52d3858f0c5b939d53fc231..d33841bf8bfdeb5cab46d3cac0ea9808908b8774 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -16,7 +16,7 @@ async function notarize({ appPath, ...otherOptions }) {
+         appPath,
+         ...otherOptions,
+     });
+-    await retry(() => stapleApp({ appPath }), {
++    await retry((retry) => stapleApp({ appPath }).catch(retry), {
+         retries: 3,
+     });
+ }
