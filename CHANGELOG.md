@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.1.4-beta.1 (2026-10-12)
+- Added the Atlas Cloud model provider
+- Fixed GitHub Copilot session authentication, validated access before saving login credentials, and prevented requests from using another account after an account switch
+- Updated the Codex model list with GPT-6 and GPT Image 2.5 models, keeping supported image models available when catalog metadata is missing
+- Codex media generation now preserves provider failure details and requests sign-in again when credentials expire instead of retrying authentication failures
+- Added optional Parallel Search and Sem MCP user-plugin examples
+- Refreshed the built-in model and ACP catalogs
+- 新增 Atlas Cloud 模型服务商
+- 修复 GitHub Copilot 会话认证，保存登录凭据前验证访问权限，并防止切换账号后请求使用另一账号
+- 更新 Codex 模型列表，新增 GPT-6 与 GPT Image 2.5 模型，目录元数据缺失时仍保留支持的图像模型
+- Codex 媒体生成保留服务商错误信息，凭据失效时提示重新登录，不再重试认证失败
+- 新增可选的 Parallel Search 与 Sem MCP 用户插件示例
+- 刷新内置模型与 ACP 目录
+
 ## v1.1.3 (2026-10-09)
 - Added automatic two-way device sync, Codex-compatible Nowledge Mem integration, and a bundled optional Memcode memory plugin
 - Reference past conversations in native chats with @ or by dragging from the sidebar, so the agent can look up their content when needed
