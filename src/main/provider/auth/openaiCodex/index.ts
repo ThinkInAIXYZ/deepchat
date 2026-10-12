@@ -102,7 +102,7 @@ async function readErrorBody(response: Response): Promise<string> {
     if (!text.trim()) {
       return `${response.status} ${response.statusText}`
     }
-    return text.slice(0, 1000)
+    return text
   } catch {
     return `${response.status} ${response.statusText}`
   }
@@ -307,7 +307,9 @@ export class OpenAICodexAuth {
 
     const tokens = this.store.load()
     if (!tokens) {
-      throw new ProviderHttpError(this.store.getLoadError() ?? 'OpenAI Codex sign-in is required', {
+      const loadError = this.store.getLoadError()
+      if (loadError) throw new Error(loadError)
+      throw new ProviderHttpError('OpenAI Codex sign-in is required', {
         statusCode: 401,
         code: 'openai_codex_sign_in_required',
         retryable: false
@@ -328,10 +330,13 @@ export class OpenAICodexAuth {
     this.assertEnabled()
     const tokens = this.store.load()
     if (!tokens?.refreshToken) {
-      throw new ProviderHttpError(
-        this.store.getLoadError() ?? 'OpenAI Codex refresh token is unavailable',
-        { statusCode: 401, code: 'openai_codex_sign_in_required', retryable: false }
-      )
+      const loadError = this.store.getLoadError()
+      if (loadError) throw new Error(loadError)
+      throw new ProviderHttpError('OpenAI Codex refresh token is unavailable', {
+        statusCode: 401,
+        code: 'openai_codex_sign_in_required',
+        retryable: false
+      })
     }
 
     const refreshed = await this.refreshAccessToken(tokens, true)
@@ -518,7 +523,9 @@ export class OpenAICodexAuth {
         } catch {}
       }
       throw new ProviderHttpError(
-        requiresSignIn ? 'OpenAI Codex sign-in has expired. Sign in again.' : errorBody,
+        requiresSignIn
+          ? 'OpenAI Codex sign-in has expired. Sign in again.'
+          : errorBody.slice(0, 1000),
         {
           statusCode: response.status,
           ...(requiresSignIn ? { code: 'openai_codex_sign_in_required', retryable: false } : {})

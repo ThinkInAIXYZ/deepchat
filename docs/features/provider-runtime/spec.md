@@ -111,7 +111,8 @@ Codex requests include required instructions and backend routing headers, preser
 behavior, and surface entitlement failure without logging token or account identifiers. Rejected refresh
 tokens retain their HTTP failure metadata and require sign-in again; media CLI calls return
 `authentication_failed` with `retriable: false`. Other media provider failures expose only normalized
-HTTP status and retryability. Image generation
+HTTP status and retryability. Unreadable credential files remain storage failures. OAuth error bodies
+are parsed before diagnostic messages are limited to 1,000 characters. Image generation
 uses the same OAuth credential path with `/images/generations`; Responses-only body normalization does not
 apply to image requests. The image-generation projection preserves shared OpenAI image settings but disables
 vision input because the standalone route accepts only text prompts. Background provider-db refresh skips
