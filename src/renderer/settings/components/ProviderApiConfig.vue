@@ -487,7 +487,7 @@ watch(
     keyStatusError.value = ''
     if (
       !storedApiKey ||
-      !['ppio', 'openrouter', 'deepseek', '302ai', 'cherryin'].includes(providerId)
+      !['ppio', 'openrouter', 'deepseek', '302ai', 'cherryin', 'litellm'].includes(providerId)
     )
       return
     try {

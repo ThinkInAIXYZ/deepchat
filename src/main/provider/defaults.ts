@@ -581,6 +581,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'litellm',
+    name: 'LiteLLM',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'http://localhost:4000/v1',
+    enable: false,
+    websites: {
+      official: 'https://www.litellm.ai/',
+      apiKey: 'https://docs.litellm.ai/docs/proxy/virtual_keys',
+      docs: 'https://docs.litellm.ai/docs/simple_proxy',
+      models: 'https://docs.litellm.ai/docs/providers'
+    }
+  },
+  {
     id: 'opper',
     name: 'Opper',
     apiType: 'openai-completions',

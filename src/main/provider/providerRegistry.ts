@@ -24,6 +24,7 @@ export type AiSdkModelSourceStrategy =
   | 'new-api'
   | 'openrouter'
   | 'requesty'
+  | 'litellm'
   | 'demonroute'
   | 'ppio'
   | 'groq'
@@ -34,6 +35,7 @@ export type AiSdkModelSourceStrategy =
 
 export type AiSdkKeyStatusStrategy =
   | 'none'
+  | 'litellm'
   | 'openrouter'
   | 'deepseek'
   | 'ppio'
@@ -592,6 +594,15 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       ...OPENAI_BASE,
       modelSource: 'requesty',
       credentialStrategy: 'api-key'
+    })
+  ],
+  [
+    'litellm',
+    // Self-hosted proxy: the key is optional (master or virtual key only when auth is on).
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'litellm',
+      keyStatusStrategy: 'litellm'
     })
   ],
   [

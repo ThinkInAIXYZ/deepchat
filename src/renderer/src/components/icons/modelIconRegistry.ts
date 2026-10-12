@@ -50,6 +50,7 @@ import kimiColorIcon from '@/assets/llm-icons/kimi-color.svg?url'
 import moonshotColorIcon from '@/assets/llm-icons/moonshot.svg?url'
 import openrouterColorIcon from '@/assets/llm-icons/openrouter.svg?url'
 import requestyColorIcon from '@/assets/llm-icons/requesty.png?url'
+import litellmColorIcon from '@/assets/llm-icons/litellm.svg?url'
 import opperColorIcon from '@/assets/llm-icons/opper.svg?url'
 import demonrouteColorIcon from '@/assets/llm-icons/demonroute.svg?url'
 import orcarouterColorIcon from '@/assets/llm-icons/orcarouter.svg?url'
@@ -189,6 +190,7 @@ export const modelIcons = {
   moonshot: moonshotColorIcon,
   openrouter: openrouterColorIcon,
   requesty: requestyColorIcon,
+  litellm: litellmColorIcon,
   opper: opperColorIcon,
   demonroute: demonrouteColorIcon,
   orcarouter: orcarouterColorIcon,

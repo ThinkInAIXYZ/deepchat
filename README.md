@@ -416,6 +416,10 @@ Common commands include `/start`, `/help`, `/pair`, `/new`, `/sessions`, `/use`,
       <a href="https://www.requesty.ai/">Requesty</a>
     </td>
     <td>
+      <img src="./src/renderer/src/assets/llm-icons/litellm.svg" width="50" height="50" alt="LiteLLM Icon"><br/>
+      <a href="https://www.litellm.ai/">LiteLLM</a>
+    </td>
+    <td>
       <img src="./src/renderer/src/assets/llm-icons/opper.svg" width="50" height="50" alt="Opper Icon"><br/>
       <a href="https://opper.ai/">Opper</a>
     </td>
