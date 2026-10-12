@@ -116,4 +116,24 @@ describe('GitHubCopilotOAuth', () => {
     expect(oauthClient.startGitHubCopilotLogin).toHaveBeenCalledWith('github-copilot')
     expect(wrapper.emitted('auth-success')).toHaveLength(2)
   })
+
+  it.each([
+    ['startGitHubCopilotDeviceFlowLogin', 0],
+    ['startGitHubCopilotLogin', 1]
+  ] as const)(
+    'shows a Copilot rejection from %s without emitting login success',
+    async (method, buttonIndex) => {
+      const { wrapper, oauthClient } = await setup()
+      const message = 'GitHub Copilot token exchange failed: 403 Forbidden - request_id=ABCD:1234'
+      oauthClient[method].mockRejectedValueOnce(new Error(message))
+
+      await wrapper.findAll('button')[buttonIndex].trigger('click')
+      await flushPromises()
+
+      expect(wrapper.text()).toContain(message)
+      expect(wrapper.emitted('auth-error')).toEqual([[message]])
+      expect(wrapper.emitted('auth-success')).toBeUndefined()
+      wrapper.unmount()
+    }
+  )
 })

@@ -1,8 +1,12 @@
 import { BrowserWindow, clipboard, shell } from 'electron'
 import { exec } from 'child_process'
 import logger from '@shared/logger'
+import { z } from 'zod'
+import { createProviderHttpErrorFromResponse, type ProviderHttpError } from '../providerFailure'
 
 const GITHUB_DEVICE_URL = 'https://github.com/login/device'
+const GITHUB_COPILOT_DEVICE_FLOW_CLIENT_ID = 'Iv1.b507a08c87ecfe98'
+const GITHUB_TOKEN_PATTERN = /^[\x21-\x7e]+$/
 
 export interface DeviceFlowConfig {
   clientId: string
@@ -31,20 +35,96 @@ export interface CopilotTokenResponse {
   refresh_in?: number
 }
 
-export interface ApiToken {
-  apiKey: string
-  expiresAt: Date
+// Copilot chat uses VS Code integration metadata independently of the DeepChat app version.
+export const GITHUB_COPILOT_CHAT_HEADERS = {
+  'User-Agent': 'GitHubCopilotChat/0.44.0',
+  'Editor-Version': 'vscode/1.115.0',
+  'Editor-Plugin-Version': 'copilot-chat/0.44.0',
+  'Copilot-Integration-Id': 'vscode-chat',
+  'X-GitHub-Api-Version': '2026-08-01'
 }
 
-export interface CopilotConfig {
-  oauthToken?: string
-  apiToken?: ApiToken
+const CopilotTokenSchema = z.object({
+  token: z.string().regex(GITHUB_TOKEN_PATTERN),
+  expires_at: z.number().positive().finite(),
+  refresh_in: z.number().nonnegative().finite().optional()
+})
+
+export async function createGitHubCopilotHttpError(
+  response: Response,
+  phase: 'token' | 'chat',
+  secrets: string[]
+): Promise<ProviderHttpError> {
+  const body = await response.json().catch(() => null)
+  const sanitize = (value: unknown): string => {
+    if (typeof value !== 'string') return ''
+    let text = value
+    for (const secret of secrets) {
+      if (secret) text = text.replaceAll(secret, '[redacted]')
+    }
+    return text
+      .replace(/(?:gh[opusr]_|github_pat_)[A-Za-z0-9_]+/g, '[redacted]')
+      .replace(/Bearer\s+[^\s"',}]+/gi, 'Bearer [redacted]')
+      .replace(/(?:access_token|refresh_token|api_key)["\s:=]+[^"'\s,}]+/gi, '[redacted]')
+      .replace(/[\r\n\0]/g, ' ')
+      .slice(0, 500)
+  }
+  const serverMessage = sanitize(
+    body?.error?.message ?? body?.error_details?.message ?? body?.message
+  )
+  const serverCode = sanitize(body?.error?.code ?? body?.error_details?.code ?? body?.code)
+  const requestId = sanitize(
+    response.headers.get('x-github-request-id') ?? response.headers.get('x-request-id')
+  )
+  const details = [
+    serverMessage,
+    /^[A-Za-z0-9._:-]{1,128}$/.test(serverCode) ? `code=${serverCode}` : '',
+    /^[A-Za-z0-9._:-]{1,128}$/.test(requestId) ? `request_id=${requestId}` : ''
+  ].filter(Boolean)
+  const description = phase === 'token' ? 'token exchange failed' : 'API error'
+  return createProviderHttpErrorFromResponse(
+    `GitHub Copilot ${description}: ${response.status} ${sanitize(response.statusText)}` +
+      (details.length ? ` - ${details.join('; ')}` : ''),
+    response,
+    `github_copilot_${phase}_http_error`
+  )
+}
+
+export async function getGitHubCopilotToken(
+  oauthToken: string,
+  signal?: AbortSignal
+): Promise<CopilotTokenResponse> {
+  signal?.throwIfAborted()
+  if (typeof oauthToken !== 'string' || !GITHUB_TOKEN_PATTERN.test(oauthToken)) {
+    throw new Error('No GitHub OAuth token available. Please sign in to GitHub Copilot.')
+  }
+  try {
+    const response = await fetch('https://api.github.com/copilot_internal/v2/token', {
+      headers: {
+        Authorization: `token ${oauthToken}`,
+        Accept: 'application/json',
+        'User-Agent': GITHUB_COPILOT_CHAT_HEADERS['User-Agent'],
+        'X-GitHub-Api-Version': '2025-04-01'
+      },
+      ...(signal ? { signal } : {})
+    })
+    if (!response.ok) {
+      throw await createGitHubCopilotHttpError(response, 'token', [oauthToken])
+    }
+    const result = CopilotTokenSchema.safeParse(await response.json().catch(() => null))
+    if (!result.success) {
+      throw new Error('Invalid GitHub Copilot token response')
+    }
+    return result.data
+  } catch (error) {
+    signal?.throwIfAborted()
+    throw error
+  }
 }
 
 export class GitHubCopilotDeviceFlow {
   private config: DeviceFlowConfig
   private pollingInterval: NodeJS.Timeout | null = null
-  private oauthToken: string | null = null
 
   constructor(config: DeviceFlowConfig) {
     this.config = config
@@ -70,83 +150,6 @@ export class GitHubCopilotDeviceFlow {
       throw new Error(
         `Device flow authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
-    }
-  }
-
-  /**
-   * 获取 Copilot API token
-   * 使用OAuth token交换Copilot API token
-   */
-  public async getCopilotToken(signal?: AbortSignal): Promise<string> {
-    signal?.throwIfAborted()
-    if (!this.oauthToken) {
-      throw new Error('No OAuth token available')
-    }
-
-    // 使用OAuth token从GitHub API获取Copilot token
-    const tokenUrl = 'https://api.github.com/copilot_internal/v2/token'
-
-    try {
-      const response = await fetch(tokenUrl, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${this.oauthToken}`,
-          Accept: 'application/json',
-          'User-Agent': 'DeepChat/1.0.0'
-        },
-        ...(signal ? { signal } : {})
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '')
-        throw new Error(
-          `Failed to get Copilot token: ${response.status} ${response.statusText} - ${errorText}`
-        )
-      }
-
-      const data = (await response.json()) as { token: string; expires_at: number }
-      return data.token
-    } catch (error) {
-      signal?.throwIfAborted()
-      console.error('[GitHub Copilot][DeviceFlow] Failed to get Copilot token:', error)
-      throw error
-    }
-  }
-
-  /**
-   * 检查是否已经有有效的认证状态
-   */
-  public async checkExistingAuth(externalToken?: string): Promise<string | null> {
-    try {
-      // 如果提供了外部 token，使用它
-      if (externalToken) {
-        this.oauthToken = externalToken
-
-        // 尝试获取 API token 来验证认证状态
-        try {
-          await this.getCopilotToken()
-          return this.oauthToken
-        } catch {
-          this.oauthToken = null
-          return null
-        }
-      }
-
-      // 检查内部存储的 token
-      if (this.oauthToken) {
-        // 尝试获取 API token 来验证认证状态
-        try {
-          await this.getCopilotToken()
-          return this.oauthToken!
-        } catch {
-          this.oauthToken = null
-        }
-      }
-
-      return null
-    } catch (error) {
-      console.warn('[GitHub Copilot][DeviceFlow] Error checking existing auth:', error)
-      return null
     }
   }
 
@@ -594,13 +597,10 @@ export class GitHubCopilotDeviceFlow {
 
 // GitHub Copilot Device Flow configuration
 export function createGitHubCopilotDeviceFlow(clientIdOverride?: string): GitHubCopilotDeviceFlow {
-  const clientId = clientIdOverride?.trim() || import.meta.env.VITE_GITHUB_CLIENT_ID
-
-  if (!clientId) {
-    throw new Error(
-      'GitHub Client ID is required. Please enter it in the Copilot settings input or set VITE_GITHUB_CLIENT_ID in .env.'
-    )
-  }
+  const clientId =
+    clientIdOverride?.trim() ||
+    import.meta.env.VITE_GITHUB_CLIENT_ID?.trim() ||
+    GITHUB_COPILOT_DEVICE_FLOW_CLIENT_ID
 
   const config: DeviceFlowConfig = {
     clientId,
@@ -624,7 +624,10 @@ let globalDeviceFlowClientId: string | null = null
 export function getGlobalGitHubCopilotDeviceFlow(
   clientIdOverride?: string
 ): GitHubCopilotDeviceFlow {
-  const effectiveClientId = clientIdOverride?.trim() || import.meta.env.VITE_GITHUB_CLIENT_ID
+  const effectiveClientId =
+    clientIdOverride?.trim() ||
+    import.meta.env.VITE_GITHUB_CLIENT_ID?.trim() ||
+    GITHUB_COPILOT_DEVICE_FLOW_CLIENT_ID
 
   if (!globalDeviceFlowInstance || globalDeviceFlowClientId !== effectiveClientId) {
     globalDeviceFlowInstance?.dispose()
