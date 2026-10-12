@@ -3,26 +3,20 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GithubCopilotProvider } from '../../../src/main/provider/providers/githubCopilotProvider'
 import { extractProviderFailureMetadata } from '@/provider/providerFailure'
 
-import { getGlobalGitHubCopilotDeviceFlow } from '../../../src/main/provider/auth/githubCopilotDeviceFlow'
+import { getGitHubCopilotToken } from '../../../src/main/provider/auth/githubCopilotDeviceFlow'
 
-vi.mock('../../../src/main/platform/proxy', () => ({
-  proxyConfig: {
-    getProxyUrl: vi.fn().mockReturnValue(null)
-  }
-}))
-
-vi.mock('../../../src/main/provider/auth/githubCopilotDeviceFlow', () => ({
-  getGlobalGitHubCopilotDeviceFlow: vi.fn(() => ({
-    getCopilotToken: vi.fn(),
-    checkExistingAuth: vi.fn()
-  })),
-  GitHubCopilotDeviceFlow: vi.fn()
+vi.mock('../../../src/main/provider/auth/githubCopilotDeviceFlow', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../../../src/main/provider/auth/githubCopilotDeviceFlow')
+  >()),
+  getGitHubCopilotToken: vi.fn()
 }))
 
 describe('GithubCopilotProvider request timeout', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
+    vi.resetAllMocks()
   })
 
   it('does not promote catalog capabilities into provider facts', async () => {
@@ -143,35 +137,32 @@ describe('GithubCopilotProvider request timeout', () => {
     )
   })
 
-  it('does not fall back to the provider API key after Device Flow is aborted', async () => {
+  it('does not retry a cancelled token exchange', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
-    const deviceFlow = {
-      getCopilotToken: vi.fn(
-        (signal?: AbortSignal) =>
-          new Promise<string>((_resolve, reject) => {
-            signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
-          })
-      )
-    }
+    vi.mocked(getGitHubCopilotToken).mockImplementationOnce(
+      (_oauthToken, signal) =>
+        new Promise((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+    )
     const provider = Object.create(GithubCopilotProvider.prototype) as any
     provider.provider = {
       id: 'github-copilot',
       name: 'GitHub Copilot',
       apiKey: 'fallback-oauth-token'
     }
-    provider.deviceFlow = deviceFlow
     provider.copilotToken = null
     provider.tokenExpiresAt = 0
     const controller = new AbortController()
     const reason = new DOMException('Memory request aborted', 'AbortError')
 
     const token = provider.getCopilotToken(controller.signal)
-    await vi.waitFor(() => expect(deviceFlow.getCopilotToken).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(getGitHubCopilotToken).toHaveBeenCalledOnce())
     controller.abort(reason)
 
     await expect(token).rejects.toBe(reason)
-    expect(deviceFlow.getCopilotToken).toHaveBeenCalledWith(controller.signal)
+    expect(getGitHubCopilotToken).toHaveBeenCalledWith('fallback-oauth-token', controller.signal)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -321,6 +312,60 @@ describe('GithubCopilotProvider request timeout', () => {
     ])
   })
 
+  it.each([true, false])(
+    'uses the session token and Copilot client metadata (stream=%s)',
+    async (stream) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(
+          stream
+            ? new Response('data: [DONE]\n\n')
+            : Response.json({ choices: [{ message: { content: 'hello' } }] })
+        )
+      vi.stubGlobal('fetch', fetchMock)
+      vi.mocked(getGitHubCopilotToken).mockResolvedValueOnce({
+        token: 'session-token',
+        expires_at: Date.now() / 1000 + 3600
+      })
+      const provider = Object.create(GithubCopilotProvider.prototype) as any
+      provider.provider = {
+        id: 'github-copilot',
+        apiKey: 'oauth-token',
+        baseUrl: 'https://api.githubcopilot.com'
+      }
+      provider.baseApiUrl = 'https://api.githubcopilot.com'
+      provider.providerSettings = { getModelConfig: vi.fn().mockReturnValue({}) }
+
+      if (stream) {
+        for await (const _event of provider.coreStream(
+          [{ role: 'user', content: 'hello' }],
+          'gpt-4o',
+          {},
+          0.7,
+          1024,
+          []
+        )) {
+          // Consume the stream to exercise the complete request lifecycle.
+        }
+      } else {
+        await provider.completions([{ role: 'user', content: 'hello' }], 'gpt-4o')
+      }
+
+      expect(getGitHubCopilotToken).toHaveBeenCalledWith('oauth-token', undefined)
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.githubcopilot.com/chat/completions',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer session-token',
+            'Editor-Version': 'vscode/1.115.0',
+            'Editor-Plugin-Version': 'copilot-chat/0.44.0',
+            'Copilot-Integration-Id': 'vscode-chat'
+          })
+        })
+      )
+    }
+  )
+
   it('refreshes cached auth state when provider config changes', () => {
     const provider = Object.create(GithubCopilotProvider.prototype) as GithubCopilotProvider & {
       provider: Record<string, unknown>
@@ -329,7 +374,6 @@ describe('GithubCopilotProvider request timeout', () => {
       customModels: unknown[]
       copilotToken: string | null
       tokenExpiresAt: number
-      deviceFlow: unknown
     }
 
     provider.provider = {
@@ -345,10 +389,6 @@ describe('GithubCopilotProvider request timeout', () => {
     provider.customModels = []
     provider.copilotToken = 'cached-token'
     provider.tokenExpiresAt = 123
-    provider.deviceFlow = { id: 'old-flow' }
-
-    vi.mocked(getGlobalGitHubCopilotDeviceFlow).mockReturnValueOnce({ id: 'new-flow' } as any)
-
     provider.updateConfig({
       id: 'github-copilot',
       name: 'GitHub Copilot',
@@ -358,9 +398,7 @@ describe('GithubCopilotProvider request timeout', () => {
 
     expect(provider.copilotToken).toBeNull()
     expect(provider.tokenExpiresAt).toBe(0)
-    expect(provider.deviceFlow).toEqual({ id: 'new-flow' })
     expect(provider.provider.copilotClientId).toBe('new-client')
-    expect(getGlobalGitHubCopilotDeviceFlow).toHaveBeenCalledWith('new-client')
   })
 
   it('preserves assistant tool calls and empty reasoning_content when formatting messages', () => {
@@ -397,48 +435,107 @@ describe('GithubCopilotProvider request timeout', () => {
     ])
   })
 
-  it('preserves cached auth state when acquiring a new device flow fails', () => {
-    const provider = Object.create(GithubCopilotProvider.prototype) as GithubCopilotProvider & {
-      provider: Record<string, unknown>
-      providerSettings: Pick<ProviderSettingsPort, 'getProviderModels' | 'getCustomModels'>
-      models: unknown[]
-      customModels: unknown[]
-      copilotToken: string | null
-      tokenExpiresAt: number
-      deviceFlow: unknown
-    }
+  it('reuses a valid session and refreshes it after expiry', async () => {
+    vi.useFakeTimers()
+    const provider = Object.create(GithubCopilotProvider.prototype) as any
+    provider.provider = { id: 'github-copilot', apiKey: 'oauth-token' }
+    vi.mocked(getGitHubCopilotToken)
+      .mockResolvedValueOnce({ token: 'first-session', expires_at: Date.now() / 1000 + 60 })
+      .mockResolvedValueOnce({ token: 'second-session', expires_at: Date.now() / 1000 + 120 })
 
-    provider.provider = {
-      id: 'github-copilot',
-      name: 'GitHub Copilot',
-      copilotClientId: 'old-client'
-    }
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(getGitHubCopilotToken).toHaveBeenCalledOnce()
+
+    await vi.advanceTimersByTimeAsync(60_000)
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(getGitHubCopilotToken).toHaveBeenCalledTimes(2)
+  })
+
+  it('preserves saved credentials and the original error when token exchange fails', async () => {
+    const provider = Object.create(GithubCopilotProvider.prototype) as any
+    provider.provider = { id: 'github-copilot', apiKey: 'oauth-token', enable: true }
+    provider.fetchModels = vi.fn().mockResolvedValue([])
+    provider.autoEnableModelsIfNeeded = vi.fn().mockResolvedValue(undefined)
+    const message = 'GitHub Copilot token exchange failed: 403 Forbidden - request_id=ABCD:1234'
+    vi.mocked(getGitHubCopilotToken).mockRejectedValueOnce(new Error(message))
+
+    await provider.init()
+    await expect(provider.check()).resolves.toEqual({ isOk: false, errorMsg: message })
+    expect(provider.provider.apiKey).toBe('oauth-token')
+    expect(getGitHubCopilotToken).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the request valid when unrelated provider settings change during exchange', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ choices: [{ message: { content: 'hello' } }] }))
+    vi.stubGlobal('fetch', fetchMock)
+    const provider = Object.create(GithubCopilotProvider.prototype) as any
+    provider.provider = { id: 'github-copilot', apiKey: 'same-account', name: 'Copilot' }
+    provider.baseApiUrl = 'https://api.githubcopilot.com'
     provider.providerSettings = {
       getProviderModels: vi.fn(() => []),
-      getCustomModels: vi.fn(() => [])
+      getCustomModels: vi.fn(() => []),
+      getModelConfig: vi.fn(() => ({}))
     }
-    provider.models = []
-    provider.customModels = []
-    provider.copilotToken = 'cached-token'
-    provider.tokenExpiresAt = 123
-    provider.deviceFlow = { id: 'old-flow' }
-
-    vi.mocked(getGlobalGitHubCopilotDeviceFlow).mockImplementationOnce(() => {
-      throw new Error('device flow init failed')
+    vi.mocked(getGitHubCopilotToken).mockImplementationOnce(async () => {
+      provider.updateConfig({ ...provider.provider, name: 'Renamed Copilot' })
+      return { token: 'same-account-session', expires_at: Date.now() / 1000 + 3600 }
     })
 
-    expect(() =>
-      provider.updateConfig({
-        id: 'github-copilot',
-        name: 'GitHub Copilot',
-        copilotClientId: 'new-client',
-        enable: true
-      } as any)
-    ).toThrow('device flow init failed')
-
-    expect(provider.copilotToken).toBe('cached-token')
-    expect(provider.tokenExpiresAt).toBe(123)
-    expect(provider.deviceFlow).toEqual({ id: 'old-flow' })
-    expect(provider.provider.copilotClientId).toBe('old-client')
+    await expect(
+      provider.completions([{ role: 'user', content: 'hello' }], 'gpt-4o')
+    ).resolves.toEqual({
+      content: 'hello'
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.githubcopilot.com/chat/completions',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer same-account-session' })
+      })
+    )
   })
+
+  it.each([true, false])(
+    'rejects the original request when accounts change during exchange (stream=%s)',
+    async (stream) => {
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const provider = Object.create(GithubCopilotProvider.prototype) as any
+      provider.provider = { id: 'github-copilot', apiKey: 'old-account' }
+      provider.baseApiUrl = 'https://api.githubcopilot.com'
+      provider.providerSettings = {
+        getProviderModels: vi.fn(() => []),
+        getCustomModels: vi.fn(() => []),
+        getModelConfig: vi.fn(() => ({}))
+      }
+      let finishExchange!: (value: { token: string; expires_at: number }) => void
+      vi.mocked(getGitHubCopilotToken).mockImplementationOnce(() => {
+        return new Promise((resolve) => {
+          finishExchange = resolve
+        })
+      })
+      const oldRequest = stream
+        ? provider
+            .coreStream([{ role: 'user', content: 'hello' }], 'gpt-4o', {}, 0.7, 1024, [])
+            .next()
+        : provider.completions([{ role: 'user', content: 'hello' }], 'gpt-4o')
+      const rejection = expect(oldRequest).rejects.toThrow(
+        'GitHub Copilot configuration changed during token exchange'
+      )
+      provider.updateConfig({ id: 'github-copilot', apiKey: 'new-account' })
+      finishExchange({ token: 'old-session', expires_at: Date.now() / 1000 + 3600 })
+      await rejection
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(getGitHubCopilotToken).toHaveBeenCalledOnce()
+      vi.mocked(getGitHubCopilotToken).mockResolvedValueOnce({
+        token: 'new-session',
+        expires_at: Date.now() / 1000 + 3600
+      })
+
+      await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+      expect(getGitHubCopilotToken).toHaveBeenLastCalledWith('new-account', undefined)
+    }
+  )
 })

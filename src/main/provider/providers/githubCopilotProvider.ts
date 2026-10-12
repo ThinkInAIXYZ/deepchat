@@ -17,31 +17,16 @@ import {
 } from '../baseProvider'
 import { normalizeToolInputSchema } from '../aiSdk/toolMapper'
 import type { ProviderLocalePort } from '../ports'
-import { HttpsProxyAgent } from 'https-proxy-agent'
 import {
-  getGlobalGitHubCopilotDeviceFlow,
-  GitHubCopilotDeviceFlow
+  createGitHubCopilotHttpError,
+  getGitHubCopilotToken,
+  GITHUB_COPILOT_CHAT_HEADERS
 } from '../../provider/auth/githubCopilotDeviceFlow'
-import { createProviderHttpErrorFromResponse, ProviderHttpError } from '../providerFailure'
-
-// 扩展RequestInit类型以支持agent属性
-interface RequestInitWithAgent extends RequestInit {
-  agent?: HttpsProxyAgent<string>
-}
-import { proxyConfig } from '../../platform/proxy'
-
-interface CopilotTokenResponse {
-  token: string
-  expires_at: number
-  refresh_in?: number
-}
 
 export class GithubCopilotProvider extends BaseLLMProvider {
   private copilotToken: string | null = null
   private tokenExpiresAt: number = 0
   private baseApiUrl = 'https://api.githubcopilot.com'
-  private tokenUrl = 'https://api.github.com/copilot_internal/v2/token'
-  private deviceFlow: GitHubCopilotDeviceFlow | null = null
 
   constructor(
     provider: LLM_PROVIDER,
@@ -56,15 +41,6 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     if (this.provider.enable) {
       try {
         this.isInitialized = true
-        this.deviceFlow = getGlobalGitHubCopilotDeviceFlow(this.provider.copilotClientId)
-
-        // 检查现有认证状态
-        if (this.provider.apiKey) {
-          const existingToken = await this.deviceFlow.checkExistingAuth(this.provider.apiKey)
-          if (!existingToken) {
-            this.provider.apiKey = ''
-          }
-        }
 
         await this.fetchModels()
         await this.autoEnableModelsIfNeeded()
@@ -85,124 +61,28 @@ export class GithubCopilotProvider extends BaseLLMProvider {
   }
 
   public override updateConfig(provider: LLM_PROVIDER): void {
-    const newDeviceFlow = getGlobalGitHubCopilotDeviceFlow(provider.copilotClientId)
-
     super.updateConfig(provider)
     this.copilotToken = null
     this.tokenExpiresAt = 0
-    this.deviceFlow = newDeviceFlow
-  }
-
-  private createChatHttpError(response: Response): ProviderHttpError {
-    const code = 'github_copilot_chat_http_error'
-    if (response.status !== 403) {
-      return createProviderHttpErrorFromResponse(
-        `GitHub Copilot API error: ${response.status} ${response.statusText}`,
-        response,
-        code
-      )
-    }
-
-    return createProviderHttpErrorFromResponse(
-      `GitHub Copilot 访问被拒绝 (403)。\n\n可能的原因：\n` +
-        `1. GitHub Copilot 订阅已过期或未激活\n` +
-        `2. 需要重新认证以获取正确的访问权限\n` +
-        `3. API访问策略已更新，需要使用最新的认证方式\n` +
-        `4. 您的账户可能没有访问此API的权限\n\n` +
-        `建议解决方案：\n` +
-        `- 访问 https://github.com/settings/copilot 检查订阅状态\n` +
-        `- 在DeepChat设置中重新进行 GitHub Copilot 登录\n` +
-        `- 确保您的 GitHub 账户有有效的 Copilot 订阅\n` +
-        `- 如果是企业账户，请联系管理员确认访问权限`,
-      response,
-      code
-    )
   }
 
   private async getCopilotToken(signal?: AbortSignal): Promise<string> {
     signal?.throwIfAborted()
-    // 优先使用设备流获取 token
-    if (this.deviceFlow) {
-      try {
-        return await this.deviceFlow.getCopilotToken(signal)
-      } catch (error) {
-        signal?.throwIfAborted()
-        console.warn(
-          '[GitHub Copilot] Device flow failed, falling back to provider API key:',
-          error
-        )
-      }
-    }
-
-    // 检查token是否过期
     if (this.copilotToken && Date.now() < this.tokenExpiresAt) {
       return this.copilotToken
     }
 
-    if (!this.provider.apiKey) {
-      throw new Error('No GitHub OAuth token available. Please use device flow authentication.')
+    const provider = this.provider
+    const data = await getGitHubCopilotToken(provider.apiKey, signal)
+    signal?.throwIfAborted()
+    if (this.provider.apiKey !== provider.apiKey) {
+      throw new Error('GitHub Copilot configuration changed during token exchange. Please retry.')
     }
-
-    // 获取新的token
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${this.provider.apiKey}`,
-      Accept: 'application/json',
-      'User-Agent': 'DeepChat/1.0.0'
-    }
-
-    const requestOptions: RequestInitWithAgent = {
-      method: 'GET',
-      headers,
-      ...(signal ? { signal } : {})
-    }
-
-    // 添加代理支持
-    const proxyUrl = proxyConfig.getProxyUrl()
-    if (proxyUrl) {
-      const agent = new HttpsProxyAgent(proxyUrl)
-      requestOptions.agent = agent
-    }
-
-    try {
-      const response = await fetch(this.tokenUrl, requestOptions)
-
-      if (!response.ok) {
-        let errorMessage = `Failed to get Copilot token: ${response.status} ${response.statusText}`
-
-        // 提供更具体的错误信息和解决建议
-        if (response.status === 404) {
-          errorMessage = `GitHub Copilot 访问被拒绝 (404)。请检查：
-1. 您的 GitHub 账户是否有有效的 GitHub Copilot 订阅
-2. OAuth token 权限不足 - 需要 'read:org' 权限访问 Copilot API
-3. 请重新进行 OAuth 登录以获取正确的权限范围
-4. 访问 https://github.com/features/copilot 检查订阅状态`
-        } else if (response.status === 401) {
-          errorMessage = `GitHub OAuth token 无效或已过期 (401)。请重新登录授权并确保获取了正确的权限范围。`
-        } else if (response.status === 403) {
-          errorMessage = `GitHub Copilot 访问被禁止 (403)。请检查：
-1. 您的 GitHub Copilot 订阅是否有效且处于活跃状态
-2. 是否达到了 API 使用限制
-3. OAuth token 是否包含 'read:org' 权限范围
-4. 如果是组织账户，请确保组织已启用 Copilot 并且您有访问权限`
-        }
-
-        throw createProviderHttpErrorFromResponse(
-          errorMessage,
-          response,
-          'github_copilot_token_http_error'
-        )
-      }
-
-      const data: CopilotTokenResponse = await response.json()
+    if (this.provider === provider) {
       this.copilotToken = data.token
-      this.tokenExpiresAt = data.expires_at * 1000 // 转换为毫秒
-
-      return this.copilotToken
-    } catch (error) {
-      signal?.throwIfAborted()
-      console.error('[GitHub Copilot] Error getting Copilot token:', error)
-      throw error
+      this.tokenExpiresAt = data.expires_at * 1000
     }
+    return data.token
   }
 
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
@@ -485,9 +365,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
-        'User-Agent': 'DeepChat/1.0.0',
-        'Editor-Version': 'DeepChat/1.0.0',
-        'Copilot-Integration-Id': 'vscode-chat'
+        ...GITHUB_COPILOT_CHAT_HEADERS
       }
 
       // 添加详细的请求日志
@@ -499,7 +377,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         `   Request Body: { messages: ${formattedMessages.length}, model: "${modelId}", temperature: ${temperature}, max_tokens: ${_maxTokens} }`
       )
 
-      const requestOptions: RequestInitWithAgent = {
+      const requestOptions: RequestInit = {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody),
@@ -512,13 +390,6 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         body: requestBody
       })
 
-      // 添加代理支持
-      const proxyUrl = proxyConfig.getProxyUrl()
-      if (proxyUrl) {
-        const agent = new HttpsProxyAgent(proxyUrl)
-        requestOptions.agent = agent
-      }
-
       const response = await this.fetchProvider(
         `${this.baseApiUrl}/chat/completions`,
         requestOptions
@@ -529,7 +400,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       logger.info(`   OK: ${response.ok}`)
 
       if (!response.ok) {
-        throw this.createChatHttpError(response)
+        throw await createGitHubCopilotHttpError(response, 'chat', [token, this.provider.apiKey])
       }
 
       if (!response.body) {
@@ -644,9 +515,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        'User-Agent': 'DeepChat/1.0.0',
-        'Editor-Version': 'DeepChat/1.0.0',
-        'Copilot-Integration-Id': 'vscode-chat'
+        ...GITHUB_COPILOT_CHAT_HEADERS
       }
 
       // 添加详细的请求日志
@@ -658,18 +527,11 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         `   Request Body: { messages: ${formattedMessages.length}, model: "${modelId}", temperature: ${temperature}, max_tokens: ${_maxTokens} }`
       )
 
-      const requestOptions: RequestInitWithAgent = {
+      const requestOptions: RequestInit = {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody),
         ...(signal ? { signal } : {})
-      }
-
-      // 添加代理支持
-      const proxyUrl = proxyConfig.getProxyUrl()
-      if (proxyUrl) {
-        const agent = new HttpsProxyAgent(proxyUrl)
-        requestOptions.agent = agent
       }
 
       const response = await this.fetchProvider(
@@ -682,7 +544,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       logger.info(`   OK: ${response.ok}`)
 
       if (!response.ok) {
-        throw this.createChatHttpError(response)
+        throw await createGitHubCopilotHttpError(response, 'chat', [token, this.provider.apiKey])
       }
 
       const data = await response.json()
@@ -754,36 +616,12 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
   async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
     try {
-      // Device flow may be active without apiKey; proceed to token retrieval
       await this.getCopilotToken()
       return { isOk: true, errorMsg: null }
     } catch (error) {
-      let errorMsg = error instanceof Error ? error.message : 'Unknown error'
-
-      // 分析错误类型并提供更具体的建议
-      if (errorMsg.includes('404')) {
-        errorMsg = `GitHub Copilot 访问被拒绝 (404)。请检查：
-1. 您的 GitHub 账户是否有有效的 GitHub Copilot 订阅
-2. 访问 https://github.com/features/copilot 检查订阅状态
-3. 如果是组织账户，请确保组织已启用 Copilot 并且您有访问权限`
-      } else if (errorMsg.includes('401')) {
-        errorMsg = `GitHub OAuth token 无效或已过期 (401)。请重新登录授权并确保获取了正确的权限范围。`
-      } else if (errorMsg.includes('403')) {
-        errorMsg = `GitHub Copilot 访问被禁止 (403)。请检查：
-1. 您的 GitHub Copilot 订阅是否有效且处于活跃状态
-2. 是否达到了 API 使用限制
-3. OAuth token 是否包含 'read:org' 权限范围
-4. 如果是组织账户，请确保组织已启用 Copilot 并且您有访问权限`
-      } else if (errorMsg.includes('fetch failed') || errorMsg.includes('network')) {
-        errorMsg = `网络连接失败。请检查：
-1. 网络连接是否正常
-2. 代理设置是否正确
-3. 防火墙是否阻止了 GitHub API 访问`
-      }
-
       return {
         isOk: false,
-        errorMsg
+        errorMsg: error instanceof Error ? error.message : 'Unknown error'
       }
     }
   }

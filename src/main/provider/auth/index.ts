@@ -4,12 +4,13 @@ import { BrowserWindow } from 'electron'
 import * as http from 'http'
 import { URL } from 'url'
 import { createGitHubCopilotOAuth } from './githubCopilotOAuth'
-import { getGlobalGitHubCopilotDeviceFlow } from './githubCopilotDeviceFlow'
+import { getGitHubCopilotToken, getGlobalGitHubCopilotDeviceFlow } from './githubCopilotDeviceFlow'
 import { getGlobalOpenAICodexAuth, initializeGlobalOpenAICodexAuth } from './openaiCodex'
 import { getGlobalXaiGrokAuth, initializeGlobalXaiGrokAuth } from './xaiGrok'
 import type { OpenAICodexAuthStatus } from '@shared/types/openai-codex'
 import type { XaiGrokAuthStatus } from '@shared/types/xai-grok'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 
 import type { OAuthConfig, OAuthServicePort } from '@shared/types/oauth'
 
@@ -29,23 +30,17 @@ export class OAuthService implements OAuthServicePort {
     initializeGlobalXaiGrokAuth(publishEvent)
   }
 
-  /**
-   * Validate GitHub access token
-   */
-  private async validateGitHubAccessToken(token: string): Promise<boolean> {
-    try {
-      const response = await fetch('https://api.github.com/user', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'User-Agent': 'DeepChat/1.0.0'
-        }
-      })
-
-      return response.ok
-    } catch (error) {
-      console.error('Token validation failed:', error)
-      return false
+  private saveGitHubCopilotCredential(provider: LLM_PROVIDER, apiKey: string): void {
+    const current = this.providerSettings.getProviderById(provider.id)
+    if (
+      !current ||
+      current.apiType !== provider.apiType ||
+      current.apiKey !== provider.apiKey ||
+      (current.copilotClientId?.trim() || '') !== (provider.copilotClientId?.trim() || '')
+    ) {
+      throw new Error('GitHub Copilot configuration changed during sign-in. Please try again.')
     }
+    this.providerSettings.setProviderById(provider.id, { ...current, apiKey })
   }
 
   /**
@@ -54,39 +49,20 @@ export class OAuthService implements OAuthServicePort {
   async startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean> {
     try {
       const provider = this.providerSettings.getProviderById(providerId)
-      const githubDeviceFlow = getGlobalGitHubCopilotDeviceFlow(provider?.copilotClientId)
-
-      // 首先检查现有认证状态
-      if (provider && provider.apiKey) {
-        const existingToken = await githubDeviceFlow.checkExistingAuth(provider.apiKey)
-        if (existingToken) {
-          return true
-        }
-      }
+      if (!provider) throw new Error(`Provider ${providerId} not found`)
+      const githubDeviceFlow = getGlobalGitHubCopilotDeviceFlow(provider.copilotClientId)
 
       // 开始Device Flow登录
       const accessToken = await githubDeviceFlow.startDeviceFlow()
 
-      // Validate token
-      logger.info('Validating access token...')
-      const isValid = await this.validateGitHubAccessToken(accessToken)
-      if (!isValid) {
-        throw new Error('Obtained access token is invalid')
-      }
-
-      // 保存访问令牌到provider配置
-      if (provider) {
-        provider.apiKey = accessToken
-        this.providerSettings.setProviderById(providerId, provider)
-        logger.info('[GitHub Copilot] Device Flow login completed successfully')
-      } else {
-        throw new Error(`Provider ${providerId} not found`)
-      }
+      await getGitHubCopilotToken(accessToken)
+      this.saveGitHubCopilotCredential(provider, accessToken)
+      logger.info('[GitHub Copilot] Device Flow login completed successfully')
 
       return true
     } catch (error) {
       console.error('[GitHub Copilot] Device Flow login failed:', error)
-      return false
+      throw error
     }
   }
 
@@ -141,7 +117,8 @@ export class OAuthService implements OAuthServicePort {
       // 使用专门的GitHub Copilot OAuth实现
       logger.info('[GitHub Copilot][OAuth] Creating GitHub OAuth instance...')
       const provider = this.providerSettings.getProviderById(providerId)
-      const githubOAuth = createGitHubCopilotOAuth(provider?.copilotClientId)
+      if (!provider) throw new Error(`Provider ${providerId} not found`)
+      const githubOAuth = createGitHubCopilotOAuth(provider.copilotClientId)
 
       // 开始OAuth登录
       logger.info('[GitHub Copilot][OAuth] Starting OAuth login flow...')
@@ -169,30 +146,9 @@ export class OAuthService implements OAuthServicePort {
         logger.info('[GitHub Copilot][OAuth] Access token received successfully')
       }
 
-      // Validate token
-      logger.info('[GitHub Copilot][OAuth] Validating access token...')
-      const isValid = await githubOAuth.validateToken(accessToken)
-      logger.info('[GitHub Copilot][OAuth] Token validation result:', isValid)
-
-      if (!isValid) {
-        console.error('[GitHub Copilot][OAuth] Token validation failed - token is invalid')
-        throw new Error('获取的访问令牌无效')
-      }
-
-      // 保存访问令牌到provider配置
-      logger.info('[GitHub Copilot][OAuth] Saving access token to provider configuration...')
-      if (provider) {
-        provider.apiKey = accessToken
-        this.providerSettings.setProviderById(providerId, provider)
-        logger.info(
-          '[GitHub Copilot][OAuth] Access token saved successfully to provider:',
-          providerId
-        )
-        logger.info('[GitHub Copilot][OAuth] Traditional OAuth login completed successfully')
-      } else {
-        console.error('[GitHub Copilot][OAuth] Provider not found:', providerId)
-        throw new Error(`Provider ${providerId} not found`)
-      }
+      await getGitHubCopilotToken(accessToken)
+      this.saveGitHubCopilotCredential(provider, accessToken)
+      logger.info('[GitHub Copilot][OAuth] Traditional OAuth login completed successfully')
 
       return true
     } catch (error) {
@@ -208,7 +164,7 @@ export class OAuthService implements OAuthServicePort {
       if (error instanceof Error && error.stack) {
         console.error('[GitHub Copilot][OAuth][ERROR] Stack trace:', error.stack)
       }
-      return false
+      throw error
     }
   }
 

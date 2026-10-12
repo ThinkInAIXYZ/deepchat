@@ -192,25 +192,6 @@ export class GitHubCopilotOAuth {
   }
 
   /**
-   * Validate access token
-   */
-  async validateToken(token: string): Promise<boolean> {
-    try {
-      const response = await fetch('https://api.github.com/user', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'User-Agent': 'DeepChat/1.0.0'
-        }
-      })
-
-      return response.ok
-    } catch (error) {
-      console.error('Token validation failed:', error)
-      return false
-    }
-  }
-
-  /**
    * Close authorization window
    */
   private closeWindow(): void {
