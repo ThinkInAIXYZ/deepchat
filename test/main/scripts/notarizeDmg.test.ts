@@ -1,11 +1,12 @@
 import { readFile } from 'node:fs/promises'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 
 import {
   createNotarizationOptions,
   notarizeReleaseArtifact,
-  validateAppleTeamId
+  validateAppleTeamId,
+  validateStapledTicket
 } from '../../../scripts/apple-notarization.js'
 import {
   finalizeMacDmg,
@@ -34,6 +35,57 @@ function createCommandRunner(events: string[] = []) {
     return { stdout: '', stderr: '' }
   })
 }
+
+describe('notarization ticket validation recovery', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('recovers from temporary ticket-service failures', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const failure = Object.assign(new Error('Ticket service failed'), { code: 68 })
+    const runCommand = vi.fn()
+      .mockRejectedValueOnce(failure)
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValue({ stdout: '', stderr: '' })
+
+    const verification = expect(validateStapledTicket(dmgPath, runCommand)).resolves.toBeUndefined()
+    await vi.runAllTimersAsync()
+    await verification
+    expect(runCommand).toHaveBeenCalledTimes(3)
+  })
+
+  it('rejects exhausted retries with the native command diagnostics', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const failure = Object.assign(new Error('Ticket service failed'), {
+      code: 68,
+      stdout: 'CloudKit response unavailable',
+      stderr: 'Connection lost'
+    })
+    const runCommand = vi.fn().mockRejectedValue(failure)
+
+    const verification = expect(validateStapledTicket(dmgPath, runCommand)).rejects.toThrow(
+      /exit 68[\s\S]*CloudKit response unavailable[\s\S]*Connection lost/
+    )
+    await vi.runAllTimersAsync()
+    await verification
+    expect(runCommand).toHaveBeenCalledTimes(4)
+  })
+
+  it.each([65, 66, 77])('rejects invalid, missing or revoked tickets without retry (exit %s)', async (code) => {
+    const runCommand = vi.fn().mockRejectedValue(
+      Object.assign(new Error('Ticket rejected'), { code, stdout: 'Invalid notarization ticket' })
+    )
+
+    await expect(validateStapledTicket(dmgPath, runCommand)).rejects.toThrow(
+      /Invalid notarization ticket/
+    )
+    expect(runCommand).toHaveBeenCalledTimes(1)
+  })
+})
 
 describe('macOS distribution notarization', () => {
   it('builds fail-closed notarization options without exposing credentials', async () => {

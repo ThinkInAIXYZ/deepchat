@@ -5,6 +5,29 @@ const APPLE_TEAM_ID_PATTERN = /^[A-Z0-9]{10}$/
 
 export { isReleaseNotarizationEnabled }
 
+export async function validateStapledTicket(artifactPath, runCommand) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      await runCommand('/usr/bin/xcrun', ['stapler', 'validate', '-v', artifactPath], {
+        encoding: 'utf8',
+        maxBuffer: 4 * 1024 * 1024
+      })
+      return
+    } catch (error) {
+      const output = [error.message, error.stdout, error.stderr].filter(Boolean).join('\n')
+      // EX_NOHOST also covers unexpected ticket-service responses; validation still must pass.
+      if (error.code !== 68 || attempt === 3) {
+        throw new Error(
+          `Notarization ticket validation failed (exit ${error.code ?? 'unknown'}): ${artifactPath}\n${output}`,
+          { cause: error }
+        )
+      }
+      console.warn(`Retrying notarization ticket validation after EX_NOHOST (${attempt + 1}/3)`)
+      await new Promise((resolve) => setTimeout(resolve, 5000 * 2 ** attempt))
+    }
+  }
+}
+
 function requireEnvironmentValue(env, name) {
   const value = env[name]
   if (typeof value !== 'string' || value.trim().length === 0) {

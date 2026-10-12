@@ -4,7 +4,11 @@ import { promisify } from 'node:util'
 
 import { notarize } from '@electron/notarize'
 
-import { createNotarizationOptions, validateAppleTeamId } from './apple-notarization.js'
+import {
+  createNotarizationOptions,
+  validateAppleTeamId,
+  validateStapledTicket
+} from './apple-notarization.js'
 
 const execFileAsync = promisify(execFile)
 const COMMAND_OUTPUT_LIMIT = 4 * 1024 * 1024
@@ -68,12 +72,7 @@ export async function verifyDmgDistribution(
 ) {
   await verifyDmgSignature(dmgPath, { teamId, runCommand })
   await runDistributionCommand(runCommand, '/usr/bin/hdiutil', ['verify', dmgPath])
-  await runDistributionCommand(runCommand, '/usr/bin/xcrun', [
-    'stapler',
-    'validate',
-    '-v',
-    dmgPath
-  ])
+  await validateStapledTicket(dmgPath, runCommand)
   await runDistributionCommand(runCommand, '/usr/sbin/spctl', [
     '--assess',
     '--type',

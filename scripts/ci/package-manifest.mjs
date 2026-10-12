@@ -16,7 +16,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 
-import { validateAppleTeamId } from '../apple-notarization.js'
+import { validateAppleTeamId, validateStapledTicket } from '../apple-notarization.js'
 import { verifyDmgDistribution } from '../notarize-dmg.js'
 import { verifyCuaMacHelperDistribution } from './verify-cua-macos-helper.mjs'
 import {
@@ -106,12 +106,7 @@ export async function verifyMacAppDistribution(
     `=anchor apple generic and certificate leaf[subject.OU] = "${validatedTeamId}"`,
     appPath
   ])
-  await runDistributionCommand(runCommand, '/usr/bin/xcrun', [
-    'stapler',
-    'validate',
-    '-v',
-    appPath
-  ])
+  await validateStapledTicket(appPath, runCommand)
   await runDistributionCommand(runCommand, '/usr/sbin/spctl', [
     '--assess',
     '--type',
