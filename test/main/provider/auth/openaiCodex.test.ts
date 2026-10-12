@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OpenAICodexAuth } from '@/provider/auth/openaiCodex'
 import { OpenAICodexCredentialStore } from '@/provider/auth/openaiCodex/credentialStore'
 import { createOpenAICodexPkcePair } from '@/provider/auth/openaiCodex/pkce'
+import { extractProviderFailureMetadata } from '@/provider/providerFailure'
 
 const { startOAuthLoopbackCallbackSessionMock } = vi.hoisted(() => ({
   startOAuthLoopbackCallbackSessionMock: vi.fn()
@@ -193,6 +194,61 @@ describe('OpenAI Codex auth', () => {
     expect(store.load()?.refreshToken).toBe('new-refresh-token')
   })
 
+  it.each([1, 100])(
+    'requires sign-in after a rejected refresh token with %i message repeats',
+    async (messageRepeats) => {
+      const store = new OpenAICodexCredentialStore(path.join(tempDir, 'credentials.json'))
+      store.save({
+        accessToken: 'expired-token',
+        refreshToken: 'rejected-refresh-token',
+        tokenType: 'Bearer',
+        expiresAt: Date.now() - 1000,
+        updatedAt: Date.now()
+      })
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: 'invalid_refresh_token',
+              message: 'private upstream response'.repeat(messageRepeats)
+            }
+          }),
+          { status: 400 }
+        )
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      const auth = new OpenAICodexAuth(store, vi.fn())
+
+      await expect(auth.getBackendAuth()).rejects.toMatchObject({
+        message: 'OpenAI Codex sign-in has expired. Sign in again.',
+        failure: { statusCode: 400, code: 'openai_codex_sign_in_required', retryable: false }
+      })
+      expect(fetchMock).toHaveBeenCalledOnce()
+      expect(store.load()?.refreshToken).toBe('rejected-refresh-token')
+    }
+  )
+
+  it('limits OAuth diagnostic messages after parsing the complete error response', async () => {
+    const store = new OpenAICodexCredentialStore(path.join(tempDir, 'credentials.json'))
+    store.save({
+      accessToken: 'expired-token',
+      refreshToken: 'refresh-token',
+      tokenType: 'Bearer',
+      expiresAt: Date.now() - 1000,
+      updatedAt: Date.now()
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('x'.repeat(2000), { status: 500 }))
+    )
+    const auth = new OpenAICodexAuth(store, vi.fn())
+
+    const failure = await auth.getBackendAuth().catch((error) => error)
+    expect(failure).toBeInstanceOf(Error)
+    expect(failure.message).toHaveLength(1000)
+    expect(failure.failure).toEqual({ statusCode: 500 })
+  })
+
   it('opens browser login externally and completes from a pasted callback URL', async () => {
     startOAuthLoopbackCallbackSessionMock.mockImplementationOnce(
       async (options: { expectedState: string; path: string }) => {
@@ -298,15 +354,23 @@ describe('OpenAI Codex auth', () => {
     expect(status.error).toContain('not valid JSON')
   })
 
-  it('rejects backend auth requests with the credential-store load error', async () => {
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const credentialPath = path.join(tempDir, 'credentials.json')
-    const store = new OpenAICodexCredentialStore(credentialPath)
-    const auth = new OpenAICodexAuth(store, vi.fn())
+  it.each(['getBackendAuth', 'forceRefreshBackendAuth'] as const)(
+    'keeps credential-store load errors separate from sign-in errors in %s',
+    async (method) => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const credentialPath = path.join(tempDir, 'credentials.json')
+      const store = new OpenAICodexCredentialStore(credentialPath)
+      const auth = new OpenAICodexAuth(store, vi.fn())
 
-    files.set(credentialPath, '{broken')
+      files.set(credentialPath, '{broken')
 
-    await expect(auth.getBackendAuth()).rejects.toThrow(/not valid JSON/)
-    await expect(auth.forceRefreshBackendAuth()).rejects.toThrow(/not valid JSON/)
-  })
+      const failure = await auth[method]().catch((error) => error)
+      expect(failure).toBeInstanceOf(Error)
+      expect(failure.message).toMatch(/not valid JSON/)
+      expect(extractProviderFailureMetadata(failure)?.code).not.toBe(
+        'openai_codex_sign_in_required'
+      )
+      expect(files.get(credentialPath)).toBe('{broken')
+    }
+  )
 })

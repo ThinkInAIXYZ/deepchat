@@ -10,6 +10,10 @@ import type { LLM_PROVIDER } from '@shared/types/provider'
 import { checkRequiresRebuild } from '@shared/provider-operations'
 
 const CODEX_RESOURCE_MODEL_IDS = [
+  'gpt-6.1-sol',
+  'gpt-6-astra',
+  'gpt-6-sol',
+  'gpt-6-luna',
   'gpt-5.6',
   'gpt-5.6-sol',
   'gpt-5.6-luna',
@@ -113,6 +117,14 @@ describe('OpenAI Codex provider registration', () => {
       id: 'openai',
       name: 'OpenAI',
       models: [
+        ...['gpt-6.1-sol', 'gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna'].map((id) => ({
+          id,
+          display_name: id,
+          modalities: { input: ['text', 'image'], output: ['text'] },
+          limit: { context: 1050000, output: 128000 },
+          tool_call: true,
+          reasoning: { supported: true }
+        })),
         {
           id: 'gpt-5-codex',
           display_name: 'GPT-5-Codex',
@@ -202,18 +214,28 @@ describe('OpenAI Codex provider registration', () => {
     providerDbSpy.mockRestore()
 
     expect(models.map((model) => model.id)).toEqual([
+      'gpt-6.1-sol',
+      'gpt-6-astra',
+      'gpt-6-sol',
+      'gpt-6-luna',
       'gpt-5.5',
       'gpt-5.6-sol',
       'gpt-5.6-terra',
       'gpt-5.6-luna',
-      'gpt-5.4',
-      'gpt-5.4-mini',
-      'gpt-5.3-codex-spark',
+      'gpt-image-2.5-sunburst',
+      'gpt-image-2.5-flare',
       'gpt-image-2'
     ])
     expect(models.some((model) => model.id === 'gpt-5.6')).toBe(false)
     expect(models.every((model) => model.group === 'Codex')).toBe(true)
     expect(models.every((model) => model.providerId === 'openai-codex')).toBe(true)
+    expect(models.find((model) => model.id === 'gpt-image-2.5-sunburst')).toEqual({
+      id: 'gpt-image-2.5-sunburst',
+      name: 'gpt-image-2.5-sunburst',
+      group: 'Codex',
+      providerId: 'openai-codex',
+      isCustom: false
+    })
     const luna = models.find((model) => model.id === 'gpt-5.6-luna')
     expect(luna).not.toHaveProperty('reasoning')
     expect(luna).not.toHaveProperty('contextLength')

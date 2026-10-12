@@ -702,12 +702,28 @@ export class CliComputeService {
         retriable: true
       })
     }
+    const metadata = extractProviderFailureMetadata(error)
+    const failure = ModelInvokeProviderFailureSchema.parse({
+      ...(metadata?.statusCode !== undefined ? { statusCode: metadata.statusCode } : {}),
+      retryable: providerFailureIsRetryable(metadata?.statusCode, metadata?.retryable)
+    })
+    if (metadata?.code === 'openai_codex_sign_in_required') {
+      return new CliRequestError(
+        'authentication_failed',
+        'OpenAI Codex sign-in is required. Sign in again.',
+        { httpStatus: 401, details: { providerFailure: failure } }
+      )
+    }
     this.log.warn('[CLI] Media generation failed', {
       providerId: input.providerId,
       modelId: input.modelId,
-      failure: { name: error instanceof Error ? error.name : typeof error }
+      failure
     })
-    return new CliRequestError('unavailable', message, { httpStatus: 503, retriable: true })
+    return new CliRequestError('unavailable', message, {
+      httpStatus: 503,
+      retriable: failure.retryable,
+      details: { providerFailure: failure }
+    })
   }
 }
 

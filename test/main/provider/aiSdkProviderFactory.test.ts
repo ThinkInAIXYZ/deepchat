@@ -250,66 +250,69 @@ describe('AI SDK provider factory', () => {
     expect(context.resolvedModelId).toBe('my-gpt-4.1-deployment')
   })
 
-  it('generates images through the OpenAI Codex image endpoint', async () => {
-    const imageBase64 =
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          created: 1,
-          data: [{ b64_json: imageBase64 }]
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        }
+  it.each(['gpt-image-2', 'gpt-image-2.5-sunburst', 'gpt-image-2.5-flare'])(
+    'generates %s through the OpenAI Codex image endpoint',
+    async (modelId) => {
+      const imageBase64 =
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            created: 1,
+            data: [{ b64_json: imageBase64 }]
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        )
       )
-    )
-    vi.stubGlobal('fetch', fetchMock)
-    codexAuthState.getBackendAuth.mockResolvedValueOnce({
-      accessToken: 'codex-token',
-      accountId: 'acct-1'
-    })
+      vi.stubGlobal('fetch', fetchMock)
+      codexAuthState.getBackendAuth.mockResolvedValueOnce({
+        accessToken: 'codex-token',
+        accountId: 'acct-1'
+      })
 
-    const context = createAiSdkProviderContext({
-      providerKind: 'openai-codex',
-      provider: {
-        id: 'openai-codex',
-        name: 'OpenAI Codex',
-        apiType: 'openai-codex',
-        apiKey: '',
-        baseUrl: 'https://chatgpt.com/backend-api/codex',
-        customHeaders: { 'X-Tenant-ID': 'team-a' },
-        enable: true
-      } as any,
-      providerSettings: {} as any,
-      defaultHeaders: {},
-      modelId: 'gpt-image-2',
-      wrapThinkReasoning: false
-    })
+      const context = createAiSdkProviderContext({
+        providerKind: 'openai-codex',
+        provider: {
+          id: 'openai-codex',
+          name: 'OpenAI Codex',
+          apiType: 'openai-codex',
+          apiKey: '',
+          baseUrl: 'https://chatgpt.com/backend-api/codex',
+          customHeaders: { 'X-Tenant-ID': 'team-a' },
+          enable: true
+        } as any,
+        providerSettings: {} as any,
+        defaultHeaders: {},
+        modelId,
+        wrapThinkReasoning: false
+      })
 
-    expect(context.imageModel).toBeDefined()
-    expect(context.endpoint).toBe('https://chatgpt.com/backend-api/codex/responses')
-    expect(context.imageEndpoint).toBe('https://chatgpt.com/backend-api/codex/images/generations')
+      expect(context.imageModel).toBeDefined()
+      expect(context.endpoint).toBe('https://chatgpt.com/backend-api/codex/responses')
+      expect(context.imageEndpoint).toBe('https://chatgpt.com/backend-api/codex/images/generations')
 
-    const result = await generateImage({
-      model: context.imageModel,
-      prompt: 'A red fox in a field',
-      size: '1024x1024'
-    })
+      const result = await generateImage({
+        model: context.imageModel,
+        prompt: 'A red fox in a field',
+        size: '1024x1024'
+      })
 
-    expect(result.image.base64).toBe(imageBase64)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [requestUrl, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(requestUrl).toBe('https://chatgpt.com/backend-api/codex/images/generations')
-    expect(new Headers(requestInit.headers).get('x-tenant-id')).toBe('team-a')
-    expect(JSON.parse(String(requestInit.body))).toEqual({
-      model: 'gpt-image-2',
-      prompt: 'A red fox in a field',
-      n: 1,
-      size: '1024x1024'
-    })
-  })
+      expect(result.image.base64).toBe(imageBase64)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const [requestUrl, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit]
+      expect(requestUrl).toBe('https://chatgpt.com/backend-api/codex/images/generations')
+      expect(new Headers(requestInit.headers).get('x-tenant-id')).toBe('team-a')
+      expect(JSON.parse(String(requestInit.body))).toEqual({
+        model: modelId,
+        prompt: 'A red fox in a field',
+        n: 1,
+        size: '1024x1024'
+      })
+    }
+  )
 
   it('uses deployment ids from azure deployment-scoped urls', () => {
     const context = createAiSdkProviderContext({
