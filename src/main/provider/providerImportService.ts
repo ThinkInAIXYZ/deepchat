@@ -125,6 +125,7 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   ppinfra: 'ppio',
   openrouter: 'openrouter',
   requesty: 'requesty',
+  litellm: 'litellm',
   demonroute: 'demonroute',
   orcarouter: 'orcarouter',
   synthorai: 'synthorai',

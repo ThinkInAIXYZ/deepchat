@@ -483,6 +483,287 @@ describe('basic API-key provider registrations', () => {
     expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 
+  it('reads LiteLLM aliases with their capabilities from the proxy model info', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'litellm')!
+    expect(defaults).toMatchObject({ baseUrl: 'http://localhost:4000/v1', apiKey: '' })
+    const deployment = {
+      model_name: 'smart',
+      model_info: {
+        mode: 'chat',
+        litellm_provider: 'vertex_ai-language-models',
+        max_input_tokens: 1048576,
+        max_output_tokens: 65535,
+        supports_vision: true,
+        supports_function_calling: true,
+        supports_reasoning: true
+      }
+    }
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      Response.json({
+        data: [
+          deployment,
+          deployment,
+          { model_name: 'fast', model_info: { mode: 'chat', litellm_provider: 'openai' } },
+          { model_name: 'embed', model_info: { mode: 'embedding', litellm_provider: 'openai' } },
+          {
+            model_name: 'draw',
+            model_info: { mode: 'image_generation', litellm_provider: 'openai' }
+          },
+          { model_name: 'speak', model_info: { mode: 'audio_speech', litellm_provider: 'openai' } },
+          {
+            model_name: 'clip',
+            model_info: { mode: 'video_generation', litellm_provider: 'openai' }
+          },
+          { model_name: 'rank', model_info: { mode: 'rerank', litellm_provider: 'cohere' } },
+          { model_name: '*', model_info: { mode: 'chat', litellm_provider: 'openai' } },
+          { model_name: 'openai/*', model_info: { mode: 'chat', litellm_provider: 'openai' } },
+          {
+            model_name: 'code',
+            model_info: { mode: 'chat', litellm_provider: 'text-completion-codestral' }
+          },
+          {
+            model_name: 'pool',
+            model_info: {
+              mode: 'chat',
+              litellm_provider: 'openai',
+              max_input_tokens: 1047576,
+              max_output_tokens: 32768,
+              supports_vision: true,
+              supports_function_calling: true
+            }
+          },
+          {
+            model_name: 'pool',
+            model_info: {
+              mode: 'chat',
+              litellm_provider: 'azure',
+              max_input_tokens: 128000,
+              max_output_tokens: 16384,
+              supports_vision: false,
+              supports_function_calling: true
+            }
+          }
+        ]
+      })
+    )
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const provider = new AiSdkProvider({ ...defaults }, createProviderSettings())
+    expect(resolveAiSdkProviderDefinition(defaults)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'litellm',
+      checkStrategy: 'fetch-models',
+      embeddingStrategy: 'openai'
+    })
+    expect(resolveAiSdkProviderDefinition(defaults).credentialStrategy).toBeUndefined()
+
+    await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
+      expect.objectContaining({
+        id: 'smart',
+        group: 'vertex_ai',
+        providerId: 'litellm',
+        type: 'chat',
+        contextLength: 1048576,
+        maxTokens: 65535,
+        vision: true,
+        functionCall: true,
+        reasoning: true
+      }),
+      expect.objectContaining({ id: 'fast', group: 'openai', type: 'chat' }),
+      expect.objectContaining({ id: 'embed', group: 'openai', type: 'embedding' }),
+      expect.objectContaining({ id: 'draw', group: 'openai', type: 'imageGeneration' }),
+      expect.objectContaining({ id: 'speak', group: 'openai', type: 'tts' }),
+      expect.objectContaining({ id: 'clip', group: 'openai', type: 'videoGeneration' }),
+      expect.objectContaining({ id: 'code', group: 'codestral', type: 'chat' }),
+      expect.objectContaining({
+        id: 'pool',
+        group: 'openai',
+        contextLength: 128000,
+        maxTokens: 16384,
+        vision: false,
+        functionCall: true
+      })
+    ])
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:4000/model/info',
+      expect.objectContaining({ method: 'GET' })
+    )
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+  })
+
+  it.each([false, true])(
+    'keeps incomplete LiteLLM deployment capabilities disabled (reversed: %s)',
+    async (reversed) => {
+      const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'litellm')!
+      const deployments = [
+        {
+          model_name: 'pool',
+          model_info: {
+            mode: 'chat',
+            supports_vision: true,
+            supports_function_calling: true,
+            supports_reasoning: true
+          }
+        },
+        { model_name: 'pool', model_info: { mode: 'chat' } }
+      ]
+      if (reversed) deployments.reverse()
+      global.fetch = vi.fn().mockImplementation(async () => Response.json({ data: deployments }))
+
+      const provider = new AiSdkProvider({ ...defaults }, createProviderSettings())
+      await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
+        expect.objectContaining({
+          id: 'pool',
+          vision: false,
+          functionCall: false,
+          reasoning: false
+        })
+      ])
+    }
+  )
+
+  it('reports LiteLLM virtual key spend and remaining budget', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'litellm')!
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async (url: string) =>
+        url.endsWith('/key/info') && !url.includes('/v1/')
+          ? Response.json({ key: 'sk-virtual', info: { spend: 1.25, max_budget: 5 } })
+          : new Response('Not Found', { status: 404 })
+      )
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const provider = new AiSdkProvider(
+      { ...defaults, apiKey: 'sk-virtual' },
+      createProviderSettings()
+    )
+
+    await expect(provider.getKeyStatus()).resolves.toEqual({
+      usage: '$1.25',
+      limit_remaining: '$3.75',
+      remainNum: 3.75
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:4000/key/info',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer sk-virtual' })
+      })
+    )
+  })
+
+  it('reports no LiteLLM key status for the master key or a keyless proxy', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'litellm')!
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async () =>
+        Response.json({ error: { message: 'Key not found in database' } }, { status: 404 })
+      )
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const keyless = new AiSdkProvider({ ...defaults }, createProviderSettings())
+    await expect(keyless.getKeyStatus()).resolves.toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    const master = new AiSdkProvider({ ...defaults, apiKey: 'sk-master' }, createProviderSettings())
+    await expect(master.getKeyStatus()).resolves.toBeNull()
+  })
+
+  it('times out stalled LiteLLM key status requests', async () => {
+    vi.useFakeTimers()
+    try {
+      const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'litellm')!
+      global.fetch = vi.fn().mockImplementation(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), {
+              once: true
+            })
+          })
+      )
+      const provider = new AiSdkProvider(
+        { ...defaults, apiKey: 'sk-virtual' },
+        createProviderSettings()
+      )
+      const result = expect(provider.getKeyStatus()).rejects.toMatchObject({
+        name: 'AbortError',
+        code: 'provider_request_timeout'
+      })
+
+      await vi.advanceTimersByTimeAsync(12_000)
+      await result
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each([401, 403, 404, 'single-model'] as const)(
+    'falls back to LiteLLM /models when model info returns %s',
+    async (status) => {
+      const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'litellm')!
+      const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+        if (url.endsWith('/model/info')) {
+          if (status === 'single-model') {
+            return Response.json({
+              data: {
+                model_name: '*',
+                litellm_params: { model: 'gpt-4.1-mini' },
+                model_info: { mode: 'chat' }
+              }
+            })
+          }
+          return new Response('Unavailable', { status })
+        }
+        return Response.json({
+          object: 'list',
+          data: [
+            { id: 'gpt-4.1-mini', object: 'model' },
+            { id: 'openai/*', object: 'model' }
+          ]
+        })
+      })
+      global.fetch = fetchMock as unknown as typeof fetch
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      const provider = new AiSdkProvider(
+        { ...defaults, apiKey: 'sk-virtual' },
+        createProviderSettings()
+      )
+
+      await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
+        expect.objectContaining({ id: 'gpt-4.1-mini', group: 'default', providerId: 'litellm' })
+      ])
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        'http://localhost:4000/v1/models',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer sk-virtual' })
+        })
+      )
+    }
+  )
+
+  it('surfaces LiteLLM model info errors other than a hidden route', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'litellm')!
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async (url: string) =>
+        url.endsWith('/model/info')
+          ? new Response('Internal Server Error', { status: 500 })
+          : Response.json({ object: 'list', data: [{ id: 'gpt-4.1-mini', object: 'model' }] })
+      )
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const provider = new AiSdkProvider(
+      { ...defaults, apiKey: 'sk-virtual' },
+      createProviderSettings()
+    )
+
+    await expect(provider.fetchModels({ suppressErrors: false })).rejects.toThrow(
+      'Internal Server Error'
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('lists DemonRoute models from the authenticated OpenAI-compatible catalog', async () => {
     const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'demonroute')!
     expect(defaults).toBeDefined()

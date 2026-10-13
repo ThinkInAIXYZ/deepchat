@@ -190,6 +190,24 @@ function toModelRecordArray(payload: unknown): Array<Record<string, unknown>> {
   return []
 }
 
+// LiteLLM `model_info.mode` -> the DeepChat model type whose route the proxy also serves.
+// `responses` aliases are served on chat completions too.
+const LITELLM_MODE_TYPES: Record<string, ModelType | undefined> = {
+  chat: ModelType.Chat,
+  responses: ModelType.Chat,
+  embedding: ModelType.Embedding,
+  image_generation: ModelType.ImageGeneration,
+  video_generation: ModelType.VideoGeneration,
+  audio_speech: ModelType.TTS
+}
+
+// LiteLLM `litellm_provider` -> model group, e.g. `vertex_ai-language-models` -> `vertex_ai` and
+// `text-completion-codestral` -> `codestral`.
+function toLiteLLMProviderGroup(value: unknown): string {
+  if (typeof value !== 'string' || !value) return 'default'
+  return value.replace(/^text-completion-/i, '').split('-')[0] || 'default'
+}
+
 function toPositiveFiniteNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
 }
@@ -1737,6 +1755,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         return this.fetchOpenAiDerivedModels(strategy)
       case 'requesty':
         return this.fetchRequestyModels()
+      case 'litellm':
+        return this.fetchLiteLLMModels()
       case 'demonroute':
         return this.fetchDemonRouteModels()
       case 'bedrock':
@@ -1972,6 +1992,91 @@ export class AiSdkProvider extends BaseLLMProvider {
     append(managed, 'Managed')
     append(catalog, 'default')
     return models
+  }
+
+  /** LiteLLM management routes (`/model/info`, `/key/info`) live at the proxy root, not `/v1`. */
+  private getLiteLLMProxyRoot(): string {
+    return (this.provider.baseUrl || '').replace(/\/+$/, '').replace(/\/v1$/i, '')
+  }
+
+  /**
+   * LiteLLM model names are aliases chosen by whoever runs the proxy, so the shared model catalog
+   * cannot describe them. The proxy's `/model/info` carries the routed model's mode, limits and
+   * capabilities per alias; `/models` (ids only) is the fallback when the proxy returns no model
+   * records or the key cannot read them (401, 403, 404). Other errors are surfaced.
+   */
+  private async fetchLiteLLMModels(): Promise<MODEL_META[]> {
+    const timeout = this.getModelFetchTimeout()
+    const infoUrl = `${this.getLiteLLMProxyRoot()}/model/info`
+    let records: Array<Record<string, unknown>>
+    try {
+      records = toModelRecordArray(
+        await this.requestProviderJson<unknown>(infoUrl, { method: 'GET' }, timeout)
+      )
+    } catch (error) {
+      if (!(error instanceof ProviderHttpError) || ![401, 403, 404].includes(error.status ?? 0)) {
+        throw error
+      }
+      console.warn('LiteLLM model info unavailable, falling back to /models:', error.status)
+      records = []
+    }
+
+    // Single-model CLI proxies return a data object with a wildcard name; /models has callable IDs.
+    if (records.length === 0) {
+      const listed = await this.fetchDefaultOpenAIModels({ timeout })
+      return listed.filter((model) => !model.id.includes('*'))
+    }
+
+    const models = new Map<string, MODEL_META>()
+    for (const record of records) {
+      const modelId = typeof record.model_name === 'string' ? record.model_name : ''
+      const info =
+        record.model_info && typeof record.model_info === 'object'
+          ? (record.model_info as Record<string, unknown>)
+          : {}
+      // Modes without a DeepChat route (rerank, audio_transcription, moderation, ...) are skipped,
+      // and so are wildcard routes (`*`, `openai/*`), which are patterns rather than callable names.
+      const type = LITELLM_MODE_TYPES[typeof info.mode === 'string' ? info.mode : 'chat']
+      if (!modelId || modelId.includes('*') || !type) {
+        continue
+      }
+      const contextLength = toPositiveFiniteNumber(info.max_input_tokens)
+      const maxTokens = toPositiveFiniteNumber(info.max_output_tokens)
+      const existing = models.get(modelId)
+      if (existing) {
+        // Deployments of one alias are load balanced, so a request can land on any of them: keep
+        // the smallest limits and only the capabilities every deployment reports.
+        if (contextLength !== undefined) {
+          existing.contextLength = Math.min(existing.contextLength ?? contextLength, contextLength)
+        }
+        if (maxTokens !== undefined) {
+          existing.maxTokens = Math.min(existing.maxTokens ?? maxTokens, maxTokens)
+        }
+        existing.vision = existing.vision === true && info.supports_vision === true
+        existing.functionCall =
+          existing.functionCall === true && info.supports_function_calling === true
+        existing.reasoning = existing.reasoning === true && info.supports_reasoning === true
+        continue
+      }
+      models.set(modelId, {
+        id: modelId,
+        name: modelId,
+        group: toLiteLLMProviderGroup(info.litellm_provider),
+        providerId: this.provider.id,
+        isCustom: false,
+        type,
+        ...(contextLength !== undefined ? { contextLength } : {}),
+        ...(maxTokens !== undefined ? { maxTokens } : {}),
+        ...(typeof info.supports_vision === 'boolean' ? { vision: info.supports_vision } : {}),
+        ...(typeof info.supports_function_calling === 'boolean'
+          ? { functionCall: info.supports_function_calling }
+          : {}),
+        ...(typeof info.supports_reasoning === 'boolean'
+          ? { reasoning: info.supports_reasoning }
+          : {})
+      })
+    }
+    return [...models.values()]
   }
 
   /**
@@ -2245,6 +2350,43 @@ export class AiSdkProvider extends BaseLLMProvider {
           keyStatus.remainNum = payload.data.limit_remaining
         }
         return keyStatus
+      }
+      case 'litellm': {
+        // Spend and budget exist for virtual keys only; a keyless proxy or the master key has none.
+        if (!this.provider.apiKey) return null
+        const { signal, dispose } = this.createModelRequestSignal({
+          timeout: this.getModelFetchTimeout()
+        })
+        try {
+          const response = await this.fetchProvider(`${this.getLiteLLMProxyRoot()}/key/info`, {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${this.provider.apiKey}` },
+            signal
+          })
+          if (response.status === 404) return null
+          if (!response.ok) {
+            const errorText = await response.text()
+            throw new Error(
+              `LiteLLM key check failed: ${response.status} ${response.statusText} - ${errorText}`
+            )
+          }
+          const payload = (await response.json()) as {
+            info?: { spend?: number | null; max_budget?: number | null }
+          }
+          // Per-request spend is often below a cent; keep enough digits to show it.
+          const usd = (value: number) => `$${value.toFixed(Math.abs(value) < 0.01 ? 6 : 2)}`
+          const spend = Number(payload.info?.spend ?? 0)
+          const keyStatus: KeyStatus = { usage: usd(spend) }
+          const budget = payload.info?.max_budget
+          if (typeof budget === 'number') {
+            const remaining = budget - spend
+            keyStatus.limit_remaining = usd(remaining)
+            keyStatus.remainNum = remaining
+          }
+          return keyStatus
+        } finally {
+          dispose()
+        }
       }
       case 'deepseek': {
         const response = await this.fetchProvider('https://api.deepseek.com/user/balance', {

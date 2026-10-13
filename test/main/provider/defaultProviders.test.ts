@@ -96,6 +96,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes LiteLLM as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'litellm',
+        name: 'LiteLLM',
+        apiType: 'openai-completions',
+        baseUrl: 'http://localhost:4000/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://www.litellm.ai/',
+          apiKey: 'https://docs.litellm.ai/docs/proxy/virtual_keys',
+          docs: 'https://docs.litellm.ai/docs/simple_proxy',
+          models: 'https://docs.litellm.ai/docs/providers',
+          defaultBaseUrl: 'http://localhost:4000/v1'
+        })
+      })
+    )
+  })
+
   it('includes Opper as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
