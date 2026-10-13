@@ -591,6 +591,37 @@ describe('basic API-key provider registrations', () => {
     await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
   })
 
+  it.each([false, true])(
+    'keeps incomplete LiteLLM deployment capabilities disabled (reversed: %s)',
+    async (reversed) => {
+      const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'litellm')!
+      const deployments = [
+        {
+          model_name: 'pool',
+          model_info: {
+            mode: 'chat',
+            supports_vision: true,
+            supports_function_calling: true,
+            supports_reasoning: true
+          }
+        },
+        { model_name: 'pool', model_info: { mode: 'chat' } }
+      ]
+      if (reversed) deployments.reverse()
+      global.fetch = vi.fn().mockImplementation(async () => Response.json({ data: deployments }))
+
+      const provider = new AiSdkProvider({ ...defaults }, createProviderSettings())
+      await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
+        expect.objectContaining({
+          id: 'pool',
+          vision: false,
+          functionCall: false,
+          reasoning: false
+        })
+      ])
+    }
+  )
+
   it('reports LiteLLM virtual key spend and remaining budget', async () => {
     const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'litellm')!
     const fetchMock = vi
@@ -637,37 +668,79 @@ describe('basic API-key provider registrations', () => {
     await expect(master.getKeyStatus()).resolves.toBeNull()
   })
 
-  it('falls back to the LiteLLM /models list when model info is unavailable', async () => {
-    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'litellm')!
-    const fetchMock = vi.fn().mockImplementation(async (url: string) =>
-      url.endsWith('/model/info')
-        ? new Response('Not Found', { status: 404 })
-        : Response.json({
-            object: 'list',
-            data: [
-              { id: 'gpt-4.1-mini', object: 'model' },
-              { id: 'openai/*', object: 'model' }
-            ]
+  it('times out stalled LiteLLM key status requests', async () => {
+    vi.useFakeTimers()
+    try {
+      const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'litellm')!
+      global.fetch = vi.fn().mockImplementation(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), {
+              once: true
+            })
           })
-    )
-    global.fetch = fetchMock as unknown as typeof fetch
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    const provider = new AiSdkProvider(
-      { ...defaults, apiKey: 'sk-virtual' },
-      createProviderSettings()
-    )
-
-    await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
-      expect.objectContaining({ id: 'gpt-4.1-mini', group: 'default', providerId: 'litellm' })
-    ])
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      'http://localhost:4000/v1/models',
-      expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: 'Bearer sk-virtual' })
+      )
+      const provider = new AiSdkProvider(
+        { ...defaults, apiKey: 'sk-virtual' },
+        createProviderSettings()
+      )
+      const result = expect(provider.getKeyStatus()).rejects.toMatchObject({
+        name: 'AbortError',
+        code: 'provider_request_timeout'
       })
-    )
+
+      await vi.advanceTimersByTimeAsync(12_000)
+      await result
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
+
+  it.each([401, 403, 404, 'single-model'] as const)(
+    'falls back to LiteLLM /models when model info returns %s',
+    async (status) => {
+      const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'litellm')!
+      const fetchMock = vi.fn().mockImplementation(async (url: string) => {
+        if (url.endsWith('/model/info')) {
+          if (status === 'single-model') {
+            return Response.json({
+              data: {
+                model_name: '*',
+                litellm_params: { model: 'gpt-4.1-mini' },
+                model_info: { mode: 'chat' }
+              }
+            })
+          }
+          return new Response('Unavailable', { status })
+        }
+        return Response.json({
+          object: 'list',
+          data: [
+            { id: 'gpt-4.1-mini', object: 'model' },
+            { id: 'openai/*', object: 'model' }
+          ]
+        })
+      })
+      global.fetch = fetchMock as unknown as typeof fetch
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      const provider = new AiSdkProvider(
+        { ...defaults, apiKey: 'sk-virtual' },
+        createProviderSettings()
+      )
+
+      await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
+        expect.objectContaining({ id: 'gpt-4.1-mini', group: 'default', providerId: 'litellm' })
+      ])
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        'http://localhost:4000/v1/models',
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer sk-virtual' })
+        })
+      )
+    }
+  )
 
   it('surfaces LiteLLM model info errors other than a hidden route', async () => {
     const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'litellm')!

@@ -2006,8 +2006,8 @@ export class AiSdkProvider extends BaseLLMProvider {
   /**
    * LiteLLM model names are aliases chosen by whoever runs the proxy, so the shared model catalog
    * cannot describe them. The proxy's `/model/info` carries the routed model's mode, limits and
-   * capabilities per alias; `/models` (ids only) is the fallback for proxies or keys that are not
-   * allowed to read it (401, 403, 404). Other errors are surfaced.
+   * capabilities per alias; `/models` (ids only) is the fallback when the proxy returns no model
+   * records or the key cannot read them (401, 403, 404). Other errors are surfaced.
    */
   private async fetchLiteLLMModels(): Promise<MODEL_META[]> {
     const timeout = this.getModelFetchTimeout()
@@ -2022,6 +2022,11 @@ export class AiSdkProvider extends BaseLLMProvider {
         throw error
       }
       console.warn('LiteLLM model info unavailable, falling back to /models:', error.status)
+      records = []
+    }
+
+    // Single-model CLI proxies return a data object with a wildcard name; /models has callable IDs.
+    if (records.length === 0) {
       const listed = await this.fetchDefaultOpenAIModels({ timeout })
       return listed.filter((model) => !model.id.includes('*'))
     }
@@ -2051,9 +2056,10 @@ export class AiSdkProvider extends BaseLLMProvider {
         if (maxTokens !== undefined) {
           existing.maxTokens = Math.min(existing.maxTokens ?? maxTokens, maxTokens)
         }
-        if (info.supports_vision === false) existing.vision = false
-        if (info.supports_function_calling === false) existing.functionCall = false
-        if (info.supports_reasoning === false) existing.reasoning = false
+        existing.vision = existing.vision === true && info.supports_vision === true
+        existing.functionCall =
+          existing.functionCall === true && info.supports_function_calling === true
+        existing.reasoning = existing.reasoning === true && info.supports_reasoning === true
         continue
       }
       models.set(modelId, {
@@ -2352,31 +2358,39 @@ export class AiSdkProvider extends BaseLLMProvider {
       case 'litellm': {
         // Spend and budget exist for virtual keys only; a keyless proxy or the master key has none.
         if (!this.provider.apiKey) return null
-        const response = await this.fetchProvider(`${this.getLiteLLMProxyRoot()}/key/info`, {
-          method: 'GET',
-          headers: { Authorization: `Bearer ${this.provider.apiKey}` }
+        const { signal, dispose } = this.createModelRequestSignal({
+          timeout: this.getModelFetchTimeout()
         })
-        if (response.status === 404) return null
-        if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(
-            `LiteLLM key check failed: ${response.status} ${response.statusText} - ${errorText}`
-          )
+        try {
+          const response = await this.fetchProvider(`${this.getLiteLLMProxyRoot()}/key/info`, {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${this.provider.apiKey}` },
+            signal
+          })
+          if (response.status === 404) return null
+          if (!response.ok) {
+            const errorText = await response.text()
+            throw new Error(
+              `LiteLLM key check failed: ${response.status} ${response.statusText} - ${errorText}`
+            )
+          }
+          const payload = (await response.json()) as {
+            info?: { spend?: number | null; max_budget?: number | null }
+          }
+          // Per-request spend is often below a cent; keep enough digits to show it.
+          const usd = (value: number) => `$${value.toFixed(Math.abs(value) < 0.01 ? 6 : 2)}`
+          const spend = Number(payload.info?.spend ?? 0)
+          const keyStatus: KeyStatus = { usage: usd(spend) }
+          const budget = payload.info?.max_budget
+          if (typeof budget === 'number') {
+            const remaining = budget - spend
+            keyStatus.limit_remaining = usd(remaining)
+            keyStatus.remainNum = remaining
+          }
+          return keyStatus
+        } finally {
+          dispose()
         }
-        const payload = (await response.json()) as {
-          info?: { spend?: number | null; max_budget?: number | null }
-        }
-        // Per-request spend is often below a cent; keep enough digits to show it.
-        const usd = (value: number) => `$${value.toFixed(Math.abs(value) < 0.01 ? 6 : 2)}`
-        const spend = Number(payload.info?.spend ?? 0)
-        const keyStatus: KeyStatus = { usage: usd(spend) }
-        const budget = payload.info?.max_budget
-        if (typeof budget === 'number') {
-          const remaining = budget - spend
-          keyStatus.limit_remaining = usd(remaining)
-          keyStatus.remainNum = remaining
-        }
-        return keyStatus
       }
       case 'deepseek': {
         const response = await this.fetchProvider('https://api.deepseek.com/user/balance', {
