@@ -14,7 +14,7 @@
   "settings-prompt": "Gestion des Prompts",
   "settings-mcp-market": "Marché MCP",
   "settings-acp": "Agent ACP",
-  "plugins-skills": "Skills",
+  "plugins-skills": "Compétences",
   "settings-notifications-hooks": "Hooks",
   "settings-scheduled-tasks": "Tâches planifiées",
   "settings-dashboard": "Tableau de bord",
@@ -25,6 +25,6 @@
   "settings-overview": "Aperçu des paramètres",
   "settings-memory": "Mémoire",
   "plugins": "Plugins",
-  "settings-debug": "Debug",
-  "settings-toolchains": "Toolchains"
+  "settings-debug": "Débogage",
+  "settings-toolchains": "Chaînes d'outils"
 }

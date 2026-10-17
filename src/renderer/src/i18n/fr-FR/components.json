@@ -61,11 +61,11 @@
   },
   "messageBlockQuestionRequest": {
     "title": "Question",
-    "send": "Send",
-    "reject": "Reject",
-    "selected": "Selected",
-    "rejected": "Rejected",
-    "customPlaceholder": "Type your answer...",
-    "answerLabel": "Answer"
+    "send": "Envoyer",
+    "reject": "Rejeter",
+    "selected": "Sélectionné",
+    "rejected": "Rejeté",
+    "customPlaceholder": "Saisissez votre réponse...",
+    "answerLabel": "Réponse"
   }
 }
