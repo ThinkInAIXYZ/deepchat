@@ -61,7 +61,7 @@
     "directiveView": "Directives mémoire assemblées",
     "toolCall": "Appel d'outil",
     "toolResult": "Résultat d'outil",
-    "memorySelection": "{selected} selected · {dropped} dropped",
+    "memorySelection": "{selected} sélectionnées · {dropped} exclues",
     "tokenUse": "{used} / {budget} tokens",
     "relations": {
       "input": "Entrée",
@@ -71,12 +71,12 @@
   },
   "evidence": {
     "request": "Requête de modèle",
-    "earlierSummary": "Matching Entry is earlier in Tape",
-    "standaloneSummary": "No matching completed Entry is available",
-    "earlierHint": "These requests have an exact matching Entry outside the loaded range. Load bounded earlier pages to bring them into context.",
-    "standaloneHint": "These requests are diagnostics, are still being recorded, or do not contain an exact attempt identity. They remain visible without guessing a match.",
+    "earlierSummary": "L'entrée Tape correspondante est plus tôt dans le Tape",
+    "standaloneSummary": "Aucune entrée Tape terminée correspondante n'est disponible",
+    "earlierHint": "Ces requêtes ont une entrée Tape correspondante exacte hors de la plage chargée. Chargez les pages antérieures limitées pour les intégrer au contexte.",
+    "standaloneHint": "Ces requêtes sont des diagnostics, sont encore en cours d'enregistrement, ou ne contiennent pas d'identifiant de tentative exact. Elles restent visibles sans deviner de correspondance.",
     "lanes": {
-      "earlier": "Requests with earlier Entries ({count})",
+      "earlier": "Requêtes avec des entrées Tape antérieures ({count})",
       "request": "Requêtes de modèle autonomes ({count})",
       "diagnostic": "Diagnostics ({count})"
     },
@@ -105,7 +105,7 @@
     "timingInconsistent": "Les limites de temporisation enregistrées sont incohérentes",
     "notApplicable": "Non applicable à cet élément",
     "empty": "Aucune entrée Tape ni requête de modèle correspondante",
-    "loadedCounts": "{entries} Tape Entries · {evidence} model requests",
+    "loadedCounts": "{entries} entrées Tape · {evidence} requêtes de modèle",
     "pageLoaded": "{count} entrées Tape supplémentaires chargées. Position conservée ; faites défiler pour les afficher.",
     "pageLoadedComplete": "{count} entrées Tape supplémentaires chargées. Début du Tape atteint.",
     "pageNoMatches": "La plage délimitée suivante ne contenait aucune entrée Tape correspondante.",

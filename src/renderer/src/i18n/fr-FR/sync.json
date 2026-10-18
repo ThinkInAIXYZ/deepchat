@@ -56,14 +56,14 @@
     "overwriteWarning": "Cela remplace les données locales par une sauvegarde complète de l'hôte et arrête les sessions actives pendant l'importation. La sauvegarde inclut des données locales à l'appareil comme les chemins de projets et les tâches planifiées. Continuer ?",
     "phase": {
       "idle": "Prêt",
-      "pairing": "Pairing…",
-      "downloading": "Downloading…",
-      "verifying": "Verifying data…",
+      "pairing": "Appairage…",
+      "downloading": "Téléchargement…",
+      "verifying": "Vérification des données…",
       "importing": "Importation en cours ; l'annulation est indisponible",
       "completed": "Importation terminée",
       "cancelled": "Annulé. Synchronisez à nouveau pour reprendre.",
       "failed": "Échec du transfert",
-      "preparing": "Preparing host data…"
+      "preparing": "Préparation des données de l'hôte…"
     },
     "error": {
       "consentRequired": "Confirmez le partage des données avant d'activer l'accès.",
@@ -149,14 +149,14 @@
     },
     "automatic": "Synchronisation bidirectionnelle automatique",
     "automaticHelp": "Nécessite l'approbation d'écriture de l'hôte. Synchronise après 15 secondes sans modification, avec au moins 60 secondes entre les synchronisations. Les sessions occupées attendent leur fin ; les modifications et suppressions les plus récentes l'emportent.",
-    "automaticConsent": "Request permission to send this device’s conversations, provider keys and portable settings to the host. The host must separately allow edits after pairing.",
+    "automaticConsent": "Demandez l'autorisation d'envoyer à l'hôte les conversations, les clés fournisseur et les paramètres portables de cet appareil. L'hôte doit également autoriser séparément les modifications après l'appairage.",
     "automaticPhase": {
       "off": "Synchronisation automatique désactivée",
       "idle": "À jour",
       "waiting": "Modifications en attente de synchronisation",
-      "syncing": "Syncing both devices…",
+      "syncing": "Synchronisation des deux appareils…",
       "busy": "En attente de la fin des travaux actifs",
-      "offline": "Disconnected; reconnecting…",
+      "offline": "Déconnecté ; reconnexion…",
       "failed": "Échec de la synchronisation ; les modifications en attente seront réessayées"
     },
     "requestWrite": "Demander la synchronisation bidirectionnelle",
