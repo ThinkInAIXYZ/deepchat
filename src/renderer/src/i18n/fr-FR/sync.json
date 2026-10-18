@@ -142,7 +142,7 @@
     "confirmConnect": "Connecter",
     "connector": {
       "stopped": "Partage désactivé",
-      "starting": "Connecting to Cloudflare…",
+      "starting": "Connexion à Cloudflare…",
       "connected": "Tunnel connecté",
       "external": "Utilisation de votre tunnel existant",
       "failed": "Échec de la connexion du tunnel"
