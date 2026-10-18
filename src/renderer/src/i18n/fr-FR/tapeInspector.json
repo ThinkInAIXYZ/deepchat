@@ -62,7 +62,7 @@
     "toolCall": "Appel d'outil",
     "toolResult": "Résultat d'outil",
     "memorySelection": "{selected} sélectionnées · {dropped} exclues",
-    "tokenUse": "{used} / {budget} tokens",
+    "tokenUse": "{used} / {budget} jetons",
     "relations": {
       "input": "Entrée",
       "output": "Résultat observé",
