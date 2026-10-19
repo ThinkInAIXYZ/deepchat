@@ -80,16 +80,16 @@ describe('native menu translations', () => {
       copy: '복사',
       file: 'File'
     })
-    expect(getContextMenuLabels('fr-CA')).toMatchObject({
-      copy: 'Copier',
-      file: 'File'
-    })
   })
 
   it('resolves unsupported regions through the locale manifest', () => {
     expect(getContextMenuLabels('de-AT')).toMatchObject({
       copy: 'Kopieren',
       file: 'Datei'
+    })
+    expect(getContextMenuLabels('fr-CA')).toMatchObject({
+      copy: 'Copier',
+      file: 'Fichier'
     })
     expect(getContextMenuLabels('unknown')).toMatchObject({
       copy: 'Copy',
