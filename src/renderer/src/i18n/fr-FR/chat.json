@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "Copier la référence de conversation",
     "groups": {
       "session": "Sessions",
       "file": "Fichiers"

@@ -158,8 +158,45 @@ test('session references survive drafts and retrieve evidence without injecting 
     await app.page.evaluate(async (sessionId) => {
       await window.deepchat.invoke('sessions.rename', { sessionId, title: 'Launch research' })
     }, sourceId)
-    await app.page.getByTestId('app-new-chat-button').click()
     const editor = app.page.getByTestId('chat-input-contenteditable')
+    const previousClipboard = await app.electronApp.evaluate(({ clipboard }) => {
+      const image = clipboard.readImage()
+      return {
+        text: clipboard.readText(),
+        html: clipboard.readHTML(),
+        rtf: clipboard.readRTF(),
+        image: image.isEmpty() ? null : image.toDataURL()
+      }
+    })
+    try {
+      await app.page.bringToFront()
+      await app.page.getByRole('button', { name: /^(More|更多)$/ }).click()
+      await app.page
+        .getByRole('menuitem', { name: /^(Copy session reference|复制会话引用)$/ })
+        .click()
+      await expect
+        .poll(() => app.electronApp.evaluate(({ clipboard }) => clipboard.readText()))
+        .toBe(`[Session: Launch research (${sourceId})]`)
+      const html = await app.electronApp.evaluate(({ clipboard }) => clipboard.readHTML())
+      expect(html).toContain('data-session-reference')
+      expect(html).toContain(`[Session: Launch research (${sourceId})]`)
+      expect(html).not.toContain(marker)
+      await app.page.getByTestId('app-new-chat-button').click()
+      await editor.click()
+      await app.page.keyboard.press('ControlOrMeta+v')
+      await expect(editor.locator('[data-session-reference]')).toContainText('Launch research')
+      await app.page.keyboard.press('ControlOrMeta+z')
+      await expect(editor.locator('[data-session-reference]')).toHaveCount(0)
+    } finally {
+      await app.electronApp.evaluate(({ clipboard, nativeImage }, previous) => {
+        clipboard.write({
+          text: previous.text,
+          html: previous.html,
+          rtf: previous.rtf,
+          ...(previous.image ? { image: nativeImage.createFromDataURL(previous.image) } : {})
+        })
+      }, previousClipboard)
+    }
     await expect(editor).toHaveCount(1)
     await editor.fill('@Launch')
     const candidate = app.page.getByRole('option', { name: /Launch research/ })

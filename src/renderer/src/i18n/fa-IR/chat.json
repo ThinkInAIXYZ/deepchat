@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "کپی ارجاع گفتگو",
     "groups": { "session": "نشست‌ها", "file": "فایل‌ها" },
     "open": "باز کردن {title}",
     "unavailableTitle": "ارجاع نشست در دسترس نیست",

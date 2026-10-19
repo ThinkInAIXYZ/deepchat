@@ -25,8 +25,12 @@ export const SessionReference = Node.create({
   parseHTML() {
     return [{ tag: 'span[data-session-reference]' }]
   },
-  renderHTML({ HTMLAttributes }) {
-    return ['span', mergeAttributes(HTMLAttributes, { 'data-session-reference': '' })]
+  renderHTML({ node, HTMLAttributes }) {
+    return [
+      'span',
+      mergeAttributes(HTMLAttributes, { 'data-session-reference': '' }),
+      getSessionReferenceText([{ ...node.attrs, type: 'session' }])
+    ]
   },
   renderText({ node }) {
     return getSessionReferenceText([{ ...node.attrs, type: 'session' }])

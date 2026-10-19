@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "复制会话引用",
     "groups": { "session": "会话", "file": "文件" },
     "open": "打开 {title}",
     "unavailableTitle": "会话引用不可用",

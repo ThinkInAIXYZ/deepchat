@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "Copy session reference",
     "groups": { "session": "Sessions", "file": "Files" },
     "open": "Open {title}",
     "unavailableTitle": "Session reference unavailable",
