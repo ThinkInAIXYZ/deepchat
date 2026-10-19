@@ -11,9 +11,9 @@ vi.mock('vue-i18n', () => ({
 }))
 
 const ticks: MinimapTick[] = [
-  { id: 'm1', top: 0, height: 0.2, width: 1 },
-  { id: 'm2', top: 0.2, height: 0.2, width: 0.5 },
-  { id: 'm3', top: 0.4, height: 0.6, width: 0.25 }
+  { id: 'm1', top: 0, height: 0.2 },
+  { id: 'm2', top: 0.2, height: 0.2 },
+  { id: 'm3', top: 0.4, height: 0.6 }
 ]
 
 const railHeight = 200
@@ -45,15 +45,39 @@ function marks(wrapper: Awaited<ReturnType<typeof mountRail>>['wrapper']) {
 }
 
 describe('ChatMinimap', () => {
-  it('draws one hairline mark per message, widest for the longest', async () => {
+  it('draws one equally short mark per message at rest', async () => {
     const { wrapper } = await mountRail()
     const drawn = marks(wrapper)
 
     expect(drawn).toHaveLength(ticks.length)
-    // 40 px full width, scaled by each mark's width fraction, never below a hairline.
-    expect(drawn[0].attributes('style')).toContain('width: 40px')
-    expect(drawn[1].attributes('style')).toContain('width: 20px')
-    expect(drawn[2].attributes('style')).toContain('width: 10px')
+    expect(drawn.every((mark) => (mark.element as HTMLElement).style.width === '6px')).toBe(true)
+  })
+
+  it('moves a three-neighbour wave with the pointer and resets it on leave', async () => {
+    const { wrapper, rail } = await mountRail({
+      ticks: Array.from({ length: 9 }, (_, index) => ({
+        id: `m${index}`,
+        top: index / 9,
+        height: 1 / 9
+      }))
+    })
+    const widths = () => marks(wrapper).map((mark) => (mark.element as HTMLElement).style.width)
+
+    pointerAtPx(rail, 4 * 16)
+    await nextTick()
+    expect(widths()).toEqual(['6px', '10px', '18px', '28px', '40px', '28px', '18px', '10px', '6px'])
+
+    pointerAtPx(rail, 0)
+    await nextTick()
+    expect(widths()).toEqual(['40px', '28px', '18px', '10px', '6px', '6px', '6px', '6px', '6px'])
+
+    pointerAtPx(rail, 8 * 16)
+    await nextTick()
+    expect(widths()).toEqual(['6px', '6px', '6px', '6px', '6px', '10px', '18px', '28px', '40px'])
+
+    pointerAtPx(rail, 8 * 16, 'pointerleave')
+    await vi.waitFor(() => expect(widths()).toEqual(Array(9).fill('6px')))
+    wrapper.unmount()
   })
 
   it('spaces the marks evenly instead of following the message heights', async () => {
@@ -71,8 +95,7 @@ describe('ChatMinimap', () => {
     const many = Array.from({ length: 60 }, (_, index) => ({
       id: `m${index}`,
       top: index / 60,
-      height: 1 / 60,
-      width: 1
+      height: 1 / 60
     }))
     const { wrapper } = await mountRail({ ticks: many })
 
@@ -112,7 +135,7 @@ describe('ChatMinimap', () => {
     expect(wrapper.emitted('hover')?.at(-1)).toEqual(['m1'])
 
     pointerAtPx(rail, 5, 'pointerleave')
-    expect(wrapper.emitted('hover')?.at(-1)).toEqual([null])
+    await vi.waitFor(() => expect(wrapper.emitted('hover')?.at(-1)).toEqual([null]))
   })
 
   it('treats the space between two marks as belonging to a mark', async () => {
@@ -134,10 +157,44 @@ describe('ChatMinimap', () => {
 
     // The popover portals to the body, so it is not inside the component's own tree.
     expect(card()?.textContent).toBe('the hovered message')
-    // Only a few lines are shown: the card is a thumbnail, not a second copy of the message.
-    expect(card()?.className).toContain('line-clamp-4')
+
+    await wrapper.setProps({ previewText: 'a longer preview\n'.repeat(30) })
+    expect(card()?.textContent).toBe('a longer preview\n'.repeat(30))
+
+    pointerAtPx(rail, 5, 'pointerleave')
+    await vi.waitFor(() => expect(card()).toBeNull())
 
     wrapper.unmount()
+  })
+
+  it('keeps the preview open when crossing between the rail and the panel', async () => {
+    vi.useFakeTimers()
+    const { wrapper, rail } = await mountRail()
+
+    try {
+      pointerAtPx(rail, 5)
+      await nextTick()
+      const panel = document.querySelector('[data-testid="chat-minimap-preview-panel"]')!
+
+      pointerAtPx(rail, 5, 'pointerleave')
+      panel.dispatchEvent(new MouseEvent('pointerenter'))
+      await vi.advanceTimersByTimeAsync(300)
+      expect(wrapper.emitted('hover')).toEqual([['m1']])
+      expect(panel.isConnected).toBe(true)
+
+      panel.dispatchEvent(new MouseEvent('pointerleave'))
+      pointerAtPx(rail, 5)
+      await vi.advanceTimersByTimeAsync(300)
+      expect(wrapper.emitted('hover')).toEqual([['m1']])
+
+      pointerAtPx(rail, 5, 'pointerleave')
+      await vi.advanceTimersByTimeAsync(300)
+      expect(wrapper.emitted('hover')?.at(-1)).toEqual([null])
+      expect(panel.isConnected).toBe(false)
+    } finally {
+      wrapper.unmount()
+      vi.useRealTimers()
+    }
   })
 
   it('renders nothing while the conversation fits the viewport', () => {
