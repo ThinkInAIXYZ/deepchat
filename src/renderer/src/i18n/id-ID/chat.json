@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "Salin referensi sesi",
     "groups": { "session": "Sesi", "file": "File" },
     "open": "Buka {title}",
     "unavailableTitle": "Referensi sesi tidak tersedia",

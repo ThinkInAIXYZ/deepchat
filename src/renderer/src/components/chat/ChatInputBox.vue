@@ -83,6 +83,7 @@ import { TextSelection } from '@tiptap/pm/state'
 import type { MessageFile, UserMessageInlineItem } from '@shared/types/agent-interface'
 import {
   SESSION_REFERENCE_DRAG_TYPE,
+  SessionReferenceSchema,
   type SessionReference as ResolvedSessionReference
 } from '@shared/sessionReferences'
 import { useI18n } from 'vue-i18n'
@@ -96,6 +97,7 @@ import {
   getChatInputWorkspaceItemDragData
 } from '@/lib/chatInputWorkspaceReference'
 import { extractPlainUrlFromClipboard } from '@/lib/clipboardUrlPaste'
+import { createSessionReferenceElement } from '@/lib/sessionReferenceClipboard'
 import { serializeComposerDocument } from '@/features/chat-page/model/composerDocumentSerialization'
 import { useChatInputMentions } from './composables/useChatInputMentions'
 import { useChatInputFiles } from './composables/useChatInputFiles'
@@ -174,7 +176,7 @@ const windowClient = createWindowClient()
 const resolvedPlaceholder = computed(() => props.placeholder?.trim() || t('chat.input.placeholder'))
 let editorInstance: Editor | null = null
 const getEditor = () => editorInstance
-const pendingSessionReferences = shallowReactive(new Set<{ kind: 'mention' | 'drop' }>())
+const pendingSessionReferences = shallowReactive(new Set<{ kind: 'mention' | 'drop' | 'paste' }>())
 const isResolvingSessionReferences = () => pendingSessionReferences.size > 0
 let isInsertingSessionReference = false
 
@@ -183,10 +185,22 @@ async function resolveSessionReference(
   insert: (reference: ResolvedSessionReference) => void,
   kind: 'mention' | 'drop' = 'mention'
 ) {
+  return resolveSessionReferences([{ sessionId }], ([reference]) => insert(reference), kind)
+}
+
+async function resolveSessionReferences(
+  sources: { sessionId: string; expectedTapeIncarnationId?: string }[],
+  insert: (references: ResolvedSessionReference[]) => void,
+  kind: 'mention' | 'drop' | 'paste'
+) {
   const request = { kind }
   pendingSessionReferences.add(request)
   try {
-    const { reference } = await createSessionClient().resolveReference({ sessionId })
+    const references = await Promise.all(
+      sources.map(
+        async (source) => (await createSessionClient().resolveReference(source)).reference
+      )
+    )
     if (!pendingSessionReferences.has(request) || !props.editable || editor.isDestroyed) {
       notifyRenderer({
         kind: 'warning',
@@ -198,7 +212,7 @@ async function resolveSessionReference(
     }
     // Validate and insert in the same continuation; no intervening draft-restore microtask.
     isInsertingSessionReference = true
-    insert(reference)
+    insert(references)
   } finally {
     isInsertingSessionReference = false
     pendingSessionReferences.delete(request)
@@ -584,9 +598,9 @@ const editor = new VueEditor({
   onTransaction: ({ transaction }) => {
     if (!transaction.docChanged) return
     for (const request of pendingSessionReferences) {
-      // Mentions replace a captured range. Drops use the live selection and can coexist with
-      // other reference insertions, but user edits and silent draft restores cancel both.
-      if (!isInsertingSessionReference || request.kind === 'mention') {
+      // Mentions/pastes capture a range; drops use the live selection and survive other insertions.
+      // User edits and silent draft restores cancel every pending insertion.
+      if (!isInsertingSessionReference || request.kind !== 'drop') {
         pendingSessionReferences.delete(request)
       }
     }
@@ -793,6 +807,55 @@ function onPaste(event: ClipboardEvent) {
   void files.handlePaste(event)
 
   if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
+    return
+  }
+
+  const template = document.createElement('template')
+  template.innerHTML = event.clipboardData?.getData('text/html') || ''
+  const nodes = Array.from(
+    template.content.querySelectorAll<HTMLSpanElement>('span[data-session-reference]')
+  )
+  if (nodes.length) {
+    event.preventDefault()
+    event.stopPropagation()
+    if (props.isAcpSession) {
+      notifyRenderer({
+        kind: 'error',
+        code: 'chat.sessionReference.unsupported',
+        title: t('chat.sessionReference.unsupportedTitle'),
+        description: t('chat.sessionReference.unsupportedDescription')
+      })
+      return
+    }
+    const { from, to } = editor.state.selection
+    void (async () => {
+      const sources = nodes.map((node) => ({
+        sessionId: SessionReferenceSchema.shape.sessionId.parse(
+          node.getAttribute('data-sessionId')
+        ),
+        expectedTapeIncarnationId: SessionReferenceSchema.shape.tapeIncarnationId.parse(
+          node.getAttribute('data-tapeIncarnationId')
+        )
+      }))
+      await resolveSessionReferences(
+        sources,
+        (references) => {
+          nodes.forEach((node, index) => {
+            node.replaceWith(createSessionReferenceElement(references[index]))
+          })
+          editor.chain().focus().setTextSelection({ from, to }).run()
+          editor.view.pasteHTML(template.innerHTML)
+        },
+        'paste'
+      )
+    })().catch(() => {
+      notifyRenderer({
+        kind: 'error',
+        code: 'chat.sessionReference.unavailable',
+        title: t('chat.sessionReference.unavailableTitle'),
+        description: t('chat.sessionReference.unavailableDescription')
+      })
+    })
     return
   }
 

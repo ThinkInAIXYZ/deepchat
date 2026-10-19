@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "Sitzungsreferenz kopieren",
     "groups": { "session": "Sitzungen", "file": "Dateien" },
     "open": "{title} öffnen",
     "unavailableTitle": "Sitzungsreferenz nicht verfügbar",
