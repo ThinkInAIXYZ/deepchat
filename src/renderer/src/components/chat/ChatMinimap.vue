@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useTimeoutFn } from '@vueuse/core'
 import { DcPopover } from '@dc-ui/components/popover'
 import {
   findMinimapTickIndexAt,
@@ -46,6 +47,10 @@ const { t } = useI18n()
 const railRef = ref<HTMLElement | null>(null)
 const contentRef = ref<HTMLElement | null>(null)
 const hoveredIndex = ref<number | null>(null)
+// Allow the pointer to cross from the rail into its teleported preview.
+const { start: scheduleHoverClear, stop: cancelHoverClear } = useTimeoutFn(clearHover, 150, {
+  immediate: false
+})
 
 /** Vertical distance between two marks: constant, so the rail reads the same in every conversation. */
 const MARK_PITCH = 16
@@ -86,6 +91,7 @@ function onRailClick(event: MouseEvent): void {
 }
 
 function onRailPointerMove(event: PointerEvent): void {
+  cancelHoverClear()
   const index = indexAt(event.clientY)
   if (index === hoveredIndex.value) return
 
@@ -93,7 +99,7 @@ function onRailPointerMove(event: PointerEvent): void {
   emit('hover', index === null ? null : (props.ticks[index]?.id ?? null))
 }
 
-function onRailPointerLeave(): void {
+function clearHover(): void {
   if (hoveredIndex.value === null) return
   hoveredIndex.value = null
   emit('hover', null)
@@ -186,7 +192,7 @@ const markTop = (index: number) => `${index * MARK_PITCH}px`
       @click="onRailClick"
       @keydown="onRailKeydown"
       @pointermove="onRailPointerMove"
-      @pointerleave="onRailPointerLeave"
+      @pointerleave="scheduleHoverClear()"
     >
       <!-- Absolutely positioned marks give the scroll container no height of its own, so the content
            box carries the full stacked height. -->
@@ -208,6 +214,9 @@ const markTop = (index: number) => `${index * MARK_PITCH}px`
           align="center"
           :side-offset="12"
           width-class="w-80 max-w-[70vw]"
+          data-testid="chat-minimap-preview-panel"
+          @pointerenter="cancelHoverClear"
+          @pointerleave="scheduleHoverClear()"
         >
           <template #trigger>
             <!-- Invisible anchor that follows the hovered mark, so the card points at the message the
@@ -219,7 +228,8 @@ const markTop = (index: number) => `${index * MARK_PITCH}px`
             />
           </template>
           <p
-            class="max-h-48 overflow-hidden px-3 py-2 text-xs leading-5 whitespace-pre-wrap break-words text-foreground/90"
+            class="dc-overscroll-contain max-h-48 overflow-y-auto px-3 py-2 text-xs leading-5 whitespace-pre-wrap break-words text-foreground/90"
+            tabindex="0"
             data-testid="chat-minimap-preview"
           >
             {{ props.previewText }}

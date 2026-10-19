@@ -76,8 +76,7 @@ describe('ChatMinimap', () => {
     expect(widths()).toEqual(['6px', '6px', '6px', '6px', '6px', '10px', '18px', '28px', '40px'])
 
     pointerAtPx(rail, 8 * 16, 'pointerleave')
-    await nextTick()
-    expect(widths()).toEqual(Array(9).fill('6px'))
+    await vi.waitFor(() => expect(widths()).toEqual(Array(9).fill('6px')))
     wrapper.unmount()
   })
 
@@ -136,7 +135,7 @@ describe('ChatMinimap', () => {
     expect(wrapper.emitted('hover')?.at(-1)).toEqual(['m1'])
 
     pointerAtPx(rail, 5, 'pointerleave')
-    expect(wrapper.emitted('hover')?.at(-1)).toEqual([null])
+    await vi.waitFor(() => expect(wrapper.emitted('hover')?.at(-1)).toEqual([null]))
   })
 
   it('treats the space between two marks as belonging to a mark', async () => {
@@ -166,6 +165,36 @@ describe('ChatMinimap', () => {
     await vi.waitFor(() => expect(card()).toBeNull())
 
     wrapper.unmount()
+  })
+
+  it('keeps the preview open when crossing between the rail and the panel', async () => {
+    vi.useFakeTimers()
+    const { wrapper, rail } = await mountRail()
+
+    try {
+      pointerAtPx(rail, 5)
+      await nextTick()
+      const panel = document.querySelector('[data-testid="chat-minimap-preview-panel"]')!
+
+      pointerAtPx(rail, 5, 'pointerleave')
+      panel.dispatchEvent(new MouseEvent('pointerenter'))
+      await vi.advanceTimersByTimeAsync(300)
+      expect(wrapper.emitted('hover')).toEqual([['m1']])
+      expect(panel.isConnected).toBe(true)
+
+      panel.dispatchEvent(new MouseEvent('pointerleave'))
+      pointerAtPx(rail, 5)
+      await vi.advanceTimersByTimeAsync(300)
+      expect(wrapper.emitted('hover')).toEqual([['m1']])
+
+      pointerAtPx(rail, 5, 'pointerleave')
+      await vi.advanceTimersByTimeAsync(300)
+      expect(wrapper.emitted('hover')?.at(-1)).toEqual([null])
+      expect(panel.isConnected).toBe(false)
+    } finally {
+      wrapper.unmount()
+      vi.useRealTimers()
+    }
   })
 
   it('renders nothing while the conversation fits the viewport', () => {
