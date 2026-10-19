@@ -325,7 +325,7 @@ const DEFAULT_MCP_SERVERS = {
       args: [],
       env: {},
       descriptions:
-        'Keenable web search MCP (search_web_pages and fetch_page_content). No API key required. To lift the keyless rate limits, add an X-API-Key header with a key from https://keenable.ai. Docs: https://docs.keenable.ai.',
+        'Keenable web search MCP (search_web_pages and fetch_page_content). No API key required. When enabled, requests to Keenable include the header X-Keenable-Title: DeepChat, which identifies DeepChat as the calling app. To lift the keyless rate limits, add an X-API-Key header with a key from https://keenable.ai. Docs: https://docs.keenable.ai.',
       icons: '🔎',
       disable: false,
       type: 'http' as MCPServerType,
