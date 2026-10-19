@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.4-beta.4 (2026-10-19)
+- Added the LiteLLM proxy provider with model capability discovery and virtual-key usage and budget reporting
+- Added an optional Keenable web search MCP preset
+- Completed French interface and native menu translations
+- 新增 LiteLLM 代理服务商，支持识别模型能力以及查看虚拟密钥用量和预算
+- 新增可选的 Keenable 网页搜索 MCP 预设
+- 补全法语界面与原生菜单翻译
+
 ## v1.1.4-beta.3 (2026-10-12)
 - Added the Atlas Cloud model provider
 - Fixed GitHub Copilot session authentication, validated access before saving login credentials, and prevented requests from using another account after an account switch
