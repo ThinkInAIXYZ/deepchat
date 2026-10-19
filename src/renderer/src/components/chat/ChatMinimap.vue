@@ -10,9 +10,9 @@ import {
 } from '@/features/chat-page/model/minimapTicks'
 
 /**
- * Message map: one hairline mark per message down the right gutter, as wide as the message is long
- * relative to the longest one in the conversation. Hovering a mark highlights it and previews the
- * message; clicking a mark jumps there, and the arrow keys walk the marks one at a time.
+ * Message map: equal short marks down the right gutter. Hovering extends a mark to the left and
+ * tapers its three neighbours on either side into a wave. Clicking jumps to the message, and the
+ * arrow keys walk the marks one at a time.
  *
  * Marks are laid out on a constant pitch rather than by their position in the conversation, so the
  * spacing is the same everywhere: it never depends on how tall a single message is, and it does not
@@ -49,8 +49,8 @@ const hoveredIndex = ref<number | null>(null)
 
 /** Vertical distance between two marks: constant, so the rail reads the same in every conversation. */
 const MARK_PITCH = 16
-/** Full mark width in px; the longest message fills it and every other mark scales against it. */
-const MAX_MARK_WIDTH = 40
+const REST_MARK_WIDTH = 6
+const HOVER_MARK_WIDTHS = [40, 28, 18, 10]
 
 /** The message at the top of the viewport: what the rail reports as its current position. */
 const activeIndex = computed(() => findMinimapTickIndexAt(props.ticks, props.viewport))
@@ -156,7 +156,13 @@ const markClass = (index: number) => {
   if (index === activeIndex.value) return 'bg-foreground/70'
   return 'bg-muted-foreground/50'
 }
-const markWidth = (tick: MinimapTick) => `${Math.max(tick.width * MAX_MARK_WIDTH, 2)}px`
+const markWidth = (index: number) => {
+  const width =
+    hoveredIndex.value === null
+      ? REST_MARK_WIDTH
+      : (HOVER_MARK_WIDTHS[Math.abs(index - hoveredIndex.value)] ?? REST_MARK_WIDTH)
+  return `${width}px`
+}
 const markTop = (index: number) => `${index * MARK_PITCH}px`
 </script>
 
@@ -175,7 +181,7 @@ const markTop = (index: number) => `${index * MARK_PITCH}px`
       :aria-valuemin="1"
       :aria-valuemax="Math.max(props.ticks.length, 1)"
       :aria-valuenow="(activeIndex ?? 0) + 1"
-      class="dc-overscroll-contain flex h-full w-full flex-col overflow-y-auto pr-2 focus-visible:outline-none"
+      class="dc-overscroll-contain relative flex h-full w-full flex-col overflow-y-auto pr-2 focus-visible:outline-none"
       data-testid="chat-minimap-rail"
       @click="onRailClick"
       @keydown="onRailKeydown"
@@ -190,9 +196,9 @@ const markTop = (index: number) => `${index * MARK_PITCH}px`
           v-for="(tick, index) in props.ticks"
           :key="tick.id"
           aria-hidden="true"
-          class="pointer-events-none absolute right-0 h-0.5 rounded-full transition-colors"
+          class="pointer-events-none absolute right-0 h-0.5 rounded-full transition-[width,background-color] duration-150 ease-out motion-reduce:transition-none"
           :class="markClass(index)"
-          :style="{ top: markTop(index), width: markWidth(tick) }"
+          :style="{ top: markTop(index), width: markWidth(index) }"
           data-testid="chat-minimap-mark"
         />
 
@@ -201,19 +207,19 @@ const markTop = (index: number) => `${index * MARK_PITCH}px`
           side="left"
           align="center"
           :side-offset="12"
-          width-class="w-[min(70vw,26rem)]"
+          width-class="w-80 max-w-[70vw]"
         >
           <template #trigger>
             <!-- Invisible anchor that follows the hovered mark, so the card points at the message the
                  pointer is actually on rather than at the middle of the rail. -->
             <span
               aria-hidden="true"
-              class="absolute right-0 h-0 w-0"
+              class="absolute right-10 h-0 w-0"
               :style="{ top: markTop(hoveredIndex ?? 0) }"
             />
           </template>
           <p
-            class="line-clamp-4 px-3 py-2 text-xs whitespace-pre-wrap text-foreground/90"
+            class="max-h-48 overflow-hidden px-3 py-2 text-xs leading-5 whitespace-pre-wrap break-words text-foreground/90"
             data-testid="chat-minimap-preview"
           >
             {{ props.previewText }}

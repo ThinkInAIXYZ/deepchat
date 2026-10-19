@@ -7,7 +7,6 @@ import {
   type MinimapTick
 } from '@/features/chat-page/model/minimapTicks'
 import type { MessageLayoutEntry } from '@/composables/message/useMessageWindow'
-import type { DisplayMessage } from '@/features/chat-page/model/displayMessage'
 
 const entry = (id: string, top: number, bottom: number): MessageLayoutEntry => ({
   id,
@@ -18,103 +17,34 @@ const entry = (id: string, top: number, bottom: number): MessageLayoutEntry => (
   bottom
 })
 
-const message = (
-  id: string,
-  text: string,
-  role: 'user' | 'assistant' = 'assistant'
-): DisplayMessage =>
-  ({
-    id,
-    role,
-    content: { files: [], links: [], think: false, search: false, text }
-  }) as DisplayMessage
-
 const tick = (id: string, top: number, height: number): MinimapTick => ({
   id,
   top,
-  height,
-  width: 1
+  height
 })
 
 describe('buildMinimapTicks', () => {
   it('maps every loaded message onto fractions of the scrolled height', () => {
     const ticks = buildMinimapTicks({
       entries: [entry('m1', 0, 200), entry('m2', 200, 300), entry('m3', 300, 1000)],
-      messages: [
-        message('m1', 'first message'),
-        message('m2', 'second'),
-        message('m3', 'third message, the longest of the three')
-      ],
       totalHeight: 1000
     })
 
-    expect(ticks.map(({ id, top, height }) => ({ id, top, height }))).toEqual([
+    expect(ticks).toEqual([
       { id: 'm1', top: 0, height: 0.2 },
       { id: 'm2', top: 0.2, height: 0.1 },
       { id: 'm3', top: 0.3, height: 0.7 }
     ])
   })
 
-  it('sizes every mark against the longest message in the conversation', () => {
-    const ticks = buildMinimapTicks({
-      entries: [entry('short', 0, 100), entry('half', 100, 200), entry('long', 200, 300)],
-      messages: [
-        message('short', 'abcd'),
-        message('half', 'abcdefgh'),
-        message('long', 'abcdefghijklmnop')
-      ],
-      totalHeight: 300
-    })
-
-    // The longest message fills the rail and the others scale against it, on a square-root curve so
-    // that a conversation with one very long answer does not reduce every question to a hairline.
-    expect(ticks[2].width).toBe(1)
-    expect(ticks[0].width).toBeCloseTo(Math.sqrt(0.25), 5)
-    expect(ticks[1].width).toBeCloseTo(Math.sqrt(0.5), 5)
-  })
-
-  it('keeps a short question visible next to a very long answer', () => {
-    // Measured on a real session: 55 characters against 7837 is a 140:1 ratio. Raw proportions put
-    // the question on the 2 px floor; the compressed scale keeps it on the rail.
-    const ticks = buildMinimapTicks({
-      entries: [entry('question', 0, 100), entry('answer', 100, 200)],
-      messages: [message('question', 'x'.repeat(55)), message('answer', 'y'.repeat(7837))],
-      totalHeight: 200
-    })
-
-    expect(Math.max(ticks[0].width * 40, 2)).toBeGreaterThanOrEqual(3)
-  })
-
-  it('keeps the marks hairline-wide when no message has any text', () => {
-    const ticks = buildMinimapTicks({
-      entries: [entry('m1', 0, 100), entry('m2', 100, 200)],
-      messages: [message('m1', ''), message('m2', '')],
-      totalHeight: 200
-    })
-
-    expect(ticks.map((tick) => tick.width)).toEqual([1, 1])
-  })
-
   it('claims nothing without usable geometry', () => {
     expect(
       buildMinimapTicks({
         entries: [entry('m1', 0, 200)],
-        messages: [message('m1', 'text')],
         totalHeight: 0
       })
     ).toEqual([])
-    expect(buildMinimapTicks({ entries: [], messages: [], totalHeight: 500 })).toEqual([])
-  })
-
-  it('measures a message whose content is not loaded as empty', () => {
-    const ticks = buildMinimapTicks({
-      entries: [entry('gone', 0, 500), entry('here', 500, 1000)],
-      messages: [message('here', 'twelve chars')],
-      totalHeight: 1000
-    })
-
-    expect(ticks[0].width).toBe(0)
-    expect(ticks[1].width).toBe(1)
+    expect(buildMinimapTicks({ entries: [], totalHeight: 500 })).toEqual([])
   })
 })
 

@@ -1129,7 +1129,6 @@ const {
 const minimapTicks = computed(() =>
   buildMinimapTicks({
     entries: messageWindow.entries.value,
-    messages: displayMessages.value,
     totalHeight: messageWindow.totalHeight.value
   })
 )
