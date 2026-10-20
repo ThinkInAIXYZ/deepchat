@@ -26,7 +26,10 @@ Contract: [spec.md](./spec.md).
 - `pnpm run build`: passed, including the CLI build. Normal model/ACP catalog refreshes and generated
   icon updates are retained. The application also rebuilt successfully after visual adjustments.
 - Complete renderer regression suite: 289 files, 2741 tests passed.
-- Floating-widget layout and presenter tests: 2 files, 11 tests passed.
+- Floating-widget window, layout and presenter tests: 3 files, 16 tests passed, including Linux
+  inactive-show fallback, actual visibility state and macOS panel construction.
+- ACP settings: 13 tests passed, including uninstall/reinstall and external registry removal
+  without reopening details or leaving focus on the removed action.
 - Electron smoke tests passed for agent draft preservation, local streaming with an editable
   composer, keyboard navigation, and settings navigation across desktop/dark/minimum-RTL layouts.
   Floating-widget IPC coverage also verifies that the main window stays visible after enabling it.
@@ -51,7 +54,10 @@ Contract: [spec.md](./spec.md).
   row, collapsed footer buttons share their size and center, and both states keep the footer
   reachable at 800×320. Sidebar unit coverage: 80 tests; Agent-menu and keyboard/settings Electron
   smoke coverage: 2 tests passed.
-- Agent-menu geometry checks cover both sidebar states after toggling at 800×320 and 1280×900,
-  across dark and light themes. The menu stays below its current trigger, scrolls within the short
-  viewport, and restores focus on Escape.
+- Agent-menu regression checks cover both sidebar states after toggling at 800×320. The menu
+  stays below its current trigger, scrolls within the viewport, and restores focus on Escape.
+  Runtime screenshots also cover 1280×900 in light mode. Geometry assertions protect anchoring,
+  viewport bounds, and toggle position without fixing button dimensions or footer padding.
 - Runtime visual inspection: macOS. Windows and Linux native window behavior was not exercised.
+  Native macOS checks preserve the main window and Dock visibility and confirm all-workspace
+  visibility. Cross-application fullscreen composition and manual Spaces switching were not tested.

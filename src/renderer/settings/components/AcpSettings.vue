@@ -26,6 +26,7 @@
         </DcButton>
         <DcButton
           v-else
+          data-testid="acp-registry-install-button"
           :disabled="!loaded || !acpEnabled || isAnyMutationPending"
           @click="openRegistryDialog"
         >
@@ -1603,6 +1604,20 @@ const stopLeaveRiskSync = watch(
     leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
   },
   { immediate: true, flush: 'sync' }
+)
+
+watch(
+  [selectedRegistryAgent, isAnyMutationPending],
+  ([agent, busy]) => {
+    if (agent || busy || !selectedRegistryAgentId.value) return
+    selectedRegistryAgentId.value = null
+    void nextTick(() =>
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="acp-registry-install-button"]')
+        ?.focus()
+    )
+  },
+  { flush: 'post' }
 )
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null

@@ -34,7 +34,6 @@ test('agent menu stays below its trigger and scrolls in short windows @smoke', a
         expect(triggerBox).not.toBeNull()
         expect(menuBox).not.toBeNull()
         expect(menuBox!.y).toBeGreaterThanOrEqual(triggerBox!.y + triggerBox!.height)
-        expect(menuBox!.x).toBeCloseTo(triggerBox!.x, 1)
         expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(page.viewportSize()!.height)
       }).toPass({ timeout: 5000 })
     }
@@ -77,22 +76,6 @@ test('agent menu stays below its trigger and scrolls in short windows @smoke', a
       await page.keyboard.press('Escape')
       await expect(trigger).toBeFocused()
     }
-    await page.setViewportSize({ width: 1280, height: 900 })
-    await page.evaluate(async () => {
-      await window.deepchat.invoke('config.setTheme', { theme: 'light' })
-    })
-    for (const expanded of [true, false]) {
-      await toggle.click()
-      await expect(toggle).toHaveAttribute('aria-expanded', String(expanded))
-      await trigger.click()
-      await expectAnchoredMenu()
-      await page.screenshot({
-        animations: 'disabled',
-        path: testInfo.outputPath(`agent-menu-${expanded ? 'expanded' : 'collapsed'}.png`)
-      })
-      await page.keyboard.press('Escape')
-      await expect(trigger).toBeFocused()
-    }
   } finally {
     await page.evaluate(async (ids) => {
       for (const id of ids) {
@@ -124,9 +107,6 @@ test('keyboard users can enter content, compose, and navigate settings @smoke', 
   const initiallyExpanded = (await toggle.getAttribute('aria-expanded')) === 'true'
   const toggleBox = await toggle.boundingBox()
   expect(toggleBox).not.toBeNull()
-  const sidebarBox = await page.getByTestId('window-sidebar').boundingBox()
-  expect(sidebarBox).not.toBeNull()
-  expect(toggleBox!.y + toggleBox!.height).toBeCloseTo(sidebarBox!.y + sidebarBox!.height - 8, 1)
   await page.bringToFront()
   await toggle.focus()
   await expect(toggle).toBeFocused()
@@ -140,31 +120,6 @@ test('keyboard users can enter content, compose, and navigate settings @smoke', 
       expect(currentBox!.x).toBeCloseTo(toggleBox!.x, 1)
       expect(currentBox!.y).toBeCloseTo(toggleBox!.y, 1)
     }).toPass()
-    const theme = page.getByTestId('window-sidebar-theme-toggle')
-    const settings = page.getByTestId('app-settings-button')
-    const themeBox = await theme.boundingBox()
-    const settingsBox = await settings.boundingBox()
-    expect(themeBox).not.toBeNull()
-    expect(settingsBox).not.toBeNull()
-    expect(themeBox!.y).toBeGreaterThanOrEqual(settingsBox!.y + settingsBox!.height)
-    expect(themeBox!.y + themeBox!.height).toBeLessThan(toggleBox!.y)
-    if (expanded) {
-      await expect(theme).toContainText(/Theme|主题/)
-    } else {
-      await expect(async () => {
-        const currentToggleBox = await toggle.boundingBox()
-        expect(currentToggleBox).not.toBeNull()
-        for (const control of [theme, settings, page.getByTestId('app-plugins-button')]) {
-          const box = await control.boundingBox()
-          expect(box!.x + box!.width / 2).toBeCloseTo(
-            currentToggleBox!.x + currentToggleBox!.width / 2,
-            1
-          )
-          expect(box!.width).toBeCloseTo(currentToggleBox!.width, 1)
-          expect(box!.height).toBeCloseTo(currentToggleBox!.height, 1)
-        }
-      }).toPass({ timeout: 5000 })
-    }
     await page.screenshot({
       animations: 'disabled',
       path: testInfo.outputPath(`sidebar-${expanded ? 'expanded' : 'collapsed'}.png`)

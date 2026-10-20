@@ -159,7 +159,7 @@ async function setup(options: SetupOptions = {}) {
         enabled: true
       }
     ]),
-    onAgentsChanged: vi.fn(() => vi.fn()),
+    onAgentsChanged: vi.fn((_callback: () => void) => vi.fn()),
     ...options.config
   }
   const sessionClient = {
@@ -319,6 +319,7 @@ describe('AcpSettings', () => {
     const { wrapper, configService, sessionClient, notifyRenderer } = await setup({
       registryAgents: [installedAgent()]
     })
+    document.body.append(wrapper.element)
 
     await wrapper.get('[data-testid="acp-agent-settings-codex-acp"]').trigger('click')
     const uninstallButton = wrapper
@@ -342,6 +343,36 @@ describe('AcpSettings', () => {
       })
     )
     expect(wrapper.text()).not.toContain('Codex ACP')
+    const installButton = wrapper.get('[data-testid="acp-registry-install-button"]')
+    expect(document.activeElement).toBe(installButton.element)
+    await installButton.trigger('click')
+    const reinstallButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('settings.acp.registryInstallAction'))!
+    await reinstallButton.trigger('click')
+    await flushPromises()
+    expect(configService.ensureAcpAgentInstalled).toHaveBeenCalledWith('codex-acp')
+    expect(wrapper.find('[data-testid="acp-agent-details"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="acp-agent-settings-codex-acp"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('clears the detail selection when an Agent disappears during a registry reload', async () => {
+    const { wrapper, configService } = await setup({ registryAgents: [installedAgent()] })
+    await wrapper.get('[data-testid="acp-agent-settings-codex-acp"]').trigger('click')
+    const reload = configService.onAgentsChanged.mock.calls[0][0] as () => void
+    configService.listAcpRegistryAgents.mockResolvedValue([])
+    reload()
+    await vi.waitFor(() => {
+      expect(wrapper.find('[data-testid="acp-agent-details"]').exists()).toBe(false)
+    })
+    configService.listAcpRegistryAgents.mockResolvedValue([installedAgent()])
+    reload()
+    await vi.waitFor(() => {
+      expect(wrapper.find('[data-testid="acp-agent-settings-codex-acp"]').exists()).toBe(true)
+    })
+    expect(wrapper.find('[data-testid="acp-agent-details"]').exists()).toBe(false)
+    wrapper.unmount()
   })
 
   it('keeps environment save feedback on the button and does not turn cache refresh into save failure', async () => {

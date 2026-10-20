@@ -46,11 +46,15 @@ existing blue brand color. Dark surfaces are neutral charcoal rather than tinted
   and a settings entry. Environment overrides, authentication, repair, Inspector and uninstall
   belong to an Agent detail page; shared MCP selection has its own detail page. Returning to the
   list retains unsaved environment drafts and restores focus to the invoking entry. Existing save,
-  retry and leave guards remain authoritative.
+  retry and leave guards remain authoritative. Removing the selected Agent clears the detail
+  selection and focuses the install entry, including removal discovered through a registry reload.
 - Opening Hooks or data settings reads configuration without reporting a successful save. Actual
   writes retain their success feedback, and read failures retain their error feedback.
-- Enabling the floating widget creates and shows it without hiding or focusing away from existing
-  application windows. It retains its all-workspace and full-screen visibility.
+- Enabling the floating widget preserves existing application windows and uses inactive showing
+  where supported. On macOS, a nonactivating panel retains all-workspace and full-screen window
+  behavior without changing the application's activation policy. On Linux, an unmapped inactive
+  show falls back to normal showing; the compositor controls activation. Visibility state reflects
+  the native window's actual visibility.
 - Markstream owns table layout, borders, horizontal scrolling and column controls. Markdown
   typography must preserve the library's cell insets, including first and last columns.
   Context occupancy retains a visible track and outline even at zero or very low usage.
