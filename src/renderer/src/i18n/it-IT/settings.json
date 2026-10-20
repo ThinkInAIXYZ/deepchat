@@ -1,6 +1,9 @@
 {
   "title": "Impostazioni",
   "common": {
+    "returnToChat": "Torna alla chat",
+    "navigationSearch": "Cerca nelle impostazioni",
+    "navigationSearchEmpty": "Nessun risultato",
     "commandShell": {
       "title": "Shell dei comandi dell'agente",
       "auto": "Automatico",

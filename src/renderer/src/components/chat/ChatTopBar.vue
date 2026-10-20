@@ -1,7 +1,7 @@
 <template>
   <div
     v-bind="attrs"
-    class="dc-blur-panel sticky top-0 z-[var(--dc-z-sticky)] flex h-12 items-center justify-between bg-background/60 px-4 window-drag-region transition-[padding] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
+    class="sticky top-0 z-[var(--dc-z-sticky)] flex h-12 items-center justify-between bg-background px-4 window-drag-region transition-[padding] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
     :class="{ 'pl-12': showCollapsedNewChatSpacer }"
   >
     <div class="flex min-w-0 flex-1 items-center gap-2">

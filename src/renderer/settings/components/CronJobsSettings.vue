@@ -2,7 +2,7 @@
   <div
     ref="rootRef"
     data-testid="settings-cron-jobs-page"
-    class="flex h-full min-h-0 w-full flex-col"
+    class="flex h-full min-h-0 w-full flex-col bg-background"
   >
     <div
       v-if="isLoading || !loadAttempted"
@@ -48,10 +48,10 @@
           class="flex min-h-0 min-w-0 flex-col"
           :class="narrowLayout ? 'w-full' : 'w-[340px] shrink-0 border-r border-border'"
         >
-          <div class="flex flex-col gap-3 px-4 py-4">
+          <div class="flex flex-col gap-4 px-5 py-6">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
-                <h1 class="truncate text-base font-semibold">{{ t('settings.cronJobs.title') }}</h1>
+                <h1 class="text-xl font-semibold">{{ t('settings.cronJobs.title') }}</h1>
                 <p class="mt-0.5 text-xs leading-5 text-muted-foreground">
                   {{ t('settings.cronJobs.description') }}
                 </p>
@@ -67,7 +67,7 @@
               </DcButton>
             </div>
 
-            <div class="rounded-lg border border-border bg-card/30 px-3 py-2">
+            <div class="rounded-lg bg-muted/70 px-3 py-3">
               <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                 <DcBadge :variant="schedulerBadgeVariant">
                   {{ t(`settings.cronJobs.status.${schedulerStatus?.state ?? 'stopped'}`) }}

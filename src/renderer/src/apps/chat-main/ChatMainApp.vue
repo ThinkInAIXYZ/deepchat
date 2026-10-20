@@ -88,7 +88,7 @@ const uiSettingsStore = useUiSettingsStore()
 const { setupFontListener } = useFontManager()
 setupFontListener()
 
-const { isWinMacOS, isMacOS } = useDeviceVersion()
+const { isMacOS } = useDeviceVersion()
 
 watch(
   isMacOS,
@@ -531,11 +531,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    data-testid="app-root"
-    class="flex flex-col h-screen"
-    :class="isWinMacOS ? 'bg-window-background' : 'bg-background'"
-  >
+  <div data-testid="app-root" class="flex flex-col h-screen bg-sidebar">
     <TooltipProvider :delay-duration="200" :ignore-non-keyboard-focus="true">
       <button type="button" class="skip-to-content" @click="mainContent?.focus()">
         {{ t('common.skipToContent') }}
@@ -551,7 +547,7 @@ onBeforeUnmount(() => {
             tabindex="-1"
             :aria-label="t(String(route.meta.titleKey || 'routes.chat'))"
             data-testid="app-main"
-            class="flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-tl-xl border-l border-t border-black/20 bg-background dark:border-white/10"
+            class="flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-ss-xl border-s border-t border-border bg-background"
           >
             <ToolchainMissingBanner />
             <div class="min-h-0 flex-1">

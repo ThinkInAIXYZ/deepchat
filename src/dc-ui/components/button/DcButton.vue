@@ -45,7 +45,7 @@ const buttonClass = computed(() =>
     isIconOnly.value &&
       (props.variant ?? 'default') === 'ghost' &&
       'text-muted-foreground hover:text-foreground',
-    props.active && 'text-primary',
+    props.active && 'text-[color:var(--text-primary)]',
     props.class
   )
 )

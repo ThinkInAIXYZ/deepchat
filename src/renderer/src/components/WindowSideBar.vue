@@ -3,209 +3,158 @@
     <nav
       :aria-label="t('chat.sidebar.allAgents')"
       data-testid="window-sidebar"
-      class="window-sidebar-shell flex flex-row h-full shrink-0 overflow-hidden window-drag-region transition-[width] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
-      :class="collapsed ? 'w-12' : 'w-[288px]'"
+      class="window-sidebar-shell flex flex-col h-full shrink-0 overflow-hidden window-drag-region transition-[width] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
+      :class="collapsed ? 'w-12' : 'w-[264px]'"
     >
-      <!-- Left Column: Agent Icons (48px) -->
-      <div class="window-no-drag-region flex flex-col items-center shrink-0 pt-2 pb-2 gap-1 w-12">
-        <!-- All agents button -->
-        <DcButton
-          data-testid="sidebar-agent-all-button"
-          data-agent-id="__all__"
-          :data-selected="String(sidebarSelectedAgentId === null)"
-          :aria-pressed="sidebarSelectedAgentId === null"
-          size="icon"
-          icon="lucide:layers"
-          icon-size="4"
-          tooltip-side="right"
-          :tooltip-delay-duration="200"
-          :tooltip="t('chat.sidebar.allAgents')"
-          class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150 text-foreground/80 hover:text-foreground/80"
-          :class="
-            sidebarSelectedAgentId === null
-              ? 'bg-card/50 border-white/70 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
-              : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
-          "
-          @click="handleAgentSelect(null)"
-        />
-
-        <div class="w-5 h-px bg-border my-1"></div>
-
-        <!-- Agent icons -->
-        <DcButton
-          v-for="agent in agentStore.enabledAgents"
-          :key="agent.id"
-          data-testid="sidebar-agent-button"
-          :data-agent-id="agent.id"
-          :data-agent-type="agent.agentType ?? agent.type"
-          :data-selected="String(sidebarSelectedAgentId === agent.id)"
-          :aria-pressed="sidebarSelectedAgentId === agent.id"
-          size="icon"
-          tooltip-side="right"
-          :tooltip-delay-duration="200"
-          :tooltip="agent.name"
-          class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150"
-          :class="
-            sidebarSelectedAgentId === agent.id
-              ? 'bg-card/50 border-white/80 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
-              : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10 shadow-none'
-          "
-          @click="handleAgentSelect(agent.id)"
-        >
-          <AgentAvatar :agent="agent" class-name="w-4 h-4" />
-        </DcButton>
-
-        <!-- Spacer -->
-        <div class="flex-1"></div>
-
-        <!-- Bottom action buttons -->
-        <div class="w-5 h-px bg-border my-1"></div>
-
-        <DcButton
-          size="icon"
-          icon="lucide:search"
-          icon-size="4"
-          tooltip-side="right"
-          :tooltip-delay-duration="200"
-          :tooltip="t('chat.spotlight.placeholder')"
-          :title="t('chat.spotlight.placeholder')"
-          class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150 shadow-none text-foreground/80 hover:text-foreground/80"
-          :class="
-            spotlightStore.open
-              ? 'bg-card/50 border-white/80 dark:border-white/20 ring-1 ring-black/10 hover:bg-white/30 dark:hover:bg-white/10'
-              : 'bg-transparent border-none hover:bg-white/30 dark:hover:bg-white/10'
-          "
-          @click="spotlightStore.toggleSpotlight()"
-        />
-
-        <DcButton
-          v-if="showRemoteControlButton"
-          data-testid="remote-control-button"
-          size="icon"
-          icon="lucide:monitor-cloud"
-          tooltip-side="right"
-          :tooltip-delay-duration="200"
-          tooltip-content-class="whitespace-pre-line"
-          :label="remoteControlTooltip"
-          :tooltip="remoteControlTooltip"
-          :title="remoteControlTooltip"
-          class="flex items-center justify-center w-9 h-9 rounded-xl border transition-all duration-150 shadow-none"
-          :class="remoteControlButtonClass"
-          :icon-class="remoteControlIconClass"
-          @click="openRemoteSettings"
-        />
-
-        <!-- Theme toggle -->
-        <DcButton
-          data-testid="window-sidebar-theme-toggle"
-          size="icon"
-          tooltip-side="right"
-          :tooltip-delay-duration="200"
-          :tooltip="`${t('chat.sidebar.themeToggle')} · ${themeModeLabel}`"
-          class="flex items-center justify-center w-9 h-9 rounded-xl bg-transparent border-none shadow-none text-foreground/90 hover:text-foreground/90 hover:bg-white/30 dark:hover:bg-white/10"
-          @click="themeStore.cycleTheme()"
-        >
-          <span class="theme-icon-wrap">
-            <Transition name="theme-icon">
-              <Icon :key="themeIcon" :icon="themeIcon" class="theme-icon text-foreground/90" />
-            </Transition>
-          </span>
-        </DcButton>
-
-        <!-- Collapse toggle -->
-        <DcButton
-          :icon="collapsed ? 'lucide:panel-left-open' : 'lucide:panel-left-close'"
-          size="icon"
-          data-testid="window-sidebar-toggle"
-          :aria-expanded="!collapsed"
-          aria-controls="sidebar-sessions"
-          :label="collapsed ? t('chat.sidebar.expandSidebar') : t('chat.sidebar.collapseSidebar')"
-          :tooltip="collapsed ? t('chat.sidebar.expandSidebar') : t('chat.sidebar.collapseSidebar')"
-          tooltip-side="right"
-          :tooltip-delay-duration="200"
-          class="w-9 h-9 rounded-xl bg-transparent border-none shadow-none text-foreground/80 hover:bg-white/30 hover:text-foreground/80 dark:hover:bg-white/10"
-          @click="sidebarStore.toggleSidebar()"
-        />
-
-        <DcButton
-          icon="lucide:ellipsis"
-          size="icon"
-          data-testid="app-settings-button"
-          :label="t('routes.settings')"
-          :tooltip="t('routes.settings')"
-          tooltip-side="right"
-          :tooltip-delay-duration="200"
-          :title="t('routes.settings')"
-          class="w-9 h-9 rounded-xl bg-transparent border-none shadow-none text-foreground/80 hover:bg-white/30 hover:text-foreground/80 dark:hover:bg-white/10"
-          @click="openSettings"
-        />
+      <div class="window-no-drag-region shrink-0 px-2 pb-2 pt-3">
+        <div class="flex items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <DcButton
+                data-testid="sidebar-agent-selector"
+                :data-selected-agent-id="sidebarSelectedAgentId ?? '__all__'"
+                variant="ghost"
+                :size="collapsed ? 'icon' : 'default'"
+                :label="selectedAgentName"
+                :tooltip="collapsed ? selectedAgentName : undefined"
+                :tooltip-delay-duration="200"
+                tooltip-side="right"
+                class="min-w-0 flex-1 justify-start gap-2 px-2"
+              >
+                <AgentAvatar
+                  v-if="sidebarSelectedAgent"
+                  :agent="sidebarSelectedAgent"
+                  class-name="size-4 shrink-0"
+                />
+                <Icon v-else icon="lucide:layers" class="size-4 shrink-0 text-muted-foreground" />
+                <span
+                  v-if="!collapsed"
+                  class="min-w-0 flex-1 truncate text-left text-sm font-medium"
+                >
+                  {{ selectedAgentName }}
+                </span>
+                <Icon
+                  v-if="!collapsed"
+                  icon="lucide:chevron-down"
+                  class="size-3 text-muted-foreground"
+                />
+              </DcButton>
+            </DropdownMenuTrigger>
+            <!-- Keep collision handling from flipping into the native title bar. -->
+            <DropdownMenuContent
+              data-testid="sidebar-agent-menu"
+              side="bottom"
+              :side-flip="false"
+              align="start"
+              :collision-padding="8"
+              class="w-60"
+            >
+              <DropdownMenuItem
+                data-testid="sidebar-agent-all-button"
+                role="menuitemradio"
+                :aria-checked="sidebarSelectedAgentId === null"
+                data-agent-id="__all__"
+                :data-selected="String(sidebarSelectedAgentId === null)"
+                class="gap-2"
+                @select="handleAgentSelect(null)"
+              >
+                <Icon icon="lucide:layers" class="size-4" />
+                <span class="flex-1">{{ t('chat.sidebar.allAgents') }}</span>
+                <Icon v-if="sidebarSelectedAgentId === null" icon="lucide:check" class="size-4" />
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                v-for="agent in agentStore.enabledAgents"
+                :key="agent.id"
+                data-testid="sidebar-agent-button"
+                role="menuitemradio"
+                :aria-checked="sidebarSelectedAgentId === agent.id"
+                :data-agent-id="agent.id"
+                :data-agent-type="agent.agentType ?? agent.type"
+                :data-selected="String(sidebarSelectedAgentId === agent.id)"
+                class="gap-2"
+                @select="handleAgentSelect(agent.id)"
+              >
+                <AgentAvatar :agent="agent" class-name="size-4" />
+                <span class="min-w-0 flex-1 truncate">{{ agent.name }}</span>
+                <Icon
+                  v-if="sidebarSelectedAgentId === agent.id"
+                  icon="lucide:check"
+                  class="size-4"
+                />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DcButton
+            v-if="!collapsed"
+            data-testid="window-sidebar-toggle"
+            variant="ghost"
+            size="icon-sm"
+            icon="lucide:panel-left-close"
+            :aria-expanded="true"
+            aria-controls="sidebar-sessions"
+            :tooltip="t('chat.sidebar.collapseSidebar')"
+            :tooltip-delay-duration="200"
+            class="shrink-0 text-muted-foreground"
+            @click="sidebarStore.toggleSidebar()"
+          />
+        </div>
+        <div class="mt-2 flex flex-col gap-1">
+          <DcButton
+            data-testid="app-new-chat-button"
+            variant="ghost"
+            :size="collapsed ? 'icon' : 'default'"
+            icon="lucide:square-pen"
+            :label="t('common.newChat')"
+            :tooltip="collapsed ? t('common.newChat') : undefined"
+            :tooltip-delay-duration="200"
+            tooltip-side="right"
+            class="justify-start px-2 text-sm font-normal"
+            @click="handleNewChat"
+          >
+            <span v-if="!collapsed">{{ t('common.newChat') }}</span>
+          </DcButton>
+          <DcButton
+            data-testid="app-search-command-button"
+            variant="ghost"
+            :size="collapsed ? 'icon' : 'default'"
+            icon="lucide:search"
+            :label="t('chat.sidebar.searchCommand')"
+            :tooltip="collapsed ? t('chat.sidebar.searchCommand') : undefined"
+            :tooltip-delay-duration="200"
+            :title="t('chat.spotlight.placeholder')"
+            tooltip-side="right"
+            class="justify-start px-2 text-sm font-normal"
+            :active="spotlightStore.open"
+            @click="spotlightStore.toggleSpotlight()"
+          >
+            <span v-if="!collapsed">{{ t('chat.sidebar.searchCommand') }}</span>
+          </DcButton>
+        </div>
       </div>
 
-      <!-- Right Column: Session List (240px) -->
       <div
         id="sidebar-sessions"
         data-testid="window-sidebar-session-column"
-        class="window-sidebar-session-column window-no-drag-region flex flex-col w-0 flex-1 min-w-0 transition-[opacity,transform] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
-        :class="
-          collapsed ? 'pointer-events-none translate-x-1.5 opacity-0' : 'translate-x-0 opacity-100'
-        "
+        class="window-sidebar-session-column window-no-drag-region min-h-0 flex-1 flex-col"
+        :class="collapsed ? 'hidden' : 'flex'"
         :aria-hidden="collapsed ? 'true' : undefined"
         :inert="collapsed ? true : undefined"
       >
-        <!-- Header and command list -->
-        <div class="shrink-0 px-3 pb-3 pt-3">
-          <div class="truncate px-2 text-sm font-semibold text-foreground">
-            {{ selectedAgentName }}
-          </div>
-
-          <div class="mt-3 space-y-1">
-            <div class="relative px-2">
-              <Icon
-                icon="lucide:search"
-                class="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                v-model="sessionSearchQuery"
-                data-testid="sidebar-session-search-input"
-                type="search"
-                :placeholder="t('chat.sidebar.searchPlaceholder')"
-                :aria-label="t('chat.sidebar.searchAriaLabel')"
-                class="h-8 pr-8 pl-8 text-sm"
-                @keydown.esc.prevent="sessionSearchQuery = ''"
-              />
-            </div>
-
-            <button
-              data-testid="app-new-chat-button"
-              type="button"
-              class="flex h-9 w-full items-center gap-3 rounded-lg px-2 text-left text-sm text-foreground transition-colors hover:bg-accent/60"
-              @click="handleNewChat"
-            >
-              <Icon icon="lucide:square-pen" class="size-4 shrink-0 text-muted-foreground" />
-              <span class="min-w-0 flex-1 truncate">{{ t('common.newChat') }}</span>
-            </button>
-
-            <button
-              data-testid="app-search-command-button"
-              type="button"
-              class="flex h-9 w-full items-center gap-3 rounded-lg px-2 text-left text-sm text-foreground transition-colors hover:bg-accent/60"
-              @click="spotlightStore.toggleSpotlight()"
-            >
-              <Icon icon="lucide:search" class="size-4 shrink-0 text-muted-foreground" />
-              <span class="min-w-0 flex-1 truncate">{{ t('chat.sidebar.searchCommand') }}</span>
-            </button>
-
-            <button
-              data-testid="app-plugins-button"
-              type="button"
-              class="flex h-9 w-full items-center gap-3 rounded-lg px-2 text-left text-sm transition-colors hover:bg-accent/60"
-              :class="pluginsRouteActive ? 'bg-accent/70 text-foreground' : 'text-foreground'"
-              @click="openPlugins"
-            >
-              <Icon icon="lucide:blocks" class="size-4 shrink-0 text-muted-foreground" />
-              <span class="min-w-0 flex-1 truncate">{{ t('routes.plugins') }}</span>
-            </button>
-          </div>
+        <div class="relative mx-3 mb-2">
+          <Icon
+            icon="lucide:list-filter"
+            class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            v-model="sessionSearchQuery"
+            data-testid="sidebar-session-search-input"
+            type="search"
+            :placeholder="t('chat.sidebar.searchPlaceholder')"
+            :aria-label="t('chat.sidebar.searchAriaLabel')"
+            class="h-8 border-transparent bg-transparent pl-8 text-xs shadow-none hover:border-border focus-visible:border-input"
+            @keydown.esc.prevent="sessionSearchQuery = ''"
+          />
         </div>
 
         <div
@@ -229,7 +178,7 @@
             workspaceGroups.length === 0
           "
           icon="lucide:message-square-plus"
-          class="h-full border-0 py-10"
+          class="flex-none border-0 bg-transparent px-4 py-6"
           :title="
             normalizedSessionSearchQuery
               ? t('chat.sidebar.searchEmptyTitle')
@@ -247,7 +196,7 @@
         <!-- Session list -->
         <div
           ref="sessionListRef"
-          class="session-list flex-1 overflow-y-auto px-1.5"
+          class="session-list min-h-0 flex-1 overflow-y-auto px-2"
           @scroll.passive="handleSessionListScroll"
         >
           <div v-if="pinnedSessions.length > 0" class="pt-2">
@@ -290,7 +239,7 @@
             </div>
           </div>
 
-          <div v-if="chatSectionGroup" class="mt-4 rounded-lg bg-muted/30 p-1">
+          <div v-if="chatSectionGroup" class="mt-3">
             <div
               class="group flex w-full items-center gap-1 rounded-md pr-1 text-xs font-semibold text-muted-foreground transition-colors duration-150 hover:bg-accent/40 hover:text-foreground focus-within:bg-accent/40 focus-within:text-foreground"
               :class="
@@ -318,6 +267,7 @@
                 icon-size="4"
                 variant="ghost"
                 :tooltip="t('common.newChat')"
+                :tooltip-delay-duration="200"
                 @click.stop="handleNewChatForProject(defaultChatWorkspacePath || null)"
               />
             </div>
@@ -380,6 +330,7 @@
                 icon-size="4"
                 data-testid="window-sidebar-add-workspace-button"
                 :tooltip="t('chat.sidebar.addWorkspace')"
+                :tooltip-delay-duration="200"
                 :aria-label="t('chat.sidebar.addWorkspace')"
                 :disabled="isAddingWorkspace"
                 variant="ghost"
@@ -390,6 +341,7 @@
                 size="icon-sm"
                 icon="lucide:folder-kanban"
                 icon-size="4"
+                :tooltip-delay-duration="200"
                 :tooltip="
                   sessionStore.groupMode === 'project'
                     ? t('chat.sidebar.groupByDate')
@@ -515,6 +467,7 @@
                     icon-size="3.5"
                     variant="ghost"
                     :tooltip="t('common.newChat')"
+                    :tooltip-delay-duration="200"
                     class="flex items-center justify-center rounded-md text-muted-foreground transition-all duration-150 hover:bg-accent/60 hover:text-foreground focus-visible:opacity-100"
                     :class="
                       isTrueEmptyWorkspaceGroup(group)
@@ -532,6 +485,7 @@
                         icon="lucide:ellipsis"
                         icon-size="3.5"
                         :tooltip="t('common.more')"
+                        :tooltip-delay-duration="200"
                         variant="ghost"
                         :aria-label="t('chat.sidebar.projectGroupActions')"
                       />
@@ -676,6 +630,92 @@
           </div>
         </div>
       </div>
+      <div class="window-no-drag-region mt-auto shrink-0 border-t border-border/60 px-2 py-2">
+        <DcButton
+          data-testid="app-plugins-button"
+          variant="ghost"
+          :size="collapsed ? 'icon' : 'default'"
+          icon="lucide:blocks"
+          :label="t('routes.plugins')"
+          :tooltip="collapsed ? t('routes.plugins') : undefined"
+          :tooltip-delay-duration="200"
+          tooltip-side="right"
+          :active="pluginsRouteActive"
+          class="w-full justify-start px-2 text-sm font-normal"
+          @click="openPlugins"
+        >
+          <span v-if="!collapsed">{{ t('routes.plugins') }}</span>
+        </DcButton>
+        <DcButton
+          data-testid="app-scheduled-tasks-button"
+          variant="ghost"
+          :size="collapsed ? 'icon' : 'default'"
+          icon="lucide:calendar-clock"
+          :label="t('routes.settings-scheduled-tasks')"
+          :tooltip="collapsed ? t('routes.settings-scheduled-tasks') : undefined"
+          :tooltip-delay-duration="200"
+          tooltip-side="right"
+          class="w-full justify-start px-2 text-sm font-normal"
+          @click="settingsClient.openSettings({ routeName: 'settings-scheduled-tasks' })"
+        >
+          <span v-if="!collapsed">{{ t('routes.settings-scheduled-tasks') }}</span>
+        </DcButton>
+        <div class="flex flex-wrap items-center gap-1">
+          <DcButton
+            data-testid="app-settings-button"
+            variant="ghost"
+            :size="collapsed ? 'icon' : 'default'"
+            icon="lucide:settings-2"
+            :label="t('routes.settings')"
+            :tooltip="collapsed ? t('routes.settings') : undefined"
+            :tooltip-delay-duration="200"
+            tooltip-side="right"
+            class="min-w-0 flex-1 justify-start px-2 text-sm font-normal"
+            @click="openSettings"
+          >
+            <span v-if="!collapsed">{{ t('routes.settings') }}</span>
+          </DcButton>
+          <DcButton
+            v-if="showRemoteControlButton"
+            data-testid="remote-control-button"
+            variant="ghost"
+            size="icon-sm"
+            icon="lucide:monitor-cloud"
+            :tooltip="remoteControlTooltip"
+            :tooltip-delay-duration="200"
+            :title="remoteControlTooltip"
+            tooltip-side="right"
+            tooltip-content-class="whitespace-pre-line"
+            :class="remoteControlButtonClass"
+            :icon-class="remoteControlIconClass"
+            @click="openRemoteSettings"
+          />
+          <DcButton
+            data-testid="window-sidebar-theme-toggle"
+            variant="ghost"
+            size="icon-sm"
+            :icon="themeIcon"
+            :tooltip="`${t('chat.sidebar.themeToggle')} · ${themeModeLabel}`"
+            :tooltip-delay-duration="200"
+            tooltip-side="right"
+            class="text-muted-foreground"
+            @click="themeStore.cycleTheme()"
+          />
+          <DcButton
+            v-if="collapsed"
+            data-testid="window-sidebar-toggle"
+            variant="ghost"
+            size="icon-sm"
+            icon="lucide:panel-left-open"
+            :aria-expanded="false"
+            aria-controls="sidebar-sessions"
+            :tooltip="t('chat.sidebar.expandSidebar')"
+            :tooltip-delay-duration="200"
+            tooltip-side="right"
+            @click="sidebarStore.toggleSidebar()"
+          />
+        </div>
+      </div>
     </nav>
   </TooltipProvider>
 
@@ -764,6 +804,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
@@ -844,20 +885,21 @@ let agentSwitchQueue: Promise<void> = Promise.resolve()
 
 const sidebarSelectedAgentId = computed(() => agentStore.filterAgentId)
 
-const selectedAgentName = computed(() => {
+const sidebarSelectedAgent = computed(() => {
   if (sidebarSelectedAgentId.value === null) {
-    return t('chat.sidebar.allAgents')
+    return undefined
   }
 
   if (agentStore.selectedAgent?.id === sidebarSelectedAgentId.value) {
-    return agentStore.selectedAgent.name
+    return agentStore.selectedAgent
   }
 
-  const matchedAgent = agentStore.enabledAgents.find(
-    (agent) => agent.id === sidebarSelectedAgentId.value
-  )
-  return matchedAgent?.name ?? t('chat.sidebar.allAgents')
+  return agentStore.enabledAgents.find((agent) => agent.id === sidebarSelectedAgentId.value)
 })
+
+const selectedAgentName = computed(
+  () => sidebarSelectedAgent.value?.name ?? t('chat.sidebar.allAgents')
+)
 
 const sessionListRef = ref<HTMLElement | null>(null)
 // Shared with the reorder/auto-fill/group composables: a group drag pauses collapse
@@ -1154,7 +1196,7 @@ const handleAgentSelect = async (id: string | null) => {
   agentSwitchQueue = agentSwitchQueue
     .then(async () => {
       const currentAgentId = sidebarSelectedAgentId.value
-      const nextAgentId = currentAgentId === id ? null : id
+      const nextAgentId = id
       if (nextAgentId === currentAgentId) {
         return
       }
@@ -1298,46 +1340,6 @@ input {
   transform: translateX(var(--pin-text-shift)) !important;
 }
 
-.theme-icon-wrap {
-  display: grid;
-  place-items: center;
-  width: 1.15rem;
-  height: 1.15rem;
-}
-
-.theme-icon {
-  /* 两个图标堆叠在同一网格单元，自动居中且不占额外空间 */
-  grid-area: 1 / 1;
-  width: 1.15rem;
-  height: 1.15rem;
-  /* 提升到独立合成层，让过渡跑在 GPU 合成线程上，
-     避免被切换主题时的全局重绘阻塞而掉帧 */
-  will-change: transform, opacity;
-}
-
-/* 形态变化交给 line-md 的线条流动动画；这里再叠加淡入缩放增强存在感 */
-.theme-icon-enter-active {
-  transition:
-    opacity var(--dc-motion-default) var(--dc-ease-out-soft),
-    transform var(--dc-motion-default) var(--dc-ease-out-express);
-}
-
-.theme-icon-leave-active {
-  transition:
-    opacity var(--dc-motion-fast) var(--dc-ease-out-soft),
-    transform var(--dc-motion-fast) var(--dc-ease-out-express);
-}
-
-.theme-icon-enter-from {
-  opacity: 0;
-  transform: scale(0.4);
-}
-
-.theme-icon-leave-to {
-  opacity: 0;
-  transform: scale(0.7);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .window-sidebar-shell,
   .window-sidebar-session-column,
@@ -1349,11 +1351,6 @@ input {
   .chat-session-row-enter-from {
     opacity: 1;
     transform: translateY(0);
-  }
-
-  .theme-icon-enter-active,
-  .theme-icon-leave-active {
-    transition: none;
   }
 }
 </style>

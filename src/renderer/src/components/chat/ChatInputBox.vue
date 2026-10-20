@@ -1,11 +1,10 @@
 <template>
   <div
     data-testid="chat-input-box"
-    :class="['w-full overflow-hidden rounded-xl border bg-card/30 shadow-sm', props.maxWidthClass]"
-    style="
-      backdrop-filter: blur(var(--dc-blur-panel));
-      -webkit-backdrop-filter: blur(var(--dc-blur-panel));
-    "
+    :class="[
+      'w-full overflow-hidden rounded-xl border border-input bg-card transition-colors focus-within:border-ring/60',
+      props.maxWidthClass
+    ]"
     @dragover="onDragOver"
     @drop="onDrop"
   >

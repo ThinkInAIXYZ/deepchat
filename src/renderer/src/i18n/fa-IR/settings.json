@@ -1,6 +1,9 @@
 {
   "title": "تنظیمات",
   "common": {
+    "returnToChat": "بازگشت به گفتگو",
+    "navigationSearch": "جستجوی تنظیمات",
+    "navigationSearchEmpty": "نتیجهٔ مطابقی پیدا نشد",
     "commandShell": {
       "title": "پوستهٔ فرمان عامل",
       "auto": "خودکار",

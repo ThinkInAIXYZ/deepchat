@@ -3,6 +3,15 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, nextTick, reactive, ref } from 'vue'
 import { SETTINGS_EVENTS } from '@/events'
 
+vi.mock('@shadcn/components/ui/input', () => ({
+  Input: defineComponent({
+    props: ['modelValue'],
+    emits: ['update:modelValue'],
+    template:
+      '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
+  })
+}))
+
 vi.mock('../../../src/renderer/settings/components/SettingsLeaveGuardDialog.vue', () => ({
   default: defineComponent({
     name: 'SettingsLeaveGuardDialog',
@@ -332,7 +341,7 @@ describe('Settings App', () => {
     wrapper.unmount()
   }, 15000)
 
-  it('uses a resolved provider settings path in the sidebar', async () => {
+  it('filters translated navigation labels without changing the current route', async () => {
     vi.resetModules()
 
     let resolvePush: (() => void) | undefined
@@ -476,7 +485,11 @@ describe('Settings App', () => {
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
-        t: (key: string) => key,
+        t: (key: string) => {
+          if (key === 'routes.settings-common') return 'General settings'
+          if (key === 'settings.controlCenter.groups.setup') return 'Setup'
+          return key
+        },
         locale: ref('zh-CN')
       })
     }))
@@ -530,6 +543,26 @@ describe('Settings App', () => {
     resolvePush?.()
     await flushPromises()
     expect(providerSidebarItem.attributes('aria-busy')).toBe('false')
+
+    const search = wrapper.get('[data-testid="settings-navigation-search"]')
+    await search.setValue('  gEnErAl  ')
+    expect(wrapper.find('[data-testid="settings-tab-general"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="settings-tab-model-providers"]').exists()).toBe(false)
+    expect(push).toHaveBeenCalledTimes(1)
+
+    await search.setValue('setup')
+    expect(wrapper.find('[data-testid="settings-tab-general"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="settings-tab-appearance"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="settings-tab-model-providers"]').exists()).toBe(false)
+
+    await search.setValue('setup general')
+    expect(wrapper.get('[data-testid="settings-navigation"]').get('[role="status"]').text()).toBe(
+      'settings.common.navigationSearchEmpty'
+    )
+    expect(wrapper.find('[data-testid="settings-tab-general"]').exists()).toBe(false)
+    await search.trigger('keydown', { key: 'Escape' })
+    expect(wrapper.find('[data-testid="settings-tab-model-providers"]').exists()).toBe(true)
+    expect(push).toHaveBeenCalledTimes(1)
   })
 
   it('navigates to the requested settings route when a navigate event arrives', async () => {

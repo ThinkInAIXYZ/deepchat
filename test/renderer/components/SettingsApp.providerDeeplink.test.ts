@@ -3,6 +3,15 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, reactive, ref } from 'vue'
 import { SETTINGS_EVENTS } from '@/events'
 
+vi.mock('@shadcn/components/ui/input', () => ({
+  Input: defineComponent({
+    props: ['modelValue'],
+    emits: ['update:modelValue'],
+    template:
+      '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
+  })
+}))
+
 vi.mock('../../../src/renderer/settings/components/SettingsLeaveGuardDialog.vue', () => ({
   default: defineComponent({
     name: 'SettingsLeaveGuardDialog',

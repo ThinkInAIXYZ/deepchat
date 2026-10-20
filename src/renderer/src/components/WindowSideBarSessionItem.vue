@@ -243,12 +243,12 @@ const titleSegments = computed(() => {
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  min-height: 2.625rem;
+  min-height: 2.25rem;
   --pin-inline-start: 0.45rem;
   --pin-text-shift: 1.95rem;
   --action-border: color-mix(in srgb, var(--border) 82%, transparent);
   --action-surface: color-mix(in srgb, var(--background) 84%, var(--accent) 16%);
-  --action-shadow: 0 12px 30px -22px rgb(15 23 42 / 0.5);
+  --action-shadow: none;
 }
 
 .session-item.is-hero-hidden {

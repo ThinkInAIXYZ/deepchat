@@ -1,6 +1,9 @@
 {
   "title": "تەڭشەكلەر",
   "common": {
+    "returnToChat": "سۆھبەتكە قايتىش",
+    "navigationSearch": "تەڭشەكلەردىن ئىزدەش",
+    "navigationSearchEmpty": "ماس كەلگەن نەتىجە يوق",
     "commandShell": {
       "title": "Agent بۇيرۇقى Shell",
       "auto": "ئۆزىلا",

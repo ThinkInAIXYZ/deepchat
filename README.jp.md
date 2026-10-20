@@ -94,11 +94,11 @@ DeepChatのセッションとAgentプロセスはTape.systemsの哲学に基づ�
 <table align="center">
   <tr>
     <td align="center" style="padding: 10px;">
-      <img src='https://github.com/user-attachments/assets/6e932a65-78e0-4d2e-9654-ccc010f78bf7' alt="DeepChat Light Mode" width="400"/>
+      <img src='./assets/screenshots/main-light.png' alt="DeepChat ライトモードのメイン画面" width="400"/>
       <br/>
     </td>
     <td align="center" style="padding: 10px;">
-      <img src='https://github.com/user-attachments/assets/ea6ccf60-32af-4bc1-91cc-e72703bdc1ff' alt="DeepChat Dark Mode" width="400"/>
+      <img src='./assets/screenshots/main-dark.png' alt="DeepChat ダークモードのメイン画面" width="400"/>
       <br/>
     </td>
   </tr>

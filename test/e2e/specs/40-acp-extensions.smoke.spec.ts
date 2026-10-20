@@ -54,9 +54,6 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     },
     { script, command: process.execPath }
   )
-  await expect(
-    app.page.locator(`[data-testid="sidebar-agent-button"][data-agent-id="${agentId}"]`)
-  ).toBeVisible()
   await selectAgent(app.page, agentId)
   await sendMessage(app.page, 'Verify ACP structured answers')
   await expect(app.page.getByText('Choose the implementation and checks').first()).toBeVisible()

@@ -1,6 +1,9 @@
 {
   "title": "設定",
   "common": {
+    "returnToChat": "チャットに戻る",
+    "navigationSearch": "設定を検索",
+    "navigationSearchEmpty": "一致する結果がありません",
     "commandShell": {
       "title": "Agent のコマンドシェル",
       "auto": "自動",

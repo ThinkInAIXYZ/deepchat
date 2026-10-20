@@ -148,6 +148,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'library-big',
     'link',
     'list-checks',
+    'list-filter',
     'list-plus',
     'list-todo',
     'list-tree',

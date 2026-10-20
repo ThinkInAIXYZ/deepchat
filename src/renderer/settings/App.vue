@@ -1,10 +1,6 @@
 <template>
   <TooltipProvider :delay-duration="200">
-    <div
-      data-testid="settings-page"
-      class="w-full h-screen flex flex-col"
-      :class="isWinMacOS ? '' : 'bg-background'"
-    >
+    <div data-testid="settings-page" class="w-full h-screen flex flex-col bg-sidebar">
       <button type="button" class="skip-to-content" @click="settingsContent?.focus()">
         {{ t('common.skipToContent') }}
       </button>
@@ -26,17 +22,46 @@
           <CloseIcon class="h-3! w-3!" />
         </DcButton>
       </div>
-      <div class="w-full h-0 flex-1 flex flex-row bg-background relative">
+      <div class="w-full h-0 flex-1 flex flex-row bg-sidebar relative">
         <div
           class="border-x border-b border-window-inner-border rounded-b-[10px] absolute z-10 top-0 left-0 bottom-0 right-0 pointer-events-none"
         ></div>
         <nav
           :aria-label="t('routes.settings')"
           data-testid="settings-navigation"
-          class="w-60 h-full border-r border-border shrink-0 overflow-y-auto bg-muted/10"
+          class="flex h-full w-52 shrink-0 flex-col bg-sidebar sm:w-60"
         >
-          <div class="flex flex-col gap-4 p-3">
-            <div v-for="group in settingGroups" :key="group.key" class="flex flex-col gap-1">
+          <div class="shrink-0 space-y-3 px-3 pb-4 pt-3">
+            <DcButton
+              variant="ghost"
+              icon="lucide:arrow-left"
+              class="w-full justify-start text-sm font-normal"
+              @click="closeWindow"
+            >
+              {{ t('settings.common.returnToChat') }}
+            </DcButton>
+            <div class="relative">
+              <Icon
+                icon="lucide:search"
+                class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                v-model="navigationQuery"
+                data-testid="settings-navigation-search"
+                type="search"
+                :aria-label="t('settings.common.navigationSearch')"
+                :placeholder="t('settings.common.navigationSearch')"
+                class="h-9 bg-background pl-9 shadow-none"
+                @keydown.esc.prevent="navigationQuery = ''"
+              />
+            </div>
+          </div>
+          <div class="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
+            <div
+              v-for="group in filteredSettingGroups"
+              :key="group.key"
+              class="mb-5 flex flex-col gap-1"
+            >
               <div class="px-2 text-xs font-medium text-muted-foreground">
                 {{ t(group.titleKey) }}
               </div>
@@ -62,17 +87,24 @@
                     class="size-4 shrink-0 text-muted-foreground"
                   />
                   <Icon v-else :icon="setting.icon" class="size-4 shrink-0 text-muted-foreground" />
-                  <span class="min-w-0 truncate text-sm font-medium">{{ t(setting.title) }}</span>
+                  <span class="min-w-0 truncate text-sm font-normal">{{ t(setting.title) }}</span>
                 </button>
               </div>
             </div>
+            <p
+              v-if="filteredSettingGroups.length === 0"
+              role="status"
+              class="px-2 py-6 text-sm text-muted-foreground"
+            >
+              {{ t('settings.common.navigationSearchEmpty') }}
+            </p>
           </div>
         </nav>
         <main
           ref="settingsContent"
           tabindex="-1"
           :aria-label="title || t('routes.settings')"
-          class="min-w-0 min-h-0 flex-1"
+          class="min-w-0 min-h-0 flex-1 overflow-hidden rounded-ss-xl border-s border-t border-border bg-background"
         >
           <RouterView />
         </main>
@@ -123,6 +155,7 @@ import NotificationHost from '@renderer-notifications/NotificationHost.vue'
 import { rendererNotificationManager } from '@renderer-notifications/rendererNotificationRuntime'
 import { SemanticNotificationController } from '@renderer-notifications/semanticNotificationController'
 import { Spinner } from '@shadcn/components/ui/spinner'
+import { Input } from '@shadcn/components/ui/input'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { useThemeStore } from '@/stores/theme'
 import { useProviderStore } from '@/stores/providerStore'
@@ -192,7 +225,7 @@ const toasterTheme = computed(() =>
 )
 
 // Detect platform to apply proper styling
-const { isMacOS, isWinMacOS } = useDeviceVersion()
+const { isMacOS } = useDeviceVersion()
 const { t, locale } = useI18n()
 const settingsContent = ref<HTMLElement | null>(null)
 const router = useRouter()
@@ -572,6 +605,22 @@ const settingGroups = ref(
     }))
   }))
 )
+
+const navigationQuery = ref('')
+const filteredSettingGroups = computed(() => {
+  const query = navigationQuery.value.trim().toLocaleLowerCase()
+  if (!query) return settingGroups.value
+  return settingGroups.value
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) =>
+          t(group.titleKey).toLocaleLowerCase().includes(query) ||
+          t(item.title).toLocaleLowerCase().includes(query)
+      )
+    }))
+    .filter((group) => group.items.length > 0)
+})
 
 onMounted(() => {
   // Ensure icons are loaded

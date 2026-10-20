@@ -653,6 +653,47 @@ const setup = async (options: SetupOptions = {}) => {
 }
 
 describe('WindowSideBar agent switch', () => {
+  it.each([null, 'deepchat', 'acp-a'])(
+    'keeps the active conversation when selecting the checked %s filter',
+    async (id) => {
+      const { wrapper, agentStore, sessionStore } = await setup({
+        selectedAgentId: id,
+        filterAgentId: id,
+        activeSession: { id: 'active-conversation', agentId: 'deepchat' },
+        enabledAgents: [
+          { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
+          { id: 'acp-a', name: 'ACP A', type: 'acp', enabled: true }
+        ]
+      })
+
+      const item =
+        id === null
+          ? '[data-testid="sidebar-agent-all-button"]'
+          : `[data-testid="sidebar-agent-button"][data-agent-id="${id}"]`
+      expect(wrapper.get(item).attributes('role')).toBe('menuitemradio')
+      expect(wrapper.get(item).attributes('aria-checked')).toBe('true')
+      await wrapper.get(item).trigger('click')
+      await flushPromises()
+
+      expect(sessionStore.closeSession).not.toHaveBeenCalled()
+      expect(agentStore.setSelectedAgent).not.toHaveBeenCalled()
+      expect(sessionStore.activeSessionId).toBe('active-conversation')
+      expect(agentStore.filterAgentId).toBe(id)
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it('selects all agents only through the explicit all-agents item', async () => {
+    const { wrapper, agentStore, sessionStore } = await setup()
+
+    await wrapper.get('[data-testid="sidebar-agent-all-button"]').trigger('click')
+    await flushPromises()
+
+    expect(sessionStore.closeSession).toHaveBeenCalledOnce()
+    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith(null)
+    expect(agentStore.filterAgentId).toBeNull()
+  })
+
   it(
     'closes active session before applying selected agent',
     async () => {
@@ -691,7 +732,7 @@ describe('WindowSideBar agent switch', () => {
       await flushPromises()
 
       expect(sidebarStore.setCollapsed).toHaveBeenCalledWith(false)
-      expect(wrapper.get('[data-testid="window-sidebar"]').classes()).toContain('w-[288px]')
+      expect(wrapper.get('[data-testid="window-sidebar"]').classes()).toContain('w-[264px]')
       expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
       expect(operations).toEqual(['close', 'set:acp-a'])
     },
@@ -1836,7 +1877,7 @@ describe('WindowSideBar agent switch', () => {
     async () => {
       const { wrapper, sidebarStore } = await setup()
 
-      expect(wrapper.get('[data-testid=\"window-sidebar\"]').classes()).toContain('w-[288px]')
+      expect(wrapper.get('[data-testid=\"window-sidebar\"]').classes()).toContain('w-[264px]')
 
       await wrapper.get('[data-testid=\"window-sidebar-toggle\"]').trigger('click')
       await flushPromises()

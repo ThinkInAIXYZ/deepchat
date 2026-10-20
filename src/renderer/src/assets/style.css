@@ -19,6 +19,8 @@
   @import 'markstream-vue/index.tailwind.css';
 
   :root {
+    /* Shared reading width for messages and composers; not a panel or settings width. */
+    --dc-chat-content-width: 52rem;
     --dc-font-scale: 1;
     --dc-font-family:
       'Geist', Noto Sans, ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
@@ -66,45 +68,38 @@
     --zinc-900: hsl(240 5.9% 10%);
     --zinc-950: hsl(240 10% 3.9%);
 
-    --container: var(--white);
+    --container: #f3f4f5;
     --background: var(--white);
-    --foreground: hsl(0 0 15% / 1);
-    --foreground: hsl(0 0 15% / 1);
-    --card: hsl(0 0% 100%);
-    --card-foreground: hsl(0 0 15% / 1);
-    --card-foreground: hsl(0 0 15% / 1);
-    --popover: hsl(0 0% 100%);
-    --popover-foreground: hsl(0 0 15% / 1);
-    --popover-foreground: hsl(0 0 15% / 1);
+    --foreground: #24272b;
+    --card: #ffffff;
+    --card-foreground: #24272b;
+    --popover: #ffffff;
+    --popover-foreground: #24272b;
     --primary: hsl(210 100% 43%);
     --primary-foreground: hsl(0 0% 100%);
-    --secondary: hsl(0 0 0% / 0.05);
-    --secondary-foreground: hsl(0 0 15% / 0.5);
-    --secondary: hsl(0 0 0% / 0.05);
-    --secondary-foreground: hsl(0 0 15% / 0.5);
-    --muted: hsl(0 0 0% / 0.03);
-    --muted-foreground: hsl(0 0 15% / 0.5);
-    --muted-foreground: hsl(0 0 15% / 0.5);
-    --accent: hsl(0 0 15% / 0.05);
-    --accent-foreground: hsl(0 0 15% / 0.8);
-    --accent-foreground: hsl(0 0 15% / 0.8);
+    --secondary: #f3f4f5;
+    --secondary-foreground: #626973;
+    --muted: #f3f4f5;
+    --muted-foreground: #626973;
+    --accent: #e8ebef;
+    --accent-foreground: #24272b;
     --destructive: hsl(0 84.2% 60.2%);
     --destructive-foreground: hsl(0 0% 98%);
     /* --border: var(--base-200); */
-    --input: hsl(0 0 10% / 0.1);
+    --input: #d5dae0;
     --ring: var(--primary-600);
     --chart-1: var(--primary-600);
     --chart-2: var(--primary-200);
     --chart-3: var(--primary-400);
     --chart-4: var(--primary-300);
     --chart-5: var(--primary-100);
-    --sidebar: hsl(0 0% 100%);
-    --sidebar-foreground: var(--base-800);
+    --sidebar: #f3f4f5;
+    --sidebar-foreground: #24272b;
     --sidebar-primary: var(--primary-600);
     --sidebar-primary-foreground: hsl(0 0% 100%);
-    --sidebar-accent: var(--base-50);
-    --sidebar-accent-foreground: var(--base-800);
-    --sidebar-border: var(--base-200);
+    --sidebar-accent: #e8ebef;
+    --sidebar-accent-foreground: #24272b;
+    --sidebar-border: #e2e5e9;
     --sidebar-ring: var(--primary-600);
 
     --radius: 0.75rem;
@@ -166,14 +161,14 @@
     /* new Theme */
     /* light */
     /* color */
-    --bg-accent: hsl(0 0 15% / 0.05);
-    --bg-window-background: hsl(0 0 95% / 0.8);
-    --bg-background-70: hsl(0 0 100% / 0.7);
-    --bg-card: hsl(0 0 100%);
+    --bg-accent: var(--accent);
+    --bg-window-background: var(--sidebar);
+    --bg-background-70: rgb(255 255 255 / 0.7);
+    --bg-card: var(--card);
     --bg-primary: hsl(210 100% 43%);
     --bg-primary-70: hsl(210 100% 43% / 0.7);
     --bg-primary-700: hsl(210 100% 37%);
-    --border: hsl(0 0 0% / 0.05);
+    --border: #e2e5e9;
     --border-window-outside: hsl(0 0 21% / 0.25);
     --shadow-card: hsl(0 0 0% / 0.1);
     --syntax-bold: hsl(227 76% 41%);
@@ -182,14 +177,14 @@
     --syntax-property: hsl(221 97% 54%);
     --syntax-symbol: hsl(0 0 15%);
     --syntax-variable: var(--color-blue-800);
-    --text-accent-foreground: hsl(0 0 15% / 0.8);
-    --text-foreground: hsl(0 0% 14%);
+    --text-accent-foreground: #24272b;
+    --text-foreground: #24272b;
     --text-green: hsl(142 71% 45%);
-    --text-muted-foreground: hsl(0 0 15% / 0.2);
-    --text-primary: hsl(210 100% 43%);
+    --text-muted-foreground: #6b737e;
+    --text-primary: hsl(210 100% 37%);
     --text-primary-foreground: hsl(0 0 100%);
     --text-red: hsl(0 73% 58%);
-    --text-secondary-foreground: hsl(0 0 15% / 0.5);
+    --text-secondary-foreground: #626973;
     --text-skeleton-primary: hsl(0 0 15% / 0.05);
     --window-inner-border: hsl(0 0 100% / 0.5);
   }
@@ -220,29 +215,30 @@
 
   .dark,
   [data-theme='dark'] {
-    --container: var(--black);
-    --background: hsl(0 0 5% / 1);
-    --foreground: var(--base-200);
-    /* Shadcn surfaces inherit the DeepChat #121212 dark baseline. */
-    --card: hsl(0 0% 7.1%);
-    --card-foreground: var(--base-200);
-    --popover: hsl(0 0% 7.1%);
-    --popover-foreground: hsl(0 0 100%);
-    --secondary: hsl(0 0 100% / 0.05);
-    --secondary-foreground: var(--base-50);
-    --muted: hsl(0 0 100% / 0.03);
-    --muted-foreground: hsl(0 0 100% / 0.5);
-    /* Matches Dashboard interactive-card hover: foreground at 10% opacity. */
-    --accent: hsl(0 0 100% / 0.1);
-    --accent-foreground: hsl(0 0 100% / 0.8);
+    --bg-card: var(--card);
+    --text-accent-foreground: #e6e9ed;
+    --ring: #62aaff;
+    --container: #222426;
+    --background: #191b1d;
+    --foreground: #e6e9ed;
+    --card: #24272a;
+    --card-foreground: #e6e9ed;
+    --popover: #24272a;
+    --popover-foreground: #e6e9ed;
+    --secondary: #2a2d32;
+    --secondary-foreground: #a0a7b1;
+    --muted: #24272a;
+    --muted-foreground: #a0a7b1;
+    --accent: #30363e;
+    --accent-foreground: #e6e9ed;
     --destructive: hsl(0 62.8% 30.6%);
-    --border: var(--base-800);
-    --input: var(--base-700);
-    --sidebar: var(--base-900);
-    --sidebar-foreground: var(--base-200);
-    --sidebar-accent: var(--base-800);
-    --sidebar-accent-foreground: var(--base-200);
-    --sidebar-border: var(--base-800);
+    --border: #343940;
+    --input: #414851;
+    --sidebar: #222426;
+    --sidebar-foreground: #e6e9ed;
+    --sidebar-accent: #30363e;
+    --sidebar-accent-foreground: #e6e9ed;
+    --sidebar-border: #343940;
 
     --usage-low: 142 40% 60%;
     --usage-mid: 48 80% 60%;
@@ -262,15 +258,14 @@
 
     /* dark */
     /* color */
-    --bg-accent: hsl(0 0 100% / 0.05);
-    --bg-window-background: hsl(0 0 5% / 0.5);
-    --bg-background-70: hsl(0 0 15% / 0.7);
+    --bg-accent: var(--accent);
+    --bg-window-background: var(--sidebar);
+    --bg-background-70: rgb(25 27 29 / 0.7);
 
-    --bg-muted: hsl(0 0 100% / 0.03);
+    --bg-muted: var(--muted);
     --bg-primary: hsl(210 100% 43%);
     --bg-primary-70: hsl(210 100% 43% / 0.7);
     --bg-primary-700: hsl(210 100% 37%);
-    --border: hsl(0 0 100% / 0.05);
     --border-window-outside: hsl(0 0 0% / 0.4);
     --shadow-card: hsl(0 0 0% / 0.4);
     --syntax-bold: var(--color-blue-500);
@@ -279,43 +274,42 @@
     --syntax-property: var(--color-blue-100);
     --syntax-symbol: hsl(0 0 100% / 0.8);
     --syntax-variable: var(--color-blue-300);
-    --text-foreground: hsl(0 0 100%);
+    --text-foreground: #e6e9ed;
     --text-green: hsl(142 71% 45%);
-    --text-muted-foreground: hsl(0 0 100% / 0.2);
-    --text-primary: hsl(210 100% 43%);
+    --text-muted-foreground: #a0a7b1;
+    --text-primary: #62aaff;
     --text-primary-foreground: hsl(0 0 100%);
     --text-red: hsl(0 73% 58%);
-    --text-secondary-foreground: hsl(0 0 100% / 0.5);
+    --text-secondary-foreground: #a0a7b1;
     --text-skeleton-primary: hsl(0 0 100% / 0.05);
     --window-inner-border: hsl(0 0 100% / 0.05);
   }
 
   @media (prefers-color-scheme: dark) {
     :root:not(.dark):not([data-theme='light']):not([data-theme='dark']) {
-      --container: var(--black);
-      --background: hsl(0 0 5% / 1);
-      --foreground: hsl(0 0 100%);
-      /* Shadcn surfaces inherit the DeepChat #121212 dark baseline. */
-      --card: hsl(0 0% 7.1%);
-      --card-foreground: hsl(0 0 100%);
-      --popover: hsl(0 0% 7.1%);
-      --popover-foreground: hsl(0 0 100%);
-      --secondary: hsl(0 0 100% / 0.05);
-      --secondary-foreground: hsl(0 0 100%);
-      --muted: hsl(0 0 100% / 0.03);
-      --muted-foreground: hsl(0 0 100% / 0.5);
-      /* Matches Dashboard interactive-card hover: foreground at 10% opacity. */
-      --accent: hsl(0 0 100% / 0.1);
-      --accent-foreground: hsl(0 0 100% / 0.8);
+      --ring: #62aaff;
+      --container: #222426;
+      --background: #191b1d;
+      --foreground: #e6e9ed;
+      --card: #24272a;
+      --card-foreground: #e6e9ed;
+      --popover: #24272a;
+      --popover-foreground: #e6e9ed;
+      --secondary: #2a2d32;
+      --secondary-foreground: #a0a7b1;
+      --muted: #24272a;
+      --muted-foreground: #a0a7b1;
+      --accent: #30363e;
+      --accent-foreground: #e6e9ed;
       --destructive: hsl(0 62.8% 30.6%);
 
-      --border: hsl(0 0 100% / 0.05);
-      --input: var(--base-700);
-      --sidebar: var(--base-900);
-      --sidebar-foreground: var(--base-200);
-      --sidebar-accent: var(--base-800);
-      --sidebar-accent-foreground: var(--base-200);
-      --sidebar-border: var(--base-800);
+      --border: #343940;
+      --input: #414851;
+      --sidebar: #222426;
+      --sidebar-foreground: #e6e9ed;
+      --sidebar-accent: #30363e;
+      --sidebar-accent-foreground: #e6e9ed;
+      --sidebar-border: #343940;
 
       --usage-low: 142 40% 60%;
       --usage-mid: 48 80% 60%;
@@ -346,14 +340,14 @@
 
       /* dark */
       /* color */
-      --bg-accent: hsl(0 0 100% / 0.05);
-      --bg-background-70: hsl(0 0 15% / 0.7);
-      --bg-card: hsl(217 6% 15%);
-      --bg-muted: hsl(0 0 100% / 0.03);
+      --bg-accent: var(--accent);
+      --bg-background-70: rgb(25 27 29 / 0.7);
+      --bg-card: var(--card);
+      --bg-muted: var(--muted);
       --bg-primary: hsl(210 100% 43%);
       --bg-primary-70: hsl(210 100% 43% / 0.7);
       --bg-primary-700: hsl(210 100% 37%);
-      --bg-window-background: hsl(0 0 5% / 0.5);
+      --bg-window-background: var(--sidebar);
       --border-window-outside: hsl(0 0 0% / 0.4);
       --shadow-card: hsl(0 0 0% / 0.4);
       --syntax-bold: var(--color-blue-500);
@@ -362,14 +356,14 @@
       --syntax-property: var(--color-blue-100);
       --syntax-symbol: hsl(0 0 100% / 0.8);
       --syntax-variable: var(--color-blue-300);
-      --text-accent-foreground: hsl(0 0 100% / 0.8);
-      --text-foreground: hsl(0 0 100%);
+      --text-accent-foreground: #e6e9ed;
+      --text-foreground: #e6e9ed;
       --text-green: hsl(142 71% 45%);
-      --text-muted-foreground: hsl(0 0 100% / 0.2);
-      --text-primary: hsl(210 100% 43%);
+      --text-muted-foreground: #a0a7b1;
+      --text-primary: #62aaff;
       --text-primary-foreground: hsl(0 0 100%);
       --text-red: hsl(0 73% 58%);
-      --text-secondary-foreground: hsl(0 0 100% / 0.5);
+      --text-secondary-foreground: #a0a7b1;
       --text-skeleton-primary: hsl(0 0 100% / 0.05);
       --window-inner-border: hsl(0 0 100% / 0.05);
     }

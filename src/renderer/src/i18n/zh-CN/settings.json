@@ -1,6 +1,9 @@
 {
   "title": "设置",
   "common": {
+    "returnToChat": "返回对话",
+    "navigationSearch": "搜索设置",
+    "navigationSearchEmpty": "没有匹配结果",
     "commandShell": {
       "title": "Agent 命令 Shell",
       "auto": "自动",

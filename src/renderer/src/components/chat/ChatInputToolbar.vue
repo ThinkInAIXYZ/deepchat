@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-center justify-between px-3 py-2">
+  <div class="flex flex-wrap items-center gap-2 px-3 pb-3 pt-1">
     <div class="flex items-center gap-1">
       <!-- Attach button -->
       <DcButton
@@ -15,7 +15,11 @@
       />
     </div>
 
-    <div class="flex items-center gap-1">
+    <div v-if="$slots.settings" class="min-w-0 flex-1">
+      <slot name="settings" />
+    </div>
+
+    <div class="ml-auto flex shrink-0 items-center gap-1">
       <DcButton
         v-if="showSearch"
         data-testid="chat-search-toggle"
@@ -28,7 +32,7 @@
         class="h-7 w-7 rounded-lg"
         :class="
           searchEnabled
-            ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+            ? 'bg-primary/10 text-[color:var(--text-primary)] hover:bg-primary/15 hover:text-[color:var(--text-primary)]'
             : 'text-muted-foreground hover:text-foreground'
         "
         :aria-pressed="searchEnabled"
@@ -54,7 +58,7 @@
         <span
           v-if="isVoiceInputListening"
           aria-hidden="true"
-          class="absolute inset-0 rounded-lg bg-cyan-500/14 animate-pulse"
+          class="absolute inset-0 rounded-lg bg-primary/15 animate-pulse"
         />
         <svg
           v-if="isVoiceInputListening"
@@ -152,7 +156,7 @@
         :label="primaryTooltip"
         :tooltip="primaryTooltip"
         :tooltip-delay-duration="200"
-        class="rounded-full"
+        class="rounded-lg"
         :disabled="
           buttonMode === 'cancel-preparation'
             ? false
@@ -242,13 +246,13 @@ const hasActiveInput = computed(() => props.hasInput || props.hasText)
 const voiceInputButtonClass = computed(() => {
   if (props.isVoiceInputListening) {
     return [
-      'relative group h-7 w-7 rounded-lg overflow-hidden text-cyan-600 bg-cyan-500/10 ring-1 ring-cyan-500/30 hover:text-red-500 hover:bg-red-500/10 hover:ring-red-500/35 transition-colors duration-200'
+      'relative group h-7 w-7 rounded-lg overflow-hidden text-[color:var(--text-primary)] bg-primary/10 ring-1 ring-primary/30 hover:text-red-500 hover:bg-red-500/10 hover:ring-red-500/35 transition-colors duration-200'
     ]
   }
 
   if (props.isVoiceInputTranscribing) {
     return [
-      'relative group h-7 w-7 rounded-lg text-primary bg-primary/10 ring-1 ring-primary/20 hover:bg-primary/15'
+      'relative group h-7 w-7 rounded-lg text-[color:var(--text-primary)] bg-primary/10 ring-1 ring-primary/20 hover:bg-primary/15'
     ]
   }
 

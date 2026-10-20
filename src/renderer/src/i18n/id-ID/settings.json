@@ -1,6 +1,9 @@
 {
   "title": "pengaturan",
   "common": {
+    "returnToChat": "Kembali ke chat",
+    "navigationSearch": "Cari pengaturan",
+    "navigationSearchEmpty": "Tidak ada hasil yang cocok",
     "commandShell": {
       "title": "Shell perintah Agent",
       "auto": "Otomatis",

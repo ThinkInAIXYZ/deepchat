@@ -22,7 +22,9 @@
       :inert="!shouldShow ? true : undefined"
       class="chat-side-panel-surface absolute inset-y-0 flex h-full min-h-0 w-full origin-right flex-col bg-background"
       :class="[
-        isSidepanelFullscreenActive ? 'inset-x-0 border shadow-xl' : 'right-0 border-l shadow-lg',
+        isSidepanelFullscreenActive
+          ? 'inset-x-0 border border-border'
+          : 'right-0 border-l border-border',
         panelVisible
           ? 'translate-x-0 opacity-100'
           : 'pointer-events-none translate-x-3 opacity-0 shadow-none',
@@ -49,12 +51,12 @@
       ></button>
 
       <div class="flex h-11 items-center justify-between border-b px-3">
-        <div class="flex items-center gap-1 rounded-lg bg-muted p-0.5">
+        <div class="flex min-w-0 items-center gap-1 overflow-x-auto">
           <button
             class="rounded-md px-2.5 py-1 text-xs transition-colors duration-200 ease-out"
             :class="
               sidepanelStore.activeTab === 'workspace'
-                ? 'bg-background text-foreground shadow-sm'
+                ? 'bg-accent text-foreground'
                 : 'text-muted-foreground'
             "
             type="button"
@@ -67,7 +69,7 @@
             class="rounded-md px-2.5 py-1 text-xs transition-colors duration-200 ease-out"
             :class="
               sidepanelStore.activeTab === 'browser'
-                ? 'bg-background text-foreground shadow-sm'
+                ? 'bg-accent text-foreground'
                 : 'text-muted-foreground'
             "
             type="button"
@@ -82,7 +84,7 @@
             class="rounded-md px-2.5 py-1 text-xs transition-colors duration-200 ease-out"
             :class="
               sidepanelStore.activeTab === 'mcp-app'
-                ? 'bg-background text-foreground shadow-sm'
+                ? 'bg-accent text-foreground'
                 : 'text-muted-foreground'
             "
             type="button"
@@ -97,7 +99,7 @@
             class="rounded-md px-2.5 py-1 text-xs transition-colors duration-200 ease-out"
             :class="
               sidepanelStore.activeTab === 'tape-inspector'
-                ? 'bg-background text-foreground shadow-sm'
+                ? 'bg-accent text-foreground'
                 : 'text-muted-foreground'
             "
             type="button"

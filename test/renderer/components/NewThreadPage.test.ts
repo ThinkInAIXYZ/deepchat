@@ -45,7 +45,7 @@ const createChatInputBoxStub = () =>
       'draft-change',
       'switch-vision-model'
     ],
-    setup(props, { expose }) {
+    setup(props, { expose, slots }) {
       expose({
         triggerAttach: chatInputTriggerAttachMock,
         insertWorkspaceReference: insertWorkspaceReferenceMock,
@@ -61,16 +61,20 @@ const createChatInputBoxStub = () =>
         clearPendingSkills: chatInputClearPendingSkillsMock
       })
       return () =>
-        h('div', {
-          'data-testid': 'chat-input-box',
-          'data-submit-disabled': String(props.submitDisabled),
-          'data-agent-id': props.agentId,
-          'data-editable': String(props.editable),
-          'data-workspace-path': props.workspacePath ?? '',
-          'data-is-acp-session': String(props.isAcpSession),
-          'data-supports-vision':
-            props.supportsVision === null ? 'unknown' : String(props.supportsVision)
-        })
+        h(
+          'div',
+          {
+            'data-testid': 'chat-input-box',
+            'data-submit-disabled': String(props.submitDisabled),
+            'data-agent-id': props.agentId,
+            'data-editable': String(props.editable),
+            'data-workspace-path': props.workspacePath ?? '',
+            'data-is-acp-session': String(props.isAcpSession),
+            'data-supports-vision':
+              props.supportsVision === null ? 'unknown' : String(props.supportsVision)
+          },
+          slots.toolbar?.()
+        )
     }
   })
 
@@ -393,7 +397,10 @@ const setup = async (options?: {
     default: createChatInputBoxStub()
   }))
   vi.doMock('@/components/chat/ChatInputToolbar.vue', () => ({
-    default: passthrough('ChatInputToolbar')
+    default: defineComponent({
+      name: 'ChatInputToolbar',
+      template: '<div><slot name="settings" /></div>'
+    })
   }))
   vi.doMock('@/components/chat/ChatStatusBar.vue', () => ({
     default: defineComponent({
@@ -423,7 +430,7 @@ const setup = async (options?: {
           DropdownMenuSeparator: passthrough('DropdownMenuSeparator'),
           Icon: true,
           AcpAuthDialog: true,
-          ChatInputToolbar: true
+          ChatInputToolbar: false
         }
       }
     })

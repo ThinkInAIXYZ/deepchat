@@ -26,7 +26,7 @@
         class="pointer-events-none absolute inset-x-0 top-3 px-6"
         style="z-index: var(--dc-z-float)"
       >
-        <div class="mx-auto flex w-full max-w-5xl justify-end">
+        <div class="mx-auto flex w-full max-w-[var(--dc-chat-content-width)] justify-end">
           <ChatSearchBar
             :ref="setChatSearchBarRef"
             v-model="chatSearchQuery"
@@ -176,10 +176,12 @@
       <div
         v-if="!isReadOnlySession"
         data-testid="chat-composer-region"
-        class="chat-capture-hide relative w-full min-w-0 px-6 pb-3 pt-3"
+        class="chat-capture-hide relative w-full min-w-0 px-4 pb-4 pt-3 sm:px-6"
         style="z-index: var(--dc-z-sticky)"
       >
-        <div class="mx-auto flex w-full max-w-5xl min-w-0 flex-col items-center">
+        <div
+          class="mx-auto flex w-full max-w-[var(--dc-chat-content-width)] min-w-0 flex-col items-center"
+        >
           <div class="relative w-full">
             <PendingInputLane
               :queue-items="pendingInputStore.queueItems"
@@ -189,7 +191,7 @@
               :resume-disabled="disablePendingQueueResume"
               :resume-loading="pendingInputStore.resumingQueue"
               :retrying-item-id="pendingInputStore.retryingItemId"
-              class="mx-auto mb-1.5 max-w-4xl"
+              class="mx-auto mb-1.5 max-w-[var(--dc-chat-content-width)]"
               :save-edit="onPendingInputUpdate"
               @move-queue="onPendingInputMove"
               @steer-queue="onPendingInputSteer"
@@ -227,7 +229,7 @@
               <div
                 ref="chatInputHeroHostRef"
                 data-testid="chat-input-memory-host"
-                class="mx-auto flex w-full max-w-4xl flex-col"
+                class="mx-auto flex w-full max-w-[var(--dc-chat-content-width)] flex-col"
               >
                 <!-- Keep input/status mounted during permission/question so TipTap draft, IME,
                      and StatusBar watchers are not torn down. Hide with v-show + inert. -->
@@ -241,7 +243,7 @@
                   <ChatInputBox
                     ref="chatInputRef"
                     v-model="message"
-                    max-width-class="max-w-4xl"
+                    max-width-class="max-w-[var(--dc-chat-content-width)]"
                     :files="attachedFiles"
                     :session-id="props.sessionId"
                     :agent-id="sessionStore.activeSession?.agentId ?? 'deepchat'"
@@ -284,10 +286,13 @@
                         @send="onSubmit"
                         @cancel-preparation="cancelAttachmentPreparation"
                         @stop="onStop"
-                      />
+                      >
+                        <template #settings>
+                          <ChatStatusBar ref="chatStatusBarRef" max-width-class="max-w-none" />
+                        </template>
+                      </ChatInputToolbar>
                     </template>
                   </ChatInputBox>
-                  <ChatStatusBar ref="chatStatusBarRef" max-width-class="max-w-4xl" />
                 </div>
               </div>
             </div>

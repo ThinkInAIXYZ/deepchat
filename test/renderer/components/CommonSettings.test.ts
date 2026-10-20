@@ -45,6 +45,7 @@ describe('CommonSettings', () => {
       global: {
         stubs: {
           DcToggleRow: toggleRowStub,
+          DcSectionCard: settingsPageShellStub,
           SettingsPageShell: settingsPageShellStub,
           UploadFileSettingsSection: true,
           ProxySettingsSection: true,

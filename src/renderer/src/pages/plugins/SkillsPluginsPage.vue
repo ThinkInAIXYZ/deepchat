@@ -318,10 +318,10 @@ onUnmounted(() => {
   <ScrollArea class="h-full w-full">
     <section
       data-testid="plugins-skills-page"
-      class="mx-auto flex min-h-full w-full max-w-7xl min-w-0 flex-col gap-4 p-4 lg:p-6"
+      class="mx-auto flex min-h-full w-full max-w-5xl min-w-0 flex-col gap-6 px-5 py-8 lg:px-10 lg:py-10"
     >
       <header class="min-w-0">
-        <h1 class="truncate text-xl font-semibold text-foreground">
+        <h1 class="text-2xl font-semibold text-foreground">
           {{ t('settings.skills.title') }}
         </h1>
         <p class="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
@@ -436,7 +436,7 @@ onUnmounted(() => {
         />
 
         <template v-else>
-          <div v-if="loading" class="grid grid-cols-1 gap-4 pb-4 md:grid-cols-2">
+          <div v-if="loading" class="grid grid-cols-1 gap-x-6 gap-y-2 pb-4 md:grid-cols-2">
             <div
               v-for="index in 4"
               :key="index"
@@ -471,7 +471,7 @@ onUnmounted(() => {
             <div
               v-else
               data-testid="skills-grid"
-              class="grid grid-cols-1 gap-4 pb-4 md:grid-cols-2"
+              class="grid grid-cols-1 gap-x-6 gap-y-2 pb-4 md:grid-cols-2"
             >
               <SkillCard
                 v-for="skill in filteredSkills"

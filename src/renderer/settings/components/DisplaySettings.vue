@@ -4,12 +4,87 @@
     :eyebrow="t('settings.controlCenter.groups.setup')"
     data-testid="settings-appearance-page"
   >
-    <div class="flex w-full flex-col gap-1.5">
+    <DcSectionCard class="divide-y divide-border [&>div]:py-4">
+      <!-- Theme settings -->
+      <div class="flex flex-col gap-2 px-2 py-2">
+        <div class="flex items-center gap-3">
+          <span
+            class="flex items-center gap-2 text-sm font-medium min-w-0 flex-1"
+            :dir="languageStore.dir"
+          >
+            <Icon icon="lucide:sun-moon" class="w-4 h-4 text-muted-foreground" />
+            <span class="truncate">{{ t('settings.common.theme') }}</span>
+          </span>
+          <span class="ml-auto text-xs text-muted-foreground">
+            {{ t('settings.common.themeSelect') }}
+          </span>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <button
+            v-for="option in themeOptions"
+            :key="option.value"
+            type="button"
+            data-testid="theme-toggle"
+            :data-theme-mode="option.value"
+            class="group relative flex w-full max-w-[180px] basis-[140px] flex-1 flex-col items-center text-left outline-none transition disabled:cursor-not-allowed disabled:opacity-80"
+            :aria-pressed="themeMode === option.value"
+            :disabled="isUpdatingTheme"
+            @click="selectThemeMode(option.value)"
+          >
+            <div
+              class="relative flex h-24 w-full overflow-hidden rounded-lg border p-2 transition-colors"
+              :class="
+                themeMode === option.value
+                  ? 'border-primary ring-1 ring-primary'
+                  : 'border-border group-hover:border-input'
+              "
+            >
+              <div
+                v-for="previewMode in option.value === 'system'
+                  ? ['light', 'dark']
+                  : [option.value]"
+                :key="previewMode"
+                aria-hidden="true"
+                class="flex min-w-0 flex-1 overflow-hidden rounded-sm border border-base-500/20"
+                :class="previewMode === 'dark' ? 'bg-base-950' : 'bg-base-50'"
+              >
+                <div
+                  class="w-1/4 space-y-1 p-1.5"
+                  :class="previewMode === 'dark' ? 'bg-base-800' : 'bg-base-200'"
+                >
+                  <div class="h-1 rounded-sm bg-primary/60" />
+                  <div class="h-1 rounded-sm bg-base-500/25" />
+                  <div class="h-1 rounded-sm bg-base-500/25" />
+                </div>
+                <div class="flex min-w-0 flex-1 flex-col gap-1 p-2">
+                  <div class="h-1 w-3/4 rounded-sm bg-base-500/50" />
+                  <div class="h-1 w-full rounded-sm bg-base-500/25" />
+                  <div
+                    class="mt-auto flex h-4 items-end justify-end rounded-sm border border-base-500/30 p-0.5"
+                  >
+                    <span class="size-2 rounded-sm bg-primary" />
+                  </div>
+                </div>
+              </div>
+              <span
+                v-if="themeMode === option.value"
+                class="absolute right-1.5 top-1.5 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground"
+              >
+                <Icon icon="lucide:check" class="size-3" />
+              </span>
+            </div>
+            <div class="mt-2 text-xs font-medium text-foreground">
+              {{ option.label }}
+            </div>
+          </button>
+        </div>
+      </div>
+
       <!-- Language selection -->
       <div class="flex flex-col gap-2 px-2 py-2">
         <div class="flex items-center gap-3">
           <span
-            class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
+            class="flex items-center gap-2 text-sm font-medium min-w-0 flex-1"
             :dir="languageStore.dir"
           >
             <Icon icon="lucide:languages" class="w-4 h-4 text-muted-foreground" />
@@ -39,145 +114,6 @@
         </div>
       </div>
 
-      <!-- Theme settings -->
-      <div class="flex flex-col gap-2 px-2 py-2">
-        <div class="flex items-center gap-3">
-          <span
-            class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
-            :dir="languageStore.dir"
-          >
-            <Icon icon="lucide:sun-moon" class="w-4 h-4 text-muted-foreground" />
-            <span class="truncate">{{ t('settings.common.theme') }}</span>
-          </span>
-          <span class="ml-auto text-xs text-muted-foreground">
-            {{ t('settings.common.themeSelect') }}
-          </span>
-        </div>
-        <div class="flex flex-wrap gap-3">
-          <button
-            v-for="option in themeOptions"
-            :key="option.value"
-            type="button"
-            data-testid="theme-toggle"
-            :data-theme-mode="option.value"
-            class="group relative flex w-full max-w-[120px] basis-[120px] flex-col items-center text-left outline-none transition disabled:cursor-not-allowed disabled:opacity-80"
-            :aria-pressed="themeMode === option.value"
-            :disabled="isUpdatingTheme"
-            @click="selectThemeMode(option.value)"
-          >
-            <div
-              :class="[
-                'relative h-28 w-full rounded-xl border transition-all duration-200',
-                themeMode === option.value
-                  ? 'border-primary shadow-[0_18px_36px_-20px_rgba(59,130,246,0.7)] ring-2 ring-primary/30'
-                  : 'border-border/70 bg-background/30 group-hover:border-muted-foreground/60 group-hover:bg-background/50'
-              ]"
-            >
-              <span
-                v-if="themeMode === option.value"
-                class="absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm shadow-primary/30"
-              >
-                <Icon icon="lucide:check" class="h-3.5 w-3.5" />
-              </span>
-              <div class="absolute inset-2 rounded-[14px]">
-                <template v-if="option.value !== 'system'">
-                  <div
-                    :class="[
-                      'flex h-full w-full flex-col overflow-hidden rounded-[12px] border',
-                      themePreviewStyles[option.value].window
-                    ]"
-                  >
-                    <div
-                      :class="[
-                        'flex items-center gap-1 rounded-t-[12px] border-b px-2.5 py-1.5',
-                        themePreviewStyles[option.value].toolbar
-                      ]"
-                    >
-                      <span class="h-2 w-2 rounded-full bg-red-400/90"></span>
-                      <span class="h-2 w-2 rounded-full bg-amber-400/90"></span>
-                      <span class="h-2 w-2 rounded-full bg-emerald-400/90"></span>
-                    </div>
-                    <div class="flex flex-1">
-                      <div
-                        :class="[
-                          'flex w-14 shrink-0 flex-col gap-1.5 border-r p-2',
-                          themePreviewStyles[option.value].sidebar
-                        ]"
-                      >
-                        <span
-                          v-for="index in 3"
-                          :key="'sidebar-' + index"
-                          :class="[
-                            'h-2 rounded-full',
-                            index === 1
-                              ? themePreviewStyles[option.value].accent
-                              : themePreviewStyles[option.value].muted
-                          ]"
-                        ></span>
-                      </div>
-                      <div
-                        :class="[
-                          'flex flex-1 flex-col gap-1.5 p-2.5',
-                          themePreviewStyles[option.value].content
-                        ]"
-                      >
-                        <span
-                          v-for="index in 3"
-                          :key="'content-' + index"
-                          :class="[
-                            'h-2.5 rounded-full',
-                            index === 1
-                              ? themePreviewStyles[option.value].accent
-                              : themePreviewStyles[option.value].text
-                          ]"
-                        ></span>
-                        <div
-                          :class="[
-                            'mt-auto h-2 w-1/2 rounded-full',
-                            themePreviewStyles[option.value].muted
-                          ]"
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                </template>
-                <template v-else>
-                  <div
-                    class="grid h-full w-full grid-cols-2 overflow-hidden rounded-[12px] bg-gradient-to-br from-slate-900/70 via-background/80 to-white/90"
-                  >
-                    <div class="flex flex-col gap-1.5 bg-slate-950/80 p-2">
-                      <span
-                        class="flex items-center gap-1 text-[10px] font-medium text-slate-200/90"
-                      >
-                        <span class="h-2 w-2 rounded-full bg-sky-400/80"></span>
-                        Dark
-                      </span>
-                      <span class="h-2 rounded-full bg-sky-400/70"></span>
-                      <span class="h-2 rounded-full bg-slate-700/70"></span>
-                      <span class="h-2 rounded-full bg-slate-700/70"></span>
-                      <div class="mt-auto h-2 w-1/2 rounded-full bg-slate-800/70"></div>
-                    </div>
-                    <div class="flex flex-col gap-1.5 bg-white/95 p-2">
-                      <span class="flex items-center gap-1 text-[10px] font-medium text-slate-600">
-                        <span class="h-2 w-2 rounded-full bg-blue-500/70"></span>
-                        Light
-                      </span>
-                      <span class="h-2 rounded-full bg-blue-500/60"></span>
-                      <span class="h-2 rounded-full bg-slate-200/80"></span>
-                      <span class="h-2 rounded-full bg-slate-200/80"></span>
-                      <div class="mt-auto h-2 w-1/2 rounded-full bg-slate-300/80"></div>
-                    </div>
-                  </div>
-                </template>
-              </div>
-            </div>
-            <div class="mt-2 text-xs font-medium text-foreground">
-              {{ option.label }}
-            </div>
-          </button>
-        </div>
-      </div>
-
       <!-- System notifications -->
       <DcToggleRow
         id="notifications-switch"
@@ -193,7 +129,7 @@
       <!-- Font size settings -->
       <div class="flex flex-col gap-2 px-2 py-2">
         <span
-          class="flex items-center gap-2 text-sm font-medium shrink-0 min-w-[220px]"
+          class="flex items-center gap-2 text-sm font-medium min-w-0 flex-1"
           :dir="languageStore.dir"
         >
           <Icon icon="lucide:a-large-small" class="w-4 h-4 text-muted-foreground" />
@@ -239,7 +175,7 @@
         class="px-2 py-2"
         @update:model-value="handleFloatingButtonChange"
       />
-    </div>
+    </DcSectionCard>
   </SettingsPageShell>
 
   <!-- Content protection confirmation dialog -->
@@ -287,6 +223,7 @@ import {
 import { ref, onMounted, watch, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { DcToggleRow } from '@dc-ui/components/toggle-row'
+import { DcSectionCard } from '@dc-ui/components/section-card'
 
 import { FLOATING_BUTTON_AVAILABLE } from '@shared/featureFlags'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
@@ -327,40 +264,6 @@ watch(selectedLanguage, async (newValue) => {
 })
 
 // --- Theme Settings ---
-type ThemePreviewMode = Exclude<ThemeMode, 'system'>
-
-const themePreviewStyles: Record<
-  ThemePreviewMode,
-  {
-    window: string
-    toolbar: string
-    sidebar: string
-    content: string
-    accent: string
-    muted: string
-    text: string
-  }
-> = {
-  light: {
-    window: 'border-slate-200/80 bg-gradient-to-b from-white via-slate-50 to-slate-100',
-    toolbar: 'border-slate-200/80 bg-white/90',
-    sidebar: 'border-slate-200/80 bg-white/90',
-    content: 'bg-slate-50/80',
-    accent: 'bg-blue-500/70',
-    muted: 'bg-slate-200/80',
-    text: 'bg-slate-300/80'
-  },
-  dark: {
-    window: 'border-slate-800/70 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-800',
-    toolbar: 'border-slate-800/80 bg-slate-900/90',
-    sidebar: 'border-slate-800/80 bg-slate-900/70',
-    content: 'bg-slate-900/70',
-    accent: 'bg-sky-400/70',
-    muted: 'bg-slate-700/70',
-    text: 'bg-slate-600/70'
-  }
-}
-
 const themeOptions = computed(() => [
   { value: 'light' as ThemeMode, label: t('settings.common.themeLight') },
   { value: 'dark' as ThemeMode, label: t('settings.common.themeDark') },

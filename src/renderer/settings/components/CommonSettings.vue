@@ -4,7 +4,7 @@
     :eyebrow="t('settings.controlCenter.groups.setup')"
     data-testid="settings-general-page"
   >
-    <div class="flex w-full flex-col gap-3">
+    <DcSectionCard class="divide-y divide-border [&>*]:h-auto [&>*]:py-4">
       <UploadFileSettingsSection />
       <ProxySettingsSection />
       <CommandShellSettingsSection />
@@ -42,7 +42,7 @@
         @update:model-value="handleTraceDebugChange"
       />
       <LoggingSettingsSection />
-    </div>
+    </DcSectionCard>
   </SettingsPageShell>
 </template>
 
@@ -51,6 +51,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { DcToggleRow } from '@dc-ui/components/toggle-row'
+import { DcSectionCard } from '@dc-ui/components/section-card'
 import ProxySettingsSection from './common/ProxySettingsSection.vue'
 import CommandShellSettingsSection from './common/CommandShellSettingsSection.vue'
 import LoggingSettingsSection from './common/LoggingSettingsSection.vue'
