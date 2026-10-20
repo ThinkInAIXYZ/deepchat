@@ -9,6 +9,7 @@ import { SessionLifecycle, type SessionLifecycleDependencies } from '@/session/l
 import { SessionDeletionGate } from '@/session/deletionGate'
 import { SessionAssignment } from '@/session/assignment'
 import { AcpAuthenticationRequiredError } from '@/agent/acp/runtime/acpAuthentication'
+import type { ToolModeOverride } from '@shared/toolMode'
 
 const createRecord = (overrides: Partial<SessionRecord> = {}): SessionRecord => ({
   id: 'existing',
@@ -159,6 +160,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
         permissionMode?: DeepChatSessionState['permissionMode']
         generationSettings?: Partial<SessionGenerationSettings>
         disabledAgentTools?: string[]
+        toolModeOverride?: ToolModeOverride
       }) => ({
         agentId: input.agentId,
         agentType: input.providerId === 'acp' ? ('acp' as const) : ('deepchat' as const),
@@ -167,7 +169,8 @@ function createHarness(initialSessions: SessionRecord[] = []) {
         projectDir: input.projectDir === undefined ? '/default' : input.projectDir,
         permissionMode: input.permissionMode ?? ('full_access' as const),
         generationSettings: input.generationSettings,
-        disabledAgentTools: input.disabledAgentTools ?? []
+        disabledAgentTools: input.disabledAgentTools ?? [],
+        toolModeOverride: input.providerId === 'acp' ? null : (input.toolModeOverride ?? null)
       })
     ),
     resolveAcpDraftAssignment: vi.fn(
@@ -575,7 +578,8 @@ describe('SessionLifecycle', () => {
       modelId: 'kimi',
       projectDir: '/repo',
       permissionMode: 'full_access',
-      disabledAgentTools: []
+      disabledAgentTools: [],
+      toolModeOverride: null
     })
 
     await expect(

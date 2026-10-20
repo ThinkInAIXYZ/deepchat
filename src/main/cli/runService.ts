@@ -261,6 +261,8 @@ export class CliRunService {
       ...(input.providerId ? { providerId: input.providerId } : {}),
       ...(input.modelId ? { modelId: input.modelId } : {}),
       permissionMode: 'default',
+      // Code mode needs full access, so CLI runs keep the model default instead of the agent's.
+      toolModeOverride: null,
       ...(input.activeSkills ? { activeSkills: input.activeSkills } : {}),
       ...(input.disabledAgentTools ? { disabledAgentTools: input.disabledAgentTools } : {}),
       ...(input.systemPrompt !== undefined

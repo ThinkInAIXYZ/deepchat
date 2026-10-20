@@ -8,6 +8,7 @@ import {
   createDefaultDeepChatSubagentSlots,
   normalizeDeepChatSubagentConfig
 } from '@shared/lib/deepchatSubagents'
+import { normalizeToolModeOverride } from '@shared/toolMode'
 import type {
   AgentAvatar,
   CreateDeepChatAgentInput,
@@ -116,6 +117,11 @@ const mergeDeepChatConfig = (
     defaultProjectPath: overrideConfig.defaultProjectPath ?? baseConfig.defaultProjectPath ?? null,
     systemPrompt: overrideConfig.systemPrompt ?? baseConfig.systemPrompt ?? '',
     permissionMode: overrideConfig.permissionMode ?? baseConfig.permissionMode,
+    defaultToolMode: normalizeToolModeOverride(
+      overrideConfig.defaultToolMode !== undefined
+        ? overrideConfig.defaultToolMode
+        : baseConfig.defaultToolMode
+    ),
     disabledAgentTools: normalizeDisabledAgentTools(
       overrideConfig.disabledAgentTools ?? baseConfig.disabledAgentTools
     ),

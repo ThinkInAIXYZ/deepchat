@@ -290,6 +290,7 @@ describe('CliRunService', () => {
       providerId: 'provider-1',
       modelId: 'model-1',
       permissionMode: 'default',
+      toolModeOverride: null,
       generationSettings: { systemPrompt: 'Be concise' },
       metadata: { source: 'cli_run' }
     })

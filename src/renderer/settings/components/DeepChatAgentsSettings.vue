@@ -407,6 +407,65 @@
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
+
+            <div class="space-y-1.5">
+              <div class="text-[11px] font-medium text-muted-foreground">
+                {{ t('settings.deepchatAgents.defaultToolMode') }}
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                  <DcButton
+                    variant="outline"
+                    size="sm"
+                    class="h-8 w-full min-w-0 justify-between gap-1.5 rounded-lg px-2.5 text-xs"
+                  >
+                    <div class="flex min-w-0 items-center gap-1.5">
+                      <Icon :icon="selectedToolModeOption.icon" class="h-3.5 w-3.5 shrink-0" />
+                      <span class="truncate">{{ selectedToolModeOption.label }}</span>
+                    </div>
+                    <Icon
+                      icon="lucide:chevron-down"
+                      class="h-3 w-3 shrink-0 text-muted-foreground"
+                    />
+                  </DcButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" class="w-72">
+                  <template
+                    v-for="(option, index) in toolModeOptions"
+                    :key="option.value ?? 'model-default'"
+                  >
+                    <DropdownMenuSeparator v-if="index === 1" />
+                    <DropdownMenuItem
+                      class="items-start gap-2 px-2 py-1.5 text-xs"
+                      @select="form.defaultToolMode = option.value"
+                    >
+                      <Icon :icon="option.icon" class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <div class="min-w-0 flex-1">
+                        <div>{{ option.label }}</div>
+                        <div class="text-[11px] text-muted-foreground">
+                          {{ option.description }}
+                        </div>
+                      </div>
+                      <Icon
+                        v-if="form.defaultToolMode === option.value"
+                        icon="lucide:check"
+                        class="mt-0.5 h-3.5 w-3.5 shrink-0"
+                      />
+                    </DropdownMenuItem>
+                  </template>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <div v-if="showCodeModePermissionHint" class="flex gap-1 text-[11px] text-orange-500">
+                <Icon icon="lucide:triangle-alert" class="mt-0.5 h-3 w-3 shrink-0" />
+                <span>
+                  {{
+                    t('settings.deepchatAgents.defaultToolModeCodePermissionHint', {
+                      permission: t('settings.deepchatAgents.permissionFullAccess')
+                    })
+                  }}
+                </span>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -864,6 +923,12 @@ import { useModelStore } from '@/stores/modelStore'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { ModelType } from '@shared/model'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
+import {
+  normalizeToolModeOverride,
+  ToolModeSchema,
+  type ToolMode,
+  type ToolModeOverride
+} from '@shared/toolMode'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
   Agent,
@@ -938,6 +1003,7 @@ type FormState = {
   defaultProjectPath: string
   systemPrompt: string
   permissionMode: PermissionMode
+  defaultToolMode: ToolModeOverride
   subagentEnabled: boolean
   subagents: EditableSubagentSlot[]
   disabledAgentTools: string[]
@@ -968,6 +1034,7 @@ const CONFIG_DIFF_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
   'defaultProjectPath',
   'systemPrompt',
   'permissionMode',
+  'defaultToolMode',
   'subagentEnabled',
   'subagents',
   'disabledAgentTools',
@@ -1055,6 +1122,7 @@ const form = reactive<FormState>({
   defaultProjectPath: '',
   systemPrompt: '',
   permissionMode: 'full_access',
+  defaultToolMode: null,
   subagentEnabled: true,
   subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
   disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
@@ -1129,6 +1197,35 @@ const permissionIcon = computed(
   () =>
     permissionOptions.value.find((option) => option.value === form.permissionMode)?.icon ??
     'lucide:shield'
+)
+const TOOL_MODE_ICONS: Record<ToolMode, string> = {
+  agent: 'lucide:bot',
+  code: 'lucide:code',
+  minimal: 'lucide:feather'
+}
+const toolModeOptions = computed<
+  Array<{ value: ToolModeOverride; label: string; description: string; icon: string }>
+>(() => [
+  {
+    value: null,
+    label: t('chat.input.toolMode.modelDefault'),
+    description: t('settings.deepchatAgents.defaultToolModeModelDefaultDesc'),
+    icon: 'lucide:sparkles'
+  },
+  ...ToolModeSchema.options.map((mode) => ({
+    value: mode,
+    label: t(`chat.input.toolMode.options.${mode}`),
+    description: t(`chat.input.toolMode.descriptions.${mode}`),
+    icon: TOOL_MODE_ICONS[mode]
+  }))
+])
+const selectedToolModeOption = computed(
+  () =>
+    toolModeOptions.value.find((option) => option.value === form.defaultToolMode) ??
+    toolModeOptions.value[0]
+)
+const showCodeModePermissionHint = computed(
+  () => form.defaultToolMode === 'code' && form.permissionMode !== 'full_access'
 )
 const pathLabel = (value: string) => value.split(/[/\\]/).pop() ?? value
 const directoryOptions = computed(() => {
@@ -1317,6 +1414,7 @@ const emptyForm = (): FormState => ({
   defaultProjectPath: '',
   systemPrompt: '',
   permissionMode: 'full_access',
+  defaultToolMode: null,
   subagentEnabled: true,
   subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
   disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
@@ -1394,6 +1492,7 @@ const buildEditableConfig = (state: FormState): DeepChatAgentConfig => {
     defaultProjectPath: normalizePath(state.defaultProjectPath),
     systemPrompt: state.systemPrompt,
     permissionMode: state.permissionMode,
+    defaultToolMode: state.defaultToolMode,
     subagentEnabled: state.subagentEnabled,
     subagents: normalizeDeepChatSubagentSlots(state.subagents),
     disabledAgentTools: [...state.disabledAgentTools].sort(),
@@ -1528,6 +1627,7 @@ const fromAgent = (agent?: Agent | null): FormState => {
     defaultProjectPath: normalizePath(config.defaultProjectPath) ?? '',
     systemPrompt: config.systemPrompt ?? '',
     permissionMode: config.permissionMode === 'default' ? 'default' : 'full_access',
+    defaultToolMode: normalizeToolModeOverride(config.defaultToolMode),
     subagentEnabled: config.subagentEnabled ?? true,
     subagents: normalizeDeepChatSubagentSlots(
       config.subagents ?? createDefaultDeepChatSubagentSlots()

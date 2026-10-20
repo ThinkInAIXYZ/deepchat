@@ -92,7 +92,16 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
       disabledAgentTools:
         descriptor.kind === 'deepchat'
           ? normalizeDisabledAgentTools(input.disabledAgentTools ?? agentConfig?.disabledAgentTools)
-          : []
+          : [],
+      // An explicit null means the caller chose the model default, so only undefined inherits.
+      toolModeOverride:
+        descriptor.kind === 'deepchat'
+          ? normalizeToolModeOverride(
+              input.toolModeOverride === undefined
+                ? agentConfig?.defaultToolMode
+                : input.toolModeOverride
+            )
+          : null
     }
   }
 

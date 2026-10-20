@@ -854,6 +854,7 @@ describe('DeepChatAgentRepository', () => {
         JSON.stringify({
           systemPrompt: 'Legacy builtin prompt',
           permissionMode: 'default',
+          defaultToolMode: 'code',
           disabledAgentTools: ['exec', 'write'],
           enabledSkillNames: ['skill-a'],
           enabledMcpServerIds: ['server-a'],
@@ -861,7 +862,11 @@ describe('DeepChatAgentRepository', () => {
         })
       ),
       makeRow('configless', 'manual', null),
-      makeRow('writer', 'manual', JSON.stringify({ systemPrompt: 'Writer prompt' })),
+      makeRow(
+        'writer',
+        'manual',
+        JSON.stringify({ systemPrompt: 'Writer prompt', defaultToolMode: null })
+      ),
       makeRow('broken', 'manual', '{broken')
     ])
 
@@ -878,6 +883,7 @@ describe('DeepChatAgentRepository', () => {
     expect(JSON.parse(rows.get('configless').config_json)).toMatchObject({
       systemPrompt: 'Legacy builtin prompt',
       permissionMode: 'default',
+      defaultToolMode: 'code',
       disabledAgentTools: ['exec', 'write'],
       enabledSkillNames: ['skill-a'],
       enabledMcpServerIds: ['server-a'],
@@ -886,6 +892,7 @@ describe('DeepChatAgentRepository', () => {
     expect(JSON.parse(rows.get('writer').config_json)).toMatchObject({
       systemPrompt: 'Writer prompt',
       permissionMode: 'default',
+      defaultToolMode: null,
       disabledAgentTools: ['exec', 'write'],
       enabledSkillNames: ['skill-a'],
       enabledMcpServerIds: ['server-a'],

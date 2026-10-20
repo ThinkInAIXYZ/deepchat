@@ -37,7 +37,6 @@ import {
   normalizeOrchestrationPolicy
 } from '@shared/orchestration/policy'
 import type { SessionDeletionGatePort } from './deletionGate'
-import { normalizeToolModeOverride } from '@shared/toolMode'
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 
@@ -149,6 +148,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       permissionMode: input.permissionMode,
       generationSettings: input.generationSettings,
       disabledAgentTools: input.disabledAgentTools,
+      toolModeOverride: input.toolModeOverride,
       preserveExplicitNullProjectDir: true
     })
     options?.signal?.throwIfAborted()
@@ -249,6 +249,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       permissionMode: input.permissionMode,
       generationSettings: input.generationSettings,
       disabledAgentTools: input.disabledAgentTools,
+      toolModeOverride: input.toolModeOverride,
       preserveExplicitNullProjectDir: false
     })
     return await this.dependencies.agentLifecycle.runWithAgentOperation(
@@ -274,10 +275,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
 
   private async createInitializedRegularSession(
     title: string,
-    input: Pick<
-      CreateDetachedSessionInput,
-      'orchestrationPolicy' | 'toolModeOverride' | 'metadata'
-    >,
+    input: Pick<CreateDetachedSessionInput, 'orchestrationPolicy' | 'metadata'>,
     assignment: ResolvedSessionAssignment,
     signal?: AbortSignal,
     draftSessionId?: string
@@ -300,10 +298,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       isDraft: false,
       disabledAgentTools,
       orchestrationPolicy,
-      toolModeOverride:
-        assignment.agentType === 'deepchat'
-          ? normalizeToolModeOverride(input.toolModeOverride)
-          : null,
+      toolModeOverride: assignment.toolModeOverride,
       metadata: input.metadata ?? null
     }
     const sessionId = draftSessionId

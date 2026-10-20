@@ -406,6 +406,7 @@ export interface CreateAssignmentInput {
   permissionMode?: PermissionMode
   generationSettings?: Partial<SessionGenerationSettings>
   disabledAgentTools?: string[]
+  toolModeOverride?: ToolModeOverride
   preserveExplicitNullProjectDir: boolean
 }
 
@@ -418,6 +419,7 @@ export interface ResolvedSessionAssignment {
   permissionMode: PermissionMode
   generationSettings?: Partial<SessionGenerationSettings>
   disabledAgentTools: string[]
+  toolModeOverride: ToolModeOverride
 }
 
 export interface SubagentAssignmentInput {
