@@ -2,21 +2,21 @@
   <ScrollArea class="h-full w-full">
     <section
       :data-testid="dataTestid"
-      class="mx-auto flex min-h-full w-full max-w-7xl min-w-0 flex-col gap-4 p-4 lg:p-6"
+      class="mx-auto flex min-h-full w-full max-w-5xl min-w-0 flex-col gap-8 px-5 py-8 lg:px-10 lg:py-10"
     >
       <header
         :class="[
           'flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between',
           stickyHeader
-            ? 'sticky top-0 z-20 -mx-4 border-b border-border/80 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/85 lg:-mx-6 lg:px-6'
+            ? 'sticky top-0 z-[var(--dc-z-sticky)] border-b border-border bg-background py-3'
             : ''
         ]"
       >
         <div class="min-w-0">
-          <div v-if="eyebrow" class="text-xs font-medium text-muted-foreground">
+          <div v-if="eyebrow" class="mb-2 text-xs text-muted-foreground">
             {{ eyebrow }}
           </div>
-          <h1 class="truncate text-xl font-semibold text-foreground">
+          <h1 class="text-2xl font-semibold text-foreground">
             {{ title }}
           </h1>
           <p v-if="description" class="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">

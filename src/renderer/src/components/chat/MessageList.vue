@@ -1,6 +1,6 @@
 <template>
   <div data-testid="chat-message-list" class="chat-message-list w-full min-w-0">
-    <div class="mx-auto w-full max-w-5xl px-6 py-6">
+    <div class="mx-auto w-full max-w-[var(--dc-chat-content-width)] px-6 py-6">
       <div data-message-window-origin aria-hidden="true" class="h-0 w-full" />
       <div
         v-if="beforeSpacerHeight > 0"

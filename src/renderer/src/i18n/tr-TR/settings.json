@@ -1,6 +1,8 @@
 {
   "title": "Ayarlar",
   "common": {
+    "returnToChat": "Sohbete dön",
+    "navigationSearch": "Ayarlarda ara",
     "commandShell": {
       "title": "Agent komut kabuğu",
       "auto": "Otomatik",

@@ -1,5 +1,5 @@
 <template>
-  <Card>
+  <Card class="gap-0 rounded-xl bg-background shadow-none">
     <CardHeader v-if="title || description || $slots.actions" class="gap-2">
       <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div class="min-w-0">

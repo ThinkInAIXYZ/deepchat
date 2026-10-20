@@ -1,6 +1,8 @@
 {
   "title": "設定",
   "common": {
+    "returnToChat": "返回對話",
+    "navigationSearch": "搜尋設定",
     "commandShell": {
       "title": "Agent 命令 Shell",
       "auto": "自動",

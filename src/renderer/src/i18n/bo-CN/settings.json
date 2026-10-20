@@ -1,6 +1,8 @@
 {
   "title": "སྒྲིག་འགོད།",
   "common": {
+    "returnToChat": "Back to chat",
+    "navigationSearch": "Search settings",
     "commandShell": {
       "title": "Agent བཀོད་འདོམས་Shell",
       "auto": "རང་འགུལ།",

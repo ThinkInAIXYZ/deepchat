@@ -1,6 +1,8 @@
 {
   "title": "Indstillinger",
   "common": {
+    "returnToChat": "Tilbage til chat",
+    "navigationSearch": "Søg i indstillinger",
     "commandShell": {
       "title": "Agentens kommandoskal",
       "auto": "Automatisk",

@@ -20,6 +20,7 @@ test('agent drafts survive switches, deselection and reload @smoke', async ({ ap
 
     await selectAgent(app.page, 'deepchat')
     await expect(editor).toHaveText('Draft for DeepChat')
+    await app.page.getByTestId('sidebar-agent-selector').click()
     await app.page.getByTestId('sidebar-agent-all-button').click()
     await expect(editor).toHaveCount(0)
     await selectAgent(app.page, 'deepchat')

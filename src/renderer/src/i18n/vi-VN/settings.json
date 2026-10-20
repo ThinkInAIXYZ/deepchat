@@ -1,6 +1,8 @@
 {
   "title": "Cài đặt",
   "common": {
+    "returnToChat": "Quay lại trò chuyện",
+    "navigationSearch": "Tìm kiếm cài đặt",
     "commandShell": {
       "title": "Shell lệnh của tác nhân",
       "auto": "Tự động",

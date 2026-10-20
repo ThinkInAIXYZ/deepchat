@@ -1,6 +1,8 @@
 {
   "title": "Paramètres",
   "common": {
+    "returnToChat": "Retour à la discussion",
+    "navigationSearch": "Rechercher dans les paramètres",
     "commandShell": {
       "title": "Shell de commandes de l’agent",
       "auto": "Automatique",

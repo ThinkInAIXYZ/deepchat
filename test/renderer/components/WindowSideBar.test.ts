@@ -691,7 +691,7 @@ describe('WindowSideBar agent switch', () => {
       await flushPromises()
 
       expect(sidebarStore.setCollapsed).toHaveBeenCalledWith(false)
-      expect(wrapper.get('[data-testid="window-sidebar"]').classes()).toContain('w-[288px]')
+      expect(wrapper.get('[data-testid="window-sidebar"]').classes()).toContain('w-[264px]')
       expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
       expect(operations).toEqual(['close', 'set:acp-a'])
     },
@@ -1836,7 +1836,7 @@ describe('WindowSideBar agent switch', () => {
     async () => {
       const { wrapper, sidebarStore } = await setup()
 
-      expect(wrapper.get('[data-testid=\"window-sidebar\"]').classes()).toContain('w-[288px]')
+      expect(wrapper.get('[data-testid=\"window-sidebar\"]').classes()).toContain('w-[264px]')
 
       await wrapper.get('[data-testid=\"window-sidebar-toggle\"]').trigger('click')
       await flushPromises()

@@ -12,8 +12,8 @@
             class="rounded-lg border transition-colors"
             :class="
               job.id === selectedJobId
-                ? 'border-primary/60 bg-accent/40'
-                : 'border-border bg-card/30 hover:bg-accent/20'
+                ? 'border-transparent bg-accent'
+                : 'border-transparent bg-background hover:bg-muted'
             "
           >
             <div class="flex items-start gap-2 p-3">

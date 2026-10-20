@@ -4,8 +4,7 @@
       <Transition name="dc-spotlight">
         <DialogOverlay v-if="spotlightStore.open" as-child>
           <div
-            class="spotlight-overlay window-no-drag-region fixed bottom-0 right-0 top-0 flex items-start justify-center px-4 pt-16"
-            :style="overlayStyle"
+            class="spotlight-overlay window-no-drag-region fixed inset-0 z-[var(--dc-z-spotlight)] flex items-start justify-center bg-foreground/10 px-4 pt-[min(16vh,8rem)] backdrop-blur-sm"
             @mousedown.self="spotlightStore.closeSpotlight()"
           >
             <DialogContent
@@ -15,7 +14,7 @@
               @close-auto-focus.prevent="restoreFocus"
             >
               <div
-                class="spotlight-panel window-no-drag-region flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl"
+                class="spotlight-panel window-no-drag-region flex w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-lg"
               >
                 <DialogTitle class="sr-only">{{ t('chat.spotlight.placeholder') }}</DialogTitle>
                 <div class="flex items-center gap-3 border-b border-border/60 px-4 py-3">
@@ -47,7 +46,7 @@
 
                 <div
                   ref="resultsContainerRef"
-                  class="dc-overscroll-contain max-h-[28rem] overflow-y-auto p-2"
+                  class="dc-overscroll-contain min-h-[min(24rem,45vh)] max-h-[55vh] overflow-y-auto p-2"
                 >
                   <div :id="resultsId" role="listbox" :aria-label="t('chat.spotlight.placeholder')">
                     <template v-if="spotlightStore.results.length > 0">
@@ -60,7 +59,7 @@
                         :aria-selected="index === spotlightStore.activeIndex"
                         v-memo="[item, index === spotlightStore.activeIndex, spotlightStore.query]"
                         type="button"
-                        class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left"
+                        class="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left"
                         :class="
                           index === spotlightStore.activeIndex
                             ? 'bg-accent text-accent-foreground'
@@ -97,9 +96,7 @@
                                 <template v-else>{{ segment.text }}</template>
                               </template>
                             </span>
-                            <span
-                              class="shrink-0 rounded-full border border-border/70 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground"
-                            >
+                            <span class="shrink-0 text-[11px] text-muted-foreground">
                               {{ t(`chat.spotlight.kind.${item.kind}`) }}
                             </span>
                           </span>
@@ -170,10 +167,8 @@ import {
 } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
 import { useSpotlightStore, type SpotlightItem } from '@/stores/ui/spotlight'
-import { useSidebarStore } from '@/stores/ui/sidebar'
 
 const spotlightStore = useSpotlightStore()
-const sidebarStore = useSidebarStore()
 const { t } = useI18n()
 const resultsId = useId()
 const hintsId = useId()
@@ -194,12 +189,6 @@ const pointerActivatedItemId = ref<string | null>(null)
 let activeChangeSource: 'keyboard' | 'mouse' = 'keyboard'
 let mouseEnterRaf = 0
 let pendingMouseEnterId: string | number | null = null
-
-const sidebarWidth = computed(() => (sidebarStore.collapsed ? 48 : 288))
-const overlayStyle = computed(() => ({
-  zIndex: 'var(--dc-z-spotlight)',
-  left: `${sidebarWidth.value}px`
-}))
 
 const focusInput = () => {
   nextTick(() => {
@@ -407,118 +396,7 @@ input {
 
 .dc-spotlight-enter-active .spotlight-panel,
 .dc-spotlight-leave-active .spotlight-panel {
-  transition: opacity 80ms var(--dc-ease-out-soft);
-}
-
-.dc-spotlight-enter-from,
-.dc-spotlight-leave-to {
-  opacity: 0;
-}
-
-.dc-spotlight-enter-from .spotlight-panel,
-.dc-spotlight-leave-to .spotlight-panel {
-  opacity: 0;
-  transform: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dc-spotlight-enter-active,
-  .dc-spotlight-leave-active,
-  .dc-spotlight-enter-active .spotlight-panel,
-  .dc-spotlight-leave-active .spotlight-panel {
-    transition: none;
-  }
-
-  .dc-spotlight-enter-from .spotlight-panel,
-  .dc-spotlight-leave-to .spotlight-panel {
-    transform: none;
-  }
-}
-
-.spotlight-panel {
   isolation: isolate;
   position: relative;
-  border: 1px solid transparent;
-  backdrop-filter: blur(var(--dc-blur-overlay));
-  -webkit-backdrop-filter: blur(var(--dc-blur-overlay));
-  background: linear-gradient(
-    180deg,
-    hsl(var(--background) / 0.72) 0%,
-    hsl(var(--background) / 0.58) 100%
-  );
-  box-shadow:
-    0 32px 64px -24px rgb(15 23 42 / 0.28),
-    0 16px 32px -16px rgb(15 23 42 / 0.12),
-    inset 0 1px 0 rgb(255 255 255 / 0.48),
-    inset 0 -12px 24px -20px rgb(148 163 184 / 0.18);
-}
-
-.spotlight-panel::before {
-  content: '';
-  position: absolute;
-  inset: 1px;
-  z-index: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background:
-    linear-gradient(
-      160deg,
-      rgb(255 255 255 / 0.64) 0%,
-      transparent 38%,
-      rgb(255 255 255 / 0.14) 100%
-    ),
-    linear-gradient(180deg, hsl(var(--card) / 0.52) 0%, hsl(var(--muted) / 0.34) 100%);
-  opacity: 0.74;
-}
-
-.spotlight-panel::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  border-radius: inherit;
-  pointer-events: none;
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, white 26%, hsl(var(--border)) 74%),
-    inset 0 1px 0 rgb(255 255 255 / 0.28);
-  opacity: 0.84;
-}
-
-.spotlight-panel > * {
-  position: relative;
-  z-index: 3;
-}
-
-.dark .spotlight-panel {
-  border-color: transparent;
-  background: linear-gradient(
-    180deg,
-    hsl(var(--background) / 0.62) 0%,
-    hsl(var(--background) / 0.46) 100%
-  );
-  box-shadow:
-    0 32px 64px -28px rgb(0 0 0 / 0.56),
-    0 16px 32px -20px rgb(0 0 0 / 0.32),
-    inset 0 1px 0 rgb(255 255 255 / 0.08),
-    inset 0 -14px 28px -22px rgb(0 0 0 / 0.4);
-}
-
-.dark .spotlight-panel::before {
-  background:
-    linear-gradient(
-      160deg,
-      rgb(255 255 255 / 0.1) 0%,
-      transparent 40%,
-      rgb(255 255 255 / 0.03) 100%
-    ),
-    linear-gradient(180deg, hsl(var(--card) / 0.44) 0%, hsl(var(--muted) / 0.28) 100%);
-  opacity: 0.66;
-}
-
-.dark .spotlight-panel::after {
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, white 9%, hsl(var(--border)) 91%),
-    inset 0 1px 0 rgb(255 255 255 / 0.08);
-  opacity: 0.88;
 }
 </style>

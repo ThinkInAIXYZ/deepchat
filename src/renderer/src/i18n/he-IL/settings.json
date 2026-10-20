@@ -1,6 +1,8 @@
 {
   "title": "הגדרות",
   "common": {
+    "returnToChat": "חזרה לצ׳אט",
+    "navigationSearch": "חיפוש בהגדרות",
     "commandShell": {
       "title": "מעטפת הפקודות של הסוכן",
       "auto": "אוטומטי",

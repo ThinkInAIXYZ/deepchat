@@ -6,98 +6,25 @@
       class="relative h-full w-full flex flex-col"
     >
       <!-- Main content area (centered) -->
-      <div class="flex-1 flex flex-col items-center justify-center px-6">
+      <div class="flex-1 flex flex-col items-center justify-center px-4 pb-12 sm:px-6">
         <!-- Logo -->
-        <div class="mb-4">
-          <img src="@/assets/logo-dark.png" class="w-14 h-14" loading="lazy" />
+        <div class="mb-5">
+          <img src="@/assets/logo-dark.png" class="size-9" loading="lazy" />
         </div>
 
         <!-- Heading -->
-        <h1 class="text-3xl font-semibold text-foreground mb-4">
+        <h1 class="text-2xl font-semibold text-foreground mb-7">
           {{ t('chat.newThread.title') }}
         </h1>
 
-        <!-- Project selector -->
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <DcButton
-              variant="ghost"
-              size="sm"
-              data-testid="new-thread-project-trigger"
-              class="h-7 px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6"
-            >
-              <Icon
-                :icon="selectedProjectIcon"
-                :data-icon="selectedProjectIcon"
-                data-testid="new-thread-project-trigger-icon"
-                class="w-3.5 h-3.5"
-              />
-              <span>{{ selectedProjectName }}</span>
-              <Icon
-                v-if="selectedProjectDirectoryInvalid"
-                icon="lucide:circle-alert"
-                data-testid="new-thread-project-missing-warning"
-                class="w-3.5 h-3.5 text-amber-500"
-                :title="selectedProjectUnavailableTooltip"
-              />
-              <Icon icon="lucide:chevron-down" class="w-3 h-3" />
-            </DcButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="center"
-            class="min-w-[200px] max-h-[min(28rem,calc(var(--reka-dropdown-menu-content-available-height)-0.75rem))] overflow-y-auto"
-          >
-            <DropdownMenuLabel class="text-xs">{{ t('common.project.recent') }}</DropdownMenuLabel>
-            <DropdownMenuItem
-              data-testid="new-thread-clear-project"
-              class="gap-2 text-xs py-1.5 px-2"
-              :disabled="!canClearProjectSelection"
-              @click="clearSelectedProject"
-            >
-              <Icon
-                :icon="chatProjectIcon"
-                :data-icon="chatProjectIcon"
-                data-testid="new-thread-clear-project-icon"
-                class="w-3.5 h-3.5 text-muted-foreground"
-              />
-              <span>{{ t('chat.sidebar.chats') }}</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              v-for="project in selectableProjects"
-              :key="project.path"
-              class="gap-2 text-xs py-1.5 px-2"
-              @click="projectStore.selectProject(project.path)"
-            >
-              <Icon
-                :icon="getProjectMenuIcon(project.path)"
-                class="w-3.5 h-3.5 text-muted-foreground"
-              />
-              <div class="flex flex-col min-w-0 flex-1">
-                <span class="truncate">{{ getProjectDisplayName(project) }}</span>
-                <span class="text-[10px] text-muted-foreground truncate">{{ project.path }}</span>
-              </div>
-              <Icon
-                v-if="isSelectedInvalidProjectPath(project.path)"
-                icon="lucide:circle-alert"
-                data-testid="new-thread-project-menu-missing-warning"
-                class="w-3.5 h-3.5 text-amber-500 shrink-0"
-                :title="selectedProjectUnavailableTooltip"
-              />
-            </DropdownMenuItem>
-            <DcDropdownActionItem
-              icon="lucide:folder-open"
-              :label="t('common.project.openFolder')"
-              class="text-xs py-1.5 px-2"
-              @select="handleOpenFolderPicker"
-            />
-          </DropdownMenuContent>
-        </DropdownMenu>
-
         <!-- Input area -->
-        <div ref="firstChatGuideHostRef" :class="['w-full max-w-4xl flex justify-center']">
+        <div
+          ref="firstChatGuideHostRef"
+          :class="['w-full max-w-[var(--dc-chat-content-width)] flex justify-center']"
+        >
           <ChatInputBox
             ref="chatInputRef"
+            max-width-class="max-w-none"
             :class="activeChatGuide?.key === 'first-chat' ? 'relative z-30 rounded-2xl' : ''"
             :model-value="message"
             :files="attachedFiles"
@@ -144,14 +71,22 @@
                 @voice-input="onToggleVoiceInput"
                 @send="onSubmit"
                 @cancel-preparation="cancelSubmissionPreparation"
-              />
+              >
+                <template #settings>
+                  <ChatStatusBar
+                    ref="chatStatusBarRef"
+                    :acp-draft-session-id="acpDraftSessionId"
+                    max-width-class="max-w-none"
+                  />
+                </template>
+              </ChatInputToolbar>
             </template>
           </ChatInputBox>
         </div>
 
         <div
           v-if="acpAuthChallenge"
-          class="mt-3 w-full max-w-4xl flex items-center justify-between gap-4 rounded-lg border px-3 py-2"
+          class="mt-3 w-full max-w-[var(--dc-chat-content-width)] flex items-center justify-between gap-4 rounded-lg border px-3 py-2"
         >
           <div class="min-w-0">
             <div class="text-sm font-medium">
@@ -166,8 +101,86 @@
           </DcButton>
         </div>
 
-        <!-- Status bar -->
-        <ChatStatusBar ref="chatStatusBarRef" :acp-draft-session-id="acpDraftSessionId" />
+        <div class="mt-2 w-full max-w-[var(--dc-chat-content-width)]">
+          <!-- Project selector -->
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <DcButton
+                variant="ghost"
+                size="sm"
+                data-testid="new-thread-project-trigger"
+                class="h-7 px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <Icon
+                  :icon="selectedProjectIcon"
+                  :data-icon="selectedProjectIcon"
+                  data-testid="new-thread-project-trigger-icon"
+                  class="w-3.5 h-3.5"
+                />
+                <span>{{ selectedProjectName }}</span>
+                <Icon
+                  v-if="selectedProjectDirectoryInvalid"
+                  icon="lucide:circle-alert"
+                  data-testid="new-thread-project-missing-warning"
+                  class="w-3.5 h-3.5 text-amber-500"
+                  :title="selectedProjectUnavailableTooltip"
+                />
+                <Icon icon="lucide:chevron-down" class="w-3 h-3" />
+              </DcButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="center"
+              class="min-w-[200px] max-h-[min(28rem,calc(var(--reka-dropdown-menu-content-available-height)-0.75rem))] overflow-y-auto"
+            >
+              <DropdownMenuLabel class="text-xs">{{
+                t('common.project.recent')
+              }}</DropdownMenuLabel>
+              <DropdownMenuItem
+                data-testid="new-thread-clear-project"
+                class="gap-2 text-xs py-1.5 px-2"
+                :disabled="!canClearProjectSelection"
+                @click="clearSelectedProject"
+              >
+                <Icon
+                  :icon="chatProjectIcon"
+                  :data-icon="chatProjectIcon"
+                  data-testid="new-thread-clear-project-icon"
+                  class="w-3.5 h-3.5 text-muted-foreground"
+                />
+                <span>{{ t('chat.sidebar.chats') }}</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                v-for="project in selectableProjects"
+                :key="project.path"
+                class="gap-2 text-xs py-1.5 px-2"
+                @click="projectStore.selectProject(project.path)"
+              >
+                <Icon
+                  :icon="getProjectMenuIcon(project.path)"
+                  class="w-3.5 h-3.5 text-muted-foreground"
+                />
+                <div class="flex flex-col min-w-0 flex-1">
+                  <span class="truncate">{{ getProjectDisplayName(project) }}</span>
+                  <span class="text-[10px] text-muted-foreground truncate">{{ project.path }}</span>
+                </div>
+                <Icon
+                  v-if="isSelectedInvalidProjectPath(project.path)"
+                  icon="lucide:circle-alert"
+                  data-testid="new-thread-project-menu-missing-warning"
+                  class="w-3.5 h-3.5 text-amber-500 shrink-0"
+                  :title="selectedProjectUnavailableTooltip"
+                />
+              </DropdownMenuItem>
+              <DcDropdownActionItem
+                icon="lucide:folder-open"
+                :label="t('common.project.openFolder')"
+                class="text-xs py-1.5 px-2"
+                @select="handleOpenFolderPicker"
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       <GuidedOnboardingOverlay

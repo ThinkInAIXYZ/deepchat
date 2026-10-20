@@ -60,105 +60,44 @@
 
 ---
 
-## 二、语义色（shadcn 风格）
+## 二、Semantic surfaces
 
-### 2.1 Light 模式
+The desktop palette is shared by chat, settings, search, plugins and workspace panels. Components
+consume these semantic values rather than defining local palettes.
 
-| Token | 值 | 用途 |
-|-------|-----|------|
-| `background` | `#fff` | 页面背景 |
-| `foreground` | `hsl(0 0 15% / 1)` | 正文文字 |
-| `card` | `#fff` | 卡片背景 |
-| `card-foreground` | `hsl(0 0 15% / 1)` | 卡片文字 |
-| `popover` | `#fff` | 弹出层背景 |
-| `popover-foreground` | `hsl(0 0 15% / 1)` | 弹出层文字 |
-| `primary` | `hsl(210 100% 43%)` | 主色 |
-| `primary-foreground` | `#fff` | 主色上文字 |
-| `secondary` | `hsl(0 0 0% / 0.05)` | 次要色 |
-| `secondary-foreground` | `hsl(0 0 15% / 0.5)` | 次要色文字 |
-| `muted` | `hsl(0 0 0% / 0.03)` | 柔和背景 |
-| `muted-foreground` | `hsl(0 0 15% / 0.5)` | 柔和文字 |
-| `accent` | `hsl(0 0 15% / 0.05)` | 强调背景 |
-| `accent-foreground` | `hsl(0 0 15% / 0.8)` | 强调文字 |
-| `destructive` | `hsl(0 84.2% 60.2%)` | 危险/删除 |
-| `destructive-foreground` | `hsl(0 0% 98%)` | 危险上文字 |
-| `border` | 默认 `base-200` → `hsl(0 0% 93.4%)` | 边框 |
-| `input` | `hsl(0 0 10% / 0.1)` | 输入框边框 |
-| `ring` | `primary-600` → `hsl(209.9 100% 42.9%)` | 聚焦环 |
-| `chart-1` ~ `chart-5` | 对应 `primary-600/200/400/300/100` | 图表色 |
+| Token | Light | Dark | Purpose |
+|---|---|---|---|
+| `background` | `#ffffff` | `#191b1d` | Main reading canvas |
+| `foreground` | `#24272b` | `#e6e9ed` | Primary text |
+| `card` / `popover` | `#ffffff` | `#24272a` | Composer and floating surfaces |
+| `card-foreground` / `popover-foreground` | `#24272b` | `#e6e9ed` | Surface text |
+| `sidebar` / `container` | `#f3f4f5` | `#222426` | Navigation and window shell |
+| `sidebar-foreground` | `#24272b` | `#e6e9ed` | Navigation text |
+| `secondary` | `#f3f4f5` | `#2a2d32` | Secondary controls |
+| `muted` | `#f3f4f5` | `#24272a` | Quiet content and user bubbles |
+| `secondary-foreground` / `muted-foreground` | `#626973` | `#a0a7b1` | Readable secondary text |
+| `accent` / `sidebar-accent` | `#e8ebef` | `#30363e` | Neutral selection and hover |
+| `accent-foreground` / `sidebar-accent-foreground` | `#24272b` | `#e6e9ed` | Selected text |
+| `border` / `sidebar-border` | `#e2e5e9` | `#343940` | Structural dividers |
+| `input` | `#d5dae0` | `#414851` | Input boundaries |
+| `primary` | `hsl(210 100% 43%)` | same | Blue primary actions; white foreground |
+| `ring` | `primary-600` | `#62aaff` | Keyboard focus |
 
-### 2.2 Sidebar 侧边栏
+## 三、Custom semantic aliases
 
-| Token | Light | Dark |
-|-------|-------|------|
-| `sidebar` | `#fff` | `base-900` |
-| `sidebar-foreground` | `base-800` | `base-200` |
-| `sidebar-primary` | `primary-600` | (继承) |
-| `sidebar-primary-foreground` | `#fff` | (继承) |
-| `sidebar-accent` | `base-50` | `base-800` |
-| `sidebar-accent-foreground` | `base-800` | `base-200` |
-| `sidebar-border` | `base-200` | `base-800` |
-| `sidebar-ring` | `primary-600` | (继承) |
+| Token | Light | Dark | Purpose |
+|---|---|---|---|
+| `bg-window-background` | `sidebar` | `sidebar` | Solid window background |
+| `bg-card` | `card` | `card` | Surface alias |
+| `bg-accent` | `accent` | `accent` | Interaction alias |
+| `text-foreground` / `text-accent-foreground` | `#24272b` | `#e6e9ed` | Text aliases |
+| `text-secondary-foreground` | `#626973` | `#a0a7b1` | Secondary text alias |
+| `text-muted-foreground` | `#6b737e` | `#a0a7b1` | Quiet but readable text |
+| `text-primary` | brand blue | `#62aaff` | Readable blue text |
 
-### 2.3 Dark 模式覆盖
-
-| Token | Dark 值 |
-|-------|---------|
-| `background` | `hsl(0 0 5% / 1)` |
-| `foreground` | `base-200` |
-| `card` | `#121212` → `hsl(0 0% 7.1%)` |
-| `card-foreground` | `base-200` |
-| `popover` | `#121212` → `hsl(0 0% 7.1%)` |
-| `popover-foreground` | `#fff` |
-| `secondary` | `hsl(0 0 100% / 0.05)` |
-| `secondary-foreground` | `base-50` |
-| `muted` | `hsl(0 0 100% / 0.03)` |
-| `muted-foreground` | `hsl(0 0 100% / 0.5)` |
-| `accent` | `hsl(0 0 100% / 0.1)`（Dashboard interactive-card hover 基准） |
-| `accent-foreground` | `hsl(0 0 100% / 0.8)` |
-| `destructive` | `hsl(0 62.8% 30.6%)` |
-| `border` | `base-800` |
-| `input` | `base-700` |
-
----
-
-## 三、自定义语义 Token（新主题体系）
-
-### 3.1 背景类
-
-| Token | Light | Dark |
-|-------|-------|------|
-| `bg-accent` | `hsl(0 0 15% / 0.05)` | `hsl(0 0 100% / 0.05)` |
-| `bg-window-background` | `hsl(0 0 95% / 0.8)` | `hsl(0 0 5% / 0.5)` |
-| `bg-background-70` | `hsl(0 0 100% / 0.7)` | `hsl(0 0 15% / 0.7)` |
-| `bg-card` | `hsl(0 0 100%)` | `hsl(217 6% 15%)` |
-| `bg-muted` | (继承 `muted`) | `hsl(0 0 100% / 0.03)` |
-| `bg-primary` | `hsl(210 100% 43%)` | (相同) |
-| `bg-primary-70` | `hsl(210 100% 43% / 0.7)` | (相同) |
-| `bg-primary-700` | `hsl(210 100% 37%)` | (相同) |
-
-### 3.2 文字类
-
-| Token | Light | Dark |
-|-------|-------|------|
-| `text-foreground` | `hsl(0 0% 14%)` | `hsl(0 0 100%)` |
-| `text-primary` | `hsl(210 100% 43%)` | (相同) |
-| `text-primary-foreground` | `hsl(0 0 100%)` | (相同) |
-| `text-accent-foreground` | `hsl(0 0 15% / 0.8)` | `hsl(0 0 100% / 0.8)` |
-| `text-secondary-foreground` | `hsl(0 0 15% / 0.5)` | `hsl(0 0 100% / 0.5)` |
-| `text-muted-foreground` | `hsl(0 0 15% / 0.2)` | `hsl(0 0 100% / 0.2)` |
-| `text-green` | `hsl(142 71% 45%)` | (相同) |
-| `text-red` | `hsl(0 73% 58%)` | (相同) |
-| `text-skeleton-primary` | `hsl(0 0 15% / 0.05)` | `hsl(0 0 100% / 0.05)` |
-
-### 3.3 边框 / 阴影 / 窗口
-
-| Token | Light | Dark |
-|-------|-------|------|
-| `border` | `hsl(0 0 0% / 0.05)` | `hsl(0 0 100% / 0.05)` |
-| `border-window-outside` | `hsl(0 0 21% / 0.25)` | `hsl(0 0 0% / 0.4)` |
-| `shadow-card` | `hsl(0 0 0% / 0.1)` | `hsl(0 0 0% / 0.4)` |
-| `window-inner-border` | `hsl(0 0 100% / 0.5)` | `hsl(0 0 100% / 0.05)` |
+Explicit dark mode and the system-dark startup fallback use the same values. Semantic success,
+warning, danger, notification and syntax colors retain their existing meanings. Green is not a
+brand or navigation accent.
 
 ### 3.4 语法高亮
 
@@ -286,7 +225,7 @@
 2. **Primary 蓝色** 色相锁定在 ~210°，饱和度 72-100%，作为品牌主色。
 3. **双主题体系并存**：shadcn 语义色（`background`/`foreground` 等）+ 自定义 Token（`bg-*`/`text-*` 等），自定义 Token 为实际组件使用的主要体系。
 4. **Dark 模式** 通过 `.dark` / `[data-theme='dark']` 选择器触发，同时保留 `prefers-color-scheme` 媒体查询作为系统级兜底。
-5. **暗色表面与 hover**：所有表面（包括 shadcn 消费的 `card` / `popover`）以 `#121212` 为基准，禁止引入 20% 灰色表面；交互 hover 统一消费 `accent`，其暗色值为 `foreground` 的 10% 透明度，与 Dashboard 的 interactive-card 一致。必须在主题 token 层调整，禁止修改 `src/shadcn` 源码或在组件中硬编码颜色。
+5. **Dark surfaces**: neutral charcoal distinguishes the canvas, navigation and raised surfaces. Hover and selection consume `accent`. Define both themes in the token layer; do not modify `src/shadcn` or hardcode component colors.
 6. **通知色** 使用独立的 `dc-notification-*` 命名空间，与 shadcn 语义色解耦。
 7. **语法高亮色** 在 Light/Dark 下分别使用硬编码 HSL 和 Tailwind 色板引用。
 
@@ -332,9 +271,9 @@
 
 | Token | 值 | 工具类 | 适用 |
 |-------|-----|--------|------|
-| `--dc-blur-soft` | 8px | `.dc-blur-soft` | 搜索条、状态浮条 |
-| `--dc-blur-panel` | 16px | `.dc-blur-panel` | 粘性顶栏、输入器 |
-| `--dc-blur-overlay` | 26px | `.dc-blur-overlay` | Spotlight / Agent 计划浮层 |
+| `--dc-blur-soft` | 8px | `.dc-blur-soft` | 状态浮条 |
+| `--dc-blur-panel` | 16px | `.dc-blur-panel` | 按需使用的粘性浮层 |
+| `--dc-blur-overlay` | 26px | `.dc-blur-overlay` | Agent 计划浮层 |
 
 > 优先使用上述工具类，不要随手写 `backdrop-blur-*` 临时值。
 
@@ -409,10 +348,10 @@
 
 | 页面常量 | 值 |
 |----------|-----|
-| 设置内容区 | `max-w-7xl`（`SettingsPageShell`） |
-| 消息内容区 | `max-w-5xl` 居中 |
-| 会话列表 | 240px |
-| Agent rail | 48px |
+| Settings content | `max-w-5xl` (`SettingsPageShell`) |
+| Chat content | `--dc-chat-content-width: 52rem`; shared by messages and composers |
+| Expanded navigation | 264px; one sidebar with an agent dropdown |
+| Collapsed navigation | 48px |
 | 开关控件 | 32 × 18.4px（除以 `--dc-font-scale` 缩放） |
 
 ---
@@ -610,7 +549,7 @@
 | `DcTooltip` | `@dc-ui/components/tooltip` | 触发器 + 内容封装；`content`/`side`/`side-offset`/`disabled`/`delay-duration`；内建 Provider 200ms；**用于非按钮提示**（按钮提示一律走 `DcButton` 的 `tooltip` prop） |
 | `DcSheetPanel` | `@dc-ui/components/sheet-panel` | 唯一标准 Sheet：`appearance="panel"` 为玻璃 header + ScrollArea 正文 + footer；`appearance="plain"` 兼容详情 Sheet 的默认 padding、`sm:max-w-xl`、无 ScrollArea 正文与 footer；`width-class`/`scroll-body` 保留精确布局控制 |
 | `DcPopover` | `@dc-ui/components/popover` | 可交互 Popover：受控 `open`、`trigger`/`header`/`title`/`header-actions`/默认内容插槽；`width-class`/`align`/`side`/`side-offset`/`content-class`；默认 `w-80`、`align=end`、`overflow-hidden p-0` |
-| `DcSectionCard` | `@dc-ui/components/section-card` | 设置分区卡片（rounded-lg 细边框 + 可选 header/actions/description 插槽） |
+| `DcSectionCard` | `@dc-ui/components/section-card` | Settings section: rounded-xl, solid background, thin border, header/actions/description slots; class overrides are forwarded. |
 | `DcInlineError` | `@dc-ui/components/inline-error` | UX 优先内联反馈：`error`（destructive + 图标）/`hint`（中性）二态，`role="alert"` |
 | `DcForm` | `@dc-ui/components/form` | vee-validate `Form` 封装（shadcn form 原语）；内建 `useDcFormSubmit` 提交状态机，`@submit` 自动包裹 loading/success/error；`success-duration`/`error-duration`；`@success`/`@error` 事件 |
 | `DcFormField` | `@dc-ui/components/form` | shadcn `FormField`+`FormItem` 家族封装：`name`/`label`/`description` + `#control="{ field }"` 插槽 + `FormMessage` 错误绑定（aria 关联） |

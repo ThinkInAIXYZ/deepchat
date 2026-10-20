@@ -38,7 +38,7 @@
       </div>
       <!-- 消息内容 -->
       <div
-        class="max-w-full text-sm bg-muted dark:bg-muted rounded-lg p-3 border flex flex-col gap-2"
+        class="max-w-full text-sm bg-muted rounded-xl px-4 py-3 flex flex-col gap-2"
         data-message-content="true"
       >
         <AttachmentShelf

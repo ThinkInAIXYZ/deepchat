@@ -1,6 +1,8 @@
 {
   "title": "Ajustes",
   "common": {
+    "returnToChat": "Volver al chat",
+    "navigationSearch": "Buscar ajustes",
     "commandShell": {
       "title": "Shell de comandos del agente",
       "auto": "Automático",

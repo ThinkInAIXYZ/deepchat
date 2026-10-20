@@ -1,6 +1,8 @@
 {
   "title": "Настройки",
   "common": {
+    "returnToChat": "Вернуться к чату",
+    "navigationSearch": "Поиск настроек",
     "commandShell": {
       "title": "Командная оболочка агента",
       "auto": "Авто",

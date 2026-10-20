@@ -1,6 +1,8 @@
 {
   "title": "Ustawienia",
   "common": {
+    "returnToChat": "Powrót do czatu",
+    "navigationSearch": "Szukaj w ustawieniach",
     "commandShell": {
       "title": "Powłoka poleceń agenta",
       "auto": "Automatycznie",

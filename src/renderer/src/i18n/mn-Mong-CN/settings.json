@@ -1,6 +1,8 @@
 {
   "title": "ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠭ᠎ᠠ",
   "common": {
+    "returnToChat": "Back to chat",
+    "navigationSearch": "Search settings",
     "commandShell": {
       "title": "Agent ᠶᠢᠨ Shell",
       "auto": "ᠠᠦᠢᠲ᠋ᠣ᠋",

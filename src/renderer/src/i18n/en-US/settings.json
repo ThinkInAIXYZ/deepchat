@@ -1,6 +1,8 @@
 {
   "title": "Settings",
   "common": {
+    "returnToChat": "Back to chat",
+    "navigationSearch": "Search settings",
     "commandShell": {
       "title": "Agent command shell",
       "auto": "Auto",

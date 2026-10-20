@@ -15,10 +15,15 @@ test('keyboard users can enter content, compose, and navigate settings @smoke', 
   await page.keyboard.press('Enter')
   await expect(page.getByRole('main')).toBeFocused()
 
+  await page.getByTestId('sidebar-agent-selector').focus()
+  await page.keyboard.press('Enter')
   const agent = page.getByTestId('sidebar-agent-button').first()
   await agent.focus()
   await page.keyboard.press('Enter')
-  await expect(agent).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('sidebar-agent-selector')).toHaveAttribute(
+    'data-selected-agent-id',
+    'deepchat'
+  )
   const composer = page.getByTestId('chat-input-contenteditable')
   await expect(composer).toHaveRole('textbox')
   await expect(composer).toHaveAccessibleName(/.+/)

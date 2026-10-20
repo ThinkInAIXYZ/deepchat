@@ -1,7 +1,7 @@
 <template>
   <ScrollArea class="h-full w-full">
-    <div class="mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 py-8">
-      <header class="flex items-start justify-between gap-4">
+    <div class="mx-auto flex w-full max-w-5xl flex-col gap-8 px-5 py-8 lg:px-10 lg:py-10">
+      <header class="flex flex-wrap items-start justify-between gap-4">
         <div class="space-y-1">
           <h1 class="text-2xl font-semibold tracking-normal">{{ t('routes.plugins') }}</h1>
           <p class="text-sm text-muted-foreground">
@@ -41,20 +41,20 @@
           <h2 class="text-sm font-semibold">{{ t('settings.pluginsHub.available') }}</h2>
         </div>
 
-        <div v-if="catalogItems.length" class="grid gap-3 lg:grid-cols-2">
+        <div v-if="catalogItems.length" class="grid gap-x-6 gap-y-2 lg:grid-cols-2">
           <article
             v-for="item in catalogItems"
             :key="item.id"
-            class="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-background p-3"
+            class="flex min-w-0 items-center gap-3 rounded-lg bg-background p-3 transition-colors hover:bg-muted/70"
           >
             <div
-              class="flex size-12 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40"
+              class="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40"
             >
               <img
                 v-if="item.iconImage"
                 :src="item.iconImage"
                 alt=""
-                class="size-10 object-contain"
+                class="size-8 object-contain"
               />
               <Icon v-else :icon="item.icon" class="size-6" :class="item.iconClass" />
             </div>
