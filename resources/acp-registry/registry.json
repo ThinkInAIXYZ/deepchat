@@ -597,7 +597,7 @@
     {
       "id": "factory-droid",
       "name": "Factory Droid",
-      "version": "0.244.0",
+      "version": "0.245.0",
       "description": "Factory Droid - AI coding agent powered by Factory AI",
       "website": "https://factory.ai/product/cli",
       "authors": [
@@ -607,7 +607,7 @@
       "license_url": "https://factory.ai/legal/terms",
       "distribution": {
         "npx": {
-          "package": "droid@0.244.0",
+          "package": "droid@0.245.0",
           "args": [
             "exec",
             "--output-format",
@@ -978,7 +978,7 @@
     {
       "id": "kimchi",
       "name": "Kimchi",
-      "version": "1.16.0",
+      "version": "1.16.1",
       "description": "Coding agent powered by multi-model orchestration",
       "repository": "https://github.com/getkimchi/kimchi",
       "website": "https://kimchi.dev",
@@ -990,8 +990,8 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.16.0/kimchi_darwin_arm64.tar.gz",
-            "sha256": "2f25d6eecb7c329437373ed3ff14d7320ff207b05721217114fdceb2b0a8cdcb",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.16.1/kimchi_darwin_arm64.tar.gz",
+            "sha256": "e32a7ce18097163a6426b083eba552de4aebd7aa6077876c6df889a45767c487",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -999,8 +999,8 @@
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.16.0/kimchi_darwin_amd64.tar.gz",
-            "sha256": "56f06081c82f5b401300f8f48e2e4560af5711178449d4b2f9f3e05063c38d70",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.16.1/kimchi_darwin_amd64.tar.gz",
+            "sha256": "9f42c2f81b6f005bcf7233de918bda75bc9283b87cd8deabcd497e26f8c6de70",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1008,8 +1008,8 @@
             ]
           },
           "linux-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.16.0/kimchi_linux_arm64.tar.gz",
-            "sha256": "36c7d1cca0ed50442be60cfcce6a78a741b93a9c447b9fd6d2d1d603b94265f2",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.16.1/kimchi_linux_arm64.tar.gz",
+            "sha256": "baab0f6c55bc1a7716395656612df31dd89d6f9f694a36af3b458a33dbb849b2",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1017,8 +1017,8 @@
             ]
           },
           "linux-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.16.0/kimchi_linux_amd64.tar.gz",
-            "sha256": "5e1658eaf62da978c92d3ff26672582e0d6b595cf6262eda9219f7eabd3ec4c0",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.16.1/kimchi_linux_amd64.tar.gz",
+            "sha256": "3f705fcc1c832949b8232e8c64dd621bb0eccecc0f64261831201bc7bd3a8e8a",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1026,8 +1026,8 @@
             ]
           },
           "windows-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.16.0/kimchi_windows_amd64.zip",
-            "sha256": "7b4ba6fde847febebaf4d23387ae75735094ae78a442877ade636d80061415d0",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.16.1/kimchi_windows_amd64.zip",
+            "sha256": "40487b31b7ef5fb54897c9988beb0a26a278021fcd44ae1573d4b71a5d1dd2e8",
             "cmd": "./bin/kimchi.exe",
             "args": [
               "--mode",
@@ -1184,7 +1184,7 @@
     {
       "id": "nova",
       "name": "Nova",
-      "version": "1.1.57",
+      "version": "1.1.59",
       "description": "Nova by Compass AI - a fully-fledged software engineer at your command",
       "repository": "https://github.com/Compass-Agentic-Platform/nova",
       "website": "https://www.compassap.ai/portfolio/nova.html",
@@ -1196,7 +1196,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/nova.svg",
       "distribution": {
         "npx": {
-          "package": "@compass-ai/nova@1.1.57",
+          "package": "@compass-ai/nova@1.1.59",
           "args": [
             "acp"
           ]
