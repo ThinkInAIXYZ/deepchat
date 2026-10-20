@@ -12,6 +12,11 @@ Contract: [spec.md](./spec.md).
 - [x] Review the complete change for focus, resizing, persistence, permissions and performance.
 - [x] Select focused regression coverage after implementation; remove temporary probes.
 - [x] Run formatting, i18n, lint, typecheck and relevant renderer suites; inspect runtime visuals.
+- [x] Align the wider text-size selector and keep environment scrolling inside the list.
+- [x] Move ACP configuration and maintenance actions behind compact installed-Agent rows.
+- [x] Keep Hooks and data initialization quiet, preserving write and error feedback.
+- [x] Preserve main-window visibility when enabling the floating widget.
+- [x] Restore Markstream table ownership and visible low-usage context tracks.
 
 ## Validation results
 
@@ -20,9 +25,12 @@ Contract: [spec.md](./spec.md).
   The two new Tibetan and traditional Mongolian labels use English fallback text.
 - `pnpm run build`: passed, including the CLI build. Normal model/ACP catalog refreshes and generated
   icon updates are retained. The application also rebuilt successfully after visual adjustments.
-- Complete renderer regression suite: 289 files, 2738 tests passed.
+- Complete renderer regression suite: 289 files, 2741 tests passed.
+- Floating-widget layout and presenter tests: 2 files, 11 tests passed.
 - Electron smoke tests passed for agent draft preservation, local streaming with an editable
   composer, keyboard navigation, and settings navigation across desktop/dark/minimum-RTL layouts.
+  Floating-widget IPC coverage also verifies that the main window stays visible after enabling it.
+  Streaming Markdown coverage checks padding on every table header/body edge cell.
 - Agent dropdown placement passed at 800×320 with twelve additional agents: the menu stays below
   its trigger, scrolls within the viewport, and supports keyboard selection of its final item.
   Checked-item selection preserves the conversation and draft; explicit all-agents selection clears
@@ -34,4 +42,8 @@ Contract: [spec.md](./spec.md).
   primary tint in both themes. Primary button contrast remains at least 4.9:1.
 - RTL layout checks passed for the conversation and settings shells: their divider and rounded
   corner follow the navigation edge.
+- Isolated Electron layout checks passed at 1280×900 and 800×600: the text-size selector spans
+  360px, a thirty-row environment list scrolls without moving its heading or filters, and ACP
+  detail navigation restores focus. Agent and directory screenshots use synthetic read-only data.
+- Both themes show a filled track background and inset outline at 0% context occupancy.
 - Runtime visual inspection: macOS. Windows and Linux native window behavior was not exercised.

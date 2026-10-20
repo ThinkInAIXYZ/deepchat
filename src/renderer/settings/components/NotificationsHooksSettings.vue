@@ -486,11 +486,6 @@ const loadConfig = async () => {
     draftRevision.value = 0
     persistedRevision.value = 0
     requestedSaveRevision = 0
-    notifyRenderer({
-      kind: 'success',
-      code: 'settings.notificationsHooks.loaded',
-      title: t('common.saved')
-    })
   } catch (error) {
     console.error('[NotificationsHooksSettings] Failed to load configuration', error)
     notifyRenderer({

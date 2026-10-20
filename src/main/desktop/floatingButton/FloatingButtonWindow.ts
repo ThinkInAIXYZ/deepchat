@@ -76,7 +76,11 @@ export class FloatingButtonWindow {
         }
       })
 
-      this.window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+      this.window.setVisibleOnAllWorkspaces(true, {
+        visibleOnFullScreen: true,
+        // Avoid the macOS process-type transition that hides other application windows.
+        skipTransformProcessType: true
+      })
       this.window.setAlwaysOnTop(this.config.alwaysOnTop, 'floating')
       this.window.setOpacity(1)
       this.setBounds(initialBounds)
@@ -100,7 +104,7 @@ export class FloatingButtonWindow {
       return
     }
 
-    this.window.show()
+    this.window.showInactive()
     this.state.isVisible = true
     logger.debug('FloatingButtonWindow shown')
   }

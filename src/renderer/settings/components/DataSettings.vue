@@ -1946,11 +1946,6 @@ const initializeSyncSettings = async () => {
   beginSyncOperation()
   try {
     await syncStore.initialize()
-    notifyRenderer({
-      kind: 'success',
-      code: 'settings.data.sync.initialized',
-      title: t('settings.data.syncFolder')
-    })
   } catch (error) {
     syncInitializationFailed.value = true
     console.error('[DataSettings] Failed to initialize sync settings', error)

@@ -285,8 +285,25 @@ afterEach(() => {
 })
 
 describe('AcpSettings', () => {
+  it('keeps installed agents compact and retains the environment draft across detail navigation', async () => {
+    const { wrapper, settingsLeaveGuard } = await setup({ registryAgents: [installedAgent()] })
+
+    expect(wrapper.find('[data-testid="acp-agent-details"]').exists()).toBe(false)
+    expect(wrapper.find('textarea').exists()).toBe(false)
+    await wrapper.get('[data-testid="acp-agent-settings-codex-acp"]').trigger('click')
+    await wrapper.get('textarea').setValue('TOKEN=draft')
+    await wrapper.get('[data-testid="acp-detail-back"]').trigger('click')
+    expect(wrapper.find('textarea').exists()).toBe(false)
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
+
+    await wrapper.get('[data-testid="acp-agent-settings-codex-acp"]').trigger('click')
+    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('TOKEN=draft')
+    wrapper.unmount()
+  })
+
   it('opens the shared authentication dialog for an installed registry agent', async () => {
     const { wrapper, acpAuthClient } = await setup({ registryAgents: [installedAgent()] })
+    await wrapper.get('[data-testid="acp-agent-settings-codex-acp"]').trigger('click')
     const authButton = wrapper
       .findAll('button')
       .find((button) => button.text() === 'settings.acp.auth.checkSignIn')
@@ -303,6 +320,7 @@ describe('AcpSettings', () => {
       registryAgents: [installedAgent()]
     })
 
+    await wrapper.get('[data-testid="acp-agent-settings-codex-acp"]').trigger('click')
     const uninstallButton = wrapper
       .findAll('button')
       .find((button) => button.text().includes('settings.acp.registryUninstallAction'))
@@ -331,6 +349,7 @@ describe('AcpSettings', () => {
       registryAgents: [installedAgent()]
     })
 
+    await wrapper.get('[data-testid="acp-agent-settings-codex-acp"]').trigger('click')
     await wrapper.get('textarea').setValue('TOKEN=secret')
     const saveButton = wrapper.findAll('button').find((button) => button.text() === 'common.save')
     await saveButton!.trigger('click')
@@ -354,6 +373,7 @@ describe('AcpSettings', () => {
       config: { setAcpAgentEnvOverride }
     })
 
+    await wrapper.get('[data-testid="acp-agent-settings-codex-acp"]').trigger('click')
     await wrapper.get('textarea').setValue('TOKEN=secret')
     const saveButton = wrapper.findAll('button').find((button) => button.text() === 'common.save')
     await saveButton!.trigger('click')
@@ -388,6 +408,7 @@ describe('AcpSettings', () => {
       config: { setAcpAgentEnvOverride }
     })
 
+    await wrapper.get('[data-testid="acp-agent-settings-codex-acp"]').trigger('click')
     await wrapper.get('textarea').setValue('TOKEN=secret')
     expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
 
@@ -406,10 +427,9 @@ describe('AcpSettings', () => {
     const { wrapper, discardSharedMcpRetryIntent, settingsLeaveGuard } = await setup({
       registryAgents: [installedAgent()]
     })
+    await wrapper.get('[data-testid="acp-shared-mcp-settings"]').trigger('click')
     const selector = wrapper.findComponent({ name: 'AgentMcpSelector' })
-    const collapseButton = wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'common.expand')
+    const collapseButton = wrapper.get('[data-testid="acp-detail-back"]')
 
     selector.vm.$emit('persistence-state', 'saving')
     await flushPromises()

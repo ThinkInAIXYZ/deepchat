@@ -34,6 +34,20 @@ existing blue brand color. Dark surfaces are neutral charcoal rather than tinted
   area has a bounded readable width, a clear page title and section groups. Setting descriptions stay
   next to their controls. Appearance previews show light, dark and system with blue selection.
   Shell dividers and top corners follow the writing direction, and titled cards retain header spacing.
+  Text-size choices share a wider, end-aligned segmented control. Directory environment headers,
+  tabs and filters stay fixed while their list scrolls independently.
+- ACP settings prioritize installed Agents in compact rows with identity, version, enable control
+  and a settings entry. Environment overrides, authentication, repair, Inspector and uninstall
+  belong to an Agent detail page; shared MCP selection has its own detail page. Returning to the
+  list retains unsaved environment drafts and restores focus to the invoking entry. Existing save,
+  retry and leave guards remain authoritative.
+- Opening Hooks or data settings reads configuration without reporting a successful save. Actual
+  writes retain their success feedback, and read failures retain their error feedback.
+- Enabling the floating widget creates and shows it without hiding or focusing away from existing
+  application windows. It retains its all-workspace and full-screen visibility.
+- Markstream owns table layout, borders, horizontal scrolling and column controls. Markdown
+  typography must preserve the library's cell insets, including first and last columns.
+  Context occupancy retains a visible track and outline even at zero or very low usage.
 - Scheduled tasks retain their list/detail workflow, scheduler status, execution history and error
   recovery. Use the same page hierarchy, quiet list treatment and blue primary actions.
 - Plugin and skill pages use compact navigation, bounded content, consistent item icons, concise
@@ -77,7 +91,9 @@ controls; chat and new-thread pages keep their existing refs, events and draft o
 
 Navigation filtering is local derived state over translated settings titles. Session search remains
 owned by the sidebar. Agent switching retains its serialized close-session pipeline. The refresh
-does not introduce new persisted settings, dependencies, IPC contracts or main-process behavior.
+does not introduce new persisted settings, dependencies or IPC contracts. The floating-window
+owner avoids macOS process-type transitions when configuring workspace visibility and shows the
+widget without activating it.
 
 ## Invariants and compatibility
 

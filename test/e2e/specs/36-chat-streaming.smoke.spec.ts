@@ -12,10 +12,13 @@ test('local streaming preserves an editable composer and completes the response 
   const released = new Promise<void>((resolve) => {
     releaseResponse = resolve
   })
-  const markdown = Array.from(
-    { length: 32 },
-    (_, index) => `## Section ${index}\n\n${'Local streaming content. '.repeat(12)}\n\n`
-  ).join('')
+  const table = '| File | Result |\n| --- | --- |\n| First cell | Last cell |\n\n'
+  const markdown =
+    table +
+    Array.from(
+      { length: 32 },
+      (_, index) => `## Section ${index}\n\n${'Local streaming content. '.repeat(12)}\n\n`
+    ).join('')
   const server = createServer(async (request, response) => {
     if (request.url === '/v1/models') {
       response
@@ -126,6 +129,16 @@ test('local streaming preserves an editable composer and completes the response 
     await expect(app.page.getByTestId('chat-message-assistant')).toContainText('Stream complete.')
     await expect(editor).toHaveText(draft)
     await expect(status).toHaveText(/Generation is complete|生成已完成|生成完成/)
+    const renderedTable = app.page.getByRole('table').filter({ hasText: 'First cell' })
+    await expect(renderedTable).toBeVisible()
+    const cellInsets = await renderedTable.locator('th, td').evaluateAll((cells) =>
+      cells.map((cell) => {
+        const style = getComputedStyle(cell)
+        return [style.paddingInlineStart, style.paddingInlineEnd].map(parseFloat)
+      })
+    )
+    expect(cellInsets).toHaveLength(4)
+    expect(cellInsets.every((insets) => insets.every((inset) => inset >= 8))).toBe(true)
     const attachmentPath = join(app.userDataDir, 'keyboard-removal.txt')
     writeFileSync(attachmentPath, 'This attachment must not be sent.')
     for (const key of ['Enter', 'Space']) {

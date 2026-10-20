@@ -681,31 +681,10 @@ defineEmits(['copy'])
   a .markdown-renderer {
     display: inline;
   }
+}
 
-  .table-node-wrapper {
-    @apply border border-border rounded-lg py-0 my-0 overflow-hidden shadow-sm;
-    contain: layout style paint;
-  }
-
-  table {
-    @apply py-0 my-0;
-    border-collapse: collapse;
-    table-layout: auto;
-  }
-
-  thead,
-  thead tr,
-  thead th {
-    @apply bg-muted;
-  }
-
-  th,
-  td {
-    @apply border-b not-last:border-r border-border;
-  }
-
-  tbody tr:last-child td {
-    @apply border-b-0;
-  }
+/* Typography strips edge-cell padding; preserve Markstream's spacing and table controls. */
+.markdown-renderer-root .table-node :is(th, td) {
+  padding: var(--ms-flow-table-cell, 0.5em 0.75em);
 }
 </style>

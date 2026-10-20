@@ -52,6 +52,8 @@ const waitForFloatingWindow = async (
 
 test('floating window IPC boundary uses scoped preload API @smoke', async ({ app }) => {
   await waitForAppReady(app.page)
+  const mainWindow = await app.electronApp.browserWindow(app.page)
+  expect(await mainWindow.evaluate((window) => window.isVisible())).toBe(true)
 
   const original = await app.page.evaluate(async () => {
     return await window.deepchat.invoke('config.getFloatingButton', {})
@@ -67,6 +69,7 @@ test('floating window IPC boundary uses scoped preload API @smoke', async ({ app
     )
     await floatingPage.waitForLoadState('domcontentloaded')
     await expect(floatingPage.locator('.widget-stage')).toBeVisible({ timeout: 30_000 })
+    expect(await mainWindow.evaluate((window) => window.isVisible())).toBe(true)
 
     const boundary = await floatingPage.evaluate(async () => {
       const runtime = window as unknown as {

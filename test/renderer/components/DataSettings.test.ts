@@ -353,6 +353,13 @@ const findClearSandboxConfirmButton = (wrapper: ReturnType<typeof mount>) =>
   findButtonByText(wrapper, 'settings.data.yoBrowser.confirmAction', 'Clear YoBrowser sandbox')
 
 describe('DataSettings', () => {
+  it('loads data settings without a success notification', async () => {
+    const { syncStore, notifyRenderer } = await setup()
+
+    expect(syncStore.initialize).toHaveBeenCalledOnce()
+    expect(notifyRenderer).not.toHaveBeenCalled()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
