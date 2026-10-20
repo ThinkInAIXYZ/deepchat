@@ -27,6 +27,7 @@ function createHarness() {
         defaultModelPreset: { providerId: 'anthropic', modelId: 'claude' },
         defaultProjectPath: '/agent-project',
         permissionMode: 'auto_approve',
+        defaultToolMode: 'code',
         systemPrompt: 'Agent prompt',
         disabledAgentTools: ['find', 'write', 'write'],
         subagentEnabled: true
@@ -69,8 +70,25 @@ describe('SessionAssignmentPolicy', () => {
       projectDir: '/agent-project',
       permissionMode: 'auto_approve',
       generationSettings: { systemPrompt: 'Agent prompt', temperature: 0.2 },
-      disabledAgentTools: ['write']
+      disabledAgentTools: ['write'],
+      toolModeOverride: 'code'
     })
+  })
+
+  it('inherits the agent tool mode only when the caller omits it', async () => {
+    const { policy } = createHarness()
+    const resolveToolMode = async (toolModeOverride?: 'minimal' | null) =>
+      (
+        await policy.resolveCreateAssignment({
+          agentId: 'deepchat',
+          toolModeOverride,
+          preserveExplicitNullProjectDir: false
+        })
+      ).toolModeOverride
+
+    await expect(resolveToolMode(undefined)).resolves.toBe('code')
+    await expect(resolveToolMode(null)).resolves.toBeNull()
+    await expect(resolveToolMode('minimal')).resolves.toBe('minimal')
   })
 
   it('owns the full-access default for omitted assignment modes', async () => {

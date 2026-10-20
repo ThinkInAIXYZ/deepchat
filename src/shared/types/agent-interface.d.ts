@@ -711,6 +711,7 @@ export interface DeepChatAgentConfig {
   defaultProjectPath?: string | null
   systemPrompt?: string
   permissionMode?: PermissionMode
+  defaultToolMode?: import('../toolMode').ToolModeOverride
   disabledAgentTools?: string[]
   enabledSkillNames?: string[] | null
   enabledMcpServerIds?: string[] | null
