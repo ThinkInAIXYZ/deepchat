@@ -1209,6 +1209,8 @@ async function submitText(
 
   const agentId = submission.agentId
   if (!isAcp) await workspaceDraftTask
+  // Draft settings are only final once agent defaults apply; a failed load keeps the fallbacks.
+  await currentDraftDefaultsTask?.catch(() => undefined)
   const targetLocalDraftId = !isAcp ? localDraftSessionId.value : null
   const projectDir = selectedSessionProjectDir.value
   const targetAcpSessionId = acpDraftSessionId.value

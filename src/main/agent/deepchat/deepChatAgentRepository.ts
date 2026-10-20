@@ -118,7 +118,9 @@ const mergeDeepChatConfig = (
     systemPrompt: overrideConfig.systemPrompt ?? baseConfig.systemPrompt ?? '',
     permissionMode: overrideConfig.permissionMode ?? baseConfig.permissionMode,
     defaultToolMode: normalizeToolModeOverride(
-      overrideConfig.defaultToolMode ?? baseConfig.defaultToolMode
+      overrideConfig.defaultToolMode !== undefined
+        ? overrideConfig.defaultToolMode
+        : baseConfig.defaultToolMode
     ),
     disabledAgentTools: normalizeDisabledAgentTools(
       overrideConfig.disabledAgentTools ?? baseConfig.disabledAgentTools
