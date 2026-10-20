@@ -88,6 +88,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'external-link',
     'eye',
     'eye-off',
+    'feather',
     'file',
     'file-archive',
     'file-code',
