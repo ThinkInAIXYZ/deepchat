@@ -547,7 +547,7 @@ onBeforeUnmount(() => {
             tabindex="-1"
             :aria-label="t(String(route.meta.titleKey || 'routes.chat'))"
             data-testid="app-main"
-            class="flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-tl-xl border-l border-t border-border bg-background"
+            class="flex h-full min-h-0 flex-1 min-w-0 flex-col overflow-hidden rounded-ss-xl border-s border-t border-border bg-background"
           >
             <ToolchainMissingBanner />
             <div class="min-h-0 flex-1">

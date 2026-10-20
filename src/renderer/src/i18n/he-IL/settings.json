@@ -3,6 +3,7 @@
   "common": {
     "returnToChat": "חזרה לצ׳אט",
     "navigationSearch": "חיפוש בהגדרות",
+    "navigationSearchEmpty": "לא נמצאו תוצאות מתאימות",
     "commandShell": {
       "title": "מעטפת הפקודות של הסוכן",
       "auto": "אוטומטי",

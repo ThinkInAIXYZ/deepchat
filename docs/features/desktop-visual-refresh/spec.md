@@ -13,12 +13,16 @@ existing blue brand color. Dark surfaces are neutral charcoal rather than tinted
   into a named dropdown; session groups, project actions and pagination retain their behavior.
   The dropdown opens below its trigger and scrolls within the available height, keeping the native
   title bar and window controls unobstructed in short windows.
+  Selecting the checked filter preserves the active conversation. The explicit all-agents item
+  clears the filter. Agent onboarding targets the persistent selector even while its menu is closed.
+  Menu items expose the current filter with radio-item roles and checked states.
 - Keep new conversation and global search above the session list. Keep plugins, scheduled tasks,
   theme and settings reachable at the bottom. List filtering remains available independently of
   global search.
 - Use neutral selected backgrounds, readable secondary text, thin borders and solid surfaces.
   Reserve brand blue for primary actions, focus and selected controls; preserve danger and warning
   semantics. Existing semantic success colors are not a replacement brand palette.
+  Blue status text consumes the readable foreground token independently of primary button fills.
 - Align messages and the composer to one readable content width. Use a modest welcome heading,
   quiet user bubbles and unboxed assistant responses. Keep model and permission controls visible
   within the composer instead of on a disconnected status strip.
@@ -29,6 +33,7 @@ existing blue brand color. Dark surfaces are neutral charcoal rather than tinted
 - Settings use a grouped navigation sidebar with navigation search and a return action. The main
   area has a bounded readable width, a clear page title and section groups. Setting descriptions stay
   next to their controls. Appearance previews show light, dark and system with blue selection.
+  Shell dividers and top corners follow the writing direction, and titled cards retain header spacing.
 - Scheduled tasks retain their list/detail workflow, scheduler status, execution history and error
   recovery. Use the same page hierarchy, quiet list treatment and blue primary actions.
 - Plugin and skill pages use compact navigation, bounded content, consistent item icons, concise

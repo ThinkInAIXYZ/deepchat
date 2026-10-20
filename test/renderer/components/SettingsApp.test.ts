@@ -485,7 +485,11 @@ describe('Settings App', () => {
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
-        t: (key: string) => (key === 'routes.settings-common' ? 'General settings' : key),
+        t: (key: string) => {
+          if (key === 'routes.settings-common') return 'General settings'
+          if (key === 'settings.controlCenter.groups.setup') return 'Setup'
+          return key
+        },
         locale: ref('zh-CN')
       })
     }))
@@ -546,10 +550,16 @@ describe('Settings App', () => {
     expect(wrapper.find('[data-testid="settings-tab-model-providers"]').exists()).toBe(false)
     expect(push).toHaveBeenCalledTimes(1)
 
-    await search.setValue('no matching setting')
-    expect(
-      wrapper.get('[data-testid="settings-navigation"]').find('[role="status"]').exists()
-    ).toBe(true)
+    await search.setValue('setup')
+    expect(wrapper.find('[data-testid="settings-tab-general"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="settings-tab-appearance"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="settings-tab-model-providers"]').exists()).toBe(false)
+
+    await search.setValue('setup general')
+    expect(wrapper.get('[data-testid="settings-navigation"]').get('[role="status"]').text()).toBe(
+      'settings.common.navigationSearchEmpty'
+    )
+    expect(wrapper.find('[data-testid="settings-tab-general"]').exists()).toBe(false)
     await search.trigger('keydown', { key: 'Escape' })
     expect(wrapper.find('[data-testid="settings-tab-model-providers"]').exists()).toBe(true)
     expect(push).toHaveBeenCalledTimes(1)

@@ -3,6 +3,7 @@
   "common": {
     "returnToChat": "Powrót do czatu",
     "navigationSearch": "Szukaj w ustawieniach",
+    "navigationSearchEmpty": "Brak pasujących wyników",
     "commandShell": {
       "title": "Powłoka poleceń agenta",
       "auto": "Automatycznie",

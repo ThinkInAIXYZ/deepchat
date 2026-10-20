@@ -3,6 +3,7 @@
   "common": {
     "returnToChat": "Retour à la discussion",
     "navigationSearch": "Rechercher dans les paramètres",
+    "navigationSearchEmpty": "Aucun résultat correspondant",
     "commandShell": {
       "title": "Shell de commandes de l’agent",
       "auto": "Automatique",

@@ -3,6 +3,7 @@
   "common": {
     "returnToChat": "Quay lại trò chuyện",
     "navigationSearch": "Tìm kiếm cài đặt",
+    "navigationSearchEmpty": "Không có kết quả phù hợp",
     "commandShell": {
       "title": "Shell lệnh của tác nhân",
       "auto": "Tự động",

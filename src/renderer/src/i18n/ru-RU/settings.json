@@ -3,6 +3,7 @@
   "common": {
     "returnToChat": "Вернуться к чату",
     "navigationSearch": "Поиск настроек",
+    "navigationSearchEmpty": "Совпадений не найдено",
     "commandShell": {
       "title": "Командная оболочка агента",
       "auto": "Авто",

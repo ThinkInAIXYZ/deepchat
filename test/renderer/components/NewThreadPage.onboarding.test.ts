@@ -48,7 +48,7 @@ const createChatInputBoxStub = () =>
     }
   })
 
-const setup = async () => {
+const setup = async (activeStep: 'first-chat' | 'switch-agent' = 'first-chat') => {
   vi.resetModules()
   vi.doMock('pinia', () => vi.importActual('pinia'))
   chatInputFocusMock.mockReset()
@@ -75,10 +75,14 @@ const setup = async () => {
     sendMessage: vi.fn().mockResolvedValue(undefined)
   }
 
+  const selectedAgent =
+    activeStep === 'switch-agent'
+      ? { id: 'acp-agent', name: 'ACP Agent', type: 'acp' as const, enabled: true }
+      : { id: 'deepchat', name: 'DeepChat', type: 'deepchat' as const, enabled: true }
   const agentStore = reactive({
-    selectedAgentId: 'deepchat',
-    selectedAgent: { id: 'deepchat', name: 'DeepChat', type: 'deepchat' as const, enabled: true },
-    agents: [{ id: 'deepchat', type: 'deepchat' as const }]
+    selectedAgentId: selectedAgent.id,
+    selectedAgent,
+    agents: [selectedAgent]
   })
 
   const modelStore = reactive({
@@ -187,11 +191,11 @@ const setup = async () => {
   vi.doMock('@/composables/useGuidedOnboardingStep', () => ({
     useGuidedOnboardingStep: (stepId: string) => ({
       onboardingState: ref(null),
-      currentStepId: ref(stepId === 'first-chat' ? 'first-chat' : null),
+      currentStepId: ref(stepId === activeStep ? activeStep : null),
       stepState: ref(
-        stepId === 'first-chat' ? { id: 'first-chat', status: 'in_progress', required: true } : null
+        stepId === activeStep ? { id: activeStep, status: 'in_progress', required: true } : null
       ),
-      showGuide: ref(stepId === 'first-chat'),
+      showGuide: ref(stepId === activeStep),
       stepIndex: ref(3),
       totalSteps: ref(3),
       canGoPrevious: ref(true),
@@ -245,6 +249,7 @@ const setup = async () => {
         GuidedOnboardingOverlay: defineComponent({
           name: 'GuidedOnboardingOverlay',
           props: {
+            targetEl: { type: Object, default: null },
             visible: {
               type: Boolean,
               default: false
@@ -274,5 +279,24 @@ describe('NewThreadPage guided onboarding', () => {
     const { wrapper } = await setup()
 
     expect(wrapper.find('[data-testid="first-chat-guide-primary"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('anchors the switch-agent guide to the selector while the menu is closed', async () => {
+    const selector = document.createElement('button')
+    selector.dataset.testid = 'sidebar-agent-selector'
+    selector.setAttribute('aria-expanded', 'false')
+    document.body.appendChild(selector)
+    const { wrapper } = await setup('switch-agent')
+
+    try {
+      const guide = wrapper.getComponent({ name: 'GuidedOnboardingOverlay' })
+      expect(guide.props('visible')).toBe(true)
+      expect(guide.props('targetEl')).toBe(selector)
+      expect(selector.getAttribute('aria-expanded')).toBe('false')
+    } finally {
+      wrapper.unmount()
+      selector.remove()
+    }
   })
 })

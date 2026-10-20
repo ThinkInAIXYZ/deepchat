@@ -10,9 +10,16 @@ describe('dark theme tokens', () => {
     const { resolve } = await vi.importActual<typeof import('node:path')>('node:path')
     const styleCss = await readText(resolve('src/renderer/src/assets/style.css'))
 
+    const darkStart = styleCss.indexOf('  .dark,')
+    const systemDarkStart = styleCss.indexOf('  @media')
+    const themeStart = styleCss.indexOf('  @theme')
+    expect(darkStart, 'explicit dark theme block').toBeGreaterThanOrEqual(0)
+    expect(systemDarkStart, 'system dark theme block').toBeGreaterThan(darkStart)
+    expect(themeStart, 'theme block after dark themes').toBeGreaterThan(systemDarkStart)
+
     for (const block of [
-      styleCss.slice(styleCss.indexOf('  .dark,'), styleCss.indexOf('  @media')),
-      styleCss.slice(styleCss.indexOf('  @media'), styleCss.indexOf('  @theme'))
+      styleCss.slice(darkStart, systemDarkStart),
+      styleCss.slice(systemDarkStart, themeStart)
     ]) {
       expect(block).toContain('--background: #191b1d;')
       expect(block).toContain('--card: #24272a;')

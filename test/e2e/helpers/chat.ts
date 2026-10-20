@@ -10,22 +10,19 @@ const createModelOptionSelector = (modelId: string, providerId?: string): string
     : selector
 }
 
-export async function selectAgent(page: Page, preferredAgentId = 'deepchat'): Promise<void> {
+export async function selectAgent(page: Page, agentId = 'deepchat'): Promise<void> {
   const selector = page.getByTestId('sidebar-agent-selector')
-  if ((await selector.getAttribute('data-selected-agent-id')) !== preferredAgentId) {
-    const preferredAgent = page
+  if ((await selector.getAttribute('data-selected-agent-id')) !== agentId) {
+    const button = page
       .locator(
-        `[data-testid="sidebar-agent-button"][data-agent-id="${escapeAttributeValue(preferredAgentId)}"]`
+        `[data-testid="sidebar-agent-button"][data-agent-id="${escapeAttributeValue(agentId)}"]`
       )
       .first()
     if ((await selector.getAttribute('aria-expanded')) !== 'true') await selector.click()
-    const fallbackAgent = page.getByTestId('sidebar-agent-button').first()
-    await expect(fallbackAgent).toBeVisible({ timeout: 30_000 })
-    const button = (await preferredAgent.count()) ? preferredAgent : fallbackAgent
-    const selectedId = await button.getAttribute('data-agent-id')
+    await expect(button).toBeVisible({ timeout: 30_000 })
     await button.click()
     await expect(button).toBeHidden()
-    await expect(selector).toHaveAttribute('data-selected-agent-id', selectedId!, {
+    await expect(selector).toHaveAttribute('data-selected-agent-id', agentId, {
       timeout: 30_000
     })
   }

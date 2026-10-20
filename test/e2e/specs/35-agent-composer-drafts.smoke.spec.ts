@@ -14,6 +14,19 @@ test('agent drafts survive switches, deselection and reload @smoke', async ({ ap
     await selectAgent(app.page, 'deepchat')
     const editor = app.page.getByTestId('chat-input-contenteditable')
     await editor.fill('Draft for DeepChat')
+    await app.page.getByTestId('sidebar-agent-selector').click()
+    const checkedAgent = app.page.locator(
+      '[data-testid="sidebar-agent-button"][data-agent-id="deepchat"]'
+    )
+    await expect(checkedAgent).toHaveRole('menuitemradio')
+    await expect(checkedAgent).toHaveAttribute('aria-checked', 'true')
+    await checkedAgent.click()
+    await expect(checkedAgent).toBeHidden()
+    await expect(app.page.getByTestId('sidebar-agent-selector')).toHaveAttribute(
+      'data-selected-agent-id',
+      'deepchat'
+    )
+    await expect(editor).toHaveText('Draft for DeepChat')
     await selectAgent(app.page, agent.id)
     await expect(editor).toHaveText('')
     await editor.fill('Draft for another agent')

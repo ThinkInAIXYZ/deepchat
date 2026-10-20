@@ -17,6 +17,7 @@
                 :size="collapsed ? 'icon' : 'default'"
                 :label="selectedAgentName"
                 :tooltip="collapsed ? selectedAgentName : undefined"
+                :tooltip-delay-duration="200"
                 tooltip-side="right"
                 class="min-w-0 flex-1 justify-start gap-2 px-2"
               >
@@ -50,6 +51,8 @@
             >
               <DropdownMenuItem
                 data-testid="sidebar-agent-all-button"
+                role="menuitemradio"
+                :aria-checked="sidebarSelectedAgentId === null"
                 data-agent-id="__all__"
                 :data-selected="String(sidebarSelectedAgentId === null)"
                 class="gap-2"
@@ -64,6 +67,8 @@
                 v-for="agent in agentStore.enabledAgents"
                 :key="agent.id"
                 data-testid="sidebar-agent-button"
+                role="menuitemradio"
+                :aria-checked="sidebarSelectedAgentId === agent.id"
                 :data-agent-id="agent.id"
                 :data-agent-type="agent.agentType ?? agent.type"
                 :data-selected="String(sidebarSelectedAgentId === agent.id)"
@@ -89,6 +94,7 @@
             :aria-expanded="true"
             aria-controls="sidebar-sessions"
             :tooltip="t('chat.sidebar.collapseSidebar')"
+            :tooltip-delay-duration="200"
             class="shrink-0 text-muted-foreground"
             @click="sidebarStore.toggleSidebar()"
           />
@@ -101,6 +107,7 @@
             icon="lucide:square-pen"
             :label="t('common.newChat')"
             :tooltip="collapsed ? t('common.newChat') : undefined"
+            :tooltip-delay-duration="200"
             tooltip-side="right"
             class="justify-start px-2 text-sm font-normal"
             @click="handleNewChat"
@@ -114,6 +121,7 @@
             icon="lucide:search"
             :label="t('chat.sidebar.searchCommand')"
             :tooltip="collapsed ? t('chat.sidebar.searchCommand') : undefined"
+            :tooltip-delay-duration="200"
             :title="t('chat.spotlight.placeholder')"
             tooltip-side="right"
             class="justify-start px-2 text-sm font-normal"
@@ -259,6 +267,7 @@
                 icon-size="4"
                 variant="ghost"
                 :tooltip="t('common.newChat')"
+                :tooltip-delay-duration="200"
                 @click.stop="handleNewChatForProject(defaultChatWorkspacePath || null)"
               />
             </div>
@@ -321,6 +330,7 @@
                 icon-size="4"
                 data-testid="window-sidebar-add-workspace-button"
                 :tooltip="t('chat.sidebar.addWorkspace')"
+                :tooltip-delay-duration="200"
                 :aria-label="t('chat.sidebar.addWorkspace')"
                 :disabled="isAddingWorkspace"
                 variant="ghost"
@@ -331,6 +341,7 @@
                 size="icon-sm"
                 icon="lucide:folder-kanban"
                 icon-size="4"
+                :tooltip-delay-duration="200"
                 :tooltip="
                   sessionStore.groupMode === 'project'
                     ? t('chat.sidebar.groupByDate')
@@ -456,6 +467,7 @@
                     icon-size="3.5"
                     variant="ghost"
                     :tooltip="t('common.newChat')"
+                    :tooltip-delay-duration="200"
                     class="flex items-center justify-center rounded-md text-muted-foreground transition-all duration-150 hover:bg-accent/60 hover:text-foreground focus-visible:opacity-100"
                     :class="
                       isTrueEmptyWorkspaceGroup(group)
@@ -473,6 +485,7 @@
                         icon="lucide:ellipsis"
                         icon-size="3.5"
                         :tooltip="t('common.more')"
+                        :tooltip-delay-duration="200"
                         variant="ghost"
                         :aria-label="t('chat.sidebar.projectGroupActions')"
                       />
@@ -625,6 +638,7 @@
           icon="lucide:blocks"
           :label="t('routes.plugins')"
           :tooltip="collapsed ? t('routes.plugins') : undefined"
+          :tooltip-delay-duration="200"
           tooltip-side="right"
           :active="pluginsRouteActive"
           class="w-full justify-start px-2 text-sm font-normal"
@@ -639,6 +653,7 @@
           icon="lucide:calendar-clock"
           :label="t('routes.settings-scheduled-tasks')"
           :tooltip="collapsed ? t('routes.settings-scheduled-tasks') : undefined"
+          :tooltip-delay-duration="200"
           tooltip-side="right"
           class="w-full justify-start px-2 text-sm font-normal"
           @click="settingsClient.openSettings({ routeName: 'settings-scheduled-tasks' })"
@@ -653,6 +668,7 @@
             icon="lucide:settings-2"
             :label="t('routes.settings')"
             :tooltip="collapsed ? t('routes.settings') : undefined"
+            :tooltip-delay-duration="200"
             tooltip-side="right"
             class="min-w-0 flex-1 justify-start px-2 text-sm font-normal"
             @click="openSettings"
@@ -666,6 +682,7 @@
             size="icon-sm"
             icon="lucide:monitor-cloud"
             :tooltip="remoteControlTooltip"
+            :tooltip-delay-duration="200"
             :title="remoteControlTooltip"
             tooltip-side="right"
             tooltip-content-class="whitespace-pre-line"
@@ -679,6 +696,7 @@
             size="icon-sm"
             :icon="themeIcon"
             :tooltip="`${t('chat.sidebar.themeToggle')} · ${themeModeLabel}`"
+            :tooltip-delay-duration="200"
             tooltip-side="right"
             class="text-muted-foreground"
             @click="themeStore.cycleTheme()"
@@ -692,6 +710,7 @@
             :aria-expanded="false"
             aria-controls="sidebar-sessions"
             :tooltip="t('chat.sidebar.expandSidebar')"
+            :tooltip-delay-duration="200"
             tooltip-side="right"
             @click="sidebarStore.toggleSidebar()"
           />
@@ -1177,7 +1196,7 @@ const handleAgentSelect = async (id: string | null) => {
   agentSwitchQueue = agentSwitchQueue
     .then(async () => {
       const currentAgentId = sidebarSelectedAgentId.value
-      const nextAgentId = currentAgentId === id ? null : id
+      const nextAgentId = id
       if (nextAgentId === currentAgentId) {
         return
       }

@@ -96,7 +96,7 @@
               role="status"
               class="px-2 py-6 text-sm text-muted-foreground"
             >
-              {{ t('chat.sidebar.searchEmptyTitle') }}
+              {{ t('settings.common.navigationSearchEmpty') }}
             </p>
           </div>
         </nav>
@@ -104,7 +104,7 @@
           ref="settingsContent"
           tabindex="-1"
           :aria-label="title || t('routes.settings')"
-          class="min-w-0 min-h-0 flex-1 overflow-hidden rounded-tl-xl border-l border-t border-border bg-background"
+          class="min-w-0 min-h-0 flex-1 overflow-hidden rounded-ss-xl border-s border-t border-border bg-background"
         >
           <RouterView />
         </main>
@@ -613,8 +613,10 @@ const filteredSettingGroups = computed(() => {
   return settingGroups.value
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) =>
-        `${t(group.titleKey)} ${t(item.title)}`.toLocaleLowerCase().includes(query)
+      items: group.items.filter(
+        (item) =>
+          t(group.titleKey).toLocaleLowerCase().includes(query) ||
+          t(item.title).toLocaleLowerCase().includes(query)
       )
     }))
     .filter((group) => group.items.length > 0)

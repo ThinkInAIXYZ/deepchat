@@ -230,7 +230,7 @@
               :class="[
                 'h-6 gap-1 px-2 text-xs',
                 proactiveCollaborationEnabled
-                  ? 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/30 hover:bg-primary/15 hover:text-primary'
+                  ? 'bg-primary/10 text-[color:var(--text-primary)] ring-1 ring-inset ring-primary/30 hover:bg-primary/15 hover:text-[color:var(--text-primary)]'
                   : 'text-muted-foreground hover:text-foreground'
               ]"
               :tooltip="orchestrationControlTitle"
@@ -1140,7 +1140,7 @@
                 permissionMode === 'full_access'
                   ? 'text-orange-500 hover:text-orange-600'
                   : permissionMode === 'auto_approve'
-                    ? 'text-primary hover:text-primary'
+                    ? 'text-[color:var(--text-primary)] hover:text-[color:var(--text-primary)]'
                     : 'text-muted-foreground hover:text-foreground'
               ]"
             >
@@ -1729,7 +1729,7 @@ const permissionOptions = computed(() => [
     value: 'auto_approve' as const,
     label: t('chat.permissionMode.autoApprove'),
     icon: 'lucide:shield-check',
-    iconClass: 'text-primary'
+    iconClass: 'text-[color:var(--text-primary)]'
   },
   {
     value: 'full_access' as const,

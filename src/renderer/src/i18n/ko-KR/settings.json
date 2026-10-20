@@ -3,6 +3,7 @@
   "common": {
     "returnToChat": "채팅으로 돌아가기",
     "navigationSearch": "설정 검색",
+    "navigationSearchEmpty": "일치하는 결과가 없습니다",
     "commandShell": {
       "title": "Agent 명령 셸",
       "auto": "자동",

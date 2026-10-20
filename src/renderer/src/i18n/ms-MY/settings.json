@@ -3,6 +3,7 @@
   "common": {
     "returnToChat": "Kembali ke sembang",
     "navigationSearch": "Cari tetapan",
+    "navigationSearchEmpty": "Tiada hasil yang sepadan",
     "commandShell": {
       "title": "Shell perintah Agent",
       "auto": "Automatik",

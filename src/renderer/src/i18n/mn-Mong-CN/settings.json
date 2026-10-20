@@ -3,6 +3,7 @@
   "common": {
     "returnToChat": "Back to chat",
     "navigationSearch": "Search settings",
+    "navigationSearchEmpty": "ᠳᠤ ᠨᠡᠢ᠌ᠴᠡᠬᠦ ᠳ᠋ᠦᠩ ᠦᠭᠡᠢ",
     "commandShell": {
       "title": "Agent ᠶᠢᠨ Shell",
       "auto": "ᠠᠦᠢᠲ᠋ᠣ᠋",

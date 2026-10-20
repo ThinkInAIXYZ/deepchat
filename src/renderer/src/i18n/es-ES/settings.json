@@ -3,6 +3,7 @@
   "common": {
     "returnToChat": "Volver al chat",
     "navigationSearch": "Buscar ajustes",
+    "navigationSearchEmpty": "No hay resultados coincidentes",
     "commandShell": {
       "title": "Shell de comandos del agente",
       "auto": "Automático",

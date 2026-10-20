@@ -3,6 +3,7 @@
   "common": {
     "returnToChat": "Sohbete dön",
     "navigationSearch": "Ayarlarda ara",
+    "navigationSearchEmpty": "Eşleşen sonuç yok",
     "commandShell": {
       "title": "Agent komut kabuğu",
       "auto": "Otomatik",

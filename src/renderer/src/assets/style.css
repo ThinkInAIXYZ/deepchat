@@ -79,8 +79,6 @@
     --primary-foreground: hsl(0 0% 100%);
     --secondary: #f3f4f5;
     --secondary-foreground: #626973;
-    --secondary: #f3f4f5;
-    --secondary-foreground: #626973;
     --muted: #f3f4f5;
     --muted-foreground: #626973;
     --accent: #e8ebef;
@@ -183,7 +181,7 @@
     --text-foreground: #24272b;
     --text-green: hsl(142 71% 45%);
     --text-muted-foreground: #6b737e;
-    --text-primary: hsl(210 100% 43%);
+    --text-primary: hsl(210 100% 37%);
     --text-primary-foreground: hsl(0 0 100%);
     --text-red: hsl(0 73% 58%);
     --text-secondary-foreground: #626973;
@@ -268,7 +266,6 @@
     --bg-primary: hsl(210 100% 43%);
     --bg-primary-70: hsl(210 100% 43% / 0.7);
     --bg-primary-700: hsl(210 100% 37%);
-    --border: #343940;
     --border-window-outside: hsl(0 0 0% / 0.4);
     --shadow-card: hsl(0 0 0% / 0.4);
     --syntax-bold: var(--color-blue-500);

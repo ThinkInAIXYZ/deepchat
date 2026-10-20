@@ -682,13 +682,9 @@ const syncGuideTargets = () => {
     return
   }
 
-  agentGuideTargetRef.value =
-    (document.querySelector(
-      '[data-testid="sidebar-agent-button"][data-agent-id="deepchat"]'
-    ) as HTMLElement | null) ??
-    (document.querySelector(
-      '[data-testid="sidebar-agent-button"][data-agent-type="deepchat"]'
-    ) as HTMLElement | null)
+  agentGuideTargetRef.value = document.querySelector(
+    '[data-testid="sidebar-agent-selector"]'
+  ) as HTMLElement | null
   modelGuideTargetRef.value = document.querySelector(
     '[data-testid="app-model-switcher"]'
   ) as HTMLElement | null

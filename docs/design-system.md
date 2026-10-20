@@ -93,7 +93,11 @@ consume these semantic values rather than defining local palettes.
 | `text-foreground` / `text-accent-foreground` | `#24272b` | `#e6e9ed` | Text aliases |
 | `text-secondary-foreground` | `#626973` | `#a0a7b1` | Secondary text alias |
 | `text-muted-foreground` | `#6b737e` | `#a0a7b1` | Quiet but readable text |
-| `text-primary` | brand blue | `#62aaff` | Readable blue text |
+| `text-primary` | `hsl(210 100% 37%)` | `#62aaff` | Readable blue text |
+
+Status labels and active controls consume `--text-primary` through
+`text-[color:var(--text-primary)]`. Primary button fills use `--primary` with
+`--primary-foreground`.
 
 Explicit dark mode and the system-dark startup fallback use the same values. Semantic success,
 warning, danger, notification and syntax colors retain their existing meanings. Green is not a

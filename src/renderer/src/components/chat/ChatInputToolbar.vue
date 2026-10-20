@@ -32,7 +32,7 @@
         class="h-7 w-7 rounded-lg"
         :class="
           searchEnabled
-            ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+            ? 'bg-primary/10 text-[color:var(--text-primary)] hover:bg-primary/15 hover:text-[color:var(--text-primary)]'
             : 'text-muted-foreground hover:text-foreground'
         "
         :aria-pressed="searchEnabled"
@@ -246,13 +246,13 @@ const hasActiveInput = computed(() => props.hasInput || props.hasText)
 const voiceInputButtonClass = computed(() => {
   if (props.isVoiceInputListening) {
     return [
-      'relative group h-7 w-7 rounded-lg overflow-hidden text-primary bg-primary/10 ring-1 ring-primary/30 hover:text-red-500 hover:bg-red-500/10 hover:ring-red-500/35 transition-colors duration-200'
+      'relative group h-7 w-7 rounded-lg overflow-hidden text-[color:var(--text-primary)] bg-primary/10 ring-1 ring-primary/30 hover:text-red-500 hover:bg-red-500/10 hover:ring-red-500/35 transition-colors duration-200'
     ]
   }
 
   if (props.isVoiceInputTranscribing) {
     return [
-      'relative group h-7 w-7 rounded-lg text-primary bg-primary/10 ring-1 ring-primary/20 hover:bg-primary/15'
+      'relative group h-7 w-7 rounded-lg text-[color:var(--text-primary)] bg-primary/10 ring-1 ring-primary/20 hover:bg-primary/15'
     ]
   }
 

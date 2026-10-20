@@ -527,7 +527,7 @@ const setup = async (options: SetupOptions = {}) => {
       },
       emits: ['attach', 'queue', 'send', 'steer', 'stop'],
       template:
-        '<div class="chat-input-toolbar-stub"><button v-if="isGenerating && hasInput" data-testid="chat-steer-button" :disabled="steerDisabled" @click="$emit(\'steer\')" /><button v-if="isGenerating && !hasInput" data-testid="chat-stop-button" :disabled="isStopping" @click="$emit(\'stop\')" /></div>'
+        '<div class="chat-input-toolbar-stub"><slot name="settings" /><button v-if="isGenerating && hasInput" data-testid="chat-steer-button" :disabled="steerDisabled" @click="$emit(\'steer\')" /><button v-if="isGenerating && !hasInput" data-testid="chat-stop-button" :disabled="isStopping" @click="$emit(\'stop\')" /></div>'
     })
   }))
   vi.doMock('@/components/chat/PendingInputLane.vue', () => ({

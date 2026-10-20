@@ -389,11 +389,6 @@ input {
   -webkit-app-region: no-drag;
 }
 
-.dc-spotlight-enter-active,
-.dc-spotlight-leave-active {
-  transition: opacity 80ms var(--dc-ease-out-soft);
-}
-
 .dc-spotlight-enter-active .spotlight-panel,
 .dc-spotlight-leave-active .spotlight-panel {
   isolation: isolate;
