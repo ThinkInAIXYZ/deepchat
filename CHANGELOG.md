@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.1.4-beta.5 (2026-10-20)
+- Refreshed the desktop interface in light and dark themes, with a unified sidebar, integrated composer controls, searchable settings navigation, and compact ACP Agent details
+- Open the workspace and browser before sending the first message, keeping their state after submission
+- Copy session references from the conversation menu and paste them into another conversation with source validation
+- Configure an Agent's default tool mode for new conversations and scheduled tasks that follow its configuration
+- Added a hover wave to the message minimap with readable, scrollable previews
+- Preserved unrelated ACP drafts when confirming a removed Agent during registry reloads, canceled obsolete confirmations, and improved floating-window behavior, Markdown tables, and context-usage visibility
+- Refreshed the bundled model and ACP catalogs
+- 刷新桌面端明暗主题界面，统一侧栏与输入框控制，支持搜索设置导航，并以紧凑列表和详情页管理 ACP Agent
+- 发送首条消息前即可打开工作区与浏览器，发送后保留已有状态
+- 从会话菜单复制会话引用并粘贴到其他对话，插入前校验来源有效性
+- 为 Agent 设置默认工具模式，新对话及跟随 Agent 配置的定时任务会继承该设置
+- 消息地图新增悬停波浪效果，提供易读、可滚动的消息预览
+- ACP 目录刷新时，确认移除 Agent 仅丢弃该 Agent 的草稿，并撤销过时确认；同时改善悬浮窗行为、Markdown 表格和上下文用量显示
+- 刷新内置模型与 ACP 目录
+
 ## v1.1.4-beta.4 (2026-10-19)
 - Added the LiteLLM proxy provider with model capability discovery and virtual-key usage and budget reporting
 - Added an optional Keenable web search MCP preset
