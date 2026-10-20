@@ -11,6 +11,8 @@ existing blue brand color. Dark surfaces are neutral charcoal rather than tinted
 
 - Use a single 264px expanded sidebar and a compact 48px collapsed sidebar. Agent selection moves
   into a named dropdown; session groups, project actions and pagination retain their behavior.
+  The dropdown opens below its trigger and scrolls within the available height, keeping the native
+  title bar and window controls unobstructed in short windows.
 - Keep new conversation and global search above the session list. Keep plugins, scheduled tasks,
   theme and settings reachable at the bottom. List filtering remains available independently of
   global search.

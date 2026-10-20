@@ -23,6 +23,8 @@ Contract: [spec.md](./spec.md).
 - Focused renderer regression suites: 20 files, 385 tests passed.
 - Electron smoke tests passed for agent draft preservation, local streaming with an editable
   composer, keyboard navigation, and settings navigation across desktop/dark/minimum-RTL layouts.
+- Agent dropdown placement passed at 800×320 with twelve additional agents: the menu stays below
+  its trigger, scrolls within the viewport, and supports keyboard selection of its final item.
 - A temporary preview probe passed against isolated user data, checking theme synchronization,
   settings filtering, search focus restoration, plugins and 800px/760px windows. The probe was
   removed; runtime screenshots remain outside the repository in the task's visualization folder.

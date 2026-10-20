@@ -1,6 +1,47 @@
 import { test, expect } from '../fixtures/electronApp'
 import { waitForAppReady } from '../helpers/wait'
 
+test('agent menu stays below its trigger and scrolls in short windows @smoke', async ({
+  app
+}, testInfo) => {
+  const { page } = app
+  await waitForAppReady(page)
+  await page.evaluate(async () => {
+    await window.deepchat.invoke('config.setTheme', { theme: 'dark' })
+    for (let index = 0; index < 12; index += 1) {
+      await window.deepchat.invoke('config.createDeepChatAgent', {
+        name: `Menu regression ${index}`
+      })
+    }
+  })
+  const viewport = { width: 800, height: 320 }
+  await page.setViewportSize(viewport)
+  const trigger = page.getByTestId('sidebar-agent-selector')
+  await trigger.click()
+  const menu = page.getByTestId('sidebar-agent-menu')
+  await expect(async () => {
+    await expect(menu).toHaveAttribute('data-side', 'bottom')
+    const triggerBox = await trigger.boundingBox()
+    const menuBox = await menu.boundingBox()
+    expect(triggerBox).not.toBeNull()
+    expect(menuBox).not.toBeNull()
+    expect(menuBox!.y).toBeGreaterThanOrEqual(triggerBox!.y + triggerBox!.height)
+    expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(viewport.height)
+    expect(await menu.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
+  }).toPass()
+  await page.screenshot({ path: testInfo.outputPath('agent-menu-short.png') })
+
+  const lastAgent = page.getByTestId('sidebar-agent-button').last()
+  const lastAgentId = await lastAgent.getAttribute('data-agent-id')
+  await page.getByTestId('sidebar-agent-all-button').focus()
+  await page.keyboard.press('End')
+  await expect(lastAgent).toBeFocused()
+  await expect(lastAgent).toBeInViewport()
+  await page.keyboard.press('Enter')
+  await expect(menu).toBeHidden()
+  await expect(trigger).toHaveAttribute('data-selected-agent-id', lastAgentId)
+})
+
 test('keyboard users can enter content, compose, and navigate settings @smoke', async ({ app }) => {
   const { page, electronApp } = app
   await waitForAppReady(page)
@@ -44,7 +85,13 @@ test('keyboard users can enter content, compose, and navigate settings @smoke', 
   const settings = electronApp
     .windows()
     .find((window) => window.url().includes('/settings/index.html'))!
+  await settings.bringToFront()
   await expect(settings.getByRole('navigation')).toHaveAccessibleName(/.+/)
+  const appearance = settings.getByTestId('settings-tab-appearance')
+  await appearance.focus()
+  await settings.keyboard.press('Enter')
+  await expect(appearance).toHaveAttribute('aria-current', 'page')
+  await expect(settings.getByRole('main')).toBeFocused()
   const general = settings.getByTestId('settings-tab-general')
   await general.focus()
   await settings.keyboard.press('Enter')

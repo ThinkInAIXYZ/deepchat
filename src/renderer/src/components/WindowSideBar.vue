@@ -34,7 +34,15 @@
                 />
               </DcButton>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" class="w-60">
+            <!-- Keep collision handling from flipping into the native title bar. -->
+            <DropdownMenuContent
+              data-testid="sidebar-agent-menu"
+              side="bottom"
+              :side-flip="false"
+              align="start"
+              :collision-padding="8"
+              class="w-60"
+            >
               <DropdownMenuItem
                 data-testid="sidebar-agent-all-button"
                 data-agent-id="__all__"
