@@ -10,13 +10,14 @@
         <div class="flex items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
+              <!-- Keep the anchor DOM stable across sidebar states. -->
               <DcButton
                 data-testid="sidebar-agent-selector"
                 :data-selected-agent-id="sidebarSelectedAgentId ?? '__all__'"
                 variant="ghost"
                 :size="collapsed ? 'icon' : 'default'"
                 :label="selectedAgentName"
-                :tooltip="collapsed ? selectedAgentName : undefined"
+                :tooltip="selectedAgentName"
                 :tooltip-delay-duration="200"
                 tooltip-side="right"
                 class="min-w-0 flex-1 justify-start gap-2 px-2"
@@ -40,11 +41,11 @@
                 />
               </DcButton>
             </DropdownMenuTrigger>
-            <!-- Keep collision handling from flipping into the native title bar. -->
+            <!-- Available height limits scrolling without repositioning over the title bar. -->
             <DropdownMenuContent
               data-testid="sidebar-agent-menu"
               side="bottom"
-              :side-flip="false"
+              :avoid-collisions="false"
               align="start"
               :collision-padding="8"
               class="w-60"

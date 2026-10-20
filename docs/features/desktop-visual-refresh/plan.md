@@ -51,4 +51,7 @@ Contract: [spec.md](./spec.md).
   row, collapsed footer buttons share their size and center, and both states keep the footer
   reachable at 800×320. Sidebar unit coverage: 80 tests; Agent-menu and keyboard/settings Electron
   smoke coverage: 2 tests passed.
+- Agent-menu geometry checks cover both sidebar states after toggling at 800×320 and 1280×900,
+  across dark and light themes. The menu stays below its current trigger, scrolls within the short
+  viewport, and restores focus on Escape.
 - Runtime visual inspection: macOS. Windows and Linux native window behavior was not exercised.

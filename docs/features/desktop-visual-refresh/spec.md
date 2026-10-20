@@ -13,6 +13,7 @@ existing blue brand color. Dark surfaces are neutral charcoal rather than tinted
   into a named dropdown; session groups, project actions and pagination retain their behavior.
   The dropdown opens below its trigger and scrolls within the available height, keeping the native
   title bar and window controls unobstructed in short windows.
+  Expanding or collapsing the sidebar preserves its trigger element and menu anchor.
   Selecting the checked filter preserves the active conversation. The explicit all-agents item
   clears the filter. Agent onboarding targets the persistent selector even while its menu is closed.
   Menu items expose the current filter with radio-item roles and checked states.

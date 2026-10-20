@@ -26,18 +26,20 @@ test('agent menu stays below its trigger and scrolls in short windows @smoke', a
     const trigger = page.getByTestId('sidebar-agent-selector')
     await trigger.click()
     const menu = page.getByTestId('sidebar-agent-menu')
-    await expect(async () => {
-      await expect(menu).toHaveAttribute('data-side', 'bottom')
-      const triggerBox = await trigger.boundingBox()
-      const menuBox = await menu.boundingBox()
-      expect(triggerBox).not.toBeNull()
-      expect(menuBox).not.toBeNull()
-      expect(menuBox!.y).toBeGreaterThanOrEqual(triggerBox!.y + triggerBox!.height)
-      expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(viewport.height)
-      expect(await menu.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
-        true
-      )
-    }).toPass()
+    const expectAnchoredMenu = async () => {
+      await expect(async () => {
+        await expect(menu).toHaveAttribute('data-side', 'bottom')
+        const triggerBox = await trigger.boundingBox()
+        const menuBox = await menu.boundingBox()
+        expect(triggerBox).not.toBeNull()
+        expect(menuBox).not.toBeNull()
+        expect(menuBox!.y).toBeGreaterThanOrEqual(triggerBox!.y + triggerBox!.height)
+        expect(menuBox!.x).toBeCloseTo(triggerBox!.x, 1)
+        expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(page.viewportSize()!.height)
+      }).toPass({ timeout: 5000 })
+    }
+    await expectAnchoredMenu()
+    expect(await menu.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
     await page.screenshot({ path: testInfo.outputPath('agent-menu-short.png') })
 
     const lastAgent = page.getByTestId('sidebar-agent-button').last()
@@ -66,6 +68,30 @@ test('agent menu stays below its trigger and scrolls in short windows @smoke', a
       await expect(toggle).toHaveAttribute('aria-expanded', String(expanded))
       await expect(toggle).toBeInViewport()
       await expect(page.getByTestId('window-sidebar-theme-toggle')).toBeInViewport()
+      await trigger.click()
+      await expectAnchoredMenu()
+      await page.screenshot({
+        animations: 'disabled',
+        path: testInfo.outputPath(`agent-menu-short-${expanded ? 'expanded' : 'collapsed'}.png`)
+      })
+      await page.keyboard.press('Escape')
+      await expect(trigger).toBeFocused()
+    }
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await page.evaluate(async () => {
+      await window.deepchat.invoke('config.setTheme', { theme: 'light' })
+    })
+    for (const expanded of [true, false]) {
+      await toggle.click()
+      await expect(toggle).toHaveAttribute('aria-expanded', String(expanded))
+      await trigger.click()
+      await expectAnchoredMenu()
+      await page.screenshot({
+        animations: 'disabled',
+        path: testInfo.outputPath(`agent-menu-${expanded ? 'expanded' : 'collapsed'}.png`)
+      })
+      await page.keyboard.press('Escape')
+      await expect(trigger).toBeFocused()
     }
   } finally {
     await page.evaluate(async (ids) => {
