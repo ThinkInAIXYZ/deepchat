@@ -74,6 +74,7 @@ describe('createCronJobRunSessionStarter', () => {
           defaultModelPreset: { providerId: 'anthropic', modelId: 'claude-sonnet' },
           permissionMode: 'full_access',
           disabledAgentTools: ['write_file'],
+          defaultToolMode: 'code',
           subagentEnabled: false,
           systemPrompt: 'Snapshot system prompt'
         }
@@ -93,6 +94,7 @@ describe('createCronJobRunSessionStarter', () => {
       modelId: 'claude-sonnet',
       permissionMode: 'full_access',
       disabledAgentTools: ['write_file'],
+      toolModeOverride: 'code',
       generationSettings: { systemPrompt: 'Task-specific system prompt' },
       metadata: {
         source: 'cron_job',

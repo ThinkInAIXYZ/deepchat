@@ -3,6 +3,7 @@ import type {
   CreateDetachedSessionInput,
   MessageStartResult
 } from '@shared/types/agent-interface'
+import type { ToolModeOverride } from '@shared/toolMode'
 import type { CronJobRunSessionStarter } from './runExecutor'
 
 export interface CronJobSessionLifecyclePort {
@@ -42,6 +43,7 @@ export const createCronJobRunSessionStarter = (deps: {
           defaultModelPreset?: { providerId?: string; modelId?: string } | null
           permissionMode?: 'default' | 'auto_approve' | 'full_access'
           disabledAgentTools?: string[]
+          defaultToolMode?: ToolModeOverride
           systemPrompt?: string
         }
       | null
@@ -63,6 +65,10 @@ export const createCronJobRunSessionStarter = (deps: {
         : {}),
       ...(job.toolPolicy === 'snapshot' && snapshotConfig?.disabledAgentTools
         ? { disabledAgentTools: snapshotConfig.disabledAgentTools }
+        : {}),
+      // null pins the model default; only snapshots captured before the field existed follow the agent.
+      ...(job.toolPolicy === 'snapshot' && snapshotConfig?.defaultToolMode !== undefined
+        ? { toolModeOverride: snapshotConfig.defaultToolMode }
         : {}),
       ...(systemPrompt ? { generationSettings: { systemPrompt } } : {}),
       metadata: {
