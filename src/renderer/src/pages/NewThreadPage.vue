@@ -1379,6 +1379,7 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   draftStore.permissionMode = 'full_access'
   draftStore.disabledAgentTools = [...DEFAULT_DISABLED_AGENT_TOOLS]
   draftStore.orchestrationPolicy = DEFAULT_ORCHESTRATION_POLICY
+  draftStore.toolModeOverride = null
   draftStore.systemPrompt = undefined
   draftStore.temperature = undefined
   draftStore.topP = undefined
@@ -1442,6 +1443,7 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   draftStore.modelId = config.defaultModelPreset?.modelId
   draftStore.permissionMode = config.permissionMode === 'default' ? 'default' : 'full_access'
   draftStore.disabledAgentTools = [...(config.disabledAgentTools ?? DEFAULT_DISABLED_AGENT_TOOLS)]
+  draftStore.toolModeOverride = config.defaultToolMode ?? null
   Object.assign(draftStore, buildDraftGenerationSettings(config))
   if (projectDirIntent) {
     sessionStore.consumeNewConversationProjectDirIntent(projectDirIntent.id)
