@@ -10,6 +10,8 @@ import {
   sessionsCompactRoute,
   sessionsConvertPendingInputToSteerRoute,
   sessionsCreateRoute,
+  sessionsCreateDraftRoute,
+  sessionsDiscardDraftRoute,
   sessionsDeleteAgentSessionsRoute,
   sessionsDeleteMessageRoute,
   sessionsDeletePendingInputRoute,
@@ -164,6 +166,32 @@ export function createSessionRoutes(deps: {
 
   return createRouteMap([
     [
+      sessionsCreateDraftRoute.name,
+      async (rawInput, context) => {
+        const input = sessionsCreateDraftRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
+        return sessionsCreateDraftRoute.output.parse({
+          sessionId: await deps.lifecycle.createDraftSession(
+            input.agentId,
+            input.projectDir,
+            caller.webContentsId
+          )
+        })
+      }
+    ],
+    [
+      sessionsDiscardDraftRoute.name,
+      async (rawInput, context) => {
+        const input = sessionsDiscardDraftRoute.input.parse(rawInput)
+        return sessionsDiscardDraftRoute.output.parse({
+          discarded: await deps.lifecycle.discardDraftSession(
+            input.sessionId,
+            requireRendererCaller(context).webContentsId
+          )
+        })
+      }
+    ],
+    [
       sessionsCreateRoute.name,
       async (rawInput, context) => {
         const input = sessionsCreateRoute.input.parse(rawInput)
@@ -281,10 +309,13 @@ export function createSessionRoutes(deps: {
     ],
     [
       sessionsEnsureAcpDraftRoute.name,
-      async (rawInput) => {
+      async (rawInput, context) => {
         const input = sessionsEnsureAcpDraftRoute.input.parse(rawInput)
         return sessionsEnsureAcpDraftRoute.output.parse(
-          await deps.lifecycle.ensureAcpDraftSession(input)
+          await deps.lifecycle.ensureAcpDraftSession(
+            input,
+            requireRendererCaller(context).webContentsId
+          )
         )
       }
     ],

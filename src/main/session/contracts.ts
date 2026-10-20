@@ -457,6 +457,7 @@ export interface ResolvedTransferTarget {
 }
 
 export interface SessionAssignmentPolicyPort {
+  resolveDraftAgent(agentId: string): string
   resolveCreateAssignment(input: CreateAssignmentInput): Promise<ResolvedSessionAssignment>
   resolveAcpDraftAssignment(
     agentId: string,
@@ -520,6 +521,16 @@ export interface SessionAssignmentWorkdirPort {
 }
 
 export interface SessionLifecycleStorePort {
+  update(
+    sessionId: string,
+    fields: Partial<
+      Pick<
+        SessionRecord,
+        'title' | 'projectDir' | 'isDraft' | 'orchestrationPolicy' | 'toolModeOverride'
+      >
+    >
+  ): void
+  updateDisabledAgentTools(sessionId: string, disabledAgentTools: string[]): void
   create(
     agentId: string,
     title: string,
@@ -600,6 +611,13 @@ export interface SessionLifecycleSubagentInput {
 }
 
 export interface SessionLifecyclePort {
+  createDraftSession(
+    agentId: string,
+    projectDir: string | null,
+    webContentsId: number
+  ): Promise<string>
+  discardDraftSession(sessionId: string, webContentsId: number): Promise<boolean>
+  ownsDraftSession(sessionId: string, webContentsId: number): boolean
   createSession(
     input: CreateSessionInput,
     webContentsId: number,
@@ -607,11 +625,14 @@ export interface SessionLifecyclePort {
   ): Promise<SessionWithState & { initialTurn?: MessageStartResult }>
   createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState>
   createSubagentSession(input: SessionLifecycleSubagentInput): Promise<SessionWithState>
-  ensureAcpDraftSession(input: {
-    agentId: string
-    projectDir: string
-    permissionMode?: PermissionMode
-  }): Promise<EnsureAcpDraftResult>
+  ensureAcpDraftSession(
+    input: {
+      agentId: string
+      projectDir: string
+      permissionMode?: PermissionMode
+    },
+    webContentsId?: number
+  ): Promise<EnsureAcpDraftResult>
   forkSession(
     sourceSessionId: string,
     targetMessageId: string,

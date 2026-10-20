@@ -73,6 +73,7 @@ import {
 import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
 
 export function createDesktopRoutes(deps: {
+  ownsDraftSession(sessionId: string, webContentsId: number): boolean
   windowPresenter: IWindowPresenter
   shortcutPresenter: IShortcutPresenter
   browserPresenter: IYoBrowserPresenter
@@ -407,7 +408,8 @@ export function createDesktopRoutes(deps: {
         const input = browserFocusContentRoute.input.parse(rawInput)
         const caller = requireRendererCaller(context)
         const active =
-          deps.desktopSessionBinding.getActiveId(caller.webContentsId) === input.sessionId
+          deps.desktopSessionBinding.getActiveId(caller.webContentsId) === input.sessionId ||
+          deps.ownsDraftSession(input.sessionId, caller.webContentsId)
         return browserFocusContentRoute.output.parse({
           focused:
             caller.windowId != null &&

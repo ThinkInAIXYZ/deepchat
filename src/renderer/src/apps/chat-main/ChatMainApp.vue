@@ -412,11 +412,11 @@ const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRu
     sidebarStore.toggleSidebar()
   },
   handleToggleWorkspace: () => {
-    if (pageRouterStore.currentRoute !== 'chat' || !pageRouterStore.chatSessionId) {
-      return
+    if (pageRouterStore.currentRoute === 'newThread' && agentStore.selectedAgentId) {
+      sidepanelStore.toggleWorkspace(draftStore.workspaceSessionId)
+    } else if (pageRouterStore.chatSessionId) {
+      sidepanelStore.toggleWorkspace(pageRouterStore.chatSessionId)
     }
-
-    sidepanelStore.toggleWorkspace(pageRouterStore.chatSessionId)
   },
   openSpotlight: () => {
     spotlightStore.openSpotlight()

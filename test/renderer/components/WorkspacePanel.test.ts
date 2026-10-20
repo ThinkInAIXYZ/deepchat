@@ -23,8 +23,7 @@ const {
   isDirectoryMock,
   getPathForFileMock,
   workspaceInvalidationState,
-  workspaceWatchStatusState,
-  setSessionProjectDirMock
+  workspaceWatchStatusState
 } = vi.hoisted(() => ({
   toggleSectionMock: vi.fn(),
   clearFileMock: vi.fn(),
@@ -119,8 +118,7 @@ const {
         this.listeners = this.listeners.filter((currentListener) => currentListener !== listener)
       }
     }
-  },
-  setSessionProjectDirMock: vi.fn().mockResolvedValue(undefined)
+  }
 }))
 
 const sessionState = reactive({
@@ -234,12 +232,6 @@ vi.mock('@api/FileClient', () => ({
   }))
 }))
 
-vi.mock('@/stores/ui/session', () => ({
-  useSessionStore: () => ({
-    setSessionProjectDir: setSessionProjectDirMock
-  })
-}))
-
 vi.mock('@/components/workspace/WorkspaceFileNode.vue', () => ({
   default: defineComponent({
     name: 'WorkspaceFileNode',
@@ -327,7 +319,6 @@ describe('WorkspacePanel', () => {
     selectDirectoryMock.mockReset().mockResolvedValue(null)
     isDirectoryMock.mockReset().mockResolvedValue(true)
     getPathForFileMock.mockReset().mockReturnValue('')
-    setSessionProjectDirMock.mockReset().mockResolvedValue(undefined)
   })
 
   it('mounts the live Agent activity projection in the workspace surface', async () => {
@@ -699,7 +690,6 @@ describe('WorkspacePanel', () => {
 
     expect(getPathForFileMock).toHaveBeenCalledWith(file)
     expect(isDirectoryMock).toHaveBeenCalledWith('/tmp/workspace')
-    expect(setSessionProjectDirMock).toHaveBeenCalledWith('s1', '/tmp/workspace')
     expect(wrapper.emitted('update:workspacePath')).toEqual([['/tmp/workspace']])
 
     wrapper.unmount()
@@ -729,7 +719,6 @@ describe('WorkspacePanel', () => {
     await flushPromises()
 
     expect(isDirectoryMock).toHaveBeenCalledWith('/tmp/workspace/README.md')
-    expect(setSessionProjectDirMock).not.toHaveBeenCalled()
     expect(wrapper.emitted('update:workspacePath')).toBeUndefined()
 
     wrapper.unmount()

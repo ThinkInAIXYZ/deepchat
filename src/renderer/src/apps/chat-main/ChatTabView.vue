@@ -44,8 +44,17 @@
     </div>
 
     <ChatSidePanel
-      :session-id="pageRouter.currentRoute === 'chat' ? pageRouter.chatSessionId : null"
-      :workspace-path="sessionStore.activeSession?.projectDir ?? null"
+      :session-id="
+        pageRouter.currentRoute === 'chat'
+          ? pageRouter.chatSessionId
+          : draftStore.workspaceSessionId
+      "
+      :workspace-path="
+        pageRouter.currentRoute === 'chat'
+          ? (sessionStore.activeSession?.projectDir ?? null)
+          : (projectStore.selectedProject?.path ?? null)
+      "
+      @update:workspace-path="updateWorkspacePath"
     />
   </div>
 </template>
@@ -64,6 +73,7 @@ import { usePageRouterStore } from '@/stores/ui/pageRouter'
 import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useProjectStore } from '@/stores/ui/project'
+import { useDraftStore } from '@/stores/ui/draft'
 import { useModelStore } from '@/stores/modelStore'
 import { useOllamaStore } from '@/stores/ollamaStore'
 import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
@@ -78,6 +88,18 @@ const pageRouter = usePageRouterStore()
 const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const projectStore = useProjectStore()
+const draftStore = useDraftStore()
+const updateWorkspacePath = async (path: string | null) => {
+  if (pageRouter.currentRoute === 'newThread') {
+    projectStore.selectProject(path, 'manual')
+  } else if (pageRouter.chatSessionId) {
+    try {
+      await sessionStore.setSessionProjectDir(pageRouter.chatSessionId, path)
+    } catch (error) {
+      console.warn('[ChatTabView] Failed to update workspace:', error)
+    }
+  }
+}
 const modelStore = useModelStore()
 const ollamaStore = useOllamaStore()
 const performanceReporter = inject<RendererPerformanceReporter | null>(

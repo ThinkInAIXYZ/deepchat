@@ -388,6 +388,9 @@ function createRuntime() {
     modelId: 'gpt-5.4'
   }
   const sessionLifecyclePort = {
+    createDraftSession: vi.fn().mockReturnValue('draft-1'),
+    discardDraftSession: vi.fn().mockResolvedValue(true),
+    ownsDraftSession: vi.fn().mockReturnValue(false),
     createSession: vi.fn().mockResolvedValue({ ...sessionSnapshot, title: 'New Chat' }),
     createDetachedSession: vi.fn().mockResolvedValue(sessionSnapshot),
     createSubagentSession: vi.fn().mockResolvedValue(sessionSnapshot),
@@ -1642,6 +1645,7 @@ function createRuntime() {
     getAuditEntries: () => (sqlitePresenter as any).agentMemoryAuditTable
   })
   const desktopRoutes = createDesktopRoutes({
+    ownsDraftSession: sessionLifecyclePort.ownsDraftSession,
     windowPresenter,
     shortcutPresenter,
     browserPresenter: yoBrowserPresenter,
@@ -4577,6 +4581,29 @@ describe('dispatchDeepchatRoute', () => {
     expect(uninstallResult).toEqual({ ok: true })
   })
 
+  it('allocates and discards drafts using the validated renderer identity', async () => {
+    const { runtime, sessionLifecyclePort } = createRuntime()
+    const context = createRendererRouteContext(88, 3)
+    expect(
+      await dispatchDeepchatRoute(
+        runtime,
+        'sessions.createDraft',
+        { agentId: 'deepchat', projectDir: null },
+        context
+      )
+    ).toEqual({ sessionId: 'draft-1' })
+    expect(sessionLifecyclePort.createDraftSession).toHaveBeenCalledWith('deepchat', null, 88)
+    expect(
+      await dispatchDeepchatRoute(
+        runtime,
+        'sessions.discardDraft',
+        { sessionId: 'draft-1' },
+        context
+      )
+    ).toEqual({ discarded: true })
+    expect(sessionLifecyclePort.discardDraftSession).toHaveBeenCalledWith('draft-1', 88)
+  })
+
   it('dispatches session and chat routes with renderer context', async () => {
     const { runtime, sessionLifecyclePort, sessionTurnPort } = createRuntime()
 
@@ -6319,7 +6346,8 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('restricts browser keyboard entry to the caller window and active session', async () => {
-    const { runtime, desktopSessionBinding, yoBrowserPresenter } = createRuntime()
+    const { runtime, desktopSessionBinding, yoBrowserPresenter, sessionLifecyclePort } =
+      createRuntime()
     desktopSessionBinding.getActiveId.mockReturnValue('session-1')
     const focus = (sessionId: string, windowId: number | null = 3) =>
       dispatchDeepchatRoute(
@@ -6335,6 +6363,11 @@ describe('dispatchDeepchatRoute', () => {
     expect(await focus('other-session')).toEqual({ focused: false })
     expect(await focus('session-1', null)).toEqual({ focused: false })
     expect(yoBrowserPresenter.focusSessionBrowser).toHaveBeenCalledTimes(1)
+    sessionLifecyclePort.ownsDraftSession.mockImplementation(
+      (id, owner) => id === 'draft-1' && owner === 88
+    )
+    expect(await focus('draft-1')).toEqual({ focused: true })
+    expect(yoBrowserPresenter.focusSessionBrowser).toHaveBeenLastCalledWith('draft-1', 3)
   })
 
   it('scopes Computer Use preview routes to the active sender session', async () => {

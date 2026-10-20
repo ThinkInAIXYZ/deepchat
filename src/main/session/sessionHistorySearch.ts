@@ -120,7 +120,7 @@ export class SessionHistorySearch {
         .map((row) => {
           if (row.document_kind === 'session') {
             const session = this.appSessionService.get(row.session_id)
-            if (!session) return null
+            if (!session || session.isDraft) return null
             return {
               kind: 'session' as const,
               sessionId: session.id,
@@ -162,7 +162,7 @@ export class SessionHistorySearch {
       .prepare(
         `SELECT id, title, project_dir AS projectDir, updated_at AS updatedAt
          FROM new_sessions
-         WHERE session_kind = 'regular' AND lower(title) LIKE ?
+         WHERE session_kind = 'regular' AND is_draft = 0 AND lower(title) LIKE ?
          ORDER BY updated_at DESC LIMIT ?`
       )
       .all(likeQuery, limit * 2) as SearchableSessionRow[]
@@ -171,7 +171,7 @@ export class SessionHistorySearch {
         `SELECT m.id AS id, m.session_id AS sessionId, s.title AS title, m.role AS role,
                 m.content AS content, m.updated_at AS updatedAt
          FROM deepchat_messages m INNER JOIN new_sessions s ON s.id = m.session_id
-         WHERE s.session_kind = 'regular' AND lower(m.content) LIKE ?
+         WHERE s.session_kind = 'regular' AND s.is_draft = 0 AND lower(m.content) LIKE ?
          ORDER BY m.updated_at DESC LIMIT ?`
       )
       .all(likeQuery, limit * 4) as SearchableMessageRow[]

@@ -7,6 +7,7 @@ import type {
 } from '@shared/types/agent-interface'
 import { SessionLifecycle, type SessionLifecycleDependencies } from '@/session/lifecycle'
 import { SessionDeletionGate } from '@/session/deletionGate'
+import { SessionAssignment } from '@/session/assignment'
 import { AcpAuthenticationRequiredError } from '@/agent/acp/runtime/acpAuthentication'
 
 const createRecord = (overrides: Partial<SessionRecord> = {}): SessionRecord => ({
@@ -85,6 +86,11 @@ function createHarness(initialSessions: SessionRecord[] = []) {
   }
 
   const sessions = {
+    update: vi.fn((sessionId: string, fields: Partial<SessionRecord>) => {
+      const record = records.get(sessionId)
+      if (record) records.set(sessionId, { ...record, ...fields })
+    }),
+    updateDisabledAgentTools: vi.fn(),
     create: vi.fn(
       (
         agentId: string,
@@ -143,6 +149,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
   }
   const skills = { setActiveSkills: vi.fn().mockResolvedValue(undefined) }
   const assignmentPolicy = {
+    resolveDraftAgent: vi.fn((agentId: string) => agentId),
     resolveCreateAssignment: vi.fn(
       async (input: {
         agentId: string
@@ -192,7 +199,9 @@ function createHarness(initialSessions: SessionRecord[] = []) {
       })
     )
   }
+  const operationGate = new SessionAssignment({} as never)
   const workdir = {
+    runWithSessionOperationGate: operationGate.runWithSessionOperationGate.bind(operationGate),
     assertAcpSessionHasWorkdir: vi.fn(),
     syncAcpSessionWorkdir: vi.fn(async (_providerId: string, sessionId: string) => {
       order.push(`sync:${sessionId}`)
@@ -243,7 +252,12 @@ function createHarness(initialSessions: SessionRecord[] = []) {
       async (_agentId: string, deletion: () => Promise<unknown>) => await deletion()
     )
   }
+  const rendererDestroyed = new Map<number, () => void>()
   const dependencies = {
+    onRendererDestroyed: (webContentsId: number, callback: () => void) => {
+      rendererDestroyed.set(webContentsId, callback)
+      return () => rendererDestroyed.delete(webContentsId)
+    },
     sessions,
     runtime,
     transcript,
@@ -261,6 +275,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
 
   return {
     coordinator: new SessionLifecycle(dependencies),
+    rendererDestroyed,
     records,
     order,
     getRuntime,
@@ -281,6 +296,143 @@ function createHarness(initialSessions: SessionRecord[] = []) {
 }
 
 describe('SessionLifecycle', () => {
+  it('allocates an owned hidden draft without resolving a model or initializing a runtime', async () => {
+    const harness = createHarness()
+    const id = await harness.coordinator.createDraftSession('deepchat', null, 42)
+    expect(harness.records.get(id)).toMatchObject({ isDraft: true, projectDir: null })
+    expect(harness.runtime.resolveSession).not.toHaveBeenCalled()
+    expect(harness.assignmentPolicy.resolveCreateAssignment).not.toHaveBeenCalled()
+    expect(harness.desktop.bind).not.toHaveBeenCalled()
+    expect(harness.coordinator.ownsDraftSession(id, 42)).toBe(true)
+    expect(harness.coordinator.ownsDraftSession(id, 43)).toBe(false)
+  })
+
+  it('adopts the same draft identity using the current submission settings', async () => {
+    const harness = createHarness()
+    const id = await harness.coordinator.createDraftSession('deepchat', '/old', 42)
+    const result = await harness.coordinator.createSession(
+      {
+        agentId: 'deepchat',
+        draftSessionId: id,
+        message: 'Review the project',
+        projectDir: '/new',
+        providerId: 'test-provider',
+        modelId: 'current-model',
+        permissionMode: 'default',
+        disabledAgentTools: ['execute'],
+        toolModeOverride: 'agent',
+        generationSettings: { temperature: 0.4 }
+      },
+      42
+    )
+    expect(result).toMatchObject({
+      id,
+      isDraft: false,
+      projectDir: '/new',
+      title: 'Review the project'
+    })
+    expect(harness.sessions.create).toHaveBeenCalledTimes(1)
+    expect(harness.getRuntime(id).initialize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'test-provider',
+        modelId: 'current-model',
+        permissionMode: 'default',
+        generationSettings: { temperature: 0.4 }
+      })
+    )
+    expect(harness.sessions.updateDisabledAgentTools).toHaveBeenCalledWith(id, ['execute'])
+    expect(harness.initialTurn.startInitialTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: id })
+    )
+    expect(await harness.coordinator.discardDraftSession(id, 42)).toBe(false)
+    expect(harness.deletion.deleteSessionTree).not.toHaveBeenCalled()
+  })
+
+  it('rejects adoption and disposal from another renderer or agent', async () => {
+    const harness = createHarness()
+    const id = await harness.coordinator.createDraftSession('deepchat', '/repo', 42)
+    for (const [agentId, owner] of [
+      ['deepchat', 43],
+      ['another-agent', 42]
+    ] as const) {
+      await expect(
+        harness.coordinator.createSession({ agentId, draftSessionId: id, message: 'Review' }, owner)
+      ).rejects.toThrow('Draft session is unavailable')
+    }
+    expect(await harness.coordinator.discardDraftSession(id, 43)).toBe(false)
+    expect(harness.records.get(id)?.isDraft).toBe(true)
+    expect(harness.deletion.deleteSessionTree).not.toHaveBeenCalled()
+  })
+
+  it.each(['initialization', 'submission'] as const)(
+    'preserves an unused draft after failed %s and allows retry',
+    async (stage) => {
+      const harness = createHarness()
+      const id = await harness.coordinator.createDraftSession('deepchat', '/repo', 42)
+      const target =
+        stage === 'initialization'
+          ? harness.getRuntime(id).initialize
+          : harness.initialTurn.startInitialTurn
+      target.mockRejectedValueOnce(new Error('Failed'))
+      const input = { agentId: 'deepchat', draftSessionId: id, message: 'Review' }
+      await expect(harness.coordinator.createSession(input, 42)).rejects.toThrow('Failed')
+      expect(harness.records.get(id)?.isDraft).toBe(true)
+      expect(harness.deletion.deleteSessionTree).not.toHaveBeenCalled()
+      expect(await harness.coordinator.createSession(input, 42)).toMatchObject({
+        id,
+        isDraft: false
+      })
+    }
+  )
+
+  it('serializes disposal behind adoption and preserves accepted sessions', async () => {
+    const harness = createHarness()
+    const id = await harness.coordinator.createDraftSession('deepchat', '/repo', 42)
+    let resume!: () => void
+    harness.getRuntime(id).initialize.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resume = resolve
+        })
+    )
+    const creation = harness.coordinator.createSession(
+      { agentId: 'deepchat', draftSessionId: id, message: 'Review' },
+      42
+    )
+    await vi.waitFor(() => expect(resume).toBeTypeOf('function'))
+    const disposal = harness.coordinator.discardDraftSession(id, 42)
+    resume()
+    expect(await creation).toMatchObject({ id, isDraft: false })
+    expect(await disposal).toBe(false)
+    expect(harness.deletion.deleteSessionTree).not.toHaveBeenCalled()
+  })
+
+  it('disposes an unused draft when its renderer is destroyed', async () => {
+    const harness = createHarness()
+    const id = await harness.coordinator.createDraftSession('deepchat', null, 42)
+    harness.deletion.deleteSessionTree.mockImplementationOnce(async () => {
+      harness.records.delete(id)
+      return [id]
+    })
+    harness.rendererDestroyed.get(42)!()
+    await vi.waitFor(() => expect(harness.records.has(id)).toBe(false))
+    expect(harness.coordinator.ownsDraftSession(id, 42)).toBe(false)
+  })
+
+  it('keeps ACP drafts and their browser ownership separate across renderers', async () => {
+    const harness = createHarness([
+      createRecord({ id: 'acp-draft', agentId: 'claude-acp', projectDir: '/repo', isDraft: true })
+    ])
+    const input = { agentId: 'claude-acp', projectDir: '/repo' }
+    const [first, second] = await Promise.all([
+      harness.coordinator.ensureAcpDraftSession(input, 42),
+      harness.coordinator.ensureAcpDraftSession(input, 43)
+    ])
+    expect(first.session.id).not.toBe(second.session.id)
+    expect(harness.coordinator.ownsDraftSession(first.session.id, 42)).toBe(true)
+    expect(harness.coordinator.ownsDraftSession(second.session.id, 43)).toBe(true)
+    expect(harness.coordinator.ownsDraftSession(first.session.id, 43)).toBe(false)
+  })
   it.each(['regular', 'detached'] as const)(
     '%s creation returns persisted fields and assignment fallback without a snapshot',
     async (kind) => {
