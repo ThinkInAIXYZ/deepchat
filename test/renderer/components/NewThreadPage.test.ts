@@ -5,6 +5,7 @@ import type { ReasoningEffort, Verbosity } from '../../../src/shared/types/model
 import type { PermissionMode } from '../../../src/shared/types/agent-interface'
 import type { ToolModeOverride } from '../../../src/shared/toolMode'
 import type { JSONContent } from '@tiptap/core'
+import { WORKSPACE_EVENTS } from '@/events'
 
 const passthrough = (name: string) =>
   defineComponent({
@@ -13,6 +14,7 @@ const passthrough = (name: string) =>
   })
 
 const chatInputTriggerAttachMock = vi.fn()
+const insertWorkspaceReferenceMock = vi.fn(() => true)
 const chatInputClearPendingSkillsMock = vi.fn(() => {
   chatInputPendingSkillsSnapshotRef.value = []
 })
@@ -46,6 +48,7 @@ const createChatInputBoxStub = () =>
     setup(props, { expose }) {
       expose({
         triggerAttach: chatInputTriggerAttachMock,
+        insertWorkspaceReference: insertWorkspaceReferenceMock,
         isResolvingSessionReferences: () => resolvingSessionReferences.value,
         getPendingSkillsSnapshot: () => [...chatInputPendingSkillsSnapshotRef.value],
         setPendingSkills: (skills: string[]) => {
@@ -72,6 +75,7 @@ const createChatInputBoxStub = () =>
   })
 
 const setup = async (options?: {
+  panelInitiallyOpen?: boolean
   ensureAcpDraftSession?: (input: {
     agentId: string
     projectDir: string
@@ -281,6 +285,8 @@ const setup = async (options?: {
   }
 
   const sessionClient = {
+    createDraftSession: vi.fn().mockResolvedValue({ sessionId: 'workspace-draft-1' }),
+    discardDraftSession: vi.fn().mockResolvedValue({ discarded: true }),
     ensureAcpDraftSession: vi.fn().mockImplementation(
       options?.ensureAcpDraftSession ??
         (() => {
@@ -315,6 +321,22 @@ const setup = async (options?: {
   })
   const startupDeferredTasks: Array<() => void | Promise<void>> = []
 
+  const pageRouterStore = reactive({ newThreadRefreshKey: 0 })
+  const sidepanelStore = reactive({
+    open: options?.panelInitiallyOpen ?? false,
+    sessionStates: {} as Record<string, unknown>,
+    toggleWorkspace: vi.fn(() => {
+      sidepanelStore.open = !sidepanelStore.open
+    }),
+    closePanel: vi.fn(() => {
+      sidepanelStore.open = false
+    }),
+    clearFile: vi.fn(),
+    clearDiff: vi.fn(),
+    disposeSessionState: vi.fn()
+  })
+  vi.doMock('@/stores/ui/sidepanel', () => ({ useSidepanelStore: () => sidepanelStore }))
+  vi.doMock('@/stores/ui/pageRouter', () => ({ usePageRouterStore: () => pageRouterStore }))
   vi.doMock('@/stores/ui/project', () => ({
     useProjectStore: () => projectStore
   }))
@@ -411,6 +433,8 @@ const setup = async (options?: {
 
   return {
     wrapper,
+    sidepanelStore,
+    pageRouterStore,
     mountPage,
     projectStore,
     sessionStore,
@@ -438,6 +462,120 @@ const setup = async (options?: {
 
 describe('NewThreadPage ACP draft session bootstrap', () => {
   beforeEach(() => localStorage.clear())
+
+  it('shows accessible loading feedback while the workspace draft is allocated', async () => {
+    const { wrapper, sessionClient, draftStore } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat'
+    })
+    let resolveDraft!: (value: { sessionId: string }) => void
+    sessionClient.createDraftSession.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveDraft = resolve
+        })
+    )
+    const toggle = wrapper.get('[data-testid="new-thread-workspace-toggle"]')
+    await toggle.trigger('click')
+    await flushPromises()
+    expect(toggle.attributes('aria-busy')).toBe('true')
+    expect(toggle.attributes('disabled')).toBeDefined()
+    resolveDraft({ sessionId: 'workspace-draft-1' })
+    await flushPromises()
+    expect(toggle.attributes('aria-busy')).toBeUndefined()
+    expect(draftStore.workspaceSessionId).toBe('workspace-draft-1')
+    wrapper.unmount()
+  })
+
+  it('opens a local workspace without sending, inserts file references, and submits using the same identity', async () => {
+    const {
+      wrapper,
+      sessionClient,
+      sidepanelStore,
+      draftStore,
+      sessionStore,
+      modelStore,
+      projectStore
+    } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat',
+      panelInitiallyOpen: true
+    })
+    modelStore.enabledModels = [{ providerId: 'openai', models: [{ id: 'gpt-4', name: 'GPT-4' }] }]
+    expect(sessionClient.createDraftSession).not.toHaveBeenCalled()
+    expect(sidepanelStore.open).toBe(false)
+    await wrapper.get('[data-testid="new-thread-workspace-toggle"]').trigger('click')
+    await flushPromises()
+    expect(sidepanelStore.open).toBe(true)
+    expect(draftStore.workspaceSessionId).toBe('workspace-draft-1')
+    expect(sessionStore.createSession).not.toHaveBeenCalled()
+    window.dispatchEvent(
+      new CustomEvent(WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED, {
+        detail: { sessionId: 'workspace-draft-1', filePath: '/tmp/workspace/README.md' }
+      })
+    )
+    expect(insertWorkspaceReferenceMock).toHaveBeenCalledWith('/tmp/workspace/README.md')
+    projectStore.selectProject('/different-project')
+    await flushPromises()
+    expect(sidepanelStore.clearFile).toHaveBeenCalledWith('workspace-draft-1')
+    const input = wrapper.getComponent({ name: 'ChatInputBox' })
+    input.vm.$emit('update:modelValue', 'Review this project')
+    input.vm.$emit('submit')
+    await flushPromises()
+    expect(sessionStore.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        draftSessionId: 'workspace-draft-1',
+        projectDir: '/different-project'
+      })
+    )
+    wrapper.unmount()
+  })
+
+  it('discards an unused workspace when starting another conversation', async () => {
+    const { wrapper, sidepanelStore, sessionClient, pageRouterStore } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat'
+    })
+    sidepanelStore.open = true
+    await flushPromises()
+    sessionClient.createDraftSession.mockResolvedValueOnce({ sessionId: 'workspace-draft-2' })
+    pageRouterStore.newThreadRefreshKey += 1
+    await flushPromises()
+    expect(sessionClient.discardDraftSession).toHaveBeenCalledWith('workspace-draft-1')
+    expect(sidepanelStore.open).toBe(false)
+    expect(sessionClient.createDraftSession).toHaveBeenCalledTimes(1)
+    sidepanelStore.open = true
+    await flushPromises()
+    wrapper.unmount()
+    expect(sessionClient.discardDraftSession).toHaveBeenCalledWith('workspace-draft-2')
+  })
+
+  it('discards a late workspace allocation after another new conversation starts', async () => {
+    const { wrapper, sidepanelStore, sessionClient, pageRouterStore, draftStore } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat'
+    })
+    let resolveFirst!: (value: { sessionId: string }) => void
+    sessionClient.createDraftSession
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockResolvedValueOnce({ sessionId: 'workspace-draft-2' })
+    sidepanelStore.open = true
+    await flushPromises()
+    pageRouterStore.newThreadRefreshKey += 1
+    await flushPromises()
+    sidepanelStore.open = true
+    await flushPromises()
+    resolveFirst({ sessionId: 'workspace-draft-1' })
+    await flushPromises()
+    expect(draftStore.workspaceSessionId).toBe('workspace-draft-2')
+    expect(sessionClient.discardDraftSession).toHaveBeenCalledWith('workspace-draft-1')
+    wrapper.unmount()
+  })
 
   it('does not create a session before reference resolution finishes', async () => {
     const { wrapper, sessionStore, modelStore } = await setup({

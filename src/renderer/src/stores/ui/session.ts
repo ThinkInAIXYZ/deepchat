@@ -1184,6 +1184,27 @@ export const useSessionStore = defineStore('session', () => {
       }
       return result
     } catch (createError) {
+      if (input.draftSessionId) {
+        try {
+          // A failed reply can still leave an accepted first message; open its conversation.
+          const recovered = await sessionClient.restore(input.draftSessionId, 1)
+          const session = recovered.session
+          if (session && !session.isDraft && recovered.messages.length > 0) {
+            commitSessionSnapshot(session)
+            setSearchIntent(session.id, input.search === true)
+            if (activationNavigationRequestId === requestId) {
+              setActiveSessionId(session.id)
+              applyRestoredSession(session)
+              syncSelectedAgentToSession(session.id)
+              pageRouter.goToChat(session.id)
+              await completeOnboardingStep('first-chat')
+            }
+            return { session }
+          }
+        } catch (recoveryError) {
+          console.warn('[sessionStore] Failed to recover adopted draft:', recoveryError)
+        }
+      }
       if (
         activationNavigationRequestId === requestId &&
         !(options?.isCancellationRequested?.() && isAbortError(createError))

@@ -45,6 +45,12 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
     private readonly config: SessionAssignmentConfigPort
   ) {}
 
+  resolveDraftAgent(agentId: string): string {
+    const descriptor = this.catalog.resolveAgent(agentId)
+    if (descriptor.kind !== 'deepchat') throw new Error('Only DeepChat agents use local drafts.')
+    return descriptor.id
+  }
+
   async resolveCreateAssignment(input: CreateAssignmentInput): Promise<ResolvedSessionAssignment> {
     const descriptor = this.catalog.resolveAgent(input.agentId)
     const agentConfig =

@@ -5,6 +5,20 @@
       data-testid="new-thread-page"
       class="relative h-full w-full flex flex-col"
     >
+      <div class="absolute right-4 top-2.5 z-10">
+        <DcButton
+          variant="ghost"
+          icon="lucide:folder-tree"
+          size="icon-sm"
+          :loading="isPreparingWorkspace"
+          :disabled="isPreparingWorkspace"
+          :aria-busy="isPreparingWorkspace || undefined"
+          :label="t('chat.workspace.title')"
+          :tooltip="t('chat.workspace.title')"
+          data-testid="new-thread-workspace-toggle"
+          @click="sidepanelStore.toggleWorkspace(workspaceSessionId)"
+        />
+      </div>
       <!-- Main content area (centered) -->
       <div class="flex-1 flex flex-col items-center justify-center px-6">
         <!-- Logo -->
@@ -238,6 +252,9 @@ import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
+import { useSidepanelStore } from '@/stores/ui/sidepanel'
+import { usePageRouterStore } from '@/stores/ui/pageRouter'
+import { WORKSPACE_EVENTS } from '@/events'
 import {
   useNewThreadComposerDraft,
   type ComposerHandle
@@ -281,6 +298,9 @@ const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const modelStore = useModelStore()
 const draftStore = useDraftStore()
+const sidepanelStore = useSidepanelStore()
+sidepanelStore.closePanel()
+const pageRouterStore = usePageRouterStore()
 const configClient = createConfigClient()
 const router = useRouter()
 const fileClient = createFileClient()
@@ -327,6 +347,7 @@ const chatInputRef = ref<
         insertRecognizedText?: (text: string) => void
         getInlineItemsSnapshot?: () => UserMessageInlineItem[]
         isResolvingSessionReferences?: () => boolean
+        insertWorkspaceReference?: (path: string) => boolean
       })
   | null
 >(null)
@@ -351,6 +372,77 @@ const {
 } = useNewThreadComposerDraft(() => agentStore.selectedAgentId, chatInputRef)
 const chatStatusBarRef = ref<ChatStatusBarModelPicker | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
+const localDraftSessionId = ref<string | null>(null)
+const isPreparingWorkspace = ref(false)
+const workspaceSessionId = computed(() => acpDraftSessionId.value ?? localDraftSessionId.value)
+let workspaceDraftRequest = 0
+let workspaceDraftTask: Promise<void> | null = null
+let submittingWorkspaceDraftId: string | null = null
+let workspaceDisposed = false
+
+const discardWorkspaceDraft = (sessionId: string) => {
+  sidepanelStore.disposeSessionState(sessionId)
+  void sessionClient.discardDraftSession(sessionId).catch((error) => {
+    console.warn('[NewThreadPage] Failed to discard workspace draft:', error)
+  })
+}
+
+const resetWorkspaceDraft = () => {
+  workspaceDraftRequest += 1
+  workspaceDraftTask = null
+  isPreparingWorkspace.value = false
+  const sessionId = localDraftSessionId.value
+  localDraftSessionId.value = null
+  if (sessionId && sessionId !== submittingWorkspaceDraftId) discardWorkspaceDraft(sessionId)
+}
+
+const ensureWorkspaceDraft = () => {
+  if (workspaceDraftTask || localDraftSessionId.value || isAcpSelectedAgent.value) return
+  const agentId = agentStore.selectedAgentId
+  if (!agentId) return
+  const request = ++workspaceDraftRequest
+  isPreparingWorkspace.value = true
+  workspaceDraftTask = (async () => {
+    try {
+      const { sessionId } = await sessionClient.createDraftSession(
+        agentId,
+        projectStore.selectedProject?.path ?? null
+      )
+      if (workspaceDisposed || request !== workspaceDraftRequest) {
+        discardWorkspaceDraft(sessionId)
+        return
+      }
+      localDraftSessionId.value = sessionId
+    } catch (error) {
+      console.warn('[NewThreadPage] Failed to prepare workspace draft:', error)
+      if (request === workspaceDraftRequest && !workspaceDisposed) {
+        sidepanelStore.closePanel()
+        notifyRenderer({
+          kind: 'error',
+          code: 'chat.workspace.prepareFailed',
+          title: t('common.error.operationFailed'),
+          description: t('common.error.requestFailed')
+        })
+      }
+    } finally {
+      if (request === workspaceDraftRequest) {
+        workspaceDraftTask = null
+        isPreparingWorkspace.value = false
+      }
+    }
+  })()
+}
+
+const insertWorkspaceReference = (event: Event) => {
+  const detail = (event as CustomEvent<{ sessionId?: string; filePath?: string }>).detail
+  if (
+    detail?.sessionId === workspaceSessionId.value &&
+    detail.filePath &&
+    !isSubmittingInput.value
+  ) {
+    chatInputRef.value?.insertWorkspaceReference?.(detail.filePath)
+  }
+}
 const acpDraftModelSelection = ref<SubmissionModelSelection | null>(null)
 const lastAcpDraftKey = ref<string | null>(null)
 const acpDraftRequestSeq = ref(0)
@@ -1116,6 +1208,8 @@ async function submitText(
   const preparedHeroFlight = prepareChatInputHeroFlight(resolveChatInputBoxElement())
 
   const agentId = submission.agentId
+  if (!isAcp) await workspaceDraftTask
+  const targetLocalDraftId = !isAcp ? localDraftSessionId.value : null
   const projectDir = selectedSessionProjectDir.value
   const targetAcpSessionId = acpDraftSessionId.value
   const draftPermissionMode = draftStore.permissionMode
@@ -1147,6 +1241,9 @@ async function submitText(
         return false
       }
       await sessionStore.sendMessage(targetAcpSessionId, messagePayload)
+      void sessionClient.discardDraftSession(targetAcpSessionId).catch((error) => {
+        console.warn('[NewThreadPage] Failed to release promoted ACP draft ownership:', error)
+      })
       return true
     }
 
@@ -1175,6 +1272,7 @@ async function submitText(
     }
 
     const createInput = {
+      ...(targetLocalDraftId ? { draftSessionId: targetLocalDraftId } : {}),
       message: messagePayload.text,
       files: messagePayload.files,
       ...(messagePayload.search ? { search: true } : {}),
@@ -1198,10 +1296,24 @@ async function submitText(
           }
         : undefined
     submission.mainDispatched = Boolean(submissionOptions)
-    if (submissionOptions) {
-      await sessionStore.createSession(createInput, submissionOptions)
-    } else {
-      await sessionStore.createSession(createInput)
+    submittingWorkspaceDraftId = targetLocalDraftId
+    let accepted = false
+    try {
+      if (submissionOptions) {
+        await sessionStore.createSession(createInput, submissionOptions)
+      } else {
+        await sessionStore.createSession(createInput)
+      }
+      accepted = true
+    } finally {
+      submittingWorkspaceDraftId = null
+      if (
+        !accepted &&
+        targetLocalDraftId &&
+        (workspaceDisposed || localDraftSessionId.value !== targetLocalDraftId)
+      ) {
+        discardWorkspaceDraft(targetLocalDraftId)
+      }
     }
     return true
   } catch (error) {
@@ -1620,13 +1732,59 @@ watch(
   { immediate: true }
 )
 
+watch(
+  workspaceSessionId,
+  (sessionId) => {
+    draftStore.workspaceSessionId = sessionId
+  },
+  { immediate: true, flush: 'sync' }
+)
+
+watch(
+  [() => agentStore.selectedAgentId, () => pageRouterStore.newThreadRefreshKey],
+  ([, refreshKey], [, previousRefreshKey]) => {
+    if (refreshKey !== previousRefreshKey) sidepanelStore.closePanel()
+    resetWorkspaceDraft()
+  },
+  { flush: 'sync' }
+)
+
+watch(
+  [
+    () => sidepanelStore.open,
+    () => agentStore.selectedAgentId,
+    () => pageRouterStore.newThreadRefreshKey
+  ],
+  ([open]) => {
+    if (open) ensureWorkspaceDraft()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => projectStore.selectedProject?.path,
+  () => {
+    const sessionId = workspaceSessionId.value
+    if (sessionId) {
+      sidepanelStore.clearFile(sessionId)
+      sidepanelStore.clearDiff(sessionId)
+    }
+  },
+  { flush: 'sync' }
+)
+
 onMounted(() => {
   draftStore.projectDir = projectStore.selectedProject?.path
   void nextTick(syncGuideTargets)
   window.addEventListener('resize', syncGuideTargets)
+  window.addEventListener(WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED, insertWorkspaceReference)
 })
 
 onUnmounted(() => {
+  workspaceDisposed = true
+  resetWorkspaceDraft()
+  draftStore.workspaceSessionId = null
+  window.removeEventListener(WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED, insertWorkspaceReference)
   attachmentFilterToken += 1
   cancelSubmissionPreparation()
   searchCapabilityToken += 1

@@ -330,6 +330,7 @@ export const SessionListFiltersSchema = z
 
 export const CreateSessionInputSchema = z.object({
   agentId: EntityIdSchema,
+  draftSessionId: EntityIdSchema.optional(),
   message: z.string(),
   submissionId: SubmissionIdSchema.optional(),
   files: z.array(MessageFileSchema).optional(),
@@ -344,6 +345,18 @@ export const CreateSessionInputSchema = z.object({
   orchestrationPolicy: OrchestrationPolicySchema.optional(),
   toolModeOverride: ToolModeSchema.nullable().optional(),
   generationSettings: SessionGenerationSettingsPatchSchema.optional()
+})
+
+export const sessionsCreateDraftRoute = defineRouteContract({
+  name: 'sessions.createDraft',
+  input: z.object({ agentId: EntityIdSchema, projectDir: z.string().nullable() }),
+  output: z.object({ sessionId: EntityIdSchema })
+})
+
+export const sessionsDiscardDraftRoute = defineRouteContract({
+  name: 'sessions.discardDraft',
+  input: z.object({ sessionId: EntityIdSchema }),
+  output: z.object({ discarded: z.boolean() })
 })
 
 export const sessionsCreateRoute = defineRouteContract({

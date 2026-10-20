@@ -17,6 +17,8 @@ import {
   sessionsClearMessagesRoute,
   sessionsCompactRoute,
   sessionsCreateRoute,
+  sessionsCreateDraftRoute,
+  sessionsDiscardDraftRoute,
   sessionsDeleteAgentSessionsRoute,
   sessionsDeleteMessageRoute,
   sessionsDeletePendingInputRoute,
@@ -100,6 +102,13 @@ import type {
 import { getDeepchatBridge } from './core'
 
 export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function createDraftSession(agentId: string, projectDir: string | null) {
+    return await bridge.invoke(sessionsCreateDraftRoute.name, { agentId, projectDir })
+  }
+
+  async function discardDraftSession(sessionId: string) {
+    return await bridge.invoke(sessionsDiscardDraftRoute.name, { sessionId })
+  }
   async function create(input: CreateSessionInput, options?: { submissionId?: string }) {
     return await bridge.invoke(
       sessionsCreateRoute.name,
@@ -687,6 +696,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
   }
 
   return {
+    createDraftSession,
+    discardDraftSession,
     create,
     restore,
     searchReferenceCandidates,

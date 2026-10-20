@@ -179,7 +179,6 @@ import LiveDelegationPanel from './LiveDelegationPanel.vue'
 import WorkspaceViewer from './WorkspaceViewer.vue'
 import { useWorkspaceSync } from './composables/useWorkspaceSync'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
-import { useSessionStore } from '@/stores/ui/session'
 import type { WorkspaceGitFileChange } from '@shared/types/workspace'
 
 const props = defineProps<{
@@ -196,7 +195,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()
-const sessionStore = useSessionStore()
 const workspaceClient = createWorkspaceClient()
 const projectClient = createProjectClient()
 const fileClient = createFileClient()
@@ -286,7 +284,6 @@ async function selectFolder() {
   try {
     const selectedPath = await projectClient.selectDirectory()
     if (selectedPath) {
-      await sessionStore.setSessionProjectDir(props.sessionId, selectedPath)
       emit('update:workspacePath', selectedPath)
     }
   } catch (e) {
@@ -343,7 +340,6 @@ async function handleDrop(event: DragEvent) {
     }
 
     console.log('[WorkspacePanel] Setting project dir to:', filePath)
-    await sessionStore.setSessionProjectDir(props.sessionId, filePath)
     emit('update:workspacePath', filePath)
     console.log('[WorkspacePanel] Project dir set successfully')
   } catch (e) {

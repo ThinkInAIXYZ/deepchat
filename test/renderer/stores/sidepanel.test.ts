@@ -36,6 +36,15 @@ describe('sidepanel store', () => {
     }
   }
 
+  it('disposes one session workspace state without affecting another', async () => {
+    const { store } = await setupSidepanelStore(1200)
+    store.selectFile('draft-1', '/draft/README.md')
+    store.selectFile('session-2', '/project/README.md')
+    store.disposeSessionState('draft-1')
+    expect(store.getSessionState('draft-1').selectedFilePath).toBeNull()
+    expect(store.getSessionState('session-2').selectedFilePath).toBe('/project/README.md')
+  })
+
   it('clamps width to the resolved maximum on narrow viewports', async () => {
     const { store, storageRef } = await setupSidepanelStore(500)
 

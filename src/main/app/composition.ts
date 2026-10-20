@@ -2368,6 +2368,15 @@ export async function createMainProcessControl(dependencies: {
     projection: sessionQuery
   })
   sessionLifecycle = new SessionLifecycle({
+    onRendererDestroyed: (webContentsId, callback) => {
+      const target = electronWebContents.fromId(webContentsId)
+      if (!target || target.isDestroyed()) {
+        queueMicrotask(callback)
+        return () => {}
+      }
+      target.once('destroyed', callback)
+      return () => target.removeListener('destroyed', callback)
+    },
     forkAcpSession: async (sourceId, targetId, messageId) => {
       const message = sessionData.transcript.getMessage(messageId)
       if (
@@ -3117,6 +3126,8 @@ export async function createMainProcessControl(dependencies: {
       getAuditEntries: () => memoryDatabase.agentMemoryAuditTable
     })
     const desktopRoutes = createDesktopRoutes({
+      ownsDraftSession: (sessionId, webContentsId) =>
+        sessionLifecycle.ownsDraftSession(sessionId, webContentsId),
       windowPresenter,
       shortcutPresenter,
       browserPresenter: yoBrowserPresenter,

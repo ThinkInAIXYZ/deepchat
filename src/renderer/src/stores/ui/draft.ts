@@ -37,6 +37,7 @@ export const useDraftStore = defineStore('draft', () => {
   const modelId = ref<string | undefined>(undefined)
   const projectDir = ref<string | undefined>(undefined)
   const agentId = ref<string>('deepchat')
+  const workspaceSessionId = ref<string | null>(null)
   const systemPrompt = ref<string | undefined>(undefined)
   const temperature = ref<number | undefined>(undefined)
   const topP = ref<number | undefined>(undefined)
@@ -232,6 +233,7 @@ export const useDraftStore = defineStore('draft', () => {
 
   return {
     newThreadComposerDrafts,
+    workspaceSessionId,
     getNewThreadComposerDraft,
     setNewThreadComposerDraft,
     providerId,

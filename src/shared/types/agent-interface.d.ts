@@ -885,6 +885,7 @@ export interface ToolInteractionResult {
 
 export interface CreateSessionInput {
   agentId: string
+  draftSessionId?: string
   message: string
   files?: MessageFile[]
   search?: boolean

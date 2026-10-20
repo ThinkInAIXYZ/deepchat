@@ -1,6 +1,7 @@
 <template>
   <div
     data-testid="chat-side-panel-shell"
+    :data-session-id="props.sessionId"
     class="chat-side-panel-shell h-full min-h-0 overflow-hidden"
     :class="[
       isSidepanelFullscreenActive ? 'absolute inset-0 w-full' : 'relative shrink-0',
@@ -130,6 +131,7 @@
           :session-id="props.sessionId"
           :workspace-path="props.workspacePath"
           :is-fullscreen="isWorkspaceFullscreenActive"
+          @update:workspace-path="emit('update:workspacePath', $event)"
           @toggle-fullscreen="toggleWorkspaceFullscreen"
           @insert-file-reference="handleWorkspaceInsertFileReference"
         />
@@ -185,6 +187,7 @@ const props = defineProps<{
   sessionId: string | null
   workspacePath: string | null
 }>()
+const emit = defineEmits<{ 'update:workspacePath': [path: string | null] }>()
 
 const { t } = useI18n()
 const sidepanelStore = useSidepanelStore()
