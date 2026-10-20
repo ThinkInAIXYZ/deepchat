@@ -2087,7 +2087,8 @@
       "all": "הכול",
       "installed": "מותקנים",
       "notInstalled": "לא מותקנים"
-    }
+    },
+    "registryReloadDiscardDescription": "הסוכנים הבאים אינם מותקנים עוד: {agents}. למחוק רק את טיוטות משתני הסביבה שלהם שלא נשמרו ולרענן את הרשימה?"
   },
   "rateLimit": {
     "title": "מגבלת קצב (Rate Limit)",

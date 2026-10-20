@@ -2113,7 +2113,8 @@
       "all": "All",
       "installed": "Installed",
       "notInstalled": "Not Installed"
-    }
+    },
+    "registryReloadDiscardDescription": "Эти агенты больше не установлены: {agents}. Удалить только их несохранённые черновики переменных окружения и обновить список?"
   },
   "skills": {
     "addSkill": "Добавить навык",

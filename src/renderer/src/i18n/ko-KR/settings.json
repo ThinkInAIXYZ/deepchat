@@ -2113,7 +2113,8 @@
       "all": "All",
       "installed": "Installed",
       "notInstalled": "Not Installed"
-    }
+    },
+    "registryReloadDiscardDescription": "다음 Agent가 더 이상 설치되어 있지 않습니다: {agents}. 해당 Agent의 저장하지 않은 환경 변수 초안만 삭제하고 목록을 새로 고칠까요?"
   },
   "skills": {
     "addSkill": "스킬 추가",

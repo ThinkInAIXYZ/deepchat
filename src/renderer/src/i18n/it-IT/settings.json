@@ -2315,7 +2315,8 @@
         "stderr": "stderr",
         "error": "Errore"
       }
-    }
+    },
+    "registryReloadDiscardDescription": "Questi Agent non sono più installati: {agents}. Scartare solo le loro bozze delle variabili di ambiente non salvate e aggiornare l’elenco?"
   },
   "rateLimit": {
     "title": "Limite di frequenza",

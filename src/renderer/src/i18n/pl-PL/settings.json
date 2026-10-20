@@ -2315,7 +2315,8 @@
       "installing": "Instalowanie",
       "error": "Instalacja nie powiodła się",
       "notInstalled": "Nie zainstalowano"
-    }
+    },
+    "registryReloadDiscardDescription": "Ci agenci nie są już zainstalowani: {agents}. Odrzucić tylko ich niezapisane szkice zmiennych środowiskowych i odświeżyć listę?"
   },
   "rateLimit": {
     "title": "Limit stawki",

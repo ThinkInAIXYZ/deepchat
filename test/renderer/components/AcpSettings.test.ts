@@ -241,6 +241,15 @@ async function setup(options: SetupOptions = {}) {
         CardTitle: passthrough('CardTitle'),
         Badge: passthrough('Badge'),
         DcButton: ButtonStub,
+        DcConfirmDialog: defineComponent({
+          props: ['open', 'description', 'confirmAttrs', 'cancelAttrs'],
+          emits: ['confirm', 'cancel'],
+          template: `<div v-if="open" data-testid="acp-reload-confirmation">
+            {{ description }}
+            <button v-bind="cancelAttrs" @click="$emit('cancel')">Cancel</button>
+            <button v-bind="confirmAttrs" @click="$emit('confirm')">Discard</button>
+          </div>`
+        }),
         Switch: SwitchStub,
         Separator: passthrough('Separator'),
         Input: InputStub,
@@ -392,17 +401,22 @@ describe('AcpSettings', () => {
       )
 
       reload()
-      await vi.waitFor(() => expect(settingsLeaveGuard.getSnapshot().promptOpen).toBe(true))
+      await vi.waitFor(() =>
+        expect(wrapper.find('[data-testid="acp-reload-discard"]').exists()).toBe(true)
+      )
       expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('TOKEN=draft')
-      settingsLeaveGuard.cancelLeave()
+      expect(settingsLeaveGuard.getSnapshot().promptOpen).toBe(false)
+      await wrapper.get('[data-testid="acp-reload-cancel"]').trigger('click')
       await flushPromises()
       expect(wrapper.find('[data-testid="acp-agent-details"]').exists()).toBe(true)
       expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('TOKEN=draft')
       expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
 
       reload()
-      await vi.waitFor(() => expect(settingsLeaveGuard.getSnapshot().promptOpen).toBe(true))
-      expect(settingsLeaveGuard.discardAndLeave()).toBe(true)
+      await vi.waitFor(() =>
+        expect(wrapper.find('[data-testid="acp-reload-discard"]').exists()).toBe(true)
+      )
+      await wrapper.get('[data-testid="acp-reload-discard"]').trigger('click')
       await flushPromises()
       expect(wrapper.find('[data-testid="acp-agent-details"]').exists()).toBe(false)
       expect(settingsLeaveGuard.getSnapshot().risk).toBe('clean')
@@ -422,17 +436,93 @@ describe('AcpSettings', () => {
     const reload = configService.onAgentsChanged.mock.calls[0][0] as () => void
     configService.listAcpRegistryAgents.mockResolvedValue([])
     reload()
-    await vi.waitFor(() => expect(settingsLeaveGuard.getSnapshot().promptOpen).toBe(true))
+    await vi.waitFor(() =>
+      expect(wrapper.find('[data-testid="acp-reload-discard"]').exists()).toBe(true)
+    )
 
     configService.listAcpRegistryAgents.mockResolvedValue([
       { ...installedAgent(), version: '0.11.0' }
     ])
     reload()
     await vi.waitFor(() => expect(wrapper.text()).toContain('0.11.0'))
-    expect(settingsLeaveGuard.discardAndLeave()).toBe(true)
-    await flushPromises()
+    expect(wrapper.find('[data-testid="acp-reload-confirmation"]').exists()).toBe(false)
+    expect(settingsLeaveGuard.getSnapshot().promptOpen).toBe(false)
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
+    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('TOKEN=draft')
     expect(wrapper.find('[data-testid="acp-agent-details"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('0.11.0')
+    wrapper.unmount()
+  })
+
+  it('discards only removed Agent drafts while retaining other environment and manual edits', async () => {
+    const otherAgent = { ...installedAgent(), id: 'other-agent', name: 'Other Agent' }
+    const { wrapper, configService, settingsLeaveGuard } = await setup({
+      registryAgents: [installedAgent(), otherAgent]
+    })
+    for (const agentId of ['codex-acp', 'other-agent']) {
+      await wrapper.get(`[data-testid="acp-agent-settings-${agentId}"]`).trigger('click')
+      await wrapper.get('textarea').setValue(`TOKEN=${agentId}`)
+      await wrapper.get('[data-testid="acp-detail-back"]').trigger('click')
+    }
+    const addButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'settings.acp.addCustomAgent')!
+    await addButton.trigger('click')
+    await wrapper
+      .get('input[aria-label="settings.acp.profileDialog.agentName"]')
+      .setValue('Manual draft')
+
+    const reload = configService.onAgentsChanged.mock.calls[0][0] as () => void
+    configService.listAcpRegistryAgents.mockResolvedValue([otherAgent])
+    reload()
+    await vi.waitFor(() =>
+      expect(wrapper.find('[data-testid="acp-reload-discard"]').exists()).toBe(true)
+    )
+    expect(wrapper.get('[data-testid="acp-reload-confirmation"]').text()).toContain(
+      'settings.acp.registryReloadDiscardDescription'
+    )
+    await wrapper.get('[data-testid="acp-reload-discard"]').trigger('click')
+    await flushPromises()
+
+    expect(
+      (
+        wrapper.get('input[aria-label="settings.acp.profileDialog.agentName"]')
+          .element as HTMLInputElement
+      ).value
+    ).toBe('Manual draft')
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'common.cancel')!
+      .trigger('click')
+    await wrapper.get('[data-testid="acp-agent-settings-other-agent"]').trigger('click')
+    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('TOKEN=other-agent')
+    wrapper.unmount()
+  })
+
+  it('retains shared MCP retry intent when a removed Agent draft is discarded', async () => {
+    const { wrapper, configService, settingsLeaveGuard, discardSharedMcpRetryIntent } = await setup(
+      {
+        registryAgents: [installedAgent()]
+      }
+    )
+    await wrapper.get('[data-testid="acp-agent-settings-codex-acp"]').trigger('click')
+    await wrapper.get('textarea').setValue('TOKEN=draft')
+    await wrapper.get('[data-testid="acp-detail-back"]').trigger('click')
+    await wrapper.get('[data-testid="acp-shared-mcp-settings"]').trigger('click')
+    wrapper.findComponent({ name: 'AgentMcpSelector' }).vm.$emit('persistence-state', 'retryable')
+
+    configService.listAcpRegistryAgents.mockResolvedValue([])
+    const reload = configService.onAgentsChanged.mock.calls[0][0] as () => void
+    reload()
+    await vi.waitFor(() =>
+      expect(wrapper.find('[data-testid="acp-reload-discard"]').exists()).toBe(true)
+    )
+    await wrapper.get('[data-testid="acp-reload-discard"]').trigger('click')
+    await flushPromises()
+
+    expect(discardSharedMcpRetryIntent).not.toHaveBeenCalled()
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
     wrapper.unmount()
   })
 

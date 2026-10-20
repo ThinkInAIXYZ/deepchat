@@ -2459,7 +2459,8 @@
       "installing": "Installing",
       "error": "Install failed",
       "notInstalled": "Not installed"
-    }
+    },
+    "registryReloadDiscardDescription": "These Agents are no longer installed: {agents}. Discard only their unsaved environment drafts and refresh the list?"
   },
   "rateLimit": {
     "title": "Rate Limit",

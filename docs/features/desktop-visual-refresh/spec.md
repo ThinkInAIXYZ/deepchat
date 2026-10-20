@@ -48,8 +48,10 @@ existing blue brand color. Dark surfaces are neutral charcoal rather than tinted
   list retains unsaved environment drafts and restores focus to the invoking entry. Existing save,
   retry and leave guards remain authoritative. Removing the selected Agent clears the detail
   selection and focuses the install entry, including removal discovered through a registry reload.
-  Reloads confirm before removing an Agent with an unsaved environment draft; cancellation retains
-  the current details and draft. Explicit registry refresh also respects the leave guard.
+  Reloads confirm before removing an Agent with an unsaved environment draft; confirmation discards
+  only the removed Agents' environment drafts, while cancellation retains the current details and
+  draft. A newer reload cancels the previous confirmation. Other environment drafts, manual Agent
+  edits and shared MCP retry intent remain intact. Explicit registry refresh respects the leave guard.
 - Opening Hooks or data settings reads configuration without reporting a successful save. Actual
   writes retain their success feedback, and read failures retain their error feedback.
 - Enabling the floating widget preserves existing application windows and uses inactive showing

@@ -2113,7 +2113,8 @@
       "all": "全部",
       "installed": "已安裝",
       "notInstalled": "未安裝"
-    }
+    },
+    "registryReloadDiscardDescription": "以下 Agent 已不再安裝：{agents}。是否只捨棄它們未儲存的環境變數草稿並重新整理列表？"
   },
   "skills": {
     "addSkill": "新增技能",

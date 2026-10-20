@@ -2020,7 +2020,8 @@
       "all": "All",
       "installed": "Installed",
       "notInstalled": "Not Installed"
-    }
+    },
+    "registryReloadDiscardDescription": "Disse agenter er ikke længere installeret: {agents}. Kassér kun deres ikke-gemte kladder til miljøvariabler, og opdater listen?"
   },
   "rateLimit": {
     "title": "Rate limit",

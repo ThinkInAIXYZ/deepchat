@@ -2315,7 +2315,8 @@
         "stderr": "stderr",
         "error": "Hata"
       }
-    }
+    },
+    "registryReloadDiscardDescription": "Bu Agent’lar artık kurulu değil: {agents}. Yalnızca bunların kaydedilmemiş ortam değişkeni taslakları silinip liste yenilensin mi?"
   },
   "rateLimit": {
     "title": "Oran Limiti",
