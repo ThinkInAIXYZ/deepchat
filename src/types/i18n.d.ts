@@ -2438,6 +2438,9 @@ declare module 'vue-i18n' {
       permissionMode: string
       permissionFullAccess: string
       permissionDefault: string
+      defaultToolMode: string
+      defaultToolModeModelDefaultDesc: string
+      defaultToolModeCodePermissionHint: string
       subagentsTitle: string
       subagentsDescription: string
       subagentsEnabled: string
