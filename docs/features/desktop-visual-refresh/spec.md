@@ -48,6 +48,8 @@ existing blue brand color. Dark surfaces are neutral charcoal rather than tinted
   list retains unsaved environment drafts and restores focus to the invoking entry. Existing save,
   retry and leave guards remain authoritative. Removing the selected Agent clears the detail
   selection and focuses the install entry, including removal discovered through a registry reload.
+  Reloads confirm before removing an Agent with an unsaved environment draft; cancellation retains
+  the current details and draft. Explicit registry refresh also respects the leave guard.
 - Opening Hooks or data settings reads configuration without reporting a successful save. Actual
   writes retain their success feedback, and read failures retain their error feedback.
 - Enabling the floating widget preserves existing application windows and uses inactive showing
@@ -102,8 +104,9 @@ controls; chat and new-thread pages keep their existing refs, events and draft o
 Navigation filtering is local derived state over translated settings titles. Session search remains
 owned by the sidebar. Agent switching retains its serialized close-session pipeline. The refresh
 does not introduce new persisted settings, dependencies or IPC contracts. The floating-window
-owner avoids macOS process-type transitions when configuring workspace visibility and shows the
-widget without activating it.
+owner avoids macOS process-type transitions when configuring workspace visibility and avoids
+activation where supported. On Linux, activation remains compositor-dependent when normal
+showing is required.
 
 ## Invariants and compatibility
 

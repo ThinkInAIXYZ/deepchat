@@ -375,6 +375,91 @@ describe('AcpSettings', () => {
     wrapper.unmount()
   })
 
+  it.each(['removed', 'uninstalled'] as const)(
+    'confirms discarding a dirty environment draft before a reload applies an Agent being %s',
+    async (change) => {
+      const { wrapper, configService, settingsLeaveGuard } = await setup({
+        registryAgents: [installedAgent()]
+      })
+      document.body.append(wrapper.element)
+      await wrapper.get('[data-testid="acp-agent-settings-codex-acp"]').trigger('click')
+      await wrapper.get('textarea').setValue('TOKEN=draft')
+      const reload = configService.onAgentsChanged.mock.calls[0][0] as () => void
+      configService.listAcpRegistryAgents.mockResolvedValue(
+        change === 'removed'
+          ? []
+          : [{ ...installedAgent(), installState: { status: 'not_installed' } }]
+      )
+
+      reload()
+      await vi.waitFor(() => expect(settingsLeaveGuard.getSnapshot().promptOpen).toBe(true))
+      expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('TOKEN=draft')
+      settingsLeaveGuard.cancelLeave()
+      await flushPromises()
+      expect(wrapper.find('[data-testid="acp-agent-details"]').exists()).toBe(true)
+      expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('TOKEN=draft')
+      expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
+
+      reload()
+      await vi.waitFor(() => expect(settingsLeaveGuard.getSnapshot().promptOpen).toBe(true))
+      expect(settingsLeaveGuard.discardAndLeave()).toBe(true)
+      await flushPromises()
+      expect(wrapper.find('[data-testid="acp-agent-details"]').exists()).toBe(false)
+      expect(settingsLeaveGuard.getSnapshot().risk).toBe('clean')
+      expect(document.activeElement).toBe(
+        wrapper.get('[data-testid="acp-registry-install-button"]').element
+      )
+      wrapper.unmount()
+    }
+  )
+
+  it('ignores a removal awaiting confirmation after a newer reload restores the Agent', async () => {
+    const { wrapper, configService, settingsLeaveGuard } = await setup({
+      registryAgents: [installedAgent()]
+    })
+    await wrapper.get('[data-testid="acp-agent-settings-codex-acp"]').trigger('click')
+    await wrapper.get('textarea').setValue('TOKEN=draft')
+    const reload = configService.onAgentsChanged.mock.calls[0][0] as () => void
+    configService.listAcpRegistryAgents.mockResolvedValue([])
+    reload()
+    await vi.waitFor(() => expect(settingsLeaveGuard.getSnapshot().promptOpen).toBe(true))
+
+    configService.listAcpRegistryAgents.mockResolvedValue([
+      { ...installedAgent(), version: '0.11.0' }
+    ])
+    reload()
+    await vi.waitFor(() => expect(wrapper.text()).toContain('0.11.0'))
+    expect(settingsLeaveGuard.discardAndLeave()).toBe(true)
+    await flushPromises()
+    expect(wrapper.find('[data-testid="acp-agent-details"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('0.11.0')
+    wrapper.unmount()
+  })
+
+  it('allows cancelling an explicit registry refresh without discarding environment drafts', async () => {
+    const { wrapper, configService, settingsLeaveGuard } = await setup({
+      registryAgents: [installedAgent()]
+    })
+    await wrapper.get('[data-testid="acp-agent-settings-codex-acp"]').trigger('click')
+    await wrapper.get('textarea').setValue('TOKEN=draft')
+    await wrapper.get('[data-testid="acp-detail-back"]').trigger('click')
+    await wrapper.get('[data-testid="acp-registry-install-button"]').trigger('click')
+    const refreshButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'settings.acp.registryRefresh')!
+    await refreshButton.trigger('click')
+    expect(settingsLeaveGuard.getSnapshot().promptOpen).toBe(true)
+    expect(configService.refreshAcpRegistry).not.toHaveBeenCalled()
+
+    settingsLeaveGuard.cancelLeave()
+    await flushPromises()
+    await wrapper.get('button[aria-label="settings.acp.debug.close"]').trigger('click')
+    await wrapper.get('[data-testid="acp-agent-settings-codex-acp"]').trigger('click')
+    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('TOKEN=draft')
+    expect(settingsLeaveGuard.getSnapshot().risk).toBe('dirty')
+    wrapper.unmount()
+  })
+
   it('keeps environment save feedback on the button and does not turn cache refresh into save failure', async () => {
     const { wrapper, configService, notifyRenderer } = await setup({
       registryAgents: [installedAgent()]

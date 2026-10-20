@@ -1038,6 +1038,17 @@ const loadAcpData = async () => {
     ])
     if (generation !== loadGeneration) return
 
+    const removesDirtyAgent = Array.from(dirtyEnvDrafts).some(
+      (agentId) =>
+        !registryList.some(
+          (agent) =>
+            agent.id === agentId &&
+            (agent.installState?.status === 'installed' || Boolean(agent.installState?.installedAt))
+        )
+    )
+    if (removesDirtyAgent && !(await settingsLeaveGuard.requestLeave())) return
+    if (generation !== loadGeneration) return
+
     acpEnabled.value = true
     registryAgents.value = registryList
     manualAgents.value = manualList
@@ -1115,6 +1126,7 @@ const handleToggle = async (enabled: boolean) => {
 }
 
 const refreshRegistry = async () => {
+  if (!(await settingsLeaveGuard.requestLeave())) return
   if (
     !beginPageOperation({
       kind: 'registry-refresh',

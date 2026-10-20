@@ -28,8 +28,10 @@ Contract: [spec.md](./spec.md).
 - Complete renderer regression suite: 289 files, 2741 tests passed.
 - Floating-widget window, layout and presenter tests: 3 files, 16 tests passed, including Linux
   inactive-show fallback, actual visibility state and macOS panel construction.
-- ACP settings: 13 tests passed, including uninstall/reinstall and external registry removal
-  without reopening details or leaving focus on the removed action.
+- ACP settings: 17 tests passed, including uninstall/reinstall, confirmed external registry
+  removal, cancellation preserving dirty drafts, stale reload rejection, and explicit refresh
+  cancellation without discarding drafts. Removal does not reopen details or leave focus on the
+  removed action.
 - Electron smoke tests passed for agent draft preservation, local streaming with an editable
   composer, keyboard navigation, and settings navigation across desktop/dark/minimum-RTL layouts.
   Floating-widget IPC coverage also verifies that the main window stays visible after enabling it.

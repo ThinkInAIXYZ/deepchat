@@ -53,7 +53,7 @@ describe('FloatingButtonWindow visibility', () => {
     { platform: 'linux', inactiveVisible: false, visible: true, fallback: true },
     { platform: 'linux', inactiveVisible: false, visible: false, fallback: true }
   ])(
-    'shows with the supported API: $platform, fallback=$fallback, visible=$visible',
+    'reports native visibility after showing: $platform, fallback=$fallback, visible=$visible',
     async (test) => {
       vi.stubGlobal('process', { ...process, platform: test.platform })
       windowMock.isVisible.mockReturnValue(test.visible)
