@@ -80,6 +80,26 @@ test('keyboard users can enter content, compose, and navigate settings @smoke', 
   await page.keyboard.press('Enter')
   await expect(page.getByRole('main')).toBeFocused()
 
+  const toggle = page.getByTestId('window-sidebar-toggle')
+  await expect(toggle).toHaveCount(1)
+  const initiallyExpanded = (await toggle.getAttribute('aria-expanded')) === 'true'
+  const toggleBox = await toggle.boundingBox()
+  expect(toggleBox).not.toBeNull()
+  await page.bringToFront()
+  await toggle.focus()
+  await expect(toggle).toBeFocused()
+  for (const expanded of [!initiallyExpanded, initiallyExpanded]) {
+    await page.keyboard.press('Enter')
+    await expect(toggle).toHaveAttribute('aria-expanded', String(expanded))
+    await expect(toggle).toBeFocused()
+    await expect(async () => {
+      const currentBox = await toggle.boundingBox()
+      expect(currentBox).not.toBeNull()
+      expect(currentBox!.x).toBeCloseTo(toggleBox!.x, 1)
+      expect(currentBox!.y).toBeCloseTo(toggleBox!.y, 1)
+    }).toPass()
+  }
+
   await page.getByTestId('sidebar-agent-selector').focus()
   await page.keyboard.press('Enter')
   const agent = page.getByTestId('sidebar-agent-button').first()

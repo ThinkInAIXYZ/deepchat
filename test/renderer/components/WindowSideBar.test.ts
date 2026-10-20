@@ -1873,17 +1873,29 @@ describe('WindowSideBar agent switch', () => {
   )
 
   it(
-    'toggles the shared sidebar store from the collapse button',
+    'keeps one toggle mounted across collapse and expand',
     async () => {
       const { wrapper, sidebarStore } = await setup()
 
       expect(wrapper.get('[data-testid=\"window-sidebar\"]').classes()).toContain('w-[264px]')
+      const toggle = wrapper.get('[data-testid="window-sidebar-toggle"]')
+      expect(toggle.attributes('aria-expanded')).toBe('true')
 
-      await wrapper.get('[data-testid=\"window-sidebar-toggle\"]').trigger('click')
+      await toggle.trigger('click')
       await flushPromises()
 
       expect(sidebarStore.toggleSidebar).toHaveBeenCalledTimes(1)
       expect(wrapper.get('[data-testid=\"window-sidebar\"]').classes()).toContain('w-12')
+      expect(wrapper.findAll('[data-testid="window-sidebar-toggle"]')).toHaveLength(1)
+      expect(wrapper.get('[data-testid="window-sidebar-toggle"]').element).toBe(toggle.element)
+      expect(toggle.attributes('aria-expanded')).toBe('false')
+
+      await toggle.trigger('click')
+      await flushPromises()
+
+      expect(sidebarStore.toggleSidebar).toHaveBeenCalledTimes(2)
+      expect(wrapper.get('[data-testid="window-sidebar"]').classes()).toContain('w-[264px]')
+      expect(toggle.attributes('aria-expanded')).toBe('true')
     },
     TEST_TIMEOUT_MS
   )

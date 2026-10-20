@@ -7,7 +7,22 @@
       :class="collapsed ? 'w-12' : 'w-[264px]'"
     >
       <div class="window-no-drag-region shrink-0 px-2 pb-2 pt-3">
-        <div class="flex items-center gap-1">
+        <div class="flex items-start gap-1" :class="collapsed ? 'flex-col' : ''">
+          <DcButton
+            data-testid="window-sidebar-toggle"
+            variant="ghost"
+            size="icon"
+            :icon="collapsed ? 'lucide:panel-left-open' : 'lucide:panel-left-close'"
+            :aria-expanded="!collapsed"
+            aria-controls="sidebar-sessions"
+            :tooltip="
+              collapsed ? t('chat.sidebar.expandSidebar') : t('chat.sidebar.collapseSidebar')
+            "
+            :tooltip-delay-duration="200"
+            tooltip-side="right"
+            class="shrink-0 text-muted-foreground"
+            @click="sidebarStore.toggleSidebar()"
+          />
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <DcButton
@@ -85,19 +100,6 @@
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <DcButton
-            v-if="!collapsed"
-            data-testid="window-sidebar-toggle"
-            variant="ghost"
-            size="icon-sm"
-            icon="lucide:panel-left-close"
-            :aria-expanded="true"
-            aria-controls="sidebar-sessions"
-            :tooltip="t('chat.sidebar.collapseSidebar')"
-            :tooltip-delay-duration="200"
-            class="shrink-0 text-muted-foreground"
-            @click="sidebarStore.toggleSidebar()"
-          />
         </div>
         <div class="mt-2 flex flex-col gap-1">
           <DcButton
@@ -700,19 +702,6 @@
             tooltip-side="right"
             class="text-muted-foreground"
             @click="themeStore.cycleTheme()"
-          />
-          <DcButton
-            v-if="collapsed"
-            data-testid="window-sidebar-toggle"
-            variant="ghost"
-            size="icon-sm"
-            icon="lucide:panel-left-open"
-            :aria-expanded="false"
-            aria-controls="sidebar-sessions"
-            :tooltip="t('chat.sidebar.expandSidebar')"
-            :tooltip-delay-duration="200"
-            tooltip-side="right"
-            @click="sidebarStore.toggleSidebar()"
           />
         </div>
       </div>
