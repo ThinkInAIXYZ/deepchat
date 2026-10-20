@@ -21,6 +21,8 @@ test('agent menu stays below its trigger and scrolls in short windows @smoke', a
     }
     const viewport = { width: 800, height: 320 }
     await page.setViewportSize(viewport)
+    await expect(page.getByTestId('window-sidebar-toggle')).toBeInViewport()
+    await expect(page.getByTestId('window-sidebar-theme-toggle')).toBeInViewport()
     const trigger = page.getByTestId('sidebar-agent-selector')
     await trigger.click()
     const menu = page.getByTestId('sidebar-agent-menu')
@@ -56,6 +58,15 @@ test('agent menu stays below its trigger and scrolls in short windows @smoke', a
       'false'
     )
     await page.keyboard.press('Escape')
+    const toggle = page.getByTestId('window-sidebar-toggle')
+    for (const expanded of [true, false]) {
+      if ((await toggle.getAttribute('aria-expanded')) !== String(expanded)) {
+        await toggle.click()
+      }
+      await expect(toggle).toHaveAttribute('aria-expanded', String(expanded))
+      await expect(toggle).toBeInViewport()
+      await expect(page.getByTestId('window-sidebar-theme-toggle')).toBeInViewport()
+    }
   } finally {
     await page.evaluate(async (ids) => {
       for (const id of ids) {
@@ -65,7 +76,9 @@ test('agent menu stays below its trigger and scrolls in short windows @smoke', a
   }
 })
 
-test('keyboard users can enter content, compose, and navigate settings @smoke', async ({ app }) => {
+test('keyboard users can enter content, compose, and navigate settings @smoke', async ({
+  app
+}, testInfo) => {
   const { page, electronApp } = app
   await waitForAppReady(page)
   await expect(page.getByRole('navigation')).toHaveAccessibleName(/.+/)
@@ -85,6 +98,9 @@ test('keyboard users can enter content, compose, and navigate settings @smoke', 
   const initiallyExpanded = (await toggle.getAttribute('aria-expanded')) === 'true'
   const toggleBox = await toggle.boundingBox()
   expect(toggleBox).not.toBeNull()
+  const sidebarBox = await page.getByTestId('window-sidebar').boundingBox()
+  expect(sidebarBox).not.toBeNull()
+  expect(toggleBox!.y + toggleBox!.height).toBeCloseTo(sidebarBox!.y + sidebarBox!.height - 8, 1)
   await page.bringToFront()
   await toggle.focus()
   await expect(toggle).toBeFocused()
@@ -98,7 +114,41 @@ test('keyboard users can enter content, compose, and navigate settings @smoke', 
       expect(currentBox!.x).toBeCloseTo(toggleBox!.x, 1)
       expect(currentBox!.y).toBeCloseTo(toggleBox!.y, 1)
     }).toPass()
+    const theme = page.getByTestId('window-sidebar-theme-toggle')
+    const settings = page.getByTestId('app-settings-button')
+    const themeBox = await theme.boundingBox()
+    const settingsBox = await settings.boundingBox()
+    expect(themeBox).not.toBeNull()
+    expect(settingsBox).not.toBeNull()
+    expect(themeBox!.y).toBeGreaterThanOrEqual(settingsBox!.y + settingsBox!.height)
+    expect(themeBox!.y + themeBox!.height).toBeLessThan(toggleBox!.y)
+    if (expanded) {
+      await expect(theme).toContainText(/Theme|主题/)
+    } else {
+      await expect(async () => {
+        const currentToggleBox = await toggle.boundingBox()
+        expect(currentToggleBox).not.toBeNull()
+        for (const control of [theme, settings, page.getByTestId('app-plugins-button')]) {
+          const box = await control.boundingBox()
+          expect(box!.x + box!.width / 2).toBeCloseTo(
+            currentToggleBox!.x + currentToggleBox!.width / 2,
+            1
+          )
+          expect(box!.width).toBeCloseTo(currentToggleBox!.width, 1)
+          expect(box!.height).toBeCloseTo(currentToggleBox!.height, 1)
+        }
+      }).toPass({ timeout: 5000 })
+    }
+    await page.screenshot({
+      animations: 'disabled',
+      path: testInfo.outputPath(`sidebar-${expanded ? 'expanded' : 'collapsed'}.png`)
+    })
   }
+
+  const theme = page.getByTestId('window-sidebar-theme-toggle')
+  const previousTheme = await theme.getAttribute('aria-label')
+  await theme.click()
+  await expect(theme).not.toHaveAttribute('aria-label', previousTheme!)
 
   await page.getByTestId('sidebar-agent-selector').focus()
   await page.keyboard.press('Enter')

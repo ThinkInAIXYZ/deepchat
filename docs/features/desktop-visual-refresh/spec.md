@@ -16,9 +16,11 @@ existing blue brand color. Dark surfaces are neutral charcoal rather than tinted
   Selecting the checked filter preserves the active conversation. The explicit all-agents item
   clears the filter. Agent onboarding targets the persistent selector even while its menu is closed.
   Menu items expose the current filter with radio-item roles and checked states.
-  A single persistent sidebar toggle stays at the leading top corner in both states; switching
-  preserves its position and keyboard focus. The Agent selector follows it in the expanded header
-  and sits below it in the collapsed rail.
+  A single persistent sidebar toggle stays at the bottom in both states; switching preserves its
+  position and keyboard focus. Theme selection has its own row above the toggle, with the current
+  mode visible when expanded. Collapsed footer icons share one centered axis and button size.
+  The header can scroll in short windows, and session content stays within its column so the
+  bottom controls remain reachable.
 - Keep new conversation and global search above the session list. Keep plugins, scheduled tasks,
   theme and settings reachable at the bottom. List filtering remains available independently of
   global search.

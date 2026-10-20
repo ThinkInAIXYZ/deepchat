@@ -46,7 +46,9 @@ Contract: [spec.md](./spec.md).
   360px, a thirty-row environment list scrolls without moving its heading or filters, and ACP
   detail navigation restores focus. Agent and directory screenshots use synthetic read-only data.
 - Both themes show a filled track background and inset outline at 0% context occupancy.
-- Sidebar regression checks preserve one toggle's coordinates and keyboard focus across both
-  states, including the narrow-window default collapse policy. Sidebar unit coverage: 80 tests;
-  Agent-menu and keyboard/settings Electron smoke coverage: 2 tests passed.
+- Sidebar regression checks preserve one bottom toggle's coordinates and keyboard focus across
+  both states, including the narrow-window default collapse policy. Theme selection has its own
+  row, collapsed footer buttons share their size and center, and both states keep the footer
+  reachable at 800×320. Sidebar unit coverage: 80 tests; Agent-menu and keyboard/settings Electron
+  smoke coverage: 2 tests passed.
 - Runtime visual inspection: macOS. Windows and Linux native window behavior was not exercised.
