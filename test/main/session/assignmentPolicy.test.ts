@@ -43,6 +43,13 @@ function createHarness() {
 }
 
 describe('SessionAssignmentPolicy', () => {
+  it('resolves local drafts without model configuration and rejects ACP or missing agents', () => {
+    const { policy, config } = createHarness()
+    expect(policy.resolveDraftAgent('reviewer')).toBe('reviewer')
+    expect(config.getDefaultModel).not.toHaveBeenCalled()
+    expect(() => policy.resolveDraftAgent('claude-acp')).toThrow('Only DeepChat agents')
+    expect(() => policy.resolveDraftAgent('missing')).toThrow('Agent not found')
+  })
   it('resolves DeepChat creation precedence and normalizes persisted settings', async () => {
     const { policy } = createHarness()
 

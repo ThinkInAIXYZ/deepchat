@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "Копировать ссылку на сеанс",
     "groups": { "session": "Сеансы", "file": "Файлы" },
     "open": "Открыть {title}",
     "unavailableTitle": "Ссылка на сеанс недоступна",

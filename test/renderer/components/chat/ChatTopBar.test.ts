@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ChatTopBar from '@/components/chat/ChatTopBar.vue'
+import { DcDropdownActionItem } from '@dc-ui/components/dropdown-action-item'
 
 const stores = vi.hoisted(() => ({
   session: {
@@ -45,8 +46,13 @@ const stores = vi.hoisted(() => ({
 
 const notifyRenderer = vi.hoisted(() => vi.fn())
 const nowledge = vi.hoisted(() => ({ getConnections: vi.fn(), sendSession: vi.fn() }))
+const references = vi.hoisted(() => ({ resolve: vi.fn(), copy: vi.fn() }))
 
 vi.mock('@api/NowledgeMemClient', () => ({ createNowledgeMemClient: () => nowledge }))
+vi.mock('@api/SessionClient', () => ({
+  createSessionClient: () => ({ resolveReference: references.resolve })
+}))
+vi.mock('@/lib/sessionReferenceClipboard', () => ({ copySessionReference: references.copy }))
 
 vi.mock('@/stores/ui/session', () => ({
   useSessionStore: () => stores.session
@@ -220,6 +226,71 @@ afterEach(() => {
 })
 
 describe('ChatTopBar action buttons', () => {
+  it('offers reference copying only for regular, non-draft sources', async () => {
+    const session = stores.session.sessions[0]
+    const original = { ...session }
+    try {
+      for (const source of [
+        { sessionKind: 'regular', isDraft: true },
+        { sessionKind: 'subagent', isDraft: false }
+      ]) {
+        Object.assign(session, source)
+        const wrapper = mountTopBar()
+        expect(wrapper.text()).not.toContain('chat.sessionReference.copy')
+        wrapper.unmount()
+      }
+    } finally {
+      Object.assign(session, original)
+      delete (session as { isDraft?: boolean }).isDraft
+    }
+  })
+
+  it('copies the resolved source and reports success only after the clipboard write', async () => {
+    const reference = {
+      sessionId: 'session-1',
+      title: 'Canonical title',
+      projectDir: null,
+      tapeIncarnationId: 'tape-1'
+    }
+    references.resolve.mockResolvedValueOnce({ reference })
+    let complete!: () => void
+    references.copy.mockReturnValueOnce(new Promise<void>((resolve) => (complete = resolve)))
+    const wrapper = mountTopBar()
+    const action = wrapper
+      .findAllComponents(DcDropdownActionItem)
+      .find((item) => item.props('label') === 'chat.sessionReference.copy')!
+    notifyRenderer.mockClear()
+    action.vm.$emit('select')
+    await flushPromises()
+    expect(references.resolve).toHaveBeenLastCalledWith({ sessionId: 'session-1' })
+    expect(references.copy).toHaveBeenLastCalledWith(reference)
+    expect(action.props('disabled')).toBe(true)
+    expect(notifyRenderer).not.toHaveBeenCalled()
+    complete()
+    await flushPromises()
+    expect(notifyRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'success', code: 'chat.sessionReference.copied' })
+    )
+    wrapper.unmount()
+  })
+
+  it('reports clipboard failure without reporting success', async () => {
+    references.resolve.mockResolvedValueOnce({ reference: { sessionId: 'session-1' } })
+    references.copy.mockRejectedValueOnce(new Error('Clipboard unavailable'))
+    const wrapper = mountTopBar()
+    notifyRenderer.mockClear()
+    const action = wrapper
+      .findAllComponents(DcDropdownActionItem)
+      .find((item) => item.props('label') === 'chat.sessionReference.copy')!
+    action.vm.$emit('select')
+    await flushPromises()
+    expect(notifyRenderer.mock.calls).toEqual([
+      [expect.objectContaining({ kind: 'error', code: 'chat.sessionReference.copyFailed' })]
+    ])
+    expect(action.props('disabled')).toBe(false)
+    wrapper.unmount()
+  })
+
   it('uses ghost DcButtons for workspace, share, and more actions', () => {
     const wrapper = mountTopBar()
 

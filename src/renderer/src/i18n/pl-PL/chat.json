@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "Kopiuj odwołanie do sesji",
     "groups": { "session": "Sesje", "file": "Pliki" },
     "open": "Otwórz {title}",
     "unavailableTitle": "Odwołanie do sesji jest niedostępne",

@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "གླེང་མོལ་གྱི་ལུང་འདྲེན་འདྲ་བཤུས།",
     "groups": { "session": "གླེང་མོལ།", "file": "ཡིག་ཆ།" },
     "open": "{title} ཁ་ཕྱེ།",
     "unavailableTitle": "གླེང་མོལ་གྱི་ལུང་འདྲེན་མི་འདུག",

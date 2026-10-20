@@ -6,6 +6,7 @@ import { EditorState } from '@tiptap/pm/state'
 import { closeHistory, history, undo } from '@tiptap/pm/history'
 import { CHAT_INPUT_WORKSPACE_ITEM_MIME } from '@/lib/chatInputWorkspaceReference'
 import { SESSION_REFERENCE_DRAG_TYPE } from '@shared/sessionReferences'
+import { createSessionReferenceElement } from '@/lib/sessionReferenceClipboard'
 import {
   ATTACHMENT_NODE_CONTEXT,
   INPUT_NODE_ACTIONS,
@@ -128,6 +129,7 @@ vi.mock('@tiptap/vue-3', () => {
       })()
     }
     public view = {
+      pasteHTML: vi.fn(),
       dispatch: vi.fn((tr: any) => {
         this.commandMock(tr)
         lastEditorOptions?.onUpdate?.({ editor: this, transaction: tr })
@@ -149,6 +151,7 @@ vi.mock('@tiptap/vue-3', () => {
       const api = {
         focus: () => api,
         scrollIntoView: () => api,
+        setTextSelection: vi.fn(() => api),
         insertContent: (content: string) => {
           insertContentMock(content)
           lastEditorOptions?.onTransaction?.({ transaction: { docChanged: true } })
@@ -779,6 +782,106 @@ describe('ChatInputBox attachments', () => {
     const wrapper = await mountComponent()
     await wrapper.find('.chat-input-editor').trigger('paste')
     expect(handlePasteMock).toHaveBeenCalled()
+  })
+
+  const sourceReference = {
+    sessionId: 'source',
+    title: 'Source notes',
+    projectDir: '/other-workspace',
+    tapeIncarnationId: 'source-tape'
+  }
+  const referenceClipboard = (html = createSessionReferenceElement(sourceReference).outerHTML) => ({
+    files: { length: 0 },
+    getData: (format: string) => (format === 'text/html' ? html : '')
+  })
+
+  it('validates every pasted reference before inserting mixed text and canonical labels', async () => {
+    const wrapper = await mountComponent()
+    const first = createDeferred<{ reference: typeof sourceReference }>()
+    const second = createDeferred<{ reference: typeof sourceReference }>()
+    resolveReferenceMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    const other = { ...sourceReference, sessionId: 'other', tapeIncarnationId: 'other-tape' }
+    const html = `<p>Before ${createSessionReferenceElement(sourceReference).outerHTML} between ${createSessionReferenceElement(other).outerHTML} after</p>`
+    const { preventDefault } = await dispatchPaste(wrapper, referenceClipboard(html))
+    expect(preventDefault).toHaveBeenCalled()
+    expect(resolveReferenceMock.mock.calls).toEqual([
+      [{ sessionId: 'source', expectedTapeIncarnationId: 'source-tape' }],
+      [{ sessionId: 'other', expectedTapeIncarnationId: 'other-tape' }]
+    ])
+    expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(true)
+    await wrapper.find('.chat-input-editor').trigger('keydown', { key: 'Enter' })
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    second.resolve({ reference: other })
+    await flushPromises()
+    expect(lastEditorInstance.view.pasteHTML).not.toHaveBeenCalled()
+    first.resolve({ reference: { ...sourceReference, title: 'Renamed source' } })
+    await flushPromises()
+    const pasted = document.createElement('div')
+    pasted.innerHTML = lastEditorInstance.view.pasteHTML.mock.calls[0][0]
+    expect(pasted.textContent).toBe(
+      'Before [Session: Renamed source (source)] between [Session: Source notes (other)] after'
+    )
+    expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it.each(['target', 'document'])(
+    'discards a pending reference paste after its %s changes',
+    async (change) => {
+      const wrapper = await mountComponent()
+      const pending = createDeferred<{ reference: typeof sourceReference }>()
+      resolveReferenceMock.mockReturnValueOnce(pending.promise)
+      await dispatchPaste(wrapper, referenceClipboard())
+      if (change === 'target') await wrapper.setProps({ sessionId: 'new-target' })
+      else lastEditorOptions.onTransaction({ transaction: { docChanged: true } })
+      pending.resolve({ reference: sourceReference })
+      await flushPromises()
+      expect(lastEditorInstance.view.pasteHTML).not.toHaveBeenCalled()
+      expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(false)
+      expect(notifyRendererMock).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'chat.sessionReference.targetChanged' })
+      )
+      wrapper.unmount()
+    }
+  )
+
+  it.each(['acp', 'malformed', 'unavailable'])(
+    'rejects a reference paste for an %s source or target',
+    async (failure) => {
+      const wrapper = await mountComponent()
+      if (failure === 'acp') await wrapper.setProps({ isAcpSession: true })
+      if (failure === 'unavailable') {
+        resolveReferenceMock.mockRejectedValueOnce(new Error('Source deleted or reset'))
+      }
+      await dispatchPaste(
+        wrapper,
+        referenceClipboard(
+          failure === 'malformed' ? '<span data-session-reference>Invalid</span>' : undefined
+        )
+      )
+      await flushPromises()
+      expect(lastEditorInstance.view.pasteHTML).not.toHaveBeenCalled()
+      expect((wrapper.vm as any).isResolvingSessionReferences()).toBe(false)
+      if (failure !== 'unavailable') expect(resolveReferenceMock).not.toHaveBeenCalled()
+      expect(notifyRendererMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: `chat.sessionReference.${failure === 'acp' ? 'unsupported' : 'unavailable'}`
+        })
+      )
+      wrapper.unmount()
+    }
+  )
+
+  it('keeps readable plain-text references as ordinary text', async () => {
+    const wrapper = await mountComponent()
+    const { preventDefault } = await dispatchPaste(wrapper, {
+      files: { length: 0 },
+      getData: (format: string) =>
+        format === 'text/plain' ? '[Session: Source notes (source)]' : ''
+    })
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(resolveReferenceMock).not.toHaveBeenCalled()
+    wrapper.unmount()
   })
 
   it('inserts only the URL for browser rich URL paste payloads', async () => {

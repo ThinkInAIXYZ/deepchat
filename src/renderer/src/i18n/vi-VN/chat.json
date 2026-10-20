@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "Sao chép tham chiếu cuộc trò chuyện",
     "groups": { "session": "Phiên", "file": "Tệp" },
     "open": "Mở {title}",
     "unavailableTitle": "Tham chiếu phiên không khả dụng",

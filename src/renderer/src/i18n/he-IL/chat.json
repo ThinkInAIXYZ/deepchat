@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "העתקת הפניה לשיחה",
     "groups": { "session": "הפעלות", "file": "קבצים" },
     "open": "פתיחת {title}",
     "unavailableTitle": "הפניית ההפעלה אינה זמינה",

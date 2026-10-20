@@ -15,7 +15,18 @@ sessions. Title filtering happens before limiting results. Explicit sidebar drag
 workspace, and inserts into the actual receiving composer. ACP composers report that the native
 reader is unavailable instead of promising an unusable tool.
 
-Both entry points resolve canonical source metadata through renderer-only typed IPC and create the
+The top-bar More menu also offers Copy session reference for regular, non-draft sessions. The
+renderer writes readable `[Session: title (sessionId)]` text and the existing reference HTML in
+one Clipboard API operation; neither representation contains source messages. Both plain-text and
+rich-text applications receive readable provenance. Plain text without the structured HTML marker
+stays ordinary text when pasted back into DeepChat.
+
+Paste re-resolves every structured reference through the existing IPC, validating its source ID
+and copied Tape incarnation before inserting the entire slice with its surrounding text. Deleted,
+reset, malformed, or unavailable references fail without partial insertion. ACP composers reject
+reference paste. Editing the receiving draft or switching its target cancels pending insertion.
+
+All entry points resolve canonical source metadata through renderer-only typed IPC and create the
 same `session` inline item: offset, sessionId, title, projectDir, and tapeIncarnationId. It survives
 draft persistence, queueing, sending, and transcript display through the existing inline-items
 path. Labels are snapshots; rename never changes identity. Source reset invalidates the reference.
@@ -96,6 +107,8 @@ removing the feature does not delete source history.
 
 - Workspace title matches include older sessions, while existing file mentions continue to work.
 - `@` and cross-workspace drag produce the same removable, source-identifiable reference.
+- Copy/paste produces the same reference across workspaces, preserves mixed text and reference
+  positions, reports clipboard failures, and rejects stale sources without changing the draft.
 - While a selected reference resolves, send, queue, steer, and command submission wait. Editing
   the draft or changing its target cancels the insertion and releases the wait; stale completions
   cannot insert into a new draft or release another pending reference's submission gate.

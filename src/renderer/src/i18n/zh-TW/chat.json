@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "複製工作階段參照",
     "groups": { "session": "工作階段", "file": "檔案" },
     "open": "開啟 {title}",
     "unavailableTitle": "工作階段引用無法使用",

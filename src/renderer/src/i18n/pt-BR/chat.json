@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "Copiar referência da conversa",
     "groups": { "session": "Sessões", "file": "Arquivos" },
     "open": "Abrir {title}",
     "unavailableTitle": "Referência de sessão indisponível",

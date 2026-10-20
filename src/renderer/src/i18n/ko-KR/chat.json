@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "세션 참조 복사",
     "groups": { "session": "세션", "file": "파일" },
     "open": "{title} 열기",
     "unavailableTitle": "세션 참조를 사용할 수 없음",

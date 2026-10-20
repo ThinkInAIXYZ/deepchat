@@ -177,6 +177,13 @@
 
         <DropdownMenuContent align="end" class="w-48">
           <DcDropdownActionItem
+            v-if="canCopySessionReference"
+            icon="lucide:link"
+            :label="t('chat.sessionReference.copy')"
+            :disabled="copyReferenceBusy"
+            @select="handleCopySessionReference"
+          />
+          <DcDropdownActionItem
             :icon="isPinned ? 'lucide:pin-off' : 'lucide:pin'"
             :label="isPinned ? t('thread.actions.unpin') : t('thread.actions.pin')"
             @select="handleTogglePin"
@@ -265,6 +272,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useAttrs, watch } from 'vue'
 import { createNowledgeMemClient } from '@api/NowledgeMemClient'
+import { createSessionClient } from '@api/SessionClient'
 import type { NowledgeExportInput } from '@shared/types/nowledgeMemPlugin'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
@@ -285,6 +293,7 @@ import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSidebarStore } from '@/stores/ui/sidebar'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import { copySessionReference } from '@/lib/sessionReferenceClipboard'
 
 defineOptions({
   inheritAttrs: false
@@ -388,6 +397,38 @@ const showCollapsedNewChatSpacer = computed(
 const parentSessionId = computed(() => currentSession.value?.parentSessionId ?? null)
 const isPinned = computed(() => Boolean(currentSession.value?.isPinned))
 const isReadOnly = computed(() => props.isReadOnly === true)
+const copyReferenceBusy = ref(false)
+const canCopySessionReference = computed(
+  () =>
+    !isReadOnly.value &&
+    currentSession.value?.sessionKind === 'regular' &&
+    !currentSession.value.isDraft
+)
+
+async function handleCopySessionReference() {
+  if (!canCopySessionReference.value || copyReferenceBusy.value) return
+  copyReferenceBusy.value = true
+  const sessionId = props.sessionId
+  try {
+    const { reference } = await createSessionClient().resolveReference({ sessionId })
+    if (props.sessionId !== sessionId) return
+    await copySessionReference(reference)
+    notifyRenderer({
+      kind: 'success',
+      code: 'chat.sessionReference.copied',
+      title: t('common.copySuccess')
+    })
+  } catch {
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.sessionReference.copyFailed',
+      title: t('common.copyFailed')
+    })
+  } finally {
+    copyReferenceBusy.value = false
+  }
+}
+
 const currentAgent = computed(
   () => agentStore.agents.find((agent) => agent.id === currentSession.value?.agentId) ?? null
 )

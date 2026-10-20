@@ -56,10 +56,85 @@ export interface SessionLifecycleDependencies {
   forkAcpSession?(sourceId: string, targetId: string, messageId: string): Promise<void>
   permissions?: SessionLifecyclePermissionPort
   agentLifecycle: AgentLifecycleGatePort
+  onRendererDestroyed?(webContentsId: number, callback: () => void): () => void
 }
 
 export class SessionLifecycle implements SessionLifecyclePort {
+  private readonly draftOwners = new Map<string, number>()
+  private readonly draftRendererListeners = new Map<number, () => void>()
+
   constructor(private readonly dependencies: SessionLifecycleDependencies) {}
+
+  async createDraftSession(
+    agentId: string,
+    projectDir: string | null,
+    webContentsId: number
+  ): Promise<string> {
+    const canonicalAgentId = this.dependencies.assignmentPolicy.resolveDraftAgent(agentId)
+    return await this.dependencies.agentLifecycle.runWithAgentOperation(
+      canonicalAgentId,
+      async () => {
+        const reusable = await this.findReusableDraftSession(
+          canonicalAgentId,
+          projectDir,
+          webContentsId
+        )
+        if (reusable) return reusable.id
+        const sessionId = this.dependencies.sessions.create(
+          canonicalAgentId,
+          'New Chat',
+          projectDir,
+          {
+            isDraft: true
+          }
+        )
+        this.registerDraftOwner(sessionId, webContentsId)
+        return sessionId
+      }
+    )
+  }
+
+  ownsDraftSession(sessionId: string, webContentsId: number): boolean {
+    return this.draftOwners.get(sessionId) === webContentsId
+  }
+
+  private registerDraftOwner(sessionId: string, webContentsId: number): void {
+    this.draftOwners.set(sessionId, webContentsId)
+    if (this.draftRendererListeners.has(webContentsId)) return
+    const unsubscribe =
+      this.dependencies.onRendererDestroyed?.(webContentsId, () => {
+        for (const [id, owner] of this.draftOwners) {
+          if (owner !== webContentsId) continue
+          void this.discardDraftSession(id, owner).catch((error) => {
+            console.warn(`[SessionLifecycle] Failed to discard renderer draft ${id}:`, error)
+          })
+        }
+      }) ?? (() => {})
+    this.draftRendererListeners.set(webContentsId, unsubscribe)
+  }
+
+  private releaseDraftOwner(sessionId: string): void {
+    const owner = this.draftOwners.get(sessionId)
+    this.draftOwners.delete(sessionId)
+    if (owner !== undefined && ![...this.draftOwners.values()].includes(owner)) {
+      this.draftRendererListeners.get(owner)?.()
+      this.draftRendererListeners.delete(owner)
+    }
+  }
+
+  async discardDraftSession(sessionId: string, webContentsId: number): Promise<boolean> {
+    return await this.dependencies.workdir.runWithSessionOperationGate(sessionId, async () => {
+      if (!this.ownsDraftSession(sessionId, webContentsId)) return false
+      const record = this.dependencies.sessions.get(sessionId)
+      if (!record?.isDraft || (await this.dependencies.transcript.hasMessages(sessionId))) {
+        this.releaseDraftOwner(sessionId)
+        return false
+      }
+      await this.dependencies.deletion.deleteSessionTree(sessionId)
+      this.releaseDraftOwner(sessionId)
+      return true
+    })
+  }
 
   async createSession(
     input: CreateSessionInput,
@@ -77,11 +152,42 @@ export class SessionLifecycle implements SessionLifecyclePort {
       preserveExplicitNullProjectDir: true
     })
     options?.signal?.throwIfAborted()
-    return await this.dependencies.agentLifecycle.runWithAgentOperation(
-      assignment.agentId,
-      async () =>
-        await this.createSessionUnderLifecycleGate(input, webContentsId, options, assignment)
-    )
+    const create = () =>
+      this.dependencies.agentLifecycle.runWithAgentOperation(
+        assignment.agentId,
+        async () =>
+          await this.createSessionUnderLifecycleGate(input, webContentsId, options, assignment)
+      )
+    const draftSessionId = input.draftSessionId
+    if (!draftSessionId) return await create()
+    return await this.dependencies.workdir.runWithSessionOperationGate(draftSessionId, async () => {
+      const draft = this.dependencies.sessions.get(draftSessionId)
+      if (
+        !this.ownsDraftSession(draftSessionId, webContentsId) ||
+        !draft?.isDraft ||
+        draft.agentId !== assignment.agentId ||
+        assignment.agentType !== 'deepchat' ||
+        (await this.dependencies.transcript.hasMessages(draftSessionId))
+      )
+        throw new Error('Draft session is unavailable for this renderer and agent.')
+      try {
+        const result = await create()
+        this.releaseDraftOwner(draftSessionId)
+        return result
+      } catch (error) {
+        // Preserve the browser and draft only when no message was accepted.
+        if (!(await this.hasSessionMessages(draftSessionId))) {
+          this.dependencies.sessions.update(draftSessionId, { isDraft: true, title: 'New Chat' })
+          if (this.dependencies.desktop.getActiveId(webContentsId) === draftSessionId) {
+            this.dependencies.desktop.unbind(webContentsId)
+          }
+          this.dependencies.projection.notify({ sessionIds: [draftSessionId], reason: 'updated' })
+        } else {
+          this.releaseDraftOwner(draftSessionId)
+        }
+        throw error
+      }
+    })
   }
 
   private async createSessionUnderLifecycleGate(
@@ -100,7 +206,8 @@ export class SessionLifecycle implements SessionLifecyclePort {
       title,
       input,
       assignment,
-      options?.signal
+      options?.signal,
+      input.draftSessionId
     )
     logger.info(`[SessionLifecycle] session created id=${sessionId}`)
     logger.info('[SessionLifecycle] agent.initSession done')
@@ -128,7 +235,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       })
       return { ...result, ...(initialTurn ? { initialTurn } : {}) }
     } catch (error) {
-      await this.cleanupFailedNewSession(sessionId, webContentsId)
+      if (!input.draftSessionId) await this.cleanupFailedNewSession(sessionId, webContentsId)
       throw error
     }
   }
@@ -172,7 +279,8 @@ export class SessionLifecycle implements SessionLifecyclePort {
       'orchestrationPolicy' | 'toolModeOverride' | 'metadata'
     >,
     assignment: ResolvedSessionAssignment,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    draftSessionId?: string
   ): Promise<AppSessionId> {
     const {
       agentId,
@@ -188,7 +296,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
         ? normalizeOrchestrationPolicy(input.orchestrationPolicy)
         : DEFAULT_ORCHESTRATION_POLICY
 
-    const sessionId = this.dependencies.sessions.create(agentId, title, projectDir, {
+    const sessionOptions = {
       isDraft: false,
       disabledAgentTools,
       orchestrationPolicy,
@@ -197,7 +305,20 @@ export class SessionLifecycle implements SessionLifecyclePort {
           ? normalizeToolModeOverride(input.toolModeOverride)
           : null,
       metadata: input.metadata ?? null
-    })
+    }
+    const sessionId = draftSessionId
+      ? toAppSessionId(draftSessionId)
+      : this.dependencies.sessions.create(agentId, title, projectDir, sessionOptions)
+    if (draftSessionId) {
+      this.dependencies.sessions.update(sessionId, {
+        title,
+        projectDir,
+        isDraft: false,
+        orchestrationPolicy,
+        toolModeOverride: sessionOptions.toolModeOverride
+      })
+      this.dependencies.sessions.updateDisabledAgentTools(sessionId, disabledAgentTools)
+    }
     try {
       signal?.throwIfAborted()
       await this.initializeSessionRuntime(sessionId, {
@@ -210,7 +331,18 @@ export class SessionLifecycle implements SessionLifecyclePort {
       })
       signal?.throwIfAborted()
     } catch (error) {
-      await this.cleanupFailedSessionInitialization(sessionId, providerId)
+      if (draftSessionId) {
+        try {
+          await this.dependencies.runtime.resolveSession(sessionId).close()
+        } catch (cleanupError) {
+          console.warn(
+            `[SessionLifecycle] Failed to close draft runtime ${sessionId}:`,
+            cleanupError
+          )
+        }
+      } else {
+        await this.cleanupFailedSessionInitialization(sessionId, providerId)
+      }
       throw error
     }
     return sessionId
@@ -352,11 +484,14 @@ export class SessionLifecycle implements SessionLifecyclePort {
       : new Error(`Failed to create subagent session for slot ${slotId}.`)
   }
 
-  async ensureAcpDraftSession(input: {
-    agentId: string
-    projectDir: string
-    permissionMode?: PermissionMode
-  }): Promise<EnsureAcpDraftResult> {
+  async ensureAcpDraftSession(
+    input: {
+      agentId: string
+      projectDir: string
+      permissionMode?: PermissionMode
+    },
+    webContentsId?: number
+  ): Promise<EnsureAcpDraftResult> {
     const agentId = input.agentId?.trim()
     if (!agentId) throw new Error('ACP draft session requires an agentId.')
 
@@ -365,7 +500,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
 
     const { agentId: canonicalAgentId, permissionMode } =
       this.dependencies.assignmentPolicy.resolveAcpDraftAssignment(agentId, input.permissionMode)
-    let record = await this.findReusableDraftSession(canonicalAgentId, projectDir)
+    let record = await this.findReusableDraftSession(canonicalAgentId, projectDir, webContentsId)
     let createdDraftSession = false
     if (!record) {
       const sessionId = this.dependencies.sessions.create(
@@ -374,6 +509,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
         projectDir,
         { isDraft: true }
       )
+      if (webContentsId !== undefined) this.registerDraftOwner(sessionId, webContentsId)
       try {
         await this.ensureSessionRuntimeInitialized(sessionId, {
           agentId: canonicalAgentId,
@@ -383,6 +519,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
           permissionMode
         })
       } catch (error) {
+        this.releaseDraftOwner(sessionId)
         await this.cleanupFailedSessionInitialization(sessionId, 'acp')
         throw error
       }
@@ -530,11 +667,21 @@ export class SessionLifecycle implements SessionLifecyclePort {
 
   private async findReusableDraftSession(
     agentId: string,
-    projectDir: string
+    projectDir: string | null,
+    webContentsId?: number
   ): Promise<SessionRecord | null> {
-    for (const session of this.dependencies.sessions.list({ agentId, projectDir })) {
-      if (!session.isDraft) continue
-      if (!(await this.hasSessionMessages(session.id))) return session
+    for (const session of this.dependencies.sessions.list({
+      agentId,
+      ...(projectDir !== null ? { projectDir } : {})
+    })) {
+      if (!session.isDraft || session.projectDir !== projectDir) continue
+      if (await this.hasSessionMessages(session.id)) continue
+      if (webContentsId !== undefined) {
+        if (this.draftOwners.has(session.id) && !this.ownsDraftSession(session.id, webContentsId))
+          continue
+        this.registerDraftOwner(session.id, webContentsId)
+      }
+      return session
     }
     return null
   }

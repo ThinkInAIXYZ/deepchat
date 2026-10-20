@@ -18,7 +18,7 @@ export async function selectAgent(page: Page, preferredAgentId = 'deepchat'): Pr
         `[data-testid="sidebar-agent-button"][data-agent-id="${escapeAttributeValue(preferredAgentId)}"]`
       )
       .first()
-    if (!(await preferredAgent.isVisible())) await selector.click()
+    if ((await selector.getAttribute('aria-expanded')) !== 'true') await selector.click()
     const fallbackAgent = page.getByTestId('sidebar-agent-button').first()
     await expect(fallbackAgent).toBeVisible({ timeout: 30_000 })
     const button = (await preferredAgent.count()) ? preferredAgent : fallbackAgent

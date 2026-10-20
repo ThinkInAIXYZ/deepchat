@@ -28,6 +28,7 @@ const setup = async (options: SetupOptions = {}) => {
   const chatPageMounts: Array<{ instanceId: number; sessionId: string }> = []
 
   const markStartupInteractive = vi.fn()
+  const draftStore = reactive({ workspaceSessionId: null as string | null })
   const pageRouter = reactive({
     currentRoute: options.currentRoute ?? 'newThread',
     chatSessionId: options.chatSessionId ?? (options.currentRoute === 'chat' ? 'session-1' : null),
@@ -53,6 +54,7 @@ const setup = async (options: SetupOptions = {}) => {
       sessionStore.activeSession = activeSession
     }),
     fetchSessions: vi.fn().mockResolvedValue(undefined),
+    setSessionProjectDir: vi.fn().mockResolvedValue(undefined),
     startNewConversation: vi.fn().mockResolvedValue(undefined)
   })
   const agentStore = reactive({
@@ -63,11 +65,13 @@ const setup = async (options: SetupOptions = {}) => {
   const sidebarStore = reactive({
     collapsed: options.collapsed ?? false
   })
-  const projectStore = {
+  const projectStore = reactive({
+    selectedProject: null as { path: string } | null,
+    selectProject: vi.fn(),
     applyBootstrapDefaultProjectPath: vi.fn(),
     loadDefaultProjectPath: vi.fn().mockResolvedValue(undefined),
     fetchProjects: vi.fn().mockResolvedValue(undefined)
-  }
+  })
   const modelStore = {
     initialize: vi.fn().mockResolvedValue(undefined)
   }
@@ -78,6 +82,7 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/ui/pageRouter', () => ({
     usePageRouterStore: () => pageRouter
   }))
+  vi.doMock('@/stores/ui/draft', () => ({ useDraftStore: () => draftStore }))
   vi.doMock('@/stores/ui/session', () => ({
     useSessionStore: () => sessionStore
   }))
@@ -239,6 +244,7 @@ const setup = async (options: SetupOptions = {}) => {
 
   return {
     wrapper,
+    draftStore,
     pageRouter,
     agentStore,
     modelStore,
@@ -258,6 +264,31 @@ describe('ChatTabView startup and routing', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('uses the draft workspace before sending and keeps the panel mounted when entering chat', async () => {
+    const { wrapper, draftStore, projectStore, sessionStore, pageRouter } = await setup({
+      selectedAgentId: 'deepchat'
+    })
+    draftStore.workspaceSessionId = 'draft-1'
+    projectStore.selectedProject = { path: '/draft-project' }
+    await flushPromises()
+    const panel = wrapper.getComponent({ name: 'ChatSidePanel' })
+    expect(panel.props()).toMatchObject({ sessionId: 'draft-1', workspacePath: '/draft-project' })
+    panel.vm.$emit('update:workspacePath', '/selected-project')
+    expect(projectStore.selectProject).toHaveBeenCalledWith('/selected-project', 'manual')
+    pageRouter.currentRoute = 'chat'
+    pageRouter.chatSessionId = 'draft-1'
+    sessionStore.activeSession = { projectDir: '/selected-project', providerId: 'openai' }
+    await flushPromises()
+    expect(wrapper.getComponent({ name: 'ChatSidePanel' }).vm).toBe(panel.vm)
+    expect(panel.props()).toMatchObject({
+      sessionId: 'draft-1',
+      workspacePath: '/selected-project'
+    })
+    panel.vm.$emit('update:workspacePath', '/another-project')
+    expect(sessionStore.setSessionProjectDir).toHaveBeenCalledWith('draft-1', '/another-project')
+    wrapper.unmount()
   })
 
   it('runs full model compensation in deferred hydration after the first screen becomes interactive', async () => {

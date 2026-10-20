@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "Oturum referansını kopyala",
     "groups": { "session": "Oturumlar", "file": "Dosyalar" },
     "open": "{title} öğesini aç",
     "unavailableTitle": "Oturum başvurusu kullanılamıyor",

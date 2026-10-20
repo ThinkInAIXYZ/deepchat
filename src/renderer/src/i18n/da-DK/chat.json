@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "Kopiér sessionsreference",
     "groups": { "session": "Sessioner", "file": "Filer" },
     "open": "Åbn {title}",
     "unavailableTitle": "Sessionsreference er ikke tilgængelig",

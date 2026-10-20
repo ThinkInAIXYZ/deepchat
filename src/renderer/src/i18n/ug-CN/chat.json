@@ -1,5 +1,6 @@
 {
   "sessionReference": {
+    "copy": "سۆھبەت نەقىلىنى كۆچۈرۈش",
     "groups": { "session": "سۆھبەتلەر", "file": "ھۆججەتلەر" },
     "open": "{title} نى ئېچىش",
     "unavailableTitle": "سۆھبەت نەقىلىنى ئىشلەتكىلى بولمايدۇ",

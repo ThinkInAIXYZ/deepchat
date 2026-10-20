@@ -12,7 +12,7 @@ function createFixture() {
     all: sql.includes('FROM new_sessions') ? sessionAll : messageAll
   }))
   const getDatabase = vi.fn(() => ({ prepare }))
-  const sessions = new Map<string, { id: string; projectDir: string | null }>()
+  const sessions = new Map<string, { id: string; projectDir: string | null; isDraft?: boolean }>()
   const service = new SessionHistorySearch(
     {
       getDatabase,
@@ -34,6 +34,20 @@ function createFixture() {
 }
 
 describe('SessionHistorySearch', () => {
+  it('excludes hidden drafts from indexed history results', async () => {
+    const fixture = createFixture()
+    fixture.sessions.set('draft-1', { id: 'draft-1', projectDir: null, isDraft: true })
+    fixture.searchFts.mockReturnValue([
+      {
+        document_kind: 'session',
+        session_id: 'draft-1',
+        title: 'New Chat',
+        updated_at: 1,
+        rank: 1
+      }
+    ])
+    expect(await fixture.service.search('New Chat')).toEqual([])
+  })
   it('returns no hits for an empty normalized query', async () => {
     const fixture = createFixture()
     await expect(fixture.service.search('   ')).resolves.toEqual([])
