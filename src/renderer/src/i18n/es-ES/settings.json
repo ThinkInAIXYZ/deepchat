@@ -2315,7 +2315,8 @@
         "stderr": "stderr",
         "error": "error"
       }
-    }
+    },
+    "registryReloadDiscardDescription": "Estos Agents ya no están instalados: {agents}. ¿Descartar solo sus borradores de variables de entorno sin guardar y actualizar la lista?"
   },
   "rateLimit": {
     "title": "Límite de tarifa",

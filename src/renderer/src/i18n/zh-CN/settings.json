@@ -2459,7 +2459,8 @@
         "stderr": "stderr",
         "error": "错误"
       }
-    }
+    },
+    "registryReloadDiscardDescription": "以下 Agent 已不再安装：{agents}。是否仅丢弃它们未保存的环境变量草稿并刷新列表？"
   },
   "rateLimit": {
     "title": "速率限制",

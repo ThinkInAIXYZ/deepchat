@@ -2113,7 +2113,8 @@
       "all": "すべて",
       "installed": "インストール済み",
       "notInstalled": "未インストール"
-    }
+    },
+    "registryReloadDiscardDescription": "次の Agent はインストールされていません：{agents}。これらの未保存の環境変数の下書きだけを破棄して、一覧を更新しますか？"
   },
   "skills": {
     "addSkill": "スキル追加",

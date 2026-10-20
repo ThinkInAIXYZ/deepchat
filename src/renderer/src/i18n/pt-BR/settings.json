@@ -2113,7 +2113,8 @@
       "all": "All",
       "installed": "Installed",
       "notInstalled": "Not Installed"
-    }
+    },
+    "registryReloadDiscardDescription": "Estes Agents não estão mais instalados: {agents}. Descartar apenas os rascunhos de variáveis de ambiente não salvos deles e atualizar a lista?"
   },
   "skills": {
     "addSkill": "Adicionar skill",

@@ -2315,7 +2315,8 @@
       "installing": "Đang cài đặt",
       "error": "Cài đặt không thành công",
       "notInstalled": "Chưa được cài đặt"
-    }
+    },
+    "registryReloadDiscardDescription": "Các Agent sau không còn được cài đặt: {agents}. Chỉ bỏ bản nháp biến môi trường chưa lưu của các Agent này và làm mới danh sách?"
   },
   "rateLimit": {
     "title": "Giới hạn tỷ lệ",

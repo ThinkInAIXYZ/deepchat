@@ -35,6 +35,7 @@ declare module 'vue-i18n' {
     svgSanitizationFailed: string
     noSvgContent: string
     sessionReference: {
+      copy: string
       groups: {
         session: string
         file: string
@@ -2203,6 +2204,9 @@ declare module 'vue-i18n' {
     'settings-debug': string
     'settings-toolchains': string
     common: {
+      returnToChat: string
+      navigationSearch: string
+      navigationSearchEmpty: string
       commandShell: {
         title: string
         auto: string
@@ -3986,6 +3990,7 @@ declare module 'vue-i18n' {
           error: string
         }
       }
+      registryReloadDiscardDescription: string
     }
     promptSetting: {
       resetToDefault: string

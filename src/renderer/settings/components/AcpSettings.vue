@@ -612,6 +612,22 @@
       </DialogContent>
     </Dialog>
 
+    <DcConfirmDialog
+      :open="registryReloadConfirmation !== null"
+      :title="t('settings.leaveGuard.dirtyTitle')"
+      :description="
+        t('settings.acp.registryReloadDiscardDescription', {
+          agents: registryReloadConfirmation?.agents ?? ''
+        })
+      "
+      :confirm-label="t('settings.leaveGuard.discard')"
+      :cancel-label="t('settings.leaveGuard.stay')"
+      :confirm-attrs="{ 'data-testid': 'acp-reload-discard' }"
+      :cancel-attrs="{ 'data-testid': 'acp-reload-cancel' }"
+      @confirm="confirmRegistryReload"
+      @cancel="registryReloadConfirmation = null"
+    />
+
     <AcpDebugDialog
       :open="debugDialog.open"
       :agent-id="debugDialog.agentId"
@@ -643,7 +659,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  shallowRef,
+  watch
+} from 'vue'
 import type { AcpAuthChallenge, AcpManualAgent } from '@shared/types/acp'
 import type { AcpRegistryAgent } from '@shared/types/acp'
 import type { AgentTransferImpact } from '@shared/types/agent-interface'
@@ -661,6 +686,7 @@ import {
 import { DcBadge } from '@dc-ui/components/badge'
 import { DcEmpty } from '@dc-ui/components/empty'
 import { DcButton } from '@dc-ui/components/button'
+import { DcConfirmDialog } from '@dc-ui/components/confirm-dialog'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Input } from '@shadcn/components/ui/input'
@@ -1008,14 +1034,23 @@ const updateManualAgent = (updated: AcpManualAgent) => {
   )
 }
 
+const registryReloadConfirmation = shallowRef<{ agents: string; apply: () => void } | null>(null)
+const confirmRegistryReload = () => {
+  const confirmation = registryReloadConfirmation.value
+  registryReloadConfirmation.value = null
+  confirmation?.apply()
+}
+
 let loadGeneration = 0
 const invalidatePendingLoad = () => {
   loadGeneration += 1
+  registryReloadConfirmation.value = null
   loading.value = false
 }
 
 const loadAcpData = async () => {
-  const generation = ++loadGeneration
+  invalidatePendingLoad()
+  const generation = loadGeneration
   loading.value = true
   loadError.value = null
   try {
@@ -1038,7 +1073,7 @@ const loadAcpData = async () => {
     ])
     if (generation !== loadGeneration) return
 
-    const removesDirtyAgent = Array.from(dirtyEnvDrafts).some(
+    const removedDirtyAgentIds = Array.from(dirtyEnvDrafts).filter(
       (agentId) =>
         !registryList.some(
           (agent) =>
@@ -1046,15 +1081,31 @@ const loadAcpData = async () => {
             (agent.installState?.status === 'installed' || Boolean(agent.installState?.installedAt))
         )
     )
-    if (removesDirtyAgent && !(await settingsLeaveGuard.requestLeave())) return
-    if (generation !== loadGeneration) return
-
-    acpEnabled.value = true
-    registryAgents.value = registryList
-    manualAgents.value = manualList
-    sharedMcpCount.value = sharedSelections.length
-    syncEnvDrafts(registryList)
-    loaded.value = true
+    const applyReload = () => {
+      if (generation !== loadGeneration) return
+      for (const agentId of removedDirtyAgentIds) {
+        delete envDrafts[agentId]
+        dirtyEnvDrafts.delete(agentId)
+      }
+      acpEnabled.value = true
+      registryAgents.value = registryList
+      manualAgents.value = manualList
+      sharedMcpCount.value = sharedSelections.length
+      syncEnvDrafts(registryList)
+      loaded.value = true
+    }
+    if (removedDirtyAgentIds.length > 0) {
+      registryReloadConfirmation.value = {
+        agents: removedDirtyAgentIds
+          .map(
+            (agentId) => registryAgents.value.find((agent) => agent.id === agentId)?.name ?? agentId
+          )
+          .join(', '),
+        apply: applyReload
+      }
+    } else {
+      applyReload()
+    }
   } catch (error) {
     if (generation !== loadGeneration) return
     console.error('[ACP] Failed to load settings:', error)

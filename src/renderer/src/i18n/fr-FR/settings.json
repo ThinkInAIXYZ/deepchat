@@ -2113,7 +2113,8 @@
       "all": "Tous",
       "installed": "Installés",
       "notInstalled": "Non installés"
-    }
+    },
+    "registryReloadDiscardDescription": "Ces Agents ne sont plus installés : {agents}. Abandonner uniquement leurs brouillons de variables d’environnement non enregistrés et actualiser la liste ?"
   },
   "skills": {
     "addSkill": "Ajouter une compétence",
