@@ -20,7 +20,12 @@
                 tooltip-side="right"
                 class="min-w-0 flex-1 justify-start gap-2 px-2"
               >
-                <Icon icon="lucide:layers" class="size-4 shrink-0 text-muted-foreground" />
+                <AgentAvatar
+                  v-if="sidebarSelectedAgent"
+                  :agent="sidebarSelectedAgent"
+                  class-name="size-4 shrink-0"
+                />
+                <Icon v-else icon="lucide:layers" class="size-4 shrink-0 text-muted-foreground" />
                 <span
                   v-if="!collapsed"
                   class="min-w-0 flex-1 truncate text-left text-sm font-medium"
@@ -861,20 +866,21 @@ let agentSwitchQueue: Promise<void> = Promise.resolve()
 
 const sidebarSelectedAgentId = computed(() => agentStore.filterAgentId)
 
-const selectedAgentName = computed(() => {
+const sidebarSelectedAgent = computed(() => {
   if (sidebarSelectedAgentId.value === null) {
-    return t('chat.sidebar.allAgents')
+    return undefined
   }
 
   if (agentStore.selectedAgent?.id === sidebarSelectedAgentId.value) {
-    return agentStore.selectedAgent.name
+    return agentStore.selectedAgent
   }
 
-  const matchedAgent = agentStore.enabledAgents.find(
-    (agent) => agent.id === sidebarSelectedAgentId.value
-  )
-  return matchedAgent?.name ?? t('chat.sidebar.allAgents')
+  return agentStore.enabledAgents.find((agent) => agent.id === sidebarSelectedAgentId.value)
 })
+
+const selectedAgentName = computed(
+  () => sidebarSelectedAgent.value?.name ?? t('chat.sidebar.allAgents')
+)
 
 const sessionListRef = ref<HTMLElement | null>(null)
 // Shared with the reorder/auto-fill/group composables: a group drag pauses collapse
