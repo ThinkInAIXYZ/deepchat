@@ -93,12 +93,7 @@ test('new-session files and native browser survive the first message @smoke', as
     await panel.getByRole('button', { name: 'Yo Browser', exact: true }).click()
     await panel.getByRole('textbox', { name: 'Address bar' }).fill(pageUrl)
     await panel.getByRole('textbox', { name: 'Address bar' }).press('Enter')
-    const draftId = await app.page.evaluate(async () => {
-      const { items } = await window.deepchat.invoke('sessions.listLightweight', {
-        includeDrafts: true
-      })
-      return items.find((session) => session.isDraft)?.id ?? ''
-    })
+    const draftId = (await panel.getAttribute('data-session-id')) ?? ''
     expect(draftId).not.toBe('')
     await expect
       .poll(async () =>

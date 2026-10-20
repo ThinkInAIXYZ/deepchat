@@ -74,6 +74,12 @@ export class SessionLifecycle implements SessionLifecyclePort {
     return await this.dependencies.agentLifecycle.runWithAgentOperation(
       canonicalAgentId,
       async () => {
+        const reusable = await this.findReusableDraftSession(
+          canonicalAgentId,
+          projectDir,
+          webContentsId
+        )
+        if (reusable) return reusable.id
         const sessionId = this.dependencies.sessions.create(
           canonicalAgentId,
           'New Chat',
@@ -661,11 +667,14 @@ export class SessionLifecycle implements SessionLifecyclePort {
 
   private async findReusableDraftSession(
     agentId: string,
-    projectDir: string,
+    projectDir: string | null,
     webContentsId?: number
   ): Promise<SessionRecord | null> {
-    for (const session of this.dependencies.sessions.list({ agentId, projectDir })) {
-      if (!session.isDraft) continue
+    for (const session of this.dependencies.sessions.list({
+      agentId,
+      ...(projectDir !== null ? { projectDir } : {})
+    })) {
+      if (!session.isDraft || session.projectDir !== projectDir) continue
       if (await this.hasSessionMessages(session.id)) continue
       if (webContentsId !== undefined) {
         if (this.draftOwners.has(session.id) && !this.ownsDraftSession(session.id, webContentsId))

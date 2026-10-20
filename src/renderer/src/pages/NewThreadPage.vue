@@ -5,11 +5,14 @@
       data-testid="new-thread-page"
       class="relative h-full w-full flex flex-col"
     >
-      <div class="absolute right-3 top-1.5 z-10 no-drag">
+      <div class="absolute right-4 top-2.5 z-10">
         <DcButton
           variant="ghost"
           icon="lucide:folder-tree"
           size="icon-sm"
+          :loading="isPreparingWorkspace"
+          :disabled="isPreparingWorkspace"
+          :aria-busy="isPreparingWorkspace || undefined"
           :label="t('chat.workspace.title')"
           :tooltip="t('chat.workspace.title')"
           data-testid="new-thread-workspace-toggle"
@@ -370,6 +373,7 @@ const {
 const chatStatusBarRef = ref<ChatStatusBarModelPicker | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
 const localDraftSessionId = ref<string | null>(null)
+const isPreparingWorkspace = ref(false)
 const workspaceSessionId = computed(() => acpDraftSessionId.value ?? localDraftSessionId.value)
 let workspaceDraftRequest = 0
 let workspaceDraftTask: Promise<void> | null = null
@@ -377,7 +381,7 @@ let submittingWorkspaceDraftId: string | null = null
 let workspaceDisposed = false
 
 const discardWorkspaceDraft = (sessionId: string) => {
-  delete sidepanelStore.sessionStates[sessionId]
+  sidepanelStore.disposeSessionState(sessionId)
   void sessionClient.discardDraftSession(sessionId).catch((error) => {
     console.warn('[NewThreadPage] Failed to discard workspace draft:', error)
   })
@@ -386,6 +390,7 @@ const discardWorkspaceDraft = (sessionId: string) => {
 const resetWorkspaceDraft = () => {
   workspaceDraftRequest += 1
   workspaceDraftTask = null
+  isPreparingWorkspace.value = false
   const sessionId = localDraftSessionId.value
   localDraftSessionId.value = null
   if (sessionId && sessionId !== submittingWorkspaceDraftId) discardWorkspaceDraft(sessionId)
@@ -396,6 +401,7 @@ const ensureWorkspaceDraft = () => {
   const agentId = agentStore.selectedAgentId
   if (!agentId) return
   const request = ++workspaceDraftRequest
+  isPreparingWorkspace.value = true
   workspaceDraftTask = (async () => {
     try {
       const { sessionId } = await sessionClient.createDraftSession(
@@ -413,13 +419,16 @@ const ensureWorkspaceDraft = () => {
         sidepanelStore.closePanel()
         notifyRenderer({
           kind: 'error',
-          code: 'chat.workspace.selectFailed',
+          code: 'chat.workspace.prepareFailed',
           title: t('common.error.operationFailed'),
           description: t('common.error.requestFailed')
         })
       }
     } finally {
-      if (request === workspaceDraftRequest) workspaceDraftTask = null
+      if (request === workspaceDraftRequest) {
+        workspaceDraftTask = null
+        isPreparingWorkspace.value = false
+      }
     }
   })()
 }

@@ -296,6 +296,45 @@ function createHarness(initialSessions: SessionRecord[] = []) {
 }
 
 describe('SessionLifecycle', () => {
+  it.each([null, '/repo'])(
+    'reuses an unowned empty draft after a restart for project %s',
+    async (projectDir) => {
+      const harness = createHarness([
+        createRecord({ id: 'accepted', isDraft: true, projectDir }),
+        createRecord({ id: 'orphan', isDraft: true, projectDir })
+      ])
+      harness.transcript.hasMessages.mockImplementation(async (id: string) => id === 'accepted')
+      expect(await harness.coordinator.createDraftSession('deepchat', projectDir, 42)).toBe(
+        'orphan'
+      )
+      expect(harness.coordinator.ownsDraftSession('orphan', 42)).toBe(true)
+      expect(await harness.coordinator.createDraftSession('deepchat', projectDir, 43)).not.toBe(
+        'orphan'
+      )
+      expect(harness.records.has('accepted')).toBe(true)
+      expect(harness.runtime.resolveSession).not.toHaveBeenCalled()
+    }
+  )
+
+  it('preserves a promoted draft and its accepted message when the initial turn throws', async () => {
+    const harness = createHarness()
+    const id = await harness.coordinator.createDraftSession('deepchat', null, 42)
+    const failure = new Error('Aborted after acceptance')
+    harness.initialTurn.startInitialTurn.mockImplementationOnce(async () => {
+      harness.transcript.hasMessages.mockResolvedValue(true)
+      throw failure
+    })
+    await expect(
+      harness.coordinator.createSession(
+        { agentId: 'deepchat', draftSessionId: id, message: 'Review' },
+        42
+      )
+    ).rejects.toBe(failure)
+    expect(harness.records.get(id)?.isDraft).toBe(false)
+    expect(harness.coordinator.ownsDraftSession(id, 42)).toBe(false)
+    expect(await harness.coordinator.discardDraftSession(id, 42)).toBe(false)
+    expect(harness.deletion.deleteSessionTree).not.toHaveBeenCalled()
+  })
   it('allocates an owned hidden draft without resolving a model or initializing a runtime', async () => {
     const harness = createHarness()
     const id = await harness.coordinator.createDraftSession('deepchat', null, 42)

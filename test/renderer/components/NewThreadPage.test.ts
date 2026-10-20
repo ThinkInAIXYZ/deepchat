@@ -332,7 +332,8 @@ const setup = async (options?: {
       sidepanelStore.open = false
     }),
     clearFile: vi.fn(),
-    clearDiff: vi.fn()
+    clearDiff: vi.fn(),
+    disposeSessionState: vi.fn()
   })
   vi.doMock('@/stores/ui/sidepanel', () => ({ useSidepanelStore: () => sidepanelStore }))
   vi.doMock('@/stores/ui/pageRouter', () => ({ usePageRouterStore: () => pageRouterStore }))
@@ -461,6 +462,30 @@ const setup = async (options?: {
 
 describe('NewThreadPage ACP draft session bootstrap', () => {
   beforeEach(() => localStorage.clear())
+
+  it('shows accessible loading feedback while the workspace draft is allocated', async () => {
+    const { wrapper, sessionClient, draftStore } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat'
+    })
+    let resolveDraft!: (value: { sessionId: string }) => void
+    sessionClient.createDraftSession.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveDraft = resolve
+        })
+    )
+    const toggle = wrapper.get('[data-testid="new-thread-workspace-toggle"]')
+    await toggle.trigger('click')
+    await flushPromises()
+    expect(toggle.attributes('aria-busy')).toBe('true')
+    expect(toggle.attributes('disabled')).toBeDefined()
+    resolveDraft({ sessionId: 'workspace-draft-1' })
+    await flushPromises()
+    expect(toggle.attributes('aria-busy')).toBeUndefined()
+    expect(draftStore.workspaceSessionId).toBe('workspace-draft-1')
+    wrapper.unmount()
+  })
 
   it('opens a local workspace without sending, inserts file references, and submits using the same identity', async () => {
     const {

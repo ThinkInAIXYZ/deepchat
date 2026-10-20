@@ -97,6 +97,10 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     return sessionStates[sessionId]
   }
 
+  const disposeSessionState = (sessionId: string) => {
+    delete sessionStates[sessionId]
+  }
+
   const getSessionState = (sessionId: string | null | undefined): WorkspaceSessionState => {
     if (!sessionId) {
       return createSessionState()
@@ -245,6 +249,7 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     toggleNavCollapsed,
     sessionStates,
     ensureSessionState,
+    disposeSessionState,
     getSessionState,
     setWidth,
     openWorkspace,

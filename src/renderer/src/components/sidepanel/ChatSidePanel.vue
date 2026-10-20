@@ -1,6 +1,7 @@
 <template>
   <div
     data-testid="chat-side-panel-shell"
+    :data-session-id="props.sessionId"
     class="chat-side-panel-shell h-full min-h-0 overflow-hidden"
     :class="[
       isSidepanelFullscreenActive ? 'absolute inset-0 w-full' : 'relative shrink-0',

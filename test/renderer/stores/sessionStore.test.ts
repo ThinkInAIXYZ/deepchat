@@ -119,6 +119,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     create: vi.fn().mockResolvedValue({
       session: createSession()
     }),
+    restore: vi.fn().mockResolvedValue({ session: null, messages: [] }),
     setSessionModel: vi
       .fn()
       .mockImplementation(async (_sessionId: string, providerId: string, modelId: string) =>
@@ -1141,6 +1142,67 @@ describe('sessionStore.startNewConversation', () => {
 })
 
 describe('sessionStore onboarding progress', () => {
+  it.each(['failure', 'abort'] as const)(
+    'opens an accepted first message after a draft submission %s without sending it again',
+    async (kind) => {
+      const { store, sessionClient, pageRouter } = await setupStore()
+      const failure = new Error(kind === 'abort' ? 'Aborted' : 'Reply failed')
+      if (kind === 'abort') failure.name = 'AbortError'
+      sessionClient.create.mockRejectedValueOnce(failure)
+      const session = createSession({ status: 'error' })
+      sessionClient.restore.mockResolvedValueOnce({
+        session,
+        messages: [{ id: 'accepted-user-message' }]
+      })
+
+      expect(
+        await store.createSession({
+          agentId: 'deepchat',
+          draftSessionId: session.id,
+          message: 'Review the project'
+        })
+      ).toEqual({ session })
+      expect(pageRouter.goToChat).toHaveBeenCalledWith(session.id)
+      expect(store.activeSession.value?.status).toBe('error')
+      expect(store.error.value).toBeNull()
+      expect(sessionClient.create).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('keeps an unused draft retryable when a failed submission has no accepted message', async () => {
+    const { store, sessionClient, pageRouter } = await setupStore()
+    const failure = new Error('Preparation failed')
+    sessionClient.create.mockRejectedValueOnce(failure)
+    sessionClient.restore.mockResolvedValueOnce({
+      session: createSession({ isDraft: true }),
+      messages: []
+    })
+    await expect(
+      store.createSession({ agentId: 'deepchat', draftSessionId: 'session-1', message: 'Review' })
+    ).rejects.toBe(failure)
+    expect(pageRouter.goToChat).not.toHaveBeenCalled()
+  })
+
+  it('does not replace newer navigation while recovering an accepted draft submission', async () => {
+    const { store, sessionClient, pageRouter } = await setupStore()
+    sessionClient.create.mockRejectedValueOnce(new Error('Reply failed'))
+    const recovery = createDeferred<{
+      session: ReturnType<typeof createSession>
+      messages: { id: string }[]
+    }>()
+    sessionClient.restore.mockReturnValueOnce(recovery.promise)
+    const creation = store.createSession({
+      agentId: 'deepchat',
+      draftSessionId: 'session-1',
+      message: 'Review'
+    })
+    await vi.waitFor(() => expect(sessionClient.restore).toHaveBeenCalled())
+    await store.closeSession()
+    recovery.resolve({ session: createSession(), messages: [{ id: 'accepted-user-message' }] })
+    await creation
+    expect(pageRouter.goToChat).not.toHaveBeenCalled()
+    expect(store.activeSessionId.value).toBeNull()
+  })
   it('marks the first-chat step complete after creating the first session', async () => {
     const { store, onboardingClient, pageRouter, sessionClient } = await setupStore({
       onboardingCurrentStepId: 'first-chat'
