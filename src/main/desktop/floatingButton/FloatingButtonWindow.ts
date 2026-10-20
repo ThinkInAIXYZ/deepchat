@@ -53,6 +53,7 @@ export class FloatingButtonWindow {
         width: initialBounds.width,
         height: initialBounds.height,
         frame: false,
+        type: process.platform === 'darwin' ? 'panel' : undefined,
         transparent: true,
         backgroundColor: '#00000000',
         alwaysOnTop: this.config.alwaysOnTop,
@@ -76,7 +77,11 @@ export class FloatingButtonWindow {
         }
       })
 
-      this.window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+      this.window.setVisibleOnAllWorkspaces(true, {
+        visibleOnFullScreen: true,
+        // Avoid the macOS process-type transition that hides other application windows.
+        skipTransformProcessType: true
+      })
       this.window.setAlwaysOnTop(this.config.alwaysOnTop, 'floating')
       this.window.setOpacity(1)
       this.setBounds(initialBounds)
@@ -100,8 +105,12 @@ export class FloatingButtonWindow {
       return
     }
 
-    this.window.show()
-    this.state.isVisible = true
+    this.window.showInactive()
+    // Native Wayland may leave showInactive unmapped; retain normal showing as a fallback.
+    if (process.platform === 'linux' && !this.window.isVisible()) {
+      this.window.show()
+    }
+    this.state.isVisible = this.window.isVisible()
     logger.debug('FloatingButtonWindow shown')
   }
 

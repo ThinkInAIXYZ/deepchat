@@ -323,7 +323,9 @@
           class="flex h-6 items-center gap-1.5 px-2 text-xs text-muted-foreground"
         >
           <Icon icon="lucide:gauge" class="h-3.5 w-3.5 shrink-0" />
-          <span class="h-1 w-8 overflow-hidden rounded-full bg-muted">
+          <span
+            class="h-1.5 w-10 shrink-0 overflow-hidden rounded-full bg-muted-foreground/20 ring-1 ring-inset ring-border"
+          >
             <span
               :class="['block h-full rounded-full', contextOccupancyFillClass]"
               :style="{ width: contextOccupancyFillWidth }"

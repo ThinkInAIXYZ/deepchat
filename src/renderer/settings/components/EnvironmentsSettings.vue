@@ -3,6 +3,7 @@
     :title="t('settings.environments.title')"
     :description="t('settings.environments.description')"
     :eyebrow="t('settings.controlCenter.groups.setup')"
+    :scrollable="false"
     data-testid="settings-environments-page"
   >
     <template #actions>
@@ -18,8 +19,8 @@
       </DcButton>
     </template>
 
-    <div class="flex w-full flex-col gap-3">
-      <div class="flex flex-wrap items-center gap-2 px-2">
+    <div class="flex min-h-0 w-full flex-1 flex-col gap-3">
+      <div class="flex shrink-0 flex-wrap items-center gap-2 px-2">
         <DcButton
           variant="ghost"
           size="sm"
@@ -44,7 +45,7 @@
         </DcButton>
       </div>
 
-      <div v-if="currentView === 'active'" class="flex items-center gap-3 px-2 py-1">
+      <div v-if="currentView === 'active'" class="flex shrink-0 items-center gap-3 px-2 py-1">
         <span class="flex items-center gap-2 text-sm font-medium text-foreground">
           <Icon icon="lucide:folder-x" class="h-4 w-4 text-muted-foreground" />
           {{ t('settings.environments.actions.showMissing') }}
@@ -60,71 +61,76 @@
       </div>
 
       <div
-        v-if="currentView === 'active' && visibleActiveEnvironments.length === 0"
-        class="px-2 py-6 text-sm text-muted-foreground"
-        data-testid="environments-empty"
+        data-testid="environments-list"
+        class="min-h-0 flex-1 overflow-y-auto overscroll-contain"
       >
-        {{ t('settings.environments.empty.regular') }}
-      </div>
-
-      <draggable
-        v-else-if="currentView === 'active'"
-        :model-value="visibleActiveEnvironments"
-        item-key="path"
-        handle=".environment-folder-drag-target"
-        :animation="150"
-        ghost-class="environment-row-ghost"
-        chosen-class="environment-row-chosen"
-        :disabled="pageOperationPending || visibleActiveEnvironments.length < 2"
-        @update:model-value="handleVisibleActiveReorder"
-      >
-        <template #item="{ element: environment }">
-          <EnvironmentRow
-            :environment="environment"
-            :default-project-path="defaultProjectPath"
-            :view="currentView"
-            :can-move-up="canMoveEnvironment(environment, -1)"
-            :can-move-down="canMoveEnvironment(environment, 1)"
-            :disabled="pageOperationPending"
-            :format-date="formatDate"
-            @open="handleOpen"
-            @set-default="handleSetDefault"
-            @clear-default="handleClearDefault"
-            @move-top="handleMove(environment, 'top')"
-            @move-up="handleMove(environment, 'up')"
-            @move-down="handleMove(environment, 'down')"
-            @move-bottom="handleMove(environment, 'bottom')"
-            @archive="requestEnvironmentAction('archive', environment)"
-            @remove="requestEnvironmentAction('remove', environment)"
-          />
-        </template>
-      </draggable>
-
-      <div v-else class="flex flex-col" data-testid="environments-archived-panel">
         <div
-          v-if="archivedEnvironments.length === 0"
+          v-if="currentView === 'active' && visibleActiveEnvironments.length === 0"
           class="px-2 py-6 text-sm text-muted-foreground"
-          data-testid="environments-archived-empty"
+          data-testid="environments-empty"
         >
-          {{ t('settings.environments.empty.archived') }}
+          {{ t('settings.environments.empty.regular') }}
         </div>
 
-        <template v-else>
-          <EnvironmentRow
-            v-for="environment in archivedEnvironments"
-            :key="environment.path"
-            :environment="environment"
-            :default-project-path="defaultProjectPath"
-            view="archived"
-            :can-move-up="false"
-            :can-move-down="false"
-            :disabled="pageOperationPending"
-            :format-date="formatDate"
-            @open="handleOpen"
-            @restore="handleRestore"
-            @remove="requestEnvironmentAction('remove', environment)"
-          />
-        </template>
+        <draggable
+          v-else-if="currentView === 'active'"
+          :model-value="visibleActiveEnvironments"
+          item-key="path"
+          handle=".environment-folder-drag-target"
+          :animation="150"
+          ghost-class="environment-row-ghost"
+          chosen-class="environment-row-chosen"
+          :disabled="pageOperationPending || visibleActiveEnvironments.length < 2"
+          @update:model-value="handleVisibleActiveReorder"
+        >
+          <template #item="{ element: environment }">
+            <EnvironmentRow
+              :environment="environment"
+              :default-project-path="defaultProjectPath"
+              :view="currentView"
+              :can-move-up="canMoveEnvironment(environment, -1)"
+              :can-move-down="canMoveEnvironment(environment, 1)"
+              :disabled="pageOperationPending"
+              :format-date="formatDate"
+              @open="handleOpen"
+              @set-default="handleSetDefault"
+              @clear-default="handleClearDefault"
+              @move-top="handleMove(environment, 'top')"
+              @move-up="handleMove(environment, 'up')"
+              @move-down="handleMove(environment, 'down')"
+              @move-bottom="handleMove(environment, 'bottom')"
+              @archive="requestEnvironmentAction('archive', environment)"
+              @remove="requestEnvironmentAction('remove', environment)"
+            />
+          </template>
+        </draggable>
+
+        <div v-else class="flex flex-col" data-testid="environments-archived-panel">
+          <div
+            v-if="archivedEnvironments.length === 0"
+            class="px-2 py-6 text-sm text-muted-foreground"
+            data-testid="environments-archived-empty"
+          >
+            {{ t('settings.environments.empty.archived') }}
+          </div>
+
+          <template v-else>
+            <EnvironmentRow
+              v-for="environment in archivedEnvironments"
+              :key="environment.path"
+              :environment="environment"
+              :default-project-path="defaultProjectPath"
+              view="archived"
+              :can-move-up="false"
+              :can-move-down="false"
+              :disabled="pageOperationPending"
+              :format-date="formatDate"
+              @open="handleOpen"
+              @restore="handleRestore"
+              @remove="requestEnvironmentAction('remove', environment)"
+            />
+          </template>
+        </div>
       </div>
     </div>
   </SettingsPageShell>

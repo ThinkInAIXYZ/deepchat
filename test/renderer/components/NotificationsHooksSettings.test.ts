@@ -170,6 +170,14 @@ async function setup(options?: {
 }
 
 describe('NotificationsHooksSettings', () => {
+  it('loads hooks without reporting a save or writing the configuration', async () => {
+    const { wrapper, configClient, notifyRenderer } = await setup()
+
+    expect(wrapper.text()).toContain('Primary hook')
+    expect(configClient.setHooksNotificationsConfig).not.toHaveBeenCalled()
+    expect(notifyRenderer).not.toHaveBeenCalled()
+  })
+
   it('reports a load failure via toast without exposing the exception', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     let loadAttempt = 0

@@ -1,29 +1,44 @@
 <template>
-  <div data-testid="settings-acp-page" class="w-full h-full flex flex-col">
-    <div class="shrink-0 px-4 pt-4 space-y-4">
-      <div class="flex items-center justify-between gap-4">
-        <div>
-          <div class="font-medium">{{ t('settings.acp.enabledTitle') }}</div>
-          <p class="text-xs text-muted-foreground">
-            {{ t('settings.acp.enabledDescription') }}
-          </p>
-        </div>
-        <div class="flex min-w-0 items-center gap-3">
-          <Switch
-            dir="ltr"
-            :model-value="acpEnabled"
-            :aria-label="t('settings.acp.enabledTitle')"
-            class="scale-125"
-            :disabled="!loaded || loading || isAnyMutationPending"
-            @update:model-value="handleToggle"
-          />
-        </div>
-      </div>
+  <div data-testid="settings-acp-page" class="flex h-full min-h-0 w-full flex-col">
+    <SettingsPageShell
+      :title="
+        selectedRegistryAgent?.name ??
+        (sharedMcpOpen ? t('settings.acp.sharedMcpTitle') : t('routes.settings-acp'))
+      "
+      :description="
+        selectedRegistryAgent?.description ||
+        (sharedMcpOpen
+          ? t('settings.acp.sharedMcpDescription')
+          : t('settings.acp.enabledDescription'))
+      "
+      :eyebrow="t('settings.controlCenter.groups.models')"
+    >
+      <template #actions>
+        <DcButton
+          v-if="selectedRegistryAgent || sharedMcpOpen"
+          data-testid="acp-detail-back"
+          variant="ghost"
+          :disabled="isAnyMutationPending || sharedMcpLeaveRisk !== 'clean'"
+          @click="closeDetails"
+        >
+          <Icon icon="lucide:arrow-left" class="size-4" />
+          {{ t('common.back') }}
+        </DcButton>
+        <DcButton
+          v-else
+          data-testid="acp-registry-install-button"
+          :disabled="!loaded || !acpEnabled || isAnyMutationPending"
+          @click="openRegistryDialog"
+        >
+          <Icon icon="lucide:download" class="size-4" />
+          {{ t('settings.acp.registryInstallEntry') }}
+        </DcButton>
+      </template>
 
       <div
         v-if="loadError"
         role="alert"
-        class="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+        class="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 px-3 py-2 text-xs text-destructive"
       >
         <span>{{ loadError }}</span>
         <DcButton size="sm" variant="ghost" :disabled="loading" @click="loadAcpData">
@@ -32,336 +47,326 @@
       </div>
 
       <div
-        v-if="acpEnabled && loaded"
-        class="rounded-xl border bg-muted/20 px-4 py-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
+        v-if="!selectedRegistryAgent && !sharedMcpOpen"
+        class="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-5"
       >
-        <div class="space-y-1">
-          <div class="text-sm font-semibold">{{ t('settings.acp.registryInstallEntry') }}</div>
-          <p class="text-xs text-muted-foreground">
-            {{ t('settings.acp.registryInstallEntryDescription') }}
-          </p>
+        <div class="flex items-center gap-3">
+          <span class="text-sm font-medium">{{ t('settings.acp.enabledTitle') }}</span>
+          <Switch
+            dir="ltr"
+            :model-value="acpEnabled"
+            :aria-label="t('settings.acp.enabledTitle')"
+            :disabled="!loaded || loading || isAnyMutationPending"
+            @update:model-value="handleToggle"
+          />
         </div>
-        <div class="flex items-center gap-2">
-          <DcButton variant="outline" @click="openRegistryDialog">
-            <Icon icon="lucide:download" class="h-4 w-4 mr-2" />
-            {{ t('settings.acp.registryInstallEntry') }}
-          </DcButton>
-        </div>
+        <DcButton
+          v-if="acpEnabled && loaded && showSharedMcpSection"
+          data-testid="acp-shared-mcp-settings"
+          variant="outline"
+          size="sm"
+          :disabled="isAnyMutationPending"
+          @click="openSharedMcpSettings"
+        >
+          {{ t('settings.acp.sharedMcpTitle') }}
+          <span class="text-muted-foreground">{{ sharedMcpCount }}</span>
+          <Icon icon="lucide:chevron-right" class="size-4" />
+        </DcButton>
       </div>
 
-      <Separator />
-    </div>
-
-    <div class="flex-1 overflow-y-auto">
-      <div v-if="acpEnabled && loaded" class="p-4 space-y-6">
-        <Collapsible v-if="showSharedMcpSection" v-model:open="sharedMcpOpen" class="space-y-4">
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <div class="text-xl font-semibold">{{ t('settings.acp.sharedMcpTitle') }}</div>
-              <p class="text-sm text-muted-foreground">
-                {{ t('settings.acp.sharedMcpDescription') }}
-              </p>
+      <template v-if="acpEnabled && loaded">
+        <section v-if="selectedRegistryAgent" data-testid="acp-agent-details" class="space-y-6">
+          <div class="space-y-5">
+            <div class="text-xs text-muted-foreground space-y-1">
+              <div class="flex items-start gap-1">
+                <span class="font-semibold">{{ t('settings.model.form.id.label') }}:</span>
+                <span class="truncate">{{ selectedRegistryAgent.id }}</span>
+              </div>
+              <div class="flex items-start gap-1">
+                <span class="font-semibold">{{ t('settings.about.version') }}:</span>
+                <span class="truncate">{{ selectedRegistryAgent.version }}</span>
+              </div>
+              <div class="flex items-start gap-1">
+                <span class="font-semibold">{{ t('settings.acp.command') }}:</span>
+                <span class="truncate">{{ buildPreviewCommand(selectedRegistryAgent) }}</span>
+              </div>
             </div>
-            <div class="flex items-center gap-2">
-              <DcBadge variant="outline">
-                {{ t('settings.acp.mcpAccessBadge', { count: sharedMcpCount }) }}
-              </DcBadge>
-              <DcButton
-                size="sm"
-                variant="outline"
-                :disabled="sharedMcpLeaveRisk !== 'clean'"
-                @click="sharedMcpOpen = !sharedMcpOpen"
-              >
-                {{ sharedMcpOpen ? t('common.collapse') : t('common.expand') }}
-              </DcButton>
-            </div>
-          </div>
 
-          <CollapsibleContent>
-            <Card>
-              <CardContent class="pt-6">
-                <AgentMcpSelector
-                  ref="sharedMcpSelectorRef"
-                  @update:selections="handleSharedMcpUpdated"
-                  @persistence-state="handleSharedMcpPersistenceState"
-                />
-              </CardContent>
-            </Card>
-          </CollapsibleContent>
-        </Collapsible>
-
-        <section class="space-y-4">
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <div class="text-xl font-semibold">{{ t('settings.acp.installedSectionTitle') }}</div>
-              <p class="text-sm text-muted-foreground">
-                {{ t('settings.acp.installedSectionDescription') }}
-              </p>
-            </div>
-            <DcBadge variant="outline">
-              {{ t('settings.acp.installedCount', { count: installedRegistryAgents.length }) }}
-            </DcBadge>
-          </div>
-
-          <div
-            v-if="loading && !installedRegistryAgents.length"
-            class="text-sm text-muted-foreground text-center py-8"
-          >
-            {{ t('settings.acp.loading') }}
-          </div>
-
-          <DcEmpty
-            v-else-if="!installedRegistryAgents.length"
-            :title="t('settings.acp.installedEmptyTitle')"
-            :description="t('settings.acp.installedEmptyDescription')"
-          />
-
-          <div v-else class="grid gap-3 xl:grid-cols-2">
-            <Card v-for="agent in installedRegistryAgents" :key="agent.id">
-              <CardHeader class="pb-2">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <CardTitle class="text-base flex items-center gap-2 min-w-0">
-                      <AcpAgentIcon
-                        :agent-id="agent.id"
-                        :icon="agent.icon"
-                        :alt="agent.name"
-                        :fallback-text="agent.name"
-                        custom-class="h-5 w-5"
-                      />
-                      <span class="truncate">{{ agent.name }}</span>
-                      <DcBadge :class="installBadgeClass(agent)" variant="outline">
-                        {{ installBadgeLabel(agent) }}
-                      </DcBadge>
-                      <DcBadge v-if="agent.enabled" variant="secondary">
-                        {{ t('common.enabled') }}
-                      </DcBadge>
-                    </CardTitle>
-                    <CardDescription class="text-xs mt-1">
-                      {{ agent.description || t('settings.acp.builtinHint', { name: agent.name }) }}
-                    </CardDescription>
-                  </div>
-                  <div class="flex items-center gap-2 shrink-0">
-                    <DcButton
-                      size="sm"
-                      variant="destructive"
-                      :disabled="isAnyMutationPending"
-                      @click="confirmRegistryAgentUninstall(agent)"
-                    >
-                      {{ t('settings.acp.registryUninstallAction') }}
-                    </DcButton>
-                    <Switch
-                      :model-value="agent.enabled"
-                      :aria-label="`${t('common.enabled')}: ${agent.name}`"
-                      :disabled="isAnyMutationPending"
-                      @update:model-value="(value) => toggleRegistryAgent(agent, Boolean(value))"
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent class="space-y-3">
-                <div class="text-xs text-muted-foreground space-y-1">
-                  <div class="flex items-start gap-1">
-                    <span class="font-semibold">{{ t('settings.model.form.id.label') }}:</span>
-                    <span class="truncate">{{ agent.id }}</span>
-                  </div>
-                  <div class="flex items-start gap-1">
-                    <span class="font-semibold">{{ t('settings.about.version') }}:</span>
-                    <span class="truncate">{{ agent.version }}</span>
-                  </div>
-                  <div class="flex items-start gap-1">
-                    <span class="font-semibold">{{ t('settings.acp.command') }}:</span>
-                    <span class="truncate">{{ buildPreviewCommand(agent) }}</span>
-                  </div>
-                </div>
-
-                <div class="space-y-2">
-                  <div class="text-xs font-semibold text-muted-foreground">
-                    {{ t('settings.acp.envOverrideTitle') }}
-                  </div>
-                  <Textarea
-                    v-model="envDrafts[agent.id]"
-                    class="min-h-[92px] font-mono text-xs"
-                    :placeholder="t('settings.acp.envOverridePlaceholder')"
-                    :disabled="isAnyMutationPending"
-                    @update:model-value="clearPageFeedbackForAgent(agent.id)"
+            <div class="space-y-2">
+              <div class="text-xs font-semibold text-muted-foreground">
+                {{ t('settings.acp.envOverrideTitle') }}
+              </div>
+              <Textarea
+                v-model="envDrafts[selectedRegistryAgent.id]"
+                class="min-h-[92px] font-mono text-xs"
+                :placeholder="t('settings.acp.envOverridePlaceholder')"
+                :disabled="isAnyMutationPending"
+                @update:model-value="clearPageFeedbackForAgent(selectedRegistryAgent.id)"
+              />
+              <div class="flex flex-wrap gap-2">
+                <DcSubmitButton
+                  size="sm"
+                  variant="outline"
+                  :status="envSaveStatusFor(selectedRegistryAgent.id)"
+                  :disabled="isAnyMutationPending"
+                  @click="saveEnvOverride(selectedRegistryAgent)"
+                >
+                  {{ t('common.save') }}
+                </DcSubmitButton>
+                <DcSubmitButton
+                  size="sm"
+                  variant="ghost"
+                  :status="envSaveStatusFor(selectedRegistryAgent.id)"
+                  :disabled="isAnyMutationPending"
+                  @click="clearEnvOverride(selectedRegistryAgent)"
+                >
+                  {{ t('common.clear') }}
+                </DcSubmitButton>
+                <DcButton
+                  size="sm"
+                  variant="outline"
+                  :disabled="isAnyMutationPending"
+                  @click="repairRegistryAgent(selectedRegistryAgent)"
+                >
+                  {{ t('settings.acp.registryRepair') }}
+                </DcButton>
+                <DcButton
+                  size="sm"
+                  variant="outline"
+                  :disabled="isAnyMutationPending || Boolean(authInspectingAgentId)"
+                  @click="openAuthentication(selectedRegistryAgent.id)"
+                >
+                  <Spinner
+                    v-if="authInspectingAgentId === selectedRegistryAgent.id"
+                    data-icon="inline-start"
                   />
-                  <div class="flex flex-wrap gap-2">
-                    <DcSubmitButton
-                      size="sm"
-                      variant="outline"
-                      :status="envSaveStatusFor(agent.id)"
-                      :disabled="isAnyMutationPending"
-                      @click="saveEnvOverride(agent)"
-                    >
-                      {{ t('common.save') }}
-                    </DcSubmitButton>
-                    <DcSubmitButton
-                      size="sm"
-                      variant="ghost"
-                      :status="envSaveStatusFor(agent.id)"
-                      :disabled="isAnyMutationPending"
-                      @click="clearEnvOverride(agent)"
-                    >
-                      {{ t('common.clear') }}
-                    </DcSubmitButton>
-                    <DcButton
-                      size="sm"
-                      variant="outline"
-                      :disabled="isAnyMutationPending"
-                      @click="repairRegistryAgent(agent)"
-                    >
-                      {{ t('settings.acp.registryRepair') }}
-                    </DcButton>
-                    <DcButton
-                      size="sm"
-                      variant="outline"
-                      :disabled="isAnyMutationPending || Boolean(authInspectingAgentId)"
-                      @click="openAuthentication(agent.id)"
-                    >
-                      <Spinner v-if="authInspectingAgentId === agent.id" data-icon="inline-start" />
-                      {{ t('settings.acp.auth.checkSignIn') }}
-                    </DcButton>
-                    <DcButton
-                      size="sm"
-                      variant="outline"
-                      :disabled="isAnyMutationPending"
-                      @click="openInspector(agent.id, agent.name)"
-                    >
-                      {{ t('settings.acp.debug.entry') }}
-                    </DcButton>
-                  </div>
-                  <DcInlineError
-                    v-if="envOperationErrors[agent.id]"
-                    :error="envOperationErrors[agent.id] ?? undefined"
-                    class="mt-1"
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                  {{ t('settings.acp.auth.checkSignIn') }}
+                </DcButton>
+                <DcButton
+                  size="sm"
+                  variant="outline"
+                  :disabled="isAnyMutationPending"
+                  @click="openInspector(selectedRegistryAgent.id, selectedRegistryAgent.name)"
+                >
+                  {{ t('settings.acp.debug.entry') }}
+                </DcButton>
+              </div>
+              <DcInlineError
+                v-if="envOperationErrors[selectedRegistryAgent.id]"
+                :error="envOperationErrors[selectedRegistryAgent.id] ?? undefined"
+                class="mt-1"
+              />
+            </div>
+          </div>
+          <div class="flex justify-end border-t border-border pt-4">
+            <DcButton
+              variant="destructive"
+              :disabled="isAnyMutationPending"
+              @click="confirmRegistryAgentUninstall(selectedRegistryAgent)"
+            >
+              {{ t('settings.acp.registryUninstallAction') }}
+            </DcButton>
           </div>
         </section>
 
-        <Separator />
+        <section v-else-if="sharedMcpOpen" data-testid="acp-shared-mcp-details">
+          <AgentMcpSelector
+            ref="sharedMcpSelectorRef"
+            @update:selections="handleSharedMcpUpdated"
+            @persistence-state="handleSharedMcpPersistenceState"
+          />
+        </section>
 
-        <Collapsible v-model:open="manualSectionOpen" class="space-y-4">
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <div class="text-xl font-semibold">{{ t('settings.acp.customSectionTitle') }}</div>
-              <p class="text-sm text-muted-foreground">
-                {{ t('settings.acp.customSectionDescription') }}
-              </p>
+        <template v-else>
+          <section class="space-y-3">
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-sm font-medium">{{ t('settings.acp.installedSectionTitle') }}</h2>
+              <span class="text-xs text-muted-foreground">{{
+                installedRegistryAgents.length
+              }}</span>
             </div>
-            <div class="flex items-center gap-2">
-              <DcButton size="sm" variant="outline" @click="manualSectionOpen = !manualSectionOpen">
-                {{ manualSectionOpen ? t('common.collapse') : t('common.expand') }}
-              </DcButton>
-              <DcButton size="sm" :disabled="isAnyMutationPending" @click="openManualDialog()">
-                {{ t('settings.acp.addCustomAgent') }}
-              </DcButton>
-            </div>
-          </div>
-
-          <CollapsibleContent class="space-y-3">
-            <div
-              v-if="loading && !manualAgents.length"
-              class="text-sm text-muted-foreground text-center py-8"
-            >
-              {{ t('settings.acp.loading') }}
-            </div>
-
-            <div
-              v-else-if="!manualAgents.length"
-              class="text-sm text-muted-foreground text-center py-8"
-            >
-              {{ t('settings.acp.customEmpty') }}
-            </div>
-
-            <div v-else class="space-y-3">
-              <Card v-for="agent in manualAgents" :key="agent.id">
-                <CardHeader class="pb-2">
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <CardTitle class="text-base truncate">{{ agent.name }}</CardTitle>
-                      <CardDescription class="text-xs truncate">
-                        {{ agent.command }}
-                      </CardDescription>
-                    </div>
-                    <Switch
-                      :model-value="agent.enabled"
-                      :aria-label="`${t('common.enabled')}: ${agent.name}`"
-                      :disabled="isAnyMutationPending"
-                      @update:model-value="(value) => toggleManualAgent(agent, Boolean(value))"
-                    />
-                  </div>
-                </CardHeader>
-                <CardContent class="space-y-3">
-                  <div class="text-xs text-muted-foreground space-y-1">
-                    <div class="flex items-start gap-1">
-                      <span class="font-semibold">{{ t('settings.acp.args') }}:</span>
-                      <span class="truncate">{{ formatArgs(agent.args) }}</span>
-                    </div>
-                    <div v-if="showSharedMcpSection" class="flex items-start gap-1">
-                      <span class="font-semibold">{{ t('settings.acp.mcpAccessTitle') }}:</span>
-                      <span class="truncate">
-                        {{
-                          sharedMcpCount
-                            ? t('settings.acp.mcpAccessBadge', { count: sharedMcpCount })
-                            : t('settings.acp.none')
-                        }}
-                      </span>
-                    </div>
-                  </div>
-                  <div class="flex flex-wrap gap-2">
-                    <DcButton
-                      size="sm"
-                      variant="ghost"
-                      :disabled="isAnyMutationPending"
-                      @click="openManualDialog(agent)"
-                    >
-                      {{ t('common.edit') }}
-                    </DcButton>
-                    <DcButton
-                      size="sm"
-                      variant="ghost"
-                      :disabled="isAnyMutationPending"
-                      @click="confirmAndDeleteManualAgent(agent)"
-                    >
-                      {{ t('common.delete') }}
-                    </DcButton>
-                    <DcButton
-                      size="sm"
+            <DcEmpty
+              v-if="!installedRegistryAgents.length"
+              :title="t('settings.acp.installedEmptyTitle')"
+              :description="t('settings.acp.installedEmptyDescription')"
+            />
+            <div v-else class="divide-y divide-border">
+              <div
+                v-for="agent in installedRegistryAgents"
+                :key="agent.id"
+                class="flex items-center gap-4 py-4"
+              >
+                <AcpAgentIcon
+                  :agent-id="agent.id"
+                  :icon="agent.icon"
+                  :alt="agent.name"
+                  :fallback-text="agent.name"
+                  custom-class="size-7 shrink-0"
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                    <span class="text-sm font-medium">{{ agent.name }}</span>
+                    <span class="text-xs text-muted-foreground">{{ agent.version }}</span>
+                    <DcBadge
+                      v-if="agent.installState?.status !== 'installed'"
                       variant="outline"
-                      :disabled="isAnyMutationPending || Boolean(authInspectingAgentId)"
-                      @click="openAuthentication(agent.id)"
+                      :class="installBadgeClass(agent)"
                     >
-                      <Spinner v-if="authInspectingAgentId === agent.id" data-icon="inline-start" />
-                      {{ t('settings.acp.auth.checkSignIn') }}
-                    </DcButton>
-                    <DcButton
-                      size="sm"
-                      variant="outline"
-                      :disabled="isAnyMutationPending"
-                      @click="openInspector(agent.id, agent.name)"
-                    >
-                      {{ t('settings.acp.debug.entry') }}
-                    </DcButton>
+                      {{ installBadgeLabel(agent) }}
+                    </DcBadge>
                   </div>
-                </CardContent>
-              </Card>
+                  <p class="mt-1 truncate text-xs text-muted-foreground">
+                    {{ agent.description || t('settings.acp.builtinHint', { name: agent.name }) }}
+                  </p>
+                </div>
+                <Switch
+                  :model-value="agent.enabled"
+                  :aria-label="`${t('common.enabled')}: ${agent.name}`"
+                  :disabled="isAnyMutationPending"
+                  @update:model-value="(value) => toggleRegistryAgent(agent, Boolean(value))"
+                />
+                <DcButton
+                  :data-testid="`acp-agent-settings-${agent.id}`"
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="`${t('routes.settings')}: ${agent.name}`"
+                  :disabled="isAnyMutationPending"
+                  @click="openAgentSettings(agent.id)"
+                >
+                  {{ t('routes.settings') }}
+                  <Icon icon="lucide:chevron-right" class="size-4" />
+                </DcButton>
+              </div>
             </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
+          </section>
+          <Collapsible
+            v-model:open="manualSectionOpen"
+            class="space-y-4 border-t border-border pt-5"
+          >
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <div class="text-sm font-medium">{{ t('settings.acp.customSectionTitle') }}</div>
+                <p class="text-sm text-muted-foreground">
+                  {{ t('settings.acp.customSectionDescription') }}
+                </p>
+              </div>
+              <div class="flex items-center gap-2">
+                <DcButton
+                  size="sm"
+                  variant="outline"
+                  @click="manualSectionOpen = !manualSectionOpen"
+                >
+                  {{ manualSectionOpen ? t('common.collapse') : t('common.expand') }}
+                </DcButton>
+                <DcButton size="sm" :disabled="isAnyMutationPending" @click="openManualDialog()">
+                  {{ t('settings.acp.addCustomAgent') }}
+                </DcButton>
+              </div>
+            </div>
 
-      <div v-else-if="loading" class="p-6 text-sm text-muted-foreground text-center">
+            <CollapsibleContent class="space-y-3">
+              <div
+                v-if="loading && !manualAgents.length"
+                class="text-sm text-muted-foreground text-center py-8"
+              >
+                {{ t('settings.acp.loading') }}
+              </div>
+
+              <div
+                v-else-if="!manualAgents.length"
+                class="text-sm text-muted-foreground text-center py-8"
+              >
+                {{ t('settings.acp.customEmpty') }}
+              </div>
+
+              <div v-else class="space-y-3">
+                <Card v-for="agent in manualAgents" :key="agent.id">
+                  <CardHeader class="pb-2">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <CardTitle class="text-base truncate">{{ agent.name }}</CardTitle>
+                        <CardDescription class="text-xs truncate">
+                          {{ agent.command }}
+                        </CardDescription>
+                      </div>
+                      <Switch
+                        :model-value="agent.enabled"
+                        :aria-label="`${t('common.enabled')}: ${agent.name}`"
+                        :disabled="isAnyMutationPending"
+                        @update:model-value="(value) => toggleManualAgent(agent, Boolean(value))"
+                      />
+                    </div>
+                  </CardHeader>
+                  <CardContent class="space-y-3">
+                    <div class="text-xs text-muted-foreground space-y-1">
+                      <div class="flex items-start gap-1">
+                        <span class="font-semibold">{{ t('settings.acp.args') }}:</span>
+                        <span class="truncate">{{ formatArgs(agent.args) }}</span>
+                      </div>
+                      <div v-if="showSharedMcpSection" class="flex items-start gap-1">
+                        <span class="font-semibold">{{ t('settings.acp.mcpAccessTitle') }}:</span>
+                        <span class="truncate">
+                          {{
+                            sharedMcpCount
+                              ? t('settings.acp.mcpAccessBadge', { count: sharedMcpCount })
+                              : t('settings.acp.none')
+                          }}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                      <DcButton
+                        size="sm"
+                        variant="ghost"
+                        :disabled="isAnyMutationPending"
+                        @click="openManualDialog(agent)"
+                      >
+                        {{ t('common.edit') }}
+                      </DcButton>
+                      <DcButton
+                        size="sm"
+                        variant="ghost"
+                        :disabled="isAnyMutationPending"
+                        @click="confirmAndDeleteManualAgent(agent)"
+                      >
+                        {{ t('common.delete') }}
+                      </DcButton>
+                      <DcButton
+                        size="sm"
+                        variant="outline"
+                        :disabled="isAnyMutationPending || Boolean(authInspectingAgentId)"
+                        @click="openAuthentication(agent.id)"
+                      >
+                        <Spinner
+                          v-if="authInspectingAgentId === agent.id"
+                          data-icon="inline-start"
+                        />
+                        {{ t('settings.acp.auth.checkSignIn') }}
+                      </DcButton>
+                      <DcButton
+                        size="sm"
+                        variant="outline"
+                        :disabled="isAnyMutationPending"
+                        @click="openInspector(agent.id, agent.name)"
+                      >
+                        {{ t('settings.acp.debug.entry') }}
+                      </DcButton>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </template>
+      </template>
+
+      <div v-else-if="loading" class="py-6 text-sm text-muted-foreground text-center">
         {{ t('settings.acp.loading') }}
       </div>
-
-      <div v-else-if="loaded" class="p-6 text-sm text-muted-foreground text-center">
+      <div v-else-if="loaded" class="text-sm text-muted-foreground">
         {{ t('settings.acp.enableToAccess') }}
       </div>
-    </div>
+    </SettingsPageShell>
 
     <Dialog :open="manualDialog.open" @update:open="handleManualDialogOpenChange">
       <DialogContent class="sm:max-w-[560px]" :inert="manualSaving || undefined">
@@ -638,7 +643,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import type { AcpAuthChallenge, AcpManualAgent } from '@shared/types/acp'
 import type { AcpRegistryAgent } from '@shared/types/acp'
 import type { AgentTransferImpact } from '@shared/types/agent-interface'
@@ -658,7 +663,6 @@ import { DcEmpty } from '@dc-ui/components/empty'
 import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Switch } from '@shadcn/components/ui/switch'
-import { Separator } from '@shadcn/components/ui/separator'
 import { Input } from '@shadcn/components/ui/input'
 import { Textarea } from '@shadcn/components/ui/textarea'
 import { Label } from '@shadcn/components/ui/label'
@@ -683,6 +687,7 @@ import { DcFormActions } from '@dc-ui/components/form-actions'
 import type { DcFormSubmitStatus } from '@dc-ui/components/form'
 import { settingsLeaveGuard, type SettingsLeaveRisk } from '../services/settingsLeaveGuard'
 import { createAcpAuthClient } from '@api/AcpAuthClient'
+import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
 const { t } = useI18n()
 const configClient = createConfigClient()
@@ -742,6 +747,7 @@ const loaded = ref(false)
 const loadError = ref<string | null>(null)
 const manualSectionOpen = ref(false)
 const sharedMcpOpen = ref(false)
+const selectedRegistryAgentId = ref<string | null>(null)
 const sharedMcpCount = ref(0)
 const sharedMcpLeaveRisk = ref<SettingsLeaveRisk>('clean')
 const sharedMcpSelectorRef = ref<InstanceType<typeof AgentMcpSelector> | null>(null)
@@ -880,6 +886,36 @@ const installedRegistryAgents = computed(() =>
   )
 )
 
+const selectedRegistryAgent = computed(
+  () =>
+    installedRegistryAgents.value.find((agent) => agent.id === selectedRegistryAgentId.value) ??
+    null
+)
+
+const focusDetailBack = () =>
+  nextTick(() =>
+    document.querySelector<HTMLButtonElement>('[data-testid="acp-detail-back"]')?.focus()
+  )
+
+const openAgentSettings = (agentId: string) => {
+  selectedRegistryAgentId.value = agentId
+  void focusDetailBack()
+}
+
+const openSharedMcpSettings = () => {
+  sharedMcpOpen.value = true
+  void focusDetailBack()
+}
+
+const closeDetails = () => {
+  const trigger = sharedMcpOpen.value
+    ? '[data-testid="acp-shared-mcp-settings"]'
+    : `[data-testid="acp-agent-settings-${selectedRegistryAgentId.value}"]`
+  selectedRegistryAgentId.value = null
+  sharedMcpOpen.value = false
+  void nextTick(() => document.querySelector<HTMLButtonElement>(trigger)?.focus())
+}
+
 const showSharedMcpSection = computed(
   () => installedRegistryAgents.value.length > 0 || manualAgents.value.length > 0
 )
@@ -1002,6 +1038,17 @@ const loadAcpData = async () => {
     ])
     if (generation !== loadGeneration) return
 
+    const removesDirtyAgent = Array.from(dirtyEnvDrafts).some(
+      (agentId) =>
+        !registryList.some(
+          (agent) =>
+            agent.id === agentId &&
+            (agent.installState?.status === 'installed' || Boolean(agent.installState?.installedAt))
+        )
+    )
+    if (removesDirtyAgent && !(await settingsLeaveGuard.requestLeave())) return
+    if (generation !== loadGeneration) return
+
     acpEnabled.value = true
     registryAgents.value = registryList
     manualAgents.value = manualList
@@ -1079,6 +1126,7 @@ const handleToggle = async (enabled: boolean) => {
 }
 
 const refreshRegistry = async () => {
+  if (!(await settingsLeaveGuard.requestLeave())) return
   if (
     !beginPageOperation({
       kind: 'registry-refresh',
@@ -1568,6 +1616,20 @@ const stopLeaveRiskSync = watch(
     leaveGuardLease.setRisk(busy ? 'busy' : dirty ? 'dirty' : 'clean')
   },
   { immediate: true, flush: 'sync' }
+)
+
+watch(
+  [selectedRegistryAgent, isAnyMutationPending],
+  ([agent, busy]) => {
+    if (agent || busy || !selectedRegistryAgentId.value) return
+    selectedRegistryAgentId.value = null
+    void nextTick(() =>
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="acp-registry-install-button"]')
+        ?.focus()
+    )
+  },
+  { flush: 'post' }
 )
 
 let refreshTimer: ReturnType<typeof setTimeout> | null = null

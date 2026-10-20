@@ -6,17 +6,18 @@
       class="window-sidebar-shell flex flex-col h-full shrink-0 overflow-hidden window-drag-region transition-[width] duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
       :class="collapsed ? 'w-12' : 'w-[264px]'"
     >
-      <div class="window-no-drag-region shrink-0 px-2 pb-2 pt-3">
+      <div class="window-no-drag-region min-h-0 shrink overflow-y-auto px-2 pb-2 pt-3">
         <div class="flex items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
+              <!-- Keep the anchor DOM stable across sidebar states. -->
               <DcButton
                 data-testid="sidebar-agent-selector"
                 :data-selected-agent-id="sidebarSelectedAgentId ?? '__all__'"
                 variant="ghost"
                 :size="collapsed ? 'icon' : 'default'"
                 :label="selectedAgentName"
-                :tooltip="collapsed ? selectedAgentName : undefined"
+                :tooltip="selectedAgentName"
                 :tooltip-delay-duration="200"
                 tooltip-side="right"
                 class="min-w-0 flex-1 justify-start gap-2 px-2"
@@ -40,11 +41,11 @@
                 />
               </DcButton>
             </DropdownMenuTrigger>
-            <!-- Keep collision handling from flipping into the native title bar. -->
+            <!-- Available height limits scrolling without repositioning over the title bar. -->
             <DropdownMenuContent
               data-testid="sidebar-agent-menu"
               side="bottom"
-              :side-flip="false"
+              :avoid-collisions="false"
               align="start"
               :collision-padding="8"
               class="w-60"
@@ -85,19 +86,6 @@
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <DcButton
-            v-if="!collapsed"
-            data-testid="window-sidebar-toggle"
-            variant="ghost"
-            size="icon-sm"
-            icon="lucide:panel-left-close"
-            :aria-expanded="true"
-            aria-controls="sidebar-sessions"
-            :tooltip="t('chat.sidebar.collapseSidebar')"
-            :tooltip-delay-duration="200"
-            class="shrink-0 text-muted-foreground"
-            @click="sidebarStore.toggleSidebar()"
-          />
         </div>
         <div class="mt-2 flex flex-col gap-1">
           <DcButton
@@ -136,7 +124,7 @@
       <div
         id="sidebar-sessions"
         data-testid="window-sidebar-session-column"
-        class="window-sidebar-session-column window-no-drag-region min-h-0 flex-1 flex-col"
+        class="window-sidebar-session-column window-no-drag-region min-h-0 flex-1 flex-col overflow-hidden"
         :class="collapsed ? 'hidden' : 'flex'"
         :aria-hidden="collapsed ? 'true' : undefined"
         :inert="collapsed ? true : undefined"
@@ -630,7 +618,9 @@
           </div>
         </div>
       </div>
-      <div class="window-no-drag-region mt-auto shrink-0 border-t border-border/60 px-2 py-2">
+      <div
+        class="window-no-drag-region mt-auto flex shrink-0 flex-col gap-1 border-t border-border/60 px-2 py-2"
+      >
         <DcButton
           data-testid="app-plugins-button"
           variant="ghost"
@@ -642,6 +632,7 @@
           tooltip-side="right"
           :active="pluginsRouteActive"
           class="w-full justify-start px-2 text-sm font-normal"
+          :class="collapsed ? 'justify-center px-0' : ''"
           @click="openPlugins"
         >
           <span v-if="!collapsed">{{ t('routes.plugins') }}</span>
@@ -656,11 +647,12 @@
           :tooltip-delay-duration="200"
           tooltip-side="right"
           class="w-full justify-start px-2 text-sm font-normal"
+          :class="collapsed ? 'justify-center px-0' : ''"
           @click="settingsClient.openSettings({ routeName: 'settings-scheduled-tasks' })"
         >
           <span v-if="!collapsed">{{ t('routes.settings-scheduled-tasks') }}</span>
         </DcButton>
-        <div class="flex flex-wrap items-center gap-1">
+        <div class="flex gap-1" :class="collapsed ? 'flex-col' : 'items-center'">
           <DcButton
             data-testid="app-settings-button"
             variant="ghost"
@@ -671,6 +663,7 @@
             :tooltip-delay-duration="200"
             tooltip-side="right"
             class="min-w-0 flex-1 justify-start px-2 text-sm font-normal"
+            :class="collapsed ? 'flex-none justify-center px-0' : ''"
             @click="openSettings"
           >
             <span v-if="!collapsed">{{ t('routes.settings') }}</span>
@@ -679,7 +672,7 @@
             v-if="showRemoteControlButton"
             data-testid="remote-control-button"
             variant="ghost"
-            size="icon-sm"
+            :size="collapsed ? 'icon' : 'icon-sm'"
             icon="lucide:monitor-cloud"
             :tooltip="remoteControlTooltip"
             :tooltip-delay-duration="200"
@@ -690,31 +683,42 @@
             :icon-class="remoteControlIconClass"
             @click="openRemoteSettings"
           />
-          <DcButton
-            data-testid="window-sidebar-theme-toggle"
-            variant="ghost"
-            size="icon-sm"
-            :icon="themeIcon"
-            :tooltip="`${t('chat.sidebar.themeToggle')} · ${themeModeLabel}`"
-            :tooltip-delay-duration="200"
-            tooltip-side="right"
-            class="text-muted-foreground"
-            @click="themeStore.cycleTheme()"
-          />
-          <DcButton
-            v-if="collapsed"
-            data-testid="window-sidebar-toggle"
-            variant="ghost"
-            size="icon-sm"
-            icon="lucide:panel-left-open"
-            :aria-expanded="false"
-            aria-controls="sidebar-sessions"
-            :tooltip="t('chat.sidebar.expandSidebar')"
-            :tooltip-delay-duration="200"
-            tooltip-side="right"
-            @click="sidebarStore.toggleSidebar()"
-          />
         </div>
+        <DcButton
+          data-testid="window-sidebar-theme-toggle"
+          variant="ghost"
+          :size="collapsed ? 'icon' : 'default'"
+          :icon="themeIcon"
+          :label="`${t('settings.common.theme')} · ${themeModeLabel}`"
+          :tooltip="`${t('chat.sidebar.themeToggle')} · ${themeModeLabel}`"
+          :tooltip-delay-duration="200"
+          tooltip-side="right"
+          class="w-full justify-start px-2 text-sm font-normal"
+          :class="collapsed ? 'justify-center px-0' : ''"
+          @click="themeStore.cycleTheme()"
+        >
+          <template v-if="!collapsed">
+            <span>{{ t('settings.common.theme') }}</span>
+            <span class="ml-auto text-xs text-muted-foreground">{{ themeModeLabel }}</span>
+          </template>
+        </DcButton>
+        <DcButton
+          data-testid="window-sidebar-toggle"
+          variant="ghost"
+          :size="collapsed ? 'icon' : 'default'"
+          :icon="collapsed ? 'lucide:panel-left-open' : 'lucide:panel-left-close'"
+          :label="collapsed ? t('chat.sidebar.expandSidebar') : t('chat.sidebar.collapseSidebar')"
+          :aria-expanded="!collapsed"
+          aria-controls="sidebar-sessions"
+          :tooltip="collapsed ? t('chat.sidebar.expandSidebar') : t('chat.sidebar.collapseSidebar')"
+          :tooltip-delay-duration="200"
+          tooltip-side="right"
+          class="h-8 w-full justify-start px-2 text-sm font-normal text-muted-foreground"
+          :class="collapsed ? 'justify-center px-0' : ''"
+          @click="sidebarStore.toggleSidebar()"
+        >
+          <span v-if="!collapsed">{{ t('chat.sidebar.collapseSidebar') }}</span>
+        </DcButton>
       </div>
     </nav>
   </TooltipProvider>

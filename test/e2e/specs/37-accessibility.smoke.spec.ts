@@ -21,21 +21,24 @@ test('agent menu stays below its trigger and scrolls in short windows @smoke', a
     }
     const viewport = { width: 800, height: 320 }
     await page.setViewportSize(viewport)
+    await expect(page.getByTestId('window-sidebar-toggle')).toBeInViewport()
+    await expect(page.getByTestId('window-sidebar-theme-toggle')).toBeInViewport()
     const trigger = page.getByTestId('sidebar-agent-selector')
     await trigger.click()
     const menu = page.getByTestId('sidebar-agent-menu')
-    await expect(async () => {
-      await expect(menu).toHaveAttribute('data-side', 'bottom')
-      const triggerBox = await trigger.boundingBox()
-      const menuBox = await menu.boundingBox()
-      expect(triggerBox).not.toBeNull()
-      expect(menuBox).not.toBeNull()
-      expect(menuBox!.y).toBeGreaterThanOrEqual(triggerBox!.y + triggerBox!.height)
-      expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(viewport.height)
-      expect(await menu.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
-        true
-      )
-    }).toPass()
+    const expectAnchoredMenu = async () => {
+      await expect(async () => {
+        await expect(menu).toHaveAttribute('data-side', 'bottom')
+        const triggerBox = await trigger.boundingBox()
+        const menuBox = await menu.boundingBox()
+        expect(triggerBox).not.toBeNull()
+        expect(menuBox).not.toBeNull()
+        expect(menuBox!.y).toBeGreaterThanOrEqual(triggerBox!.y + triggerBox!.height)
+        expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(page.viewportSize()!.height)
+      }).toPass({ timeout: 5000 })
+    }
+    await expectAnchoredMenu()
+    expect(await menu.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
     await page.screenshot({ path: testInfo.outputPath('agent-menu-short.png') })
 
     const lastAgent = page.getByTestId('sidebar-agent-button').last()
@@ -56,6 +59,23 @@ test('agent menu stays below its trigger and scrolls in short windows @smoke', a
       'false'
     )
     await page.keyboard.press('Escape')
+    const toggle = page.getByTestId('window-sidebar-toggle')
+    for (const expanded of [true, false]) {
+      if ((await toggle.getAttribute('aria-expanded')) !== String(expanded)) {
+        await toggle.click()
+      }
+      await expect(toggle).toHaveAttribute('aria-expanded', String(expanded))
+      await expect(toggle).toBeInViewport()
+      await expect(page.getByTestId('window-sidebar-theme-toggle')).toBeInViewport()
+      await trigger.click()
+      await expectAnchoredMenu()
+      await page.screenshot({
+        animations: 'disabled',
+        path: testInfo.outputPath(`agent-menu-short-${expanded ? 'expanded' : 'collapsed'}.png`)
+      })
+      await page.keyboard.press('Escape')
+      await expect(trigger).toBeFocused()
+    }
   } finally {
     await page.evaluate(async (ids) => {
       for (const id of ids) {
@@ -65,7 +85,9 @@ test('agent menu stays below its trigger and scrolls in short windows @smoke', a
   }
 })
 
-test('keyboard users can enter content, compose, and navigate settings @smoke', async ({ app }) => {
+test('keyboard users can enter content, compose, and navigate settings @smoke', async ({
+  app
+}, testInfo) => {
   const { page, electronApp } = app
   await waitForAppReady(page)
   await expect(page.getByRole('navigation')).toHaveAccessibleName(/.+/)
@@ -79,6 +101,35 @@ test('keyboard users can enter content, compose, and navigate settings @smoke', 
   await expect(skip).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(page.getByRole('main')).toBeFocused()
+
+  const toggle = page.getByTestId('window-sidebar-toggle')
+  await expect(toggle).toHaveCount(1)
+  const initiallyExpanded = (await toggle.getAttribute('aria-expanded')) === 'true'
+  const toggleBox = await toggle.boundingBox()
+  expect(toggleBox).not.toBeNull()
+  await page.bringToFront()
+  await toggle.focus()
+  await expect(toggle).toBeFocused()
+  for (const expanded of [!initiallyExpanded, initiallyExpanded]) {
+    await page.keyboard.press('Enter')
+    await expect(toggle).toHaveAttribute('aria-expanded', String(expanded))
+    await expect(toggle).toBeFocused()
+    await expect(async () => {
+      const currentBox = await toggle.boundingBox()
+      expect(currentBox).not.toBeNull()
+      expect(currentBox!.x).toBeCloseTo(toggleBox!.x, 1)
+      expect(currentBox!.y).toBeCloseTo(toggleBox!.y, 1)
+    }).toPass()
+    await page.screenshot({
+      animations: 'disabled',
+      path: testInfo.outputPath(`sidebar-${expanded ? 'expanded' : 'collapsed'}.png`)
+    })
+  }
+
+  const theme = page.getByTestId('window-sidebar-theme-toggle')
+  const previousTheme = await theme.getAttribute('aria-label')
+  await theme.click()
+  await expect(theme).not.toHaveAttribute('aria-label', previousTheme!)
 
   await page.getByTestId('sidebar-agent-selector').focus()
   await page.keyboard.press('Enter')
