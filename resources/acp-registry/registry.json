@@ -222,7 +222,7 @@
     {
       "id": "codebuddy-code",
       "name": "Codebuddy Code",
-      "version": "2.170.0",
+      "version": "2.171.0",
       "description": "Tencent Cloud's official intelligent coding tool",
       "website": "https://www.codebuddy.cn/cli/",
       "authors": [
@@ -232,7 +232,7 @@
       "license_url": "https://www.codebuddy.cn/agreement/",
       "distribution": {
         "npx": {
-          "package": "@tencent-ai/codebuddy-code@2.170.0",
+          "package": "@tencent-ai/codebuddy-code@2.171.0",
           "args": [
             "--acp"
           ]
@@ -415,7 +415,7 @@
     {
       "id": "cursor",
       "name": "Cursor",
-      "version": "2026.10.18",
+      "version": "2026.10.19",
       "description": "Cursor's coding agent",
       "website": "https://cursor.com/docs/cli/acp",
       "authors": [
@@ -426,42 +426,42 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://downloads.cursor.com/lab/2026.10.18-ea085cb/darwin/arm64/agent-cli-package.tar.gz",
+            "archive": "https://downloads.cursor.com/lab/2026.10.19-6bbf2c4/darwin/arm64/agent-cli-package.tar.gz",
             "cmd": "./dist-package/cursor-agent",
             "args": [
               "acp"
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://downloads.cursor.com/lab/2026.10.18-ea085cb/darwin/x64/agent-cli-package.tar.gz",
+            "archive": "https://downloads.cursor.com/lab/2026.10.19-6bbf2c4/darwin/x64/agent-cli-package.tar.gz",
             "cmd": "./dist-package/cursor-agent",
             "args": [
               "acp"
             ]
           },
           "linux-aarch64": {
-            "archive": "https://downloads.cursor.com/lab/2026.10.18-ea085cb/linux/arm64/agent-cli-package.tar.gz",
+            "archive": "https://downloads.cursor.com/lab/2026.10.19-6bbf2c4/linux/arm64/agent-cli-package.tar.gz",
             "cmd": "./dist-package/cursor-agent",
             "args": [
               "acp"
             ]
           },
           "linux-x86_64": {
-            "archive": "https://downloads.cursor.com/lab/2026.10.18-ea085cb/linux/x64/agent-cli-package.tar.gz",
+            "archive": "https://downloads.cursor.com/lab/2026.10.19-6bbf2c4/linux/x64/agent-cli-package.tar.gz",
             "cmd": "./dist-package/cursor-agent",
             "args": [
               "acp"
             ]
           },
           "windows-aarch64": {
-            "archive": "https://downloads.cursor.com/lab/2026.10.18-ea085cb/windows/arm64/agent-cli-package.zip",
+            "archive": "https://downloads.cursor.com/lab/2026.10.19-6bbf2c4/windows/arm64/agent-cli-package.zip",
             "cmd": "./dist-package\\cursor-agent.cmd",
             "args": [
               "acp"
             ]
           },
           "windows-x86_64": {
-            "archive": "https://downloads.cursor.com/lab/2026.10.18-ea085cb/windows/x64/agent-cli-package.zip",
+            "archive": "https://downloads.cursor.com/lab/2026.10.19-6bbf2c4/windows/x64/agent-cli-package.zip",
             "cmd": "./dist-package\\cursor-agent.cmd",
             "args": [
               "acp"
@@ -554,7 +554,7 @@
     {
       "id": "dimcode",
       "name": "DimCode",
-      "version": "0.5.20",
+      "version": "0.5.21",
       "description": "A coding agent that puts leading models at your command.",
       "website": "https://dimcode.dev/docs/acp.html",
       "authors": [
@@ -564,7 +564,7 @@
       "license_url": "https://dimagent.cn/terms",
       "distribution": {
         "npx": {
-          "package": "dimcode@0.5.20",
+          "package": "dimcode@0.5.21",
           "args": [
             "acp"
           ]
@@ -649,7 +649,7 @@
     {
       "id": "gemini",
       "name": "Gemini CLI",
-      "version": "0.64.0",
+      "version": "0.65.0",
       "description": "Google's official CLI for Gemini",
       "repository": "https://github.com/google-gemini/gemini-cli",
       "website": "https://geminicli.com",
@@ -660,7 +660,7 @@
       "license_url": "https://github.com/google-gemini/gemini-cli/blob/main/LICENSE",
       "distribution": {
         "npx": {
-          "package": "@google/gemini-cli@0.64.0",
+          "package": "@google/gemini-cli@0.65.0",
           "args": [
             "--acp"
           ]
@@ -671,7 +671,7 @@
     {
       "id": "github-copilot-cli",
       "name": "Copilot",
-      "version": "1.0.100",
+      "version": "1.0.101",
       "description": "GitHub's AI pair programmer",
       "repository": "https://github.com/github/copilot-cli",
       "website": "https://github.com/features/copilot/cli/",
@@ -682,7 +682,7 @@
       "license_url": "https://github.com/github/copilot-cli/blob/main/LICENSE.md",
       "distribution": {
         "npx": {
-          "package": "@github/copilot@1.0.100",
+          "package": "@github/copilot@1.0.101",
           "args": [
             "--acp"
           ]
@@ -769,7 +769,7 @@
     {
       "id": "grok-build",
       "name": "Grok Build",
-      "version": "1.0.64",
+      "version": "1.0.66",
       "description": "xAI's coding agent and CLI",
       "website": "https://x.ai/cli",
       "authors": [
@@ -779,7 +779,7 @@
       "license_url": "https://x.ai/legal/terms-of-service",
       "distribution": {
         "npx": {
-          "package": "@xai-official/grok@1.0.64",
+          "package": "@xai-official/grok@1.0.66",
           "args": [
             "agent",
             "stdio"
@@ -978,7 +978,7 @@
     {
       "id": "kimchi",
       "name": "Kimchi",
-      "version": "1.16.1",
+      "version": "1.17.0",
       "description": "Coding agent powered by multi-model orchestration",
       "repository": "https://github.com/getkimchi/kimchi",
       "website": "https://kimchi.dev",
@@ -990,8 +990,8 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.16.1/kimchi_darwin_arm64.tar.gz",
-            "sha256": "e32a7ce18097163a6426b083eba552de4aebd7aa6077876c6df889a45767c487",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.17.0/kimchi_darwin_arm64.tar.gz",
+            "sha256": "1ff2de8499c8c5c8b3b72e957c5e38d24f7e59586c026d93a6489a99cffb969b",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -999,8 +999,8 @@
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.16.1/kimchi_darwin_amd64.tar.gz",
-            "sha256": "9f42c2f81b6f005bcf7233de918bda75bc9283b87cd8deabcd497e26f8c6de70",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.17.0/kimchi_darwin_amd64.tar.gz",
+            "sha256": "2ccfbd5e64c1f20c741c82a8d6a02a758cb343b078811e4156c38f5c367d87a2",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1008,8 +1008,8 @@
             ]
           },
           "linux-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.16.1/kimchi_linux_arm64.tar.gz",
-            "sha256": "baab0f6c55bc1a7716395656612df31dd89d6f9f694a36af3b458a33dbb849b2",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.17.0/kimchi_linux_arm64.tar.gz",
+            "sha256": "031eefeaca2f849480d8c1e193bea4f6b669b0e5ffea655f962619aa6f4e8a2a",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1017,8 +1017,8 @@
             ]
           },
           "linux-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.16.1/kimchi_linux_amd64.tar.gz",
-            "sha256": "3f705fcc1c832949b8232e8c64dd621bb0eccecc0f64261831201bc7bd3a8e8a",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.17.0/kimchi_linux_amd64.tar.gz",
+            "sha256": "31a29da13c7c23f225b7b8ce8b289d3af6c3986487dac8dcf57d03af682e2345",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1026,8 +1026,8 @@
             ]
           },
           "windows-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.16.1/kimchi_windows_amd64.zip",
-            "sha256": "40487b31b7ef5fb54897c9988beb0a26a278021fcd44ae1573d4b71a5d1dd2e8",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.17.0/kimchi_windows_amd64.zip",
+            "sha256": "b43a3074b00e882486886a0297c649ad08770192a69d4eaecd1223aa1a0b2678",
             "cmd": "./bin/kimchi.exe",
             "args": [
               "--mode",
@@ -1400,7 +1400,7 @@
     {
       "id": "sigit",
       "name": "siGit Code",
-      "version": "1.7.2",
+      "version": "1.7.3",
       "description": "Local-first coding agent. Runs entirely on your machine with optional on-device LLM inference via Onde.",
       "repository": "https://github.com/getsigit/sigit",
       "website": "https://github.com/getsigit/sigit",
@@ -1412,38 +1412,38 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.7.2/sigit-macos-arm64.tar.gz",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.7.3/sigit-macos-arm64.tar.gz",
             "cmd": "./sigit",
-            "sha256": "8eb6dce664e3011b3476100497ba687d7bb6029e185bd730501420e97613dddb"
+            "sha256": "2f29c8c7ee1f48b3a9cae83af3d67c20736c3451f0210fbe3ff0204147a1863b"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.7.2/sigit-macos-amd64.tar.gz",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.7.3/sigit-macos-amd64.tar.gz",
             "cmd": "./sigit",
-            "sha256": "68e1140043b044507677b1f1b467e83d89cfaa91072eeb1d78c26f5e3b000772"
+            "sha256": "e86211c5e8175860318a16f27fc203aa38a24103e6a1493dcbd71541967d3102"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.7.2/sigit-linux-arm64",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.7.3/sigit-linux-arm64",
             "cmd": "./sigit-linux-arm64",
-            "sha256": "f5ef2011c66bc35288e4b300b4472896e44597b3eee82fdd268624c106f50d51"
+            "sha256": "11a831be93bc50b8d2773daeafbed4b5f47a2150679b7d161c22ea6be654a0c7"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.7.2/sigit-linux-amd64",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.7.3/sigit-linux-amd64",
             "cmd": "./sigit-linux-amd64",
-            "sha256": "fc5ecafd948b61ce3ef73cfabf485568bfe65f3e43ea2062008cde171c7953d6"
+            "sha256": "e714a85fc262cc5f628eaf8c30756783cdd945c2b5c8f70897dedd760ce77421"
           },
           "windows-aarch64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.7.2/sigit-win-arm64.exe",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.7.3/sigit-win-arm64.exe",
             "cmd": "./sigit-win-arm64.exe",
-            "sha256": "61c1a2f89047dfb77cee3cbc9dd1a8f4a380d734a1c336240f6fea7d30681b04"
+            "sha256": "b6b4d87643f3fabab123f76945cd3d3aebbf6ecad3022972cfc1aca049ffee27"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/getsigit/sigit/releases/download/v1.7.2/sigit-win-amd64.exe",
+            "archive": "https://github.com/getsigit/sigit/releases/download/v1.7.3/sigit-win-amd64.exe",
             "cmd": "./sigit-win-amd64.exe",
-            "sha256": "be03834159a351a7c1bf9f7a1ca76f35627e7508563fd62475b67b9f2a23e06a"
+            "sha256": "a490bcf73de885a5177b95e38d17387f06312a727bc3242dab953e96bae3aa81"
           }
         },
         "npx": {
-          "package": "@smbcloud/sigit@1.7.2"
+          "package": "@smbcloud/sigit@1.7.3"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/sigit.svg"
