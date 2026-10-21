@@ -410,10 +410,6 @@
     "chats": "Trò chuyện",
     "emptyTitle": "Chưa có cuộc trò chuyện nào",
     "emptyDescription": "Bắt đầu một cuộc trò chuyện mới để bắt đầu",
-    "searchPlaceholder": "Tìm kiếm cuộc trò chuyện",
-    "searchAriaLabel": "Tìm kiếm cuộc trò chuyện",
-    "searchEmptyTitle": "Không có cuộc trò chuyện phù hợp",
-    "searchEmptyDescription": "Hãy thử một từ khóa tiêu đề khác",
     "projectGroupActions": "Thao tác nhóm dự án",
     "moveProjectGroupTop": "Di chuyển lên đầu",
     "moveProjectGroupUp": "Di chuyển lên",
@@ -426,8 +422,7 @@
     "manageWorkspaces": "Quản lý không gian làm việc",
     "openWorkspaceFolder": "Mở thư mục",
     "emptyWorkspace": "Trống",
-    "addWorkspaceFailed": "Không thể thêm không gian làm việc",
-    "searchLoadedRangeDescription": "Đang hiển thị kết quả khớp từ các cuộc trò chuyện đã tải. Cuộn để tải thêm lịch sử."
+    "addWorkspaceFailed": "Không thể thêm không gian làm việc"
   },
   "spotlight": {
     "placeholder": "Tìm kiếm cuộc trò chuyện, đại lý, cài đặt, hành động…",

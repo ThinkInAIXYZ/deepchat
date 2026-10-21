@@ -507,12 +507,7 @@
     "pinned": "Pinned",
     "chats": "Chats",
     "emptyTitle": "No conversations yet",
-    "emptyDescription": "Start a new chat to begin",
-    "searchPlaceholder": "Search chats",
-    "searchAriaLabel": "Search chats",
-    "searchEmptyTitle": "No matching conversations",
-    "searchEmptyDescription": "Try a different title keyword",
-    "searchLoadedRangeDescription": "Showing matches from loaded conversations. Scroll to load more history."
+    "emptyDescription": "Start a new chat to begin"
   },
   "spotlight": {
     "placeholder": "Search chats, agents, settings, actions…",

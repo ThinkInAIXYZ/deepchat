@@ -3,7 +3,7 @@ import { expect, type Page } from '@playwright/test'
 export async function waitForAppReady(page: Page): Promise<void> {
   await expect(page.getByTestId('app-root')).toBeVisible({ timeout: 60_000 })
   await expect(page.getByTestId('window-sidebar')).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByTestId('app-settings-button')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId('window-sidebar-toggle')).toBeVisible({ timeout: 30_000 })
 }
 
 export async function waitForChatSurface(page: Page): Promise<void> {

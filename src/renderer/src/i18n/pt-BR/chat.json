@@ -394,10 +394,6 @@
     "emptyTitle": "Ainda não há conversas",
     "emptyDescription": "Inicie um novo chat para começar",
     "remoteControlDisabled": "Desativado",
-    "searchPlaceholder": "Pesquisar conversas",
-    "searchAriaLabel": "Pesquisar conversas",
-    "searchEmptyTitle": "Nenhuma conversa encontrada",
-    "searchEmptyDescription": "Tente outra palavra-chave do título",
     "projectGroupActions": "Ações do grupo de projetos",
     "moveProjectGroupTop": "Mover para o topo",
     "moveProjectGroupUp": "Mover para cima",
@@ -410,8 +406,7 @@
     "manageWorkspaces": "Gerenciar espaços de trabalho",
     "openWorkspaceFolder": "Abrir pasta",
     "emptyWorkspace": "Vazio",
-    "addWorkspaceFailed": "Falha ao adicionar espaço de trabalho",
-    "searchLoadedRangeDescription": "Mostrando resultados das conversas carregadas. Role para carregar mais histórico."
+    "addWorkspaceFailed": "Falha ao adicionar espaço de trabalho"
   },
   "floatingWidget": {
     "title": "Visão geral das tarefas",

@@ -410,10 +410,6 @@
     "chats": "Czaty",
     "emptyTitle": "Nie ma jeszcze żadnych rozmów",
     "emptyDescription": "Aby rozpocząć, rozpocznij nowy czat",
-    "searchPlaceholder": "Wyszukaj czaty",
-    "searchAriaLabel": "Wyszukaj czaty",
-    "searchEmptyTitle": "Brak pasujących rozmów",
-    "searchEmptyDescription": "Wypróbuj inne słowo kluczowe w tytule",
     "projectGroupActions": "Akcje grupy projektu",
     "moveProjectGroupTop": "Przenieś na górę",
     "moveProjectGroupUp": "Przenieś wyżej",
@@ -426,8 +422,7 @@
     "manageWorkspaces": "Zarządzaj obszarami roboczymi",
     "openWorkspaceFolder": "Otwórz folder",
     "emptyWorkspace": "Pusty",
-    "addWorkspaceFailed": "Nie udało się dodać obszaru roboczego",
-    "searchLoadedRangeDescription": "Wyświetlanie wyników z załadowanych rozmów. Przewiń, aby załadować więcej historii."
+    "addWorkspaceFailed": "Nie udało się dodać obszaru roboczego"
   },
   "spotlight": {
     "placeholder": "Przeszukuj czaty, agentów, ustawienia, działania…",

@@ -10,8 +10,9 @@ group resets only its display limit; cached sessions survive. Sidebar collapse a
 preserve limits. Agent, grouping-mode, and default Chat workspace changes invalidate query scope.
 Pinned rows and date groups retain their existing behavior.
 
-Search displays all loaded matches without changing normal display limits. An active session
-outside the visible prefix is appended once, without expanding the intervening history.
+Session title search uses the global search overlay and does not filter sidebar rows or change
+display limits. An active session outside the visible prefix is appended once, without expanding
+the intervening history.
 Explicit group collapse wins over background session updates. Numeric shortcuts use rendered rows.
 
 ```text
@@ -41,7 +42,7 @@ is required.
 Each group has its own cursor. Unfinished global pagination does not imply that a particular group
 has more sessions; fully loaded global history allows cache-only expansion. A cached
 row older than a group's fetched cursor is not proof that intervening history has loaded. Scoped
-queries fill only the requested prefix, stopping on collapse, search, disposal, or scope changes.
+queries fill only the requested prefix, stopping on collapse, disposal, or scope changes.
 Failed loads preserve existing rows and expose an inline retry. Scroll position stays stable during
 append. Viewport auto-fill must not drain global history because intentionally hidden rows shorten
 the list. Existing global pagination remains available for date groups and history discovery.

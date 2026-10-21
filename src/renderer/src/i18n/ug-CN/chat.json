@@ -507,12 +507,7 @@
     "pinned": "سۆزلەشنى ئۈستىڭىگە قويۇش",
     "chats": "سۆزلەش",
     "emptyTitle": "ھەلىمۇ سۆھبەت يوق",
-    "emptyDescription": "يېڭى سۆھبەت ئىلگىرىلەشتۈرۈڭ",
-    "searchPlaceholder": "سۆھبەت نامىنى ئىزدەڭ",
-    "searchAriaLabel": "سۆھبەت نامىنى ئىزدەڭ",
-    "searchEmptyTitle": "ماس كەلگەن سۆھبەت تېپىلمىدى",
-    "searchEmptyDescription": "باشقا نام ئاچقۇچلىرىنى سىناپ بېقىڭ",
-    "searchLoadedRangeDescription": "يۈكلەنگەن سۆھبەتلەردىكى ماس كەلگەن نەتىجىلەر كۆرسىتىلىۋاتىدۇ. تېخىمۇ كۆپ تارىخنى يۈكلەش ئۈچۈن سىيرىڭ."
+    "emptyDescription": "يېڭى سۆھبەت ئىلگىرىلەشتۈرۈڭ"
   },
   "spotlight": {
     "placeholder": "سۆھبەت، Agent، تەڭشەك ۋە ھەرىكەتلەرنى ئىزدەش…",

@@ -394,10 +394,6 @@
     "emptyTitle": "まだ会話がありません",
     "emptyDescription": "新しいチャットを始めましょう",
     "remoteControlDisabled": "無効",
-    "searchPlaceholder": "チャットタイトルを検索",
-    "searchAriaLabel": "チャットタイトルを検索",
-    "searchEmptyTitle": "一致する会話はありません",
-    "searchEmptyDescription": "別のキーワードを試してください",
     "projectGroupActions": "プロジェクトグループ操作",
     "moveProjectGroupTop": "最上部へ移動",
     "moveProjectGroupUp": "上へ移動",
@@ -410,8 +406,7 @@
     "manageWorkspaces": "ワークスペースを管理",
     "openWorkspaceFolder": "フォルダを開く",
     "emptyWorkspace": "空",
-    "addWorkspaceFailed": "ワークスペースを追加できませんでした",
-    "searchLoadedRangeDescription": "読み込み済みの会話から一致する項目を表示しています。スクロールして履歴をさらに読み込めます。"
+    "addWorkspaceFailed": "ワークスペースを追加できませんでした"
   },
   "floatingWidget": {
     "title": "タスク概要",

@@ -105,6 +105,25 @@ export class SessionHistorySearch {
     const db = this.database.getDatabase()
     if (!db) return []
 
+    const sessionRows = db
+      .prepare(
+        `SELECT id, title, project_dir AS projectDir, updated_at AS updatedAt
+         FROM new_sessions
+         WHERE session_kind = 'regular' AND is_draft = 0 AND instr(lower(title), ?) > 0
+         ORDER BY instr(lower(title), ?) = 1 DESC, updated_at DESC LIMIT ?`
+      )
+      .all(normalizedQuery, normalizedQuery, limit) as SearchableSessionRow[]
+    const sessionHits: Array<HistorySearchSessionHit & { score: number }> = sessionRows
+      .map((row) => ({
+        kind: 'session' as const,
+        sessionId: row.id,
+        title: row.title,
+        projectDir: row.projectDir,
+        updatedAt: Number(row.updatedAt ?? 0),
+        score: scoreSession(row, normalizedQuery)
+      }))
+      .filter((item) => item.score > 0)
+
     const documentLimit = limit * 4
     const ftsRows = this.database.deepchatSearchDocumentsTable.searchFts(
       normalizedQuery,
@@ -144,28 +163,22 @@ export class SessionHistorySearch {
         })
         .filter((item): item is HistorySearchHit & { rank: number } => item !== null)
       if (hits.length > 0) {
-        const deduped = new Map<string, HistorySearchHit & { rank: number }>()
-        for (const hit of hits) {
+        const deduped = new Map<string, HistorySearchHit>()
+        for (const { score: _score, ...hit } of sessionHits) {
+          deduped.set(`session:${hit.sessionId}`, hit)
+        }
+        for (const { rank: _rank, ...hit } of hits.sort(
+          (left, right) => left.rank - right.rank || right.updatedAt - left.updatedAt
+        )) {
           const key =
             hit.kind === 'session' ? `session:${hit.sessionId}` : `message:${hit.messageId}`
           if (!deduped.has(key)) deduped.set(key, hit)
         }
-        return Array.from(deduped.values())
-          .sort((left, right) => left.rank - right.rank || right.updatedAt - left.updatedAt)
-          .slice(0, limit)
-          .map(({ rank: _rank, ...item }) => item)
+        return Array.from(deduped.values()).slice(0, limit)
       }
     }
 
     const likeQuery = `%${normalizedQuery}%`
-    const sessionRows = db
-      .prepare(
-        `SELECT id, title, project_dir AS projectDir, updated_at AS updatedAt
-         FROM new_sessions
-         WHERE session_kind = 'regular' AND is_draft = 0 AND lower(title) LIKE ?
-         ORDER BY updated_at DESC LIMIT ?`
-      )
-      .all(likeQuery, limit * 2) as SearchableSessionRow[]
     const messageRows = db
       .prepare(
         `SELECT m.id AS id, m.session_id AS sessionId, s.title AS title, m.role AS role,
@@ -175,16 +188,6 @@ export class SessionHistorySearch {
          ORDER BY m.updated_at DESC LIMIT ?`
       )
       .all(likeQuery, limit * 4) as SearchableMessageRow[]
-    const sessionHits: Array<HistorySearchSessionHit & { score: number }> = sessionRows
-      .map((row) => ({
-        kind: 'session' as const,
-        sessionId: row.id,
-        title: row.title,
-        projectDir: row.projectDir,
-        updatedAt: Number(row.updatedAt ?? 0),
-        score: scoreSession(row, normalizedQuery)
-      }))
-      .filter((item) => item.score > 0)
     const messageHits: Array<HistorySearchMessageHit & { score: number }> = messageRows
       .map((row) => {
         const content = extractMessageContent(row.content)

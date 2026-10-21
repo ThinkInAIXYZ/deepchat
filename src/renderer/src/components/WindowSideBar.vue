@@ -15,12 +15,11 @@
                 data-testid="sidebar-agent-selector"
                 :data-selected-agent-id="sidebarSelectedAgentId ?? '__all__'"
                 variant="ghost"
-                :size="collapsed ? 'icon' : 'default'"
                 :label="selectedAgentName"
                 :tooltip="selectedAgentName"
                 :tooltip-delay-duration="200"
                 tooltip-side="right"
-                class="min-w-0 flex-1 justify-start gap-2 px-2"
+                class="h-8 min-w-0 flex-1 justify-start gap-2 px-2 has-[>svg]:px-2"
               >
                 <AgentAvatar
                   v-if="sidebarSelectedAgent"
@@ -91,13 +90,12 @@
           <DcButton
             data-testid="app-new-chat-button"
             variant="ghost"
-            :size="collapsed ? 'icon' : 'default'"
             icon="lucide:square-pen"
             :label="t('common.newChat')"
-            :tooltip="collapsed ? t('common.newChat') : undefined"
+            :tooltip="t('common.newChat')"
             :tooltip-delay-duration="200"
             tooltip-side="right"
-            class="justify-start px-2 text-sm font-normal"
+            class="h-8 justify-start px-2 has-[>svg]:px-2 text-sm font-normal"
             @click="handleNewChat"
           >
             <span v-if="!collapsed">{{ t('common.newChat') }}</span>
@@ -105,14 +103,13 @@
           <DcButton
             data-testid="app-search-command-button"
             variant="ghost"
-            :size="collapsed ? 'icon' : 'default'"
             icon="lucide:search"
             :label="t('chat.sidebar.searchCommand')"
-            :tooltip="collapsed ? t('chat.sidebar.searchCommand') : undefined"
+            :tooltip="t('chat.sidebar.searchCommand')"
             :tooltip-delay-duration="200"
             :title="t('chat.spotlight.placeholder')"
             tooltip-side="right"
-            class="justify-start px-2 text-sm font-normal"
+            class="h-8 justify-start px-2 has-[>svg]:px-2 text-sm font-normal"
             :active="spotlightStore.open"
             @click="spotlightStore.toggleSpotlight()"
           >
@@ -129,22 +126,6 @@
         :aria-hidden="collapsed ? 'true' : undefined"
         :inert="collapsed ? true : undefined"
       >
-        <div class="relative mx-3 mb-2">
-          <Icon
-            icon="lucide:list-filter"
-            class="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            v-model="sessionSearchQuery"
-            data-testid="sidebar-session-search-input"
-            type="search"
-            :placeholder="t('chat.sidebar.searchPlaceholder')"
-            :aria-label="t('chat.sidebar.searchAriaLabel')"
-            class="h-8 border-transparent bg-transparent pl-8 text-xs shadow-none hover:border-border focus-visible:border-input"
-            @keydown.esc.prevent="sessionSearchQuery = ''"
-          />
-        </div>
-
         <div
           v-if="!sessionStore.hasLoadedInitialPage && sessionStore.loading"
           class="flex flex-col gap-2 px-3 pb-3"
@@ -167,18 +148,8 @@
           "
           icon="lucide:message-square-plus"
           class="flex-none border-0 bg-transparent px-4 py-6"
-          :title="
-            normalizedSessionSearchQuery
-              ? t('chat.sidebar.searchEmptyTitle')
-              : t('chat.sidebar.emptyTitle')
-          "
-          :description="
-            normalizedSessionSearchQuery
-              ? sessionStore.hasMore
-                ? t('chat.sidebar.searchLoadedRangeDescription')
-                : t('chat.sidebar.searchEmptyDescription')
-              : t('chat.sidebar.emptyDescription')
-          "
+          :title="t('chat.sidebar.emptyTitle')"
+          :description="t('chat.sidebar.emptyDescription')"
         />
 
         <!-- Session list -->
@@ -217,7 +188,6 @@
                 :hero-placeholder="pinFlightSessionId === session.id"
                 :force-pin-docked="pinDockedSessionId === session.id"
                 :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
-                :search-query="sessionSearchQuery"
                 :shortcut-badge-label="getShortcutBadgeLabelForSession(session.id)"
                 :shortcut-badge-visible="hasShortcutBadgeForSession(session.id)"
                 @select="handleSessionClick"
@@ -277,7 +247,6 @@
                 :hero-placeholder="pinFlightSessionId === session.id"
                 :force-pin-docked="pinDockedSessionId === session.id"
                 :pin-feedback-mode="pinFeedbackSessionId === session.id ? pinFeedbackMode : null"
-                :search-query="sessionSearchQuery"
                 :shortcut-badge-label="getShortcutBadgeLabelForSession(session.id)"
                 :shortcut-badge-visible="hasShortcutBadgeForSession(session.id)"
                 @select="handleSessionClick"
@@ -557,7 +526,6 @@
                     :pin-feedback-mode="
                       pinFeedbackSessionId === session.id ? pinFeedbackMode : null
                     "
-                    :search-query="sessionSearchQuery"
                     :shortcut-badge-label="getShortcutBadgeLabelForSession(session.id)"
                     :shortcut-badge-visible="hasShortcutBadgeForSession(session.id)"
                     @select="handleSessionClick"
@@ -581,14 +549,6 @@
               </div>
             </template>
           </draggable>
-
-          <p
-            v-if="normalizedSessionSearchQuery && sessionStore.hasMore && !sessionStore.loadingMore"
-            data-testid="sidebar-session-search-loaded-range"
-            class="px-2 py-3 text-center text-xs text-muted-foreground/70"
-          >
-            {{ t('chat.sidebar.searchLoadedRangeDescription') }}
-          </p>
 
           <div
             v-if="sessionStore.loadingMore"
@@ -624,101 +584,80 @@
         <DcButton
           data-testid="app-plugins-button"
           variant="ghost"
-          :size="collapsed ? 'icon' : 'default'"
           icon="lucide:blocks"
           :label="t('routes.plugins')"
-          :tooltip="collapsed ? t('routes.plugins') : undefined"
+          :tooltip="t('routes.plugins')"
           :tooltip-delay-duration="200"
           tooltip-side="right"
           :active="pluginsRouteActive"
-          class="w-full justify-start px-2 text-sm font-normal"
-          :class="collapsed ? 'justify-center px-0' : ''"
+          class="h-8 w-full justify-start px-2 has-[>svg]:px-2 text-sm font-normal"
           @click="openPlugins"
         >
           <span v-if="!collapsed">{{ t('routes.plugins') }}</span>
         </DcButton>
         <DcButton
-          data-testid="app-scheduled-tasks-button"
+          v-if="showRemoteControlButton"
+          data-testid="remote-control-button"
           variant="ghost"
-          :size="collapsed ? 'icon' : 'default'"
-          icon="lucide:calendar-clock"
-          :label="t('routes.settings-scheduled-tasks')"
-          :tooltip="collapsed ? t('routes.settings-scheduled-tasks') : undefined"
+          icon="lucide:monitor-cloud"
+          :tooltip="remoteControlTooltip"
           :tooltip-delay-duration="200"
+          :title="remoteControlTooltip"
           tooltip-side="right"
-          class="w-full justify-start px-2 text-sm font-normal"
-          :class="collapsed ? 'justify-center px-0' : ''"
-          @click="settingsClient.openSettings({ routeName: 'settings-scheduled-tasks' })"
+          tooltip-content-class="whitespace-pre-line"
+          class="h-8 w-full justify-start px-2 has-[>svg]:px-2 text-sm font-normal"
+          :class="remoteControlButtonClass"
+          :icon-class="remoteControlIconClass"
+          @click="openRemoteSettings"
         >
-          <span v-if="!collapsed">{{ t('routes.settings-scheduled-tasks') }}</span>
+          <span v-if="!collapsed">{{ t('routes.settings-remote') }}</span>
         </DcButton>
-        <div class="flex gap-1" :class="collapsed ? 'flex-col' : 'items-center'">
-          <DcButton
-            data-testid="app-settings-button"
-            variant="ghost"
-            :size="collapsed ? 'icon' : 'default'"
-            icon="lucide:settings-2"
-            :label="t('routes.settings')"
-            :tooltip="collapsed ? t('routes.settings') : undefined"
-            :tooltip-delay-duration="200"
-            tooltip-side="right"
-            class="min-w-0 flex-1 justify-start px-2 text-sm font-normal"
-            :class="collapsed ? 'flex-none justify-center px-0' : ''"
-            @click="openSettings"
-          >
-            <span v-if="!collapsed">{{ t('routes.settings') }}</span>
-          </DcButton>
-          <DcButton
-            v-if="showRemoteControlButton"
-            data-testid="remote-control-button"
-            variant="ghost"
-            :size="collapsed ? 'icon' : 'icon-sm'"
-            icon="lucide:monitor-cloud"
-            :tooltip="remoteControlTooltip"
-            :tooltip-delay-duration="200"
-            :title="remoteControlTooltip"
-            tooltip-side="right"
-            tooltip-content-class="whitespace-pre-line"
-            :class="remoteControlButtonClass"
-            :icon-class="remoteControlIconClass"
-            @click="openRemoteSettings"
-          />
-        </div>
         <DcButton
           data-testid="window-sidebar-theme-toggle"
           variant="ghost"
-          :size="collapsed ? 'icon' : 'default'"
           :icon="themeIcon"
           :label="`${t('settings.common.theme')} · ${themeModeLabel}`"
           :tooltip="`${t('chat.sidebar.themeToggle')} · ${themeModeLabel}`"
           :tooltip-delay-duration="200"
           tooltip-side="right"
-          class="w-full justify-start px-2 text-sm font-normal"
-          :class="collapsed ? 'justify-center px-0' : ''"
+          class="h-8 w-full justify-start px-2 has-[>svg]:px-2 text-sm font-normal text-muted-foreground"
           @click="themeStore.cycleTheme()"
         >
           <template v-if="!collapsed">
             <span>{{ t('settings.common.theme') }}</span>
-            <span class="ml-auto text-xs text-muted-foreground">{{ themeModeLabel }}</span>
+            <span class="ml-auto truncate text-xs">{{ themeModeLabel }}</span>
           </template>
         </DcButton>
-        <DcButton
-          data-testid="window-sidebar-toggle"
-          variant="ghost"
-          :size="collapsed ? 'icon' : 'default'"
-          :icon="collapsed ? 'lucide:panel-left-open' : 'lucide:panel-left-close'"
-          :label="collapsed ? t('chat.sidebar.expandSidebar') : t('chat.sidebar.collapseSidebar')"
-          :aria-expanded="!collapsed"
-          aria-controls="sidebar-sessions"
-          :tooltip="collapsed ? t('chat.sidebar.expandSidebar') : t('chat.sidebar.collapseSidebar')"
-          :tooltip-delay-duration="200"
-          tooltip-side="right"
-          class="h-8 w-full justify-start px-2 text-sm font-normal text-muted-foreground"
-          :class="collapsed ? 'justify-center px-0' : ''"
-          @click="sidebarStore.toggleSidebar()"
-        >
-          <span v-if="!collapsed">{{ t('chat.sidebar.collapseSidebar') }}</span>
-        </DcButton>
+        <div class="flex items-center gap-1">
+          <DcButton
+            data-testid="window-sidebar-toggle"
+            variant="ghost"
+            :icon="collapsed ? 'lucide:panel-left-open' : 'lucide:panel-left-close'"
+            :aria-expanded="!collapsed"
+            aria-controls="sidebar-sessions"
+            :tooltip="
+              collapsed ? t('chat.sidebar.expandSidebar') : t('chat.sidebar.collapseSidebar')
+            "
+            :tooltip-delay-duration="200"
+            tooltip-side="right"
+            class="h-8 min-w-0 flex-1 justify-start px-2 has-[>svg]:px-2 text-sm font-normal text-muted-foreground"
+            @click="sidebarStore.toggleSidebar()"
+          >
+            <span v-if="!collapsed">{{ t('chat.sidebar.collapseSidebar') }}</span>
+          </DcButton>
+          <DcButton
+            v-if="!collapsed"
+            data-testid="app-settings-button"
+            variant="ghost"
+            size="icon"
+            icon="lucide:settings"
+            :label="t('routes.settings')"
+            :tooltip="t('routes.settings')"
+            :tooltip-delay-duration="200"
+            tooltip-side="right"
+            @click="openSettings"
+          />
+        </div>
       </div>
     </nav>
   </TooltipProvider>
@@ -795,7 +734,6 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
-import { Input } from '@shadcn/components/ui/input'
 import { Skeleton } from '@shadcn/components/ui/skeleton'
 import {
   Dialog,
@@ -880,7 +818,6 @@ const themeModeLabel = computed(() => {
 })
 
 const collapsed = computed(() => sidebarStore.collapsed)
-const sessionSearchQuery = ref('')
 const pluginsRouteActive = computed(() =>
   String(router?.currentRoute?.value?.name ?? '').startsWith('plugins')
 )
@@ -937,7 +874,6 @@ const {
 } = useSessionPinFlight({ sessionStore, sessionListRef })
 
 const {
-  normalizedSessionSearchQuery,
   pinnedSessions,
   defaultChatWorkspacePath,
   chatSectionGroup,
@@ -970,7 +906,6 @@ const {
   projectStore,
   selectedAgentId: sidebarSelectedAgentId,
   sidebarCollapsed: collapsed,
-  searchQuery: sessionSearchQuery,
   suspendCollapseSync: isProjectGroupDragging
 })
 
@@ -980,11 +915,7 @@ const { handleSessionListScroll, ensureSessionListFilled } = useSessionListAutoF
   collapsed,
   canAutoFill: canAutoFillSessionList,
   suspended: isProjectGroupDragging,
-  fillCheckSources: [
-    sidebarSelectedAgentId,
-    normalizedSessionSearchQuery,
-    visibleSessionFingerprint
-  ]
+  fillCheckSources: [sidebarSelectedAgentId, visibleSessionFingerprint]
 })
 
 const { getShortcutBadgeLabelForSession, hasShortcutBadgeForSession, hideShortcutBadges } =
@@ -1012,7 +943,6 @@ const {
   projectStore,
   sessionListRef,
   collapsed,
-  normalizedSearchQuery: normalizedSessionSearchQuery,
   pinFlightSessionId,
   workspaceGroups,
   isProjectGroupDragging,
@@ -1042,7 +972,6 @@ const {
   sessionStore,
   projectStore,
   sessionListRef,
-  searchQuery: sessionSearchQuery,
   defaultChatWorkspacePath,
   defaultProjectPath: () => projectStore.defaultProjectPath,
   getWorkspaceEnvironment,

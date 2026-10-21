@@ -394,10 +394,6 @@
     "emptyTitle": "هنوز گفت‌وگویی وجود ندارد",
     "emptyDescription": "برای شروع، یک گفت‌وگوی جدید آغاز کنید",
     "remoteControlDisabled": "غیرفعال",
-    "searchPlaceholder": "جستجوی گفتگوها",
-    "searchAriaLabel": "جستجوی گفتگوها",
-    "searchEmptyTitle": "گفتگوی منطبقی پیدا نشد",
-    "searchEmptyDescription": "یک کلیدواژه دیگر برای عنوان امتحان کنید",
     "projectGroupActions": "اقدام‌های گروه پروژه",
     "moveProjectGroupTop": "انتقال به بالاترین جایگاه",
     "moveProjectGroupUp": "انتقال به بالا",
@@ -410,8 +406,7 @@
     "manageWorkspaces": "مدیریت فضاهای کاری",
     "openWorkspaceFolder": "باز کردن پوشه",
     "emptyWorkspace": "خالی",
-    "addWorkspaceFailed": "افزودن فضای کاری ناموفق بود",
-    "searchLoadedRangeDescription": "نتایج گفت‌وگوهای بارگذاری‌شده نمایش داده می‌شوند. برای بارگذاری تاریخچه بیشتر پیمایش کنید."
+    "addWorkspaceFailed": "افزودن فضای کاری ناموفق بود"
   },
   "floatingWidget": {
     "title": "نمای کلی کارها",

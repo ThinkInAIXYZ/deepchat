@@ -1,6 +1,26 @@
 import { test, expect } from '../fixtures/electronApp'
 import { waitForAppReady } from '../helpers/wait'
 
+test('sidebar icons keep their positions when collapsing @smoke', async ({ app }) => {
+  const { page } = app
+  await waitForAppReady(page)
+  await page.setViewportSize({ width: 1100, height: 760 })
+  const toggle = page.getByTestId('window-sidebar-toggle')
+  if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
+  const plugins = page.getByTestId('app-plugins-button')
+  await expect(plugins.locator('svg path')).not.toHaveCount(0)
+  const position = await plugins.locator('svg').boundingBox()
+  await toggle.click()
+  await expect(page.getByTestId('app-settings-button')).toHaveCount(0)
+  await expect(async () => {
+    expect(await plugins.locator('svg').boundingBox()).toEqual(position)
+    await expect(page.getByTestId('window-sidebar')).toHaveCSS('width', '48px')
+  }).toPass()
+  await toggle.click()
+  await expect(page.getByTestId('app-settings-button')).toBeVisible()
+  expect(await plugins.locator('svg').boundingBox()).toEqual(position)
+})
+
 test('agent menu stays below its trigger and scrolls in short windows @smoke', async ({
   app
 }, testInfo) => {
