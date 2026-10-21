@@ -22,9 +22,10 @@ existing blue brand color. Dark surfaces are neutral charcoal rather than tinted
   mode visible when expanded. Collapsed footer icons share one centered axis and button size.
   The header can scroll in short windows, and session content stays within its column so the
   bottom controls remain reachable.
-- Keep new conversation and global search above the session list. Keep plugins, scheduled tasks,
-  theme and settings reachable at the bottom. List filtering remains available independently of
-  global search.
+- Keep new conversation and global search above the session list. Search session titles through
+  the global overlay. The footer contains plugins, enabled remote control, theme and sidebar toggle
+  rows with stable icon positions. Place an icon-only Settings button beside the sidebar toggle
+  while expanded; hide it when collapsed. Scheduled tasks remain reachable through Settings.
 - Use neutral selected backgrounds, readable secondary text, thin borders and solid surfaces.
   Reserve brand blue for primary actions, focus and selected controls; preserve danger and warning
   semantics. Existing semantic success colors are not a replacement brand palette.
@@ -34,6 +35,7 @@ existing blue brand color. Dark surfaces are neutral charcoal rather than tinted
   within the composer instead of on a disconnected status strip.
 - Center global search across the window, with a restrained backdrop, stable result area, readable
   snippets and existing keyboard navigation. Closing restores focus to the invoking control.
+  Composition keys select IME candidates without navigating results or closing search.
 - Workspace panels use a compact tab strip, consistent toolbar and quiet empty state. Reuse the
   existing file, browser, terminal and preview capabilities and isolation boundaries.
 - Settings use a grouped navigation sidebar with navigation search and a return action. The main
@@ -82,8 +84,9 @@ AFTER
 | New / Search          |                       |                |
 | Session groups        | Readable conversation | Existing tools |
 |                       |                       |                |
-| Plugins / Tasks       | Composer with model   |                |
-| Theme / Settings      | and permission controls                |
+| Plugins               | Composer with model   |                |
+| Theme                 | and permission controls                |
+| Collapse        [Cog] |                       |                |
 +-----------------------+-----------------------+----------------+
 
 SETTINGS
@@ -103,9 +106,10 @@ Theme values belong to `assets/style.css` and are documented in `docs/design-sys
 primitives own shared control appearance. `ChatInputBox` exposes a composition slot for session
 controls; chat and new-thread pages keep their existing refs, events and draft ownership.
 
-Navigation filtering is local derived state over translated settings titles. Session search remains
-owned by the sidebar. Agent switching retains its serialized close-session pipeline. The refresh
-does not introduce new persisted settings, dependencies or IPC contracts. The floating-window
+Navigation filtering is local derived state over translated settings titles. Session title search
+uses the global search overlay, with persisted title matches merged ahead of indexed message hits.
+Bundled icons load before the main renderer mounts. Agent switching retains its serialized
+close-session pipeline. No new persisted settings, dependencies or IPC contracts are required. The floating-window
 owner avoids macOS process-type transitions when configuring workspace visibility and avoids
 activation where supported. On Linux, activation remains compositor-dependent when normal
 showing is required.
@@ -126,7 +130,7 @@ showing is required.
 ## Acceptance
 
 - Light, dark and system appearance have coherent surfaces and readable text across both windows.
-- Users can switch agents, search/filter/select sessions, collapse navigation and open settings,
+- Users can switch agents, search/select sessions, collapse navigation and open settings,
   plugins and scheduled tasks using the retained behavior.
 - New and existing conversations share an integrated composer; attachment, model, permission,
   voice, send and stop actions remain reachable.

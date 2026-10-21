@@ -410,10 +410,6 @@
     "chats": "Chats",
     "emptyTitle": "Aún no hay conversaciones",
     "emptyDescription": "Inicia un nuevo chat para empezar",
-    "searchPlaceholder": "Buscar chats",
-    "searchAriaLabel": "Buscar chats",
-    "searchEmptyTitle": "No hay conversaciones coincidentes",
-    "searchEmptyDescription": "Prueba con otra palabra clave del título",
     "projectGroupActions": "Acciones del grupo de proyectos",
     "moveProjectGroupTop": "Mover al principio",
     "moveProjectGroupUp": "Mover arriba",
@@ -426,8 +422,7 @@
     "manageWorkspaces": "Administrar espacios de trabajo",
     "openWorkspaceFolder": "Abrir carpeta",
     "emptyWorkspace": "Vacío",
-    "addWorkspaceFailed": "No se pudo añadir el espacio de trabajo",
-    "searchLoadedRangeDescription": "Mostrando coincidencias de conversaciones cargadas. Desplázate para cargar más historial."
+    "addWorkspaceFailed": "No se pudo añadir el espacio de trabajo"
   },
   "spotlight": {
     "placeholder": "Buscar chats, Agents, ajustes y acciones…",

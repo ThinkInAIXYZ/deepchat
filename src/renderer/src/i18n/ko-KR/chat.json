@@ -394,10 +394,6 @@
     "emptyTitle": "아직 대화가 없습니다",
     "emptyDescription": "새 대화를 시작해 보세요",
     "remoteControlDisabled": "사용 안 함",
-    "searchPlaceholder": "채팅 제목 검색",
-    "searchAriaLabel": "채팅 제목 검색",
-    "searchEmptyTitle": "일치하는 대화가 없습니다",
-    "searchEmptyDescription": "다른 제목 키워드를 시도해 보세요",
     "projectGroupActions": "프로젝트 그룹 작업",
     "moveProjectGroupTop": "맨 위로 이동",
     "moveProjectGroupUp": "위로 이동",
@@ -410,8 +406,7 @@
     "manageWorkspaces": "작업 공간 관리",
     "openWorkspaceFolder": "폴더 열기",
     "emptyWorkspace": "비어 있음",
-    "addWorkspaceFailed": "작업 공간을 추가하지 못했습니다",
-    "searchLoadedRangeDescription": "불러온 대화의 일치 항목을 표시하고 있습니다. 스크롤하여 이전 기록을 더 불러오세요."
+    "addWorkspaceFailed": "작업 공간을 추가하지 못했습니다"
   },
   "floatingWidget": {
     "title": "작업 개요",

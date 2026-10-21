@@ -12,7 +12,6 @@ interface UseProjectGroupReorderOptions {
   projectStore: ReturnType<typeof useProjectStore>
   sessionListRef: Ref<HTMLElement | null>
   collapsed: MaybeRefOrGetter<boolean>
-  normalizedSearchQuery: MaybeRefOrGetter<string>
   pinFlightSessionId: MaybeRefOrGetter<string | null>
   workspaceGroups: MaybeRefOrGetter<SidebarWorkspaceGroup[]>
   /** Shared drag flag owned by the component so sibling composables can pause on it. */
@@ -41,7 +40,6 @@ export function useProjectGroupReorder(options: UseProjectGroupReorderOptions) {
     () =>
       !toValue(options.collapsed) &&
       sessionStore.groupMode === 'project' &&
-      toValue(options.normalizedSearchQuery).length === 0 &&
       !toValue(options.pinFlightSessionId) &&
       projectStore.snapshotReady &&
       sessionStore.hasLoadedInitialPage &&

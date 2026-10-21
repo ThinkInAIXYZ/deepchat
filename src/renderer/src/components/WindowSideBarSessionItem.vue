@@ -26,7 +26,6 @@ const props = defineProps<{
   heroPlaceholder?: boolean
   forcePinDocked?: boolean
   pinFeedbackMode?: PinFeedbackMode | null
-  searchQuery?: string
   shortcutBadgeLabel?: string | null
   shortcutBadgeVisible?: boolean
 }>()
@@ -95,46 +94,6 @@ const startSessionReferenceDrag = (event: DragEvent) => {
   event.dataTransfer.setData(SESSION_REFERENCE_DRAG_TYPE, session.value.id)
   event.dataTransfer.effectAllowed = 'copyMove'
 }
-
-const titleSegments = computed(() => {
-  const title = session.value.title
-  const query = props.searchQuery?.trim()
-  if (!query) {
-    return [{ text: title, match: false }]
-  }
-
-  const lowerTitle = title.toLowerCase()
-  const lowerQuery = query.toLowerCase()
-  const segments: Array<{ text: string; match: boolean }> = []
-  let searchIndex = 0
-  let matchIndex = lowerTitle.indexOf(lowerQuery)
-
-  while (matchIndex !== -1) {
-    if (matchIndex > searchIndex) {
-      segments.push({
-        text: title.slice(searchIndex, matchIndex),
-        match: false
-      })
-    }
-
-    segments.push({
-      text: title.slice(matchIndex, matchIndex + query.length),
-      match: true
-    })
-
-    searchIndex = matchIndex + query.length
-    matchIndex = lowerTitle.indexOf(lowerQuery, searchIndex)
-  }
-
-  if (searchIndex < title.length) {
-    segments.push({
-      text: title.slice(searchIndex),
-      match: false
-    })
-  }
-
-  return segments.length > 0 ? segments : [{ text: title, match: false }]
-})
 </script>
 
 <template>
@@ -167,10 +126,7 @@ const titleSegments = computed(() => {
         :class="{ 'session-title--loading': isWorking }"
       >
         <span class="session-title__label">
-          <template v-for="(segment, index) in titleSegments" :key="`${session.id}-${index}`">
-            <mark v-if="segment.match" class="session-title__highlight">{{ segment.text }}</mark>
-            <template v-else>{{ segment.text }}</template>
-          </template>
+          {{ session.title }}
         </span>
         <span v-if="isWorking" aria-hidden="true" class="session-title__sheen">
           {{ session.title }}
@@ -466,13 +422,6 @@ const titleSegments = computed(() => {
 
 .session-title--loading .session-title__label {
   color: var(--session-loading-base);
-}
-
-.session-title__highlight {
-  border-radius: 0.35rem;
-  background: color-mix(in srgb, var(--primary) 14%, transparent);
-  color: inherit;
-  padding: 0 0.08rem;
 }
 
 .session-status {

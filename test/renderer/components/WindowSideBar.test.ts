@@ -544,18 +544,6 @@ const setup = async (options: SetupOptions = {}) => {
       '<button v-bind="$attrs" @click="$emit(\'click\', $event)"><span v-if="icon">{{ icon }}</span><slot /></button>'
   })
 
-  const inputStub = defineComponent({
-    props: {
-      modelValue: {
-        type: String,
-        default: ''
-      }
-    },
-    emits: ['update:modelValue'],
-    template:
-      '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
-  })
-
   const contextMenuItemStub = defineComponent({
     emits: ['select'],
     template: '<button type="button" @click="$emit(\'select\')"><slot /></button>'
@@ -623,7 +611,6 @@ const setup = async (options: SetupOptions = {}) => {
           DialogHeader: passthrough,
           DialogTitle: passthrough,
           DcButton: buttonStub,
-          Input: inputStub,
           AgentAvatar: true,
           Icon: true,
           ModelIcon: true
@@ -1184,7 +1171,7 @@ describe('WindowSideBar agent switch', () => {
     })
   })
 
-  it('uses durable counts for empty semantics and hides synthesized rows during search', async () => {
+  it('uses durable counts for empty workspace semantics', async () => {
     const { wrapper, sessionStore } = await setup({
       groupMode: 'project',
       projects: [{ path: '/tmp/selected' }],
@@ -1205,17 +1192,10 @@ describe('WindowSideBar agent switch', () => {
     await wrapper.get('[data-group-id="/work/filtered"]').trigger('click')
     await flushPromises()
     expect(sessionStore.startNewConversation).not.toHaveBeenCalled()
-
-    ;(wrapper.vm as any).sessionSearchQuery = 'no matching session'
-    await flushPromises()
-
-    expect(wrapper.find('[data-group-id="/work/empty"]').exists()).toBe(false)
-    expect(wrapper.find('[data-group-id="/work/filtered"]').exists()).toBe(false)
-    expect(wrapper.find('[data-group-id="/tmp/selected"]').exists()).toBe(false)
   })
 
   it(
-    'adds a workspace first from date grouping, clears search, and focuses the registered row',
+    'adds a workspace from date grouping and focuses the registered row',
     async () => {
       const focusSpy = vi.spyOn(HTMLElement.prototype, 'focus')
       const { wrapper, projectStore, sessionStore } = await setup({
@@ -1223,7 +1203,6 @@ describe('WindowSideBar agent switch', () => {
         openFolderPickerResult: '/work/new',
         projectEnvironments: [{ path: '/work/existing', sessionCount: 0 }]
       })
-      ;(wrapper.vm as any).sessionSearchQuery = 'filtered title'
       projectStore.openFolderPicker.mockImplementation(async () => {
         projectStore.environments.unshift(
           createEnvironment({ path: '/work/new', name: 'new', sessionCount: 0 })
@@ -1238,7 +1217,6 @@ describe('WindowSideBar agent switch', () => {
       expect(projectStore.selectProject).not.toHaveBeenCalled()
       expect(sessionStore.setGroupMode).toHaveBeenCalledWith('project')
       expect(sessionStore.groupMode).toBe('project')
-      expect((wrapper.vm as any).sessionSearchQuery).toBe('')
       expect(wrapper.find('[data-group-id="/work/new"]').exists()).toBe(true)
       expect(
         wrapper.findAll('[data-group-id]').map((group) => group.attributes('data-group-id'))
@@ -1272,7 +1250,6 @@ describe('WindowSideBar agent switch', () => {
 
   it('keeps cancellation side-effect free and guards concurrent folder pickers', async () => {
     const { wrapper, projectStore, sessionStore } = await setup({ groupMode: 'time' })
-    ;(wrapper.vm as any).sessionSearchQuery = 'keep me'
     let finishPicker!: (path: string | null) => void
     projectStore.openFolderPicker.mockImplementation(
       () =>
@@ -1298,7 +1275,6 @@ describe('WindowSideBar agent switch', () => {
 
     expect(sessionStore.setGroupMode).not.toHaveBeenCalled()
     expect(sessionStore.groupMode).toBe('time')
-    expect((wrapper.vm as any).sessionSearchQuery).toBe('keep me')
   })
 
   it('reports registration failures without fabricating a workspace row', async () => {
@@ -1899,6 +1875,27 @@ describe('WindowSideBar agent switch', () => {
     },
     TEST_TIMEOUT_MS
   )
+
+  it('keeps settings beside the collapse button and hides them in the rail', async () => {
+    const { wrapper, settingsClient } = await setup()
+    const toggle = wrapper.get('[data-testid="window-sidebar-toggle"]')
+    const settings = wrapper.get('[data-testid="app-settings-button"]')
+
+    expect(settings.element.parentElement).toBe(toggle.element.parentElement)
+    expect(wrapper.find('[data-testid="app-scheduled-tasks-button"]').exists()).toBe(false)
+    expect(wrapper.find('input[type="search"]').exists()).toBe(false)
+    await settings.trigger('click')
+    expect(settingsClient.openSettings).toHaveBeenCalledTimes(1)
+
+    await toggle.trigger('click')
+    expect(wrapper.find('[data-testid="app-settings-button"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="app-plugins-button"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="window-sidebar-toggle"]').attributes('aria-expanded')).toBe(
+      'false'
+    )
+    await wrapper.get('[data-testid="window-sidebar-toggle"]').trigger('click')
+    expect(wrapper.find('[data-testid="app-settings-button"]').exists()).toBe(true)
+  })
 
   it(
     'collapses and expands time groups from the folder header',
@@ -2698,61 +2695,6 @@ describe('WindowSideBar agent switch', () => {
   })
 
   it(
-    'disables project group reordering but keeps archive available during search',
-    async () => {
-      const alphaGroup = {
-        id: '/work/alpha',
-        label: 'alpha',
-        sessions: [
-          {
-            id: 'project-alpha',
-            title: 'Shared Session Alpha',
-            status: 'none'
-          }
-        ]
-      }
-      const betaGroup = {
-        id: '/work/beta',
-        label: 'beta',
-        sessions: [
-          {
-            id: 'project-beta',
-            title: 'Shared Session Beta',
-            status: 'none'
-          }
-        ]
-      }
-      const { wrapper, projectStore } = await setup({
-        groupMode: 'project',
-        projectEnvironments: [{ path: '/work/alpha' }, { path: '/work/beta' }],
-        groups: [alphaGroup, betaGroup]
-      })
-
-      ;(wrapper.vm as any).sessionSearchQuery = 'shared'
-      await flushPromises()
-
-      const draggable = wrapper.getComponent({ name: 'draggable' })
-      expect(draggable.attributes('data-disabled')).toBe('true')
-      expect(wrapper.findAll('[aria-label="chat.sidebar.projectGroupActions"]')).toHaveLength(2)
-      expect(
-        wrapper
-          .findAll('button')
-          .filter((button) => button.text().startsWith('chat.sidebar.moveProjectGroup'))
-          .every((button) => button.attributes('disabled') !== undefined)
-      ).toBe(true)
-      expect(
-        wrapper.findAll('[data-testid="window-sidebar-archive-workspace-menu-item"]')
-      ).toHaveLength(2)
-
-      draggable.vm.$emit('update:modelValue', [betaGroup, alphaGroup])
-      await flushPromises()
-
-      expect(projectStore.reorderEnvironments).not.toHaveBeenCalled()
-    },
-    TEST_TIMEOUT_MS
-  )
-
-  it(
     'keeps archived and removed project groups visible without active affordances',
     async () => {
       const activeGroup = {
@@ -3111,7 +3053,7 @@ describe('WindowSideBar session batches', () => {
     expect(groupRows(wrapper, 'a')).toHaveLength(8)
   })
 
-  it('keeps one active row, restores limits after search, and respects explicit collapse on updates', async () => {
+  it('keeps one active row and respects explicit collapse on updates', async () => {
     const chat = sessions('chat', 12)
     const { wrapper, filteredGroups } = await setup({
       groupMode: 'project',
@@ -3127,12 +3069,6 @@ describe('WindowSideBar session batches', () => {
       'chat-12'
     ])
     await wrapper.get('[data-group-id="__chat__:more"]').trigger('click')
-    expect(groupRows(wrapper, 'chat')).toHaveLength(11)
-    const search = wrapper.get('[data-testid="sidebar-session-search-input"]')
-    await search.setValue('chat')
-    expect(groupRows(wrapper, 'chat')).toHaveLength(12)
-    expect(wrapper.find('[data-testid="sidebar-group-show-more"]').exists()).toBe(false)
-    await search.setValue('')
     expect(groupRows(wrapper, 'chat')).toHaveLength(11)
 
     await wrapper.get('[data-group-id="__chat__"]').trigger('click')
@@ -3360,133 +3296,7 @@ describe('WindowSideBar viewport auto-fill', () => {
     TEST_TIMEOUT_MS
   )
 
-  it(
-    'cancels a mount-time auto-fill frame when a search starts before it runs',
-    async () => {
-      const { wrapper, sessionStore } = await setup({
-        hasMore: true,
-        sessions: [{ id: 'session-1' }],
-        groups: [
-          {
-            id: 'common.time.today',
-            label: 'common.time.today',
-            labelKey: 'common.time.today',
-            sessions: [{ id: 'session-1', title: 'Alpha', status: 'none' }]
-          }
-        ],
-        nextPages: [{ items: [{ id: 'session-2' }], hasMore: false }]
-      })
-      setSidebarListSize(wrapper, { scrollHeight: 80, clientHeight: 120 })
-
-      await wrapper.get('[data-testid="sidebar-session-search-input"]').setValue('alpha')
-      await flushSidebarFillFrame()
-
-      expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
-      expect(wrapper.get('[data-testid="sidebar-session-search-loaded-range"]').exists()).toBe(true)
-
-      wrapper.unmount()
-    },
-    TEST_TIMEOUT_MS
-  )
-
-  it(
-    'stops an in-flight auto-fill loop when a search starts',
-    async () => {
-      const { wrapper, sessionStore } = await setup({
-        hasMore: true,
-        sessions: [{ id: 'session-1' }],
-        groups: [
-          {
-            id: 'common.time.today',
-            label: 'common.time.today',
-            labelKey: 'common.time.today',
-            sessions: [{ id: 'session-1', title: 'Alpha', status: 'none' }]
-          }
-        ]
-      })
-      setSidebarListSize(wrapper, { scrollHeight: 80, clientHeight: 120 })
-
-      let resolveFirstPage: (() => void) | undefined
-      sessionStore.loadNextPage.mockImplementation(
-        () =>
-          new Promise<void>((resolve) => {
-            resolveFirstPage = () => {
-              sessionStore.sessions = [...sessionStore.sessions, { id: 'session-2' }]
-              resolve()
-            }
-          })
-      )
-
-      await flushSidebarFillFrame()
-      expect(sessionStore.loadNextPage).toHaveBeenCalledTimes(1)
-
-      await wrapper.get('[data-testid="sidebar-session-search-input"]').setValue('alpha')
-      resolveFirstPage?.()
-      await flushPromises()
-
-      expect(sessionStore.loadNextPage).toHaveBeenCalledTimes(1)
-      expect(wrapper.get('[data-testid="sidebar-session-search-loaded-range"]').exists()).toBe(true)
-
-      wrapper.unmount()
-    },
-    TEST_TIMEOUT_MS
-  )
-
-  it(
-    'filters the loaded session range without auto-loading the remaining pages',
-    async () => {
-      const { wrapper, sessionStore } = await setup({
-        hasMore: true,
-        sessions: [{ id: 'session-1' }],
-        groups: [
-          {
-            id: 'common.time.today',
-            label: 'common.time.today',
-            labelKey: 'common.time.today',
-            sessions: [{ id: 'session-1', title: 'Alpha', status: 'none' }]
-          }
-        ],
-        nextPages: [{ items: [{ id: 'session-2' }], hasMore: false }]
-      })
-      setSidebarListSize(wrapper, { scrollHeight: 80, clientHeight: 120 })
-
-      const input = wrapper.get('[data-testid="sidebar-session-search-input"]')
-      await input.setValue('alpha')
-      await flushSidebarFillFrame()
-
-      expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
-      expect(wrapper.get('[data-testid="sidebar-session-search-loaded-range"]').exists()).toBe(true)
-
-      await input.trigger('keydown', { key: 'Escape' })
-      expect((input.element as HTMLInputElement).value).toBe('')
-
-      wrapper.unmount()
-    },
-    TEST_TIMEOUT_MS
-  )
-
-  it('does not treat a whitespace-only query as an active search', async () => {
-    const { wrapper } = await setup({
-      hasMore: true,
-      sessions: [{ id: 'session-1' }],
-      groups: [
-        {
-          id: 'common.time.today',
-          label: 'common.time.today',
-          labelKey: 'common.time.today',
-          sessions: [{ id: 'session-1', title: 'Alpha', status: 'none' }]
-        }
-      ]
-    })
-
-    await wrapper.get('[data-testid="sidebar-session-search-input"]').setValue('   ')
-
-    expect(wrapper.find('[data-testid="sidebar-session-search-loaded-range"]').exists()).toBe(false)
-
-    wrapper.unmount()
-  })
-
-  it('loads the next page after a searched list reaches the bottom', async () => {
+  it('loads the next page when the list reaches the bottom', async () => {
     const { wrapper, sessionStore } = await setup({
       hasMore: true,
       sessions: [{ id: 'session-1' }],
@@ -3502,7 +3312,6 @@ describe('WindowSideBar viewport auto-fill', () => {
     })
     const list = wrapper.get('.session-list')
     setSidebarListSize(wrapper, { scrollHeight: 120, clientHeight: 120 })
-    await wrapper.get('[data-testid="sidebar-session-search-input"]').setValue('alpha')
     await list.trigger('scroll')
     await flushSidebarFillFrame()
 

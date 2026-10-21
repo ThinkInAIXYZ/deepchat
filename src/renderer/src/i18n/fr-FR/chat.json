@@ -397,10 +397,6 @@
     "emptyTitle": "Aucune conversation pour le moment",
     "emptyDescription": "Commencez une nouvelle discussion pour démarrer",
     "remoteControlDisabled": "Désactivé",
-    "searchPlaceholder": "Rechercher des chats",
-    "searchAriaLabel": "Rechercher des chats",
-    "searchEmptyTitle": "Aucune conversation correspondante",
-    "searchEmptyDescription": "Essayez un autre mot-clé de titre",
     "projectGroupActions": "Actions du groupe de projets",
     "moveProjectGroupTop": "Déplacer tout en haut",
     "moveProjectGroupUp": "Déplacer vers le haut",
@@ -413,8 +409,7 @@
     "manageWorkspaces": "Gérer les espaces de travail",
     "openWorkspaceFolder": "Ouvrir le dossier",
     "emptyWorkspace": "Vide",
-    "addWorkspaceFailed": "Échec de l’ajout de l’espace de travail",
-    "searchLoadedRangeDescription": "Affichage des résultats des conversations chargées. Faites défiler pour charger plus d’historique."
+    "addWorkspaceFailed": "Échec de l’ajout de l’espace de travail"
   },
   "floatingWidget": {
     "title": "Aperçu des tâches",

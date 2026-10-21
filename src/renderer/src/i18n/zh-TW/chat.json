@@ -394,10 +394,6 @@
     "emptyTitle": "還沒有對話",
     "emptyDescription": "開始新的對話吧",
     "remoteControlDisabled": "未啟用",
-    "searchPlaceholder": "搜尋會話標題",
-    "searchAriaLabel": "搜尋會話標題",
-    "searchEmptyTitle": "找不到相符的會話",
-    "searchEmptyDescription": "試試其他標題關鍵字",
     "projectGroupActions": "專案群組操作",
     "moveProjectGroupTop": "移至最上方",
     "moveProjectGroupUp": "上移",
@@ -410,8 +406,7 @@
     "manageWorkspaces": "管理工作區",
     "openWorkspaceFolder": "開啟資料夾",
     "emptyWorkspace": "空白",
-    "addWorkspaceFailed": "新增工作區失敗",
-    "searchLoadedRangeDescription": "正在顯示已載入對話中的相符結果。向下捲動以載入更多歷史記錄。"
+    "addWorkspaceFailed": "新增工作區失敗"
   },
   "floatingWidget": {
     "title": "任務總覽",

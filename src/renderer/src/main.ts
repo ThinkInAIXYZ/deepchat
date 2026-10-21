@@ -19,7 +19,6 @@ async function bootstrap() {
 
   document.documentElement.dir = languageState.direction === 'rtl' ? 'rtl' : 'auto'
 
-  // Icons will be loaded asynchronously on app mount to improve startup performance
   const pinia = createPinia()
   const app = createApp(App)
 
@@ -33,14 +32,9 @@ async function bootstrap() {
   })
   app.use(router)
   app.use(i18n)
+  // Register bundled icons before components request missing icons from the network.
+  await preloadIcons()
   app.mount('#app')
-
-  // Preload icons asynchronously after app mount to improve perceived startup time
-  setTimeout(() => {
-    preloadIcons().catch((error) => {
-      console.error('Failed to preload icons:', error)
-    })
-  }, 0)
 }
 
 bootstrap().catch((error) => {

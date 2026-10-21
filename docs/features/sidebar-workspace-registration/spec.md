@@ -25,8 +25,8 @@ sidebar still omits it. Adding only a folder-picker button would leave the follo
 4. the Session-derived sidebar renders no row, so the action appears to have failed.
 
 The issue's numeric Session-count mockup is not adopted. `EnvironmentSummary.sessionCount` is a
-global durable count, while the sidebar can show a selected agent, only loaded pages, search
-matches, and a separate pinned section. Rendering the global number beside that filtered list would
+global durable count, while the sidebar can show a selected agent, only loaded pages,
+and a separate pinned section. Rendering the global number beside that filtered list would
 make the visible hierarchy internally inconsistent.
 
 ## Goal
@@ -43,7 +43,7 @@ workspace without changing existing directory lifecycle or Session-discovery beh
   never duplicated under Workspace.
 - **Session group**: the currently loaded and filtered Sessions grouped by `projectDir`.
 - **True empty workspace**: an active managed workspace with `sessionCount === 0` and no visible
-  Session. A group that is empty only because of agent filtering, pinning, search, or pagination is
+  Session. A group that is empty only because of agent filtering, pinning, or pagination is
   not a true empty workspace.
 - **Historical group**: a Session-derived group whose path is archived, removed, or otherwise not
   in the active managed projection. It exists only to keep existing Sessions discoverable.
@@ -98,12 +98,12 @@ visible rather than hover-only so the next step is apparent.
 1. The user activates **Add workspace**.
 2. The existing typed Project directory picker opens. The action is disabled until it settles so
    one sidebar cannot open competing pickers.
-3. Cancellation changes no selection, search query, grouping mode, or persisted state.
+3. Cancellation changes no selection, grouping mode, or persisted state.
 4. Successful selection registers or reactivates the path through `project.selectDirectory`, moves
    a newly active path to the top of the persisted active order without scanning every managed path,
    and waits for the versioned Project snapshot.
-5. The sidebar clears its Session search, switches deterministically to project grouping, scrolls
-   the resulting row into view, and returns focus to that row.
+5. The sidebar switches deterministically to project grouping, scrolls the resulting row into
+   view, and returns focus to that row.
 6. The action does **not** create a draft and does **not** replace the current New Thread project
    selection. Registration and starting work remain two explicit user actions.
 
@@ -157,9 +157,8 @@ conversation.
 
 | State | Sidebar behavior |
 | --- | --- |
-| Project grouping, no search | Merge every eligible active managed workspace with loaded Session groups. |
+| Project grouping | Merge every eligible active managed workspace with loaded Session groups. |
 | Date grouping | Keep date groups unchanged. A successful Add switches to project grouping to reveal the result. |
-| Session search active | Show only groups containing matching loaded Sessions; do not synthesize empty rows. Add success clears search before reveal. |
 | Agent filter, pinned-only children, or unloaded pages | Keep active workspace rows; attach only currently visible Sessions. Durable count determines true emptiness. |
 | Active and existing | Show, reorder, allow new conversations, and expose Archive. |
 | Active but missing | Show with an unavailable indicator; keep ordering and Archive, but disable new conversations. |
@@ -175,8 +174,8 @@ conversation.
 2. Active Project order is authoritative. `ProjectService.selectDirectory()` prepends a path when
    selection makes it newly active. The renderer consumes the committed order and must not
    independently front-insert a path or derive order from Session activity.
-3. Empty rows exist only in project grouping without an active Session search. Search remains a
-   Session search rather than silently expanding into workspace-name search.
+3. Empty rows exist only in project grouping. Session title search belongs to the global search
+   overlay and does not filter workspace rows.
 4. An explicit Project order survives duplicate selection. Selecting the same active path is
    idempotent for membership; fallback recency may change only where no explicit order exists.
 5. Missing, archived, and removed paths cannot create new conversations from the sidebar.
@@ -187,7 +186,7 @@ conversation.
 8. Renderer-local optimistic state may reveal mode or focus changes, but only a committed versioned
    Project snapshot may add, reactivate, or remove a workspace row.
 9. Archive availability is independent of reorder availability. Reorder may be disabled for a
-   single row, search, loading, or animation while the active row remains archivable.
+   single row, loading, or animation while the active row remains archivable.
 10. Sidebar archive is the existing reversible Project lifecycle mutation. It must confirm first
     and must not delete Sessions, messages, or filesystem content.
 11. Project snapshot readiness is Project-store state. The same snapshot carries the built-in Chat
@@ -211,8 +210,7 @@ conversation.
   existing typed Project route.
 - Canceling the picker is a no-op; concurrent activation cannot open a second picker.
 - A newly registered zero-Session workspace appears immediately after the committed Project
-  snapshot at the top of the Workspace list, including when Add started in date grouping or during
-  search.
+  snapshot at the top of the Workspace list, including when Add started in date grouping.
 - Selecting an archived or removed workspace reactivates it at the top of the persisted active
   order.
 - The built-in Chat path never appears twice.
@@ -229,7 +227,7 @@ conversation.
 - Starting from an active Session cannot let agent or global defaults overwrite that path.
 - First non-draft Session creation converts the same row to a normal populated group without a
   duplicate or collapse-state reset.
-- Search, agent filtering, pinning, pagination, project reorder, archived history, removed
+- Agent filtering, pinning, pagination, project reorder, archived history, removed
   tombstones, missing paths, and default Chat behavior follow the matrix above.
 - Picker, snapshot, and grouping-persistence failures are observable and do not fabricate a row.
 - A failed pair of concurrent group-mode writes restores the last persisted mode, and a coalesced

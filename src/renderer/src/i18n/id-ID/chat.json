@@ -410,10 +410,6 @@
     "chats": "Chat",
     "emptyTitle": "Belum ada sesi",
     "emptyDescription": "Mulai sesi baru",
-    "searchPlaceholder": "Judul sesi pencarian",
-    "searchAriaLabel": "Judul sesi pencarian",
-    "searchEmptyTitle": "Tidak ditemukan sesi yang cocok",
-    "searchEmptyDescription": "Coba ubah kata kunci judul",
     "projectGroupActions": "Tindakan grup proyek",
     "moveProjectGroupTop": "Pindahkan ke paling atas",
     "moveProjectGroupUp": "Pindahkan ke atas",
@@ -426,8 +422,7 @@
     "manageWorkspaces": "Kelola ruang kerja",
     "openWorkspaceFolder": "Buka folder",
     "emptyWorkspace": "Kosong",
-    "addWorkspaceFailed": "Gagal menambahkan ruang kerja",
-    "searchLoadedRangeDescription": "Menampilkan kecocokan dari percakapan yang dimuat. Gulir untuk memuat riwayat lainnya."
+    "addWorkspaceFailed": "Gagal menambahkan ruang kerja"
   },
   "spotlight": {
     "placeholder": "Sesi pencarian, Agent, pengaturan dan tindakan…",

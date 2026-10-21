@@ -155,7 +155,7 @@ test('keeps the main window usable when plugin host initialization fails @smoke'
   const restarted = await launchApp()
   await waitForAppReady(restarted.page)
   await expect(restarted.page.getByTestId('app-main')).toBeVisible()
-  await expect(restarted.page.getByTestId('app-settings-button')).toBeEnabled()
+  await expect(restarted.page.getByTestId('window-sidebar-toggle')).toBeEnabled()
   expect(await restarted.close()).toBe('graceful')
   const { records } = readJsonl(join(first.userDataDir, 'logs', 'main.jsonl'))
   const terminals = records.filter((record) => record.event === 'app.startup.terminal')

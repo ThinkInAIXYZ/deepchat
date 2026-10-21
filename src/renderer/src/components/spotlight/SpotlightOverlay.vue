@@ -31,6 +31,8 @@
                     class="h-9 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
                     :placeholder="t('chat.spotlight.placeholder')"
                     @input="spotlightStore.setQuery(($event.target as HTMLInputElement).value)"
+                    @compositionstart="isComposing = true"
+                    @compositionend="isComposing = false"
                     @keydown="handleKeydown"
                   />
                   <DialogClose as-child>
@@ -184,6 +186,7 @@ const restoreFocus = () => {
   returnFocus = null
 }
 const inputRef = ref<HTMLInputElement | null>(null)
+const isComposing = ref(false)
 const resultsContainerRef = ref<HTMLElement | null>(null)
 const pointerActivatedItemId = ref<string | null>(null)
 let activeChangeSource: 'keyboard' | 'mouse' = 'keyboard'
@@ -249,6 +252,11 @@ const highlightSegments = (value: string) => {
 }
 
 const handleKeydown = (event: KeyboardEvent) => {
+  if (isComposing.value || event.isComposing || event.keyCode === 229) {
+    event.stopPropagation()
+    return
+  }
+
   if (event.key === 'Escape') {
     event.preventDefault()
     spotlightStore.closeSpotlight()
