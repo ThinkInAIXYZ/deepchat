@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { McpClient } from '../../../src/main/mcp/mcpClient'
-import { RuntimeHelper } from '../../../src/main/lib/runtimeHelper'
 import { ToolchainService } from '../../../src/main/toolchains/service'
 import { ToolchainResolutionError } from '../../../src/main/toolchains/errors'
 import path from 'path'
@@ -187,18 +186,12 @@ vi.mock('@modelcontextprotocol/client/stdio', () => {
 
 describe('McpClient Runtime Command Processing Tests', () => {
   let mockFsExistsSync: any
-  const runtimeHelper = RuntimeHelper.getInstance() as RuntimeHelper & {
-    runtimesInitialized: boolean
-  }
 
   beforeEach(() => {
     mockFsExistsSync = vi.mocked(fs.existsSync)
     vi.clearAllMocks()
     mockFsExistsSync.mockReset()
     mockFsExistsSync.mockReturnValue(false)
-    runtimeHelper.runtimesInitialized = false
-    runtimeHelper.setNodeRuntimePath(null)
-    runtimeHelper.setUvRuntimePath(null)
     vi.spyOn(ToolchainService, 'getInstance').mockReturnValue({
       rewriteCommand: (command: string, args: string[]) => ({ command, args }),
       resolvedBinDirs: () => [],
