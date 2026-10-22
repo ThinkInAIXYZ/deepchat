@@ -333,6 +333,17 @@ const DEFAULT_MCP_SERVERS = {
       customHeaders: {
         'X-Keenable-Title': 'DeepChat'
       }
+    },
+    evolink: {
+      command: '',
+      args: [],
+      env: {},
+      descriptions:
+        'EvoLink media generation MCP: search 150+ image, video, music and speech models, get a cost quote, then generate. Sign in with your EvoLink account in the browser (OAuth); no API key needed. Generation is billed to your EvoLink balance; model search, prices, quotes, task status and balance checks are free. Docs: https://evolink.ai/mcp?utm_source=deepchat&utm_medium=referral&utm_campaign=mcp_remote&utm_content=directory_listing',
+      icons: '🎬',
+      disable: false,
+      type: 'http' as MCPServerType,
+      baseUrl: 'https://mcp.evolink.ai/mcp'
     }
   } satisfies Record<string, Omit<MCPServerConfig, 'enabled'>>,
   mcpEnabled: false // MCP functionality is disabled by default
