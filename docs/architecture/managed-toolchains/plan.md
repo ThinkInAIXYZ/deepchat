@@ -7,8 +7,7 @@ slices. After each slice the app remains usable.
 
 Introduce `ToolchainService` as the only Node/uv resolver. Persist
 `{userData}/toolchains/state.json`. Run the one-time first-run migration.
-Rewrite MCP / ACP / Skill / OCR through the service. Keep RTK on
-`RuntimeHelper`.
+Resolve MCP / ACP / Skill / OCR through the service. `RuntimeHelper` provides only path utilities.
 
 Delete `bunRuntimePath` and dead `useBuiltinRuntime` i18n.
 
@@ -46,7 +45,7 @@ Completion: CLI runs with no official Node on disk.
 
 ## 5. Stop shipping Node
 
-Remove Node from `install-runtime.mjs` / pack extraResources. Keep uv + RTK.
+Remove Node from default `install-runtime.mjs` plans. Keep uv and supported cloudflared artifacts.
 Upgrade users whose source is `bundled` see `missing` and the banner; no
 auto-switch. Point Windows OCR smoke firewall at the resolved official Node.
 Update README / size baseline. Product call: OCR is not offline-guaranteed

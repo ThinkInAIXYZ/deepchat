@@ -62,7 +62,6 @@ import {
   sessionsResolveBlockedPendingInputRoute,
   sessionsResumePendingQueueRoute,
   sessionsRetryPendingQueueInputRoute,
-  sessionsRetryRtkHealthCheckRoute,
   sessionsRetryMessageRoute,
   sessionsResolveReferenceRoute,
   sessionsRestoreRoute
@@ -422,11 +421,6 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     return result.dashboard
   }
 
-  async function retryRtkHealthCheck() {
-    const result = await bridge.invoke(sessionsRetryRtkHealthCheckRoute.name, {})
-    return result.retried
-  }
-
   async function renameSession(sessionId: string, title: string) {
     const result = await bridge.invoke(sessionsRenameRoute.name, { sessionId, title })
     return result.session
@@ -739,7 +733,6 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     translateText,
     getAgents,
     getUsageDashboard,
-    retryRtkHealthCheck,
     renameSession,
     toggleSessionPinned,
     clearSessionMessages,

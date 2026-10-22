@@ -713,22 +713,10 @@ describe('AcpProcessManager config cache fallback', () => {
       vi.spyOn(shellEnvHelper, 'getShellEnvironment').mockResolvedValue({
         PATH: '/shell/bin'
       })
-      vi.spyOn((manager as any).runtimeHelper, 'initializeRuntimes').mockImplementation(() => {})
       vi.spyOn((manager as any).runtimeHelper, 'expandPath').mockImplementation(
         (value: string) => value
       )
-      vi.spyOn((manager as any).runtimeHelper, 'replaceWithRuntimeCommand').mockImplementation(
-        (value: string) => value
-      )
-      vi.spyOn((manager as any).runtimeHelper, 'prependBundledRuntimeToEnv').mockImplementation(
-        (env: Record<string, string>) => ({
-          ...env,
-          PATH: ['/runtime/bin', env.PATH].filter(Boolean).join(':')
-        })
-      )
       vi.spyOn((manager as any).runtimeHelper, 'getDefaultPaths').mockReturnValue(['/default/bin'])
-      vi.spyOn((manager as any).runtimeHelper, 'getUvRuntimePath').mockReturnValue('/runtime/bin')
-      vi.spyOn((manager as any).runtimeHelper, 'getNodeRuntimePath').mockReturnValue(null)
       vi.spyOn((manager as any).runtimeHelper, 'isInstalledInSystemDirectory').mockReturnValue(
         false
       )
@@ -792,11 +780,7 @@ describe('AcpProcessManager config cache fallback', () => {
     vi.spyOn(shellEnvHelper, 'getShellEnvironment').mockResolvedValue({
       PATH: '/shell/bin'
     })
-    vi.spyOn((manager as any).runtimeHelper, 'initializeRuntimes').mockImplementation(() => {})
     vi.spyOn((manager as any).runtimeHelper, 'expandPath').mockImplementation(
-      (value: string) => value
-    )
-    vi.spyOn((manager as any).runtimeHelper, 'replaceWithRuntimeCommand').mockImplementation(
       (value: string) => value
     )
 

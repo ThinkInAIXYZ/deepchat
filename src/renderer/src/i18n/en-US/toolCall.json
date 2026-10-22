@@ -13,7 +13,6 @@
   "imagePreviewCount": "No image previews | One image preview | {count} image previews",
   "terminalOutput": "Terminal Output",
   "badge": {
-    "rtk": "RTK",
     "allowed": "Allowed",
     "denied": "Denied"
   },

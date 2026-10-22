@@ -65,9 +65,6 @@ export type DeferredToolExecutionResult = {
   serverName?: string
   offloadPath?: string
   existingOffloadPath?: string
-  rtkApplied?: boolean
-  rtkMode?: 'rewrite' | 'direct' | 'bypass'
-  rtkFallbackReason?: string
   imagePreviews?: ToolCallImagePreview[]
   requiresPermission?: boolean
   permissionRequest?: PendingToolInteraction['permission']
@@ -721,9 +718,6 @@ export class DeferredToolExecutor {
         serverName: toolDefinition.server.name,
         offloadPath: prepared.offloadPath,
         existingOffloadPath: rawData.outputOffloadPath,
-        rtkApplied: rawData.rtkApplied,
-        rtkMode: rawData.rtkMode,
-        rtkFallbackReason: rawData.rtkFallbackReason,
         imagePreviews
       }
       commitRunTerminal({ outcome: 'completed', stopReason: 'tool_result' })

@@ -551,35 +551,6 @@
       "messages": "{count} messages",
       "empty": "Aucune donnée de répartition à afficher pour le moment."
     },
-    "rtk": {
-      "title": "Économies RTK",
-      "description": "Estimation des tokens que RTK a empêchés d’atteindre le contexte du modèle pendant l’exécution des commandes natives de DeepChat.",
-      "actions": {
-        "retry": "Relancer la vérification"
-      },
-      "status": {
-        "disabled": "Désactivé",
-        "checking": "Vérification",
-        "healthy": "Opérationnel",
-        "unhealthy": "Indisponible"
-      },
-      "descriptionDisabled": "RTK est désactivé pour cette session de l’application, les commandes suivent donc le chemin d’exécution normal.",
-      "descriptionChecking": "DeepChat vérifie si RTK peut fonctionner correctement dans l’environnement actuel.",
-      "descriptionHealthy": "RTK est actif pour l’exécution des commandes natives de DeepChat.",
-      "descriptionUnhealthy": "La vérification de santé de RTK au démarrage a échoué et RTK a été désactivé pour cette session de l’application.",
-      "sourceLabel": "Source du runtime : {source}",
-      "source": {
-        "bundled": "Intégré",
-        "system": "Système",
-        "none": "Non disponible"
-      },
-      "summary": {
-        "savedTokens": "Tokens économisés",
-        "commands": "Commandes suivies",
-        "avgSavingsPct": "Économie moyenne",
-        "outputTokens": "Sortie filtrée"
-      }
-    },
     "unavailable": "Indisponible"
   },
   "modelConfigItem": {
@@ -2784,9 +2755,9 @@
       "runtime_manifest_invalid": "Le manifeste du moteur OCR intégré n’est pas valide.",
       "service_closed": "Le service OCR est en cours d’arrêt.",
       "unsupported_platform": "L’OCR n’est pas disponible pour cette plateforme et cette architecture.",
-      "toolchain_unavailable": "OCR a besoin de Node.js officiel v24.21.0. Ouvrez Réglages → Chaînes d’outils et installez le runtime officiel.",
-      "version_mismatch": "OCR a besoin de Node.js v24.21.0. Cette version est hors plage. Ouvrez Réglages → Chaînes d’outils et installez le runtime officiel.",
-      "abi_mismatch": "OCR a besoin de Node.js ABI 137 (v24.21.0). Ouvrez Réglages → Chaînes d’outils et installez le runtime officiel."
+      "toolchain_unavailable": "OCR a besoin de Node.js officiel v24.22.1. Ouvrez Réglages → Chaînes d’outils et installez le runtime officiel.",
+      "version_mismatch": "OCR a besoin de Node.js v24.22.1. Cette version est hors plage. Ouvrez Réglages → Chaînes d’outils et installez le runtime officiel.",
+      "abi_mismatch": "OCR a besoin de Node.js ABI 137 (v24.22.1). Ouvrez Réglages → Chaînes d’outils et installez le runtime officiel."
     },
     "processStates": {
       "idle": "Inactif",
@@ -3481,7 +3452,7 @@
       "activation_failed": "Le runtime n’a pas pu être activé.",
       "unsupported_platform": "Cette plateforme n’a pas de runtime officiel."
     },
-    "ocrPinHint": "OCR a besoin de Node officiel v24.21.0 (ABI 137). Ce runtime convient au chat et à MCP, mais pas à OCR. Installez le runtime officiel.",
+    "ocrPinHint": "OCR a besoin de Node officiel v24.22.1 (ABI 137). Ce runtime convient au chat et à MCP, mais pas à OCR. Installez le runtime officiel.",
     "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {

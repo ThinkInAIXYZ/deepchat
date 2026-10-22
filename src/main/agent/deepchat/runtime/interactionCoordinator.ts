@@ -590,9 +590,6 @@ export class InteractionCoordinator {
           })
 
           updateToolCallResponse(blocks, toolCall.id, execution.responseText, execution.isError, {
-            rtkApplied: execution.rtkApplied,
-            rtkMode: execution.rtkMode,
-            rtkFallbackReason: execution.rtkFallbackReason,
             imagePreviews: imagePresentation.toolBlockImagePreviews
           })
           insertBlocksAfterToolCall(blocks, toolCall.id, imagePresentation.promotedBlocks)

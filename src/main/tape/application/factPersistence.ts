@@ -293,9 +293,6 @@ function prepareTapeToolFact(input: TapeToolFactInput): PreparedTapeToolFact | n
       orderSeq: input.orderSeq,
       toolCallId: toolCall.id,
       response: toolCall.response,
-      rtkApplied: toolCall.rtkApplied,
-      rtkMode: toolCall.rtkMode,
-      rtkFallbackReason: toolCall.rtkFallbackReason,
       imagePreviews: toolCall.imagePreviews
     },
     status: block.status,

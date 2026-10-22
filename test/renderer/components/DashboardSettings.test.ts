@@ -178,27 +178,6 @@ function buildDashboard(overrides: Partial<UsageDashboardData> = {}): UsageDashb
         totalTokens: 1200
       }
     ],
-    rtk: {
-      scope: 'deepchat',
-      enabled: true,
-      effectiveEnabled: true,
-      available: true,
-      health: 'healthy',
-      checkedAt: new Date(2026, 2, 1, 12, 0, 5).getTime(),
-      source: 'bundled',
-      failureStage: null,
-      failureMessage: null,
-      summary: {
-        totalCommands: 12,
-        totalInputTokens: 5000,
-        totalOutputTokens: 1200,
-        totalSavedTokens: 3800,
-        avgSavingsPct: 76,
-        totalTimeMs: 2400,
-        avgTimeMs: 200
-      },
-      daily: []
-    },
     ...overrides
   }
 }
@@ -207,18 +186,15 @@ async function setup(
   data: UsageDashboardData,
   options: {
     getUsageDashboard?: ReturnType<typeof vi.fn>
-    retryRtkHealthCheck?: ReturnType<typeof vi.fn>
     hideNostalgia?: boolean
   } = {}
 ) {
   vi.resetModules()
   const getUsageDashboard = options.getUsageDashboard ?? vi.fn().mockResolvedValue(data)
-  const retryRtkHealthCheck = options.retryRtkHealthCheck ?? vi.fn().mockResolvedValue(undefined)
 
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: () => ({
-      getUsageDashboard,
-      retryRtkHealthCheck
+      getUsageDashboard
     })
   }))
 
@@ -258,34 +234,6 @@ async function setup(
         if (key === 'settings.dashboard.breakdown.category.compaction') {
           return 'Context compaction'
         }
-        if (key === 'settings.dashboard.rtk.title') return 'RTK Savings'
-        if (key === 'settings.dashboard.rtk.description') {
-          return 'Estimated tokens prevented from reaching the model context by RTK during DeepChat native command execution.'
-        }
-        if (key === 'settings.dashboard.rtk.actions.retry') return 'Retry check'
-        if (key === 'settings.dashboard.rtk.status.disabled') return 'Disabled'
-        if (key === 'settings.dashboard.rtk.status.checking') return 'Checking'
-        if (key === 'settings.dashboard.rtk.status.healthy') return 'Healthy'
-        if (key === 'settings.dashboard.rtk.status.unhealthy') return 'Unavailable'
-        if (key === 'settings.dashboard.rtk.descriptionDisabled') {
-          return 'RTK is disabled for this app session.'
-        }
-        if (key === 'settings.dashboard.rtk.descriptionChecking') {
-          return 'DeepChat is verifying whether RTK can run.'
-        }
-        if (key === 'settings.dashboard.rtk.descriptionUnhealthy') {
-          return 'RTK failed startup health checks.'
-        }
-        if (key === 'settings.dashboard.rtk.sourceLabel') {
-          return `Runtime source: ${params?.source ?? 'Unknown'}`
-        }
-        if (key === 'settings.dashboard.rtk.source.bundled') return 'Bundled'
-        if (key === 'settings.dashboard.rtk.source.system') return 'System'
-        if (key === 'settings.dashboard.rtk.source.none') return 'Not available'
-        if (key === 'settings.dashboard.rtk.summary.savedTokens') return 'Saved tokens'
-        if (key === 'settings.dashboard.rtk.summary.commands') return 'Tracked commands'
-        if (key === 'settings.dashboard.rtk.summary.avgSavingsPct') return 'Average savings'
-        if (key === 'settings.dashboard.rtk.summary.outputTokens') return 'Filtered output'
         if (key === 'settings.dashboard.summary.cachedTokensCachedLabel') {
           return 'Cached'
         }
@@ -372,8 +320,7 @@ async function setup(
 
   return {
     wrapper,
-    getUsageDashboard,
-    retryRtkHealthCheck
+    getUsageDashboard
   }
 }
 
@@ -659,40 +606,6 @@ describe('DashboardSettings', () => {
     )
 
     expect(wrapper.get('[data-testid="cached-tokens-cached-ratio"]').text()).toBe('50%')
-  })
-
-  it('renders RTK savings summary when RTK is healthy', async () => {
-    const { wrapper } = await setup(buildDashboard())
-
-    expect(wrapper.find('[data-testid="rtk-card"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="rtk-card"]').html()).toContain('dashboard-rtk-summary-grid')
-    expect(wrapper.find('[data-testid="rtk-status-badge"]').text()).toBe('Bundled')
-    expect(wrapper.find('[data-testid="rtk-summary-saved"]').text()).toContain('3.8k')
-    expect(wrapper.find('[data-testid="rtk-summary-commands"]').text()).toContain('12')
-    expect(wrapper.find('[data-testid="rtk-summary-rate"]').text()).toContain('76%')
-    expect(wrapper.find('[data-testid="rtk-status-copy"]').exists()).toBe(false)
-  })
-
-  it('shows RTK retry action when health check fails', async () => {
-    const retryRtkHealthCheck = vi.fn().mockResolvedValue(undefined)
-    const { wrapper, getUsageDashboard } = await setup(
-      buildDashboard({
-        rtk: {
-          ...buildDashboard().rtk,
-          health: 'unhealthy',
-          effectiveEnabled: false,
-          failureMessage: 'rtk --version failed'
-        }
-      }),
-      { retryRtkHealthCheck }
-    )
-
-    await wrapper.get('[data-testid="rtk-retry-button"]').trigger('click')
-    await flushPromises()
-
-    expect(wrapper.find('[data-testid="rtk-status-copy"]').text()).toContain('rtk --version failed')
-    expect(retryRtkHealthCheck).toHaveBeenCalledTimes(1)
-    expect(getUsageDashboard).toHaveBeenCalledTimes(2)
   })
 
   it('renders calendar tooltip content with raw values for all series on hover', async () => {

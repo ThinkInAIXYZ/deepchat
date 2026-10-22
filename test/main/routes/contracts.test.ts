@@ -319,7 +319,6 @@ describe('main kernel contracts', () => {
         'sessions.moveQueuedInput',
         'sessions.queuePendingInput',
         'sessions.rename',
-        'sessions.retryRtkHealthCheck',
         'sessions.retryMessage',
         'sessions.searchHistory',
         'sessions.setAcpSessionConfigOption',
@@ -1174,28 +1173,7 @@ describe('main kernel contracts', () => {
         }
       ],
       providerBreakdown: [],
-      modelBreakdown: [],
-      rtk: {
-        scope: 'deepchat',
-        enabled: true,
-        effectiveEnabled: true,
-        available: true,
-        health: 'healthy',
-        checkedAt: 123,
-        source: 'bundled',
-        failureStage: null,
-        failureMessage: null,
-        summary: {
-          totalCommands: 0,
-          totalInputTokens: 0,
-          totalOutputTokens: 0,
-          totalSavedTokens: 0,
-          avgSavingsPct: 0,
-          totalTimeMs: 0,
-          avgTimeMs: 0
-        },
-        daily: []
-      }
+      modelBreakdown: []
     }
 
     expect(
@@ -1232,24 +1210,6 @@ describe('main kernel contracts', () => {
           }
         ]
       }
-    })
-
-    expect(() =>
-      DEEPCHAT_ROUTE_CATALOG['sessions.getUsageDashboard'].output.parse({
-        dashboard: {
-          ...dashboard,
-          rtk: {
-            ...dashboard.rtk,
-            health: 'unknown'
-          }
-        }
-      })
-    ).toThrow()
-
-    expect(
-      DEEPCHAT_ROUTE_CATALOG['sessions.retryRtkHealthCheck'].output.parse({ retried: true })
-    ).toEqual({
-      retried: true
     })
   })
 

@@ -71,11 +71,7 @@ describe('AgentBashHandler output encoding', () => {
       isDirectory: () => true
     } as fs.Stats)
 
-    const handler = new AgentBashHandler(
-      ['/workspace'],
-      { get: () => undefined },
-      new CommandPermissionService()
-    )
+    const handler = new AgentBashHandler(['/workspace'], new CommandPermissionService())
     const resultPromise = (
       handler as unknown as {
         runDetachedShellProcess: (

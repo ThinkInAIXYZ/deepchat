@@ -1509,32 +1509,8 @@ function createRuntime() {
       },
       calendar: [],
       providerBreakdown: [],
-      modelBreakdown: [],
-      rtk: {
-        scope: 'deepchat',
-        enabled: true,
-        effectiveEnabled: true,
-        available: true,
-        health: 'healthy',
-        checkedAt: 123,
-        source: 'bundled',
-        failureStage: null,
-        failureMessage: null,
-        summary: {
-          totalCommands: 0,
-          totalInputTokens: 0,
-          totalOutputTokens: 0,
-          totalSavedTokens: 0,
-          avgSavingsPct: 0,
-          totalTimeMs: 0,
-          avgTimeMs: 0
-        },
-        daily: []
-      }
+      modelBreakdown: []
     })
-  }
-  const rtkRuntimeService = {
-    retryHealthCheck: vi.fn().mockResolvedValue(undefined)
   }
   const sessionHistorySearch = {
     search: vi.fn().mockResolvedValue([
@@ -1705,7 +1681,6 @@ function createRuntime() {
     exportService: agentSessionExportService,
     translation: sessionTranslation,
     usageStats: usageStatsService,
-    rtkRuntime: rtkRuntimeService,
     tapeInspectorHeadWatcher
   })
   const agentRoutes = createAgentRoutes({
@@ -1935,7 +1910,6 @@ function createRuntime() {
     tabPresenter,
     cronJobs,
     usageStatsService,
-    rtkRuntimeService,
     tapeInspectorHeadWatcher,
     sessionHistorySearch,
     agentSessionExportService,
@@ -4993,7 +4967,7 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches dashboard maintenance routes through explicit owners', async () => {
-    const { runtime, providerSettings, usageStatsService, rtkRuntimeService } = createRuntime()
+    const { runtime, providerSettings, usageStatsService } = createRuntime()
     const context = createRendererRouteContext(88, 3)
 
     const agentsResult = await dispatchDeepchatRoute(runtime, 'sessions.getAgents', {}, context)
@@ -5003,16 +4977,9 @@ describe('dispatchDeepchatRoute', () => {
       {},
       context
     )
-    const retryResult = await dispatchDeepchatRoute(
-      runtime,
-      'sessions.retryRtkHealthCheck',
-      {},
-      context
-    )
 
     expect(providerSettings.listAgents).toHaveBeenCalledTimes(1)
     expect(usageStatsService.getDashboard).toHaveBeenCalledTimes(1)
-    expect(rtkRuntimeService.retryHealthCheck).toHaveBeenCalledTimes(1)
     expect(agentsResult).toEqual({
       agents: [expect.objectContaining({ id: 'deepchat' })]
     })
@@ -5021,7 +4988,6 @@ describe('dispatchDeepchatRoute', () => {
         summary: expect.objectContaining({ messageCount: 1 })
       })
     })
-    expect(retryResult).toEqual({ retried: true })
   })
 
   it('dispatches moved session read routes through explicit owners', async () => {

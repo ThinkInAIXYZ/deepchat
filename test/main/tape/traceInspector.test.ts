@@ -446,7 +446,10 @@ describe('Tape Trace Inspector projection', () => {
         messageId: 'message-1',
         orderSeq: 8,
         toolCallId: 'tool-call-1',
-        response: JSON.stringify({ result: 'recorded output', api_key: 'another-secret' })
+        response: JSON.stringify({ result: 'recorded output', api_key: 'another-secret' }),
+        rtkApplied: true,
+        rtkMode: 'rewrite',
+        rtkFallbackReason: 'legacy-metadata-must-not-cross-ipc'
       }),
       meta_json: JSON.stringify({ status: 'success' })
     })
@@ -469,6 +472,8 @@ describe('Tape Trace Inspector projection', () => {
     expect(details).toContain('recorded output')
     expect(details).not.toContain('secret-value')
     expect(details).not.toContain('another-secret')
+    expect(details).not.toContain('rtkApplied')
+    expect(details).not.toContain('legacy-metadata-must-not-cross-ipc')
 
     const unknownToolSchema = row(14, {
       kind: 'tool_result',

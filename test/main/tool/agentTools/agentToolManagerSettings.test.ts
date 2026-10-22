@@ -271,7 +271,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     resolveSkillExecutionAuthority.mockResolvedValue(authority)
     const execute = vi
       .spyOn(SkillExecutionService.prototype, 'execute')
-      .mockResolvedValue({ output: 'ok', rtkApplied: false, rtkMode: 'bypass' } as any)
+      .mockResolvedValue({ output: 'ok' } as any)
     const manager = buildManager()
     const commitDispatch = vi.fn()
 
@@ -317,9 +317,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     resolveSkillExecutionAuthority.mockResolvedValue(authority)
     vi.spyOn(SkillExecutionService.prototype, 'execute').mockResolvedValue({
       output: '[Process terminated: output exceeded 8 bytes.]',
-      outputLimited: true,
-      rtkApplied: false,
-      rtkMode: 'bypass'
+      outputLimited: true
     } as never)
     const manager = buildManager()
 

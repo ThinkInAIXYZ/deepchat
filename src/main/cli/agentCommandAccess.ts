@@ -30,7 +30,6 @@ function referencesAgentToken(command: string, commandShell: ResolvedCommandShel
 export type AgentCommandEnvironment = Readonly<{
   variables: Readonly<Record<string, string>>
   prependPath: readonly string[]
-  preserveCommand: boolean
 }>
 
 export type AgentCliCommandAccessOptions = Readonly<{
@@ -61,19 +60,17 @@ function createAgentCliCommandRegistry(): ReadonlyMap<string, AgentCliCommandCap
 
 const AGENT_CLI_COMMANDS = createAgentCliCommandRegistry()
 
-function unprivilegedAgentEnvironment(preserveCommand = false): AgentCommandEnvironment {
+function unprivilegedAgentEnvironment(): AgentCommandEnvironment {
   return {
     variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
-    prependPath: [],
-    preserveCommand
+    prependPath: []
   }
 }
 
 function localAgentEnvironment(cliDirectory: string | null): AgentCommandEnvironment {
   return {
     variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
-    prependPath: cliDirectory ? [cliDirectory] : [],
-    preserveCommand: true
+    prependPath: cliDirectory ? [cliDirectory] : []
   }
 }
 
@@ -134,8 +131,7 @@ export class AgentCliCommandAccess {
     }
     return {
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: armed.token },
-      prependPath: [cliDirectory],
-      preserveCommand: true
+      prependPath: [cliDirectory]
     }
   }
 
@@ -163,13 +159,13 @@ export class AgentCliCommandAccess {
       !commandMatch ||
       referencesAgentToken(normalizedCommand, commandShell)
     ) {
-      return unprivilegedAgentEnvironment(true)
+      return unprivilegedAgentEnvironment()
     }
 
     const capability = AGENT_CLI_COMMANDS.get(cliCommandKey(commandMatch[1], commandMatch[2]))
-    if (!capability) return unprivilegedAgentEnvironment(true)
+    if (!capability) return unprivilegedAgentEnvironment()
     const cliDirectory = this.options.resolveCliDirectory()
-    if (!cliDirectory) return unprivilegedAgentEnvironment(true)
+    if (!cliDirectory) return unprivilegedAgentEnvironment()
     const issued = this.options.tokenAuthority.issue({
       conversationId: normalizedConversationId,
       scopes: capability.scopes,
@@ -178,8 +174,7 @@ export class AgentCliCommandAccess {
     })
     return {
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: issued.token },
-      prependPath: [cliDirectory],
-      preserveCommand: true
+      prependPath: [cliDirectory]
     }
   }
 }

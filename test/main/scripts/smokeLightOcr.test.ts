@@ -366,15 +366,12 @@ describe('smoke-light-ocr', () => {
 
     await writeTree(unpackedRoot, {
       'runtime/uv/uv': 'uv-runtime',
-      'runtime/rtk/rtk': 'rtk-runtime',
       'runtime/duckdb/extensions/vss': 'existing-duckdb'
     })
     const components = await measurePackagedComponents(layout)
     expect(components.nodeRuntime.unpackedBytes).toBe(Buffer.byteLength('node'))
-    expect(components.otherRuntime.unpackedBytes).toBe(
-      Buffer.byteLength('uv-runtime') + Buffer.byteLength('rtk-runtime')
-    )
-    expect(Object.keys(components.otherRuntime.entries).sort()).toEqual(['rtk', 'uv'])
+    expect(components.otherRuntime.unpackedBytes).toBe(Buffer.byteLength('uv-runtime'))
+    expect(Object.keys(components.otherRuntime.entries)).toEqual(['uv'])
     expect(components.ocrAssets.unpackedBytes).toBeGreaterThan(0)
 
     if (process.platform !== 'win32') {

@@ -212,7 +212,7 @@ describe('ToolchainService lifecycle', () => {
 
     await Promise.all([service.install('uv'), service.install('uv')])
     expect(extracts).toBe(1)
-    expect(service.getState().uv).toEqual({ source: 'managed', version: '0.9.18' })
+    expect(service.getState().uv).toEqual({ source: 'managed', version: '0.13.5' })
   })
 
   it('repairs a managed tree without rewriting a system source', async () => {

@@ -327,7 +327,6 @@ export class McpClient {
     this.inMemoryServerFactory = inMemoryServerFactory
     this.runtime = runtime
     this.onRegistryChanged = onRegistryChanged
-    this.runtimeHelper.initializeRuntimes()
     this.toolchainService = ToolchainService.getInstance()
   }
 
@@ -564,7 +563,6 @@ export class McpClient {
         this.transport = clientTransport
       } else if (this.serverConfig.type === 'stdio') {
         // Initialize runtime paths if not already done
-        this.runtimeHelper.initializeRuntimes()
 
         // Create appropriate transport
         let command = resolveBinding(this.serverConfig.command as string)

@@ -328,32 +328,9 @@ describe('renderer api clients', () => {
                   },
                   calendar: [],
                   providerBreakdown: [],
-                  modelBreakdown: [],
-                  rtk: {
-                    scope: 'deepchat',
-                    enabled: true,
-                    effectiveEnabled: true,
-                    available: true,
-                    health: 'healthy',
-                    checkedAt: 123,
-                    source: 'bundled',
-                    failureStage: null,
-                    failureMessage: null,
-                    summary: {
-                      totalCommands: 0,
-                      totalInputTokens: 0,
-                      totalOutputTokens: 0,
-                      totalSavedTokens: 0,
-                      avgSavingsPct: 0,
-                      totalTimeMs: 0,
-                      avgTimeMs: 0
-                    },
-                    daily: []
-                  }
+                  modelBreakdown: []
                 }
               }
-            case 'sessions.retryRtkHealthCheck':
-              return { retried: true }
             case 'knowledge.isSupported':
               return { supported: true }
             case 'knowledge.getSupportedLanguages':
@@ -1808,11 +1785,9 @@ describe('renderer api clients', () => {
 
     await sessionClient.getAgents()
     await sessionClient.getUsageDashboard()
-    await sessionClient.retryRtkHealthCheck()
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'sessions.getAgents', {})
     expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'sessions.getUsageDashboard', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'sessions.retryRtkHealthCheck', {})
   })
 
   it('routes phase2 config, provider, and model calls through the shared registry names', async () => {

@@ -19,7 +19,6 @@
   "title": "도구 호출",
   "terminalOutput": "터미널 출력",
   "badge": {
-    "rtk": "RTK",
     "allowed": "허용됨",
     "denied": "거부됨"
   },

@@ -341,91 +341,6 @@
           </CardContent>
         </Card>
 
-        <Card data-testid="rtk-card" class="overflow-hidden border-none bg-card shadow-none">
-          <CardHeader class="pb-4">
-            <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div class="space-y-1">
-                <CardTitle>{{ t('settings.dashboard.rtk.title') }}</CardTitle>
-                <CardDescription>
-                  {{ t('settings.dashboard.rtk.description') }}
-                </CardDescription>
-              </div>
-              <div class="flex flex-wrap items-center gap-2">
-                <DcBadge
-                  data-testid="rtk-status-badge"
-                  variant="secondary"
-                  :class="rtkStatusBadgeClass"
-                >
-                  {{ rtkStatusLabel }}
-                </DcBadge>
-                <DcButton
-                  v-if="dashboard.rtk.health === 'unhealthy'"
-                  data-testid="rtk-retry-button"
-                  variant="outline"
-                  size="sm"
-                  :disabled="isRetryingRtk"
-                  @click="void retryRtkHealthCheck()"
-                >
-                  {{ t('settings.dashboard.rtk.actions.retry') }}
-                </DcButton>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent class="space-y-4">
-            <div
-              v-if="rtkStatusDescription"
-              data-testid="rtk-status-copy"
-              class="rounded-lg bg-card/60 px-4 py-3 text-sm text-muted-foreground"
-            >
-              <p>{{ rtkStatusDescription }}</p>
-            </div>
-
-            <div class="dashboard-rtk-summary-grid grid gap-3">
-              <div data-testid="rtk-summary-saved" class="rounded-lg bg-card/60 px-4 py-3">
-                <p class="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-                  {{ t('settings.dashboard.rtk.summary.savedTokens') }}
-                </p>
-                <p
-                  class="mt-1 text-lg font-bold tracking-tight"
-                  :title="formatFullTokens(dashboard.rtk.summary.totalSavedTokens)"
-                >
-                  {{ formatTokens(dashboard.rtk.summary.totalSavedTokens) }}
-                </p>
-              </div>
-
-              <div data-testid="rtk-summary-commands" class="rounded-lg bg-card/60 px-4 py-3">
-                <p class="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-                  {{ t('settings.dashboard.rtk.summary.commands') }}
-                </p>
-                <p class="mt-1 text-lg font-bold tracking-tight">
-                  {{ formatCount(dashboard.rtk.summary.totalCommands) }}
-                </p>
-              </div>
-
-              <div data-testid="rtk-summary-rate" class="rounded-lg bg-card/60 px-4 py-3">
-                <p class="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-                  {{ t('settings.dashboard.rtk.summary.avgSavingsPct') }}
-                </p>
-                <p class="mt-1 text-lg font-bold tracking-tight">
-                  {{ formatPercent(dashboard.rtk.summary.avgSavingsPct / 100) }}
-                </p>
-              </div>
-
-              <div data-testid="rtk-summary-output" class="rounded-lg bg-card/60 px-4 py-3">
-                <p class="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-                  {{ t('settings.dashboard.rtk.summary.outputTokens') }}
-                </p>
-                <p
-                  class="mt-1 text-lg font-bold tracking-tight"
-                  :title="formatFullTokens(dashboard.rtk.summary.totalOutputTokens)"
-                >
-                  {{ formatTokens(dashboard.rtk.summary.totalOutputTokens) }}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         <Card class="border-none bg-card shadow-none">
           <CardHeader class="pb-4">
             <CardTitle>{{ t('settings.dashboard.breakdown.categoryTitle') }}</CardTitle>
@@ -619,7 +534,6 @@ import { useDocumentVisibility, useTimeoutFn, useWindowFocus } from '@vueuse/cor
 import { Icon } from '@iconify/vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { DcButton } from '@dc-ui/components/button'
-import { DcBadge } from '@dc-ui/components/badge'
 import {
   Card,
   CardContent,
@@ -666,7 +580,6 @@ const emit = defineEmits<{
 }>()
 
 const isLoading = shallowRef(true)
-const isRetryingRtk = shallowRef(false)
 const errorMessage = shallowRef('')
 const dashboard = shallowRef<UsageDashboardData | null>(null)
 const calendarTooltip = shallowRef<CalendarTooltipState | null>(null)
@@ -720,59 +633,6 @@ const hasData = computed(
     (dashboard.value?.summary.messageCount ?? 0) > 0 ||
     (dashboard.value?.categoryBreakdown.length ?? 0) > 0
 )
-
-const rtkStatusLabel = computed(() => {
-  if (!dashboard.value?.rtk.enabled) {
-    return t('settings.dashboard.rtk.status.disabled')
-  }
-
-  if (dashboard.value.rtk.health === 'healthy') {
-    return rtkSourceLabel.value
-  }
-
-  return t(`settings.dashboard.rtk.status.${dashboard.value.rtk.health}`)
-})
-
-const rtkSourceLabel = computed(() => {
-  const source = dashboard.value?.rtk.source ?? 'none'
-  return t(`settings.dashboard.rtk.source.${source}`)
-})
-
-const rtkStatusDescription = computed(() => {
-  if (!dashboard.value) {
-    return ''
-  }
-
-  if (!dashboard.value.rtk.enabled) {
-    return t('settings.dashboard.rtk.descriptionDisabled')
-  }
-
-  if (dashboard.value.rtk.health === 'unhealthy') {
-    return dashboard.value.rtk.failureMessage || t('settings.dashboard.rtk.descriptionUnhealthy')
-  }
-
-  if (dashboard.value.rtk.health === 'checking') {
-    return t('settings.dashboard.rtk.descriptionChecking')
-  }
-
-  return ''
-})
-
-const rtkStatusBadgeClass = computed(() => {
-  if (!dashboard.value?.rtk.enabled) {
-    return 'border-border/60 text-muted-foreground'
-  }
-
-  if (dashboard.value.rtk.health === 'healthy') {
-    return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-  }
-
-  if (dashboard.value.rtk.health === 'unhealthy') {
-    return 'border-destructive/20 bg-destructive/10 text-destructive'
-  }
-
-  return 'border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-})
 
 const tokenUsageChartConfig = computed<ChartConfig>(() => ({
   input: {
@@ -962,23 +822,6 @@ async function runDashboardLoad(): Promise<void> {
   }
 }
 
-async function retryRtkHealthCheck(): Promise<void> {
-  if (isRetryingRtk.value) {
-    return
-  }
-
-  try {
-    isRetryingRtk.value = true
-    await sessionClient.retryRtkHealthCheck()
-    await loadDashboard()
-  } catch (error) {
-    errorMessage.value =
-      error instanceof Error ? error.message : t('settings.dashboard.error.description')
-  } finally {
-    isRetryingRtk.value = false
-  }
-}
-
 function canScheduleRefresh(): boolean {
   return documentVisibility.value === 'visible' && isWindowFocused.value
 }
@@ -1054,10 +897,6 @@ function formatTokens(value: number): string {
 }
 
 function formatFullTokens(value: number): string {
-  return localeFormatters.value.number.format(value)
-}
-
-function formatCount(value: number): string {
   return localeFormatters.value.number.format(value)
 }
 
@@ -1169,10 +1008,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.dashboard-rtk-summary-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
-}
-
 .calendar-heatmap {
   --calendar-column-gap: 1px;
   --calendar-row-gap: 1px;

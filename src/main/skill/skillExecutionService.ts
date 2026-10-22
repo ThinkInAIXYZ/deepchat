@@ -22,7 +22,6 @@ import {
 import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 import { resolveUsableSpawnCwd } from '@/agent/shared/process/spawnGuard'
 import { terminateProcessTree } from '@/agent/shared/process/processTree'
-import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { ToolchainService } from '@/toolchains'
 import type { CommandShellDialect, ResolvedCommandShell } from '@shared/commandShell'
 import type { ResolvedSkillExecutionAuthority } from './skillExecutionAuthority'
@@ -63,9 +62,6 @@ interface SkillExecutionServiceOptions {
 interface SkillExecutionResult {
   output: string | { status: 'running'; sessionId: string }
   outputLimited?: boolean
-  rtkApplied: boolean
-  rtkMode: 'rewrite' | 'direct' | 'bypass'
-  rtkFallbackReason?: string
   outputOffloadPath?: string
 }
 
@@ -102,12 +98,10 @@ interface ForegroundExecutionResult {
 }
 
 export class SkillExecutionService {
-  private readonly runtimeHelper = RuntimeHelper.getInstance()
   private readonly resolveConversationWorkdir?: (conversationId: string) => Promise<string | null>
 
   constructor(options: SkillExecutionServiceOptions = {}) {
     this.resolveConversationWorkdir = options.resolveConversationWorkdir
-    this.runtimeHelper.initializeRuntimes()
   }
 
   async execute(
@@ -208,9 +202,7 @@ export class SkillExecutionService {
         }
 
         return {
-          output: { status: 'running', sessionId: result.sessionId },
-          rtkApplied: plan.spawnMode === 'shell',
-          rtkMode: plan.spawnMode === 'shell' ? 'rewrite' : 'bypass'
+          output: { status: 'running', sessionId: result.sessionId }
         }
       }
 
@@ -236,8 +228,6 @@ export class SkillExecutionService {
       return {
         output: foregroundResult.output,
         outputLimited: foregroundResult.outputLimited,
-        rtkApplied: plan.spawnMode === 'shell',
-        rtkMode: plan.spawnMode === 'shell' ? 'rewrite' : 'bypass',
         outputOffloadPath: foregroundResult.outputOffloadPath
       }
     } finally {

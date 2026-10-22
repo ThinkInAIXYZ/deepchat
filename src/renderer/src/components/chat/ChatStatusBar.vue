@@ -147,7 +147,7 @@
                       class="mt-3 h-7 px-3 text-xs"
                       @click="retryModelOptionsInitialization"
                     >
-                      {{ t('settings.dashboard.rtk.actions.retry') }}
+                      {{ t('common.retry') }}
                     </DcButton>
                   </div>
 

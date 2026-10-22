@@ -334,9 +334,6 @@ export interface ToolCallBlockData {
   name?: string
   params?: string
   response?: string
-  rtkApplied?: boolean
-  rtkMode?: 'rewrite' | 'direct' | 'bypass'
-  rtkFallbackReason?: string
   imagePreviews?: ToolCallImagePreview[]
   server_name?: string
   server_icons?: string
@@ -544,45 +541,6 @@ export interface UsageDashboardCategoryItem {
   totalTokens: number
 }
 
-export type RtkHealthStatus = 'checking' | 'healthy' | 'unhealthy'
-export type RtkRuntimeSource = 'bundled' | 'system' | 'none'
-export type RtkFailureStage = 'resolve' | 'version' | 'rewrite' | 'smoke' | 'gain' | 'runtime'
-
-export interface UsageDashboardRtkSummary {
-  totalCommands: number
-  totalInputTokens: number
-  totalOutputTokens: number
-  totalSavedTokens: number
-  avgSavingsPct: number
-  totalTimeMs: number
-  avgTimeMs: number
-}
-
-export interface UsageDashboardRtkDay {
-  date: string
-  commands: number
-  inputTokens: number
-  outputTokens: number
-  savedTokens: number
-  savingsPct: number
-  totalTimeMs: number
-  avgTimeMs: number
-}
-
-export interface UsageDashboardRtkData {
-  scope: 'deepchat'
-  enabled: boolean
-  effectiveEnabled: boolean
-  available: boolean
-  health: RtkHealthStatus
-  checkedAt: number | null
-  source: RtkRuntimeSource
-  failureStage: RtkFailureStage | null
-  failureMessage: string | null
-  summary: UsageDashboardRtkSummary
-  daily: UsageDashboardRtkDay[]
-}
-
 export interface UsageDashboardData {
   recordingStartedAt: number | null
   backfillStatus: UsageStatsBackfillStatus
@@ -591,7 +549,6 @@ export interface UsageDashboardData {
   providerBreakdown: UsageDashboardBreakdownItem[]
   modelBreakdown: UsageDashboardBreakdownItem[]
   categoryBreakdown: UsageDashboardCategoryItem[]
-  rtk: UsageDashboardRtkData
 }
 
 export interface MessageTraceRecord {

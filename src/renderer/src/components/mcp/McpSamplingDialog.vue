@@ -150,7 +150,7 @@
           >
             <div>{{ t('model.error.loadFailed') }}</div>
             <DcButton variant="outline" class="mt-3" @click="onRetryModels">
-              {{ t('settings.dashboard.rtk.actions.retry') }}
+              {{ t('common.retry') }}
             </DcButton>
           </div>
 

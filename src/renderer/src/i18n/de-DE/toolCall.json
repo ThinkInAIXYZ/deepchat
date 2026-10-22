@@ -13,7 +13,6 @@
   "imagePreviewCount": "Keine Bildvorschau | {count} Bildvorschau | {count} Bildvorschauen",
   "terminalOutput": "Terminalausgabe",
   "badge": {
-    "rtk": "RTK",
     "allowed": "Erlaubt",
     "denied": "Abgelehnt"
   },

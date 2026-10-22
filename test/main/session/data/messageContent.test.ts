@@ -82,8 +82,6 @@ const ASSISTANT_BLOCKS: AssistantMessageBlock[] = [
       name: 'search',
       params: '{"q":"x"}',
       response: 'result',
-      rtkApplied: true,
-      rtkMode: 'rewrite',
       imagePreviews: [{ mimeType: 'image/png', data: 'AAA' }] as never,
       server_name: 'web',
       server_icons: 'icon',

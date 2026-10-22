@@ -19,7 +19,6 @@
   "title": "Værktøjskald",
   "terminalOutput": "Terminaludgang",
   "badge": {
-    "rtk": "RTK",
     "allowed": "Tilladt",
     "denied": "Afvist"
   },

@@ -19,7 +19,6 @@
   "title": "工具調用",
   "terminalOutput": "終端輸出",
   "badge": {
-    "rtk": "RTK",
     "allowed": "已允許",
     "denied": "已拒絕"
   },

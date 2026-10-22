@@ -3,8 +3,8 @@
 ## Status
 
 The resolver, first-run persistence, managed downloader, Settings surface, and Electron-hosted CLI
-are implemented. Default runtime installation excludes Node. `RuntimeHelper` owns RTK; the
-ToolchainService owns Node/uv resolution. The plan retains the integration and packaging acceptance
+are implemented. Default runtime installation excludes Node. `RuntimeHelper` provides path utilities;
+ToolchainService owns Node/uv/cloudflared resolution. The plan retains the integration and packaging acceptance
 work until its required validation is recorded.
 
 Related: [GitHub issue #2153](https://github.com/ThinkInAIXYZ/deepchat/issues/2153).
@@ -28,8 +28,8 @@ from v0.2.4 through v0.4.8 and removed in v0.4.9. It is not installed today.
 Issue #2153 asks to stop shipping language runtimes in the app artifact and treat
 them as optional, independently managed installs. This RFC keeps uv as a bundled
 seed (removing the small binary and re-downloading it is worse than keeping
-it) and moves official Node to an on-demand managed install. RTK, OCR models/native, CUA, and DuckDB VSS stay on
-their own lifecycles.
+it) and moves official Node to an on-demand managed install. OCR models/native, CUA, and DuckDB VSS
+stay on their own lifecycles.
 
 ## Goals
 
@@ -50,7 +50,7 @@ their own lifecycles.
 - Bun downloader, bunx-as-default JS MCP, or restoring historical Bun shipping.
 - Full CPython. Skills keep using uv or an explicit system Python override.
 - mise, asdf, nvm, or any version-manager shim layer.
-- Migrating RTK, OCR assets, CUA, or DuckDB VSS onto this lifecycle.
+- Migrating OCR assets, CUA, or DuckDB VSS onto this lifecycle.
 - Auto-download on startup, silent source switch, or a telemetry/analytics SDK.
 - Using Electron's Node (ABI 145) for OCR native modules or for `npx` MCP.
 - Two managed Node versions. Catalog publishes one pin.
@@ -73,7 +73,7 @@ Settings / MCP / ACP / Skill / OCR
         └── custom path
 ```
 
-`RuntimeHelper` remains the RTK probe and the small PATH/expand utilities.
+`RuntimeHelper` provides the small PATH/expand utilities.
 Node and uv command rewrite must not go through `RuntimeHelper`.
 
 CLI does not resolve toolchains. The CLI host is always the packaged Electron
@@ -201,12 +201,12 @@ download CPython.
 
 ### Packaging end state
 
-Installer contains: app, uv+uvx seed, OCR models/native, RTK, DuckDB VSS, CLI
+Installer contains: app, uv+uvx seed, cloudflared, OCR models/native, DuckDB VSS, CLI
 scripts, skills, official plugins.
 
 Installer does not contain: Node/npm/npx/corepack, Bun, full CPython.
 
-`install-runtime.mjs` keeps installing uv (and RTK). Node install becomes a
+`install-runtime.mjs` installs uv and cloudflared where supported. Node install becomes a
 pack-time no-op after the CLI Electron host and managed downloader ship.
 Pack-time verification for any remaining Node seed, and for every managed
 artifact, must checksum the completeness set, not only `node`.

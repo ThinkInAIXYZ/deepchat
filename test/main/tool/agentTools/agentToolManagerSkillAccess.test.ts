@@ -356,9 +356,7 @@ describe('AgentToolManager skill file access', () => {
       originalCommand: 'pwd',
       command: 'pwd',
       env: { PATH: '/bin' },
-      rewritten: false,
-      rtkApplied: false,
-      rtkMode: 'bypass'
+      rewritten: false
     })
     const runShellProcess = vi
       .spyOn(AgentBashHandler.prototype as never, 'runShellProcess' as never)

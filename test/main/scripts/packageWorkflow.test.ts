@@ -121,7 +121,6 @@ const commonInputs = {
 }
 
 const commonSecrets = {
-  RTK_GITHUB_TOKEN: { required: false },
   DC_GITHUB_CLIENT_ID: { required: false },
   DC_GITHUB_CLIENT_SECRET: { required: false },
   DC_GITHUB_REDIRECT_URI: { required: false }
@@ -224,7 +223,7 @@ describe('native package reusable workflows', () => {
       expect(sharpIndex).toBeLessThan(installs[1].index)
       const setupNode = steps.find((step) => step.uses?.startsWith('actions/setup-node@'))
       expect(setupNode?.with).toMatchObject({
-        'node-version': '24.21.0',
+        'node-version': '24.22.1',
         'package-manager-cache': false
       })
     }
@@ -412,7 +411,7 @@ fi
   it('firewalls the same Node binary the Light OCR smoke actually uses', () => {
     const source = readWorkflowSource(reusableWorkflows.windows.name)
     expect(source).toContain("$nodePath = [string](node -p 'process.execPath')")
-    expect(source).toContain("if ($nodeVersion -ne 'v24.21.0')")
+    expect(source).toContain("if ($nodeVersion -ne 'v24.22.1')")
     expect(source).not.toContain('Get-Command node')
   })
 })

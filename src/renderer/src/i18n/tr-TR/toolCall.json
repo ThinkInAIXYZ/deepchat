@@ -13,7 +13,6 @@
   "imagePreviewCount": "Resim önizlemesi yok | {count} resim önizlemesi | {count} resim önizlemesi",
   "terminalOutput": "Terminal Çıkışı",
   "badge": {
-    "rtk": "RTK",
     "allowed": "İzin verildi",
     "denied": "Reddedildi"
   },

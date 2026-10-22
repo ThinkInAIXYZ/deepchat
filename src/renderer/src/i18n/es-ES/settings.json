@@ -154,9 +154,9 @@
       "runtime_manifest_invalid": "El manifiesto del entorno OCR incluido no es válido.",
       "service_closed": "El servicio OCR se está cerrando.",
       "unsupported_platform": "OCR no está disponible para esta plataforma y arquitectura.",
-      "toolchain_unavailable": "OCR necesita Node.js oficial v24.21.0. Abre Ajustes → Cadenas de herramientas e instala el runtime oficial.",
-      "version_mismatch": "OCR necesita Node.js v24.21.0. Esta versión está fuera del rango. Abre Ajustes → Cadenas de herramientas e instala el runtime oficial.",
-      "abi_mismatch": "OCR necesita Node.js ABI 137 (v24.21.0). Abre Ajustes → Cadenas de herramientas e instala el runtime oficial."
+      "toolchain_unavailable": "OCR necesita Node.js oficial v24.22.1. Abre Ajustes → Cadenas de herramientas e instala el runtime oficial.",
+      "version_mismatch": "OCR necesita Node.js v24.22.1. Esta versión está fuera del rango. Abre Ajustes → Cadenas de herramientas e instala el runtime oficial.",
+      "abi_mismatch": "OCR necesita Node.js ABI 137 (v24.22.1). Abre Ajustes → Cadenas de herramientas e instala el runtime oficial."
     },
     "processStates": {
       "idle": "Inactivo",
@@ -922,35 +922,6 @@
       "unknownUsage": "{count} usos desconocidos",
       "messages": "{count} mensajes",
       "empty": "Aún no hay datos desglosados."
-    },
-    "rtk": {
-      "title": "RTK Ahorros",
-      "description": "Se estima que tokens impidió que RTK alcanzara el contexto del modelo durante la ejecución del comando nativo de DeepChat.",
-      "actions": {
-        "retry": "Reintentar verificación"
-      },
-      "status": {
-        "disabled": "Discapacitado",
-        "checking": "comprobando",
-        "healthy": "saludable",
-        "unhealthy": "No disponible"
-      },
-      "descriptionDisabled": "RTK está desactivado para esta sesión de aplicación, por lo que los comandos se ejecutan a través de la ruta de ejecución normal.",
-      "descriptionChecking": "DeepChat está verificando si RTK puede ejecutarse correctamente en el entorno actual.",
-      "descriptionHealthy": "RTK está activo para la ejecución de comandos nativos de DeepChat.",
-      "descriptionUnhealthy": "RTK falló su verificación de estado de inicio y se deshabilitó para esta sesión de aplicación.",
-      "sourceLabel": "Fuente de tiempo de ejecución: {source}",
-      "source": {
-        "bundled": "incluido",
-        "system": "Sistema",
-        "none": "No disponible"
-      },
-      "summary": {
-        "savedTokens": "Guardado tokens",
-        "commands": "Comandos rastreados",
-        "avgSavingsPct": "Ahorro promedio",
-        "outputTokens": "Salida filtrada"
-      }
     },
     "unavailable": "N/A"
   },
@@ -3481,7 +3452,7 @@
       "activation_failed": "No se pudo activar el runtime.",
       "unsupported_platform": "Esta plataforma no tiene un runtime oficial."
     },
-    "ocrPinHint": "OCR necesita Node oficial v24.21.0 (ABI 137). Este runtime sirve para el chat y MCP, pero no para OCR. Instala el runtime oficial.",
+    "ocrPinHint": "OCR necesita Node oficial v24.22.1 (ABI 137). Este runtime sirve para el chat y MCP, pero no para OCR. Instala el runtime oficial.",
     "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {
