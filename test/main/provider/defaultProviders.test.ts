@@ -209,6 +209,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes apimodels.app as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'apimodels',
+        name: 'apimodels.app',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.apimodels.app/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://apimodels.app/',
+          apiKey: 'https://apimodels.app/console/api-keys',
+          docs: 'https://apimodels.app/docs',
+          models: 'https://apimodels.app/models',
+          defaultBaseUrl: 'https://api.apimodels.app/v1'
+        })
+      })
+    )
+  })
+
   it('includes API Route as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

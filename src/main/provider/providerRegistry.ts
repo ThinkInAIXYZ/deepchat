@@ -321,6 +321,14 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'apimodels',
+    createDefinition({
+      ...OPENAI_BASE,
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none'
+    })
+  ],
+  [
     'gemini',
     createDefinition({
       runtimeKind: 'gemini',

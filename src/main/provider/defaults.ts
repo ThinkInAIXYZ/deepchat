@@ -179,6 +179,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'apimodels',
+    name: 'apimodels.app',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.apimodels.app/v1',
+    enable: false,
+    websites: {
+      official: 'https://apimodels.app/',
+      apiKey: 'https://apimodels.app/console/api-keys',
+      docs: 'https://apimodels.app/docs',
+      models: 'https://apimodels.app/models'
+    }
+  },
+  {
     id: 'api-route',
     name: 'API Route',
     apiType: 'openai-completions',

@@ -916,6 +916,25 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('resolves apimodels.app through authenticated OpenAI-compatible model discovery', () => {
+    expect(
+      resolveAiSdkProviderDefinition(
+        createProvider({
+          id: 'apimodels',
+          name: 'apimodels.app',
+          baseUrl: 'https://api.apimodels.app/v1'
+        })
+      )
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none'
+    })
+  })
+
   it('resolves Y-API through authenticated OpenAI-compatible model discovery', () => {
     expect(
       resolveAiSdkProviderDefinition(
