@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.1.4-beta.6 (2026-10-22)
+- Simplified sidebar navigation and consolidated conversation search in global search, with matching conversation titles shown before message results
+- Fixed global search selecting results while confirming text with an input method, and loaded bundled icons before rendering the interface
+- Removed built-in RTK command rewriting, its runtime, and the RTK usage dashboard
+- Updated Electron to 43.8.3, bundled Node.js to 24.22.1, uv to 0.13.5, and cloudflared to 2026.10.3
+- Refreshed the bundled model and ACP catalogs
+- 简化侧栏导航，将会话搜索统一到全局搜索，优先展示标题匹配的会话，再展示消息结果
+- 修复全局搜索中使用输入法确认文字时误选结果的问题，并在界面渲染前加载内置图标
+- 移除内置 RTK 命令改写、运行时与 RTK 用量面板
+- 将 Electron 升级至 43.8.3，内置 Node.js 升级至 24.22.1、uv 升级至 0.13.5、cloudflared 升级至 2026.10.3
+- 刷新内置模型与 ACP 目录
+
 ## v1.1.4-beta.5 (2026-10-20)
 - Refreshed the desktop interface in light and dark themes, with a unified sidebar, integrated composer controls, searchable settings navigation, and compact ACP Agent details
 - Open the workspace and browser before sending the first message, keeping their state after submission
