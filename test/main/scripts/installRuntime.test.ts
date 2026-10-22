@@ -45,6 +45,13 @@ describe('install-runtime', () => {
       }
       const manifestPath = path.join(tempDir, 'runtime-versions.json')
       await writeFile(manifestPath, JSON.stringify(manifest))
+
+      expect(loadRuntimeVersions(manifestPath)).toMatchObject({
+        tinyRuntimeInjector: manifest.tinyRuntimeInjector,
+        node: manifest.node,
+        uv: manifest.uv,
+        cloudflared: manifest.cloudflared
+      })
     } finally {
       await rm(tempDir, { recursive: true, force: true })
     }

@@ -10,6 +10,9 @@
 ## Validation
 
 - 88 focused main-process suites / 1146 tests and three renderer suites / 125 tests pass.
+- The full main-process suite passes: 675 suites / 9817 tests, with two suites / six tests skipped.
+- Five focused suites / 109 tests pass, covering the route catalog, background startup event
+  projection, legacy runtime manifest loading, packaged uv size accounting, and baseline generation.
 - Six Electron launch, settings navigation, and dashboard route smoke tests pass with isolated
   fixture profiles. The settings screenshots confirm the usage dashboard without the RTK card.
 - Shell regression protection covers unchanged approved command text, one execution even after an
@@ -27,11 +30,17 @@
 - Electron 43.8.3 reports embedded Node 24.22.0 / Undici 7.29.1 / ABI 148. Updating the standalone
   Node pin does not patch this separate embedded runtime.
 - Encrypted SQLite open/write/reopen/read passes under the installed Electron native ABI.
+- [Build Application](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/39723006027) builds and
+  uploads all six distribution targets. Its source commit is `66a1a2e612b0d8c67558c4c79984494396869922`.
+- [Package Check](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/39724302188) passes all six
+  verification targets, including packaged native dependencies, offline OCR, and macOS OCR
+  performance gates. Its source commit is `9db26c0d788b40c1a48fc114a1a7ce23f0c4c6d5`.
+  Both commits contain the same production source as this change.
 
 ## Limits
 
-Windows, Linux, macOS x64, signed packages, and packaged OCR performance gates require platform CI.
 The source-layout CPU smoke sampled about 368 MiB RSS; auto/CoreML sampled about 1047 MiB during
-startup. Recognition correctness passed, but this does not establish the packaged memory budget.
+startup. Hardware-specific cold-start performance is bounded by these samples and the platform
+CI checks above.
 Existing selected managed/system/custom toolchains remain selected; new defaults do not silently
 upgrade them. Historical RTK preferences and its private database are left inert.

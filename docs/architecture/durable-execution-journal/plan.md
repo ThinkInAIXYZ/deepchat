@@ -168,11 +168,11 @@ For a local target sharing the Tape SQLite connection, T1 is committed outside t
 after read preflight and immediately before the synchronous mutation transaction begins.
 
 Handlers with a bounded internal fallback keep one operation identity in v1, but the dispatch hash
-must cover the complete resolved invocation plan before the first target call. In particular, shell
-execution records both an RTK-rewritten command and its capability-error fallback when that fallback
-is possible. Process handlers validate the final spawn cwd before committing dispatch. A permission
-response after dispatch is a protocol violation: commit it as a known error outcome, then fail the
-Run closed instead of retrying or projecting it as an ordinary permission pause.
+must cover the complete resolved invocation plan before the first target call. Shell
+execution records the unchanged approved command and does not replay it after capability errors.
+Process handlers validate the final spawn cwd before committing dispatch. A permission response
+after dispatch is a protocol violation: commit it as a known error outcome, then fail the Run closed
+instead of retrying or projecting it as an ordinary permission pause.
 
 After execution, the loop normalizes and prepares the result. If T1 was committed, it commits T2
 before the harness applies the finalized result to conversation messages, assistant blocks,

@@ -497,7 +497,20 @@ describe('Main log event projection', () => {
     'sqlite_mainline_normalization',
     'toolchain_gc',
     'usage_stats_backfill'
-  ] as const)('accepts the background startup component %s', (component) => {})
+  ] as const)('accepts the background startup component %s', (component) => {
+    const category = component === 'toolchain_gc' ? 'resource' : 'persistence'
+    expect(
+      projectMainLogEvent('app.startup.component.failed', {
+        startupRunId: 'main:123:1',
+        component,
+        error: { category }
+      }).context
+    ).toEqual({
+      startupRunId: 'main:123:1',
+      component,
+      error: { category }
+    })
+  })
 
   it('keeps reconciliation terminal events terminal-only', () => {
     const identity = {

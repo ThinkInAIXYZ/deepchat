@@ -370,6 +370,8 @@ describe('smoke-light-ocr', () => {
     })
     const components = await measurePackagedComponents(layout)
     expect(components.nodeRuntime.unpackedBytes).toBe(Buffer.byteLength('node'))
+    expect(components.otherRuntime.unpackedBytes).toBe(Buffer.byteLength('uv-runtime'))
+    expect(Object.keys(components.otherRuntime.entries)).toEqual(['uv'])
     expect(components.ocrAssets.unpackedBytes).toBeGreaterThan(0)
 
     if (process.platform !== 'win32') {

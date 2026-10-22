@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "goal": "agent-system-layered-runtime",
-  "headCommit": "c197fe2353f978e357b1bc991730248ba52cf99e",
+  "headCommit": "9db26c0d788b40c1a48fc114a1a7ce23f0c4c6d5",
   "relevantWorkingTree": {
     "dirty": false,
     "files": []
@@ -42,9 +42,14 @@
     "src/main/agent/acp/runtime/acpCapabilities.ts",
     "src/main/agent/acp/runtime/acpCompatibilityPromptBuilder.ts",
     "src/main/agent/acp/runtime/acpConfigState.ts",
+    "src/main/agent/acp/runtime/acpConnection.ts",
     "src/main/agent/acp/runtime/acpContentMapper.ts",
     "src/main/agent/acp/runtime/acpDebugLog.ts",
+    "src/main/agent/acp/runtime/acpElicitationBridge.ts",
+    "src/main/agent/acp/runtime/acpExtensionState.ts",
     "src/main/agent/acp/runtime/acpFsHandler.ts",
+    "src/main/agent/acp/runtime/acpHistory.ts",
+    "src/main/agent/acp/runtime/acpLodyExtensions.ts",
     "src/main/agent/acp/runtime/acpMessageFormatter.ts",
     "src/main/agent/acp/runtime/acpPathGuard.ts",
     "src/main/agent/acp/runtime/acpPermissionBridge.ts",
@@ -102,12 +107,17 @@
     "src/main/agent/deepchat/runtime/interactionCoordinator.ts",
     "src/main/agent/deepchat/runtime/interactionParkingRegistry.ts",
     "src/main/agent/deepchat/runtime/interactionProjection.ts",
+    "src/main/agent/deepchat/runtime/jevPermissionQuestions.ts",
+    "src/main/agent/deepchat/runtime/jevPruningFeedback.ts",
+    "src/main/agent/deepchat/runtime/jevReviewState.ts",
+    "src/main/agent/deepchat/runtime/jevToolResultPruning.ts",
     "src/main/agent/deepchat/runtime/messageProjectionService.ts",
     "src/main/agent/deepchat/runtime/messageTracePayload.ts",
     "src/main/agent/deepchat/runtime/noProgressToolLoopGuard.ts",
     "src/main/agent/deepchat/runtime/pendingInputAdmissionCoordinator.ts",
     "src/main/agent/deepchat/runtime/pendingInputContracts.ts",
     "src/main/agent/deepchat/runtime/pendingInputPump.ts",
+    "src/main/agent/deepchat/runtime/pluginContext.ts",
     "src/main/agent/deepchat/runtime/preStreamWatchdog.ts",
     "src/main/agent/deepchat/runtime/process.ts",
     "src/main/agent/deepchat/runtime/programmaticExecParent.ts",
@@ -118,6 +128,7 @@
     "src/main/agent/deepchat/runtime/providerPermissionCoordinator.ts",
     "src/main/agent/deepchat/runtime/providerPermissionResolution.ts",
     "src/main/agent/deepchat/runtime/providerReplaySegments.ts",
+    "src/main/agent/deepchat/runtime/reviewText.ts",
     "src/main/agent/deepchat/runtime/runLifecycleCoordinator.ts",
     "src/main/agent/deepchat/runtime/runTerminalProjectionError.ts",
     "src/main/agent/deepchat/runtime/runtimeErrorLogging.ts",
@@ -168,10 +179,10 @@
     "src/main/agent/shared/process/backgroundExecLogger.ts",
     "src/main/agent/shared/process/backgroundExecSessionManager.ts",
     "src/main/agent/shared/process/backgroundExecUtilityHost.ts",
+    "src/main/agent/shared/process/childProcessRegistry.ts",
     "src/main/agent/shared/process/commandShellPath.ts",
     "src/main/agent/shared/process/commandShellService.ts",
     "src/main/agent/shared/process/processTree.ts",
-    "src/main/agent/shared/process/rtkRuntimeService.ts",
     "src/main/agent/shared/process/shellEnvHelper.ts",
     "src/main/agent/shared/process/shellOutputEncoding.ts",
     "src/main/agent/shared/process/spawnGuard.ts",
@@ -419,6 +430,7 @@
   "contracts": {
     "files": [
       "src/shared/contracts/events/acp-auth.events.ts",
+      "src/shared/contracts/events/acp-extensions.events.ts",
       "src/shared/contracts/events/app-runtime.events.ts",
       "src/shared/contracts/events/approvals.events.ts",
       "src/shared/contracts/events/browser.events.ts",
@@ -449,6 +461,7 @@
       "src/shared/contracts/events/window.events.ts",
       "src/shared/contracts/events/workspace.events.ts",
       "src/shared/contracts/routes/acp-auth.routes.ts",
+      "src/shared/contracts/routes/acp-extensions.routes.ts",
       "src/shared/contracts/routes/approvals.routes.ts",
       "src/shared/contracts/routes/artifacts.routes.ts",
       "src/shared/contracts/routes/audio.routes.ts",
@@ -487,6 +500,8 @@
       "src/shared/contracts/routes/skills.routes.ts",
       "src/shared/contracts/routes/startup.routes.ts",
       "src/shared/contracts/routes/sync.routes.ts",
+      "src/shared/contracts/routes/syncHost.routes.ts",
+      "src/shared/contracts/routes/syncPeer.routes.ts",
       "src/shared/contracts/routes/system.routes.ts",
       "src/shared/contracts/routes/tab.routes.ts",
       "src/shared/contracts/routes/toolchains.routes.ts",
@@ -495,7 +510,7 @@
       "src/shared/contracts/routes/window.routes.ts",
       "src/shared/contracts/routes/workspace.routes.ts"
     ],
-    "sha256": "fe38e410c549358f61969450c43acf85a057bb560b6bfa85b8b21c1116ee01d4"
+    "sha256": "c9dbfcd3af962dca818f3b78fed0a81bd5aa91fc2abb0dc1cead48c130ba14c6"
   },
   "storage": {
     "sqlite": {
@@ -505,7 +520,7 @@
         "src/main/data/schemaTypes.ts"
       ],
       "tableIdentifiers": [],
-      "sha256": "6e42c951463b29919331fe327d5f59a20736ba4b5297f31de48eb2c60f0aa8bf"
+      "sha256": "4565f6894a783b99af92bb1f33c877eb1936e3cf4c69a545eb9e5cee44f47ac0"
     },
     "memoryDuckDbSidecar": {
       "files": [
@@ -525,7 +540,7 @@
       "src/main/app/mainProcess.ts",
       "src/main/appMain.ts"
     ],
-    "sha256": "4c9fb7ebe2df70dfa9c194a14d6588ee2693fb42dec7cb96f96bc559de9df830"
+    "sha256": "40c6f42127aa5d3fb30e0e93c72403743d1b1aa83c44918edf2d9455f6bd2647"
   },
   "dependencyMetrics": {
     "loopFiles": [
