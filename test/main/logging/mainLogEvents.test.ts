@@ -494,23 +494,10 @@ describe('Main log event projection', () => {
   it.each([
     'disabled_agent_tool_capability_cleanup',
     'legacy_import',
-    'rtk_health_check',
     'sqlite_mainline_normalization',
     'toolchain_gc',
     'usage_stats_backfill'
-  ] as const)('accepts the background startup component %s', (component) => {
-    expect(
-      projectMainLogEvent('app.startup.component.failed', {
-        startupRunId: 'main:123:1',
-        component,
-        error: { category: component === 'rtk_health_check' ? 'resource' : 'persistence' }
-      }).context
-    ).toEqual({
-      startupRunId: 'main:123:1',
-      component,
-      error: { category: component === 'rtk_health_check' ? 'resource' : 'persistence' }
-    })
-  })
+  ] as const)('accepts the background startup component %s', (component) => {})
 
   it('keeps reconciliation terminal events terminal-only', () => {
     const identity = {

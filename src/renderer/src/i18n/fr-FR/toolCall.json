@@ -19,7 +19,6 @@
   "title": "Appel d'outil",
   "terminalOutput": "Sortie terminale",
   "badge": {
-    "rtk": "RTK",
     "allowed": "Autorisé",
     "denied": "Refusé"
   },

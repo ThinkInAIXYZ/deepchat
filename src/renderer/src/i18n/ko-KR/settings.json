@@ -551,35 +551,6 @@
       "messages": "메시지 {count}개",
       "empty": "표시할 세부 통계가 아직 없어요."
     },
-    "rtk": {
-      "title": "RTK 절감량",
-      "description": "DeepChat 기본 명령 실행 중 RTK가 모델 컨텍스트에 도달하지 못하게 막은 것으로 추정되는 토큰 수입니다.",
-      "actions": {
-        "retry": "다시 확인"
-      },
-      "status": {
-        "disabled": "비활성화됨",
-        "checking": "확인 중",
-        "healthy": "정상",
-        "unhealthy": "사용 불가"
-      },
-      "descriptionDisabled": "이 앱 세션에서는 RTK가 꺼져 있으므로 명령이 일반 실행 경로로 처리됩니다.",
-      "descriptionChecking": "DeepChat이 현재 환경에서 RTK가 올바르게 실행될 수 있는지 확인하고 있습니다.",
-      "descriptionHealthy": "RTK가 DeepChat 기본 명령 실행에 활성화되어 있습니다.",
-      "descriptionUnhealthy": "RTK 시작 상태 검사에 실패하여 이 앱 세션에서는 비활성화되었습니다.",
-      "sourceLabel": "런타임 소스: {source}",
-      "source": {
-        "bundled": "번들 제공",
-        "system": "시스템",
-        "none": "사용 불가"
-      },
-      "summary": {
-        "savedTokens": "절감된 토큰",
-        "commands": "추적된 명령",
-        "avgSavingsPct": "평균 절감률",
-        "outputTokens": "필터링된 출력"
-      }
-    },
     "unavailable": "해당 없음"
   },
   "modelConfigItem": {
@@ -2784,9 +2755,9 @@
       "runtime_manifest_invalid": "내장 OCR 런타임 매니페스트가 올바르지 않습니다.",
       "service_closed": "OCR 서비스를 종료하는 중입니다.",
       "unsupported_platform": "이 플랫폼과 아키텍처에서는 OCR을 사용할 수 없습니다.",
-      "toolchain_unavailable": "OCR에는 공식 Node.js v24.21.0이 필요합니다. 설정 → 툴체인에서 공식 런타임을 설치하세요.",
-      "version_mismatch": "OCR에는 Node.js v24.21.0이 필요합니다. 현재 Node는 이 범위 밖입니다. 설정 → 툴체인에서 공식 런타임을 설치하세요.",
-      "abi_mismatch": "OCR에는 Node.js ABI 137(v24.21.0)이 필요합니다. 설정 → 툴체인에서 공식 런타임을 설치하세요."
+      "toolchain_unavailable": "OCR에는 공식 Node.js v24.22.1이 필요합니다. 설정 → 툴체인에서 공식 런타임을 설치하세요.",
+      "version_mismatch": "OCR에는 Node.js v24.22.1이 필요합니다. 현재 Node는 이 범위 밖입니다. 설정 → 툴체인에서 공식 런타임을 설치하세요.",
+      "abi_mismatch": "OCR에는 Node.js ABI 137(v24.22.1)이 필요합니다. 설정 → 툴체인에서 공식 런타임을 설치하세요."
     },
     "processStates": {
       "idle": "유휴",
@@ -3481,7 +3452,7 @@
       "activation_failed": "런타임을 활성화할 수 없습니다.",
       "unsupported_platform": "이 플랫폼에는 공식 런타임이 없습니다."
     },
-    "ocrPinHint": "OCR에는 공식 Node v24.21.0(ABI 137)이 필요합니다. 이 런타임은 채팅과 MCP에는 사용할 수 있지만 OCR에는 사용할 수 없습니다. 공식 런타임을 설치하세요.",
+    "ocrPinHint": "OCR에는 공식 Node v24.22.1(ABI 137)이 필요합니다. 이 런타임은 채팅과 MCP에는 사용할 수 있지만 OCR에는 사용할 수 없습니다. 공식 런타임을 설치하세요.",
     "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {

@@ -154,9 +154,9 @@
       "runtime_manifest_invalid": "Manifes runtime OCR bawaan tidak valid.",
       "service_closed": "Layanan OCR sedang dihentikan.",
       "unsupported_platform": "OCR tidak tersedia untuk platform dan arsitektur ini.",
-      "toolchain_unavailable": "OCR membutuhkan Node.js resmi v24.21.0. Buka Pengaturan → Toolchain dan pasang runtime resmi.",
-      "version_mismatch": "OCR membutuhkan Node.js v24.21.0. Versi ini di luar rentang. Buka Pengaturan → Toolchain dan pasang runtime resmi.",
-      "abi_mismatch": "OCR membutuhkan Node.js ABI 137 (v24.21.0). Buka Pengaturan → Toolchain dan pasang runtime resmi."
+      "toolchain_unavailable": "OCR membutuhkan Node.js resmi v24.22.1. Buka Pengaturan → Toolchain dan pasang runtime resmi.",
+      "version_mismatch": "OCR membutuhkan Node.js v24.22.1. Versi ini di luar rentang. Buka Pengaturan → Toolchain dan pasang runtime resmi.",
+      "abi_mismatch": "OCR membutuhkan Node.js ABI 137 (v24.22.1). Buka Pengaturan → Toolchain dan pasang runtime resmi."
     },
     "processStates": {
       "idle": "Tidak aktif",
@@ -922,35 +922,6 @@
       "unknownUsage": "{count} penggunaan tidak diketahui",
       "messages": "{count} pesan",
       "empty": "Belum ada data detail untuk ditampilkan."
-    },
-    "rtk": {
-      "title": "RTK Simpan",
-      "description": "Tampilkan RTK di tautan eksekusi perintah asli DeepChat, dan perkirakan berapa banyak token yang belum memasuki konteks model yang diblokir.",
-      "actions": {
-        "retry": "Coba lagi deteksi"
-      },
-      "status": {
-        "disabled": "Dinonaktifkan",
-        "checking": "Sedang terdeteksi",
-        "healthy": "Tersedia",
-        "unhealthy": "Tidak tersedia"
-      },
-      "descriptionDisabled": "RTK ditutup pada sesi aplikasi saat ini, dan perintah akan terus mengikuti jalur eksekusi asli.",
-      "descriptionChecking": "DeepChat sedang memeriksa apakah RTK dapat berjalan normal di lingkungan saat ini.",
-      "descriptionHealthy": "RTK telah terhubung ke DeepChat eksekusi perintah asli.",
-      "descriptionUnhealthy": "RTK Pemeriksaan kesehatan startup gagal dan secara otomatis dinonaktifkan pada sesi aplikasi saat ini.",
-      "sourceLabel": "Sumber waktu proses: {source}",
-      "source": {
-        "bundled": "Bawaan",
-        "system": "sistem",
-        "none": "Tidak tersedia"
-      },
-      "summary": {
-        "savedTokens": "Simpan Token",
-        "commands": "Perintah yang dilacak",
-        "avgSavingsPct": "tingkat tabungan rata-rata",
-        "outputTokens": "Keluaran yang difilter"
-      }
     },
     "unavailable": "Belum ada"
   },
@@ -3481,7 +3452,7 @@
       "activation_failed": "Runtime tidak dapat diaktifkan.",
       "unsupported_platform": "Platform ini tidak memiliki runtime resmi."
     },
-    "ocrPinHint": "OCR membutuhkan Node resmi v24.21.0 (ABI 137). Runtime ini siap untuk chat dan MCP, tetapi tidak untuk OCR. Pasang runtime resmi.",
+    "ocrPinHint": "OCR membutuhkan Node resmi v24.22.1 (ABI 137). Runtime ini siap untuk chat dan MCP, tetapi tidak untuk OCR. Pasang runtime resmi.",
     "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {

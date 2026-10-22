@@ -13,7 +13,6 @@
   "imagePreviewCount": "Tidak ada pratinjau gambar | {count} pratinjau gambar | {count} pratinjau gambar",
   "terminalOutput": "Keluaran terminal",
   "badge": {
-    "rtk": "RTK",
     "allowed": "Diizinkan",
     "denied": "Ditolak"
   },

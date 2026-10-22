@@ -392,10 +392,7 @@ export function updateToolCallResponse(
   toolCallId: string,
   responseText: string,
   isError: boolean,
-  rtkMetadata?: {
-    rtkApplied?: boolean
-    rtkMode?: 'rewrite' | 'direct' | 'bypass'
-    rtkFallbackReason?: string
+  metadata?: {
     imagePreviews?: ToolCallImagePreview[]
   }
 ): void {
@@ -404,18 +401,9 @@ export function updateToolCallResponse(
   )
   if (!toolBlock?.tool_call) return
   toolBlock.tool_call.response = responseText
-  if (typeof rtkMetadata?.rtkApplied === 'boolean') {
-    toolBlock.tool_call.rtkApplied = rtkMetadata.rtkApplied
-  }
-  if (rtkMetadata?.rtkMode) {
-    toolBlock.tool_call.rtkMode = rtkMetadata.rtkMode
-  }
-  if (rtkMetadata?.rtkFallbackReason) {
-    toolBlock.tool_call.rtkFallbackReason = rtkMetadata.rtkFallbackReason
-  }
-  if (rtkMetadata?.imagePreviews && rtkMetadata.imagePreviews.length > 0) {
-    toolBlock.tool_call.imagePreviews = rtkMetadata.imagePreviews
-  } else if (rtkMetadata?.imagePreviews) {
+  if (metadata?.imagePreviews && metadata.imagePreviews.length > 0) {
+    toolBlock.tool_call.imagePreviews = metadata.imagePreviews
+  } else if (metadata?.imagePreviews) {
     delete toolBlock.tool_call.imagePreviews
   }
   toolBlock.status = isError ? 'error' : 'success'

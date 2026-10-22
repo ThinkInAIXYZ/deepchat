@@ -154,9 +154,6 @@ export interface AgentToolCallResult {
     content?: string
     isError?: boolean
     toolResult?: unknown
-    rtkApplied?: boolean
-    rtkMode?: 'rewrite' | 'direct' | 'bypass'
-    rtkFallbackReason?: string
     outputOffloadPath?: string
     fffSearch?: FffSearchMetadata
     imagePreviews?: ToolCallImagePreview[]
@@ -558,7 +555,6 @@ export class AgentToolManager {
       this.fileSystemHandler = new AgentFileSystemHandler([this.agentWorkspacePath])
       this.bashHandler = new AgentBashHandler(
         [this.agentWorkspacePath],
-        this.settings,
         this.commandPermissionHandler,
         this.commandEnvironment
       )
@@ -582,7 +578,6 @@ export class AgentToolManager {
       this.fileSystemHandler = new AgentFileSystemHandler([effectiveWorkspacePath])
       this.bashHandler = new AgentBashHandler(
         [effectiveWorkspacePath],
-        this.settings,
         this.commandPermissionHandler,
         this.commandEnvironment
       )
@@ -1497,7 +1492,6 @@ export class AgentToolManager {
         const outputLimits = await this.resolveOutputLimitsForConversation(conversationId)
         const bashHandler = new AgentBashHandler(
           allowedDirectories,
-          this.settings,
           this.commandPermissionHandler,
           this.commandEnvironment
         )
@@ -1584,9 +1578,6 @@ export class AgentToolManager {
           content,
           rawData: {
             content,
-            rtkApplied: commandResult.rtkApplied,
-            rtkMode: commandResult.rtkMode,
-            rtkFallbackReason: commandResult.rtkFallbackReason,
             outputOffloadPath: commandResult.outputOffloadPath
           }
         }
@@ -3591,9 +3582,6 @@ export class AgentToolManager {
       rawData: {
         content,
         isError: result.outputLimited === true,
-        rtkApplied: result.rtkApplied,
-        rtkMode: result.rtkMode,
-        rtkFallbackReason: result.rtkFallbackReason,
         outputOffloadPath: result.outputOffloadPath
       }
     }

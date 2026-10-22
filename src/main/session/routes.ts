@@ -58,7 +58,6 @@ import {
   sessionsResolveBlockedPendingInputRoute,
   sessionsRetryMessageRoute,
   sessionsRetryPendingQueueInputRoute,
-  sessionsRetryRtkHealthCheckRoute,
   sessionsSearchHistoryRoute,
   sessionsSearchReferenceCandidatesRoute,
   sessionsSetAcpSessionConfigOptionRoute,
@@ -132,7 +131,6 @@ export function createSessionRoutes(deps: {
   exportService: Pick<AgentSessionExportService, 'export'>
   translation: Pick<SessionTranslation, 'translate'>
   usageStats: Pick<UsageStatsService, 'getDashboard'>
-  rtkRuntime: { retryHealthCheck(): Promise<unknown> }
   tapeInspectorHeadWatcher: Pick<TapeInspectorHeadWatcher, 'subscribe' | 'unsubscribe'>
   sessionReferences: Pick<SessionReferences, 'searchCandidates' | 'resolve'>
 }): DeepchatRouteMap {
@@ -613,14 +611,6 @@ export function createSessionRoutes(deps: {
         return sessionsGetUsageDashboardRoute.output.parse({
           dashboard: await deps.usageStats.getDashboard()
         })
-      }
-    ],
-    [
-      sessionsRetryRtkHealthCheckRoute.name,
-      async (rawInput) => {
-        sessionsRetryRtkHealthCheckRoute.input.parse(rawInput)
-        await deps.rtkRuntime.retryHealthCheck()
-        return sessionsRetryRtkHealthCheckRoute.output.parse({ retried: true })
       }
     ],
     [

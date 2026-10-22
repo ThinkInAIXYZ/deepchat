@@ -154,9 +154,9 @@
       "runtime_manifest_invalid": "Tệp kê khai runtime OCR tích hợp không hợp lệ.",
       "service_closed": "Dịch vụ OCR đang tắt.",
       "unsupported_platform": "OCR không khả dụng cho nền tảng và kiến trúc này.",
-      "toolchain_unavailable": "OCR cần Node.js chính thức v24.21.0. Mở Cài đặt → Toolchain và cài runtime chính thức.",
-      "version_mismatch": "OCR cần Node.js v24.21.0. Phiên bản hiện tại nằm ngoài phạm vi. Mở Cài đặt → Toolchain và cài runtime chính thức.",
-      "abi_mismatch": "OCR cần Node.js ABI 137 (v24.21.0). Mở Cài đặt → Toolchain và cài runtime chính thức."
+      "toolchain_unavailable": "OCR cần Node.js chính thức v24.22.1. Mở Cài đặt → Toolchain và cài runtime chính thức.",
+      "version_mismatch": "OCR cần Node.js v24.22.1. Phiên bản hiện tại nằm ngoài phạm vi. Mở Cài đặt → Toolchain và cài runtime chính thức.",
+      "abi_mismatch": "OCR cần Node.js ABI 137 (v24.22.1). Mở Cài đặt → Toolchain và cài runtime chính thức."
     },
     "processStates": {
       "idle": "Không hoạt động",
@@ -922,35 +922,6 @@
       "unknownUsage": "{count} lượt không rõ mức sử dụng",
       "messages": "Tin nhắn {count}",
       "empty": "Chưa có dữ liệu phân tích."
-    },
-    "rtk": {
-      "title": "Tiết kiệm RTK",
-      "description": "tokens ước tính đã bị RTK ngăn không cho tiếp cận ngữ cảnh mô hình trong quá trình thực thi lệnh gốc DeepChat.",
-      "actions": {
-        "retry": "Thử lại kiểm tra"
-      },
-      "status": {
-        "disabled": "Đã tắt",
-        "checking": "Kiểm tra",
-        "healthy": "khỏe mạnh",
-        "unhealthy": "Không có sẵn"
-      },
-      "descriptionDisabled": "RTK bị tắt trong phiên ứng dụng này nên các lệnh sẽ chạy qua đường dẫn thực thi thông thường.",
-      "descriptionChecking": "DeepChat đang xác minh xem RTK có thể chạy chính xác trong môi trường hiện tại hay không.",
-      "descriptionHealthy": "RTK đang hoạt động để thực thi lệnh gốc DeepChat.",
-      "descriptionUnhealthy": "RTK không vượt qua được quá trình kiểm tra tình trạng khởi động và đã bị vô hiệu hóa đối với phiên ứng dụng này.",
-      "sourceLabel": "Nguồn thời gian chạy: {source}",
-      "source": {
-        "bundled": "Đi kèm",
-        "system": "Hệ thống",
-        "none": "Không có sẵn"
-      },
-      "summary": {
-        "savedTokens": "Đã lưu tokens",
-        "commands": "Lệnh được theo dõi",
-        "avgSavingsPct": "Tiết kiệm trung bình",
-        "outputTokens": "Đầu ra được lọc"
-      }
     },
     "unavailable": "N/A"
   },
@@ -3481,7 +3452,7 @@
       "activation_failed": "Không kích hoạt được runtime.",
       "unsupported_platform": "Nền tảng này không có runtime chính thức."
     },
-    "ocrPinHint": "OCR cần Node chính thức v24.21.0 (ABI 137). Runtime này dùng được cho chat và MCP, nhưng không dùng cho OCR. Hãy cài runtime chính thức.",
+    "ocrPinHint": "OCR cần Node chính thức v24.22.1 (ABI 137). Runtime này dùng được cho chat và MCP, nhưng không dùng cho OCR. Hãy cài runtime chính thức.",
     "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {

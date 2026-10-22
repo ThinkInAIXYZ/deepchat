@@ -154,9 +154,9 @@
       "runtime_manifest_invalid": "Manifes runtime OCR terbina dalam tidak sah.",
       "service_closed": "Perkhidmatan OCR sedang ditutup.",
       "unsupported_platform": "OCR tidak tersedia untuk platform dan seni bina ini.",
-      "toolchain_unavailable": "OCR memerlukan Node.js rasmi v24.21.0. Buka Tetapan → Rantaian alat dan pasang runtime rasmi.",
-      "version_mismatch": "OCR memerlukan Node.js v24.21.0. Versi ini di luar julat. Buka Tetapan → Rantaian alat dan pasang runtime rasmi.",
-      "abi_mismatch": "OCR memerlukan Node.js ABI 137 (v24.21.0). Buka Tetapan → Rantaian alat dan pasang runtime rasmi."
+      "toolchain_unavailable": "OCR memerlukan Node.js rasmi v24.22.1. Buka Tetapan → Rantaian alat dan pasang runtime rasmi.",
+      "version_mismatch": "OCR memerlukan Node.js v24.22.1. Versi ini di luar julat. Buka Tetapan → Rantaian alat dan pasang runtime rasmi.",
+      "abi_mismatch": "OCR memerlukan Node.js ABI 137 (v24.22.1). Buka Tetapan → Rantaian alat dan pasang runtime rasmi."
     },
     "processStates": {
       "idle": "Melahu",
@@ -922,35 +922,6 @@
       "unknownUsage": "{count} penggunaan tidak diketahui",
       "messages": "Mesej {count}",
       "empty": "Tiada data terperinci untuk dipaparkan lagi."
-    },
-    "rtk": {
-      "title": "RTK Jimat",
-      "description": "Tunjukkan RTK Dalam pautan pelaksanaan arahan asli DeepChat, anggarkan bilangan token yang belum memasuki konteks model disekat.",
-      "actions": {
-        "retry": "Cuba semula pengesanan"
-      },
-      "status": {
-        "disabled": "Dilumpuhkan",
-        "checking": "Di bawah pengesanan",
-        "healthy": "Tersedia",
-        "unhealthy": "Tidak tersedia"
-      },
-      "descriptionDisabled": "RTK telah ditutup dalam sesi aplikasi semasa dan arahan akan terus mengikut laluan pelaksanaan asal.",
-      "descriptionChecking": "DeepChat sedang menguji sama ada RTK boleh berjalan secara normal dalam persekitaran semasa.",
-      "descriptionHealthy": "RTK telah disambungkan kepada pelaksanaan arahan asli DeepChat.",
-      "descriptionUnhealthy": "RTK Pemeriksaan kesihatan permulaan gagal dan telah dilumpuhkan secara automatik dalam sesi aplikasi semasa.",
-      "sourceLabel": "Sumber masa jalan: {source}",
-      "source": {
-        "bundled": "terbina dalam",
-        "system": "sistem",
-        "none": "Tidak tersedia"
-      },
-      "summary": {
-        "savedTokens": "Jimat Token",
-        "commands": "Perintah yang dijejaki",
-        "avgSavingsPct": "kadar simpanan purata",
-        "outputTokens": "Output yang ditapis"
-      }
     },
     "unavailable": "Belum ada lagi"
   },
@@ -3481,7 +3452,7 @@
       "activation_failed": "Runtime tidak dapat diaktifkan.",
       "unsupported_platform": "Platform ini tiada runtime rasmi."
     },
-    "ocrPinHint": "OCR memerlukan Node rasmi v24.21.0 (ABI 137). Runtime ini sedia untuk sembang dan MCP, tetapi bukan OCR. Pasang runtime rasmi.",
+    "ocrPinHint": "OCR memerlukan Node rasmi v24.22.1 (ABI 137). Runtime ini sedia untuk sembang dan MCP, tetapi bukan OCR. Pasang runtime rasmi.",
     "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {

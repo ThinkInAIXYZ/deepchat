@@ -8,13 +8,13 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 export const repositoryRoot = path.resolve(scriptDir, '..')
 export const runtimeVersionsPath = path.join(repositoryRoot, 'resources', 'runtime-versions.json')
 
-const supportedRuntimeTypes = new Set(['node', 'rtk', 'uv', 'cloudflared'])
+const supportedRuntimeTypes = new Set(['node', 'uv', 'cloudflared'])
 const supportedToolchainManifestSchemas = new Set([2, 3])
 const sha256Pattern = /^[a-f0-9]{64}$/
 
 export function loadRuntimeVersions(manifestPath = runtimeVersionsPath) {
   const parsed = JSON.parse(readFileSync(manifestPath, 'utf8'))
-  const requiredKeys = ['tinyRuntimeInjector', 'node', 'uv', 'rtk', 'cloudflared']
+  const requiredKeys = ['tinyRuntimeInjector', 'node', 'uv', 'cloudflared']
 
   if (!supportedToolchainManifestSchemas.has(parsed.schemaVersion)) {
     throw new Error(`Unsupported runtime version manifest schema: ${parsed.schemaVersion}`)
@@ -51,7 +51,6 @@ export function loadRuntimeVersions(manifestPath = runtimeVersionsPath) {
     tinyRuntimeInjector: parsed.tinyRuntimeInjector,
     node: parsed.node,
     uv: parsed.uv,
-    rtk: parsed.rtk,
     cloudflared: parsed.cloudflared,
     cloudflaredArtifacts: parsed.cloudflaredArtifacts,
     nodeArtifacts: Object.freeze(nodeArtifacts)
@@ -141,9 +140,6 @@ export function buildRuntimeInstallPlan({
     { type: 'uv', version: versions.uv },
     { type: 'node', version: versions.node }
   ]
-  if (!(platform === 'win32' && arch === 'arm64')) {
-    runtimes.push({ type: 'rtk', version: versions.rtk })
-  }
 
   if (versions.cloudflaredArtifacts?.[`${platform}-${arch}`])
     runtimes.push({ type: 'cloudflared', version: versions.cloudflared })

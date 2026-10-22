@@ -4,17 +4,12 @@ import path from 'path'
 import os from 'os'
 import { z } from 'zod'
 import logger from '@shared/logger'
-import type { SettingsStore } from '@/config/settingsStore'
 import {
   backgroundExecSessionManager,
   getBackgroundExecConfig
 } from '@/agent/shared/process/backgroundExecSessionManager'
 import { terminateProcessTree } from '@/agent/shared/process/processTree'
-import {
-  RTK_ENABLED_SETTING_KEY,
-  rtkRuntimeService
-} from '@/agent/shared/process/rtkRuntimeService'
-import { mergeCommandEnvironment } from '@/agent/shared/process/shellEnvHelper'
+import { getShellEnvironment, mergeCommandEnvironment } from '@/agent/shared/process/shellEnvHelper'
 import {
   createUtf8OutputDecoderPair,
   prepareShellCommandForUtf8Output
@@ -72,7 +67,6 @@ export interface AgentCommandEnvironmentPort {
     | Readonly<{
         variables: Readonly<Record<string, string>>
         prependPath: readonly string[]
-        preserveCommand: boolean
       }>
     | undefined
   createProgrammaticEnvironment?(
@@ -84,7 +78,6 @@ export interface AgentCommandEnvironmentPort {
   ): Readonly<{
     variables: Readonly<Record<string, string>>
     prependPath: readonly string[]
-    preserveCommand: boolean
   }>
 }
 
@@ -102,18 +95,12 @@ export function isProgrammaticCommandLaunchError(
 }
 
 interface PreparedCommand {
-  originalCommand: string
   command: string
   env: Record<string, string>
-  rewritten: boolean
-  rtkApplied: boolean
-  rtkMode: 'rewrite' | 'direct' | 'bypass'
-  rtkFallbackReason?: string
 }
 
 interface ResolvedCommandEnvironment {
   env?: Record<string, string>
-  preserveCommand: boolean
 }
 
 interface CompletedShellProcessResult {
@@ -135,11 +122,9 @@ type ShellProcessResult = CompletedShellProcessResult | RunningShellProcessResul
 export class AgentBashHandler {
   private allowedDirectories: string[]
   private readonly commandPermissionHandler: CommandPermissionService
-  private readonly settings: Pick<SettingsStore, 'get'>
 
   constructor(
     allowedDirectories: string[],
-    settings: Pick<SettingsStore, 'get'>,
     commandPermissionHandler: CommandPermissionService,
     private readonly commandEnvironment?: AgentCommandEnvironmentPort
   ) {
@@ -149,7 +134,6 @@ export class AgentBashHandler {
     this.allowedDirectories = allowedDirectories.map((dir) =>
       this.normalizePath(path.resolve(this.expandHome(dir)))
     )
-    this.settings = settings
     this.commandPermissionHandler = commandPermissionHandler
   }
 
@@ -158,9 +142,6 @@ export class AgentBashHandler {
     options: ExecuteCommandOptions
   ): Promise<{
     output: string | { status: 'running'; sessionId: string }
-    rtkApplied: boolean
-    rtkMode: 'rewrite' | 'direct' | 'bypass'
-    rtkFallbackReason?: string
     outputOffloadPath?: string
   }> {
     const parsed = ExecuteCommandArgsSchema.safeParse(args)
@@ -232,13 +213,8 @@ export class AgentBashHandler {
 
     const resolvedEnvironment = !isProgrammaticInvocation
       ? this.resolveCommandEnvironment(command, options)
-      : { env: options.env, preserveCommand: true }
-    const prepared = await this.prepareCommand(
-      command,
-      resolvedEnvironment.env,
-      options.commandShell,
-      resolvedEnvironment.preserveCommand || isProgrammaticInvocation
-    )
+      : { env: options.env }
+    const prepared = await this.prepareCommand(command, resolvedEnvironment.env)
     if (isProgrammaticInvocation) {
       options.signal?.throwIfAborted()
     }
@@ -251,12 +227,6 @@ export class AgentBashHandler {
         timeoutMs: resolvedTimeout,
         background: false,
         ...(options.stdin === undefined ? {} : { stdin: options.stdin }),
-        ...(prepared.rewritten
-          ? {
-              fallbackCommand: prepared.originalCommand,
-              fallbackPolicy: 'rtk_capability_error'
-            }
-          : {}),
         ...(yieldMs === undefined ? {} : { yieldMs })
       })
       if (isProgrammaticInvocation) {
@@ -301,56 +271,12 @@ export class AgentBashHandler {
 
     if (result.kind === 'running') {
       return {
-        output: { status: 'running', sessionId: result.sessionId },
-        rtkApplied: prepared.rtkApplied,
-        rtkMode: prepared.rtkMode,
-        rtkFallbackReason: prepared.rtkFallbackReason
-      }
-    }
-
-    const fallbackReason = this.getRtkCapabilityFallbackReason(result.output)
-    if (
-      prepared.rewritten &&
-      !result.timedOut &&
-      result.exitCode !== null &&
-      result.exitCode !== 0 &&
-      fallbackReason
-    ) {
-      logger.warn(
-        '[AgentBashHandler] Falling back to original command after RTK capability error',
-        {
-          command,
-          rewrittenCommand: prepared.command,
-          originalCommand: prepared.originalCommand,
-          fallbackReason
-        }
-      )
-
-      result = await this.runShellProcess(prepared.originalCommand, spawnCwd, resolvedTimeout, {
-        ...options,
-        env: prepared.env,
-        yieldMs
-      })
-
-      prepared.rtkApplied = false
-      prepared.rtkMode = 'bypass'
-      prepared.rtkFallbackReason = fallbackReason
-
-      if (result.kind === 'running') {
-        return {
-          output: { status: 'running', sessionId: result.sessionId },
-          rtkApplied: prepared.rtkApplied,
-          rtkMode: prepared.rtkMode,
-          rtkFallbackReason: prepared.rtkFallbackReason
-        }
+        output: { status: 'running', sessionId: result.sessionId }
       }
     }
 
     return {
       output: this.formatCompletedResult(result),
-      rtkApplied: prepared.rtkApplied,
-      rtkMode: prepared.rtkMode,
-      rtkFallbackReason: prepared.rtkFallbackReason,
       outputOffloadPath: result.offloaded ? result.outputFilePath : undefined
     }
   }
@@ -786,9 +712,6 @@ export class AgentBashHandler {
     options: ExecuteCommandOptions
   ): Promise<{
     output: { status: 'running'; sessionId: string }
-    rtkApplied: boolean
-    rtkMode: 'rewrite' | 'direct' | 'bypass'
-    rtkFallbackReason?: string
   }> {
     const conversationId = options.conversationId
 
@@ -825,12 +748,7 @@ export class AgentBashHandler {
 
     const spawnCwd = resolveUsableSpawnCwd(cwd)
     const resolvedEnvironment = this.resolveCommandEnvironment(command, options)
-    const prepared = await this.prepareCommand(
-      command,
-      resolvedEnvironment.env,
-      options.commandShell,
-      resolvedEnvironment.preserveCommand
-    )
+    const prepared = await this.prepareCommand(command, resolvedEnvironment.env)
 
     options.beforeExecute?.({
       command: prepared.command,
@@ -856,38 +774,20 @@ export class AgentBashHandler {
     )
 
     return {
-      output: { status: 'running', sessionId: result.sessionId },
-      rtkApplied: prepared.rtkApplied,
-      rtkMode: prepared.rtkMode,
-      rtkFallbackReason: prepared.rtkFallbackReason
+      output: { status: 'running', sessionId: result.sessionId }
     }
   }
 
   private async prepareCommand(
     command: string,
-    env: Record<string, string> | undefined,
-    commandShell: ResolvedCommandShell,
-    preserveCommand = false
+    env: Record<string, string> | undefined
   ): Promise<PreparedCommand> {
-    const baseEnv = env ?? {}
-    const prepared = await rtkRuntimeService.prepareShellCommand(
-      command,
-      baseEnv,
-      !preserveCommand && this.settings.get<boolean>(RTK_ENABLED_SETTING_KEY) !== false,
-      { allowRewrite: commandShell.dialect === 'posix' }
-    )
     return {
-      originalCommand: prepared.originalCommand,
-      command: prepared.command,
-      env: prepared.env,
-      rewritten: prepared.rewritten,
-      rtkApplied: prepared.rtkApplied,
-      rtkMode: prepared.rtkMode,
-      rtkFallbackReason: preserveCommand
-        ? 'RTK rewrite bypassed for exact command execution'
-        : commandShell.dialect !== 'posix' && prepared.rtkMode !== 'direct'
-          ? 'RTK rewrite bypassed for non-POSIX command shell'
-          : prepared.rtkFallbackReason
+      command,
+      env: mergeCommandEnvironment({
+        shellEnv: await getShellEnvironment(),
+        overrides: env ?? {}
+      })
     }
   }
 
@@ -902,30 +802,15 @@ export class AgentBashHandler {
           options.commandShell
         )
       : undefined
-    if (!scopedEnvironment) return { env: options.env, preserveCommand: false }
+    if (!scopedEnvironment) return { env: options.env }
     return {
       env: mergeCommandEnvironment({
         processEnv: process.env,
         overrides: { ...options.env, ...scopedEnvironment.variables },
         prependPathSources: [...scopedEnvironment.prependPath],
         includeDefaultPaths: false
-      }),
-      preserveCommand: scopedEnvironment.preserveCommand
+      })
     }
-  }
-
-  private getRtkCapabilityFallbackReason(output: string): string | undefined {
-    const normalized = output.toLowerCase()
-    if (normalized.includes('rtk find does not support compound predicates or actions')) {
-      return 'RTK capability fallback after rewrite failure: unsupported find compound predicates or actions'
-    }
-    if (normalized.includes('unsupported predicate')) {
-      return 'RTK capability fallback after rewrite failure: unsupported predicate'
-    }
-    if (normalized.includes('unsupported action')) {
-      return 'RTK capability fallback after rewrite failure: unsupported action'
-    }
-    return undefined
   }
 
   /**

@@ -62,8 +62,7 @@ describe('AgentCliCommandAccess', () => {
 
     expect(environment).toEqual({
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: agentToken },
-      prependPath: [directory],
-      preserveCommand: true
+      prependPath: [directory]
     })
     const first = authority.beginRequest(agentToken)
     expect(first.status).toBe('granted')
@@ -113,8 +112,7 @@ describe('AgentCliCommandAccess', () => {
       )
     ).toEqual({
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: armed.token },
-      prependPath: [directory],
-      preserveCommand: true
+      prependPath: [directory]
     })
     expect(issue).not.toHaveBeenCalled()
     expect(authority.snapshot()).toEqual({ tokens: 0, conversations: 0 })
@@ -217,8 +215,7 @@ describe('AgentCliCommandAccess', () => {
       )
     ).toEqual({
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: armed.token },
-      prependPath: [directory],
-      preserveCommand: true
+      prependPath: [directory]
     })
     expect(issue).not.toHaveBeenCalled()
     expect(() =>
@@ -267,8 +264,7 @@ describe('AgentCliCommandAccess', () => {
         )
       ).toEqual({
         variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: armed.token },
-        prependPath: [directory],
-        preserveCommand: true
+        prependPath: [directory]
       })
     }
   )
@@ -308,8 +304,7 @@ describe('AgentCliCommandAccess', () => {
         )
       ).toEqual({
         variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: armed.token },
-        prependPath: [directory],
-        preserveCommand: true
+        prependPath: [directory]
       })
     }
   )
@@ -365,8 +360,7 @@ describe('AgentCliCommandAccess', () => {
 
     expect(createEnvironment(access, 'conversation-1', command)).toEqual({
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
-      prependPath: [],
-      preserveCommand: true
+      prependPath: []
     })
     expect(authority.snapshot()).toEqual({ tokens: 0, conversations: 0 })
   })
@@ -388,8 +382,7 @@ describe('AgentCliCommandAccess', () => {
       )
     ).toEqual({
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
-      prependPath: [],
-      preserveCommand: true
+      prependPath: []
     })
     expect(authority.snapshot()).toEqual({ tokens: 0, conversations: 0 })
   })
@@ -411,8 +404,7 @@ describe('AgentCliCommandAccess', () => {
       )
     ).toEqual({
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
-      prependPath: [],
-      preserveCommand: true
+      prependPath: []
     })
     expect(authority.snapshot()).toEqual({ tokens: 0, conversations: 0 })
   })
@@ -434,8 +426,7 @@ describe('AgentCliCommandAccess', () => {
       )
     ).toEqual({
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
-      prependPath: [],
-      preserveCommand: true
+      prependPath: []
     })
     expect(authority.snapshot()).toEqual({ tokens: 0, conversations: 0 })
   })
@@ -451,13 +442,11 @@ describe('AgentCliCommandAccess', () => {
 
     expect(createEnvironment(access, 'conversation-1', 'ls -la')).toEqual({
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
-      prependPath: [],
-      preserveCommand: false
+      prependPath: []
     })
     expect(createEnvironment(access, 'conversation-1', '"deepchat" model invoke')).toEqual({
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
-      prependPath: [],
-      preserveCommand: false
+      prependPath: []
     })
     expect(authority.snapshot()).toEqual({ tokens: 0, conversations: 0 })
   })
@@ -473,8 +462,7 @@ describe('AgentCliCommandAccess', () => {
 
     expect(createEnvironment(access, 'conversation-1', 'deepchat help')).toEqual({
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
-      prependPath: [directory],
-      preserveCommand: true
+      prependPath: [directory]
     })
     expect(authority.snapshot()).toEqual({ tokens: 0, conversations: 0 })
   })
@@ -516,8 +504,7 @@ describe('AgentCliCommandAccess', () => {
 
     expect(createEnvironment(access, 'conversation-1', 'deepchat system status')).toEqual({
       variables: { [LOCAL_CONTROL_AGENT_TOKEN_ENV]: '' },
-      prependPath: [],
-      preserveCommand: true
+      prependPath: []
     })
     expect(authority.snapshot()).toEqual({ tokens: 0, conversations: 0 })
   })

@@ -154,9 +154,9 @@
       "runtime_manifest_invalid": "Manifest wbudowanego środowiska OCR jest nieprawidłowy.",
       "service_closed": "Usługa OCR jest zamykana.",
       "unsupported_platform": "OCR nie jest dostępny dla tej platformy i architektury.",
-      "toolchain_unavailable": "OCR wymaga oficjalnego Node.js v24.21.0. Otwórz Ustawienia → Łańcuchy narzędzi i zainstaluj oficjalne środowisko.",
-      "version_mismatch": "OCR wymaga Node.js v24.21.0. Ta wersja jest poza zakresem. Otwórz Ustawienia → Łańcuchy narzędzi i zainstaluj oficjalne środowisko.",
-      "abi_mismatch": "OCR wymaga Node.js ABI 137 (v24.21.0). Otwórz Ustawienia → Łańcuchy narzędzi i zainstaluj oficjalne środowisko."
+      "toolchain_unavailable": "OCR wymaga oficjalnego Node.js v24.22.1. Otwórz Ustawienia → Łańcuchy narzędzi i zainstaluj oficjalne środowisko.",
+      "version_mismatch": "OCR wymaga Node.js v24.22.1. Ta wersja jest poza zakresem. Otwórz Ustawienia → Łańcuchy narzędzi i zainstaluj oficjalne środowisko.",
+      "abi_mismatch": "OCR wymaga Node.js ABI 137 (v24.22.1). Otwórz Ustawienia → Łańcuchy narzędzi i zainstaluj oficjalne środowisko."
     },
     "processStates": {
       "idle": "Bezczynny",
@@ -922,35 +922,6 @@
       "unknownUsage": "Liczba użyć o nieznanym typie: {count}",
       "messages": "Komunikaty {count}",
       "empty": "Nie ma jeszcze danych dotyczących podziału."
-    },
-    "rtk": {
-      "title": "RTK Oszczędności",
-      "description": "Szacuje się, że tokens nie mógł dotrzeć do kontekstu modelu przez RTK podczas wykonywania natywnego polecenia DeepChat.",
-      "actions": {
-        "retry": "Ponów próbę"
-      },
-      "status": {
-        "disabled": "Niepełnosprawny",
-        "checking": "Sprawdzanie",
-        "healthy": "Zdrowy",
-        "unhealthy": "Niedostępne"
-      },
-      "descriptionDisabled": "RTK jest wyłączony dla tej sesji aplikacji, więc polecenia są uruchamiane normalną ścieżką wykonywania.",
-      "descriptionChecking": "DeepChat sprawdza, czy RTK może działać poprawnie w bieżącym środowisku.",
-      "descriptionHealthy": "RTK jest aktywny dla wykonywania rodzimych poleceń DeepChat.",
-      "descriptionUnhealthy": "RTK nie przeszedł kontroli stanu uruchamiania i został wyłączony dla tej sesji aplikacji.",
-      "sourceLabel": "Źródło środowiska wykonawczego: {source}",
-      "source": {
-        "bundled": "W zestawie",
-        "system": "Systemu",
-        "none": "Niedostępne"
-      },
-      "summary": {
-        "savedTokens": "Zapisano tokens",
-        "commands": "Śledzone polecenia",
-        "avgSavingsPct": "Średnie oszczędności",
-        "outputTokens": "Filtrowane wyjście"
-      }
     },
     "unavailable": "N/A"
   },
@@ -3481,7 +3452,7 @@
       "activation_failed": "Nie udało się aktywować środowiska.",
       "unsupported_platform": "Ta platforma nie ma oficjalnego środowiska."
     },
-    "ocrPinHint": "OCR wymaga oficjalnego Node v24.21.0 (ABI 137). To środowisko nadaje się do czatu i MCP, ale nie do OCR. Zainstaluj oficjalne środowisko.",
+    "ocrPinHint": "OCR wymaga oficjalnego Node v24.22.1 (ABI 137). To środowisko nadaje się do czatu i MCP, ale nie do OCR. Zainstaluj oficjalne środowisko.",
     "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {

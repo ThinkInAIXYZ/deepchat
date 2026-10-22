@@ -25,9 +25,8 @@ The remaining application-owned duplicate is the Node/uv archive table in `catal
 - Node and uv artifact targets must match the six package targets and OCR native package targets.
   Workflow coverage is checked against the existing package contract, without generating YAML.
 - The installer derives supported platform/architecture sets from manifest Node targets and checks
-  the exact target pair. Default installation remains uv + RTK (uv only on Windows ARM64).
-  Explicit Node installation remains available. The RTK exception is installer policy, not a new
-  managed toolchain capability.
+  the exact target pair. Default installation includes uv and cloudflared where official artifacts
+  exist (uv only on Windows ARM64). Explicit Node installation remains available.
 - Archive checksums verify compressed downloads; executable checksums verify installed Node.
   They are not interchangeable. Extraction, activation and persistence are unchanged.
 
@@ -44,7 +43,7 @@ Vitest contract → manifest targets ↔ package contract ↔ workflow matrices
 
 ## Non-goals
 
-No new commands, dependencies, settings, services or external credentials. No changes to RTK,
+No new commands, dependencies, settings, services or external credentials. No changes to
 OCR, CUA or DuckDB lifecycles, user toolchain state, CI runners, download implementations or pins.
 Do not replace tiny-runtime-injector merely to share a table: that would change installation,
 extraction and mirror behavior far beyond this refactor.

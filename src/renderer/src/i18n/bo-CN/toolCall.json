@@ -13,7 +13,6 @@
   "imagePreviewCount": "པར་རིས་སྔོན་ལྟ། |{count} པར་རིས་སྔོན་ལྟ། |{count} པར་རིས་སྔོན་ལྟ།",
   "terminalOutput": "མཐའ་སྣེའི་ཐོན་ཚད།",
   "badge": {
-    "rtk": "RTK",
     "allowed": "ཆོག་པ།",
     "denied": "ཁས་མ་བླངས་པ།"
   },

@@ -150,9 +150,6 @@ type StagedToolResult = {
   offloadPath?: string
   existingOffloadPath?: string
   searchPayload: ExtractedSearchPayload
-  rtkApplied?: boolean
-  rtkMode?: 'rewrite' | 'direct' | 'bypass'
-  rtkFallbackReason?: string
   imagePreviews?: ToolCallImagePreview[]
   mcpResult?: MCPToolResponse['mcpResult']
   skillDraftPrompt?: SkillDraftPromptPayload
@@ -822,11 +819,6 @@ function updateToolCallBlock(
   toolCallId: string,
   response: string,
   isError: boolean,
-  rtkMetadata?: {
-    rtkApplied?: boolean
-    rtkMode?: 'rewrite' | 'direct' | 'bypass'
-    rtkFallbackReason?: string
-  },
   imagePreviews?: ToolCallImagePreview[],
   toolSource?: 'agent' | 'mcp',
   mcpResult?: MCPToolResponse['mcpResult']
@@ -834,15 +826,6 @@ function updateToolCallBlock(
   const block = blocks.find((b) => b.type === 'tool_call' && b.tool_call?.id === toolCallId)
   if (block?.tool_call) {
     block.tool_call.response = response
-    if (typeof rtkMetadata?.rtkApplied === 'boolean') {
-      block.tool_call.rtkApplied = rtkMetadata.rtkApplied
-    }
-    if (rtkMetadata?.rtkMode) {
-      block.tool_call.rtkMode = rtkMetadata.rtkMode
-    }
-    if (rtkMetadata?.rtkFallbackReason) {
-      block.tool_call.rtkFallbackReason = rtkMetadata.rtkFallbackReason
-    }
     if (imagePreviews && imagePreviews.length > 0) {
       block.tool_call.imagePreviews = imagePreviews
     } else if (imagePreviews) {
@@ -1111,9 +1094,6 @@ function buildReturnedToolResultOutcome(
         execution.toolContext.name,
         execution.toolContext.serverName
       ),
-      rtkApplied: rawData.rtkApplied,
-      rtkMode: rawData.rtkMode,
-      rtkFallbackReason: rawData.rtkFallbackReason,
       imagePreviews: rawData.imagePreviews,
       mcpResult: rawData.mcpResult,
       postHookKind: isError ? 'failure' : 'success',
@@ -1270,13 +1250,6 @@ function applyFinalizedToolResults(params: {
       fittedResult.toolCallId,
       fittedResult.responseText,
       fittedResult.isError,
-      fittedResult.downgraded
-        ? undefined
-        : {
-            rtkApplied: stagedResult.rtkApplied,
-            rtkMode: stagedResult.rtkMode,
-            rtkFallbackReason: stagedResult.rtkFallbackReason
-          },
       imagePresentation.toolBlockImagePreviews,
       stagedResult.toolSource,
       stagedResult.mcpResult
@@ -2446,9 +2419,6 @@ async function runToolCall(params: {
       offloadPath: preparedResult.kind === 'ok' ? preparedResult.offloadPath : undefined,
       existingOffloadPath: toolRawData.outputOffloadPath,
       searchPayload,
-      rtkApplied: toolRawData.rtkApplied,
-      rtkMode: toolRawData.rtkMode,
-      rtkFallbackReason: toolRawData.rtkFallbackReason,
       imagePreviews,
       mcpResult: toolRawData.mcpResult,
       skillDraftPrompt: extractSkillDraftPromptPayload(toolRawData),

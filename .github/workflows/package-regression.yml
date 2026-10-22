@@ -8,8 +8,6 @@ on:
         required: true
         type: string
     secrets:
-      RTK_GITHUB_TOKEN:
-        required: false
       DC_GITHUB_CLIENT_ID:
         required: false
       DC_GITHUB_CLIENT_SECRET:
@@ -39,7 +37,6 @@ jobs:
       artifact-purpose: verification
       enforce-installer-size: true
     secrets:
-      RTK_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN }}
       DC_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
       DC_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
       DC_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
@@ -59,7 +56,6 @@ jobs:
       artifact-purpose: verification
       enforce-installer-size: true
     secrets:
-      RTK_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN }}
       DC_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
       DC_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
       DC_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
@@ -79,7 +75,6 @@ jobs:
       artifact-purpose: verification
       enforce-installer-size: true
     secrets:
-      RTK_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN }}
       DC_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
       DC_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
       DC_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}

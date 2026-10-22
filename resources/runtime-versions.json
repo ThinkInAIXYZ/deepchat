@@ -2,71 +2,70 @@
   "schemaVersion": 3,
   "tinyRuntimeInjector": "1.2.0",
   "artifactVersions": {
-    "node": "v24.21.0",
-    "uv": "0.9.18",
-    "cloudflared": "2026.9.1"
+    "node": "v24.22.1",
+    "uv": "0.13.5",
+    "cloudflared": "2026.10.3"
   },
-  "node": "v24.21.0",
+  "node": "v24.22.1",
   "nodeArtifacts": {
     "darwin-arm64": {
-      "filename": "node-v24.21.0-darwin-arm64.tar.gz",
-      "archiveSha256": "bed7eea5325e1108f32ce5228ddd6a5f0f08a499ee42aa7442aea583702f6057",
-      "executableSha256": "e4b5a3af0e05c75de2eae013904145f40fe7fc2a6e6f17510128bf45cca4e79b"
+      "filename": "node-v24.22.1-darwin-arm64.tar.gz",
+      "archiveSha256": "89c682593d76cd44233fa53b1563264e7de9cbb189cad169135c5b4fadfbc0a7",
+      "executableSha256": "6f32069480ec14d52b6d7b1f3c7124cfbbc46203abf5ddf5c65b127435f3f329"
     },
     "darwin-x64": {
-      "filename": "node-v24.21.0-darwin-x64.tar.gz",
-      "archiveSha256": "1462cb3b3046b815cf8ea436d3da450ec1a9f11dac7e5a46b0ada5305d7e8097",
-      "executableSha256": "7abcf39bd37ab251015337ff75304d7555f0d8e88c6e0fbf04bce8ce34636f49"
+      "filename": "node-v24.22.1-darwin-x64.tar.gz",
+      "archiveSha256": "d132557e7ee2b85af08b0c8c34338e65c6430f2238d01f727728ef42dc83b035",
+      "executableSha256": "cc6f41f72e3eb4460154952e56a35afdd96b6995cea51cd25e637355a2955a51"
     },
     "linux-arm64": {
-      "filename": "node-v24.21.0-linux-arm64.tar.gz",
-      "archiveSha256": "724282c3b43aec998aa9527380465b45d229e021b58035f5f4f63095eabfe5d5",
-      "executableSha256": "0f8949d1028f6d61506b2d5bc57e7e6fe893d7b1997509b7847294fc9c616584"
+      "filename": "node-v24.22.1-linux-arm64.tar.gz",
+      "archiveSha256": "33c37be234ba8bee041961047b19160f4d7d0f164e8e246f78bdd10feff148b3",
+      "executableSha256": "c8c5721679d8d1a09e9987e345d5f9a64899bb85f7a384783ba8a93e6e62348a"
     },
     "linux-x64": {
-      "filename": "node-v24.21.0-linux-x64.tar.gz",
-      "archiveSha256": "6e1db87ef58b8819e5d5402eff1536491b18edd8eb7bee5ef7897876e88dc5ff",
-      "executableSha256": "7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c"
+      "filename": "node-v24.22.1-linux-x64.tar.gz",
+      "archiveSha256": "eb6728e77c576a35162c122c45ccadf224d89ff00abc8dae46cc2897c6002d7c",
+      "executableSha256": "e32e2d16081cf644f88392934288086e7662529d0d43277c34f7aad2207cfafb"
     },
     "win32-arm64": {
-      "filename": "node-v24.21.0-win-arm64.zip",
-      "archiveSha256": "8779b1bde1d39f8d420e3b57aa657b39891af434d3de44a919044cec06785921",
-      "executableSha256": "dff59da18b6ffe1bf1ca99e1d2af4906080c481740619f5b5098c0fca28bd9b7"
+      "filename": "node-v24.22.1-win-arm64.zip",
+      "archiveSha256": "a0c807319fede24c4a0d8f84564c82a619bd313b16b10c007c383c2609e99171",
+      "executableSha256": "8bea91dc437fe01e7d92ef0efc6c9eaf654369aaba9b2d3e9841552ea7b95a00"
     },
     "win32-x64": {
-      "filename": "node-v24.21.0-win-x64.zip",
-      "archiveSha256": "158f7685b44de51f6c0df1d153526cbcd3e1bc739a8dfc607721cef75de9e541",
-      "executableSha256": "ba4e6d110e8c1592a1ecd390f6b05f3da124b13871a5be62b341a07a853c6c32"
+      "filename": "node-v24.22.1-win-x64.zip",
+      "archiveSha256": "d2046d28c2c3dcd211ac5145c0bf30e2047ef9dfb306693c8c6e2eccd8b95fa5",
+      "executableSha256": "d702daa815eabbff763c7d3808e235cf031cf2ca70211b56847bc72f51e240e5"
     }
   },
-  "uv": "0.9.18",
+  "uv": "0.13.5",
   "uvArtifacts": {
     "darwin-arm64": {
       "filename": "uv-aarch64-apple-darwin.tar.gz",
-      "archiveSha256": "dc3bee4abbb3bac267a3985a23ea7617d19d41ff381dbaf560ba415ad65af68f"
+      "archiveSha256": "743f85035a1996ecb350659e01cd9faea9709829be09b1b4b03c73eaf3c9cd73"
     },
     "darwin-x64": {
       "filename": "uv-x86_64-apple-darwin.tar.gz",
-      "archiveSha256": "f86836c637333c65bbc7902acc9c49888eef9fbd15dccbc1946b10e30b041073"
+      "archiveSha256": "b0f52b0e3945b4107d89024ea38e625683011fbfc05a0d98f9fa2d6dcee28c66"
     },
     "linux-arm64": {
       "filename": "uv-aarch64-unknown-linux-gnu.tar.gz",
-      "archiveSha256": "f8e23ec786b18660ade6b033b6191b7e9c283c872eeb8c4531d56a873decf160"
+      "archiveSha256": "4bb69cf95ed13f23713bb7bc09f241896ea0c75b7c557e615a20604b82f9c403"
     },
     "linux-x64": {
       "filename": "uv-x86_64-unknown-linux-gnu.tar.gz",
-      "archiveSha256": "c2def3db178ade63933fa15ffc96e882c196ce53e06173dcee05b36c5f6f68f5"
+      "archiveSha256": "f68d291c75783122dad58ab77def0e13f3233f358731db5d6d7e8715603b928f"
     },
     "win32-arm64": {
       "filename": "uv-aarch64-pc-windows-msvc.zip",
-      "archiveSha256": "fadb43ba13091f44e1786fc3967e65c7786d86192aa205d718307c649927cfc2"
+      "archiveSha256": "09f47edf90726084a70f9426f6e3ca4f46e9bf7cbf23b1716ec64d60b055fae3"
     },
     "win32-x64": {
       "filename": "uv-x86_64-pc-windows-msvc.zip",
-      "archiveSha256": "28cbe5d30907a774bfe27a517a39b494ec6f7d3816bda8bbf6f9645490449182"
+      "archiveSha256": "a38b8d1902b7cfbc76b423ba1bb456f623f42064cdc72628b6075b89afd1019a"
     }
   },
-  "rtk": "v0.43.0",
   "lightOcr": {
     "facadeVersion": "0.5.7",
     "runtimePackage": "@arcships/light-ocr-runtime",
@@ -84,27 +83,27 @@
       "linux-arm64": "@arcships/light-ocr-linux-arm64-gnu"
     }
   },
-  "cloudflared": "2026.9.1",
+  "cloudflared": "2026.10.3",
   "cloudflaredArtifacts": {
     "darwin-arm64": {
       "filename": "cloudflared-darwin-arm64.tgz",
-      "archiveSha256": "c27ab8fd0aa489449e3d201eb02f957ef460a13b613662928b1b23394bf1bcfe"
+      "archiveSha256": "1165d14b6f6360a3b8c283d7d1100024d6ec7cd9bc9e32519e96150645f3ec55"
     },
     "darwin-x64": {
       "filename": "cloudflared-darwin-amd64.tgz",
-      "archiveSha256": "ff0d3b51d5ff70eceef89d6b32145fee985018a2174596a5dbe405e2766e2ac4"
+      "archiveSha256": "81b7b85f2376815c4f59b1aa323887b62e16ce8b67555c2e1577dc23f2a82000"
     },
     "linux-arm64": {
       "filename": "cloudflared-linux-arm64",
-      "archiveSha256": "3d97437c71848bd8df68041e12436b484a661d95073ea1937f01a845ce88faa3"
+      "archiveSha256": "89297ebfb9e8c99c0dc013a1140601453cf3798d8306c5591651f4a3f5210be8"
     },
     "linux-x64": {
       "filename": "cloudflared-linux-amd64",
-      "archiveSha256": "03f1f25d1cc93b9ad6c60569d44060bc4f17ed97075760ed8cfca4b12dcd68cc"
+      "archiveSha256": "053b80b0a23031a038fdbf3c073f59f82b8f1f152aa67971d7383ffafc0dbab0"
     },
     "win32-x64": {
       "filename": "cloudflared-windows-amd64.exe",
-      "archiveSha256": "2837888cc0f5d58f15b6dc478376de90b4d3ba5241c7947455d1e0a0df429712"
+      "archiveSha256": "76b2805253d0d6ffacb092a7acfbee99e7af6917835c0c5410e23f3ef5052da2"
     }
   }
 }

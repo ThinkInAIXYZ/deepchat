@@ -29,24 +29,6 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@/agent/shared/process/rtkRuntimeService', () => ({
-  RTK_ENABLED_SETTING_KEY: 'rtkEnabled',
-  rtkRuntimeService: {
-    prepareShellCommand: vi
-      .fn()
-      .mockImplementation(async (command: string, env: Record<string, string>) => ({
-        originalCommand: command,
-        command,
-        env,
-        rewritten: false,
-        usedRtk: false,
-        rtkApplied: false,
-        rtkMode: 'bypass'
-      })),
-    prepareExecutionEnv: vi.fn().mockImplementation(async (env: Record<string, string>) => env)
-  }
-}))
-
 vi.mock('@/agent/shared/process/processTree', () => ({
   terminateProcessTree: vi.fn()
 }))
@@ -61,7 +43,6 @@ vi.mock('@/skill/skillExecutionPackageTree', async (importOriginal) => {
 
 import { spawn } from 'child_process'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
-import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 import { terminateProcessTree } from '@/agent/shared/process/processTree'
 import { materializeSkillExecutionPackageTree } from '@/skill/skillExecutionPackageTree'
 
@@ -403,7 +384,7 @@ describe('SkillExecutionService', () => {
     ).rejects.toThrow('platform-compatible POSIX command shell')
   })
 
-  it('keeps POSIX skill plans direct without a pre-dispatch RTK rewrite', async () => {
+  it('keeps POSIX skill plans direct', async () => {
     const plan = {
       command: 'node',
       args: ['/skills/ocr/scripts/run.py'],
@@ -416,8 +397,6 @@ describe('SkillExecutionService', () => {
     const preparedPlan = await (service as never).preparePlanForExecution(plan, POSIX_COMMAND_SHELL)
 
     expect(preparedPlan).toEqual(plan)
-    expect(rtkRuntimeService.prepareExecutionEnv).not.toHaveBeenCalled()
-    expect(rtkRuntimeService.prepareShellCommand).not.toHaveBeenCalled()
   })
 
   it('rejects scripts that are not declared under scripts directory', async () => {
@@ -469,15 +448,6 @@ describe('SkillExecutionService', () => {
     vi.spyOn(service as never, 'resolveRuntimeCommand' as never).mockResolvedValue({
       command: 'python',
       mode: 'python'
-    })
-    vi.mocked(rtkRuntimeService.prepareShellCommand).mockResolvedValueOnce({
-      originalCommand: "'python' '/package/scripts/run.py'",
-      command: "'python' '/package/scripts/run.py'",
-      env: { PATH: '/shell/bin', API_KEY: 'secret' },
-      rewritten: false,
-      usedRtk: false,
-      rtkApplied: false,
-      rtkMode: 'bypass'
     })
     const start = vi
       .spyOn(backgroundExecSessionManager, 'start')
@@ -623,11 +593,9 @@ describe('SkillExecutionService', () => {
 
     expect(plan.shellCommand).toBeUndefined()
     expect(prepared.spawnMode).toBe('direct')
-    expect(rtkRuntimeService.prepareExecutionEnv).not.toHaveBeenCalled()
-    expect(rtkRuntimeService.prepareShellCommand).not.toHaveBeenCalled()
   })
 
-  it('keeps PowerShell skill plans direct and bypasses POSIX RTK rewriting', async () => {
+  it('keeps PowerShell skill plans direct', async () => {
     vi.spyOn(service as never, 'resolveRuntimeCommand' as never).mockResolvedValue({
       command: 'node.exe',
       mode: 'node'
@@ -648,8 +616,6 @@ describe('SkillExecutionService', () => {
 
     expect(prepared.spawnMode).toBe('direct')
     expect(prepared.shellCommand).toBeUndefined()
-    expect(rtkRuntimeService.prepareExecutionEnv).not.toHaveBeenCalled()
-    expect(rtkRuntimeService.prepareShellCommand).not.toHaveBeenCalled()
   })
 
   it('uses the PowerShell call operator for quoted executables', () => {

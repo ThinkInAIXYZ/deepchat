@@ -19,7 +19,6 @@
   "success": "הַצלָחָה",
   "terminalOutput": "פלט מסוף",
   "badge": {
-    "rtk": "RTK",
     "allowed": "אושר",
     "denied": "נדחה"
   },

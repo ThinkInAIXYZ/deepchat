@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
-import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
+import * as shellEnvironment from '@/agent/shared/process/shellEnvHelper'
 import {
   AgentBashHandler,
   type AgentCommandEnvironmentPort
@@ -48,8 +48,7 @@ function createProgrammaticCommandEnvironment(order?: string[]): AgentCommandEnv
       order?.push('environment')
       return {
         variables: { DEEPCHAT_CLI_AGENT_TOKEN: armedProgrammaticToken.token },
-        prependPath: ['/bundled/cli'],
-        preserveCommand: true
+        prependPath: ['/bundled/cli']
       }
     })
   }
@@ -68,111 +67,39 @@ describe('AgentBashHandler', () => {
     vi.restoreAllMocks()
   })
 
-  it('falls back to the original command after an RTK capability error', async () => {
-    const originalCommand = 'find . -type f -name "*.ts" -o -name "*.vue" | grep "^./src"'
-    const handler = new AgentBashHandler(
-      [workspaceRoot],
-      { get: () => undefined },
-      createPermissionService()
-    )
-
-    vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand,
-      command: 'rtk find . -type f -name "*.ts" -o -name "*.vue" | grep "^./src"',
-      env: { PATH: '/bin' },
-      rewritten: true,
-      rtkApplied: true,
-      rtkMode: 'rewrite'
+  it('executes the approved command once and preserves shell environment overrides', async () => {
+    vi.spyOn(shellEnvironment, 'getShellEnvironment').mockResolvedValue({
+      PATH: '/shell/bin',
+      NPM_CONFIG_REGISTRY: 'https://registry.example.test'
     })
-
-    const runShellProcess = vi
-      .spyOn(handler as never, 'runShellProcess' as never)
-      .mockResolvedValueOnce({
-        kind: 'completed',
-        output: 'Error: rtk find does not support compound predicates or actions',
-        exitCode: 2,
-        timedOut: false,
-        offloaded: false
-      })
-      .mockResolvedValueOnce({
-        kind: 'completed',
-        output: './src/main.ts\n./src/App.vue\n',
-        exitCode: 0,
-        timedOut: false,
-        offloaded: false
-      })
-
-    const result = await handler.executeCommand(
-      {
-        command: originalCommand,
-        description: 'List source files'
-      },
-      { commandShell: POSIX_COMMAND_SHELL }
-    )
-
-    expect(runShellProcess).toHaveBeenCalledTimes(2)
-    expect(runShellProcess).toHaveBeenNthCalledWith(
-      1,
-      'rtk find . -type f -name "*.ts" -o -name "*.vue" | grep "^./src"',
-      workspaceRoot,
-      120000,
-      expect.objectContaining({ env: { PATH: '/bin' } })
-    )
-    expect(runShellProcess).toHaveBeenNthCalledWith(
-      2,
-      originalCommand,
-      workspaceRoot,
-      120000,
-      expect.objectContaining({ env: { PATH: '/bin' } })
-    )
-    expect(result.rtkApplied).toBe(false)
-    expect(result.rtkMode).toBe('bypass')
-    expect(result.rtkFallbackReason).toBe(
-      'RTK capability fallback after rewrite failure: unsupported find compound predicates or actions'
-    )
-    expect(result.output).toContain('./src/main.ts')
-    expect(result.output).toContain('Exit Code: 0')
-  })
-
-  it('does not fall back for ordinary rewritten command failures', async () => {
-    const handler = new AgentBashHandler(
-      [workspaceRoot],
-      { get: () => undefined },
-      createPermissionService()
-    )
-
-    vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: 'node scripts/check.js',
-      command: 'rtk run -- node scripts/check.js',
-      env: { PATH: '/bin' },
-      rewritten: true,
-      rtkApplied: true,
-      rtkMode: 'rewrite'
-    })
-
+    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
+    const command = 'find . -type f -name "*.ts" -o -name "*.vue" | grep "^./src"'
     const runShellProcess = vi
       .spyOn(handler as never, 'runShellProcess' as never)
       .mockResolvedValue({
         kind: 'completed',
-        output: 'permission denied',
+        output: 'unsupported predicate',
         exitCode: 2,
         timedOut: false,
         offloaded: false
       })
 
     const result = await handler.executeCommand(
-      {
-        command: 'node scripts/check.js',
-        description: 'Run project check'
-      },
-      { commandShell: POSIX_COMMAND_SHELL }
+      { command, description: 'List source files' },
+      { commandShell: POSIX_COMMAND_SHELL, env: { PATH: '/explicit/bin' } }
     )
 
-    expect(runShellProcess).toHaveBeenCalledTimes(1)
-    expect(result.rtkApplied).toBe(true)
-    expect(result.rtkMode).toBe('rewrite')
-    expect(result.rtkFallbackReason).toBeUndefined()
-    expect(result.output).toContain('permission denied')
+    expect(runShellProcess).toHaveBeenCalledExactlyOnceWith(
+      command,
+      workspaceRoot,
+      120000,
+      expect.objectContaining({
+        env: expect.objectContaining({ NPM_CONFIG_REGISTRY: 'https://registry.example.test' })
+      })
+    )
+    const env = runShellProcess.mock.calls[0]?.[3].env as Record<string, string>
+    expect(env.PATH.split(path.delimiter)[0]).toBe('/explicit/bin')
+    expect(result.output).toContain('unsupported predicate')
     expect(result.output).toContain('Exit Code: 2')
   })
 
@@ -183,23 +110,13 @@ describe('AgentBashHandler', () => {
     const commandEnvironment = {
       createEnvironment: vi.fn(() => ({
         variables: { DEEPCHAT_CLI_AGENT_TOKEN: 'scoped-token' },
-        prependPath: ['/bundled/cli'],
-        preserveCommand: true
+        prependPath: ['/bundled/cli']
       }))
     }
-    const handler = new AgentBashHandler(
-      [workspaceRoot],
-      { get: () => undefined },
-      permissionService,
-      commandEnvironment
-    )
+    const handler = new AgentBashHandler([workspaceRoot], permissionService, commandEnvironment)
     const prepareCommand = vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: 'deepchat model invoke --prompt hello',
       command: 'deepchat model invoke --prompt hello',
-      env: { DEEPCHAT_CLI_AGENT_TOKEN: 'scoped-token' },
-      rewritten: false,
-      rtkApplied: false,
-      rtkMode: 'bypass'
+      env: { DEEPCHAT_CLI_AGENT_TOKEN: 'scoped-token' }
     })
     vi.spyOn(handler as never, 'runShellProcess' as never).mockResolvedValue({
       kind: 'completed',
@@ -234,9 +151,7 @@ describe('AgentBashHandler', () => {
       expect.objectContaining({
         DEEPCHAT_CLI_AGENT_TOKEN: 'scoped-token',
         CONTROLLED_VALUE: 'preserved'
-      }),
-      POSIX_COMMAND_SHELL,
-      true
+      })
     )
     const preparedEnvironment = prepareCommand.mock.calls[0]?.[1] as Record<string, string>
     expect(preparedEnvironment.PATH?.split(path.delimiter).slice(0, 3)).toEqual([
@@ -246,59 +161,17 @@ describe('AgentBashHandler', () => {
     ])
   })
 
-  it('bypasses RTK rewrites for PowerShell commands', async () => {
-    const handler = new AgentBashHandler(
-      [workspaceRoot],
-      { get: () => true },
-      createPermissionService()
-    )
-    const prepareShellCommand = vi
-      .spyOn(rtkRuntimeService, 'prepareShellCommand')
-      .mockResolvedValue({
-        originalCommand: 'Get-ChildItem',
-        command: 'Get-ChildItem',
-        env: { PATH: 'C:\\Windows' },
-        rewritten: false,
-        usedRtk: false,
-        rtkApplied: false,
-        rtkMode: 'bypass',
-        rtkFallbackReason: 'RTK rewrite is unavailable for this command shell'
-      })
-
-    const prepared = await (handler as never).prepareCommand(
-      'Get-ChildItem',
-      {},
-      WINDOWS_POWERSHELL_COMMAND_SHELL
-    )
-
-    expect(prepareShellCommand).toHaveBeenCalledWith('Get-ChildItem', {}, true, {
-      allowRewrite: false
-    })
-    expect(prepared).toMatchObject({
-      command: 'Get-ChildItem',
-      rewritten: false,
-      rtkApplied: false,
-      rtkFallbackReason: 'RTK rewrite bypassed for non-POSIX command shell'
-    })
-  })
-
-  it('bypasses RTK rewrites when exact owned stdin must not be replayed', async () => {
+  it('executes exact owned stdin without replay', async () => {
     const order: string[] = []
     const commandEnvironment = createProgrammaticCommandEnvironment(order)
     const handler = new AgentBashHandler(
       [workspaceRoot],
-      { get: () => undefined },
       createPermissionService(),
       commandEnvironment
     )
     const prepareCommand = vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: 'deepchat tool call',
       command: 'deepchat tool call',
-      env: {},
-      rewritten: false,
-      rtkApplied: false,
-      rtkMode: 'bypass',
-      rtkFallbackReason: 'RTK rewrite bypassed for exact command execution'
+      env: {}
     })
     const runShellProcess = vi
       .spyOn(handler as never, 'runShellProcess' as never)
@@ -328,12 +201,7 @@ describe('AgentBashHandler', () => {
       }
     )
 
-    expect(prepareCommand).toHaveBeenCalledWith(
-      'deepchat tool call',
-      undefined,
-      POSIX_COMMAND_SHELL,
-      true
-    )
+    expect(prepareCommand).toHaveBeenCalledWith('deepchat tool call', undefined)
     expect(beforeExecute).toHaveBeenCalledWith(
       expect.objectContaining({ stdin: 'owned input', background: false })
     )
@@ -354,18 +222,13 @@ describe('AgentBashHandler', () => {
     const commandEnvironment = createProgrammaticCommandEnvironment(order)
     const handler = new AgentBashHandler(
       [workspaceRoot],
-      { get: () => undefined },
       createPermissionService(),
       commandEnvironment
     )
     const command = 'deepchat tool search --query calendar --limit 4'
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: command,
       command,
-      env: {},
-      rewritten: false,
-      rtkApplied: false,
-      rtkMode: 'bypass'
+      env: {}
     })
     const runShellProcess = vi
       .spyOn(handler as never, 'runShellProcess' as never)
@@ -413,17 +276,12 @@ describe('AgentBashHandler', () => {
     })
     const handler = new AgentBashHandler(
       [workspaceRoot],
-      { get: () => undefined },
       createPermissionService(),
       commandEnvironment
     )
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: 'deepchat tool call',
       command: 'deepchat tool call',
-      env: {},
-      rewritten: false,
-      rtkApplied: false,
-      rtkMode: 'bypass'
+      env: {}
     })
     const runShellProcess = vi.spyOn(handler as never, 'runShellProcess' as never)
 
@@ -475,11 +333,7 @@ describe('AgentBashHandler', () => {
       options: { stdin: '{}', programmatic: true }
     }
   ])('rejects owned stdin for $name before shell execution', async ({ args, options }) => {
-    const handler = new AgentBashHandler(
-      [workspaceRoot],
-      { get: () => undefined },
-      createPermissionService()
-    )
+    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
     const prepareCommand = vi.spyOn(handler as never, 'prepareCommand' as never)
 
     await expect(
@@ -492,13 +346,11 @@ describe('AgentBashHandler', () => {
     const commandEnvironment = {
       createEnvironment: vi.fn(() => ({
         variables: {},
-        prependPath: [],
-        preserveCommand: false
+        prependPath: []
       }))
     }
     const handler = new AgentBashHandler(
       [workspaceRoot],
-      { get: () => undefined },
       new CommandPermissionService(),
       commandEnvironment
     )
@@ -515,64 +367,14 @@ describe('AgentBashHandler', () => {
     expect(commandEnvironment.createEnvironment).not.toHaveBeenCalled()
   })
 
-  it('does not fall back when the rewritten command times out', async () => {
-    const handler = new AgentBashHandler(
-      [workspaceRoot],
-      { get: () => undefined },
-      createPermissionService()
-    )
-
-    vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: 'find . -name "*.ts"',
-      command: 'rtk find . -name "*.ts"',
-      env: { PATH: '/bin' },
-      rewritten: true,
-      rtkApplied: true,
-      rtkMode: 'rewrite'
-    })
-
-    const runShellProcess = vi
-      .spyOn(handler as never, 'runShellProcess' as never)
-      .mockResolvedValue({
-        kind: 'completed',
-        output: 'Error: rtk find does not support compound predicates or actions',
-        exitCode: null,
-        timedOut: true,
-        offloaded: false
-      })
-
-    const result = await handler.executeCommand(
-      {
-        command: 'find . -name "*.ts"',
-        description: 'Search ts files',
-        timeout: 1000
-      },
-      { commandShell: POSIX_COMMAND_SHELL }
-    )
-
-    expect(runShellProcess).toHaveBeenCalledTimes(1)
-    expect(result.rtkApplied).toBe(true)
-    expect(result.rtkMode).toBe('rewrite')
-    expect(result.output).toContain('Timed out')
-  })
-
-  it('keeps background execution on the bypass path without foreground retry', async () => {
+  it('executes approved commands in the background', async () => {
     const originalCommand = 'find . -type f -name "*.ts" -o -name "*.vue"'
     const order: string[] = []
-    const handler = new AgentBashHandler(
-      [workspaceRoot],
-      { get: () => undefined },
-      createPermissionService()
-    )
+    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand,
       command: originalCommand,
-      env: { PATH: '/bin' },
-      rewritten: false,
-      rtkApplied: false,
-      rtkMode: 'bypass',
-      rtkFallbackReason: 'Bypassed RTK rewrite: unsupported find compound predicates or actions'
+      env: { PATH: '/bin' }
     })
 
     const runShellProcess = vi.spyOn(handler as never, 'runShellProcess' as never)
@@ -615,28 +417,15 @@ describe('AgentBashHandler', () => {
       })
     )
     expect(result.output).toEqual({ status: 'running', sessionId: 'bg_123' })
-    expect(result.rtkApplied).toBe(false)
-    expect(result.rtkMode).toBe('bypass')
-    expect(result.rtkFallbackReason).toBe(
-      'Bypassed RTK rewrite: unsupported find compound predicates or actions'
-    )
   })
 
   it('allows an external cwd when explicitly enabled', async () => {
     const externalCwd = externalRoot
-    const handler = new AgentBashHandler(
-      [workspaceRoot],
-      { get: () => undefined },
-      createPermissionService()
-    )
+    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: 'pwd',
       command: 'pwd',
-      env: { PATH: '/bin' },
-      rewritten: false,
-      rtkApplied: false,
-      rtkMode: 'bypass'
+      env: { PATH: '/bin' }
     })
 
     const runShellProcess = vi
@@ -671,11 +460,7 @@ describe('AgentBashHandler', () => {
 
   it('rejects an external cwd when external access is not enabled', async () => {
     const externalCwd = externalRoot
-    const handler = new AgentBashHandler(
-      [workspaceRoot],
-      { get: () => undefined },
-      createPermissionService()
-    )
+    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
     const runShellProcess = vi.spyOn(handler as never, 'runShellProcess' as never)
 
     await expect(
@@ -694,11 +479,7 @@ describe('AgentBashHandler', () => {
 
   it('does not commit dispatch when the resolved cwd is unusable', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(false)
-    const handler = new AgentBashHandler(
-      [workspaceRoot],
-      { get: () => undefined },
-      createPermissionService()
-    )
+    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
     const beforeExecute = vi.fn()
     const runShellProcess = vi.spyOn(handler as never, 'runShellProcess' as never)
 
@@ -717,19 +498,11 @@ describe('AgentBashHandler', () => {
   })
 
   it('commits the prepared command before starting the shell process', async () => {
-    const handler = new AgentBashHandler(
-      [workspaceRoot],
-      { get: () => undefined },
-      createPermissionService()
-    )
+    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
     const order: string[] = []
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: 'find . -name "*.ts"',
-      command: 'rtk find . -name "*.ts"',
-      env: { PATH: '/bin' },
-      rewritten: true,
-      rtkApplied: true,
-      rtkMode: 'rewrite'
+      command: 'find . -name "*.ts"',
+      env: { PATH: '/bin' }
     })
     vi.spyOn(handler as never, 'runShellProcess' as never).mockImplementation(async () => {
       order.push('spawn')
@@ -752,30 +525,14 @@ describe('AgentBashHandler', () => {
     )
 
     expect(order).toEqual(['commit', 'spawn'])
-    expect(beforeExecute).toHaveBeenCalledWith({
-      command: 'rtk find . -name "*.ts"',
-      cwd: workspaceRoot,
-      timeoutMs: 120000,
-      background: false,
-      fallbackCommand: 'find . -name "*.ts"',
-      fallbackPolicy: 'rtk_capability_error'
-    })
   })
 
   it('returns a running session when foreground exec exceeds yieldMs', async () => {
-    const handler = new AgentBashHandler(
-      [workspaceRoot],
-      { get: () => undefined },
-      createPermissionService()
-    )
+    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: 'bun run dev caps gpt-4o',
       command: 'bun run dev caps gpt-4o',
-      env: { PATH: '/bin' },
-      rewritten: false,
-      rtkApplied: false,
-      rtkMode: 'bypass'
+      env: { PATH: '/bin' }
     })
 
     const startSpy = vi
@@ -818,17 +575,12 @@ describe('AgentBashHandler', () => {
     const commandEnvironment = createProgrammaticCommandEnvironment()
     const handler = new AgentBashHandler(
       [workspaceRoot],
-      { get: () => undefined },
       createPermissionService(),
       commandEnvironment
     )
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: 'deepchat tool call',
       command: 'deepchat tool call',
-      env: { PATH: '/bin' },
-      rewritten: false,
-      rtkApplied: false,
-      rtkMode: 'bypass'
+      env: { PATH: '/bin' }
     })
     vi.spyOn(backgroundExecSessionManager, 'start').mockResolvedValue({
       sessionId: 'bg_programmatic',
@@ -878,17 +630,12 @@ describe('AgentBashHandler', () => {
     const commandEnvironment = createProgrammaticCommandEnvironment()
     const handler = new AgentBashHandler(
       [workspaceRoot],
-      { get: () => undefined },
       createPermissionService(),
       commandEnvironment
     )
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: 'deepchat tool call',
       command: 'deepchat tool call',
-      env: { PATH: '/bin' },
-      rewritten: false,
-      rtkApplied: false,
-      rtkMode: 'bypass'
+      env: { PATH: '/bin' }
     })
     vi.spyOn(backgroundExecSessionManager, 'start').mockResolvedValue({
       sessionId: 'bg_failed_stdin',
@@ -922,17 +669,12 @@ describe('AgentBashHandler', () => {
     const commandEnvironment = createProgrammaticCommandEnvironment()
     const handler = new AgentBashHandler(
       [workspaceRoot],
-      { get: () => undefined },
       createPermissionService(),
       commandEnvironment
     )
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: 'deepchat tool batch',
       command: 'deepchat tool batch',
-      env: { PATH: '/bin' },
-      rewritten: false,
-      rtkApplied: false,
-      rtkMode: 'bypass'
+      env: { PATH: '/bin' }
     })
     vi.spyOn(backgroundExecSessionManager, 'start').mockResolvedValue({
       sessionId: 'bg_cancelled_programmatic',
@@ -990,17 +732,12 @@ describe('AgentBashHandler', () => {
     const controller = new AbortController()
     const handler = new AgentBashHandler(
       [workspaceRoot],
-      { get: () => undefined },
       createPermissionService(),
       createProgrammaticCommandEnvironment()
     )
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: 'deepchat tool search --query mail',
       command: 'deepchat tool search --query mail',
-      env: { PATH: '/bin' },
-      rewritten: false,
-      rtkApplied: false,
-      rtkMode: 'bypass'
+      env: { PATH: '/bin' }
     })
     const startSpy = vi.spyOn(backgroundExecSessionManager, 'start')
 
@@ -1029,19 +766,11 @@ describe('AgentBashHandler', () => {
   })
 
   it('cleans up completed foreground sessions that finish inside the yield window', async () => {
-    const handler = new AgentBashHandler(
-      [workspaceRoot],
-      { get: () => undefined },
-      createPermissionService()
-    )
+    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: 'pnpm test --help',
       command: 'pnpm test --help',
-      env: { PATH: '/bin' },
-      rewritten: false,
-      rtkApplied: false,
-      rtkMode: 'bypass'
+      env: { PATH: '/bin' }
     })
 
     vi.spyOn(backgroundExecSessionManager, 'start').mockResolvedValue({
@@ -1079,19 +808,11 @@ describe('AgentBashHandler', () => {
   })
 
   it('keeps completed foreground sessions when output was offloaded', async () => {
-    const handler = new AgentBashHandler(
-      [workspaceRoot],
-      { get: () => undefined },
-      createPermissionService()
-    )
+    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
-      originalCommand: 'pnpm test --reporter=json',
       command: 'pnpm test --reporter=json',
-      env: { PATH: '/bin' },
-      rewritten: false,
-      rtkApplied: false,
-      rtkMode: 'bypass'
+      env: { PATH: '/bin' }
     })
 
     const startSpy = vi.spyOn(backgroundExecSessionManager, 'start').mockResolvedValue({
@@ -1150,11 +871,7 @@ describe('AgentBashHandler', () => {
       pid = 123
     }
 
-    const handler = new AgentBashHandler(
-      [workspaceRoot],
-      { get: () => undefined },
-      createPermissionService()
-    )
+    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
     const child = new MockChild()
     vi.mocked(spawn).mockReturnValue(child as never)
     vi.spyOn(handler as never, 'createOutputFilePath' as never).mockReturnValue('/tmp/exec.log')

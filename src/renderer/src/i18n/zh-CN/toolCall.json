@@ -13,7 +13,6 @@
   "imagePreviewCount": "无图片预览 | {count} 张图片预览 | {count} 张图片预览",
   "terminalOutput": "终端输出",
   "badge": {
-    "rtk": "RTK",
     "allowed": "已允许",
     "denied": "已拒绝"
   },

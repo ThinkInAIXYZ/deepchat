@@ -39,9 +39,6 @@ vi.mock('vue-i18n', () => ({
       if (key === 'toolCall.replacementsCount') {
         return `${params?.count ?? 0} replacements`
       }
-      if (key === 'toolCall.badge.rtk') {
-        return 'RTK'
-      }
       if (key === 'chat.toolCall.subagents.summary') {
         return `${params?.mode ?? 'mode'} · ${params?.count ?? 0} localized subagents`
       }
@@ -823,40 +820,19 @@ describe('MessageBlockToolCall', () => {
     )
   })
 
-  it('shows an RTK badge for command-style tool calls when RTK was applied', () => {
+  it('shows command summary text', () => {
     const wrapper = mount(MessageBlockToolCall, {
       props: {
         block: createBlock({
           tool_call: {
             name: 'exec',
-            response: 'ok',
-            rtkApplied: true,
-            rtkMode: 'rewrite'
-          }
-        })
-      }
-    })
-
-    expect(wrapper.find('[data-testid="tool-call-rtk-badge"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="tool-call-rtk-badge"]').text()).toBe('RTK')
-  })
-
-  it('shows summary text alongside the RTK badge', () => {
-    const wrapper = mount(MessageBlockToolCall, {
-      props: {
-        block: createBlock({
-          tool_call: {
-            name: 'exec',
-            params: '{"command":"pnpm run dev","background":true}',
-            rtkApplied: true,
-            rtkMode: 'rewrite'
+            params: '{"command":"pnpm run dev","background":true}'
           }
         })
       }
     })
 
     expect(wrapper.get('[data-testid="tool-call-summary"]').text()).toBe('pnpm run dev')
-    expect(wrapper.get('[data-testid="tool-call-rtk-badge"]').text()).toBe('RTK')
   })
 
   it('prefers command over earlier boolean fields in exec summaries', () => {

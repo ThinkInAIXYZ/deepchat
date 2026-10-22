@@ -961,14 +961,6 @@ export const sessionsGetUsageDashboardRoute = defineRouteContract({
   })
 })
 
-export const sessionsRetryRtkHealthCheckRoute = defineRouteContract({
-  name: 'sessions.retryRtkHealthCheck',
-  input: z.object({}).default({}),
-  output: z.object({
-    retried: z.boolean()
-  })
-})
-
 export const sessionsRenameRoute = defineRouteContract({
   name: 'sessions.rename',
   input: z.object({

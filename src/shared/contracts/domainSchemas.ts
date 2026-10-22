@@ -325,41 +325,6 @@ export const UsageDashboardCategoryItemSchema = z.object({
   totalTokens: z.number().nonnegative()
 })
 
-export const UsageDashboardRtkSummarySchema = z.object({
-  totalCommands: z.number().int().nonnegative(),
-  totalInputTokens: z.number().nonnegative(),
-  totalOutputTokens: z.number().nonnegative(),
-  totalSavedTokens: z.number().nonnegative(),
-  avgSavingsPct: z.number(),
-  totalTimeMs: z.number().nonnegative(),
-  avgTimeMs: z.number().nonnegative()
-})
-
-export const UsageDashboardRtkDaySchema = z.object({
-  date: z.string(),
-  commands: z.number().int().nonnegative(),
-  inputTokens: z.number().nonnegative(),
-  outputTokens: z.number().nonnegative(),
-  savedTokens: z.number().nonnegative(),
-  savingsPct: z.number(),
-  totalTimeMs: z.number().nonnegative(),
-  avgTimeMs: z.number().nonnegative()
-})
-
-export const UsageDashboardRtkDataSchema = z.object({
-  scope: z.literal('deepchat'),
-  enabled: z.boolean(),
-  effectiveEnabled: z.boolean(),
-  available: z.boolean(),
-  health: z.enum(['checking', 'healthy', 'unhealthy']),
-  checkedAt: z.number().nullable(),
-  source: z.enum(['bundled', 'system', 'none']),
-  failureStage: z.enum(['resolve', 'version', 'rewrite', 'smoke', 'gain', 'runtime']).nullable(),
-  failureMessage: z.string().nullable(),
-  summary: UsageDashboardRtkSummarySchema,
-  daily: z.array(UsageDashboardRtkDaySchema)
-})
-
 export const UsageDashboardDataSchema = z.object({
   recordingStartedAt: z.number().nullable(),
   backfillStatus: UsageStatsBackfillStatusSchema,
@@ -367,8 +332,7 @@ export const UsageDashboardDataSchema = z.object({
   calendar: z.array(UsageDashboardCalendarDaySchema),
   providerBreakdown: z.array(UsageDashboardBreakdownItemSchema),
   modelBreakdown: z.array(UsageDashboardBreakdownItemSchema),
-  categoryBreakdown: z.array(UsageDashboardCategoryItemSchema).default([]),
-  rtk: UsageDashboardRtkDataSchema
+  categoryBreakdown: z.array(UsageDashboardCategoryItemSchema).default([])
 })
 
 export const LlmProviderSchema = z.looseObject({

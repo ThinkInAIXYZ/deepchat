@@ -13,7 +13,6 @@
   "imagePreviewCount": "No hay vistas previas de imágenes | Vista previa de una imagen | {count} vistas previas de imágenes",
   "terminalOutput": "Salida terminal",
   "badge": {
-    "rtk": "RTK",
     "allowed": "Permitido",
     "denied": "Denegado"
   },

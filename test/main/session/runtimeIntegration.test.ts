@@ -305,9 +305,6 @@ function createMockSqlitePresenter() {
         extra: block.extra,
         toolCallExtra: block.tool_call
           ? {
-              rtkApplied: block.tool_call.rtkApplied,
-              rtkMode: block.tool_call.rtkMode,
-              rtkFallbackReason: block.tool_call.rtkFallbackReason,
               imagePreviews: block.tool_call.imagePreviews,
               server_name: block.tool_call.server_name,
               server_icons: block.tool_call.server_icons,

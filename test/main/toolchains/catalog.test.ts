@@ -34,19 +34,20 @@ describe('toolchain catalog', () => {
   it('uses the Windows ARM64 archive hash, not the installed executable hash', () => {
     expect(resolveToolchainArtifact('node', 'win32', 'arm64')).toEqual({
       kind: 'node',
-      version: 'v24.21.0',
+      version: 'v24.22.1',
       platform: 'win32',
       arch: 'arm64',
-      filename: 'node-v24.21.0-win-arm64.zip',
-      officialUrl: 'https://nodejs.org/dist/v24.21.0/node-v24.21.0-win-arm64.zip',
-      sha256: '8779b1bde1d39f8d420e3b57aa657b39891af434d3de44a919044cec06785921'
+      filename: 'node-v24.22.1-win-arm64.zip',
+      officialUrl: 'https://nodejs.org/dist/v24.22.1/node-v24.22.1-win-arm64.zip',
+      sha256: 'a0c807319fede24c4a0d8f84564c82a619bd313b16b10c007c383c2609e99171'
     })
   })
 
   it.each([
     ['24.20.9', false],
-    ['v24.21.0', true],
-    ['24.22.0', true],
+    ['v24.22.1', true],
+    ['24.22.0', false],
+    ['24.22.2', true],
     ['25.0.0', false]
   ])('requires the patched Node 24 line for %s', (version, compatible) => {
     expect(isNodeVersionInCompatRange(version)).toBe(compatible)

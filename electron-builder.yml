@@ -12,6 +12,7 @@ files:
   - '!vendor/**'
   - '!docs/*'
   - '!plugins/**'
+  - '!runtime/rtk/**'
   - '!out/main/lightOcrHelper.js'
   - '!out/cli/**'
   - '!keys/*'
@@ -48,7 +49,7 @@ extraResources:
     filter: ['deepchat', 'deepchat.cmd', 'deepchat.mjs']
   - from: ./runtime/
     to: app.asar.unpacked/runtime
-    filter: ['**/*']
+    filter: ['**/*', '!rtk/**']
   - from: ./resources/cdn/
     to: app.asar.unpacked/resources/cdn
     filter: ['**/*']

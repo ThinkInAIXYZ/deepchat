@@ -3126,35 +3126,6 @@ declare module 'vue-i18n' {
         messages: string
         empty: string
       }
-      rtk: {
-        title: string
-        description: string
-        actions: {
-          retry: string
-        }
-        status: {
-          disabled: string
-          checking: string
-          healthy: string
-          unhealthy: string
-        }
-        descriptionDisabled: string
-        descriptionChecking: string
-        descriptionHealthy: string
-        descriptionUnhealthy: string
-        sourceLabel: string
-        source: {
-          bundled: string
-          system: string
-          none: string
-        }
-        summary: {
-          savedTokens: string
-          commands: string
-          avgSavingsPct: string
-          outputTokens: string
-        }
-      }
       unavailable: string
     }
     modelConfigItem: {
@@ -4839,7 +4810,6 @@ declare module 'vue-i18n' {
     imagePreviewCount: string
     terminalOutput: string
     badge: {
-      rtk: string
       allowed: string
       denied: string
     }

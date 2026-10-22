@@ -779,9 +779,6 @@ function projectToolDetailData(row: DeepChatTapeEntryRow):
       orderSeq: number
       toolCallId: string
       response: string
-      rtkApplied?: boolean
-      rtkMode?: string
-      rtkFallbackReason?: string
       imagePreviewCount?: number
     }
   | null {
@@ -837,6 +834,7 @@ function projectToolDetailData(row: DeepChatTapeEntryRow):
       'orderSeq',
       'toolCallId',
       'response',
+      // Accept retired metadata so historical tool results remain inspectable.
       'rtkApplied',
       'rtkMode',
       'rtkFallbackReason',
@@ -844,9 +842,6 @@ function projectToolDetailData(row: DeepChatTapeEntryRow):
     ]) ||
     !boundedIdentity(payload.toolCallId) ||
     typeof payload.response !== 'string' ||
-    (payload.rtkApplied !== undefined && typeof payload.rtkApplied !== 'boolean') ||
-    (payload.rtkMode !== undefined && typeof payload.rtkMode !== 'string') ||
-    (payload.rtkFallbackReason !== undefined && typeof payload.rtkFallbackReason !== 'string') ||
     (payload.imagePreviews !== undefined && !Array.isArray(payload.imagePreviews))
   ) {
     return null
@@ -857,15 +852,6 @@ function projectToolDetailData(row: DeepChatTapeEntryRow):
     orderSeq: payload.orderSeq,
     toolCallId: payload.toolCallId as string,
     response: boundedToolContent(payload.response, MAX_DETAIL_STRING_BYTES) ?? '',
-    ...(payload.rtkApplied === undefined ? {} : { rtkApplied: payload.rtkApplied }),
-    ...(payload.rtkMode === undefined
-      ? {}
-      : { rtkMode: boundedString(payload.rtkMode, MAX_DETAIL_STRING_BYTES) ?? '' }),
-    ...(payload.rtkFallbackReason === undefined
-      ? {}
-      : {
-          rtkFallbackReason: boundedString(payload.rtkFallbackReason, MAX_DETAIL_STRING_BYTES) ?? ''
-        }),
     ...(Array.isArray(payload.imagePreviews)
       ? { imagePreviewCount: payload.imagePreviews.length }
       : {})

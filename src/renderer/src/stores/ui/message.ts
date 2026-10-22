@@ -281,9 +281,6 @@ export const useMessageStore = defineStore('message', () => {
       previous.name === next.name &&
       previous.params === next.params &&
       previous.response === next.response &&
-      previous.rtkApplied === next.rtkApplied &&
-      previous.rtkMode === next.rtkMode &&
-      previous.rtkFallbackReason === next.rtkFallbackReason &&
       previous.server_name === next.server_name &&
       previous.server_icons === next.server_icons &&
       previous.server_description === next.server_description &&

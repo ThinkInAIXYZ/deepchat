@@ -79,7 +79,6 @@ export type MainLogStartupComponent =
   | 'plugin_host'
   | 'plugin_runtime'
   | 'remote_runtime'
-  | 'rtk_health_check'
   | 'skill_sync'
   | 'sqlite_mainline_normalization'
   | 'sync_host'
@@ -451,7 +450,6 @@ const STARTUP_COMPONENTS = [
   'plugin_host',
   'plugin_runtime',
   'remote_runtime',
-  'rtk_health_check',
   'skill_sync',
   'sqlite_mainline_normalization',
   'sync_host',

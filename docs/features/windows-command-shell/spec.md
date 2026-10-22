@@ -212,8 +212,8 @@ general POSIX path translation layer and does not accept ambiguous MSYS forms ou
 drive mapping.
 
 The Windows shell skill runtime is enabled only for `git-bash`. Direct foreground and background
-executable/script execution passes an executable and argv without shell serialization. Only an RTK
-rewrite or another genuine shell plan is interpreted by the resolved shell. Shell quoting is
+executable/script execution passes an executable and argv without shell serialization. Shell plans
+are interpreted by the resolved shell. Shell quoting is
 derived from the resolved dialect.
 
 The bundled POSIX `deepchat` launcher recognizes the Windows `node.exe` runtime layout so Agent CLI

@@ -6,10 +6,6 @@ import type {
   UsageDashboardData,
   UsageStatsBackfillStatus
 } from '@shared/types/agent-interface'
-import {
-  RTK_ENABLED_SETTING_KEY,
-  rtkRuntimeService
-} from '@/agent/shared/process/rtkRuntimeService'
 import type { SessionDatabase } from '@/session/data/database'
 import type { DeepChatMessageUsageCandidateRow } from '@/session/data/tables/deepchatMessages'
 import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinator'
@@ -111,10 +107,7 @@ export class UsageStatsService {
       calendar,
       providerBreakdown,
       modelBreakdown,
-      categoryBreakdown,
-      rtk: await rtkRuntimeService.getDashboardData(
-        this.settings.get<boolean>(RTK_ENABLED_SETTING_KEY) !== false
-      )
+      categoryBreakdown
     }
   }
 

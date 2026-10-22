@@ -73,13 +73,6 @@
         }}
       </span>
       <span
-        v-if="showRtkBadge"
-        data-testid="tool-call-rtk-badge"
-        class="shrink-0 text-[10px] text-muted-foreground"
-      >
-        {{ t('toolCall.badge.rtk') }}
-      </span>
-      <span
         v-if="hasImagePreviews"
         data-testid="tool-call-image-badge"
         class="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
@@ -713,10 +706,6 @@ const isTerminalTool = computed(() => {
     name.includes('skill_run')
   )
 })
-
-const showRtkBadge = computed(
-  () => isTerminalTool.value && props.block.tool_call?.rtkApplied === true
-)
 
 const syncAutoExpansionState = (
   status: DisplayAssistantMessageBlock['status'],

@@ -553,9 +553,7 @@ describe('AgentToolManager read routing', () => {
     const executeCommand = vi
       .spyOn(AgentBashHandler.prototype, 'executeCommand')
       .mockResolvedValue({
-        output: 'ok\nExit Code: 0',
-        rtkApplied: false,
-        rtkMode: 'bypass'
+        output: 'ok\nExit Code: 0'
       })
     const controller = new AbortController()
 
@@ -598,9 +596,7 @@ describe('AgentToolManager read routing', () => {
     const executeCommand = vi
       .spyOn(AgentBashHandler.prototype, 'executeCommand')
       .mockResolvedValue({
-        output: '{"tools":[]}\nExit Code: 0',
-        rtkApplied: false,
-        rtkMode: 'bypass'
+        output: '{"tools":[]}\nExit Code: 0'
       })
 
     try {

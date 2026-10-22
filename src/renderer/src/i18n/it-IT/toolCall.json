@@ -13,7 +13,6 @@
   "imagePreviewCount": "Nessuna anteprima immagine | {count} anteprima immagine | {count} anteprime immagine",
   "terminalOutput": "Output terminale",
   "badge": {
-    "rtk": "RTK",
     "allowed": "Consentito",
     "denied": "Negato"
   },

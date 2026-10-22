@@ -162,8 +162,7 @@ invalid Agent-token environment so it fails closed instead of changing principal
 
 Every conversation-bound Agent shell process receives that fail-closed token environment by default,
 including ordinary commands and wrapper processes. A catalog-approved direct CLI command replaces it
-with a one-command capability token. Environment identity and command-rewrite control are separate:
-ordinary commands may still use RTK rewriting, while an approved CLI command is preserved verbatim.
+with a one-command capability token. Approved command text is passed unchanged to the selected shell.
 
 The bearer token proves possession, not whether a same-UID process is semantically a human or an
 Agent. A process that can read and deliberately replay the human descriptor can present as a human

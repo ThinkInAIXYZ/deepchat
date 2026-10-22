@@ -1859,7 +1859,6 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     agentState: AcpAgentState | null | undefined
   ): Promise<AcpMaterializedLaunch> {
     this.assertAcceptingProcesses()
-    this.runtimeHelper.initializeRuntimes()
 
     // Validate command
     if (!launchSpec.command || launchSpec.command.trim().length === 0) {

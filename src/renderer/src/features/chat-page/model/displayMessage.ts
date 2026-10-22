@@ -188,9 +188,6 @@ export type DisplayAssistantMessageBlock = {
     name?: string
     params?: string
     response?: string
-    rtkApplied?: boolean
-    rtkMode?: 'rewrite' | 'direct' | 'bypass'
-    rtkFallbackReason?: string
     imagePreviews?: ToolCallImagePreview[]
     server_name?: string
     server_icons?: string

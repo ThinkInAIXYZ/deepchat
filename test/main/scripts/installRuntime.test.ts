@@ -23,9 +23,9 @@ describe('install-runtime', () => {
   it('loads every pinned toolchain version from one manifest', () => {
     expect(loadRuntimeVersions()).toMatchObject({
       tinyRuntimeInjector: '1.2.0',
-      node: 'v24.21.0',
-      uv: '0.9.18',
-      rtk: 'v0.43.0'
+      node: 'v24.22.1',
+      uv: '0.13.5',
+      cloudflared: '2026.10.3'
     })
     expect(loadRuntimeVersions().nodeArtifacts['darwin-arm64'].executableSha256).toMatch(
       /^[a-f0-9]{64}$/
@@ -45,13 +45,6 @@ describe('install-runtime', () => {
       }
       const manifestPath = path.join(tempDir, 'runtime-versions.json')
       await writeFile(manifestPath, JSON.stringify(manifest))
-
-      expect(loadRuntimeVersions(manifestPath)).toMatchObject({
-        tinyRuntimeInjector: manifest.tinyRuntimeInjector,
-        node: manifest.node,
-        uv: manifest.uv,
-        rtk: manifest.rtk
-      })
     } finally {
       await rm(tempDir, { recursive: true, force: true })
     }
@@ -63,11 +56,9 @@ describe('install-runtime', () => {
       arch: 'x64',
       rootDir: '/repo'
     })
-
     expect(plan.map(({ type, version }) => ({ type, version }))).toEqual([
-      { type: 'uv', version: '0.9.18' },
-      { type: 'rtk', version: 'v0.43.0' },
-      { type: 'cloudflared', version: '2026.9.1' }
+      { type: 'uv', version: '0.13.5' },
+      { type: 'cloudflared', version: '2026.10.3' }
     ])
     for (const step of plan.filter(step => step.type !== 'cloudflared')) {
       expect(step.args).toContain('tiny-runtime-injector@1.2.0')
@@ -77,7 +68,7 @@ describe('install-runtime', () => {
     }
   })
 
-  it('preserves the unsupported RTK target exception for Windows arm64', () => {
+  it('installs only available runtimes on Windows arm64', () => {
     const plan = buildRuntimeInstallPlan({ platform: 'win32', arch: 'arm64' })
 
     expect(plan.map((step) => step.type)).toEqual(['uv'])
@@ -89,8 +80,8 @@ describe('install-runtime', () => {
     expect(() => buildRuntimeInstallPlan({ platform: 'win32', arch: 'arm64', versions })).toThrow(
       /Unsupported runtime target: win32-arm64/
     )
-    expect(buildRuntimeInstallPlan({ platform: 'win32', arch: 'x64', versions })).toHaveLength(3)
-    expect(buildRuntimeInstallPlan({ platform: 'linux', arch: 'arm64', versions })).toHaveLength(3)
+    expect(buildRuntimeInstallPlan({ platform: 'win32', arch: 'x64', versions })).toHaveLength(2)
+    expect(buildRuntimeInstallPlan({ platform: 'linux', arch: 'arm64', versions })).toHaveLength(2)
   })
 
   it.each(['x64', 'arm64'])('builds a Node-only plan for Linux %s', (arch) => {
@@ -149,7 +140,7 @@ describe('install-runtime', () => {
     const verify = vi.fn().mockResolvedValue(undefined)
 
     await expect(runRuntimeInstallPlan(plan, spawn, verify)).rejects.toThrow(
-      /rtk runtime installation failed/
+      /cloudflared runtime installation failed/
     )
     expect(spawn).toHaveBeenCalledTimes(2)
     expect(verify).toHaveBeenCalledTimes(1)

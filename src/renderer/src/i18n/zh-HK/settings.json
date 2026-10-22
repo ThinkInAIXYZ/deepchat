@@ -551,35 +551,6 @@
       "messages": "{count} 條消息",
       "empty": "暫時還沒有可展示的明細資料。"
     },
-    "rtk": {
-      "title": "RTK 節省",
-      "description": "展示 RTK 在 DeepChat 原生命令執行鏈路裡，估算攔下了多少沒有進入模型上下文的 token。",
-      "actions": {
-        "retry": "重試檢測"
-      },
-      "status": {
-        "disabled": "已停用",
-        "checking": "檢測中",
-        "healthy": "可用",
-        "unhealthy": "不可用"
-      },
-      "descriptionDisabled": "當前應用會話裡 RTK 已關閉，命令會繼續走原始執行路徑。",
-      "descriptionChecking": "DeepChat 正在檢測 RTK 是否能在當前環境裡正常運行。",
-      "descriptionHealthy": "RTK 已接入 DeepChat 原生命令執行。",
-      "descriptionUnhealthy": "RTK 啟動健康檢查失敗，當前應用會話內已自動停用。",
-      "sourceLabel": "運行時來源：{source}",
-      "source": {
-        "bundled": "內置",
-        "system": "系統",
-        "none": "不可用"
-      },
-      "summary": {
-        "savedTokens": "節省 Token",
-        "commands": "已跟蹤命令",
-        "avgSavingsPct": "平均節省率",
-        "outputTokens": "過濾後輸出"
-      }
-    },
     "unavailable": "暫無"
   },
   "modelConfigItem": {
@@ -2784,9 +2755,9 @@
       "runtime_manifest_invalid": "內建 OCR 執行階段清單無效。",
       "service_closed": "OCR 服務正在關閉。",
       "unsupported_platform": "目前平台與架構暫不支援 OCR。",
-      "toolchain_unavailable": "OCR 需要官方 Node.js v24.21.0。請到設定 → 工具鏈安裝官方執行環境。",
-      "version_mismatch": "OCR 需要 Node.js v24.21.0，目前版本不在此範圍。請到設定 → 工具鏈安裝官方執行環境。",
-      "abi_mismatch": "OCR 需要 Node.js ABI 137（v24.21.0）。請到設定 → 工具鏈安裝官方執行環境。"
+      "toolchain_unavailable": "OCR 需要官方 Node.js v24.22.1。請到設定 → 工具鏈安裝官方執行環境。",
+      "version_mismatch": "OCR 需要 Node.js v24.22.1，目前版本不在此範圍。請到設定 → 工具鏈安裝官方執行環境。",
+      "abi_mismatch": "OCR 需要 Node.js ABI 137（v24.22.1）。請到設定 → 工具鏈安裝官方執行環境。"
     },
     "processStates": {
       "idle": "閒置",
@@ -3481,7 +3452,7 @@
       "activation_failed": "無法啟用該執行階段。",
       "unsupported_platform": "目前平台沒有官方執行階段建置。"
     },
-    "ocrPinHint": "OCR 需要官方 Node v24.21.0（ABI 137）。目前執行環境可供聊天和 MCP 使用，但不能用於 OCR。請安裝官方執行環境。",
+    "ocrPinHint": "OCR 需要官方 Node v24.22.1（ABI 137）。目前執行環境可供聊天和 MCP 使用，但不能用於 OCR。請安裝官方執行環境。",
     "cloudflaredTitle": "cloudflared"
   },
   "userPlugins": {

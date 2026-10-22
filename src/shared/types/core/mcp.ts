@@ -278,9 +278,6 @@ export interface MCPToolResponse {
   mcpResult?: PersistedMcpToolResult
   ownerPluginId?: string
   toolResult?: unknown
-  rtkApplied?: boolean
-  rtkMode?: 'rewrite' | 'direct' | 'bypass'
-  rtkFallbackReason?: string
   outputOffloadPath?: string
   imagePreviews?: ToolCallImagePreview[]
   requiresPermission?: boolean

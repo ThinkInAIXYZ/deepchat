@@ -70,7 +70,6 @@ import { UpgradeService } from '../upgrade'
 import { UpdateSettings } from '../upgrade/settings'
 import { FileService } from '../file'
 import { getShellEnvironment } from '@/agent/shared/process/shellEnvHelper'
-import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { mergeDetectionEnv, noteNodeDemandFromMcp, ToolchainService } from '@/toolchains'
 import { ToolchainResolutionError } from '@/toolchains/errors'
 import { createToolchainRoutes } from '@/toolchains/routes'
@@ -291,7 +290,6 @@ import {
 import { CliRequestError } from '@/cli/errors'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 import { AcpAuthService } from '@/agent/acp/auth/acpAuthService'
-import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
 import {
   runBuiltinMcpAllowlistCompatibilityMigration,
@@ -1275,8 +1273,6 @@ export async function createMainProcessControl(dependencies: {
   shortcutPresenter = new ShortcutPresenter(desktopSettings, windowPresenter, publishDeepchatEvent)
   fileService = new FileService(dependencies.settingsStore)
   ocrSettings = new OcrSettings(dependencies.settingsStore, publishDeepchatEvent)
-  const runtimeHelper = RuntimeHelper.getInstance()
-  runtimeHelper.initializeRuntimes()
   const toolchainHomeDir = app.getPath('home')
   const toolchainService = ToolchainService.initialize({
     appPath: app.getAppPath(),
@@ -3196,7 +3192,6 @@ export async function createMainProcessControl(dependencies: {
       exportService: agentSessionExportService,
       translation: sessionTranslation,
       usageStats: usageStatsService,
-      rtkRuntime: rtkRuntimeService,
       tapeInspectorHeadWatcher,
       sessionReferences: sessionData.sessionReferences
     })
@@ -3548,25 +3543,6 @@ export async function createMainProcessControl(dependencies: {
       },
       'Failed to start legacy import task:',
       { component: 'legacy_import', category: 'persistence' }
-    )
-
-    scheduleMainStartupTask(
-      startupRunId,
-      {
-        id: 'main:rtk-health-check',
-        target: 'main',
-        phase: 'background',
-        resource: 'io',
-        labelKey: 'startup.main.rtkHealthCheck',
-        run: async (taskContext) => {
-          taskContext.reportProgress(0)
-          await taskContext.yield()
-          await rtkRuntimeService.startHealthCheck()
-          taskContext.reportProgress(1)
-        }
-      },
-      'Failed to start RTK health check:',
-      { component: 'rtk_health_check', category: 'resource' }
     )
 
     scheduleMainStartupTask(

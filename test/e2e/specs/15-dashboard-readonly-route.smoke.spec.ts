@@ -22,16 +22,6 @@ test('dashboard settings reads usage dashboard through typed route @smoke', asyn
         modelBreakdown?: unknown[]
         providerBreakdown?: unknown[]
         recordingStartedAt?: unknown
-        rtk?: {
-          daily?: unknown[]
-          health?: unknown
-          scope?: unknown
-          source?: unknown
-          summary?: {
-            totalCommands?: unknown
-            totalSavedTokens?: unknown
-          }
-        }
         summary?: {
           messageCount?: unknown
           sessionCount?: unknown
@@ -47,12 +37,6 @@ test('dashboard settings reads usage dashboard through typed route @smoke', asyn
       modelBreakdownCount: dashboard?.modelBreakdown?.length ?? -1,
       providerBreakdownCount: dashboard?.providerBreakdown?.length ?? -1,
       recordingStartedAt: dashboard?.recordingStartedAt,
-      rtkDailyCount: dashboard?.rtk?.daily?.length ?? -1,
-      rtkHealth: dashboard?.rtk?.health,
-      rtkScope: dashboard?.rtk?.scope,
-      rtkSource: dashboard?.rtk?.source,
-      rtkTotalCommands: dashboard?.rtk?.summary?.totalCommands,
-      rtkTotalSavedTokens: dashboard?.rtk?.summary?.totalSavedTokens,
       summaryMessageCount: dashboard?.summary?.messageCount,
       summarySessionCount: dashboard?.summary?.sessionCount,
       summaryTotalTokens: dashboard?.summary?.totalTokens
@@ -66,12 +50,6 @@ test('dashboard settings reads usage dashboard through typed route @smoke', asyn
   expect(
     snapshot.recordingStartedAt === null || typeof snapshot.recordingStartedAt === 'number'
   ).toBe(true)
-  expect(snapshot.rtkDailyCount).toBeGreaterThanOrEqual(0)
-  expect(['checking', 'healthy', 'unhealthy']).toContain(snapshot.rtkHealth)
-  expect(snapshot.rtkScope).toBe('deepchat')
-  expect(['bundled', 'system', 'none']).toContain(snapshot.rtkSource)
-  expect(typeof snapshot.rtkTotalCommands).toBe('number')
-  expect(typeof snapshot.rtkTotalSavedTokens).toBe('number')
   expect(typeof snapshot.summaryMessageCount).toBe('number')
   expect(typeof snapshot.summarySessionCount).toBe('number')
   expect(typeof snapshot.summaryTotalTokens).toBe('number')
