@@ -156,6 +156,43 @@ describe('SessionHistorySearch', () => {
     expect(hits).toEqual([expect.objectContaining({ kind: 'message', messageId: 'message-1' })])
   })
 
+  it('keeps title matches ahead of indexed messages and deduplicates indexed titles', async () => {
+    const fixture = createFixture()
+    fixture.sessionRows.push({
+      id: 'session-1',
+      title: 'A Release plan',
+      projectDir: '/repo',
+      updatedAt: 30
+    })
+    fixture.sessions.set('session-1', { id: 'session-1', projectDir: '/repo' })
+    fixture.searchFts.mockReturnValue([
+      {
+        document_kind: 'message',
+        session_id: 'session-2',
+        message_id: 'message-1',
+        role: 'user',
+        title: 'Other',
+        content: 'release',
+        updated_at: 20,
+        rank: -2
+      },
+      {
+        document_kind: 'session',
+        session_id: 'session-1',
+        title: 'A Release plan',
+        updated_at: 10,
+        rank: -1
+      }
+    ])
+
+    const hits = await fixture.service.search(' RELEASE ', { limit: 2 })
+    expect(hits).toEqual([
+      expect.objectContaining({ kind: 'session', sessionId: 'session-1', updatedAt: 30 }),
+      expect.objectContaining({ kind: 'message', messageId: 'message-1' })
+    ])
+    await expect(fixture.service.search('release', { limit: 1 })).resolves.toEqual([hits[0]])
+  })
+
   it('uses the default limit and orders equal-score legacy hits by updatedAt descending', async () => {
     const fixture = createFixture()
     for (let index = 1; index <= 13; index += 1) {
@@ -177,7 +214,7 @@ describe('SessionHistorySearch', () => {
 
     const hits = await fixture.service.search('release')
 
-    expect(fixture.sessionAll).toHaveBeenCalledWith('%release%', 24)
+    expect(fixture.sessionAll).toHaveBeenCalledWith('release', 'release', 12)
     expect(fixture.messageAll).toHaveBeenCalledWith('%release%', 48)
     expect(hits).toHaveLength(12)
     expect(hits[0]).toMatchObject({ kind: 'session', sessionId: 'session-13', updatedAt: 13 })

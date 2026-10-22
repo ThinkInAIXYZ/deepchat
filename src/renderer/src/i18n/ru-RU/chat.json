@@ -394,10 +394,6 @@
     "emptyTitle": "Пока нет диалогов",
     "emptyDescription": "Начните новый чат, чтобы приступить",
     "remoteControlDisabled": "Отключено",
-    "searchPlaceholder": "Поиск по чатам",
-    "searchAriaLabel": "Поиск по чатам",
-    "searchEmptyTitle": "Совпадений не найдено",
-    "searchEmptyDescription": "Попробуйте другое ключевое слово в названии",
     "projectGroupActions": "Действия с группой проекта",
     "moveProjectGroupTop": "Переместить в начало",
     "moveProjectGroupUp": "Переместить выше",
@@ -410,8 +406,7 @@
     "manageWorkspaces": "Управление рабочими пространствами",
     "openWorkspaceFolder": "Открыть папку",
     "emptyWorkspace": "Пусто",
-    "addWorkspaceFailed": "Не удалось добавить рабочее пространство",
-    "searchLoadedRangeDescription": "Показаны совпадения из загруженных бесед. Прокрутите, чтобы загрузить больше истории."
+    "addWorkspaceFailed": "Не удалось добавить рабочее пространство"
   },
   "floatingWidget": {
     "title": "Обзор задач",

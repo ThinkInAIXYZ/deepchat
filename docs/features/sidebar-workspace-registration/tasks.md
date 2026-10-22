@@ -25,7 +25,7 @@
 - [x] Merge active Project environments with visible Session groups in persisted path order.
 - [x] Exclude the built-in Chat path and keep historical groups Session-derived only.
 - [x] Render true empty and missing states without global Session counts.
-- [x] Reveal successful additions by clearing search, setting project grouping, scrolling, and
+- [x] Reveal successful additions by setting project grouping, scrolling, and
   focusing the path-keyed row.
 - [x] Route empty-row activation through the existing one-shot workspace intent.
 - [x] Disable new-conversation for missing groups and both new/reorder affordances for historical
@@ -36,9 +36,9 @@
 ## Regression Coverage
 
 - [x] Cover zero-Session rendering and event-driven refresh without remounting.
-- [x] Cover add from date grouping and Session search, plus cancellation and failure.
+- [x] Cover add from date grouping, plus cancellation and failure.
 - [x] Cover duplicate, archived/removed reactivation, missing paths, and default Chat deduplication.
-- [x] Cover agent-filtered, pinned-only, paginated, searched, and reordered workspace groups.
+- [x] Cover agent-filtered, pinned-only, paginated, and reordered workspace groups.
 - [x] Cover exact project intent through active-session teardown for DeepChat and ACP.
 - [x] Cover both first-Session event orderings and assert one stable populated row.
 - [x] Keep committed tests focused on observable cross-domain contracts.

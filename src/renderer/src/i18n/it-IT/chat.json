@@ -410,10 +410,6 @@
     "chats": "Chat",
     "emptyTitle": "Ancora nessuna conversazione",
     "emptyDescription": "Avvia una nuova conversazione",
-    "searchPlaceholder": "Cerca titolo conversazione",
-    "searchAriaLabel": "Cerca titolo conversazione",
-    "searchEmptyTitle": "Nessuna conversazione corrispondente",
-    "searchEmptyDescription": "Prova con un'altra parola chiave nel titolo",
     "projectGroupActions": "Azioni del gruppo progetto",
     "moveProjectGroupTop": "Sposta in cima",
     "moveProjectGroupUp": "Sposta su",
@@ -426,8 +422,7 @@
     "manageWorkspaces": "Gestisci aree di lavoro",
     "openWorkspaceFolder": "Apri cartella",
     "emptyWorkspace": "Vuoto",
-    "addWorkspaceFailed": "Impossibile aggiungere l’area di lavoro",
-    "searchLoadedRangeDescription": "Visualizzazione delle corrispondenze dalle conversazioni caricate. Scorri per caricare altra cronologia."
+    "addWorkspaceFailed": "Impossibile aggiungere l’area di lavoro"
   },
   "spotlight": {
     "placeholder": "Cerca conversazioni, Agent, impostazioni e azioni…",

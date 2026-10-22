@@ -134,4 +134,26 @@ describe('SpotlightOverlay', () => {
 
     expect(document.activeElement).toBe(input)
   })
+
+  it('leaves IME candidate keys alone and opens results after composition ends', async () => {
+    const { wrapper, spotlightStore } = await setup()
+    const input = wrapper.get('input')
+
+    await input.trigger('compositionstart')
+    for (const key of ['Enter', 'ArrowDown', 'ArrowUp', 'Home', 'End', 'Escape']) {
+      await input.trigger('keydown', { key })
+    }
+    expect(spotlightStore.executeActiveItem).not.toHaveBeenCalled()
+    expect(spotlightStore.moveActiveItem).not.toHaveBeenCalled()
+    expect(spotlightStore.setActiveItem).not.toHaveBeenCalled()
+    expect(spotlightStore.closeSpotlight).not.toHaveBeenCalled()
+
+    await input.trigger('compositionend')
+    await input.trigger('keydown', { key: 'Enter', isComposing: true })
+    await input.trigger('keydown', { key: 'Enter', keyCode: 229 })
+    expect(spotlightStore.executeActiveItem).not.toHaveBeenCalled()
+
+    await input.trigger('keydown', { key: 'Enter' })
+    expect(spotlightStore.executeActiveItem).toHaveBeenCalledTimes(1)
+  })
 })

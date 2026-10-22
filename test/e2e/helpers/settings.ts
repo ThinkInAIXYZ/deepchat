@@ -25,6 +25,10 @@ const isSettingsWindow = async (page: Page): Promise<boolean> => {
 }
 
 export async function openSettings(app: ElectronAppInstance): Promise<Page> {
+  const sidebarToggle = app.page.getByTestId('window-sidebar-toggle')
+  if ((await sidebarToggle.getAttribute('aria-expanded')) === 'false') {
+    await sidebarToggle.click()
+  }
   await app.page.getByTestId('app-settings-button').click()
 
   await expect

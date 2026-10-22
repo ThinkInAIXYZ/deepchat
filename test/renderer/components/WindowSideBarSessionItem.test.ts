@@ -23,7 +23,6 @@ const mountComponent = async (options?: {
   status?: 'none' | 'working' | 'completed' | 'error'
   heroHidden?: boolean
   pinFeedbackMode?: 'pinning' | 'unpinning' | null
-  searchQuery?: string
   shortcutBadgeLabel?: string | null
   shortcutBadgeVisible?: boolean
 }) => {
@@ -45,7 +44,6 @@ const mountComponent = async (options?: {
       region: options?.isPinned ? 'pinned' : 'grouped',
       heroHidden: options?.heroHidden ?? false,
       pinFeedbackMode: options?.pinFeedbackMode ?? null,
-      searchQuery: options?.searchQuery ?? '',
       shortcutBadgeLabel: options?.shortcutBadgeLabel ?? null,
       shortcutBadgeVisible: options?.shortcutBadgeVisible ?? false
     },
@@ -129,16 +127,6 @@ describe('WindowSideBarSessionItem', () => {
     })
 
     expect(wrapper.find('.session-item').attributes('data-pin-state')).toBe('docked')
-  }, 10000)
-
-  it('highlights matching title fragments when filtering the sidebar', async () => {
-    const wrapper = await mountComponent({
-      searchQuery: 'Title'
-    })
-
-    const highlight = wrapper.find('.session-title__highlight')
-    expect(highlight.exists()).toBe(true)
-    expect(highlight.text()).toBe('Title')
   }, 10000)
 
   it('renders shortcut badges independently from the delete action', async () => {

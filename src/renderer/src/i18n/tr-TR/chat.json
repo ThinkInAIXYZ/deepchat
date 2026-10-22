@@ -410,10 +410,6 @@
     "chats": "Sohbetler",
     "emptyTitle": "Henüz görüşme yok",
     "emptyDescription": "Başlamak için yeni bir sohbet başlatın",
-    "searchPlaceholder": "Sohbetlerde ara",
-    "searchAriaLabel": "Sohbetlerde ara",
-    "searchEmptyTitle": "Eşleşen görüşme yok",
-    "searchEmptyDescription": "Farklı bir başlık anahtar kelimesini deneyin",
     "projectGroupActions": "Proje grubu eylemleri",
     "moveProjectGroupTop": "En üste taşı",
     "moveProjectGroupUp": "Yukarı taşı",
@@ -426,8 +422,7 @@
     "manageWorkspaces": "Çalışma alanlarını yönet",
     "openWorkspaceFolder": "Klasörü aç",
     "emptyWorkspace": "Boş",
-    "addWorkspaceFailed": "Çalışma alanı eklenemedi",
-    "searchLoadedRangeDescription": "Yüklenen konuşmalardaki eşleşmeler gösteriliyor. Daha fazla geçmiş yüklemek için kaydırın."
+    "addWorkspaceFailed": "Çalışma alanı eklenemedi"
   },
   "spotlight": {
     "placeholder": "Sohbetlerde, agents, ayarlarda, işlemlerde arama yapın…",

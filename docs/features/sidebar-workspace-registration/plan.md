@@ -25,7 +25,7 @@ Add workspace
   -> Project picker/register + prepend newly active path
      (without changing current draft selection)
   -> versioned projectStore snapshot
-  -> reveal policy: clear search + set project grouping
+  -> reveal policy: set project grouping
                                       |
 projectStore active environments -----+----> local sidebar workspace view model
 Session store visible groups ---------+        |
@@ -81,13 +81,12 @@ at render time. Do not add this renderer-only metadata to shared contracts.
 
 ### Project-Mode Merge
 
-1. Build filtered Session groups exactly as today, retaining only groups with at least one matching
-   Session when search is active.
+1. Build Session groups for the selected Agent, retaining groups with visible Sessions.
 2. Extract the Chat/no-project groups before the workspace merge.
 3. Build path-identity maps for active, archived, and removed Project summaries. Comparison removes
    trailing separators from ordinary paths while preserving POSIX and Windows drive roots. Do not
    introduce unsafe cross-platform case folding or separator rewriting in the renderer.
-4. Once Project metadata is ready and Session search is empty, iterate active environments in
+4. Once Project metadata is ready, iterate active environments in
    persisted order:
    - skip `defaultChatWorkspacePath`;
    - attach the matching visible Session group or `[]`;
@@ -100,8 +99,6 @@ at render time. Do not add this renderer-only metadata to shared contracts.
 6. Use the Project store's committed-snapshot readiness as the only metadata readiness signal. If
    Project metadata is not ready, fall back to the current Session-only rendering and keep reorder
    disabled. Never fabricate active metadata from a failed snapshot.
-7. During Session search, do not synthesize active rows without matching children. Existing active
-   matches still use Project order; historical matches remain after active matches.
 
 Date grouping remains Session-only. The successful Add handler switches to project grouping before
 attempting to focus the result.
@@ -113,7 +110,7 @@ attempting to focus the result.
   a full reorder payload, matching the current visible-subset merge.
 - Include true empty and missing active rows in active reorder.
 - Keep historical groups after active groups and outside reorder.
-- Keep reorder disabled during Session search, initial loading, pin animation, and drag, as today.
+- Keep reorder disabled during initial loading, pin animation, and drag.
 - Preserve path-keyed collapse state across reorder and the empty-to-populated transition.
 
 ## Sidebar Interaction Changes
@@ -125,12 +122,11 @@ Add `isAddingWorkspace` and a guarded `handleAddWorkspace`:
 1. capture no pre-picker grouping or selection assumptions;
 2. call `projectStore.openFolderPicker({ select: false })`;
 3. return without side effects on `null`;
-4. clear `sessionSearchQuery` after success;
-5. await `sessionStore.setGroupMode('project')`;
-6. await the reactive render, find the path-keyed row, and `scrollIntoView({ block: 'nearest' })`;
-7. focus the row and apply a brief, reduced-motion-safe reveal state;
-8. if the path is `defaultChatWorkspacePath`, reveal/focus Chat instead;
-9. notify on picker, snapshot, or grouping failure and always release the busy guard.
+4. await `sessionStore.setGroupMode('project')`;
+5. await the reactive render, find the path-keyed row, and `scrollIntoView({ block: 'nearest' })`;
+6. focus the row and apply a brief, reduced-motion-safe reveal state;
+7. if the path is `defaultChatWorkspacePath`, reveal/focus Chat instead;
+8. notify on picker, snapshot, or grouping failure and always release the busy guard.
 
 The selected path is already durable before reveal. A grouping-persistence or focus failure must
 not roll it back.
@@ -210,7 +206,7 @@ archived or removed.
 - **Event ordering:** path identity and the safety override make Session-first and Project-first
   updates converge on one row.
 - **Multiple windows:** every renderer receives the versioned Project event. Only the initiating
-  sidebar changes its local search, grouping, scroll, and focus.
+  sidebar changes its grouping, scroll, and focus.
 - **Temporary paths:** a zero-Session environment can exist only through durable preference
   metadata. The built-in Chat path is excluded; existing Session-derived temporary behavior stays
   unchanged.
@@ -256,11 +252,11 @@ required.
 ### Sidebar Component
 
 - header action accessibility, busy guard, cancellation, failure, and success;
-- success from date mode and active search reveals/focuses the selected project row;
+- success from date mode reveals/focuses the selected project row;
 - active zero-Session environment renders without a Session-derived group;
 - default Chat is not duplicated;
 - exact path identity preserves same-named workspaces;
-- search hides empty rows; agent filtering, pinning, and pagination do not mislabel non-empty paths;
+- agent filtering, pinning, and pagination do not mislabel non-empty paths;
 - empty row and plus dispatch the exact one-shot `projectDir` flow;
 - active missing and historical groups cannot start a new conversation;
 - empty groups participate in persisted reorder;
@@ -306,7 +302,7 @@ pnpm run lint
 pnpm run typecheck
 ```
 
-Manually verify native picker cancellation/success, keyboard focus, add from date/search modes,
+Manually verify native picker cancellation/success, keyboard focus, add from date mode,
 duplicate selection, missing path recovery, active-session teardown, and DeepChat/ACP first-Session
 transitions on at least Windows plus one POSIX platform.
 

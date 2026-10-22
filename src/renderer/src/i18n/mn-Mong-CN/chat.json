@@ -507,12 +507,7 @@
     "pinned": "ᠶᠢᠨ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ",
     "chats": "ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ",
     "emptyTitle": "ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ ᠦᠭᠡᠢ",
-    "emptyDescription": "ᠪᠠᠨ ᠡᠬᠢᠯᠡᠵᠦ ᠶᠠᠷᠢᠯᠴᠠᠨ᠎ᠠ",
-    "searchPlaceholder": "ᠡᠷᠢᠬᠦ ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠤ ᠰᠡᠳᠦᠪ ᠦᠨ",
-    "searchAriaLabel": "ᠡᠷᠢᠬᠦ ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠤ ᠰᠡᠳᠦᠪ ᠦᠨ",
-    "searchEmptyTitle": "ᠲᠠᠢ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ ᠣᠯᠬᠤ ᠦᠭᠡᠢ",
-    "searchEmptyDescription": "ᠤᠨ ᠦᠰᠦᠭ ᠦᠨ ᠦᠭᠡᠰ ᠢ ᠥᠭᠡᠷ᠎ᠡ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠵᠦ ᠦᠵᠡᠬᠦ",
-    "searchLoadedRangeDescription": "ᠠᠷᠪᠢᠨ ᠠᠷᠪᠢᠨ ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠤ ᠳᠤᠮᠳᠠ ᠪᠠᠨ ᠪᠣᠯᠵᠣᠵᠤ ᠪᠠᠶᠢᠨ᠎ᠠ ᠃ ᠲᠤᠷᠤᠭᠰᠢ ᠰᠢᠯᠵᠢᠪᠡᠯ ᠲᠡᠩᠬᠡ ᠲᠡᠮᠲᠡᠭ ᠢ ᠨᠡᠮᠡᠵᠦ ᠭᠠᠷᠭᠠᠭᠠᠷᠠᠢ᠃"
+    "emptyDescription": "ᠪᠠᠨ ᠡᠬᠢᠯᠡᠵᠦ ᠶᠠᠷᠢᠯᠴᠠᠨ᠎ᠠ"
   },
   "spotlight": {
     "placeholder": "ᠡᠷᠢᠬᠦ ᠂ Agent ᠤᠨ ᠪᠠᠢᠢᠷᠢᠯᠠᠯ ᠂ ᠠᠵᠢᠯᠯᠠᠭ᠎ᠠ ᠁",

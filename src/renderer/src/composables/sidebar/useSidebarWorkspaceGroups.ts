@@ -27,7 +27,6 @@ interface UseSidebarWorkspaceGroupsOptions {
   sessionStore: ReturnType<typeof useSessionStore>
   projectStore: ReturnType<typeof useProjectStore>
   selectedAgentId: MaybeRefOrGetter<string | null>
-  searchQuery: MaybeRefOrGetter<string>
   /** While true (e.g. during a group drag) the collapse-state sync watcher is paused. */
   suspendCollapseSync: MaybeRefOrGetter<boolean>
   sidebarCollapsed: MaybeRefOrGetter<boolean>
@@ -49,19 +48,8 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
     disposed = true
   })
 
-  const normalizedSessionSearchQuery = computed(() =>
-    toValue(options.searchQuery).trim().toLowerCase()
-  )
-  const matchesSessionSearch = (session: UISession) => {
-    if (!normalizedSessionSearchQuery.value) {
-      return true
-    }
-
-    return session.title.toLowerCase().includes(normalizedSessionSearchQuery.value)
-  }
-
   const pinnedSessions = computed(() =>
-    sessionStore.getPinnedSessions(toValue(options.selectedAgentId)).filter(matchesSessionSearch)
+    sessionStore.getPinnedSessions(toValue(options.selectedAgentId))
   )
   const baseFilteredGroups = computed(() =>
     sessionStore
@@ -70,7 +58,7 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
         id: group.id,
         label: group.label,
         labelKey: group.labelKey,
-        sessions: group.sessions.filter(matchesSessionSearch)
+        sessions: group.sessions
       }))
       .filter((group) => group.sessions.length > 0)
   )
@@ -174,7 +162,7 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
       return decorateWorkspaceGroup(group, environment)
     })
 
-    if (!projectStore.snapshotReady || normalizedSessionSearchQuery.value.length > 0) {
+    if (!projectStore.snapshotReady) {
       return sortProjectGroups(decoratedSessionGroups)
     }
 
@@ -370,7 +358,7 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
   }
 
   const getVisibleGroupSessions = (group: SessionGroup) => {
-    if (normalizedSessionSearchQuery.value || !isBatchedGroup(group)) return group.sessions
+    if (!isBatchedGroup(group)) return group.sessions
     const batch = readBatch(group)
     const sessions = getLoadedBatchSessions(group, batch).slice(0, batch.limit)
     const active = group.sessions.find((session) => session.id === sessionStore.activeSessionId)
@@ -379,7 +367,7 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
   }
 
   const hasMoreGroupSessions = (group: SessionGroup) => {
-    if (normalizedSessionSearchQuery.value || !isBatchedGroup(group)) return false
+    if (!isBatchedGroup(group)) return false
     const batch = readBatch(group)
     return (
       batch.loading ||
@@ -415,7 +403,6 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
       while (
         !disposed &&
         sessionBatches.value[id] === batch &&
-        !normalizedSessionSearchQuery.value &&
         !toValue(options.sidebarCollapsed) &&
         !toValue(options.suspendCollapseSync) &&
         !isGroupCollapsed(group) &&
@@ -476,7 +463,6 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
 
   const canAutoFillSessionList = computed(
     () =>
-      normalizedSessionSearchQuery.value.length === 0 &&
       !isPinnedSectionCollapsed.value &&
       !visibleGroups.value.some((group) => isGroupCollapsed(group) || hasMoreGroupSessions(group))
   )
@@ -538,9 +524,7 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
         groups.filter((group) => !isTrueEmptyWorkspaceGroup(group)).map(getGroupIdentifier)
       )
       const nextCollapsedGroupIds = new Set(
-        normalizedSessionSearchQuery.value
-          ? collapsedGroupIds.value
-          : [...collapsedGroupIds.value].filter((groupId) => validGroupIds.has(groupId))
+        [...collapsedGroupIds.value].filter((groupId) => validGroupIds.has(groupId))
       )
 
       if (activeSessionId && activeSessionId !== previous?.[1]) {
@@ -581,7 +565,6 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
     [
       visibleGroups,
       collapsedGroupIds,
-      normalizedSessionSearchQuery,
       () => sessionStore.hasLoadedInitialPage,
       () => sessionStore.hasMore,
       () => projectStore.snapshotReady,
@@ -594,7 +577,6 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
       if (
         !sessionStore.hasLoadedInitialPage ||
         !projectStore.snapshotReady ||
-        normalizedSessionSearchQuery.value ||
         toValue(options.sidebarCollapsed) ||
         toValue(options.suspendCollapseSync)
       )
@@ -618,8 +600,6 @@ export function useSidebarWorkspaceGroups(options: UseSidebarWorkspaceGroupsOpti
   )
 
   return {
-    normalizedSessionSearchQuery,
-    matchesSessionSearch,
     pinnedSessions,
     defaultChatWorkspacePath,
     chatSectionGroup,

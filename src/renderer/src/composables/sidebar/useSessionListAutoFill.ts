@@ -124,9 +124,8 @@ export function useSessionListAutoFill(options: UseSessionListAutoFillOptions) {
     })
   }
 
-  // 会话列表内容或容器高度变化后，若视口仍未填满则继续加载，保证「滚动加载更多」
-  // 在首屏内容过少时也能启动（issue #1762）。搜索仅过滤已加载会话，仍要求所有
-  // 分组展开，避免因为筛选或隐藏行扫完剩余分页。
+  // Recheck short viewports after content or container size changes (issue #1762).
+  // Fill short viewports only while all groups are expanded, without exhausting hidden pages.
   watch(
     [
       () => sessionStore.sessions.length,

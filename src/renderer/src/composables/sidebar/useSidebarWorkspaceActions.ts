@@ -15,7 +15,6 @@ interface UseSidebarWorkspaceActionsOptions {
   sessionStore: ReturnType<typeof useSessionStore>
   projectStore: ReturnType<typeof useProjectStore>
   sessionListRef: Ref<HTMLElement | null>
-  searchQuery: Ref<string>
   defaultChatWorkspacePath: MaybeRefOrGetter<string>
   defaultProjectPath: MaybeRefOrGetter<string | null>
   getWorkspaceEnvironment: (group: SessionGroup) => EnvironmentSummary | undefined
@@ -91,7 +90,6 @@ export function useSidebarWorkspaceActions(options: UseSidebarWorkspaceActionsOp
         return
       }
 
-      options.searchQuery.value = ''
       await sessionStore.setGroupMode('project')
       await revealWorkspaceGroup(selectedPath)
     } catch (error) {

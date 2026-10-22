@@ -394,10 +394,6 @@
     "emptyTitle": "Ingen samtaler endnu",
     "emptyDescription": "Start en ny samtale for at komme i gang",
     "remoteControlDisabled": "Deaktiveret",
-    "searchPlaceholder": "Søg i chats",
-    "searchAriaLabel": "Søg i chats",
-    "searchEmptyTitle": "Ingen matchende samtaler",
-    "searchEmptyDescription": "Prøv et andet nøgleord i titlen",
     "projectGroupActions": "Projektgruppehandlinger",
     "moveProjectGroupTop": "Flyt til toppen",
     "moveProjectGroupUp": "Flyt op",
@@ -410,8 +406,7 @@
     "manageWorkspaces": "Administrer arbejdsområder",
     "openWorkspaceFolder": "Åbn mappe",
     "emptyWorkspace": "Tom",
-    "addWorkspaceFailed": "Arbejdsområdet kunne ikke tilføjes",
-    "searchLoadedRangeDescription": "Viser resultater fra indlæste samtaler. Rul for at indlæse mere historik."
+    "addWorkspaceFailed": "Arbejdsområdet kunne ikke tilføjes"
   },
   "floatingWidget": {
     "title": "Opgaveoversigt",

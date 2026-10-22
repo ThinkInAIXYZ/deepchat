@@ -394,10 +394,6 @@
     "emptyTitle": "עדיין אין שיחות",
     "emptyDescription": "התחילו שיחה חדשה כדי להתחיל",
     "remoteControlDisabled": "מושבת",
-    "searchPlaceholder": "חיפוש בצ׳אטים",
-    "searchAriaLabel": "חיפוש בצ׳אטים",
-    "searchEmptyTitle": "לא נמצאו שיחות תואמות",
-    "searchEmptyDescription": "נסו מילת מפתח אחרת בכותרת",
     "projectGroupActions": "פעולות קבוצת פרויקט",
     "moveProjectGroupTop": "העבר לראש הרשימה",
     "moveProjectGroupUp": "העבר למעלה",
@@ -410,8 +406,7 @@
     "manageWorkspaces": "ניהול סביבות עבודה",
     "openWorkspaceFolder": "פתיחת תיקייה",
     "emptyWorkspace": "ריק",
-    "addWorkspaceFailed": "הוספת סביבת העבודה נכשלה",
-    "searchLoadedRangeDescription": "מוצגות התאמות משיחות שנטענו. גלול כדי לטעון היסטוריה נוספת."
+    "addWorkspaceFailed": "הוספת סביבת העבודה נכשלה"
   },
   "floatingWidget": {
     "title": "סקירת משימות",
