@@ -148,6 +148,13 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'aistupidlevel',
+    createDefinition({
+      ...OPENAI_BASE,
+      credentialStrategy: 'api-key'
+    })
+  ],
+  [
     'anonrouter',
     createDefinition({
       ...OPENAI_BASE,

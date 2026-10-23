@@ -134,6 +134,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes AI Stupid Level as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'aistupidlevel',
+        name: 'AI Stupid Level',
+        apiType: 'openai-completions',
+        baseUrl: 'https://aistupidlevel.info/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://aistupidlevel.info/',
+          apiKey: 'https://aistupidlevel.info/router/keys',
+          docs: 'https://aistupidlevel.info/router/docs',
+          models: 'https://aistupidlevel.info/router/docs#strategies',
+          defaultBaseUrl: 'https://aistupidlevel.info/v1'
+        })
+      })
+    )
+  })
+
   it('includes DemonRoute as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
