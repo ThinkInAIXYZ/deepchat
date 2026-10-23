@@ -9,7 +9,7 @@ import type {
 } from '@modelcontextprotocol/client'
 import { validateClientMetadataUrl } from '@modelcontextprotocol/client'
 import type { McpCredentialBinding } from '@shared/types/mcp'
-import type { McpOAuthCredentialStore } from './oauthCredentialStore'
+import { normalizeMcpOAuthIssuer, type McpOAuthCredentialStore } from './oauthCredentialStore'
 
 export type DeepChatMcpOAuthProviderOptions = {
   store: McpOAuthCredentialStore
@@ -23,10 +23,8 @@ export type DeepChatMcpOAuthProviderOptions = {
   scopes?: string[]
 }
 
-const normalizeIssuer = (value: string): string => new URL(value).toString()
-
 const discoveryIssuer = (state: OAuthDiscoveryState): string =>
-  normalizeIssuer(state.authorizationServerMetadata?.issuer || state.authorizationServerUrl)
+  normalizeMcpOAuthIssuer(state.authorizationServerMetadata?.issuer || state.authorizationServerUrl)
 
 const discoveryResource = (state: OAuthDiscoveryState, fallback?: string): string | undefined =>
   state.resourceMetadata?.resource || fallback
@@ -170,7 +168,7 @@ export class DeepChatMcpOAuthProvider implements OAuthClientProvider {
       return this.store.load(this.activeCredentialKey) || undefined
     }
 
-    const contextIssuer = normalizeIssuer(context.issuer)
+    const contextIssuer = normalizeMcpOAuthIssuer(context.issuer)
     const contextualBinding = {
       ...this.activeBinding,
       authorizationServerIssuer: contextIssuer
@@ -190,7 +188,7 @@ export class DeepChatMcpOAuthProvider implements OAuthClientProvider {
       active?.discoveryState?.authorizationServerUrl ||
       active?.tokens?.issuer ||
       active?.clientInformation?.issuer
-    if (active && storedIssuer && normalizeIssuer(storedIssuer) === contextIssuer) {
+    if (active && storedIssuer && normalizeMcpOAuthIssuer(storedIssuer) === contextIssuer) {
       this.moveActiveEntry(contextualBinding)
       return this.store.load(this.activeCredentialKey) || undefined
     }
@@ -202,7 +200,7 @@ export class DeepChatMcpOAuthProvider implements OAuthClientProvider {
     if (!context) {
       return
     }
-    const contextIssuer = normalizeIssuer(context.issuer)
+    const contextIssuer = normalizeMcpOAuthIssuer(context.issuer)
     if (this.activeBinding.authorizationServerIssuer === contextIssuer) {
       return
     }

@@ -1,5 +1,8 @@
 import * as fs from 'node:fs'
 import { createHash } from 'node:crypto'
+import { once } from 'node:events'
+import { createServer, type AddressInfo, type Server } from 'node:net'
+import { promisify } from 'node:util'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { safeStorage, shell } from 'electron'
 import {
@@ -9,6 +12,7 @@ import {
 } from '@modelcontextprotocol/client'
 import type { MCPServerConfig } from '@shared/types/mcp'
 import { McpOAuthManager } from '@/mcp/mcpOAuthManager'
+import { DeepChatMcpOAuthProvider } from '@/mcp/mcpOAuthProvider'
 import { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
 import { MCP_OAUTH_REDIRECT_PATH } from '@/mcp/oauthConstants'
 
@@ -26,19 +30,37 @@ describe('MCP interactive OAuth', () => {
   let discovery: OAuthDiscoveryState
   let registrations: OAuthClientMetadata[]
   let tokenRequests: URLSearchParams[]
+  let reservedServers: Server[]
 
   beforeEach(() => {
     registrations = []
     tokenRequests = []
+    reservedServers = []
     vi.mocked(fs.existsSync).mockReturnValue(false)
     vi.mocked(safeStorage.isEncryptionAvailable).mockReturnValue(false)
     vi.mocked(shell.openExternal).mockResolvedValue(undefined)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     manager?.logout('example', config)
+    await Promise.all(
+      reservedServers
+        .filter((server) => server.listening)
+        .map((server) => promisify(server.close.bind(server))())
+    )
     vi.unstubAllGlobals()
   })
+
+  async function registeredCallbackUri(occupied = false): Promise<string> {
+    const server = createServer().listen(0, '127.0.0.1')
+    reservedServers.push(server)
+    await once(server, 'listening')
+    const { port } = server.address() as AddressInfo
+    if (!occupied) {
+      await promisify(server.close.bind(server))()
+    }
+    return `http://localhost:${port}/mcp/oauth/callback/legacy-random-path`
+  }
 
   function setup(issuer: string, clientMetadataUrl?: string): void {
     config = {
@@ -191,20 +213,84 @@ describe('MCP interactive OAuth', () => {
     expect(registrations).toHaveLength(1)
   })
 
-  it('preserves a legacy registration with a random callback path and raw issuer', async () => {
-    setup('https://auth.example')
-    const registeredUri = 'http://localhost:1456/mcp/oauth/callback/legacy-random-path'
-    seedClient([registeredUri])
-    store.clearEntryScope('legacy-credential', 'tokens')
+  it.each(['bound', 'legacy'])(
+    'preserves a %s registration with a raw stored issuer and normalized config',
+    async (storage) => {
+      setup('https://auth.example')
+      const registeredUri = await registeredCallbackUri()
+      seedClient([registeredUri])
+      store.clearEntryScope('legacy-credential', 'tokens')
+      config.authorization!.authorizationServerIssuer = 'https://auth.example/'
+      if (storage === 'legacy') {
+        const key = createHash('sha256').update(`example\nhttp\n${endpoint}`).digest('hex')
+        store.saveEntry(key, { ...store.load('legacy-credential'), binding: undefined })
+        store.clearEntry('legacy-credential')
+      }
 
-    expect((await manager.startAuth('example', config)).state).toBe('authenticating')
-    const authorization = latestAuthorization()
-    expect(new URL(authorization.searchParams.get('redirect_uri')!).pathname).toBe(
-      new URL(registeredUri).pathname
+      expect((await manager.startAuth('example', config)).state).toBe('authenticating')
+      const authorization = latestAuthorization()
+      expect(new URL(authorization.searchParams.get('redirect_uri')!).pathname).toBe(
+        new URL(registeredUri).pathname
+      )
+      expect(authorization.searchParams.get('client_id')).toBe('legacy-client')
+      expect((await completeAuthorization()).state).toBe('authenticated')
+      expect(registrations).toHaveLength(0)
+      const stored = store.findInteractiveCredential({
+        ...identity,
+        endpoint,
+        authorizationServerIssuer: 'https://auth.example/'
+      })?.entry
+      expect(stored?.binding?.authorizationServerIssuer).toBe('https://auth.example/')
+      expect(stored?.discoveryState?.authorizationServerMetadata?.issuer).toBe(
+        'https://auth.example'
+      )
+      expect(stored?.clientInformation?.issuer).toBe('https://auth.example')
+    }
+  )
+
+  it.each([false, true])(
+    'handles a registered callback port with occupied=%s',
+    async (occupied) => {
+      setup('https://auth.example')
+      const registeredUri = await registeredCallbackUri(occupied)
+      seedClient([registeredUri])
+      store.clearEntryScope('legacy-credential', 'tokens')
+
+      expect((await manager.startAuth('example', config)).state).toBe('authenticating')
+      const authorization = latestAuthorization()
+      const redirect = new URL(authorization.searchParams.get('redirect_uri')!)
+      expect(registrations).toHaveLength(occupied ? 1 : 0)
+      expect(authorization.searchParams.get('client_id')).toBe(
+        occupied ? 'client-1' : 'legacy-client'
+      )
+      if (occupied) {
+        expect(redirect.port).not.toBe(new URL(registeredUri).port)
+        expect(registrations[0].redirect_uris[0]).toBe(redirect.href)
+      } else {
+        expect(redirect.href).toBe(registeredUri)
+      }
+      expect((await completeAuthorization()).state).toBe('authenticated')
+    }
+  )
+
+  it.each(['tokens', 'clientInformation'])('ignores a malformed stored issuer in %s', (scope) => {
+    setup('https://auth.example')
+    store.saveEntry(
+      'malformed-credential',
+      scope === 'tokens'
+        ? { tokens: { access_token: 'stale-token', issuer: 'not-a-url' } }
+        : { clientInformation: { client_id: 'stale-client', issuer: 'not-a-url' } }
     )
-    expect(authorization.searchParams.get('client_id')).toBe('legacy-client')
-    expect((await completeAuthorization()).state).toBe('authenticated')
-    expect(registrations).toHaveLength(0)
+    const provider = new DeepChatMcpOAuthProvider({
+      store,
+      binding: { ...identity, endpoint },
+      initialCredentialKey: 'malformed-credential',
+      credentialKey: (binding) => JSON.stringify(binding),
+      redirectUrl: 'http://localhost:1456/mcp/oauth/callback'
+    })
+
+    expect(provider.clientInformation({ issuer: 'https://auth.example' })).toBeUndefined()
+    expect(provider.tokens({ issuer: 'https://auth.example' })).toBeUndefined()
   })
 
   it.each([
