@@ -695,4 +695,46 @@ describe('ModelConfigHelper', () => {
       getDbSpy.mockRestore()
     })
   })
+
+  describe('Text-only input providers', () => {
+    it('keeps AI Stupid Level routing modes and catalog-matched pinned ids text-only', () => {
+      const getDbSpy = vi.spyOn(providerDbLoader, 'getDb').mockReturnValue({
+        providers: {
+          anthropic: {
+            id: 'anthropic',
+            models: [
+              {
+                id: 'claude-sonnet-4-6',
+                tool_call: true,
+                modalities: { input: ['text', 'image', 'pdf'], output: ['text'] },
+                limit: { context: 200000, output: 64000 }
+              }
+            ]
+          }
+        }
+      } as any)
+      rebuildModelCapabilities()
+
+      // The vendor catalog grants image input to the pinned id.
+      expect(modelConfigHelper.getModelConfig('claude-sonnet-4-6', 'anthropic').vision).toBe(true)
+
+      // Through the text-only router the id keeps its catalog limits but takes text only.
+      const pinned = modelConfigHelper.getModelConfig('claude-sonnet-4-6', 'aistupidlevel')
+      expect(pinned).toMatchObject({ vision: false, contextLength: 200000 })
+      expect(modelConfigHelper.getModelConfig('auto-tooling', 'aistupidlevel').vision).toBe(false)
+
+      // Saving the model from Model Config cannot persist image input either.
+      expect(
+        modelConfigHelper.setModelConfig('claude-sonnet-4-6', 'aistupidlevel', {
+          ...pinned,
+          vision: true
+        }).vision
+      ).toBe(false)
+      expect(modelConfigHelper.getModelConfig('claude-sonnet-4-6', 'aistupidlevel').vision).toBe(
+        false
+      )
+
+      getDbSpy.mockRestore()
+    })
+  })
 })

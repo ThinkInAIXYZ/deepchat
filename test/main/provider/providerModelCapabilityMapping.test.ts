@@ -528,6 +528,44 @@ describe('ProviderSettings provider model capability mapping', () => {
     ).not.toHaveProperty('searchExecution')
   })
 
+  it('keeps text-only providers from inheriting catalog audio input', async () => {
+    const { ProviderSettings, modelCapabilities } = await loadProviderSettings()
+    vi.spyOn(modelCapabilities, 'getCatalogCapabilitySnapshot').mockReturnValue({
+      ...createCatalogSnapshot(false),
+      modelMatched: true,
+      supportsAudioInput: true
+    })
+    const identity = {
+      providerId: 'google',
+      requestModelId: 'gemini-3.8-flash',
+      catalogMatched: true as const,
+      catalogModelId: 'gemini-3.8-flash'
+    }
+    const createPresenter = (providerId: string) =>
+      Object.assign(Object.create(ProviderSettings.prototype), {
+        providerHelper: {
+          getProviderById: vi.fn(() => ({ id: providerId, apiType: 'openai-completions' }))
+        },
+        resolveCapabilityIdentityFromRoute: vi.fn(() => identity),
+        resolveCapabilityRouteWithProvider: vi.fn(() => null),
+        getModelRouteConfig: vi.fn(() => ({})),
+        getModelConfig: vi.fn().mockReturnValue({ reasoning: false })
+      }) as InstanceType<typeof ProviderSettings>
+
+    expect(
+      createPresenter('openrouter').getCapabilitySnapshot({
+        providerId: 'openrouter',
+        modelId: 'gemini-3.8-flash'
+      }).supportsAudioInput
+    ).toBe(true)
+    expect(
+      createPresenter('aistupidlevel').getCapabilitySnapshot({
+        providerId: 'aistupidlevel',
+        modelId: 'gemini-3.8-flash'
+      }).supportsAudioInput
+    ).toBe(false)
+  })
+
   it('does not load the full model list when a targeted capability route is absent', async () => {
     const { ProviderSettings } = await loadProviderSettings()
     const getProviderModels = vi.fn().mockReturnValue([])

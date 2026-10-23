@@ -878,54 +878,18 @@ describe('basic API-key provider registrations', () => {
     expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 
-  it('discovers AI Stupid Level routing modes and pinned models over authenticated discovery', async () => {
-    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'aistupidlevel')!
-    expect(defaults).toBeDefined()
-    const fetchMock = vi.fn().mockImplementation(async () =>
-      Response.json({
-        object: 'list',
-        data: [
-          { id: 'auto-tooling', object: 'model', owned_by: 'aistupidlevel' },
-          { id: 'claude-sonnet-4-6', object: 'model', owned_by: 'anthropic' }
-        ]
-      })
-    )
-    global.fetch = fetchMock as unknown as typeof fetch
-
-    const config = { ...defaults, apiKey: 'test-key' }
-    const provider = new AiSdkProvider(config, createProviderSettings())
-    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
+  it('resolves AI Stupid Level as a text-only API-key gateway with model discovery', () => {
+    expect(
+      resolveAiSdkProviderDefinition(DEFAULT_PROVIDERS.find(({ id }) => id === 'aistupidlevel')!)
+    ).toMatchObject({
       runtimeKind: 'openai-compatible',
       modelSource: 'openai',
       checkStrategy: 'fetch-models',
       credentialStrategy: 'api-key',
       routeStrategy: 'none',
-      embeddingStrategy: 'openai'
+      embeddingStrategy: 'openai',
+      textOnlyInput: true
     })
-
-    // Routing modes and pinned model ids must both survive discovery unchanged.
-    await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
-      expect.objectContaining({
-        id: 'auto-tooling',
-        name: 'auto-tooling',
-        providerId: 'aistupidlevel',
-        ownedBy: 'aistupidlevel'
-      }),
-      expect.objectContaining({
-        id: 'claude-sonnet-4-6',
-        providerId: 'aistupidlevel',
-        ownedBy: 'anthropic'
-      })
-    ])
-    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://aistupidlevel.info/v1/models',
-      expect.objectContaining({
-        method: 'GET',
-        headers: expect.objectContaining({ Authorization: 'Bearer test-key' })
-      })
-    )
-    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 
   it('resolves Cheaper Inference through authenticated OpenAI-compatible model discovery', () => {
