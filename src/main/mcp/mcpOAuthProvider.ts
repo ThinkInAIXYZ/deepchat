@@ -23,8 +23,10 @@ export type DeepChatMcpOAuthProviderOptions = {
   scopes?: string[]
 }
 
+const normalizeIssuer = (value: string): string => new URL(value).toString()
+
 const discoveryIssuer = (state: OAuthDiscoveryState): string =>
-  state.authorizationServerMetadata?.issuer || state.authorizationServerUrl
+  normalizeIssuer(state.authorizationServerMetadata?.issuer || state.authorizationServerUrl)
 
 const discoveryResource = (state: OAuthDiscoveryState, fallback?: string): string | undefined =>
   state.resourceMetadata?.resource || fallback
@@ -168,9 +170,10 @@ export class DeepChatMcpOAuthProvider implements OAuthClientProvider {
       return this.store.load(this.activeCredentialKey) || undefined
     }
 
+    const contextIssuer = normalizeIssuer(context.issuer)
     const contextualBinding = {
       ...this.activeBinding,
-      authorizationServerIssuer: context.issuer
+      authorizationServerIssuer: contextIssuer
     }
     const contextualKey = this.options.credentialKey(contextualBinding)
     const contextual = this.store.load(contextualKey)
@@ -187,7 +190,7 @@ export class DeepChatMcpOAuthProvider implements OAuthClientProvider {
       active?.discoveryState?.authorizationServerUrl ||
       active?.tokens?.issuer ||
       active?.clientInformation?.issuer
-    if (active && storedIssuer === context.issuer) {
+    if (active && storedIssuer && normalizeIssuer(storedIssuer) === contextIssuer) {
       this.moveActiveEntry(contextualBinding)
       return this.store.load(this.activeCredentialKey) || undefined
     }
@@ -196,12 +199,16 @@ export class DeepChatMcpOAuthProvider implements OAuthClientProvider {
   }
 
   private activateContext(context?: OAuthClientInformationContext): void {
-    if (!context || this.activeBinding.authorizationServerIssuer === context.issuer) {
+    if (!context) {
+      return
+    }
+    const contextIssuer = normalizeIssuer(context.issuer)
+    if (this.activeBinding.authorizationServerIssuer === contextIssuer) {
       return
     }
     this.moveActiveEntry({
       ...this.activeBinding,
-      authorizationServerIssuer: context.issuer
+      authorizationServerIssuer: contextIssuer
     })
   }
 
