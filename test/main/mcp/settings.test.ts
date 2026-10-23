@@ -207,6 +207,25 @@ describe('McpSettings', () => {
     })
   })
 
+  it('adds the disabled Webz.io news search MCP server with a token placeholder for existing users', async () => {
+    const { McpSettings } = await loadHelper('darwin')
+    const helper = new McpSettings()
+    const mcpStore = (helper as any).mcpStore
+
+    mcpStore.set('mcpServers', {})
+
+    const servers = await helper.getMcpServers()
+
+    expect(servers['webz-news-search']).toMatchObject({
+      type: 'http',
+      baseUrl: 'https://news-search-mcp.webz.io/mcp',
+      customHeaders: {
+        Authorization: 'Bearer YOUR_WEBZ_API_TOKEN'
+      },
+      enabled: false
+    })
+  })
+
   it('adds the disabled SkyAccess empty leg MCP server (keyless) for existing users', async () => {
     const { McpSettings } = await loadHelper('darwin')
     const helper = new McpSettings()

@@ -298,6 +298,20 @@ const DEFAULT_MCP_SERVERS = {
         'X-Api-Key': 'YOUR_SERPLY_API_KEY'
       }
     },
+    'webz-news-search': {
+      command: '',
+      args: [],
+      env: {},
+      descriptions:
+        'Webz.io News Search MCP for searching global news. Requires a News Search API token from https://webz.io, set in the Authorization: Bearer header. Docs: https://docs.webz.io/docs/webz/news-search-api-mcp.',
+      icons: '📰',
+      disable: false,
+      type: 'http' as MCPServerType,
+      baseUrl: 'https://news-search-mcp.webz.io/mcp',
+      customHeaders: {
+        Authorization: 'Bearer YOUR_WEBZ_API_TOKEN'
+      }
+    },
     'skyaccess-empty-legs': {
       command: '',
       args: [],
