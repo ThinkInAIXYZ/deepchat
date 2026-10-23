@@ -14,7 +14,7 @@ import type { MCPServerConfig } from '@shared/types/mcp'
 import { McpOAuthManager } from '@/mcp/mcpOAuthManager'
 import { DeepChatMcpOAuthProvider } from '@/mcp/mcpOAuthProvider'
 import { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
-import { MCP_OAUTH_REDIRECT_PATH } from '@/mcp/oauthConstants'
+import { MCP_OAUTH_REDIRECT_PATH, MCP_OAUTH_REDIRECT_PORT } from '@/mcp/oauthConstants'
 
 const endpoint = 'https://mcp.example/mcp'
 const identity = {
@@ -320,15 +320,47 @@ describe('MCP interactive OAuth', () => {
     }
   )
 
-  it('preserves a URL-based client without dynamic registration metadata', async () => {
-    const clientMetadataUrl = 'https://client.example/deepchat.json'
-    setup('https://auth.example', clientMetadataUrl)
-    seedClient(undefined, clientMetadataUrl)
+  it('keeps an existing dynamic registration when a client metadata URL is configured', async () => {
+    setup('https://auth.example', 'https://client.example/deepchat.json')
+    const registeredUri = await registeredCallbackUri()
+    seedClient([registeredUri])
     store.clearEntryScope('legacy-credential', 'tokens')
 
     expect((await manager.startAuth('example', config)).state).toBe('authenticating')
-    expect(latestAuthorization().searchParams.get('client_id')).toBe(clientMetadataUrl)
+    expect(latestAuthorization().searchParams.get('client_id')).toBe('legacy-client')
+    expect(latestAuthorization().searchParams.get('redirect_uri')).toBe(registeredUri)
     expect((await completeAuthorization()).state).toBe('authenticated')
     expect(registrations).toHaveLength(0)
   })
+
+  it.each([false, true])(
+    'uses a published callback for a URL-based client with existing=%s',
+    async (existing) => {
+      const clientMetadataUrl = 'https://client.example/deepchat.json'
+      const publishedMetadata = {
+        client_id: clientMetadataUrl,
+        redirect_uris: [`http://localhost:${MCP_OAUTH_REDIRECT_PORT}${MCP_OAUTH_REDIRECT_PATH}`]
+      }
+      setup('https://auth.example', clientMetadataUrl)
+      if (existing) {
+        seedClient(undefined, clientMetadataUrl)
+        store.clearEntryScope('legacy-credential', 'tokens')
+      }
+      vi.mocked(shell.openExternal).mockImplementation(async (url) => {
+        const authorization = new URL(url)
+        expect(authorization.searchParams.get('client_id')).toBe(publishedMetadata.client_id)
+        const redirect = new URL(authorization.searchParams.get('redirect_uri')!)
+        // Native loopback redirects allow the listening port to vary.
+        redirect.port = new URL(publishedMetadata.redirect_uris[0]).port
+        expect(publishedMetadata.redirect_uris).toContain(redirect.href)
+      })
+
+      expect((await manager.startAuth('example', config)).state).toBe('authenticating')
+      expect((await completeAuthorization()).state).toBe('authenticated')
+      expect(tokenRequests[0].get('redirect_uri')).toBe(
+        latestAuthorization().searchParams.get('redirect_uri')
+      )
+      expect(registrations).toHaveLength(0)
+    }
+  )
 })

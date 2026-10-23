@@ -485,10 +485,13 @@ export class McpOAuthManager {
         return this.getStatus(serverName, config)
       }
     }
-    let callbackPath = `${MCP_OAUTH_REDIRECT_PATH}/${encodeURIComponent(binding.serverId)}`
     const client = existing?.entry.clientInformation
     const dynamicClient =
       client && client.client_id !== completeConfig.authorization?.clientMetadataUrl
+    let callbackPath =
+      completeConfig.authorization?.clientMetadataUrl && !dynamicClient
+        ? MCP_OAUTH_REDIRECT_PATH
+        : `${MCP_OAUTH_REDIRECT_PATH}/${encodeURIComponent(binding.serverId)}`
     let registeredRedirect: URL | null | undefined
     if (dynamicClient) {
       registeredRedirect =

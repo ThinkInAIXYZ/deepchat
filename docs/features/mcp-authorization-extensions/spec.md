@@ -81,6 +81,10 @@ interface McpAuthorizationConfig {
 This structure contains no token, secret, private key, authorization code, verifier, or identity
 assertion.
 
+For URL-based interactive clients, the client metadata document must list DeepChat's fixed callback
+path, normally `http://localhost:1456/mcp/oauth/callback`, in `redirect_uris`.
+`DEEPCHAT_MCP_OAUTH_REDIRECT_PORT` sets the preferred loopback port; the path does not depend on server ID.
+
 ### Selection Rules
 
 1. An existing explicit `customHeaders.Authorization` remains the highest-priority legacy input.
