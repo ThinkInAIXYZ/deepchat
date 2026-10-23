@@ -303,7 +303,7 @@ const DEFAULT_MCP_SERVERS = {
       args: [],
       env: {},
       descriptions:
-        'Webz.io News Search MCP for searching global news. Requires a News Search API token from https://webz.io, set in the Authorization: Bearer header. Docs: https://docs.webz.io/docs/webz/news-search-api-mcp.',
+        'Webz.io News Search MCP for searching global news. Requires a News Search API token from https://webz.io. Set the Authorization header to Bearer YOUR_WEBZ_API_TOKEN. Docs: https://docs.webz.io/docs/webz/news-search-api-mcp.',
       icons: '📰',
       disable: false,
       type: 'http' as MCPServerType,
