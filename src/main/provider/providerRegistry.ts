@@ -69,6 +69,8 @@ export interface AiSdkProviderDefinition {
   checkMaxTokens?: number
   defaultHeadersPatch?: Record<string, string>
   anthropicBaseUrl?: string
+  /** The endpoint accepts text input only, whichever catalog a model id resolves against. */
+  textOnlyInput?: boolean
 }
 
 const createDefinition = (definition: AiSdkProviderDefinition): AiSdkProviderDefinition =>
@@ -145,6 +147,14 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       defaultHeadersPatch: {
         'APP-Code': 'SMUE7630'
       }
+    })
+  ],
+  [
+    'aistupidlevel',
+    createDefinition({
+      ...OPENAI_BASE,
+      credentialStrategy: 'api-key',
+      textOnlyInput: true
     })
   ],
   [
@@ -845,4 +855,10 @@ export function resolveAiSdkProviderDefinition(
 export function isProviderDbBackedProvider(providerId: string | undefined | null): boolean {
   const source = PROVIDER_ID_REGISTRY.get(providerId?.trim().toLowerCase() ?? '')?.modelSource
   return source === 'provider-db' || source === 'kimi-for-coding' || source === 'openai-codex'
+}
+
+// Input modalities belong to the endpoint: model ids on a text-only provider must not inherit
+// image or audio input from the vendor catalog they resolve against.
+export function isTextOnlyInputProvider(providerId: string | undefined | null): boolean {
+  return PROVIDER_ID_REGISTRY.get(providerId?.trim().toLowerCase() ?? '')?.textOnlyInput === true
 }

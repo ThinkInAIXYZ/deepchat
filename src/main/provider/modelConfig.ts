@@ -32,6 +32,7 @@ import type { StoreLike } from '@/config/storeLike'
 import { resolveCapabilityIdentity } from './capabilityIdentity'
 import type { ResolvedCapabilityIdentity } from '@shared/types/model-capabilities'
 import { normalizeUserModelConfigEntry } from './userModelConfig'
+import { isTextOnlyInputProvider } from './providerRegistry'
 
 const SPECIAL_CONCAT_CHAR = '-_-'
 
@@ -155,6 +156,10 @@ export class ModelConfigHelper {
     }
 
     const policyConfig = applyMoonshotKimiReasoningTemperaturePolicy(providerId, modelId, config)
+
+    if (isTextOnlyInputProvider(providerId)) {
+      return { ...policyConfig, vision: false }
+    }
 
     if (
       normalizeProviderKind(providerId) === 'openai-codex' &&

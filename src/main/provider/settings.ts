@@ -70,7 +70,7 @@ import {
   isMiniMaxM3AdaptiveThinkingModel
 } from '@shared/modelRequestPolicy'
 import { resolveDeepSeekResponsesRoute } from './deepseekResponsesAdapter'
-import { resolveAiSdkProviderDefinition } from './providerRegistry'
+import { isTextOnlyInputProvider, resolveAiSdkProviderDefinition } from './providerRegistry'
 import { resolveMediaSettingsCapabilities } from './mediaCapabilities'
 import { resolveProviderTransport } from './providerTransport'
 
@@ -583,6 +583,9 @@ export class ProviderSettings implements ProviderSettingsPort {
       // Responses and other transports must not advertise an unsendable override.
       snapshot.reasoningPortrait = { ...snapshot.reasoningPortrait, budget: undefined }
       snapshot.thinkingBudgetRange = {}
+    }
+    if (isTextOnlyInputProvider(providerId)) {
+      snapshot.supportsAudioInput = false
     }
     if (
       resolveDeepSeekResponsesRoute({

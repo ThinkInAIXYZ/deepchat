@@ -623,6 +623,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'aistupidlevel',
+    name: 'AI Stupid Level',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://aistupidlevel.info/v1',
+    enable: false,
+    websites: {
+      official: 'https://aistupidlevel.info/',
+      apiKey: 'https://aistupidlevel.info/router/keys',
+      docs: 'https://aistupidlevel.info/router/docs',
+      models: 'https://aistupidlevel.info/router/docs#strategies'
+    }
+  },
+  {
     id: 'demonroute',
     name: 'DemonRoute',
     apiType: 'openai-completions',

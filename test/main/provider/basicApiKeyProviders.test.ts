@@ -878,6 +878,20 @@ describe('basic API-key provider registrations', () => {
     expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
   })
 
+  it('resolves AI Stupid Level as a text-only API-key gateway with model discovery', () => {
+    expect(
+      resolveAiSdkProviderDefinition(DEFAULT_PROVIDERS.find(({ id }) => id === 'aistupidlevel')!)
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'openai',
+      textOnlyInput: true
+    })
+  })
+
   it('resolves Cheaper Inference through authenticated OpenAI-compatible model discovery', () => {
     expect(
       resolveAiSdkProviderDefinition(

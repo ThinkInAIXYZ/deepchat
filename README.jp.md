@@ -456,6 +456,10 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
       <img src="./src/renderer/src/assets/llm-icons/opper.svg" width="50" height="50" alt="Opper Icon"><br/>
       <a href="https://opper.ai/">Opper</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/aistupidlevel.svg" width="50" height="50" alt="AI Stupid Level Icon"><br/>
+      <a href="https://aistupidlevel.info/">AI Stupid Level</a>
+    </td>
   </tr>
 
 </table>
