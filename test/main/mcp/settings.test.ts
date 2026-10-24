@@ -277,6 +277,23 @@ describe('McpSettings', () => {
     })
   })
 
+  it('adds the disabled EvoLink MCP server (OAuth sign-in) for existing users', async () => {
+    const { McpSettings } = await loadHelper('darwin')
+    const helper = new McpSettings()
+    const mcpStore = (helper as any).mcpStore
+
+    mcpStore.set('mcpServers', {})
+
+    const servers = await helper.getMcpServers()
+
+    expect(servers.evolink).toMatchObject({
+      type: 'http',
+      baseUrl: 'https://mcp.evolink.ai/mcp',
+      enabled: false
+    })
+    expect(servers.evolink.customHeaders).toBeUndefined()
+  })
+
   it('does not recreate the Apple built-in server after the user removed it', async () => {
     const { McpSettings } = await loadHelper('darwin')
     const helper = new McpSettings()
