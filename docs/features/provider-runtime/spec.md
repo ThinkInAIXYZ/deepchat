@@ -96,6 +96,15 @@ is required.
 Upstream references: [OpenAI compatibility](https://docs.fireworks.ai/tools-sdks/openai-compatibility)
 and [GPT OSS 120B model ID](https://fireworks.ai/models/fireworks/gpt-oss-120b).
 
+## APIMODELS
+
+`apimodels` uses the OpenAI-compatible transport with API-key credentials. Live model discovery
+keeps only records with `modality: 'chat'`; other catalog entries require unsupported routes.
+The catalog is public, so connection checks generate text with `gpt-5.6-luna` and the shared
+16-token output limit to validate credentials. Embeddings are disabled for this profile.
+
+Upstream reference: [Language Models API](https://apimodels.app/docs/llm?p=openai).
+
 ## OpenAI Codex
 
 `openai-codex` is separate from standard `openai`: distinct provider ID, runtime kind, credential store,
