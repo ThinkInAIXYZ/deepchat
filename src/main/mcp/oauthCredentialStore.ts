@@ -9,6 +9,8 @@ import type {
 } from '@modelcontextprotocol/client'
 import type { McpCredentialBinding, McpCredentialKind } from '@shared/types/mcp'
 
+export const normalizeMcpOAuthIssuer = (value: string): string => URL.parse(value)?.href ?? value
+
 export type McpOAuthCredentialStorage = 'safeStorage' | 'memory' | 'none'
 
 export type McpOAuthCredentialEntry = {
@@ -224,7 +226,9 @@ export class McpOAuthCredentialStore {
         (binding.protectedResourceUrl === undefined ||
           stored.protectedResourceUrl === binding.protectedResourceUrl) &&
         (binding.authorizationServerIssuer === undefined ||
-          stored.authorizationServerIssuer === binding.authorizationServerIssuer) &&
+          (stored.authorizationServerIssuer !== undefined &&
+            normalizeMcpOAuthIssuer(stored.authorizationServerIssuer) ===
+              normalizeMcpOAuthIssuer(binding.authorizationServerIssuer))) &&
         (binding.clientId === undefined || stored.clientId === binding.clientId)
       )
     })

@@ -28,8 +28,16 @@ import {
   startOAuthLoopbackCallbackSession,
   type OAuthLoopbackCallbackSession
 } from '../provider/auth/oauthLoopbackCallback'
-import { MCP_OAUTH_CALLBACK_TIMEOUT_MS, MCP_OAUTH_REDIRECT_PORT } from './oauthConstants'
-import { McpOAuthCredentialStore, type McpOAuthCredentialEntry } from './oauthCredentialStore'
+import {
+  MCP_OAUTH_CALLBACK_TIMEOUT_MS,
+  MCP_OAUTH_REDIRECT_PATH,
+  MCP_OAUTH_REDIRECT_PORT
+} from './oauthConstants'
+import {
+  McpOAuthCredentialStore,
+  normalizeMcpOAuthIssuer,
+  type McpOAuthCredentialEntry
+} from './oauthCredentialStore'
 import { DeepChatMcpOAuthProvider } from './mcpOAuthProvider'
 import type { McpSettings } from './settings'
 import { McpEnterpriseIdentityManager } from './enterpriseIdentityManager'
@@ -457,7 +465,6 @@ export class McpOAuthManager {
 
     this.cancelPendingFlow(binding.serverId)
     const state = createState()
-    const callbackPath = `/mcp/oauth/callback/${randomBytes(12).toString('base64url')}`
     let existing = this.findInteractiveCredential(serverName, completeConfig, binding)
     if (existing?.entry.discoveryState) {
       try {
@@ -478,11 +485,40 @@ export class McpOAuthManager {
         return this.getStatus(serverName, config)
       }
     }
+    const client = existing?.entry.clientInformation
+    const dynamicClient =
+      client && client.client_id !== completeConfig.authorization?.clientMetadataUrl
+    let callbackPath =
+      completeConfig.authorization?.clientMetadataUrl && !dynamicClient
+        ? MCP_OAUTH_REDIRECT_PATH
+        : `${MCP_OAUTH_REDIRECT_PATH}/${encodeURIComponent(binding.serverId)}`
+    let registeredRedirect: URL | null | undefined
+    if (dynamicClient) {
+      registeredRedirect =
+        'redirect_uris' in client && Array.isArray(client.redirect_uris)
+          ? client.redirect_uris
+              .map((uri) => URL.parse(uri))
+              .find(
+                (url) =>
+                  url?.protocol === 'http:' &&
+                  url.hostname === 'localhost' &&
+                  !url.username &&
+                  !url.password &&
+                  !url.search &&
+                  !url.hash &&
+                  (url.pathname === MCP_OAUTH_REDIRECT_PATH ||
+                    url.pathname.startsWith(`${MCP_OAUTH_REDIRECT_PATH}/`))
+              )
+          : undefined
+      if (registeredRedirect) {
+        callbackPath = registeredRedirect.pathname
+      }
+    }
     let provider!: DeepChatMcpOAuthProvider
     const callbackSession = await startOAuthLoopbackCallbackSession({
       expectedState: state,
       path: callbackPath,
-      preferredPort: MCP_OAUTH_REDIRECT_PORT,
+      preferredPort: Number(registeredRedirect?.port) || MCP_OAUTH_REDIRECT_PORT,
       redirectHost: 'localhost',
       timeoutMs: MCP_OAUTH_CALLBACK_TIMEOUT_MS,
       invalidCallbackMessage: 'Invalid MCP OAuth callback',
@@ -499,6 +535,14 @@ export class McpOAuthManager {
       }
     })
     try {
+      if (
+        existing &&
+        dynamicClient &&
+        registeredRedirect?.href !== new URL(callbackSession.redirectUri).href
+      ) {
+        this.store.clearEntryScope(existing.key, 'client')
+        this.store.clearEntryScope(existing.key, 'tokens')
+      }
       provider = this.createInteractiveProvider(completeConfig, binding, {
         redirectUrl: callbackSession.redirectUri,
         state,
@@ -910,14 +954,16 @@ export class McpOAuthManager {
       legacy.discoveryState?.authorizationServerUrl
     if (
       !issuer ||
-      (binding.authorizationServerIssuer && binding.authorizationServerIssuer !== issuer)
+      (binding.authorizationServerIssuer &&
+        normalizeMcpOAuthIssuer(binding.authorizationServerIssuer) !==
+          normalizeMcpOAuthIssuer(issuer))
     ) {
       this.store.clearEntry(legacyKey)
       return null
     }
     const migratedBinding: McpCredentialBinding = {
       ...binding,
-      authorizationServerIssuer: issuer,
+      authorizationServerIssuer: normalizeMcpOAuthIssuer(issuer),
       protectedResourceUrl:
         legacy.discoveryState?.resourceMetadata?.resource || binding.protectedResourceUrl
     }
@@ -1154,7 +1200,7 @@ export class McpOAuthManager {
   }
 
   private getDefaultRedirectUri(): string {
-    return `http://localhost:${MCP_OAUTH_REDIRECT_PORT}/mcp/oauth/callback`
+    return `http://localhost:${MCP_OAUTH_REDIRECT_PORT}${MCP_OAUTH_REDIRECT_PATH}`
   }
 }
 
