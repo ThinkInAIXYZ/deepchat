@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
 import type { AgentToolDependencies } from '@/tool/runtimePorts'
-import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
+import { AgentInvocationAdmission } from '../../../../src/harness/admission'
 
 export const createAgentToolDependencies = (
   overrides: Record<string, any> = {}

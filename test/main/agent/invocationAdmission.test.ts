@@ -5,7 +5,7 @@ import {
   AgentInvocationAdmissionClosedError,
   AgentInvocationAdmissionQueueFullError,
   type AgentInvocationAdmissionObservation
-} from '@/agent/invocationAdmission'
+} from '../../../src/harness/admission'
 import { BoundedNumberRing } from '@/lib/boundedNumberRing'
 
 const CORRELATION = {

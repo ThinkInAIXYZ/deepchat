@@ -75,6 +75,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check Rust host
+        run: |
+          cargo fmt --check --manifest-path crates/deepchat-harness/Cargo.toml
+          cargo clippy --locked --manifest-path crates/deepchat-harness/Cargo.toml -- -D warnings
+
       - name: Test main process
         run: pnpm run test:main
 

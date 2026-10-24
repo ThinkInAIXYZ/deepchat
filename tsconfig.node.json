@@ -3,6 +3,7 @@
   "include": [
     "electron.vite.config.*",
     "src/cli/**/*",
+    "src/harness/**/*",
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*"

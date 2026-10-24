@@ -212,8 +212,9 @@ and diagnostic clock failures cannot change the durable Run lifecycle.
 
 ## Admission Diagnostics
 
-`AgentInvocationAdmission` records both low-volume lifecycle events and bounded in-memory
-distributions:
+The Rutis admission TS plugin's `AgentInvocationAdmission` records both low-volume lifecycle events
+and bounded in-memory distributions. The main process consumes these through the typed Rutis client;
+it does not own another admission queue:
 
 - `agent.admission.queued`;
 - `agent.admission.granted` with measured `waitMs`, acquisition sequence, active/pending counts;
@@ -238,6 +239,12 @@ When neither JSONL persistence nor the development console is active, admission 
 metrics may continue bounded in-memory accounting but skip observation queue insertion and
 `setImmediate` scheduling. Re-enabling an output affects subsequent observations only; disabled-time
 payloads are never replayed.
+
+The runtime forwards observations with a generation-local sequence; main restores that order before
+calling the existing logger. Forwarding is bounded and reports dropped observations in the terminal
+summary. Each admission operation carries the current output-enabled snapshot, and main applies its
+output gate again at delivery. Teardown flushes the observation stream before stopping the Rust host.
+The monotonic intervals measure the queue and permit owner, excluding transport round-trip time.
 
 Recent wait and hold distributions retain at most 256 samples. They are process-local diagnostics,
 reset on restart, and are not recovery or accounting facts. The admission implementation owns its

@@ -55,7 +55,7 @@ import type {
 import type { DialogServicePort } from '@shared/types/dialog'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { ProviderRuntime } from '../provider'
-import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
+import { RutisAgentInvocationAdmission } from '@/agent/invocationAdmission'
 import { ProviderImportService } from '../provider/providerImportService'
 import { ProviderDatabase } from '../provider/data/database'
 import { createProviderRoutes } from '../provider/routes'
@@ -1706,28 +1706,35 @@ export async function createMainProcessControl(dependencies: {
     log: logger
   })
 
-  const agentInvocationAdmission = new AgentInvocationAdmission(undefined, undefined, {
-    observationsEnabled: () => mainLogger.isOutputEnabled(),
-    observe: (observation) => {
-      switch (observation.type) {
-        case 'queued':
-          mainLogger.emit('agent.admission.queued', observation)
-          break
-        case 'granted':
-          mainLogger.emit('agent.admission.granted', observation)
-          break
-        case 'released':
-          mainLogger.emit('agent.admission.released', observation)
-          break
-        case 'rejected':
-          mainLogger.emit('agent.admission.rejected', observation)
-          break
-        case 'closed':
-          mainLogger.emit('agent.admission.closed', observation)
-          break
+  const agentInvocationAdmission = await RutisAgentInvocationAdmission.create({
+    directory: app.isPackaged
+      ? path.join(process.resourcesPath, 'app.asar.unpacked', 'harness')
+      : path.join(app.getAppPath(), 'out', 'harness'),
+    electronExecutable: process.execPath,
+    diagnostics: {
+      observationsEnabled: () => mainLogger.isOutputEnabled(),
+      observe: (observation) => {
+        switch (observation.type) {
+          case 'queued':
+            mainLogger.emit('agent.admission.queued', observation)
+            break
+          case 'granted':
+            mainLogger.emit('agent.admission.granted', observation)
+            break
+          case 'released':
+            mainLogger.emit('agent.admission.released', observation)
+            break
+          case 'rejected':
+            mainLogger.emit('agent.admission.rejected', observation)
+            break
+          case 'closed':
+            mainLogger.emit('agent.admission.closed', observation)
+            break
+        }
       }
     }
   })
+  console.info('[Harness] Rutis admission ready', agentInvocationAdmission.identity)
   const resolveConversationExecutionAuthorityNow = (conversationId: string) => {
     const session = appSessionService.get(conversationId)
     if (!session) return null
@@ -2947,6 +2954,9 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('agentInvocationAdmission.close', () => agentInvocationAdmission.close())
     await runDestroyStep('agentInvocationAdmission.flushObservations', () =>
       agentInvocationAdmission.flushObservations()
+    )
+    await runDestroyStep('agentInvocationAdmission.shutdown', () =>
+      agentInvocationAdmission.shutdown()
     )
     await runDestroyStep('cronJobs.destroy', () => cronJobs.destroy())
     await runDestroyStep('remoteService.destroy', () => remoteService.destroy())

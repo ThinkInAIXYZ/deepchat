@@ -756,3 +756,15 @@ execution continues to settle independently and commit results in provider call 
    prompt the producer supplied.
 9. Focused suites, the full main-process suite, type checks, formatting, i18n validation, lint, and
    the agent cleanup guard pass, and executed test count does not drop.
+
+## Invocation admission runtime
+
+Process-wide delegated-Agent invocation admission is owned by the Rutis TS plugin in
+`src/harness/plugins/admission.ts`. Main composition creates one `RutisAgentInvocationAdmission`
+client and retains caller-owned lease state through the existing admission port. The local main
+queue constructor is removed. The Rust host owns the runtime generation and its bounded private
+transport; disconnect closes admission without a local fallback or automatic replacement owner.
+
+This boundary is distinct from the Harness pending-input pump and its four fences, which retain
+their existing owners. The [Rutis runtime RFC](../rutis-multiprocess-backend/spec.md) specifies call
+ordering, cancellation/late-grant cleanup, diagnostics and shutdown for this module migration.

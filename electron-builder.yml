@@ -15,6 +15,8 @@ files:
   - '!runtime/rtk/**'
   - '!out/main/lightOcrHelper.js'
   - '!out/cli/**'
+  - '!out/harness/**'
+  - '!crates/**'
   - '!keys/*'
   - '!scripts/*'
   - '!.github/*'
@@ -44,6 +46,9 @@ asarUnpack:
   - '**/node_modules/@arcships/light-ocr*/**/*'
   - '**/node_modules/@zerob13/nativekit/prebuilds/**/*'
 extraResources:
+  - from: ./out/harness/
+    to: app.asar.unpacked/harness
+    filter: ['**/*']
   - from: ./out/cli/
     to: app.asar.unpacked/cli
     filter: ['deepchat', 'deepchat.cmd', 'deepchat.mjs']
@@ -96,6 +101,7 @@ nsis:
   include: build/nsis-installer.nsh
 afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/notarize-dmg.js
+beforePack: scripts/build-harness.mjs
 afterPack: scripts/afterPack.js
 mac:
   signIgnore:
