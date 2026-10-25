@@ -294,6 +294,23 @@ describe('McpSettings', () => {
     expect(servers.evolink.customHeaders).toBeUndefined()
   })
 
+  it('adds the disabled deed.page static hosting MCP server (keyless) for existing users', async () => {
+    const { McpSettings } = await loadHelper('darwin')
+    const helper = new McpSettings()
+    const mcpStore = (helper as any).mcpStore
+
+    mcpStore.set('mcpServers', {})
+
+    const servers = await helper.getMcpServers()
+
+    expect(servers['deed-page']).toMatchObject({
+      type: 'http',
+      baseUrl: 'https://deed.page/mcp',
+      enabled: false
+    })
+    expect(servers['deed-page'].customHeaders).toBeUndefined()
+  })
+
   it('does not recreate the Apple built-in server after the user removed it', async () => {
     const { McpSettings } = await loadHelper('darwin')
     const helper = new McpSettings()
