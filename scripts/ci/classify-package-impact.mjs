@@ -32,6 +32,7 @@ const sharedPackagePaths = new Set([
   'scripts/package-plugin.mjs',
   'scripts/plugin.mjs',
   'scripts/smoke-duckdb-vss.js',
+  'scripts/smoke-harness-memory.mjs',
   'scripts/smoke-light-ocr.js',
   'scripts/smoke-opendal-native.js',
   'scripts/ci/check-package-size.mjs',
@@ -85,6 +86,7 @@ const packageImpactRules = Object.freeze([
       changedPath.startsWith('plugins/') ||
       changedPath.startsWith('crates/deepchat-harness/') ||
       changedPath.startsWith('src/harness/') ||
+      changedPath.startsWith('src/main/harness/') ||
       changedPath.startsWith('src/shared/harness/')
   },
   {

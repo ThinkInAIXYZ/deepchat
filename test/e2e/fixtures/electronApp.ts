@@ -92,6 +92,7 @@ export type ElectronAppInstance = {
 }
 
 type ElectronFixtures = {
+  privacyModeEnabled: boolean
   app: ElectronAppInstance
   launchApp: () => Promise<ElectronAppInstance>
 }
@@ -182,7 +183,7 @@ const readMainProcessLogs = (): string => {
   return files.map((filePath) => `== ${filePath} ==\n${readTextFileTail(filePath)}`).join('\n\n')
 }
 
-const seedE2eUserDataDir = (userDataDir: string): void => {
+const seedE2eUserDataDir = (userDataDir: string, privacyModeEnabled: boolean): void => {
   mkdirSync(userDataDir, { recursive: true })
 
   const appSettingsPath = join(userDataDir, 'app-settings.json')
@@ -198,6 +199,7 @@ const seedE2eUserDataDir = (userDataDir: string): void => {
       {
         init_complete: true,
         loggingEnabled: true,
+        privacyModeEnabled,
         guidedOnboardingState: {
           version: GUIDED_ONBOARDING_VERSION,
           status: 'completed',
@@ -245,7 +247,8 @@ const ensureLaunchTargetExists = (): void => {
 }
 
 export const test = base.extend<ElectronFixtures>({
-  launchApp: async ({}, use, testInfo) => {
+  privacyModeEnabled: [false, { option: true }],
+  launchApp: async ({ privacyModeEnabled }, use, testInfo) => {
     ensureLaunchTargetExists()
 
     const consoleLogs: string[] = []
@@ -257,7 +260,7 @@ export const test = base.extend<ElectronFixtures>({
     const userDataDir =
       originalE2eUserDataDir ?? mkdtempSync(join(tmpdir(), 'deepchat-e2e-user-data-'))
     const ownsUserDataDir = !originalE2eUserDataDir
-    seedE2eUserDataDir(userDataDir)
+    seedE2eUserDataDir(userDataDir, privacyModeEnabled)
     process.env.DEEPCHAT_E2E_USER_DATA_DIR = userDataDir
 
     const attachPageListeners = (page: Page, label: string) => {

@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import logger from 'node:console'
 import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -6,7 +6,12 @@ import { promisify } from 'node:util'
 import { gunzip } from 'node:zlib'
 
 import type { DuckDBConnection } from '@duckdb/node-api'
-import { app } from 'electron'
+
+export interface MemoryVectorHost {
+  appPath: string
+  userDataPath: string
+  isPackaged: boolean
+}
 
 const extensionSuffix = '.duckdb_extension'
 const VSS_EXTENSION_NAME = `vss${extensionSuffix}`
@@ -88,9 +93,13 @@ async function inflatePackagedVssExtension(
   return targetPath
 }
 
-async function materializePackagedVssExtension(assetPath: string, dbPath: string): Promise<string> {
+async function materializePackagedVssExtension(
+  assetPath: string,
+  dbPath: string,
+  host: MemoryVectorHost
+): Promise<string> {
   const resolvedAssetPath = path.resolve(assetPath)
-  const materializationRoot = path.resolve(app.getPath('userData') || path.dirname(dbPath))
+  const materializationRoot = path.resolve(host.userDataPath || path.dirname(dbPath))
   const cacheKey = materializationCacheKey(resolvedAssetPath, materializationRoot)
   const existing = PACKAGED_VSS_MATERIALIZATION_PROMISES.get(cacheKey)
   if (existing) {
@@ -99,7 +108,7 @@ async function materializePackagedVssExtension(assetPath: string, dbPath: string
     if (PACKAGED_VSS_MATERIALIZATION_PROMISES.get(cacheKey) === existing) {
       PACKAGED_VSS_MATERIALIZATION_PROMISES.delete(cacheKey)
     } else {
-      return materializePackagedVssExtension(resolvedAssetPath, dbPath)
+      return materializePackagedVssExtension(resolvedAssetPath, dbPath, host)
     }
   }
 
@@ -119,10 +128,11 @@ async function materializePackagedVssExtension(assetPath: string, dbPath: string
 
 async function resolveLegacyVssPath(
   dbPath: string,
+  host: MemoryVectorHost,
   fence?: LegacyVssLoadFence
 ): Promise<{ extensionPath: string; source: string } | null> {
   const runtimeBasePath = path
-    .join(app.getAppPath(), 'runtime')
+    .join(host.appPath, 'runtime')
     .replace('app.asar', 'app.asar.unpacked')
   const extensionDir = path.join(runtimeBasePath, 'duckdb', 'extensions')
   const extensionPath = path.join(extensionDir, VSS_EXTENSION_NAME)
@@ -133,7 +143,7 @@ async function resolveLegacyVssPath(
   if (fs.existsSync(packagedAssetPath)) {
     let materializedPath: string
     try {
-      materializedPath = await materializePackagedVssExtension(packagedAssetPath, dbPath)
+      materializedPath = await materializePackagedVssExtension(packagedAssetPath, dbPath, host)
     } catch (error) {
       const message = `[MemoryVectorStore] packaged VSS extension failed to materialize from ${packagedAssetPath}: ${String(error)}`
       if (fence) {
@@ -148,7 +158,7 @@ async function resolveLegacyVssPath(
 
   const message = `[MemoryVectorStore] bundled VSS extension missing at ${extensionPath} or ${packagedAssetPath}. Run installRuntime:duckdb:vss before packaging.`
   if (fence) throw new LegacyVssUnavailableError(message)
-  if (app.isPackaged) {
+  if (host.isPackaged) {
     logger.error(`${message} Vector recall disabled until a valid bundled extension ships.`)
     throw new Error(message)
   }
@@ -159,9 +169,10 @@ async function resolveLegacyVssPath(
 export async function loadLegacyVss(
   connection: Pick<DuckDBConnection, 'run'>,
   dbPath: string,
+  host: MemoryVectorHost,
   fence?: LegacyVssLoadFence
 ): Promise<void> {
-  const resolved = await resolveLegacyVssPath(dbPath, fence)
+  const resolved = await resolveLegacyVssPath(dbPath, host, fence)
   fence?.assertActive()
   if (resolved) {
     try {
@@ -169,7 +180,7 @@ export async function loadLegacyVss(
       return
     } catch (error) {
       const message = `[MemoryVectorStore] ${resolved.source} VSS extension failed to load from ${resolved.extensionPath}: ${String(error)}`
-      if (app.isPackaged || fence) {
+      if (host.isPackaged || fence) {
         logger.error(`${message}. Vector recall disabled until a valid bundled extension ships.`)
         throw error
       }

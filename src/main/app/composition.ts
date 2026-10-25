@@ -55,7 +55,13 @@ import type {
 import type { DialogServicePort } from '@shared/types/dialog'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { ProviderRuntime } from '../provider'
-import { RutisAgentInvocationAdmission } from '@/agent/invocationAdmission'
+import {
+  RutisAgentInvocationAdmission,
+  DEFAULT_AGENT_INVOCATION_CAPACITY,
+  DEFAULT_AGENT_INVOCATION_MAX_PENDING
+} from '@/agent/invocationAdmission'
+import { HarnessRuntime } from '../harness/runtime'
+import { RutisMemoryVectorStores } from '../harness/memory-vector'
 import { ProviderImportService } from '../provider/providerImportService'
 import { ProviderDatabase } from '../provider/data/database'
 import { createProviderRoutes } from '../provider/routes'
@@ -190,8 +196,7 @@ import type {
   MemoryIngestionDrainOutcome,
   MemoryIngestionObserver
 } from '@/agent/deepchat/memory/memoryIngestionObserver'
-import { MemoryService, isSafeAgentId, type MemoryServicePort } from '../memory'
-import { createMemoryVectorStorePaths, MemoryVectorStore } from '../memory/infra/memoryVectorStore'
+import { MemoryService, type MemoryServicePort } from '../memory'
 import { ProjectService } from '../project'
 import { ProjectDatabase } from '@/project/data/database'
 import { SettingsDatabase } from '@/settings/data/database'
@@ -1706,33 +1711,42 @@ export async function createMainProcessControl(dependencies: {
     log: logger
   })
 
-  const agentInvocationAdmission = await RutisAgentInvocationAdmission.create({
+  const admissionDiagnostics = {
+    observationsEnabled: () => mainLogger.isOutputEnabled(),
+    observe: (
+      observation: import('@shared/harness/admission').AgentInvocationAdmissionObservation
+    ) => {
+      switch (observation.type) {
+        case 'queued':
+          mainLogger.emit('agent.admission.queued', observation)
+          break
+        case 'granted':
+          mainLogger.emit('agent.admission.granted', observation)
+          break
+        case 'released':
+          mainLogger.emit('agent.admission.released', observation)
+          break
+        case 'rejected':
+          mainLogger.emit('agent.admission.rejected', observation)
+          break
+        case 'closed':
+          mainLogger.emit('agent.admission.closed', observation)
+          break
+      }
+    }
+  }
+  const harnessRuntime = await HarnessRuntime.start({
     directory: app.isPackaged
       ? path.join(process.resourcesPath, 'app.asar.unpacked', 'harness')
       : path.join(app.getAppPath(), 'out', 'harness'),
     electronExecutable: process.execPath,
-    diagnostics: {
-      observationsEnabled: () => mainLogger.isOutputEnabled(),
-      observe: (observation) => {
-        switch (observation.type) {
-          case 'queued':
-            mainLogger.emit('agent.admission.queued', observation)
-            break
-          case 'granted':
-            mainLogger.emit('agent.admission.granted', observation)
-            break
-          case 'released':
-            mainLogger.emit('agent.admission.released', observation)
-            break
-          case 'rejected':
-            mainLogger.emit('agent.admission.rejected', observation)
-            break
-          case 'closed':
-            mainLogger.emit('agent.admission.closed', observation)
-            break
-        }
-      }
-    }
+    capacity: DEFAULT_AGENT_INVOCATION_CAPACITY,
+    maxPending: DEFAULT_AGENT_INVOCATION_MAX_PENDING,
+    observe: admissionDiagnostics.observe
+  })
+  const agentInvocationAdmission = RutisAgentInvocationAdmission.create({
+    runtime: harnessRuntime,
+    diagnostics: admissionDiagnostics
   })
   console.info('[Harness] Rutis admission ready', agentInvocationAdmission.identity)
   const resolveConversationExecutionAuthorityNow = (conversationId: string) => {
@@ -2032,9 +2046,14 @@ export async function createMainProcessControl(dependencies: {
   })
   // Initialize agent memory layer (opt-in per agent; vectors stored separately from knowledge base)
   const memoryDbDir = path.join(dbDir, 'AgentMemory')
-  MemoryVectorStore.recoverQuarantinedStores(memoryDbDir)
-  const memoryVectorDbPaths = (agentId: string) =>
-    createMemoryVectorStorePaths(memoryDbDir, agentId)
+  const memoryVectorStores = new RutisMemoryVectorStores(harnessRuntime, {
+    memoryDbDir,
+    host: {
+      appPath: app.getAppPath(),
+      userDataPath: app.getPath('userData'),
+      isPackaged: app.isPackaged
+    }
+  })
   memoryService = new MemoryService({
     repository: createLivePort(() => memoryDatabase.agentMemoryTable),
     directiveRepository: createLivePort(() => memoryDatabase.agentMemoryDirectiveTable),
@@ -2058,26 +2077,10 @@ export async function createMainProcessControl(dependencies: {
           (agentId) => agentRepository.resolveDeepChatAgentConfig(agentId).memoryEnabled === true
         ),
     ...createMemoryProviderBindings(providerRuntime),
-    createVectorStore: (agentId, embedding, dimensions) => {
-      if (!isSafeAgentId(agentId)) {
-        throw new Error(`[Memory] refusing to open vector store for unsafe agentId: ${agentId}`)
-      }
-      return MemoryVectorStore.create(memoryVectorDbPaths(agentId), dimensions, embedding)
-    },
-    resetVectorStore: async (agentId) => {
-      if (!isSafeAgentId(agentId)) {
-        throw new Error(`[Memory] refusing to reset vector store for unsafe agentId: ${agentId}`)
-      }
-      MemoryVectorStore.destroyFiles(memoryVectorDbPaths(agentId))
-    },
-    markVectorStoreQuarantined: (agentId) => {
-      if (!isSafeAgentId(agentId)) {
-        throw new Error(
-          `[Memory] refusing to quarantine vector store for unsafe agentId: ${agentId}`
-        )
-      }
-      MemoryVectorStore.markQuarantined(memoryVectorDbPaths(agentId))
-    },
+    createVectorStore: (agentId, embedding, dimensions) =>
+      memoryVectorStores.createVectorStore(agentId, embedding, dimensions),
+    resetVectorStore: (agentId) => memoryVectorStores.resetVectorStore(agentId),
+    markVectorStoreQuarantined: (agentId) => memoryVectorStores.markVectorStoreQuarantined(agentId),
     onMemoryChanged: (agentId, reason, context) =>
       publishDeepchatEvent('memory.updated', {
         agentId,
@@ -2955,9 +2958,6 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('agentInvocationAdmission.flushObservations', () =>
       agentInvocationAdmission.flushObservations()
     )
-    await runDestroyStep('agentInvocationAdmission.shutdown', () =>
-      agentInvocationAdmission.shutdown()
-    )
     await runDestroyStep('cronJobs.destroy', () => cronJobs.destroy())
     await runDestroyStep('remoteService.destroy', () => remoteService.destroy())
     await runDestroyStep('hookService.stop', () => hookService.stop())
@@ -3034,6 +3034,8 @@ export async function createMainProcessControl(dependencies: {
       }
     })()
     await runDestroyStep('memoryService.dispose', () => memoryService.dispose())
+    await runDestroyStep('memoryVectorStores.dispose', () => memoryVectorStores.dispose())
+    await runDestroyStep('harnessRuntime.stop', () => harnessRuntime.stop())
     let memoryIngestionDrainOutcome: MemoryIngestionDrainOutcome | undefined
     await runDestroyStep('memoryIngestionObserver.drainAndFence', async () => {
       const result = await memoryIngestionDrain

@@ -53,11 +53,20 @@ export async function buildHarness({ platform = process.platform, arch = process
       emptyOutDir: true,
       copyPublicDir: false,
       lib: {
-        entry: path.join(repositoryRoot, 'src', 'harness', 'plugins', 'admission.ts'),
+        entry: {
+          admission: path.join(repositoryRoot, 'src', 'harness', 'plugins', 'admission.ts'),
+          'memory-vector': path.join(
+            repositoryRoot,
+            'src',
+            'harness',
+            'plugins',
+            'memory-vector.ts'
+          )
+        },
         formats: ['es'],
-        fileName: () => 'admission.mjs'
+        fileName: (_, name) => `${name}.mjs`
       },
-      rollupOptions: { external: [/^node:/] }
+      rollupOptions: { external: [/^node:/, '@duckdb/node-api'] }
     }
   })
   const extension = platform === 'win32' ? '.exe' : ''
@@ -75,8 +84,25 @@ export async function buildHarness({ platform = process.platform, arch = process
   await cp(path.join(runtimeRoot, 'src'), path.join(runtimeOutput, 'src'), { recursive: true })
   const runtimeRequire = createRequire(runtimePackage)
   // The compiled first-party runtime needs Cordis and WebSocket support, not the TS generator.
-  for (const name of ['@deepseek-ai/cordis', '@deepseek-ai/cosmokit', 'ws']) {
-    const source = path.dirname(runtimeRequire.resolve(`${name}/package.json`))
+  const apiPackage = require.resolve('@duckdb/node-api/package.json')
+  const apiRequire = createRequire(apiPackage)
+  const bindingsPackage = apiRequire.resolve('@duckdb/node-bindings/package.json')
+  const bindingsRequire = createRequire(bindingsPackage)
+  const packages = new Map([
+    ...['@deepseek-ai/cordis', '@deepseek-ai/cosmokit', 'ws'].map((name) => [
+      name,
+      runtimeRequire.resolve(`${name}/package.json`)
+    ]),
+    ['@duckdb/node-api', apiPackage],
+    ['@duckdb/node-bindings', bindingsPackage],
+    ['detect-libc', bindingsRequire.resolve('detect-libc/package.json')],
+    [
+      `@duckdb/node-bindings-${platform}-${arch}`,
+      bindingsRequire.resolve(`@duckdb/node-bindings-${platform}-${arch}/package.json`)
+    ]
+  ])
+  for (const [name, packageFile] of packages) {
+    const source = path.dirname(packageFile)
     await cp(source, path.join(output, 'node_modules', name), {
       recursive: true,
       dereference: true,

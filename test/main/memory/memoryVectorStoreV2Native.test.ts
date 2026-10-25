@@ -1,3 +1,4 @@
+import { nativeVectorHost } from './nativeVectorHost'
 import { DuckDBInstance, arrayValue } from '@duckdb/node-api'
 import { app } from 'electron'
 import { spawn } from 'node:child_process'
@@ -187,6 +188,39 @@ afterEach(() => {
 })
 
 describe('MemoryVectorStore v2 native integration', () => {
+  it('keeps multi-chunk upserts atomic and reuses a smaller final batch safely', async () => {
+    const { paths } = createPaths('deepchat-vector-append-')
+    const store = await MemoryVectorStore.create(paths, 2, EMBEDDING, nativeVectorHost)
+    try {
+      await store.upsert(
+        Array.from({ length: 101 }, (_, index) => ({
+          memoryId: `row-${index}`,
+          embedding: [index + 1, 1]
+        }))
+      )
+      await expect(store.upsert([{ memoryId: 'row-0', embedding: [1] }])).rejects.toThrow(
+        'dimensions'
+      )
+      await expect(
+        store.upsert(
+          Array.from({ length: 51 }, (_, index) => ({
+            memoryId: index === 50 ? 'row-0' : index === 0 ? 'row-0' : `new-${index}`,
+            embedding: [1, 0]
+          }))
+        )
+      ).rejects.toThrow(/constraint|duplicate key/i)
+      await store.upsert([{ memoryId: 'row-0', embedding: [0.25, 0.75] }])
+    } finally {
+      await store.close()
+    }
+    const { rows } = await inspectV2(paths)
+    expect(rows).toHaveLength(101)
+    expect(rows.find((row) => row.memory_id === 'row-0')).toEqual({
+      memory_id: 'row-0',
+      embedding: [0.25, 0.75]
+    })
+    expect(rows.some((row) => String(row.memory_id).startsWith('new-'))).toBe(false)
+  })
   itWithVss('preserves a genuine WAL-free HNSW v1 store without VSS on the v2 path', async () => {
     if (!VSS_AVAILABLE) {
       throw new Error(`Required bundled VSS extension is missing at ${VSS_EXTENSION}`)
@@ -194,7 +228,7 @@ describe('MemoryVectorStore v2 native integration', () => {
     const { paths } = createPaths('deepchat-memory-native-preserve-')
     await createLegacyV1(paths)
 
-    const store = await MemoryVectorStore.create(paths, 2, EMBEDDING)
+    const store = await MemoryVectorStore.create(paths, 2, EMBEDDING, nativeVectorHost)
     expect(store.isUsable()).toBe(true)
     await expect(store.query([1, 51], { topK: 1 })).resolves.toMatchObject([{ memoryId: 'm001' }])
     await store.close()
@@ -209,7 +243,7 @@ describe('MemoryVectorStore v2 native integration', () => {
     expect(snapshot.rows[50]).toMatchObject({ memory_id: 'm051', embedding: [51, 1] })
 
     vi.mocked(app.getAppPath).mockReturnValue(path.join(PROJECT_ROOT, 'missing-runtime-root'))
-    const reopened = await MemoryVectorStore.create(paths, 2, EMBEDDING)
+    const reopened = await MemoryVectorStore.create(paths, 2, EMBEDDING, nativeVectorHost)
     await expect(reopened.query([51, 1], { topK: 1 })).resolves.toMatchObject([
       { memoryId: 'm051' }
     ])
@@ -224,7 +258,7 @@ describe('MemoryVectorStore v2 native integration', () => {
     await createLegacyV1(paths, 1)
     fs.renameSync(paths.legacy, paths.current)
 
-    const store = await MemoryVectorStore.create(paths, 2, EMBEDDING)
+    const store = await MemoryVectorStore.create(paths, 2, EMBEDDING, nativeVectorHost)
 
     expect(store.isUsable()).toBe(false)
     expect(fs.existsSync(paths.current)).toBe(true)
@@ -237,7 +271,7 @@ describe('MemoryVectorStore v2 native integration', () => {
     fs.writeFileSync(paths.legacy, 'not-a-duckdb-database')
     fs.writeFileSync(`${paths.legacy}.wal`, 'not-a-duckdb-wal')
 
-    const store = await MemoryVectorStore.create(paths, 2, EMBEDDING)
+    const store = await MemoryVectorStore.create(paths, 2, EMBEDDING, nativeVectorHost)
     expect(store.isUsable()).toBe(true)
     await expect(store.query([1, 0], { topK: 5 })).resolves.toEqual([])
     await store.close()
@@ -257,7 +291,7 @@ describe('MemoryVectorStore v2 native crash recovery', () => {
     expect(fs.existsSync(paths.current)).toBe(true)
     expect(fs.existsSync(`${paths.current}.wal`)).toBe(true)
 
-    const store = await MemoryVectorStore.create(paths, 2, EMBEDDING)
+    const store = await MemoryVectorStore.create(paths, 2, EMBEDDING, nativeVectorHost)
     await expect(store.query([1, 0], { topK: 1 })).resolves.toMatchObject([
       { memoryId: 'crash-row' }
     ])
@@ -280,7 +314,7 @@ describe('MemoryVectorStore v2 native crash recovery', () => {
     const { paths } = createPaths(`deepchat-memory-native-${mode}-`)
     await runCrashWorker(mode, paths)
 
-    const store = await MemoryVectorStore.create(paths, 2, EMBEDDING)
+    const store = await MemoryVectorStore.create(paths, 2, EMBEDDING, nativeVectorHost)
     expect(store.isUsable()).toBe(true)
     const matches = await store.query([1, 0], { topK: 1 })
     if (mode === 'rename-after') {
@@ -336,7 +370,7 @@ describe('MemoryVectorStore v2 native crash recovery', () => {
     'keeps committed v2 authoritative when legacy cleanup returns EBUSY',
     async () => {
       const { root, paths } = createPaths('deepchat-memory-native-windows-cleanup-')
-      const published = await MemoryVectorStore.create(paths, 2, EMBEDDING)
+      const published = await MemoryVectorStore.create(paths, 2, EMBEDDING, nativeVectorHost)
       await published.upsert([{ memoryId: 'current-row', embedding: [1, 0] }])
       await published.close()
       await createLegacyV1(paths, 1)
@@ -354,7 +388,7 @@ describe('MemoryVectorStore v2 native crash recovery', () => {
       try {
         await waitForReady(child)
 
-        const reopened = await MemoryVectorStore.create(paths, 2, EMBEDDING)
+        const reopened = await MemoryVectorStore.create(paths, 2, EMBEDDING, nativeVectorHost)
         await expect(reopened.query([1, 0], { topK: 1 })).resolves.toMatchObject([
           { memoryId: 'current-row' }
         ])

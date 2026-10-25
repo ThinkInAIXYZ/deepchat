@@ -1,0 +1,81 @@
+diff --git a/dist/index.js b/dist/index.js
+index d4b1ce08e2a40e383bacce99cf4d26059533101a..0f37e09da67bbda26b95de782220ca3c72787a92 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -26,6 +26,15 @@ import {
+   zodSchema as zodSchema3
+ } from "@ai-sdk/provider-utils";
+ import { z as z3 } from "zod/v4";
++// Validate and clone dense vectors without per-component parsing payloads.
++const finiteEmbeddingArraySchema = z3.custom((value) => {
++  if (!Array.isArray(value)) return false;
++  for (let index = 0; index < value.length; index++) {
++    if (!Number.isFinite(value[index])) return false;
++  }
++  return true;
++}).transform((value) => value.slice());
++
+ 
+ // src/google-error.ts
+ import {
+@@ -239,14 +248,14 @@ var GoogleEmbeddingModel = class _GoogleEmbeddingModel {
+ var googleGenerativeAITextEmbeddingResponseSchema = lazySchema3(
+   () => zodSchema3(
+     z3.object({
+-      embeddings: z3.array(z3.object({ values: z3.array(z3.number()) }))
++      embeddings: z3.array(z3.object({ values: finiteEmbeddingArraySchema }))
+     })
+   )
+ );
+ var googleGenerativeAISingleEmbeddingResponseSchema = lazySchema3(
+   () => zodSchema3(
+     z3.object({
+-      embedding: z3.object({ values: z3.array(z3.number()) })
++      embedding: z3.object({ values: finiteEmbeddingArraySchema })
+     })
+   )
+ );
+diff --git a/src/google-embedding-model.ts b/src/google-embedding-model.ts
+index cb1afa7aa98bd3a89974aafd7ed7393345ac822e..02a5dd943c007ed612af70d5d029d132d1e468ce 100644
+--- a/src/google-embedding-model.ts
++++ b/src/google-embedding-model.ts
+@@ -16,11 +16,21 @@ import {
+   type FetchFunction,
+ } from '@ai-sdk/provider-utils';
+ import { z } from 'zod/v4';
++
+ import { googleFailedResponseHandler } from './google-error';
+ import {
+   googleEmbeddingModelOptions,
+   type GoogleEmbeddingModelId,
+ } from './google-embedding-model-options';
++
++// Validate and clone dense vectors without per-component parsing payloads.
++const finiteEmbeddingArraySchema = z.custom<number[]>((value) => {
++  if (!Array.isArray(value)) return false;
++  for (let index = 0; index < value.length; index++) {
++    if (!Number.isFinite(value[index])) return false;
++  }
++  return true;
++}).transform((value) => value.slice());
+ type GoogleEmbeddingConfig = {
+   provider: string;
+   baseURL: string;
+@@ -186,7 +196,7 @@ export class GoogleEmbeddingModel implements EmbeddingModelV4 {
+ const googleGenerativeAITextEmbeddingResponseSchema = lazySchema(() =>
+   zodSchema(
+     z.object({
+-      embeddings: z.array(z.object({ values: z.array(z.number()) })),
++      embeddings: z.array(z.object({ values: finiteEmbeddingArraySchema })),
+     }),
+   ),
+ );
+@@ -195,7 +205,7 @@ const googleGenerativeAITextEmbeddingResponseSchema = lazySchema(() =>
+ const googleGenerativeAISingleEmbeddingResponseSchema = lazySchema(() =>
+   zodSchema(
+     z.object({
+-      embedding: z.object({ values: z.array(z.number()) }),
++      embedding: z.object({ values: finiteEmbeddingArraySchema }),
+     }),
+   ),
+ );

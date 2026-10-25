@@ -1,3 +1,4 @@
+import { nativeVectorHost } from './nativeVectorHost'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const duckDbMocks = vi.hoisted(() => ({ create: vi.fn() }))
@@ -49,7 +50,7 @@ describe('LegacyV1Reader', () => {
       [{ provider: 'provider-a', model: 'model-a', dim: 2 }]
     ])
     const fence = new MigrationAbandonFence()
-    const reader = await LegacyV1Reader.open('/tmp/legacy.duckdb', 2, fence)
+    const reader = await LegacyV1Reader.open('/tmp/legacy.duckdb', 2, fence, nativeVectorHost)
 
     await expect(reader.readEmbeddingIdentity(fence)).resolves.toEqual({
       providerId: 'provider-a',
@@ -86,7 +87,7 @@ describe('LegacyV1Reader', () => {
   ])('returns null for $name', async ({ responses }) => {
     setupReader(responses)
     const fence = new MigrationAbandonFence()
-    const reader = await LegacyV1Reader.open('/tmp/legacy.duckdb', 2, fence)
+    const reader = await LegacyV1Reader.open('/tmp/legacy.duckdb', 2, fence, nativeVectorHost)
 
     await expect(reader.readEmbeddingIdentity(fence)).resolves.toBeNull()
   })
@@ -95,7 +96,7 @@ describe('LegacyV1Reader', () => {
     const { connection } = setupReader([])
     connection.runAndReadAll.mockRejectedValueOnce(new Error('INTERNAL metadata failure'))
     const fence = new MigrationAbandonFence()
-    const reader = await LegacyV1Reader.open('/tmp/legacy.duckdb', 2, fence)
+    const reader = await LegacyV1Reader.open('/tmp/legacy.duckdb', 2, fence, nativeVectorHost)
 
     await expect(reader.readEmbeddingIdentity(fence)).rejects.toThrow('INTERNAL metadata failure')
     expect(connection.closeSync).not.toHaveBeenCalled()
@@ -113,7 +114,7 @@ describe('LegacyV1Reader', () => {
     const fence = new MigrationAbandonFence()
     const legacyPath = "C:\\AgentMemory\\O'Brien.duckdb"
 
-    const reader = await LegacyV1Reader.open(legacyPath, 2, fence)
+    const reader = await LegacyV1Reader.open(legacyPath, 2, fence, nativeVectorHost)
     await expect(reader.countRows(fence)).resolves.toBe(3)
     await expect(reader.readPage(null, fence)).resolves.toEqual([
       { memoryId: 'm1', embedding: [0.1, 0.2] },
@@ -125,7 +126,7 @@ describe('LegacyV1Reader', () => {
     reader.closeBeforeFileMutation(fence)
 
     expect(duckDbMocks.create).toHaveBeenCalledWith(':memory:')
-    expect(vssMocks.load).toHaveBeenCalledWith(connection, legacyPath, fence)
+    expect(vssMocks.load).toHaveBeenCalledWith(connection, legacyPath, nativeVectorHost, fence)
     expect(connection.run).toHaveBeenCalledWith(
       "ATTACH 'C:\\\\AgentMemory\\\\O''Brien.duckdb' AS legacy (READ_ONLY);"
     )
@@ -143,7 +144,7 @@ describe('LegacyV1Reader', () => {
       [{ memory_id: 'm1', embedding: [0.1, 0.2] }]
     ])
     const fence = new MigrationAbandonFence()
-    const reader = await LegacyV1Reader.open('/tmp/legacy.duckdb', 2, fence)
+    const reader = await LegacyV1Reader.open('/tmp/legacy.duckdb', 2, fence, nativeVectorHost)
 
     await expect(reader.readPage(null, fence)).rejects.toThrow('invalid legacy v1 embedding')
     await expect(reader.readPage('m1', fence)).rejects.toThrow('not strictly keyset ordered')
@@ -168,7 +169,7 @@ describe('LegacyV1Reader', () => {
     }
     duckDbMocks.create.mockResolvedValue(instance)
     const fence = new MigrationAbandonFence()
-    const reader = await LegacyV1Reader.open('/tmp/legacy.duckdb', 2, fence)
+    const reader = await LegacyV1Reader.open('/tmp/legacy.duckdb', 2, fence, nativeVectorHost)
 
     const pending = reader.readPage(null, fence)
     fence.abandon()
@@ -187,7 +188,7 @@ describe('LegacyV1Reader', () => {
       throw new Error('close failed')
     })
     const fence = new MigrationAbandonFence()
-    const reader = await LegacyV1Reader.open('/tmp/legacy.duckdb', 2, fence)
+    const reader = await LegacyV1Reader.open('/tmp/legacy.duckdb', 2, fence, nativeVectorHost)
 
     expect(() => reader.closeBeforeFileMutation(fence)).toThrow('close failed')
     expect(instance.closeSync).not.toHaveBeenCalled()

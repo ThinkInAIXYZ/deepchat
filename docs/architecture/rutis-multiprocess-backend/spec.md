@@ -2,8 +2,8 @@
 
 ## Status and decision
 
-Status: admission migrated; baseline profiling and the first extraction contract in progress.
-Evidence date: 2026-10-25. Inspected implementation: `f35adff34` (admission code `ffcd98770`).
+Status: admission migrated; Memory vector extraction in progress.
+Evidence date: 2026-10-26. Baseline implementation: `f35adff34` (admission code `ffcd98770`).
 Implementation reference: Rutis `v0.16.0`, released on 2026-10-24. Crates and npm packages are pinned
 to that version.
 
@@ -61,7 +61,7 @@ or releases a grant even if cancellation races the reply. Repeated release is id
 correlation validation, queue bounds, monotonic measurements and bounded diagnostics remain the
 existing owner's behavior. Log observers cannot change admission outcomes.
 
-The Rust host exposes only the admission method allowlist over inherited pipes. Frames are limited to 64 KiB, buffered application writes to 1 MiB, and concurrent calls to 1024.
+The admission gateway exposes its method allowlist over inherited pipes. Its frames are limited to 64 KiB, buffered application writes to 1 MiB, and concurrent calls to 1024.
 Diagnostics carry a separate sequence and use bounded forwarding/reordering; malformed observer
 payloads and observer failures cannot change admission accounting. There is no public listener or renderer access to the
 host protocol. Child generation loss rejects pending requests and closes admission; the application
@@ -218,8 +218,9 @@ as a new Rust benefit. Existing numeric-only diagnostics report repository/mater
 DuckDB statements, open stores, active leases, provider work and extraction outcomes.
 
 [`memoryVectorStore.ts`](../../../src/main/memory/infra/memoryVectorStore.ts) executes cosine queries
-in native DuckDB through `@duckdb/node-api`. It converts embeddings through `Array.from`/array
-binding; boxing, allocations, handle lifetime and duplicated buffers are candidates for profiling.
+in native DuckDB through `@duckdb/node-api`. Writes reuse typed native column buffers, avoiding
+one temporary native scalar per embedding component. Query array binding, handle lifetime and
+duplicated buffers remain candidates for profiling.
 A Rust wrapper using the same engine does not by itself improve the database algorithm. A bounded
 800-row score pass is also a weaker candidate than an observed large-history JSON/projection cost.
 Model inference and network waits remain Provider costs in either language.
@@ -238,8 +239,8 @@ establish a whole-application Memory improvement.
 
 ### First vector service contract
 
-G3 keeps the current v2 DuckDB engine and files. The Rust host owns the lazy runtime generation and
-file-owner lifetime; one first-party TS plugin holds native handles. Memory policy, authoritative
+G3 keeps the current v2 DuckDB engine and files. The Rust host supervises the lazy runtime generation;
+one first-party TS plugin owns native handles, file locks and recovery leases. Memory policy, authoritative
 rows, embedding scheduling and vector leases remain in their existing owners. There is no schema
 migration or fallback to a second native owner in Electron main.
 
@@ -252,19 +253,41 @@ migration or fallback to a second native owner in Electron main.
   abandon a native handle. A local `isUsable()` observation may reject early but cannot authorize
   a stale operation. Revocation/quarantine immediately disables the local facade, and subsequent
   open/reset/disposal waits for the authoritative control acknowledgement or proven process exit.
+- Hold a private DuckDB ownership database open in the vector process before startup recovery
+  or database/WAL/staging mutation. Its native file lock fences an earlier process that outlives its desktop host.
+  Persist a per-Agent lease before opening vector files. Remove it only after acknowledged clean
+  closure; preserve it for uncertain writes and runtime disposal. After acquiring ownership, recover
+  stale leases through the existing quarantine path and require explicit index rebuilding before
+  issuing usable grants. Keep database writes, removal and marker consumption in the vector process.
+  The application adapter synchronously creates append-only quarantine intents so cleanup can be
+  deferred durably even after worker loss, including for previously closed stores. Preserve its
+  synchronous marker-error contract, fence the native owner even when marker creation fails, and
+  never unlink or recover database files from that adapter.
 - Preserve existing admission calls and their 64-KiB limit. Add a distinct vector frame kind with
   a 256-KiB maximum; retain the 1-MiB transport buffer budget and reserve 64 KiB for control. Only
   one bulk chunk awaits acknowledgement at a time. Control frames take precedence over the next
   chunk, and a loaded-vector E2E case must prove admission is not starved.
 - Encode embeddings as little-endian Float32 data, matching the native `FLOAT[]` representation,
-  with bounded base64 chunks for the JSON gateway. Preserve IDs, dimensions and ordering; validate
+  in bounded base64 chunks through the Rutis JSON gateway. Preserve IDs, dimensions and ordering; validate
   byte lengths and finite values before effects. No dense-vector JSON number arrays or complete
   histories cross this gateway. Verify Float32/native cast parity, including extreme inputs.
+- Validate provider response vectors with a finite-number loop and clone the numeric array once,
+  preserving the SDK's rejection and raw-response isolation contracts without per-component Zod
+  parsing objects. Keep the installed provider versions pinned and patch only their embedding
+  response schemas, including Azure's internal OpenAI and Vertex's Node/edge entrypoints.
 - Bound one logical upload to 16 MiB of decoded data and 50 records, with one active staged upload
   per vector runtime. Use explicit begin/chunk/commit/abort operations: validate the complete batch
   and invoke the existing atomic native upsert once. Chunk acknowledgement is not a durable write
   acknowledgement. Oversized/invalid operations fail before effects; never truncate or split a
   logical transaction silently. Inventory every actual caller against these limits before cutover.
+  Begin and commit can each carry one bounded chunk, avoiding empty transport round trips without
+  changing the atomic write acknowledgement. Keep decoded chunks at 64 KiB.
+- Reuse one typed DuckDB data chunk per store and append bounded pages inside the existing
+  delete/insert transaction. Close the appender before commit; invalid dimensions or a failed
+  append roll back the whole logical batch. Preserve Float32 values and smaller subsequent batches.
+- Launch only the vector runtime with `--max-semi-space-size=8`. Sustained bounded uploads must
+  not retain a throughput-grown idle nursery. Preserve the admission runtime's default heap policy
+  and validate query/write latency alongside aggregate footprint; no forced GC is used.
 - Bound query results to the existing recall ceiling of 800, and list/delete operations to 512
   IDs. Current callers use single-item management deletion, at most 50 embedding-orphan IDs,
   256-row prune batches and 512-row orphan reconciliation; retain atomicity for each call.
@@ -279,7 +302,11 @@ migration or fallback to a second native owner in Electron main.
 - On native failure, preserve the existing quarantine marker and FTS degradation. On vector
   runtime loss, invalidate its handles and pending work without replacing admission or replaying
   unknown writes. Preserve new-process recovery semantics; G3 introduces no automatic native-worker
-  restart. Shutdown drains/fences Memory work and store leases before terminating that runtime.
+  restart. Quarantine or terminal native recovery failure terminates the vector process before
+  native cleanup or GC can release uncertain ownership. The Rust host reaps it before reporting
+  loss. Map loss to the existing quarantine contract so clear/delete can report deferred cleanup;
+  erased canonical memories cannot reappear after restart. Normal shutdown drains/fences Memory
+  work and store leases before terminating that runtime.
 
 These bounds define the first service contract, not measured performance. G3 must prove native and
 quality parity, atomicity under interrupted uploads/lost replies, lifecycle cleanup and resource

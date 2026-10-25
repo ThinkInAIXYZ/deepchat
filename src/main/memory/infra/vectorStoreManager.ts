@@ -472,6 +472,10 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
     this.vectorMutationLocks.set(agentId, settled)
     try {
       return await run
+    } catch (error) {
+      if (error instanceof MemoryVectorStoreQuarantineRequiredError || isDuckDbFatalError(error))
+        this.quarantineAgent(agentId, error)
+      throw error
     } finally {
       if (this.vectorMutationLocks.get(agentId) === settled) {
         this.vectorMutationLocks.delete(agentId)
@@ -584,7 +588,7 @@ export class VectorStoreManager implements VectorStoreRetrievalPort {
       }
       return result
     } catch (error) {
-      if (isDuckDbFatalError(error)) {
+      if (isDuckDbFatalError(error) || error instanceof MemoryVectorStoreQuarantineRequiredError) {
         if (this.quarantineAgent(agentId, error, state)) {
           throw new VectorStoreLeaseUnavailableError(
             'quarantined',

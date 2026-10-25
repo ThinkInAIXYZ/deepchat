@@ -180,6 +180,7 @@ describe('PR Check workflow contracts', () => {
     const orderedStepNames = [
       'Install dependencies',
       'Install and verify DuckDB VSS',
+      'Build Rutis harness for native integration',
       'Validate portable memory behavior',
       'Smoke native SQLite',
       'Validate native Tape storage',
@@ -209,6 +210,7 @@ describe('PR Check workflow contracts', () => {
     expect(getStep(nativeJob, 'Validate portable memory behavior').run).toBe(
       'pnpm run test:memory'
     )
+    expect(getStep(nativeJob, 'Build Rutis harness for native integration').run).toBe('pnpm run harness:build')
     // better-sqlite3-multiple-ciphers 13+ ships N-API prebuilds; the Node-ABI
     // rebuild step is gone and must not come back.
     expect(

@@ -1,0 +1,78 @@
+diff --git a/dist/index.js b/dist/index.js
+index 5d2d710459e9b193a7fdcb43e50c4e3b086460d9..bbf1c5b15f0975e654737779564d092f4a0d93fb 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1980,10 +1980,19 @@ var openaiEmbeddingModelOptions = lazySchema5(
+ // src/embedding/openai-embedding-api.ts
+ import { lazySchema as lazySchema6, zodSchema as zodSchema6 } from "@ai-sdk/provider-utils";
+ import { z as z7 } from "zod/v4";
++// Validate and clone dense vectors without per-component parsing payloads.
++const finiteEmbeddingArraySchema = z7.custom((value) => {
++  if (!Array.isArray(value)) return false;
++  for (let index = 0; index < value.length; index++) {
++    if (!Number.isFinite(value[index])) return false;
++  }
++  return true;
++}).transform((value) => value.slice());
++
+ var openaiTextEmbeddingResponseSchema = lazySchema6(
+   () => zodSchema6(
+     z7.object({
+-      data: z7.array(z7.object({ embedding: z7.array(z7.number()) })),
++      data: z7.array(z7.object({ embedding: finiteEmbeddingArraySchema })),
+       usage: z7.object({ prompt_tokens: z7.number() }).nullish()
+     })
+   )
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+index a4084305fc47da60128b263311da7a7de84d5b63..d1ee9e78c72f64d669b01e82cf7b1fa86d18510f 100644
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -1971,10 +1971,19 @@ var openaiEmbeddingModelOptions = lazySchema5(
+ // src/embedding/openai-embedding-api.ts
+ import { lazySchema as lazySchema6, zodSchema as zodSchema6 } from "@ai-sdk/provider-utils";
+ import { z as z7 } from "zod/v4";
++// Validate and clone dense vectors without per-component parsing payloads.
++const finiteEmbeddingArraySchema = z7.custom((value) => {
++  if (!Array.isArray(value)) return false;
++  for (let index = 0; index < value.length; index++) {
++    if (!Number.isFinite(value[index])) return false;
++  }
++  return true;
++}).transform((value) => value.slice());
++
+ var openaiTextEmbeddingResponseSchema = lazySchema6(
+   () => zodSchema6(
+     z7.object({
+-      data: z7.array(z7.object({ embedding: z7.array(z7.number()) })),
++      data: z7.array(z7.object({ embedding: finiteEmbeddingArraySchema })),
+       usage: z7.object({ prompt_tokens: z7.number() }).nullish()
+     })
+   )
+diff --git a/src/embedding/openai-embedding-api.ts b/src/embedding/openai-embedding-api.ts
+index 87ab6c10674dadb705a0093e32a2315203fa91e7..6174ba2091ab9a8591d58a75df5cf7c81fc02866 100644
+--- a/src/embedding/openai-embedding-api.ts
++++ b/src/embedding/openai-embedding-api.ts
+@@ -1,12 +1,22 @@
+ import { lazySchema, zodSchema } from '@ai-sdk/provider-utils';
+ import { z } from 'zod/v4';
+ 
++// Validate and clone dense vectors without per-component parsing payloads.
++const finiteEmbeddingArraySchema = z.custom<number[]>((value) => {
++  if (!Array.isArray(value)) return false;
++  for (let index = 0; index < value.length; index++) {
++    if (!Number.isFinite(value[index])) return false;
++  }
++  return true;
++}).transform((value) => value.slice());
++
++
+ // minimal version of the schema, focussed on what is needed for the implementation
+ // this approach limits breakages when the API changes and increases efficiency
+ export const openaiTextEmbeddingResponseSchema = lazySchema(() =>
+   zodSchema(
+     z.object({
+-      data: z.array(z.object({ embedding: z.array(z.number()) })),
++      data: z.array(z.object({ embedding: finiteEmbeddingArraySchema })),
+       usage: z.object({ prompt_tokens: z.number() }).nullish(),
+     }),
+   ),

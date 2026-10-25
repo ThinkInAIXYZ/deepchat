@@ -1,3 +1,4 @@
+import { nativeVectorHost } from './nativeVectorHost'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const duckDbMocks = vi.hoisted(() => ({
@@ -5,12 +6,19 @@ const duckDbMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@duckdb/node-api', () => ({
+  ARRAY: (type: string, size: number) => ({ type, size }),
+  FLOAT: 'FLOAT',
+  INTEGER: 'INTEGER',
+  VARCHAR: 'VARCHAR',
   DuckDBInstance: { create: duckDbMocks.create },
   DuckDBConnection: class {},
+  DuckDBDataChunk: {
+    create: () => ({ reset() {}, rowCount: 0, setColumns() {} })
+  },
   arrayValue: (values: number[]) => values
 }))
 
-import logger from '@shared/logger'
+import logger from 'node:console'
 import { MigrationAbandonFence } from '@/memory/infra/legacyV1Reader'
 import { loadLegacyVss } from '@/memory/infra/legacyVssLoader'
 import {
@@ -72,6 +80,14 @@ interface ListableStore {
 function makeStore(onRun: (sql: string) => void = () => {}) {
   const calls: string[] = []
   const connection = {
+    createAppender: vi.fn(async () => ({
+      columnType: () => ({ length: 2 }),
+      appendDataChunk: () => {
+        calls.push('INSERT')
+        onRun('INSERT')
+      },
+      closeSync() {}
+    })),
     run: vi.fn(async (sql: string) => {
       calls.push(sql.trim().split(/[\s;]/)[0].toUpperCase())
       onRun(sql)
@@ -88,6 +104,45 @@ const records: MemoryVectorRecord[] = [{ memoryId: 'm1', embedding: [0.1, 0.2] }
 const EMB = { providerId: 'p', modelId: 'm' }
 
 describe('MemoryVectorStore v2 format contract', () => {
+  it('stops native cleanup immediately after a fatal connection close', async () => {
+    const instance = { closeSync: vi.fn() }
+    const store = Object.assign(Object.create(MemoryVectorStore.prototype), {
+      connection: {
+        closeSync: () => {
+          throw new Error('INTERNAL Error: invalidated database')
+        }
+      },
+      dbInstance: instance,
+      connectionOpen: true,
+      instanceOpen: true,
+      usable: true
+    }) as MemoryVectorStore
+    await expect(store.close()).rejects.toThrow('INTERNAL Error')
+    expect(instance.closeSync).not.toHaveBeenCalled()
+    expect(store.isUsable()).toBe(false)
+  })
+  it('rejects a failed native close so the owner cannot acknowledge file disposal', async () => {
+    const connection = {
+      closeSync: vi.fn<() => void>(() => {
+        throw new Error('native connection is still open')
+      })
+    }
+    const instance = { closeSync: vi.fn() }
+    const store = Object.assign(Object.create(MemoryVectorStore.prototype), {
+      connection,
+      dbInstance: instance,
+      connectionOpen: true,
+      instanceOpen: true,
+      usable: true
+    }) as MemoryVectorStore
+    await expect(store.close()).rejects.toThrow('native connection is still open')
+    expect(store.isUsable()).toBe(false)
+    expect(instance.closeSync).toHaveBeenCalledOnce()
+    connection.closeSync.mockImplementation(() => {})
+    await store.close()
+    expect(connection.closeSync).toHaveBeenCalledTimes(2)
+    expect(instance.closeSync).toHaveBeenCalledOnce()
+  })
   it('defines the schema and metadata consumed by native crash fixtures', () => {
     const plan = createMemoryVectorStoreV2FormatPlan(2, EMB)
 
@@ -518,7 +573,7 @@ function makeVssLoadableStore(
   return {
     dbPath,
     connection,
-    loadVss: () => loadLegacyVss(connection, dbPath)
+    loadVss: () => loadLegacyVss(connection, dbPath, nativeVectorHost)
   } satisfies VssLoadableStore
 }
 
@@ -600,7 +655,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
     const { sql } = mockV2DuckDbLifecycle(paths)
 
     try {
-      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      const store = await MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)
 
       expect(fs.existsSync(paths.current)).toBe(true)
       expect(fs.existsSync(paths.staging)).toBe(false)
@@ -624,7 +679,9 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      const failure = await MemoryVectorStore.create(paths, 2, EMB).catch((error) => error)
+      const failure = await MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost).catch(
+        (error) => error
+      )
 
       expect(failure).toBeInstanceOf(MemoryVectorStoreTerminalRecoveryError)
       expect(failure).toMatchObject({
@@ -651,7 +708,9 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      const failure = await MemoryVectorStore.create(paths, 2, EMB).catch((error) => error)
+      const failure = await MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost).catch(
+        (error) => error
+      )
 
       expect(failure).toBeInstanceOf(MemoryVectorStoreTerminalRecoveryError)
       expect(failure).toMatchObject({
@@ -685,7 +744,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
     mockV2DuckDbLifecycle(paths)
 
     try {
-      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      const store = await MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)
       expect(fs.existsSync(paths.legacy)).toBe(false)
       expect(fs.existsSync(`${paths.legacy}.wal`)).toBe(false)
       expect(fs.existsSync(paths.current)).toBe(true)
@@ -709,7 +768,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
     const { legacySql } = mockV2DuckDbLifecycle(paths, { legacyRows })
 
     try {
-      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      const store = await MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)
       expect(store.isUsable()).toBe(true)
       expect(fs.existsSync(paths.current)).toBe(true)
       expect(fs.existsSync(paths.legacy)).toBe(false)
@@ -756,7 +815,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      const store = await MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)
 
       expect(store.isUsable()).toBe(true)
       expect(fs.existsSync(paths.current)).toBe(true)
@@ -780,7 +839,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      const store = await MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)
 
       expect(store.isUsable()).toBe(true)
       expect(fs.existsSync(paths.legacy)).toBe(false)
@@ -801,9 +860,11 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
-        name: 'MemoryVectorStoreQuarantineRequiredError'
-      })
+      await expect(MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)).rejects.toMatchObject(
+        {
+          name: 'MemoryVectorStoreQuarantineRequiredError'
+        }
+      )
       expect(fs.existsSync(paths.legacy)).toBe(true)
       expect(fs.existsSync(paths.current)).toBe(false)
       expect(connections.every((connection) => !connection.closeSync.mock.calls.length)).toBe(true)
@@ -832,7 +893,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      const store = await MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)
 
       expect(store.isUsable()).toBe(true)
       expect(fs.existsSync(paths.legacy)).toBe(false)
@@ -855,9 +916,11 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
-        name: 'MemoryVectorStoreQuarantineRequiredError'
-      })
+      await expect(MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)).rejects.toMatchObject(
+        {
+          name: 'MemoryVectorStoreQuarantineRequiredError'
+        }
+      )
       expect(fs.existsSync(paths.legacy)).toBe(true)
       expect(fs.existsSync(paths.staging)).toBe(true)
       expect(fs.existsSync(paths.current)).toBe(false)
@@ -880,9 +943,11 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
-        name: 'MemoryVectorStoreQuarantineRequiredError'
-      })
+      await expect(MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)).rejects.toMatchObject(
+        {
+          name: 'MemoryVectorStoreQuarantineRequiredError'
+        }
+      )
       expect(fs.existsSync(paths.current)).toBe(false)
       expect(fs.existsSync(paths.staging)).toBe(true)
       expect(fs.existsSync(paths.legacy)).toBe(true)
@@ -912,7 +977,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      const pending = MemoryVectorStore.create(paths, 2, EMB)
+      const pending = MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)
       const rejection = expect(pending).rejects.toMatchObject({
         name: 'MemoryVectorStoreQuarantineRequiredError'
       })
@@ -966,7 +1031,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      const pending = MemoryVectorStore.create(paths, 2, EMB)
+      const pending = MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)
       for (let pageIndex = 0; pageIndex < pageGates.length; pageIndex += 1) {
         await pageStarts[pageIndex].promise
         await vi.advanceTimersByTimeAsync(50_000)
@@ -995,7 +1060,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
     mockV2DuckDbLifecycle(paths)
 
     try {
-      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      const store = await MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)
       expect(fs.existsSync(paths.current)).toBe(true)
       expect(fs.existsSync(paths.staging)).toBe(false)
       expect(fs.existsSync(`${paths.staging}.wal`)).toBe(false)
@@ -1017,7 +1082,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      const store = await MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)
       expect(store.isUsable()).toBe(true)
       expect(fs.existsSync(paths.current)).toBe(true)
       expect(fs.existsSync(paths.staging)).toBe(false)
@@ -1049,7 +1114,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      const store = await MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)
       expect(fs.existsSync(paths.current)).toBe(true)
       expect(fs.existsSync(paths.quarantine)).toBe(false)
       expect(fs.existsSync(paths.legacy)).toBe(false)
@@ -1067,17 +1132,19 @@ describe('MemoryVectorStore v2 staged publish', () => {
     mockV2DuckDbLifecycle(paths, { leaveStagingWal: true })
 
     try {
-      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
-        name: 'MemoryVectorStoreTerminalRecoveryError',
-        message: expect.stringContaining('staged v2 WAL remains')
-      })
+      await expect(MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)).rejects.toMatchObject(
+        {
+          name: 'MemoryVectorStoreTerminalRecoveryError',
+          message: expect.stringContaining('staged v2 WAL remains')
+        }
+      )
       expect(fs.existsSync(paths.quarantine)).toBe(false)
       expect(fs.existsSync(paths.current)).toBe(false)
 
       MemoryVectorStore.markQuarantined(paths)
       duckDbMocks.create.mockReset()
       mockV2DuckDbLifecycle(paths)
-      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      const store = await MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)
       expect(store.isUsable()).toBe(true)
       expect(fs.existsSync(paths.current)).toBe(true)
       expect(fs.existsSync(paths.quarantine)).toBe(false)
@@ -1101,9 +1168,11 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
-        name: 'MemoryVectorStoreTerminalRecoveryError'
-      })
+      await expect(MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)).rejects.toMatchObject(
+        {
+          name: 'MemoryVectorStoreTerminalRecoveryError'
+        }
+      )
       expect(fs.existsSync(paths.current)).toBe(false)
       expect(fs.existsSync(paths.quarantine)).toBe(true)
       expect(duckDbMocks.create).not.toHaveBeenCalled()
@@ -1142,9 +1211,11 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
-        name: 'MemoryVectorStoreTerminalRecoveryError'
-      })
+      await expect(MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)).rejects.toMatchObject(
+        {
+          name: 'MemoryVectorStoreTerminalRecoveryError'
+        }
+      )
       expect(duckDbMocks.create).not.toHaveBeenCalled()
     } finally {
       actualFs.rmSync(root, { recursive: true, force: true })
@@ -1159,7 +1230,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
     mockV2DuckDbLifecycle(paths)
 
     try {
-      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      const store = await MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)
       expect(fs.existsSync(`${paths.current}.wal`)).toBe(false)
       expect(fs.existsSync(paths.current)).toBe(true)
       await store.close()
@@ -1184,7 +1255,7 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      const store = await MemoryVectorStore.create(paths, 2, EMB)
+      const store = await MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)
       expect(store.isUsable()).toBe(true)
       expect(fs.readFileSync(paths.current, 'utf8')).toBe('v2')
       expect(fs.readFileSync(`${paths.current}.wal`, 'utf8')).toBe('safe-wal')
@@ -1202,9 +1273,9 @@ describe('MemoryVectorStore v2 staged publish', () => {
     mockV2DuckDbLifecycle(paths, { failFinalOpen: true })
 
     try {
-      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toBeInstanceOf(
-        MemoryVectorStorePostCommitError
-      )
+      await expect(
+        MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)
+      ).rejects.toBeInstanceOf(MemoryVectorStorePostCommitError)
       expect(fs.existsSync(paths.current)).toBe(true)
       expect(fs.existsSync(paths.staging)).toBe(false)
     } finally {
@@ -1222,10 +1293,12 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
-        name: 'MemoryVectorStoreTerminalRecoveryError',
-        fatal: true
-      })
+      await expect(MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)).rejects.toMatchObject(
+        {
+          name: 'MemoryVectorStoreTerminalRecoveryError',
+          fatal: true
+        }
+      )
       expect(connections).toHaveLength(1)
       expect(connections[0].closeSync).not.toHaveBeenCalled()
       expect(fs.existsSync(paths.current)).toBe(true)
@@ -1288,9 +1361,11 @@ describe('MemoryVectorStore v2 staged publish', () => {
     })
 
     try {
-      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toMatchObject({
-        name: 'MemoryVectorStorePostCommitError'
-      })
+      await expect(MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)).rejects.toMatchObject(
+        {
+          name: 'MemoryVectorStorePostCommitError'
+        }
+      )
       expect(fs.existsSync(paths.current)).toBe(true)
       expect(fs.existsSync(paths.staging)).toBe(false)
       expect(fs.existsSync(paths.legacy)).toBe(true)
@@ -1307,7 +1382,9 @@ describe('MemoryVectorStore v2 staged publish', () => {
     mockV2DuckDbLifecycle(paths, { leaveStagingWal: true })
 
     try {
-      await expect(MemoryVectorStore.create(paths, 2, EMB)).rejects.toThrow('staged v2 WAL remains')
+      await expect(MemoryVectorStore.create(paths, 2, EMB, nativeVectorHost)).rejects.toThrow(
+        'staged v2 WAL remains'
+      )
       expect(fs.existsSync(paths.current)).toBe(false)
       expect(fs.existsSync(paths.staging)).toBe(false)
       expect(fs.existsSync(`${paths.staging}.wal`)).toBe(false)
@@ -1342,9 +1419,9 @@ describe('MemoryVectorStore v2 staged publish', () => {
   it('rejects invalid dimensions before interpolating them into schema SQL', async () => {
     const paths = createMemoryVectorStorePaths('/tmp/AgentMemory', 'agent-a')
 
-    await expect(MemoryVectorStore.create(paths, Number.NaN, EMB)).rejects.toThrow(
-      'invalid vector dimensions'
-    )
+    await expect(
+      MemoryVectorStore.create(paths, Number.NaN, EMB, nativeVectorHost)
+    ).rejects.toThrow('invalid vector dimensions')
     expect(duckDbMocks.create).not.toHaveBeenCalled()
   })
 
@@ -1534,10 +1611,16 @@ describe('Legacy VSS loading', () => {
     const secondFence = new MigrationAbandonFence()
 
     try {
-      const first = loadLegacyVss(firstConnection, path.join(userDataDir, 'a.duckdb'), firstFence)
+      const first = loadLegacyVss(
+        firstConnection,
+        path.join(userDataDir, 'a.duckdb'),
+        nativeVectorHost,
+        firstFence
+      )
       const second = loadLegacyVss(
         secondConnection,
         path.join(userDataDir, 'b.duckdb'),
+        nativeVectorHost,
         secondFence
       )
       await readStarted
@@ -1675,7 +1758,7 @@ describe('Legacy VSS loading', () => {
 
     try {
       await expect(
-        loadLegacyVss(connection, path.join(userDataDir, 'agent.duckdb'), fence)
+        loadLegacyVss(connection, path.join(userDataDir, 'agent.duckdb'), nativeVectorHost, fence)
       ).rejects.toMatchObject({ name: 'LegacyVssUnavailableError' })
       expect(connection.run).not.toHaveBeenCalled()
     } finally {
@@ -1719,7 +1802,7 @@ describe('Legacy VSS loading', () => {
       })
     }
     const fence = new MigrationAbandonFence()
-    const pendingLoad = loadLegacyVss(connection, '/tmp/legacy.duckdb', fence)
+    const pendingLoad = loadLegacyVss(connection, '/tmp/legacy.duckdb', nativeVectorHost, fence)
     const rejection = expect(pendingLoad).rejects.toMatchObject({
       name: 'LegacyV1MigrationAbandonedError'
     })
@@ -1756,7 +1839,9 @@ describe('Legacy VSS loading', () => {
     const connection = { run: vi.fn(async () => undefined as never) }
     const fence = new MigrationAbandonFence()
 
-    await expect(loadLegacyVss(connection, '/tmp/legacy.duckdb', fence)).rejects.toMatchObject({
+    await expect(
+      loadLegacyVss(connection, '/tmp/legacy.duckdb', nativeVectorHost, fence)
+    ).rejects.toMatchObject({
       name: 'LegacyVssUnavailableError'
     })
     expect(connection.run).not.toHaveBeenCalled()

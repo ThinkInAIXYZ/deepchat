@@ -19,7 +19,7 @@
     "test:memory:type": "node scripts/typecheck-memory-tests.mjs",
     "test:memory": "pnpm run test:memory:scope && pnpm run test:memory:type && vitest --config vitest.config.memory.ts --run",
     "test:memory:eval": "vitest --config vitest.config.memory-eval.ts --run",
-    "test:main:memory-perf": "vitest --config vitest.config.memory-perf.ts --run",
+    "test:main:memory-perf": "pnpm run harness:build && vitest --config vitest.config.memory-perf.ts --run",
     "test:agent:eval": "vitest run --config vitest.config.ts test/main/evals/nativeAgent/nativeAgentBehavior.eval.test.ts",
     "test:renderer": "vitest run --config vitest.config.renderer.ts test/renderer",
     "test:coverage": "pnpm run harness:build && vitest run --coverage",
@@ -94,6 +94,7 @@
     "installRuntime:duckdb:vss:linux:x64": "node scripts/installVss.js --platform linux --arch x64",
     "installRuntime:duckdb:vss:linux:arm64": "node scripts/installVss.js --platform linux --arch arm64",
     "smoke:duckdb:vss": "node scripts/smoke-duckdb-vss.js",
+    "smoke:harness:memory": "node scripts/smoke-harness-memory.mjs",
     "smoke:light-ocr": "node scripts/smoke-light-ocr.js",
     "smoke:opendal:native": "node scripts/smoke-opendal-native.js",
     "i18n": "pnpm run i18n:validate && i18n-check -s zh-CN -f i18next --locales src/renderer/src/i18n",
@@ -283,7 +284,11 @@
       "vue-demi"
     ],
     "patchedDependencies": {
-      "@electron/notarize@3.1.1": "patches/@electron__notarize@3.1.1.patch"
+      "@electron/notarize@3.1.1": "patches/@electron__notarize@3.1.1.patch",
+      "@ai-sdk/openai-compatible@3.0.45": "patches/@ai-sdk__openai-compatible@3.0.45.patch",
+      "@ai-sdk/openai@4.0.62": "patches/@ai-sdk__openai@4.0.62.patch",
+      "@ai-sdk/google@4.0.65": "patches/@ai-sdk__google@4.0.65.patch",
+      "@ai-sdk/google-vertex@5.0.77": "patches/@ai-sdk__google-vertex@5.0.77.patch"
     }
   }
 }

@@ -16,6 +16,18 @@ overrides:
   typescript: npm:typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2
 
 patchedDependencies:
+  '@ai-sdk/google-vertex@5.0.77':
+    hash: 42c1f1bdd677dd0c113abd81be9b17092ddafc7e6547f9004798b8ba6e04715a
+    path: patches/@ai-sdk__google-vertex@5.0.77.patch
+  '@ai-sdk/google@4.0.65':
+    hash: b8f1463345250c901d6c568ef8f18b1a084860495af5faaa13c93cee5607268f
+    path: patches/@ai-sdk__google@4.0.65.patch
+  '@ai-sdk/openai-compatible@3.0.45':
+    hash: 71a48986b4e5f640033a57b993be567406a112254c67de27e14d07e1ffbe73a8
+    path: patches/@ai-sdk__openai-compatible@3.0.45.patch
+  '@ai-sdk/openai@4.0.62':
+    hash: d540f71958d27ae3c5f065c84b9fdb4d6714c067952674016ce2a0adc5dce783
+    path: patches/@ai-sdk__openai@4.0.62.patch
   '@electron/notarize@3.1.1':
     hash: b2e4a3334f86d72808116962914a4a2062da8c99b2d5cb86e67b73eb5ce3ab87
     path: patches/@electron__notarize@3.1.1.patch
@@ -38,19 +50,19 @@ importers:
         version: 4.0.65(zod@4.5.4)
       '@ai-sdk/google':
         specifier: ^4.0.65
-        version: 4.0.65(zod@4.5.4)
+        version: 4.0.65(patch_hash=b8f1463345250c901d6c568ef8f18b1a084860495af5faaa13c93cee5607268f)(zod@4.5.4)
       '@ai-sdk/google-vertex':
         specifier: ^5.0.77
-        version: 5.0.77(zod@4.5.4)
+        version: 5.0.77(patch_hash=42c1f1bdd677dd0c113abd81be9b17092ddafc7e6547f9004798b8ba6e04715a)(zod@4.5.4)
       '@ai-sdk/open-responses':
         specifier: ^2.0.40
         version: 2.0.40(zod@4.5.4)
       '@ai-sdk/openai':
         specifier: ^4.0.62
-        version: 4.0.62(zod@4.5.4)
+        version: 4.0.62(patch_hash=d540f71958d27ae3c5f065c84b9fdb4d6714c067952674016ce2a0adc5dce783)(zod@4.5.4)
       '@ai-sdk/openai-compatible':
         specifier: ^3.0.45
-        version: 3.0.45(zod@4.5.4)
+        version: 3.0.45(patch_hash=71a48986b4e5f640033a57b993be567406a112254c67de27e14d07e1ffbe73a8)(zod@4.5.4)
       '@ai-sdk/provider':
         specifier: ^4.0.11
         version: 4.0.11
@@ -7215,7 +7227,7 @@ snapshots:
   '@ai-sdk/amazon-bedrock@5.0.78(zod@4.5.4)':
     dependencies:
       '@ai-sdk/anthropic': 4.0.50(zod@4.5.4)
-      '@ai-sdk/openai': 4.0.62(zod@4.5.4)
+      '@ai-sdk/openai': 4.0.62(patch_hash=d540f71958d27ae3c5f065c84b9fdb4d6714c067952674016ce2a0adc5dce783)(zod@4.5.4)
       '@ai-sdk/provider': 4.0.11
       '@ai-sdk/provider-utils': 5.0.37(zod@4.5.4)
       '@smithy/eventstream-codec': 4.4.16
@@ -7232,7 +7244,7 @@ snapshots:
   '@ai-sdk/azure@4.0.65(zod@4.5.4)':
     dependencies:
       '@ai-sdk/deepseek': 3.0.40(zod@4.5.4)
-      '@ai-sdk/openai': 4.0.62(zod@4.5.4)
+      '@ai-sdk/openai': 4.0.62(patch_hash=d540f71958d27ae3c5f065c84b9fdb4d6714c067952674016ce2a0adc5dce783)(zod@4.5.4)
       '@ai-sdk/provider': 4.0.11
       '@ai-sdk/provider-utils': 5.0.37(zod@4.5.4)
       zod: 4.5.4
@@ -7250,11 +7262,11 @@ snapshots:
       '@vercel/oidc': 3.2.0
       zod: 4.5.4
 
-  '@ai-sdk/google-vertex@5.0.77(zod@4.5.4)':
+  '@ai-sdk/google-vertex@5.0.77(patch_hash=42c1f1bdd677dd0c113abd81be9b17092ddafc7e6547f9004798b8ba6e04715a)(zod@4.5.4)':
     dependencies:
       '@ai-sdk/anthropic': 4.0.50(zod@4.5.4)
-      '@ai-sdk/google': 4.0.65(zod@4.5.4)
-      '@ai-sdk/openai-compatible': 3.0.45(zod@4.5.4)
+      '@ai-sdk/google': 4.0.65(patch_hash=b8f1463345250c901d6c568ef8f18b1a084860495af5faaa13c93cee5607268f)(zod@4.5.4)
+      '@ai-sdk/openai-compatible': 3.0.45(patch_hash=71a48986b4e5f640033a57b993be567406a112254c67de27e14d07e1ffbe73a8)(zod@4.5.4)
       '@ai-sdk/provider': 4.0.11
       '@ai-sdk/provider-utils': 5.0.37(zod@4.5.4)
       google-auth-library: 10.9.1
@@ -7262,7 +7274,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@ai-sdk/google@4.0.65(zod@4.5.4)':
+  '@ai-sdk/google@4.0.65(patch_hash=b8f1463345250c901d6c568ef8f18b1a084860495af5faaa13c93cee5607268f)(zod@4.5.4)':
     dependencies:
       '@ai-sdk/provider': 4.0.11
       '@ai-sdk/provider-utils': 5.0.37(zod@4.5.4)
@@ -7274,13 +7286,13 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.37(zod@4.5.4)
       zod: 4.5.4
 
-  '@ai-sdk/openai-compatible@3.0.45(zod@4.5.4)':
+  '@ai-sdk/openai-compatible@3.0.45(patch_hash=71a48986b4e5f640033a57b993be567406a112254c67de27e14d07e1ffbe73a8)(zod@4.5.4)':
     dependencies:
       '@ai-sdk/provider': 4.0.11
       '@ai-sdk/provider-utils': 5.0.37(zod@4.5.4)
       zod: 4.5.4
 
-  '@ai-sdk/openai@4.0.62(zod@4.5.4)':
+  '@ai-sdk/openai@4.0.62(patch_hash=d540f71958d27ae3c5f065c84b9fdb4d6714c067952674016ce2a0adc5dce783)(zod@4.5.4)':
     dependencies:
       '@ai-sdk/provider': 4.0.11
       '@ai-sdk/provider-utils': 5.0.37(zod@4.5.4)

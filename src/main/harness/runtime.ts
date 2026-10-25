@@ -3,11 +3,47 @@ import path from 'node:path'
 import { z } from 'zod'
 import { AdmissionObservationSchema } from '@shared/harness/admission'
 import type { AgentInvocationAdmissionObservation } from '@shared/harness/admission'
+import {
+  isMemoryVectorControl,
+  MEMORY_VECTOR_FRAME_BYTES,
+  MEMORY_VECTOR_FRAME_FLAG,
+  MEMORY_VECTOR_PENDING,
+  MemoryVectorCommandSchema,
+  MemoryVectorConfigSchema,
+  type MemoryVectorCommand,
+  type MemoryVectorConfig
+} from '@shared/harness/memory-vector'
 
 const MAX_FRAME_BYTES = 64 * 1024
 const MAX_BUFFER_BYTES = 1024 * 1024
 const MAX_REQUESTS = 1024
+const memoryIdentitySchema = z
+  .object({
+    generation: z.string().uuid(),
+    pid: z.number().int().positive(),
+    node: z.string().max(64),
+    modules: z.string().max(32)
+  })
+  .strict()
 const frameSchema = z.union([
+  z
+    .object({
+      type: z.literal('memoryReady'),
+      protocol: z.literal(1),
+      runtime: memoryIdentitySchema
+    })
+    .strict(),
+  z.object({ type: z.literal('memoryStopped'), message: z.string().max(8192) }).strict(),
+  z
+    .object({ type: z.literal('memoryReply'), id: z.number().int().positive(), value: z.unknown() })
+    .strict(),
+  z
+    .object({
+      type: z.literal('memoryReply'),
+      id: z.number().int().positive(),
+      error: z.object({ name: z.string().max(256), message: z.string().max(8192) }).strict()
+    })
+    .strict(),
   z
     .object({
       type: z.literal('ready'),
@@ -69,6 +105,15 @@ export class HarnessRuntime {
   private stopping = false
   private stopPromise: Promise<void> | undefined
   private info: RuntimeInfo | undefined
+  private memoryConfig: MemoryVectorConfig | undefined
+  private readonly memoryReady = Promise.withResolvers<z.infer<typeof memoryIdentitySchema>>()
+  private readonly memoryPending = new Map<number, Pending>()
+  private nextMemoryId = 0
+  private memoryFailure: Error | undefined
+  private memoryInfo: z.infer<typeof memoryIdentitySchema> | undefined
+  private memorySentBytes = 0
+  private memoryReceivedBytes = 0
+  private memoryPeakPending = 0
 
   private constructor(
     directory: string,
@@ -149,6 +194,81 @@ export class HarnessRuntime {
     return this.info
   }
 
+  get memoryIdentity() {
+    return this.memoryInfo
+  }
+
+  get memoryAvailable(): boolean {
+    return !!this.memoryInfo && !this.memoryFailure && !this.failure && !this.stopping
+  }
+
+  get memoryTransport() {
+    return {
+      sentBytes: this.memorySentBytes,
+      receivedBytes: this.memoryReceivedBytes,
+      pending: this.memoryPending.size,
+      peakPending: this.memoryPeakPending
+    }
+  }
+
+  async startMemory(config: MemoryVectorConfig): Promise<void> {
+    if (this.memoryFailure) throw this.memoryFailure
+    if (this.failure) throw this.failure
+    if (!this.memoryConfig) {
+      this.memoryConfig = MemoryVectorConfigSchema.parse(config)
+      this.send({ type: 'memoryStart', config: this.memoryConfig })
+    } else if (this.memoryConfig.generation !== config.generation) {
+      throw new Error('Memory vector generation cannot change')
+    }
+    const timer = setTimeout(
+      () => this.failMemory(new Error('Memory vector runtime startup timed out')),
+      15_000
+    )
+    timer.unref()
+    try {
+      await this.memoryReady.promise
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  requestMemory(input: MemoryVectorCommand): Promise<unknown> {
+    if (this.failure || this.memoryFailure)
+      return Promise.reject(this.failure ?? this.memoryFailure)
+    if (this.stopping || !this.memoryInfo)
+      return Promise.reject(new Error('Memory vector runtime is unavailable'))
+    let command: MemoryVectorCommand
+    let packet: Buffer
+    const id = this.nextMemoryId + 1
+    try {
+      command = MemoryVectorCommandSchema.parse(input)
+      if (command.generation !== this.memoryInfo.generation)
+        throw new Error('Memory vector generation changed')
+      const control = isMemoryVectorControl(command.method)
+      if (
+        this.memoryPending.size >= (control ? MEMORY_VECTOR_PENDING : MEMORY_VECTOR_PENDING - 8)
+      ) {
+        throw new Error('Memory vector operation limit exceeded')
+      }
+      packet = this.packet(
+        { type: 'memoryCall', id, command },
+        control ? MAX_FRAME_BYTES : MEMORY_VECTOR_FRAME_BYTES,
+        control ? 0 : MAX_FRAME_BYTES + 4,
+        true
+      )
+    } catch (error) {
+      return Promise.reject(error)
+    }
+    this.nextMemoryId = id
+    return new Promise((resolve, reject) => {
+      // Native deadlines belong to Memory; retain ownership until settlement or confirmed death.
+      this.memoryPending.set(id, { resolve, reject, cleanup: () => {} })
+      this.memorySentBytes += packet.length
+      this.memoryPeakPending = Math.max(this.memoryPeakPending, this.memoryPending.size)
+      this.child.stdin.write(packet)
+    })
+  }
+
   request(method: Method, args: unknown[]): Promise<unknown> {
     if (this.failure) return Promise.reject(this.failure)
     if (this.stopping) return Promise.reject(new Error('Rutis admission is stopping'))
@@ -193,20 +313,24 @@ export class HarnessRuntime {
   private send(value: unknown): void {
     if (this.failure) return
     try {
-      const json = Buffer.from(JSON.stringify(value))
-      if (
-        json.length > MAX_FRAME_BYTES ||
-        this.child.stdin.writableLength + 4 + json.length > MAX_BUFFER_BYTES
-      ) {
-        throw new Error('Rutis admission transport limit exceeded')
-      }
-      const packet = Buffer.allocUnsafe(4 + json.length)
-      packet.writeUInt32BE(json.length)
-      json.copy(packet, 4)
-      this.child.stdin.write(packet)
+      this.child.stdin.write(this.packet(value, MAX_FRAME_BYTES, 0))
     } catch {
       this.fail(new Error('Rutis admission transport write failed'))
     }
+  }
+
+  private packet(value: unknown, maxFrame: number, reserve: number, vector = false): Buffer {
+    const json = Buffer.from(JSON.stringify(value))
+    if (
+      json.length > maxFrame ||
+      this.child.stdin.writableLength + 4 + json.length > MAX_BUFFER_BYTES - reserve
+    ) {
+      throw new Error('Rutis transport limit exceeded')
+    }
+    const packet = Buffer.allocUnsafe(4 + json.length)
+    packet.writeUInt32BE(json.length + (vector ? MEMORY_VECTOR_FRAME_FLAG : 0))
+    json.copy(packet, 4)
+    return packet
   }
 
   private read(bytes: Buffer): void {
@@ -214,14 +338,33 @@ export class HarnessRuntime {
       throw new Error('Host buffer exceeded')
     this.buffer = Buffer.concat([this.buffer, bytes])
     while (this.buffer.length >= 4) {
-      const length = this.buffer.readUInt32BE(0)
-      if (length === 0 || length > MAX_FRAME_BYTES) throw new Error('Invalid frame length')
+      const header = this.buffer.readUInt32BE(0)
+      const vector = header >= MEMORY_VECTOR_FRAME_FLAG
+      const length = vector ? header - MEMORY_VECTOR_FRAME_FLAG : header
+      if (length === 0 || length > (vector ? MEMORY_VECTOR_FRAME_BYTES : MAX_FRAME_BYTES))
+        throw new Error('Invalid frame length')
       if (this.buffer.length < length + 4) return
       const frame = frameSchema.parse(
         JSON.parse(this.buffer.subarray(4, 4 + length).toString('utf8'))
       )
       this.buffer = this.buffer.subarray(4 + length)
-      if (frame.type === 'ready') {
+      if (frame.type === 'memoryReply') this.memoryReceivedBytes += length + 4
+      if (vector !== (frame.type === 'memoryReply')) throw new Error('Invalid frame kind')
+      if (frame.type !== 'memoryReply' && length > MAX_FRAME_BYTES)
+        throw new Error('Invalid control frame length')
+      if (frame.type === 'memoryReady') {
+        if (
+          !this.memoryConfig ||
+          frame.runtime.generation !== this.memoryConfig.generation ||
+          this.memoryInfo
+        ) {
+          throw new Error('Invalid memory generation')
+        }
+        this.memoryInfo = frame.runtime
+        this.memoryReady.resolve(frame.runtime)
+      } else if (frame.type === 'memoryStopped') {
+        this.failMemory(new Error(frame.message))
+      } else if (frame.type === 'ready') {
         if (this.info) throw new Error('Admission generation changed')
         this.info = frame
         this.ready.resolve(frame)
@@ -256,9 +399,11 @@ export class HarnessRuntime {
           }
         }
       } else {
-        const pending = this.pending.get(frame.id)
+        const requests = frame.type === 'memoryReply' ? this.memoryPending : this.pending
+        const pending = requests.get(frame.id)
+        if (frame.type === 'memoryReply' && this.memoryFailure) continue
         if (!pending) throw new Error('Unknown harness reply')
-        this.pending.delete(frame.id)
+        requests.delete(frame.id)
         pending.cleanup()
         if ('error' in frame) {
           const error = new Error(frame.error.message)
@@ -273,6 +418,7 @@ export class HarnessRuntime {
     if (this.failure) return
     this.failure = error
     this.ready.reject(error)
+    this.failMemory(error)
     for (const pending of this.pending.values()) {
       pending.cleanup()
       pending.reject(error)
@@ -284,5 +430,13 @@ export class HarnessRuntime {
       timer.unref()
       this.child.once('exit', () => clearTimeout(timer))
     }
+  }
+
+  private failMemory(error: Error): void {
+    if (this.memoryFailure) return
+    this.memoryFailure = error
+    if (this.memoryConfig) this.memoryReady.reject(error)
+    for (const pending of this.memoryPending.values()) pending.reject(error)
+    this.memoryPending.clear()
   }
 }

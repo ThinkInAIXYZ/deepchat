@@ -838,6 +838,7 @@ async function afterPack(context) {
   await copyFffNativePackages(context)
   await copyParcelWatcherNativePackages(context)
   await copyOpendalNativePackages(context)
+  await shareHarnessDuckDbNativePackage(context)
   await packageLightOcrAssets(context)
   await validateNativeKitPrebuilds(context)
   await encodeMacVssExtension(context)
@@ -845,6 +846,24 @@ async function afterPack(context) {
   if (isLinux(targets)) {
     await afterPackLinux({ appOutDir })
   }
+}
+
+export async function shareHarnessDuckDbNativePackage(context) {
+  const unpacked = path.join(getResourcesDir(context), 'app.asar.unpacked')
+  const harness = path.join(unpacked, 'harness')
+  if (!(await pathExists(harness))) return
+  const packageName = `@duckdb/node-bindings-${context.electronPlatformName}-${getArchName(context.arch)}`
+  const sourceDir = path.join(harness, 'node_modules', packageName)
+  const nativePackage = await readJson(path.join(sourceDir, 'package.json'))
+  const apiPackage = await readJson(
+    path.join(harness, 'node_modules', '@duckdb/node-api', 'package.json')
+  )
+  if (nativePackage.name !== packageName || nativePackage.version !== apiPackage.version) {
+    throw new Error('Harness DuckDB native package identity does not match its API')
+  }
+  // Both Knowledge and the standalone Memory runtime resolve this single unpacked native payload.
+  await copyPackageToUnpackedApp(sourceDir, path.join(unpacked, 'node_modules'), packageName)
+  await fs.rm(sourceDir, { recursive: true, force: true })
 }
 
 export default afterPack

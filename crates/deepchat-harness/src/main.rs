@@ -22,13 +22,18 @@ use rutis_loader::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as Json};
 use tokio::{
-    io::AsyncWriteExt,
     sync::{mpsc, oneshot},
     time::{sleep, timeout},
 };
 
+mod memory;
+mod transport;
+use transport::Output;
+
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 const MAX_FRAME: usize = 64 * 1024;
+const MAX_MEMORY_FRAME: usize = 256 * 1024;
+const MEMORY_FRAME_FLAG: u32 = 0x8000_0000;
 const MAX_CALLS: usize = 1024;
 
 #[derive(Deserialize)]
@@ -60,6 +65,13 @@ enum Request {
         method: Method,
         args: Vec<Json>,
     },
+    MemoryStart {
+        config: Json,
+    },
+    MemoryCall {
+        id: u64,
+        command: Json,
+    },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -69,7 +81,7 @@ impl Event for Observation {
     type Value = ();
 }
 
-struct ObservationForwarder(mpsc::Sender<Json>);
+struct ObservationForwarder(Output);
 impl rutis::Listener<Observation> for ObservationForwarder {
     fn call<'a>(
         &'a self,
@@ -89,7 +101,14 @@ impl rutis::Listener<Observation> for ObservationForwarder {
 }
 
 fn error(name: &str, message: impl ToString) -> Json {
-    json!({ "name": name, "message": message.to_string() })
+    fn bounded(value: &str, max: usize) -> &str {
+        let mut end = max.min(value.len());
+        while !value.is_char_boundary(end) {
+            end -= 1;
+        }
+        &value[..end]
+    }
+    json!({ "name": bounded(name, 256), "message": bounded(&message.to_string(), 8192) })
 }
 
 fn response(id: u64, result: std::result::Result<Json, Json>) -> Json {
@@ -117,7 +136,7 @@ async fn invoke(value: Value) -> std::result::Result<Json, Json> {
 struct AdmissionGateway {
     injects: [TypeKey; 1],
     incoming: Mutex<Option<mpsc::Receiver<Request>>>,
-    outgoing: mpsc::Sender<Json>,
+    outgoing: Output,
 }
 
 impl Plugin for AdmissionGateway {
@@ -185,6 +204,7 @@ impl Plugin for AdmissionGateway {
                                 pending.insert(id);
                                 calls.push(Box::pin(async move { (id, invoke(value).await) }));
                             }
+                            Some(_) => return Err(CordisError::ServiceNotFound("Invalid admission request".into())),
                         }
                     }
                 }
@@ -194,39 +214,38 @@ impl Plugin for AdmissionGateway {
     }
 }
 
-fn read_requests(sender: mpsc::Sender<Request>) -> Result<()> {
+fn read_requests(sender: mpsc::Sender<Request>, memory: mpsc::Sender<Request>) -> Result<()> {
     let mut input = std::io::stdin().lock();
     loop {
         let mut header = [0_u8; 4];
-        let length = match input.read_exact(&mut header) {
-            Ok(_) => u32::from_be_bytes(header) as usize,
+        let header = match input.read_exact(&mut header) {
+            Ok(_) => u32::from_be_bytes(header),
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(()),
             Err(e) => return Err(e.into()),
         };
-        if length == 0 || length > MAX_FRAME {
+        let vector = header & MEMORY_FRAME_FLAG != 0;
+        let length = (header & !MEMORY_FRAME_FLAG) as usize;
+        if length == 0 || length > if vector { MAX_MEMORY_FRAME } else { MAX_FRAME } {
             return Err("Invalid harness frame size".into());
         }
         let mut bytes = vec![0; length];
         input.read_exact(&mut bytes)?;
-        let request = serde_json::from_slice(&bytes)?;
-        if sender.blocking_send(request).is_err() {
-            return Ok(());
+        let request: Request = serde_json::from_slice(&bytes)?;
+        if vector != matches!(request, Request::MemoryCall { .. }) {
+            return Err("Invalid harness frame kind".into());
+        }
+        match request {
+            Request::Call { .. } => {
+                if sender.blocking_send(request).is_err() {
+                    return Ok(());
+                }
+            }
+            _ => {
+                // A dead vector generation cannot stop admission's inherited input channel.
+                let _ = memory.blocking_send(request);
+            }
         }
     }
-}
-
-async fn write_responses(mut receiver: mpsc::Receiver<Json>) -> Result<()> {
-    let mut output = tokio::io::stdout();
-    while let Some(value) = receiver.recv().await {
-        let bytes = serde_json::to_vec(&value)?;
-        if bytes.len() > MAX_FRAME {
-            return Err("Harness response exceeds frame limit".into());
-        }
-        output.write_u32(bytes.len() as u32).await?;
-        output.write_all(&bytes).await?;
-        output.flush().await?;
-    }
-    Ok(())
 }
 
 async fn runtime_loss(runtime: RuntimeHandle) -> String {
@@ -242,7 +261,8 @@ async fn mount(
     root: &Ctx,
     args: &[std::ffi::OsString],
     incoming: mpsc::Receiver<Request>,
-    outgoing: mpsc::Sender<Json>,
+    memory_incoming: mpsc::Receiver<Request>,
+    outgoing: Output,
 ) -> Result<RuntimeHandle> {
     let electron = PathBuf::from(&args[0]).canonicalize()?;
     let runtime = PathBuf::from(&args[1]).canonicalize()?;
@@ -253,7 +273,6 @@ async fn mount(
         return Err("Invalid admission limits".into());
     }
     let launcher = Launcher::new(electron)
-        .arg(runtime.join("src/runner.mjs"))
         .env("ELECTRON_RUN_AS_NODE", "1")
         .env("NODE_OPTIONS", "")
         .env("NODE_PATH", "")
@@ -263,13 +282,29 @@ async fn mount(
         .stderr(Stdio::Inherit);
     #[cfg(unix)]
     let launcher = launcher.inherit_fd();
-    let runtime = LocalRuntime::launcher("harness", launcher, runtime.join("package.json"));
-    let handle = runtime.handle();
+    let admission_runtime = LocalRuntime::launcher(
+        "harness",
+        launcher.clone().arg(runtime.join("src/runner.mjs")),
+        runtime.join("package.json"),
+    );
+    let handle = admission_runtime.handle();
+    // Bounded vector uploads do not need a throughput-grown idle nursery.
+    let memory_runtime = LocalRuntime::launcher(
+        "memory",
+        launcher
+            .arg("--max-semi-space-size=8")
+            .arg(runtime.join("src/runner.mjs")),
+        runtime.join("package.json"),
+    );
     let catalog = ServiceCatalog::new();
+    let memory_rows =
+        Arc::new(RuntimeResolver::modules(memory_runtime.handle()).with_catalog(&catalog));
     let rows = Arc::new(RuntimeResolver::node(handle.clone()).with_catalog(&catalog));
-    root.plugin(runtime);
+    root.plugin(admission_runtime);
     let loader = LoaderPlugin::new(
-        Chain::new().with_shared(rows.clone()),
+        Chain::new()
+            .with_shared(rows.clone())
+            .with_shared(memory_rows.clone()),
         LoaderOptions {
             catalog,
             ..LoaderOptions::default()
@@ -278,18 +313,27 @@ async fn mount(
     let loader_handle = loader.handle();
     root.plugin(loader).await?;
     root.plugin(RuntimeRowsPlugin::new(rows));
+    root.plugin(RuntimeRowsPlugin::new(memory_rows));
     root.plugin(AdmissionGateway {
         injects: [host_key("harnessAdmission")],
         incoming: Mutex::new(Some(incoming)),
-        outgoing,
+        outgoing: outgoing.clone(),
     });
     let plugin_url = url::Url::from_file_path(plugin).map_err(|_| "Invalid plugin path")?;
     let patches: Vec<Patch> = serde_json::from_value(json!([{ "insert": [{
         "id": "admission", "name": plugin_url.as_str(), "config": { "capacity": capacity, "maxPending": max_pending }
     }] }]))?;
     loader_handle
-        .reconcile(vec![Layer::new("harness", patches)], None)
+        .reconcile(vec![Layer::new("harness", patches.clone())], None)
         .await?;
+    root.plugin(memory::Bootstrap::new(
+        memory_runtime,
+        memory_incoming,
+        outgoing,
+        loader_handle,
+        patches,
+        plugin_url,
+    ));
     Ok(handle)
 }
 
@@ -303,15 +347,16 @@ async fn main() -> Result<()> {
     }
     let root = Ctx::root()?;
     let (requests, incoming) = mpsc::channel(64);
-    let (outgoing, responses) = mpsc::channel(64);
+    let (memory_requests, memory_incoming) = mpsc::channel(32);
+    let (outgoing, responses) = Output::channel();
     let (reader_end, mut reader) = oneshot::channel();
     // A detached blocking reader cannot hold Tokio shutdown open after runtime loss.
     std::thread::spawn(move || {
-        let _ = reader_end.send(read_requests(requests));
+        let _ = reader_end.send(read_requests(requests, memory_requests));
     });
-    let mut writer = tokio::spawn(write_responses(responses));
+    let mut writer = tokio::spawn(transport::write_responses(responses));
     let result = async {
-        let runtime = timeout(Duration::from_secs(15), mount(&root, &args, incoming, outgoing)).await??;
+        let runtime = timeout(Duration::from_secs(15), mount(&root, &args, incoming, memory_incoming, outgoing)).await??;
         tokio::select! {
             result = &mut reader => result?,
             result = &mut writer => { result??; Err("Harness output closed".into()) },

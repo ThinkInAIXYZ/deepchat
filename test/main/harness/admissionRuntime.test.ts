@@ -5,10 +5,11 @@ import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RutisAgentInvocationAdmission } from '@/agent/invocationAdmission'
 import type { AgentInvocationAdmissionObservation } from '@/agent/invocationAdmission'
+import { HarnessRuntime } from '@/harness/runtime'
 
 const { cpSync, mkdtempSync, rmSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
 const require = createRequire(import.meta.url)
-const active = new Set<RutisAgentInvocationAdmission>()
+const active = new Map<RutisAgentInvocationAdmission, HarnessRuntime>()
 const directories = new Set<string>()
 const create = async (
   capacity = 1,
@@ -16,22 +17,28 @@ const create = async (
   observations?: AgentInvocationAdmissionObservation[],
   directory = path.resolve('out/harness')
 ) => {
-  const admission = await RutisAgentInvocationAdmission.create({
+  const runtime = await HarnessRuntime.start({
     directory,
     electronExecutable: require('electron'),
     capacity,
     maxPending,
+    observe: (value) => observations?.push(value)
+  })
+  const admission = RutisAgentInvocationAdmission.create({
+    runtime,
+    capacity,
+    maxPending,
     diagnostics: { observe: (value) => observations?.push(value) }
   })
-  active.add(admission)
+  active.set(admission, runtime)
   return admission
 }
 
 afterEach(async () => {
-  for (const admission of active) {
+  for (const [admission, runtime] of active) {
     await admission.close().catch(() => undefined)
     await admission.flushObservations().catch(() => undefined)
-    await admission.shutdown()
+    await runtime.stop()
   }
   active.clear()
   for (const directory of directories) rmSync(directory, { recursive: true, force: true })
@@ -116,21 +123,31 @@ describe('application Rutis admission runtime', () => {
     expect(identity.runtime.pid).not.toBe(identity.hostPid)
     await admission.close()
     expect(observations.at(-1)).toMatchObject({ type: 'closed', active: 0, pending: 0 })
-    await admission.shutdown()
+    await active.get(admission)!.stop()
     expect(() => process.kill(identity.runtime.pid, 0)).toThrow()
   })
 
   it('isolates asynchronous diagnostic failures from admission outcomes', async () => {
-    const admission = await RutisAgentInvocationAdmission.create({
+    const runtime = await HarnessRuntime.start({
       directory: path.resolve('out/harness'),
       electronExecutable: require('electron'),
+      capacity: 4,
+      maxPending: 128,
+      observe: async () => {
+        throw new Error('Observer unavailable')
+      }
+    })
+    const admission = RutisAgentInvocationAdmission.create({
+      runtime,
+      capacity: 4,
+      maxPending: 128,
       diagnostics: {
         observe: async () => {
           throw new Error('Observer unavailable')
         }
       }
     })
-    active.add(admission)
+    active.set(admission, runtime)
     const permit = await admission.acquire({
       ownerId: 'diagnostics',
       correlation: {
@@ -145,7 +162,12 @@ describe('application Rutis admission runtime', () => {
     expect(await admission.snapshot()).toMatchObject({ active: 0, pending: 0 })
   })
 
-  it('rejects an oversized private frame and tears down the owned runtime', async () => {
+  it.each([
+    { name: 'oversized admission', header: 64 * 1024 + 1, body: Buffer.alloc(0) },
+    { name: 'reserved admission bit', header: 0x40000000 + 1, body: Buffer.alloc(0) },
+    { name: 'reserved memory bit', header: 0xc0000000 + 4, body: Buffer.alloc(4) },
+    { name: 'oversized memory', header: 0x80000000 + 256 * 1024 + 1, body: Buffer.alloc(0) }
+  ])('rejects $name framing and tears down the owned runtime', async ({ header: value, body }) => {
     const directory = path.resolve('out/harness')
     const child = spawn(
       path.join(
@@ -184,8 +206,8 @@ describe('application Rutis admission runtime', () => {
         child.once('close', () => reject(new Error('Host exited before ready')))
       })
       const header = Buffer.alloc(4)
-      header.writeUInt32BE(64 * 1024 + 1)
-      child.stdin.write(header)
+      header.writeUInt32BE(value)
+      child.stdin.write(Buffer.concat([header, body]))
       expect(await exited).not.toBe(0)
       expect(forced).toBe(false)
       expect(() => process.kill(ready.runtime.pid, 0)).toThrow()
@@ -207,7 +229,7 @@ describe('application Rutis admission runtime', () => {
     await queued
     await expect(admission.acquire({ ownerId: 'late' })).rejects.toThrow(/Rutis host/)
     expect(admission.identity).toEqual(identity)
-    await admission.shutdown()
+    await active.get(admission)!.stop()
     expect(() => process.kill(identity.hostPid, 0)).toThrow()
   })
 })

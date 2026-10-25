@@ -19,6 +19,7 @@ describe('test entrypoint contracts', () => {
       test: 'pnpm run harness:build && vitest run',
       'test:main': 'pnpm run harness:build && vitest run --config vitest.config.ts test/main',
       'test:renderer': 'vitest run --config vitest.config.renderer.ts test/renderer',
+      'test:main:memory-perf': 'pnpm run harness:build && vitest --config vitest.config.memory-perf.ts --run',
       'test:coverage': 'pnpm run harness:build && vitest run --coverage',
       'test:watch': 'pnpm run harness:build && vitest --watch'
     })

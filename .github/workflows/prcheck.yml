@@ -158,6 +158,9 @@ jobs:
           pnpm run installRuntime:duckdb:vss:linux:x64
           pnpm run smoke:duckdb:vss -- --platform linux --arch x64
 
+      - name: Build Rutis harness for native integration
+        run: pnpm run harness:build
+
       - name: Validate portable memory behavior
         run: pnpm run test:memory
 

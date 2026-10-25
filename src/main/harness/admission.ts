@@ -31,13 +31,12 @@ export class RutisAgentInvocationAdmission implements AgentInvocationAdmissionPo
     private readonly diagnostics: AgentInvocationAdmissionDiagnosticsOptions
   ) {}
 
-  static async create(options: {
-    directory: string
-    electronExecutable: string
+  static create(options: {
+    runtime: HarnessRuntime
     capacity?: number
     maxPending?: number
     diagnostics?: AgentInvocationAdmissionDiagnosticsOptions
-  }): Promise<RutisAgentInvocationAdmission> {
+  }): RutisAgentInvocationAdmission {
     const capacity = options.capacity ?? DEFAULT_AGENT_INVOCATION_CAPACITY
     const maxPending = options.maxPending ?? DEFAULT_AGENT_INVOCATION_MAX_PENDING
     if (
@@ -49,13 +48,7 @@ export class RutisAgentInvocationAdmission implements AgentInvocationAdmissionPo
       throw new Error('Invalid admission limits')
     }
     const diagnostics = options.diagnostics ?? {}
-    const runtime = await HarnessRuntime.start({
-      ...options,
-      capacity,
-      maxPending,
-      observe: (observation) => diagnostics.observe?.(observation)
-    })
-    return new RutisAgentInvocationAdmission(runtime, capacity, maxPending, diagnostics)
+    return new RutisAgentInvocationAdmission(options.runtime, capacity, maxPending, diagnostics)
   }
 
   get identity() {
@@ -150,10 +143,6 @@ export class RutisAgentInvocationAdmission implements AgentInvocationAdmissionPo
       .strict()
       .parse(await this.runtime.request('snapshot', []))
     return value.admission
-  }
-
-  async shutdown(): Promise<void> {
-    await this.runtime.stop()
   }
 
   private observationsEnabled(): boolean {

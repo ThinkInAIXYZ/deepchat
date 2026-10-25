@@ -94,7 +94,8 @@ describe('CI package contract', () => {
     })
     for (const harnessPath of [
       'rust-toolchain.toml', 'scripts/build-harness.mjs', 'crates/deepchat-harness/src/main.rs',
-      'src/harness/plugins/admission.ts', 'src/shared/harness/admission.ts'
+      'src/harness/plugins/admission.ts', 'src/shared/harness/admission.ts',
+      'scripts/smoke-harness-memory.mjs', 'src/main/harness/runtime.ts'
     ]) {
       expect(classifyPackageImpact([harnessPath])).toMatchObject({
         required: true, windows: true, linux: true, macos: true

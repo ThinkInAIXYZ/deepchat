@@ -10,7 +10,7 @@ There is no retained implementation switch or local fallback.
 
 Current scope: staged implementation in
 [Draft PR #2465](https://github.com/ThinkInAIXYZ/deepchat/pull/2465), targeting `dev`. Admission is
-committed as `ffcd98770` and the roadmap as `f35adff34`. G2 is active; later goals start only after
+committed as `ffcd98770` and the roadmap as `f35adff34`. G3 is active; later goals start only after
 their dependencies and the preceding selected goal pass validation.
 
 Use this file as the only tracker. [The RFC](spec.md) defines capability ownership, Memory
@@ -31,8 +31,8 @@ skipped to advance. Keep the PR in draft and do not merge it as part of this exe
 | --- | --- | --- | --- |
 | G0 Admission | Complete, `ffcd98770` | Existing branch baseline | Default Rutis wiring, matching real-app E2E and old path removed |
 | G1 Whole-capability roadmap | Complete; documentation only | G0 and source research | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence |
-| G2 Baselines and first service contract | Local validation complete; PR checks gate G3 | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
-| G3 Memory vector resources | Planned; first extraction candidate | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
+| G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
+| G3 Memory vector resources | Locally validated; CI pending | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
 | G4 Store commands and desktop ports | Planned | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
 | G5 Cohesive TS Harness backend | Planned | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
@@ -235,24 +235,138 @@ migration can instead satisfy its declared lifecycle objective within its frozen
 - [x] Typecheck the E2E fixture and measurement helper directly in addition to app typechecks.
 - [x] Complete final format/i18n/lint/typechecks, all 29 local references and scope review.
       The uninstrumented five-case application E2E also passes; no production module changed in G2.
-- [ ] Required PR checks pass on the pushed G2 head before G3 starts. Push the local validation
-      checkpoint separately to Draft PR #2465; do not merge or advance past a failed required check.
+- [x] Push G2 as `84e3e0ead` to Draft PR #2465. Required CI run `40193664779` passes on exact head
+      `84e3e0ead952d9ea769246c4ca2851a2338c7eca`: static, main, renderer, native Memory, build and
+      the required-check barrier all succeed before G3 starts.
+- [x] Exact-head package check run `40193664778` passes all six macOS/Windows/Linux x64/arm64
+      verification packages and the package-required barrier. This evidence covers G2 artifacts.
 
 ## G3. Extract Memory vector resources through Rutis
 
-- [ ] Retain DuckDB v2 in TS; move native handles and file-owner lifetime into one Rutis service.
+First characterize real native Memory search/management on the preserved application build.
+This migration requires a matching executable baseline before replacing the factory, so the
+shared application E2E fixture is written before implementation as contract characterization.
+
+Current evidence:
+
+The JSON/base64 Float32 transport passes the local adoption budgets with pinned provider SDK
+patches. Each patch validates a finite numeric array and clones it once, preserving response
+validation and raw-response isolation without allocating a Zod parsing payload per component.
+All 27 real SDK response contract checks pass across OpenAI, compatible, Azure, Google single/batch,
+and Vertex Node/edge endpoints. Local whole-slice validation is complete. Push the validated
+checkpoint, then require its exact-head required CI and six package checks before the next goal.
+
+- Actual recall, indexing, deletion, reset and maintenance use one lazy native TS vector runtime
+  under the existing Rust host. Admission retains its separate runtime and identity. Main keeps
+  the typed facade, Memory policy and canonical database; Knowledge still uses DuckDB in Main.
+  The replaced native factory and recovery wiring are removed.
+- The vector worker holds the private kernel-owned database lock before recovery or file mutation.
+  Persistent Agent leases fence uncertain writes, late opens and disposal. Main can synchronously
+  append quarantine intent, including after worker loss, but only the locked native owner consumes
+  it. Native quarantine terminates the vector process before uncertain cleanup or GC; admission
+  survives, vector retrieval degrades to FTS, and restart requires explicit rebuilding.
+- Typed native column buffers preserve atomic writes and Float32 values while avoiding per-component
+  native scalar allocation. Only the vector worker uses eight-MiB V8 semi-spaces. The admission heap
+  policy remains unchanged; there is no forced GC or retained implementation switch.
+
+### Matching application resource comparison
+
+Use the G2 admission source with identical current Provider/ACP catalogs and shared E2E fixtures.
+The real-app scenario indexes 1k/10k/50k canonical memories with dense 1536-dimensional Float32
+embeddings, checks vector-only recall, deletion and native row counts, then relaunches and clears
+every memory plane. Run six pairs at 1k with the first pair excluded as warmup, then five pairs at
+each larger scale; alternate baseline/migrated order. All 32 vector application checks pass,
+including warmup. The first application phase measures unused Memory; the active phase includes a
+fixed 30-second post-work idle interval. Settled footprint is the median of samples in its final
+ten seconds, then the median across five runs. This observation window does not establish a
+stationary heap. Use the G2 observer and hardware; builds are unpackaged with the Playwright
+inspector. Sampled CPU excludes shutdown and processes that live entirely between samples.
+
+| Rows | Settled footprint baseline / migrated (MiB) | Delta (MiB) | Sampled active peak baseline / migrated (MiB) | Sampled CPU baseline / migrated (s) |
+| --- | --- | --- | --- | --- |
+| 1,000 | 966.32 / 966.01 | -0.31 | 1107.17 / 1118.90 | 6.24 / 5.59 |
+| 10,000 | 704.00 / 723.47 | +19.47 | 1271.50 / 1253.92 | 19.75 / 10.40 |
+| 50,000 | 1049.51 / 1050.36 | +0.84 | 1792.23 / 1607.12 | 116.05 / 71.81 |
+
+All scales pass the unchanged 64-MiB settled and 128-MiB sampled-peak budgets. Values are rounded
+independently. Unused Memory starts no extra worker in any measured run, including the control
+scenario; its largest positive median deltas are 56.17 ms for UI readiness and 6.61 MiB for
+sampled footprint, within the frozen 100-ms/32-MiB minimum allowances. Five matching pairs with
+10k-row indexing active preserve delegation queue/cancel/release outcomes; all ten checks pass.
+Main loop-p99 medians are 79.63/37.49 ms (baseline/migrated), satisfying the loaded-control budget.
+All 11 phase comparisons pass their gates. These fixture measurements include the native column
+buffers and SDK validation changes; they do not establish a Rust speedup or production Provider
+latency. Allocation sampling identifies about 5.5 GiB of cumulative provider numeric-array parsing
+allocation per 50k workload without the finite-array schema optimization, motivating the SDK
+patches within the migration's resource envelope.
+
+Frozen artifact inventory:
+
+- Baseline: 1,159 `out` files, SHA-256
+  `9c7a05a8d8e59e817bfccdd6551e4fe9e33a36a2aecc19f6e94c3198b41589ab`.
+- Migrated: 1,531 `out` files, SHA-256
+  `549eb4f4fb6582c33a3e43184710f546ab874c5eb7b98cdf261f93ad2614a22c`.
+- Hash sorted repository-relative paths including `out/`: UTF-8 path, NUL, then raw SHA-256 of each
+  file's bytes; SHA-256 the concatenation. Both variants share catalog and scenario hashes.
+- External SDK dependencies are frozen separately. The manifest records their versions and all
+  distributed JavaScript hashes, plus the selected patch and lockfile hashes; an `out` hash alone
+  does not identify the provider implementation. Manifest: `/tmp/deepchat-rutis-g3-sdk-artifacts.json`.
+- Paired reports: `/tmp/deepchat-rutis-g3-sdk-paired`; summary:
+  `/tmp/deepchat-rutis-g3-sdk-summary.json`. After-run verification confirms both complete `out`
+  trees, external SDKs, catalogs, shared scenarios, patches and lockfile remain unchanged.
+
+### Native transport, lifecycle and distribution validation
+
+The 1536-dimensional transport benchmark passes the query/write budgets at each characterized size:
+
+| Rows | Native / remote query p95 (ms) | Native / remote 50-row write mean (ms) | First remote open median / p95 (ms) |
+| --- | --- | --- | --- |
+| 1,000 | 3.089 / 3.469 | 2.413 / 6.747 | 130.511 / 149.164 |
+| 10,000 | 16.291 / 15.202 | 2.852 / 6.247 | 129.944 / 131.104 |
+| 50,000 | 65.984 / 66.564 | 4.524 / 7.805 | 130.245 / 131.854 |
+
+Both paths use Electron Node 24.22.0 and the existing DuckDB engine. Remote timings include Float32
+encoding, gateway copies and the complete native operation. Thirty warm queries transfer
+280,650-280,710 gateway bytes including replies; pending calls drain to zero. First-use validation
+samples five new workers per scale; every scale passes the 500-ms median and one-second p95 limits.
+Report: `/tmp/deepchat-rutis-g3-cold-open-final-perf.log`.
+
+The main suite passes 680 files / 9873 tests, with the existing two files / four tests skipped.
+The Electron-hosted portable Memory behavior scope passes 54 files / 980 tests.
+The complete native Memory scope passes 356 tests with VSS and SQLite required; two Windows-only
+cases are skipped on macOS. Retrieval evaluation passes seven cases. Runtime checks exercise real
+native operations, separate admission/vector identities, upload ordering, oversized replies,
+Float32 extremes, quarantine, corrupt-open termination and synchronous marker-write failure.
+The normal application suite passes six checks, including the lifecycle case for nine-Agent cache
+convergence, model/dimension changes, native-worker death, FTS/chat continuity and restart rebuilding.
+Clear-after-loss targets an evicted Agent and proves that cleared vectors cannot reappear on restart.
+A 50k-row loaded-vector application case also passes delegation queue/cancel/release during indexing.
+
+The six native package jobs execute `smoke:harness:memory` against the packaged Rust host and
+Electron executable. It reuses production clients for native read/write, fractional Float32 values,
+restart persistence, reset, admission continuity and child shutdown. This new package check awaits
+G3 package CI. Local copied-package closure execution passes both startup generations, native
+operations and strict child-exit assertions; this uses the installed Electron executable, not a
+signed DeepChat bundle. The four packaging/workflow contract suites pass 48 checks. Memory-test
+types (80 scoped files), app typechecks, lint, i18n and formatting pass, including explicitly
+formatting the new scripts excluded by the repository default. Require the pushed revision's
+required CI and six platform package checks before accepting G3 or starting G4.
+
+- [x] Retain DuckDB v2 in TS; move native handles and file-owner lifetime into one Rutis service.
       Keep existing lease/embedding policy coherent; adapt synchronous health/quarantine and
       object-returning factories through generation-bound resources and acknowledged operations.
-- [ ] Connect actual Memory recall, embedding writes, deletion, rebuild and maintenance callers.
+- [x] Connect actual Memory recall, embedding writes, deletion, rebuild and maintenance callers.
       Keep dense vectors near their resource owner and bound transfer without enlarging the
       admission JSON protocol indiscriminately. Start one vector TS runtime lazily under the
       existing Rust host; native poison must not force admission-runtime replacement.
-- [ ] Compare real app recall/FTS degradation, model/dimension changes, more-than-eight-Agent
+- [x] Compare real app recall/FTS degradation, model/dimension changes, more-than-eight-Agent
       resource convergence, clear/delete, native quarantine and shutdown against baseline.
       Preserve migration/WAL and new-process recovery rules; vector runtime loss must preserve
       admission and degrade only vector retrieval to the existing FTS behavior.
-- [ ] Review and validate the whole slice, including real native operations and relevant Memory
+- [x] Review and validate the whole slice, including real native operations and relevant Memory
       performance/quality checks. Remove old native factory/lifecycle wiring after parity.
+- [ ] Commit and push the locally validated G3 checkpoint; require the exact-head required CI
+      and all six platform package checks, including the packaged Memory smoke, before G4.
 
 Completion: a real Memory resource module uses Rutis with one file owner and proven cleanup.
 A standalone query demo or reduced main-process heap does not complete this goal.
