@@ -97,6 +97,7 @@ import apimartIcon from '@/assets/llm-icons/apimart.ico?url'
 import apiRouteIcon from '@/assets/llm-icons/api-route.svg?url'
 import cheaperInferenceIcon from '@/assets/llm-icons/cheaper-inference.svg?url'
 import futureinfraIcon from '@/assets/llm-icons/futureinfra.svg?url'
+import atmorouterIcon from '@/assets/llm-icons/atmorouter.svg?url'
 import yapiIcon from '@/assets/llm-icons/yapi.svg?url'
 import apimodelsIcon from '@/assets/llm-icons/apimodels.png?url'
 import anonrouterIcon from '@/assets/llm-icons/anonrouter.svg?url'
@@ -152,6 +153,7 @@ export const modelIcons = {
   mistral: mistralColorIcon,
   fireworks: fireworksColorIcon,
   futureinfra: futureinfraIcon,
+  atmorouter: atmorouterIcon,
   yapi: yapiIcon,
   apimodels: apimodelsIcon,
   zeabur: zeaburColorIcon,
