@@ -17,6 +17,8 @@ import {
 import { arch, homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { performance } from 'node:perf_hooks'
+import { measureResources } from '../helpers/resources'
 import {
   GUIDED_ONBOARDING_REQUIRED_STEP_IDS,
   GUIDED_ONBOARDING_STEP_IDS,
@@ -279,6 +281,7 @@ export const test = base.extend<ElectronFixtures>({
       const currentLaunch = launchCount
       const packaged = process.env.DEEPCHAT_E2E_APP_MODE === 'packaged'
 
+      const startedAt = performance.now()
       const electronApp = await electron.launch({
         ...(packaged
           ? {
@@ -297,6 +300,7 @@ export const test = base.extend<ElectronFixtures>({
       })
 
       let closeOutcomePromise: Promise<'graceful' | 'forced'> | undefined
+      let resources: Awaited<ReturnType<typeof measureResources>>
       const app: ElectronAppInstance = {
         electronApp,
         page: undefined as unknown as Page,
@@ -308,6 +312,12 @@ export const test = base.extend<ElectronFixtures>({
           if (closeOutcomePromise) return closeOutcomePromise
           launchedApps.delete(app)
           closeOutcomePromise = (async () => {
+            let measurementFailure: unknown
+            try {
+              await resources?.finish(testInfo, currentLaunch)
+            } catch (error) {
+              measurementFailure = error
+            }
             const closePromise = electronApp.close()
             const closedGracefully = await Promise.race([
               closePromise.then(
@@ -317,9 +327,13 @@ export const test = base.extend<ElectronFixtures>({
               delay(APP_CLOSE_TIMEOUT_MS).then(() => false)
             ])
 
-            if (closedGracefully) return 'graceful'
+            if (closedGracefully) {
+              if (measurementFailure) throw measurementFailure
+              return 'graceful'
+            }
             electronApp.process().kill('SIGKILL')
             await Promise.race([closePromise.catch(() => undefined), delay(1_000)])
+            if (measurementFailure) throw measurementFailure
             return 'forced'
           })()
           return closeOutcomePromise
@@ -333,10 +347,12 @@ export const test = base.extend<ElectronFixtures>({
       })
 
       try {
+        resources = await measureResources(electronApp, startedAt)
         const page = await waitForMainAppWindow(electronApp)
         attachPageListeners(page, `main-${currentLaunch}`)
         await page.waitForLoadState('domcontentloaded')
         app.page = page
+        await resources?.ready(page)
         return app
       } catch (error) {
         await app.close()
@@ -348,8 +364,13 @@ export const test = base.extend<ElectronFixtures>({
       await use(launchApp)
     } finally {
       const pendingApps = [...launchedApps].reverse()
+      let closeFailure: unknown
       for (const app of pendingApps) {
-        await app.close()
+        try {
+          await app.close()
+        } catch (error) {
+          closeFailure ??= error
+        }
       }
 
       await attachDiagnostics(testInfo, consoleLogs, pageErrors)
@@ -363,6 +384,7 @@ export const test = base.extend<ElectronFixtures>({
       if (ownsUserDataDir) {
         rmSync(userDataDir, { recursive: true, force: true })
       }
+      if (closeFailure) throw closeFailure
     }
   },
 

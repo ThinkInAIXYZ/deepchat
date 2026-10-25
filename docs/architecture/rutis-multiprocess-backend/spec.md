@@ -2,8 +2,8 @@
 
 ## Status and decision
 
-Status: admission migrated; whole-Harness, Memory and peripheral extraction planned.
-Evidence date: 2026-10-24. Inspected DeepChat commit: `ffcd98770`.
+Status: admission migrated; baseline profiling and the first extraction contract in progress.
+Evidence date: 2026-10-25. Inspected implementation: `f35adff34` (admission code `ffcd98770`).
 Implementation reference: Rutis `v0.16.0`, released on 2026-10-24. Crates and npm packages are pinned
 to that version.
 
@@ -20,12 +20,13 @@ ports instead of requiring Electron, even while the desktop distribution uses El
 The objectives are responsive desktop interaction under backend load, independently recoverable
 backend processes, replaceable feature implementations, and access to one authoritative Session
 Host from multiple surfaces. Additional processes and plugin counts are not success criteria.
-Performance improvement and cross-device operation remain unmeasured.
+No responsiveness or memory improvement is established; cross-device operation remains unimplemented.
 
-The current authorized scope is architecture research and documentation. The admission migration
-is committed as `ffcd98770` (`feat(harness): route admission through rutis`). All other modules below
-are proposals with dependencies and acceptance gates in [the live plan](plan.md); this planning
-scope does not start their implementation.
+Implementation proceeds through
+[Draft PR #2465](https://github.com/ThinkInAIXYZ/deepchat/pull/2465). The admission migration is
+committed as `ffcd98770` (`feat(harness): route admission through rutis`) and its roadmap as
+`f35adff34`. Remaining modules follow the dependencies and acceptance gates in [the live plan](plan.md).
+Each validated goal is committed and pushed separately before the next selected goal starts.
 
 Each module migration replaces its real application wiring on the migration branch. Completion
 requires running the same end-to-end workload against the baseline and migrated application,
@@ -126,6 +127,7 @@ Names describe proposed capabilities; only admission is currently connected thro
 | Agent execution and context | `DeepChatLoopRunner`, `DeepChatLoopEngine`, `TurnCoordinator`, context/input/compaction coordinators, prompt assembly and `src/main/agent/deepchat/runtime/contextBuilder.ts` | Execute a turn from an admitted input; assemble bounded context; stream ordered results | TS core with Provider streaming nearby; profile JSON, projection, token estimation and pruning before selecting a batched Rust operation |
 | Session, Store and Tape | Session lifecycle/settings/identity, transcript mutation and message projection; `src/main/tape`; shared database composition | Durable commands, Tape/projection consistency, recovery and configuration snapshots; exactly one authority for each mutation | Move existing SQLite-backed owners together into TS core; Rust storage is a separate later compatibility project |
 | Memory | `src/main/memory/index.ts`, `core/injectionPort.ts`, `ports.ts`; Harness `memory/memoryRuntimeCoordinator.ts` | Recall/injection, extraction, approved directives, management and maintenance; Harness retains turn scheduling and fences | One first-class TS Memory capability, with an optional vector resource boundary; selectively Rust after profiling |
+| Knowledge and RAG | `src/main/knowledge/{index,knowledgeBase,taskQueue}.ts`, `database/knowledgeDatabase.ts` | Document/chunk indexing, retrieval, durable file/task status and knowledge-store lifetime | TS capability with its own schema, VSS and file contracts; later evaluate native-worker placement alongside document jobs |
 | Provider | `src/main/provider/providerService.ts`, `aiSdk/runtime.ts`, model/embedding/rate-limit managers and `src/main/app/memoryProviderBindings.ts` | Model resolution, request execution, embedding, streaming and request admission | TS ecosystem adapters; credential/OAuth operations through host ports; no per-token cross-language calls |
 | Tool execution, MCP and ACP | Tool resolver/deferred executor/output guard in Harness; `src/main/tool`, `src/main/mcp`, `src/main/agent/acp` | Existing permission checks, operation identities, result/artifact bounds, protocol connections and subprocess leases | TS protocol adapters; Rust may own generic process resources later; MCP Apps and ACP terminals retain explicit desktop capability ports |
 | Skills and hooks | `src/main/skill/{index,skillExecutionService}.ts`, discovery/sync workers, `src/main/hook`; Harness skill materialization and hook sink | Discover contributions, resolve trusted context, observe lifecycle, execute approved operations and remove registrations on unload | TS contribution plugins where independently useful; keep pure prompt helpers internal and preserve uncertain hook outcome recovery |
@@ -163,9 +165,11 @@ continue to define behavior.
 The recommended first Memory slice is the vector resource service: query/upsert/delete/list and
 open/close/reset/quarantine of per-Agent stores. Its files are separate from the shared database,
 and most operations are already asynchronous. Keep the current DuckDB implementation in TS first.
-This is a lifecycle and isolation experiment, not a claimed query-speed optimization. Place it in
-the existing TS runtime initially; independent native-crash recovery would require a separate
-process and its own cost/recovery evidence.
+This is a lifecycle and isolation experiment, not a claimed query-speed optimization. Use one
+additional TS runtime, started lazily by the existing Rust host when the first store is needed.
+Native poison requires a new process; sharing the admission runtime would couple that recovery to
+unrelated active Runs. No runtime is created per Agent, and unused Memory starts no extra process.
+The additional runtime must pass the G2 resource budgets before adoption.
 
 `IMemoryVectorStore` still exposes synchronous `isUsable()`, and the factory has synchronous
 quarantine notification and object-returning creation. A remote service must use generation-bound
@@ -220,10 +224,66 @@ A Rust wrapper using the same engine does not by itself improve the database alg
 800-row score pass is also a weaker candidate than an observed large-history JSON/projection cost.
 Model inference and network waits remain Provider costs in either language.
 
+Knowledge/RAG also imports DuckDB in Electron main through
+[`knowledgeDatabase.ts`](../../../src/main/knowledge/database/knowledgeDatabase.ts). Moving Memory
+vectors alone therefore does not unload the driver from main or eliminate all native crash risk
+there. Do not merge Knowledge's schema/VSS migrations into Memory's v2 format; assess its independent
+capability and any shared-worker costs in G9.
+
 Evaluate query recall/selection, tombstones, scope, temporal rules and injection budget alongside
 latency. Retain FTS/degraded behavior and failure diagnostics. Use the existing Memory performance,
 native and quality suites; algorithmic fixtures alone do not measure DuckDB or whole-application
-memory. No Memory performance benchmark has been run for this roadmap.
+memory. G2 records native and fixture characterization in the live plan; those results do not
+establish a whole-application Memory improvement.
+
+### First vector service contract
+
+G3 keeps the current v2 DuckDB engine and files. The Rust host owns the lazy runtime generation and
+file-owner lifetime; one first-party TS plugin holds native handles. Memory policy, authoritative
+rows, embedding scheduling and vector leases remain in their existing owners. There is no schema
+migration or fallback to a second native owner in Electron main.
+
+- Negotiate a versioned `memoryVector` service at the private application handshake. Admit only
+  open, query, query-by-ID, atomic upsert, delete-by-IDs, list-IDs, close, reset and quarantine
+  operations. Validate the Agent and resource identity at both the application adapter and owner;
+  callers cannot choose a path, SQL statement, module or service name.
+- Choose resource and operation UUIDs before dispatch. Every resource binds Agent, model, dimensions
+  and runtime generation. Late open replies must release the known resource; dropped futures cannot
+  abandon a native handle. A local `isUsable()` observation may reject early but cannot authorize
+  a stale operation. Revocation/quarantine immediately disables the local facade, and subsequent
+  open/reset/disposal waits for the authoritative control acknowledgement or proven process exit.
+- Preserve existing admission calls and their 64-KiB limit. Add a distinct vector frame kind with
+  a 256-KiB maximum; retain the 1-MiB transport buffer budget and reserve 64 KiB for control. Only
+  one bulk chunk awaits acknowledgement at a time. Control frames take precedence over the next
+  chunk, and a loaded-vector E2E case must prove admission is not starved.
+- Encode embeddings as little-endian Float32 data, matching the native `FLOAT[]` representation,
+  with bounded base64 chunks for the JSON gateway. Preserve IDs, dimensions and ordering; validate
+  byte lengths and finite values before effects. No dense-vector JSON number arrays or complete
+  histories cross this gateway. Verify Float32/native cast parity, including extreme inputs.
+- Bound one logical upload to 16 MiB of decoded data and 50 records, with one active staged upload
+  per vector runtime. Use explicit begin/chunk/commit/abort operations: validate the complete batch
+  and invoke the existing atomic native upsert once. Chunk acknowledgement is not a durable write
+  acknowledgement. Oversized/invalid operations fail before effects; never truncate or split a
+  logical transaction silently. Inventory every actual caller against these limits before cutover.
+- Bound query results to the existing recall ceiling of 800, and list/delete operations to 512
+  IDs. Current callers use single-item management deletion, at most 50 embedding-orphan IDs,
+  256-row prune batches and 512-row orphan reconciliation; retain atomicity for each call.
+  Permit at most 32 pending vector operations and two active native
+  jobs; serialize writes and disposal for each store. Backpressure must not occupy admission slots.
+  Do not retain a second full encoded upload alongside the source vectors in main.
+- Keep model/dimension mismatch, migration/staging/WAL, suspect-store leases, operation deadlines
+  and v1 progress/abandon rules from the current implementation. The 15-second runtime handshake
+  is separate from a store open/migration; do not impose admission's 10-second RPC deadline on
+  native work. Cancellation fences the consumer while the owner retains a running native operation
+  until it settles or its process has demonstrably exited.
+- On native failure, preserve the existing quarantine marker and FTS degradation. On vector
+  runtime loss, invalidate its handles and pending work without replacing admission or replaying
+  unknown writes. Preserve new-process recovery semantics; G3 introduces no automatic native-worker
+  restart. Shutdown drains/fences Memory work and store leases before terminating that runtime.
+
+These bounds define the first service contract, not measured performance. G3 must prove native and
+quality parity, atomicity under interrupted uploads/lost replies, lifecycle cleanup and resource
+budgets through the real application before removing the original factory wiring.
 
 ## Rust selection and resource evidence
 
@@ -759,7 +819,7 @@ behavior. The four Agent fence semantics and deterministic pending-input feedbac
 | Platform extraction | OAuth, crypto, MCP Apps, helper launch, and desktop snapshots work through narrow ports without backend Electron-main imports         | Dependency locations identified; extraction pending                                                               |
 | Storage ownership   | One mutation authority, preserved transactions, scheduler claims, encryption, backup/rekey/import and maintenance recovery            | Shared database and secondary scheduler writer identified; migration pending                                      |
 | Failure behavior    | Core/host loss, lost replies, stale callbacks, full queues, and shutdown cannot create duplicate execution or two profile owners      | Admission runtime-loss regression passes with no replacement owner; whole-core/storage fault validation pending   |
-| Responsiveness      | Repeated baseline/spike measurements show improvement beyond baseline variance under the same backend-heavy workload                  | No performance measurements                                                                                       |
+| Responsiveness      | Repeated baseline/spike measurements show improvement beyond baseline variance under the same backend-heavy workload                  | G2 paired baselines recorded; admission has a measured resource cost and no demonstrated speed improvement          |
 | Distribution        | Offline, signed/packaged launch and cleanup work on every supported target                                                            | Local macOS arm64 builds and copied closure validated; signed release targets pending                             |
 
 Everywhere delivery has additional gates beyond desktop separation:

@@ -8,13 +8,22 @@ Work on `dimagent/rutis-harness-bootstrap`, one complete module at a time. Repla
 run matching end-to-end baseline and migrated workloads, and remove the old path after parity.
 There is no retained implementation switch or local fallback.
 
-Current scope: research and documentation only. Admission is committed as `ffcd98770`
-(`feat(harness): route admission through rutis`). The current deliverable is G1; G2 and later are
-planned execution goals, not implementation started or authorized by this documentation task.
+Current scope: staged implementation in
+[Draft PR #2465](https://github.com/ThinkInAIXYZ/deepchat/pull/2465), targeting `dev`. Admission is
+committed as `ffcd98770` and the roadmap as `f35adff34`. G2 is active; later goals start only after
+their dependencies and the preceding selected goal pass validation.
 
 Use this file as the only tracker. [The RFC](spec.md) defines capability ownership, Memory
 dependencies, Rust hypotheses, process placement and Everywhere contracts. Keep status and evidence
-here as slices land; do not create a second task ledger. No GitHub issue or PR sync is requested.
+here as slices land; do not create a second task ledger. No GitHub issue sync is requested;
+review status is maintained in the linked Draft PR.
+
+For each goal, finish the selected implementation and real default wiring, run the relevant tests
+and baseline/migrated application comparison, review ownership/failure/resource behavior, and
+remove replaced wiring. Run format, i18n, lint and typechecks before committing. Push each validated
+goal separately to this same Draft PR, then update its status before starting the next goal.
+Failed checks must be resolved or recorded as a concrete external blocker; they cannot be silently
+skipped to advance. Keep the PR in draft and do not merge it as part of this execution.
 
 ## Live goals and dependencies
 
@@ -22,7 +31,7 @@ here as slices land; do not create a second task ledger. No GitHub issue or PR s
 | --- | --- | --- | --- |
 | G0 Admission | Complete, `ffcd98770` | Existing branch baseline | Default Rutis wiring, matching real-app E2E and old path removed |
 | G1 Whole-capability roadmap | Complete; documentation only | G0 and source research | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence |
-| G2 Baselines and first service contract | Planned; next execution gate | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
+| G2 Baselines and first service contract | Local validation complete; PR checks gate G3 | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
 | G3 Memory vector resources | Planned; first extraction candidate | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
 | G4 Store commands and desktop ports | Planned | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
 | G5 Cohesive TS Harness backend | Planned | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
@@ -82,7 +91,7 @@ without a speed claim; CPU-oriented rewrites require measured gains. G11 does no
 - [x] Run format, i18n, lint, typecheck, relevant Vitest suites, Cargo checks and the actual E2E
       comparison. Record measured results and unexecuted targets without claiming performance gains.
 
-## G1. Source-backed roadmap: current deliverable
+## G1. Source-backed roadmap: complete
 
 - [x] Commit the existing admission migration before broader planning: `ffcd98770`.
 - [x] Inspect the actual Harness composition, synchronous ownership/fences, Memory facade and
@@ -100,20 +109,134 @@ without a speed claim; CPU-oriented rewrites require measured gains. G11 does no
 
 ## G2. Establish baselines and freeze one extraction contract
 
-- [ ] Preserve immutable pre-admission and `ffcd98770` artifacts, runtime versions and isolated
+- [x] Preserve immutable pre-admission and `ffcd98770` artifacts, runtime versions and isolated
       fixtures. Reproduce baseline workloads before using an old build as performance evidence.
-- [ ] Profile idle/startup, streaming and delegation, large context/Tape, native Memory recall and
+- [x] Profile idle/startup, streaming and delegation, large context/Tape, native Memory recall and
       background maintenance. Use at least five paired runs and fixed local Provider fixtures.
-- [ ] Attribute CPU, allocations/GC, native time, provider wait, IPC bytes and per-process/aggregate
-      memory. Identify the first actual bottleneck and an acceptable process/resource envelope.
-- [ ] Freeze numeric target and allowed regressions before judging the selected implementation;
+- [x] Measure CPU, native operation time and process-tree memory; distinguish Provider fixture
+      waits from local work and freeze the transport/resource envelope from actual callers.
+      Record allocation/GC and data-copy risks from source. Collect allocation-stack traces and
+      vector IPC byte counters with G3/G8 before attributing a measured performance gain.
+- [x] Freeze numeric target and allowed regressions before judging the selected implementation;
       record hardware, variability, workload sizes and whole-app measurement method here.
-- [ ] Freeze the selected service's versioned schemas, bounded batches/results, caller identity,
+- [x] Freeze the selected service's versioned schemas, bounded batches/results, caller identity,
       generation/operation IDs, cancellation, unknown outcomes, readiness and shutdown contract.
       Keep the admission gateway allowlist unchanged until a deliberate service protocol exists.
 
 Completion: one concrete module and its placement have a measurable purpose and an executable
 end-to-end comparison. Missing measurements do not justify a claimed Rust speedup or extra process.
+
+### G2 measurement evidence
+
+Environment: macOS 27.0.1, Apple M5, 10 CPU cores, 24 GiB RAM, Node 24.22.1, pnpm 10.34.5,
+Electron 43.8.3, DuckDB Node API 1.5.5-r.4 and Rust 1.95.0. Use fixed exports of `3e9948b72`
+(pre-admission) and `f35adff34` (admission code `ffcd98770` plus documentation), linked to the same
+installed native dependencies. Build both with `pnpm exec electron-vite build`; include the locked
+host/runtime closure in the admission artifact. Both are unpackaged builds with the Playwright
+inspector, not signed-release or user-profile footprint measurements. The complete `out` tree hashes were unchanged
+before and after all application comparisons:
+
+- Baseline: 1,054 files, SHA-256 `16c1efc66372897e4d3cb0814dc86c15073b0234f8cd0dfe6ea160e156119ee8`.
+- Admission: 1,159 files, SHA-256 `acd0bdc1e65d37ded30f56b49cf14dbcc189cbe7f326b03657b007f8ec58f156`.
+
+Run the same current E2E harness against both immutable builds with
+`DEEPCHAT_E2E_MEASURE_RESOURCES=1`, selecting `01-launch`, `36-chat-streaming` and
+`44-admission-delegation` through `test/e2e/playwright.config.ts`. Alternate baseline/admission order
+over five pairs. Every launch uses the fixture's disposable profile, except intentional relaunches
+within the existing recovery cases. These are fresh-profile tests with a warm OS file cache, not
+disk-cache-cold startup. All ten runs pass the same five checks: 50 E2E passes.
+
+The opt-in resource helper attaches numeric JSON reports without changing production code. It
+samples all descendants every 500 ms using the public macOS `proc_pid_rusage` v0 layout, recording
+resident size, physical footprint, process identity and cumulative CPU. Convert CPU Mach ticks with
+`mach_timebase_info`; calibration matches a 0.2-second CPU-clock workload. Readiness is visibility
+of the app root and sidebar. Event-loop histograms begin after inspector attachment. Short-lived
+children and between-sample allocation peaks may be missed; sampled CPU excludes shutdown after
+the last sample. Physical-footprint sums and RSS sums are separate process-tree measures, not a
+claim about unique system-wide physical pages. The observer is identical for both builds.
+
+Event-loop delay does not attribute GC or allocations. G2 does not claim allocation-stack, GC-pause
+or current wire-byte measurements. Vector IPC does not exist in this baseline; G3 instruments its
+actual byte counts, and performance-driven Rust work needs stage-specific CPU/allocation profiles
+before selection. This keeps the first isolation contract separate from an unproven optimization.
+
+The following are medians of five runs. Footprint/RSS are sampled per-run peaks; event-loop values
+are medians of each run's p99. Provider work uses the existing local fixtures.
+
+| Case | Build | UI ready, ms | Footprint, MiB | RSS, MiB | Sampled CPU, s | Main loop p99, ms |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Startup | Baseline | 1988.70 | 1012.96 | 1475.91 | 4.76 | 44.96 |
+| Startup | Admission | 2058.19 | 1036.56 | 1545.00 | 4.68 | 68.81 |
+| Streaming | Baseline | 1999.99 | 1372.99 | 1677.64 | 7.74 | 47.78 |
+| Streaming | Admission | 2067.01 | 1395.93 | 1759.14 | 7.78 | 54.10 |
+| Delegation | Baseline | 1995.45 | 1067.48 | 1482.30 | 6.76 | 45.15 |
+| Delegation | Admission | 2069.24 | 1093.26 | 1565.52 | 6.77 | 50.86 |
+
+Current startup has a 1975-2336 ms range and 82.72 ms median absolute deviation (MAD). Streaming
+readiness MAD is 80.01 ms; delegation readiness MAD is 66.13 ms. Current footprint MADs are 12.87,
+0.73 and 58.09 MiB respectively; delegation loop-p99 MAD is 2.16 ms. The Rust host and admission TS
+runtime have median individual sampled footprints of 2.70 and 28.75 MiB at startup. Admission adds
+about 23-26 MiB to the measured application footprint and 67-74 ms to readiness in these cases.
+This is a structural migration with a measured cost, not an observed performance improvement.
+
+Native SQLite/Memory performance checks pass at 1k/10k/50k rows, with Tape cases through 100k
+entries. A temporary native-vector scale fixture calls the production `MemoryVectorStore` with
+real DuckDB, deterministic 384-dimensional vectors, 50-row upserts and 11 warm query samples.
+For row `r` and component `c`, use `((r * 31 + c * 17) % 65521) / 65521`; query row 17 with top 20
+and report the first query separately. Run the existing perf config with native SQLite required
+and `--disableConsoleIntercept` to preserve its numeric reports.
+Together, 7 performance files/11 checks pass with native SQLite required and no skipped check.
+The temporary scale fixture stays outside the deliverable; existing performance suites and the
+production adapter supply the repeatable operations.
+
+| Native operation | Scale | Median, ms | p95, ms |
+| --- | ---: | ---: | ---: |
+| FTS recall | 1k rows | 0.56 | 0.65 |
+| FTS recall | 10k rows | 0.87 | 1.00 |
+| FTS recall | 50k rows | 2.89 | 3.20 |
+| Vector query, 384 dimensions, top 20 | 1k rows | 0.83 | 0.94 |
+| Vector query, 384 dimensions, top 20 | 10k rows | 3.92 | 4.17 |
+| Vector query, 384 dimensions, top 20 | 50k rows | 29.01 | 29.14 |
+| Tape bounded range | 100k entries | 0.04 | 0.05 |
+| Tape full view | 100k entries | 108.22 | 131.52 |
+
+These are fixture/native-adapter timings, not end-to-end application recall or a JS/Rust comparison.
+The Tape result justifies checking range use and materialization before rewriting a fold; it does
+not prove the normal turn takes the full-view path. Native DuckDB time is not a JS bottleneck.
+Whole-app Memory-active, greater-than-eight-Agent and upload-saturation comparisons belong to G3's
+actual module cutover, before deleting its old wiring. No raw history/vector IPC exists in G0;
+G3's protocol byte, queue and native-concurrency caps are frozen in the RFC.
+
+### G3 adoption budgets
+
+These are policy targets, frozen before G3 implementation. Repeat at least five paired runs with
+the same build/runtime, profiles, local fixtures and observer. Use the admission build as the next
+module's baseline and preserve G2's pre-admission comparison for aggregate architecture cost.
+
+| Gate | Required result |
+| --- | --- |
+| Unused Memory | No additional process; UI-ready medians add at most `max(100 ms, 2 x baseline MAD)` per case; sampled footprint medians add at most `max(32 MiB, 2 x baseline MAD)` |
+| Memory-active resource cost | After drain, at most 64 MiB extra process-tree footprint; sampled active peaks at most 128 MiB extra for matching vectors/rows; one staged upload of at most 16 MiB; store leases and queues converge |
+| Warm native query | p95 overhead at most `max(5 ms, 20% of native baseline p95)`, including every transport/copy; establish the matching real-app baseline before replacing the module |
+| Upsert | Mean overhead at most `max(5 ms, 25% of baseline mean batch time)` per logical 50-row batch at the characterized sizes; preserve one atomic native transaction |
+| First vector use | Runtime plus native open has median at most 500 ms and p95 at most 1 second; preserve the existing retrieval fallback/deadlines rather than extending them |
+| Loaded control loop | Delegation loop-p99 median adds at most `max(10 ms, 2 x baseline MAD)`; bulk transfer cannot starve acquire/release/cancel |
+| Correctness and isolation | Same recall selection/quality and durable data; atomic interrupted uploads, known-ID late-open cleanup, stale-generation rejection, FTS degradation and no replacement admission owner |
+
+Do not accept a rewrite for noise-level gains. Later performance-driven Rust work requires at least
+20% lower total CPU for the selected local workload or 15% lower settled aggregate footprint,
+including serialization and all participating processes. End-to-end gains must exceed measured
+variance, with no readiness/response regression above 5% beyond that variance. A structural owner
+migration can instead satisfy its declared lifecycle objective within its frozen resource budget.
+
+- [x] Repair the two complete-suite CI contracts for the required Harness build and Cargo steps;
+      both contract files pass locally (9 checks). Full main validation passes: 677 files passed,
+      2 skipped; 9,827 tests passed and 4 skipped.
+- [x] Typecheck the E2E fixture and measurement helper directly in addition to app typechecks.
+- [x] Complete final format/i18n/lint/typechecks, all 29 local references and scope review.
+      The uninstrumented five-case application E2E also passes; no production module changed in G2.
+- [ ] Required PR checks pass on the pushed G2 head before G3 starts. Push the local validation
+      checkpoint separately to Draft PR #2465; do not merge or advance past a failed required check.
 
 ## G3. Extract Memory vector resources through Rutis
 
@@ -122,12 +245,12 @@ end-to-end comparison. Missing measurements do not justify a claimed Rust speedu
       object-returning factories through generation-bound resources and acknowledged operations.
 - [ ] Connect actual Memory recall, embedding writes, deletion, rebuild and maintenance callers.
       Keep dense vectors near their resource owner and bound transfer without enlarging the
-      admission JSON protocol indiscriminately. Use the existing TS runtime unless isolation
-      evidence justifies another process.
+      admission JSON protocol indiscriminately. Start one vector TS runtime lazily under the
+      existing Rust host; native poison must not force admission-runtime replacement.
 - [ ] Compare real app recall/FTS degradation, model/dimension changes, more-than-eight-Agent
       resource convergence, clear/delete, native quarantine and shutdown against baseline.
-      Preserve migration/WAL and new-process recovery rules; shared-runtime native death also
-      loses its other plugins and must be accounted for.
+      Preserve migration/WAL and new-process recovery rules; vector runtime loss must preserve
+      admission and degrade only vector retrieval to the existing FTS behavior.
 - [ ] Review and validate the whole slice, including real native operations and relevant Memory
       performance/quality checks. Remove old native factory/lifecycle wiring after parity.
 
@@ -217,7 +340,7 @@ Rust line count and microbenchmarks that exclude transfer costs are not success 
 ## G9. Extract peripheral services with independent useful lifetimes
 
 - [ ] Select one actual ownership group: process jobs/scheduler/watchers, documents/OCR/search,
-      MCP/ACP connections, Skills/hooks or remote channels. Do not create all proposed plugins
+      Knowledge/RAG, MCP/ACP connections, Skills/hooks or remote channels. Do not create all proposed plugins
       merely to match the capability map.
 - [ ] Reuse current native helpers and supervisors, preserve tool/route/registration permissions,
       and connect actual consumers through one generation-bound lifecycle owner.
@@ -276,11 +399,11 @@ normal provider/ACP registry refreshes are retained.
 - Only the Rutis TS plugin constructs `AgentInvocationAdmission` in application source. Main uses
   the typed client; there is no local queue fallback, separate probe command or implementation flag.
   The normal build's provider/ACP registry refreshes are retained.
-- All results are local macOS arm64. Signed release packages, Windows/Linux execution and paired
-  responsiveness/RSS benchmarks remain unexecuted; no performance improvement is claimed.
+- G0 execution results are local macOS arm64. Signed release packages and native Windows/Linux app
+  execution remain unverified. G2 records the paired resource baselines; no performance gain is claimed.
 
 G1 validation: only this RFC and plan changed after the admission commit. All 28 local document
 references resolve; diff whitespace checks and repository format, i18n, lint and Node/web typechecks
 pass. No new source, dependency, build configuration or test changes were made. G0 tests/E2E were
 not rerun for this documentation-only goal; no profiling, Rust comparison or Memory native benchmark
-was executed. G2 and later remain unstarted.
+was executed for G1. Implementation evidence is recorded under the corresponding live goal.
