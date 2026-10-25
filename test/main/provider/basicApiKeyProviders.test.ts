@@ -949,6 +949,109 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('resolves apimodels.app with chat-only discovery and a text-generation check', () => {
+    expect(
+      resolveAiSdkProviderDefinition(
+        createProvider({
+          id: 'apimodels',
+          name: 'apimodels.app',
+          baseUrl: 'https://api.apimodels.app/v1'
+        })
+      )
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'apimodels',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none',
+      checkModelId: 'gpt-5.6-luna'
+    })
+  })
+
+  it('lists only chat models from the public apimodels.app catalog', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'apimodels')!
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        object: 'list',
+        data: [
+          { id: 'gpt-5.6-luna', modality: 'chat', owned_by: 'apimodels' },
+          ...['video', 'image', 'audio', 'embedding', 'decision', 'unknown'].map((modality) => ({
+            id: `${modality}-model`,
+            modality
+          })),
+          { id: 'missing-modality' },
+          { id: 123, modality: 'chat' },
+          { id: ' ', modality: 'chat' }
+        ]
+      })
+    )
+    global.fetch = fetchMock
+    const provider = new AiSdkProvider(defaults, createProviderSettings())
+
+    expect(await provider.fetchModels({ suppressErrors: false })).toEqual([
+      {
+        id: 'gpt-5.6-luna',
+        name: 'gpt-5.6-luna',
+        group: 'default',
+        providerId: 'apimodels',
+        isCustom: false,
+        type: 'chat',
+        ownedBy: 'apimodels'
+      }
+    ])
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.apimodels.app/v1/models',
+      expect.objectContaining({ method: 'GET' })
+    )
+    fetchMock.mockResolvedValueOnce(new Response('Catalog unavailable', { status: 503 }))
+    await expect(provider.fetchModels({ suppressErrors: false })).rejects.toThrow(
+      'Catalog unavailable'
+    )
+    expect(await provider.check()).toMatchObject({ isOk: false, errorMsg: 'Missing API key' })
+    expect(mockRunAiSdkGenerateText).not.toHaveBeenCalled()
+  })
+
+  it.each([200, 401])('checks apimodels.app credentials through chat (HTTP %s)', async (status) => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'apimodels')!
+    const actual = await vi.importActual<typeof import('../../../src/main/provider/aiSdk')>(
+      '../../../src/main/provider/aiSdk'
+    )
+    mockRunAiSdkGenerateText.mockImplementationOnce(actual.runAiSdkGenerateText)
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json(
+        status === 200
+          ? {
+              id: 'completion-1',
+              object: 'chat.completion',
+              created: 1,
+              model: 'gpt-5.6-luna',
+              choices: [
+                { index: 0, message: { role: 'assistant', content: 'Hi' }, finish_reason: 'stop' }
+              ],
+              usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+            }
+          : { error: { message: 'Invalid API key', type: 'authentication_error' } },
+        { status }
+      )
+    )
+    global.fetch = fetchMock
+    const provider = new AiSdkProvider(
+      { ...defaults, apiKey: 'test-key' },
+      createProviderSettings()
+    )
+
+    expect(await provider.check()).toEqual({
+      isOk: status === 200,
+      errorMsg: status === 200 ? null : 'Invalid API key'
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toBe('https://api.apimodels.app/v1/chat/completions')
+    expect(new Headers(init.headers).get('authorization')).toBe('Bearer test-key')
+    expect(JSON.parse(init.body)).toMatchObject({ model: 'gpt-5.6-luna' })
+  })
+
   it('resolves Y-API through authenticated OpenAI-compatible model discovery', () => {
     expect(
       resolveAiSdkProviderDefinition(

@@ -11,6 +11,7 @@ export type AiSdkBehaviorPreset =
 
 export type AiSdkModelSourceStrategy =
   | 'openai'
+  | 'apimodels'
   | 'apimart'
   | 'openai-codex'
   | 'opencode-go'
@@ -336,6 +337,17 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       ...OPENAI_BASE,
       credentialStrategy: 'api-key',
       embeddingStrategy: 'none'
+    })
+  ],
+  [
+    'apimodels',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'apimodels',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none',
+      checkModelId: 'gpt-5.6-luna'
     })
   ],
   [

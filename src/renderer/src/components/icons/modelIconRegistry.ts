@@ -99,6 +99,7 @@ import cheaperInferenceIcon from '@/assets/llm-icons/cheaper-inference.svg?url'
 import futureinfraIcon from '@/assets/llm-icons/futureinfra.svg?url'
 import atmorouterIcon from '@/assets/llm-icons/atmorouter.svg?url'
 import yapiIcon from '@/assets/llm-icons/yapi.svg?url'
+import apimodelsIcon from '@/assets/llm-icons/apimodels.png?url'
 import anonrouterIcon from '@/assets/llm-icons/anonrouter.svg?url'
 import typesafeIcon from '@/assets/llm-icons/typesafe.png?url'
 import cloudflareColorIcon from '@/assets/llm-icons/cloudflare-color.svg?url'
@@ -154,6 +155,7 @@ export const modelIcons = {
   futureinfra: futureinfraIcon,
   atmorouter: atmorouterIcon,
   yapi: yapiIcon,
+  apimodels: apimodelsIcon,
   zeabur: zeaburColorIcon,
   zeroone: zerooneColorIcon,
   zhipu: zhipuColorIcon,

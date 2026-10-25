@@ -1759,6 +1759,29 @@ export class AiSdkProvider extends BaseLLMProvider {
         return this.fetchLiteLLMModels()
       case 'demonroute':
         return this.fetchDemonRouteModels()
+      case 'apimodels': {
+        const records = await this.fetchOpenAIModelRecords({
+          timeout: this.getModelFetchTimeout()
+        })
+        const models: MODEL_META[] = []
+        for (const model of records) {
+          if (typeof model.id !== 'string' || !model.id.trim() || model.modality !== 'chat') {
+            continue
+          }
+          models.push({
+            id: model.id,
+            name: model.id,
+            group: 'default',
+            providerId: this.provider.id,
+            isCustom: false,
+            type: ModelType.Chat,
+            ...(typeof model.owned_by === 'string' && model.owned_by.trim().length > 0
+              ? { ownedBy: model.owned_by.trim() }
+              : {})
+          })
+        }
+        return models
+      }
       case 'bedrock':
         return this.fetchBedrockModels()
       case 'new-api':
