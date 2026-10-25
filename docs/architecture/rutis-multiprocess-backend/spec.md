@@ -2,8 +2,8 @@
 
 ## Status and decision
 
-Status: module-by-module Harness migration through the application execution path.
-Evidence date: 2026-10-24. Inspected DeepChat commit: `3e9948b7201c83c07dcf4903dbebce44065a39de`.
+Status: admission migrated; whole-Harness, Memory and peripheral extraction planned.
+Evidence date: 2026-10-24. Inspected DeepChat commit: `ffcd98770`.
 Implementation reference: Rutis `v0.16.0`, released on 2026-10-24. Crates and npm packages are pinned
 to that version.
 
@@ -21,6 +21,11 @@ The objectives are responsive desktop interaction under backend load, independen
 backend processes, replaceable feature implementations, and access to one authoritative Session
 Host from multiple surfaces. Additional processes and plugin counts are not success criteria.
 Performance improvement and cross-device operation remain unmeasured.
+
+The current authorized scope is architecture research and documentation. The admission migration
+is committed as `ffcd98770` (`feat(harness): route admission through rutis`). All other modules below
+are proposals with dependencies and acceptance gates in [the live plan](plan.md); this planning
+scope does not start their implementation.
 
 Each module migration replaces its real application wiring on the migration branch. Completion
 requires running the same end-to-end workload against the baseline and migrated application,
@@ -86,6 +91,214 @@ packages are release dependencies through the copied closure, not a boot-time do
 Every later module follows the same branch workflow: select owner, replace implementation and
 callers, run the real application comparison, then remove the old path. Everywhere remains a
 product destination; it does not require migrating all modules at once.
+
+## Harness and capability decomposition
+
+### Plugin, process and language are separate decisions
+
+A capability becomes a first-party Rutis plugin when it owns a coherent service, dependencies and
+cleanup lifecycle. An ordinary helper, coordinator or memory category does not need its own plugin.
+Plugins may share a runtime. Process separation is justified by blocking work, native crash
+containment, resource locality or independent recovery; language selection follows measured cost
+and deployment requirements. Neither choice follows automatically from making a plugin.
+
+First-party Rust services initially ship with the application-owned host executable. The
+[upstream Rust host guide](https://github.com/arcships/rutis/blob/v0.16.0/docs/guide/rust-host.en.md)
+also documents dylib plugins, but arbitrary binary loading, cross-version ABI compatibility
+and live code replacement are separate distribution contracts, outside this migration. Preserve
+the existing external-plugin permission boundary: a first-party Memory or Store service does not
+give marketplace plugins unrestricted access to profiles, credentials or execution authority.
+
+Use the existing TS runtime for extracted TS capabilities unless a separate failure domain is
+required. Shared-runtime plugins share native crashes and process memory. Rust services also share
+the host's failure domain unless deliberately isolated; running blocking database/CPU work on the
+host routing task would defeat the responsiveness objective.
+
+### Source-backed capability map
+
+The following are ownership groups, not a required plugin count or a new directory structure.
+Names describe proposed capabilities; only admission is currently connected through Rutis.
+
+| Capability | Current owners and entry points | Proposed service and authority | Initial placement and Rust direction |
+| --- | --- | --- | --- |
+| Runtime and admission | `src/main/harness/{runtime,admission}.ts`, `src/harness/plugins/admission.ts`, `crates/deepchat-harness` | Required-service readiness, generation lifetime, bounded admission and permits | Rust host plus existing TS admission plugin; a Rust queue is a structural migration until measured otherwise |
+| Run control and interaction | `RunLifecycleCoordinator`, `PendingInputAdmissionCoordinator`, `PendingInputPump`, `InteractionCoordinator`, `InteractionParkingRegistry`, `ProviderPermissionCoordinator` in `src/main/agent/deepchat` | One owner for run transitions, four fences, queued-input dispositions, cancellation and approval settlement | Keep cohesive with the TS Harness first; later one Rust control owner, using atomic transition commands rather than RPC per coordinator |
+| Agent execution and context | `DeepChatLoopRunner`, `DeepChatLoopEngine`, `TurnCoordinator`, context/input/compaction coordinators, prompt assembly and `src/main/agent/deepchat/runtime/contextBuilder.ts` | Execute a turn from an admitted input; assemble bounded context; stream ordered results | TS core with Provider streaming nearby; profile JSON, projection, token estimation and pruning before selecting a batched Rust operation |
+| Session, Store and Tape | Session lifecycle/settings/identity, transcript mutation and message projection; `src/main/tape`; shared database composition | Durable commands, Tape/projection consistency, recovery and configuration snapshots; exactly one authority for each mutation | Move existing SQLite-backed owners together into TS core; Rust storage is a separate later compatibility project |
+| Memory | `src/main/memory/index.ts`, `core/injectionPort.ts`, `ports.ts`; Harness `memory/memoryRuntimeCoordinator.ts` | Recall/injection, extraction, approved directives, management and maintenance; Harness retains turn scheduling and fences | One first-class TS Memory capability, with an optional vector resource boundary; selectively Rust after profiling |
+| Provider | `src/main/provider/providerService.ts`, `aiSdk/runtime.ts`, model/embedding/rate-limit managers and `src/main/app/memoryProviderBindings.ts` | Model resolution, request execution, embedding, streaming and request admission | TS ecosystem adapters; credential/OAuth operations through host ports; no per-token cross-language calls |
+| Tool execution, MCP and ACP | Tool resolver/deferred executor/output guard in Harness; `src/main/tool`, `src/main/mcp`, `src/main/agent/acp` | Existing permission checks, operation identities, result/artifact bounds, protocol connections and subprocess leases | TS protocol adapters; Rust may own generic process resources later; MCP Apps and ACP terminals retain explicit desktop capability ports |
+| Skills and hooks | `src/main/skill/{index,skillExecutionService}.ts`, discovery/sync workers, `src/main/hook`; Harness skill materialization and hook sink | Discover contributions, resolve trusted context, observe lifecycle, execute approved operations and remove registrations on unload | TS contribution plugins where independently useful; keep pure prompt helpers internal and preserve uncertain hook outcome recovery |
+| Jobs and process resources | `src/main/scheduler`, `src/main/agent/shared/process`, `src/main/tool/codeMode`, file-watch owners | Schedule calculation, durable run claims, bounded jobs, process-tree cancellation and cleanup | Reuse existing utility processes; Rust supervision/timers are candidates only when an old process or lifecycle owner can actually be removed |
+| Documents, OCR and local search | `src/main/ocr`, `src/main/platform/fileSearch/fffSearchService.ts`, attachment capability routing | Bounded extraction/search operations and artifact references, with cache and resource ownership | Reuse existing native engines/helpers; optional isolated job plugin; Rust wrappers alone do not accelerate native work |
+| Remote channels and device capabilities | `src/main/remote/runtime/manager.ts`, channel runtimes, existing sync and local control plane | Channel lifecycle and authorized Session ingress; separately scoped device operations and durable sync | TS integration plugins; isolate noisy channels when justified; remote Rutis links do not grant application or filesystem authority |
+| Desktop and observability | `src/main/app`, route/preload boundaries, platform adapters and structured logging | Native windows, unlock/crypto/OAuth, authenticated caller creation; bounded content-free diagnostics | Electron adapters remain desktop-owned; diagnostics accompany each capability instead of becoming a new central business owner |
+
+The Harness root is
+[`createDeepChatAgentHarness.ts`](../../../src/main/agent/deepchat/harness/createDeepChatAgentHarness.ts).
+Its [runtime services](../../../src/main/agent/deepchat/harness/runtimeServices.ts) already name useful
+ports, but synchronous repositories, callbacks, `AbortSignal`, closures and object identities are
+not remotely usable contracts. Extracting the composition unchanged into a plugin does not solve
+those dependencies. The existing [Harness contract](../deepchat-agent-harness-boundaries/spec.md)
+remains authoritative for the four fences and synchronous pending-input settlement.
+
+Keep run ownership, approval parking and pending-input feedback under one transition authority.
+Do not create a transport round trip for each fence check. Similarly, keep Provider token delivery,
+tool permission decisions and loop progress local until an operation-level protocol preserves
+ordering and backpressure. Progressively remove Electron dependencies through desktop ports;
+moving business code out of `src/main` is an outcome of ownership extraction, not a bulk rename.
+
+## Memory as a first-class capability
+
+### Ownership and first extraction
+
+Memory is a suitable independent capability because it already has a facade, repository ports,
+execution identities, provider bindings and vector-store lifetimes. Use one Memory plugin with
+internal retrieval, working-memory, extraction, reflection, persona, conflict, merge, directive and
+maintenance services. These are not separate processes or independently trusted instruction lanes.
+The existing [Memory service boundaries](../memory-service-boundaries/spec.md),
+[Memory architecture](../memory-system.md) and [vector v2 contract](../memory-vector-store-v2/spec.md)
+continue to define behavior.
+
+The recommended first Memory slice is the vector resource service: query/upsert/delete/list and
+open/close/reset/quarantine of per-Agent stores. Its files are separate from the shared database,
+and most operations are already asynchronous. Keep the current DuckDB implementation in TS first.
+This is a lifecycle and isolation experiment, not a claimed query-speed optimization. Place it in
+the existing TS runtime initially; independent native-crash recovery would require a separate
+process and its own cost/recovery evidence.
+
+`IMemoryVectorStore` still exposes synchronous `isUsable()`, and the factory has synchronous
+quarantine notification and object-returning creation. A remote service must use generation-bound
+resource identities, acknowledged mutations and explicit health/readiness observations. Cached
+health may reject work early; it cannot authorize a stale handle. A query/upsert validates the
+Agent, embedding model/dimensions and store generation at its actual owner. Do not serialize class
+instances or assume that the current interface can be proxied unchanged.
+
+Keep `VectorStoreManager` admission/leases and embedding identity changes coherent with resource
+disposal. A local facade can retain policy while the resource owner holds native handles, but
+there must be one authority for close/quarantine/reset and no reopening while an old owner lives.
+Preserve v2 sidecars, legacy migration, staging/rename, WAL handling and quarantine semantics.
+The current recovery contract requires a new process after poisoned native state; same-process
+reopen or automatic worker replacement is not established recovery behavior.
+
+### Full Memory service dependencies
+
+The full capability needs the following contracts before its real wiring can move:
+
+| Boundary | Existing coupling | Required extraction rule |
+| --- | --- | --- |
+| Durable facts and mutations | `MemoryDatabase` uses the same main database as Sessions, Tape, settings and Providers; repository methods are synchronous | Keep a single storage authority. Introduce coarse business commands for atomic Memory writes/CAS/tombstones/lineage/audit, or move the repositories with Store. No generic SQL gateway or row-by-row remote repository facade |
+| Configuration and execution | `isEnabled`, budgets, directive contribution, execution-token capture/validation and access observation include synchronous operations | Use versioned policy snapshots only for reads that tolerate them; authoritative admission and writes validate execution epochs. Invalidate stale work on Agent delete, config change, clear and shutdown; no synchronous IPC |
+| Tape ingestion | `MemoryRuntimeCoordinator` owns scheduling, Tape anchors, persisted Session cursors and late-work fences | Keep scheduling with Harness. Preserve the atomic observation of Tape/projection heads and acknowledge owned extraction before advancing its cursor; do not replace one database observation with independently timed RPC reads |
+| Providers | Embedding, extraction, reflection and persona use current model resolution, queues and cancellation | Use the existing Provider execution port; preserve request admission, execution identity, deadlines and cancellation. A lost reply cannot automatically replay a durable write or provider side effect |
+| Recall and prompt trust | Vector/FTS candidates require authoritative scope, temporal and tombstone checks; approved directives use a distinct lane | Revalidate recalled rows at the owner before injection. Facts, persona and working memory remain untrusted content; approved directive policy must survive plugin replacement |
+| Management and maintenance | Routes, memory tools, backup/rekey/clear/delete, vector rebuild and background maintenance share service lifetimes | Retarget every caller, including management UI and tools. Quiesce and fence work before destructive maintenance, drain native/provider jobs and preserve failure/rollback behavior |
+
+[`MemoryRuntimeCoordinator`](../../../src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts)
+must remain an explicit Harness collaborator rather than disappearing inside a generic plugin
+lifecycle callback. A Rutis generation cannot replace the Agent execution epoch or persisted Tape
+incarnation. Plugin unload must settle or fence extraction, release resources and leave ingestion
+recovery deterministic; it cannot silently skip inputs or resurrect forgotten memories.
+
+During staged migration, the existing database owner may serve narrowly defined transactional
+commands while it remains the only writer. Its shared repositories do not move merely because
+Memory becomes a plugin. The whole-core database cutover moves all remaining facades and scheduler
+claim transactions together; main then loses writable shadow access.
+
+### Existing bounds and the actual optimization question
+
+The current implementation already bounds recall materialization to 800 candidates, keeps a vector
+store soft cap of 8 with a 15-minute idle TTL and active leases, batches embedding work, and limits
+background/query embedding concurrency. Do not describe adding an LRU, batching or bounded queues
+as a new Rust benefit. Existing numeric-only diagnostics report repository/materialization cost,
+DuckDB statements, open stores, active leases, provider work and extraction outcomes.
+
+[`memoryVectorStore.ts`](../../../src/main/memory/infra/memoryVectorStore.ts) executes cosine queries
+in native DuckDB through `@duckdb/node-api`. It converts embeddings through `Array.from`/array
+binding; boxing, allocations, handle lifetime and duplicated buffers are candidates for profiling.
+A Rust wrapper using the same engine does not by itself improve the database algorithm. A bounded
+800-row score pass is also a weaker candidate than an observed large-history JSON/projection cost.
+Model inference and network waits remain Provider costs in either language.
+
+Evaluate query recall/selection, tombstones, scope, temporal rules and injection budget alongside
+latency. Retain FTS/degraded behavior and failure diagnostics. Use the existing Memory performance,
+native and quality suites; algorithmic fixtures alone do not measure DuckDB or whole-application
+memory. No Memory performance benchmark has been run for this roadmap.
+
+## Rust selection and resource evidence
+
+### Candidate ranking
+
+The ranking distinguishes architectural value from a performance hypothesis. No row below is an
+observed speed or memory improvement. Existing native engines stay in place unless their actual
+algorithm, binding or resource policy is the measured limitation.
+
+| Candidate | Priority and proposed language | Possible benefit to verify | Constraint or rejection condition |
+| --- | --- | --- | --- |
+| Admission and coherent Run control | High structural priority; Rust after TS core boundaries | Headless control authority, compact state/leases, explicit cancellation and fewer JS ownership objects | Queue work is small. Porting it does not remove V8 while TS adapters remain; preserve all fences and settlement semantics |
+| Tape effective-view/replay and context projection | First CPU-oriented Rust candidate if profiles confirm cost | Fewer repeated JSON parses, large-history allocations/sorts and GC pauses; batch projection near data | Preserve UTF-8 binary ordering, retractions/replacements, provenance and canonical hashes. Reject full-history IPC copies or per-helper RPC that erase the gain |
+| Tool result scanning/pruning and local document preprocessing | Conditional Rust batch operations | Bound large text/JSON traversal and materialization away from the control loop | Existing limits and artifact semantics remain; reuse sharp/OCR/search native work and do not reimplement it based only on language preference |
+| Process trees, watchers, timers and scheduler calculation | Conditional Rust resource owner | Remove an existing Node utility host, consolidate idle runtime overhead and improve cancellation ownership | Preserve schedule claims/misfires, shell environment, OS process identities and power events. Reject an extra supervisor around the same live owner |
+| Memory vector binding/resource manager | TS first; Rust only for measured allocation/engine integration cost | Reduce JS boxing/copies or eliminate a dedicated Node host once its last TS task moves | Native DuckDB memory remains. Account for IPC buffers and all handles; independent recovery requires a proven file-owner transition |
+| Memory ranking, budgeting and pure normalization | Low/conditional Rust priority | Lower allocation/CPU only if a measured stage is significant under bounded workloads | Recall candidates already capped at 800. Preserve selection quality, mixed-language estimates and budget policy; reject noise-level gains |
+| Shared Store/Tape persistence | Later Rust decision | Potentially remove JS storage objects/runtime overhead and make durable commands available headlessly | Encryption, migration, SQLite extensions/collation, transaction/recovery and maintenance parity are prerequisites; a new driver is not a free substitution |
+| Provider SDKs, MCP/ACP adapters, Skills/hooks, extraction/reflection orchestration and remote channels | Keep TS by default | Mature protocol ecosystem and cheaper integration changes | Mostly I/O or model time. Rust is justified by a proven adapter bottleneck or removal of a runtime, not by a general rewrite objective |
+| SQLite, DuckDB, native search, sharp and OCR engines | Reuse existing native implementations | Resource lifetime, batch sizes and data movement may improve without rewriting engines | Do not count engine time as JavaScript time or claim a native-to-Rust wrapper migration changes its core performance |
+
+Inspect the current Tape folds in
+[`effectiveView.ts`](../../../src/main/tape/domain/effectiveView.ts) and
+[`replay.ts`](../../../src/main/tape/domain/replay.ts), plus the context builder, as one potential
+batch computation. If a remote operation needs the entire history to produce a small view,
+co-locate that computation with Store or return a bounded projection from the current owner first.
+Durable transaction callbacks and arbitrary synchronous repository calls are not wire protocols.
+
+### Measurement and adoption gates
+
+Establish two baselines: the application before admission extraction and committed `ffcd98770`.
+Use the first to account for the total architecture cost and the second to attribute each next
+module. Preserve immutable artifacts and isolated profiles, with versions and workload parameters.
+Run at least five paired samples on the same machine; report warm/cold results and baseline
+variance. Use a deterministic local Provider fixture for local CPU/memory comparisons, then
+separately validate real-provider behavior. Do not benchmark against a live user database.
+
+| Workload | Evidence required |
+| --- | --- |
+| Idle, cold startup and shutdown | All process identities, readiness time, CPU wakeups, aggregate memory, artifact size and bounded child cleanup |
+| Streaming/delegation under load | Single and concurrent Sessions, existing 6-active/2-queued delegation case, interrupt/approval/pending input, renderer input-to-paint and main event-loop p95/p99, stream latency |
+| Context/Tape scale | Fixed small/large histories and payload sizes; fold/build timings, CPU, allocation/GC, materialized bytes, transfer bytes and canonical output parity |
+| Memory recall and maintenance | Fixed row counts/dimensions, cold/warm native queries, FTS degradation, reindex/clear and more than 8 Agents to exercise store eviction; quality, leases and queues must converge |
+| Lifecycle failures | Lost replies, queue saturation, plugin/runtime death, stale callbacks, poisoned native handles, maintenance and shutdown; no duplicate writer, replay or leaked descendants |
+
+Reuse [Memory metrics](../memory-quality-gates-and-observability/metrics.md) and the existing
+`test/main/performance/memory` workloads before adding another telemetry framework. Separate
+orchestrator time, provider wait, native query time and IPC/serialization. Measure CPU seconds and
+allocation as well as wall time. Record all process-tree members, not just the main V8 heap.
+
+For memory, report per-process RSS with its shared-page caveat and an appropriate platform measure:
+private footprint on macOS, PSS/private memory on Linux, and private committed/working-set values
+on Windows. Do not sum incompatible metrics or equate V8 heap reduction with whole-app savings.
+The [Electron process API](https://www.electronjs.org/docs/latest/api/process#processgetprocessmemoryinfo)
+documents macOS `private` memory as more representative than resident set size; the Rust
+host and non-Electron children need corresponding OS measurements. Include native buffers, mapped
+databases and retained IPC queues in interpretation.
+
+Before implementing a performance-driven Rust slice, record a numeric target and maximum accepted
+startup, memory and responsiveness regressions in the live plan from that baseline. Adopt it only
+when repeated end-to-end results exceed baseline variance, preserve output/quality and meet those
+budgets. An isolation-driven slice may be accepted for proven failure containment within the same
+resource budgets; report that purpose explicitly instead of calling it a speed optimization.
+
+The present 64-KiB JSON gateway is admission-only. Memory batches, dense vectors, histories and
+artifacts cannot be routed through it by simply raising limits. Freeze service-specific schemas,
+bounded batch/stream behavior, backpressure and cancellation identities first; keep large data at
+its owner and transfer bounded results or authorized artifact references. Consider a binary data
+path only when measured copies justify it. Every mutation needs defined acknowledgement,
+idempotency/recovery and unknown-outcome behavior, plus stale-generation rejection and shutdown.
+
+The next execution gate is baseline/contract selection, followed by the vector resource slice if
+its costs and wire contract are acceptable. The live plan orders full Memory, cohesive Harness,
+selective Rust and Everywhere work by their ownership dependencies. Headless availability does
+not depend on rewriting every TS adapter in Rust.
 
 ## Product destination
 
@@ -201,6 +414,9 @@ load SQLite, DuckDB, or image dependencies and establishes no packaged native-mo
 
 ## Desktop-local process topology
 
+This is the target core topology. At `ffcd98770`, only admission uses the Rust host and TS runtime;
+the remaining business composition and shared database still run in Electron main.
+
 ```text
 Renderer processes
   Existing UI, typed clients, rendering
@@ -259,9 +475,10 @@ Construct a deliberate launch environment for the host and core. Remove inherite
 overrides and validate required proxy/certificate settings through existing host policy. Do not
 copy application secrets or user-plugin environment declarations into the core launcher.
 
-The bootstrap spike must demonstrate the actual launcher and runtime protocol. Successful direct
-Electron execution alone is insufficient. If supported Rutis APIs cannot complete this integration,
-stop at the feasibility gate and report the missing boundary before selecting a different host.
+The admission integration demonstrates the actual launcher and runtime protocol. Each later
+capability must also work through that application path; successful direct Electron execution
+alone is insufficient. Unsupported native or packaged targets remain feasibility gates before
+moving production data or selecting a different host.
 
 ### Transport
 
@@ -472,8 +689,9 @@ diagnostic; it cannot leave a request waiting indefinitely.
 
 ### Replacement boundaries
 
-Begin with one core backend plugin wrapping a genuine extracted backend composition. Keep
-ordinary classes, pure modules, and narrow ports inside it. Introduce additional plugin boundaries
+The extracted Harness composition forms one core backend plugin. Admission and the bounded
+vector-resource slice can move independently before that composition. Keep ordinary classes,
+pure modules, and narrow ports inside their capability. Introduce additional plugin boundaries
 only when they have independent startup/replacement/cleanup responsibilities and allow an old
 manual lifecycle path to be removed.
 
@@ -592,9 +810,13 @@ These are bounded technical investigations, not permission placeholders or assum
 - [Rutis LocalRuntime](https://github.com/arcships/rutis/blob/v0.16.0/crates/rutis-bridge/src/runtime/local.rs)
 - [Rutis local transport](https://github.com/arcships/rutis/blob/v0.16.0/crates/rutis-bridge/src/runtime/spawn.rs)
 - [Rutis plugin lifecycle and boundary rules](https://github.com/arcships/rutis/blob/v0.16.0/docs/guide/plugin-api.en.md)
+- [Rutis Rust services and plugin exports](https://github.com/arcships/rutis/blob/v0.16.0/docs/guide/rust-host.en.md)
 - [Rutis nodes, remote runtimes, security and disconnect semantics](https://github.com/arcships/rutis/blob/v0.16.0/docs/guide/nodes.en.md)
 - [Electron Node-mode environment variable](https://www.electronjs.org/docs/latest/api/environment-variables#electron_run_as_node)
 - [Electron native modules](https://www.electronjs.org/docs/latest/tutorial/using-native-node-modules)
+- [Electron process memory measurement](https://www.electronjs.org/docs/latest/api/process#processgetprocessmemoryinfo)
+- [DuckDB Node client](https://duckdb.org/docs/stable/clients/node_neo/overview)
+- [DuckDB array distance functions](https://duckdb.org/docs/stable/sql/functions/array)
 - [DeepChat local control plane](../local-control-plane/spec.md)
 - [DeepChat external plugin runtime lifecycle](../plugin-external-runtime-lifecycle/spec.md)
 - [DeepChat Tape layering](../tape-layering/spec.md)
