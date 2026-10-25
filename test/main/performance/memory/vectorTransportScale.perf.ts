@@ -136,9 +136,15 @@ it.each([1000, 10000, 50000])(
       pending: runningRuntime.memoryTransport.pending,
       peakPending: runningRuntime.memoryTransport.peakPending,
       nativeNode: process.versions.node,
-      remoteNode: runningRuntime.memoryIdentity?.node
+      remoteNode: runningRuntime.memoryIdentity?.node,
+      nativeModules: process.versions.modules,
+      remoteModules: runningRuntime.memoryIdentity?.modules
     }
     process.stdout.write(`[memory-vector-transport] ${JSON.stringify(report)}\n`)
+    expect(report.nativeNode, 'Use pnpm test:main:memory-perf for the Electron runtime').toBe(
+      report.remoteNode
+    )
+    expect(report.nativeModules).toBe(report.remoteModules)
     expect(report.pending).toBe(0)
     expect(remoteQueryP95 - nativeQueryP95).toBeLessThanOrEqual(Math.max(5, nativeQueryP95 * 0.2))
     expect(remoteWriteMean - nativeWriteMean).toBeLessThanOrEqual(

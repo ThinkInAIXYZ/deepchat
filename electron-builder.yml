@@ -49,6 +49,9 @@ extraResources:
   - from: ./out/harness/
     to: app.asar.unpacked/harness
     filter: ['**/*']
+  - from: ./out/harness/node_modules/
+    to: app.asar.unpacked/harness/node_modules
+    filter: ['**/*']
   - from: ./out/cli/
     to: app.asar.unpacked/cli
     filter: ['deepchat', 'deepchat.cmd', 'deepchat.mjs']

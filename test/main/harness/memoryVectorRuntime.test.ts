@@ -5,22 +5,17 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse } from 'yaml'
 import { HarnessRuntime } from '@/harness/runtime'
 import { RutisAgentInvocationAdmission } from '@/harness/admission'
 import { RutisMemoryVectorStores } from '@/harness/memory-vector'
 import { MEMORY_VECTOR_OWNER_FILE } from '@/memory/infra/memoryVectorStorePaths'
 
-const {
-  cpSync,
-  mkdtempSync,
-  mkdirSync,
-  rmSync,
-  readdirSync,
-  existsSync,
-  writeFileSync,
-  readFileSync
-} = await vi.importActual<typeof import('node:fs')>('node:fs')
+const { mkdtempSync, mkdirSync, rmSync, readdirSync, existsSync, writeFileSync, readFileSync } =
+  await vi.importActual<typeof import('node:fs')>('node:fs')
 const require = createRequire(import.meta.url)
+const builderRequire = createRequire(require.resolve('electron-builder'))
+const { getFileMatchers, copyFiles } = builderRequire('app-builder-lib/out/fileMatcher.js')
 const active: Array<{ runtime: HarnessRuntime; stores: RutisMemoryVectorStores; root: string }> = []
 
 async function create(memoryDbDir?: string) {
@@ -30,7 +25,23 @@ async function create(memoryDbDir?: string) {
       ? path.join(root, 'DeepChat.app', 'Contents', 'Resources')
       : path.join(root, 'resources')
   const directory = path.join(resources, 'app.asar.unpacked', 'harness')
-  cpSync(path.resolve('out/harness'), directory, { recursive: true })
+  const config = parse(readFileSync(path.resolve('electron-builder.yml'), 'utf8'))
+  const matchers = getFileMatchers(
+    {
+      extraResources: config.extraResources.filter((resource: { from?: string }) =>
+        resource.from?.startsWith('./out/harness/')
+      )
+    },
+    'extraResources',
+    resources,
+    {
+      defaultSrc: path.resolve('.'),
+      globalOutDir: path.resolve('dist'),
+      customBuildOptions: {},
+      macroExpander: (value: string) => value
+    }
+  )
+  await copyFiles(matchers)
   const { shareHarnessDuckDbNativePackage } = await import('../../../scripts/afterPack.js')
   await shareHarnessDuckDbNativePackage({
     appOutDir: root,

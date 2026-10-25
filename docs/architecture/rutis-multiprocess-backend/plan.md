@@ -32,7 +32,7 @@ skipped to advance. Keep the PR in draft and do not merge it as part of this exe
 | G0 Admission | Complete, `ffcd98770` | Existing branch baseline | Default Rutis wiring, matching real-app E2E and old path removed |
 | G1 Whole-capability roadmap | Complete; documentation only | G0 and source research | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence |
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
-| G3 Memory vector resources | Locally validated; CI pending | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
+| G3 Memory vector resources | CI corrections in progress | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
 | G4 Store commands and desktop ports | Planned | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
 | G5 Cohesive TS Harness backend | Planned | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
@@ -253,8 +253,9 @@ The JSON/base64 Float32 transport passes the local adoption budgets with pinned 
 patches. Each patch validates a finite numeric array and clones it once, preserving response
 validation and raw-response isolation without allocating a Zod parsing payload per component.
 All 27 real SDK response contract checks pass across OpenAI, compatible, Azure, Google single/batch,
-and Vertex Node/edge endpoints. Local whole-slice validation is complete. Push the validated
-checkpoint, then require its exact-head required CI and six package checks before the next goal.
+and Vertex Node/edge endpoints. Local validation supports checkpoint `107910da6`; its CI
+corrections below must pass before a corrective push. Require exact-head required CI and six
+package checks before the next goal.
 
 - Actual recall, indexing, deletion, reset and maintenance use one lazy native TS vector runtime
   under the existing Rust host. Admission retains its separate runtime and identity. Main keeps
@@ -317,19 +318,31 @@ Frozen artifact inventory:
 
 ### Native transport, lifecycle and distribution validation
 
+G3 checkpoint `107910da6` is pushed. Its first CI run rejects package closures because the packager
+omits a resource mapping's root `node_modules`, and exposes a host-exit race before child reaping.
+The package mapping now names the dependency directory explicitly; native runtime regression checks
+use the real packager copy rules. Host shutdown waits for Rutis child reaping. Performance comparison
+must execute both native and remote paths in Electron Node; mismatched system/Electron Node runs
+cannot establish the frozen budget. Required CI and all six package checks remain pending on the
+corrective checkpoint; G4 has not started. Local validation passes 63 runtime/package checks,
+32 repeated malformed-frame child-reaping checks, scoped types and Clippy. The complete aligned
+performance entrypoint passes all 13 checks across seven files; its numeric budgets are unchanged.
+These results do not establish remote Linux timing acceptance.
+
 The 1536-dimensional transport benchmark passes the query/write budgets at each characterized size:
 
 | Rows | Native / remote query p95 (ms) | Native / remote 50-row write mean (ms) | First remote open median / p95 (ms) |
 | --- | --- | --- | --- |
-| 1,000 | 3.089 / 3.469 | 2.413 / 6.747 | 130.511 / 149.164 |
-| 10,000 | 16.291 / 15.202 | 2.852 / 6.247 | 129.944 / 131.104 |
-| 50,000 | 65.984 / 66.564 | 4.524 / 7.805 | 130.245 / 131.854 |
+| 1,000 | 3.531 / 4.231 | 2.372 / 6.646 | 130.774 / 139.277 |
+| 10,000 | 15.110 / 15.209 | 2.869 / 6.215 | 130.535 / 141.737 |
+| 50,000 | 65.465 / 65.953 | 4.514 / 7.762 | 129.029 / 131.395 |
 
 Both paths use Electron Node 24.22.0 and the existing DuckDB engine. Remote timings include Float32
 encoding, gateway copies and the complete native operation. Thirty warm queries transfer
 280,650-280,710 gateway bytes including replies; pending calls drain to zero. First-use validation
 samples five new workers per scale; every scale passes the 500-ms median and one-second p95 limits.
-Report: `/tmp/deepchat-rutis-g3-cold-open-final-perf.log`.
+The entrypoint asserts equal Node and module ABI versions.
+Report: `/tmp/deepchat-rutis-g3-ci-fix-perf.log`.
 
 The main suite passes 680 files / 9873 tests, with the existing two files / four tests skipped.
 The Electron-hosted portable Memory behavior scope passes 54 files / 980 tests.

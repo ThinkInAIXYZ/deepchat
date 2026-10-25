@@ -14,6 +14,7 @@ use rutis::{BoxFuture, CordisError, Ctx, Effect, Event, EventKey, Plugin, TypeKe
 use rutis_bridge::{
     runtime::{Launcher, LocalRuntime, RuntimeHandle, RuntimeState, Stdio},
     session::{host_key, settle, Error as BridgeError, HostDispatch, Value},
+    transport::local::{kill_processes, processes_ended},
 };
 use rutis_loader::{
     Chain, Layer, LoaderOptions, LoaderPlugin, Patch, RuntimeResolver, RuntimeRowsPlugin,
@@ -365,6 +366,11 @@ async fn main() -> Result<()> {
         }
     }.await;
     let shutdown = timeout(Duration::from_secs(10), root.shutdown()).await;
+    if !matches!(&shutdown, Ok(Ok(()))) {
+        kill_processes();
+    }
+    // Closing runtime channels does not mean their processes have been reaped yet.
+    processes_ended().await;
     writer.abort();
     result?;
     shutdown.map_err(|_| "Harness shutdown timed out")??;
