@@ -145,6 +145,101 @@ it.each([1000, 10000, 50000])(
       remoteModules: runningRuntime.memoryIdentity?.modules
     }
     process.stdout.write(`[memory-vector-transport] ${JSON.stringify(report)}\n`)
+    // Diagnostics follow adoption timings so they cannot warm the measured writes.
+    const phases: Record<string, number[]> = {}
+    const request = runningRuntime.requestMemory.bind(runningRuntime)
+    const spy = vi.spyOn(runningRuntime, 'requestMemory').mockImplementation(async (command) => {
+      const start = performance.now()
+      try {
+        return await request(command)
+      } finally {
+        const values = (phases[command.method] ??= [])
+        values.push(performance.now() - start)
+      }
+    })
+    const diagnosticRecords = Array.from({ length: 50 }, (_, index) => ({
+      memoryId: `diagnostic-${index}`,
+      embedding: vector
+    }))
+    const diagnosticNative: number[] = []
+    const diagnosticRemote: number[] = []
+    try {
+      for (let sample = 0; sample < 5; sample++) {
+        diagnosticNative.push(await timed(() => baseline.upsert(diagnosticRecords)))
+        diagnosticRemote.push(await timed(() => remote.upsert(diagnosticRecords)))
+      }
+    } finally {
+      spy.mockRestore()
+    }
+    process.stdout.write(
+      `[memory-vector-upload-phases] ${JSON.stringify({
+        rows,
+        nativeWriteMean: mean(diagnosticNative),
+        remoteWriteMean: mean(diagnosticRemote),
+        phases: Object.fromEntries(
+          Object.entries(phases).map(([method, values]) => [
+            method,
+            { count: values.length, meanMs: mean(values), p95Ms: percentile(values, 0.95) }
+          ])
+        )
+      })}\n`
+    )
+    expect(runningRuntime.memoryTransport.pending).toBe(0)
+    if (process.env.CI && process.platform !== 'win32') {
+      const profileDir = path.join(directory, 'cpu-profile')
+      actualFs.mkdirSync(profileDir)
+      const wrapper = path.join(directory, 'profile-electron')
+      const shellQuote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'"
+      actualFs.writeFileSync(
+        wrapper,
+        `#!/bin/sh
+case " $* " in
+  *--max-semi-space-size=*) exec ${shellQuote(require('electron'))} --cpu-prof --cpu-prof-dir=${shellQuote(profileDir)} --cpu-prof-name=memory.cpuprofile "$@" ;;
+  *) exec ${shellQuote(require('electron'))} "$@" ;;
+esac
+`
+      )
+      actualFs.chmodSync(wrapper, 0o700)
+      const profiledRuntime = await HarnessRuntime.start({
+        directory: path.resolve('out/harness'),
+        electronExecutable: wrapper,
+        capacity: 1,
+        maxPending: 4,
+        observe: () => {}
+      })
+      const profiledStores = new RutisMemoryVectorStores(profiledRuntime, {
+        memoryDbDir: path.join(directory, 'profile-memory'),
+        host
+      })
+      try {
+        const store = await profiledStores.createVectorStore('agent', embedding, DIMENSIONS)
+        for (let sample = 0; sample < 100; sample++) await store.upsert(diagnosticRecords)
+      } finally {
+        await profiledStores.dispose()
+        await profiledRuntime.stop()
+      }
+      const profile = JSON.parse(
+        actualFs.readFileSync(path.join(profileDir, 'memory.cpuprofile'), 'utf8')
+      ) as {
+        samples: number[]
+        nodes: Array<{
+          id: number
+          callFrame: { functionName: string; url: string; lineNumber: number }
+        }>
+      }
+      const hits = new Map<number, number>()
+      for (const id of profile.samples) hits.set(id, (hits.get(id) ?? 0) + 1)
+      process.stdout.write(
+        `[memory-vector-cpu-profile] ${JSON.stringify({
+          rows,
+          samples: profile.samples.length,
+          frames: profile.nodes
+            .map((node) => ({ ...node.callFrame, hits: hits.get(node.id) ?? 0 }))
+            .sort((a, b) => b.hits - a.hits)
+            .slice(0, 25)
+        })}\n`
+      )
+    }
     expect(report.nativeNode, 'Use pnpm test:main:memory-perf for the Electron runtime').toBe(
       report.remoteNode
     )

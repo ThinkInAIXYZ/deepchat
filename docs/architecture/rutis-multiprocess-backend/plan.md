@@ -326,12 +326,16 @@ Frozen artifact inventory:
 
 ### Native transport, lifecycle and distribution validation
 
-G3 remains unaccepted. Pushed checkpoint `a9484143a` passes static, build, Main and renderer
-checks in run `40233913485`, but its Linux 50-row write gaps are 9.99/7.18/7.21 ms at
-1k/10k/50k, above the unchanged allowance. Native storage and retrieval quality pass. Completed
-resource reports for that checkpoint are diagnostic evidence; its remaining resource run is stopped
-because the selected Rust upload staging implementation changes the measured path.
+G3 remains unaccepted. Pushed checkpoint `e076345bc` passes static, build, Main and renderer
+checks in run `40237446829`. Its native storage scope passes 361 checks and retrieval quality
+passes seven, but aligned Linux 50-row write gaps remain 8.28/6.45/5.18 ms at 1k/10k/50k,
+above the unchanged allowance. Fresh full paired resource capture has not started because this
+implementation still fails the Linux gate. The single resource preflight below is diagnostic evidence.
 
+Post-measurement phase timings and a separate V8 CPU-sampling run diagnose the native commit path
+without warming or replacing adoption samples. These temporary diagnostics must be removed after
+fixing the bottleneck and before G3 acceptance. A local codec microprobe saves only about 0.2 ms;
+that evidence does not justify a new dependency or a changed wire codec.
 The selected implementation keeps application chunks at 64 KiB and stages one 16-MiB/50-record
 upload in Rust. Only commit dispatches the native upsert. Native parts are at most eight MiB,
 so base64 and bounded metadata fit Rutis's 16-MiB internal message limit. The native owner
