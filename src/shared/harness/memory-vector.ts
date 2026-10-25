@@ -3,9 +3,11 @@ import { AGENT_MEMORY_AGENT_ID_PATTERN } from '../types/agent-memory'
 
 export const MEMORY_VECTOR_FRAME_BYTES = 256 * 1024
 export const MEMORY_VECTOR_FRAME_FLAG = 0x80000000
+export const MEMORY_VECTOR_BINARY_FLAG = 0x40000000
 export const MEMORY_VECTOR_UPLOAD_BYTES = 16 * 1024 * 1024
 export const MEMORY_VECTOR_CHUNK_BYTES = 64 * 1024
 export const MEMORY_VECTOR_PENDING = 32
+export const MEMORY_VECTOR_NATIVE_PART_BYTES = 8 * 1024 * 1024
 
 const identity = z.string().uuid()
 const memoryId = z.string().min(1).max(1024)
@@ -26,6 +28,9 @@ const base64 = z
     'Expected canonical base64'
   )
 const resource = { generation: identity, operation: identity, resource: identity }
+const chunk = z
+  .custom<Uint8Array>((value) => value instanceof Uint8Array)
+  .refine((value) => value.byteLength > 0 && value.byteLength <= MEMORY_VECTOR_CHUNK_BYTES)
 
 export const MemoryVectorConfigSchema = z
   .object({
@@ -41,7 +46,7 @@ export const MemoryVectorConfigSchema = z
   })
   .strict()
 
-export const MemoryVectorCommandSchema = z.discriminatedUnion('method', [
+const commands = [
   z
     .object({
       ...resource,
@@ -72,13 +77,23 @@ export const MemoryVectorCommandSchema = z.discriminatedUnion('method', [
     })
     .strict(),
   z
+    .object({ generation: identity, operation: identity, method: z.literal('reset'), agentId })
+    .strict(),
+  z
+    .object({ generation: identity, operation: identity, method: z.literal('quarantine'), agentId })
+    .strict()
+] as const
+
+export const MemoryVectorCommandSchema = z.discriminatedUnion('method', [
+  ...commands,
+  z
     .object({
       ...resource,
       method: z.literal('begin'),
       upload: identity,
       memoryIds: z.array(memoryId).min(1).max(50),
       bytes: z.number().int().positive().max(MEMORY_VECTOR_UPLOAD_BYTES),
-      data: base64.max(Math.ceil(MEMORY_VECTOR_CHUNK_BYTES / 3) * 4).optional()
+      data: chunk.optional()
     })
     .strict(),
   z
@@ -87,7 +102,7 @@ export const MemoryVectorCommandSchema = z.discriminatedUnion('method', [
       method: z.literal('chunk'),
       upload: identity,
       offset: z.number().int().nonnegative(),
-      data: base64.max(Math.ceil(MEMORY_VECTOR_CHUNK_BYTES / 3) * 4)
+      data: chunk
     })
     .strict(),
   z
@@ -96,22 +111,38 @@ export const MemoryVectorCommandSchema = z.discriminatedUnion('method', [
       method: z.literal('commit'),
       upload: identity,
       offset: z.number().int().nonnegative().optional(),
-      data: base64.max(Math.ceil(MEMORY_VECTOR_CHUNK_BYTES / 3) * 4).optional()
+      data: chunk.optional()
     })
     .strict(),
+  z.object({ ...resource, method: z.literal('abort'), upload: identity }).strict()
+])
+
+export const MemoryVectorNativeCommandSchema = z.discriminatedUnion('method', [
+  ...commands,
   z.object({ ...resource, method: z.literal('abort'), upload: identity }).strict(),
   z
-    .object({ generation: identity, operation: identity, method: z.literal('reset'), agentId })
-    .strict(),
-  z
-    .object({ generation: identity, operation: identity, method: z.literal('quarantine'), agentId })
+    .object({
+      ...resource,
+      method: z.literal('upsert'),
+      upload: identity,
+      bytes: z.number().int().positive().max(MEMORY_VECTOR_UPLOAD_BYTES),
+      offset: z.number().int().nonnegative().max(MEMORY_VECTOR_UPLOAD_BYTES),
+      memoryIds: z.array(memoryId).min(1).max(50),
+      data: z
+        .custom<Uint8Array>((value) => value instanceof Uint8Array)
+        .refine(
+          (value) => value.byteLength > 0 && value.byteLength <= MEMORY_VECTOR_NATIVE_PART_BYTES
+        )
+    })
     .strict()
 ])
+export type MemoryVectorNativeCommand = z.infer<typeof MemoryVectorNativeCommandSchema>
 
 export type MemoryVectorConfig = z.infer<typeof MemoryVectorConfigSchema>
 export type MemoryVectorCommand = z.infer<typeof MemoryVectorCommandSchema>
-export const isMemoryVectorControl = (method: MemoryVectorCommand['method']) =>
-  ['close', 'abort', 'reset', 'quarantine'].includes(method)
+export const isMemoryVectorControl = (
+  method: MemoryVectorCommand['method'] | MemoryVectorNativeCommand['method']
+) => ['close', 'abort', 'reset', 'quarantine'].includes(method)
 
 export function encodeMemoryVector(values: readonly number[], dimensions: number): Buffer {
   if (values.length !== dimensions) throw new Error('Memory vector dimensions do not match')

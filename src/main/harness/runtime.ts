@@ -5,6 +5,7 @@ import { AdmissionObservationSchema } from '@shared/harness/admission'
 import type { AgentInvocationAdmissionObservation } from '@shared/harness/admission'
 import {
   isMemoryVectorControl,
+  MEMORY_VECTOR_BINARY_FLAG,
   MEMORY_VECTOR_FRAME_BYTES,
   MEMORY_VECTOR_FRAME_FLAG,
   MEMORY_VECTOR_PENDING,
@@ -250,11 +251,13 @@ export class HarnessRuntime {
       ) {
         throw new Error('Memory vector operation limit exceeded')
       }
+      const data = 'data' in command ? command.data : undefined
       packet = this.packet(
-        { type: 'memoryCall', id, command },
+        { type: 'memoryCall', id, command: data ? { ...command, data: undefined } : command },
         control ? MAX_FRAME_BYTES : MEMORY_VECTOR_FRAME_BYTES,
         control ? 0 : MAX_FRAME_BYTES + 4,
-        true
+        true,
+        data
       )
     } catch (error) {
       return Promise.reject(error)
@@ -319,17 +322,30 @@ export class HarnessRuntime {
     }
   }
 
-  private packet(value: unknown, maxFrame: number, reserve: number, vector = false): Buffer {
+  private packet(
+    value: unknown,
+    maxFrame: number,
+    reserve: number,
+    vector = false,
+    data?: Uint8Array
+  ): Buffer {
     const json = Buffer.from(JSON.stringify(value))
+    const length = json.length + (data ? 4 + data.byteLength : 0)
     if (
-      json.length > maxFrame ||
-      this.child.stdin.writableLength + 4 + json.length > MAX_BUFFER_BYTES - reserve
+      length > maxFrame ||
+      this.child.stdin.writableLength + 4 + length > MAX_BUFFER_BYTES - reserve
     ) {
       throw new Error('Rutis transport limit exceeded')
     }
-    const packet = Buffer.allocUnsafe(4 + json.length)
-    packet.writeUInt32BE(json.length + (vector ? MEMORY_VECTOR_FRAME_FLAG : 0))
-    json.copy(packet, 4)
+    const packet = Buffer.allocUnsafe(4 + length)
+    packet.writeUInt32BE(
+      length + (vector ? MEMORY_VECTOR_FRAME_FLAG : 0) + (data ? MEMORY_VECTOR_BINARY_FLAG : 0)
+    )
+    if (data) {
+      packet.writeUInt32BE(json.length, 4)
+      json.copy(packet, 8)
+      packet.set(data, 8 + json.length)
+    } else json.copy(packet, 4)
     return packet
   }
 

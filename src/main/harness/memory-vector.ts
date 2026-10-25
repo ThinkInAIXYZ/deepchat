@@ -182,7 +182,7 @@ export class RutisMemoryVectorStores implements MemoryVectorStoreFactoryPort {
             upload,
             memoryIds: records.map((record) => record.memoryId),
             bytes,
-            data: first.toString('base64')
+            data: first
           })
         }
         while (offset < bytes) {
@@ -194,7 +194,7 @@ export class RutisMemoryVectorStores implements MemoryVectorStoreFactoryPort {
               resource: store.id,
               upload,
               offset,
-              data: chunk.toString('base64')
+              data: chunk
             })
             return
           }
@@ -204,7 +204,7 @@ export class RutisMemoryVectorStores implements MemoryVectorStoreFactoryPort {
               resource: store.id,
               upload,
               offset,
-              data: chunk.toString('base64')
+              data: chunk
             })
           )
           offset += chunk.length

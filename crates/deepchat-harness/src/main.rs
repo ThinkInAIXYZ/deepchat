@@ -35,6 +35,8 @@ type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 const MAX_FRAME: usize = 64 * 1024;
 const MAX_MEMORY_FRAME: usize = 256 * 1024;
 const MEMORY_FRAME_FLAG: u32 = 0x8000_0000;
+const BINARY_FRAME_FLAG: u32 = 0x4000_0000;
+const MAX_MEMORY_CHUNK: usize = 64 * 1024;
 const MAX_CALLS: usize = 1024;
 
 #[derive(Deserialize)]
@@ -72,6 +74,8 @@ enum Request {
     MemoryCall {
         id: u64,
         command: Json,
+        #[serde(skip)]
+        data: Option<Vec<u8>>,
     },
 }
 
@@ -215,6 +219,43 @@ impl Plugin for AdmissionGateway {
     }
 }
 
+fn decode_request(mut bytes: Vec<u8>, vector: bool, binary: bool) -> Result<Request> {
+    let data = if binary {
+        if !vector || bytes.len() < 4 {
+            return Err("Invalid binary memory frame".into());
+        }
+        let metadata = u32::from_be_bytes(bytes[..4].try_into()?) as usize;
+        if metadata == 0 || metadata > bytes.len() - 4 {
+            return Err("Invalid memory metadata length".into());
+        }
+        let data = bytes.split_off(4 + metadata);
+        if data.is_empty() || data.len() > MAX_MEMORY_CHUNK {
+            return Err("Invalid memory chunk size".into());
+        }
+        Some(data)
+    } else {
+        None
+    };
+    let mut request: Request = serde_json::from_slice(&bytes[if binary { 4 } else { 0 }..])?;
+    if vector != matches!(request, Request::MemoryCall { .. }) {
+        return Err("Invalid harness frame kind".into());
+    }
+    if let Some(bytes) = data {
+        let Request::MemoryCall { command, data, .. } = &mut request else {
+            return Err("Invalid binary memory request".into());
+        };
+        if !matches!(
+            command["method"].as_str(),
+            Some("begin" | "chunk" | "commit")
+        ) || command.get("data").is_some()
+        {
+            return Err("Invalid binary memory command".into());
+        }
+        *data = Some(bytes);
+    }
+    Ok(request)
+}
+
 fn read_requests(sender: mpsc::Sender<Request>, memory: mpsc::Sender<Request>) -> Result<()> {
     let mut input = std::io::stdin().lock();
     loop {
@@ -225,16 +266,17 @@ fn read_requests(sender: mpsc::Sender<Request>, memory: mpsc::Sender<Request>) -
             Err(e) => return Err(e.into()),
         };
         let vector = header & MEMORY_FRAME_FLAG != 0;
-        let length = (header & !MEMORY_FRAME_FLAG) as usize;
-        if length == 0 || length > if vector { MAX_MEMORY_FRAME } else { MAX_FRAME } {
+        let binary = header & BINARY_FRAME_FLAG != 0;
+        let length = (header & !(MEMORY_FRAME_FLAG | BINARY_FRAME_FLAG)) as usize;
+        if (binary && !vector)
+            || length == 0
+            || length > if vector { MAX_MEMORY_FRAME } else { MAX_FRAME }
+        {
             return Err("Invalid harness frame size".into());
         }
         let mut bytes = vec![0; length];
         input.read_exact(&mut bytes)?;
-        let request: Request = serde_json::from_slice(&bytes)?;
-        if vector != matches!(request, Request::MemoryCall { .. }) {
-            return Err("Invalid harness frame kind".into());
-        }
+        let request = decode_request(bytes, vector, binary)?;
         match request {
             Request::Call { .. } => {
                 if sender.blocking_send(request).is_err() {
@@ -375,4 +417,46 @@ async fn main() -> Result<()> {
     result?;
     shutdown.map_err(|_| "Harness shutdown timed out")??;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn binary(command: Json, data: &[u8]) -> Vec<u8> {
+        let metadata = serde_json::to_vec(&json!({
+            "type": "memoryCall", "id": 1, "command": command
+        }))
+        .unwrap();
+        let mut frame = (metadata.len() as u32).to_be_bytes().to_vec();
+        frame.extend(metadata);
+        frame.extend(data);
+        frame
+    }
+
+    #[test]
+    fn binary_upload_preserves_bytes_and_rejects_ambiguous_frames() {
+        for method in ["begin", "chunk", "commit"] {
+            let bytes = vec![0, 255, 1, 0];
+            let request =
+                decode_request(binary(json!({ "method": method }), &bytes), true, true).unwrap();
+            assert!(
+                matches!(request, Request::MemoryCall { data: Some(data), .. } if data == bytes)
+            );
+        }
+        let max = vec![0; MAX_MEMORY_CHUNK];
+        assert!(decode_request(binary(json!({ "method": "chunk" }), &max), true, true).is_ok());
+        for frame in [
+            Vec::new(),
+            vec![0; 4],
+            u32::MAX.to_be_bytes().to_vec(),
+            binary(json!({ "method": "chunk" }), &[]),
+            binary(json!({ "method": "chunk" }), &vec![0; MAX_MEMORY_CHUNK + 1]),
+            binary(json!({ "method": "query" }), &[0]),
+            binary(json!({ "method": "chunk", "data": "AAAA" }), &[0]),
+        ] {
+            assert!(decode_request(frame, true, true).is_err());
+        }
+        assert!(decode_request(binary(json!({ "method": "chunk" }), &[0]), false, true).is_err());
+    }
 }

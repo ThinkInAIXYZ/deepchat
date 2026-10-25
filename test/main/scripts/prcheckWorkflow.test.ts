@@ -151,7 +151,8 @@ describe('PR Check workflow contracts', () => {
     expect(getRunCommands(workflow.jobs['test-main'])).toEqual([
       'pnpm install --frozen-lockfile',
       'cargo fmt --check --manifest-path crates/deepchat-harness/Cargo.toml\n' +
-        'cargo clippy --locked --manifest-path crates/deepchat-harness/Cargo.toml -- -D warnings\n',
+        'cargo clippy --locked --manifest-path crates/deepchat-harness/Cargo.toml --all-targets -- -D warnings\n' +
+        'cargo test --locked --manifest-path crates/deepchat-harness/Cargo.toml\n',
       'pnpm run test:main'
     ])
     expect(getRunCommands(workflow.jobs['test-renderer'])).toEqual([

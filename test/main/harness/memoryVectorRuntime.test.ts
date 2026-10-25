@@ -10,6 +10,12 @@ import { HarnessRuntime } from '@/harness/runtime'
 import { RutisAgentInvocationAdmission } from '@/harness/admission'
 import { RutisMemoryVectorStores } from '@/harness/memory-vector'
 import { MEMORY_VECTOR_OWNER_FILE } from '@/memory/infra/memoryVectorStorePaths'
+import {
+  encodeMemoryVector,
+  MEMORY_VECTOR_CHUNK_BYTES,
+  MEMORY_VECTOR_UPLOAD_BYTES,
+  type MemoryVectorCommand
+} from '@shared/harness/memory-vector'
 
 const { mkdtempSync, mkdirSync, rmSync, readdirSync, existsSync, writeFileSync, readFileSync } =
   await vi.importActual<typeof import('node:fs')>('node:fs')
@@ -91,6 +97,109 @@ afterEach(async () => {
 })
 
 describe('Rutis native Memory runtime', () => {
+  it('publishes a valid batch larger than one internal native message part', async () => {
+    const { runtime, stores, root } = await create()
+    const dimensions = 49152
+    const store = await stores.createVectorStore(
+      'wide',
+      { providerId: 'fixture', modelId: 'fixture' },
+      dimensions
+    )
+    const records = Array.from({ length: 45 }, (_, row) => ({
+      memoryId: `wide-${String(row).padStart(2, '0')}`,
+      embedding: Array.from({ length: dimensions }, (_, column) => (column === row ? 1 : 0))
+    }))
+    await store.upsert(records)
+    expect(await store.listMemoryIds(null, 50)).toEqual(records.map((record) => record.memoryId))
+    await store.close()
+    const instance = await DuckDBInstance.create(path.join(root, 'memory', 'wide.v2.duckdb'))
+    try {
+      const connection = await instance.connect()
+      try {
+        const result = await connection.runAndReadAll(
+          "SELECT embedding[45] AS anchor, list_sum(embedding)::FLOAT AS total FROM memory_vector WHERE memory_id = 'wide-44'"
+        )
+        expect(result.getRowObjectsJson()).toEqual([{ anchor: 1, total: 1 }])
+      } finally {
+        connection.closeSync()
+      }
+    } finally {
+      instance.closeSync()
+    }
+    const reopened = await stores.createVectorStore(
+      'wide',
+      { providerId: 'fixture', modelId: 'fixture' },
+      dimensions
+    )
+    expect(await reopened.listMemoryIds(null, 50)).toHaveLength(45)
+    expect(runtime.memoryTransport.pending).toBe(0)
+  })
+
+  it('keeps staged uploads atomic and releases staging after abort, failure and close', async () => {
+    const { runtime, root } = await create()
+    const generation = randomUUID()
+    const resource = randomUUID()
+    await runtime.startMemory({
+      generation,
+      memoryDbDir: path.join(root, 'memory'),
+      host: { appPath: path.resolve('.'), userDataPath: root, isPackaged: false }
+    })
+    type Command = MemoryVectorCommand extends infer T
+      ? T extends MemoryVectorCommand
+        ? Omit<T, 'generation' | 'operation' | 'resource'>
+        : never
+      : never
+    const send = (command: Command) =>
+      runtime.requestMemory({
+        ...command,
+        generation,
+        resource,
+        operation: randomUUID()
+      } as MemoryVectorCommand)
+    const open = () =>
+      send({
+        method: 'open',
+        agentId: 'agent',
+        dimensions: 2,
+        embedding: { providerId: 'fixture', modelId: 'fixture' }
+      })
+    const begin = (upload: string, data?: Uint8Array) =>
+      send({ method: 'begin', upload, memoryIds: ['memory'], bytes: 8, data })
+    await open()
+    let upload = randomUUID()
+    await begin(upload, Buffer.alloc(4))
+    await expect(send({ method: 'commit', upload })).rejects.toThrow('incomplete')
+    expect(await send({ method: 'list', afterId: null, limit: 10 })).toEqual([])
+    await send({ method: 'abort', upload })
+    upload = randomUUID()
+    const invalid = Buffer.alloc(8)
+    invalid.writeFloatLE(Infinity)
+    await begin(upload, invalid)
+    await expect(send({ method: 'commit', upload })).rejects.toThrow('non-finite')
+    expect(await send({ method: 'list', afterId: null, limit: 10 })).toEqual([])
+    upload = randomUUID()
+    const chunk = Buffer.alloc(MEMORY_VECTOR_CHUNK_BYTES)
+    await send({
+      method: 'begin',
+      upload,
+      memoryIds: ['memory'],
+      bytes: MEMORY_VECTOR_UPLOAD_BYTES,
+      data: chunk
+    })
+    let offset = chunk.length
+    for (; offset + chunk.length < MEMORY_VECTOR_UPLOAD_BYTES; offset += chunk.length)
+      await send({ method: 'chunk', upload, offset, data: chunk })
+    await expect(send({ method: 'commit', upload, offset, data: chunk })).rejects.toThrow('shape')
+    await begin(randomUUID())
+    await send({ method: 'close' })
+    await open()
+    upload = randomUUID()
+    await begin(upload, encodeMemoryVector([1, 0], 2))
+    await send({ method: 'commit', upload })
+    expect(await send({ method: 'list', afterId: null, limit: 10 })).toEqual(['memory'])
+    await send({ method: 'close' })
+  })
+
   it.each(['quarantine', 'corrupt-open', 'marker-failure'])(
     'fences native files by terminating only the vector process after %s',
     async (failure) => {

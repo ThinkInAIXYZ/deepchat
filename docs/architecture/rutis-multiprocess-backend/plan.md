@@ -249,13 +249,21 @@ shared application E2E fixture is written before implementation as contract char
 
 Current evidence:
 
-The JSON/base64 Float32 transport passes the local adoption budgets with pinned provider SDK
-patches. Each patch validates a finite numeric array and clones it once, preserving response
+The Float32 transport passes local adoption budgets, but aligned Linux CI still rejects write
+latency. G3 remains unaccepted and G4 has not started. The selected correction sends bounded raw
+upload bytes from Main to Rust. Rust stages one bounded upload and acknowledges each received
+chunk; commit dispatches a native atomic upsert through Rutis `Value::Bytes`. Internal native parts
+are bounded to eight MiB so encoded messages fit Rutis's 16-MiB limit; all parts belong to one batch
+and only the complete batch reaches the existing transaction. This preserves
+64-KiB application chunks, one outstanding chunk acknowledgement, the 16-MiB/50-record logical
+limit, atomic writes and control priority. The native owner keeps resource and file authority;
+application transfer state belongs to the Rust gateway. Raw forwarding alone shows little local
+latency improvement and does not justify retaining a second per-chunk native acknowledgement.
+Pinned provider SDK patches validate a finite numeric array and clone it once, preserving response
 validation and raw-response isolation without allocating a Zod parsing payload per component.
 All 27 real SDK response contract checks pass across OpenAI, compatible, Azure, Google single/batch,
-and Vertex Node/edge endpoints. Local validation supports checkpoint `107910da6`; its CI
-corrections below must pass before a corrective push. Require exact-head required CI and six
-package checks before the next goal.
+and Vertex Node/edge endpoints. Require exact-head required CI, six package checks and complete
+matching resource comparisons before the next goal.
 
 - Actual recall, indexing, deletion, reset and maintenance use one lazy native TS vector runtime
   under the existing Rust host. Admission retains its separate runtime and identity. Main keeps
@@ -318,63 +326,62 @@ Frozen artifact inventory:
 
 ### Native transport, lifecycle and distribution validation
 
-G3 checkpoint `107910da6` is pushed. Its first CI run rejects package closures because the packager
-omits a resource mapping's root `node_modules`, and exposes a host-exit race before child reaping.
-The package mapping now names the dependency directory explicitly; native runtime regression checks
-use the real packager copy rules. Host shutdown waits for Rutis child reaping. Performance comparison
-must execute both native and remote paths in Electron Node; mismatched system/Electron Node runs
-cannot establish the frozen budget. Required CI and all six package checks remain pending on the
-corrective checkpoint; G4 has not started. Local validation passes 63 runtime/package checks,
-32 repeated malformed-frame child-reaping checks, scoped types and Clippy. The complete aligned
-performance entrypoint passes all 13 checks across seven files; its numeric budgets are unchanged.
-All six `b550ddaba` package jobs in run `40231700259` pass the actual packaged Memory smoke.
-Required run `40231700249` passes static, renderer, build and Main; its aligned Linux upsert gaps
-remain 15.22/11.34/10.58 ms at 1k/10k/50k, exceeding the unchanged allowance. G3 remains unaccepted.
+G3 remains unaccepted. Pushed checkpoint `a9484143a` passes static, build, Main and renderer
+checks in run `40233913485`, but its Linux 50-row write gaps are 9.99/7.18/7.21 ms at
+1k/10k/50k, above the unchanged allowance. Native storage and retrieval quality pass. Completed
+resource reports for that checkpoint are diagnostic evidence; its remaining resource run is stopped
+because the selected Rust upload staging implementation changes the measured path.
 
-The selected hot-path correction uses bounded native Buffer canonical validation, an indexed
-finite/F32 loop and DataView little-endian reads. It preserves finite values and rejects malformed,
-noncanonical and oversized wire encodings. Local native contracts and the complete 13-check
-performance suite pass; the 50k write gap falls from 3.25 to 2.13 ms on the same local hardware.
-A single actual dense-50k check passes with a 1620.75-MiB sampled peak and 1049.92-MiB settled
-footprint. Fresh paired resource acceptance and remote Linux timing remain required before G4.
-Manifest: `/tmp/deepchat-rutis-g3-fast-codec-artifacts.json`; local reports use the
-`/tmp/deepchat-rutis-g3-fast-codec-` prefix.
+The selected implementation keeps application chunks at 64 KiB and stages one 16-MiB/50-record
+upload in Rust. Only commit dispatches the native upsert. Native parts are at most eight MiB,
+so base64 and bounded metadata fit Rutis's 16-MiB internal message limit. The native owner
+validates the complete batch before one transaction and reserves per-resource order from the first
+native part. Subsequent reads/mutations wait; abort/close settles an incomplete reservation without
+performing a write. Failed partial dispatch aborts its known
+native upload; abort cannot abandon a committing write. Contiguous native dispatch sequences are
+independent of locally acknowledged application chunks. Existing generation, resource, lease,
+quarantine and control-priority rules remain in force. No dependency or implementation switch is added.
 
-The 1536-dimensional transport benchmark passes the query/write budgets at each characterized size:
+Four Rust boundary/lifecycle checks pass and run in required CI alongside Clippy for all targets.
+The selected correction passes 62 Harness/package checks and 361 native checks, with two
+Windows-only skips on macOS. The nine-check native runtime scope also passes a valid 45-record,
+49,152-dimensional batch spanning internal parts, persistence after close, incomplete-upload and
+non-finite rejection, maximum-16-MiB failure cleanup, abort/close cleanup, admission continuity
+and strict child exit. Retrieval evaluation passes seven cases. Scoped test types, app types,
+format, i18n and lint pass. The full Main/renderer suites and six native package jobs must pass
+on the pushed revision.
+
+All 13 performance checks across seven files pass under matching Electron Node 24.22.0 / ABI 148:
 
 | Rows | Native / remote query p95 (ms) | Native / remote 50-row write mean (ms) | First remote open median / p95 (ms) |
 | --- | --- | --- | --- |
-| 1,000 | 3.531 / 4.231 | 2.372 / 6.646 | 130.774 / 139.277 |
-| 10,000 | 15.110 / 15.209 | 2.869 / 6.215 | 130.535 / 141.737 |
-| 50,000 | 65.465 / 65.953 | 4.514 / 7.762 | 129.029 / 131.395 |
+| 1,000 | 3.162 / 3.568 | 2.432 / 4.808 | 130.841 / 145.729 |
+| 10,000 | 14.787 / 15.220 | 2.856 / 4.852 | 130.428 / 130.931 |
+| 50,000 | 65.879 / 65.816 | 4.531 / 6.365 | 131.493 / 135.298 |
 
-Both paths use Electron Node 24.22.0 and the existing DuckDB engine. Remote timings include Float32
-encoding, gateway copies and the complete native operation. Thirty warm queries transfer
-280,650-280,710 gateway bytes including replies; pending calls drain to zero. First-use validation
-samples five new workers per scale; every scale passes the 500-ms median and one-second p95 limits.
-The entrypoint asserts equal Node and module ABI versions.
-Report: `/tmp/deepchat-rutis-g3-ci-fix-perf.log`.
+Remote timings include encoding, gateway copies and native work. Thirty queries transfer
+280,650-280,710 application gateway bytes including replies; pending calls drain to zero.
+Five new workers per scale meet the 500-ms median and one-second p95 first-use limits.
+First/last five write samples are reported for CI diagnosis without changing the adoption gates.
+Report: `/tmp/deepchat-rutis-g3-staged-ordered-perf.log`.
 
-The main suite passes 680 files / 9873 tests, with the existing two files / four tests skipped.
-The Electron-hosted portable Memory behavior scope passes 54 files / 980 tests.
-The complete native Memory scope passes 356 tests with VSS and SQLite required; two Windows-only
-cases are skipped on macOS. Retrieval evaluation passes seven cases. Runtime checks exercise real
-native operations, separate admission/vector identities, upload ordering, oversized replies,
-Float32 extremes, quarantine, corrupt-open termination and synchronous marker-write failure.
-The normal application suite passes six checks, including the lifecycle case for nine-Agent cache
-convergence, model/dimension changes, native-worker death, FTS/chat continuity and restart rebuilding.
-Clear-after-loss targets an evicted Agent and proves that cleared vectors cannot reappear on restart.
-A 50k-row loaded-vector application case also passes delegation queue/cancel/release during indexing.
+Seven actual application checks pass: launch and plugin-host failure recovery, streaming chat,
+delegation queue/cancel/release, Memory recall/deletion/restart/clear, nine-Agent cache convergence,
+model/dimension changes, native-worker loss, FTS/chat continuity and explicit rebuilding. The
+clear-after-loss case targets an evicted Agent so deleted vectors cannot reappear after restart.
+A fresh dense-50k resource preflight passes with a 1457.00-MiB sampled active peak and
+1045.89-MiB settled footprint. This single run does not establish five-pair resource acceptance.
+Complete matching paired resource acceptance and aligned Linux timing remain required before G4. Frozen application trees use
+`/tmp/deepchat-rutis-g3-staged-ordered-artifacts.json`, with baseline output SHA-256
+`9c7a05a8d8e59e817bfccdd6551e4fe9e33a36a2aecc19f6e94c3198b41589ab` and candidate
+`a29ae185cac80197725a89d624d8910c1570b074d8e8ed75736876f8df4308fd`.
+Reports use the `/tmp/deepchat-rutis-g3-staged-ordered-` prefix.
 
 The six native package jobs execute `smoke:harness:memory` against the packaged Rust host and
-Electron executable. It reuses production clients for native read/write, fractional Float32 values,
-restart persistence, reset, admission continuity and child shutdown. This new package check awaits
-G3 package CI. Local copied-package closure execution passes both startup generations, native
-operations and strict child-exit assertions; this uses the installed Electron executable, not a
-signed DeepChat bundle. The four packaging/workflow contract suites pass 48 checks. Memory-test
-types (80 scoped files), app typechecks, lint, i18n and formatting pass, including explicitly
-formatting the new scripts excluded by the repository default. Require the pushed revision's
-required CI and six platform package checks before accepting G3 or starting G4.
+Electron executable, using production clients for native CRUD, fractional values, restart/reset,
+admission continuity and strict child shutdown. All six pass on packaging checkpoint `b550ddaba`
+in run `40231700259`. The selected transport implementation must pass these actual package checks
+on all six targets; copied layout checks alone cannot establish distribution parity.
 
 - [x] Retain DuckDB v2 in TS; move native handles and file-owner lifetime into one Rutis service.
       Keep existing lease/embedding policy coherent; adapt synchronous health/quarantine and

@@ -2,7 +2,7 @@ import { definePlugin } from '@arcships/rutis'
 import { MemoryVectorOwner } from '../memory-vector'
 import {
   MEMORY_VECTOR_PENDING,
-  type MemoryVectorCommand,
+  type MemoryVectorNativeCommand,
   type MemoryVectorConfig
 } from '@shared/harness/memory-vector'
 import {
@@ -55,7 +55,7 @@ export default definePlugin<MemoryVectorConfig>({
             owner.command(request.command).then(
               (value) => {
                 // Poisoned native handles cannot run GC finalizers before the file owner dies.
-                if ((request.command as MemoryVectorCommand).method === 'quarantine')
+                if ((request.command as MemoryVectorNativeCommand).method === 'quarantine')
                   process.kill(process.pid, 'SIGKILL')
                 else request.resolve(value)
               },

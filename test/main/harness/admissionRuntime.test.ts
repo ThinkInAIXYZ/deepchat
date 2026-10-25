@@ -165,7 +165,7 @@ describe('application Rutis admission runtime', () => {
   it.each([
     { name: 'oversized admission', header: 64 * 1024 + 1, body: Buffer.alloc(0) },
     { name: 'reserved admission bit', header: 0x40000000 + 1, body: Buffer.alloc(0) },
-    { name: 'reserved memory bit', header: 0xc0000000 + 4, body: Buffer.alloc(4) },
+    { name: 'invalid binary metadata', header: 0xc0000000 + 4, body: Buffer.alloc(4) },
     { name: 'oversized memory', header: 0x80000000 + 256 * 1024 + 1, body: Buffer.alloc(0) }
   ])('rejects $name framing and tears down the owned runtime', async ({ header: value, body }) => {
     const directory = path.resolve('out/harness')

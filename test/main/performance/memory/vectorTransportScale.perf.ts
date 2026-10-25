@@ -128,6 +128,10 @@ it.each([1000, 10000, 50000])(
       remoteQueryP95,
       nativeWriteMean,
       remoteWriteMean,
+      nativeFirstWrites: nativeWrites.slice(0, 5),
+      remoteFirstWrites: remoteWrites.slice(0, 5),
+      nativeLastWrites: nativeWrites.slice(-5),
+      remoteLastWrites: remoteWrites.slice(-5),
       queryTrafficBytes:
         runningRuntime.memoryTransport.sentBytes +
         runningRuntime.memoryTransport.receivedBytes -

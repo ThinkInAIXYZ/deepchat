@@ -10,7 +10,7 @@ import {
   decodeMemoryVector,
   encodeMemoryVector,
   MemoryVectorCommandSchema,
-  type MemoryVectorCommand,
+  type MemoryVectorNativeCommand,
   type MemoryVectorConfig
 } from '@shared/harness/memory-vector'
 
@@ -19,8 +19,8 @@ let directory: string
 let config: MemoryVectorConfig
 let owner: MemoryVectorOwner
 let resource: string
-type Command = MemoryVectorCommand extends infer T
-  ? T extends MemoryVectorCommand
+type Command = MemoryVectorNativeCommand extends infer T
+  ? T extends MemoryVectorNativeCommand
     ? Omit<T, 'generation' | 'operation' | 'resource'> & { resource?: string }
     : never
   : never
@@ -39,18 +39,15 @@ const open = (agentId = 'agent-a', id = resource) =>
     dimensions: 2,
     embedding: { providerId: 'fixture', modelId: 'fixture' }
   })
-const begin = async (vectors: number[][]) => {
-  const upload = randomUUID()
-  const bytes = Buffer.concat(vectors.map((vector) => encodeMemoryVector(vector, 2)))
-  await command({
-    method: 'begin',
-    upload,
+const upsert = (vectors: number[][]) =>
+  command({
+    method: 'upsert',
+    upload: randomUUID(),
+    bytes: vectors.length * 8,
+    offset: 0,
     memoryIds: vectors.map((_, i) => `m${i}`),
-    bytes: bytes.length
+    data: Buffer.concat(vectors.map((vector) => encodeMemoryVector(vector, 2)))
   })
-  await command({ method: 'chunk', upload, offset: 0, data: bytes.toString('base64') })
-  return upload
-}
 
 beforeEach(() => {
   for (const method of [
@@ -81,31 +78,75 @@ afterEach(async () => {
 })
 
 describe('native Memory vector ownership', () => {
-  it('publishes one complete validated batch and preserves vector-only recall across close', async () => {
+  it('orders mutations behind all native parts and aborts only the known upload', async () => {
     await open()
     const upload = randomUUID()
-    await command({ method: 'begin', upload, memoryIds: ['m0', 'm1'], bytes: 16 })
-    await command({
-      method: 'chunk',
-      upload,
-      offset: 0,
-      data: encodeMemoryVector([1, 0], 2).toString('base64')
+    const part = { method: 'upsert' as const, upload, memoryIds: ['m0'], bytes: 8 }
+    await command({ ...part, offset: 0, data: Buffer.alloc(4) })
+    const deleting = command({ method: 'delete', memoryIds: ['m0'] })
+    let deleted = false
+    void deleting.then(() => {
+      deleted = true
     })
-    await expect(command({ method: 'commit', upload })).rejects.toThrow('incomplete')
-    expect(await command({ method: 'list', afterId: null, limit: 512 })).toEqual([])
-    const invalid = Buffer.alloc(8)
-    invalid.writeFloatLE(Infinity)
-    await command({ method: 'chunk', upload, offset: 8, data: invalid.toString('base64') })
-    await expect(command({ method: 'commit', upload })).rejects.toThrow('non-finite')
-    expect(await command({ method: 'list', afterId: null, limit: 512 })).toEqual([])
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(deleted).toBe(false)
+    await command({ method: 'abort', upload: randomUUID() })
+    await expect(upsert([[1, 0]])).rejects.toThrow('busy')
+    await expect(command({ ...part, offset: 0, data: Buffer.alloc(4) })).rejects.toThrow('busy')
+    await command({
+      ...part,
+      memoryIds: [...part.memoryIds],
+      offset: 4,
+      data: encodeMemoryVector([1], 1)
+    })
+    await deleting
+    expect(await command({ method: 'list', afterId: null, limit: 10 })).toEqual([])
+    await command({ ...part, offset: 0, data: Buffer.alloc(4) })
     await command({ method: 'abort', upload })
-    await command({
-      method: 'commit',
-      upload: await begin([
-        [1, 0],
-        [0, 1]
-      ])
-    })
+    await upsert([[1, 0]])
+    await command({ ...part, offset: 0, data: Buffer.alloc(4) })
+    await command({ method: 'close' })
+    resource = randomUUID()
+    await open()
+    expect(
+      await command({
+        method: 'query',
+        vector: encodeMemoryVector([1, 0], 2).toString('base64'),
+        topK: 1
+      })
+    ).toEqual([{ memoryId: 'm0', distance: 0 }])
+  })
+
+  it('publishes one complete validated batch and preserves vector-only recall across close', async () => {
+    await open()
+    await expect(
+      command({
+        method: 'upsert',
+        upload: randomUUID(),
+        bytes: 8,
+        offset: 0,
+        memoryIds: ['m0', 'm1'],
+        data: encodeMemoryVector([1, 0], 2)
+      })
+    ).rejects.toThrow('shape')
+    expect(await command({ method: 'list', afterId: null, limit: 512 })).toEqual([])
+    const invalid = Buffer.alloc(16)
+    invalid.writeFloatLE(Infinity)
+    await expect(
+      command({
+        method: 'upsert',
+        upload: randomUUID(),
+        bytes: 16,
+        offset: 0,
+        memoryIds: ['m0', 'm1'],
+        data: invalid
+      })
+    ).rejects.toThrow('non-finite')
+    expect(await command({ method: 'list', afterId: null, limit: 512 })).toEqual([])
+    await upsert([
+      [1, 0],
+      [0, 1]
+    ])
     const query = {
       method: 'query',
       vector: encodeMemoryVector([1, 0], 2).toString('base64'),
@@ -198,7 +239,14 @@ describe('native Memory vector ownership', () => {
       await gate.promise
       return upsert.call(this, records)
     })
-    const commit = command({ method: 'commit', upload: await begin([[1, 0]]) })
+    const commit = command({
+      method: 'upsert',
+      upload: randomUUID(),
+      bytes: 8,
+      offset: 0,
+      memoryIds: ['m0'],
+      data: encodeMemoryVector([1, 0], 2)
+    })
     await started.promise
     const reset = owner.command({
       method: 'reset',
@@ -237,6 +285,22 @@ describe('native Memory vector ownership', () => {
   it('accepts canonical base64 and rejects malformed or oversized wire data', () => {
     const accepts = (data: string) =>
       MemoryVectorCommandSchema.safeParse({
+        method: 'query',
+        resource,
+        generation: config.generation,
+        operation: randomUUID(),
+        topK: 1,
+        vector: data
+      }).success
+    for (const data of ['', 'AA==', 'AAA=', 'AAAA', Buffer.alloc(65536).toString('base64')])
+      expect(accepts(data)).toBe(true)
+    for (const data of ['AB==', 'AAB=', 'A===', 'AA=A', 'AA==\n', '____', 'A'.repeat(262144)])
+      expect(accepts(data)).toBe(false)
+  })
+
+  it('accepts only bounded application upload bytes', () => {
+    const accepts = (data: unknown) =>
+      MemoryVectorCommandSchema.safeParse({
         method: 'chunk',
         resource,
         generation: config.generation,
@@ -245,9 +309,8 @@ describe('native Memory vector ownership', () => {
         offset: 0,
         data
       }).success
-    for (const data of ['', 'AA==', 'AAA=', 'AAAA', Buffer.alloc(65536).toString('base64')])
-      expect(accepts(data)).toBe(true)
-    for (const data of ['AB==', 'AAB=', 'A===', 'AA=A', 'AA==\n', '____', 'A'.repeat(262144)])
+    for (const data of [Buffer.alloc(1), new Uint8Array(65536)]) expect(accepts(data)).toBe(true)
+    for (const data of ['', 'AAAA', [0, 0, 0], new Uint8Array(0), Buffer.alloc(65537)])
       expect(accepts(data)).toBe(false)
   })
 })

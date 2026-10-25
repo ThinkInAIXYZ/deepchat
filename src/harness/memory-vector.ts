@@ -1,4 +1,5 @@
 import { AsyncSemaphore } from '@/lib/asyncSemaphore'
+import type { MemoryVectorRecord } from '@/memory/types'
 import fs from 'node:fs'
 import path from 'node:path'
 import { DuckDBInstance } from '@duckdb/node-api'
@@ -16,11 +17,11 @@ import {
 import {
   decodeMemoryVector,
   isMemoryVectorControl,
-  MEMORY_VECTOR_CHUNK_BYTES,
   MEMORY_VECTOR_PENDING,
-  MemoryVectorCommandSchema,
+  MEMORY_VECTOR_NATIVE_PART_BYTES,
+  MemoryVectorNativeCommandSchema,
   MemoryVectorConfigSchema,
-  type MemoryVectorCommand,
+  type MemoryVectorNativeCommand,
   type MemoryVectorConfig
 } from '@shared/harness/memory-vector'
 
@@ -42,6 +43,8 @@ interface Upload {
   bytes: Buffer
   offset: number
   committing: boolean
+  records: ReturnType<typeof Promise.withResolvers<MemoryVectorRecord[]>>
+  writing: Promise<void>
 }
 
 export class MemoryVectorOwner {
@@ -97,7 +100,7 @@ export class MemoryVectorOwner {
   }
 
   async command(input: unknown): Promise<unknown> {
-    const command = MemoryVectorCommandSchema.parse(input)
+    const command = MemoryVectorNativeCommandSchema.parse(input)
     if (this.stopped || command.generation !== this.config.generation) {
       throw new Error('Memory vector generation is unavailable')
     }
@@ -120,6 +123,7 @@ export class MemoryVectorOwner {
 
   async dispose(): Promise<void> {
     this.stopped = true
+    this.upload?.records.reject(new Error('Memory vector owner is stopping'))
     this.upload = undefined
     await Promise.all([...this.resources].map(([id, resource]) => this.close(id, resource, true)))
     const owner = await this.ownership.catch(() => undefined)
@@ -155,7 +159,7 @@ export class MemoryVectorOwner {
       )
   }
 
-  private async execute(command: MemoryVectorCommand): Promise<unknown> {
+  private async execute(command: MemoryVectorNativeCommand): Promise<unknown> {
     if (command.method === 'open') {
       this.assertRecoverable(command.agentId)
       if (this.resources.has(command.resource) || this.agents.has(command.agentId)) {
@@ -250,58 +254,85 @@ export class MemoryVectorOwner {
         return this.run(resource, (store) => store.deleteByMemoryIds(command.memoryIds), true)
       case 'list':
         return this.run(resource, (store) => store.listMemoryIds(command.afterId, command.limit))
-      case 'begin': {
-        if (this.upload) throw new Error('Memory vector upload is busy')
-        const initial = Buffer.from(command.data ?? '', 'base64')
+      case 'upsert': {
+        const complete = command.offset === 0 && command.data.length === command.bytes
         if (
           new Set(command.memoryIds).size !== command.memoryIds.length ||
-          command.bytes !== command.memoryIds.length * resource.dimensions * 4 ||
-          initial.length > command.bytes ||
-          initial.length > MEMORY_VECTOR_CHUNK_BYTES
-        ) {
+          command.bytes !== command.memoryIds.length * resource.dimensions * 4
+        )
           throw new Error('Invalid memory vector upload shape')
+        if (command.offset === 0) {
+          if (this.upload) throw new Error('Memory vector upload is busy')
+          const bytes = complete
+            ? Buffer.from(command.data.buffer, command.data.byteOffset, command.data.byteLength)
+            : Buffer.allocUnsafe(command.bytes)
+          const records = Promise.withResolvers<MemoryVectorRecord[]>()
+          void records.promise.catch(() => undefined)
+          const writing = this.run(resource, async (store) => {
+            const batch = await records.promise
+            if (resource.closing || this.recovered.has(resource.agentId) || !store.isUsable())
+              throw new Error('Memory vector resource is unavailable')
+            resource.writes++
+            try {
+              await store.upsert(batch)
+            } finally {
+              resource.writes--
+            }
+          })
+          void writing.catch(() => undefined)
+          this.upload = {
+            id: command.upload,
+            resource: command.resource,
+            memoryIds: command.memoryIds,
+            bytes,
+            offset: 0,
+            committing: false,
+            records,
+            writing
+          }
         }
-        this.upload = {
-          id: command.upload,
-          resource: command.resource,
-          memoryIds: command.memoryIds,
-          bytes: Buffer.allocUnsafe(command.bytes),
-          offset: initial.length,
-          committing: false
-        }
-        initial.copy(this.upload.bytes)
-        return null
-      }
-      case 'chunk': {
-        const upload = this.requireUpload(command)
-        this.append(upload, command.offset, command.data)
-        return upload.offset
-      }
-      case 'commit': {
-        const upload = this.requireUpload(command)
-        if (command.data !== undefined || command.offset !== undefined) {
-          if (command.data === undefined || command.offset === undefined)
-            throw new Error('Invalid memory vector final chunk')
-          this.append(upload, command.offset, command.data)
-        }
-        if (upload.offset !== upload.bytes.length)
-          throw new Error('Memory vector upload is incomplete')
-        const records = upload.memoryIds.map((memoryId, index) => ({
-          memoryId,
-          embedding: decodeMemoryVector(
-            upload.bytes.subarray(
-              index * resource.dimensions * 4,
-              (index + 1) * resource.dimensions * 4
-            ),
-            resource.dimensions
-          )
-        }))
-        upload.committing = true
+        const upload = this.upload
+        if (
+          !upload ||
+          upload.id !== command.upload ||
+          upload.resource !== command.resource ||
+          upload.committing
+        )
+          throw new Error('Memory vector upload is unavailable')
         try {
-          await this.run(resource, (store) => store.upsert(records), true)
+          if (
+            command.offset !== upload.offset ||
+            command.bytes !== upload.bytes.length ||
+            command.memoryIds.length !== upload.memoryIds.length ||
+            command.memoryIds.some((id, index) => id !== upload.memoryIds[index]) ||
+            command.data.length > MEMORY_VECTOR_NATIVE_PART_BYTES ||
+            command.data.length > upload.bytes.length - upload.offset
+          )
+            throw new Error('Invalid memory vector upload part')
+          if (!complete) upload.bytes.set(command.data, upload.offset)
+          upload.offset += command.data.length
+          if (upload.offset !== upload.bytes.length) return null
+          const records = upload.memoryIds.map((memoryId, index) => ({
+            memoryId,
+            embedding: decodeMemoryVector(
+              upload.bytes.subarray(
+                index * resource.dimensions * 4,
+                (index + 1) * resource.dimensions * 4
+              ),
+              resource.dimensions
+            )
+          }))
+          upload.committing = true
+          upload.records.resolve(records)
+          await upload.writing
           return null
-        } finally {
+        } catch (error) {
+          upload.records.reject(error)
+          await upload.writing.catch(() => undefined)
           if (this.upload === upload) this.upload = undefined
+          throw error
+        } finally {
+          if (upload.committing || upload.offset === upload.bytes.length) this.upload = undefined
         }
       }
       case 'abort':
@@ -309,38 +340,14 @@ export class MemoryVectorOwner {
           this.upload?.id === command.upload &&
           this.upload.resource === command.resource &&
           !this.upload.committing
-        )
-          this.upload = undefined
+        ) {
+          const upload = this.upload
+          upload.records.reject(new Error('Memory vector upload was aborted'))
+          await upload.writing.catch(() => undefined)
+          if (this.upload === upload) this.upload = undefined
+        }
         return null
     }
-  }
-
-  private requireUpload(
-    command: Extract<MemoryVectorCommand, { method: 'chunk' | 'commit' }>
-  ): Upload {
-    if (
-      !this.upload ||
-      this.upload.id !== command.upload ||
-      this.upload.resource !== command.resource ||
-      this.upload.committing
-    ) {
-      throw new Error('Memory vector upload is unavailable')
-    }
-    return this.upload
-  }
-
-  private append(upload: Upload, offset: number, data: string): void {
-    const bytes = Buffer.from(data, 'base64')
-    if (
-      !bytes.length ||
-      bytes.length > MEMORY_VECTOR_CHUNK_BYTES ||
-      offset !== upload.offset ||
-      bytes.length > upload.bytes.length - upload.offset
-    ) {
-      throw new Error('Invalid memory vector upload chunk')
-    }
-    bytes.copy(upload.bytes, upload.offset)
-    upload.offset += bytes.length
   }
 
   private run<T>(
@@ -377,10 +384,13 @@ export class MemoryVectorOwner {
   }
 
   private close(id: string, resource: Resource, preserveLease = false): Promise<void> {
+    if (this.upload?.resource === id && !this.upload.committing) {
+      this.upload.records.reject(new Error('Memory vector resource is closing'))
+      this.upload = undefined
+    }
     if (resource.disposal) return resource.disposal
     resource.closing = true
     const dirty = preserveLease || resource.writes > 0 || !resource.openingDone
-    if (this.upload?.resource === id && !this.upload.committing) this.upload = undefined
     resource.disposal = (async () => {
       await resource.tail.catch(() => undefined)
       this.assertRecoverable(resource.agentId)

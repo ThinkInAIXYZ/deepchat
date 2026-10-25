@@ -78,7 +78,8 @@ jobs:
       - name: Check Rust host
         run: |
           cargo fmt --check --manifest-path crates/deepchat-harness/Cargo.toml
-          cargo clippy --locked --manifest-path crates/deepchat-harness/Cargo.toml -- -D warnings
+          cargo clippy --locked --manifest-path crates/deepchat-harness/Cargo.toml --all-targets -- -D warnings
+          cargo test --locked --manifest-path crates/deepchat-harness/Cargo.toml
 
       - name: Test main process
         run: pnpm run test:main

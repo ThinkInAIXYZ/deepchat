@@ -267,21 +267,32 @@ migration or fallback to a second native owner in Electron main.
   a 256-KiB maximum; retain the 1-MiB transport buffer budget and reserve 64 KiB for control. Only
   one bulk chunk awaits acknowledgement at a time. Control frames take precedence over the next
   chunk, and a loaded-vector E2E case must prove admission is not starved.
-- Encode embeddings as little-endian Float32 data, matching the native `FLOAT[]` representation,
-  in bounded canonical base64 chunks through the Rutis JSON gateway. Preserve IDs, dimensions and ordering; validate
-  byte lengths and finite values before effects. No dense-vector JSON number arrays or complete
-  histories cross this gateway. Verify Float32/native cast parity, including extreme inputs.
+- Encode embeddings as little-endian Float32 data, matching the native `FLOAT[]` representation.
+  Bulk uploads carry raw bytes from Main to Rust: the vector and binary header bits are both set,
+  followed by a four-byte big-endian metadata length, JSON request metadata and one bounded byte
+  chunk. Only begin/chunk/commit accept this form; reject empty/oversized chunks and metadata that
+  already contains data. Rust owns one bounded ephemeral upload and acknowledges received chunks;
+  only commit forwards an atomic upsert through Rutis `Value::Bytes`. Native parts are at most
+  8 MiB, keeping base64 plus bounded metadata below Rutis's 16-MiB internal message limit.
+  Native parts run sequentially under the same logical upload identity; the native owner assembles
+  and validates the complete batch before one transaction. Partial transfer failures abort the
+  known native upload. Reserve the resource's execution order from the first native part, so
+  subsequent reads and mutations cannot overtake the batch. Abort/close releases an incomplete
+  reservation; a committing write remains owned until settlement. Keep staging owned until then.
+  Rutis's internal base64 encoding remains an SDK detail. Query vectors retain canonical base64.
+  Preserve IDs, dimensions and ordering; validate byte lengths and finite values before effects. No dense-vector JSON number arrays or complete histories
+  cross this gateway. Verify Float32/native cast parity, including extreme inputs.
 - Validate provider response vectors with a finite-number loop and clone the numeric array once,
   preserving the SDK's rejection and raw-response isolation contracts without per-component Zod
   parsing objects. Keep the installed provider versions pinned and patch only their embedding
   response schemas, including Azure's internal OpenAI and Vertex's Node/edge entrypoints.
 - Bound one logical upload to 16 MiB of decoded data and 50 records, with one active staged upload
-  per vector runtime. Use explicit begin/chunk/commit/abort operations: validate the complete batch
-  and invoke the existing atomic native upsert once. Chunk acknowledgement is not a durable write
+  in Rust until the native operation settles. Use explicit begin/chunk/commit/abort operations:
+  validate the complete batch and invoke the existing atomic native upsert once. Chunk acknowledgement is not a durable write
   acknowledgement. Oversized/invalid operations fail before effects; never truncate or split a
   logical transaction silently. Inventory every actual caller against these limits before cutover.
   Begin and commit can each carry one bounded chunk, avoiding empty transport round trips without
-  changing the atomic write acknowledgement. Keep decoded chunks at 64 KiB.
+  changing the atomic write acknowledgement. Keep application upload chunks at 64 KiB.
 - Reuse one typed DuckDB data chunk per store and append bounded pages inside the existing
   delete/insert transaction. Close the appender before commit; invalid dimensions or a failed
   append roll back the whole logical batch. Preserve Float32 values and smaller subsequent batches.
