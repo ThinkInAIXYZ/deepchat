@@ -125,6 +125,16 @@ describe('native Memory vector ownership', () => {
         upload: randomUUID(),
         bytes: 8,
         offset: 0,
+        memoryIds: ['m0'],
+        data: new Uint8Array(new SharedArrayBuffer(8))
+      })
+    ).rejects.toThrow('shape')
+    await expect(
+      command({
+        method: 'upsert',
+        upload: randomUUID(),
+        bytes: 8,
+        offset: 0,
         memoryIds: ['m0', 'm1'],
         data: encodeMemoryVector([1, 0], 2)
       })
@@ -233,12 +243,14 @@ describe('native Memory vector ownership', () => {
     await open()
     const gate = Promise.withResolvers<void>()
     const started = Promise.withResolvers<void>()
-    const upsert = MemoryVectorStore.prototype.upsert
-    vi.spyOn(MemoryVectorStore.prototype, 'upsert').mockImplementation(async function (records) {
-      started.resolve()
-      await gate.promise
-      return upsert.call(this, records)
-    })
+    const upsert = MemoryVectorStore.prototype.upsertPacked
+    vi.spyOn(MemoryVectorStore.prototype, 'upsertPacked').mockImplementation(
+      async function (records) {
+        started.resolve()
+        await gate.promise
+        return upsert.call(this, records)
+      }
+    )
     const commit = command({
       method: 'upsert',
       upload: randomUUID(),

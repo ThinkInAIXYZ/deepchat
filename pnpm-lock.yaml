@@ -78,6 +78,9 @@ importers:
       '@duckdb/node-api':
         specifier: 1.5.5-r.4
         version: 1.5.5-r.4
+      '@duckdb/node-bindings':
+        specifier: 1.5.5-r.4
+        version: 1.5.5-r.4
       '@electron-toolkit/utils':
         specifier: ^4.0.0
         version: 4.0.0(electron@43.8.3)

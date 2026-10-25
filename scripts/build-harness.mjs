@@ -66,7 +66,7 @@ export async function buildHarness({ platform = process.platform, arch = process
         formats: ['es'],
         fileName: (_, name) => `${name}.mjs`
       },
-      rollupOptions: { external: [/^node:/, '@duckdb/node-api'] }
+      rollupOptions: { external: [/^node:/, '@duckdb/node-api', '@duckdb/node-bindings'] }
     }
   })
   const extension = platform === 'win32' ? '.exe' : ''

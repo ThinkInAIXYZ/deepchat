@@ -296,6 +296,10 @@ migration or fallback to a second native owner in Electron main.
 - Reuse one typed DuckDB data chunk per store and append bounded pages inside the existing
   delete/insert transaction. Close the appender before commit; invalid dimensions or a failed
   append roll back the whole logical batch. Preserve Float32 values and smaller subsequent batches.
+  Keep received Float32 matrices packed through insertion using the pinned DuckDB bindings already
+  shipped with the Node API. Validate finite values, exact byte length, little-endian host format,
+  actual FLOAT array type and row capacity before native copies. Set parent/child validity and
+  honor source byte offsets; never expose an unchecked native memory-copy operation over RPC.
 - Launch only the vector runtime with `--max-semi-space-size=8`. Sustained bounded uploads must
   not retain a throughput-grown idle nursery. Preserve the admission runtime's default heap policy
   and validate query/write latency alongside aggregate footprint; no forced GC is used.

@@ -119,6 +119,7 @@
     "@aws-sdk/client-bedrock": "^3.1128.0",
     "@aws-sdk/credential-providers": "^3.1128.0",
     "@duckdb/node-api": "1.5.5-r.4",
+    "@duckdb/node-bindings": "1.5.5-r.4",
     "@electron-toolkit/utils": "^4.0.0",
     "@ff-labs/fff-node": "^0.10.6",
     "@jxa/run": "^1.4.0",

@@ -336,6 +336,16 @@ Post-measurement phase timings and a separate V8 CPU-sampling run diagnose the n
 without warming or replacing adoption samples. These temporary diagnostics must be removed after
 fixing the bottleneck and before G3 acceptance. A local codec microprobe saves only about 0.2 ms;
 that evidence does not justify a new dependency or a changed wire codec.
+
+Checkpoint `d02a42ecf` passes all six package checks, but Linux write gaps are
+9.14/6.78/6.73 ms. Native commit dominates the phase timings. A temporary local packed-column
+prototype reduces 100 remote writes from about 464 to 438 ms; changing heap size, ownership locking,
+decoder allocation, dispatch mode or DuckDB thread count shows no material improvement.
+The selected correction keeps the received Float32 matrix packed through native insertion,
+using the already packaged, same-version DuckDB bindings. Validate finite values, exact byte
+length, endianness, actual column type and native capacity before copying; preserve validity,
+subarray offsets and the existing atomic rollback/fatal-error path. Require persisted native
+value/rollback tests and unchanged Linux adoption gates before retaining this correction.
 The selected implementation keeps application chunks at 64 KiB and stages one 16-MiB/50-record
 upload in Rust. Only commit dispatches the native upsert. Native parts are at most eight MiB,
 so base64 and bounded metadata fit Rutis's 16-MiB internal message limit. The native owner
@@ -344,11 +354,14 @@ native part. Subsequent reads/mutations wait; abort/close settles an incomplete 
 performing a write. Failed partial dispatch aborts its known
 native upload; abort cannot abandon a committing write. Contiguous native dispatch sequences are
 independent of locally acknowledged application chunks. Existing generation, resource, lease,
-quarantine and control-priority rules remain in force. No dependency or implementation switch is added.
+quarantine and control-priority rules remain in force. The direct binding dependency is the exact
+version already shipped with the Node API; no additional native payload or implementation switch
+is introduced.
 
 Four Rust boundary/lifecycle checks pass and run in required CI alongside Clippy for all targets.
-The selected correction passes 62 Harness/package checks and 361 native checks, with two
-Windows-only skips on macOS. The nine-check native runtime scope also passes a valid 45-record,
+The packed-column correction passes 362 native checks, with two Windows-only skips on macOS;
+101 focused Harness/store checks and 20 package-contract checks pass. The native runtime scope
+also passes a valid 45-record,
 49,152-dimensional batch spanning internal parts, persistence after close, incomplete-upload and
 non-finite rejection, maximum-16-MiB failure cleanup, abort/close cleanup, admission continuity
 and strict child exit. Retrieval evaluation passes seven cases. Scoped test types, app types,
@@ -359,22 +372,26 @@ All 13 performance checks across seven files pass under matching Electron Node 2
 
 | Rows | Native / remote query p95 (ms) | Native / remote 50-row write mean (ms) | First remote open median / p95 (ms) |
 | --- | --- | --- | --- |
-| 1,000 | 3.162 / 3.568 | 2.432 / 4.808 | 130.841 / 145.729 |
-| 10,000 | 14.787 / 15.220 | 2.856 / 4.852 | 130.428 / 130.931 |
-| 50,000 | 65.879 / 65.816 | 4.531 / 6.365 | 131.493 / 135.298 |
+| 1,000 | 3.651 / 4.028 | 2.509 / 4.466 | 132.766 / 146.868 |
+| 10,000 | 15.104 / 15.654 | 2.957 / 4.671 | 132.368 / 132.926 |
+| 50,000 | 65.668 / 66.023 | 4.586 / 6.216 | 131.591 / 132.950 |
 
 Remote timings include encoding, gateway copies and native work. Thirty queries transfer
 280,650-280,710 application gateway bytes including replies; pending calls drain to zero.
 Five new workers per scale meet the 500-ms median and one-second p95 first-use limits.
 First/last five write samples are reported for CI diagnosis without changing the adoption gates.
-Report: `/tmp/deepchat-rutis-g3-staged-ordered-perf.log`.
+Report: `/tmp/deepchat-rutis-g3-packed-perf.log`. Persisted native checks cover packed batches with
+unaligned source offsets, Float32 extremes/negative zero, ordinary/packed writer reuse, whole-batch
+duplicate-key rollback and pre-effect rejection of malformed or non-finite input. Shared mutable
+buffers are rejected at the native command boundary.
 
 Seven actual application checks pass: launch and plugin-host failure recovery, streaming chat,
 delegation queue/cancel/release, Memory recall/deletion/restart/clear, nine-Agent cache convergence,
 model/dimension changes, native-worker loss, FTS/chat continuity and explicit rebuilding. The
 clear-after-loss case targets an evicted Agent so deleted vectors cannot reappear after restart.
-A fresh dense-50k resource preflight passes with a 1457.00-MiB sampled active peak and
-1045.89-MiB settled footprint. This single run does not establish five-pair resource acceptance.
+A staged-upload dense-50k resource preflight passes with a 1457.00-MiB sampled active peak and
+1045.89-MiB settled footprint. This single run does not establish five-pair resource acceptance
+for the packed-column correction.
 Complete matching paired resource acceptance and aligned Linux timing remain required before G4. Frozen application trees use
 `/tmp/deepchat-rutis-g3-staged-ordered-artifacts.json`, with baseline output SHA-256
 `9c7a05a8d8e59e817bfccdd6551e4fe9e33a36a2aecc19f6e94c3198b41589ab` and candidate

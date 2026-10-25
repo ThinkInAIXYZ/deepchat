@@ -1,9 +1,8 @@
 import { AsyncSemaphore } from '@/lib/asyncSemaphore'
-import type { MemoryVectorRecord } from '@/memory/types'
 import fs from 'node:fs'
 import path from 'node:path'
 import { DuckDBInstance } from '@duckdb/node-api'
-import { MemoryVectorStore } from '@/memory/infra/memoryVectorStore'
+import { MemoryVectorStore, type PackedMemoryVectors } from '@/memory/infra/memoryVectorStore'
 import {
   createMemoryVectorStorePaths,
   MEMORY_VECTOR_OWNER_FILE,
@@ -40,10 +39,10 @@ interface Upload {
   id: string
   resource: string
   memoryIds: string[]
-  bytes: Buffer
+  bytes: Buffer<ArrayBuffer>
   offset: number
   committing: boolean
-  records: ReturnType<typeof Promise.withResolvers<MemoryVectorRecord[]>>
+  records: ReturnType<typeof Promise.withResolvers<PackedMemoryVectors>>
   writing: Promise<void>
 }
 
@@ -257,6 +256,7 @@ export class MemoryVectorOwner {
       case 'upsert': {
         const complete = command.offset === 0 && command.data.length === command.bytes
         if (
+          !(command.data.buffer instanceof ArrayBuffer) ||
           new Set(command.memoryIds).size !== command.memoryIds.length ||
           command.bytes !== command.memoryIds.length * resource.dimensions * 4
         )
@@ -266,7 +266,7 @@ export class MemoryVectorOwner {
           const bytes = complete
             ? Buffer.from(command.data.buffer, command.data.byteOffset, command.data.byteLength)
             : Buffer.allocUnsafe(command.bytes)
-          const records = Promise.withResolvers<MemoryVectorRecord[]>()
+          const records = Promise.withResolvers<PackedMemoryVectors>()
           void records.promise.catch(() => undefined)
           const writing = this.run(resource, async (store) => {
             const batch = await records.promise
@@ -274,7 +274,7 @@ export class MemoryVectorOwner {
               throw new Error('Memory vector resource is unavailable')
             resource.writes++
             try {
-              await store.upsert(batch)
+              await store.upsertPacked(batch)
             } finally {
               resource.writes--
             }
@@ -312,18 +312,12 @@ export class MemoryVectorOwner {
           if (!complete) upload.bytes.set(command.data, upload.offset)
           upload.offset += command.data.length
           if (upload.offset !== upload.bytes.length) return null
-          const records = upload.memoryIds.map((memoryId, index) => ({
-            memoryId,
-            embedding: decodeMemoryVector(
-              upload.bytes.subarray(
-                index * resource.dimensions * 4,
-                (index + 1) * resource.dimensions * 4
-              ),
-              resource.dimensions
-            )
-          }))
           upload.committing = true
-          upload.records.resolve(records)
+          upload.records.resolve({
+            memoryIds: upload.memoryIds,
+            dimensions: resource.dimensions,
+            bytes: upload.bytes
+          })
           await upload.writing
           return null
         } catch (error) {

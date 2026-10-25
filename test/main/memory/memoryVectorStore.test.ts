@@ -13,7 +13,7 @@ vi.mock('@duckdb/node-api', () => ({
   DuckDBInstance: { create: duckDbMocks.create },
   DuckDBConnection: class {},
   DuckDBDataChunk: {
-    create: () => ({ reset() {}, rowCount: 0, setColumns() {} })
+    create: () => ({ reset() {}, rowCount: 0, setColumnValues() {} })
   },
   arrayValue: (values: number[]) => values
 }))

@@ -188,6 +188,54 @@ afterEach(() => {
 })
 
 describe('MemoryVectorStore v2 native integration', () => {
+  it('persists packed Float32 batches with offsets, reuse and atomic rejection', async () => {
+    const { paths } = createPaths('deepchat-vector-packed-')
+    const store = await MemoryVectorStore.create(paths, 2, EMBEDDING, nativeVectorHost)
+    const packed = (ids: string[], values: number[], dimensions = 2) => {
+      const bytes = Buffer.alloc(values.length * 4 + 3).subarray(3)
+      values.forEach((value, index) => bytes.writeFloatLE(value, index * 4))
+      return { memoryIds: ids, dimensions, bytes }
+    }
+    try {
+      await store.upsertPacked(
+        packed(
+          Array.from({ length: 101 }, (_, index) => `row-${index}`),
+          Array.from({ length: 101 }, (_, index) => [index + 0.25, -index - 0.5]).flat()
+        )
+      )
+      await expect(store.upsertPacked(packed(['row-0'], [1]))).rejects.toThrow('shape')
+      await expect(store.upsertPacked(packed(['row-0'], [1], 1))).rejects.toThrow('dimensions')
+      for (const invalid of [NaN, Infinity, -Infinity]) {
+        await expect(store.upsertPacked(packed(['row-0'], [1, invalid]))).rejects.toThrow(
+          'non-finite'
+        )
+      }
+      await expect(
+        store.upsertPacked(
+          packed(
+            Array.from({ length: 51 }, (_, index) =>
+              index === 0 || index === 50 ? 'row-0' : `new-${index}`
+            ),
+            Array.from({ length: 51 }, () => [1, 0]).flat()
+          )
+        )
+      ).rejects.toThrow(/constraint|duplicate key/i)
+      await store.upsert([{ memoryId: 'row-1', embedding: [0.25, 0.75] }])
+      await store.upsertPacked(packed(['row-0'], [-0, -3.4028234663852886e38]))
+      await store.upsertPacked(packed(['row-2'], [1.401298464324817e-45, -0.25]))
+    } finally {
+      await store.close()
+    }
+    const { rows } = await inspectV2(paths)
+    expect(rows).toHaveLength(101)
+    const embeddingFor = (id: string) => rows.find((row) => row.memory_id === id)?.embedding
+    expect(embeddingFor('row-0')).toEqual([-0, -3.4028234663852886e38])
+    expect(embeddingFor('row-1')).toEqual([0.25, 0.75])
+    expect(embeddingFor('row-2')).toEqual([1.401298464324817e-45, -0.25])
+    expect(embeddingFor('row-50')).toEqual([50.25, -50.5])
+    expect(embeddingFor('row-100')).toEqual([100.25, -100.5])
+    expect(rows.some((row) => String(row.memory_id).startsWith('new-'))).toBe(false)
+  })
   it('keeps multi-chunk upserts atomic and reuses a smaller final batch safely', async () => {
     const { paths } = createPaths('deepchat-vector-append-')
     const store = await MemoryVectorStore.create(paths, 2, EMBEDDING, nativeVectorHost)
