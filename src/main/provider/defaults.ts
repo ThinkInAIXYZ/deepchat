@@ -165,6 +165,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'atmorouter',
+    name: 'AtmoRouter',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://atmorouter.dev/v1',
+    enable: false,
+    websites: {
+      official: 'https://atmorouter.dev',
+      apiKey: 'https://atmorouter.dev/dashboard/keys',
+      docs: 'https://atmorouter.dev/docs',
+      models: 'https://atmorouter.dev/models'
+    }
+  },
+  {
     id: 'yapi',
     name: 'Y-API',
     apiType: 'openai-completions',

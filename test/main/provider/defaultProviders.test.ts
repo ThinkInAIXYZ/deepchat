@@ -209,6 +209,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes AtmoRouter as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'atmorouter',
+        name: 'AtmoRouter',
+        apiType: 'openai-completions',
+        baseUrl: 'https://atmorouter.dev/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://atmorouter.dev',
+          apiKey: 'https://atmorouter.dev/dashboard/keys',
+          docs: 'https://atmorouter.dev/docs',
+          models: 'https://atmorouter.dev/models',
+          defaultBaseUrl: 'https://atmorouter.dev/v1'
+        })
+      })
+    )
+  })
+
   it('includes Y-API as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
