@@ -147,13 +147,12 @@ export class RutisMemoryVectorStores implements MemoryVectorStoreFactoryPort {
     if (records.length > 50 || bytes > MEMORY_VECTOR_UPLOAD_BYTES)
       throw new Error('Memory vector upload exceeds batch limit')
     for (const record of records) {
-      if (
-        record.embedding.length !== store.dimensions ||
-        record.embedding.some(
-          (value) => !Number.isFinite(value) || !Number.isFinite(Math.fround(value))
-        )
-      ) {
+      if (record.embedding.length !== store.dimensions)
         throw new Error('Invalid memory vector upload values')
+      for (let index = 0; index < record.embedding.length; index++) {
+        const value = record.embedding[index]
+        if (!Number.isFinite(value) || !Number.isFinite(Math.fround(value)))
+          throw new Error('Invalid memory vector upload values')
       }
     }
     if (this.uploads.activeCount + this.uploads.pendingCount >= 24)

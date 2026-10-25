@@ -9,6 +9,7 @@ import { MEMORY_VECTOR_OWNER_FILE } from '@/memory/infra/memoryVectorStorePaths'
 import {
   decodeMemoryVector,
   encodeMemoryVector,
+  MemoryVectorCommandSchema,
   type MemoryVectorCommand,
   type MemoryVectorConfig
 } from '@shared/harness/memory-vector'
@@ -231,5 +232,22 @@ describe('native Memory vector ownership', () => {
     expect(() => encodeMemoryVector([1e39], 1)).toThrow('non-finite')
     expect(() => encodeMemoryVector([NaN], 1)).toThrow('non-finite')
     expect(() => decodeMemoryVector(Buffer.alloc(3), 1)).toThrow('length')
+  })
+
+  it('accepts canonical base64 and rejects malformed or oversized wire data', () => {
+    const accepts = (data: string) =>
+      MemoryVectorCommandSchema.safeParse({
+        method: 'chunk',
+        resource,
+        generation: config.generation,
+        operation: randomUUID(),
+        upload: randomUUID(),
+        offset: 0,
+        data
+      }).success
+    for (const data of ['', 'AA==', 'AAA=', 'AAAA', Buffer.alloc(65536).toString('base64')])
+      expect(accepts(data)).toBe(true)
+    for (const data of ['AB==', 'AAB=', 'A===', 'AA=A', 'AA==\n', '____', 'A'.repeat(262144)])
+      expect(accepts(data)).toBe(false)
   })
 })

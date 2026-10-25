@@ -16,7 +16,15 @@ const dimensions = z
   .positive()
   .max(MEMORY_VECTOR_UPLOAD_BYTES / 4)
 const topK = z.number().int().min(1).max(800)
-const base64 = z.string().regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/)
+const base64 = z
+  .string()
+  .refine(
+    (value) =>
+      value.length <= 240 * 1024 &&
+      value.length % 4 === 0 &&
+      Buffer.from(value, 'base64').toString('base64') === value,
+    'Expected canonical base64'
+  )
 const resource = { generation: identity, operation: identity, resource: identity }
 
 export const MemoryVectorConfigSchema = z
@@ -120,9 +128,10 @@ export function encodeMemoryVector(values: readonly number[], dimensions: number
 
 export function decodeMemoryVector(bytes: Buffer, dimensions: number): number[] {
   if (bytes.length !== dimensions * 4) throw new Error('Memory vector byte length does not match')
+  const data = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   const vector: number[] = []
   for (let index = 0; index < dimensions; index++) {
-    const value = bytes.readFloatLE(index * 4)
+    const value = data.getFloat32(index * 4, true)
     if (!Number.isFinite(value))
       throw new Error('Memory vector contains a non-finite Float32 value')
     const integer = value | 0

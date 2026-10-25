@@ -327,7 +327,18 @@ cannot establish the frozen budget. Required CI and all six package checks remai
 corrective checkpoint; G4 has not started. Local validation passes 63 runtime/package checks,
 32 repeated malformed-frame child-reaping checks, scoped types and Clippy. The complete aligned
 performance entrypoint passes all 13 checks across seven files; its numeric budgets are unchanged.
-These results do not establish remote Linux timing acceptance.
+All six `b550ddaba` package jobs in run `40231700259` pass the actual packaged Memory smoke.
+Required run `40231700249` passes static, renderer, build and Main; its aligned Linux upsert gaps
+remain 15.22/11.34/10.58 ms at 1k/10k/50k, exceeding the unchanged allowance. G3 remains unaccepted.
+
+The selected hot-path correction uses bounded native Buffer canonical validation, an indexed
+finite/F32 loop and DataView little-endian reads. It preserves finite values and rejects malformed,
+noncanonical and oversized wire encodings. Local native contracts and the complete 13-check
+performance suite pass; the 50k write gap falls from 3.25 to 2.13 ms on the same local hardware.
+A single actual dense-50k check passes with a 1620.75-MiB sampled peak and 1049.92-MiB settled
+footprint. Fresh paired resource acceptance and remote Linux timing remain required before G4.
+Manifest: `/tmp/deepchat-rutis-g3-fast-codec-artifacts.json`; local reports use the
+`/tmp/deepchat-rutis-g3-fast-codec-` prefix.
 
 The 1536-dimensional transport benchmark passes the query/write budgets at each characterized size:
 

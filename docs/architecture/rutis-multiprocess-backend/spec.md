@@ -268,7 +268,7 @@ migration or fallback to a second native owner in Electron main.
   one bulk chunk awaits acknowledgement at a time. Control frames take precedence over the next
   chunk, and a loaded-vector E2E case must prove admission is not starved.
 - Encode embeddings as little-endian Float32 data, matching the native `FLOAT[]` representation,
-  in bounded base64 chunks through the Rutis JSON gateway. Preserve IDs, dimensions and ordering; validate
+  in bounded canonical base64 chunks through the Rutis JSON gateway. Preserve IDs, dimensions and ordering; validate
   byte lengths and finite values before effects. No dense-vector JSON number arrays or complete
   histories cross this gateway. Verify Float32/native cast parity, including extreme inputs.
 - Validate provider response vectors with a finite-number loop and clone the numeric array once,
