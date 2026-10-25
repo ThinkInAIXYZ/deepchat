@@ -289,7 +289,8 @@
       "@ai-sdk/openai-compatible@3.0.45": "patches/@ai-sdk__openai-compatible@3.0.45.patch",
       "@ai-sdk/openai@4.0.62": "patches/@ai-sdk__openai@4.0.62.patch",
       "@ai-sdk/google@4.0.65": "patches/@ai-sdk__google@4.0.65.patch",
-      "@ai-sdk/google-vertex@5.0.77": "patches/@ai-sdk__google-vertex@5.0.77.patch"
+      "@ai-sdk/google-vertex@5.0.77": "patches/@ai-sdk__google-vertex@5.0.77.patch",
+      "@arcships/rutis-runtime@0.16.0": "patches/@arcships__rutis-runtime@0.16.0.patch"
     }
   }
 }

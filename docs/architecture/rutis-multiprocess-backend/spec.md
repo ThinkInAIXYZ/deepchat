@@ -303,6 +303,9 @@ migration or fallback to a second native owner in Electron main.
   shipped with the Node API. Validate finite values, exact byte length, little-endian host format,
   actual FLOAT array type and row capacity before native copies. Set parent/child validity and
   honor source byte offsets; never expose an unchecked native memory-copy operation over RPC.
+- Keep padded base64 validation strict in the pinned Node runtime. Decode and verify by canonical
+  round trip with Node's Buffer implementation. Reuse an exact, independently allocated backing
+  buffer; copy pooled or partial buffers so decoded bytes cannot expose unrelated data.
 - Launch only the vector runtime with `--max-semi-space-size=8`. Sustained bounded uploads must
   not retain a throughput-grown idle nursery. Preserve the admission runtime's default heap policy
   and validate query/write latency alongside aggregate footprint; no forced GC is used.

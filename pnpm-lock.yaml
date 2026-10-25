@@ -28,6 +28,9 @@ patchedDependencies:
   '@ai-sdk/openai@4.0.62':
     hash: d540f71958d27ae3c5f065c84b9fdb4d6714c067952674016ce2a0adc5dce783
     path: patches/@ai-sdk__openai@4.0.62.patch
+  '@arcships/rutis-runtime@0.16.0':
+    hash: 118a5067c0fb8b1a69ee71008145221773dd67f0722f44a1b71ad5b16113edb1
+    path: patches/@arcships__rutis-runtime@0.16.0.patch
   '@electron/notarize@3.1.1':
     hash: b2e4a3334f86d72808116962914a4a2062da8c99b2d5cb86e67b73eb5ce3ab87
     path: patches/@electron__notarize@3.1.1.patch
@@ -225,7 +228,7 @@ importers:
         version: 0.16.0
       '@arcships/rutis-runtime':
         specifier: 0.16.0
-        version: 0.16.0
+        version: 0.16.0(patch_hash=118a5067c0fb8b1a69ee71008145221773dd67f0722f44a1b71ad5b16113edb1)
       '@commitlint/cli':
         specifier: ^21.2.2
         version: 21.2.2(@types/node@24.13.3)(conventional-commits-parser@7.1.0)(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)
@@ -7409,7 +7412,7 @@ snapshots:
       '@arcships/light-ocr-model-ppocrv6-small': 0.3.4
       '@arcships/light-ocr-runtime': 0.1.7
 
-  '@arcships/rutis-runtime@0.16.0':
+  '@arcships/rutis-runtime@0.16.0(patch_hash=118a5067c0fb8b1a69ee71008145221773dd67f0722f44a1b71ad5b16113edb1)':
     dependencies:
       '@deepseek-ai/cordis': 4.0.4
       tsx: 4.23.15

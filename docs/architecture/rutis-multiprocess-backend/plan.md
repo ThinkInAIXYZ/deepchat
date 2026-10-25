@@ -326,11 +326,11 @@ Frozen artifact inventory:
 
 ### Native transport, lifecycle and distribution validation
 
-G3 remains unaccepted. Pushed checkpoint `e076345bc` passes static, build, Main and renderer
-checks in run `40237446829`. Its native storage scope passes 361 checks and retrieval quality
-passes seven, but aligned Linux 50-row write gaps remain 8.28/6.45/5.18 ms at 1k/10k/50k,
-above the unchanged allowance. Fresh full paired resource capture has not started because this
-implementation still fails the Linux gate. The single resource preflight below is diagnostic evidence.
+G3 remains unaccepted. Pushed checkpoint `c3ea72f6d` passes static, build and renderer checks in
+run `40244161954`. Its native storage scope passes 362 checks and retrieval quality passes seven.
+Linux write gaps are 5.77/5.27/3.73 ms at 1k/10k/50k; 1k query p95 is 5.60 ms above direct native.
+Fresh full paired resource capture has not started because the earlier scales still fail the
+unchanged gates. Single resource preflights identify their own frozen outputs and are diagnostic.
 
 Post-measurement phase timings and a separate V8 CPU-sampling run diagnose the native commit path
 without warming or replacing adoption samples. These temporary diagnostics must be removed after
@@ -356,6 +356,15 @@ one outstanding receipt and one upload. Keep the ID-bearing first chunk at 64 Ki
 batch then needs two application round trips instead of five. Isolated larger-chunk probes reduce
 100 local remote writes from 438 to 409 ms; require unchanged write/query, loaded-control and
 resource gates before adoption. No numeric adoption budget is relaxed.
+
+Two-round checkpoint `c3ea72f6d` passes the Linux 50k write gate (3.73-ms extra), but the
+1k/10k write gaps remain 5.77/5.27 ms and 1k query p95 is 5.60 ms above direct native.
+Native V8 samples attribute 37-61 samples per 100 writes to base64 regular-expression validation
+and another 14-18 to decoding/copying. A Node canonical-round-trip decoder prototype reduces
+100 remote writes from 399 to 377 ms and sampled worker CPU from 400 to 360 ms locally.
+Select a pinned runtime patch preserving canonical rejection, exact private backing buffers and
+independent decodings. Require durable codec contracts, actual native/E2E checks and unchanged
+adoption gates. A validity-mask microprobe shows no material further gain and is not selected.
 The selected implementation keeps first chunks at 64 KiB, continuation chunks at 240 KiB and stages one 16-MiB/50-record
 upload in Rust. Only commit dispatches the native upsert. Native parts are at most eight MiB,
 so base64 and bounded metadata fit Rutis's 16-MiB internal message limit. The native owner
@@ -370,7 +379,10 @@ is introduced.
 
 Five Rust boundary/lifecycle checks pass and run in required CI alongside Clippy for all targets.
 The transport correction passes 362 native checks, with two Windows-only skips on macOS;
-121 focused Harness/store/package-contract checks pass. The native runtime scope
+123 focused Harness/store/package-contract checks pass, including two runtime byte contracts.
+The codec checks cover malformed padding/unused bits, whitespace/non-base64 rejection, exact
+independent backing buffers and byte equality through the eight-MiB native-part limit.
+The native runtime scope
 also passes a valid 45-record,
 49,152-dimensional batch spanning internal parts, persistence after close, incomplete-upload and
 non-finite rejection, maximum-16-MiB failure cleanup, abort/close cleanup, admission continuity
@@ -382,15 +394,15 @@ All 13 performance checks across seven files pass under matching Electron Node 2
 
 | Rows | Native / remote query p95 (ms) | Native / remote 50-row write mean (ms) | First remote open median / p95 (ms) |
 | --- | --- | --- | --- |
-| 1,000 | 3.566 / 3.762 | 2.318 / 4.046 | 133.583 / 141.736 |
-| 10,000 | 15.549 / 15.962 | 2.903 / 4.280 | 130.222 / 131.819 |
-| 50,000 | 65.680 / 66.030 | 4.567 / 5.835 | 131.693 / 133.790 |
+| 1,000 | 3.415 / 3.534 | 2.375 / 4.100 | 131.634 / 144.074 |
+| 10,000 | 15.162 / 15.411 | 2.874 / 4.172 | 130.254 / 130.814 |
+| 50,000 | 65.688 / 66.012 | 4.460 / 5.637 | 130.207 / 131.379 |
 
 Remote timings include encoding, gateway copies and native work. Thirty queries transfer
 280,650-280,710 application gateway bytes including replies; pending calls drain to zero.
 Five new workers per scale meet the 500-ms median and one-second p95 first-use limits.
 First/last five write samples are reported for CI diagnosis without changing the adoption gates.
-Report: `/tmp/deepchat-rutis-g3-two-round-perf.log`. Post-measurement phase diagnostics confirm
+Report: `/tmp/deepchat-rutis-g3-canonical-codec-perf.log`. Post-measurement phase diagnostics confirm
 typical 300-KiB writes use only begin and commit; observed pending calls remain at one.
 Persisted native checks cover packed batches with
 unaligned source offsets, Float32 extremes/negative zero, ordinary/packed writer reuse, whole-batch
