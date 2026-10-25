@@ -134,6 +134,23 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes Runcrate as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'runcrate',
+        name: 'Runcrate',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.runcrate.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          apiKey: 'https://www.runcrate.ai/dashboard/api-keys',
+          docs: 'https://www.runcrate.ai/docs',
+          defaultBaseUrl: 'https://api.runcrate.ai/v1'
+        })
+      })
+    )
+  })
+
   it('includes AI Stupid Level as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

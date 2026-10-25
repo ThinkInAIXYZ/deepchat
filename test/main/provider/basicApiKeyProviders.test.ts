@@ -1689,6 +1689,39 @@ describe('basic API-key provider registrations', () => {
     )
   })
 
+  it('checks Runcrate with a chat model instead of its public model list', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'runcrate')!
+    expect(defaults).toBeDefined()
+    const config = { ...defaults, apiKey: 'test-key' }
+    // Runcrate's /v1/models answers without a key, so listing models cannot validate one.
+    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'deepseek-ai/DeepSeek-V4.1-Flash'
+    })
+    const provider = new AiSdkProvider(config, createProviderSettings())
+    ;(provider as any).isInitialized = true
+
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerKind: 'openai-compatible',
+        provider: expect.objectContaining({
+          id: 'runcrate',
+          apiKey: 'test-key',
+          baseUrl: 'https://api.runcrate.ai/v1'
+        })
+      }),
+      [{ role: 'user', content: 'Hello' }],
+      'deepseek-ai/DeepSeek-V4.1-Flash',
+      expect.any(Object),
+      0.2,
+      16
+    )
+  })
+
   it('routes OpenCode Go chat completions models through OpenAI-compatible runtime', async () => {
     const provider = new AiSdkProvider(
       createProvider({

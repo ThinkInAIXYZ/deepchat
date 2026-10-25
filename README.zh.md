@@ -457,6 +457,10 @@ DeepChat 可以通过聊天软件远程控制，让你离开桌面后也能继�
       <img src="./src/renderer/src/assets/llm-icons/aistupidlevel.svg" width="50" height="50" alt="AI Stupid Level Icon"><br/>
       <a href="https://aistupidlevel.info/">AI Stupid Level</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/runcrate.svg" width="50" height="50" alt="Runcrate Icon"><br/>
+      <a href="https://www.runcrate.ai/?utm_source=deepchat&utm_medium=directory&utm_campaign=gpu_pricing">Runcrate</a>
+    </td>
   </tr>
 
 </table>

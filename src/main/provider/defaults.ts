@@ -651,6 +651,21 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'runcrate',
+    name: 'Runcrate',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.runcrate.ai/v1',
+    enable: false,
+    websites: {
+      official:
+        'https://www.runcrate.ai/?utm_source=deepchat&utm_medium=directory&utm_campaign=gpu_pricing',
+      apiKey: 'https://www.runcrate.ai/dashboard/api-keys',
+      docs: 'https://www.runcrate.ai/docs',
+      models: 'https://www.runcrate.ai/inference'
+    }
+  },
+  {
     id: 'aistupidlevel',
     name: 'AI Stupid Level',
     apiType: 'openai-completions',
