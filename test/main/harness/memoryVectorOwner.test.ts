@@ -321,8 +321,21 @@ describe('native Memory vector ownership', () => {
         offset: 0,
         data
       }).success
-    for (const data of [Buffer.alloc(1), new Uint8Array(65536)]) expect(accepts(data)).toBe(true)
-    for (const data of ['', 'AAAA', [0, 0, 0], new Uint8Array(0), Buffer.alloc(65537)])
+    for (const data of [Buffer.alloc(1), new Uint8Array(240 * 1024)])
+      expect(accepts(data)).toBe(true)
+    for (const data of ['', 'AAAA', [0, 0, 0], new Uint8Array(0), Buffer.alloc(240 * 1024 + 1)])
       expect(accepts(data)).toBe(false)
+    expect(
+      MemoryVectorCommandSchema.safeParse({
+        method: 'begin',
+        resource,
+        generation: config.generation,
+        operation: randomUUID(),
+        upload: randomUUID(),
+        memoryIds: ['m0'],
+        bytes: 65540,
+        data: Buffer.alloc(65537)
+      }).success
+    ).toBe(false)
   })
 })

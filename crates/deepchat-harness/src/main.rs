@@ -36,7 +36,8 @@ const MAX_FRAME: usize = 64 * 1024;
 const MAX_MEMORY_FRAME: usize = 256 * 1024;
 const MEMORY_FRAME_FLAG: u32 = 0x8000_0000;
 const BINARY_FRAME_FLAG: u32 = 0x4000_0000;
-const MAX_MEMORY_CHUNK: usize = 64 * 1024;
+const MAX_MEMORY_INITIAL_CHUNK: usize = 64 * 1024;
+const MAX_MEMORY_CHUNK: usize = 240 * 1024;
 const MAX_CALLS: usize = 1024;
 
 #[derive(Deserialize)]

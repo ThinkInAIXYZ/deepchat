@@ -13,6 +13,7 @@ import { MEMORY_VECTOR_OWNER_FILE } from '@/memory/infra/memoryVectorStorePaths'
 import {
   encodeMemoryVector,
   MEMORY_VECTOR_CHUNK_BYTES,
+  MEMORY_VECTOR_INITIAL_CHUNK_BYTES,
   MEMORY_VECTOR_UPLOAD_BYTES,
   type MemoryVectorCommand
 } from '@shared/harness/memory-vector'
@@ -107,7 +108,9 @@ describe('Rutis native Memory runtime', () => {
     )
     const records = Array.from({ length: 45 }, (_, row) => ({
       memoryId: `wide-${String(row).padStart(2, '0')}`,
-      embedding: Array.from({ length: dimensions }, (_, column) => (column === row ? 1 : 0))
+      embedding: Array.from({ length: dimensions }, (_, column) =>
+        column === row ? 1 : column === dimensions - 1 ? -0.25 : 0
+      )
     }))
     await store.upsert(records)
     expect(await store.listMemoryIds(null, 50)).toEqual(records.map((record) => record.memoryId))
@@ -117,9 +120,9 @@ describe('Rutis native Memory runtime', () => {
       const connection = await instance.connect()
       try {
         const result = await connection.runAndReadAll(
-          "SELECT embedding[45] AS anchor, list_sum(embedding)::FLOAT AS total FROM memory_vector WHERE memory_id = 'wide-44'"
+          "SELECT embedding[45] AS anchor, embedding[49152] AS fraction, list_sum(embedding)::FLOAT AS total FROM memory_vector WHERE memory_id = 'wide-44'"
         )
-        expect(result.getRowObjectsJson()).toEqual([{ anchor: 1, total: 1 }])
+        expect(result.getRowObjectsJson()).toEqual([{ anchor: 1, fraction: -0.25, total: 0.75 }])
       } finally {
         connection.closeSync()
       }
@@ -184,9 +187,9 @@ describe('Rutis native Memory runtime', () => {
       upload,
       memoryIds: ['memory'],
       bytes: MEMORY_VECTOR_UPLOAD_BYTES,
-      data: chunk
+      data: Buffer.alloc(MEMORY_VECTOR_INITIAL_CHUNK_BYTES)
     })
-    let offset = chunk.length
+    let offset = MEMORY_VECTOR_INITIAL_CHUNK_BYTES
     for (; offset + chunk.length < MEMORY_VECTOR_UPLOAD_BYTES; offset += chunk.length)
       await send({ method: 'chunk', upload, offset, data: chunk })
     await expect(send({ method: 'commit', upload, offset, data: chunk })).rejects.toThrow('shape')

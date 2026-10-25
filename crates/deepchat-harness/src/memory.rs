@@ -88,7 +88,7 @@ fn stage(
             }
         }
         let initial = data.unwrap_or_default();
-        if initial.len() > MAX_MEMORY_CHUNK || initial.len() > expected {
+        if initial.len() > MAX_MEMORY_INITIAL_CHUNK || initial.len() > expected {
             return Err(invalid());
         }
         let mut bytes = Vec::with_capacity(expected);
@@ -415,6 +415,53 @@ mod tests {
         assert!(upload.is_some(), "An abort cannot disown a native write");
     }
     #[test]
+    fn first_and_continuation_chunks_share_one_bounded_batch() {
+        let mut upload = None;
+        let expected = MAX_MEMORY_INITIAL_CHUNK + MAX_MEMORY_CHUNK;
+        assert!(stage(
+            &mut upload,
+            1,
+            begin(expected),
+            Some(vec![0; MAX_MEMORY_INITIAL_CHUNK + 1]),
+            ID
+        )
+        .is_err());
+        assert!(upload.is_none());
+        assert!(stage(
+            &mut upload,
+            2,
+            begin(expected),
+            Some(vec![0; MAX_MEMORY_INITIAL_CHUNK]),
+            ID
+        )
+        .is_ok());
+        let mut commit = command("commit");
+        commit["offset"] = json!(MAX_MEMORY_INITIAL_CHUNK);
+        assert!(stage(
+            &mut upload,
+            3,
+            commit.clone(),
+            Some(vec![1; MAX_MEMORY_CHUNK + 1]),
+            ID
+        )
+        .is_err());
+        let Ok(Staged::Call(calls)) =
+            stage(&mut upload, 4, commit, Some(vec![1; MAX_MEMORY_CHUNK]), ID)
+        else {
+            panic!("Expected one complete native batch")
+        };
+        assert_eq!(calls.len(), 1);
+        let Value::Record(fields) = &calls[0] else {
+            panic!("Expected native fields")
+        };
+        let Value::Bytes(bytes) = &fields["data"] else {
+            panic!("Expected packed bytes")
+        };
+        assert_eq!(bytes.len(), expected);
+        assert_eq!(bytes[MAX_MEMORY_INITIAL_CHUNK - 1], 0);
+        assert_eq!(bytes[MAX_MEMORY_INITIAL_CHUNK], 1);
+    }
+    #[test]
     fn upload_bounds_and_identity_are_checked_before_staging() {
         let mut upload = None;
         for bytes in [0, 3, MAX_UPLOAD_BYTES + 4] {
@@ -448,7 +495,8 @@ mod tests {
         for offset in (0..MAX_UPLOAD_BYTES).step_by(MAX_MEMORY_CHUNK) {
             let mut chunk = command("chunk");
             chunk["offset"] = json!(offset);
-            assert!(stage(&mut upload, 2, chunk, Some(vec![0; MAX_MEMORY_CHUNK]), ID).is_ok());
+            let length = MAX_MEMORY_CHUNK.min(MAX_UPLOAD_BYTES - offset);
+            assert!(stage(&mut upload, 2, chunk, Some(vec![0; length]), ID).is_ok());
         }
         let Ok(Staged::Call(calls)) = stage(&mut upload, 3, command("commit"), None, ID) else {
             panic!("Expected native parts")

@@ -5,7 +5,8 @@ export const MEMORY_VECTOR_FRAME_BYTES = 256 * 1024
 export const MEMORY_VECTOR_FRAME_FLAG = 0x80000000
 export const MEMORY_VECTOR_BINARY_FLAG = 0x40000000
 export const MEMORY_VECTOR_UPLOAD_BYTES = 16 * 1024 * 1024
-export const MEMORY_VECTOR_CHUNK_BYTES = 64 * 1024
+export const MEMORY_VECTOR_INITIAL_CHUNK_BYTES = 64 * 1024
+export const MEMORY_VECTOR_CHUNK_BYTES = 240 * 1024
 export const MEMORY_VECTOR_PENDING = 32
 export const MEMORY_VECTOR_NATIVE_PART_BYTES = 8 * 1024 * 1024
 
@@ -93,7 +94,9 @@ export const MemoryVectorCommandSchema = z.discriminatedUnion('method', [
       upload: identity,
       memoryIds: z.array(memoryId).min(1).max(50),
       bytes: z.number().int().positive().max(MEMORY_VECTOR_UPLOAD_BYTES),
-      data: chunk.optional()
+      data: chunk
+        .refine((value) => value.byteLength <= MEMORY_VECTOR_INITIAL_CHUNK_BYTES)
+        .optional()
     })
     .strict(),
   z

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
+import { endianness } from 'node:os'
 import { z } from 'zod'
 import { AsyncSemaphore } from '@/lib/asyncSemaphore'
 import { withSoftDeadline } from '@/memory/core/asyncDeadline'
@@ -17,6 +18,7 @@ import {
 import {
   encodeMemoryVector,
   MEMORY_VECTOR_CHUNK_BYTES,
+  MEMORY_VECTOR_INITIAL_CHUNK_BYTES,
   MEMORY_VECTOR_UPLOAD_BYTES,
   MemoryVectorCommandSchema,
   type MemoryVectorCommand,
@@ -143,6 +145,7 @@ export class RutisMemoryVectorStores implements MemoryVectorStoreFactoryPort {
   async upsert(store: RemoteMemoryVectorStore, records: MemoryVectorRecord[]): Promise<void> {
     store.assertUsable()
     if (!records.length) return
+    if (endianness() !== 'LE') throw new Error('Memory vector uploads require a little-endian host')
     const bytes = records.length * store.dimensions * 4
     if (records.length > 50 || bytes > MEMORY_VECTOR_UPLOAD_BYTES)
       throw new Error('Memory vector upload exceeds batch limit')
@@ -160,21 +163,28 @@ export class RutisMemoryVectorStores implements MemoryVectorStoreFactoryPort {
     await this.uploads.run(async () => {
       store.assertUsable()
       const upload = randomUUID()
-      const chunkAt = (offset: number) => {
-        const chunk = Buffer.allocUnsafe(Math.min(MEMORY_VECTOR_CHUNK_BYTES, bytes - offset))
-        for (let local = 0; local < chunk.length; local += 4) {
-          const index = (offset + local) / 4
-          chunk.writeFloatLE(
-            records[Math.floor(index / store.dimensions)].embedding[index % store.dimensions],
-            local
-          )
+      const chunkAt = (offset: number, limit = MEMORY_VECTOR_CHUNK_BYTES) => {
+        const chunk = Buffer.allocUnsafe(Math.min(limit, bytes - offset))
+        const values = new Float32Array(chunk.buffer, chunk.byteOffset, chunk.length / 4)
+        let sourceOffset = offset / 4
+        for (let local = 0; local < values.length; ) {
+          const source = records[Math.floor(sourceOffset / store.dimensions)].embedding
+          const start = sourceOffset % store.dimensions
+          const count = Math.min(source.length - start, values.length - local)
+          if (start === 0 && count === source.length) values.set(source, local)
+          else {
+            for (let index = 0; index < count; index++)
+              values[local + index] = source[start + index]
+          }
+          local += count
+          sourceOffset += count
         }
         return chunk
       }
       try {
         let offset: number
         {
-          const first = chunkAt(0)
+          const first = chunkAt(0, MEMORY_VECTOR_INITIAL_CHUNK_BYTES)
           offset = first.length
           await this.request({
             method: 'begin',

@@ -292,7 +292,10 @@ migration or fallback to a second native owner in Electron main.
   acknowledgement. Oversized/invalid operations fail before effects; never truncate or split a
   logical transaction silently. Inventory every actual caller against these limits before cutover.
   Begin and commit can each carry one bounded chunk, avoiding empty transport round trips without
-  changing the atomic write acknowledgement. Keep application upload chunks at 64 KiB.
+  changing the atomic write acknowledgement. Bound the first application chunk to 64 KiB to leave
+  room for IDs; bound subsequent chunks to 240 KiB within the unchanged 256-KiB frame limit.
+  Retain one outstanding chunk acknowledgement. Pack complete rows with native Float32 array
+  conversion and copy partial rows into the current chunk; retain no second full encoded matrix.
 - Reuse one typed DuckDB data chunk per store and append bounded pages inside the existing
   delete/insert transaction. Close the appender before commit; invalid dimensions or a failed
   append roll back the whole logical batch. Preserve Float32 values and smaller subsequent batches.

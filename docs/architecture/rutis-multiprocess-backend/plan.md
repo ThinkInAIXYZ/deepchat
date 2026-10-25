@@ -255,7 +255,7 @@ upload bytes from Main to Rust. Rust stages one bounded upload and acknowledges 
 chunk; commit dispatches a native atomic upsert through Rutis `Value::Bytes`. Internal native parts
 are bounded to eight MiB so encoded messages fit Rutis's 16-MiB limit; all parts belong to one batch
 and only the complete batch reaches the existing transaction. This preserves
-64-KiB application chunks, one outstanding chunk acknowledgement, the 16-MiB/50-record logical
+64-KiB first chunks, 240-KiB continuation chunks, one outstanding chunk acknowledgement, the 16-MiB/50-record logical
 limit, atomic writes and control priority. The native owner keeps resource and file authority;
 application transfer state belongs to the Rust gateway. Raw forwarding alone shows little local
 latency improvement and does not justify retaining a second per-chunk native acknowledgement.
@@ -346,7 +346,17 @@ using the already packaged, same-version DuckDB bindings. Validate finite values
 length, endianness, actual column type and native capacity before copying; preserve validity,
 subarray offsets and the existing atomic rollback/fatal-error path. Require persisted native
 value/rollback tests and unchanged Linux adoption gates before retaining this correction.
-The selected implementation keeps application chunks at 64 KiB and stages one 16-MiB/50-record
+
+Packed checkpoint `e519b5441` still fails Linux write gaps at 7.25/6.59/5.55 ms, while native
+storage (362 checks), retrieval quality and query/first-use gates pass. Local native statement
+timings are almost equal between direct and remote owners; the remaining gap is chiefly transport.
+The selected transport correction retains the 256-KiB frame ceiling, 1-MiB buffer/control reserve,
+one outstanding receipt and one upload. Keep the ID-bearing first chunk at 64 KiB, use at most
+240 KiB for later chunks, and pack complete rows with Float32 array conversion. A typical 300-KiB
+batch then needs two application round trips instead of five. Isolated larger-chunk probes reduce
+100 local remote writes from 438 to 409 ms; require unchanged write/query, loaded-control and
+resource gates before adoption. No numeric adoption budget is relaxed.
+The selected implementation keeps first chunks at 64 KiB, continuation chunks at 240 KiB and stages one 16-MiB/50-record
 upload in Rust. Only commit dispatches the native upsert. Native parts are at most eight MiB,
 so base64 and bounded metadata fit Rutis's 16-MiB internal message limit. The native owner
 validates the complete batch before one transaction and reserves per-resource order from the first
@@ -358,9 +368,9 @@ quarantine and control-priority rules remain in force. The direct binding depend
 version already shipped with the Node API; no additional native payload or implementation switch
 is introduced.
 
-Four Rust boundary/lifecycle checks pass and run in required CI alongside Clippy for all targets.
-The packed-column correction passes 362 native checks, with two Windows-only skips on macOS;
-101 focused Harness/store checks and 20 package-contract checks pass. The native runtime scope
+Five Rust boundary/lifecycle checks pass and run in required CI alongside Clippy for all targets.
+The transport correction passes 362 native checks, with two Windows-only skips on macOS;
+121 focused Harness/store/package-contract checks pass. The native runtime scope
 also passes a valid 45-record,
 49,152-dimensional batch spanning internal parts, persistence after close, incomplete-upload and
 non-finite rejection, maximum-16-MiB failure cleanup, abort/close cleanup, admission continuity
@@ -372,15 +382,17 @@ All 13 performance checks across seven files pass under matching Electron Node 2
 
 | Rows | Native / remote query p95 (ms) | Native / remote 50-row write mean (ms) | First remote open median / p95 (ms) |
 | --- | --- | --- | --- |
-| 1,000 | 3.651 / 4.028 | 2.509 / 4.466 | 132.766 / 146.868 |
-| 10,000 | 15.104 / 15.654 | 2.957 / 4.671 | 132.368 / 132.926 |
-| 50,000 | 65.668 / 66.023 | 4.586 / 6.216 | 131.591 / 132.950 |
+| 1,000 | 3.566 / 3.762 | 2.318 / 4.046 | 133.583 / 141.736 |
+| 10,000 | 15.549 / 15.962 | 2.903 / 4.280 | 130.222 / 131.819 |
+| 50,000 | 65.680 / 66.030 | 4.567 / 5.835 | 131.693 / 133.790 |
 
 Remote timings include encoding, gateway copies and native work. Thirty queries transfer
 280,650-280,710 application gateway bytes including replies; pending calls drain to zero.
 Five new workers per scale meet the 500-ms median and one-second p95 first-use limits.
 First/last five write samples are reported for CI diagnosis without changing the adoption gates.
-Report: `/tmp/deepchat-rutis-g3-packed-perf.log`. Persisted native checks cover packed batches with
+Report: `/tmp/deepchat-rutis-g3-two-round-perf.log`. Post-measurement phase diagnostics confirm
+typical 300-KiB writes use only begin and commit; observed pending calls remain at one.
+Persisted native checks cover packed batches with
 unaligned source offsets, Float32 extremes/negative zero, ordinary/packed writer reuse, whole-batch
 duplicate-key rollback and pre-effect rejection of malformed or non-finite input. Shared mutable
 buffers are rejected at the native command boundary.
