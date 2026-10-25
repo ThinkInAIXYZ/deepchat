@@ -1,0 +1,10 @@
+{
+  "name": "baizhi-cloud-browser",
+  "version": "0.1.0",
+  "description": "Manage Baizhi Cloud Browser (CapyBrowser) sessions, saved state, human handoff and downloads. Requires your own API key; browser runtime is billed. Page actions need a CDP client.",
+  "author": {
+    "name": "ctcbyzx"
+  },
+  "license": "Apache-2.0",
+  "mcpServers": "./.mcp.json"
+}
