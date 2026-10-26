@@ -143,8 +143,8 @@ describe('DEFAULT_PROVIDERS', () => {
         baseUrl: 'https://api.runcrate.ai/v1',
         enable: false,
         websites: expect.objectContaining({
-          apiKey: 'https://www.runcrate.ai/dashboard/api-keys',
-          docs: 'https://www.runcrate.ai/docs',
+          apiKey: 'https://www.runcrate.ai/dashboard/api-keys?utm_source=deepchat',
+          docs: 'https://www.runcrate.ai/docs?utm_source=deepchat',
           defaultBaseUrl: 'https://api.runcrate.ai/v1'
         })
       })

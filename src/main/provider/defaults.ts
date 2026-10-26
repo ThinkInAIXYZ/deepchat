@@ -658,11 +658,10 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     baseUrl: 'https://api.runcrate.ai/v1',
     enable: false,
     websites: {
-      official:
-        'https://www.runcrate.ai/?utm_source=deepchat&utm_medium=directory&utm_campaign=gpu_pricing',
-      apiKey: 'https://www.runcrate.ai/dashboard/api-keys',
-      docs: 'https://www.runcrate.ai/docs',
-      models: 'https://www.runcrate.ai/inference'
+      official: 'https://www.runcrate.ai/?utm_source=deepchat',
+      apiKey: 'https://www.runcrate.ai/dashboard/api-keys?utm_source=deepchat',
+      docs: 'https://www.runcrate.ai/docs?utm_source=deepchat',
+      models: 'https://www.runcrate.ai/inference?utm_source=deepchat'
     }
   },
   {

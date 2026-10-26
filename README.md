@@ -465,7 +465,7 @@ Common commands include `/start`, `/help`, `/pair`, `/new`, `/sessions`, `/use`,
     </td>
     <td>
       <img src="./src/renderer/src/assets/llm-icons/runcrate.svg" width="50" height="50" alt="Runcrate Icon"><br/>
-      <a href="https://www.runcrate.ai/?utm_source=deepchat&utm_medium=directory&utm_campaign=gpu_pricing">Runcrate</a>
+      <a href="https://www.runcrate.ai/?utm_source=deepchat">Runcrate</a>
     </td>
   </tr>
 

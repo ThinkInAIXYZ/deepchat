@@ -1696,7 +1696,7 @@ describe('basic API-key provider registrations', () => {
     // Runcrate's /v1/models answers without a key, so listing models cannot validate one.
     expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
       runtimeKind: 'openai-compatible',
-      modelSource: 'openai',
+      modelSource: 'runcrate',
       checkStrategy: 'generate-text',
       credentialStrategy: 'api-key',
       checkModelId: 'deepseek-ai/DeepSeek-V4.1-Flash'
@@ -1719,6 +1719,57 @@ describe('basic API-key provider registrations', () => {
       expect.any(Object),
       0.2,
       16
+    )
+  })
+
+  it('lists only text chat models from the public Runcrate catalog', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'runcrate')!
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        object: 'list',
+        data: [
+          {
+            id: 'Qwen/Qwen3-Next-80B-A3B-Instruct',
+            owned_by: 'Qwen',
+            input_modalities: ['text'],
+            output_modalities: ['text'],
+            context_length: 262144,
+            max_output_length: 235929,
+            supported_features: ['tools', 'json_mode']
+          },
+          { id: 'Qwen/Qwen-Image', input_modalities: ['text'], output_modalities: ['image'] },
+          { id: 'BAAI/bge-m3', input_modalities: ['text'], output_modalities: ['embeddings'] },
+          {
+            id: 'openai/whisper-large-v3-turbo',
+            input_modalities: ['audio'],
+            output_modalities: ['text']
+          },
+          { id: 'missing-modalities' }
+        ]
+      })
+    )
+    global.fetch = fetchMock
+    const provider = new AiSdkProvider(defaults, createProviderSettings())
+
+    expect(await provider.fetchModels({ suppressErrors: false })).toEqual([
+      {
+        id: 'Qwen/Qwen3-Next-80B-A3B-Instruct',
+        name: 'Qwen/Qwen3-Next-80B-A3B-Instruct',
+        group: 'default',
+        providerId: 'runcrate',
+        isCustom: false,
+        type: 'chat',
+        contextLength: 262144,
+        maxTokens: 235929,
+        functionCall: true,
+        reasoning: false,
+        vision: false,
+        ownedBy: 'Qwen'
+      }
+    ])
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.runcrate.ai/v1/models',
+      expect.objectContaining({ method: 'GET' })
     )
   })
 
