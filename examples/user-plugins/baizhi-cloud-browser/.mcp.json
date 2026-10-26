@@ -1,0 +1,7 @@
+{
+  "baizhi-cloud-browser": {
+    "type": "http",
+    "url": "https://capybrowser.app.baizhi.cloud/mcp",
+    "bearer_token_env_var": "CAPYBROWSER_API_KEY"
+  }
+}

@@ -17,6 +17,12 @@ password field for a user-supplied Bearer key and includes ZIP packaging instruc
 rotation and removal guidance. The hosted service requires a separate account and may charge for
 usage; the example is optional and is not bundled or auto-enabled.
 
+For cloud browser session management, see
+[Baizhi Cloud Browser (CapyBrowser)](../../../examples/user-plugins/baizhi-cloud-browser/README.md)
+([简体中文](../../../examples/user-plugins/baizhi-cloud-browser/README.zh-CN.md)). This optional
+MCP-only example uses your own private API key. Browser runtime is billed, and page actions
+require a compatible CDP client; the example does not replace DeepChat's page tools.
+
 For anonymous web search and page fetching, see
 [Parallel Search](../../../examples/user-plugins/parallel-search/README.md). This MCP-only example
 uses Streamable HTTP with no account or API key required. Package it as a small ZIP and explicitly
