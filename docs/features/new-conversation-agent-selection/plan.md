@@ -117,17 +117,21 @@ disabled selected model row. Its action remained disabled. No live model generat
 ## ACP Chats Execution
 
 - [x] Prepare the managed Chats directory on demand through a typed project route and a versioned
-      snapshot. Keep manual selection and the custom default project unchanged.
+      snapshot. Keep manual selection and the custom default project unchanged. Recover the configured
+      managed directory before other candidates and persist any required managed fallback.
 - [x] Use the effective Chats directory consistently for warmup, draft creation, authentication
       continuation, workspace references, and submission. Persist the directory in ACP sessions so
       follow-up messages pass the existing workdir validation.
+- [x] Prepare only missing effective Chats directories, including after a snapshot loses the path.
+      Keep a focusable retry icon with the failure reason until preparation succeeds.
 - [x] Exclude ACP identities from native runtime Skill validation. Give disabled option anchors
       button semantics and disabled state, and locate them by their accessible role in Electron.
       Check visible loading cues while retaining the parent's exposed loading contract test.
 
-Full verification passed: 9,853 main tests, 2,748 renderer tests, formatting, i18n, lint, typecheck,
+Full verification passed: 9,856 main tests, 2,750 renderer tests, formatting, i18n, lint, typecheck,
 and production compilation. The ACP stdio smoke clears the selected workspace, checks the actual
-`session/new` cwd, and completes two chat turns without native Skill scope errors. An isolated real
+`session/new` cwd, retries a failed preparation through its visible control, and completes two chat
+turns without native Skill scope errors. An isolated real
 profile verified DeepChat and DimCode with Chats selected, ready configuration, and an enabled Send
 button after entering text while preserving a separate custom default project. No live model
 completion was requested.

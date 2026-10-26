@@ -926,6 +926,51 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     })
   })
 
+  it('reuses the ready Chats directory and prepares it again when a snapshot loses it', async () => {
+    const { wrapper, projectStore, sessionClient } = await setup({
+      selectedProject: null,
+      defaultChatWorkspacePath: '/tmp/chats'
+    })
+    expect(projectStore.ensureChatWorkspace).not.toHaveBeenCalled()
+    expect(sessionClient.ensureAcpDraftSession).toHaveBeenCalledWith(
+      expect.objectContaining({ projectDir: '/tmp/chats' })
+    )
+
+    projectStore.defaultChatWorkspacePath = null
+    await flushPromises()
+    expect(projectStore.ensureChatWorkspace).toHaveBeenCalledOnce()
+    expect(projectStore.defaultChatWorkspacePath).toBe('/tmp/chats')
+    expect(wrapper.find('[data-testid="new-thread-acp-workdir-status"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="new-thread-chat-workspace-retry"]').exists()).toBe(false)
+  })
+
+  it('keeps a retry control after Chats preparation fails and resumes ACP on retry', async () => {
+    const { wrapper, projectStore, sessionClient } = await setup()
+    projectStore.ensureChatWorkspace.mockRejectedValueOnce(new Error('Workspace is read-only'))
+    projectStore.selectedProject = null
+    await flushPromises()
+
+    const retry = wrapper.get('[data-testid="new-thread-chat-workspace-retry"]')
+    expect(retry.attributes('label')).toContain('Workspace is read-only')
+    expect(wrapper.find('[data-testid="new-thread-acp-workdir-status"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
+      'true'
+    )
+    await retry.trigger('click')
+    await flushPromises()
+
+    expect(projectStore.ensureChatWorkspace).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-testid="new-thread-chat-workspace-retry"]').exists()).toBe(false)
+    expect(sessionClient.ensureAcpDraftSession).toHaveBeenLastCalledWith({
+      agentId: 'acp-agent',
+      projectDir: '/tmp/chats',
+      permissionMode: 'full_access'
+    })
+    expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
+      'false'
+    )
+  })
+
   it('ensures ACP draft session and passes session-id to ChatInputBox', async () => {
     const { wrapper, sessionClient } = await setup()
 

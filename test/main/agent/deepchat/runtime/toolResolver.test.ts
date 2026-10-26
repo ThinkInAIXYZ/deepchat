@@ -583,6 +583,20 @@ describe('DeepChatToolResolver Agent Skill scope', () => {
     expect(skillService.validateSkillNames).not.toHaveBeenCalled()
   })
 
+  it('rejects native ACP Skills in strict catalogs without logging a validation failure', async () => {
+    const { resolver, resourceInstance, skillService } = createResolver('acp')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const catalog = resolver.createSessionToolCatalogPort(
+      'session-1', null, resourceInstance as any
+    )
+    await expect(catalog.resolve({ failClosed: true })).rejects.toThrow(
+      'Native Skills are unavailable for ACP Agents.'
+    )
+    expect(skillService.validateSkillNames).not.toHaveBeenCalled()
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
   it('keeps the resolved Run Skill snapshot when assignments change during the Run', async () => {
     const { resolver, resourceInstance, skillService, getAllToolDefinitions } = createResolver()
 

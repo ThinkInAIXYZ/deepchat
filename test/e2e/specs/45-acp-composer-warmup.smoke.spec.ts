@@ -340,7 +340,28 @@ createInterface({ input: process.stdin }).on('line', line => {
   await selectWorkspace(workspace)
   await expect(app.page.getByTestId('new-thread-acp-workdir-status')).toHaveCount(0)
   await expect(modelTrigger).toBeVisible()
-  await selectWorkspace(null)
+  await app.page.evaluate(() => {
+    const project = (
+      document.querySelector('#app') as any
+    ).__vue_app__.config.globalProperties.$pinia._s.get('project')
+    const ensureChatWorkspace = project.ensureChatWorkspace
+    project.ensureChatWorkspace = async () => {
+      project.ensureChatWorkspace = ensureChatWorkspace
+      throw new Error('Workspace is read-only')
+    }
+    project.defaultChatWorkspacePath = null
+    project.selectProject(null, 'manual')
+  })
+  const retryWorkspace = app.page.getByTestId('new-thread-chat-workspace-retry')
+  await expect(retryWorkspace).toHaveAccessibleName(/Workspace is read-only/)
+  await expect(app.page.getByTestId('chat-send-button')).toBeDisabled()
+  await expect(app.page.getByTestId('new-thread-acp-workdir-status')).toHaveCount(0)
+  await retryWorkspace.hover()
+  await expect(
+    app.page.locator('[data-slot="tooltip-content"]').filter({ hasText: 'Workspace is read-only' })
+  ).toBeVisible()
+  await retryWorkspace.click()
+  await expect(retryWorkspace).toHaveCount(0)
   await expect(app.page.getByTestId('new-thread-project-trigger-icon')).toHaveAttribute(
     'data-icon',
     'lucide:message-square'

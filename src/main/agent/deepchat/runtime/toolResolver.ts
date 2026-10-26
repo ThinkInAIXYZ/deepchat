@@ -1082,28 +1082,28 @@ export class DeepChatToolResolver {
     }
 
     try {
-      if ((await this.dependencies.agentSettings.getAgentType(agentId)) === 'acp') {
-        if (failClosed && normalizedSkillNames.length > 0) {
-          throw new Error('Native Skills are unavailable for ACP Agents.')
+      if ((await this.dependencies.agentSettings.getAgentType(agentId)) !== 'acp') {
+        const validatedSkillNames = normalizeStringList(
+          await this.dependencies.skillService.validateSkillNames(agentId, normalizedSkillNames, { conversationId })
+        )
+        if (
+          failClosed &&
+          (validatedSkillNames.length !== normalizedSkillNames.length ||
+            validatedSkillNames.some((name, index) => name !== normalizedSkillNames[index]))
+        ) {
+          throw new Error('Runtime Skill validation did not preserve the requested Skill set.')
         }
-        return []
+        return validatedSkillNames
       }
-      const validatedSkillNames = normalizeStringList(
-        await this.dependencies.skillService.validateSkillNames(agentId, normalizedSkillNames, { conversationId })
-      )
-      if (
-        failClosed &&
-        (validatedSkillNames.length !== normalizedSkillNames.length ||
-          validatedSkillNames.some((name, index) => name !== normalizedSkillNames[index]))
-      ) {
-        throw new Error('Runtime Skill validation did not preserve the requested Skill set.')
-      }
-      return validatedSkillNames
     } catch (error) {
       console.warn(`[DeepChatAgent] Failed to validate active skills for Agent ${agentId}:`, error)
       if (failClosed) throw error
       return []
     }
+    if (failClosed && normalizedSkillNames.length > 0) {
+      throw new Error('Native Skills are unavailable for ACP Agents.')
+    }
+    return []
   }
 
   normalizeNullablePolicyList(value?: string[] | null): string[] | null | undefined {

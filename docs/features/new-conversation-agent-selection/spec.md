@@ -75,10 +75,18 @@ Chats do not display a directory-selection prompt. ACP Chats lazily prepare an a
 chat directory, independently of the custom default project. The visible selection remains Chats;
 its ACP session records the managed directory so first and subsequent turns have a valid workdir.
 The directory follows the existing Documents/Home/user-data candidate policy and remains in Chats
-history grouping even when the user has a different custom default project.
-The typed `project.ensureChatWorkspace` route publishes a versioned project snapshot without changing
-the default project setting. An unavailable explicitly selected workspace still displays its localized
-reason and blocks ACP preparation/submission. Native
+history grouping even when the user has a different custom default project. A configured managed
+directory is recreated before trying other candidates. If it cannot be recreated, the selected
+managed fallback becomes the configured default so restoring the original directory cannot move
+new Chats back to a different location. Custom defaults are preserved.
+The typed `project.ensureChatWorkspace` route publishes a versioned project snapshot. Preparation
+runs only when ACP needs a missing effective directory, including when a later snapshot loses it.
+Failure leaves a retry icon beside the context selectors, with the reason available on hover or
+keyboard focus; it does not add a directory-selection prompt.
+An unavailable explicitly selected workspace still displays its localized
+reason and blocks ACP preparation/submission. Native DeepChat Chats with an explicit null workspace
+keep their general tool profile; selecting the managed directory explicitly still uses the code
+profile, as for any other selected project. Native
 Skill catalog, active-Skill requests, and runtime Skill validation only run with a DeepChat Agent
 scope. ACP selection has no
 local Skill scope, and late native Skill responses cannot populate ACP composer state.

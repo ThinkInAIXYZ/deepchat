@@ -145,6 +145,59 @@ describe('ProjectService', () => {
     )
   })
 
+  it('recreates the configured managed directory before using another existing candidate', () => {
+    const configuredPath = '/mock/home/DeepChat'
+    const directories = new Set(['/mock/documents/DeepChat'])
+    statSyncMock.mockImplementation((path) => {
+      if (!directories.has(path)) throw new Error('missing')
+      return { isDirectory: () => true }
+    })
+    mkdirSyncMock.mockImplementation((path) => directories.add(path))
+    const settings = createMockSettingsStore(configuredPath)
+    const service = new ProjectService(
+      sqlitePresenter,
+      sqlitePresenter,
+      deviceService,
+      settings,
+      vi.fn()
+    )
+
+    expect(service.getDefaultChatWorkspacePath()).toBeNull()
+    expect(service.ensureChatWorkspace().path).toBe(configuredPath)
+    expect(mkdirSyncMock).toHaveBeenCalledExactlyOnceWith(configuredPath, { recursive: true })
+    expect(service.getDefaultChatWorkspacePath()).toBe(configuredPath)
+    expect(settings.get('defaultProjectPath')).toBe(configuredPath)
+  })
+
+  it('persists a managed fallback when the configured directory cannot be recreated', () => {
+    const configuredPath = '/mock/home/DeepChat'
+    const fallbackPath = '/mock/documents/DeepChat'
+    const directories = new Set([fallbackPath])
+    statSyncMock.mockImplementation((path) => {
+      if (!directories.has(path)) throw new Error('missing')
+      return { isDirectory: () => true }
+    })
+    mkdirSyncMock.mockImplementation((path) => {
+      if (path === configuredPath) throw new Error('denied')
+      directories.add(path)
+    })
+    const settings = createMockSettingsStore(configuredPath)
+    const publishDefault = vi.fn()
+    const service = new ProjectService(
+      sqlitePresenter,
+      sqlitePresenter,
+      deviceService,
+      settings,
+      publishDefault
+    )
+
+    expect(service.ensureChatWorkspace()).toEqual({ path: fallbackPath, version: 1 })
+    expect(settings.get('defaultProjectPath')).toBe(fallbackPath)
+    expect(publishDefault).toHaveBeenCalledWith(fallbackPath, 1)
+    directories.add(configuredPath)
+    expect(service.getDefaultChatWorkspacePath()).toBe(fallbackPath)
+  })
+
   describe('versioned snapshots', () => {
     it('returns projects, all environment states, and default path from one versioned snapshot', async () => {
       const settingsStore = createMockSettingsStore('/work/default')

@@ -239,6 +239,20 @@
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <DcButton
+              v-if="chatWorkspacePreparationError"
+              data-testid="new-thread-chat-workspace-retry"
+              variant="ghost"
+              size="icon-sm"
+              icon="lucide:rotate-cw"
+              class="shrink-0 text-destructive"
+              :loading="isPreparingChatWorkspace"
+              :disabled="isPreparingChatWorkspace"
+              :aria-busy="isPreparingChatWorkspace || undefined"
+              :label="`${t('common.retry')}: ${chatWorkspacePreparationError}`"
+              :tooltip="`${t('common.retry')}: ${chatWorkspacePreparationError}`"
+              @click="prepareChatWorkspace"
+            />
           </div>
           <p
             v-if="isAcpWorkdirInvalid"
@@ -656,6 +670,9 @@ const composerWorkspacePath = computed(
     selectedProjectPath.value ??
     (isAcpSelectedAgent.value ? normalizeProjectPath(projectStore.defaultChatWorkspacePath) : null)
 )
+const needsChatWorkspace = computed(() => isAcpSelectedAgent.value && !composerWorkspacePath.value)
+const isPreparingChatWorkspace = ref(false)
+const chatWorkspacePreparationError = ref<string | null>(null)
 const archivedProjectPaths = computed(
   () => new Set(projectStore.archivedEnvironments.map((environment) => environment.path))
 )
@@ -1699,20 +1716,31 @@ const ensureAcpDraftSession = async (
   }
 }
 
+async function prepareChatWorkspace() {
+  if (!needsChatWorkspace.value || isPreparingChatWorkspace.value) return
+  isPreparingChatWorkspace.value = true
+  try {
+    await projectStore.ensureChatWorkspace()
+    chatWorkspacePreparationError.value = null
+  } catch (error) {
+    if (!needsChatWorkspace.value) return
+    chatWorkspacePreparationError.value = error instanceof Error ? error.message : String(error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.workspace.selectFailed',
+      title: t('common.error.operationFailed'),
+      description: chatWorkspacePreparationError.value
+    })
+  } finally {
+    isPreparingChatWorkspace.value = false
+  }
+}
+
 watch(
-  () => isAcpSelectedAgent.value && !selectedProjectPath.value,
-  async (needsChatWorkspace) => {
-    if (!needsChatWorkspace) return
-    try {
-      await projectStore.ensureChatWorkspace()
-    } catch (error) {
-      notifyRenderer({
-        kind: 'error',
-        code: 'chat.workspace.selectFailed',
-        title: t('common.error.operationFailed'),
-        description: error instanceof Error ? error.message : String(error)
-      })
-    }
+  needsChatWorkspace,
+  (needsWorkspace) => {
+    if (needsWorkspace) void prepareChatWorkspace()
+    else chatWorkspacePreparationError.value = null
   },
   { immediate: true }
 )
