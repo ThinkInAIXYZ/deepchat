@@ -25,6 +25,15 @@ goal separately to this same Draft PR, then update its status before starting th
 Failed checks must be resolved or recorded as a concrete external blocker; they cannot be silently
 skipped to advance. Keep the PR in draft and do not merge it as part of this execution.
 
+Correctness, persistence, ownership, bounded resources and lifecycle behavior remain blocking.
+Shared-CI wall-clock overruns are reports, not failed checks. Each slice needs relevant tests and
+matching application E2E; a complete performance capture is conditional on material process, IPC,
+batching or storage-path changes, or an explicit performance objective. Ordinary async port
+extraction does not automatically need another process-tree benchmark. Select affected workloads
+and a bounded measurement/confirmation budget first. Treat noise-level differences as inconclusive,
+keep all samples, and block adoption only on a reproducible material regression rather than an
+isolated timing overrun. Do not rerun CI or unchanged benchmarks to obtain a passing timing sample.
+
 ## Live goals and dependencies
 
 | Goal | State | Dependencies | Completion condition |
@@ -216,10 +225,12 @@ module's baseline and preserve G2's pre-admission comparison for aggregate archi
 Shared PR runners report timing overruns with `DEEPCHAT_MEMORY_PERF_REPORT_ONLY=1`; correctness,
 runtime/ABI identity, finite measurements, workload/queue bounds and test timeouts remain blocking.
 There is no `continue-on-error` around the suite. The command enforces timing budgets by default.
-At module completion, run strict operation measurements repeatedly on this fixed machine and
-complete the paired application comparison. Numeric budgets below are unchanged. A documentation
-or test-only commit with verified identical runtime artifacts does not require another complete
-resource capture. Do not repeat shared-runner benchmarks merely to obtain a green timing sample.
+The completed G3 comparison uses strict operation measurements and paired application runs on
+this fixed machine. Its numeric budgets below remain the recorded G3 acceptance policy, not a
+mandatory benchmark matrix for every later slice. Select later measurements by the execution rule
+above. A documentation or test-only commit with verified identical runtime artifacts does not
+require another complete resource capture. Do not repeat shared-runner benchmarks merely to
+obtain a green timing sample.
 
 | Gate | Required result |
 | --- | --- |
@@ -575,8 +586,8 @@ Both use the same current catalogs, scenario/observer and 344 frozen files acros
 consumers. Full file, dependency and metadata hashes are verified before/after every run;
 Root's source and runtime still match the measured candidate after capture. Durable evidence:
 `.deepchat/rutis-g4-acceptance/{artifacts.json,paired/state.json,paired-summary.json,outcome-counts.json}`.
-The scheduler slice is locally validated; pushed-checkpoint CI and the remaining G4 contracts
-remain separate completion requirements.
+Scheduler checkpoint `0add1c1ee` passes required run `40268252480` and all six platform packages
+in `40268252495`, including both required barriers. The remaining G4 contracts are still open.
 
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.

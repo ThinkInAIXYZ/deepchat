@@ -400,11 +400,22 @@ Shared PR runners report wall-clock timing budgets without blocking on an indivi
 They still enforce correctness, ownership, bounded work/queues, runtime compatibility, finite
 measurements and test timeouts. The explicit test-only `DEEPCHAT_MEMORY_PERF_REPORT_ONLY=1` mode
 changes timing assertions only; it must not suppress a failed test or native operation.
-Timing checks enforce their unchanged budgets by default. Module adoption uses repeated paired
-measurements on the recorded fixed hardware, including transport and the whole process tree.
-Do not retry shared CI until it happens to pass, or optimize production code solely to meet a
-noisy shared-runner sample. Complete performance/resource comparisons at a module boundary;
-reuse verified immutable runtime evidence for documentation or test-only edits.
+Timing checks enforce their unchanged budgets by default when explicitly run for controlled
+benchmarking; they are not a mandatory timing gate for each migration slice. Every slice still
+requires relevant correctness/lifecycle tests and matching baseline/migrated application E2E.
+Select targeted fixed-device resource comparisons when a module materially changes process
+placement, IPC volume, batching or storage access, or when measured performance is its adoption
+objective. Include transport and the whole process tree where those costs change. Ordinary port
+extraction does not require a complete resource capture solely because it changes an async call.
+Reuse verified immutable runtime evidence for documentation or test-only edits.
+
+Choose the affected workloads and measurement budget before running. Report central tendency and
+spread against a matching local baseline; do not infer a regression or improvement from one sample
+or a noise-level difference. An isolated timing overrun does not block the next slice. Investigate
+a material suspected regression with a bounded confirmation, retaining every sample; a reproducible
+material regression must be resolved before adoption. An inconclusive result establishes no speed
+claim. Do not retry shared CI until it happens to pass, repeat unchanged whole-app captures, or
+optimize production code solely to meet a noisy shared-runner sample.
 Size completion waits for the bounded fixture and shutdown work; a fixture timeout is not an
 additional adoption latency budget. Production handshake, retrieval and ownership deadlines remain
 unchanged when a large benchmark needs more completion headroom.
