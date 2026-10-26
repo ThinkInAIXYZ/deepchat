@@ -12,6 +12,8 @@ account and key. Browser startup and runtime are billed under the service's curr
 [pricing and setup guide](https://capybrowser.app.baizhi.cloud/docs/installation.md).
 The package has no local commands, hooks, Skills, automatic approvals or default changes.
 It is a community integration example, without DeepChat certification or endorsement.
+This example is contributed and maintained by `ctcbyzx`, who maintains the Baizhi Cloud
+Browser integration materials.
 
 ## Install and connect
 

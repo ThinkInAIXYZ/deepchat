@@ -1,15 +1,15 @@
-# 在 DeepChat 中连接百智云云浏览器
+# 在 DeepChat 中连接百智云浏览器
 
 [English](./README.md)
 
-百智云云浏览器（Baizhi Cloud Browser，也称 CapyBrowser）提供云端浏览器运行、
+百智云浏览器（Baizhi Cloud Browser，也称 CapyBrowser）提供云端浏览器运行、
 保存档案、人工处理和文件取回。此可选插件只连接管理 MCP；网页导航、点击和读取
 还需要 Agent 可用的 CDP 客户端，不会替换 DeepChat 自带的网页工具。
 
 它与百智 Toolkit 是两个服务，需要自己的云浏览器账号和 Key。浏览器启动与运行
 按产品说明计费，使用前阅读[接入与价格指南](https://capybrowser.app.baizhi.cloud/docs/installation.md)。
 示例没有本地命令、hooks、Skills、自动批准或默认配置改动，属于社区接入示例，
-不表示 DeepChat 认证或背书。
+不表示 DeepChat 认证或背书。示例由百智云浏览器接入材料维护者 `ctcbyzx` 贡献并维护。
 
 ## 安装与连接
 
