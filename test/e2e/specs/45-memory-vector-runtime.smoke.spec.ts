@@ -125,7 +125,8 @@ test('native Memory indexing, vector-only recall, deletion and clear survive rel
           )
           return { pending: status.pendingEmbedding, outcome: status.lastReindex?.outcome }
         },
-        { timeout: 120_000 }
+        // Reserve a minute for recall, the fixed idle window and relaunch within the test limit.
+        { timeout: rows === 50000 ? testInfo.timeout - 60_000 : 120_000 }
       )
       .toEqual({ pending: 0, outcome: 'completed' })
 

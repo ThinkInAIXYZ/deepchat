@@ -7,6 +7,7 @@ import { HarnessRuntime } from '@/harness/runtime'
 import { RutisMemoryVectorStores } from '@/harness/memory-vector'
 import { MemoryVectorStore, createMemoryVectorStorePaths } from '@/memory/infra/memoryVectorStore'
 import type { IMemoryVectorStore } from '@/memory/ports'
+import { assertTimingBudget } from './timing'
 
 const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const require = createRequire(import.meta.url)
@@ -146,12 +147,18 @@ it.each([1000, 10000, 50000])(
     )
     expect(report.nativeModules).toBe(report.remoteModules)
     expect(report.pending).toBe(0)
-    expect(remoteQueryP95 - nativeQueryP95).toBeLessThanOrEqual(Math.max(5, nativeQueryP95 * 0.2))
-    expect(remoteWriteMean - nativeWriteMean).toBeLessThanOrEqual(
+    assertTimingBudget(
+      `vector-query-overhead-${rows}`,
+      remoteQueryP95 - nativeQueryP95,
+      Math.max(5, nativeQueryP95 * 0.2)
+    )
+    assertTimingBudget(
+      `vector-write-overhead-${rows}`,
+      remoteWriteMean - nativeWriteMean,
       Math.max(5, nativeWriteMean * 0.25)
     )
-    expect(report.firstOpenMedianMs).toBeLessThanOrEqual(500)
-    expect(report.firstOpenP95Ms).toBeLessThanOrEqual(1000)
+    assertTimingBudget(`vector-first-open-median-${rows}`, report.firstOpenMedianMs, 500)
+    assertTimingBudget(`vector-first-open-p95-${rows}`, report.firstOpenP95Ms, 1000)
   },
   120_000
 )

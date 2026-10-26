@@ -396,6 +396,19 @@ when repeated end-to-end results exceed baseline variance, preserve output/quali
 budgets. An isolation-driven slice may be accepted for proven failure containment within the same
 resource budgets; report that purpose explicitly instead of calling it a speed optimization.
 
+Shared PR runners report wall-clock timing budgets without blocking on an individual overrun.
+They still enforce correctness, ownership, bounded work/queues, runtime compatibility, finite
+measurements and test timeouts. The explicit test-only `DEEPCHAT_MEMORY_PERF_REPORT_ONLY=1` mode
+changes timing assertions only; it must not suppress a failed test or native operation.
+Timing checks enforce their unchanged budgets by default. Module adoption uses repeated paired
+measurements on the recorded fixed hardware, including transport and the whole process tree.
+Do not retry shared CI until it happens to pass, or optimize production code solely to meet a
+noisy shared-runner sample. Complete performance/resource comparisons at a module boundary;
+reuse verified immutable runtime evidence for documentation or test-only edits.
+Size completion waits for the bounded fixture and shutdown work; a fixture timeout is not an
+additional adoption latency budget. Production handshake, retrieval and ownership deadlines remain
+unchanged when a large benchmark needs more completion headroom.
+
 The present 64-KiB JSON gateway is admission-only. Memory batches, dense vectors, histories and
 artifacts cannot be routed through it by simply raising limits. Freeze service-specific schemas,
 bounded batch/stream behavior, backpressure and cancellation identities first; keep large data at

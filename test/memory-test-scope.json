@@ -53,7 +53,8 @@
     "test/main/app/memoryProviderBindings.test.ts",
     "test/main/tool/agentTools/agentMemoryTools.test.ts",
     "test/main/routes/memoryDto.test.ts",
-    "test/main/scripts/memoryTestScope.test.ts"
+    "test/main/scripts/memoryTestScope.test.ts",
+    "test/main/performance/memory/timing.test.ts"
   ],
   "native": [
     "test/main/harness/memoryVectorOwner.test.ts",

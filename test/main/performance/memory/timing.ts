@@ -1,4 +1,5 @@
 import { performance } from 'node:perf_hooks'
+import { expect } from 'vitest'
 
 import { summarizeDurations } from './performanceObserver'
 
@@ -79,4 +80,18 @@ export function measurePairedPerformance(
 
 export function reportPerformance(report: PerformanceReport): void {
   console.info(`[memory-perf] ${JSON.stringify(report)}`)
+}
+
+export function assertTimingBudget(scenario: string, actual: number, maximum: number): void {
+  expect(Number.isFinite(actual), `${scenario}: measured timing must be finite`).toBe(true)
+  expect(Number.isFinite(maximum), `${scenario}: timing budget must be finite`).toBe(true)
+  const reportOnly = process.env.DEEPCHAT_MEMORY_PERF_REPORT_ONLY === '1'
+  const exceeded = actual > maximum
+  const report = { scenario, actual, maximum, exceeded, reportOnly }
+  console.info(`[memory-perf-budget] ${JSON.stringify(report)}`)
+  if (reportOnly) {
+    if (exceeded) console.warn(`[memory-perf-budget-exceeded] ${JSON.stringify(report)}`)
+    return
+  }
+  expect(actual, scenario).toBeLessThanOrEqual(maximum)
 }

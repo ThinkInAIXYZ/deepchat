@@ -210,9 +210,10 @@ jobs:
           DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
         run: pnpm run test:memory:eval
 
-      - name: Validate memory performance bounds
+      - name: Validate memory workload bounds and report timings
         env:
           DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
+          DEEPCHAT_MEMORY_PERF_REPORT_ONLY: '1'
         run: pnpm run test:main:memory-perf
 
       - name: Upload memory retrieval report
