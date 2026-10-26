@@ -673,6 +673,15 @@ business owner imports no Electron power API, ignores notifications while stoppe
 resume reconciliation by its start/stop generation before durable updates or timer dispatch.
 Native subscription objects and asynchronous native-loading fallbacks stay outside this owner.
 
+Scheduler construction requires its local manager factory; the manager requires an asynchronous,
+cancelable launch capability. Main alone selects the approved timer-helper entry, arguments and
+environment. The returned facade permits only Scheduler commands, data events, PID observation
+and termination; it exposes no Electron process object or generic native-launch options. Stop
+aborts pending startup, while manager epochs reject late completion from a non-cooperative host.
+Native startup errors settle once and release their child/listeners. Recheck ownership before
+post-launch reconciliation. Factories and callback subscriptions are local composition inputs,
+not serialized wire payloads; G5 supplies the capability through its generation-bound adapter.
+
 Session/Tape/Memory Store contracts expose the existing atomic business operations and bounded
 projections. Keep internal synchronous repositories, SQL and transaction callbacks local to that
 authority. These are not wire operations. In particular, Tape/projection-head observations,

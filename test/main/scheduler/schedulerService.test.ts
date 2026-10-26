@@ -1,7 +1,42 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
-import type { CronJob, CronJobRun, CronJobsSchedulerStatus } from '@shared/cronJobs'
+import type {
+  CronJob,
+  CronJobRun,
+  CronJobsSchedulerStatus,
+  SchedulerCommand
+} from '@shared/cronJobs'
 import { SessionRuntimeEvents } from '@/session/runtimeEvents'
+import type { SchedulerHost } from '@/scheduler/schedulerProcessManager'
+
+function schedulerHost(
+  host: EventEmitter & {
+    pid: number
+    postMessage(command: SchedulerCommand): void
+    kill(): void
+  }
+): SchedulerHost {
+  return {
+    get pid() {
+      return host.pid
+    },
+    postMessage: (command) => {
+      host.postMessage(command)
+    },
+    kill: () => {
+      host.kill()
+    },
+    onMessage: (listener) => {
+      host.on('message', listener)
+    },
+    onExit: (listener) => {
+      host.on('exit', listener)
+    },
+    onError: (listener) => {
+      host.on('error', listener)
+    }
+  }
+}
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const cronJobsTableModule = sqliteModule
@@ -826,7 +861,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(),
         database: sqlitePresenter as never,
-        schedulerManager: schedulerManager as never
+        createSchedulerManager: () => schedulerManager as never
       })
 
       await expect(
@@ -880,7 +915,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(),
         database: sqlitePresenter as never,
-        schedulerManager: schedulerManager as never,
+        createSchedulerManager: () => schedulerManager as never,
         agentSettings: agentSettings as never
       })
 
@@ -959,7 +994,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(),
         database: sqlitePresenter as never,
-        schedulerManager: schedulerManager as never,
+        createSchedulerManager: () => schedulerManager as never,
         deliveryRouter: deliveryRouter as never,
         runSessionStarter: runSessionStarter as never
       })
@@ -1034,7 +1069,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(),
         database: sqlitePresenter as never,
-        schedulerManager: schedulerManager as never
+        createSchedulerManager: () => schedulerManager as never
       })
 
       service.start()
@@ -1064,7 +1099,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       const service = new SchedulerServiceCtor({
         ...deps,
         database: sqlitePresenter as never,
-        schedulerManager: schedulerManager as never
+        createSchedulerManager: () => schedulerManager as never
       })
       try {
         await service.handleSystemResume()
@@ -1130,7 +1165,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(sessionEvents),
         database: sqlitePresenter as never,
-        schedulerManager: schedulerManager as never,
+        createSchedulerManager: () => schedulerManager as never,
         runSessionStarter: runSessionStarter as never
       })
 
@@ -1213,7 +1248,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(),
         database: sqlitePresenter as never,
-        schedulerManager: schedulerManager as never,
+        createSchedulerManager: () => schedulerManager as never,
         runSessionStarter: runSessionStarter as never
       })
 
@@ -1401,7 +1436,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(sessionEvents),
         database: sqlitePresenter as never,
-        schedulerManager: schedulerManager as never,
+        createSchedulerManager: () => schedulerManager as never,
         runSessionStarter: runSessionStarter as never
       })
 
@@ -1470,7 +1505,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(),
         database: sqlitePresenter as never,
-        schedulerManager: schedulerManager as never
+        createSchedulerManager: () => schedulerManager as never
       })
       const stored = sqlitePresenter.cronJobsTable.upsert({
         name: 'Legacy indicator',
@@ -1708,7 +1743,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       getSnapshot: () => ({ enabledJobCount: 1, nextRunAt: 100 }),
       queueDueRuns,
       onRunDue,
-      spawnHost: vi.fn(async () => host) as never
+      spawnHost: vi.fn(async () => schedulerHost(host))
     })
     await manager.reconcile()
     for (const requestId of [NaN, 0, '1'])
@@ -1738,7 +1773,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       getSnapshot: () => ({ enabledJobCount: 1, nextRunAt: 100 }),
       queueDueRuns: () => [],
       onRunDue: vi.fn(),
-      spawnHost: (() => pendingHost) as never
+      spawnHost: () => pendingHost.then(schedulerHost)
     })
     const starting = manager.reconcile()
     await manager.stop()
@@ -1773,13 +1808,13 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         nextRunAt: null as number | null
       }
       const host = new FakeHost()
-      const spawnHost = vi.fn(async () => host)
+      const spawnHost = vi.fn(async () => schedulerHost(host))
       const manager = new SchedulerProcessManagerCtor({
         getSnapshot: () => snapshot,
         queueDueRuns: () => [],
         onRunDue: vi.fn(),
         idleShutdownMs: 10,
-        spawnHost: spawnHost as never
+        spawnHost
       })
 
       expect(await manager.reconcile('initial')).toEqual(
@@ -1855,13 +1890,13 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
     let spawnCount = 0
     const spawnHost = vi.fn(async () => {
       spawnCount += 1
-      return spawnCount === 1 ? firstHost : secondHost
+      return schedulerHost(spawnCount === 1 ? firstHost : secondHost)
     })
     const manager = new SchedulerProcessManagerCtor({
       getSnapshot: () => snapshot,
       queueDueRuns: () => [],
       onRunDue: vi.fn(),
-      spawnHost: spawnHost as never
+      spawnHost
     })
 
     await manager.reconcile('initial')
@@ -1886,7 +1921,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       onRunDue: vi.fn(),
       spawnHost: vi.fn(async () => {
         throw new Error('Failed to spawn scheduler host.')
-      }) as never
+      })
     })
 
     await expect(manager.reconcile('spawn-failure')).rejects.toThrow(
@@ -1925,7 +1960,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       getSnapshot: () => snapshot,
       queueDueRuns: () => [],
       onRunDue: vi.fn(),
-      spawnHost: vi.fn(async () => host) as never
+      spawnHost: vi.fn(async () => schedulerHost(host))
     })
 
     await manager.reconcile('enabled')

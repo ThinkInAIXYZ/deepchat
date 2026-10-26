@@ -503,7 +503,7 @@ removing the scheduler connection alone does not complete G4.
 | OCR artifacts | `ocrArtifactStore.ts` owns a separate encrypted derived-cache database | Preserve its explicit independent file owner; this is not a second writer of the shared application file |
 | Vector stores | The G3 Memory worker and Knowledge's existing DuckDB owner use separate files | Preserve their existing resource authorities and maintenance fences |
 | Configuration | `SettingsStore` starts from `app-settings` and attaches `AppSettingsDbBackedStore`; Provider/MCP/ACP/model settings also have legacy file adapters | Audit actual injected adapters and desktop readers; use acknowledged mutations and versioned read snapshots, with explicit bootstrap and machine-local file ownership |
-| Credentials and desktop state | `DatabaseSecurityService`, `SecretStore`, Provider credential stores and plugin settings combine persistence with Electron APIs | Separate authorized async crypto/native operations from persistence; retain existing plugin consent and settings ownership |
+| Credentials and desktop state | Main supplies async crypto/unlock; DatabaseSecurity, SecretStore and Sync own private persistence; Provider credential stores and remaining native/plugin settings still require extraction | Keep authorized crypto/native operations separate from persistence; retain existing plugin consent and settings ownership |
 
 ### Ordered implementation slices
 
@@ -903,6 +903,39 @@ Windows/Linux vaults and power-loss recovery are unverified locally. G4 remains 
 The preceding Sync checkpoint `7c04844a1` passes required run `40282974786`, including
 `pr-required` job `121442092801`, and package run `40282974887` with all six platforms and
 `package-required` job `121448087538`. Both workflows finish before this slice's push.
+
+### Scheduler native launch boundary
+
+The default Scheduler requires its existing local manager factory, and the manager requires an
+asynchronous cancelable launch capability. Main resolves the approved helper entry and creates
+the Electron utility process. The manager receives a plain facade for typed commands, data events,
+PID observation and termination. It imports no Electron, filesystem or path API. The native module/
+path fallback and both optional service-constructor fallbacks are removed. Factory callbacks stay
+local to the business composition; G5 transports capability requests, not these functions.
+
+A local abort signal cancels pending startup when the manager stops; epochs also reject late
+completion from a non-cooperative launcher. Native failure settles once, removes startup listeners
+and requests child termination. A post-launch ownership check prevents stale reconciliation after
+stop. The timer helper, private protocol, native arguments/environment marker/service label,
+packaging paths, Store authority, process count and restart/idle behavior remain compatible.
+
+Local acceptance passes 63 checks across the complete Scheduler group, native launch and
+composition suites. Seven durable launch cases cover the plain command/event facade, pre-canceled
+launch, stop during pending native startup, cancellation while fork returns, native exit/error
+before spawn and stop superseding a completed launch. Existing real SQLite due claims, dispatch,
+restart, stale completion and resume checks remain active with typed host fixtures.
+
+The same actual-app manual/timed execution, unique run identities, system resume, relaunch,
+disable and shutdown scenario passes before/after in 9.3/7.9 seconds. Runtime build, app and scoped
+Scheduler/launch/E2E types, format/check, lint and i18n pass. Evidence is under
+`.deepchat/rutis-g4-scheduler-launch-acceptance/`. These are functional comparisons. No process,
+IPC, storage-path or workload-volume change calls for a full resource capture or speed claim.
+Native app execution is verified on macOS arm64; actual Windows/Linux startup and forced native
+startup-failure delivery are unverified locally. Other helper/native/config boundaries keep G4 open.
+
+The preceding database security checkpoint `9e8fa2762` passes required run `40286578817`, including
+`pr-required` job `121453178038`, and package run `40286578821` with all six platforms and
+`package-required` job `121458134091`. Both workflows finish before this slice's push.
 
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.

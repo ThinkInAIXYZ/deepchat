@@ -175,6 +175,8 @@ import { SkillExecutionAuthorityResolver } from '../skill/skillExecutionAuthorit
 import { HookService } from '../hook'
 import { HookSettings } from '../hook/config'
 import { SchedulerService, createCronJobRunSessionStarter } from '../scheduler'
+import { SchedulerProcessManager } from '@/scheduler/schedulerProcessManager'
+import { spawnSchedulerHost } from './schedulerHost'
 import { AgentManager } from '@/agent/manager/agentManager'
 import { createDeepChatAgentBackend } from '@/agent/manager/deepChatAgentBackend'
 import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
@@ -2697,6 +2699,8 @@ export async function createMainProcessControl(dependencies: {
     }
   })
   cronJobs = new SchedulerService({
+    createSchedulerManager: (deps) =>
+      new SchedulerProcessManager({ ...deps, spawnHost: spawnSchedulerHost }),
     database: schedulerDatabase,
     agentSettings,
     sessionEvents: sessionRuntimeEvents,

@@ -1,19 +1,14 @@
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import type { UtilityProcess } from 'electron'
 import type { CronJobsSchedulerStatus, SchedulerCommand, SchedulerEvent } from '@shared/cronJobs'
 import type { CronJobsSchedulerSnapshot, SchedulerRunDueEvent } from './repository'
 export type { SchedulerRunDueEvent } from './repository'
 
-type SchedulerUtilityProcess = Pick<UtilityProcess, 'postMessage' | 'kill' | 'pid'> & {
-  on(event: 'message', listener: (message: unknown) => void): SchedulerUtilityProcess
-  on(event: 'exit', listener: (code: number) => void): SchedulerUtilityProcess
-  on(event: 'error', listener: (type: string, location: string) => void): SchedulerUtilityProcess
-  once(event: 'spawn', listener: () => void): SchedulerUtilityProcess
-  once(event: 'exit', listener: (code: number) => void): SchedulerUtilityProcess
-  off(event: 'spawn', listener: () => void): SchedulerUtilityProcess
-  off(event: 'exit', listener: (code: number) => void): SchedulerUtilityProcess
+export interface SchedulerHost {
+  readonly pid: number | undefined
+  postMessage(command: SchedulerCommand): void
+  kill(): void
+  onMessage(listener: (message: unknown) => void): void
+  onExit(listener: (code: number) => void): void
+  onError(listener: (type: string, location: string) => void): void
 }
 
 export interface SchedulerProcessManagerDeps {
@@ -23,7 +18,7 @@ export interface SchedulerProcessManagerDeps {
   idleShutdownMs?: number
   maxRestartAttempts?: number
   restartDelayMs?: number
-  spawnHost?: () => Promise<SchedulerUtilityProcess>
+  spawnHost: (signal: AbortSignal) => Promise<SchedulerHost>
 }
 
 const DEFAULT_IDLE_SHUTDOWN_MS = 30_000
@@ -31,8 +26,9 @@ const DEFAULT_RESTART_DELAY_MS = 1_000
 const DEFAULT_MAX_RESTART_ATTEMPTS = 5
 
 export class SchedulerProcessManager {
-  private host: SchedulerUtilityProcess | null = null
-  private hostReady: Promise<SchedulerUtilityProcess> | null = null
+  private host: SchedulerHost | null = null
+  private hostReady: Promise<SchedulerHost> | null = null
+  private pendingSpawn: AbortController | null = null
   private readonly idleShutdownMs: number
   private readonly restartDelayMs: number
   private readonly maxRestartAttempts: number
@@ -89,6 +85,8 @@ export class SchedulerProcessManager {
 
     this.cancelIdleStop()
     const host = await this.ensureHost()
+    if (this.host !== host || this.shuttingDown)
+      throw new Error('Scheduler utility spawn was superseded.')
     host.postMessage({
       type: 'RECONCILE',
       reason,
@@ -109,6 +107,8 @@ export class SchedulerProcessManager {
     this.hostEpoch++
     this.cancelIdleStop()
     this.cancelRestart()
+    this.pendingSpawn?.abort()
+    this.pendingSpawn = null
 
     const host = this.host
     this.host = null
@@ -134,7 +134,7 @@ export class SchedulerProcessManager {
     return this.getStatus()
   }
 
-  private async ensureHost(): Promise<SchedulerUtilityProcess> {
+  private async ensureHost(): Promise<SchedulerHost> {
     if (this.host) {
       return this.host
     }
@@ -145,7 +145,9 @@ export class SchedulerProcessManager {
     this.shuttingDown = false
     this.updateStatus({ state: 'starting', lastError: null })
     const epoch = ++this.hostEpoch
-    const ready = this.spawnHost(epoch)
+    const pendingSpawn = new AbortController()
+    this.pendingSpawn = pendingSpawn
+    const ready = this.spawnHost(epoch, pendingSpawn.signal)
     this.hostReady = ready
     try {
       return await ready
@@ -156,18 +158,19 @@ export class SchedulerProcessManager {
       throw error
     } finally {
       if (this.hostReady === ready) this.hostReady = null
+      if (this.pendingSpawn === pendingSpawn) this.pendingSpawn = null
     }
   }
 
-  private async spawnHost(epoch: number): Promise<SchedulerUtilityProcess> {
-    const host = this.deps.spawnHost ? await this.deps.spawnHost() : await this.spawnDefaultHost()
+  private async spawnHost(epoch: number, signal: AbortSignal): Promise<SchedulerHost> {
+    const host = await this.deps.spawnHost(signal)
     if (this.hostEpoch !== epoch || this.shuttingDown) {
       host.kill()
       throw new Error('Scheduler utility spawn was superseded.')
     }
-    host.on('message', (message) => this.handleHostMessage(host, message))
-    host.on('exit', (code) => this.handleHostExit(host, code))
-    host.on('error', (type, location) => {
+    host.onMessage((message) => this.handleHostMessage(host, message))
+    host.onExit((code) => this.handleHostExit(host, code))
+    host.onError((type, location) => {
       if (this.host !== host) {
         return
       }
@@ -190,59 +193,7 @@ export class SchedulerProcessManager {
     return host
   }
 
-  private async spawnDefaultHost(): Promise<SchedulerUtilityProcess> {
-    const { app, utilityProcess } = await import('electron')
-    const modulePath = this.resolveUtilityHostEntryPoint(app.getAppPath())
-    const host = utilityProcess.fork(modulePath, ['--deepchat-cron-scheduler-host'], {
-      serviceName: 'DeepChat Cron Jobs Scheduler',
-      stdio: 'ignore',
-      env: {
-        ...process.env,
-        DEEPCHAT_CRON_SCHEDULER_HOST: '1'
-      }
-    }) as SchedulerUtilityProcess
-
-    return await new Promise<SchedulerUtilityProcess>((resolve, reject) => {
-      let settled = false
-      const settle = (callback: () => void) => {
-        if (settled) {
-          return
-        }
-        settled = true
-        host.off('spawn', onSpawn)
-        host.off('exit', onExit)
-        callback()
-      }
-      const onSpawn = () => {
-        settle(() => resolve(host))
-      }
-      const onExit = (code: number) => {
-        settle(() => reject(new Error(`Cron scheduler utility exited before spawn: ${code}`)))
-      }
-
-      host.once('spawn', onSpawn)
-      host.once('exit', onExit)
-    })
-  }
-
-  private resolveUtilityHostEntryPoint(appPath?: string): string {
-    const modulePath = fileURLToPath(import.meta.url)
-    const candidates = [
-      ...(appPath
-        ? [
-            path.join(appPath, 'out/main/schedulerUtilityHost.js'),
-            path.join(appPath, 'schedulerUtilityHost.js')
-          ]
-        : []),
-      path.resolve(path.dirname(modulePath), 'schedulerUtilityHost.js'),
-      path.resolve(path.dirname(modulePath), '../schedulerUtilityHost.js'),
-      path.resolve(process.cwd(), 'out/main/schedulerUtilityHost.js')
-    ]
-
-    return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0]
-  }
-
-  private handleHostMessage(host: SchedulerUtilityProcess, message: unknown): void {
+  private handleHostMessage(host: SchedulerHost, message: unknown): void {
     if (this.host !== host || this.shuttingDown) {
       return
     }
@@ -305,7 +256,7 @@ export class SchedulerProcessManager {
     }
   }
 
-  private scanDueRuns(host: SchedulerUtilityProcess, requestId: number): void {
+  private scanDueRuns(host: SchedulerHost, requestId: number): void {
     let error: string | undefined
     try {
       const events = this.deps.queueDueRuns()
@@ -338,7 +289,7 @@ export class SchedulerProcessManager {
     }
   }
 
-  private handleHostExit(host: SchedulerUtilityProcess, code: number): void {
+  private handleHostExit(host: SchedulerHost, code: number): void {
     if (this.host !== host) {
       return
     }

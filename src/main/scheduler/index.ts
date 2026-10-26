@@ -20,10 +20,10 @@ import { CronJobDeliveryRouter, type CronJobRemoteDeliveryPort } from './deliver
 import { CronJobsRepository } from './repository'
 import { CronJobRunExecutor, type CronJobRunSessionStarter } from './runExecutor'
 import { CronJobRuntimeResolver } from './runtimeResolver'
-import {
+import type {
   SchedulerProcessManager,
-  type SchedulerProcessManagerDeps,
-  type SchedulerRunDueEvent
+  SchedulerProcessManagerDeps,
+  SchedulerRunDueEvent
 } from './schedulerProcessManager'
 
 export type CronJobsUpsertInput = z.input<typeof cronJobsUpsertInputSchema>
@@ -37,11 +37,10 @@ export interface SchedulerServiceDeps {
   remoteDeliveryPort: CronJobRemoteDeliveryPort
   sessionEvents: SessionRuntimeEventPort
   agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'resolveDeepChatAgentConfig'>
-  schedulerManager?: SchedulerProcessManager
   scheduleService?: CronExpressionService
   runtimeResolver?: CronJobRuntimeResolver
   deliveryRouter?: CronJobDeliveryRouter
-  createSchedulerManager?: (
+  createSchedulerManager: (
     deps: Omit<SchedulerProcessManagerDeps, 'spawnHost'>
   ) => SchedulerProcessManager
 }
@@ -75,10 +74,7 @@ export class SchedulerService {
         await this.processDueRun(event)
       }
     }
-    this.schedulerManager =
-      deps.schedulerManager ??
-      deps.createSchedulerManager?.(managerDeps) ??
-      new SchedulerProcessManager(managerDeps)
+    this.schedulerManager = deps.createSchedulerManager(managerDeps)
   }
 
   start(): void {
