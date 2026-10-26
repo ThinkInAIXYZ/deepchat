@@ -33,9 +33,23 @@ PR: https://github.com/ThinkInAIXYZ/deepchat/pull/2469 (base: `dev`; closes #246
 
 ## ACP Preparation Verification
 
-- [ ] Preserve warmup feedback in the composer selector and explain missing workspaces; keep ACP
+- [x] Preserve warmup feedback in the composer selector and explain missing workspaces; keep ACP
       identities outside local Skill routes and discard pending native Skill results on switches.
-- [ ] Distinguish automatic Agent workspace defaults from manual choices; keep the active execution
+- [x] Distinguish automatic Agent workspace defaults from manual choices; keep the active execution
       context unchanged on failed deactivation.
-- [ ] Validate loading/configuration readiness, invalid-to-valid workspace recovery, and route errors
+- [x] Validate loading/configuration readiness, invalid-to-valid workspace recovery, and route errors
       through Electron and isolated copies of the real local Agent configuration.
+
+
+ACP verification: format, i18n, lint, typecheck, and the production build passed; 332 focused
+renderer tests and four Electron smoke tests passed. The ACP stdio fixture holds initialization
+open to verify the selector's loading state, then supplies model/mode configuration and exercises
+invalid-to-valid workspace recovery while checking native Skill route errors.
+
+The local real-profile snapshot verified unavailable-directory behavior for pi ACP and DimCode,
+with no `DeepChat Agent not found` errors. DimCode completed actual draft preparation and displayed
+its model/mode/permission controls with an existing directory. Pi ACP could not complete Session
+creation: its default `pi` command resolves to the locally installed `@simon_he/pi` package manager
+(version 0.2.11), whereas the adapter requires the Pi coding Agent. No global installation or real
+profile setting was modified, and no live model completion was requested. Verification builds and
+Electron runs used a temporary worktree so the running development app retained its own output.
