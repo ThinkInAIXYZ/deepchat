@@ -876,6 +876,10 @@ function createRuntime() {
   }
   const appDatabaseMaintenance = {
     assertRouteAllowed: vi.fn(),
+    async runRequest<T>(routeName: string, run: () => Promise<T>): Promise<T> {
+      this.assertRouteAllowed(routeName)
+      return await run()
+    },
     enableDatabaseEncryption: vi.fn().mockResolvedValue(enabledDatabaseSecurityStatus),
     changeDatabasePassword: vi.fn().mockResolvedValue(enabledDatabaseSecurityStatus),
     disableDatabaseEncryption: vi.fn().mockResolvedValue({
@@ -894,7 +898,20 @@ function createRuntime() {
     })
   }
   const startupWorkloadCoordinator = {
-    scheduleTask: vi.fn(async (task: { run: () => Promise<unknown> }) => await task.run()),
+    scheduleTask: vi.fn(
+      async (task: {
+        run: (context: {
+          signal: AbortSignal
+          reportProgress(progress: number): void
+          yield(): Promise<void>
+        }) => Promise<unknown>
+      }) =>
+        await task.run({
+          signal: new AbortController().signal,
+          reportProgress: () => undefined,
+          yield: async () => undefined
+        })
+    ),
     getRunId: vi.fn(() => 'startup:test'),
     replayTarget: vi.fn()
   }

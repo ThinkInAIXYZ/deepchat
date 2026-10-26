@@ -79,6 +79,7 @@ export type CliRunServiceOptions = Readonly<{
   sessions: RunSessionStorePort
   getPendingAssistantMessages(runId: string): ChatMessageRecord[]
   hasWaitingDescendantInteraction(runId: string): boolean
+  readSubscriptionSnapshot<T>(read: () => Promise<T>): Promise<T>
   eventHub: TypedEventHub
   now?: () => number
   log?: Pick<Console, 'warn'>
@@ -390,7 +391,9 @@ export class CliRunService {
 
     let lastCursor = subscription.initialCursor
     try {
-      const currentRun = await this.buildSnapshot(input.runId, input.messageLimit)
+      const currentRun = await this.options.readSubscriptionSnapshot(() =>
+        this.buildSnapshot(input.runId, input.messageLimit)
+      )
       const terminalAtSubscribe = currentRun.status !== 'generating'
       if (subscription.recoveryReason) {
         const snapshot = runsSnapshotEvent.payload.parse({

@@ -102,6 +102,7 @@ import {
 } from '../sync'
 import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
 import type { DatabaseRepairReport } from '@shared/types/databaseSchema'
+import { DatabaseRequestGate } from './databaseRequestGate'
 import { SyncSettings } from '../sync/settings'
 import { DeeplinkService } from '../deeplink'
 import { createDeeplinkActions } from '../deeplink/actions'
@@ -640,8 +641,11 @@ export async function createMainProcessControl(dependencies: {
   let cliRequestPolicy: CliRequestPolicy
   let cliRunService: CliRunService
   let hasInitialized = false
-  let databaseMaintenanceState: 'running' | 'maintenance' | 'failed' = 'running'
   let appLifecycleState: 'starting' | 'running' | 'stopping' | 'stopped' = 'starting'
+  const databaseRequests = new DatabaseRequestGate(() => {
+    if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped')
+      throw new Error(`App lifecycle is ${appLifecycleState}`)
+  })
   let shutdownStepFailures = 0
   let pluginInitializationPromise: Promise<void> | null = null
   let skillInitializationPromise: Promise<void> | null = null
@@ -696,12 +700,14 @@ export async function createMainProcessControl(dependencies: {
     appVersion: app.getVersion(),
     dispatch: async (method, input, caller, signal) => {
       if (cliAudioTranscriptionService?.handlesRpc(method)) {
-        assertRouteAllowedDuringDatabaseMaintenance(method)
-        return await cliAudioTranscriptionService.dispatchRpc(method, input, caller, signal)
+        return await databaseRequests.runRequest(method, () =>
+          cliAudioTranscriptionService!.dispatchRpc(method, input, caller, signal)
+        )
       }
       if (cliOcrService?.handlesRpc(method)) {
-        assertRouteAllowedDuringDatabaseMaintenance(method)
-        return await cliOcrService.dispatchRpc(method, input, caller, signal)
+        return await databaseRequests.runRequest(method, () =>
+          cliOcrService!.dispatchRpc(method, input, caller, signal)
+        )
       }
       if (!routeDispatcher) throw new Error('CLI route dispatcher is not ready')
       signal.throwIfAborted()
@@ -717,14 +723,15 @@ export async function createMainProcessControl(dependencies: {
       signal,
       takeSettlementOwnership
     ) => {
-      assertRouteAllowedDuringDatabaseMaintenance(method)
-      return await programmaticToolDispatcher.dispatch(
-        method,
-        input,
-        caller,
-        operation,
-        signal,
-        takeSettlementOwnership
+      return await databaseRequests.runRequest(method, () =>
+        programmaticToolDispatcher.dispatch(
+          method,
+          input,
+          caller,
+          operation,
+          signal,
+          takeSettlementOwnership
+        )
       )
     },
     completeProgrammaticToolPreDispatchFailure: (method, operation, error) => {
@@ -732,35 +739,39 @@ export async function createMainProcessControl(dependencies: {
     },
     dispatchStream: async (method, input, caller, requestId, signal, emit) => {
       if (cliRunService?.handlesStream(method)) {
-        assertRouteAllowedDuringDatabaseMaintenance(method)
+        databaseRequests.assertRouteAllowed(method)
         return await cliRunService.dispatchStream(method, input, caller, signal, emit)
       }
       if (!cliComputeService) throw new Error('CLI compute service is not ready')
-      assertRouteAllowedDuringDatabaseMaintenance(method)
-      return await cliComputeService.dispatchStream(method, input, caller, requestId, signal, emit)
+      return await databaseRequests.runRequest(method, () =>
+        cliComputeService.dispatchStream(method, input, caller, requestId, signal, emit)
+      )
     },
     dispatchUpload: async (method, input, upload, caller, signal) => {
-      assertRouteAllowedDuringDatabaseMaintenance(method)
-      if (cliAudioTranscriptionService?.handlesUpload(method)) {
-        return await cliAudioTranscriptionService.dispatchUpload(
-          method,
-          input,
-          upload,
-          caller,
-          signal
-        )
-      }
-      if (cliOcrService?.handlesUpload(method)) {
-        return await cliOcrService.dispatchUpload(method, input, upload, caller, signal)
-      }
-      if (cliSkillService?.handlesUpload(method)) {
-        return await cliSkillService.dispatchUpload(method, input, upload, caller, signal)
-      }
-      throw new Error(`CLI upload service is not ready for ${method}`)
+      return await databaseRequests.runRequest(method, async () => {
+        if (cliAudioTranscriptionService?.handlesUpload(method)) {
+          return await cliAudioTranscriptionService.dispatchUpload(
+            method,
+            input,
+            upload,
+            caller,
+            signal
+          )
+        }
+        if (cliOcrService?.handlesUpload(method)) {
+          return await cliOcrService.dispatchUpload(method, input, upload, caller, signal)
+        }
+        if (cliSkillService?.handlesUpload(method)) {
+          return await cliSkillService.dispatchUpload(method, input, upload, caller, signal)
+        }
+        throw new Error(`CLI upload service is not ready for ${method}`)
+      })
     },
     authorize: async (input) => {
       if (!cliRequestPolicy) throw new Error('CLI request policy is not ready')
-      return await cliRequestPolicy.authorize(input)
+      return await databaseRequests.runRequest(input.entry.contract.name, () =>
+        cliRequestPolicy.authorize(input)
+      )
     },
     beginAgentRequest: (token) => agentCliTokenAuthority.beginRequest(token),
     artifactSpool,
@@ -1355,9 +1366,9 @@ export async function createMainProcessControl(dependencies: {
     publishEvent: publishDeepchatEvent,
     nextVersion: nextSettingsVersion,
     assertActive: () => {
-      assertRouteAllowedDuringDatabaseMaintenance('settings.update')
-      if (databaseMaintenanceState !== 'running')
-        throw new Error(`App database maintenance is ${databaseMaintenanceState}`)
+      databaseRequests.assertRouteAllowed('settings.update')
+      if (databaseRequests.state !== 'running')
+        throw new Error(`App database maintenance is ${databaseRequests.state}`)
     }
   })
   const toolchainHomeDir = app.getPath('home')
@@ -1463,7 +1474,7 @@ export async function createMainProcessControl(dependencies: {
     ...syncTokenStorage,
     isLocalDatabaseEncrypted: () => Boolean(mainDatabase.getDatabasePassword()),
     importSnapshot: (filePath, mode) => {
-      if (databaseMaintenanceState !== 'running') throw new Error('sync.tunnel.error.busy')
+      if (databaseRequests.state !== 'running') throw new Error('sync.tunnel.error.busy')
       return runDatabaseMaintenance({ kind: 'import-backup-file', filePath, mode })
     }
   })
@@ -1481,7 +1492,7 @@ export async function createMainProcessControl(dependencies: {
     database: () => mainDatabase.getDatabase(),
     directory: path.join(app.getPath('userData'), 'sync-replica'),
     canApply: (kind, id) =>
-      databaseMaintenanceState === 'running' &&
+      databaseRequests.state === 'running' &&
       (kind === 'session'
         ? !syncActiveSessions.has(id) &&
           !hasPendingSyncSession(id) &&
@@ -1602,7 +1613,7 @@ export async function createMainProcessControl(dependencies: {
     directory: path.join(app.getPath('userData'), 'sync-host'),
     hostId: () => syncHostService.getHostId(),
     available: () =>
-      databaseMaintenanceState === 'running' &&
+      databaseRequests.state === 'running' &&
       !syncService.isBackupInProgress() &&
       !mainDatabase.getDatabasePassword()
   })
@@ -1611,7 +1622,7 @@ export async function createMainProcessControl(dependencies: {
     directory: path.join(app.getPath('userData'), 'sync-peer'),
     connection: () => syncPeerService.connection(),
     available: () =>
-      databaseMaintenanceState === 'running' &&
+      databaseRequests.state === 'running' &&
       !syncService.isBackupInProgress() &&
       !mainDatabase.getDatabasePassword(),
     isEncrypted: () => Boolean(mainDatabase.getDatabasePassword()),
@@ -1625,7 +1636,7 @@ export async function createMainProcessControl(dependencies: {
     ...syncTokenStorage,
 
     createBackup: () => {
-      if (databaseMaintenanceState !== 'running') throw new Error('sync.tunnel.error.busy')
+      if (databaseRequests.state !== 'running') throw new Error('sync.tunnel.error.busy')
       return syncService.createHostBackup()
     },
     getFolderPath: () => syncSettings.getFolderPath(),
@@ -2574,6 +2585,7 @@ export async function createMainProcessControl(dependencies: {
             (turn.status === 'waiting_permission' || turn.status === 'waiting_question') &&
             resolveSessionRunId(delegation.parentSessionId) === runId
         ),
+    readSubscriptionSnapshot: (read) => databaseRequests.runRequest('events.subscribe', read),
     eventHub: typedEventHub,
     log: logger
   })
@@ -2755,7 +2767,7 @@ export async function createMainProcessControl(dependencies: {
     remoteDeliveryPort: remoteService
   })
   const onSystemResume = () => {
-    if (appLifecycleState !== 'running' || databaseMaintenanceState !== 'running') return
+    if (appLifecycleState !== 'running' || databaseRequests.state !== 'running') return
     void cronJobs.handleSystemResume().catch((error) => {
       console.warn('[CronJobs] Failed to reconcile after system resume:', error)
     })
@@ -3499,9 +3511,7 @@ export async function createMainProcessControl(dependencies: {
     })
     const cliRunRoutes = cliRunService.createRoutes()
     routeDispatcher = createRouteDispatcher({
-      appDatabaseMaintenance: {
-        assertRouteAllowed: (routeName) => assertRouteAllowedDuringDatabaseMaintenance(routeName)
-      },
+      appDatabaseMaintenance: databaseRequests,
       routeMaps: [
         providerRoutes,
         toolRoutes,
@@ -3772,24 +3782,6 @@ export async function createMainProcessControl(dependencies: {
     return shutdownCoordinator.cleanup()
   }
 
-  function assertRouteAllowedDuringDatabaseMaintenance(routeName: string): void {
-    if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped') {
-      throw new Error(`App lifecycle is ${appLifecycleState}`)
-    }
-    if (databaseMaintenanceState === 'running') return
-    if (routeName === 'sync.startBackup') throw new Error('sync.tunnel.error.busy')
-    if (
-      routeName.startsWith('chat.') ||
-      routeName.startsWith('sessions.') ||
-      routeName.startsWith('memory.') ||
-      routeName.startsWith('orchestration.') ||
-      routeName.startsWith('remoteControl.') ||
-      routeName.startsWith('cronJobs.')
-    ) {
-      throw new Error(`App database maintenance is ${databaseMaintenanceState}`)
-    }
-  }
-
   function runDatabaseMaintenance(command: DatabaseImportCommand): Promise<SyncImportResult>
   function runDatabaseMaintenance(
     command: DatabaseEncryptionCommand
@@ -3801,11 +3793,11 @@ export async function createMainProcessControl(dependencies: {
     if (['stopping', 'stopped'].includes(appLifecycleState)) {
       throw new Error(`App lifecycle is ${appLifecycleState}`)
     }
-    if (databaseMaintenanceState !== 'running') {
-      throw new Error(`App database maintenance is ${databaseMaintenanceState}`)
+    if (databaseRequests.state !== 'running') {
+      throw new Error(`App database maintenance is ${databaseRequests.state}`)
     }
     if (syncService.isBackupInProgress()) throw new Error('sync.tunnel.error.busy')
-    databaseMaintenanceState = 'maintenance'
+    databaseRequests.beginMaintenance()
 
     let operationResult: DatabaseMaintenanceResult | undefined
     let operationError: unknown
@@ -3832,6 +3824,7 @@ export async function createMainProcessControl(dependencies: {
         )
       }
       await suspendSessionRuntimes()
+      await databaseRequests.drain()
       if (['stopping', 'stopped'].includes(appLifecycleState)) {
         throw new Error(`App lifecycle is ${appLifecycleState}`)
       }
@@ -3918,12 +3911,12 @@ export async function createMainProcessControl(dependencies: {
       liveDelegationService.start()
       const startupRunId = startupWorkloadCoordinator.createRun('main')
       scheduleBackgroundWork(startupRunId)
-      databaseMaintenanceState = 'running'
+      databaseRequests.resume()
       appSettingsService.publishSnapshot()
       syncReplica?.wake()
       await automaticSync?.start()
     } catch (error) {
-      databaseMaintenanceState = 'failed'
+      databaseRequests.fail()
       await stopForCleanup()
       throw error
     }

@@ -1,8 +1,67 @@
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import type { ElectronApplication } from '@playwright/test'
 import { test, expect } from '../fixtures/electronApp'
 import { waitForAppReady } from '../helpers/wait'
 
 test.use({ privacyModeEnabled: true })
+
+async function runCli(userDataDir: string, args: string[]) {
+  const env: NodeJS.ProcessEnv = { ...process.env, DEEPCHAT_E2E_USER_DATA_DIR: userDataDir }
+  delete env.DEEPCHAT_CLI_AGENT_TOKEN
+  return await promisify(execFile)(
+    process.execPath,
+    [resolve('out/cli/deepchat.mjs'), ...args, '--json'],
+    { env, timeout: 30_000 }
+  )
+}
+
+async function holdEncryption(
+  app: ElectronApplication,
+  heldValue: string,
+  maintenancePassword: string
+) {
+  await app.evaluate(
+    ({ safeStorage }, { heldValue, maintenancePassword }) => {
+      const encrypt = safeStorage.encryptStringAsync
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const fixture = {
+        entered: false,
+        events: [] as string[],
+        release,
+        restore: () => {
+          safeStorage.encryptStringAsync = encrypt
+        }
+      }
+      Object.assign(globalThis, { __maintenanceFixture: fixture })
+      safeStorage.encryptStringAsync = async (value) => {
+        if (value === heldValue) {
+          fixture.entered = true
+          await gate
+          fixture.events.push('pending-request-released')
+        } else if (value === maintenancePassword) fixture.events.push('maintenance-dispatched')
+        return encrypt.call(safeStorage, value)
+      }
+    },
+    { heldValue, maintenancePassword }
+  )
+}
+
+async function releaseEncryption(app: ElectronApplication) {
+  await app.evaluate(() => {
+    const fixture = (
+      globalThis as unknown as {
+        __maintenanceFixture: { release(): void; restore(): void }
+      }
+    ).__maintenanceFixture
+    fixture.restore()
+    fixture.release()
+  })
+}
 
 test('database maintenance restores sessions through incremental and overwrite imports @smoke', async ({
   launchApp
@@ -10,6 +69,13 @@ test('database maintenance restores sessions through incremental and overwrite i
   const active = await launchApp()
   expect(active.ownsUserDataDir).toBe(true)
   await waitForAppReady(active.page)
+  const listProviders = async () => {
+    const { stdout } = await runCli(active.userDataDir, ['provider', 'list'])
+    const response = JSON.parse(stdout)
+    expect(response).toMatchObject({ ok: true, result: { providers: expect.any(Array) } })
+    return response.result.providers.map((provider: { id: string }) => provider.id)
+  }
+  const providers = await listProviders()
   await active.page.evaluate(
     (folderPath) =>
       window.deepchat.invoke('config.updateSyncSettings', { enabled: true, folderPath }),
@@ -91,6 +157,7 @@ test('database maintenance restores sessions through incremental and overwrite i
   )
   expect(persisted.session?.id).toBe(sessionId)
   expect(persisted.session?.providerId).toBe(before.session?.providerId)
+  expect(await listProviders()).toEqual(providers)
   expect(await reopened.close()).toBe('graceful')
 })
 
@@ -101,28 +168,7 @@ test('database repair and import cannot enter while encryption is preparing @smo
   expect(active.ownsUserDataDir).toBe(true)
   await waitForAppReady(active.page)
   const password = 'disposable-maintenance-password'
-  await active.electronApp.evaluate(({ safeStorage }, password) => {
-    const encrypt = safeStorage.encryptStringAsync
-    let release!: () => void
-    const gate = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    const fixture = {
-      entered: false,
-      release,
-      restore: () => {
-        safeStorage.encryptStringAsync = encrypt
-      }
-    }
-    Object.assign(globalThis, { __maintenanceFixture: fixture })
-    safeStorage.encryptStringAsync = async (value) => {
-      if (value === password) {
-        fixture.entered = true
-        await gate
-      }
-      return encrypt.call(safeStorage, value)
-    }
-  }, password)
+  await holdEncryption(active.electronApp, password, password)
   const enabled = active.page.evaluate(
     (password) => window.deepchat.invoke('databaseSecurity.enable', { password }),
     password
@@ -146,21 +192,123 @@ test('database repair and import cannot enter while encryption is preparing @smo
         window.deepchat.invoke('sync.import', { backupFile: 'unavailable.zip', mode: 'increment' })
       )
     ).rejects.toThrow('App database maintenance is maintenance')
-  } finally {
-    await active.electronApp.evaluate(() => {
-      const fixture = (
-        globalThis as unknown as {
-          __maintenanceFixture: { release(): void; restore(): void }
-        }
-      ).__maintenanceFixture
-      fixture.restore()
-      fixture.release()
+    await expect(
+      active.page.evaluate(() => window.deepchat.invoke('config.setCustomPrompts', { prompts: [] }))
+    ).rejects.toThrow('App database maintenance is maintenance')
+    await expect(
+      active.page.evaluate(() =>
+        window.deepchat.invoke('providers.add', {
+          provider: {
+            id: 'custom-maintenance-blocked',
+            name: 'Blocked',
+            apiType: 'openai-completions',
+            apiKey: 'must-not-persist',
+            baseUrl: 'http://127.0.0.1:1/v1',
+            enable: false,
+            custom: true
+          }
+        })
+      )
+    ).rejects.toThrow('App database maintenance is maintenance')
+    expect(
+      (await active.page.evaluate(() => window.deepchat.invoke('window.getCurrentState', {}))).state
+        .exists
+    ).toBe(true)
+    expect(
+      (await active.page.evaluate(() => window.deepchat.invoke('databaseSecurity.getStatus', {})))
+        .status.migrationInProgress
+    ).toBe(true)
+    expect(
+      JSON.parse((await runCli(active.userDataDir, ['system', 'status'])).stdout)
+    ).toMatchObject({ ok: true, result: { running: true } })
+    await expect(runCli(active.userDataDir, ['provider', 'list'])).rejects.toMatchObject({
+      stdout: expect.stringMatching(/"ok"\s*:\s*false/)
     })
+  } finally {
+    await releaseEncryption(active.electronApp)
   }
   expect((await enabled).status.enabled).toBe(true)
   expect(
     (await active.page.evaluate(() => window.deepchat.invoke('databaseSecurity.repairSchema', {})))
       .report.remainingIssues
   ).toEqual([])
+  expect(await active.close()).toBe('graceful')
+})
+
+test('maintenance drains a credential request delayed in native encryption @smoke', async ({
+  launchApp
+}) => {
+  const active = await launchApp()
+  expect(active.ownsUserDataDir).toBe(true)
+  await waitForAppReady(active.page)
+  const secret = 'disposable-pending-cloud-secret'
+  const password = 'disposable-request-drain-password'
+  await holdEncryption(active.electronApp, secret, password)
+  const saving = active.page.evaluate(
+    (secretAccessKey) =>
+      window.deepchat.invoke('sync.setCloudConfig', {
+        config: {
+          enabled: false,
+          endpoint: 'http://127.0.0.1:1',
+          bucket: 'fixture',
+          accessKeyId: 'fixture',
+          secretAccessKey
+        }
+      }),
+    secret
+  )
+  const rejected = expect(saving).rejects.toThrow()
+  await expect
+    .poll(() =>
+      active.electronApp.evaluate(
+        () =>
+          (globalThis as unknown as { __maintenanceFixture: { entered: boolean } })
+            .__maintenanceFixture.entered
+      )
+    )
+    .toBe(true)
+  const enabled = active.page.evaluate(
+    (password) => window.deepchat.invoke('databaseSecurity.enable', { password }),
+    password
+  )
+  void enabled.catch(() => undefined)
+  try {
+    await expect
+      .poll(async () =>
+        active.page.evaluate(async () => {
+          try {
+            await window.deepchat.invoke('config.listCustomPrompts', {})
+            return false
+          } catch (error) {
+            return String(error).includes('App database maintenance is maintenance')
+          }
+        })
+      )
+      .toBe(true)
+  } finally {
+    // Release the request first; keep the observer installed until maintenance dispatches.
+    await active.electronApp.evaluate(() =>
+      (
+        globalThis as unknown as { __maintenanceFixture: { release(): void } }
+      ).__maintenanceFixture.release()
+    )
+  }
+  await rejected
+  try {
+    expect((await enabled).status.enabled).toBe(true)
+    expect(
+      await active.electronApp.evaluate(
+        () =>
+          (globalThis as unknown as { __maintenanceFixture: { events: string[] } })
+            .__maintenanceFixture.events
+      )
+    ).toEqual(['pending-request-released', 'maintenance-dispatched'])
+    expect(
+      (await active.page.evaluate(() => window.deepchat.invoke('sync.getCloudConfig', {}))).config
+        .hasSecret
+    ).toBe(false)
+  } finally {
+    await releaseEncryption(active.electronApp)
+  }
   expect(await active.close()).toBe('graceful')
 })

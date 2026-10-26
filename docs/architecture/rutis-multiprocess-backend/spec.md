@@ -787,6 +787,18 @@ cannot cross this boundary. Startup recovery runs before the normal owner exists
 transactions and maintenance snapshot/staging connections stay internal to the Store owner moved
 in G5, including any synchronous closures that never cross an ownership boundary.
 
+Ordinary request admission shares the maintenance owner's state. Refuse new and not-yet-executing
+ordinary requests while maintenance is active; retain only audited native presentation/status
+operations. Drain admitted finite operations before closing or replacing the writer, with a bounded
+failure path that keeps the existing database. Maintenance command requests cannot wait for their
+own acknowledgement as ordinary work. CLI alternate ingress paths participate too; an event
+subscription's initial database snapshot is finite work, while subsequent in-memory event forwarding
+is not a database lease. Detached background effects keep their own explicit lifecycle ownership.
+Track actual handler completion independently of a startup task's reply promise: cancellation can
+reject that reply before the handler exits. Recheck the original task signal before execution, and
+retain running-handler ownership through cancellation. Bound request drain to 30 seconds before
+maintenance dispatch; a timeout must leave the current writer in place.
+
 ### Public routes and desktop capabilities
 
 Reuse existing shared route names, schemas, caller types, and output projection. Classify each

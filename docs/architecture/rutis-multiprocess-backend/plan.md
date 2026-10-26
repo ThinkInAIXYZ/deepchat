@@ -1100,6 +1100,60 @@ observations without a speed claim. Physical shutdown/power-loss faults and full
 on Windows/Linux remain unverified. Remaining configuration snapshots, normal-writer maintenance
 fences and native/window owners keep G4 open.
 
+The maintenance-command checkpoint `5c7efdc1e` passes required run `40340119446`, including
+`pr-required` job `121636236992`, and package run `40340119785` with all six platforms and
+`package-required` job `121645123643`. No rerun is requested.
+
+### Ordinary request admission and maintenance drain
+
+`DatabaseRequestGate` owns the existing running/maintenance/failed admission state. Main consumers
+read that one state; the independent boolean and partial route-prefix checks are removed. Ordinary
+requests are refused by default during maintenance. Explicit native window controls, private security
+status, static CLI status/version/capabilities and identity-validated CLI approval answers remain
+available. Permission and caller checks still run in their existing owners.
+
+All finite renderer/CLI routes, CLI authorization, audio/OCR RPC, uploads, compute streams and
+programmatic-tool dispatch participate in request ownership. Admission is checked again when
+startup-scheduled work actually executes, using the original task cancellation signal. A running
+handler has its own lifetime: the startup coordinator may reject its reply immediately on cancel
+while that handler still runs. Its lifetime remains counted until actual completion. The gate
+retains only an active count and one drain waiter, without payload or credential snapshots.
+
+After session/background cancellation, maintenance drains ordinary requests before any command
+can close or replace the writer. The drain has a 30-second failure deadline. If work does not settle,
+maintenance fails before dispatch and recovery retains the current database. Rejected requests release
+ownership; failed maintenance stays closed to ordinary requests. Native presentation cannot reopen
+ordinary admission.
+
+Maintenance command routes are excluded from their own drain. Cloud download and verified-peer
+imports still use the exclusive operation owner. CLI `events.subscribe` counts only its initial
+database snapshot; subsequent `TypedEventHub` forwarding holds no database lease. Authenticated
+callers, approval settlement and the original cancellation identity remain intact. All request
+lifetime callbacks stay local to the owner and are not transport payloads.
+
+The accepted maintenance scenario is extended with actual built-CLI Provider-list requests before
+backup and after relaunch. It passes before/after in 5.0/4.9 seconds; encryption/legacy unlock,
+wrong-password recovery, rekey and disable retain parity in 11.2/11.0 seconds. Native preparation
+also verifies configuration/Provider and CLI requests are refused while window/security/CLI status
+still works. A delayed cloud-secret write must settle before encryption dispatch; its interrupted
+result never commits a secret. All four real-app scenarios pass together in 21.5 seconds in owned
+disposable profiles, without contacting an external account.
+
+The affected CLI/route/app suites pass 616 checks across 36 files. Durable regressions cover
+rejection cleanup, maintenance self-deadlock, native presentation, bounded drain/retry, queued
+execution, a canceled
+reply with an uncooperative running body and an open watcher after its initial snapshot drains.
+App types, scoped new gate/dispatcher regressions, CLI and E2E types, normal/final runtime builds,
+format/check, lint and i18n pass. The existing large legacy dispatcher fixture has unrelated type
+drift outside these scoped type checks; its runtime suite remains passing.
+
+Evidence is under `.deepchat/rutis-g4-request-drain-acceptance/`. There is no process, IPC,
+storage-path or workload-volume change requiring a full resource capture; timings remain functional
+observations without a performance claim. This slice owns ingress. Background work detached after
+an acknowledged request, remaining configuration snapshots and native/window dependencies still
+need explicit ownership/lifecycle contracts before G4 closes. Physical shutdown/power-loss and full
+native Windows/Linux application workloads remain unverified locally.
+
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
 - [ ] Replace cross-boundary closures/row APIs with bounded transactional business commands for
