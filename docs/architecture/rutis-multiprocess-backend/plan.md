@@ -10,7 +10,8 @@ There is no retained implementation switch or local fallback.
 
 Current scope: staged implementation in
 [Draft PR #2465](https://github.com/ThinkInAIXYZ/deepchat/pull/2465), targeting `dev`. Admission is
-committed as `ffcd98770` and the roadmap as `f35adff34`. G3 is active; later goals start only after
+committed as `ffcd98770` and the roadmap as `f35adff34`. G3 is complete at `7ee99619b`; G4 is next.
+Later goals start only after
 their dependencies and the preceding selected goal pass validation.
 
 Use this file as the only tracker. [The RFC](spec.md) defines capability ownership, Memory
@@ -32,7 +33,7 @@ skipped to advance. Keep the PR in draft and do not merge it as part of this exe
 | G0 Admission | Complete, `ffcd98770` | Existing branch baseline | Default Rutis wiring, matching real-app E2E and old path removed |
 | G1 Whole-capability roadmap | Complete; documentation only | G0 and source research | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence |
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
-| G3 Memory vector resources | Locally validated; final CI pending | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
+| G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
 | G4 Store commands and desktop ports | Planned | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
 | G5 Cohesive TS Harness backend | Planned | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
@@ -259,7 +260,7 @@ Current evidence:
 
 The Float32 transport passes local operation budgets. Shared Linux runner timings vary enough
 to pass and fail the same implementation; they are reported separately from fixed-device adoption.
-G3 remains unaccepted and G4 has not started. The selected correction sends bounded raw
+G3 is accepted at checkpoint `7ee99619b`. The selected implementation sends bounded raw
 upload bytes from Main to Rust. Rust stages one bounded upload and acknowledges each received
 chunk; commit dispatches a native atomic upsert through Rutis `Value::Bytes`. Internal native parts
 are bounded to eight MiB so encoded messages fit Rutis's 16-MiB limit; all parts belong to one batch
@@ -271,8 +272,8 @@ latency improvement and does not justify retaining a second per-chunk native ack
 Pinned provider SDK patches validate a finite numeric array and clone it once, preserving response
 validation and raw-response isolation without allocating a Zod parsing payload per component.
 All 27 real SDK response contract checks pass across OpenAI, compatible, Azure, Google single/batch,
-and Vertex Node/edge endpoints. Require exact-head required CI, six package checks and complete
-matching resource comparisons before the next goal.
+and Vertex Node/edge endpoints. Exact-head required CI, all six package checks and complete
+matching resource comparisons pass before the next goal.
 
 - Actual recall, indexing, deletion, reset and maintenance use one lazy native TS vector runtime
   under the existing Rust host. Admission retains its separate runtime and identity. Main keeps
@@ -344,26 +345,36 @@ Frozen inventory and evidence:
   readiness comparison. `control-confirmation-design.json` fixes the one confirmation and pooled
   acceptance rule; `control-confirmation-summary.json` records both passes. Excluded sleep,
   startup and incomplete-indexing attempts remain separate from completed resource samples.
+- `resource-acceptance.json` combines the nine vector and two pooled control comparisons with
+  the independent confirmation, all 52 successful application runs and evidence hashes.
 
 ### Native transport, lifecycle and distribution validation
 
-G3 remains unaccepted and G4 has not started. Implementation `6a2544ddb` passes Linux native
-storage (362 checks), retrieval quality (seven) and all 13 performance checks in run `40248084214`
-at diagnostic revision `07e3f688a`. Native/remote write means are 5.422/8.760, 5.454/7.655 and
-7.432/9.058 ms at 1k/10k/50k; extra latency is 3.338/2.201/1.626 ms. Query p95 pairs are
-5.750/5.822, 13.424/14.896 and 47.966/49.149 ms. First-open median/p95 are at most
-202.315/204.746 ms. All required checks in this run pass; final exact-head checks remain required. Package run `40245677758` passes all six targets on the same application
-implementation, including the actual packaged Memory smoke.
+Checkpoint `7ee99619b9b21b27339322b36d0cfcce57ea4abe` passes required run `40262089127`:
+static, Main, renderer, build, native Memory and the required barrier all succeed. Native job
+`121376436278` passes 985 behavior, 306 Tape, 12 OCR, 362 native Memory, seven retrieval-quality
+and 13 performance checks; two platform-specific native cases are skipped on Linux.
+Its explicit report mode records the 1k write overhead of 5.421 ms against the unchanged 5-ms
+allowance as a warning. Finite measurements, operation correctness and bounded work remain hard
+checks. Five independent strict local runs below establish the fixed-device operation budgets.
+
+Package run `40262089169` passes all six macOS/Windows/Linux x64/arm64 verification jobs and
+the package-required barrier at the same checkpoint. Every target executes the production
+Memory runtime smoke against its packaged host and Electron executable. The application
+implementation remains `6a2544ddb`; the selected checkpoint adds validation policy and evidence
+without changing the measured runtime output.
 
 Shared-runner variation remains visible: the same implementation's earlier required run
 `40245677754` fails the 1k write gate at 7.948/14.684 ms (6.737-ms extra against the unchanged
-5-ms budget), while 10k/50k writes and all query/first-use gates pass. The passing run is not
-attributed to a production fix. Numeric budgets, the first 20 write samples and cold-worker
+5-ms budget), while 10k/50k writes and all query/first-use gates pass.
+Numeric budgets, the first 20 write samples and cold-worker
 behavior are unchanged. Required run `40254813435` at `89a5a4ff6` again passes all deterministic
 checks but fails only the 1k timing threshold (7.958/14.899 ms; 6.941-ms extra). Shared-runner
 timing limits now use explicit reporting; the full suite still fails on invalid measurements,
-wrong runtime/ABI, failed operations, unbounded work or timeout. Validate this reporting policy
-and strict repeated fixed-device operation budgets before G3 acceptance.
+wrong runtime/ABI, failed operations, unbounded work or timeout. Strict repeated fixed-device
+measurements below satisfy the unchanged adoption budgets. Run `40248084214` at `07e3f688a`
+passes the original shared-runner timing assertions on the same implementation, with write
+overheads of 3.338/2.201/1.626 ms at 1k/10k/50k. No production fix is attributed to this variation.
 
 Five local comparisons of a Float32 exponent-bit finite check show no improvement (median extra
 latency 1.864/1.900 ms for current/prototype). A standard native base64 decoder reduces median
@@ -395,8 +406,8 @@ also passes a valid 45-record,
 49,152-dimensional batch spanning internal parts, persistence after close, incomplete-upload and
 non-finite rejection, maximum-16-MiB failure cleanup, abort/close cleanup, admission continuity
 and strict child exit. Retrieval evaluation passes seven cases. Scoped test types, app types,
-format, i18n and lint pass. The full Main/renderer suites and six native package jobs must pass
-on the pushed revision.
+format, i18n and lint pass. The full Main/renderer suites and six native package jobs pass
+on the selected checkpoint `7ee99619b`.
 
 Five independent strict operation runs pass all three characterized scales: 15 checks with
 matching Electron Node 24.22.0 / ABI 148. The complete seven-file/13-check suite separately passes
@@ -436,13 +447,12 @@ excluded. Trace samples show continuous indexing progress through the latter wai
 completed runs retain their original source-manifest hashes: their successful execution did not
 reach either timeout. Comparable protocol records preserve both scenarios/manifests and failed
 attempts. Workloads, observer, production deadlines and all numeric adoption budgets are
-unchanged; the pending sample and controls resume under that record.
+unchanged; the final sample and all control runs complete under that recorded protocol.
 
 The six native package jobs execute `smoke:harness:memory` against the packaged Rust host and
 Electron executable, using production clients for native CRUD, fractional values, restart/reset,
-admission continuity and strict child shutdown. All six pass on `6a2544ddb`. Required CI and all
-six package jobs must pass on the final selected revision; copied layout checks alone cannot
-establish distribution parity.
+admission continuity and strict child shutdown. All six pass on the selected checkpoint
+`7ee99619b` in run `40262089169`; copied layout checks alone cannot establish distribution parity.
 
 - [x] Retain DuckDB v2 in TS; move native handles and file-owner lifetime into one Rutis service.
       Keep existing lease/embedding policy coherent; adapt synchronous health/quarantine and
@@ -457,8 +467,9 @@ establish distribution parity.
       admission and degrade only vector retrieval to the existing FTS behavior.
 - [x] Review and validate the whole slice, including real native operations and relevant Memory
       performance/quality checks. Remove old native factory/lifecycle wiring after parity.
-- [ ] Commit and push the locally validated G3 checkpoint; require the exact-head required CI
-      and all six platform package checks, including the packaged Memory smoke, before G4.
+- [x] Commit and push G3 checkpoint `7ee99619b`; exact-head required run `40262089127` and all
+      six platform package checks in `40262089169`, including packaged Memory smoke and both
+      required barriers, pass before G4.
 
 Completion: a real Memory resource module uses Rutis with one file owner and proven cleanup.
 A standalone query demo or reduced main-process heap does not complete this goal.
