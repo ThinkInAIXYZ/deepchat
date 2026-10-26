@@ -74,6 +74,10 @@ Electron runs used a temporary worktree so the running development app retained 
       transitions for reduced-motion preferences. Validate compact, expanded, keyboard, and motion
       behavior through Electron and the isolated local DeepChat/DimCode configuration.
 
+- [x] Resolve model-picker icons from model IDs for selected values and menu entries, prefer model
+      names over hosting namespaces, and preserve provider icon/API-type fallback. Validate known
+      ACP model icons and generic unknown-model fallback through the existing status bar coverage.
+
 Layout checks: format, i18n, lint, typecheck, production compilation, 120 composer component tests,
 and four focused Electron smoke tests passed. The normal-build provider catalog refresh is retained.
 
@@ -81,3 +85,12 @@ Real DeepChat/DimCode checks at 1280px, 800px, and 480px confirmed visible Agent
 workspace-row placement, model-before-mode ordering, 32px compact controls, one toolbar row, and
 intermediate animation frames during expansion. Reduced-motion and menu/keyboard behavior are
 covered by the ACP Electron fixture. No live model completion was requested.
+
+Model icon checks: 98 focused status-bar/icon component tests and two Electron smoke tests passed.
+Selected values and menu rows use DeepSeek, Gemini, and GLM icons from model IDs; an unknown model
+keeps the custom OpenAI-compatible provider fallback. The ACP smoke explicitly focuses its native
+window for hover checks and dismisses nested tooltips before testing Escape/focus return.
+
+An isolated copy of the real local configuration verified loaded DeepSeek, Qwen, GLM, and GPT icons
+for custom OpenAI-compatible providers. Provider icons retain their API-type behavior. No live
+model completion was requested.

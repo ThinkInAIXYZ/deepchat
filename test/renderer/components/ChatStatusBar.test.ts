@@ -2917,6 +2917,39 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.find('.model-icon-stub').attributes('data-model-id')).toBe('dimcode-acp')
   })
 
+  it('uses model-family icons in custom-provider pickers and falls back for unknown models', async () => {
+    const providerId = 'custom-provider'
+    const modelIds = ['deepseek-chat', 'openrouter/google/gemini-3.1-pro', 'opaque-model']
+    const { wrapper } = await setup({
+      agentId: 'deepchat',
+      defaultModel: { providerId, modelId: modelIds[0] },
+      extraModelGroups: [
+        {
+          providerId,
+          models: modelIds.map((id) => ({ id, name: 'Friendly model label' }))
+        }
+      ]
+    })
+    const picker = wrapper.get('[data-testid="app-model-switcher"]')
+    expect(picker.get('.model-icon-stub').attributes('data-model-id')).toBe('deepseek')
+    for (const [modelId, iconId] of [
+      [modelIds[0], 'deepseek'],
+      [modelIds[1], 'gemini'],
+      [modelIds[2], providerId]
+    ]) {
+      expect(
+        wrapper
+          .get(
+            `[data-testid="model-option"][data-provider-id="${providerId}"][data-model-id="${modelId}"] .model-icon-stub`
+          )
+          .attributes('data-model-id')
+      ).toBe(iconId)
+    }
+    await (wrapper.vm as any).selectModel(providerId, modelIds[2])
+    await flushPromises()
+    expect(picker.get('.model-icon-stub').attributes('data-model-id')).toBe(providerId)
+  })
+
   it('defers ACP process warmup until startup deferred tasks are released', async () => {
     const { providerRuntime, flushStartupDeferredTasks } = await setup({
       agentId: 'acp-agent',
@@ -3102,7 +3135,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.find('.acp-inline-option[data-option-id="safe_edits"]').exists()).toBe(false)
     const modelControl = wrapper.find('.acp-inline-option[data-option-id="model"]')
     expect(modelControl.attributes('aria-label')).toBe('Model: gpt-5')
-    expect(modelControl.find('.icon-stub').attributes('data-icon')).toBe('lucide:cpu')
+    expect(modelControl.find('.model-icon-stub').attributes('data-model-id')).toBe('gpt')
     expect(
       wrapper.find('.acp-inline-option[data-option-id="mode"] .icon-stub').attributes('data-icon')
     ).toBe('lucide:workflow')

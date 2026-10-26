@@ -118,6 +118,15 @@ createInterface({ input: process.stdin }).on('line', line => {
     await app.page.evaluate(async (theme) => {
       await window.deepchat.invoke('config.setTheme', { theme })
     }, theme)
+    await app.electronApp.evaluate(({ app, BrowserWindow }, url) => {
+      app.focus()
+      const window = BrowserWindow.getAllWindows().find(
+        (window) => window.webContents.getURL() === url
+      )
+      window?.focus()
+      window?.webContents.focus()
+    }, app.page.url())
+    await expect.poll(() => app.page.evaluate(() => document.hasFocus())).toBe(true)
     await expect(modelTrigger).toBeEnabled()
     const toolbar = app.page.getByTestId('chat-input-toolbar')
     const editor = app.page.getByTestId('chat-input-editor').locator('[contenteditable="true"]')
@@ -225,7 +234,9 @@ createInterface({ input: process.stdin }).on('line', line => {
     )
     await app.page.screenshot({ path: testInfo.outputPath(`acp-models-${width}-${theme}.png`) })
     await app.page.mouse.move(0, 0)
-    await expect(tooltip).toBeHidden()
+    await expect(tooltip).toHaveCount(0)
+    await modelMenu.focus()
+    await expect(app.page.locator('[data-slot="tooltip-content"]')).toHaveCount(0)
     await app.page.keyboard.press('Escape')
     await expect(modelMenu).toBeHidden()
     await expect(modelTrigger).toBeFocused()
@@ -260,7 +271,9 @@ createInterface({ input: process.stdin }).on('line', line => {
     selectedModelId
   )
   await app.page.mouse.move(0, 0)
-  await expect(selectedTooltip).toBeHidden()
+  await expect(selectedTooltip).toHaveCount(0)
+  await modelMenu.focus()
+  await expect(app.page.locator('[data-slot="tooltip-content"]')).toHaveCount(0)
   await app.page.keyboard.press('Escape')
 
   await app.page.emulateMedia({ reducedMotion: 'reduce' })

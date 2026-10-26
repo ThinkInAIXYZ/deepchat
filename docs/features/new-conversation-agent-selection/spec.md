@@ -44,6 +44,11 @@ reveals the value; open menus keep their trigger expanded. ACP loading feedback 
 the compact state, and reduced-motion preferences disable the reveal transition. Click behavior
 and menu contents retain their existing ownership.
 
+Model-picker triggers and entries resolve their icon from the model ID, preferring its final path
+segment over a hosting namespace. Unknown models fall back to the provider icon. Provider entries
+retain their existing API-type icon behavior, and ACP models use known model-family icons while
+retaining the generic model icon for unknown IDs.
+
 Switching Agents uses existing per-Agent composer drafts and default-model/configuration loading.
 It preserves manually chosen workspaces, including an explicitly cleared workspace. Stale default
 or ACP preparation results must not overwrite newer choices. Existing session Agents are immutable

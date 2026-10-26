@@ -40,7 +40,15 @@
                 "
                 :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
               >
-                <Icon :icon="getAcpOptionIcon(option)" class="size-3.5 shrink-0" />
+                <ModelIcon
+                  v-if="
+                    isAcpModelOption(option) && resolveModelIconKey(String(option.currentValue))
+                  "
+                  :model-id="resolveModelIconId(null, String(option.currentValue))"
+                  custom-class="size-3.5 shrink-0"
+                  :is-dark="themeStore.isDark"
+                />
+                <Icon v-else :icon="getAcpOptionIcon(option)" class="size-3.5 shrink-0" />
                 <span :class="isAcpModelOption(option) ? 'min-w-0' : 'composer-control-details'">
                   <span class="flex min-w-0 items-center gap-1 overflow-hidden">
                     <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
@@ -1298,6 +1306,7 @@ import AcpSessionStatus from '@/components/acp/AcpSessionStatus.vue'
 import { useAcpExtensionsStore } from '@/stores/acpExtensions'
 import SessionSettingsPopover from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
+import { resolveModelIconKey } from '@/components/icons/modelIconRegistry'
 import OpenAIImageGenerationSettingsFields from '@/components/settings/OpenAIImageGenerationSettingsFields.vue'
 import OpenAIVideoGenerationSettingsFields from '@/components/settings/OpenAIVideoGenerationSettingsFields.vue'
 import { createConfigClient } from '@api/ConfigClient'
@@ -1822,6 +1831,9 @@ const resolveModelIconId = (providerId?: string | null, modelId?: string | null)
   if (providerId === 'acp' && modelId) {
     return modelId
   }
+  const modelIcon =
+    resolveModelIconKey(modelId?.split('/').at(-1)) ?? resolveModelIconKey(modelId ?? undefined)
+  if (modelIcon) return modelIcon
   return providerId || 'anthropic'
 }
 
