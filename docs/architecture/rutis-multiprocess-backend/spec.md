@@ -729,6 +729,20 @@ their reviewed package, consent, ownership, and execution contracts.
 
 ### Gateway and event flow
 
+The selected sixteen-field application settings projection uses one Main presentation revision
+sequence across snapshots, mutation replies and `settings.changed` events. Renderers retain this
+revision and accept values per key, so late replies cannot reverse newer fields or discard unrelated
+partial values. The sequence lasts for Main's lifetime and its renderer contexts; it is not a durable
+database revision. Refresh the allowlisted projection after database maintenance and reject new
+operations while maintenance or shutdown is active.
+
+Agent display changes use one validated asynchronous data-only mutation and an acknowledgement
+with the native owner's previous/applied value. Keep skill authorization and durable dispatch
+commitment at the Agent owner. G5 routes portable preferences directly to the backend configuration
+owner and native device effects to Main; a Core-to-Main-to-Core mutation loop must not replace
+direct ownership. Other configuration entry domains and host capabilities still require their own
+G4 boundaries. Neither a second settings writer nor cached secret values belong in this projection.
+
 The application gateway carries request, reply, cancel, event, and readiness/control messages.
 Every message identifies a protocol version and host epoch; requests/replies also identify a
 request ID. A core generation change invalidates outstanding requests, subscriptions, and desktop

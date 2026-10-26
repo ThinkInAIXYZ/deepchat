@@ -11,7 +11,7 @@ describe('uiSettingsStore', () => {
   const mountStoreHost = async () => {
     const { createPinia, setActivePinia } = await vi.importActual<typeof import('pinia')>('pinia')
     const { useUiSettingsStore } = await import('../../../src/renderer/src/stores/uiSettingsStore')
-    let store: ReturnType<typeof useUiSettingsStore> | null = null
+    let store!: ReturnType<typeof useUiSettingsStore>
     const pinia = createPinia()
     setActivePinia(pinia)
 
@@ -194,7 +194,7 @@ describe('uiSettingsStore', () => {
 
       throw new Error(`Unexpected route in test: ${routeName}`)
     })
-    window.deepchat.invoke = invoke
+    Object.assign(window.deepchat, { invoke })
 
     const { store } = await mountStoreHost()
 
@@ -202,6 +202,67 @@ describe('uiSettingsStore', () => {
 
     await expect(store.setPrivacyModeEnabled(true)).rejects.toThrow('IPC failed')
     expect(store.privacyModeEnabled).toBe(false)
+  })
+
+  it('keeps newer event values while hydrating unrelated fields from a delayed snapshot', async () => {
+    let resolveSnapshot!: (value: {
+      version: number
+      values: Partial<SettingsSnapshotValues>
+    }) => void
+    invoke.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSnapshot = resolve
+        })
+    )
+    const { store } = await mountStoreHost()
+    const listener = on.mock.calls[0][1] as (payload: {
+      version: number
+      changedKeys: string[]
+      values: Partial<SettingsSnapshotValues>
+    }) => void
+
+    listener({ version: 3, changedKeys: ['fontSizeLevel'], values: { fontSizeLevel: 4 } })
+    resolveSnapshot({ version: 1, values: { fontSizeLevel: 0, fontFamily: 'Inter' } })
+    await flushPromises()
+    expect(store.fontSizeLevel).toBe(4)
+    expect(store.fontFamily).toBe('Inter')
+
+    listener({
+      version: 2,
+      changedKeys: ['fontSizeLevel', 'notificationsEnabled'],
+      values: { fontSizeLevel: 1, notificationsEnabled: false }
+    })
+    expect(store.fontSizeLevel).toBe(4)
+    expect(store.notificationsEnabled).toBe(false)
+  })
+
+  it('ignores a delayed mutation receipt after a newer acknowledgement', async () => {
+    const { store } = await mountStoreHost()
+    await flushPromises()
+    const pending: Array<(value: unknown) => void> = []
+    invoke.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          pending.push(resolve)
+        })
+    )
+
+    const first = store.setLaunchAtLoginEnabled(true)
+    const second = store.setLaunchAtLoginEnabled(false)
+    pending[1]({
+      version: 3,
+      changedKeys: ['launchAtLoginEnabled'],
+      values: { launchAtLoginEnabled: false }
+    })
+    await second
+    pending[0]({
+      version: 2,
+      changedKeys: ['launchAtLoginEnabled'],
+      values: { launchAtLoginEnabled: true }
+    })
+    await first
+    expect(store.launchAtLoginEnabled).toBe(false)
   })
 
   it('waits for the initial snapshot before applying an update result', async () => {
@@ -235,7 +296,7 @@ describe('uiSettingsStore', () => {
 
       throw new Error(`Unexpected route in test: ${routeName}`)
     })
-    window.deepchat.invoke = invoke
+    Object.assign(window.deepchat, { invoke })
 
     const { store } = await mountStoreHost()
     const loadPromise = store.loadSettings()

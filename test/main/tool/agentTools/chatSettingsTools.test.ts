@@ -7,19 +7,7 @@ import {
 } from '@/tool/agentTools/chatSettingsTools'
 
 describe('ChatSettingsToolHandler', () => {
-  const providerSettings = {
-    getSetting: vi.fn(),
-    setSetting: vi.fn(),
-    setLanguage: vi.fn(),
-    setTheme: vi.fn()
-  } as any
-
-  const desktopSettings = {
-    getCopyWithCotEnabled: vi.fn(),
-    getTheme: vi.fn(),
-    setCopyWithCotEnabled: vi.fn(),
-    setTheme: vi.fn()
-  } as any
+  const desktopSettings = { applyDisplayChange: vi.fn() }
 
   const skillSettings = {
     isEnabled: vi.fn()
@@ -36,7 +24,6 @@ describe('ChatSettingsToolHandler', () => {
 
   const buildHandler = () =>
     new ChatSettingsToolHandler({
-      providerSettings,
       desktopSettings,
       skillSettings,
       skillService,
@@ -45,10 +32,13 @@ describe('ChatSettingsToolHandler', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    desktopSettings.getCopyWithCotEnabled.mockReturnValue(true)
-    desktopSettings.getTheme.mockReturnValue('dark')
-    providerSettings.getSetting.mockReturnValue('chat')
-    providerSettings.setTheme.mockResolvedValue(false)
+    desktopSettings.applyDisplayChange.mockImplementation(async (change) => ({
+      ok: true,
+      id: change.id,
+      value: change.value,
+      previousValue: change.id === 'copyWithCotEnabled' ? true : 'dark',
+      appliedAt: 1
+    }))
     skillSettings.isEnabled.mockReturnValue(true)
     skillService.getActiveSkills.mockResolvedValue([CHAT_SETTINGS_SKILL_NAME])
     windowPresenter.createSettingsWindow.mockResolvedValue(1)
@@ -64,7 +54,7 @@ describe('ChatSettingsToolHandler', () => {
     if (!result.ok) {
       expect(result.errorCode).toBe('skill_inactive')
     }
-    expect(desktopSettings.setCopyWithCotEnabled).not.toHaveBeenCalled()
+    expect(desktopSettings.applyDisplayChange).not.toHaveBeenCalled()
   })
 
   it('rejects invalid toggle payloads', async () => {
@@ -75,14 +65,17 @@ describe('ChatSettingsToolHandler', () => {
     if (!result.ok) {
       expect(result.errorCode).toBe('invalid_request')
     }
-    expect(desktopSettings.setCopyWithCotEnabled).not.toHaveBeenCalled()
+    expect(desktopSettings.applyDisplayChange).not.toHaveBeenCalled()
   })
 
   it('applies copyWithCotEnabled toggle', async () => {
     const handler = buildHandler()
     const result = await handler.toggle({ setting: 'copyWithCotEnabled', enabled: false }, 'conv-1')
 
-    expect(desktopSettings.setCopyWithCotEnabled).toHaveBeenCalledWith(false)
+    expect(desktopSettings.applyDisplayChange).toHaveBeenCalledWith({
+      id: 'copyWithCotEnabled',
+      value: false
+    })
     expect(result.ok).toBe(true)
     if (result.ok) {
       expect(result.previousValue).toBe(true)
@@ -95,8 +88,41 @@ describe('ChatSettingsToolHandler', () => {
     const result = await handler.setTheme({ theme: 'light' }, 'conv-1', [CHAT_SETTINGS_SKILL_NAME])
 
     expect(result.ok).toBe(true)
-    expect(desktopSettings.setTheme).toHaveBeenCalledWith('light')
+    expect(desktopSettings.applyDisplayChange).toHaveBeenCalledWith({ id: 'theme', value: 'light' })
     expect(skillService.getActiveSkills).not.toHaveBeenCalled()
+  })
+
+  it('waits for the native owner and returns its applied receipt', async () => {
+    const receipt = {
+      ok: true as const,
+      id: 'theme' as const,
+      value: 'light' as const,
+      previousValue: 'system' as const,
+      appliedAt: 123
+    }
+    let acknowledge!: (value: typeof receipt) => void
+    desktopSettings.applyDisplayChange.mockReturnValueOnce(
+      new Promise((resolve) => {
+        acknowledge = resolve
+      })
+    )
+    const result = buildHandler().setTheme({ theme: 'light' }, 'conv-1', [CHAT_SETTINGS_SKILL_NAME])
+    let settled = false
+    void result.then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    acknowledge(receipt)
+    expect(await result).toEqual(receipt)
+  })
+
+  it('reports an asynchronous native mutation failure', async () => {
+    desktopSettings.applyDisplayChange.mockRejectedValueOnce(new Error('native owner stopped'))
+    expect(await buildHandler().setTheme({ theme: 'light' }, 'conv-1')).toMatchObject({
+      ok: false,
+      errorCode: 'apply_failed'
+    })
   })
 
   it('propagates dispatch commit failure without changing settings', async () => {
@@ -111,7 +137,7 @@ describe('ChatSettingsToolHandler', () => {
     ).rejects.toBe(journalError)
 
     expect(beforeMutation).toHaveBeenCalledWith({ theme: 'light' })
-    expect(desktopSettings.setTheme).not.toHaveBeenCalled()
+    expect(desktopSettings.applyDisplayChange).not.toHaveBeenCalled()
   })
 
   it('opens settings and navigates to section', async () => {

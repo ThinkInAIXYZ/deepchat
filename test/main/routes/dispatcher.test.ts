@@ -1,3 +1,4 @@
+import { AppSettingsService } from '@/app/settingsService'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { FileServicePort } from '@shared/types/file'
 import type { SkillServicePort } from '@shared/types/skill'
@@ -1772,20 +1773,30 @@ function createRuntime() {
       testHookCommand
     } as never
   })
+  let settingsSnapshotRevision = 0
+  const appSettingsService = new AppSettingsService({
+    agentDefaults: agentDefaults as never,
+    privacy: privacySettings as never,
+    traceSettings: traceSettings as never,
+    desktopSettings: desktopSettings as never,
+    fonts: fontSettings as never,
+    logging: loggingService as never,
+    ocr: ocrSettings,
+    applyContentProtection,
+    publishEvent: publishDeepchatEvent,
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    },
+    nextVersion: () => ++settingsSnapshotRevision,
+    assertActive: () => {}
+  })
   const appSettingsRoutes = createAppSettingsRoutes({
+    appSettings: appSettingsService,
     settings: {
       get: (key) => providerSettings.getSetting(key),
       set: (key, value) => providerSettings.setSetting(key, value)
     },
-    agentDefaults: agentDefaults as never,
-    privacy: privacySettings as never,
-    traceSettings: traceSettings as never,
-    updateSettings: updateSettings as never,
-    desktopSettings: desktopSettings as never,
     fonts: fontSettings as never,
-    applyContentProtection,
-    logging: loggingService as never,
-    ocr: ocrSettings,
     commandShell,
     publishEvent: publishDeepchatEvent,
     recordActivity: (input) => {

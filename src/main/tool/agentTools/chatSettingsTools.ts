@@ -2,8 +2,6 @@ import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import type {
   ApplyChatSettingResult,
-  ChatSettingValue,
-  ChatLanguage,
   OpenChatSettingsResult,
   OpenChatSettingsSection
 } from '@shared/types/chatSettings'
@@ -166,21 +164,6 @@ export class ChatSettingsToolHandler {
     return null
   }
 
-  private getCurrentValue(key: string): ChatSettingValue | undefined {
-    switch (key) {
-      case 'copyWithCotEnabled':
-        return this.options.desktopSettings.getCopyWithCotEnabled()
-      case 'language':
-        return this.options.desktopSettings.getRequestedLanguage() as ChatLanguage
-      case 'theme':
-        return this.options.desktopSettings.getTheme()
-      case 'fontSizeLevel':
-        return this.options.desktopSettings.getFontSizeLevel()
-      default:
-        return undefined
-    }
-  }
-
   async toggle(
     raw: unknown,
     conversationId?: string,
@@ -198,30 +181,15 @@ export class ChatSettingsToolHandler {
     }
 
     const { setting, enabled } = parsed.data
-    const previousValue = this.getCurrentValue(setting)
     beforeMutation?.(parsed.data)
     try {
-      switch (setting) {
-        case 'copyWithCotEnabled':
-          this.options.desktopSettings.setCopyWithCotEnabled(enabled)
-          break
-        default:
-          return buildError('unknown_setting', `Unsupported toggle: ${setting}`)
-      }
+      return await this.options.desktopSettings.applyDisplayChange({ id: setting, value: enabled })
     } catch (error) {
       return buildError(
         'apply_failed',
         'Failed to apply DeepChat toggle.',
         error instanceof Error ? error.message : String(error)
       )
-    }
-
-    return {
-      ok: true,
-      id: setting,
-      value: enabled,
-      previousValue,
-      appliedAt: Date.now()
     }
   }
 
@@ -246,24 +214,18 @@ export class ChatSettingsToolHandler {
     }
 
     const { language } = parsed.data
-    const previousValue = this.getCurrentValue('language')
     beforeMutation?.(parsed.data)
     try {
-      this.options.desktopSettings.setLanguage(language)
+      return await this.options.desktopSettings.applyDisplayChange({
+        id: 'language',
+        value: language
+      })
     } catch (error) {
       return buildError(
         'apply_failed',
         'Failed to apply DeepChat language.',
         error instanceof Error ? error.message : String(error)
       )
-    }
-
-    return {
-      ok: true,
-      id: 'language',
-      value: language,
-      previousValue,
-      appliedAt: Date.now()
     }
   }
 
@@ -284,24 +246,15 @@ export class ChatSettingsToolHandler {
     }
 
     const { theme } = parsed.data
-    const previousValue = this.getCurrentValue('theme')
     beforeMutation?.(parsed.data)
     try {
-      this.options.desktopSettings.setTheme(theme)
+      return await this.options.desktopSettings.applyDisplayChange({ id: 'theme', value: theme })
     } catch (error) {
       return buildError(
         'apply_failed',
         'Failed to apply DeepChat theme.',
         error instanceof Error ? error.message : String(error)
       )
-    }
-
-    return {
-      ok: true,
-      id: 'theme',
-      value: theme,
-      previousValue,
-      appliedAt: Date.now()
     }
   }
 
@@ -326,24 +279,18 @@ export class ChatSettingsToolHandler {
     }
 
     const { level } = parsed.data
-    const previousValue = this.getCurrentValue('fontSizeLevel')
     beforeMutation?.(parsed.data)
     try {
-      this.options.desktopSettings.setFontSizeLevel(level)
+      return await this.options.desktopSettings.applyDisplayChange({
+        id: 'fontSizeLevel',
+        value: level
+      })
     } catch (error) {
       return buildError(
         'apply_failed',
         'Failed to apply DeepChat font size.',
         error instanceof Error ? error.message : String(error)
       )
-    }
-
-    return {
-      ok: true,
-      id: 'fontSizeLevel',
-      value: level,
-      previousValue,
-      appliedAt: Date.now()
     }
   }
 

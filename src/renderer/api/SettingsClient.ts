@@ -1,8 +1,10 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
+import { RevisionSchema } from '@shared/contracts/common'
 import type { AgentCommandShellConfig } from '@shared/commandShell'
 import { settingsChangedEvent, settingsCommandShellChangedEvent } from '@shared/contracts/events'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 import {
+  SETTINGS_KEYS,
   configGetEntriesRoute,
   configUpdateEntriesRoute,
   settingsCheckCommandShellRoute,
@@ -16,6 +18,7 @@ import {
   type ConfigEntryChange,
   type ConfigEntryKey,
   type ConfigEntryValues,
+  type DeepchatRouteOutput,
   type SettingsChange,
   type SettingsKey,
   type SettingsSnapshotValues
@@ -46,9 +49,27 @@ const normalizeSettingsNavigationPayload = (
 }
 
 export function createSettingsClient(bridge: DeepchatBridge = getDeepchatBridge()) {
-  async function getSnapshot(keys?: SettingsKey[]): Promise<Partial<SettingsSnapshotValues>> {
-    const result = await bridge.invoke(settingsGetSnapshotRoute.name, { keys })
-    return result.values
+  const observedVersions = new Map<SettingsKey, number>()
+
+  function acceptSnapshot(snapshot: {
+    version: number
+    values: Partial<SettingsSnapshotValues>
+  }): Partial<SettingsSnapshotValues> {
+    const version = RevisionSchema.parse(snapshot.version)
+    const accepted: Partial<SettingsSnapshotValues> = {}
+    for (const key of SETTINGS_KEYS) {
+      if (!Object.hasOwn(snapshot.values, key)) continue
+      if (version < (observedVersions.get(key) ?? -1)) continue
+      observedVersions.set(key, version)
+      Object.assign(accepted, { [key]: snapshot.values[key] })
+    }
+    return accepted
+  }
+
+  async function getSnapshot(
+    keys?: SettingsKey[]
+  ): Promise<DeepchatRouteOutput<'settings.getSnapshot'>> {
+    return await bridge.invoke(settingsGetSnapshotRoute.name, { keys })
   }
 
   async function getSystemFonts(): Promise<string[]> {
@@ -115,7 +136,9 @@ export function createSettingsClient(bridge: DeepchatBridge = getDeepchatBridge(
       values: Partial<SettingsSnapshotValues>
     }) => void
   ) {
-    return bridge.on(settingsChangedEvent.name, listener)
+    return bridge.on(settingsChangedEvent.name, (payload) =>
+      listener({ ...payload, values: acceptSnapshot(payload) })
+    )
   }
 
   function onCommandShellChanged(
@@ -126,6 +149,7 @@ export function createSettingsClient(bridge: DeepchatBridge = getDeepchatBridge(
 
   return {
     getSnapshot,
+    acceptSnapshot,
     getSystemFonts,
     getCommandShell,
     updateCommandShell,

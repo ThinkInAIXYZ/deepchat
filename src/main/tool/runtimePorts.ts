@@ -2,6 +2,7 @@ import type { FileServicePort } from '@shared/types/file'
 import type { ProviderRuntimePort } from '@shared/types/provider'
 import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
+import type { ApplyChatSettingSuccess, ChatSettingMutation } from '@shared/types/chatSettings'
 import type {
   DeepChatSubagentMeta,
   DeepChatSubagentCapability,
@@ -239,14 +240,7 @@ export interface AgentDesktopToolPort {
 }
 
 export interface AgentDisplaySettingsPort {
-  getCopyWithCotEnabled(): boolean
-  setCopyWithCotEnabled(enabled: boolean): void
-  getRequestedLanguage(): string
-  setLanguage(language: string): void
-  getTheme(): 'system' | 'light' | 'dark'
-  setTheme(theme: 'system' | 'light' | 'dark'): void
-  getFontSizeLevel(): number
-  setFontSizeLevel(level: number): void
+  applyDisplayChange(change: ChatSettingMutation): Promise<ApplyChatSettingSuccess>
 }
 
 export interface AgentToolPermissionPort {

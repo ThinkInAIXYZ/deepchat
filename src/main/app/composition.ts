@@ -25,6 +25,7 @@ import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/projec
 import {
   approvalClosedEvent,
   approvalRequestedEvent,
+  settingsChangedEvent,
   liveDelegationChangedEvent,
   sessionsTapeInspectorHeadChangedEvent,
   sessionsUpdatedEvent
@@ -149,6 +150,8 @@ import { createSyncHostRoutes } from '../sync/host/routes'
 import { createPlatformRoutes } from '../platform/routes'
 import { createHookRoutes } from '../hook/routes'
 import { createAppSettingsRoutes } from './settingsRoutes'
+import { AppSettingsService } from './settingsService'
+import type { SettingsActivityInput } from '@shared/contracts/routes'
 import { createAppRoutes } from './routes'
 import { registerClipboardIpc } from './clipboardIpc'
 import { createRendererIpcAuthorizer } from './rendererIpcSecurity'
@@ -778,7 +781,15 @@ export async function createMainProcessControl(dependencies: {
       })
     }
   }
+  let settingsRevision = 0
+  const nextSettingsVersion = () => ++settingsRevision
   const publishDeepchatEvent = (name: DeepchatEventName, payload: unknown): void => {
+    if (name === 'settings.changed') {
+      payload = {
+        ...settingsChangedEvent.payload.parse(payload),
+        version: nextSettingsVersion()
+      }
+    }
     sessionEventRouter.publish(name, payload)
     if (name === 'sessions.status.changed') {
       const state = payload as { sessionId: string; status: string }
@@ -1284,6 +1295,30 @@ export async function createMainProcessControl(dependencies: {
   shortcutPresenter = new ShortcutPresenter(desktopSettings, windowPresenter, publishDeepchatEvent)
   fileService = new FileService(dependencies.settingsStore)
   ocrSettings = new OcrSettings(dependencies.settingsStore, publishDeepchatEvent)
+  const recordSettingsActivity = (input: SettingsActivityInput) => {
+    void settingsDatabase.recordSettingsActivity(input).catch((error) => {
+      console.warn('[SettingsActivity] Failed to record settings activity:', error)
+    })
+  }
+  const appSettingsService = new AppSettingsService({
+    agentDefaults,
+    privacy: dependencies.privacySettings,
+    traceSettings,
+    desktopSettings,
+    fonts: fontSettings,
+    logging: loggingService,
+    ocr: ocrSettings,
+    applyContentProtection: (enabled) =>
+      (windowPresenter as WindowPresenter).applyContentProtection(enabled),
+    recordActivity: recordSettingsActivity,
+    publishEvent: publishDeepchatEvent,
+    nextVersion: nextSettingsVersion,
+    assertActive: () => {
+      assertRouteAllowedDuringDatabaseMaintenance('settings.update')
+      if (databaseMaintenanceState !== 'running')
+        throw new Error(`App database maintenance is ${databaseMaintenanceState}`)
+    }
+  })
   const toolchainHomeDir = app.getPath('home')
   const toolchainService = ToolchainService.initialize({
     appPath: app.getAppPath(),
@@ -1990,7 +2025,7 @@ export async function createMainProcessControl(dependencies: {
     settings: dependencies.settingsStore,
     agentSettings,
     skillSettings,
-    desktopSettings,
+    desktopSettings: appSettingsService,
     commandPermissionHandler,
     commandEnvironment: agentCliCommandAccess,
     permissionBroker: toolPermissionBroker,
@@ -3323,22 +3358,11 @@ export async function createMainProcessControl(dependencies: {
     })
     const appSettingsRoutes = createAppSettingsRoutes({
       settings: dependencies.settingsStore,
-      agentDefaults,
-      privacy: dependencies.privacySettings,
-      traceSettings,
-      desktopSettings,
+      appSettings: appSettingsService,
       fonts: fontSettings,
-      applyContentProtection: (enabled) =>
-        (windowPresenter as WindowPresenter).applyContentProtection(enabled),
-      logging: loggingService,
-      ocr: ocrSettings,
       commandShell: commandShellService,
       publishEvent: publishDeepchatEvent,
-      recordActivity: (input) => {
-        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
-          console.warn('[SettingsActivity] Failed to record settings activity:', error)
-        })
-      },
+      recordActivity: recordSettingsActivity,
       listActivities: (limit) => settingsDatabase.listSettingsActivity(limit)
     })
     const appRoutes = createAppRoutes({
@@ -3785,6 +3809,7 @@ export async function createMainProcessControl(dependencies: {
       const startupRunId = startupWorkloadCoordinator.createRun('main')
       scheduleBackgroundWork(startupRunId)
       databaseMaintenanceState = 'running'
+      appSettingsService.publishSnapshot()
       syncReplica?.wake()
       await automaticSync?.start()
     } catch (error) {

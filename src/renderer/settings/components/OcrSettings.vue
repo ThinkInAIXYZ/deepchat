@@ -295,6 +295,7 @@ import { Switch } from '@shadcn/components/ui/switch'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import SettingsSectionCard from './control-center/SettingsSectionCard.vue'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
+import type { SettingsSnapshotValues } from '@shared/contracts/routes'
 
 type OcrBackend = 'auto' | 'cpu'
 
@@ -402,8 +403,19 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   disposed = true
+  unsubscribeSettings()
   pausePolling()
 })
+
+const unsubscribeSettings = settingsClient.onChanged(({ values }) => {
+  if (!disposed) applySettingsValues(values)
+})
+
+function applySettingsValues(values: Partial<SettingsSnapshotValues>): void {
+  if (typeof values.ocrAutoExtractForNonVisionModels === 'boolean')
+    automaticExtractionEnabled.value = values.ocrAutoExtractForNonVisionModels
+  if (values.ocrBackend !== undefined) backend.value = values.ocrBackend
+}
 
 watch(pollingAllowed, (allowed) => {
   pausePolling()
@@ -415,12 +427,12 @@ async function loadSettings(): Promise<void> {
 
   settingsOperationPending.value = true
   try {
-    const values = await settingsClient.getSnapshot([
+    const snapshot = await settingsClient.getSnapshot([
       'ocrAutoExtractForNonVisionModels',
       'ocrBackend'
     ])
-    automaticExtractionEnabled.value = values.ocrAutoExtractForNonVisionModels ?? true
-    backend.value = values.ocrBackend ?? 'auto'
+    if (disposed) return
+    applySettingsValues(settingsClient.acceptSnapshot(snapshot))
     settingsReady.value = true
     notifyRenderer({
       kind: 'success',
@@ -428,6 +440,7 @@ async function loadSettings(): Promise<void> {
       title: t('common.saved')
     })
   } catch (error) {
+    if (disposed) return
     settingsReady.value = false
     console.error('[OcrSettings] Failed to load settings', error)
     notifyRenderer({
@@ -445,13 +458,15 @@ async function updateAutomaticExtraction(value: boolean): Promise<void> {
   settingsOperationPending.value = true
   try {
     const result = await settingsClient.update([{ key: 'ocrAutoExtractForNonVisionModels', value }])
-    automaticExtractionEnabled.value = result.values.ocrAutoExtractForNonVisionModels ?? value
+    if (disposed) return
+    applySettingsValues(settingsClient.acceptSnapshot(result))
     notifyRenderer({
       kind: 'success',
       code: 'settings.ocr.autoExtractUpdated',
       title: t('common.saved')
     })
   } catch (error) {
+    if (disposed) return
     console.error('[OcrSettings] Failed to update automatic extraction', error)
     notifyRenderer({
       kind: 'error',
@@ -468,13 +483,15 @@ async function updateBackend(value: AcceptableValue): Promise<void> {
   settingsOperationPending.value = true
   try {
     const result = await settingsClient.update([{ key: 'ocrBackend', value }])
-    backend.value = result.values.ocrBackend ?? value
+    if (disposed) return
+    applySettingsValues(settingsClient.acceptSnapshot(result))
     notifyRenderer({
       kind: 'success',
       code: 'settings.ocr.backendUpdated',
       title: t('common.saved')
     })
   } catch (error) {
+    if (disposed) return
     console.error('[OcrSettings] Failed to update backend', error)
     notifyRenderer({
       kind: 'error',

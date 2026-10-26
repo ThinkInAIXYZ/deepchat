@@ -1,5 +1,4 @@
 import {
-  SETTINGS_KEYS,
   configGetEntriesRoute,
   configUpdateEntriesRoute,
   settingsActivityListRoute,
@@ -13,18 +12,10 @@ import {
   settingsUpdateRoute,
   type ConfigEntryKey,
   type ConfigEntryValues,
-  type SettingsActivityInput,
-  type SettingsChange,
-  type SettingsKey,
-  type SettingsSnapshotValues
+  type SettingsActivityInput
 } from '@shared/contracts/routes'
-import type { DeepChatDefaults } from '@/agent/deepchat/defaults'
-import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
-import type { PrivacySettingsPort } from './privacy'
-import type { DesktopSettings } from '@/desktop/settings'
 import type { FontSettings } from '@/desktop/fontSettings'
-import type { LoggingService } from './logging'
-import type { OcrSettingsPort } from '@/ocr/ocrSettings'
+import type { AppSettingsService } from './settingsService'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { CommandShellService } from '@/agent/shared/process/commandShellService'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
@@ -32,16 +23,10 @@ import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
 export function createAppSettingsRoutes(deps: {
   settings: Pick<SettingsStore, 'get' | 'set'>
-  agentDefaults: DeepChatDefaults
-  privacy: PrivacySettingsPort
-  traceSettings: AgentTraceSettingsPort
-  desktopSettings: DesktopSettings
+  appSettings: Pick<AppSettingsService, 'getSnapshot' | 'update'>
   fonts: FontSettings
-  logging: LoggingService
-  ocr: OcrSettingsPort
   commandShell: Pick<CommandShellService, 'getConfig' | 'setConfig' | 'checkGitBash'>
   publishEvent: DeepchatEventPublisher
-  applyContentProtection(enabled: boolean): void
   recordActivity(input: SettingsActivityInput): void
   listActivities(limit?: number): Promise<unknown[]>
 }): DeepchatRouteMap {
@@ -70,129 +55,6 @@ export function createAppSettingsRoutes(deps: {
     read('input_enabledMcpTools')
     return values
   }
-  const readSnapshot = (): SettingsSnapshotValues => ({
-    fontSizeLevel: deps.desktopSettings.getFontSizeLevel(),
-    fontFamily: deps.fonts.getFontFamily(),
-    codeFontFamily: deps.fonts.getCodeFontFamily(),
-    autoScrollEnabled: deps.desktopSettings.getAutoScrollEnabled(),
-    autoCompactionEnabled: deps.agentDefaults.getAutoCompactionEnabled(),
-    autoCompactionTriggerThreshold: deps.agentDefaults.getAutoCompactionTriggerThreshold(),
-    autoCompactionRetainRecentPairs: deps.agentDefaults.getAutoCompactionRetainRecentPairs(),
-    contentProtectionEnabled: deps.desktopSettings.getContentProtectionEnabled(),
-    privacyModeEnabled: deps.privacy.isEnabled(),
-    notificationsEnabled: deps.desktopSettings.getNotificationsEnabled(),
-    launchAtLoginEnabled: deps.desktopSettings.getLaunchAtLoginEnabled(),
-    traceDebugEnabled: deps.traceSettings.isEnabled(),
-    copyWithCotEnabled: deps.desktopSettings.getCopyWithCotEnabled(),
-    loggingEnabled: deps.logging.getEnabled(),
-    ocrAutoExtractForNonVisionModels: deps.ocr.getAutomaticExtractionEnabled(),
-    ocrBackend: deps.ocr.getBackend()
-  })
-  const pickSnapshot = (
-    snapshot: SettingsSnapshotValues,
-    keys?: SettingsKey[]
-  ): Partial<SettingsSnapshotValues> => {
-    const result: Partial<SettingsSnapshotValues> = {}
-    for (const key of keys?.length ? keys : SETTINGS_KEYS) {
-      ;(result as Record<SettingsKey, SettingsSnapshotValues[SettingsKey]>)[key] = snapshot[key]
-    }
-    return result
-  }
-  const applyChange = (change: SettingsChange): void => {
-    switch (change.key) {
-      case 'fontSizeLevel':
-        deps.desktopSettings.setFontSizeLevel(change.value)
-        return
-      case 'fontFamily':
-        deps.fonts.setFontFamily(change.value)
-        return
-      case 'codeFontFamily':
-        deps.fonts.setCodeFontFamily(change.value)
-        return
-      case 'autoScrollEnabled':
-        deps.desktopSettings.setAutoScrollEnabled(change.value)
-        return
-      case 'autoCompactionEnabled':
-        deps.agentDefaults.setAutoCompactionEnabled(change.value)
-        return
-      case 'autoCompactionTriggerThreshold':
-        deps.agentDefaults.setAutoCompactionTriggerThreshold(change.value)
-        return
-      case 'autoCompactionRetainRecentPairs':
-        deps.agentDefaults.setAutoCompactionRetainRecentPairs(change.value)
-        return
-      case 'contentProtectionEnabled':
-        deps.desktopSettings.setContentProtectionEnabled(change.value)
-        deps.applyContentProtection(change.value)
-        return
-      case 'privacyModeEnabled':
-        deps.privacy.setEnabled(change.value)
-        return
-      case 'notificationsEnabled':
-        deps.desktopSettings.setNotificationsEnabled(change.value)
-        return
-      case 'launchAtLoginEnabled':
-        deps.desktopSettings.setLaunchAtLoginEnabled(change.value)
-        return
-      case 'traceDebugEnabled':
-        deps.traceSettings.setEnabled(change.value)
-        return
-      case 'copyWithCotEnabled':
-        deps.desktopSettings.setCopyWithCotEnabled(change.value)
-        return
-      case 'loggingEnabled':
-        deps.logging.setEnabled(change.value)
-        return
-      case 'ocrAutoExtractForNonVisionModels':
-        deps.ocr.setAutomaticExtractionEnabled(change.value)
-        return
-      case 'ocrBackend':
-        deps.ocr.setBackend(change.value)
-    }
-  }
-  const recordChange = (change: SettingsChange): void => {
-    deps.recordActivity({
-      category:
-        change.key === 'privacyModeEnabled'
-          ? 'privacy'
-          : change.key === 'fontSizeLevel' ||
-              change.key === 'fontFamily' ||
-              change.key === 'codeFontFamily' ||
-              change.key === 'contentProtectionEnabled'
-            ? 'appearance'
-            : 'system',
-      action:
-        typeof change.value === 'boolean' ? (change.value ? 'enabled' : 'disabled') : 'updated',
-      targetType: 'setting',
-      targetId: change.key,
-      targetLabel: change.key,
-      routeName:
-        change.key === 'privacyModeEnabled'
-          ? 'settings-database'
-          : change.key === 'ocrAutoExtractForNonVisionModels' || change.key === 'ocrBackend'
-            ? 'settings-ocr'
-            : 'settings-common',
-      summaryKey: 'settings.controlCenter.activity.settingUpdated',
-      summaryParams: { key: change.key }
-    })
-  }
-  const getSnapshot = (keys?: SettingsKey[]) => ({
-    version: Date.now(),
-    values: pickSnapshot(readSnapshot(), keys)
-  })
-  const updateSnapshot = (changes: SettingsChange[]) => {
-    for (const change of changes) {
-      applyChange(change)
-      recordChange(change)
-    }
-    const changedKeys = changes.map((change) => change.key)
-    return {
-      version: Date.now(),
-      changedKeys,
-      values: pickSnapshot(readSnapshot(), changedKeys)
-    }
-  }
-
   return createRouteMap([
     [
       configGetEntriesRoute.name,
@@ -220,14 +82,14 @@ export function createAppSettingsRoutes(deps: {
       settingsGetSnapshotRoute.name,
       async (rawInput) => {
         const input = settingsGetSnapshotRoute.input.parse(rawInput)
-        return settingsGetSnapshotRoute.output.parse(getSnapshot(input.keys))
+        return settingsGetSnapshotRoute.output.parse(await deps.appSettings.getSnapshot(input.keys))
       }
     ],
     [
       settingsGetPublicRoute.name,
       async (rawInput) => {
         const input = settingsGetPublicRoute.input.parse(rawInput)
-        return settingsGetPublicRoute.output.parse(getSnapshot(input.keys))
+        return settingsGetPublicRoute.output.parse(await deps.appSettings.getSnapshot(input.keys))
       }
     ],
     [
@@ -286,14 +148,14 @@ export function createAppSettingsRoutes(deps: {
       settingsUpdateRoute.name,
       async (rawInput) => {
         const input = settingsUpdateRoute.input.parse(rawInput)
-        return settingsUpdateRoute.output.parse(updateSnapshot(input.changes))
+        return settingsUpdateRoute.output.parse(await deps.appSettings.update(input.changes))
       }
     ],
     [
       settingsUpdatePublicRoute.name,
       async (rawInput) => {
         const input = settingsUpdatePublicRoute.input.parse(rawInput)
-        return settingsUpdatePublicRoute.output.parse(updateSnapshot(input.changes))
+        return settingsUpdatePublicRoute.output.parse(await deps.appSettings.update(input.changes))
       }
     ],
     [

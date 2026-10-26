@@ -42,7 +42,7 @@ isolated timing overrun. Do not rerun CI or unchanged benchmarks to obtain a pas
 | G1 Whole-capability roadmap | Complete; documentation only | G0 and source research | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence |
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
 | G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
-| G4 Store commands and desktop ports | Scheduler, credential and transcript slices locally validated; remaining contracts in progress | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
+| G4 Store commands and desktop ports | Scheduler, credential, transcript and selected settings slices locally validated; remaining contracts in progress | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
 | G5 Cohesive TS Harness backend | Planned | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
 | G7 Rust control owner | Planned | G2, G5 | Admission and cohesive run/interaction settlement preserve all fences |
@@ -722,6 +722,53 @@ format, lint and i18n pass. Evidence is under `.deepchat/rutis-g4-session-store-
 The selected business transaction uses the same database and writes as its baseline; no full
 performance recapture or speed claim is required. Other Session/Tape/Memory command boundaries,
 configuration snapshots and remaining desktop capabilities still belong to G4.
+
+The combined resume/Session checkpoint `826b3af16` passes required run `40274014870`, including
+`pr-required` job `121414464019`, and package run `40274015002` with all six platform jobs and
+`package-required` job `121418838344`. Both workflows completed before the next settings push.
+
+### Versioned settings snapshot and desktop mutation port
+
+Keep the existing `settings.getSnapshot`/`settings.update` fields and routes, backed by one
+application settings service. That service supplies explicit data-only snapshot/update operations
+to routes and acknowledged display mutations to Agent tools. Retain native effects, normalization,
+activity recording and existing per-field batch failure behavior; do not introduce a second
+persistent settings owner or a generic settings RPC. Configuration entry routes and other
+configuration domains remain separate G4 work.
+
+Use one Main presentation revision sequence for settings snapshots, mutation replies and
+`settings.changed` publications. This sequence is scoped to Main's lifetime, which also owns its
+renderer contexts; backend-generation checks remain mandatory at the future private transport.
+Preserve revisions in the renderer client. Apply values by per-key revision so a delayed initial
+read, update reply or partial event cannot revert a newer value or discard unrelated fields.
+This is not a durable database revision. At G5, portable preferences must be written directly at
+the backend configuration owner and native device effects must stay at Main; avoid a
+Core-to-Main-to-Core mutation loop. Refresh the selected snapshot after database maintenance. Reject new owner operations while
+maintenance or shutdown is active. Keep secret values outside this allowlisted projection.
+
+Replace the Agent display port's synchronous native getters/setters with one async validated
+mutation request and a data-only acknowledgement containing the owner's previous/applied value.
+Skill authorization and dispatch-journal commitment stay at the Agent owner before the mutation.
+The default routes and Agent tools now use this service; the replaced route-local implementation
+and eight synchronous Agent display getters/setters are removed. The renderer client retains only
+bounded per-key revision metadata. Existing stores and OCR controls retain ownership of UI values;
+OCR releases its event listener and ignores late successful or failed mutations after unmount.
+Launch-at-login applies the owner's accepted value, without a second assignment from the request.
+
+Local acceptance passes 217 checks across eleven affected files. Durable cases cover delayed
+snapshot hydration, mixed partial events, reversed mutation acknowledgements, invalid revisions,
+native-owner receipts, strict display requests, fenced operations, failed writes and teardown.
+The actual privacy/system-settings scenarios pass before cutover in 4.5/3.6 seconds and after
+cutover in 4.1/3.6 seconds. A separate real-app check passes in 6.7 seconds with Main's clock
+frozen and then moved backwards: snapshots, events and acknowledgements share a monotonic
+sequence, the other window updates, and graceful relaunch preserves the preference. These are
+functional results, not performance claims.
+
+The runtime build, app typechecks, format, lint and i18n pass. Scoped owner/Agent/E2E and renderer
+store/OCR test types pass. The broad API-client test fixture has existing unrelated type diagnostics;
+its runtime tests pass. Evidence is under `.deepchat/rutis-g4-settings-acceptance/`. No process,
+schema, transport, layout or style change requires a full performance recapture. The service remains
+in-process; other configuration domains, native capabilities and Store boundaries remain open.
 
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
