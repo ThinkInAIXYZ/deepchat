@@ -58,10 +58,15 @@ preparation/submission; choosing a usable directory resumes the normal ACP prepa
 Skill catalog and active-Skill requests only run with a DeepChat Agent scope. ACP selection has no
 local Skill scope, and late native Skill responses cannot populate ACP composer state.
 
-Inline ACP option menus expand with their content up to 32rem while staying within the viewport.
+Inline ACP option menus use a compact 20rem width, constrained by the viewport.
 Options remain on one line with an ellipsis for overflowing values. Hover and keyboard focus show
 the full value in a viewport-constrained tooltip; long lists scroll vertically without horizontal
 scrolling. The same menu serves new and existing conversations.
+
+The composer toolbar keeps attachment, Agent/model configuration, status, and send controls on one
+row. Agent/model labels shrink with ellipsis while action buttons retain usable widths. When the
+minimum control widths cannot fit, only the central settings region scrolls horizontally; attachment
+and send remain visible at the edges, and keyboard focus can reveal every settings control.
 
 Workspace selection distinguishes Agent defaults from manual choices. An automatic Agent directory
 uses the `agent` source, follows the next Agent's default (or the global default when absent), and

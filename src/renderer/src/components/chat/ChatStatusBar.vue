@@ -1,12 +1,12 @@
 <template>
   <div :class="['w-full', props.maxWidthClass]">
-    <div class="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 py-1">
-      <div class="flex min-w-0 flex-wrap items-center gap-1">
+    <div class="flex w-full items-center justify-between gap-2 py-1">
+      <div class="flex min-w-44 flex-1 items-center gap-1">
         <slot name="agent" :loading="isAcpConfigLoading" />
         <template v-if="isAcpAgent">
           <div
             v-if="!$slots.agent"
-            class="acp-agent-badge flex h-6 min-w-0 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground"
+            class="acp-agent-badge flex h-6 min-w-14 shrink items-center gap-1 rounded-full px-2 text-xs text-muted-foreground"
           >
             <ModelIcon
               :model-id="acpAgentIconId"
@@ -32,7 +32,7 @@
                 size="sm"
                 :title="getAcpOptionDisplayValue(option)"
                 :data-option-id="option.id"
-                class="acp-inline-option h-6 max-w-[9rem] min-w-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                class="acp-inline-option h-6 max-w-[9rem] min-w-8 shrink gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
                 :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
               >
                 <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
@@ -43,7 +43,7 @@
             <PopoverContent
               align="start"
               :collision-padding="8"
-              class="w-max min-w-56 max-w-[min(32rem,calc(100vw-1rem))] overflow-hidden p-0"
+              class="w-80 max-w-[calc(100vw-1rem)] overflow-hidden p-0"
             >
               <div class="border-b px-3 py-2">
                 <div
@@ -111,7 +111,7 @@
               variant="ghost"
               size="sm"
               :class="[
-                'h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground',
+                'h-6 min-w-14 shrink px-2 gap-1 text-xs text-muted-foreground hover:text-foreground',
                 !isModelOptionsReady ? 'opacity-70' : ''
               ]"
               :aria-busy="!isModelOptionsReady"
@@ -230,7 +230,7 @@
           v-else
           variant="ghost"
           size="sm"
-          class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground"
+          class="h-6 min-w-14 shrink px-2 gap-1 text-xs text-muted-foreground hover:text-foreground"
           :disabled="true"
         >
           <ModelIcon
@@ -248,7 +248,7 @@
               variant="ghost"
               size="sm"
               :class="[
-                'h-6 gap-1 px-2 text-xs',
+                'h-6 min-w-14 shrink gap-1 px-2 text-xs',
                 proactiveCollaborationEnabled
                   ? 'bg-primary/10 text-[color:var(--text-primary)] ring-1 ring-inset ring-primary/30 hover:bg-primary/15 hover:text-[color:var(--text-primary)]'
                   : 'text-muted-foreground hover:text-foreground'
@@ -262,7 +262,7 @@
                 icon="lucide:git-fork"
                 class="h-3.5 w-3.5 shrink-0"
               />
-              <span>{{ reasoningEffortDisplayLabel }}</span>
+              <span class="truncate">{{ reasoningEffortDisplayLabel }}</span>
               <Icon icon="lucide:chevron-down" class="h-3 w-3" />
             </DcButton>
           </PopoverTrigger>
@@ -332,7 +332,7 @@
         </Popover>
       </div>
 
-      <div class="flex items-center gap-1">
+      <div class="flex shrink-0 items-center gap-1">
         <div
           v-if="contextOccupancy"
           data-testid="context-occupancy"

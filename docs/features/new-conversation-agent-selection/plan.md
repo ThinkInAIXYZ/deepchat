@@ -56,13 +56,17 @@ Electron runs used a temporary worktree so the running development app retained 
 
 ## ACP Option Menu Verification
 
-- [x] Size inline option menus to their content within the viewport; keep options on one line with
+- [x] Keep inline option menus at a compact 20rem width within the viewport; keep options on one line with
       ellipsis and show complete values on hover or keyboard focus using the existing tooltip.
 - [x] Verify vertical scrolling, long unbroken IDs, selection, disabled selected-item tooltips,
       Escape/focus return, and light/dark layouts through Electron at 1280px and 480px widths.
 - [x] Validate the real DimCode catalog from an isolated local profile at 1280px and 360px widths.
       All 412 options stayed on one line with no horizontal scrolling; constrained values showed
       ellipsis and a complete tooltip. No real model completion was requested.
+- [x] Keep the composer toolbar on one row, shrink Agent/model labels, and reserve attachment/send
+      actions at the edges. Only the central settings region scrolls when its minimum widths cannot
+      fit; focused controls are revealed automatically. Validate full ACP status/configuration rows
+      at 1280px, 800px, and 480px and real DeepChat/DimCode configurations at the same widths.
 
-Layout checks: format, i18n, lint, typecheck, production compilation, 89 ChatStatusBar component tests,
+Layout checks: format, i18n, lint, typecheck, production compilation, 106 composer component tests,
 and four focused Electron smoke tests passed. The normal-build provider catalog refresh is retained.

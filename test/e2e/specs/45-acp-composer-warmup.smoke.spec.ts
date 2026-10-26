@@ -37,23 +37,31 @@ test('ACP composer keeps warmup feedback, responsive options and workspace recov
 import { createInterface } from 'node:readline'
 import { appendFileSync, existsSync } from 'node:fs'
 const [release, requests] = process.argv.slice(2)
-const reply = (id, result) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\n')
+const send = (message) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...message }) + '\n')
+const reply = (id, result) => send({ id, result })
+const configOptions = [
+  { id: 'model', name: 'Model', type: 'select', currentValue: 'fixture-model', options: ${JSON.stringify(models.map(({ modelId, name }) => ({ value: modelId, name })))} },
+  { id: 'mode', name: 'Mode', type: 'select', currentValue: 'agent', options: [{ value: 'agent', name: 'Agent' }] },
+  { id: 'permission', name: 'Permission', type: 'select', currentValue: 'full-access', options: [{ value: 'full-access', name: 'Full Access' }] },
+  { id: 'extra', name: 'Extra setting', type: 'boolean', currentValue: false }
+]
 createInterface({ input: process.stdin }).on('line', line => {
-  const { id, method } = JSON.parse(line)
+  const { id, method, params } = JSON.parse(line)
   if (!method) return
   appendFileSync(requests, method + '\n')
   if (method === 'initialize') {
     const timer = setInterval(() => {
       if (!existsSync(release)) return
       clearInterval(timer)
-      reply(id, { protocolVersion: 1, agentInfo: { name: 'warmup fixture', version: '1' }, agentCapabilities: {}, authMethods: [] })
+      reply(id, { protocolVersion: 1, agentInfo: { name: 'warmup fixture', version: '1' }, agentCapabilities: { _meta: { lody: { usage: { version: 1 } } } }, authMethods: [] })
     }, 25)
   } else if (method === 'session/new') {
-    reply(id, {
-      sessionId: 'fixture-' + Math.random(),
-      models: { currentModelId: 'fixture-model', availableModels: ${JSON.stringify(models)} },
-      modes: { currentModeId: 'code', availableModes: [{ id: 'code', name: 'Code' }] }
-    })
+    const sessionId = 'fixture-' + Math.random()
+    reply(id, { sessionId, configOptions })
+    setTimeout(() => send({ method: 'session/update', params: { sessionId, update: { sessionUpdate: 'usage_update', used: 1000, size: 100000 } } }), 50)
+  } else if (method === 'session/set_config_option') {
+    configOptions.find(option => option.id === params.configId).currentValue = params.value
+    reply(id, { configOptions })
   } else if (id !== undefined) reply(id, {})
 })
 `
@@ -88,6 +96,9 @@ createInterface({ input: process.stdin }).on('line', line => {
     app.page.locator('.acp-inline-option').filter({ hasText: 'Fixture Model' })
   ).toBeVisible()
   await expect.poll(() => readFileSync(requests, 'utf8')).toContain('session/new')
+  await expect(app.page.getByTestId('context-occupancy')).toBeVisible()
+  await expect(app.page.locator('.acp-inline-option')).toHaveCount(3)
+  await expect(app.page.locator('.acp-overflow-button')).toBeVisible()
 
   const modelTrigger = app.page.locator('.acp-inline-option').first()
   const modelMenu = app.page.locator('[data-slot="popover-content"]').filter({
@@ -95,6 +106,7 @@ createInterface({ input: process.stdin }).on('line', line => {
   })
   for (const [width, theme] of [
     [1280, 'light'],
+    [800, 'light'],
     [480, 'dark']
   ] as const) {
     await app.page.setViewportSize({ width, height: 800 })
@@ -102,6 +114,28 @@ createInterface({ input: process.stdin }).on('line', line => {
       await window.deepchat.invoke('config.setTheme', { theme })
     }, theme)
     await expect(modelTrigger).toBeEnabled()
+    const toolbar = app.page.getByTestId('chat-input-toolbar')
+    await expect(async () => {
+      const metrics = await toolbar.evaluate((element) => {
+        const buttons = Array.from(element.querySelectorAll('button'))
+        const boxes = buttons
+          .map((button) => button.getBoundingClientRect())
+          .filter((box) => box.width > 0)
+        return {
+          centerSpread:
+            Math.max(...boxes.map((box) => box.y + box.height / 2)) -
+            Math.min(...boxes.map((box) => box.y + box.height / 2)),
+          horizontalOverflow: element.scrollWidth > element.clientWidth
+        }
+      })
+      expect(metrics.centerSpread).toBeLessThanOrEqual(1)
+      expect(metrics.horizontalOverflow).toBe(false)
+      await expect(toolbar.getByRole('button').first()).toBeInViewport()
+      await expect(app.page.getByTestId('chat-send-button')).toBeInViewport()
+    }).toPass()
+    const lastSettingsButton = toolbar.locator(':scope > div').nth(1).getByRole('button').last()
+    await lastSettingsButton.focus()
+    await expect(lastSettingsButton).toBeInViewport({ ratio: 1 })
     await modelTrigger.click()
     await expect(modelMenu).toBeVisible()
     const longOption = modelMenu.locator(`button[data-value="${longModelId}"]`)
@@ -110,6 +144,7 @@ createInterface({ input: process.stdin }).on('line', line => {
       const menuBox = await modelMenu.boundingBox()
       expect(menuBox).not.toBeNull()
       expect(menuBox!.width).toBeGreaterThan(224)
+      expect(menuBox!.width).toBeLessThanOrEqual(320)
       expect(menuBox!.x).toBeGreaterThanOrEqual(7)
       expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(width - 7)
       const scroll = await modelMenu.locator('.dc-overscroll-contain').evaluate((element) => ({

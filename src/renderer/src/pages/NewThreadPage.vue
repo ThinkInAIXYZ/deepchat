@@ -103,7 +103,7 @@
                             :disabled="isSubmittingInput"
                             :aria-busy="loading || undefined"
                             :aria-label="`${t('chat.mode.agent')}: ${selectedAgent.name}`"
-                            class="h-6 min-w-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            class="h-6 min-w-14 shrink gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
                           >
                             <AgentAvatar :agent="selectedAgent" class-name="size-3.5 shrink-0" />
                             <span class="max-w-[min(12rem,30vw)] truncate">{{

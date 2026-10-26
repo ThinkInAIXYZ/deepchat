@@ -1,6 +1,6 @@
 <template>
-  <div class="flex flex-wrap items-center gap-2 px-3 pb-3 pt-1">
-    <div class="flex items-center gap-1">
+  <div data-testid="chat-input-toolbar" class="flex items-center gap-2 px-3 pb-3 pt-1">
+    <div class="flex shrink-0 items-center gap-1">
       <!-- Attach button -->
       <DcButton
         variant="ghost"
@@ -15,7 +15,7 @@
       />
     </div>
 
-    <div v-if="$slots.settings" class="min-w-0 flex-1">
+    <div v-if="$slots.settings" class="scrollbar-hide min-w-0 flex-1 overflow-x-auto">
       <slot name="settings" />
     </div>
 
