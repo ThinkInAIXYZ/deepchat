@@ -34,8 +34,17 @@ export function createXaiGrokFetch(
       throw new Error('Refusing to send xAI credentials to an untrusted API endpoint')
     }
 
+    const signal = init?.signal ?? (url instanceof Request ? url.signal : undefined)
+    signal?.throwIfAborted()
     const auth = getGlobalXaiGrokAuth()
-    const oauthToken = await auth.ensureAccessToken().catch(() => null)
+    const check = auth.captureOperation()
+    const oauthToken = await auth.ensureAccessToken().catch((error) => {
+      signal?.throwIfAborted()
+      if (error instanceof Error && error.name === 'AbortError') throw error
+      return null
+    })
+    check()
+    signal?.throwIfAborted()
     const accessToken = oauthToken || provider.apiKey?.trim() || ''
     if (!accessToken) {
       throw new Error('Grok requires xAI OAuth sign-in or an API key')
@@ -47,13 +56,18 @@ export function createXaiGrokFetch(
     }
 
     let response = await underlyingFetch(url, nextInit)
+    signal?.throwIfAborted()
     if (response.status !== 401 || !oauthToken) {
       return response
     }
 
     // OAuth token may have been revoked mid-session; force refresh once.
     try {
+      check()
+      signal?.throwIfAborted()
       const refreshed = await auth.forceRefreshAccessToken()
+      check()
+      signal?.throwIfAborted()
       if (!refreshed || refreshed === accessToken) {
         return response
       }
@@ -61,7 +75,10 @@ export function createXaiGrokFetch(
         ...nextInit,
         headers: applyBearerHeaders(init?.headers, defaultHeaders, refreshed)
       })
-    } catch {
+    } catch (error) {
+      check()
+      signal?.throwIfAborted()
+      if (error instanceof Error && error.name === 'AbortError') throw error
       return response
     }
   }

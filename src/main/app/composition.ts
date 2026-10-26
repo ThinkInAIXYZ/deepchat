@@ -93,7 +93,7 @@ import { OcrSettings } from '@/ocr/ocrSettings'
 import { createOcrRoutes } from '@/ocr/routes'
 import { McpService } from '../mcp'
 import { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
-import { secureCredentialCrypto } from './credentialCrypto'
+import { credentialCrypto, secureCredentialCrypto } from './credentialCrypto'
 import { ImportMode, SyncService, type SyncImportDatabasePort } from '../sync'
 import { SyncSettings } from '../sync/settings'
 import { DeeplinkService } from '../deeplink'
@@ -112,6 +112,8 @@ import { TabPresenter } from '../desktop/tab'
 import { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import { TrayPresenter } from '../desktop/tray'
 import { OAuthService } from '../provider/auth'
+import { OpenAICodexCredentialStore } from '../provider/auth/openaiCodex/credentialStore'
+import { XaiGrokCredentialStore } from '../provider/auth/xaiGrok/credentialStore'
 import { FloatingButtonPresenter } from '../desktop/floatingButton'
 import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
 import { ComputerUsePreviewPresenter } from '@/desktop/computerUse/ComputerUsePreviewPresenter'
@@ -1042,7 +1044,18 @@ export async function createMainProcessControl(dependencies: {
       setProviderById: (providerId, provider) =>
         providerRuntime.setProviderById(providerId, provider)
     },
-    publishDeepchatEvent
+    publishDeepchatEvent,
+    {
+      codexStore: new OpenAICodexCredentialStore({
+        filePath: path.join(app.getPath('userData'), 'openai-codex-auth', 'credentials.json'),
+        crypto: credentialCrypto
+      }),
+      grokStore: new XaiGrokCredentialStore({
+        filePath: path.join(app.getPath('userData'), 'xai-grok-auth', 'credentials.json'),
+        crypto: credentialCrypto
+      }),
+      openExternal: (url) => shell.openExternal(url)
+    }
   )
   const agentSettings = new AgentSettings(
     dependencies.settingsStore,
@@ -3017,6 +3030,7 @@ export async function createMainProcessControl(dependencies: {
   async function destroy(): Promise<void> {
     await runDestroyStep('agentCliTokenAuthority.clear', () => agentCliTokenAuthority.clear())
     await runDestroyStep('cliServer.stop', () => cliServer.stop())
+    await runDestroyStep('oauthService.stop', () => oauthService.stop())
     await runDestroyStep('automaticSync.close', () => automaticSync!.close())
     await runDestroyStep('syncPeerService.stop', () => syncPeerService.stop())
     await runDestroyStep('syncHostService.stop', () => syncHostService.stop())

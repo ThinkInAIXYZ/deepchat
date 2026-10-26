@@ -1004,6 +1004,62 @@ The preceding integrated checkpoint `6a43b8f70` passes required run `40290640902
 `pr-required` job `121467164668`, and package run `40290641026` with all six platforms and
 `package-required` job `121472173105`. Both workflows finish before this slice's push.
 
+### Provider OAuth credential and browser ports
+
+Main supplies explicit private paths, the existing async credential crypto port and browser-open
+capabilities to both Codex and Grok credential/auth owners. Their Electron imports and default
+native Store construction are removed. Existing v1 encrypted/plain-file envelopes, corrupted-file
+backup, fsync/rename commits, load errors and file fallback remain compatible. These provider-specific
+formats retain their existing policy, which differs from MCP's memory-only fallback.
+
+Actual status/events, refresh, logout, global initialization, SDK/direct requests and shutdown await
+the selected owners. Grok's synchronous runtime-provider construction carries public configuration;
+its synchronous token peek is removed. Both trusted direct requests and SDK requests use the existing
+async fetch adapter. Original auth scopes span token acquisition, dispatch and single 401 refresh;
+request cancellation or owner replacement cannot become API-key fallback. Ordinary refresh failure
+retains API-key fallback. Endpoint restrictions, refresh sharing and account binding remain active.
+
+Delayed native, browser, discovery, refresh and status results are fenced across logout, account
+replacement, canceled attempts and shutdown. A login completing while an old refresh is pending
+invalidates that refresh before persisting the new account. Status queries may retry once after an
+observed account transition; publication tickets suppress delayed older events. Each auth owner
+admits at most 32 HTTP requests, with an 8 MiB declared/streamed body bound. Existing request
+deadlines and cancellation cover response bodies as well as headers.
+
+Each private file owner serializes at most 24 normal and eight reserved control mutations; stop
+bypasses admission. Files/envelopes are bounded to 16 MiB and normalized/decrypted token payloads
+to 8 MiB before native transport or parsing. Only pending reads coalesce; no plaintext token cache
+is retained. Read revisions reject results superseded by admitted writes. Failed deletion or
+directory enumeration still attempts known artifact cleanup and rejects logout acknowledgement.
+G5 must frame legal payloads within the existing bounded transfer contract.
+
+The disposable-profile compatibility characterization precedes cutover as an implementation-first
+exception. The same real-app scenario passes before/after in 11.4/11.7 seconds (11.6/12.0 seconds
+total). Four graceful launches verify plaintext and legacy native ciphertext without rewriting,
+public status without tokens, authenticated cancel, durable logout and signed-out relaunch. Discovery
+and revocation responses are synthetic; no external account is contacted. These functional results
+have no timing gate or speed claim.
+
+The affected suite passes 1,213 checks across 79 files. Final contract acceptance passes 150 checks
+across nine selected files. Shared actual-file regression cases replace two duplicate
+mock-only Store suites: encryption/fsync/rename rollback, corrupt backups, unreadable-file recovery,
+private permissions, serialized save/clear/save, coalesced decrypt invalidation, queue reserves,
+failed logout cleanup, late refresh wrapping, stalled HTTP bodies and upstream size limits remain
+covered for both providers. Account replacement, canceled discovery/polling, request-adapter
+cancellation and current OAuth headers on each direct catalog request retain separate regressions.
+App and scoped test/E2E types, normal and final
+runtime builds, format/check, lint and i18n pass. Normal Provider registry refreshes are retained.
+
+Evidence is under `.deepchat/rutis-g4-provider-oauth-acceptance/`. No process, IPC, workload-volume or
+storage-path change requires a full resource capture. Native credential compatibility is verified
+on macOS arm64; real Windows/Linux vaults and external identity-provider/browser flows remain
+unverified locally. Other provider/browser-window, configuration, shared maintenance and Store
+boundaries keep G4 open.
+
+The MCP OAuth checkpoint `ae0475a65` passes required run `40307676246`, including `pr-required`
+job `121523620575`, and package run `40307676364` with all six platforms and `package-required`
+job `121530148783`. Both workflows finish before this slice's push; no rerun is requested.
+
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
 - [ ] Replace cross-boundary closures/row APIs with bounded transactional business commands for

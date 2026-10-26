@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const authState = vi.hoisted(() => ({
+  captureOperation: () => () => undefined,
   getAccessToken: vi.fn(),
   forceRefreshAccessToken: vi.fn(),
   getBackendAuth: vi.fn(),
@@ -235,4 +236,37 @@ describe('OpenAI Codex adapter', () => {
       code: 'openai_codex_bad_request'
     })
   })
+  it.each(['request abort', 'auth replacement'] as const)(
+    'does not dispatch a token resolved after %s',
+    async (change) => {
+      const { createOpenAICodexFetch } = await import('@/provider/openaiCodexAdapter')
+      let finish!: (value: { accessToken: string }) => void
+      authState.getBackendAuth.mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve
+        })
+      )
+      let current = true
+      const capture = vi.spyOn(authState, 'captureOperation').mockImplementation(() => () => {
+        if (!current) throw new DOMException('Auth changed', 'AbortError')
+        return undefined
+      })
+      try {
+        const controller = new AbortController()
+        const fetch = vi.fn<typeof globalThis.fetch>()
+        const pending = createOpenAICodexFetch({}, fetch)(
+          'https://chatgpt.com/backend-api/codex/responses',
+          { signal: controller.signal }
+        )
+        const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+        if (change === 'request abort') controller.abort()
+        else current = false
+        finish({ accessToken: 'late-token' })
+        await rejected
+        expect(fetch).not.toHaveBeenCalled()
+      } finally {
+        capture.mockRestore()
+      }
+    }
+  )
 })

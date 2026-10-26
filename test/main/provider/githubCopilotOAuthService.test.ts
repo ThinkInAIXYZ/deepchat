@@ -47,7 +47,11 @@ describe('GitHub Copilot login validation', () => {
     const getProviderById = vi.fn((_providerId: string): LLM_PROVIDER | undefined => ({
       ...provider
     }))
-    const service = new OAuthService({ getProviderById, setProviderById }, vi.fn())
+    const service = new OAuthService({ getProviderById, setProviderById }, vi.fn(), {
+      codexStore: {} as never,
+      grokStore: {} as never,
+      openExternal: vi.fn(async () => undefined)
+    })
     return { provider, service, setProviderById, getProviderById }
   }
 

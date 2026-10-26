@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { generateImage, generateText, streamText } from 'ai'
 
 const codexAuthState = vi.hoisted(() => ({
+  captureOperation: () => () => undefined,
   getBackendAuth: vi.fn(),
   forceRefreshBackendAuth: vi.fn()
 }))

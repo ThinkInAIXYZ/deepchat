@@ -198,8 +198,13 @@ export function createOpenAICodexFetch(
       throw new Error('OpenAI Codex provider is disabled by environment')
     }
 
+    const signal = init?.signal ?? (url instanceof Request ? url.signal : undefined)
+    signal?.throwIfAborted()
     const auth = getGlobalOpenAICodexAuth()
+    const check = auth.captureOperation()
     const backendAuth = await auth.getBackendAuth()
+    check()
+    signal?.throwIfAborted()
     const responsesRequest = isResponsesRequest(url)
     const accept = responsesRequest ? 'text/event-stream' : 'application/json'
     const nextInit: RequestInit = {
@@ -209,11 +214,16 @@ export function createOpenAICodexFetch(
     }
 
     let response = await baseFetch(url, nextInit)
+    signal?.throwIfAborted()
     if (response.status !== 401) {
       return normalizeOpenAICodexErrorResponse(response)
     }
 
+    check()
+    signal?.throwIfAborted()
     const refreshedAuth = await auth.forceRefreshBackendAuth()
+    check()
+    signal?.throwIfAborted()
     response = await baseFetch(url, {
       ...nextInit,
       headers: applyCodexHeaders(init?.headers, defaultHeaders, refreshedAuth, accept)

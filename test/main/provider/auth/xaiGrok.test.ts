@@ -10,6 +10,11 @@ import {
   isTrustedXaiOAuthEndpoint
 } from '@/provider/auth/xaiGrok/constants'
 import { createXaiGrokFetch, shouldUseXaiGrokOAuthFetch } from '@/provider/xaiGrokAuthAdapter'
+const crypto = {
+  isAvailable: async () => false,
+  encrypt: async (value: string) => Buffer.from(value).toString('base64'),
+  decrypt: async (wrapped: string) => Buffer.from(wrapped, 'base64').toString('utf8')
+}
 
 function jsonResponse(value: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(value), {
@@ -18,14 +23,17 @@ function jsonResponse(value: unknown, init?: ResponseInit): Response {
     ...init
   })
 }
-
 describe('xAI Grok OAuth', () => {
   let tempDir: string
   let files: Map<string, string>
   let fdPaths: Map<number, string>
-
   beforeEach(() => {
     files = new Map()
+    vi.mocked(fs.statSync).mockImplementation((file) => {
+      const raw = files.get(String(file))
+      if (raw === undefined) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      return { size: Buffer.byteLength(raw, 'utf8') } as fs.Stats
+    })
     fdPaths = new Map()
     let nextFd = 1
     tempDir = `/tmp/deepchat-xai-grok-auth-${Date.now()}`
@@ -73,7 +81,6 @@ describe('xAI Grok OAuth', () => {
     delete process.env.XAI_GROK_ACCESS_TOKEN
     resetGlobalXaiGrokAuthForTests()
   })
-
   afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
@@ -81,7 +88,6 @@ describe('xAI Grok OAuth', () => {
     delete process.env.XAI_GROK_ACCESS_TOKEN
     resetGlobalXaiGrokAuthForTests()
   })
-
   it('accepts only trusted xAI OAuth endpoints', () => {
     expect(isTrustedXaiOAuthEndpoint('https://auth.x.ai/oauth2/token')).toBe(true)
     expect(isTrustedXaiOAuthEndpoint('https://accounts.x.ai/oauth2/token')).toBe(true)
@@ -91,7 +97,6 @@ describe('xAI Grok OAuth', () => {
     expect(isTrustedXaiApiEndpoint('https://api.x.ai/v1/chat/completions')).toBe(true)
     expect(isTrustedXaiApiEndpoint('https://api.x.ai.evil.test/v1')).toBe(false)
   })
-
   it('enables OAuth injection only for the built-in Grok provider on xAI endpoints', () => {
     const provider = {
       id: 'grok',
@@ -101,7 +106,6 @@ describe('xAI Grok OAuth', () => {
       baseUrl: 'https://api.x.ai/v1',
       enable: true
     }
-
     expect(shouldUseXaiGrokOAuthFetch(provider)).toBe(true)
     expect(
       shouldUseXaiGrokOAuthFetch({
@@ -116,7 +120,6 @@ describe('xAI Grok OAuth', () => {
       })
     ).toBe(false)
   })
-
   it('refuses to send credentials when a wrapped request targets an untrusted endpoint', async () => {
     const underlyingFetch = vi.fn<typeof fetch>()
     const fetcher = createXaiGrokFetch(
@@ -131,27 +134,24 @@ describe('xAI Grok OAuth', () => {
       {},
       underlyingFetch
     )
-
     await expect(fetcher('https://attacker.example.com/v1/models')).rejects.toThrow(
       'untrusted API endpoint'
     )
     expect(underlyingFetch).not.toHaveBeenCalled()
   })
-
-  it('stores Grok OAuth credentials outside provider records', () => {
+  it('stores Grok OAuth credentials outside provider records', async () => {
     const credentialPath = path.join(tempDir, 'credentials.json')
-    const store = new XaiGrokCredentialStore(credentialPath)
-    store.save({
+    const store = new XaiGrokCredentialStore({ filePath: credentialPath, crypto })
+    await store.save({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
       tokenType: 'Bearer',
-      expiresAt: Date.now() + 3600_000,
+      expiresAt: Date.now() + 3600000,
       accountId: 'account-id',
       accountLabel: 'user@example.com',
       tokenEndpoint: 'https://auth.x.ai/oauth2/token',
       updatedAt: Date.now()
     })
-
     expect(fs.mkdirSync).toHaveBeenCalledWith(path.dirname(credentialPath), {
       recursive: true,
       mode: 0o700
@@ -161,18 +161,15 @@ describe('xAI Grok OAuth', () => {
     expect(fs.openSync).toHaveBeenCalledWith(temporaryPath, 'w', 0o600)
     expect(fs.fsyncSync).toHaveBeenCalled()
     expect(fs.renameSync).toHaveBeenCalledWith(temporaryPath, credentialPath)
-
-    const loaded = store.load()
+    const loaded = await store.load()
     expect(loaded?.accessToken).toBe('access-token')
     expect(loaded?.refreshToken).toBe('refresh-token')
     expect(loaded?.accountLabel).toBe('user@example.com')
   })
-
   it('completes device-code login and exposes authenticated status', async () => {
     const credentialPath = path.join(tempDir, 'credentials.json')
-    const store = new XaiGrokCredentialStore(credentialPath)
-    const auth = new XaiGrokAuth(store, vi.fn())
-
+    const store = new XaiGrokCredentialStore({ filePath: credentialPath, crypto })
+    const auth = new XaiGrokAuth(store, vi.fn(), shell.openExternal)
     const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
       const url = String(input)
       if (url.includes('.well-known/openid-configuration')) {
@@ -212,27 +209,23 @@ describe('xAI Grok OAuth', () => {
       throw new Error(`Unexpected fetch: ${url}`)
     })
     vi.stubGlobal('fetch', fetchImpl)
-
     const pending = await auth.startDeviceLogin()
     expect(pending.state).toBe('pending-device')
     expect(pending.userCode).toBe('ABCD-EFGH')
     expect(shell.openExternal).toHaveBeenCalled()
-
     // Wait for background poll to finish
-    await vi.waitFor(() => {
-      expect(auth.getStatus().authenticated).toBe(true)
+    await vi.waitFor(async () => {
+      expect((await auth.getStatus()).authenticated).toBe(true)
     })
-
-    const status = auth.getStatus()
+    const status = await auth.getStatus()
     expect(status.state).toBe('authenticated')
     expect(status.accountLabel).toBe('grok@example.com')
     expect(await auth.ensureAccessToken()).toBe('access-1')
   })
-
   it('refreshes near-expiry access tokens', async () => {
     const credentialPath = path.join(tempDir, 'credentials.json')
-    const store = new XaiGrokCredentialStore(credentialPath)
-    store.save({
+    const store = new XaiGrokCredentialStore({ filePath: credentialPath, crypto })
+    await store.save({
       accessToken: 'access-old',
       refreshToken: 'refresh-1',
       tokenType: 'Bearer',
@@ -240,8 +233,7 @@ describe('xAI Grok OAuth', () => {
       tokenEndpoint: 'https://auth.x.ai/oauth2/token',
       updatedAt: Date.now()
     })
-    const auth = new XaiGrokAuth(store, vi.fn())
-
+    const auth = new XaiGrokAuth(store, vi.fn(), shell.openExternal)
     const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
       const url = String(input)
       expect(url).toBe('https://auth.x.ai/oauth2/token')
@@ -253,62 +245,47 @@ describe('xAI Grok OAuth', () => {
       })
     })
     vi.stubGlobal('fetch', fetchImpl)
-
     const token = await auth.ensureAccessToken()
     expect(token).toBe('access-new')
-    expect(store.load()?.accessToken).toBe('access-new')
+    expect((await store.load())?.accessToken).toBe('access-new')
   })
-
   it('coordinates concurrent forced token refreshes', async () => {
     const credentialPath = path.join(tempDir, 'credentials.json')
-    const store = new XaiGrokCredentialStore(credentialPath)
-    store.save({
+    const store = new XaiGrokCredentialStore({ filePath: credentialPath, crypto })
+    await store.save({
       accessToken: 'access-old',
       refreshToken: 'refresh-1',
       tokenType: 'Bearer',
-      expiresAt: Date.now() + 3600_000,
+      expiresAt: Date.now() + 3600000,
       tokenEndpoint: 'https://auth.x.ai/oauth2/token',
       updatedAt: Date.now()
     })
-    const auth = new XaiGrokAuth(store, vi.fn())
+    const auth = new XaiGrokAuth(store, vi.fn(), shell.openExternal)
     const fetchImpl = vi.fn<typeof fetch>(async () =>
       jsonResponse({ access_token: 'access-new', expires_in: 3600 })
     )
     vi.stubGlobal('fetch', fetchImpl)
-
     await expect(
       Promise.all([auth.forceRefreshAccessToken(), auth.forceRefreshAccessToken()])
     ).resolves.toEqual(['access-new', 'access-new'])
     expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
-
-  it('does not expose an expired access token to synchronous request paths', () => {
-    const store = new XaiGrokCredentialStore(path.join(tempDir, 'credentials.json'))
-    store.save({
-      accessToken: 'access-expired',
-      refreshToken: 'refresh-1',
-      tokenType: 'Bearer',
-      expiresAt: Date.now() - 1000,
-      tokenEndpoint: 'https://auth.x.ai/oauth2/token',
-      updatedAt: Date.now()
-    })
-
-    expect(new XaiGrokAuth(store, vi.fn()).peekAccessToken()).toBeNull()
-  })
-
-  it('reports disabled state when kill switch is set', () => {
+  it('reports disabled state when kill switch is set', async () => {
     process.env.DEEPCHAT_XAI_GROK_OAUTH_DISABLED = '1'
-    const auth = new XaiGrokAuth(new XaiGrokCredentialStore(path.join(tempDir, 'c.json')), vi.fn())
-    expect(auth.getStatus()).toMatchObject({
+    const auth = new XaiGrokAuth(
+      new XaiGrokCredentialStore({ filePath: path.join(tempDir, 'c.json'), crypto }),
+      vi.fn(),
+      shell.openExternal
+    )
+    expect(await auth.getStatus()).toMatchObject({
       state: 'disabled',
       authenticated: false
     })
   })
-
   it('prefers the credential-store load error over a stale login error', async () => {
     const credentialPath = path.join(tempDir, 'credentials.json')
-    const store = new XaiGrokCredentialStore(credentialPath)
-    store.save({
+    const store = new XaiGrokCredentialStore({ filePath: credentialPath, crypto })
+    await store.save({
       accessToken: 'access-old',
       refreshToken: 'refresh-1',
       tokenType: 'Bearer',
@@ -316,32 +293,83 @@ describe('xAI Grok OAuth', () => {
       tokenEndpoint: 'https://auth.x.ai/oauth2/token',
       updatedAt: Date.now()
     })
-    const auth = new XaiGrokAuth(store, vi.fn())
+    const auth = new XaiGrokAuth(store, vi.fn(), shell.openExternal)
     vi.stubGlobal(
       'fetch',
       vi.fn<typeof fetch>(async () => {
         throw new Error('network down')
       })
     )
-
     await expect(auth.ensureAccessToken()).rejects.toThrow('network down')
-
     files.set(credentialPath, '{broken')
-    const status = auth.getStatus()
-
+    const status = await auth.getStatus()
     expect(status.state).toBe('error')
     expect(status.error).toContain('not valid JSON')
   })
-
   it('rejects access token requests with the credential-store load error', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const credentialPath = path.join(tempDir, 'credentials.json')
-    const store = new XaiGrokCredentialStore(credentialPath)
-    const auth = new XaiGrokAuth(store, vi.fn())
-
+    const store = new XaiGrokCredentialStore({ filePath: credentialPath, crypto })
+    const auth = new XaiGrokAuth(store, vi.fn(), shell.openExternal)
     files.set(credentialPath, '{broken')
-
     await expect(auth.getAccessToken()).rejects.toThrow(/not valid JSON/)
     await expect(auth.forceRefreshAccessToken()).rejects.toThrow(/not valid JSON/)
+  })
+  it('rejects late discovery without canceling the replacement device flow', async () => {
+    const store = new XaiGrokCredentialStore({
+      filePath: path.join(tempDir, 'discovery.json'),
+      crypto
+    })
+    const auth = new XaiGrokAuth(store, vi.fn(), shell.openExternal)
+    let finishDiscovery!: (response: Response) => void
+    let finishPoll!: (response: Response) => void
+    let discoveryEntered!: () => void
+    const entered = new Promise<void>((resolve) => {
+      discoveryEntered = resolve
+    })
+    const discovery = {
+      device_authorization_endpoint: 'https://auth.x.ai/device',
+      token_endpoint: 'https://auth.x.ai/token'
+    }
+    let discoveries = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input) => {
+        if (String(input).includes('openid-configuration')) {
+          if (++discoveries === 1) {
+            discoveryEntered()
+            return new Promise<Response>((resolve) => {
+              finishDiscovery = resolve
+            })
+          }
+          return Response.json(discovery)
+        }
+        if (String(input).endsWith('/device'))
+          return Response.json({
+            device_code: 'current-code',
+            user_code: 'CURRENT',
+            verification_uri: 'https://auth.x.ai/verify',
+            expires_in: 600,
+            interval: 5
+          })
+        return new Promise<Response>((resolve) => {
+          finishPoll = resolve
+        })
+      })
+    )
+    const first = auth.startDeviceLogin()
+    const rejected = expect(first).rejects.toMatchObject({ name: 'AbortError' })
+    await entered
+    const current = await auth.startDeviceLogin()
+    expect(current.userCode).toBe('CURRENT')
+    finishDiscovery(Response.json(discovery))
+    await rejected
+    expect((await auth.getStatus()).userCode).toBe('CURRENT')
+    expect(shell.openExternal).toHaveBeenCalledOnce()
+    const canceled = auth.cancelLogin()
+    finishPoll(Response.json({ access_token: 'late-device-token', expires_in: 86400 }))
+    await canceled
+    expect(await store.load()).toBeNull()
+    auth.stop()
   })
 })

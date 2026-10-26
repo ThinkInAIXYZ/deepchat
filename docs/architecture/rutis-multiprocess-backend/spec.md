@@ -735,6 +735,27 @@ Plugin-owned connection changes use their existing supervisor. Carry the origina
 through its probe, integrity/recovery and native launch waits; finish owned cleanup after canceled
 startup, and never bypass that owner through generic MCP stop routes.
 
+Provider-specific Codex/Grok credential owners receive explicit private paths and the existing
+async string-only crypto port. Preserve their v1 encrypted/plain-file envelopes, corrupted-file
+backups, fsync/rename commits and file fallback policy; it differs from MCP's memory-only fallback.
+Bound each file/envelope to 16 MiB and each normalized/decrypted payload to 8 MiB. Serialize at most
+24 normal and eight reserved control mutations, fence in-flight reads against queued mutations,
+and coalesce only pending reads rather than retaining plaintext tokens. Shutdown bypasses queues;
+failed durable credential removal cannot produce a successful logout acknowledgement.
+
+Provider auth owners receive browser interaction explicitly and fence pending browser/device login,
+refresh, status events and token return across account replacement, logout and stop. Keep endpoint
+restrictions, refresh sharing, API-key fallback and single 401 retry. Synchronous runtime-provider
+construction carries public configuration only. Resolve Grok credentials in its existing async
+fetch adapter or direct trusted request immediately before building request headers; do not add a
+plaintext credential snapshot to preserve synchronous helpers. Keep global initialization and
+shutdown explicit at the actual composition, without default native Store construction.
+Carry the originating auth scope through token acquisition and recheck before request dispatch or
+401 refresh; cancellation and replaced owners cannot become API-key fallback. Status reads may retry
+once after an observed account transition, and newer status publications supersede delayed reads.
+Each auth owner admits at most 32 HTTP requests. Bound auth response bodies to 8 MiB using declared
+and streamed sizes, and retain cancellation and the existing request deadline through body reads.
+
 Sync host connector tokens and peer pairing tokens use asynchronous string-only crypto ports
 through the same adapter. Their opaque values stay in existing private machine-local files and
 remain compatible with legacy ciphertext. Keep Linux basic-text refusal and preflight protection

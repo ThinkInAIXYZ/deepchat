@@ -1,3 +1,5 @@
+import type { OpenAICodexCredentialStore } from './openaiCodex/credentialStore'
+import type { XaiGrokCredentialStore } from './xaiGrok/credentialStore'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import { BrowserWindow } from 'electron'
@@ -24,10 +26,24 @@ export class OAuthService implements OAuthServicePort {
       ProviderSettingsPort,
       'getProviderById' | 'setProviderById'
     >,
-    publishEvent: DeepchatEventPublisher
+    publishEvent: DeepchatEventPublisher,
+    capabilities: {
+      codexStore: OpenAICodexCredentialStore
+      grokStore: XaiGrokCredentialStore
+      openExternal(url: string): Promise<void>
+    }
   ) {
-    initializeGlobalOpenAICodexAuth(publishEvent)
-    initializeGlobalXaiGrokAuth(publishEvent)
+    initializeGlobalOpenAICodexAuth(
+      publishEvent,
+      capabilities.codexStore,
+      capabilities.openExternal
+    )
+    initializeGlobalXaiGrokAuth(publishEvent, capabilities.grokStore, capabilities.openExternal)
+  }
+
+  stop(): void {
+    getGlobalOpenAICodexAuth().stop()
+    getGlobalXaiGrokAuth().stop()
   }
 
   private saveGitHubCopilotCredential(provider: LLM_PROVIDER, apiKey: string): void {

@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import { shell } from 'electron'
+import { readAuthResponse } from '../responseBody'
 import { URL } from 'url'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import {
@@ -33,6 +33,7 @@ export type OpenAICodexBackendAuth = {
 }
 
 type PendingBrowserFlow = {
+  generation: number
   state: string
   codeVerifier: string
   redirectUri: string
@@ -148,62 +149,136 @@ export class OpenAICodexAuth {
   private pendingBrowserFlow: PendingBrowserFlow | null = null
   private refreshPromise: Promise<OpenAICodexTokenSet> | null = null
   private lastError: string | null = null
+  private generation = 0
+  private stopped = false
+  private loginPending = false
+  private publication = 0
+  private readonly requests = new Set<AbortController>()
 
   constructor(
-    store = new OpenAICodexCredentialStore(),
-    private readonly publishEvent: DeepchatEventPublisher
+    store: OpenAICodexCredentialStore,
+    private readonly publishEvent: DeepchatEventPublisher,
+    private readonly openExternal: (url: string) => Promise<void>
   ) {
     this.store = store
   }
 
-  getStatus(): OpenAICodexAuthStatus {
-    if (isOpenAICodexDisabled()) {
-      return this.withStorage({
-        state: 'disabled',
-        authenticated: false
-      })
-    }
+  private assertGeneration(generation: number): void {
+    if (this.stopped || generation !== this.generation)
+      throw new DOMException('OpenAI Codex authentication operation interrupted', 'AbortError')
+  }
 
-    if (this.pendingBrowserFlow && !this.pendingBrowserFlow.cancelled) {
-      return this.withStorage({
-        state: 'pending-browser',
-        authenticated: false,
-        ...(this.lastError ? { error: this.lastError } : {})
-      })
-    }
+  captureOperation(): () => void {
+    const generation = this.generation
+    this.assertGeneration(generation)
+    return () => this.assertGeneration(generation)
+  }
 
-    const tokens = this.store.load()
-    if (tokens) {
-      return this.statusFromTokens(tokens)
-    }
+  private invalidate(): void {
+    this.generation++
+    this.refreshPromise = null
+    for (const request of this.requests) request.abort()
+  }
 
-    const statusError = this.store.getLoadError() ?? this.lastError
-    return this.withStorage({
-      state: statusError ? 'error' : 'signed-out',
-      authenticated: false,
-      ...(statusError ? { error: statusError } : {})
-    })
+  stop(): void {
+    this.stopped = true
+    this.invalidate()
+    this.cancelPendingFlow()
+    this.store.stop()
+  }
+
+  private cancelPendingFlow(): void {
+    this.loginPending = false
+    if (this.pendingBrowserFlow) {
+      this.pendingBrowserFlow.cancelled = true
+      this.pendingBrowserFlow.callbackSession.close()
+      this.pendingBrowserFlow = null
+    }
+  }
+
+  async getStatus(): Promise<OpenAICodexAuthStatus> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const generation = this.generation
+      const check = this.captureOperation()
+      try {
+        const storage = await this.store.getStorageState()
+        check()
+        let status: Omit<OpenAICodexAuthStatus, 'storage'>
+        if (isOpenAICodexDisabled()) status = { state: 'disabled', authenticated: false }
+        else if (this.pendingBrowserFlow && !this.pendingBrowserFlow.cancelled)
+          status = {
+            state: 'pending-browser',
+            authenticated: false,
+            ...(this.lastError ? { error: this.lastError } : {})
+          }
+        else {
+          const tokens = await this.store.load()
+          check()
+          if (tokens)
+            status = {
+              state: 'authenticated',
+              authenticated: true,
+              accountId: maskAccountId(tokens.accountId),
+              accountLabel: tokens.accountLabel,
+              planType: tokens.planType,
+              expiresAt: tokens.expiresAt
+            }
+          else {
+            const error = this.store.getLoadError() ?? this.lastError
+            status = {
+              state: error ? 'error' : 'signed-out',
+              authenticated: false,
+              ...(error ? { error } : {})
+            }
+          }
+        }
+        check()
+        return { ...status, storage }
+      } catch (error) {
+        if (attempt === 0 && !this.stopped && generation !== this.generation) continue
+        throw error
+      }
+    }
+    throw new DOMException('Provider auth status changed during read', 'AbortError')
+  }
+
+  async cancelLogin(): Promise<OpenAICodexAuthStatus> {
+    if (this.loginPending) {
+      this.invalidate()
+      this.cancelPendingFlow()
+    }
+    const check = this.captureOperation()
+    try {
+      await this.publishStatusChanged(check)
+      return await this.getStatus()
+    } finally {
+      check()
+    }
   }
 
   async startBrowserLogin(): Promise<OpenAICodexAuthStatus> {
     this.assertEnabled()
-    this.cancelLogin()
+    this.invalidate()
+    this.cancelPendingFlow()
+    this.loginPending = true
     this.lastError = null
-
-    const state = createOpenAICodexState()
-    const pkce = createOpenAICodexPkcePair()
+    const initialGeneration = this.generation
+    let flow: PendingBrowserFlow | null = null
+    const check = () => this.assertGeneration(flow?.generation ?? initialGeneration)
     let callbackSession: OAuthLoopbackCallbackSession | null = null
-
     try {
-      const configuredRedirect = new URL(OPENAI_CODEX_REDIRECT_URI)
+      const state = createOpenAICodexState()
+      const pkce = createOpenAICodexPkcePair()
+      const redirect = new URL(OPENAI_CODEX_REDIRECT_URI)
       callbackSession = await startOAuthLoopbackCallbackSession({
         expectedState: state,
-        path: configuredRedirect.pathname || OPENAI_CODEX_REDIRECT_PATH,
-        preferredPort: Number(configuredRedirect.port) || OPENAI_CODEX_REDIRECT_PORT,
-        redirectHost: configuredRedirect.hostname || 'localhost',
+        path: redirect.pathname || OPENAI_CODEX_REDIRECT_PATH,
+        preferredPort: Number(redirect.port) || OPENAI_CODEX_REDIRECT_PORT,
+        redirectHost: redirect.hostname || 'localhost',
         timeoutMs: OPENAI_CODEX_BROWSER_TIMEOUT_MS,
         invalidCallbackMessage: 'Invalid OpenAI Codex OAuth callback'
       })
+      check()
       const authUrl = new URL(OPENAI_CODEX_AUTHORIZE_URL)
       authUrl.searchParams.set('client_id', OPENAI_CODEX_CLIENT_ID)
       authUrl.searchParams.set('response_type', 'code')
@@ -214,8 +289,8 @@ export class OpenAICodexAuth {
       authUrl.searchParams.set('code_challenge_method', 'S256')
       authUrl.searchParams.set('codex_cli_simplified_flow', 'true')
       authUrl.searchParams.set('id_token_add_organizations', 'true')
-
-      const flow: PendingBrowserFlow = {
+      flow = {
+        generation: this.generation,
         state,
         codeVerifier: pkce.codeVerifier,
         redirectUri: callbackSession.redirectUri,
@@ -224,238 +299,263 @@ export class OpenAICodexAuth {
       }
       this.pendingBrowserFlow = flow
       flow.flowPromise = this.completeBrowserLogin(flow, callbackSession.waitForCallback())
-      await shell.openExternal(authUrl.toString())
-      this.publishStatusChanged()
-      return this.getStatus()
+      await this.openExternal(authUrl.toString())
+      check()
+      await this.publishStatusChanged(check)
+      return await this.getStatus()
     } catch (error) {
-      this.lastError = sanitizeError(error)
-      this.pendingBrowserFlow = null
       callbackSession?.close()
-      this.publishStatusChanged()
-      return this.getStatus()
+      check()
+      if (this.pendingBrowserFlow === flow) this.cancelPendingFlow()
+      this.loginPending = false
+      this.lastError = sanitizeError(error)
+      await this.publishStatusChanged(check)
+      return await this.getStatus()
+    } finally {
+      check()
     }
   }
 
   async completeBrowserLoginFromCallbackUrl(callbackUrl: string): Promise<OpenAICodexAuthStatus> {
     this.assertEnabled()
     const flow = this.pendingBrowserFlow
-    if (!flow || flow.cancelled) {
-      this.lastError = 'OpenAI Codex browser login is not pending'
-      this.publishStatusChanged()
-      return this.getStatus()
+    const initialGeneration = this.generation
+    const check = () => this.assertGeneration(flow?.generation ?? initialGeneration)
+    try {
+      check()
+      if (!flow || flow.cancelled) {
+        this.lastError = 'OpenAI Codex browser login is not pending'
+        await this.publishStatusChanged(check)
+        return await this.getStatus()
+      }
+      const resolution = flow.callbackSession.resolveCallbackUrl(callbackUrl)
+      if (resolution.kind === 'not-found') {
+        this.lastError = 'OpenAI Codex callback URL is invalid'
+        await this.publishStatusChanged(check)
+        return await this.getStatus()
+      }
+      await flow.flowPromise
+      check()
+      return await this.getStatus()
+    } finally {
+      check()
     }
-
-    const resolution = flow.callbackSession.resolveCallbackUrl(callbackUrl)
-    if (resolution.kind === 'not-found') {
-      this.lastError = 'OpenAI Codex callback URL is invalid'
-      this.publishStatusChanged()
-      return this.getStatus()
-    }
-
-    await flow.flowPromise
-    return this.getStatus()
-  }
-
-  cancelLogin(): OpenAICodexAuthStatus {
-    if (this.pendingBrowserFlow) {
-      this.pendingBrowserFlow.cancelled = true
-      this.pendingBrowserFlow.callbackSession.close()
-      this.pendingBrowserFlow = null
-    }
-    this.publishStatusChanged()
-    return this.getStatus()
   }
 
   async logout(): Promise<OpenAICodexAuthStatus> {
-    const tokens = this.store.load()
-    this.cancelLogin()
-    this.store.clear()
-    this.lastError = null
-
-    const tokenToRevoke = tokens?.refreshToken || tokens?.accessToken
-    if (tokenToRevoke) {
-      try {
-        await this.postForm(OPENAI_CODEX_REVOKE_URL, {
-          token: tokenToRevoke,
-          client_id: OPENAI_CODEX_CLIENT_ID
-        })
-      } catch (error) {
-        logger.warn('[OpenAI Codex] Token revoke failed:', sanitizeError(error))
+    this.invalidate()
+    this.cancelPendingFlow()
+    const check = this.captureOperation()
+    try {
+      const tokens = await this.store.load()
+      check()
+      await this.store.clear()
+      check()
+      this.lastError = null
+      const token = tokens?.refreshToken || tokens?.accessToken
+      if (token) {
+        try {
+          await this.postForm(
+            OPENAI_CODEX_REVOKE_URL,
+            { token, client_id: OPENAI_CODEX_CLIENT_ID },
+            check
+          )
+        } catch (error) {
+          check()
+          logger.warn('[OpenAI Codex] Token revoke failed:', sanitizeError(error))
+        }
       }
+      check()
+      await this.publishStatusChanged(check)
+      return await this.getStatus()
+    } finally {
+      check()
     }
-
-    this.publishStatusChanged()
-    return this.getStatus()
   }
 
   async getAccessToken(): Promise<string> {
-    const auth = await this.getBackendAuth()
-    return auth.accessToken
+    const check = this.captureOperation()
+    try {
+      return (await this.getBackendAuth()).accessToken
+    } finally {
+      check()
+    }
   }
 
   async forceRefreshAccessToken(): Promise<string> {
-    const auth = await this.forceRefreshBackendAuth()
-    return auth.accessToken
+    const check = this.captureOperation()
+    try {
+      return (await this.forceRefreshBackendAuth()).accessToken
+    } finally {
+      check()
+    }
   }
 
   async getBackendAuth(): Promise<OpenAICodexBackendAuth> {
-    this.assertEnabled()
-
-    if (OPENAI_CODEX_ACCESS_TOKEN_ENV) {
-      return { accessToken: OPENAI_CODEX_ACCESS_TOKEN_ENV }
-    }
-
-    const tokens = this.store.load()
-    if (!tokens) {
-      const loadError = this.store.getLoadError()
-      if (loadError) throw new Error(loadError)
-      throw new ProviderHttpError('OpenAI Codex sign-in is required', {
-        statusCode: 401,
-        code: 'openai_codex_sign_in_required',
-        retryable: false
-      })
-    }
-
-    const current =
-      tokens.expiresAt > Date.now() + OPENAI_CODEX_TOKEN_REFRESH_SKEW_MS
-        ? tokens
-        : await this.refreshAccessToken(tokens)
-    return {
-      accessToken: current.accessToken,
-      accountId: current.accountId
+    const check = this.captureOperation()
+    try {
+      this.assertEnabled()
+      if (OPENAI_CODEX_ACCESS_TOKEN_ENV) return { accessToken: OPENAI_CODEX_ACCESS_TOKEN_ENV }
+      const tokens = await this.store.load()
+      check()
+      if (!tokens) {
+        const error = this.store.getLoadError()
+        if (error) throw new Error(error)
+        throw new ProviderHttpError('OpenAI Codex sign-in is required', {
+          statusCode: 401,
+          code: 'openai_codex_sign_in_required',
+          retryable: false
+        })
+      }
+      const current =
+        tokens.expiresAt > Date.now() + OPENAI_CODEX_TOKEN_REFRESH_SKEW_MS
+          ? tokens
+          : await this.refreshAccessToken(tokens, check)
+      check()
+      return { accessToken: current.accessToken, accountId: current.accountId }
+    } finally {
+      check()
     }
   }
 
   async forceRefreshBackendAuth(): Promise<OpenAICodexBackendAuth> {
-    this.assertEnabled()
-    const tokens = this.store.load()
-    if (!tokens?.refreshToken) {
-      const loadError = this.store.getLoadError()
-      if (loadError) throw new Error(loadError)
-      throw new ProviderHttpError('OpenAI Codex refresh token is unavailable', {
-        statusCode: 401,
-        code: 'openai_codex_sign_in_required',
-        retryable: false
-      })
+    const check = this.captureOperation()
+    try {
+      this.assertEnabled()
+      const tokens = await this.store.load()
+      check()
+      if (!tokens?.refreshToken) {
+        const error = this.store.getLoadError()
+        if (error) throw new Error(error)
+        throw new ProviderHttpError('OpenAI Codex refresh token is unavailable', {
+          statusCode: 401,
+          code: 'openai_codex_sign_in_required',
+          retryable: false
+        })
+      }
+      const refreshed = await this.refreshAccessToken(tokens, check, true)
+      check()
+      return { accessToken: refreshed.accessToken, accountId: refreshed.accountId }
+    } finally {
+      check()
     }
-
-    const refreshed = await this.refreshAccessToken(tokens, true)
-    return {
-      accessToken: refreshed.accessToken,
-      accountId: refreshed.accountId
-    }
-  }
-
-  private withStorage(status: Omit<OpenAICodexAuthStatus, 'storage'>): OpenAICodexAuthStatus {
-    return {
-      ...status,
-      storage: this.store.getStorageState()
-    }
-  }
-
-  private statusFromTokens(tokens: OpenAICodexTokenSet): OpenAICodexAuthStatus {
-    return this.withStorage({
-      state: 'authenticated',
-      authenticated: true,
-      accountId: maskAccountId(tokens.accountId),
-      accountLabel: tokens.accountLabel,
-      planType: tokens.planType,
-      expiresAt: tokens.expiresAt
-    })
   }
 
   private assertEnabled(): void {
-    if (isOpenAICodexDisabled()) {
-      throw new Error('OpenAI Codex provider is disabled by environment')
-    }
+    if (isOpenAICodexDisabled()) throw new Error('OpenAI Codex provider is disabled by environment')
   }
 
   private async completeBrowserLogin(
     flow: PendingBrowserFlow,
-    callbackPromise: Promise<{ code: string }>
+    callback: Promise<{ code: string }>
   ): Promise<void> {
+    const check = () => this.assertGeneration(flow.generation)
     try {
-      const { code } = await callbackPromise
-      if (flow.cancelled || this.pendingBrowserFlow !== flow) {
-        return
-      }
-
-      const tokens = await this.exchangeAuthorizationCode(code, flow.codeVerifier, flow.redirectUri)
-      if (flow.cancelled || this.pendingBrowserFlow !== flow) {
-        return
-      }
-
-      this.store.save(tokens)
+      const { code } = await callback
+      if (flow.cancelled || this.pendingBrowserFlow !== flow) return
+      check()
+      const tokens = await this.exchangeAuthorizationCode(
+        code,
+        flow.codeVerifier,
+        flow.redirectUri,
+        check
+      )
+      check()
+      if (this.pendingBrowserFlow !== flow) return
+      this.invalidate()
+      flow.generation = this.generation
+      await this.store.save(tokens)
+      check()
       this.lastError = null
       this.pendingBrowserFlow = null
+      this.loginPending = false
       flow.callbackSession.close()
-      this.publishStatusChanged()
+      await this.publishStatusChanged(check)
     } catch (error) {
-      if (flow.cancelled || this.pendingBrowserFlow !== flow) {
+      if (
+        this.stopped ||
+        flow.cancelled ||
+        this.pendingBrowserFlow !== flow ||
+        flow.generation !== this.generation
+      )
         return
-      }
-
       this.lastError = sanitizeError(error)
       this.pendingBrowserFlow = null
+      this.loginPending = false
       flow.callbackSession.close()
-      this.publishStatusChanged()
+      try {
+        await this.publishStatusChanged(check)
+      } catch (publishError) {
+        if (!this.stopped && flow.generation === this.generation)
+          logger.warn('[OpenAI Codex] Failed to publish auth status:', sanitizeError(publishError))
+      }
     }
   }
 
   private async exchangeAuthorizationCode(
     code: string,
-    codeVerifier: string,
-    redirectUri: string
+    verifier: string,
+    redirectUri: string,
+    check: () => void
   ): Promise<OpenAICodexTokenSet> {
-    const payload = await this.postForm(OPENAI_CODEX_TOKEN_URL, {
-      grant_type: 'authorization_code',
-      client_id: OPENAI_CODEX_CLIENT_ID,
-      code,
-      redirect_uri: redirectUri,
-      code_verifier: codeVerifier
-    })
-
+    check()
+    const payload = await this.postForm(
+      OPENAI_CODEX_TOKEN_URL,
+      {
+        grant_type: 'authorization_code',
+        client_id: OPENAI_CODEX_CLIENT_ID,
+        code,
+        redirect_uri: redirectUri,
+        code_verifier: verifier
+      },
+      check
+    )
+    check()
     return this.parseTokenResponse(payload)
   }
 
   private async refreshAccessToken(
-    currentTokens: OpenAICodexTokenSet,
+    tokens: OpenAICodexTokenSet,
+    check: () => void,
     force = false
   ): Promise<OpenAICodexTokenSet> {
-    if (!force && currentTokens.expiresAt > Date.now() + OPENAI_CODEX_TOKEN_REFRESH_SKEW_MS) {
-      return currentTokens
-    }
-
-    if (this.refreshPromise) {
-      return this.refreshPromise
-    }
-
-    this.refreshPromise = this.refreshAccessTokenOnce(currentTokens).finally(() => {
-      this.refreshPromise = null
+    check()
+    if (!force && tokens.expiresAt > Date.now() + OPENAI_CODEX_TOKEN_REFRESH_SKEW_MS) return tokens
+    if (this.refreshPromise) return this.refreshPromise
+    const pending = this.refreshAccessTokenOnce(tokens, check).finally(() => {
+      if (this.refreshPromise === pending) this.refreshPromise = null
     })
-    return this.refreshPromise
+    this.refreshPromise = pending
+    return pending
   }
 
   private async refreshAccessTokenOnce(
-    currentTokens: OpenAICodexTokenSet
+    tokens: OpenAICodexTokenSet,
+    check: () => void
   ): Promise<OpenAICodexTokenSet> {
-    if (!currentTokens.refreshToken) {
+    check()
+    if (!tokens.refreshToken)
       throw new ProviderHttpError('OpenAI Codex refresh token is unavailable', {
         statusCode: 401,
         code: 'openai_codex_sign_in_required',
         retryable: false
       })
-    }
-
-    const payload = await this.postForm(OPENAI_CODEX_TOKEN_URL, {
-      grant_type: 'refresh_token',
-      client_id: OPENAI_CODEX_CLIENT_ID,
-      refresh_token: currentTokens.refreshToken
-    })
-    const refreshed = this.parseTokenResponse(payload, currentTokens)
-    this.store.save(refreshed)
+    const payload = await this.postForm(
+      OPENAI_CODEX_TOKEN_URL,
+      {
+        grant_type: 'refresh_token',
+        client_id: OPENAI_CODEX_CLIENT_ID,
+        refresh_token: tokens.refreshToken
+      },
+      check
+    )
+    check()
+    const refreshed = this.parseTokenResponse(payload, tokens)
+    await this.store.save(refreshed)
+    check()
     this.lastError = null
-    this.publishStatusChanged()
+    await this.publishStatusChanged(check)
+    check()
     return refreshed
   }
 
@@ -496,26 +596,21 @@ export class OpenAICodexAuth {
 
   private async postForm(
     url: string,
-    params: Record<string, string | undefined>
+    params: Record<string, string | undefined>,
+    check: () => void
   ): Promise<TokenResponse> {
+    check()
     const body = new URLSearchParams()
-    Object.entries(params).forEach(([key, value]) => {
-      if (value) {
-        body.set(key, value)
-      }
-    })
-
+    for (const [key, value] of Object.entries(params)) if (value) body.set(key, value)
     const response = await this.fetchWithTimeout(url, {
       method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
+      headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
       body
     })
-
+    check()
     if (!response.ok) {
       const errorBody = await readErrorBody(response)
+      check()
       let requiresSignIn = false
       if (params.grant_type === 'refresh_token') {
         try {
@@ -532,43 +627,64 @@ export class OpenAICodexAuth {
         }
       )
     }
-
-    return (await response.json()) as TokenResponse
+    const payload = (await response.json()) as TokenResponse
+    check()
+    return payload
   }
 
-  private async fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  private async fetchWithTimeout(
+    url: string,
+    init: RequestInit,
+    externalSignal?: AbortSignal
+  ): Promise<Response> {
+    const check = this.captureOperation()
+    if (this.requests.size >= 32) throw new Error('OpenAI Codex auth request limit exceeded')
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), OPENAI_CODEX_AUTH_REQUEST_TIMEOUT_MS)
+    this.requests.add(controller)
+    const timer = setTimeout(() => controller.abort(), OPENAI_CODEX_AUTH_REQUEST_TIMEOUT_MS)
+    const abort = () => controller.abort(externalSignal?.reason)
+    if (externalSignal?.aborted) abort()
+    else externalSignal?.addEventListener('abort', abort, { once: true })
     try {
-      return await fetch(url, {
-        ...init,
-        signal: controller.signal
-      })
+      controller.signal.throwIfAborted()
+      const response = await fetch(url, { ...init, signal: controller.signal })
+      check()
+      const result = await readAuthResponse(response, controller.signal)
+      check()
+      return result
     } catch (error) {
+      check()
       if (controller.signal.aborted) {
+        if (externalSignal?.aborted)
+          throw new DOMException('OpenAI Codex OAuth login cancelled', 'AbortError')
         throw new Error(
           `OpenAI Codex auth request timed out after ${OPENAI_CODEX_AUTH_REQUEST_TIMEOUT_MS}ms`
         )
       }
       throw error
     } finally {
-      clearTimeout(timeout)
+      clearTimeout(timer)
+      externalSignal?.removeEventListener('abort', abort)
+      this.requests.delete(controller)
     }
   }
 
-  private publishStatusChanged(): void {
-    this.publishEvent('oauth.openaiCodex.statusChanged', {
-      status: this.getStatus(),
-      version: Date.now()
-    })
+  private async publishStatusChanged(check: () => void): Promise<void> {
+    check()
+    const publication = ++this.publication
+    const status = await this.getStatus()
+    check()
+    if (publication !== this.publication) return
+    this.publishEvent('oauth.openaiCodex.statusChanged', { status, version: Date.now() })
   }
 }
-
 export function initializeGlobalOpenAICodexAuth(
-  publishEvent: DeepchatEventPublisher
+  publishEvent: DeepchatEventPublisher,
+  store: OpenAICodexCredentialStore,
+  openExternal: (url: string) => Promise<void>
 ): OpenAICodexAuth {
   if (!globalOpenAICodexAuth) {
-    globalOpenAICodexAuth = new OpenAICodexAuth(undefined, publishEvent)
+    globalOpenAICodexAuth = new OpenAICodexAuth(store, publishEvent, openExternal)
   }
   return globalOpenAICodexAuth
 }
