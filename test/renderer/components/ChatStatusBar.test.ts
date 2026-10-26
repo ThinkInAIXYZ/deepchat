@@ -1043,7 +1043,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect(occupancy.attributes('data-freshness')).toBe('stale')
     expect(occupancy.attributes('data-source')).toBe('estimated')
     expect(occupancy.attributes('title')).toContain('chat.contextOccupancy.stale')
-    expect(occupancy.get('span > span').attributes('style')).toContain('width: 0%')
+    expect(occupancy.get('span[style]').attributes('style')).toContain('width: 0%')
     expect(occupancy.find('[data-icon="lucide:clock-3"]').exists()).toBe(true)
   })
 
@@ -3096,7 +3096,21 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.find('.acp-inline-option[data-option-id="model"]').exists()).toBe(true)
     expect(wrapper.find('.acp-inline-option[data-option-id="thought_level"]').exists()).toBe(true)
     expect(wrapper.find('.acp-inline-option[data-option-id="mode"]').exists()).toBe(true)
+    expect(
+      wrapper.findAll('.acp-inline-option').map((control) => control.attributes('data-option-id'))
+    ).toEqual(['model', 'mode', 'thought_level'])
     expect(wrapper.find('.acp-inline-option[data-option-id="safe_edits"]').exists()).toBe(false)
+    const modelControl = wrapper.find('.acp-inline-option[data-option-id="model"]')
+    expect(modelControl.attributes('aria-label')).toBe('Model: gpt-5')
+    expect(modelControl.find('.icon-stub').attributes('data-icon')).toBe('lucide:cpu')
+    expect(
+      wrapper.find('.acp-inline-option[data-option-id="mode"] .icon-stub').attributes('data-icon')
+    ).toBe('lucide:workflow')
+    expect(
+      wrapper
+        .find('.acp-inline-option[data-option-id="thought_level"] .icon-stub')
+        .attributes('data-icon')
+    ).toBe('lucide:settings-2')
     expect(wrapper.find('.acp-overflow-button').exists()).toBe(true)
     expect(wrapper.findAll('.acp-overflow-option')).toHaveLength(1)
     expect(wrapper.find('.acp-overflow-option[data-option-id="safe_edits"]').exists()).toBe(true)

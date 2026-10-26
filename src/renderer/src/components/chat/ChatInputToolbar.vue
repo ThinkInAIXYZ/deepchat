@@ -1,5 +1,10 @@
 <template>
-  <div data-testid="chat-input-toolbar" class="flex items-center gap-2 px-3 pb-3 pt-1">
+  <div
+    data-testid="chat-input-toolbar"
+    class="composer-toolbar flex items-center gap-2 px-3 pb-3 pt-1"
+    @pointerenter="resetRevealedControls"
+    @pointerover="revealControl"
+  >
     <div class="flex shrink-0 items-center gap-1">
       <!-- Attach button -->
       <DcButton
@@ -242,6 +247,21 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+// Keep revealed controls stable while moving between them or into an open menu.
+function resetRevealedControls(event: PointerEvent) {
+  const toolbar = event.currentTarget as HTMLElement
+  if (toolbar.querySelector('[aria-expanded="true"]')) return
+  for (const control of toolbar.querySelectorAll('[data-composer-revealed]')) {
+    if (!control.matches(':hover')) control.removeAttribute('data-composer-revealed')
+  }
+}
+
+function revealControl(event: PointerEvent) {
+  if (event.pointerType === 'touch' || !(event.target instanceof Element)) return
+  event.target.closest('.composer-control')?.setAttribute('data-composer-revealed', '')
+}
+
 const hasActiveInput = computed(() => props.hasInput || props.hasText)
 const voiceInputButtonClass = computed(() => {
   if (props.isVoiceInputListening) {
@@ -301,6 +321,41 @@ function handlePrimaryAction() {
 </script>
 
 <style scoped>
+:deep(.composer-control) {
+  min-width: 2rem;
+  gap: 0;
+  padding-inline: 0.5rem;
+}
+
+:deep(.composer-control-details) {
+  display: grid;
+  min-width: 0;
+  max-width: min(18rem, 50vw);
+  grid-template-columns: 0fr;
+  overflow: hidden;
+  opacity: 0;
+  margin-inline-start: 0;
+  transition:
+    grid-template-columns var(--dc-motion-default) var(--dc-ease-out-soft),
+    margin-inline-start var(--dc-motion-default) var(--dc-ease-out-soft),
+    opacity var(--dc-motion-fast) var(--dc-ease-out-soft);
+}
+
+:deep(.composer-control:is(:focus-visible, [aria-expanded='true']) .composer-control-details) {
+  grid-template-columns: 1fr;
+  margin-inline-start: 0.25rem;
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .composer-toolbar:is(:hover, :has([aria-expanded='true']))
+    :deep(.composer-control[data-composer-revealed] .composer-control-details) {
+    grid-template-columns: 1fr;
+    margin-inline-start: 0.25rem;
+    opacity: 1;
+  }
+}
+
 .voice-wave {
   width: 18px;
   height: 18px;
@@ -353,6 +408,10 @@ function handlePrimaryAction() {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  :deep(.composer-control-details) {
+    transition: none;
+  }
+
   .voice-wave-bar {
     animation: none;
     transform: scaleY(0.8);

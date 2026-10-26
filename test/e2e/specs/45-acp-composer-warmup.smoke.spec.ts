@@ -40,8 +40,8 @@ const [release, requests] = process.argv.slice(2)
 const send = (message) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...message }) + '\n')
 const reply = (id, result) => send({ id, result })
 const configOptions = [
-  { id: 'model', name: 'Model', type: 'select', currentValue: 'fixture-model', options: ${JSON.stringify(models.map(({ modelId, name }) => ({ value: modelId, name })))} },
   { id: 'mode', name: 'Mode', type: 'select', currentValue: 'agent', options: [{ value: 'agent', name: 'Agent' }] },
+  { id: 'model', name: 'Model', type: 'select', currentValue: 'fixture-model', options: ${JSON.stringify(models.map(({ modelId, name }) => ({ value: modelId, name })))} },
   { id: 'permission', name: 'Permission', type: 'select', currentValue: 'full-access', options: [{ value: 'full-access', name: 'Full Access' }] },
   { id: 'extra', name: 'Extra setting', type: 'boolean', currentValue: false }
 ]
@@ -98,6 +98,11 @@ createInterface({ input: process.stdin }).on('line', line => {
   await expect.poll(() => readFileSync(requests, 'utf8')).toContain('session/new')
   await expect(app.page.getByTestId('context-occupancy')).toBeVisible()
   await expect(app.page.locator('.acp-inline-option')).toHaveCount(3)
+  expect(
+    await app.page
+      .locator('.acp-inline-option')
+      .evaluateAll((elements) => elements.map((element) => element.getAttribute('data-option-id')))
+  ).toEqual(['model', 'mode', 'permission'])
   await expect(app.page.locator('.acp-overflow-button')).toBeVisible()
 
   const modelTrigger = app.page.locator('.acp-inline-option').first()
@@ -115,6 +120,51 @@ createInterface({ input: process.stdin }).on('line', line => {
     }, theme)
     await expect(modelTrigger).toBeEnabled()
     const toolbar = app.page.getByTestId('chat-input-toolbar')
+    const editor = app.page.getByTestId('chat-input-editor').locator('[contenteditable="true"]')
+    const controls = toolbar.locator('.composer-control')
+    await expect(controls).toHaveCount(6)
+    await expect(
+      app.page.getByTestId('new-thread-context-selectors').getByTestId('new-thread-agent-selector')
+    ).toBeVisible()
+    await expect(toolbar.getByTestId('new-thread-agent-selector')).toHaveCount(0)
+    const contextRow = app.page.getByTestId('new-thread-context-selectors')
+    const composerBox = await app.page.getByTestId('chat-input-box').boundingBox()
+    const contextBox = await contextRow.boundingBox()
+    expect(contextBox!.y).toBeGreaterThanOrEqual(composerBox!.y + composerBox!.height)
+    const agentBox = await selector.boundingBox()
+    const projectBox = await app.page.getByTestId('new-thread-project-trigger').boundingBox()
+    expect(
+      Math.abs(agentBox!.y + agentBox!.height / 2 - projectBox!.y - projectBox!.height / 2)
+    ).toBeLessThanOrEqual(1)
+    await expect(modelTrigger.locator('.composer-control-details')).toHaveCount(0)
+    for (const control of await controls.all()) {
+      await editor.focus()
+      await app.page.mouse.move(0, 0)
+      const details = control.locator('.composer-control-details')
+      await expect(details).toHaveCSS('opacity', '0')
+      await expect(async () => {
+        const widths = await controls.evaluateAll((elements) =>
+          elements.map((element) => element.getBoundingClientRect().width)
+        )
+        expect(widths.every((width) => width <= 34)).toBe(true)
+      }).toPass({ timeout: 5000 })
+      const collapsed = await control.boundingBox()
+      expect(collapsed!.width).toBeLessThanOrEqual(34)
+      await control.hover()
+      await expect(details).toHaveCSS('opacity', '1')
+      await expect(async () => {
+        expect((await control.boundingBox())!.width).toBeGreaterThan(collapsed!.width + 8)
+      }).toPass({ timeout: 5000 })
+    }
+    await editor.focus()
+    await app.page.mouse.move(0, 0)
+    for (const control of await controls.all()) {
+      await control.hover()
+      await expect(control.locator('.composer-control-details')).toHaveCSS('opacity', '1')
+    }
+    await expect(controls.first().locator('.composer-control-details')).toHaveCSS('opacity', '1')
+    await editor.focus()
+    await app.page.mouse.move(0, 0)
     await expect(async () => {
       const metrics = await toolbar.evaluate((element) => {
         const buttons = Array.from(element.querySelectorAll('button'))
@@ -132,12 +182,13 @@ createInterface({ input: process.stdin }).on('line', line => {
       expect(metrics.horizontalOverflow).toBe(false)
       await expect(toolbar.getByRole('button').first()).toBeInViewport()
       await expect(app.page.getByTestId('chat-send-button')).toBeInViewport()
-    }).toPass()
+    }).toPass({ timeout: 5000 })
     const lastSettingsButton = toolbar.locator(':scope > div').nth(1).getByRole('button').last()
     await lastSettingsButton.focus()
     await expect(lastSettingsButton).toBeInViewport({ ratio: 1 })
     await modelTrigger.click()
     await expect(modelMenu).toBeVisible()
+    await app.page.mouse.move(0, 0)
     const longOption = modelMenu.locator(`button[data-value="${longModelId}"]`)
     await longOption.scrollIntoViewIfNeeded()
     await expect(async () => {
@@ -162,7 +213,7 @@ createInterface({ input: process.stdin }).on('line', line => {
           )
         })
       ).toBe(true)
-    }).toPass()
+    }).toPass({ timeout: 5000 })
     await longOption.hover()
     const tooltip = app.page
       .locator('[data-slot="tooltip-content"]')
@@ -179,6 +230,19 @@ createInterface({ input: process.stdin }).on('line', line => {
     await expect(modelMenu).toBeHidden()
     await expect(modelTrigger).toBeFocused()
   }
+  await modelTrigger.focus()
+  await expect(modelTrigger).toBeFocused()
+  await app.page.keyboard.press('Tab')
+  const modeTrigger = app.page.locator('.acp-inline-option[data-option-id="mode"]')
+  await expect(modeTrigger).toBeFocused()
+  await expect(modeTrigger.locator('.composer-control-details')).toHaveCSS('opacity', '1')
+  await modeTrigger.press('Enter')
+  await app.page.mouse.move(0, 0)
+  await expect(modeTrigger).toHaveAttribute('aria-expanded', 'true')
+  await expect(modeTrigger.locator('.composer-control-details')).toHaveCSS('opacity', '1')
+  await app.page.keyboard.press('Escape')
+  await app.page.keyboard.press('Shift+Tab')
+  await expect(modelTrigger).toBeFocused()
   await modelTrigger.press('Enter')
   const selectedModelId = longModelId
   await modelMenu.locator(`button[data-value="${selectedModelId}"]`).click()
@@ -198,6 +262,16 @@ createInterface({ input: process.stdin }).on('line', line => {
   await app.page.mouse.move(0, 0)
   await expect(selectedTooltip).toBeHidden()
   await app.page.keyboard.press('Escape')
+
+  await app.page.emulateMedia({ reducedMotion: 'reduce' })
+  expect(
+    await modeTrigger.locator('.composer-control-details').evaluate((element) =>
+      getComputedStyle(element)
+        .transitionDuration.split(',')
+        .every((duration) => parseFloat(duration) <= 0.001)
+    )
+  ).toBe(true)
+  await app.page.emulateMedia({ reducedMotion: null })
 
   const selectWorkspace = (path: string) =>
     app.page.evaluate((path) => {

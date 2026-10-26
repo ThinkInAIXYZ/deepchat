@@ -67,6 +67,17 @@ Electron runs used a temporary worktree so the running development app retained 
       actions at the edges. Only the central settings region scrolls when its minimum widths cannot
       fit; focused controls are revealed automatically. Validate full ACP status/configuration rows
       at 1280px, 800px, and 480px and real DeepChat/DimCode configurations at the same widths.
+- [x] Keep Agent and model names visible, with the Agent selector beside the workspace below the
+      composer and model before mode in its toolbar. Reveal other icon controls on
+      hover, keyboard focus, and while their menu is open; preserve warmup feedback and click
+      behavior. Keep revealed targets stable during pointer traversal and disable
+      transitions for reduced-motion preferences. Validate compact, expanded, keyboard, and motion
+      behavior through Electron and the isolated local DeepChat/DimCode configuration.
 
-Layout checks: format, i18n, lint, typecheck, production compilation, 106 composer component tests,
+Layout checks: format, i18n, lint, typecheck, production compilation, 120 composer component tests,
 and four focused Electron smoke tests passed. The normal-build provider catalog refresh is retained.
+
+Real DeepChat/DimCode checks at 1280px, 800px, and 480px confirmed visible Agent/model names,
+workspace-row placement, model-before-mode ordering, 32px compact controls, one toolbar row, and
+intermediate animation frames during expansion. Reduced-motion and menu/keyboard behavior are
+covered by the ACP Electron fixture. No live model completion was requested.

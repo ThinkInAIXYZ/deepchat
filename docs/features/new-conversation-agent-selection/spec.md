@@ -4,8 +4,8 @@
 
 Closes https://github.com/ThinkInAIXYZ/deepchat/issues/2462.
 
-The sidebar Agent selector filters session history only. The new-conversation composer displays
-and selects its execution Agent independently, beside the model controls. Every generic New Chat
+The sidebar Agent selector filters session history only. The new-conversation context row displays
+and selects its execution Agent independently, beside the workspace selector. Every generic New Chat
 entry point uses the same selection rule.
 
 ## Ownership And Behavior
@@ -31,8 +31,18 @@ entry point uses the same selection rule.
 ## Composer Interaction
 
 The composer offers the existing enabled Agent catalog, using AgentAvatar and the existing
-dropdown primitives. Selection is visible by name, keyboard-accessible, and disabled during a
-submission. Model and ACP controls continue to use the selected execution context.
+dropdown primitives. Agent and model names remain visible with their icons. Selection is disabled
+during submission. Model and ACP controls continue to use the selected execution context.
+
+The Agent selector sits beside the workspace below the composer; its loading indicator reflects
+the existing ACP configuration-loading state. The composer starts with model, mode, then other ACP
+options. Agent and model never collapse. Mode,
+permission, reasoning, context, status, and settings controls default to icons. Hover reveals their
+current values or labels using the existing motion tokens. Revealed controls remain expanded while
+the pointer moves within the toolbar or a menu is open, keeping targets stable. Keyboard focus also
+reveals the value; open menus keep their trigger expanded. ACP loading feedback stays visible in
+the compact state, and reduced-motion preferences disable the reveal transition. Click behavior
+and menu contents retain their existing ownership.
 
 Switching Agents uses existing per-Agent composer drafts and default-model/configuration loading.
 It preserves manually chosen workspaces, including an explicitly cleared workspace. Stale default
@@ -47,7 +57,8 @@ New Thread   -> Agent welcome -> composer with model control
 AFTER
 Sidebar      -> history filter
 New Thread   -> [message composer                     ]
-               [Agent v] [model / ACP controls] [send]
+               [model v] [mode / permission icons] [send]
+               [workspace v] [Agent v]
 ```
 
 ## ACP Preparation And Scope
@@ -64,7 +75,7 @@ the full value in a viewport-constrained tooltip; long lists scroll vertically w
 scrolling. The same menu serves new and existing conversations.
 
 The composer toolbar keeps attachment, Agent/model configuration, status, and send controls on one
-row. Agent/model labels shrink with ellipsis while action buttons retain usable widths. When the
+row. Expanded labels use ellipsis when constrained while action buttons retain usable widths. When the
 minimum control widths cannot fit, only the central settings region scrolls horizontally; attachment
 and send remain visible at the edges, and keyboard focus can reveal every settings control.
 

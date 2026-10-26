@@ -91,56 +91,8 @@
                     ref="chatStatusBarRef"
                     :acp-draft-session-id="acpDraftSessionId"
                     max-width-class="max-w-none"
-                  >
-                    <template #agent="{ loading }">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger as-child>
-                          <DcButton
-                            data-testid="new-thread-agent-selector"
-                            :data-selected-agent-id="selectedAgent.id"
-                            variant="ghost"
-                            size="sm"
-                            :disabled="isSubmittingInput"
-                            :aria-busy="loading || undefined"
-                            :aria-label="`${t('chat.mode.agent')}: ${selectedAgent.name}`"
-                            class="h-6 min-w-14 shrink gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-                          >
-                            <AgentAvatar :agent="selectedAgent" class-name="size-3.5 shrink-0" />
-                            <span class="max-w-[min(12rem,30vw)] truncate">{{
-                              selectedAgent.name
-                            }}</span>
-                            <Spinner
-                              v-if="loading"
-                              data-testid="new-thread-agent-loading"
-                              :aria-label="t('common.loading')"
-                              class="size-3 shrink-0"
-                            />
-                            <Icon v-else icon="lucide:chevron-down" class="size-3 shrink-0" />
-                          </DcButton>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" class="w-60">
-                          <DropdownMenuItem
-                            v-for="agent in agentStore.enabledAgents"
-                            :key="agent.id"
-                            data-testid="new-thread-agent-option"
-                            :data-agent-id="agent.id"
-                            role="menuitemradio"
-                            :aria-checked="selectedAgent.id === agent.id"
-                            class="gap-2"
-                            @select="selectDraftAgent(agent.id)"
-                          >
-                            <AgentAvatar :agent="agent" class-name="size-4 shrink-0" />
-                            <span class="min-w-0 flex-1 truncate">{{ agent.name }}</span>
-                            <Icon
-                              v-if="selectedAgent.id === agent.id"
-                              icon="lucide:check"
-                              class="size-4"
-                            />
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </template>
-                  </ChatStatusBar>
+                    :show-agent-badge="false"
+                  />
                 </template>
               </ChatInputToolbar>
             </template>
@@ -165,84 +117,129 @@
         </div>
 
         <div class="mt-2 w-full max-w-[var(--dc-chat-content-width)]">
-          <!-- Project selector -->
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <DcButton
-                variant="ghost"
-                size="sm"
-                data-testid="new-thread-project-trigger"
-                class="h-7 px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          <div data-testid="new-thread-context-selectors" class="flex min-w-0 items-center gap-1">
+            <!-- Project selector -->
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <DcButton
+                  variant="ghost"
+                  size="sm"
+                  data-testid="new-thread-project-trigger"
+                  class="h-7 min-w-0 shrink px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Icon
+                    :icon="selectedProjectIcon"
+                    :data-icon="selectedProjectIcon"
+                    data-testid="new-thread-project-trigger-icon"
+                    class="w-3.5 h-3.5"
+                  />
+                  <span class="max-w-[min(16rem,40vw)] truncate">{{ selectedProjectName }}</span>
+                  <Icon
+                    v-if="selectedProjectDirectoryInvalid"
+                    icon="lucide:circle-alert"
+                    data-testid="new-thread-project-missing-warning"
+                    class="w-3.5 h-3.5 text-amber-500"
+                    :title="selectedProjectUnavailableTooltip"
+                  />
+                  <Icon icon="lucide:chevron-down" class="w-3 h-3" />
+                </DcButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="center"
+                class="min-w-[200px] max-h-[min(28rem,calc(var(--reka-dropdown-menu-content-available-height)-0.75rem))] overflow-y-auto"
               >
-                <Icon
-                  :icon="selectedProjectIcon"
-                  :data-icon="selectedProjectIcon"
-                  data-testid="new-thread-project-trigger-icon"
-                  class="w-3.5 h-3.5"
+                <DropdownMenuLabel class="text-xs">{{
+                  t('common.project.recent')
+                }}</DropdownMenuLabel>
+                <DropdownMenuItem
+                  data-testid="new-thread-clear-project"
+                  class="gap-2 text-xs py-1.5 px-2"
+                  :disabled="!canClearProjectSelection"
+                  @click="clearSelectedProject"
+                >
+                  <Icon
+                    :icon="chatProjectIcon"
+                    :data-icon="chatProjectIcon"
+                    data-testid="new-thread-clear-project-icon"
+                    class="w-3.5 h-3.5 text-muted-foreground"
+                  />
+                  <span>{{ t('chat.sidebar.chats') }}</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  v-for="project in selectableProjects"
+                  :key="project.path"
+                  class="gap-2 text-xs py-1.5 px-2"
+                  @click="projectStore.selectProject(project.path)"
+                >
+                  <Icon
+                    :icon="getProjectMenuIcon(project.path)"
+                    class="w-3.5 h-3.5 text-muted-foreground"
+                  />
+                  <div class="flex flex-col min-w-0 flex-1">
+                    <span class="truncate">{{ getProjectDisplayName(project) }}</span>
+                    <span class="text-[10px] text-muted-foreground truncate">{{
+                      project.path
+                    }}</span>
+                  </div>
+                  <Icon
+                    v-if="isSelectedInvalidProjectPath(project.path)"
+                    icon="lucide:circle-alert"
+                    data-testid="new-thread-project-menu-missing-warning"
+                    class="w-3.5 h-3.5 text-amber-500 shrink-0"
+                    :title="selectedProjectUnavailableTooltip"
+                  />
+                </DropdownMenuItem>
+                <DcDropdownActionItem
+                  icon="lucide:folder-open"
+                  :label="t('common.project.openFolder')"
+                  class="text-xs py-1.5 px-2"
+                  @select="handleOpenFolderPicker"
                 />
-                <span>{{ selectedProjectName }}</span>
-                <Icon
-                  v-if="selectedProjectDirectoryInvalid"
-                  icon="lucide:circle-alert"
-                  data-testid="new-thread-project-missing-warning"
-                  class="w-3.5 h-3.5 text-amber-500"
-                  :title="selectedProjectUnavailableTooltip"
-                />
-                <Icon icon="lucide:chevron-down" class="w-3 h-3" />
-              </DcButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="center"
-              class="min-w-[200px] max-h-[min(28rem,calc(var(--reka-dropdown-menu-content-available-height)-0.75rem))] overflow-y-auto"
-            >
-              <DropdownMenuLabel class="text-xs">{{
-                t('common.project.recent')
-              }}</DropdownMenuLabel>
-              <DropdownMenuItem
-                data-testid="new-thread-clear-project"
-                class="gap-2 text-xs py-1.5 px-2"
-                :disabled="!canClearProjectSelection"
-                @click="clearSelectedProject"
-              >
-                <Icon
-                  :icon="chatProjectIcon"
-                  :data-icon="chatProjectIcon"
-                  data-testid="new-thread-clear-project-icon"
-                  class="w-3.5 h-3.5 text-muted-foreground"
-                />
-                <span>{{ t('chat.sidebar.chats') }}</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                v-for="project in selectableProjects"
-                :key="project.path"
-                class="gap-2 text-xs py-1.5 px-2"
-                @click="projectStore.selectProject(project.path)"
-              >
-                <Icon
-                  :icon="getProjectMenuIcon(project.path)"
-                  class="w-3.5 h-3.5 text-muted-foreground"
-                />
-                <div class="flex flex-col min-w-0 flex-1">
-                  <span class="truncate">{{ getProjectDisplayName(project) }}</span>
-                  <span class="text-[10px] text-muted-foreground truncate">{{ project.path }}</span>
-                </div>
-                <Icon
-                  v-if="isSelectedInvalidProjectPath(project.path)"
-                  icon="lucide:circle-alert"
-                  data-testid="new-thread-project-menu-missing-warning"
-                  class="w-3.5 h-3.5 text-amber-500 shrink-0"
-                  :title="selectedProjectUnavailableTooltip"
-                />
-              </DropdownMenuItem>
-              <DcDropdownActionItem
-                icon="lucide:folder-open"
-                :label="t('common.project.openFolder')"
-                class="text-xs py-1.5 px-2"
-                @select="handleOpenFolderPicker"
-              />
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <DcButton
+                  data-testid="new-thread-agent-selector"
+                  :data-selected-agent-id="selectedAgent.id"
+                  variant="ghost"
+                  size="sm"
+                  :disabled="isSubmittingInput"
+                  :aria-busy="chatStatusBarRef?.isAcpConfigLoading || undefined"
+                  :aria-label="`${t('chat.mode.agent')}: ${selectedAgent.name}`"
+                  :title="selectedAgent.name"
+                  class="h-7 min-w-14 shrink gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <AgentAvatar :agent="selectedAgent" class-name="size-3.5 shrink-0" />
+                  <span class="max-w-[min(12rem,30vw)] truncate">{{ selectedAgent.name }}</span>
+                  <Spinner
+                    v-if="chatStatusBarRef?.isAcpConfigLoading"
+                    data-testid="new-thread-agent-loading"
+                    :aria-label="t('common.loading')"
+                    class="size-3 shrink-0"
+                  />
+                  <Icon v-else icon="lucide:chevron-down" class="size-3 shrink-0" />
+                </DcButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" class="w-60">
+                <DropdownMenuItem
+                  v-for="agent in agentStore.enabledAgents"
+                  :key="agent.id"
+                  data-testid="new-thread-agent-option"
+                  :data-agent-id="agent.id"
+                  role="menuitemradio"
+                  :aria-checked="selectedAgent.id === agent.id"
+                  class="gap-2"
+                  @select="selectDraftAgent(agent.id)"
+                >
+                  <AgentAvatar :agent="agent" class-name="size-4 shrink-0" />
+                  <span class="min-w-0 flex-1 truncate">{{ agent.name }}</span>
+                  <Icon v-if="selectedAgent.id === agent.id" icon="lucide:check" class="size-4" />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           <p
             v-if="isAcpWorkdirMissing || isAcpWorkdirInvalid"
             data-testid="new-thread-acp-workdir-status"
@@ -319,8 +316,7 @@ import AgentAvatar from '@/components/icons/AgentAvatar.vue'
 import AcpAuthDialog from '@/components/acp/AcpAuthDialog.vue'
 import {
   openChatStatusBarModelPicker,
-  switchAttachmentToVisionModel,
-  type ChatStatusBarModelPicker
+  switchAttachmentToVisionModel
 } from '@/components/chat/attachmentModelPicker'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useProjectStore } from '@/stores/ui/project'
@@ -446,7 +442,7 @@ const {
   captureDraft,
   acceptSubmission
 } = useNewThreadComposerDraft(() => agentStore.selectedAgentId, chatInputRef)
-const chatStatusBarRef = ref<ChatStatusBarModelPicker | null>(null)
+const chatStatusBarRef = ref<InstanceType<typeof ChatStatusBar> | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
 const localDraftSessionId = ref<string | null>(null)
 const isPreparingWorkspace = ref(false)
