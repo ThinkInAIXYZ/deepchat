@@ -1,5 +1,9 @@
 import logger from '@shared/logger'
-import type { MCPServerConfig, McpEnterpriseIdentityProfile } from '@shared/types/mcp'
+import type {
+  MCPServerConfig,
+  McpCredentialBinding,
+  McpEnterpriseIdentityProfile
+} from '@shared/types/mcp'
 import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
 import ElectronStore from 'electron-store'
 // app is used in DEFAULT_INMEMORY_SERVERS but removed buildInFileSystem
@@ -1125,6 +1129,33 @@ export class McpSettings {
       ...normalizeMcpServerIdentity(legacyConfig, current)
     }
     await this.setMcpServers(mcpServers)
+  }
+
+  finalizeOAuthBinding(
+    expected: McpCredentialBinding,
+    authorization: NonNullable<MCPServerConfig['authorization']>
+  ): MCPServerConfig {
+    const servers = this.mcpStore.get<Record<string, MCPServerConfig>>('mcpServers') ?? {}
+    const match = Object.entries(servers).find(
+      ([, config]) => config.serverId === expected.serverId
+    )
+    if (!match) throw new Error('MCP server was removed during OAuth discovery')
+    const [name, current] = match
+    if (
+      current.configGeneration !== expected.configGeneration ||
+      current.bindingHash !== expected.bindingHash ||
+      current.baseUrl !== expected.endpoint
+    )
+      throw new Error('MCP server binding changed during OAuth discovery')
+    const merged = { ...current, authorization: sanitizeMcpAuthorizationConfig(authorization) }
+    const next = { ...merged, ...normalizeMcpServerIdentity(merged, current) }
+    if (
+      next.bindingHash === current.bindingHash &&
+      next.configGeneration === current.configGeneration
+    )
+      return current
+    this.mcpStore.set('mcpServers', { ...servers, [name]: next })
+    return next
   }
 
   /**

@@ -377,6 +377,7 @@ export class ServerManager {
         serverConfig,
         connectResult,
         connectionCompletion,
+        epoch,
         options
       )
       if (connectResult === 'connected') {
@@ -399,7 +400,10 @@ export class ServerManager {
       // user restarts or stops it. A later start replaces this client through the normal path.
       this.setServerLastError(name, error)
       const authHandled =
-        this.mcpOAuthManager?.handleConnectionError(name, serverConfig, error) ?? false
+        (await this.mcpOAuthManager
+          ?.handleConnectionError(name, serverConfig, error)
+          .catch(() => false)) ?? false
+      if (this.isStaleStart(name, epoch)) return 'stopped'
 
       if (!authHandled && !this.isPluginOwnedServerConfig(serverConfig)) {
         this.notifyConnectionFailure(name)
@@ -417,6 +421,7 @@ export class ServerManager {
     serverConfig: MCPServerConfig,
     connectResult: McpConnectResult,
     connectionCompletion: Promise<void> | null,
+    epoch: number,
     options: { onBackgroundConnected?: () => void } = {}
   ): void {
     if (connectResult !== 'soft-timeout-released') {
@@ -435,7 +440,7 @@ export class ServerManager {
         options.onBackgroundConnected?.()
         this.onRegistryChanged()
       })
-      .catch((error) => {
+      .catch(async (error) => {
         if (error instanceof McpConnectionCancelledError) {
           return
         }
@@ -446,7 +451,10 @@ export class ServerManager {
 
         this.setServerLastError(name, error)
         const authHandled =
-          this.mcpOAuthManager?.handleConnectionError(name, serverConfig, error) ?? false
+          (await this.mcpOAuthManager
+            ?.handleConnectionError(name, serverConfig, error)
+            .catch(() => false)) ?? false
+        if (this.isStaleStart(name, epoch) || this.clients.get(name) !== client) return
 
         if (!authHandled && !this.isPluginOwnedServerConfig(serverConfig)) {
           this.notifyConnectionFailure(name)

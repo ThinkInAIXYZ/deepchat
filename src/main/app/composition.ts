@@ -92,6 +92,8 @@ import { OcrRuntimeService } from '@/ocr/ocrRuntimeService'
 import { OcrSettings } from '@/ocr/ocrSettings'
 import { createOcrRoutes } from '@/ocr/routes'
 import { McpService } from '../mcp'
+import { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
+import { secureCredentialCrypto } from './credentialCrypto'
 import { ImportMode, SyncService, type SyncImportDatabasePort } from '../sync'
 import { SyncSettings } from '../sync/settings'
 import { DeeplinkService } from '../deeplink'
@@ -1651,6 +1653,13 @@ export async function createMainProcessControl(dependencies: {
     () => deepChatAgentHarness.refreshToolRegistry(),
     semanticNotifications,
     publishDeepchatEvent,
+    {
+      store: new McpOAuthCredentialStore({
+        filePath: path.join(app.getPath('userData'), 'mcp-oauth', 'credentials.json'),
+        crypto: secureCredentialCrypto
+      }),
+      openExternal: (url) => shell.openExternal(url)
+    },
     (data, options) => deviceService.cacheImage(data, options),
     pluginRuntimeSupervisor,
     computerUsePreviewPresenter,

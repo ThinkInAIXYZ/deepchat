@@ -42,6 +42,7 @@ vi.mock('@/mcp/mcpClient', () => ({
   McpConnectionCancelledError: clientMocks.McpConnectionCancelledError
 }))
 
+import type { McpOAuthManager } from '@/mcp/mcpOAuthManager'
 import { ServerManager } from '@/mcp/serverManager'
 import { McpClient, McpConnectionCancelledError } from '@/mcp/mcpClient'
 
@@ -74,15 +75,19 @@ describe('ServerManager notifications and plugin isolation', () => {
     }
   }
 
-  function createManager(providerSettings: ReturnType<typeof createProviderSettings>) {
+  function createManager(
+    providerSettings: ReturnType<typeof createProviderSettings>,
+    oauth?: McpOAuthManager
+  ) {
     return new ServerManager(
       providerSettings as never,
-      { isEnabled: () => false },
+      { isEnabled: () => false, setEnabled: async () => undefined },
       vi.fn() as never,
       {} as never,
       vi.fn(),
       semanticNotificationsMock,
-      publishDeepchatEventMock
+      publishDeepchatEventMock,
+      oauth
     )
   }
 
@@ -519,4 +524,62 @@ describe('ServerManager notifications and plugin isolation', () => {
     expect(vi.mocked(McpClient).mock.calls[0][1]).toMatchObject({ command: 'plugin-command' })
     expect(vi.mocked(McpClient).mock.calls[1][1]).toMatchObject({ command: 'regular-command' })
   })
+
+  it.each(['startup', 'background'] as const)(
+    'awaits OAuth classification for %s connection failures',
+    async (phase) => {
+      const providerSettings = createProviderSettings({
+        regular: {
+          type: 'http',
+          baseUrl: 'https://mcp.example/mcp',
+          command: '',
+          args: [],
+          env: {}
+        }
+      })
+      let classify!: (handled: boolean) => void
+      let entered!: () => void
+      const classifying = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      const handleConnectionError = vi.fn(() => {
+        entered()
+        return new Promise<boolean>((resolve) => {
+          classify = resolve
+        })
+      })
+      const manager = createManager(providerSettings, {
+        handleConnectionError
+      } as unknown as McpOAuthManager)
+      const error = new Error('connect failed')
+      let rejectBackground!: (error: Error) => void
+      if (phase === 'background') {
+        clientMocks.getConnectionCompletion.mockReturnValue(
+          new Promise<void>((_resolve, reject) => {
+            rejectBackground = reject
+          })
+        )
+        clientMocks.connect.mockResolvedValueOnce('soft-timeout-released')
+      } else clientMocks.connect.mockRejectedValueOnce(error)
+      const started = manager.startServer('regular')
+      const result =
+        phase === 'startup'
+          ? expect(started).rejects.toBe(error)
+          : expect(started).resolves.toBe('soft-timeout-released')
+      if (phase === 'background') {
+        await result
+        rejectBackground(error)
+      }
+      await classifying
+      expect(semanticNotificationsMock.occur).not.toHaveBeenCalled()
+      classify(false)
+      await result
+      await vi.waitFor(() =>
+        expect(semanticNotificationsMock.occur).toHaveBeenCalledWith({
+          code: 'mcp.connectionFailed',
+          serverName: 'regular'
+        })
+      )
+    }
+  )
 })

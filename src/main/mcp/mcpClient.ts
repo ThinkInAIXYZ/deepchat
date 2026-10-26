@@ -737,9 +737,11 @@ export class McpClient {
       // 创建 MCP 客户端
       this.probe = { outcome: 'not-run' }
       const authorizationExtensions =
-        this.mcpOAuthManager?.getUsableAuthorizationExtensions(
+        (await this.mcpOAuthManager?.getUsableAuthorizationExtensions(
           this.serverConfig as Partial<MCPServerConfig>
-        ) ?? []
+        )) ?? []
+      if (this.connectAborted || attempt !== this.startupAttempt)
+        throw new McpConnectionCancelledError(this.serverName)
       this.client = new Client(
         { name: 'DeepChat', version: app.getVersion() },
         {
@@ -1935,7 +1937,7 @@ export class McpClient {
     )
   }
 
-  getDiagnostics(auth: McpServerAuthStatus): McpServerDiagnostics {
+  async getDiagnostics(auth: McpServerAuthStatus): Promise<McpServerDiagnostics> {
     const client = this.client
     const capabilities = client?.getServerCapabilities()
     const serverVersion = client?.getServerVersion()
@@ -1943,9 +1945,9 @@ export class McpClient {
     let authorizationExtensions: string[] = []
     try {
       authorizationExtensions =
-        this.mcpOAuthManager?.getUsableAuthorizationExtensions(
+        (await this.mcpOAuthManager?.getUsableAuthorizationExtensions(
           this.serverConfig as Partial<MCPServerConfig>
-        ) ?? []
+        )) ?? []
     } catch {
       authorizationExtensions = []
     }

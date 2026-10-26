@@ -1,3 +1,4 @@
+import type { McpOAuthCredentialStore } from './oauthCredentialStore'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import { performance } from 'node:perf_hooks'
@@ -170,6 +171,7 @@ export class McpService implements McpServicePort {
     onRegistryChanged: () => void,
     semanticNotifications: SemanticNotificationPublisher,
     private readonly publishEvent: DeepchatEventPublisher,
+    oauth: { store: McpOAuthCredentialStore; openExternal(url: string): Promise<void> },
     cacheImage?: (data: string, options?: CacheImageOptions) => Promise<string>,
     pluginRuntimeSupervisor?: PluginRuntimeSupervisor,
     computerUsePreviewObserver?: ComputerUsePreviewObserver,
@@ -209,9 +211,18 @@ export class McpService implements McpServicePort {
     this.pluginRuntimeSupervisor = pluginRuntimeSupervisor ?? new PluginRuntimeSupervisor()
     this.mcpAppSandboxRegistry = mcpApps?.registry
     this.mcpOAuthManager = new McpOAuthManager(
-      undefined,
+      oauth.store,
+      oauth.openExternal,
       this.publishEvent,
-      (serverName) => this.restartServerAfterAuthentication(serverName),
+      async (serverId, action, assertCurrent) => {
+        const { name } = await this.requireServerById(serverId)
+        assertCurrent()
+        if (action === 'restart') await this.restartServerAfterAuthentication(name, assertCurrent)
+        else if (this.pluginRuntimeSupervisor.ownsServer(name))
+          await this.pluginRuntimeSupervisor.requestExternalStop(name, assertCurrent)
+        else if (this.serverManager.isServerActive(name)) await this.stopServer(name)
+        assertCurrent()
+      },
       this.mcpSettings,
       (serverId) => {
         this.revokeMcpAppsByServer(serverId)
@@ -424,6 +435,7 @@ export class McpService implements McpServicePort {
       return this.shutdownPromise
     }
 
+    this.mcpOAuthManager.stop()
     this.shutdownPromise = this.shutdownRunningClients()
     try {
       await this.shutdownPromise
@@ -539,12 +551,21 @@ export class McpService implements McpServicePort {
     }
   }
 
-  private async restartServerAfterAuthentication(serverName: string): Promise<void> {
+  private async restartServerAfterAuthentication(
+    serverName: string,
+    assertCurrent: () => void
+  ): Promise<void> {
     try {
-      if (await this.pluginRuntimeSupervisor.restartIfRunning(serverName, 'authentication')) {
-        return
-      }
+      assertCurrent()
+      const restarted = await this.pluginRuntimeSupervisor.restartIfRunning(
+        serverName,
+        'authentication',
+        assertCurrent
+      )
+      assertCurrent()
+      if (restarted) return
       const servers = await this.mcpSettings.getMcpServers()
+      assertCurrent()
       const serverConfig = servers[serverName]
       if (this.isPluginOwnedServerConfig(serverConfig)) {
         console.warn(
@@ -552,13 +573,21 @@ export class McpService implements McpServicePort {
         )
         return
       }
-      if (!serverConfig?.enabled) {
-        return
-      }
+      if (this.serverManager.isServerActive(serverName)) await this.stopServer(serverName)
+      assertCurrent()
+      if (!serverConfig?.enabled) return
 
       const connectResult = await this.serverManager.startServer(serverName, {
-        onBackgroundConnected: () => this.emitServerStarted(serverName)
+        onBackgroundConnected: () => {
+          try {
+            assertCurrent()
+          } catch {
+            return
+          }
+          this.emitServerStarted(serverName)
+        }
       })
+      assertCurrent()
       if (connectResult === 'connected') {
         this.emitServerStarted(serverName)
       }
@@ -685,7 +714,7 @@ export class McpService implements McpServicePort {
       updatedServerCount > 0 ? servers : undefined
     )
     for (const serverId of invalidatedServerIds) {
-      this.mcpOAuthManager.clearServerCredentials(serverId)
+      await this.mcpOAuthManager.clearServerCredentials(serverId)
     }
     logger.info(`Synchronized Authorization for ${updatedServerCount} mcprouter servers`)
   }
@@ -869,7 +898,7 @@ export class McpService implements McpServicePort {
       previousConfig?.serverId &&
       updatedConfig?.configGeneration !== previousConfig.configGeneration
     ) {
-      this.mcpOAuthManager.clearServerCredentials(previousConfig.serverId)
+      await this.mcpOAuthManager.clearServerCredentials(previousConfig.serverId)
     }
 
     // If server was previously running, restart it to apply new configuration
@@ -907,7 +936,7 @@ export class McpService implements McpServicePort {
     const servers = await this.mcpSettings.getMcpServers()
     const persistedServerId = servers[serverName]?.serverId
     if (persistedServerId) {
-      this.mcpOAuthManager.clearServerCredentials(persistedServerId)
+      await this.mcpOAuthManager.clearServerCredentials(persistedServerId)
     }
     await this.mcpSettings.removeMcpServer(serverName)
   }
@@ -1036,7 +1065,7 @@ export class McpService implements McpServicePort {
     binding: McpCredentialBinding,
     credential: McpCredentialInput
   ): Promise<McpCredentialStatus> {
-    const { name, config } = await this.requireCurrentCredentialBinding(binding)
+    const { config } = await this.requireCurrentCredentialBinding(binding)
     const expectedKind: McpCredentialKind =
       config.authorization?.mode === 'private_key_jwt'
         ? 'private_key'
@@ -1052,8 +1081,7 @@ export class McpService implements McpServicePort {
     ) {
       throw new Error('MCP private key algorithm does not match the server configuration')
     }
-    const status = this.mcpOAuthManager.setCredential(binding, credential)
-    await this.restartServerAfterAuthentication(name)
+    const status = await this.mcpOAuthManager.setCredential(binding, credential)
     return status
   }
 
@@ -1061,12 +1089,8 @@ export class McpService implements McpServicePort {
     binding: McpCredentialBinding,
     kind: McpCredentialKind
   ): Promise<McpCredentialStatus> {
-    const { name } = await this.requireCurrentCredentialBinding(binding)
-    const status = this.mcpOAuthManager.removeCredential(binding, kind)
-    if (this.serverManager.isServerRunning(name)) {
-      await this.stopServer(name)
-    }
-    return status
+    await this.requireCurrentCredentialBinding(binding)
+    return this.mcpOAuthManager.removeCredential(binding, kind)
   }
 
   listMcpEnterpriseProfiles(): Promise<McpEnterpriseIdentityProfile[]> {
@@ -1076,7 +1100,7 @@ export class McpService implements McpServicePort {
   saveMcpEnterpriseProfile(
     profile: McpEnterpriseIdentityProfile
   ): Promise<McpEnterpriseIdentityProfile> {
-    return Promise.resolve(this.mcpOAuthManager.saveEnterpriseProfile(profile))
+    return this.mcpOAuthManager.saveEnterpriseProfile(profile)
   }
 
   async removeMcpEnterpriseProfile(profileId: string): Promise<void> {
@@ -1086,13 +1110,13 @@ export class McpService implements McpServicePort {
         continue
       }
       if (config.serverId) {
-        this.mcpOAuthManager.clearServerCredentials(config.serverId)
+        await this.mcpOAuthManager.clearServerCredentials(config.serverId)
       }
       await this.updateMcpServer(serverName, {
         authorization: { mode: 'interactive' }
       })
     }
-    this.mcpOAuthManager.removeEnterpriseProfile(profileId)
+    await this.mcpOAuthManager.removeEnterpriseProfile(profileId)
   }
 
   setMcpEnterpriseProfileClientSecret(
@@ -1118,7 +1142,7 @@ export class McpService implements McpServicePort {
   }
 
   logoutMcpEnterpriseProfile(profileId: string): Promise<McpEnterpriseIdentityStatus> {
-    return Promise.resolve(this.mcpOAuthManager.logoutEnterpriseProfile(profileId))
+    return this.mcpOAuthManager.logoutEnterpriseProfile(profileId)
   }
 
   private async requireServerById(
@@ -1152,19 +1176,19 @@ export class McpService implements McpServicePort {
 
   async getServerDiagnostics(serverId: string): Promise<McpServerDiagnostics> {
     const { name: serverName, config } = await this.requireServerById(serverId)
-    const auth = this.mcpOAuthManager.getStatus(serverName, config)
+    const auth = await this.mcpOAuthManager.getStatus(serverName, config)
     const client = this.serverManager.getClient(serverName)
     const lastError = this.serverManager.getServerLastError(serverName)?.slice(0, 2048)
     if (client) {
       return {
-        ...client.getDiagnostics(auth),
+        ...(await client.getDiagnostics(auth)),
         ...(lastError ? { lastError } : {})
       }
     }
 
     let authorizationExtensions: string[] = []
     try {
-      authorizationExtensions = this.mcpOAuthManager.getUsableAuthorizationExtensions(config)
+      authorizationExtensions = await this.mcpOAuthManager.getUsableAuthorizationExtensions(config)
     } catch {
       authorizationExtensions = []
     }

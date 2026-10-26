@@ -946,6 +946,64 @@ lifecycle and Scheduler scenarios pass together in 20.4 seconds (9.7/10.4 second
 synthetic MCP server is contacted by the cloud-browser fixture. Build, app/scoped fixture/E2E
 types and required quality checks pass; no resource recapture or speed claim is introduced.
 
+### MCP OAuth native credential and browser boundary
+
+The default MCP credential store, interactive SDK provider/manager and enterprise identity owner
+receive explicit private paths, asynchronous secure crypto and browser-open capabilities from Main.
+Their native imports and default Store construction are removed. The actual service, client,
+connection-error and diagnostics consumers await these contracts. Replaced synchronous wiring is
+removed; the Store remains the same private file owner until G5.
+
+One bounded mutation queue serializes acknowledged writes and atomic interactive binding-key moves.
+RAM publication follows persistence; native encryption and atomic-rename failures retain both old
+RAM and disk, and encrypted temporary files are cleaned. Initial decrypt is single-flight. Twenty-four
+normal writes leave eight reserved control slots; stop bypasses the queue and rejects pending native
+results. Existing v1/v2 formats, size/record limits, Linux basic-text refusal, memory-only fallback
+and settings-window credential permissions remain compatible. No extra plaintext cache is added.
+
+Public discovery metadata supplies the synchronous loopback issuer validator. Discovered identity
+is finalized through one settings-owner compare-and-set against server ID, generation, binding hash
+and endpoint. Profile mutation rereads current metadata after credential cleanup, preserves other
+profiles and rejects replacement of the same profile. Server/profile leases fence delayed SDK,
+refresh, browser, status and runtime effects after logout, configuration changes or shutdown. Plugin-owned stops use the existing supervisor;
+its auth-scoped leases survive probe waits, integrity/recovery checks, adapter/native starts and
+symmetric stops, with cleanup after canceled startup. Connection failures await OAuth classification and suppress late notifications after a stopped
+startup. Legacy issuer and registered-callback behavior remain active.
+
+The disposable-profile compatibility characterization precedes the cutover as an implementation-first
+exception. Matching real-app read-only MCP snapshots pass before/after in 6.8/8.7 seconds. Private
+machine-credential save, legacy native ciphertext read without file rewrite, settings-window
+isolation, graceful relaunch and durable removal pass in 9.4/10.3 seconds. The cloud-browser private
+HTTP credential lifecycle passes in 10.7/14.8 seconds around the supervisor change. The final three
+scenarios pass together in 34.2 seconds. Only a local synthetic MCP server is contacted; no external
+account is used. These are functional comparisons without timing gates or speed claims.
+
+Local acceptance passes 657 checks across 33 affected MCP, plugin, native-adapter, composition,
+route and CLI files. Durable protection covers serialized partial updates, single-flight decrypt,
+encryption/rename rollback, atomic key moves, queue reserves, stopped crypto/browser results,
+stale runtime stops, pending identity reads, profile-edit conflicts, settings CAS and Linux secure
+backend policy. Five supervisor regressions cover canceled launch verification, adapter/native
+startup, authentication restart and a stop waiting for another start. Existing SDK issuer,
+registered-callback, enterprise refresh/subject and plugin lifecycle checks remain active. App and
+scoped test/E2E types, normal and final runtime builds, format/check, lint and i18n pass. Normal
+Provider and ACP registry refreshes are retained.
+
+A broader supplemental E2E selection runs 16 cases: 13 pass, two skip and the unmodified Provider
+headers fixture times out waiting for `disabled-providers-toggle`, a selector absent from the
+current renderer. Its failure and artifacts remain recorded in `plugin-baseline-e2e.log`; it is not
+reported as a passing OAuth acceptance check. Final OAuth/plugin validation uses the three explicit
+files above, without retrying that unrelated fixture.
+
+Evidence is under `.deepchat/rutis-g4-mcp-oauth-acceptance/`. No process, IPC, workload-volume or
+storage-path change calls for a full resource capture or speed claim. G5 must frame legal large
+native envelopes through bounded transfers without truncation. Native credential compatibility is
+verified on macOS arm64; real Windows/Linux vaults and external identity-provider/browser flows
+remain unverified locally. Remaining Store, configuration and desktop ports keep G4 open.
+
+The preceding integrated checkpoint `6a43b8f70` passes required run `40290640902`, including
+`pr-required` job `121467164668`, and package run `40290641026` with all six platforms and
+`package-required` job `121472173105`. Both workflows finish before this slice's push.
+
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
 - [ ] Replace cross-boundary closures/row APIs with bounded transactional business commands for

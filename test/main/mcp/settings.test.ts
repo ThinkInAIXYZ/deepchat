@@ -132,6 +132,8 @@ describe('McpSettings', () => {
         args: [],
         env: {},
         type: 'http' as const,
+        descriptions: '',
+        icons: '',
         enabled: true,
         customHeaders: {
           Authorization: 'Bearer router-key'
@@ -435,4 +437,92 @@ describe('McpSettings', () => {
       })
     )
   })
+
+  it('finalizes OAuth against the current binding while retaining unrelated settings', async () => {
+    const { McpSettings } = await loadHelper('darwin')
+    const helper = new McpSettings()
+    await helper.addMcpServer('oauth', {
+      type: 'http',
+      baseUrl: 'https://mcp.example/mcp',
+      command: '',
+      args: [],
+      env: {},
+      descriptions: '',
+      icons: '',
+      enabled: false
+    })
+    const initial = (await helper.getMcpServers()).oauth
+    const expected = {
+      serverId: initial.serverId!,
+      configGeneration: initial.configGeneration!,
+      bindingHash: initial.bindingHash!,
+      endpoint: initial.baseUrl!
+    }
+    await helper.updateMcpServer('oauth', { descriptions: 'Current description' })
+    const authorization = {
+      mode: 'interactive' as const,
+      authorizationServerIssuer: 'https://auth.example/',
+      protectedResourceUrl: expected.endpoint,
+      clientId: 'client'
+    }
+    const finalized = helper.finalizeOAuthBinding(expected, authorization)
+    expect(finalized).toMatchObject({
+      descriptions: 'Current description',
+      authorization,
+      configGeneration: expected.configGeneration + 1
+    })
+    expect((await helper.getMcpServers()).oauth).toEqual(finalized)
+    const set = vi.spyOn((helper as any).mcpStore, 'set')
+    expect(
+      helper.finalizeOAuthBinding(
+        {
+          ...expected,
+          configGeneration: finalized.configGeneration!,
+          bindingHash: finalized.bindingHash!
+        },
+        authorization
+      )
+    ).toEqual(finalized)
+    expect(set).not.toHaveBeenCalled()
+  })
+
+  it.each(['replace', 'remove', 'write failure'] as const)(
+    'preserves owner state when OAuth finalization encounters %s',
+    async (change) => {
+      const { McpSettings } = await loadHelper('darwin')
+      const helper = new McpSettings()
+      await helper.addMcpServer('oauth', {
+        type: 'http',
+        baseUrl: 'https://mcp.example/mcp',
+        command: '',
+        args: [],
+        env: {},
+        descriptions: '',
+        icons: '',
+        enabled: false
+      })
+      const initial = (await helper.getMcpServers()).oauth
+      const expected = {
+        serverId: initial.serverId!,
+        configGeneration: initial.configGeneration!,
+        bindingHash: initial.bindingHash!,
+        endpoint: initial.baseUrl!
+      }
+      if (change === 'replace')
+        await helper.updateMcpServer('oauth', { baseUrl: 'https://replacement.example/mcp' })
+      if (change === 'remove') await helper.removeMcpServer('oauth')
+      const store = (helper as any).mcpStore
+      const before = clone(store.get('mcpServers'))
+      if (change === 'write failure')
+        vi.spyOn(store, 'set').mockImplementationOnce(() => {
+          throw new Error('write failure')
+        })
+      expect(() =>
+        helper.finalizeOAuthBinding(expected, { mode: 'interactive', clientId: 'discovered' })
+      ).toThrow(
+        change === 'replace' ? 'binding changed' : change === 'remove' ? 'removed' : 'write failure'
+      )
+      expect(store.get('mcpServers')).toEqual(before)
+    }
+  )
 })

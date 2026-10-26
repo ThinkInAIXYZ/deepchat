@@ -1,3 +1,4 @@
+import type { McpToolDefinitionsSnapshot, MCPServerConfig } from '@shared/types/mcp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const serverManagerMocks = vi.hoisted(() => ({
@@ -19,7 +20,9 @@ const serverManagerMocks = vi.hoisted(() => ({
 
 const toolManagerMocks = vi.hoisted(() => ({
   getAllToolDefinitions: vi.fn().mockResolvedValue([]),
-  snapshotCachedToolDefinitions: vi.fn(() => ({ state: 'uninitialized' as const })),
+  snapshotCachedToolDefinitions: vi.fn(
+    (): McpToolDefinitionsSnapshot => ({ state: 'uninitialized' })
+  ),
   getRunningClients: vi.fn().mockResolvedValue([]),
   invalidateRegistry: vi.fn(),
   callTool: vi.fn()
@@ -81,6 +84,7 @@ vi.mock('@/agent/shared/process/childProcessRegistry', () => ({
 }))
 
 import { McpService } from '../../../src/main/mcp'
+import { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
 import { ToolManager } from '../../../src/main/mcp/toolManager'
 import type { CacheImageOptions } from '../../../src/main/platform/imageCache'
 
@@ -110,12 +114,30 @@ const createMcpService = (
     providerSettings,
     { getCustomPrompts: vi.fn().mockResolvedValue([]) },
     providerSettings,
-    { isEnabled: () => providerSettings.privacyModeEnabled === true },
+    {
+      isEnabled: () => providerSettings.privacyModeEnabled === true,
+      setEnabled: async () => undefined
+    },
     vi.fn() as never,
     {} as never,
     onRegistryChanged,
     semanticNotificationsMock,
     publishDeepchatEventMock,
+    {
+      store: new McpOAuthCredentialStore({
+        filePath: '/tmp/deepchat-mcp-service/credentials.json',
+        crypto: {
+          isAvailable: async () => false,
+          encrypt: async () => {
+            throw new Error('Unexpected encryption')
+          },
+          decrypt: async () => {
+            throw new Error('Unexpected decryption')
+          }
+        }
+      }),
+      openExternal: vi.fn(async () => undefined)
+    },
     cacheImage,
     undefined,
     undefined,
@@ -439,12 +461,28 @@ describe('McpService', () => {
 
   it('returns a typed duplicate result without mutating settings', async () => {
     const providerSettings = createProviderSettings(true, false, {
-      existing: { type: 'stdio', command: 'node' }
+      existing: {
+        type: 'stdio',
+        command: 'node',
+        args: [],
+        env: {},
+        descriptions: '',
+        icons: '',
+        enabled: false
+      }
     })
     const presenter = createMcpService(providerSettings)
 
     await expect(
-      presenter.addMcpServer('existing', { type: 'stdio', command: 'node' })
+      presenter.addMcpServer('existing', {
+        type: 'stdio',
+        command: 'node',
+        args: [],
+        env: {},
+        descriptions: '',
+        icons: '',
+        enabled: false
+      })
     ).resolves.toEqual({ status: 'duplicate' })
 
     expect(providerSettings.addMcpServer).not.toHaveBeenCalled()
@@ -454,7 +492,15 @@ describe('McpService', () => {
   it('persists a new server and returns an added result', async () => {
     const providerSettings = createProviderSettings(true)
     const presenter = createMcpService(providerSettings)
-    const config = { type: 'stdio', command: 'node' } as const
+    const config: MCPServerConfig = {
+      type: 'stdio',
+      command: 'node',
+      args: [],
+      env: {},
+      descriptions: '',
+      icons: '',
+      enabled: false
+    }
 
     await expect(presenter.addMcpServer('new-server', config)).resolves.toEqual({
       status: 'added'
@@ -471,7 +517,15 @@ describe('McpService', () => {
       servers[name] = config
     })
     const presenter = createMcpService(providerSettings)
-    const config = { type: 'stdio', command: 'node' } as const
+    const config: MCPServerConfig = {
+      type: 'stdio',
+      command: 'node',
+      args: [],
+      env: {},
+      descriptions: '',
+      icons: '',
+      enabled: false
+    }
 
     await expect(
       Promise.all([

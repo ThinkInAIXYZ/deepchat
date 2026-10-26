@@ -714,6 +714,27 @@ across maintenance and shutdown, with authoritative checks immediately before se
 or persistence. Await every Sync, MCP, plugin and export consumer; preserve destination binding,
 serialized mutations, rollback and cancelled connection-attempt identity.
 
+MCP OAuth receives its private credential path, secure async crypto and browser-open capability
+from Main. Interactive and enterprise identity flows share one credential owner. Preserve v1/v2
+envelopes, bounded records/payloads, Linux basic-text refusal and memory-only behavior. Serialize
+acknowledged writes and binding-key moves; publish the existing decrypted record cache only after
+persistence succeeds. Initial decrypt is single-flight, and reads do not rewrite v2 envelopes.
+Reserve eight of 32 pending mutations for control commands; ordinary writes use at most 24.
+Stop bypasses the queue and fences pending native results. G5 must frame legal large envelopes
+within bounded transfers rather than raising the gateway limit or truncating payloads.
+
+Keep loopback callback validation synchronous: expose only the issuer and issuer-parameter policy
+from acknowledged public discovery metadata. Never use an asynchronous credential read as a void
+callback validator. Finalizing discovered server identity is an owner-local compare-and-set command
+against server ID, generation, binding hash and endpoint; preserve concurrent unrelated settings.
+Profile updates re-read current metadata after credential cleanup and reject replacement of the same
+profile. Runtime stop/restart effects carry the originating server/profile lease through awaits;
+logout, replacement and shutdown invalidate old SDK providers and delayed callbacks. Preserve
+settings-window credential permissions, registered callback compatibility and exact issuer checks.
+Plugin-owned connection changes use their existing supervisor. Carry the originating auth lease
+through its probe, integrity/recovery and native launch waits; finish owned cleanup after canceled
+startup, and never bypass that owner through generic MCP stop routes.
+
 Sync host connector tokens and peer pairing tokens use asynchronous string-only crypto ports
 through the same adapter. Their opaque values stay in existing private machine-local files and
 remain compatible with legacy ciphertext. Keep Linux basic-text refusal and preflight protection

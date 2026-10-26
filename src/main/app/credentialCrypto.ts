@@ -7,3 +7,16 @@ export const credentialCrypto: CredentialCryptoPort = {
   decrypt: async (wrapped) =>
     (await safeStorage.decryptStringAsync(Buffer.from(wrapped, 'base64'))).result
 }
+
+export const secureCredentialCrypto: CredentialCryptoPort = {
+  ...credentialCrypto,
+  isAvailable: async () => {
+    if (!(await credentialCrypto.isAvailable())) return false
+    if (process.platform !== 'linux') return true
+    try {
+      return safeStorage.getSelectedStorageBackend() !== 'basic_text'
+    } catch {
+      return false
+    }
+  }
+}
