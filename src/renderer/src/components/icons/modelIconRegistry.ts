@@ -53,6 +53,7 @@ import atlascloudIcon from '@/assets/llm-icons/atlascloud.svg?url'
 import requestyColorIcon from '@/assets/llm-icons/requesty.png?url'
 import litellmColorIcon from '@/assets/llm-icons/litellm.svg?url'
 import opperColorIcon from '@/assets/llm-icons/opper.svg?url'
+import aistupidlevelIcon from '@/assets/llm-icons/aistupidlevel.svg?url'
 import demonrouteColorIcon from '@/assets/llm-icons/demonroute.svg?url'
 import orcarouterColorIcon from '@/assets/llm-icons/orcarouter.svg?url'
 import synthoraiColorIcon from '@/assets/llm-icons/synthorai.svg?url'
@@ -96,7 +97,9 @@ import apimartIcon from '@/assets/llm-icons/apimart.ico?url'
 import apiRouteIcon from '@/assets/llm-icons/api-route.svg?url'
 import cheaperInferenceIcon from '@/assets/llm-icons/cheaper-inference.svg?url'
 import futureinfraIcon from '@/assets/llm-icons/futureinfra.svg?url'
+import atmorouterIcon from '@/assets/llm-icons/atmorouter.svg?url'
 import yapiIcon from '@/assets/llm-icons/yapi.svg?url'
+import apimodelsIcon from '@/assets/llm-icons/apimodels.png?url'
 import anonrouterIcon from '@/assets/llm-icons/anonrouter.svg?url'
 import typesafeIcon from '@/assets/llm-icons/typesafe.png?url'
 import cloudflareColorIcon from '@/assets/llm-icons/cloudflare-color.svg?url'
@@ -150,7 +153,9 @@ export const modelIcons = {
   mistral: mistralColorIcon,
   fireworks: fireworksColorIcon,
   futureinfra: futureinfraIcon,
+  atmorouter: atmorouterIcon,
   yapi: yapiIcon,
+  apimodels: apimodelsIcon,
   zeabur: zeaburColorIcon,
   zeroone: zerooneColorIcon,
   zhipu: zhipuColorIcon,
@@ -194,6 +199,7 @@ export const modelIcons = {
   requesty: requestyColorIcon,
   litellm: litellmColorIcon,
   opper: opperColorIcon,
+  aistupidlevel: aistupidlevelIcon,
   demonroute: demonrouteColorIcon,
   orcarouter: orcarouterColorIcon,
   synthorai: synthoraiColorIcon,
@@ -275,6 +281,7 @@ const monoIconUrls = new Set<string>([
   openrouterColorIcon,
   atlascloudIcon,
   opperColorIcon,
+  aistupidlevelIcon,
   demonrouteColorIcon,
   githubColorIcon,
   qiniuIcon,

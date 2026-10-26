@@ -165,6 +165,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'atmorouter',
+    name: 'AtmoRouter',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://atmorouter.dev/v1',
+    enable: false,
+    websites: {
+      official: 'https://atmorouter.dev',
+      apiKey: 'https://atmorouter.dev/dashboard/keys',
+      docs: 'https://atmorouter.dev/docs',
+      models: 'https://atmorouter.dev/models'
+    }
+  },
+  {
     id: 'yapi',
     name: 'Y-API',
     apiType: 'openai-completions',
@@ -176,6 +190,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
       apiKey: 'https://y-api.bestvirtualgoods.com/app/keys',
       docs: 'https://y-api.bestvirtualgoods.com/docs',
       models: 'https://y-api.bestvirtualgoods.com/models'
+    }
+  },
+  {
+    id: 'apimodels',
+    name: 'apimodels.app',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.apimodels.app/v1',
+    enable: false,
+    websites: {
+      official: 'https://apimodels.app/',
+      apiKey: 'https://apimodels.app/console/api-keys',
+      docs: 'https://apimodels.app/docs',
+      models: 'https://apimodels.app/models'
     }
   },
   {
@@ -620,6 +648,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
       apiKey: 'https://platform.opper.ai',
       docs: 'https://docs.opper.ai',
       models: 'https://opper.ai/models'
+    }
+  },
+  {
+    id: 'aistupidlevel',
+    name: 'AI Stupid Level',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://aistupidlevel.info/v1',
+    enable: false,
+    websites: {
+      official: 'https://aistupidlevel.info/',
+      apiKey: 'https://aistupidlevel.info/router/keys',
+      docs: 'https://aistupidlevel.info/router/docs',
+      models: 'https://aistupidlevel.info/router/docs#strategies'
     }
   },
   {

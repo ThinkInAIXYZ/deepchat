@@ -347,6 +347,28 @@ const DEFAULT_MCP_SERVERS = {
       customHeaders: {
         'X-Keenable-Title': 'DeepChat'
       }
+    },
+    evolink: {
+      command: '',
+      args: [],
+      env: {},
+      descriptions:
+        'EvoLink media generation MCP: search 150+ image, video, music and speech models, get a cost quote, then generate. Sign in with your EvoLink account in the browser (OAuth); no API key needed. Generation is billed to your EvoLink balance; model search, prices, quotes, task status and balance checks are free. Docs: https://evolink.ai/mcp',
+      icons: '🎬',
+      disable: false,
+      type: 'http' as MCPServerType,
+      baseUrl: 'https://mcp.evolink.ai/mcp'
+    },
+    'deed-page': {
+      command: '',
+      args: [],
+      env: {},
+      descriptions:
+        'deed.page static hosting MCP: publish HTML or a small static site to a permanent public URL at https://<slug>.deed.page/, then update, list, roll back or delete it. No account or API key to publish; the first publish returns an owner token for later changes. Free sites are public, so do not publish secrets. Docs: https://deed.page/docs',
+      icons: '🌐',
+      disable: false,
+      type: 'http' as MCPServerType,
+      baseUrl: 'https://deed.page/mcp'
     }
   } satisfies Record<string, Omit<MCPServerConfig, 'enabled'>>,
   mcpEnabled: false // MCP functionality is disabled by default

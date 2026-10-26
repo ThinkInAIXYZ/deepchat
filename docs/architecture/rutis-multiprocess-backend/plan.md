@@ -937,6 +937,15 @@ The preceding database security checkpoint `9e8fa2762` passes required run `4028
 `pr-required` job `121453178038`, and package run `40286578821` with all six platforms and
 `package-required` job `121458134091`. Both workflows finish before this slice's push.
 
+Integrated baseline: `dev` at `207685009` retains upstream OAuth issuer/redirect compatibility and
+Provider/default-MCP additions. Both Baizhi example lifecycle cases use the async credential port;
+malformed-issuer OAuth fixtures retain otherwise valid token fields. The integrated tree passes
+464 affected checks across 26 files, including all Scheduler, MCP, plugin lifecycle and changed
+Provider suites. The final fixture subset passes all 31 checks. Actual-app cloud-browser credential
+lifecycle and Scheduler scenarios pass together in 20.4 seconds (9.7/10.4 seconds). Only the local
+synthetic MCP server is contacted by the cloud-browser fixture. Build, app/scoped fixture/E2E
+types and required quality checks pass; no resource recapture or speed claim is introduced.
+
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
 - [ ] Replace cross-boundary closures/row APIs with bounded transactional business commands for
