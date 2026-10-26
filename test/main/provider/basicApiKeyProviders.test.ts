@@ -1744,6 +1744,7 @@ describe('basic API-key provider registrations', () => {
             input_modalities: ['audio'],
             output_modalities: ['text']
           },
+          { id: 'missing-input-modalities', output_modalities: ['text'] },
           { id: 'missing-modalities' }
         ]
       })

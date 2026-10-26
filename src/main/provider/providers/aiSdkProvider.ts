@@ -2156,7 +2156,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       if (
         !modelId ||
         !outputModalities?.includes('text') ||
-        (inputModalities && !inputModalities.includes('text'))
+        !inputModalities?.includes('text')
       ) {
         continue
       }
