@@ -186,7 +186,7 @@
     {
       "id": "claude-acp",
       "name": "Claude Agent",
-      "version": "0.96.0",
+      "version": "0.97.0",
       "description": "ACP wrapper for Anthropic's Claude",
       "repository": "https://github.com/agentclientprotocol/claude-agent-acp",
       "authors": [
@@ -198,7 +198,7 @@
       "license_url": "https://github.com/agentclientprotocol/claude-agent-acp/blob/main/LICENSE",
       "distribution": {
         "npx": {
-          "package": "@agentclientprotocol/claude-agent-acp@0.96.0"
+          "package": "@agentclientprotocol/claude-agent-acp@0.97.0"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/claude-acp.svg"
@@ -249,7 +249,7 @@
     {
       "id": "codex-acp",
       "name": "Codex",
-      "version": "2.2.2",
+      "version": "2.3.0",
       "description": "ACP adapter for OpenAI's coding assistant",
       "repository": "https://github.com/agentclientprotocol/codex-acp",
       "authors": [
@@ -261,7 +261,7 @@
       "license_url": "https://github.com/agentclientprotocol/codex-acp/blob/main/LICENSE",
       "distribution": {
         "npx": {
-          "package": "@agentclientprotocol/codex-acp@2.2.2"
+          "package": "@agentclientprotocol/codex-acp@2.3.0"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/codex-acp.svg"

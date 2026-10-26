@@ -780,6 +780,13 @@ cannot enter while preparation is pending. This runtime rollback preserves the e
 file-recovery policy; it does not provide crash-atomic commit across the database and metadata
 files. Durable cross-file recovery belongs to the conditional Store compatibility project.
 
+Live maintenance uses explicit data commands for verified backup-file import, named backup import,
+encryption enable/change/disable and schema repair. Keep one exclusive admission through pause,
+drain, operation, reopen, reconciliation and resume; caller callbacks, SQL and database handles
+cannot cross this boundary. Startup recovery runs before the normal owner exists. Normal business
+transactions and maintenance snapshot/staging connections stay internal to the Store owner moved
+in G5, including any synchronous closures that never cross an ownership boundary.
+
 ### Public routes and desktop capabilities
 
 Reuse existing shared route names, schemas, caller types, and output projection. Classify each

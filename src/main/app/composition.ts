@@ -94,7 +94,14 @@ import { createOcrRoutes } from '@/ocr/routes'
 import { McpService } from '../mcp'
 import { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
 import { credentialCrypto, secureCredentialCrypto } from './credentialCrypto'
-import { ImportMode, SyncService, type SyncImportDatabasePort } from '../sync'
+import {
+  ImportMode,
+  SyncService,
+  type SyncImportDatabasePort,
+  type SyncImportResult
+} from '../sync'
+import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
+import type { DatabaseRepairReport } from '@shared/types/databaseSchema'
 import { SyncSettings } from '../sync/settings'
 import { DeeplinkService } from '../deeplink'
 import { createDeeplinkActions } from '../deeplink/actions'
@@ -333,6 +340,22 @@ import {
 
 type ApplicationDatabaseMaintenancePort = SyncImportDatabasePort &
   DatabaseSecurityMigrationDatabasePort
+
+type DatabaseImportCommand =
+  | { kind: 'import-backup-file'; filePath: string; mode: 'increment' | 'overwrite' }
+  | { kind: 'import-backup'; fileName: string; mode: 'increment' | 'overwrite' }
+
+type DatabaseEncryptionCommand =
+  | { kind: 'enable-encryption'; password: string }
+  | { kind: 'change-password'; currentPassword: string; newPassword: string }
+  | { kind: 'disable-encryption'; currentPassword: string }
+
+type DatabaseRepairCommand = { kind: 'repair-schema' }
+type DatabaseMaintenanceCommand =
+  | DatabaseImportCommand
+  | DatabaseEncryptionCommand
+  | DatabaseRepairCommand
+type DatabaseMaintenanceResult = SyncImportResult | DatabaseSecurityStatus | DatabaseRepairReport
 
 export interface MainProcessControl {
   focusPrimaryWindow(): void
@@ -1441,9 +1464,7 @@ export async function createMainProcessControl(dependencies: {
     isLocalDatabaseEncrypted: () => Boolean(mainDatabase.getDatabasePassword()),
     importSnapshot: (filePath, mode) => {
       if (databaseMaintenanceState !== 'running') throw new Error('sync.tunnel.error.busy')
-      return runDatabaseMaintenance((database) =>
-        syncService.importBackupFile(filePath, mode, database)
-      )
+      return runDatabaseMaintenance({ kind: 'import-backup-file', filePath, mode })
     }
   })
   const syncAppliedSessions = new Set<string>()
@@ -3364,9 +3385,11 @@ export async function createMainProcessControl(dependencies: {
       sync: syncService,
       settings: syncSettings,
       importFromSync: (backupFileName, importMode) =>
-        runDatabaseMaintenance((database) =>
-          syncService.importFromSync(backupFileName, importMode ?? ImportMode.INCREMENT, database)
-        ),
+        runDatabaseMaintenance({
+          kind: 'import-backup',
+          fileName: backupFileName,
+          mode: importMode ?? ImportMode.INCREMENT
+        }),
       pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode),
       recordActivity: (input) => {
         void settingsDatabase.recordSettingsActivity(input).catch((error) => {
@@ -3417,32 +3440,20 @@ export async function createMainProcessControl(dependencies: {
       agentSettings,
       projects: projectService,
       databaseSecurity: databaseSecurityService,
-      database: mainDatabase,
+      database: {
+        getDatabase: () => mainDatabase.getDatabase(),
+        repairSchema: () => runDatabaseMaintenance({ kind: 'repair-schema' })
+      },
       startupSession: sessionQuery,
       desktopSession: desktopSessionBinding,
       startup: startupWorkloadCoordinator,
       ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),
       enableDatabaseEncryption: (password) =>
-        runDatabaseMaintenance((database) =>
-          databaseSecurityService.enableEncryption({ password, database, providerSettings })
-        ),
+        runDatabaseMaintenance({ kind: 'enable-encryption', password }),
       changeDatabasePassword: (currentPassword, newPassword) =>
-        runDatabaseMaintenance((database) =>
-          databaseSecurityService.changePassword({
-            currentPassword,
-            newPassword,
-            database,
-            providerSettings
-          })
-        ),
+        runDatabaseMaintenance({ kind: 'change-password', currentPassword, newPassword }),
       disableDatabaseEncryption: (currentPassword) =>
-        runDatabaseMaintenance((database) =>
-          databaseSecurityService.disableEncryption({
-            currentPassword,
-            database,
-            providerSettings
-          })
-        ),
+        runDatabaseMaintenance({ kind: 'disable-encryption', currentPassword }),
       recordActivity: (input) => {
         void settingsDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
@@ -3779,23 +3790,31 @@ export async function createMainProcessControl(dependencies: {
     }
   }
 
-  async function runDatabaseMaintenance<T>(
-    operation: (database: ApplicationDatabaseMaintenancePort) => Promise<T>
-  ): Promise<T> {
+  function runDatabaseMaintenance(command: DatabaseImportCommand): Promise<SyncImportResult>
+  function runDatabaseMaintenance(
+    command: DatabaseEncryptionCommand
+  ): Promise<DatabaseSecurityStatus>
+  function runDatabaseMaintenance(command: DatabaseRepairCommand): Promise<DatabaseRepairReport>
+  async function runDatabaseMaintenance(
+    command: DatabaseMaintenanceCommand
+  ): Promise<DatabaseMaintenanceResult> {
+    if (['stopping', 'stopped'].includes(appLifecycleState)) {
+      throw new Error(`App lifecycle is ${appLifecycleState}`)
+    }
     if (databaseMaintenanceState !== 'running') {
       throw new Error(`App database maintenance is ${databaseMaintenanceState}`)
     }
     if (syncService.isBackupInProgress()) throw new Error('sync.tunnel.error.busy')
     databaseMaintenanceState = 'maintenance'
-    dependencies.secretStore.pause()
-    replicaEndpoint.stop()
-    await automaticSync?.pause()
-    startupWorkloadCoordinator.cancelTarget('main')
-    memoryService.stopBackgroundMaintenance()
 
-    let operationResult: T | undefined
+    let operationResult: DatabaseMaintenanceResult | undefined
     let operationError: unknown
     try {
+      dependencies.secretStore.pause()
+      replicaEndpoint.stop()
+      await automaticSync?.pause()
+      startupWorkloadCoordinator.cancelTarget('main')
+      memoryService.stopBackgroundMaintenance()
       await liveDelegationService.stop()
       await cronJobs.stop()
       await remoteService.destroy()
@@ -3813,7 +3832,10 @@ export async function createMainProcessControl(dependencies: {
         )
       }
       await suspendSessionRuntimes()
-      operationResult = await operation({
+      if (['stopping', 'stopped'].includes(appLifecycleState)) {
+        throw new Error(`App lifecycle is ${appLifecycleState}`)
+      }
+      const database: ApplicationDatabaseMaintenancePort = {
         getDatabasePath: () => mainDatabase.getDatabasePath(),
         checkpointAndClose: () => {
           const database = mainDatabase.getDatabase()
@@ -3830,7 +3852,50 @@ export async function createMainProcessControl(dependencies: {
         isOpen: () => mainDatabase.getDatabase().open,
         importLegacyChatDb: (sourceDbPath, mode) =>
           legacyChatImportService.importFromSourceDb(sourceDbPath, mode)
-      })
+      }
+      switch (command.kind) {
+        case 'import-backup-file':
+          operationResult = await syncService.importBackupFile(
+            command.filePath,
+            command.mode,
+            database
+          )
+          break
+        case 'import-backup':
+          operationResult = await syncService.importFromSync(
+            command.fileName,
+            command.mode,
+            database
+          )
+          break
+        case 'enable-encryption':
+          operationResult = await databaseSecurityService.enableEncryption({
+            password: command.password,
+            database,
+            providerSettings
+          })
+          break
+        case 'change-password':
+          operationResult = await databaseSecurityService.changePassword({
+            currentPassword: command.currentPassword,
+            newPassword: command.newPassword,
+            database,
+            providerSettings
+          })
+          break
+        case 'disable-encryption':
+          operationResult = await databaseSecurityService.disableEncryption({
+            currentPassword: command.currentPassword,
+            database,
+            providerSettings
+          })
+          break
+        case 'repair-schema':
+          operationResult = await mainDatabase.repairSchema()
+          break
+        default:
+          throw new Error('Unsupported database maintenance command')
+      }
     } catch (error) {
       operationError = error
     }
@@ -3864,7 +3929,8 @@ export async function createMainProcessControl(dependencies: {
     }
 
     if (operationError) throw operationError
-    return operationResult as T
+    if (operationResult === undefined) throw new Error('Database maintenance returned no result')
+    return operationResult
   }
 
   function reopenApplicationDatabase(): void {
@@ -3893,9 +3959,11 @@ export async function createMainProcessControl(dependencies: {
     const download = await syncService.downloadLatestBackupFromCloud()
     if (!download.success || !download.fileName) return download
     const backupFileName = download.fileName
-    const result = await runDatabaseMaintenance((database) =>
-      syncService.importFromSync(backupFileName, importMode, database)
-    )
+    const result = await runDatabaseMaintenance({
+      kind: 'import-backup',
+      fileName: backupFileName,
+      mode: importMode
+    })
     return { ...result, fileName: backupFileName }
   }
 

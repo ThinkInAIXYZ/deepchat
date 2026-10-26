@@ -503,7 +503,7 @@ removing the scheduler connection alone does not complete G4.
 | OCR artifacts | `ocrArtifactStore.ts` owns a separate encrypted derived-cache database | Preserve its explicit independent file owner; this is not a second writer of the shared application file |
 | Vector stores | The G3 Memory worker and Knowledge's existing DuckDB owner use separate files | Preserve their existing resource authorities and maintenance fences |
 | Configuration | `SettingsStore` starts from `app-settings` and attaches `AppSettingsDbBackedStore`; Provider/MCP/ACP/model settings also have legacy file adapters | Audit actual injected adapters and desktop readers; use acknowledged mutations and versioned read snapshots, with explicit bootstrap and machine-local file ownership |
-| Credentials and desktop state | Main supplies async crypto/unlock; DatabaseSecurity, SecretStore and Sync own private persistence; Provider credential stores and remaining native/plugin settings still require extraction | Keep authorized crypto/native operations separate from persistence; retain existing plugin consent and settings ownership |
+| Credentials and desktop state | Main supplies async crypto/unlock; DatabaseSecurity, SecretStore, Sync, MCP and Codex/Grok own explicit private persistence; remaining native/window/plugin settings still require extraction | Keep authorized crypto/native operations separate from persistence; retain existing plugin consent and settings ownership |
 
 ### Ordered implementation slices
 
@@ -1059,6 +1059,46 @@ boundaries keep G4 open.
 The MCP OAuth checkpoint `ae0475a65` passes required run `40307676246`, including `pr-required`
 job `121523620575`, and package run `40307676364` with all six platforms and `package-required`
 job `121530148783`. Both workflows finish before this slice's push; no rerun is requested.
+
+The Provider OAuth checkpoint `bc4ad41db` passes required run `40317513595`, including
+`pr-required` job `121556618773`, and package run `40317513761` with all six platforms and
+`package-required` job `121562643275`. No rerun is requested.
+
+### Shared database maintenance commands
+
+Main's maintenance entrypoint accepts six explicit data commands for backup-file import, named
+local/cloud-backup import, encryption enable/change/disable and live schema repair. Actual peer,
+local/cloud import and security-route consumers use these commands; their supplied operation
+callbacks are removed. Existing result contracts, route permissions and credential policy remain
+active. Commands carry operation arguments, never SQL, a database handle or a transaction closure.
+Live repair now uses the same exclusive admission as import and encryption; startup recovery
+remains a separate pre-owner operation.
+
+The owner retains pause, drain, operation, reopen, reconciliation and resume. It admits one operation
+at a time, rejects entry during backup or shutdown and rechecks shutdown after draining before
+dispatch. Preparation failures enter the existing recovery path. Move this complete owner with the
+writer in G5. Internal Session/Tape/Memory transactions stay local to their business owners;
+their closures are not candidates for individual RPC methods. Sync snapshot locks, staged-copy/
+config import connections and imported-source reads also stay inside the cohesive Store owner.
+This contract does not create another normal writer.
+
+Matching disposable-profile application workloads pass before/after cutover: encryption, legacy
+unlock, failed-password recovery, rekey, disable and four graceful launches in 12.5/11.2 seconds;
+backup, rejected import, incremental restoration, overwrite removal, schema repair and durable
+session restoration after relaunch in 4.8/5.2 seconds. Empty sessions use the real public creation
+route without a Provider request. A final concurrency case holds native encryption preparation,
+verifies repair/import are rejected, then releases native work and verifies repair succeeds.
+All three migrated scenarios pass together in 19.6 seconds. No external account is contacted.
+
+Nine directly affected suites pass 158 checks under Electron Node mode with required native SQLite
+and no skips. Before cutover, four native suites pass all 37 checks. Existing SQLCipher rollback,
+backup snapshot consistency, imported data normalization, route and composition contracts remain
+active. App and scoped E2E types, the normal build, format/check, lint and i18n pass. Evidence is
+under `.deepchat/rutis-g4-maintenance-acceptance/`; normal generated catalogs remain retained.
+No process, IPC or storage-path change requires a full resource capture, and timings are functional
+observations without a speed claim. Physical shutdown/power-loss faults and full native workloads
+on Windows/Linux remain unverified. Remaining configuration snapshots, normal-writer maintenance
+fences and native/window owners keep G4 open.
 
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
