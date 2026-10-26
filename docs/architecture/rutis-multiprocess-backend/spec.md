@@ -680,6 +680,13 @@ pending-input settlement and Memory cursor/CAS operations cannot become independ
 remote reads and writes. Maintenance commands own their active/source/staged files explicitly
 and fence consumers before changing the active writer or encryption state.
 
+The Session data owner supplies one `clearTranscript` command that deletes pending inputs and
+transcript projections and resets Tape in the same transaction. Runtime preparation precedes
+that command; runtime cleanup follows its successful commit. Retry truncation retains the atomic
+transaction in `SessionTranscript.deleteFromOrderSeq` and invalidates runtime projections only
+after it commits. The main composition passes these business operations; transaction callbacks
+remain private to the data owner.
+
 Desktop consumers receive a versioned snapshot of the configuration fields they need. Mutations
 are acknowledged by the backend before snapshots/events advance. Keep synchronous reads local to
 that snapshot; do not turn every `SettingsStore.get` into RPC. Bootstrap-only legacy settings and

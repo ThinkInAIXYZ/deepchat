@@ -2,12 +2,14 @@ import { createServer } from 'node:http'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test, expect } from '../fixtures/electronApp'
-import { selectAgent, selectModel, sendMessage } from '../helpers/chat'
+import { getActiveSessionId, selectAgent, selectModel, sendMessage } from '../helpers/chat'
 import { waitForAppReady, waitForGenerationDone } from '../helpers/wait'
 
 test('local streaming preserves an editable composer and completes the response @smoke', async ({
-  app
+  app,
+  launchApp
 }) => {
+  expect(app.ownsUserDataDir).toBe(true)
   let releaseResponse = () => {}
   const released = new Promise<void>((resolve) => {
     releaseResponse = resolve
@@ -157,6 +159,37 @@ test('local streaming preserves an editable composer and completes the response 
       await expect(app.page.getByTestId('chat-message-user')).toHaveCount(1)
     }
     expect(app.pageErrors).toEqual([])
+    const sessionId = await getActiveSessionId(app.page)
+    const beforeClear = await app.page.evaluate(
+      (sessionId) => window.deepchat.invoke('sessions.listMessagesPage', { sessionId, limit: 10 }),
+      sessionId
+    )
+    expect(beforeClear.messages).toHaveLength(2)
+    await shell.getByRole('button', { name: 'More', exact: true }).click()
+    await app.page.getByRole('menuitem', { name: 'Clear Messages', exact: true }).click()
+    await app.page.getByRole('button', { name: 'Clear', exact: true }).click()
+    await expect(app.page.getByTestId('chat-message-assistant')).toHaveCount(0)
+    expect(
+      (
+        await app.page.evaluate(
+          (sessionId) => window.deepchat.invoke('sessions.listPendingInputs', { sessionId }),
+          sessionId
+        )
+      ).items
+    ).toEqual([])
+    expect(await app.close()).toBe('graceful')
+    const reopened = await launchApp()
+    await waitForAppReady(reopened.page)
+    expect(
+      (
+        await reopened.page.evaluate(
+          (sessionId) =>
+            window.deepchat.invoke('sessions.listMessagesPage', { sessionId, limit: 10 }),
+          sessionId
+        )
+      ).messages
+    ).toEqual([])
+    expect(await reopened.close()).toBe('graceful')
   } finally {
     releaseResponse()
     server.closeAllConnections()

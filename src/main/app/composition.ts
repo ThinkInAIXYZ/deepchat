@@ -2164,10 +2164,8 @@ export async function createMainProcessControl(dependencies: {
   })
   const sessionTranscriptMutations = new SessionTranscriptMutations({
     transcript: sessionData.transcript,
-    settings: sessionData.settings,
-    pendingInputs: sessionData.pendingInputs,
     runtime: deepChatAgentHarness,
-    runInTransaction: (operation) => sessionData.database.getDatabase().transaction(operation)()
+    clearTranscript: sessionData.clearTranscript
   })
   memoryIngestionObserver = deepChatAgentHarness.memoryIngestionObserver
   acpAgentRuntime = new AcpAgentRuntime(

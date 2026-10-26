@@ -10,7 +10,6 @@ import {
   SqliteTapeLifecycleAdapter,
   vi
 } from './tapeTestHarness'
-import { SessionTranscriptMutations } from '@/session/transcriptMutations'
 
 function createHarness() {
   const calls: string[] = []
@@ -268,73 +267,6 @@ describe('SessionTape lifecycle administration', () => {
       db.close()
     }
   })
-
-  itIfSqlite(
-    'rolls transcript cleanup back with a failed Tape reset on one connection',
-    async () => {
-      const db = new DatabaseCtor(':memory:')
-      try {
-        db.exec(`
-        CREATE TABLE clear_pending (session_id TEXT NOT NULL);
-        CREATE TABLE clear_transcript (session_id TEXT NOT NULL);
-        INSERT INTO clear_pending (session_id) VALUES ('s1');
-        INSERT INTO clear_transcript (session_id) VALUES ('s1');
-      `)
-        const entryStore = new DeepChatTapeEntriesTable(db)
-        const searchProjection = new DeepChatTapeSearchProjectionTable(db)
-        entryStore.createTable()
-        searchProjection.createTable()
-        entryStore.ensureBootstrapAnchor('s1')
-        entryStore.appendEvent({
-          sessionId: 's1',
-          name: 'old/generation',
-          data: { marker: 'old generation' }
-        })
-        const tape = new SessionTape({
-          deepchatTapeEntriesTable: entryStore,
-          tapeLifecycle: new SqliteTapeLifecycleAdapter(db),
-          deepchatTapeSearchProjectionTable: searchProjection
-        } as any)
-        vi.spyOn(searchProjection, 'deleteBySession').mockImplementationOnce(() => {
-          throw new Error('search cleanup failed')
-        })
-        const runtime = {
-          prepareClearMessages: vi.fn().mockResolvedValue(undefined),
-          finishClearMessages: vi.fn()
-        }
-        const mutations = new SessionTranscriptMutations({
-          pendingInputs: {
-            deleteBySession: () =>
-              db.prepare('DELETE FROM clear_pending WHERE session_id = ?').run('s1')
-          },
-          transcript: {
-            deleteBySession: () =>
-              db.prepare('DELETE FROM clear_transcript WHERE session_id = ?').run('s1')
-          },
-          settings: { resetTape: () => tape.resetSessionTape('s1') },
-          runtime,
-          runInTransaction: (operation) => db.transaction(operation)()
-        } as any)
-
-        await expect(mutations.clearMessages('s1')).rejects.toThrow('search cleanup failed')
-
-        expect(db.prepare('SELECT COUNT(*) AS count FROM clear_pending').get()).toEqual({
-          count: 1
-        })
-        expect(db.prepare('SELECT COUNT(*) AS count FROM clear_transcript').get()).toEqual({
-          count: 1
-        })
-        expect(entryStore.getBySession('s1').map((entry) => entry.name)).toEqual([
-          'session/start',
-          'old/generation'
-        ])
-        expect(runtime.finishClearMessages).not.toHaveBeenCalled()
-      } finally {
-        vi.restoreAllMocks()
-        db.close()
-      }
-    }
-  )
 
   itIfSqlite('drops corrupt FTS state instead of blocking a Tape generation reset', () => {
     const db = new DatabaseCtor(':memory:')

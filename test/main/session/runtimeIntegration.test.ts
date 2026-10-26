@@ -1042,10 +1042,8 @@ function createTranscriptMutations(
 ) {
   return new SessionTranscriptMutations({
     transcript: sessionData.transcript,
-    settings: sessionData.settings,
-    pendingInputs: sessionData.pendingInputs,
     runtime,
-    runInTransaction: (operation) => sessionData.database.getDatabase().transaction(operation)()
+    clearTranscript: sessionData.clearTranscript
   })
 }
 

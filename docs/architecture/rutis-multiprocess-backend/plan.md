@@ -42,7 +42,7 @@ isolated timing overrun. Do not rerun CI or unchanged benchmarks to obtain a pas
 | G1 Whole-capability roadmap | Complete; documentation only | G0 and source research | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence |
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
 | G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
-| G4 Store commands and desktop ports | Scheduler validated; credential port locally validated; remaining contracts in progress | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
+| G4 Store commands and desktop ports | Scheduler, credential and transcript slices locally validated; remaining contracts in progress | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
 | G5 Cohesive TS Harness backend | Planned | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
 | G7 Rust control owner | Planned | G2, G5 | Admission and cohesive run/interaction settlement preserve all fences |
@@ -647,7 +647,8 @@ until G5 moves the cohesive backend. No full process-tree recapture or performan
 claim is required for this extraction. Native credential compatibility is verified on macOS arm64;
 Windows/Linux credential-store behavior remains unverified locally. Credential checkpoint
 `c80d36b69` passes required CI `40271838825`, including its barrier; package run `40271838879`
-remains in progress. `DatabaseSecurityService`, Provider/OAuth credential stores, power events
+passes all six platform verifications and its required barrier. `DatabaseSecurityService`,
+Provider/OAuth credential stores, power events
 and the remaining Store/configuration contracts are still G4 work.
 
 ### Scheduler system-resume input slice
@@ -681,7 +682,7 @@ cutover in 8.6/7.9 seconds. App/scoped types, build, format, lint and i18n pass.
 `.deepchat/rutis-g4-resume-acceptance/`. This establishes event delivery and lifecycle fencing;
 physical device suspend/resume and Windows/Linux native delivery remain unverified locally.
 
-### Next Store cutover
+### Session transcript Store command slice
 
 Select Session transcript clearing as the next actual durable command. `createSessionDataFromDatabase`
 already composes the transcript, pending inputs, settings and Tape against one database. Move the
@@ -691,6 +692,36 @@ already owns its transaction inside `SessionTranscript.deleteFromOrderSeq`; reta
 operation rather than introducing another generic transaction port. Preserve runtime preparation
 before the mutation, post-commit invalidation, clear rollback, Tape incarnation/projection cleanup
 and retry behavior. This does not turn internal row APIs or transaction callbacks into RPC.
+
+Baseline characterization passes 46 existing native-enabled transcript/Tape/runtime checks.
+The real local-streaming scenario now also drives the existing renderer Clear Messages action,
+then verifies an empty pending queue and empty transcript after graceful relaunch; it passes in
+6.4 seconds before this Store cutover. That renderer action awaits the durable acknowledgement
+and reloads its message cache. This migration characterization is the exception to implementation-first
+validation; no production renderer behavior changes are needed.
+
+The default composition now connects `SessionTranscriptMutations` to the Session data owner's
+`clearTranscript(sessionId)` operation. That owner assembles the one transaction across pending
+inputs, transcript projections and Tape reset. The mutation coordinator retains runtime
+preparation and post-commit cleanup; it receives no generic transaction callback or separate
+settings/pending-input writers. Retry truncation directly uses the transcript owner's existing
+atomic range operation. No schema, file location, transport or process placement changes.
+
+Local acceptance passes 430 native-enabled checks across five affected files without skips.
+The real data owner is exercised with a SQLite trigger that rejects Tape deletion: transcript,
+queued input, Tape incarnation/head and Memory ingestion projection all survive rollback, and
+runtime cleanup is suppressed. Successful clear removes all corresponding rows and creates a
+fresh Tape incarnation. A later retry-retraction failure also rolls back earlier Tape writes and
+all transcript changes; runtime invalidation occurs only after a successful retry commit.
+
+The actual renderer Clear Messages action and graceful relaunch pass after cutover in 7.2 seconds
+against the 6.4-second matching baseline. The scheduler resume/manual/timed/relaunch scenario
+also passes on the combined runtime in 7.5 seconds (two E2E tests, 14.9 seconds total). These are
+functional checks. Scoped transcript/E2E types, all 81 scoped Memory test types, app types, build,
+format, lint and i18n pass. Evidence is under `.deepchat/rutis-g4-session-store-acceptance/`.
+The selected business transaction uses the same database and writes as its baseline; no full
+performance recapture or speed claim is required. Other Session/Tape/Memory command boundaries,
+configuration snapshots and remaining desktop capabilities still belong to G4.
 
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.

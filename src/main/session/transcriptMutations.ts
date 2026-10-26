@@ -4,8 +4,6 @@ import type {
   UserMessageInlineItem
 } from '@shared/types/agent-interface'
 import { isSendMessageInputEmpty } from '@/agent/shared/agentSessionNormalization'
-import type { SessionPendingInputs } from './data/pendingInputs'
-import type { SessionSettingsStore } from './data/settings'
 import type { SessionTranscript } from './data/transcript'
 import { buildEditedUserContent, extractUserMessageInput } from './data/userMessageContent'
 import { parseMessageMetadata } from './usageStats'
@@ -26,10 +24,8 @@ export interface SessionTranscriptRuntimePort {
 
 export interface SessionTranscriptMutationDependencies {
   transcript: SessionTranscript
-  settings: SessionSettingsStore
-  pendingInputs: SessionPendingInputs
   runtime: SessionTranscriptRuntimePort
-  runInTransaction<T>(operation: () => T): T
+  clearTranscript(sessionId: string): void
 }
 
 export class SessionTranscriptMutations {
@@ -37,11 +33,7 @@ export class SessionTranscriptMutations {
 
   async clearMessages(sessionId: string): Promise<void> {
     await this.dependencies.runtime.prepareClearMessages(sessionId)
-    this.dependencies.runInTransaction(() => {
-      this.dependencies.pendingInputs.deleteBySession(sessionId)
-      this.dependencies.transcript.deleteBySession(sessionId)
-      this.dependencies.settings.resetTape(sessionId)
-    })
+    this.dependencies.clearTranscript(sessionId)
     this.dependencies.runtime.finishClearMessages(sessionId)
   }
 
@@ -96,9 +88,7 @@ export class SessionTranscriptMutations {
   }
 
   commitRetryMessage(sessionId: string, orderSeq: number): void {
-    this.dependencies.runInTransaction(() => {
-      this.dependencies.transcript.deleteFromOrderSeq(sessionId, orderSeq)
-    })
+    this.dependencies.transcript.deleteFromOrderSeq(sessionId, orderSeq)
     this.dependencies.runtime.invalidateTranscriptFrom(sessionId, orderSeq)
   }
 
