@@ -295,6 +295,18 @@ describe('projectStore snapshot ownership', () => {
     expect(store.selectionSource.value).toBe('none')
   })
 
+  it('preserves an Agent default across global snapshot refreshes', async () => {
+    const { store, projectClient } = await setupStore()
+    store.selectProject('/agent-default', 'agent')
+    projectClient.getSnapshot.mockResolvedValue({
+      ...snapshot(2, ['/global']),
+      defaultProjectPath: '/global'
+    })
+    await store.refreshProjectSnapshot()
+    expect(store.selectedProjectPath.value).toBe('/agent-default')
+    expect(store.selectionSource.value).toBe('agent')
+  })
+
   it('returns and selects a picked workspace by default', async () => {
     const { store, projectClient } = await setupStore()
     projectClient.selectDirectoryWithVersion.mockResolvedValue({ path: '/work/new', version: 2 })

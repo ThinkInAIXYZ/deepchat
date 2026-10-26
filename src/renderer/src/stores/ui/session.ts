@@ -1257,6 +1257,7 @@ export const useSessionStore = defineStore('session', () => {
       }
       clearActiveSessionSummary()
       setActiveSessionId(null)
+      agentStore.setSelectedAgent(newConversationTargetAgentId.value)
       pageRouter.goToNewThread(options.refresh ? { refresh: true } : {})
     } catch (closeError) {
       if (activationNavigationRequestId === requestId) {
@@ -1286,13 +1287,13 @@ export const useSessionStore = defineStore('session', () => {
         }
       : null
 
-    if (agentStore.selectedAgentId !== targetAgentId) {
-      agentStore.setSelectedAgent(targetAgentId)
-    }
-
     if (hasActiveSession.value) {
       await closeSession({ refresh: options.refresh ?? true })
       return
+    }
+
+    if (agentStore.selectedAgentId !== targetAgentId) {
+      agentStore.setSelectedAgent(targetAgentId)
     }
 
     pageRouter.goToNewThread({ refresh: options.refresh ?? true })

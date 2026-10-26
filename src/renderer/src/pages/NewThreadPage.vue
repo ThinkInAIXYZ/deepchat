@@ -92,7 +92,7 @@
                     :acp-draft-session-id="acpDraftSessionId"
                     max-width-class="max-w-none"
                   >
-                    <template #agent>
+                    <template #agent="{ loading }">
                       <DropdownMenu>
                         <DropdownMenuTrigger as-child>
                           <DcButton
@@ -101,6 +101,7 @@
                             variant="ghost"
                             size="sm"
                             :disabled="isSubmittingInput"
+                            :aria-busy="loading || undefined"
                             :aria-label="`${t('chat.mode.agent')}: ${selectedAgent.name}`"
                             class="h-6 min-w-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
                           >
@@ -108,7 +109,13 @@
                             <span class="max-w-[min(12rem,30vw)] truncate">{{
                               selectedAgent.name
                             }}</span>
-                            <Icon icon="lucide:chevron-down" class="size-3 shrink-0" />
+                            <Spinner
+                              v-if="loading"
+                              data-testid="new-thread-agent-loading"
+                              :aria-label="t('common.loading')"
+                              class="size-3 shrink-0"
+                            />
+                            <Icon v-else icon="lucide:chevron-down" class="size-3 shrink-0" />
                           </DcButton>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" class="w-60">
@@ -236,6 +243,18 @@
               />
             </DropdownMenuContent>
           </DropdownMenu>
+          <p
+            v-if="isAcpWorkdirMissing || isAcpWorkdirInvalid"
+            data-testid="new-thread-acp-workdir-status"
+            role="status"
+            class="mt-1 px-2.5 text-xs text-muted-foreground break-words"
+          >
+            {{
+              isAcpWorkdirInvalid
+                ? selectedProjectUnavailableTooltip
+                : t('chat.input.acpWorkdirSelect')
+            }}
+          </p>
         </div>
       </div>
 
@@ -278,6 +297,7 @@ import { nanoid } from 'nanoid'
 import { persistGuidedOnboardingResumeIntent } from '@/lib/onboardingResume'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { DcButton } from '@dc-ui/components/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1459,15 +1479,13 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
       ? projectDirIntent.projectDir
       : selectedProjectSource === 'manual'
         ? currentProjectPath
-        : (currentProjectPath ?? globalDefaultProjectPath)
+        : selectedProjectSource === 'agent'
+          ? globalDefaultProjectPath
+          : (currentProjectPath ?? globalDefaultProjectPath)
     if (projectDirIntent) {
       projectStore.selectProject(projectDirIntent.projectDir, 'manual')
-    } else if (
-      selectedProjectSource !== 'manual' &&
-      !currentProjectPath &&
-      globalDefaultProjectPath
-    ) {
-      projectStore.selectProject(globalDefaultProjectPath, 'default')
+    } else if (selectedProjectSource !== 'manual') {
+      projectStore.selectProject(resolvedProjectPath, 'default')
     }
     draftStore.projectDir = resolvedProjectPath ?? undefined
     draftStore.providerId = 'acp'
@@ -1492,26 +1510,15 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   const resolvedProjectPath = projectDirIntent
     ? projectDirIntent.projectDir
     : canApplyProjectDefault && selectedProjectSource !== 'manual'
-      ? (agentDefaultProjectPath ?? currentProjectPath ?? globalDefaultProjectPath)
+      ? (agentDefaultProjectPath ??
+        (selectedProjectSource === 'agent'
+          ? globalDefaultProjectPath
+          : (currentProjectPath ?? globalDefaultProjectPath)))
       : currentSelectedProjectPath
   if (projectDirIntent) {
     projectStore.selectProject(projectDirIntent.projectDir, 'manual')
-  } else if (
-    canApplyProjectDefault &&
-    selectedProjectSource !== 'manual' &&
-    agentDefaultProjectPath
-  ) {
-    projectStore.selectProject(
-      agentDefaultProjectPath,
-      agentDefaultProjectPath === globalDefaultProjectPath ? 'default' : 'manual'
-    )
-  } else if (
-    canApplyProjectDefault &&
-    selectedProjectSource !== 'manual' &&
-    !currentProjectPath &&
-    globalDefaultProjectPath
-  ) {
-    projectStore.selectProject(globalDefaultProjectPath, 'default')
+  } else if (canApplyProjectDefault && selectedProjectSource !== 'manual') {
+    projectStore.selectProject(resolvedProjectPath, agentDefaultProjectPath ? 'agent' : 'default')
   }
   draftStore.projectDir = resolvedProjectPath ?? undefined
   draftStore.providerId = config.defaultModelPreset?.providerId

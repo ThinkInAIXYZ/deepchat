@@ -29,3 +29,13 @@ Objective: implement the selection and ownership contract in [spec.md](./spec.md
 - Normal-build provider and ACP catalog refreshes are retained.
 
 PR: https://github.com/ThinkInAIXYZ/deepchat/pull/2469 (base: `dev`; closes #2462).
+
+
+## ACP Preparation Verification
+
+- [ ] Preserve warmup feedback in the composer selector and explain missing workspaces; keep ACP
+      identities outside local Skill routes and discard pending native Skill results on switches.
+- [ ] Distinguish automatic Agent workspace defaults from manual choices; keep the active execution
+      context unchanged on failed deactivation.
+- [ ] Validate loading/configuration readiness, invalid-to-valid workspace recovery, and route errors
+      through Electron and isolated copies of the real local Agent configuration.

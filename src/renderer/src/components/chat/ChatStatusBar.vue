@@ -2,7 +2,7 @@
   <div :class="['w-full', props.maxWidthClass]">
     <div class="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 py-1">
       <div class="flex min-w-0 flex-wrap items-center gap-1">
-        <slot name="agent" />
+        <slot name="agent" :loading="isAcpConfigLoading" />
         <template v-if="isAcpAgent">
           <div
             v-if="!$slots.agent"

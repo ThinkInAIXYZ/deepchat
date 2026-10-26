@@ -13,7 +13,7 @@ export interface UIProject {
   isSynthetic?: boolean
 }
 
-type ProjectSelectionSource = 'none' | 'manual' | 'default'
+type ProjectSelectionSource = 'none' | 'manual' | 'default' | 'agent'
 
 type OpenFolderPickerOptions = {
   select?: boolean
@@ -64,7 +64,7 @@ export const useProjectStore = defineStore('project', () => {
     const nextProjects = baseProjects.filter((project) => !project.isSynthetic)
     const syntheticPaths: string[] = []
     if (
-      selectionSource.value === 'manual' &&
+      (selectionSource.value === 'manual' || selectionSource.value === 'agent') &&
       selectedProjectPath.value &&
       !nextProjects.some((project) => project.path === selectedProjectPath.value)
     ) {
@@ -104,7 +104,7 @@ export const useProjectStore = defineStore('project', () => {
     removedEnvironments.value = snapshot.removedEnvironments
     if (
       selectedProjectPath.value &&
-      selectionSource.value === 'manual' &&
+      (selectionSource.value === 'manual' || selectionSource.value === 'agent') &&
       [...archivedEnvironments.value, ...removedEnvironments.value].some(
         (environment) =>
           normalizeWorkspacePath(environment.path) ===

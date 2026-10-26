@@ -7,7 +7,7 @@ vi.mock('@/stores/acpExtensions', () => ({
   })
 }))
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive, ref } from 'vue'
+import { defineComponent, h, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { ReasoningEffort, ReasoningPortrait } from '../../../src/shared/types/model-db'
 import type { AcpConfigState } from '@shared/types/acp'
@@ -56,6 +56,7 @@ type ExtraModelGroup = {
 }
 
 type SetupOptions = {
+  agentSlot?: boolean
   agentId?: string
   agentType?: 'deepchat' | 'acp'
   hasActiveSession?: boolean
@@ -776,6 +777,12 @@ const setup = async (options: SetupOptions = {}) => {
 
   const ChatStatusBar = (await import('@/components/chat/ChatStatusBar.vue')).default
   const wrapper = mount(ChatStatusBar, {
+    slots: options.agentSlot
+      ? {
+          agent: ({ loading }: { loading: boolean }) =>
+            h('span', { 'data-testid': 'agent-loading-state', 'data-loading': String(loading) })
+        }
+      : {},
     props: {
       acpDraftSessionId: options.acpDraftSessionId ?? null
     },
@@ -2969,6 +2976,29 @@ describe('ChatStatusBar model and session panels', () => {
 
     pendingWarmup.resolve(createAcpConfigState())
     await flushPromises()
+  })
+
+  it('exposes warmup loading to the composer Agent selector without duplicating the badge', async () => {
+    const pendingWarmup = createDeferred<AcpConfigState | null>()
+    const { wrapper, providerRuntime, agentStore } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      agentSlot: true
+    })
+    providerRuntime.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
+    agentStore.selectedAgentId = 'acp-agent'
+    await flushPromises()
+    expect(wrapper.find('.acp-agent-badge').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="agent-loading-state"]').attributes('data-loading')).toBe(
+      'true'
+    )
+
+    pendingWarmup.resolve(createAcpConfigState())
+    await flushPromises()
+    expect(wrapper.get('[data-testid="agent-loading-state"]').attributes('data-loading')).toBe(
+      'false'
+    )
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(3)
   })
 
   it('clears ACP badge loading when the current warmup config-ready event arrives', async () => {

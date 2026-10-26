@@ -339,6 +339,16 @@ describe('ChatInputBox attachments', () => {
     expect(mentionOptions?.agentId.value).toBe('agent-a')
   })
 
+  it('does not pass an ACP identity to local Skill data', async () => {
+    const wrapper = await mountComponent({ agentId: 'pi-acp' })
+    await wrapper.setProps({ isAcpSession: true })
+    const scope = useSkillsDataMock.mock.calls.at(-1)?.[1] as { value: string | null }
+    expect(scope.value).toBeNull()
+    await wrapper.setProps({ agentId: 'deepchat', isAcpSession: false })
+    expect(scope.value).toBe('deepchat')
+    wrapper.unmount()
+  })
+
   it('shows persistent Session Skills separately from message Skill chips', async () => {
     sessionActiveSkillsRef.value = ['database-migration']
 

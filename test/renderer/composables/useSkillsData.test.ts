@@ -15,13 +15,12 @@ vi.mock('@api/SkillClient', () => ({
   createSkillClient: () => skillClient
 }))
 
-vi.mock('@/stores/skillsStore', () => ({
-  useSkillsStore: () => ({
-    getSkillsForAgent: vi.fn(() => []),
-    isSkillsLoading: vi.fn(() => false),
-    ensureSkillsLoaded: vi.fn().mockResolvedValue(undefined)
-  })
+const skillsStore = vi.hoisted(() => ({
+  getSkillsForAgent: vi.fn(() => []),
+  isSkillsLoading: vi.fn(() => false),
+  ensureSkillsLoaded: vi.fn().mockResolvedValue(undefined)
 }))
+vi.mock('@/stores/skillsStore', () => ({ useSkillsStore: () => skillsStore }))
 
 const createDeferred = <T>() => {
   let resolve!: (value: T) => void
@@ -270,6 +269,51 @@ describe('useSkillsData Session active Skills', () => {
     await flushPromises()
     expect(skillsData.sessionActiveSkills.value).toEqual(['latest-skill'])
   })
+
+  it.each([null, '/work'])(
+    'suspends local Skills without an Agent scope in workspace %s',
+    async (workspace) => {
+      const pending = createDeferred<string[]>()
+      skillClient.getActiveSkills.mockReturnValueOnce(pending.promise)
+      skillClient.getUnifiedSkillCatalog.mockResolvedValue([])
+      const { useSkillsData } = await import('@/components/chat-input/composables/useSkillsData')
+      let skillsData!: ReturnType<typeof useSkillsData>
+      const Harness = defineComponent({
+        props: { agentId: { type: String, default: null } },
+        setup(props) {
+          skillsData = useSkillsData(
+            toRef(() => 'session'),
+            toRef(props, 'agentId'),
+            toRef(() => workspace)
+          )
+          return () => null
+        }
+      })
+      const wrapper = mount(Harness)
+      await flushPromises()
+      window.dispatchEvent(new Event('focus'))
+      await flushPromises()
+      expect(skillClient.getActiveSkills).not.toHaveBeenCalled()
+      expect(skillClient.getUnifiedSkillCatalog).not.toHaveBeenCalled()
+      expect(skillsStore.ensureSkillsLoaded).not.toHaveBeenCalled()
+
+      await wrapper.setProps({ agentId: 'deepchat' })
+      await flushPromises()
+      if (workspace)
+        expect(skillClient.getUnifiedSkillCatalog).toHaveBeenCalledExactlyOnceWith(
+          'deepchat',
+          workspace
+        )
+      else expect(skillsStore.ensureSkillsLoaded).toHaveBeenCalledExactlyOnceWith('deepchat')
+      await wrapper.setProps({ agentId: null })
+      pending.resolve(['stale-skill'])
+      await flushPromises()
+      expect(skillsData.skills.value).toEqual([])
+      expect(skillsData.sessionActiveSkills.value).toEqual([])
+      expect(skillsData.loading.value).toBe(false)
+      wrapper.unmount()
+    }
+  )
 
   it('surfaces current-Session removal failures and clears the busy state', async () => {
     skillClient.getActiveSkills.mockResolvedValue(['review'])

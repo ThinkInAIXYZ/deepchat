@@ -1015,6 +1015,20 @@ describe('sessionStore.startNewConversation', () => {
     expect(draftStore.agentId).toBe('deepchat')
   })
 
+  it('keeps the active execution context when deactivation fails', async () => {
+    const { store, agentStore, sessionClient, pageRouter } = await setupStore({
+      selectedAgentId: 'acp-a',
+      enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
+    })
+    store.sessions.value = [createSession({ id: 'active', agentId: 'acp-a' })]
+    store.activeSessionId.value = 'active'
+    sessionClient.deactivate.mockRejectedValueOnce(new Error('deactivation failed'))
+    await store.startNewConversation()
+    expect(store.activeSessionId.value).toBe('active')
+    expect(agentStore.selectedAgentId).toBe('acp-a')
+    expect(pageRouter.goToNewThread).not.toHaveBeenCalled()
+  })
+
   it('allows an explicit Agent command without changing the history filter', async () => {
     const { store, agentStore, draftStore } = await setupStore({
       filterAgentId: 'deepchat',
