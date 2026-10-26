@@ -36,8 +36,8 @@ type Pairing = z.infer<typeof PairingSchema>
 export interface SyncPeerDeps {
   directory: string
   replicaId?(): string
-  protectToken(token: string): string
-  revealToken(wrapped: string): string
+  protectToken(token: string): Promise<string>
+  revealToken(wrapped: string): Promise<string>
   isLocalDatabaseEncrypted(): boolean
   importSnapshot(filePath: string, mode: 'increment' | 'overwrite'): Promise<SyncImportResult>
   fetch?: typeof fetch
@@ -57,6 +57,7 @@ export class SyncPeerService {
   private pairingBusy = false
   private stopping = false
   private cancelled = false
+  private credentialGeneration = 0
   private progress: Pick<SyncPeerStatus, 'phase' | 'received' | 'total' | 'error'> = {
     phase: 'idle',
     received: 0,
@@ -81,7 +82,8 @@ export class SyncPeerService {
     }
   }
 
-  private async writePrivate(name: string, value: unknown): Promise<void> {
+  private async writePrivate(name: string, value: unknown, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted()
     await mkdir(this.deps.directory, { recursive: true, mode: 0o700 })
     const temporary = this.file(`${name}.${randomBytes(6).toString('hex')}.tmp`)
     try {
@@ -92,6 +94,7 @@ export class SyncPeerService {
       } finally {
         await file.close()
       }
+      signal?.throwIfAborted()
       await rename(temporary, this.file(name))
     } finally {
       await rm(temporary, { force: true })
@@ -99,13 +102,22 @@ export class SyncPeerService {
   }
 
   async connection(): Promise<SyncConnection | null> {
+    const generation = this.credentialGeneration
+    const check = () => {
+      if (this.stopping || this.pairingBusy || generation !== this.credentialGeneration)
+        fail('credentialsUnavailable')
+    }
+    check()
     const pairing = await this.readPairing()
+    check()
     if (!pairing) return null
     if (!pairing.bidirectional) throw new Error('sync.tunnel.error.writeConsentRequired')
+    const token = await this.deps.revealToken(pairing.wrappedToken)
+    check()
     return {
       hostUrl: pairing.hostUrl,
       hostId: pairing.hostId,
-      token: this.deps.revealToken(pairing.wrappedToken)
+      token
     }
   }
 
@@ -163,10 +175,13 @@ export class SyncPeerService {
     bidirectional?: boolean
   }): Promise<SyncPeerStatus> {
     this.pairingBusy = true
+    this.credentialGeneration++
     this.controller = new AbortController()
+    const signal = this.controller.signal
     this.progress = { phase: 'pairing', received: 0, total: 0, error: null }
     try {
       await this.automatic?.setEnabled(false)
+      signal.throwIfAborted()
       let url: URL
       try {
         url = new URL(input.hostUrl)
@@ -186,8 +201,9 @@ export class SyncPeerService {
       const replicaId = input.bidirectional ? this.deps.replicaId?.() : undefined
       if (input.bidirectional && !replicaId) fail('automaticUnsupported')
       // Fail before consuming a one-time code when the OS cannot protect a token.
-      this.deps.protectToken('availability-check')
-      await this.checkHost(hostUrl, input.hostId, this.controller.signal)
+      await this.deps.protectToken('availability-check')
+      signal.throwIfAborted()
+      await this.checkHost(hostUrl, input.hostId, signal)
       const response = SyncHostPairResponseSchema.parse(
         await this.json(hostUrl + SYNC_HOST_PAIR_PATH, {
           method: 'POST',
@@ -198,18 +214,25 @@ export class SyncPeerService {
             bidirectional: input.bidirectional,
             replicaId
           }),
-          signal: this.controller.signal
+          signal
         })
       )
-      await this.writePrivate('pairing.json', {
-        hostUrl,
-        hostId: input.hostId,
-        deviceId: response.deviceId,
-        deviceName: response.deviceName,
-        wrappedToken: this.deps.protectToken(response.token),
-        lastSuccessAt: null,
-        bidirectional: input.bidirectional === true
-      } satisfies Pairing)
+      signal.throwIfAborted()
+      const wrappedToken = await this.deps.protectToken(response.token)
+      signal.throwIfAborted()
+      await this.writePrivate(
+        'pairing.json',
+        {
+          hostUrl,
+          hostId: input.hostId,
+          deviceId: response.deviceId,
+          deviceName: response.deviceName,
+          wrappedToken,
+          lastSuccessAt: null,
+          bidirectional: input.bidirectional === true
+        } satisfies Pairing,
+        signal
+      )
       await this.clearPartial()
       this.progress.phase = 'idle'
     } catch (error) {
@@ -227,6 +250,7 @@ export class SyncPeerService {
     await this.automatic?.setEnabled(false)
     this.assertIdle()
     this.pairingBusy = true
+    this.credentialGeneration++
     try {
       await rm(this.file('pairing.json'), { force: true })
       await this.clearPartial()
@@ -242,6 +266,7 @@ export class SyncPeerService {
     if ((await this.readPairing())?.bidirectional) fail('fullBackupIncompatible')
     if (this.automatic?.status().enabled) fail('busy')
     if (mode === 'overwrite' && !confirmOverwrite) fail('overwriteConfirmation')
+    this.assertIdle()
     this.cancelled = false
     this.controller = new AbortController()
     this.progress = { phase: 'downloading', received: 0, total: 0, error: null }
@@ -267,6 +292,7 @@ export class SyncPeerService {
 
   async stop(): Promise<void> {
     this.stopping = true
+    this.credentialGeneration++
     if (this.progress.phase !== 'importing') {
       this.cancelled = true
       this.controller?.abort()
@@ -348,11 +374,12 @@ export class SyncPeerService {
     await this.checkHost(pairing.hostUrl, pairing.hostId, signal)
     let token: string
     try {
-      token = this.deps.revealToken(pairing.wrappedToken)
+      token = await this.deps.revealToken(pairing.wrappedToken)
     } catch {
       fail('credentialsUnavailable')
     }
     if (!token) fail('credentialsUnavailable')
+    signal.throwIfAborted()
     const headers = { authorization: `Bearer ${token}` }
     let status = SyncHostStatusSchema.parse(
       await this.json(pairing.hostUrl + SYNC_HOST_STATUS_PATH, { headers, signal })

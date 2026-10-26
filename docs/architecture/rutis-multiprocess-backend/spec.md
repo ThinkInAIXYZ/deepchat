@@ -705,6 +705,15 @@ across maintenance and shutdown, with authoritative checks immediately before se
 or persistence. Await every Sync, MCP, plugin and export consumer; preserve destination binding,
 serialized mutations, rollback and cancelled connection-attempt identity.
 
+Sync host connector tokens and peer pairing tokens use asynchronous string-only crypto ports
+through the same adapter. Their opaque values stay in existing private machine-local files and
+remain compatible with legacy ciphertext. Keep Linux basic-text refusal and preflight protection
+before consuming a pairing code. Cancelled pairing cannot replace the saved identity before its
+atomic commit; stale reads cannot release credentials after re-pairing, forget or shutdown. Transfers
+recheck cancellation after unwrap and before authenticated requests. Host lifecycle serialization
+and generation checks reject crypto results superseded by stop before starting a connector.
+Do not cache plaintext, rewrite credentials during reads or add them to general settings/backups.
+
 ### Public routes and desktop capabilities
 
 Reuse existing shared route names, schemas, caller types, and output projection. Classify each

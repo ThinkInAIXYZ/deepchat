@@ -68,6 +68,15 @@ export class SecretStore {
     return this.settings.get<string>(key)
   }
 
+  async unwrap(wrapped: string): Promise<string> {
+    const check = this.captureOperation()
+    try {
+      return await this.crypto.decrypt(wrapped)
+    } finally {
+      check()
+    }
+  }
+
   async wrap(value: string): Promise<string> {
     const check = this.captureOperation()
     if (!(await this.isAvailable())) {

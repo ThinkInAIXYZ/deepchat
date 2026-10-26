@@ -17,6 +17,30 @@ function fixture() {
 }
 
 describe('SecretStore lifecycle', () => {
+  it.each([false, true])(
+    'fences opaque unwrap results across maintenance (native failure=%s)',
+    async (failed) => {
+      const f = fixture()
+      const pending = Promise.withResolvers<string>()
+      f.crypto.decrypt.mockReturnValueOnce(pending.promise)
+      const result = f.secrets.unwrap('wrapped:opaque')
+      const rejected = expect(result).rejects.toThrow('interrupted')
+      f.secrets.pause()
+      f.secrets.resume()
+      if (failed) pending.reject(new Error('native unavailable'))
+      else pending.resolve('opaque')
+      await rejected
+      expect(f.settings.set).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not cache or rewrite opaque credentials after a native unwrap failure', async () => {
+    const f = fixture()
+    expect(await f.secrets.unwrap('wrapped:opaque')).toBe('opaque')
+    f.crypto.decrypt.mockRejectedValueOnce(new Error('native unavailable'))
+    await expect(f.secrets.unwrap('wrapped:opaque')).rejects.toThrow('native unavailable')
+    expect(f.settings.set).not.toHaveBeenCalled()
+  })
   it.each(['encrypt', 'decrypt'] as const)(
     'rejects a pending %s after maintenance resumes, including native failure',
     async (operation) => {

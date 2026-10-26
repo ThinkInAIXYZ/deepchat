@@ -42,7 +42,7 @@ isolated timing overrun. Do not rerun CI or unchanged benchmarks to obtain a pas
 | G1 Whole-capability roadmap | Complete; documentation only | G0 and source research | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence |
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
 | G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
-| G4 Store commands and desktop ports | Scheduler, credential, transcript and selected settings slices locally validated; remaining contracts in progress | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
+| G4 Store commands and desktop ports | Store, settings and selected desktop-port slices locally validated; remaining contracts in progress | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
 | G5 Cohesive TS Harness backend | Planned | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
 | G7 Rust control owner | Planned | G2, G5 | Admission and cohesive run/interaction settlement preserve all fences |
@@ -818,6 +818,50 @@ are unchanged, so no full resource recapture or speed claim is required. G4 rema
 The preceding settings checkpoint `03ebe520b` passes required run `40277920388`, including
 `pr-required` job `121426387843`, and package run `40277920393` with all six platforms and
 `package-required` job `121430324373`. Both workflows finished before the Skill slice push.
+
+### Sync host and peer credential ports
+
+Replace the remaining synchronous Sync host/peer token wrapping and reveal callbacks with
+acknowledged asynchronous crypto operations through the existing credential adapter. Preserve
+machine-local private files, legacy ciphertext, the Linux basic-text refusal, pairing consent and
+one-time-code checks. Do not cache plaintext or route these private tokens through general settings.
+Fence cancelled pairing before persistence, cancelled transfers before authenticated requests and
+stale connection reads across pairing replacement, forget and shutdown. Retain host transition
+serialization and prevent a stopped generation from launching a connector after crypto returns.
+
+Characterize native peer token persistence and legacy wrapped-token reuse through the actual app
+before the cutover, with intercepted fixture-host responses and an isolated profile. This is a
+migration compatibility exception to implementation-first verification. The existing full loopback
+host scenario remains the matching application comparison; no transport/process/storage-path
+change calls for a full performance recapture.
+
+The default host/peer composition now awaits the existing async native credential adapter. Opaque
+unwrap operations use the same maintenance/shutdown generation fence as other SecretStore work.
+The private files, encoding, connector-token environment delivery and Linux basic-text policy stay
+unchanged. Peer cancellation is checked after crypto and immediately before atomic pairing-file
+replacement; connection reads reject changed credential generations. Host stop advances its
+generation so pending wrap/unwrap replies cannot start a stale connector; normal restart remains
+supported. Replaced synchronous encryption/decryption wiring is removed.
+
+Local acceptance passes 91 checks across eight files. New durable cases cover cancelled preflight
+and token wrapping, saved-pairing preservation, credentials superseded by re-pair/forget/stop,
+cancelled transfer unwrap, native failures and maintenance fences. Real loopback sockets/private
+files remain in the transfer tests. A controlled local connector starts and restarts through the
+async ports; stop during wrap/unwrap never launches its binary or enables its listener.
+
+The full actual-app host/backup/consent/restart scenario passes before/after cutover in 8.3/9.8
+seconds. A native peer-credential app scenario passes in 4.8/5.0 seconds: pairing responses omit
+token material, private persistence is wrapped, an older synchronous ciphertext authenticates
+after graceful relaunch without being rewritten, and forget removes pairing. Only the fixture host's
+network replies are intercepted; application routing, private persistence and OS crypto are real.
+These are functional checks, not a performance claim. Native OS crypto is verified on macOS arm64;
+Windows/Linux vault behavior and real Cloudflare account connectivity remain unverified locally.
+
+Runtime build, app types, scoped crypto/peer/connector/E2E types, format, lint and i18n pass.
+Evidence is under `.deepchat/rutis-g4-sync-crypto-acceptance/`. The preceding Skill checkpoint
+`e739f5810` passes required run `40280089324`, including `pr-required` job `121432996814`, and
+package run `40280089473` with all six platforms and `package-required` job `121437226872`.
+Both workflows finish before this slice's push. G4 remains open for other Store/config/native ports.
 
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.

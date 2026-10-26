@@ -1406,16 +1406,16 @@ export async function createMainProcessControl(dependencies: {
     publishDeepchatEvent
   )
   const syncTokenStorage = {
-    protectToken: (token: string) => {
+    protectToken: async (token: string) => {
       if (
-        !safeStorage.isEncryptionAvailable() ||
-        (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')
+        process.platform === 'linux' &&
+        safeStorage.getSelectedStorageBackend() === 'basic_text'
       ) {
         throw new Error('sync.error.safeStorageUnavailable')
       }
-      return safeStorage.encryptString(token).toString('base64')
+      return await dependencies.secretStore.wrap(token)
     },
-    revealToken: (wrapped: string) => safeStorage.decryptString(Buffer.from(wrapped, 'base64'))
+    revealToken: (wrapped: string) => dependencies.secretStore.unwrap(wrapped)
   }
   syncPeerService = new SyncPeerService({
     directory: path.join(app.getPath('userData'), 'sync-peer'),
