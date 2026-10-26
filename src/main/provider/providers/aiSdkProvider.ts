@@ -2153,11 +2153,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       const modelId = typeof model.id === 'string' ? model.id.trim() : ''
       const outputModalities = toStrings(model.output_modalities)
       const inputModalities = toStrings(model.input_modalities)
-      if (
-        !modelId ||
-        !outputModalities?.includes('text') ||
-        !inputModalities?.includes('text')
-      ) {
+      if (!modelId || !outputModalities?.includes('text') || !inputModalities?.includes('text')) {
         continue
       }
       const features = toStrings(model.supported_features)
