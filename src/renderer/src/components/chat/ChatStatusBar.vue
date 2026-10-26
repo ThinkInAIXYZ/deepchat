@@ -2,8 +2,10 @@
   <div :class="['w-full', props.maxWidthClass]">
     <div class="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 py-1">
       <div class="flex min-w-0 flex-wrap items-center gap-1">
+        <slot name="agent" />
         <template v-if="isAcpAgent">
           <div
+            v-if="!$slots.agent"
             class="acp-agent-badge flex h-6 min-w-0 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground"
           >
             <ModelIcon

@@ -69,11 +69,5 @@
       "openrouter": "OpenRouter"
     },
     "importProviders": "باشقا Agent تىن كىرىتۈش"
-  },
-  "agentPage": {
-    "title": "تاللاش ئارقىلىق Agent قۇرۇشنى باشلىدىم",
-    "deepchatType": "DeepChat ئەقلىي ياردەمچىسى",
-    "acpType": "ACP ئەقلىي ياردەمچىسى",
-    "manageAgents": "باشقۇرۇش DeepChat Agent"
   }
 }

@@ -448,8 +448,7 @@
   "onboarding": {
     "agentSwitch": {
       "title": "Cambiar a DeepChat Agent",
-      "description": "Antes de chatear, vuelve de ACP Agent al flujo de conversación de DeepChat.",
-      "caption": "Haz clic en el botón de Agent resaltado en la barra lateral para continuar."
+      "description": "Antes de chatear, vuelve de ACP Agent al flujo de conversación de DeepChat."
     },
     "switchModel": {
       "description": "Elige el modelo que quieres usar para tu primera conversación en DeepChat.",

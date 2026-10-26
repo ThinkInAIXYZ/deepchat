@@ -69,11 +69,5 @@
       "openrouter": "OpenRouter"
     },
     "importProviders": "다른 에이전트에서 가져오기"
-  },
-  "agentPage": {
-    "title": "에이전트를 선택해 제작 시작",
-    "deepchatType": "DeepChat 에이전트",
-    "acpType": "ACP 에이전트",
-    "manageAgents": "DeepChat 에이전트 관리"
   }
 }

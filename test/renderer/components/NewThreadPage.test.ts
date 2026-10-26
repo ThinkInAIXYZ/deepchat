@@ -1495,7 +1495,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     )
   })
 
-  it('prefers the agent default directory over the current selection', async () => {
+  it('preserves the manually selected directory when switching Agents', async () => {
     const { projectStore, agentStore, draftStore } = await setup({
       defaultProjectPath: '/workspaces/global',
       resolvedAgentConfig: {
@@ -1508,12 +1508,12 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     agentStore.selectedAgentId = 'deepchat'
     await flushPromises()
 
-    expect(projectStore.selectProject).toHaveBeenCalledWith('/workspaces/agent-writer', 'manual')
-    expect(projectStore.selectedProject).toEqual({
-      path: '/workspaces/agent-writer',
-      name: 'agent-writer'
-    })
-    expect(draftStore.projectDir).toBe('/workspaces/agent-writer')
+    expect(projectStore.selectProject).not.toHaveBeenCalledWith(
+      '/workspaces/agent-writer',
+      expect.anything()
+    )
+    expect(projectStore.selectedProject?.path).toBe('/tmp/workspace')
+    expect(draftStore.projectDir).toBe('/tmp/workspace')
   })
 
   it('prefers a new-conversation workspace intent over the agent default directory', async () => {

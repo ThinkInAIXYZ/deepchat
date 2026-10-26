@@ -91,7 +91,49 @@
                     ref="chatStatusBarRef"
                     :acp-draft-session-id="acpDraftSessionId"
                     max-width-class="max-w-none"
-                  />
+                  >
+                    <template #agent>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger as-child>
+                          <DcButton
+                            data-testid="new-thread-agent-selector"
+                            :data-selected-agent-id="selectedAgent.id"
+                            variant="ghost"
+                            size="sm"
+                            :disabled="isSubmittingInput"
+                            :aria-label="`${t('chat.mode.agent')}: ${selectedAgent.name}`"
+                            class="h-6 min-w-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                          >
+                            <AgentAvatar :agent="selectedAgent" class-name="size-3.5 shrink-0" />
+                            <span class="max-w-[min(12rem,30vw)] truncate">{{
+                              selectedAgent.name
+                            }}</span>
+                            <Icon icon="lucide:chevron-down" class="size-3 shrink-0" />
+                          </DcButton>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" class="w-60">
+                          <DropdownMenuItem
+                            v-for="agent in agentStore.enabledAgents"
+                            :key="agent.id"
+                            data-testid="new-thread-agent-option"
+                            :data-agent-id="agent.id"
+                            role="menuitemradio"
+                            :aria-checked="selectedAgent.id === agent.id"
+                            class="gap-2"
+                            @select="selectDraftAgent(agent.id)"
+                          >
+                            <AgentAvatar :agent="agent" class-name="size-4 shrink-0" />
+                            <span class="min-w-0 flex-1 truncate">{{ agent.name }}</span>
+                            <Icon
+                              v-if="selectedAgent.id === agent.id"
+                              icon="lucide:check"
+                              class="size-4"
+                            />
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </template>
+                  </ChatStatusBar>
                 </template>
               </ChatInputToolbar>
             </template>
@@ -253,6 +295,7 @@ import {
 } from '@/features/chat-page/composables/useComposerInputRouting'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
+import AgentAvatar from '@/components/icons/AgentAvatar.vue'
 import AcpAuthDialog from '@/components/acp/AcpAuthDialog.vue'
 import {
   openChatStatusBarModelPicker,
@@ -561,10 +604,18 @@ const selectedAgent = computed(() => {
     return agentStore.selectedAgent
   }
 
-  return { id: selectedAgentId, type: resolveAgentType(selectedAgentId) }
+  return {
+    id: selectedAgentId,
+    type: resolveAgentType(selectedAgentId),
+    name: selectedAgentId === 'deepchat' ? 'DeepChat' : selectedAgentId
+  }
 })
 const isAcpSelectedAgent = computed(() => selectedAgent.value.type === 'acp')
 const isDeepChatSelectedAgent = computed(() => selectedAgent.value.type === 'deepchat')
+const selectDraftAgent = (agentId: string) => {
+  draftStore.agentId = agentId
+  agentStore.setSelectedAgent(agentId)
+}
 const composerSupportsVision = computed<boolean | null>(() => {
   if (
     isAcpSelectedAgent.value ||
@@ -683,7 +734,7 @@ const syncGuideTargets = () => {
   }
 
   agentGuideTargetRef.value = document.querySelector(
-    '[data-testid="sidebar-agent-selector"]'
+    '[data-testid="new-thread-agent-selector"]'
   ) as HTMLElement | null
   modelGuideTargetRef.value = document.querySelector(
     '[data-testid="app-model-switcher"]'
@@ -704,7 +755,6 @@ const activeChatGuide = computed(() => {
       key: 'switch-agent',
       title: t('chat.onboarding.agentSwitch.title'),
       description: t('chat.onboarding.agentSwitch.description'),
-      caption: t('chat.onboarding.agentSwitch.caption'),
       targetEl: agentGuideTargetRef.value,
       stepIndex: switchAgentGuide.stepIndex.value,
       totalSteps: switchAgentGuide.totalSteps.value,
@@ -1384,7 +1434,6 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
           projectDir: normalizeProjectPath(pendingProjectDirIntent.projectDir)
         }
       : null
-  draftStore.agentId = agentId
   draftStore.providerId = undefined
   draftStore.modelId = undefined
   draftStore.permissionMode = 'full_access'
@@ -1408,10 +1457,16 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   if (selectedAgent.value.type === 'acp') {
     const resolvedProjectPath = projectDirIntent
       ? projectDirIntent.projectDir
-      : (currentProjectPath ?? globalDefaultProjectPath)
+      : selectedProjectSource === 'manual'
+        ? currentProjectPath
+        : (currentProjectPath ?? globalDefaultProjectPath)
     if (projectDirIntent) {
       projectStore.selectProject(projectDirIntent.projectDir, 'manual')
-    } else if (!currentProjectPath && globalDefaultProjectPath) {
+    } else if (
+      selectedProjectSource !== 'manual' &&
+      !currentProjectPath &&
+      globalDefaultProjectPath
+    ) {
       projectStore.selectProject(globalDefaultProjectPath, 'default')
     }
     draftStore.projectDir = resolvedProjectPath ?? undefined
@@ -1436,17 +1491,26 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
     projectStore.selectionSource === selectedProjectSource
   const resolvedProjectPath = projectDirIntent
     ? projectDirIntent.projectDir
-    : canApplyProjectDefault
+    : canApplyProjectDefault && selectedProjectSource !== 'manual'
       ? (agentDefaultProjectPath ?? currentProjectPath ?? globalDefaultProjectPath)
       : currentSelectedProjectPath
   if (projectDirIntent) {
     projectStore.selectProject(projectDirIntent.projectDir, 'manual')
-  } else if (canApplyProjectDefault && agentDefaultProjectPath) {
+  } else if (
+    canApplyProjectDefault &&
+    selectedProjectSource !== 'manual' &&
+    agentDefaultProjectPath
+  ) {
     projectStore.selectProject(
       agentDefaultProjectPath,
       agentDefaultProjectPath === globalDefaultProjectPath ? 'default' : 'manual'
     )
-  } else if (canApplyProjectDefault && !currentProjectPath && globalDefaultProjectPath) {
+  } else if (
+    canApplyProjectDefault &&
+    selectedProjectSource !== 'manual' &&
+    !currentProjectPath &&
+    globalDefaultProjectPath
+  ) {
     projectStore.selectProject(globalDefaultProjectPath, 'default')
   }
   draftStore.projectDir = resolvedProjectPath ?? undefined

@@ -53,13 +53,18 @@ test('new-session files and native browser survive the first message @smoke', as
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as { port: number }
   const pageUrl = `http://127.0.0.1:${port}/page`
+  let selectedAgentId: string | undefined
   try {
     await waitForAppReady(app.page)
     await app.page.evaluate(async (path) => {
       await window.deepchat.invoke('config.setLanguage', { language: 'en-US' })
       await window.deepchat.invoke('config.setDefaultProjectPath', { path })
     }, workspace)
-    await selectAgent(app.page)
+    const { agent } = await app.page.evaluate(async () =>
+      window.deepchat.invoke('config.createDeepChatAgent', { name: 'Workspace execution agent' })
+    )
+    selectedAgentId = agent.id
+    await selectAgent(app.page, selectedAgentId)
     const panel = app.page.getByTestId('chat-side-panel-shell')
     await expect.poll(async () => (await panel.boundingBox())?.width).toBe(0)
     // Exercise the native shortcut event without depending on host-window focus.
@@ -151,6 +156,10 @@ test('new-session files and native browser survive the first message @smoke', as
     await sendMessage(app.page, 'Review this workspace.')
     await waitForGenerationDone(app.page)
     expect(await getActiveSessionId(app.page)).toBe(draftId)
+    const { session } = await app.page.evaluate(async () =>
+      window.deepchat.invoke('sessions.getActive', {})
+    )
+    expect(session?.agentId).toBe(selectedAgentId)
     const { status } = await app.page.evaluate(
       async (sessionId) => window.deepchat.invoke('browser.getStatus', { sessionId }),
       draftId
@@ -168,6 +177,11 @@ test('new-session files and native browser survive the first message @smoke', as
     await expect.poll(async () => (await panel.boundingBox())?.width).toBe(0)
     await expect(app.page.getByTestId('new-thread-workspace-toggle')).toBeVisible()
   } finally {
+    if (selectedAgentId) {
+      await app.page.evaluate(async (agentId) => {
+        await window.deepchat.invoke('config.deleteDeepChatAgent', { agentId })
+      }, selectedAgentId)
+    }
     server.closeAllConnections()
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve()))

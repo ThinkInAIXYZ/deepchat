@@ -28,6 +28,7 @@ import {
   requestGuidedOnboardingResume
 } from '@/lib/onboardingResume'
 import { useAgentStore } from './agent'
+import { useDraftStore } from './draft'
 import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'
 import { useAttachmentPreparationStore } from './attachmentPreparation'
@@ -79,6 +80,7 @@ export interface NewConversationProjectDirIntent {
 export type StartNewConversationOptions = {
   refresh?: boolean
   projectDir?: string | null
+  agentId?: string
 }
 export type CloseSessionOptions = {
   refresh?: boolean
@@ -329,6 +331,7 @@ export const useSessionStore = defineStore('session', () => {
   const configClient = createConfigClient()
   const onboardingClient = createOnboardingClient()
   const agentStore = useAgentStore()
+  const draftStore = useDraftStore()
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
   const attachmentPreparationStore = useAttachmentPreparationStore()
@@ -723,27 +726,9 @@ export const useSessionStore = defineStore('session', () => {
   const hasActiveSession: ComputedRef<boolean> = computed(() => activeSessionId.value !== null)
 
   const newConversationTargetAgentId = computed(() => {
-    if (agentStore.filterAgentId) {
-      return agentStore.filterAgentId
-    }
-
-    const selectedAgentId =
-      typeof agentStore.selectedAgentId === 'string' ? agentStore.selectedAgentId.trim() : ''
-    if (selectedAgentId) {
-      return selectedAgentId
-    }
-
-    const activeSessionAgentId =
-      typeof activeSession.value?.agentId === 'string' ? activeSession.value.agentId.trim() : ''
-    if (activeSessionAgentId) {
-      return activeSessionAgentId
-    }
-
-    const fallbackAgentId =
-      typeof agentStore.enabledAgents[0]?.id === 'string'
-        ? agentStore.enabledAgents[0].id.trim()
-        : ''
-    return fallbackAgentId || null
+    return agentStore.enabledAgents.some((agent) => agent.id === draftStore.agentId)
+      ? draftStore.agentId
+      : 'deepchat'
   })
 
   const sessionGroups: ComputedRef<SessionGroup[]> = computed(() => getFilteredGroups(null))
@@ -764,7 +749,7 @@ export const useSessionStore = defineStore('session', () => {
       return
     }
 
-    agentStore.setSelectedAgent(targetAgentId, { preserveFilter: true })
+    agentStore.setSelectedAgent(targetAgentId)
   }
 
   const applySessionStatus = (sessionId: string, status: string, version?: number): boolean => {
@@ -1283,39 +1268,12 @@ export const useSessionStore = defineStore('session', () => {
   async function startNewConversation(options: StartNewConversationOptions = {}): Promise<void> {
     error.value = null
 
-    const requestId = createActivationNavigationRequest()
-    const filterAgentId = agentStore.filterAgentId
-    const projectDir = options.projectDir?.trim()
-    let targetAgentId: string | null = null
-
-    if (!filterAgentId && projectDir) {
-      try {
-        const { items } = await sessionClient.listLightweight({
-          projectDir,
-          includeDrafts: false,
-          includeSubagents: false,
-          limit: 1
-        })
-        const latestAgentId = items[0]?.agentId
-        if (latestAgentId && agentStore.enabledAgents.some((agent) => agent.id === latestAgentId)) {
-          targetAgentId = latestAgentId
-        }
-      } catch (lookupError) {
-        console.warn('[sessionStore] Failed to resolve workspace Agent:', lookupError)
-      }
-
-      if (
-        activationNavigationRequestId !== requestId ||
-        agentStore.filterAgentId !== filterAgentId
-      ) {
-        return
-      }
+    createActivationNavigationRequest()
+    if (options.agentId) {
+      draftStore.agentId = options.agentId
     }
-
-    targetAgentId ??= newConversationTargetAgentId.value
-    if (!targetAgentId) {
-      return
-    }
+    const targetAgentId = newConversationTargetAgentId.value
+    draftStore.agentId = targetAgentId
 
     newConversationProjectDirIntent.value = Object.prototype.hasOwnProperty.call(
       options,
@@ -1329,7 +1287,7 @@ export const useSessionStore = defineStore('session', () => {
       : null
 
     if (agentStore.selectedAgentId !== targetAgentId) {
-      agentStore.setSelectedAgent(targetAgentId, { preserveFilter: true })
+      agentStore.setSelectedAgent(targetAgentId)
     }
 
     if (hasActiveSession.value) {

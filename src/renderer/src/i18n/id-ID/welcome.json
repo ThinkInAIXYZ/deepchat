@@ -69,11 +69,5 @@
       "openrouter": "OpenRouter"
     },
     "importProviders": "Impor dari Agent lainnya"
-  },
-  "agentPage": {
-    "title": "Pilih Agent untuk mulai membuat",
-    "deepchatType": "DeepChat Agent",
-    "acpType": "ACP Agent",
-    "manageAgents": "Kelola DeepChat Agent"
   }
 }

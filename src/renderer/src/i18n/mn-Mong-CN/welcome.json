@@ -69,11 +69,5 @@
       "openrouter": "OpenRouter"
     },
     "importProviders": "ᠠᠴᠠ ᠣᠷᠣᠭᠤᠯᠬᠤ Agent"
-  },
-  "agentPage": {
-    "title": "Agent ᠶᠢ ᠰᠣᠩᠭᠣᠵᠤ ᠡᠬᠢᠯᠡᠵᠦ ᠵᠣᠬᠢᠶᠠᠨ ᠪᠠᠶᠢᠭᠤᠯᠬᠤ",
-    "deepchatType": "DeepChat ᠣᠶᠤᠨᠲᠤ ᠲᠤᠰᠠᠯᠠᠭᠴᠢ",
-    "acpType": "ACP ᠣᠶᠤᠨᠲᠤ ᠲᠤᠰᠠᠯᠠᠭᠴᠢ",
-    "manageAgents": "ᠢ ᠬᠠᠮᠢᠶᠠᠷᠬᠤ DeepChat Agent"
   }
 }

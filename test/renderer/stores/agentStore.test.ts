@@ -77,38 +77,32 @@ const setupStore = async (options?: {
 }
 
 describe('agent store incremental refresh', () => {
-  it('keeps history filtering explicit when conversation selection changes', async () => {
+  it('changes execution and history filtering independently', async () => {
     const { store } = await setupStore()
-
-    store.setSelectedAgent('deepchat', { preserveFilter: true })
-    expect(store.selectedAgentId.value).toBe('deepchat')
-    expect(store.filterAgentId.value).toBeNull()
-
-    store.setSelectedAgent('acp-1')
-    store.setSelectedAgent('deepchat', { preserveFilter: true })
+    store.setSelectedAgent('deepchat')
+    store.setFilterAgent('acp-1')
     expect(store.selectedAgentId.value).toBe('deepchat')
     expect(store.filterAgentId.value).toBe('acp-1')
 
-    store.selectAgent('acp-1')
-    expect(store.selectedAgentId.value).toBeNull()
+    store.setSelectedAgent('acp-2')
+    expect(store.filterAgentId.value).toBe('acp-1')
+    store.setFilterAgent(null)
+    expect(store.selectedAgentId.value).toBe('acp-2')
     expect(store.filterAgentId.value).toBeNull()
   })
 
-  it('clears unavailable Agent selections independently', async () => {
+  it('falls back from an unavailable execution Agent and clears only an unavailable filter', async () => {
     const { store } = await setupStore({ initialAgents: [createAgent('deepchat')] })
-    store.setSelectedAgent('removed-agent')
-    store.setSelectedAgent('deepchat', { preserveFilter: true })
-
+    store.setFilterAgent('removed-agent')
+    store.setSelectedAgent('deepchat')
     await store.fetchAgents()
-
     expect(store.selectedAgentId.value).toBe('deepchat')
     expect(store.filterAgentId.value).toBeNull()
 
-    store.setSelectedAgent('deepchat')
-    store.setSelectedAgent('removed-agent', { preserveFilter: true })
+    store.setFilterAgent('deepchat')
+    store.setSelectedAgent('removed-agent')
     await store.fetchAgents()
-
-    expect(store.selectedAgentId.value).toBeNull()
+    expect(store.selectedAgentId.value).toBe('deepchat')
     expect(store.filterAgentId.value).toBe('deepchat')
   })
 

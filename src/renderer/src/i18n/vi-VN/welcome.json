@@ -69,11 +69,5 @@
       "openrouter": "Bộ định tuyến mở"
     },
     "importProviders": "Nhập từ đại lý khác"
-  },
-  "agentPage": {
-    "title": "Chọn Agent để bắt đầu tạo",
-    "deepchatType": "DeepChat Agent",
-    "acpType": "ACP Agent",
-    "manageAgents": "Quản lý DeepChat Agent"
   }
 }

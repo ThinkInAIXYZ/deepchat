@@ -448,8 +448,7 @@
   "onboarding": {
     "agentSwitch": {
       "title": "מעבר לסוכן DeepChat",
-      "description": "לפני שמתחילים לשוחח, עברו מ-ACP וחזרו לזרימה המובנית של DeepChat.",
-      "caption": "כדי להמשיך, לחצו על כפתור הסוכן המודגש בסרגל הצד."
+      "description": "לפני שמתחילים לשוחח, עברו מ-ACP וחזרו לזרימה המובנית של DeepChat."
     },
     "switchModel": {
       "description": "בחרו את המודל שבו תרצו להשתמש בשיחת ה-DeepChat הראשונה שלכם.",
