@@ -40,11 +40,16 @@
               </DcButton>
             </PopoverTrigger>
 
-            <PopoverContent align="start" class="w-56 overflow-hidden p-0">
+            <PopoverContent
+              align="start"
+              :collision-padding="8"
+              class="w-max min-w-56 max-w-[min(32rem,calc(100vw-1rem))] overflow-hidden p-0"
+            >
               <div class="border-b px-3 py-2">
                 <div
                   :data-option-id="option.id"
-                  class="acp-inline-option-title text-sm font-medium"
+                  class="acp-inline-option-title truncate text-sm font-medium"
+                  :title="option.label"
                 >
                   {{ option.label }}
                 </div>
@@ -52,29 +57,42 @@
 
               <div
                 v-if="(option.options?.length ?? 0) > 0"
-                class="dc-overscroll-contain max-h-60 overflow-y-auto px-2 py-2"
+                class="dc-overscroll-contain max-h-60 overflow-x-hidden overflow-y-auto px-2 py-2"
               >
-                <button
-                  v-for="entry in option.options ?? []"
-                  :key="`${option.id}-${entry.value}`"
-                  type="button"
-                  :data-option-id="option.id"
-                  :data-value="entry.value"
-                  :disabled="
-                    acpConfigReadOnly ||
-                    isAcpOptionSaving(option.id) ||
-                    String(option.currentValue) === entry.value
-                  "
-                  :class="[
-                    'acp-inline-option-item flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs transition-colors disabled:pointer-events-none disabled:opacity-60',
-                    String(option.currentValue) === entry.value
-                      ? 'bg-muted/60 text-foreground'
-                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                  ]"
-                  @click="onAcpSelectOption(option.id, entry.value)"
-                >
-                  {{ entry.value }}
-                </button>
+                <TooltipProvider :delay-duration="200">
+                  <Tooltip
+                    v-for="entry in option.options ?? []"
+                    :key="`${option.id}-${entry.value}`"
+                  >
+                    <TooltipTrigger as-child>
+                      <button
+                        type="button"
+                        :data-option-id="option.id"
+                        :data-value="entry.value"
+                        :disabled="
+                          acpConfigReadOnly ||
+                          isAcpOptionSaving(option.id) ||
+                          String(option.currentValue) === entry.value
+                        "
+                        :class="[
+                          'acp-inline-option-item block w-full truncate rounded-md px-2 py-1.5 text-left text-xs transition-colors disabled:opacity-60',
+                          String(option.currentValue) === entry.value
+                            ? 'bg-muted/60 text-foreground'
+                            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                        ]"
+                        @click="onAcpSelectOption(option.id, entry.value)"
+                      >
+                        {{ entry.value }}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      :collision-padding="8"
+                      class="max-w-[min(32rem,calc(100vw-1rem))] text-white [overflow-wrap:anywhere]"
+                    >
+                      {{ entry.value }}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
 
               <div v-else class="px-3 py-4 text-xs text-muted-foreground">
