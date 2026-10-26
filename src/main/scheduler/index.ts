@@ -74,9 +74,8 @@ export class SchedulerService {
       deps.sessionEvents
     )
     const managerDeps: Omit<SchedulerProcessManagerDeps, 'spawnHost'> = {
-      dbPath: deps.database.getDatabasePath(),
-      dbPassword: deps.database.getDatabasePassword(),
       getSnapshot: () => this.repository.getSchedulerSnapshot(),
+      queueDueRuns: () => this.repository.queueDueRuns(),
       onRunDue: async (event) => {
         await this.processDueRun(event)
       }

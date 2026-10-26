@@ -187,8 +187,11 @@ export type SchedulerCommand =
       now: number
     }
   | {
-      type: 'RUN_NOW'
-      jobId: string
+      type: 'SCAN_RESULT'
+      requestId: number
+      enabledJobCount: number
+      nextRunAt: number | null
+      error?: string
       now: number
     }
   | {
@@ -210,11 +213,8 @@ export type SchedulerEvent =
       now: number
     }
   | {
-      type: 'RUN_DUE'
-      jobId: string
-      runId: string
-      scheduledAt: number
-      reason: CronJobRunReason
+      type: 'SCAN_DUE'
+      requestId: number
       now: number
     }
   | {
@@ -227,5 +227,6 @@ export type SchedulerEvent =
       type: 'ERROR'
       message: string
       stack?: string
+      fatal?: boolean
       now: number
     }

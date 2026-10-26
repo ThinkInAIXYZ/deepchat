@@ -10,9 +10,8 @@ There is no retained implementation switch or local fallback.
 
 Current scope: staged implementation in
 [Draft PR #2465](https://github.com/ThinkInAIXYZ/deepchat/pull/2465), targeting `dev`. Admission is
-committed as `ffcd98770` and the roadmap as `f35adff34`. G3 is complete at `7ee99619b`; G4 is next.
-Later goals start only after
-their dependencies and the preceding selected goal pass validation.
+committed as `ffcd98770` and the roadmap as `f35adff34`. G3 is complete at `7ee99619b`; G4 is active.
+Later goals start only after their dependencies and the preceding selected goal pass validation.
 
 Use this file as the only tracker. [The RFC](spec.md) defines capability ownership, Memory
 dependencies, Rust hypotheses, process placement and Everywhere contracts. Keep status and evidence
@@ -34,7 +33,7 @@ skipped to advance. Keep the PR in draft and do not merge it as part of this exe
 | G1 Whole-capability roadmap | Complete; documentation only | G0 and source research | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence |
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
 | G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
-| G4 Store commands and desktop ports | Planned | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
+| G4 Store commands and desktop ports | Scheduler slice validated; remaining contracts in progress | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
 | G5 Cohesive TS Harness backend | Planned | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
 | G7 Rust control owner | Planned | G2, G5 | Admission and cohesive run/interaction settlement preserve all fences |
@@ -475,6 +474,109 @@ Completion: a real Memory resource module uses Rutis with one file owner and pro
 A standalone query demo or reduced main-process heap does not complete this goal.
 
 ## G4. Define durable Store commands and desktop capability ports
+
+G4 starts from the accepted G3 application and its immutable candidate artifact. The first actual
+cutover is the scheduler's independent shared-database connection. The full goal also includes
+Session/Tape/Memory commands, configuration snapshots, maintenance and desktop capabilities;
+removing the scheduler connection alone does not complete G4.
+
+### Audited ownership entrypoints
+
+| Connection or persistence owner | Current entrypoints | Required boundary |
+| --- | --- | --- |
+| Shared application database | `MainDatabase`; Session, Tape, Agent, Memory, Provider, MCP, settings, Project, delegation, scheduler and sync facades use its connection | Keep domain transactions together; move the normal writer and its business owners together in G5 |
+| Scheduler utility process | Timer and heartbeat only; `CronJobsRepository.queueDueRuns` observes and advances due work in one transaction at the current Store owner | No database path/password/SQL crosses the helper port; preserve request correlation, generation fences and owner-side dispatch |
+| Shared-file maintenance | `databaseSecurity.ts`, `mainDatabase.ts`, sync import/config import and backup helpers open active, source or staged files | Fence normal work, explicitly own each file and connection, preserve rekey/import/backup/reopen recovery; main loses these writable paths at G5 cutover |
+| Import sources | Provider import, legacy chat import and browser profile import use source/snapshot connections; `DataImporter` currently opens both source and target with writable-capable configuration | Distinguish source ownership from the active target; keep target mutations inside the authoritative maintenance operation |
+| Schema catalog | `schemaCatalog.ts` opens an in-memory database for schema inspection | Keep this temporary local connection internal to the Store owner |
+| OCR artifacts | `ocrArtifactStore.ts` owns a separate encrypted derived-cache database | Preserve its explicit independent file owner; this is not a second writer of the shared application file |
+| Vector stores | The G3 Memory worker and Knowledge's existing DuckDB owner use separate files | Preserve their existing resource authorities and maintenance fences |
+| Configuration | `SettingsStore` starts from `app-settings` and attaches `AppSettingsDbBackedStore`; Provider/MCP/ACP/model settings also have legacy file adapters | Audit actual injected adapters and desktop readers; use acknowledged mutations and versioned read snapshots, with explicit bootstrap and machine-local file ownership |
+| Credentials and desktop state | `DatabaseSecurityService`, `SecretStore`, Provider credential stores and plugin settings combine persistence with Electron APIs | Separate authorized async crypto/native operations from persistence; retain existing plugin consent and settings ownership |
+
+### Ordered implementation slices
+
+1. Replace the scheduler worker's database access with bounded commands at the current Store
+   authority. Preserve the existing 100-job due-scan bound, schedule reconciliation, unique run
+   insertion, run claims, manual execution and idle/restart behavior. Timer requests cannot carry
+   a database path, password, SQL or callback. Committed run dispatch belongs to the owner, so a
+   lost timer reply cannot strand or replay a durable mutation. Keep at most one scan in flight
+   per worker generation and fence stale requests/replies before mutation or status publication.
+2. Define the Session/Tape/Memory operation boundary around existing atomic business work:
+   transcript mutation and projection heads, pending-input settlement, Memory cursor/CAS and
+   maintenance. Keep synchronous repository helpers and transaction closures inside their owner;
+   do not convert every row method to RPC or split one atomic observation into separate reads.
+3. Retarget configuration consumers through versioned snapshots and acknowledged mutations.
+   Inventory legacy/file adapters before choosing ownership; preserve machine-local bootstrap
+   settings and keep secrets outside general configuration snapshots.
+4. Extract real crypto/unlock, OAuth, helper/native UI and power-event consumers behind narrow
+   async desktop ports. Preserve sender/principal checks, cancellation identity and maintenance
+   fencing. Complete the remaining writer/host audit before moving the cohesive core in G5.
+
+Characterize scheduler behavior on the accepted G3 build before its caller cutover. Reuse existing
+scheduler tests and add only the matching real-application migration fixture needed to compare
+the two implementations; this baseline characterization is the migration exception to
+implementation-first validation. After the cutover, select durable tests for transactional
+claims, generation loss and shutdown, then compare the same app workload and process resources.
+Keep the existing timer cadence and process count; freeze any additional numeric resource
+allowance from the matching baseline before judging the selected implementation.
+
+The scheduler slice retains G3's fixed-device resource envelope: no extra process while unused;
+unused readiness/footprint median deltas within `max(100 ms, 2 x baseline MAD)` and
+`max(32 MiB, 2 x baseline MAD)`; active settled/peak footprint deltas within 64/128 MiB;
+Main loop-p99 median delta within `max(10 ms, 2 x baseline MAD)`. Use five alternating paired
+application runs with the same 30-second quiet-worker window and observer. These unchanged
+allowances are selected before implementation; no Rust speed or CPU saving is claimed. Preserve
+the existing timer cadence and functional deadlines. The immutable G3 candidate output and SDK
+graph form the new baseline, with the same scheduler fixture installed in its separate G4 tree.
+
+The existing scheduler service and run-session starter suites pass all 28 checks under Electron
+Node mode with native persistence enabled and no skipped check. The actual application fixture
+`47-scheduler-store.smoke.spec.ts` passes on the accepted G3 runtime: manual and timed runs,
+unique scheduled-run identities, persisted outputs, relaunch, disabling and scheduler shutdown.
+Its three launches complete in 8.8 seconds without resource instrumentation.
+Logs: `.deepchat/rutis-g4-acceptance/baseline-scheduler-{tests,e2e}.log`.
+
+The scheduler now uses the Store command by default. The helper holds one correlated scan
+request, coalesces reconciliation and fences a missing acknowledgement at the existing 30-second
+maximum scan interval. The manager validates messages and generation identity before mutation;
+committed runs are dispatched before replying to the helper. Scheduled-run insertion and head
+advancement roll back together. The independent worker connection, database-password environment
+and unused worker-side manual-run command are removed. Existing public routes and manual-run
+execution keep their owners. The two native suites pass 36 checks with no skips, including atomic
+rollback, catch-up/skip policy, the 100-job scan bound, missing/empty error replies, coalescing,
+duplicate/stale requests and a spawn superseded by shutdown. The matching actual app scenario
+also passes on the migrated build. Format, lint, i18n, app types and scoped scheduler/E2E types
+pass. The normal build refresh of the Provider catalog is retained.
+
+### Scheduler slice resource evidence
+
+Five alternating baseline/migrated pairs pass the same application scenario: ten successful runs
+and 30 launches with isolated profiles. Every active phase includes the same 30-second quiet
+worker window, with no forced GC. Use G2's hardware and 500-ms process-tree physical-footprint
+observer; settled values are per-run final-ten-second medians, then medians across five runs.
+All three phase comparisons pass the unchanged allowances selected above.
+
+| Phase / metric | Baseline | Migrated | Delta |
+| --- | ---: | ---: | ---: |
+| Unused UI ready, ms | 1932.24 | 1927.26 | -4.98 |
+| Unused sampled peak footprint, MiB | 1032.93 | 1025.47 | -7.47 |
+| Active sampled peak footprint, MiB | 1038.36 | 1039.72 | +1.36 |
+| Active settled footprint, MiB | 855.95 | 847.97 | -7.98 |
+| Active Main loop p99, ms | 12.45 | 12.33 | -0.12 |
+| Reopen sampled peak footprint, MiB | 1061.75 | 1054.50 | -7.25 |
+
+Unused process-name counts match in every pair. These measurements establish the cost of the
+scheduler ownership change in this fixture; they do not establish a Rust or CPU speedup.
+The baseline has 1,531 output files with SHA-256
+`2970d4a9178ffb4c9ece8959487695d797e68c573510028d7af5851e58faa74a`; the migrated build has
+1,530 files with SHA-256 `0176d47a0a4b26d05def1677fa418cf55400b5763f61b0566fcbf8a440580947`.
+Both use the same current catalogs, scenario/observer and 344 frozen files across six SDK
+consumers. Full file, dependency and metadata hashes are verified before/after every run;
+Root's source and runtime still match the measured candidate after capture. Durable evidence:
+`.deepchat/rutis-g4-acceptance/{artifacts.json,paired/state.json,paired-summary.json,outcome-counts.json}`.
+The scheduler slice is locally validated; pushed-checkpoint CI and the remaining G4 contracts
+remain separate completion requirements.
 
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.

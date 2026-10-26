@@ -3,7 +3,8 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import type { UtilityProcess } from 'electron'
 import type { CronJobsSchedulerStatus, SchedulerCommand, SchedulerEvent } from '@shared/cronJobs'
-import type { CronJobsSchedulerSnapshot } from './repository'
+import type { CronJobsSchedulerSnapshot, SchedulerRunDueEvent } from './repository'
+export type { SchedulerRunDueEvent } from './repository'
 
 type SchedulerUtilityProcess = Pick<UtilityProcess, 'postMessage' | 'kill' | 'pid'> & {
   on(event: 'message', listener: (message: unknown) => void): SchedulerUtilityProcess
@@ -15,17 +16,9 @@ type SchedulerUtilityProcess = Pick<UtilityProcess, 'postMessage' | 'kill' | 'pi
   off(event: 'exit', listener: (code: number) => void): SchedulerUtilityProcess
 }
 
-export interface SchedulerRunDueEvent {
-  jobId: string
-  runId: string
-  scheduledAt: number
-  reason: 'scheduled' | 'manual'
-}
-
 export interface SchedulerProcessManagerDeps {
-  dbPath: string
-  dbPassword?: string
   getSnapshot: () => CronJobsSchedulerSnapshot
+  queueDueRuns: () => SchedulerRunDueEvent[]
   onRunDue: (event: SchedulerRunDueEvent) => Promise<void> | void
   idleShutdownMs?: number
   maxRestartAttempts?: number
@@ -46,6 +39,8 @@ export class SchedulerProcessManager {
   private idleStopTimer: NodeJS.Timeout | null = null
   private restartTimer: NodeJS.Timeout | null = null
   private shuttingDown = false
+  private lastScanRequestId = 0
+  private hostEpoch = 0
   private status: CronJobsSchedulerStatus = {
     state: 'stopped',
     pid: null,
@@ -111,6 +106,7 @@ export class SchedulerProcessManager {
 
   async stop(reason = 'manual'): Promise<CronJobsSchedulerStatus> {
     this.shuttingDown = true
+    this.hostEpoch++
     this.cancelIdleStop()
     this.cancelRestart()
 
@@ -148,20 +144,27 @@ export class SchedulerProcessManager {
 
     this.shuttingDown = false
     this.updateStatus({ state: 'starting', lastError: null })
-    this.hostReady = this.spawnHost()
+    const epoch = ++this.hostEpoch
+    const ready = this.spawnHost(epoch)
+    this.hostReady = ready
     try {
-      return await this.hostReady
+      return await ready
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      this.updateStatus({ state: 'error', pid: null, lastError: message })
+      if (this.hostEpoch === epoch)
+        this.updateStatus({ state: 'error', pid: null, lastError: message })
       throw error
     } finally {
-      this.hostReady = null
+      if (this.hostReady === ready) this.hostReady = null
     }
   }
 
-  private async spawnHost(): Promise<SchedulerUtilityProcess> {
+  private async spawnHost(epoch: number): Promise<SchedulerUtilityProcess> {
     const host = this.deps.spawnHost ? await this.deps.spawnHost() : await this.spawnDefaultHost()
+    if (this.hostEpoch !== epoch || this.shuttingDown) {
+      host.kill()
+      throw new Error('Scheduler utility spawn was superseded.')
+    }
     host.on('message', (message) => this.handleHostMessage(host, message))
     host.on('exit', (code) => this.handleHostExit(host, code))
     host.on('error', (type, location) => {
@@ -174,6 +177,7 @@ export class SchedulerProcessManager {
     })
 
     this.host = host
+    this.lastScanRequestId = 0
     this.updateStatus({
       state: 'running',
       pid: host.pid ?? null,
@@ -194,11 +198,7 @@ export class SchedulerProcessManager {
       stdio: 'ignore',
       env: {
         ...process.env,
-        DEEPCHAT_CRON_SCHEDULER_HOST: '1',
-        DEEPCHAT_CRON_SCHEDULER_DB_PATH: this.deps.dbPath,
-        ...(this.deps.dbPassword
-          ? { DEEPCHAT_CRON_SCHEDULER_DB_PASSWORD: this.deps.dbPassword }
-          : {})
+        DEEPCHAT_CRON_SCHEDULER_HOST: '1'
       }
     }) as SchedulerUtilityProcess
 
@@ -243,7 +243,7 @@ export class SchedulerProcessManager {
   }
 
   private handleHostMessage(host: SchedulerUtilityProcess, message: unknown): void {
-    if (this.host !== host) {
+    if (this.host !== host || this.shuttingDown) {
       return
     }
     const event = unwrapSchedulerEvent(message)
@@ -260,44 +260,38 @@ export class SchedulerProcessManager {
           lastError: null
         })
         return
-      case 'HEARTBEAT':
+      case 'HEARTBEAT': {
+        const snapshot = this.deps.getSnapshot()
         this.updateStatus({
           state: 'running',
-          enabledJobCount: event.enabledJobCount,
-          nextRunAt: event.nextRunAt,
+          ...snapshot,
           lastHeartbeatAt: event.now,
           lastError: null
         })
-        if (event.enabledJobCount === 0) {
+        if (snapshot.enabledJobCount === 0) {
           this.scheduleIdleStop()
-        }
+        } else this.cancelIdleStop()
         return
-      case 'IDLE':
+      }
+      case 'IDLE': {
+        const snapshot = this.deps.getSnapshot()
         this.updateStatus({
-          state: 'idle',
-          enabledJobCount: event.enabledJobCount,
-          nextRunAt: event.nextRunAt,
+          state: snapshot.enabledJobCount === 0 ? 'idle' : 'running',
+          ...snapshot,
           lastHeartbeatAt: event.now
         })
-        this.scheduleIdleStop()
+        if (snapshot.enabledJobCount === 0) this.scheduleIdleStop()
+        else this.cancelIdleStop()
         return
-      case 'RUN_DUE':
-        console.info('[CronJobs] Scheduler reported due run:', {
-          jobId: event.jobId,
-          runId: event.runId,
-          scheduledAt: event.scheduledAt,
-          reason: event.reason
-        })
-        void Promise.resolve(
-          this.deps.onRunDue({
-            jobId: event.jobId,
-            runId: event.runId,
-            scheduledAt: event.scheduledAt,
-            reason: event.reason
-          })
-        ).catch((error) => {
-          console.error('[CronJobs] Failed to process due run:', error)
-        })
+      }
+      case 'SCAN_DUE':
+        if (event.requestId !== this.lastScanRequestId + 1) {
+          this.updateStatus({ state: 'error', lastError: 'Invalid scheduler scan sequence.' })
+          host.kill()
+          return
+        }
+        this.lastScanRequestId = event.requestId
+        this.scanDueRuns(host, event.requestId)
         return
       case 'ERROR':
         console.error('[CronJobs] Scheduler utility error:', event.message)
@@ -306,7 +300,41 @@ export class SchedulerProcessManager {
           lastError: event.message,
           lastHeartbeatAt: event.now
         })
+        if (event.fatal) host.kill()
         return
+    }
+  }
+
+  private scanDueRuns(host: SchedulerUtilityProcess, requestId: number): void {
+    let error: string | undefined
+    try {
+      const events = this.deps.queueDueRuns()
+      for (const event of events) {
+        // Dispatch committed runs at the owner even if the timer reply is lost.
+        try {
+          void Promise.resolve(this.deps.onRunDue(event)).catch((error) => {
+            console.error('[CronJobs] Failed to process due run:', error)
+          })
+        } catch (error) {
+          console.error('[CronJobs] Failed to process due run:', error)
+        }
+      }
+    } catch (cause) {
+      error = (cause instanceof Error ? cause.message : String(cause)).slice(0, 4096)
+      this.updateStatus({ state: 'error', lastError: error })
+    }
+    if (this.host !== host || this.shuttingDown) return
+    try {
+      host.postMessage({
+        type: 'SCAN_RESULT',
+        requestId,
+        ...this.deps.getSnapshot(),
+        ...(error !== undefined ? { error } : {}),
+        now: Date.now()
+      } satisfies SchedulerCommand)
+    } catch (cause) {
+      console.error('[CronJobs] Failed to reply to scheduler scan:', cause)
+      host.kill()
     }
   }
 
@@ -403,16 +431,36 @@ function unwrapSchedulerEvent(message: unknown): SchedulerEvent | null {
     return null
   }
 
-  const type = (payload as { type?: unknown }).type
-  if (
-    type === 'READY' ||
-    type === 'HEARTBEAT' ||
-    type === 'RUN_DUE' ||
-    type === 'IDLE' ||
-    type === 'ERROR'
-  ) {
-    return payload as SchedulerEvent
+  const event = payload as Record<string, unknown>
+  const nonnegativeInteger = (value: unknown): value is number =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+  if (!nonnegativeInteger(event.now)) return null
+  switch (event.type) {
+    case 'READY':
+      if (event.pid !== null && (!nonnegativeInteger(event.pid) || event.pid === 0)) return null
+      break
+    case 'HEARTBEAT':
+    case 'IDLE':
+      if (
+        !nonnegativeInteger(event.enabledJobCount) ||
+        (event.nextRunAt !== null && !nonnegativeInteger(event.nextRunAt))
+      )
+        return null
+      break
+    case 'SCAN_DUE':
+      if (!nonnegativeInteger(event.requestId) || event.requestId === 0) return null
+      break
+    case 'ERROR':
+      if (
+        typeof event.message !== 'string' ||
+        event.message.length > 4096 ||
+        (event.fatal !== undefined && typeof event.fatal !== 'boolean') ||
+        (event.stack !== undefined && typeof event.stack !== 'string')
+      )
+        return null
+      break
+    default:
+      return null
   }
-
-  return null
+  return event as unknown as SchedulerEvent
 }

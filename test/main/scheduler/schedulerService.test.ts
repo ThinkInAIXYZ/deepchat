@@ -1,11 +1,8 @@
 import { EventEmitter } from 'node:events'
-import os from 'node:os'
-import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { CronJob, CronJobRun, CronJobsSchedulerStatus } from '@shared/cronJobs'
 import { SessionRuntimeEvents } from '@/session/runtimeEvents'
 
-const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const cronJobsTableModule = sqliteModule
   ? await import('@/scheduler/data/tables/cronJobs').catch(() => null)
@@ -1440,52 +1437,260 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
     }
   })
 
-  it('queues each due scheduled run once and advances next_run_at in the utility host', () => {
-    const tempDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-cron-jobs-'))
-    const dbPath = path.join(tempDir, 'agent.db')
-    const db = new DatabaseCtor(dbPath)
-    const events: unknown[] = []
-
+  it('queues each due scheduled run once and advances its head at the Store owner', () => {
+    const { db, sqlitePresenter } = createHarness()
     try {
-      const cronJobsTable = new CronJobsTableCtor(db)
-      const cronJobRunsTable = new CronJobRunsTableCtor(db)
-      cronJobsTable.createTable()
-      cronJobRunsTable.createTable()
-      const dueAt = Date.now() - 1_000
-      const job = cronJobsTable.upsert({
+      const repository = new CronJobsRepositoryCtor(sqlitePresenter as never)
+      const now = Date.now()
+      const job = repository.upsertJob({
         name: 'Due job',
         enabled: true,
         cronExpr: '0 9 * * *',
         timezone: 'UTC',
         agentId: 'agent-1',
-        nextRunAt: dueAt,
-        taskPrompt: 'Summarize issues',
-        now: 1
+        nextRunAt: now - 1_000,
+        taskPrompt: 'Summarize issues'
       })
-
-      const host = new CronJobsSchedulerUtilityHostCtor({
-        dbPath,
-        postMessage: (message) => events.push(message)
-      })
-      host.start()
-      host.reconcile()
-      host.shutdown()
-
-      expect(events.filter((event) => (event as { type?: string }).type === 'RUN_DUE')).toEqual([
-        expect.objectContaining({
-          jobId: job.id,
-          scheduledAt: dueAt,
-          reason: 'scheduled'
-        })
+      expect(repository.queueDueRuns(now)).toEqual([
+        expect.objectContaining({ jobId: job.id, scheduledAt: now - 1_000, reason: 'scheduled' })
       ])
-      expect(cronJobsTable.get(job.id)?.next_run_at).toEqual(expect.any(Number))
-      expect(db.prepare('SELECT COUNT(*) AS count FROM cron_job_runs').get()).toEqual({
-        count: 1
-      })
+      expect(repository.queueDueRuns(now)).toEqual([])
+      expect(repository.getJob(job.id)!.nextRunAt).toBeGreaterThan(now)
+      expect(repository.listRunsByJob(job.id)).toHaveLength(1)
     } finally {
       db.close()
-      actualFs.rmSync(tempDir, { recursive: true, force: true })
     }
+  })
+
+  it('rolls back every queued run and head when a due batch cannot advance', () => {
+    const { db, sqlitePresenter } = createHarness()
+    try {
+      const repository = new CronJobsRepositoryCtor(sqlitePresenter as never)
+      const now = Date.now()
+      const jobs = [0, 1].map((index) =>
+        repository.upsertJob({
+          id: 'atomic-' + index,
+          name: 'Atomic due job',
+          enabled: true,
+          cronExpr: '* * * * *',
+          timezone: 'UTC',
+          agentId: 'agent-1',
+          nextRunAt: now - 1_000,
+          taskPrompt: 'Summarize issues'
+        })
+      )
+      db.exec(
+        "CREATE TRIGGER reject_schedule BEFORE UPDATE ON cron_jobs WHEN OLD.id = 'atomic-1' BEGIN SELECT RAISE(ABORT, 'forced schedule failure'); END"
+      )
+      expect(() => repository.queueDueRuns(now)).toThrow('forced schedule failure')
+      for (const job of jobs) {
+        expect(repository.listRunsByJob(job.id)).toEqual([])
+        expect(repository.getJob(job.id)!.nextRunAt).toBe(now - 1_000)
+      }
+    } finally {
+      db.close()
+    }
+  })
+
+  it('preserves catch-up limits and skipped misfires at the Store owner', () => {
+    const { db, sqlitePresenter } = createHarness()
+    try {
+      const repository = new CronJobsRepositoryCtor(sqlitePresenter as never)
+      const now = Date.parse('2026-07-03T10:00:00.000Z')
+      const due = now - 180_000
+      const common = {
+        enabled: true,
+        cronExpr: '* * * * *',
+        timezone: 'UTC',
+        agentId: 'agent-1',
+        nextRunAt: due,
+        taskPrompt: 'Summarize issues'
+      }
+      const skipped = repository.upsertJob({ ...common, name: 'Skip', misfirePolicy: 'skip' })
+      const catchup = repository.upsertJob({
+        ...common,
+        name: 'Catch up',
+        misfirePolicy: 'run_once',
+        maxCatchUpRuns: 2
+      })
+      expect(
+        repository.queueDueRuns(now).map((run) => ({ jobId: run.jobId, at: run.scheduledAt }))
+      ).toEqual([
+        { jobId: catchup.id, at: due },
+        { jobId: catchup.id, at: due + 60_000 }
+      ])
+      expect(repository.listRunsByJob(skipped.id)).toEqual([])
+      expect(repository.queueDueRuns(now)).toEqual([])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('limits one durable due scan to 100 jobs without dropping the remainder', () => {
+    const { db, sqlitePresenter } = createHarness()
+    try {
+      const repository = new CronJobsRepositoryCtor(sqlitePresenter as never)
+      const now = Date.now()
+      for (let index = 0; index < 101; index++)
+        repository.upsertJob({
+          name: 'Bounded due job',
+          enabled: true,
+          cronExpr: '* * * * *',
+          timezone: 'UTC',
+          agentId: 'agent-1',
+          nextRunAt: now - 1_000,
+          taskPrompt: 'Summarize issues'
+        })
+      const first = repository.queueDueRuns(now)
+      const second = repository.queueDueRuns(now)
+      expect(first).toHaveLength(100)
+      expect(second).toHaveLength(1)
+      expect(new Set([...first, ...second].map((run) => run.jobId)).size).toBe(101)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('bounds timer scans, coalesces reconciliation and ignores stale replies', () => {
+    vi.useFakeTimers()
+    const messages: { type: string; requestId?: number }[] = []
+    const host = new CronJobsSchedulerUtilityHostCtor({
+      postMessage: (message) => messages.push(message)
+    })
+    const scans = () => messages.filter((message) => message.type === 'SCAN_DUE')
+    try {
+      host.start()
+      host.reconcile()
+      host.reconcile()
+      expect(scans()).toHaveLength(1)
+      const result = {
+        type: 'SCAN_RESULT' as const,
+        requestId: 1,
+        enabledJobCount: 1,
+        nextRunAt: Date.now() + 10,
+        now: Date.now()
+      }
+      host.applyScanResult({ ...result, requestId: 99 })
+      expect(scans()).toHaveLength(1)
+      host.applyScanResult(result)
+      expect(scans().map((message) => message.requestId)).toEqual([1, 2])
+      host.applyScanResult(result)
+      host.applyScanResult({ ...result, requestId: 2 })
+      vi.advanceTimersByTime(10)
+      expect(scans().map((message) => message.requestId)).toEqual([1, 2, 3])
+      host.shutdown()
+      host.applyScanResult({ ...result, requestId: 3 })
+      vi.advanceTimersByTime(30_000)
+      expect(scans()).toHaveLength(3)
+    } finally {
+      host.shutdown()
+      vi.useRealTimers()
+    }
+  })
+
+  it('fences a timer whose Store acknowledgement never arrives', () => {
+    vi.useFakeTimers()
+    const postMessage = vi.fn()
+    const host = new CronJobsSchedulerUtilityHostCtor({ postMessage })
+    try {
+      host.start()
+      vi.advanceTimersByTime(30_000)
+      expect(postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'ERROR', fatal: true })
+      )
+      const count = postMessage.mock.calls.length
+      host.reconcile()
+      vi.advanceTimersByTime(30_000)
+      expect(postMessage).toHaveBeenCalledTimes(count)
+    } finally {
+      host.shutdown()
+      vi.useRealTimers()
+    }
+  })
+
+  it('backs off a failed Store scan even when its error message is empty', () => {
+    vi.useFakeTimers()
+    const postMessage = vi.fn()
+    const host = new CronJobsSchedulerUtilityHostCtor({ postMessage })
+    try {
+      host.start()
+      host.applyScanResult({
+        type: 'SCAN_RESULT',
+        requestId: 1,
+        enabledJobCount: 1,
+        nextRunAt: Date.now() - 1,
+        error: '',
+        now: Date.now()
+      })
+      vi.advanceTimersByTime(29_999)
+      expect(
+        postMessage.mock.calls.filter(([message]) => message.type === 'SCAN_DUE')
+      ).toHaveLength(1)
+      vi.advanceTimersByTime(1)
+      expect(
+        postMessage.mock.calls.filter(([message]) => message.type === 'SCAN_DUE')
+      ).toHaveLength(2)
+    } finally {
+      host.shutdown()
+      vi.useRealTimers()
+    }
+  })
+
+  it('dispatches committed runs before a lost timer reply and rejects replay or stale requests', async () => {
+    const host = Object.assign(new EventEmitter(), {
+      pid: 123,
+      kill: vi.fn(),
+      postMessage: vi.fn((message: { type: string }) => {
+        if (message.type === 'SCAN_RESULT') throw new Error('Timer reply lost')
+      })
+    })
+    const queueDueRuns = vi.fn(() => [
+      { jobId: 'job-1', runId: 'run-1', scheduledAt: 100, reason: 'scheduled' as const }
+    ])
+    const onRunDue = vi.fn()
+    const manager = new SchedulerProcessManagerCtor({
+      getSnapshot: () => ({ enabledJobCount: 1, nextRunAt: 100 }),
+      queueDueRuns,
+      onRunDue,
+      spawnHost: vi.fn(async () => host) as never
+    })
+    await manager.reconcile()
+    for (const requestId of [NaN, 0, '1'])
+      host.emit('message', { type: 'SCAN_DUE', requestId, now: Date.now() })
+    expect(queueDueRuns).not.toHaveBeenCalled()
+    host.emit('message', { type: 'SCAN_DUE', requestId: 1, now: Date.now() })
+    expect(onRunDue).toHaveBeenCalledWith(queueDueRuns.mock.results[0].value[0])
+    expect(host.kill).toHaveBeenCalled()
+    host.emit('message', { type: 'SCAN_DUE', requestId: 1, now: Date.now() })
+    await manager.stop()
+    host.emit('message', { type: 'SCAN_DUE', requestId: 2, now: Date.now() })
+    expect(queueDueRuns).toHaveBeenCalledTimes(1)
+    expect(onRunDue).toHaveBeenCalledTimes(1)
+  })
+
+  it('kills a pending spawn superseded by shutdown without reviving scheduler state', async () => {
+    const host = Object.assign(new EventEmitter(), {
+      pid: 123,
+      kill: vi.fn(),
+      postMessage: vi.fn()
+    })
+    let resolveHost!: (value: typeof host) => void
+    const pendingHost = new Promise<typeof host>((resolve) => {
+      resolveHost = resolve
+    })
+    const manager = new SchedulerProcessManagerCtor({
+      getSnapshot: () => ({ enabledJobCount: 1, nextRunAt: 100 }),
+      queueDueRuns: () => [],
+      onRunDue: vi.fn(),
+      spawnHost: (() => pendingHost) as never
+    })
+    const starting = manager.reconcile()
+    await manager.stop()
+    resolveHost(host)
+    await expect(starting).rejects.toThrow('spawn was superseded')
+    expect(host.kill).toHaveBeenCalledOnce()
+    expect(host.postMessage).not.toHaveBeenCalled()
+    expect(manager.getStatus()).toMatchObject({ state: 'stopped', pid: null })
   })
 
   it('starts the scheduler only for enabled jobs and stops after idle heartbeat', async () => {
@@ -1514,8 +1719,8 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       const host = new FakeHost()
       const spawnHost = vi.fn(async () => host)
       const manager = new SchedulerProcessManagerCtor({
-        dbPath: ':memory:',
         getSnapshot: () => snapshot,
+        queueDueRuns: () => [],
         onRunDue: vi.fn(),
         idleShutdownMs: 10,
         spawnHost: spawnHost as never
@@ -1597,8 +1802,8 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       return spawnCount === 1 ? firstHost : secondHost
     })
     const manager = new SchedulerProcessManagerCtor({
-      dbPath: ':memory:',
       getSnapshot: () => snapshot,
+      queueDueRuns: () => [],
       onRunDue: vi.fn(),
       spawnHost: spawnHost as never
     })
@@ -1620,8 +1825,8 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
 
   it('records a utility spawn failure in scheduler status', async () => {
     const manager = new SchedulerProcessManagerCtor({
-      dbPath: ':memory:',
       getSnapshot: () => ({ enabledJobCount: 1, nextRunAt: 100 }),
+      queueDueRuns: () => [],
       onRunDue: vi.fn(),
       spawnHost: vi.fn(async () => {
         throw new Error('Failed to spawn scheduler host.')
@@ -1661,8 +1866,8 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
     }
     const host = new FakeHost()
     const manager = new SchedulerProcessManagerCtor({
-      dbPath: ':memory:',
       getSnapshot: () => snapshot,
+      queueDueRuns: () => [],
       onRunDue: vi.fn(),
       spawnHost: vi.fn(async () => host) as never
     })

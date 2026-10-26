@@ -646,6 +646,23 @@ may retain timers and schedule calculation, but receives snapshots and requests 
 from the backend. Preserve existing misfire and duplicate-run behavior. Inventory all other
 connections before cutover; read-only imports and vector stores have separate explicit owners.
 
+G4 first removes the scheduler utility process's writable shared-database connection. Its timer
+requests a bounded durable operation from the current Store authority; the operation observes
+schedule state, reconciles due work and commits run insertion and schedule advancement together.
+Keep the existing 100-job scan limit, misfire rules, unique scheduled-run identity and executor
+claim semantics. The committed run notification originates at the writer, rather than depending
+on a later timer-worker reply. Bind requests and snapshots to the worker generation, allow one
+scan in flight and reject stale work before effects. The timer process receives neither database
+credentials nor SQL. Main remains the Store authority during G4; G5 moves that authority with
+the cohesive business services and removes main's writable access.
+
+Session/Tape/Memory Store contracts expose the existing atomic business operations and bounded
+projections. Keep internal synchronous repositories, SQL and transaction callbacks local to that
+authority. These are not wire operations. In particular, Tape/projection-head observations,
+pending-input settlement and Memory cursor/CAS operations cannot become independently timed
+remote reads and writes. Maintenance commands own their active/source/staged files explicitly
+and fence consumers before changing the active writer or encryption state.
+
 Desktop consumers receive a versioned snapshot of the configuration fields they need. Mutations
 are acknowledged by the backend before snapshots/events advance. Keep synchronous reads local to
 that snapshot; do not turn every `SettingsStore.get` into RPC. Bootstrap-only legacy settings and

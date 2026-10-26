@@ -16,7 +16,7 @@ const createPorts = () => {
     cancelGeneration: vi.fn(async () => undefined)
   }
   const agentCatalog: CronJobAgentCatalogPort = {
-    getAgentType: vi.fn(async () => 'deepchat')
+    getAgentType: vi.fn(async () => 'deepchat' as const)
   }
 
   return { lifecycle, turn, agentCatalog }
