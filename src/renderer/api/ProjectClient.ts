@@ -2,6 +2,7 @@ import type { DeepchatBridge } from '@shared/contracts/bridge'
 import { projectEnvironmentsChangedEvent } from '@shared/contracts/events'
 import {
   projectArchiveEnvironmentRoute,
+  projectEnsureChatWorkspaceRoute,
   projectGetSnapshotRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
@@ -18,6 +19,10 @@ import { getDeepchatBridge } from './core'
 export function createProjectClient(bridge: DeepchatBridge = getDeepchatBridge()) {
   async function getSnapshot() {
     return await bridge.invoke(projectGetSnapshotRoute.name, {})
+  }
+
+  async function ensureChatWorkspace() {
+    return await bridge.invoke(projectEnsureChatWorkspaceRoute.name, {})
   }
 
   async function listRecent(limit: number = 20) {
@@ -75,6 +80,7 @@ export function createProjectClient(bridge: DeepchatBridge = getDeepchatBridge()
   }
 
   return {
+    ensureChatWorkspace,
     getSnapshot,
     listRecent,
     listEnvironments,

@@ -2,6 +2,7 @@ import {
   configGetDefaultProjectPathRoute,
   configSetDefaultProjectPathRoute,
   projectArchiveEnvironmentRoute,
+  projectEnsureChatWorkspaceRoute,
   projectGetSnapshotRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
@@ -19,6 +20,7 @@ type ProjectRouteService = Pick<
   ProjectService,
   | 'getRecentProjects'
   | 'getSnapshot'
+  | 'ensureChatWorkspace'
   | 'getSnapshotVersion'
   | 'getEnvironments'
   | 'reorderEnvironments'
@@ -42,6 +44,13 @@ export function createProjectRoutes(deps: {
 }): DeepchatRouteMap {
   const { projectService, publishEnvironmentsChanged } = deps
   return createRouteMap([
+    [
+      projectEnsureChatWorkspaceRoute.name,
+      async (rawInput) => {
+        projectEnsureChatWorkspaceRoute.input.parse(rawInput)
+        return projectEnsureChatWorkspaceRoute.output.parse(projectService.ensureChatWorkspace())
+      }
+    ],
     [
       configGetDefaultProjectPathRoute.name,
       async (rawInput) => {

@@ -71,10 +71,16 @@ New Thread   -> [message composer                     ]
 ## ACP Preparation And Scope
 
 The composer selector displays the existing ACP configuration-loading state until warmup completes.
-Chats do not display a directory-selection prompt. An unavailable selected workspace displays the
-existing localized directory reason. ACP preparation/submission waits for a usable directory;
-choosing one resumes the normal preparation path. Native
-Skill catalog and active-Skill requests only run with a DeepChat Agent scope. ACP selection has no
+Chats do not display a directory-selection prompt. ACP Chats lazily prepare an application-managed
+chat directory, independently of the custom default project. The visible selection remains Chats;
+its ACP session records the managed directory so first and subsequent turns have a valid workdir.
+The directory follows the existing Documents/Home/user-data candidate policy and remains in Chats
+history grouping even when the user has a different custom default project.
+The typed `project.ensureChatWorkspace` route publishes a versioned project snapshot without changing
+the default project setting. An unavailable explicitly selected workspace still displays its localized
+reason and blocks ACP preparation/submission. Native
+Skill catalog, active-Skill requests, and runtime Skill validation only run with a DeepChat Agent
+scope. ACP selection has no
 local Skill scope, and late native Skill responses cannot populate ACP composer state.
 
 Inline ACP option menus use a compact 20rem width, constrained by the viewport.
@@ -94,7 +100,8 @@ blocks automatic Agent defaults. A failed active-session deactivation preserves 
 
 ## Compatibility And Acceptance
 
-No database, preload, IPC, provider configuration, or backend contract changes are needed.
+No database migration, persisted setting, or provider configuration change is required. A typed
+project route prepares the existing managed chat directory through the preload bridge.
 An active Agent B conversation remains open while the sidebar filters Agent A. Creating another
 B conversation retains that filter, so B's new history row is absent from the A-only list.
 

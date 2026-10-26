@@ -163,6 +163,10 @@ const setup = async (options?: {
     selectionSource: options?.selectionSource ?? 'manual',
     defaultProjectPath: options?.defaultProjectPath ?? null,
     defaultChatWorkspacePath: options?.defaultChatWorkspacePath ?? null,
+    ensureChatWorkspace: vi.fn(async () => {
+      projectStore.defaultChatWorkspacePath ??= '/tmp/chats'
+      return projectStore.defaultChatWorkspacePath
+    }),
     projects: [],
     environments: [],
     archivedEnvironments: [],
@@ -892,16 +896,34 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     )
   })
 
-  it('keeps an explicit Chats draft free of directory-selection prompts for ACP', async () => {
-    const { wrapper } = await setup({
+  it('prepares and sends an ACP Chats draft without a directory-selection prompt', async () => {
+    const { wrapper, sessionClient, sessionStore, projectStore } = await setup({
       selectedProject: null,
-      selectionSource: 'manual'
+      selectionSource: 'manual',
+      defaultProjectPath: '/custom-default'
     })
 
     expect(wrapper.get('[data-testid="new-thread-project-trigger"]').text()).toContain(
       'chat.sidebar.chats'
     )
     expect(wrapper.find('[data-testid="new-thread-acp-workdir-status"]').exists()).toBe(false)
+    expect(projectStore.selectedProject).toBeNull()
+    expect(projectStore.defaultProjectPath).toBe('/custom-default')
+    expect(sessionClient.ensureAcpDraftSession).toHaveBeenCalledWith({
+      agentId: 'acp-agent',
+      projectDir: '/tmp/chats',
+      permissionMode: 'full_access'
+    })
+    ;(wrapper.vm as any).message = 'Hello from Chats'
+    expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
+      'false'
+    )
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+    expect(sessionStore.sendMessage).toHaveBeenCalledWith('draft-1', {
+      text: 'Hello from Chats',
+      files: []
+    })
   })
 
   it('ensures ACP draft session and passes session-id to ChatInputBox', async () => {

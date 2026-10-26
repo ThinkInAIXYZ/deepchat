@@ -1082,6 +1082,12 @@ export class DeepChatToolResolver {
     }
 
     try {
+      if ((await this.dependencies.agentSettings.getAgentType(agentId)) === 'acp') {
+        if (failClosed && normalizedSkillNames.length > 0) {
+          throw new Error('Native Skills are unavailable for ACP Agents.')
+        }
+        return []
+      }
       const validatedSkillNames = normalizeStringList(
         await this.dependencies.skillService.validateSkillNames(agentId, normalizedSkillNames, { conversationId })
       )

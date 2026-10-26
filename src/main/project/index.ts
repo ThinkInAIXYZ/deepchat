@@ -303,13 +303,29 @@ export class ProjectService {
 
   getDefaultChatWorkspacePath(): string | null {
     const projectPath = this.getDefaultProjectPath()
-    if (!projectPath) {
-      return null
+    const candidates = this.getDefaultWorkspaceCandidates()
+    if (projectPath && this.isDefaultWorkspaceCandidate(projectPath, candidates)) {
+      candidates.unshift(projectPath)
     }
+    return (
+      candidates.find((candidate) => {
+        try {
+          return fs.statSync(candidate).isDirectory()
+        } catch {
+          return false
+        }
+      }) ?? null
+    )
+  }
 
-    return this.isDefaultWorkspaceCandidate(projectPath, this.getDefaultWorkspaceCandidates())
-      ? projectPath
-      : null
+  ensureChatWorkspace(): { path: string; version: number } {
+    const workspace =
+      this.getDefaultChatWorkspacePath() ??
+      this.createFirstAvailableDefaultWorkspace(this.getDefaultWorkspaceCandidates())
+    if (!workspace) throw new Error('Failed to prepare the default chat workspace.')
+    const version = this.bumpSnapshotVersion()
+    this.publishEnvironmentsChanged('select', null, version)
+    return { path: workspace, version }
   }
 
   setDefaultProjectPath(projectPath: string | null): number {

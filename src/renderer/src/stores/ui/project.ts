@@ -184,6 +184,12 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
+  async function ensureChatWorkspace(): Promise<string> {
+    const result = await projectClient.ensureChatWorkspace()
+    await requireProjectSnapshot(result.version)
+    return result.path
+  }
+
   function ensureListenersRegistered(): void {
     if (listenersRegistered) return
     projectClient.onEnvironmentsChanged(({ version }) => {
@@ -371,6 +377,7 @@ export const useProjectStore = defineStore('project', () => {
     applyBootstrapDefaultProjectPath,
     refreshEnvironmentData,
     refreshProjectSnapshot,
+    ensureChatWorkspace,
     selectProject,
     setDefaultProject,
     clearDefaultProject: () => setDefaultProject(null),

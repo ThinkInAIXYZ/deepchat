@@ -44,7 +44,7 @@
             :files="attachedFiles"
             :session-id="acpDraftSessionId"
             :agent-id="selectedAgent.id"
-            :workspace-path="projectStore.selectedProject?.path ?? null"
+            :workspace-path="composerWorkspacePath"
             :is-acp-session="isAcpSelectedAgent"
             :supports-vision="composerSupportsVision"
             :editable="!isSubmittingInput"
@@ -651,6 +651,11 @@ const isDefaultChatWorkspaceProject = (path: string | null | undefined) => {
   return Boolean(chatWorkspacePath) && normalizeWorkspacePath(path) === chatWorkspacePath
 }
 const selectedProjectPath = computed(() => normalizeProjectPath(projectStore.selectedProject?.path))
+const composerWorkspacePath = computed(
+  () =>
+    selectedProjectPath.value ??
+    (isAcpSelectedAgent.value ? normalizeProjectPath(projectStore.defaultChatWorkspacePath) : null)
+)
 const archivedProjectPaths = computed(
   () => new Set(projectStore.archivedEnvironments.map((environment) => environment.path))
 )
@@ -679,7 +684,11 @@ const hasExplicitNoProjectSelection = computed(
   () => projectStore.selectionSource === 'manual' && !projectStore.selectedProject?.path?.trim()
 )
 const selectedSessionProjectDir = computed<string | null | undefined>(() =>
-  hasExplicitNoProjectSelection.value ? null : projectStore.selectedProject?.path
+  isAcpSelectedAgent.value
+    ? composerWorkspacePath.value
+    : hasExplicitNoProjectSelection.value
+      ? null
+      : projectStore.selectedProject?.path
 )
 const isSelectedChatProject = computed(
   () =>
@@ -711,8 +720,8 @@ const selectedProjectDirectoryInvalid = computed(
   () => selectedProjectDirectoryStatus.value === 'invalid'
 )
 const selectedProjectUnavailableTooltip = computed(() =>
-  selectedProjectPath.value
-    ? t('chat.input.workspaceUnavailableTooltip', { path: selectedProjectPath.value })
+  composerWorkspacePath.value
+    ? t('chat.input.workspaceUnavailableTooltip', { path: composerWorkspacePath.value })
     : ''
 )
 const isSelectedInvalidProjectPath = (projectPath: string | null | undefined): boolean =>
@@ -722,18 +731,18 @@ const isAcpWorkdirMissing = computed(() => {
   if (!isAcpSelectedAgent.value) {
     return false
   }
-  return !selectedProjectPath.value
+  return !composerWorkspacePath.value
 })
 const isAcpWorkdirInvalid = computed(
   () =>
     isAcpSelectedAgent.value &&
-    Boolean(selectedProjectPath.value) &&
+    Boolean(composerWorkspacePath.value) &&
     selectedProjectDirectoryInvalid.value
 )
 const isAcpWorkdirChecking = computed(
   () =>
     isAcpSelectedAgent.value &&
-    Boolean(selectedProjectPath.value) &&
+    Boolean(composerWorkspacePath.value) &&
     selectedProjectDirectoryStatus.value === 'checking'
 )
 const isAcpWorkdirUnavailable = computed(
@@ -1647,7 +1656,7 @@ const ensureAcpDraftSession = async (
       return
     }
     const currentAgentId = agentStore.selectedAgentId
-    const currentProjectDir = projectStore.selectedProject?.path?.trim()
+    const currentProjectDir = composerWorkspacePath.value
     if (currentAgentId !== agentId || currentProjectDir !== projectDir) {
       return
     }
@@ -1691,7 +1700,25 @@ const ensureAcpDraftSession = async (
 }
 
 watch(
-  () => selectedProjectPath.value,
+  () => isAcpSelectedAgent.value && !selectedProjectPath.value,
+  async (needsChatWorkspace) => {
+    if (!needsChatWorkspace) return
+    try {
+      await projectStore.ensureChatWorkspace()
+    } catch (error) {
+      notifyRenderer({
+        kind: 'error',
+        code: 'chat.workspace.selectFailed',
+        title: t('common.error.operationFailed'),
+        description: error instanceof Error ? error.message : String(error)
+      })
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => composerWorkspacePath.value,
   async (projectPath) => {
     const requestSeq = ++selectedProjectDirectoryCheckSeq.value
     if (!projectPath) {
@@ -1721,7 +1748,7 @@ watch(
   () =>
     [
       agentStore.selectedAgentId,
-      selectedProjectPath.value,
+      composerWorkspacePath.value,
       selectedProjectDirectoryStatus.value
     ] as const,
   ([selectedAgentId, projectPath, directoryStatus]) => {
@@ -1750,7 +1777,7 @@ watch(
 
 async function handleAcpAuthSucceeded() {
   const agentId = agentStore.selectedAgentId
-  const projectPath = projectStore.selectedProject?.path?.trim()
+  const projectPath = composerWorkspacePath.value
   acpAuthDialogOpen.value = false
   acpAuthChallenge.value = null
   if (!agentId || !projectPath) return

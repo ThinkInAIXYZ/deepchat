@@ -1,22 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getPathMock, openPathMock, existsSyncMock, mkdirSyncMock } = vi.hoisted(() => ({
-  getPathMock: vi.fn((name: string) => {
-    if (name === 'temp') {
-      return '/system/temp'
-    }
-    if (name === 'userData') {
-      return '/mock/userData'
-    }
-    if (name === 'appData') {
-      return '/mock/appData'
-    }
-    return `/mock/${name}`
-  }),
-  openPathMock: vi.fn(),
-  existsSyncMock: vi.fn(),
-  mkdirSyncMock: vi.fn()
-}))
+const { getPathMock, openPathMock, existsSyncMock, mkdirSyncMock, statSyncMock } = vi.hoisted(
+  () => ({
+    getPathMock: vi.fn((name: string) => {
+      if (name === 'temp') {
+        return '/system/temp'
+      }
+      if (name === 'userData') {
+        return '/mock/userData'
+      }
+      if (name === 'appData') {
+        return '/mock/appData'
+      }
+      return `/mock/${name}`
+    }),
+    openPathMock: vi.fn(),
+    existsSyncMock: vi.fn(),
+    mkdirSyncMock: vi.fn(),
+    statSyncMock: vi.fn()
+  })
+)
 
 vi.mock('electron', () => ({
   app: {
@@ -30,7 +33,8 @@ vi.mock('electron', () => ({
 vi.mock('fs', () => ({
   default: {
     existsSync: existsSyncMock,
-    mkdirSync: mkdirSyncMock
+    mkdirSync: mkdirSyncMock,
+    statSync: statSyncMock
   }
 }))
 
@@ -89,6 +93,7 @@ describe('ProjectService', () => {
     vi.clearAllMocks()
     existsSyncMock.mockReturnValue(true)
     mkdirSyncMock.mockReturnValue(undefined)
+    statSyncMock.mockReturnValue({ isDirectory: () => true })
     sqlitePresenter = createMockSqlitePresenter()
     deviceService = createMockDeviceService()
     presenter = new ProjectService(
@@ -97,6 +102,46 @@ describe('ProjectService', () => {
       deviceService,
       createMockSettingsStore(),
       vi.fn()
+    )
+  })
+
+  it('lazily prepares Chats without changing a custom default workspace', () => {
+    const directories = new Set<string>()
+    statSyncMock.mockImplementation((path) => {
+      if (!directories.has(path)) throw new Error('missing')
+      return { isDirectory: () => true }
+    })
+    mkdirSyncMock.mockImplementation((path) => directories.add(path))
+    const settings = createMockSettingsStore('/custom-default')
+    const publish = vi.fn()
+    const service = new ProjectService(
+      sqlitePresenter,
+      sqlitePresenter,
+      deviceService,
+      settings,
+      vi.fn(),
+      publish
+    )
+    expect(service.getDefaultChatWorkspacePath()).toBeNull()
+    expect(mkdirSyncMock).not.toHaveBeenCalled()
+    expect(service.ensureChatWorkspace()).toEqual({ path: '/mock/documents/DeepChat', version: 1 })
+    expect(service.getDefaultChatWorkspacePath()).toBe('/mock/documents/DeepChat')
+    expect(service.ensureChatWorkspace()).toEqual({ path: '/mock/documents/DeepChat', version: 2 })
+    expect(mkdirSyncMock).toHaveBeenCalledTimes(1)
+    expect(settings.get('defaultProjectPath')).toBe('/custom-default')
+    expect(publish).toHaveBeenNthCalledWith(1, 'select', null, 1)
+    expect(publish).toHaveBeenNthCalledWith(2, 'select', null, 2)
+  })
+
+  it('rejects Chats preparation when no managed directory can be created', () => {
+    statSyncMock.mockImplementation(() => {
+      throw new Error('missing')
+    })
+    mkdirSyncMock.mockImplementation(() => {
+      throw new Error('denied')
+    })
+    expect(() => presenter.ensureChatWorkspace()).toThrow(
+      'Failed to prepare the default chat workspace.'
     )
   })
 
@@ -145,7 +190,7 @@ describe('ProjectService', () => {
       expect(initial.archivedEnvironments.map((item) => item.path)).toEqual(['/work/archived'])
       expect(initial.removedEnvironments.map((item) => item.path)).toEqual(['/work/removed'])
       expect(initial.defaultProjectPath).toBe('/work/default')
-      expect(initial.defaultChatWorkspacePath).toBeNull()
+      expect(initial.defaultChatWorkspacePath).toBe('/mock/documents/DeepChat')
       expect(updated.version).toBe(1)
       expect(sqlitePresenter.newEnvironmentPreferencesTable.list).toHaveBeenCalledTimes(2)
       expect(sqlitePresenter.newEnvironmentPreferencesTable.get).not.toHaveBeenCalled()

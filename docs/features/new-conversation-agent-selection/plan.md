@@ -113,3 +113,21 @@ tooltips on hover and focus. The existing CI E2E selection is unchanged.
 A WAL-aware snapshot of the real local profile verified DeepSeek, Qwen, GLM, and GPT model icons,
 keyboard context reveal in an existing DeepChat conversation, and hover/focus tooltips on DimCode's
 disabled selected model row. Its action remained disabled. No live model generation was requested.
+
+## ACP Chats Execution
+
+- [x] Prepare the managed Chats directory on demand through a typed project route and a versioned
+      snapshot. Keep manual selection and the custom default project unchanged.
+- [x] Use the effective Chats directory consistently for warmup, draft creation, authentication
+      continuation, workspace references, and submission. Persist the directory in ACP sessions so
+      follow-up messages pass the existing workdir validation.
+- [x] Exclude ACP identities from native runtime Skill validation. Give disabled option anchors
+      button semantics and disabled state, and locate them by their accessible role in Electron.
+      Check visible loading cues while retaining the parent's exposed loading contract test.
+
+Full verification passed: 9,853 main tests, 2,748 renderer tests, formatting, i18n, lint, typecheck,
+and production compilation. The ACP stdio smoke clears the selected workspace, checks the actual
+`session/new` cwd, and completes two chat turns without native Skill scope errors. An isolated real
+profile verified DeepChat and DimCode with Chats selected, ready configuration, and an enabled Send
+button after entering text while preserving a separate custom default project. No live model
+completion was requested.

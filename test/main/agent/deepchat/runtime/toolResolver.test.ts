@@ -529,7 +529,7 @@ describe('DeepChatToolResolver Subagent capability', () => {
 })
 
 describe('DeepChatToolResolver Agent Skill scope', () => {
-  const createResolver = () => {
+  const createResolver = (agentType: 'deepchat' | 'acp' = 'deepchat') => {
     const getAllToolDefinitions = vi.fn().mockResolvedValue([])
     const resourceInstance = createResourceInstance('writer')
     const resolveDeepChatAgentConfig = vi.fn(async () => ({
@@ -545,7 +545,7 @@ describe('DeepChatToolResolver Agent Skill scope', () => {
     }
     const resolver = new DeepChatToolResolver({
       agentSettings: {
-        getAgentType: vi.fn(async () => 'deepchat'),
+        getAgentType: vi.fn(async () => agentType),
         resolveDeepChatAgentConfig
       },
       skillSettings: { isEnabled: vi.fn(() => true) },
@@ -572,6 +572,16 @@ describe('DeepChatToolResolver Agent Skill scope', () => {
       resolveDeepChatAgentConfig
     }
   }
+
+  it('excludes ACP sessions from native Skill validation', async () => {
+    const { resolver, resourceInstance, skillService } = createResolver('acp')
+    for (const names of [[], ['owned-a']]) {
+      await expect(
+        resolver.validateSkillNamesForSession('session-1', names, resourceInstance as any)
+      ).resolves.toEqual([])
+    }
+    expect(skillService.validateSkillNames).not.toHaveBeenCalled()
+  })
 
   it('keeps the resolved Run Skill snapshot when assignments change during the Run', async () => {
     const { resolver, resourceInstance, skillService, getAllToolDefinitions } = createResolver()

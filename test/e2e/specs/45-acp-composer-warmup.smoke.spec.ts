@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test, expect } from '../fixtures/electronApp'
-import { selectAgent } from '../helpers/chat'
+import { selectAgent, sendMessage, getAssistantMessages } from '../helpers/chat'
 import { waitForAppReady } from '../helpers/wait'
 
 test('ACP composer keeps warmup feedback, responsive options and workspace recovery @smoke', async ({
@@ -48,7 +48,7 @@ const configOptions = [
 createInterface({ input: process.stdin }).on('line', line => {
   const { id, method, params } = JSON.parse(line)
   if (!method) return
-  appendFileSync(requests, method + '\n')
+  appendFileSync(requests, JSON.stringify({ method, params }) + '\n')
   if (method === 'initialize') {
     const timer = setInterval(() => {
       if (!existsSync(release)) return
@@ -66,6 +66,9 @@ createInterface({ input: process.stdin }).on('line', line => {
       configOptions.find(option => option.id === params.configId).currentValue = params.value
       reply(id, { configOptions })
     }, 25)
+  } else if (method === 'session/prompt') {
+    send({ method: 'session/update', params: { sessionId: params.sessionId, update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Fixture reply' } } } })
+    reply(id, { stopReason: 'end_turn' })
   } else if (id !== undefined) reply(id, {})
 })
 `
@@ -284,7 +287,11 @@ createInterface({ input: process.stdin }).on('line', line => {
   await modelTrigger.click()
   const selectedOption = modelMenu.locator(`button[data-value="${selectedModelId}"]`)
   await expect(selectedOption).toBeDisabled()
-  const selectedOptionTrigger = selectedOption.locator('..')
+  const selectedOptionTrigger = modelMenu.getByRole('button', {
+    name: selectedModelId,
+    exact: true
+  })
+  await expect(selectedOptionTrigger).toHaveAttribute('aria-disabled', 'true')
   await selectedOptionTrigger.hover()
   const selectedTooltip = app.page.locator('[data-slot="tooltip-content"]').filter({
     hasText: selectedModelId
@@ -339,6 +346,29 @@ createInterface({ input: process.stdin }).on('line', line => {
     'lucide:message-square'
   )
   await expect(app.page.getByTestId('new-thread-acp-workdir-status')).toHaveCount(0)
+  await expect(modelTrigger).toBeEnabled()
+  const chatWorkspace = await app.page.evaluate(
+    () =>
+      (document.querySelector('#app') as any).__vue_app__.config.globalProperties.$pinia._s.get(
+        'project'
+      ).defaultChatWorkspacePath
+  )
+  expect(chatWorkspace).toBeTruthy()
+  const sessionRequests = readFileSync(requests, 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line))
+  expect(
+    sessionRequests.filter((request) => request.method === 'session/new').at(-1)?.params.cwd
+  ).toBe(chatWorkspace)
+  await sendMessage(app.page, 'Hello from Chats')
+  await expect(getAssistantMessages(app.page)).toHaveCount(1)
+  await expect(getAssistantMessages(app.page).last()).toContainText('Fixture reply')
+  await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute('data-generating', 'false')
+  await sendMessage(app.page, 'Continue chatting')
+  await expect(getAssistantMessages(app.page)).toHaveCount(2)
+  await expect(getAssistantMessages(app.page).last()).toContainText('Fixture reply')
+  await expect(app.page.getByTestId('chat-page-shell')).toHaveAttribute('data-generating', 'false')
   expect(routeErrors).toEqual([])
   expect(app.consoleLogs.filter((line) => line.includes('DeepChat Agent not found'))).toEqual([])
   expect(app.pageErrors).toEqual([])

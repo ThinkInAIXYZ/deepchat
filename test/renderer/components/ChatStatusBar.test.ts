@@ -3025,7 +3025,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(true)
     expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
     expect(wrapper.find('.acp-overflow-button').exists()).toBe(false)
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(true)
 
     pendingWarmup.resolve(createAcpConfigState())
     await flushPromises()
@@ -3064,7 +3064,7 @@ describe('ChatStatusBar model and session panels', () => {
     agentStore.selectedAgentId = 'acp-agent'
     await flushPromises()
 
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(true)
 
     emitAcpConfigOptionsReady({
       agentId: 'acp-agent',
@@ -3073,7 +3073,6 @@ describe('ChatStatusBar model and session panels', () => {
     })
     await flushPromises()
 
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(false)
     expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(false)
     expect(wrapper.findAll('.acp-inline-option')).toHaveLength(3)
 
@@ -3095,12 +3094,12 @@ describe('ChatStatusBar model and session panels', () => {
 
     agentStore.selectedAgentId = 'codex'
     await flushPromises()
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(true)
 
     agentStore.selectedAgentId = 'claude'
     await flushPromises()
 
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(true)
     expect((wrapper.vm as any).acpConfigState).toBeNull()
 
     emitAcpConfigOptionsReady({
@@ -3110,7 +3109,7 @@ describe('ChatStatusBar model and session panels', () => {
     })
     await flushPromises()
 
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(true)
     expect((wrapper.vm as any).acpConfigState).toBeNull()
 
     emitAcpConfigOptionsReady({
@@ -3120,7 +3119,7 @@ describe('ChatStatusBar model and session panels', () => {
     })
     await flushPromises()
 
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(false)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(false)
     expect((wrapper.vm as any).acpConfigState.options[0].currentValue).toBe('gpt-5-mini')
 
     pendingWarmup.resolve(claudeConfig)
@@ -3188,7 +3187,7 @@ describe('ChatStatusBar model and session panels', () => {
       acpProcessConfig: emptyConfig
     })
 
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(false)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(false)
     expect((wrapper.vm as any).acpConfigState).toEqual(emptyConfig)
     expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
     expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(false)
@@ -3296,7 +3295,7 @@ describe('ChatStatusBar model and session panels', () => {
       'acp-agent',
       '/tmp/workspace-two'
     )
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(false)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(false)
     expect((wrapper.vm as any).acpConfigState).toBeNull()
     expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
   })

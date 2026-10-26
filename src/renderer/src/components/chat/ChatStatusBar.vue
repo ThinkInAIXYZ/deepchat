@@ -84,24 +84,20 @@
                   >
                     <TooltipTrigger as-child>
                       <span
-                        class="block rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        :tabindex="
-                          acpConfigReadOnly ||
-                          isAcpOptionSaving(option.id) ||
-                          String(option.currentValue) === entry.value
-                            ? 0
-                            : undefined
+                        :role="isAcpOptionDisabled(option, entry.value) ? 'button' : undefined"
+                        :aria-disabled="isAcpOptionDisabled(option, entry.value) || undefined"
+                        :aria-label="
+                          isAcpOptionDisabled(option, entry.value) ? entry.value : undefined
                         "
+                        class="block rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        :tabindex="isAcpOptionDisabled(option, entry.value) ? 0 : undefined"
                       >
                         <button
                           type="button"
                           :data-option-id="option.id"
                           :data-value="entry.value"
-                          :disabled="
-                            acpConfigReadOnly ||
-                            isAcpOptionSaving(option.id) ||
-                            String(option.currentValue) === entry.value
-                          "
+                          :disabled="isAcpOptionDisabled(option, entry.value)"
+                          :aria-hidden="isAcpOptionDisabled(option, entry.value) || undefined"
                           :class="[
                             'acp-inline-option-item block w-full truncate rounded-md px-2 py-1.5 text-left text-xs transition-colors disabled:pointer-events-none disabled:opacity-60',
                             String(option.currentValue) === entry.value
@@ -1650,7 +1646,7 @@ const acpWorkspacePath = computed(() => {
   if (hasActiveSession.value && sessionStore.activeSession?.providerId === 'acp') {
     return sessionStore.activeSession.projectDir?.trim() || null
   }
-  return projectStore.selectedProject?.path?.trim() || null
+  return projectStore.selectedProject?.path?.trim() || projectStore.defaultChatWorkspacePath || null
 })
 
 const lockedAcpModelId = computed(() => {
@@ -1878,6 +1874,9 @@ const {
   resolveModelName,
   resolveModelIconId
 })
+
+const isAcpOptionDisabled = (option: AcpConfigOption, value: string): boolean =>
+  acpConfigReadOnly.value || isAcpOptionSaving(option.id) || String(option.currentValue) === value
 
 const getAcpOptionIcon = (option: AcpConfigOption): string => {
   if (isAcpModelOption(option)) return 'lucide:cpu'
@@ -2736,6 +2735,7 @@ watch(
     () => sessionStore.activeSession?.projectDir,
     () => agentStore.selectedAgentId,
     () => projectStore.selectedProject?.path,
+    () => projectStore.defaultChatWorkspacePath,
     () => props.acpDraftSessionId,
     () => isAcpAgent.value
   ],
