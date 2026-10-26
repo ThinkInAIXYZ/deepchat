@@ -35,6 +35,7 @@ import { pathToFileURL } from 'node:url'
 import { DialogService } from '../desktop/dialog'
 import {
   safeStorage,
+  shell,
   app,
   ipcMain,
   powerMonitor,
@@ -1021,7 +1022,7 @@ export async function createMainProcessControl(dependencies: {
     publishDeepchatEvent
   )
   const fontSettings = new FontSettings(dependencies.settingsStore, publishDeepchatEvent)
-  const skillSettings = new SkillSettings(dependencies.settingsStore)
+  const skillSettings = new SkillSettings(dependencies.settingsStore, app.getPath('home'))
   const traceSettings = new AgentTraceSettings(dependencies.settingsStore)
 
   const acpSessionPersistence = new AcpSessionPersistence(
@@ -1719,6 +1720,21 @@ export async function createMainProcessControl(dependencies: {
     skillSessionStatePort,
     fileWatcherService,
     publishDeepchatEvent,
+    {
+      homeDirectory: app.getPath('home'),
+      tempDirectory: app.getPath('temp'),
+      userDataDirectory: app.getPath('userData'),
+      builtinSkillsDirectories: app.isPackaged
+        ? [
+            path.join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'skills'),
+            path.join(process.resourcesPath, 'resources', 'skills'),
+            path.join(process.resourcesPath, 'skills')
+          ]
+        : [path.join(app.getAppPath(), 'resources', 'skills')],
+      openSkillsDirectory: async (directory) => {
+        await shell.openPath(directory)
+      }
+    },
     {
       isDeepChatAgent: async (agentId) =>
         (await agentSettings.getAgent(agentId))?.type === 'deepchat',
@@ -3150,6 +3166,7 @@ export async function createMainProcessControl(dependencies: {
     const toolRoutes = createToolRoutes(toolService)
     const pluginRoutes = createPluginRoutes(pluginService, pluginSettingsWindow)
     const skillRoutes = createSkillRoutes({
+      tempDirectory: app.getPath('temp'),
       skillService,
       skillSyncService,
       skillSettings,

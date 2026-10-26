@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/electronApp'
+import { join } from 'node:path'
 import { waitForAppReady } from '../helpers/wait'
 
 test('Plugins Skills exposes read-only skill routes through typed bridge @smoke', async ({
@@ -109,7 +110,8 @@ test('Plugins Skills exposes read-only skill routes through typed bridge @smoke'
   })
 
   expect(typeof snapshot.directoryPath).toBe('string')
-  expect(snapshot.skillCount).toBeGreaterThanOrEqual(0)
+  if (app.ownsUserDataDir) expect(snapshot.directoryPath).toBe(join(app.userDataDir, 'skills'))
+  expect(snapshot.skillCount).toBeGreaterThan(0)
   expect(snapshot.allSkillCount).toBeGreaterThanOrEqual(snapshot.skillCount)
   expect(snapshot.allSkillShapeValid).toBe(true)
 

@@ -1599,6 +1599,7 @@ function createRuntime() {
   })
   const assertSessionActiveSkillsMutable = vi.fn().mockResolvedValue(undefined)
   const skillRoutes = createSkillRoutes({
+    tempDirectory: '/tmp/deepchat-test',
     skillService,
     skillSyncService,
     skillSettings,

@@ -722,6 +722,15 @@ launch, and targeted approval presentation. They do not expose an Electron modul
 method dispatcher, arbitrary eval, or an unrestricted secret/settings store. Permission and
 approval lifecycle state stays with the backend Run; main transports authenticated human answers.
 
+Skills receive explicit home, temporary, user-data and ordered bundled-resource directories at
+bootstrap, plus an asynchronous directory-open capability. Settings defaults, temporary imports,
+rollback paths and plugin-source checks use those supplied directories. Discovery, filesystem
+mutations and scoped operation leases remain local to the Skill owner. Native watcher creation
+stays behind its existing injected service; importing its pure request-ID helper must not load
+the Electron host. Shared console diagnostics are platform-independent and retain captured sinks;
+the desktop entry supplies the development debug flag. Moving a Skill owner must not introduce
+Electron imports through logging or utility barrels, a second service instance or a native fallback.
+
 First-party configuration selects the core entry and service exports. Rutis dependency injection
 and scopes are not authorization. This migration introduces no arbitrary third-party Rutis code
 loading or untrusted peer access. Existing `.dcplugin` and portable user-plugin behavior retain

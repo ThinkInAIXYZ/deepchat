@@ -1,5 +1,13 @@
 export type WatcherHostKind = 'content' | 'git'
 
+export function createWatcherRequestId(
+  kind: WatcherHostKind,
+  purpose: string,
+  rootPath: string
+): string {
+  return `${kind}:${purpose}:${rootPath}`
+}
+
 export type WatchPurpose = 'workspace-content' | 'workspace-git' | 'skills'
 
 export type WatchEventType = 'create' | 'update' | 'delete' | 'overflow' | 'root-deleted'

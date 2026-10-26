@@ -2,7 +2,6 @@ import { WatcherPool } from './watcherPool'
 import type {
   IFileWatcherService,
   WatchBatchListener,
-  WatcherHostKind,
   WatchHandle,
   WatchRequest,
   WatchStatusListener
@@ -22,12 +21,4 @@ export class FileWatcherService implements IFileWatcherService {
   async destroy(): Promise<void> {
     await this.pool.destroy()
   }
-}
-
-export function createWatcherRequestId(
-  kind: WatcherHostKind,
-  purpose: string,
-  rootPath: string
-): string {
-  return `${kind}:${purpose}:${rootPath}`
 }

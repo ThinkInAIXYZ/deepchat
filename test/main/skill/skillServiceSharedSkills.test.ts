@@ -1,7 +1,6 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SkillService, type SkillAgentScopePort } from '@/skill'
 import type { SkillSettingsPort } from '@/skill/settings'
@@ -37,8 +36,6 @@ describe('SkillService shared Skills', () => {
   let activeSkills: Map<string, string[]>
   let stateWriteFailuresRemaining: number
   let service: SkillService
-  let getPathSpy: ReturnType<typeof vi.spyOn>
-  let getAppPathSpy: ReturnType<typeof vi.spyOn>
 
   const watcherService = {
     watch: vi.fn(async () => ({ close: vi.fn(async () => undefined) })),
@@ -100,7 +97,20 @@ describe('SkillService shared Skills', () => {
         sessions.find((session) => session.id === sessionId)?.projectDir ?? null,
       listSessions: async () => structuredClone(sessions)
     }
-    return new SkillService(settings, sessionState, watcherService, vi.fn(), agentScope)
+    return new SkillService(
+      settings,
+      sessionState,
+      watcherService,
+      vi.fn(),
+      {
+        homeDirectory: temporaryRoot,
+        tempDirectory: path.join(temporaryRoot, 'temp'),
+        userDataDirectory: temporaryRoot,
+        builtinSkillsDirectories: [path.join(temporaryRoot, 'resources', 'skills')],
+        openSkillsDirectory: vi.fn(async () => undefined)
+      },
+      agentScope
+    )
   }
 
   const migrate = async () => {
@@ -116,19 +126,11 @@ describe('SkillService shared Skills', () => {
     sessions = []
     activeSkills = new Map()
     stateWriteFailuresRemaining = 0
-    getPathSpy = vi.spyOn(app, 'getPath').mockImplementation((name: string) => {
-      if (name === 'home') return temporaryRoot
-      if (name === 'temp') return path.join(temporaryRoot, 'temp')
-      return temporaryRoot
-    })
-    getAppPathSpy = vi.spyOn(app, 'getAppPath').mockReturnValue(temporaryRoot)
     service = createService()
   })
 
   afterEach(async () => {
     await service.destroy()
-    getPathSpy.mockRestore()
-    getAppPathSpy.mockRestore()
     fs.rmSync(temporaryRoot, { recursive: true, force: true })
     vi.restoreAllMocks()
   })

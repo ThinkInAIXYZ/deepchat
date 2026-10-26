@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi, Mock, afterEach } from 'vitest'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { SkillMetadata } from '../../../src/shared/types/skill'
-import { app } from 'electron'
 
 const DEFAULT_SKILLS_DIR = '/mock/home/.deepchat/skills'
 
@@ -32,21 +31,6 @@ const skillArchiveMock = vi.hoisted(() => ({
 }))
 
 // Mock external dependencies
-vi.mock('electron', () => ({
-  app: {
-    getPath: vi.fn().mockImplementation((name: string) => {
-      if (name === 'home') return '/mock/home'
-      if (name === 'temp') return '/mock/temp'
-      return '/mock/' + name
-    }),
-    getAppPath: vi.fn().mockReturnValue('/mock/app'),
-    isPackaged: false
-  },
-  shell: {
-    openPath: vi.fn().mockResolvedValue('')
-  }
-}))
-
 vi.mock('fs', () => {
   const fsMock = {
     existsSync: vi.fn(),
@@ -198,7 +182,7 @@ import matter from 'gray-matter'
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import logger from '@shared/logger'
-import { SKILL_CONFIG, SkillService } from '../../../src/main/skill/index'
+import { SKILL_CONFIG, SkillService, type SkillHostPort } from '../../../src/main/skill/index'
 import type {
   IFileWatcherService,
   WatchBatchListener,
@@ -335,6 +319,7 @@ function createFakeWatcherService() {
 
 describe('SkillService', () => {
   let skillService: SkillService
+  let skillHost: SkillHostPort
   let mockProviderSettings: SkillSettingsPort
   let fakeWatcherService: ReturnType<typeof createFakeWatcherService>
   let configSettings: Map<string, unknown>
@@ -345,6 +330,13 @@ describe('SkillService', () => {
   }
 
   beforeEach(() => {
+    skillHost = {
+      homeDirectory: '/mock/home',
+      tempDirectory: '/mock/temp',
+      userDataDirectory: '/mock/userData',
+      builtinSkillsDirectories: ['/mock/app/resources/skills'],
+      openSkillsDirectory: vi.fn(async () => undefined)
+    }
     vi.clearAllMocks()
     ;(fs.renameSync as Mock).mockReset()
     ;(fs.copyFileSync as Mock).mockReset()
@@ -444,7 +436,8 @@ describe('SkillService', () => {
       mockProviderSettings,
       skillSessionStatePort as any,
       fakeWatcherService.service,
-      publishDeepchatEventMock
+      publishDeepchatEventMock,
+      skillHost
     )
     ;(skillService as any).skillsDir = DEFAULT_SKILLS_DIR
     ;(skillService as any).sidecarDir = `${DEFAULT_SKILLS_DIR}/.deepchat-meta`
@@ -466,7 +459,8 @@ describe('SkillService', () => {
         mockProviderSettings,
         skillSessionStatePort as any,
         fakeWatcherService.service,
-        publishDeepchatEventMock
+        publishDeepchatEventMock,
+        skillHost
       )
       expect(mockProviderSettings.getPath).toHaveBeenCalled()
       await expect(presenter.getSkillsDir()).resolves.toBe('/custom/skills/path')
@@ -480,7 +474,8 @@ describe('SkillService', () => {
         mockProviderSettings,
         skillSessionStatePort as any,
         fakeWatcherService.service,
-        publishDeepchatEventMock
+        publishDeepchatEventMock,
+        skillHost
       )
       expect(fs.mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true })
       presenter.destroy()
@@ -494,7 +489,8 @@ describe('SkillService', () => {
         mockProviderSettings,
         skillSessionStatePort as any,
         fakeWatcherService.service,
-        publishDeepchatEventMock
+        publishDeepchatEventMock,
+        skillHost
       )
 
       expect(fs.mkdirSync).toHaveBeenCalledWith(expect.not.stringContaining('.deepchat-meta'), {
@@ -508,17 +504,13 @@ describe('SkillService', () => {
 
     it('should repair malformed .deepchat path segments', async () => {
       ;(mockProviderSettings.getPath as Mock).mockReturnValue('/mock/home.deepchat/skills')
-      ;(app.getPath as Mock).mockImplementation((name: string) => {
-        if (name === 'home') return '/mock/home'
-        if (name === 'temp') return '/mock/temp'
-        return '/mock/' + name
-      })
 
       const presenter = new SkillService(
         mockProviderSettings,
         skillSessionStatePort as any,
         fakeWatcherService.service,
-        publishDeepchatEventMock
+        publishDeepchatEventMock,
+        skillHost
       )
       await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills')
       presenter.destroy()
@@ -526,17 +518,13 @@ describe('SkillService', () => {
 
     it('should repair stale POSIX default skills paths from another user profile', async () => {
       ;(mockProviderSettings.getPath as Mock).mockReturnValue('/Users/legacy-user/.deepchat/skills')
-      ;(app.getPath as Mock).mockImplementation((name: string) => {
-        if (name === 'home') return '/mock/home'
-        if (name === 'temp') return '/mock/temp'
-        return '/mock/' + name
-      })
 
       const presenter = new SkillService(
         mockProviderSettings,
         skillSessionStatePort as any,
         fakeWatcherService.service,
-        publishDeepchatEventMock
+        publishDeepchatEventMock,
+        skillHost
       )
       await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills')
       presenter.destroy()
@@ -546,17 +534,13 @@ describe('SkillService', () => {
       ;(mockProviderSettings.getPath as Mock).mockReturnValue(
         'C:\\Users\\legacy-user\\.deepchat\\skills\\nested'
       )
-      ;(app.getPath as Mock).mockImplementation((name: string) => {
-        if (name === 'home') return '/mock/home'
-        if (name === 'temp') return '/mock/temp'
-        return '/mock/' + name
-      })
 
       const presenter = new SkillService(
         mockProviderSettings,
         skillSessionStatePort as any,
         fakeWatcherService.service,
-        publishDeepchatEventMock
+        publishDeepchatEventMock,
+        skillHost
       )
       await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills/nested')
       presenter.destroy()
@@ -569,6 +553,48 @@ describe('SkillService', () => {
       expect(dir).toBeTruthy()
       expect(typeof dir).toBe('string')
     })
+  })
+
+  it.each(['resolve', 'reject'] as const)(
+    'drains a pending native directory %s before shutdown',
+    async (outcome) => {
+      let resolve!: () => void
+      let reject!: (error: Error) => void
+      const native = new Promise<void>((complete, fail) => {
+        resolve = complete
+        reject = fail
+      })
+      vi.mocked(skillHost.openSkillsDirectory).mockReturnValueOnce(native)
+      const opening = skillService.openSkillsFolderForAgent('deepchat')
+      const checked =
+        outcome === 'reject'
+          ? expect(opening).rejects.toThrow('native unavailable')
+          : expect(opening).resolves.toBeUndefined()
+      await vi.waitFor(() =>
+        expect(skillHost.openSkillsDirectory).toHaveBeenCalledWith(DEFAULT_SKILLS_DIR)
+      )
+
+      let stopped = false
+      const shutdown = skillService.destroy().then(() => {
+        stopped = true
+      })
+      await Promise.resolve()
+      expect(stopped).toBe(false)
+      await expect(skillService.openSkillsFolderForAgent('deepchat')).rejects.toThrow(
+        'shutting down'
+      )
+      expect(skillHost.openSkillsDirectory).toHaveBeenCalledOnce()
+      if (outcome === 'reject') reject(new Error('native unavailable'))
+      else resolve()
+      await checked
+      await shutdown
+      expect(stopped).toBe(true)
+    }
+  )
+
+  it('rejects an unsafe Agent scope before opening a native directory', async () => {
+    await expect(skillService.openSkillsFolderForAgent('../escape')).rejects.toThrow()
+    expect(skillHost.openSkillsDirectory).not.toHaveBeenCalled()
   })
 
   describe('initialize', () => {
@@ -1102,7 +1128,8 @@ describe('SkillService', () => {
         mockProviderSettings,
         skillSessionStatePort as any,
         fakeWatcherService.service,
-        publishDeepchatEventMock
+        publishDeepchatEventMock,
+        skillHost
       )
       ;(rehydratedPresenter as any).skillsDir = DEFAULT_SKILLS_DIR
       ;(rehydratedPresenter as any).sidecarDir = `${DEFAULT_SKILLS_DIR}/.deepchat-meta`
@@ -3577,7 +3604,8 @@ describe('SkillService', () => {
         mockProviderSettings,
         skillSessionStatePort as any,
         fakeWatcherService.service,
-        publishDeepchatEventMock
+        publishDeepchatEventMock,
+        skillHost
       )
       ;(rehydratedPresenter as any).skillsDir = DEFAULT_SKILLS_DIR
       ;(rehydratedPresenter as any).sidecarDir = `${DEFAULT_SKILLS_DIR}/.deepchat-meta`

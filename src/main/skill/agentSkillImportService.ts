@@ -1,7 +1,6 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
-import { app } from 'electron'
 import type {
   AgentSkillImportPreview,
   AgentSkillImportPreviewItem,
@@ -23,6 +22,7 @@ import { isFilenameSafe } from './sync/security'
 const IMPORTABLE_SKILL_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/
 
 export interface AgentSkillImportServiceDependencies {
+  tempDirectory: string
   skills: Pick<SkillServicePort, 'getAllSkills' | 'installImportedSkill'>
   external: Pick<SkillSyncServicePort, 'scanExternalTools' | 'previewImport'>
 }
@@ -313,7 +313,7 @@ export class AgentSkillImportService {
   private async materializeCanonicalSkill(item: ResolvedImportItem): Promise<string> {
     if (!item.canonicalSkill) throw new Error('External Skill could not be converted.')
     const root = await fs.promises.mkdtemp(
-      path.join(app.getPath('temp'), `deepchat-agent-skill-import-${randomUUID()}-`)
+      path.join(this.dependencies.tempDirectory, `deepchat-agent-skill-import-${randomUUID()}-`)
     )
     try {
       await fs.promises.writeFile(

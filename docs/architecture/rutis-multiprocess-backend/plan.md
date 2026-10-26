@@ -770,6 +770,55 @@ its runtime tests pass. Evidence is under `.deepchat/rutis-g4-settings-acceptanc
 schema, transport, layout or style change requires a full performance recapture. The service remains
 in-process; other configuration domains, native capabilities and Store boundaries remain open.
 
+### Skill host paths and native directory capability
+
+Move Skill, Skill settings and external-import path acquisition out of Electron-dependent business
+code. Main supplies explicit home/temp/user-data/bundled-skill directories and one asynchronous
+native directory-open capability. Keep discovery, imports, scoped authorization, operation leases,
+plugin source validation and filesystem rollback inside their existing owners. Preserve development
+and packaged resource fallback order. Do not add a runtime fallback to Electron or duplicate the
+Skill service in Main. This removes a G5 host dependency; it does not create a separate Skill plugin.
+
+Keep the pure watcher request-ID helper independent of native watcher construction. Shared console
+diagnostics must not import Electron through a toolkit package: Main initializes the existing
+development debug gate explicitly, while captured console sinks remain console-only. Standalone
+Node hosts default to quiet debug output and may set the same data-only flag at their own startup.
+
+Characterize the existing Skills and scan-worker application scenarios before the cutover, with
+the fixture's managed Skills directory isolated in its disposable profile. This characterization
+is a migration exception to implementation-first verification.
+
+The default composition now supplies those paths and the native directory capability to the same
+Skill service. Skill settings and import routes receive their required home/temp directories.
+The three business modules no longer import Electron; the request-ID helper is available without
+constructing a watcher, and shared logger imports no Electron toolkit. Main preserves its existing
+`!app.isPackaged` console-debug gate at startup. Existing captured diagnostics still bypass file
+persistence. No new dependency, process, database writer or native watcher owner is introduced.
+
+Local acceptance passes 781 checks across 36 files covering the full Skill group, watcher and
+logging suites, routes and composition. New durable cases hold a native directory acknowledgement
+through shutdown on both success and failure, reject unsafe Agent scopes before native dispatch,
+and verify the explicit console-debug gate and captured sinks. Scoped settings/import/logging/E2E
+types, app types, the runtime build, format, lint and i18n pass.
+
+A separate ordinary Node 24.22.1 run bundles the three selected modules with Electron, electron-store
+and Electron toolkit imports rejected. It exercises actual files, ZIP extraction and byte equality,
+ordered bundled-directory fallback, external import conversion/cleanup, persisted assignments after
+service recreation and real discovery workers. Native directory and watcher capabilities are supplied
+by the embedding host in that run; watcher closures drain twice. This proves the selected Skill
+owner can run without Electron, not that the Harness or headless Session Host has moved.
+
+The matching actual application scenarios pass before/after migration: Skills catalog/file/extension
+reads in 3.1/3.2 seconds and scan-worker events in 2.9/2.7 seconds. Disposable profiles now seed
+their own managed Skills directory, and the catalog check requires delivered builtins. These are
+functional checks. Evidence is under `.deepchat/rutis-g4-skill-host-acceptance/`; actual OS file-manager
+presentation is not exercised. Process placement, native watcher ownership and storage behavior
+are unchanged, so no full resource recapture or speed claim is required. G4 remains open.
+
+The preceding settings checkpoint `03ebe520b` passes required run `40277920388`, including
+`pr-required` job `121426387843`, and package run `40277920393` with all six platforms and
+`package-required` job `121430324373`. Both workflows finished before the Skill slice push.
+
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
 - [ ] Replace cross-boundary closures/row APIs with bounded transactional business commands for

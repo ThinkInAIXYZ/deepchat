@@ -1,4 +1,3 @@
-import { app } from 'electron'
 import path from 'path'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { ScanCache } from '@shared/types/skillSync'
@@ -27,7 +26,10 @@ export interface SkillSettingsPort {
 }
 
 export class SkillSettings implements SkillSettingsPort {
-  constructor(private readonly store: SettingsStore) {}
+  constructor(
+    private readonly store: SettingsStore,
+    private readonly homeDirectory: string
+  ) {}
 
   isEnabled(): boolean {
     return this.store.get<boolean>('enableSkills') ?? true
@@ -43,7 +45,7 @@ export class SkillSettings implements SkillSettingsPort {
 
   getPath(): string {
     return (
-      this.store.get<string>('skillsPath') || path.join(app.getPath('home'), '.deepchat', 'skills')
+      this.store.get<string>('skillsPath') || path.join(this.homeDirectory, '.deepchat', 'skills')
     )
   }
 

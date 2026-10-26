@@ -42,6 +42,27 @@ describe('LoggingService', () => {
   )
 })
 
+it('controls legacy console debug output through an explicit host flag', async () => {
+  const legacy = await vi.importActual<typeof import('@shared/logger')>('@shared/logger')
+  const debug = vi.spyOn(legacy.originalConsole, 'debug').mockImplementation(() => undefined)
+  try {
+    legacy.setLegacyConsoleDebugEnabled(false)
+    legacy.default.debug('quiet')
+    expect(debug).not.toHaveBeenCalled()
+    legacy.setLegacyConsoleDebugEnabled(true)
+    legacy.default.debug('debug')
+    legacy.default.verbose('verbose')
+    legacy.default.silly('silly')
+    expect(debug.mock.calls).toEqual([['debug'], ['verbose'], ['silly']])
+    expect(legacy.default.info).toBe(legacy.originalConsole.info)
+    expect(legacy.default.warn).toBe(legacy.originalConsole.warn)
+    expect(legacy.default.error).toBe(legacy.originalConsole.error)
+  } finally {
+    legacy.setLegacyConsoleDebugEnabled(false)
+    debug.mockRestore()
+  }
+})
+
 describe('Main startup diagnostics', () => {
   afterEach(() => vi.restoreAllMocks())
 

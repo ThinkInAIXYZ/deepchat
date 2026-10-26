@@ -1,4 +1,3 @@
-import { app, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { execFile } from 'node:child_process'
@@ -15,7 +14,7 @@ import {
   type WatcherEventBatch,
   type WatcherStatus,
   type WatchHandle
-} from '@/platform/fileWatcher'
+} from '@/platform/fileWatcher/watcherTypes'
 import {
   SkillServicePort,
   SkillMetadata,
@@ -354,6 +353,14 @@ function sanitizeSkillExtensionConfig(input: unknown): SkillExtensionConfig {
   }
 }
 
+export interface SkillHostPort {
+  homeDirectory: string
+  tempDirectory: string
+  userDataDirectory: string
+  builtinSkillsDirectories: readonly string[]
+  openSkillsDirectory(directory: string): Promise<void>
+}
+
 /**
  * SkillService manages the skills system.
  *
@@ -397,19 +404,20 @@ export class SkillService implements SkillServicePort {
     private readonly sessionStatePort: SkillSessionStatePort,
     private readonly watcherService: IFileWatcherService,
     private readonly publishEvent: DeepchatEventPublisher,
+    private readonly host: SkillHostPort,
     private readonly agentScopePort?: SkillAgentScopePort
   ) {
     // Skills directory: ~/.deepchat/skills/
     this.skillsDir = this.resolveSkillsDir()
     this.sidecarDir = path.join(this.skillsDir, SKILL_CONFIG.SIDECAR_DIR)
-    this.draftsRoot = path.join(app.getPath('temp'), SKILL_CONFIG.DRAFT_ROOT_DIR)
+    this.draftsRoot = path.join(this.host.tempDirectory, SKILL_CONFIG.DRAFT_ROOT_DIR)
     this.ensureSkillsDir()
   }
 
   private resolveSkillsDir(): string {
     const configuredPath = this.settings.getPath()
     const normalized = configuredPath?.trim()
-    const homePath = app.getPath('home')
+    const homePath = this.host.homeDirectory
     const homeDir = homePath ? path.resolve(homePath) : path.resolve('.')
     const fallbackDir = path.join(homeDir, '.deepchat', 'skills')
     const resolved = normalized ? path.resolve(normalized) : fallbackDir
@@ -3307,24 +3315,13 @@ export class SkillService implements SkillServicePort {
   }
 
   private resolveBuiltinSkillsDir(): string | null {
-    const candidates = this.getBuiltinSkillsDirCandidates()
+    const candidates = this.host.builtinSkillsDirectories
     for (const candidate of candidates) {
       if (fs.existsSync(candidate)) {
         return candidate
       }
     }
     return null
-  }
-
-  private getBuiltinSkillsDirCandidates(): string[] {
-    if (!app.isPackaged) {
-      return [path.join(app.getAppPath(), 'resources', 'skills')]
-    }
-    return [
-      path.join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'skills'),
-      path.join(process.resourcesPath, 'resources', 'skills'),
-      path.join(process.resourcesPath, 'skills')
-    ]
   }
 
   /**
@@ -3413,7 +3410,7 @@ export class SkillService implements SkillServicePort {
       return { success: false, error: 'Zip file not found', errorCode: 'not_found' }
     }
 
-    const tempDir = fs.mkdtempSync(path.join(app.getPath('temp'), 'deepchat-skill-'))
+    const tempDir = fs.mkdtempSync(path.join(this.host.tempDirectory, 'deepchat-skill-'))
     try {
       await extractSkillArchive(zipPath, tempDir, {
         maxArchiveBytes: SKILL_CONFIG.ZIP_MAX_SIZE
@@ -3459,7 +3456,7 @@ export class SkillService implements SkillServicePort {
   ): Promise<SkillInstallResult> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     const finishOperation = this.beginAgentScopeOperation(normalizedAgentId)
-    const tempZipPath = path.join(app.getPath('temp'), `deepchat-skill-${randomUUID()}.zip`)
+    const tempZipPath = path.join(this.host.tempDirectory, `deepchat-skill-${randomUUID()}.zip`)
     try {
       await downloadSkillArchive(url, tempZipPath, {
         maxBytes: SKILL_CONFIG.ZIP_MAX_SIZE,
@@ -4268,7 +4265,7 @@ export class SkillService implements SkillServicePort {
   private backupExistingSkill(skillName: string): string {
     const sourceDir = path.join(this.skillsDir, skillName)
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const backupRoot = path.join(app.getPath('home'), '.deepchat', 'backups', 'skill-installs')
+    const backupRoot = path.join(this.host.homeDirectory, '.deepchat', 'backups', 'skill-installs')
     fs.mkdirSync(backupRoot, { recursive: true })
     const backupDir = path.join(backupRoot, `${skillName}-${timestamp}-${randomUUID()}`)
     fs.renameSync(sourceDir, backupDir)
@@ -4347,7 +4344,7 @@ export class SkillService implements SkillServicePort {
   }
 
   private async cloneGitSkillRepo(repoUrl: string): Promise<string> {
-    const operationRoot = path.join(app.getPath('home'), '.deepchat', 'tmp', 'skill-installs')
+    const operationRoot = path.join(this.host.homeDirectory, '.deepchat', 'tmp', 'skill-installs')
     fs.mkdirSync(operationRoot, { recursive: true })
     const cloneDir = path.join(operationRoot, `${Date.now()}-${randomUUID()}`)
     try {
@@ -4857,7 +4854,7 @@ export class SkillService implements SkillServicePort {
     }
 
     const skillDir = path.resolve(metadata.skillRoot)
-    const backupRoot = path.join(app.getPath('home'), '.deepchat', 'backups', 'skill-deletes')
+    const backupRoot = path.join(this.host.homeDirectory, '.deepchat', 'backups', 'skill-deletes')
     fs.mkdirSync(backupRoot, { recursive: true })
     const backupDir = path.join(backupRoot, `${name}-${Date.now()}-${randomUUID()}`)
     const sessions = this.agentScopePort ? await this.agentScopePort.listSessions() : []
@@ -5343,7 +5340,7 @@ export class SkillService implements SkillServicePort {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     const finishOperation = this.beginAgentScopeOperation(normalizedAgentId)
     try {
-      await shell.openPath(this.skillsDir)
+      await this.host.openSkillsDirectory(this.skillsDir)
     } finally {
       finishOperation()
     }
@@ -5379,7 +5376,7 @@ export class SkillService implements SkillServicePort {
     }
     const ownerPluginId = this.getStoredManagementState().skills[name]?.ownerPluginId
     const userPluginRoot = path.join(
-      app.getPath('userData'),
+      this.host.userDataDirectory,
       PLUGIN_INSTALL_DIRECTORY,
       USER_PLUGIN_INSTALL_DIRECTORY
     )

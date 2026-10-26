@@ -200,6 +200,7 @@ const seedE2eUserDataDir = (userDataDir: string, privacyModeEnabled: boolean): v
         init_complete: true,
         loggingEnabled: true,
         privacyModeEnabled,
+        skillsPath: join(userDataDir, 'skills'),
         guidedOnboardingState: {
           version: GUIDED_ONBOARDING_VERSION,
           status: 'completed',
