@@ -517,7 +517,7 @@ export class UserPlugins {
       record.package.mcpServers.map(async (server) => {
         const key = `${record.pluginId}.${server.name}`
         const config = configs[key]
-        const bindings = config ? this.deps.mcpSettings.getMcpVariableBindings(config) : {}
+        const bindings = config ? await this.deps.mcpSettings.getMcpVariableBindings(config) : {}
         setup[key] = server.requiredVariables.filter((name) => !bindings[name])
         const state = this.deps.supervisor.getState(key)
         return {
@@ -577,7 +577,7 @@ export class UserPlugins {
         throw new Error('MCP configuration is unavailable; enable the plugin first')
       if (Object.keys(values).some((name) => !declared.requiredVariables.includes(name)))
         throw new Error('Undeclared MCP variable')
-      this.deps.mcpSettings.setMcpVariableBindings(current, values)
+      await this.deps.mcpSettings.setMcpVariableBindings(current, values)
       await this.deps.supervisor.unregisterPlugin(pluginId)
       if (current.serverId) this.deps.mcpService.revokeMcpAppsByServer?.(current.serverId)
       if (record.enabled) await this.activate(record)

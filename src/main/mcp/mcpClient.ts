@@ -195,7 +195,7 @@ interface ServerStatusChangedOptions {
 }
 
 export type McpClientRuntime = {
-  resolveMcpBindings?(config: Partial<MCPServerConfig>): Record<string, string>
+  resolveMcpBindings?(config: Partial<MCPServerConfig>): Promise<Record<string, string>>
   sampling: Pick<McpServicePort, 'handleSamplingRequest' | 'cancelSamplingRequest'>
   elicitation: Pick<McpServicePort, 'handleElicitationRequest' | 'cancelElicitationRequest'>
   completion: Pick<ProviderRuntimePort, 'generateCompletionStandalone'>
@@ -510,8 +510,12 @@ export class McpClient {
         this.serverConfig.ownerPluginId.startsWith('user.')
       const privateBindings = userPlugin || this.serverConfig.ownerPluginId === NOWLEDGE_PLUGIN_ID
       const bindingEnvironment = privateBindings
-        ? (this.runtime.resolveMcpBindings?.(this.serverConfig as Partial<MCPServerConfig>) ?? {})
+        ? ((await this.runtime.resolveMcpBindings?.(
+            this.serverConfig as Partial<MCPServerConfig>
+          )) ?? {})
         : process.env
+      if (this.connectAborted || attempt !== this.startupAttempt)
+        throw new McpConnectionCancelledError(this.serverName)
       const resolveBinding = (value: string) =>
         resolveMcpEnvironmentBinding(
           value,
@@ -550,6 +554,9 @@ export class McpClient {
             this.serverName,
             this.serverConfig as Partial<MCPServerConfig>
           )
+
+      if (this.connectAborted || attempt !== this.startupAttempt)
+        throw new McpConnectionCancelledError(this.serverName)
 
       if (this.serverConfig.type === 'inmemory') {
         const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
@@ -823,6 +830,9 @@ export class McpClient {
       // 等待连接完成或硬超时
       await Promise.race([connectPromise, timeoutPromise])
 
+      if (this.connectAborted || attempt !== this.startupAttempt)
+        throw new McpConnectionCancelledError(this.serverName)
+
       // 清除超时
       if (this.connectionTimeout) {
         clearTimeout(this.connectionTimeout)
@@ -845,6 +855,7 @@ export class McpClient {
 
       this.emitServerStatusChanged('connected', { phase, attempt })
     } catch (error) {
+      if (attempt !== this.startupAttempt) throw new McpConnectionCancelledError(this.serverName)
       // 清除超时
       if (this.connectionTimeout) {
         clearTimeout(this.connectionTimeout)

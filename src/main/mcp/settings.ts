@@ -362,12 +362,12 @@ export class McpSettings {
   private mcpDatabase?: McpDatabase
   private pluginBindingResolvers = new Map<
     string,
-    (config: Partial<MCPServerConfig>) => Record<string, string>
+    (config: Partial<MCPServerConfig>) => Promise<Record<string, string>>
   >()
 
   setPluginBindingResolver(
     pluginId: string,
-    resolve: (config: Partial<MCPServerConfig>) => Record<string, string>
+    resolve: (config: Partial<MCPServerConfig>) => Promise<Record<string, string>>
   ): void {
     this.pluginBindingResolvers.set(pluginId, resolve)
   }
@@ -375,7 +375,7 @@ export class McpSettings {
   constructor(
     private readonly variableSecrets?: Pick<
       SecretStore,
-      'get' | 'getWrapped' | 'wrap' | 'setWrapped' | 'restoreWrapped'
+      'get' | 'getWrapped' | 'wrap' | 'setWrapped' | 'restoreWrapped' | 'captureOperation'
     >
   ) {
     // Initialize MCP settings storage
@@ -1028,11 +1028,17 @@ export class McpSettings {
     await this.setMcpServers(mcpServers)
   }
 
-  getMcpVariableBindings(config: Partial<MCPServerConfig>): Record<string, string> {
+  async getMcpVariableBindings(config: Partial<MCPServerConfig>): Promise<Record<string, string>> {
+    const check = this.variableSecrets?.captureOperation()
     const resolve = config.ownerPluginId && this.pluginBindingResolvers.get(config.ownerPluginId)
-    if (resolve) return resolve(config)
+    if (resolve) {
+      const bindings = await resolve(config)
+      check?.()
+      return bindings
+    }
     if (!config.serverId) return {}
-    const raw = this.variableSecrets?.get(`mcpVariableBindings.${config.serverId}`)
+    const raw = await this.variableSecrets?.get(`mcpVariableBindings.${config.serverId}`)
+    check?.()
     if (!raw) return {}
     try {
       const stored = JSON.parse(raw)
@@ -1053,7 +1059,10 @@ export class McpSettings {
     }
   }
 
-  setMcpVariableBindings(config: MCPServerConfig, values: Record<string, string>): void {
+  async setMcpVariableBindings(
+    config: MCPServerConfig,
+    values: Record<string, string>
+  ): Promise<void> {
     if (!config.serverId || !this.variableSecrets)
       throw new Error('MCP credential storage is unavailable')
     if (
@@ -1063,12 +1072,14 @@ export class McpSettings {
       )
     )
       throw new Error('Invalid MCP variable binding')
-    const wrapped = this.variableSecrets.wrap(
+    const check = this.variableSecrets.captureOperation()
+    const wrapped = await this.variableSecrets.wrap(
       JSON.stringify({
         scope: mcpVariableBindingScope(config),
-        values: { ...this.getMcpVariableBindings(config), ...values }
+        values: { ...(await this.getMcpVariableBindings(config)), ...values }
       })
     )
+    check()
     this.variableSecrets.setWrapped(`mcpVariableBindings.${config.serverId}`, wrapped)
   }
 

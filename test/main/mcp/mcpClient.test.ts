@@ -473,7 +473,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
           null,
           undefined,
           undefined,
-          () => ({ TOKEN: value })
+          async () => ({ TOKEN: value })
         )
         await expect(client.connect()).rejects.toThrow(/header/i)
       }
@@ -489,14 +489,51 @@ describe('McpClient Runtime Command Processing Tests', () => {
         environmentVariables: ['DEEPCHAT_TEST_HOST_SECRET'],
         env: { TOKEN: '${DEEPCHAT_TEST_HOST_SECRET}' }
       }
-      const client = createMcpClient('reviewed', config, null, null, undefined, undefined, () => ({
-        DEEPCHAT_TEST_HOST_SECRET: 'explicit-secret'
-      }))
+      const client = createMcpClient(
+        'reviewed',
+        config,
+        null,
+        null,
+        undefined,
+        undefined,
+        async () => ({
+          DEEPCHAT_TEST_HOST_SECRET: 'explicit-secret'
+        })
+      )
       await client.connect()
       expect(vi.mocked(StdioClientTransport).mock.calls.at(-1)?.[0]?.env?.TOKEN).toBe(
         'explicit-secret'
       )
       expect(config.env.TOKEN).toBe('${DEEPCHAT_TEST_HOST_SECRET}')
+    })
+
+    it('does not create a transport when cancelled during credential resolution', async () => {
+      const bindings = Promise.withResolvers<Record<string, string>>()
+      const client = createMcpClient(
+        'reviewed',
+        {
+          ownerPluginId: 'user.reviewed',
+          type: 'stdio',
+          command: 'node',
+          args: ['server.js'],
+          environmentVariables: ['TOKEN'],
+          env: { TOKEN: '${TOKEN}' }
+        },
+        null,
+        null,
+        undefined,
+        undefined,
+        () => bindings.promise
+      )
+      const completion = expect(client.connect({ waitForConnection: true })).rejects.toThrow(
+        'cancelled'
+      )
+      await client.disconnect()
+      bindings.resolve({ TOKEN: 'private-key' })
+      await completion
+      expect(StdioClientTransport).not.toHaveBeenCalled()
+      expect(client.getLifecycleStatus()).toBe('stopped')
+      expect(client.isActive()).toBe(false)
     })
 
     it('should set npm registry environment variables', () => {

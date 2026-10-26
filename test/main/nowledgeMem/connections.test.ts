@@ -90,8 +90,9 @@ function setup(initial: Record<string, unknown> = {}) {
     })
   }
   const secrets = {
-    get: (key: string) => encrypted.get(key) ?? '',
-    wrap: vi.fn((value: string) => `encrypted:${value}`),
+    captureOperation: () => () => {},
+    get: async (key: string) => encrypted.get(key) ?? '',
+    wrap: vi.fn(async (value: string) => `encrypted:${value}`),
     setWrapped: (key: string, wrapped: string) => {
       encrypted.set(key, wrapped.slice('encrypted:'.length))
     },
@@ -136,7 +137,7 @@ describe('Nowledge connection contract', () => {
     expect(state.connection?.baseUrl).toBe('https://mem.example.test')
     expect(JSON.stringify([...data])).not.toContain('remote-key')
     expect(JSON.stringify(state)).not.toContain('remote-key')
-    expect(create().getExportConfig()).toMatchObject({
+    expect(await create().getExportConfig()).toMatchObject({
       baseUrl: 'https://mem.example.test',
       apiKey: 'remote-key'
     })
@@ -146,7 +147,7 @@ describe('Nowledge connection contract', () => {
       ownerPluginId: NOWLEDGE_PLUGIN_ID,
       sourceId: NOWLEDGE_PLUGIN_ID
     }
-    expect(service.getMcpBindings(config)).toEqual({ NOWLEDGE_MEM_API_KEY: 'remote-key' })
+    expect(await service.getMcpBindings(config)).toEqual({ NOWLEDGE_MEM_API_KEY: 'remote-key' })
     expect(requests.some((r) => r.path === '/mcp/' && r.key === 'remote-key')).toBe(true)
   })
 
@@ -183,7 +184,7 @@ describe('Nowledge connection contract', () => {
       credentials: saved.credentials
     })
     expect((await service.getState()).connection?.baseUrl).toBe('https://mem.example.test')
-    expect(service.getExportConfig().apiKey).toBe('remote-key')
+    expect((await service.getExportConfig()).apiKey).toBe('remote-key')
     await service.save({ ...remote(), apiKey: '' })
     expect(data.get('nowledgeMemPlugin')).not.toHaveProperty('connections')
     expect([...encrypted.values()]).toEqual(['local-key', 'remote-key'])
@@ -197,7 +198,7 @@ describe('Nowledge connection contract', () => {
     requests = []
     await expect(service.save({ ...remote(), apiKey: 'wrong-key' })).rejects.toThrow('HTTP 401')
     expect([...data]).toEqual(before)
-    expect(service.getExportConfig().apiKey).toBe('remote-key')
+    expect((await service.getExportConfig()).apiKey).toBe('remote-key')
     expect(requests).toHaveLength(1)
   })
 
@@ -222,11 +223,11 @@ describe('Nowledge connection contract', () => {
     const next = { ...remote('https://other.example.test'), apiKey: '' }
     await expect(service.save(next)).rejects.toThrow('Confirm replacing')
     await service.save({ ...next, replace: true })
-    expect(service.getExportConfig().apiKey).toBe('')
+    expect((await service.getExportConfig()).apiKey).toBe('')
     await service.save({ ...next, replace: true, apiKey: 'other-key' })
-    expect(() => service.getMcpBindings(old)).toThrow('no longer matches')
+    await expect(service.getMcpBindings(old)).rejects.toThrow('no longer matches')
     await service.save({ ...remote(), replace: true, apiKey: '' })
-    expect(service.getExportConfig().apiKey).toBe('remote-key')
+    expect((await service.getExportConfig()).apiKey).toBe('remote-key')
   })
 
   it('imports legacy export credentials only on explicit save and clears plaintext after encryption', async () => {
@@ -240,7 +241,7 @@ describe('Nowledge connection contract', () => {
     await service.save({ ...local(), legacySource: 'export' })
     expect(secrets.wrap).toHaveBeenCalledWith('legacy-key')
     expect(data.get('nowledgeMemConfig')).not.toHaveProperty('apiKey')
-    expect(service.getExportConfig().apiKey).toBe('legacy-key')
+    expect((await service.getExportConfig()).apiKey).toBe('legacy-key')
   })
 
   it('does not lose the previous credential when persisting a rotation fails', async () => {
@@ -253,8 +254,22 @@ describe('Nowledge connection contract', () => {
     await expect(service.save({ ...remote(), apiKey: 'replacement-key' })).rejects.toThrow(
       'Disk full'
     )
-    expect(service.getExportConfig().apiKey).toBe('remote-key')
+    expect((await service.getExportConfig()).apiKey).toBe('remote-key')
     expect([...encrypted.values()]).toEqual(['remote-key'])
+  })
+
+  it('keeps connection replacement and clearing excluded while native wrapping is pending', async () => {
+    const { service, secrets, data } = setup()
+    const pending = Promise.withResolvers<string>()
+    secrets.wrap.mockReturnValueOnce(pending.promise)
+    const save = service.save({ ...local(), apiKey: 'private-key' })
+    await vi.waitFor(() => expect(secrets.wrap).toHaveBeenCalledOnce())
+    expect(data.has('nowledgeMemPlugin')).toBe(false)
+    expect(() => service.clear()).toThrow('update is in progress')
+    await expect(service.save(local())).rejects.toThrow('update is in progress')
+    pending.resolve('encrypted:private-key')
+    await save
+    expect((await service.getExportConfig()).apiKey).toBe('private-key')
   })
 
   it('reuses unchanged keys, removes replaced keys and explicitly clears retained destinations', async () => {
@@ -294,7 +309,7 @@ describe('Nowledge connection contract', () => {
     })
     requests = []
     await service.save({ ...remote(), replace: true, apiKey: '' })
-    expect(service.getExportConfig().apiKey).toBe('remote-key')
+    expect((await service.getExportConfig()).apiKey).toBe('remote-key')
     expect(
       requests
         .filter((request) => request.path.startsWith('/remote-api'))

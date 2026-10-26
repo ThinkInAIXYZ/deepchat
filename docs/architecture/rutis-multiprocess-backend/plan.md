@@ -42,7 +42,7 @@ isolated timing overrun. Do not rerun CI or unchanged benchmarks to obtain a pas
 | G1 Whole-capability roadmap | Complete; documentation only | G0 and source research | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence |
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
 | G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
-| G4 Store commands and desktop ports | Scheduler slice validated; remaining contracts in progress | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
+| G4 Store commands and desktop ports | Scheduler validated; credential port locally validated; remaining contracts in progress | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
 | G5 Cohesive TS Harness backend | Planned | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
 | G7 Rust control owner | Planned | G2, G5 | Admission and cohesive run/interaction settlement preserve all fences |
@@ -588,6 +588,66 @@ Root's source and runtime still match the measured candidate after capture. Dura
 `.deepchat/rutis-g4-acceptance/{artifacts.json,paired/state.json,paired-summary.json,outcome-counts.json}`.
 Scheduler checkpoint `0add1c1ee` passes required run `40268252480` and all six platform packages
 in `40268252495`, including both required barriers. The remaining G4 contracts are still open.
+
+### Credential crypto port slice
+
+Extract the real `SecretStore` native dependency behind an async, data-only desktop port. The
+pinned Electron runtime exposes `isAsyncEncryptionAvailable`, `encryptStringAsync` and
+`decryptStringAsync`; use those operations in the main-process adapter. Keep wrapped values in
+their existing storage format and verify that the async decryptor reads legacy synchronous
+ciphertext. Reads do not rewrite credentials automatically.
+
+Retarget all actual consumers together: Sync settings/routes/cloud-service construction, MCP
+variable bindings and connection startup, user-plugin configuration, Nowledge connections and
+both exporters. Keep existing plugin mutation serialization and Nowledge's update exclusion.
+Serialize cloud-config writes across the new awaits; preserve credential rollback if configuration
+publication fails. Recheck MCP connection attempt identity after awaited binding resolution.
+
+The credential owner fences async operations by its lifecycle generation. Capture that generation
+before work and check it immediately before returning sensitive reads or committing wrapped
+values. Pause/invalidate pending work at database maintenance and shutdown; resume only after
+the profile is usable. Existing owner-local guards remain local functions, never wire callbacks.
+Do not add a decrypted credential cache or an alternate native implementation.
+
+Reuse the existing real-app Nowledge/REST/MCP/key-protection scenario. Add only legacy-ciphertext
+compatibility and cloud credential persistence characterization before this migration. Existing
+Nowledge E2E passes on `0add1c1ee` in 4.7 seconds with real native wrapping and the local MCP
+fixture. Native async compatibility passes on Electron 43.8.3, including legacy ciphertext.
+Cloud credential persistence passes across three launches, an unrelated configuration update and
+relaunch in 6.1 seconds. These characterize the baseline before the production cutover.
+
+The default application now injects `CredentialCryptoPort` through the main-process native
+adapter. `SecretStore` no longer imports Electron or handles native buffers. Every actual Sync,
+MCP variable-binding, user-plugin, Nowledge and export consumer awaits credential operations;
+no synchronous crypto fallback remains in this owner. Cloud writes are serialized across awaits,
+merge the latest committed base, and retain wrapped-secret rollback. The acknowledged view is
+computed before publication so a later native read failure cannot turn a successful write into
+an apparent failure. Existing plugin serialization and Nowledge update exclusion remain active.
+MCP startup rechecks cancellation/attempt identity after credential resolution and OAuth setup;
+a stale attempt cannot clean up a newer attempt's transport or timer.
+
+Maintenance and shutdown synchronously invalidate pending credential operations. Maintenance
+resumes the owner only after database reopen/reconciliation; shutdown cannot resume it.
+Reads also reject a wrapped credential replaced or removed during native decryption. Consumer
+guards run immediately before sensitive return or synchronous persistence, including after a
+successful wrapping result. Plaintext is not cached and reads do not rewrite wrapped values.
+
+Local acceptance passes 251 checks in 12 affected test files, including native failures,
+maintenance/resume fencing, pending/queued cloud writes, publication rollback, a maintenance
+transition after wrapping, Nowledge mutation exclusion and MCP cancellation during credential
+resolution. Scoped credential/E2E types, app types, format, lint, i18n and the normal build pass.
+The matching actual application scenarios pass after cutover: Nowledge REST/MCP/key protection
+in 5.1 seconds, native legacy compatibility in 2.1 seconds and cloud persistence in 6.1 seconds
+(three tests, 13.5 seconds total). Evidence is under
+`.deepchat/rutis-g4-crypto-acceptance/`, including baseline/migrated E2E and affected-test logs.
+The normal build's Provider catalog refresh is retained.
+
+This slice adds no process and moves no storage ownership; the data-only port remains in-process
+until G5 moves the cohesive backend. No full process-tree recapture or performance improvement
+claim is required for this extraction. Native credential compatibility is verified on macOS arm64;
+Windows/Linux credential-store behavior remains unverified locally. Checkpoint CI remains a
+separate requirement. `DatabaseSecurityService`, Provider/OAuth credential stores, power events
+and the remaining Store/configuration contracts are still G4 work.
 
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.

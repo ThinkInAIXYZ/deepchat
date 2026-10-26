@@ -125,7 +125,9 @@ export function createSyncRoutes(deps: {
       syncGetCloudConfigRoute.name,
       async (rawInput) => {
         syncGetCloudConfigRoute.input.parse(rawInput)
-        return syncGetCloudConfigRoute.output.parse({ config: deps.settings.getCloudConfig() })
+        return syncGetCloudConfigRoute.output.parse({
+          config: await deps.settings.getCloudConfig()
+        })
       }
     ],
     [
@@ -133,7 +135,7 @@ export function createSyncRoutes(deps: {
       async (rawInput) => {
         const input = syncSetCloudConfigRoute.input.parse(rawInput)
         return syncSetCloudConfigRoute.output.parse({
-          config: deps.settings.setCloudConfig(input.config)
+          config: await deps.settings.setCloudConfig(input.config)
         })
       }
     ],

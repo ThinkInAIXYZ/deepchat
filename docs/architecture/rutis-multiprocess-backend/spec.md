@@ -684,6 +684,14 @@ authorized wrapping/unwrapping. Send unlock material only through the private tr
 to the approved core generation. It must not enter command arguments, environment variables,
 persisted loader configuration, logs, or crash diagnostics.
 
+Credential crypto uses an async desktop port with string/boolean results; Electron objects and
+native buffers remain in its main-process adapter. The pinned runtime's native async safeStorage
+operations must open existing synchronous ciphertext. Retain opaque wrapped-value storage and
+keep reads free of credential rewrites. Lifecycle generations fence in-flight crypto results
+across maintenance and shutdown, with authoritative checks immediately before sensitive return
+or persistence. Await every Sync, MCP, plugin and export consumer; preserve destination binding,
+serialized mutations, rollback and cancelled connection-attempt identity.
+
 ### Public routes and desktop capabilities
 
 Reuse existing shared route names, schemas, caller types, and output projection. Classify each

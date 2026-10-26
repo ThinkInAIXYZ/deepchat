@@ -164,8 +164,8 @@ export class SyncService {
 
   // === Cloud sync (S3-compatible) ===
 
-  private buildCloudService(): CloudStorageService {
-    const resolved = this.settings.getResolvedCloudConfig()
+  private async buildCloudService(): Promise<CloudStorageService> {
+    const resolved = await this.settings.getResolvedCloudConfig()
     if (!resolved) {
       throw new Error('sync.error.cloudNotConfigured')
     }
@@ -206,7 +206,7 @@ export class SyncService {
 
   public async testCloudConnection(): Promise<CloudSyncResult> {
     try {
-      const service = this.buildCloudService()
+      const service = await this.buildCloudService()
       await service.testConnection()
       return { success: true, message: 'sync.success.cloudConnected' }
     } catch (error) {
@@ -217,7 +217,7 @@ export class SyncService {
 
   public async uploadLatestBackupToCloud(): Promise<CloudSyncResult> {
     try {
-      const service = this.buildCloudService()
+      const service = await this.buildCloudService()
       const backups = (await this.listBackups()).filter(({ fileName }) =>
         BACKUP_FILE_NAME_REGEX.test(fileName)
       )
@@ -251,7 +251,7 @@ export class SyncService {
 
   public async downloadLatestBackupFromCloud(): Promise<CloudSyncResult> {
     try {
-      const service = this.buildCloudService()
+      const service = await this.buildCloudService()
       const { path: syncFolderPath } = await this.checkSyncFolder()
       const backupsDir = this.getBackupsDirectory(syncFolderPath)
       const fileName = await service.downloadLatest(backupsDir)

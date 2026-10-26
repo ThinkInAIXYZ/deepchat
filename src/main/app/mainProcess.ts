@@ -2,6 +2,7 @@ import { electronApp } from '@electron-toolkit/utils'
 import { app } from 'electron'
 import { createSettingsStore } from '@/config/settingsStore'
 import { SecretStore } from '@/config/secretStore'
+import { credentialCrypto } from './credentialCrypto'
 import { DatabaseSecurityService } from './databaseSecurity'
 import { proxyConfig } from '@/platform/proxy'
 import type { StartupWorkloadCoordinator } from '@/app/startupWorkloadCoordinator'
@@ -38,7 +39,7 @@ export async function startMainProcess(
     electronApp.setAppUserModelId('com.wefonk.deepchat')
     const settingsStore = createSettingsStore()
     setMainLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
-    const secretStore = new SecretStore(settingsStore)
+    const secretStore = new SecretStore(settingsStore, credentialCrypto)
     const privacySettings = new PrivacySettings(settingsStore)
     const proxySettings = new ProxySettings(settingsStore)
     const mcpSettings = new McpSettings(secretStore)

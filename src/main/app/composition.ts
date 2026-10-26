@@ -3632,6 +3632,7 @@ export async function createMainProcessControl(dependencies: {
     async () => {
       shutdownStepFailures = 0
       appLifecycleState = 'stopping'
+      dependencies.secretStore.pause()
       windowPresenter.setApplicationQuitting(true)
       startupWorkloadCoordinator.cancelTarget('main')
       await runDestroyStep('acpAuth.shutdown', () => acpAuthService.shutdown())
@@ -3703,6 +3704,7 @@ export async function createMainProcessControl(dependencies: {
     }
     if (syncService.isBackupInProgress()) throw new Error('sync.tunnel.error.busy')
     databaseMaintenanceState = 'maintenance'
+    dependencies.secretStore.pause()
     replicaEndpoint.stop()
     await automaticSync?.pause()
     startupWorkloadCoordinator.cancelTarget('main')
@@ -3755,6 +3757,10 @@ export async function createMainProcessControl(dependencies: {
         reopenApplicationDatabase()
       }
       deepChatAgentHarness.reconcileAfterDatabaseReopen()
+      if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped') {
+        throw new Error(`App lifecycle is ${appLifecycleState}`)
+      }
+      dependencies.secretStore.resume()
       memoryIngestionObserver.resumeIngestion()
       memoryService.startBackgroundMaintenance()
       hookService.start()

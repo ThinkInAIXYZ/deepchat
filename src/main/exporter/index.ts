@@ -88,7 +88,7 @@ export class ConversationExporterService implements IConversationExporter {
     // Capture the destination before loading/serializing the conversation.
     let connection: NowledgeMemConfig | undefined
     try {
-      connection = this.deps.nowledgeMemConnections?.getExportConfig()
+      connection = await this.deps.nowledgeMemConnections?.getExportConfig()
     } catch (error) {
       return {
         success: false,
@@ -128,7 +128,7 @@ export class ConversationExporterService implements IConversationExporter {
         const state = await this.deps.nowledgeMemConnections.getState()
         const connection = state.connection
         if (!connection || config) throw new Error('Verify connections in the Nowledge Mem plugin')
-        const resolved = this.deps.nowledgeMemConnections.getExportConfig()
+        const resolved = await this.deps.nowledgeMemConnections.getExportConfig()
         await this.deps.nowledgeMemConnections.verify(
           connection,
           resolved.apiKey ?? '',
