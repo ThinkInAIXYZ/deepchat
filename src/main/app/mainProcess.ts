@@ -1,9 +1,15 @@
 import { electronApp } from '@electron-toolkit/utils'
-import { app } from 'electron'
+import { app, safeStorage } from 'electron'
+import ElectronStore from 'electron-store'
+import path from 'node:path'
 import { createSettingsStore } from '@/config/settingsStore'
 import { SecretStore } from '@/config/secretStore'
 import { credentialCrypto } from './credentialCrypto'
-import { DatabaseSecurityService } from './databaseSecurity'
+import {
+  DatabaseSecurityService,
+  DEFAULT_DATABASE_SECURITY_METADATA,
+  type DatabaseSecurityMetadata
+} from './databaseSecurity'
 import { proxyConfig } from '@/platform/proxy'
 import type { StartupWorkloadCoordinator } from '@/app/startupWorkloadCoordinator'
 import { createMainProcessControl, type MainProcessControl } from './composition'
@@ -45,8 +51,19 @@ export async function startMainProcess(
     const mcpSettings = new McpSettings(secretStore)
     const mcpAppSandboxRegistry = new McpAppSandboxRegistry()
     const acpCatalogSettings = new AcpCatalogSettings({ mcpSettings })
-    const databaseSecurityService = new DatabaseSecurityService()
-    const securityStatus = databaseSecurityService.getStatus()
+    const databaseSecurityService = new DatabaseSecurityService({
+      dbPath: path.join(app.getPath('userData'), 'app_db', 'agent.db'),
+      metadata: new ElectronStore<{ metadata: DatabaseSecurityMetadata }>({
+        name: 'database-security',
+        defaults: { metadata: { ...DEFAULT_DATABASE_SECURITY_METADATA } }
+      }),
+      crypto: {
+        ...credentialCrypto,
+        getBackend: async () =>
+          process.platform === 'linux' ? safeStorage.getSelectedStorageBackend() : undefined
+      }
+    })
+    const securityStatus = await databaseSecurityService.getStatus()
     splashWindow.showDatabaseUnlockProgress(
       {
         active: securityStatus.enabled,
@@ -81,7 +98,7 @@ export async function startMainProcess(
     })
     splashWindow.showDatabaseUnlockProgress({
       active: false,
-      safeStorageAvailable: databaseSecurityService.getStatus().safeStorageAvailable
+      safeStorageAvailable: (await databaseSecurityService.getStatus()).safeStorageAvailable
     })
     const settingsDatabase = new SettingsDatabase(database)
     const providerDatabase = new ProviderDatabase(database)

@@ -42,9 +42,11 @@ export async function initializeMainDatabaseWithRecovery(input: {
   while (true) {
     if (!passwordResolved) {
       try {
-        password = await input.security.resolveStartupPassword((request) =>
-          input.splash.requestDatabaseUnlock(request)
-        )
+        password = await input.security.resolveStartupPassword(async (request) => {
+          const value = await input.splash.requestDatabaseUnlock(request)
+          if (value === null) app.quit()
+          return value
+        })
         passwordResolved = true
       } catch (error) {
         const kind = classifyDatabaseStartupFailure({ error, dbPath, password })
@@ -75,7 +77,7 @@ export async function initializeMainDatabaseWithRecovery(input: {
           if (isDecryptedDatabaseCorruptionError(error)) {
             password = choice.password
             passwordResolved = true
-            input.security.persistRecoveredEncryptionMetadata(choice.password)
+            await input.security.persistRecoveredEncryptionMetadata(choice.password)
             pending = {
               ...pending,
               kind: 'true-corruption',
@@ -99,7 +101,7 @@ export async function initializeMainDatabaseWithRecovery(input: {
 
         password = choice.password
         passwordResolved = true
-        input.security.persistRecoveredEncryptionMetadata(choice.password)
+        await input.security.persistRecoveredEncryptionMetadata(choice.password)
         pending = undefined
         continue
       }

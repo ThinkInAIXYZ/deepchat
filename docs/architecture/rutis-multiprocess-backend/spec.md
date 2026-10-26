@@ -714,6 +714,21 @@ recheck cancellation after unwrap and before authenticated requests. Host lifecy
 and generation checks reject crypto results superseded by stop before starting a connector.
 Do not cache plaintext, rewrite credentials during reads or add them to general settings/backups.
 
+Database security receives its database path, owner-local encryption metadata and asynchronous
+native crypto explicitly. Its SQLCipher copy, validation and file replacement stay with the
+database owner; Main owns unlock presentation and application quit. Metadata keeps the existing
+file shape and opaque native ciphertext. At G5 its one writable facade moves with the owner;
+it must not become synchronous RPC to a second Main writer. Maintenance-authorized encryption
+uses the native crypto adapter independently of the paused ordinary credential store.
+
+Hold the per-file migration lock through native preparation and commit. Prepare wrapped target
+metadata before closing the writer, then retain the original database until target reopen and
+metadata persistence both succeed. Roll back both on runtime failure; stop fences pending native
+results before password validation, return or mutation. A second migration or metadata repair
+cannot enter while preparation is pending. This runtime rollback preserves the existing startup
+file-recovery policy; it does not provide crash-atomic commit across the database and metadata
+files. Durable cross-file recovery belongs to the conditional Store compatibility project.
+
 ### Public routes and desktop capabilities
 
 Reuse existing shared route names, schemas, caller types, and output projection. Classify each

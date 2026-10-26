@@ -3687,6 +3687,7 @@ export async function createMainProcessControl(dependencies: {
     async () => {
       shutdownStepFailures = 0
       appLifecycleState = 'stopping'
+      databaseSecurityService.stop()
       dependencies.secretStore.pause()
       windowPresenter.setApplicationQuitting(true)
       startupWorkloadCoordinator.cancelTarget('main')

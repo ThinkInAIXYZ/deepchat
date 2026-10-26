@@ -57,6 +57,7 @@
     "test/main/performance/memory/timing.test.ts"
   ],
   "native": [
+    "test/main/app/databaseSecurityNative.test.ts",
     "test/main/harness/memoryVectorOwner.test.ts",
     "test/main/harness/memoryVectorRuntime.test.ts",
     "test/main/sync/replicaNative.test.ts",

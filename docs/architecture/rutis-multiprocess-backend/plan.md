@@ -863,6 +863,47 @@ Evidence is under `.deepchat/rutis-g4-sync-crypto-acceptance/`. The preceding Sk
 package run `40280089473` with all six platforms and `package-required` job `121437226872`.
 Both workflows finish before this slice's push. G4 remains open for other Store/config/native ports.
 
+### Database security native boundary and migration commit
+
+The default bootstrap supplies the database path, owner-local metadata facade and asynchronous
+native crypto. DatabaseSecurity imports neither Electron nor ElectronStore; unlock presentation and
+quit remain desktop-owned. Native encryption remains available to authorized maintenance while
+ordinary SecretStore operations are paused. The metadata facade moves with this owner at G5,
+without synchronous cross-process settings RPC or another writable instance in Main.
+
+The per-file lock covers native preparation and commit. Wrapped target metadata is prepared before
+closing the writer; rollback remains until target reopen and metadata persistence both succeed.
+Runtime failure restores the original writer and metadata. Shutdown fences pending native results
+before validation, secret return or mutation; pending preparation excludes another migration,
+metadata repair or constructor recovery for that profile. SQLCipher copying, validation, physical
+paths, metadata shape and startup file recovery remain compatible. Cross-file crash atomicity is
+not established by this slice and remains conditional G10 work.
+
+Enable/legacy-unlock/change-password/disable was characterized in a disposable application profile
+before cutover; this compatibility characterization is an implementation-first exception. The same
+two actual-app scenarios pass before/after: database settings/native status in 4.2/4.2 seconds, and
+encryption, legacy synchronous ciphertext unlock, wrong-password rejection, rekey, disable and four
+graceful launches in 10.8/10.8 seconds. Portable settings survive every transition, encrypted file
+headers differ from plaintext SQLite and disable restores a plaintext header. These are functional
+comparisons without timing gates or a speed claim.
+
+Local acceptance passes 122 checks across four behavior files and seven real SQLCipher checks.
+Durable regressions cover stopped decrypt/wrap, valid manual unlock with native failure, desktop
+quit ownership, native wrap failure before closing the writer, unavailable native storage, per-file
+exclusion, original-key recovery after target reopen failure and rollback of both database and
+metadata after enable/rekey/disable metadata writes fail. The native file is classified in the
+existing required SQLite lane; it uses actual temporary files, filesystem/path modules and
+SQLCipher, without Electron or mock SQL.
+
+Runtime build, app/scoped types, native scope/type gates, format, lint and i18n pass. Evidence is
+under `.deepchat/rutis-g4-database-security-acceptance/`. No process, IPC, database path or data-volume
+change requires a full resource recapture. Actual OS crypto is exercised on macOS arm64; real
+Windows/Linux vaults and power-loss recovery are unverified locally. G4 remains open.
+
+The preceding Sync checkpoint `7c04844a1` passes required run `40282974786`, including
+`pr-required` job `121442092801`, and package run `40282974887` with all six platforms and
+`package-required` job `121448087538`. Both workflows finish before this slice's push.
+
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
 - [ ] Replace cross-boundary closures/row APIs with bounded transactional business commands for
