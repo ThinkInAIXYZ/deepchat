@@ -667,6 +667,12 @@ scan in flight and reject stale work before effects. The timer process receives 
 credentials nor SQL. Main remains the Store authority during G4; G5 moves that authority with
 the cohesive business services and removes main's writable access.
 
+System resume is a data-only Scheduler input. Electron main owns the native event subscription
+and removes it on shutdown; it suppresses delivery during maintenance and shutdown. The Scheduler
+business owner imports no Electron power API, ignores notifications while stopped, and fences
+resume reconciliation by its start/stop generation before durable updates or timer dispatch.
+Native subscription objects and asynchronous native-loading fallbacks stay outside this owner.
+
 Session/Tape/Memory Store contracts expose the existing atomic business operations and bounded
 projections. Keep internal synchronous repositories, SQL and transaction callbacks local to that
 authority. These are not wire operations. In particular, Tape/projection-head observations,

@@ -32,7 +32,13 @@ import {
 import path from 'path'
 import { pathToFileURL } from 'node:url'
 import { DialogService } from '../desktop/dialog'
-import { safeStorage, app, ipcMain, webContents as electronWebContents } from 'electron'
+import {
+  safeStorage,
+  app,
+  ipcMain,
+  powerMonitor,
+  webContents as electronWebContents
+} from 'electron'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope, type DeepchatEventName } from '@shared/contracts/events'
 import { optimizer } from '@electron-toolkit/utils'
@@ -2652,6 +2658,13 @@ export async function createMainProcessControl(dependencies: {
     }),
     remoteDeliveryPort: remoteService
   })
+  const onSystemResume = () => {
+    if (appLifecycleState !== 'running' || databaseMaintenanceState !== 'running') return
+    void cronJobs.handleSystemResume().catch((error) => {
+      console.warn('[CronJobs] Failed to reconcile after system resume:', error)
+    })
+  }
+  powerMonitor.on('resume', onSystemResume)
 
   desktopSettings.initializeTheme()
 
@@ -2958,6 +2971,9 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('agentInvocationAdmission.flushObservations', () =>
       agentInvocationAdmission.flushObservations()
     )
+    await runDestroyStep('cronJobs.detachResume', () => {
+      powerMonitor.off('resume', onSystemResume)
+    })
     await runDestroyStep('cronJobs.destroy', () => cronJobs.destroy())
     await runDestroyStep('remoteService.destroy', () => remoteService.destroy())
     await runDestroyStep('hookService.stop', () => hookService.stop())

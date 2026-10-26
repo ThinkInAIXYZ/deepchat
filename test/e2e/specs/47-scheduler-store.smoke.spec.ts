@@ -120,6 +120,12 @@ test('scheduler manual and timed runs settle once and survive restart @smoke', a
         runtime: { maxDurationMs: 30_000, maxTurns: 2, concurrencyPolicy: 'queue' }
       })
     )
+    expect(
+      await active.electronApp.evaluate(({ powerMonitor }) => ({
+        listeners: powerMonitor.listenerCount('resume'),
+        delivered: [powerMonitor.emit('resume'), powerMonitor.emit('resume')]
+      }))
+    ).toEqual({ listeners: 1, delivered: [true, true] })
     const { run: manual } = await active.page.evaluate(
       (id) => window.deepchat.invoke('cronJobs.runNow', { id }),
       job.id

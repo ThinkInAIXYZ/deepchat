@@ -1,4 +1,3 @@
-import type { PowerMonitor } from 'electron'
 import {
   CRON_JOBS_DEFAULT_DELIVERY as DEFAULT_DELIVERY,
   CRON_JOBS_DEFAULT_RUNTIME as DEFAULT_RUNTIME,
@@ -45,7 +44,6 @@ export interface SchedulerServiceDeps {
   createSchedulerManager?: (
     deps: Omit<SchedulerProcessManagerDeps, 'spawnHost'>
   ) => SchedulerProcessManager
-  powerMonitor?: Pick<PowerMonitor, 'on' | 'off'>
 }
 
 export class SchedulerService {
@@ -56,10 +54,7 @@ export class SchedulerService {
   private readonly runtimeResolver: CronJobRuntimeResolver
   private readonly runExecutor: CronJobRunExecutor
   private started = false
-  private powerMonitor: Pick<PowerMonitor, 'on' | 'off'> | null = null
-  private readonly resumeHandler = () => {
-    void this.reconcileScheduler('system-resume')
-  }
+  private lifecycleGeneration = 0
 
   constructor(deps: SchedulerServiceDeps) {
     this.repository = new CronJobsRepository(deps.database)
@@ -84,7 +79,6 @@ export class SchedulerService {
       deps.schedulerManager ??
       deps.createSchedulerManager?.(managerDeps) ??
       new SchedulerProcessManager(managerDeps)
-    this.powerMonitor = deps.powerMonitor ?? null
   }
 
   start(): void {
@@ -92,18 +86,23 @@ export class SchedulerService {
       return
     }
     this.started = true
+    this.lifecycleGeneration++
     this.failStaleRunningRuns()
-    void this.attachPowerMonitor()
     void this.reconcileScheduler('startup')
   }
 
   async stop(): Promise<void> {
     this.started = false
-    if (this.powerMonitor) {
-      this.powerMonitor.off('resume', this.resumeHandler)
-      this.powerMonitor = null
-    }
+    this.lifecycleGeneration++
     await this.schedulerManager.stop('app-quit')
+  }
+
+  async handleSystemResume(): Promise<void> {
+    if (!this.started) return
+    const generation = this.lifecycleGeneration
+    await this.reconcileStoredSchedules(Date.now(), generation)
+    if (!this.started || generation !== this.lifecycleGeneration) return
+    await this.schedulerManager.reconcile('system-resume')
   }
 
   async destroy(): Promise<void> {
@@ -249,23 +248,6 @@ export class SchedulerService {
     return this.scheduleService.preview(input.cronExpr, input.timezone, input.count, input.from)
   }
 
-  private async attachPowerMonitor(): Promise<void> {
-    if (this.powerMonitor) {
-      this.powerMonitor.off('resume', this.resumeHandler)
-      this.powerMonitor.on('resume', this.resumeHandler)
-      return
-    }
-
-    try {
-      const { powerMonitor } = await import('electron')
-      this.powerMonitor = powerMonitor
-      powerMonitor.off('resume', this.resumeHandler)
-      powerMonitor.on('resume', this.resumeHandler)
-    } catch (error) {
-      console.warn('[CronJobs] Failed to attach power monitor resume handler:', error)
-    }
-  }
-
   private failStaleRunningRuns(): void {
     const failedCount = this.repository.markRunningRunsFailed(
       'Cron job runner stopped before completion.'
@@ -405,9 +387,14 @@ export class SchedulerService {
     }
   }
 
-  private async reconcileStoredSchedules(now: number): Promise<void> {
+  private async reconcileStoredSchedules(now: number, resumeGeneration?: number): Promise<void> {
     for (const job of this.repository.listJobs()) {
       const state = await this.computeJobState(job, now, false)
+      if (
+        resumeGeneration !== undefined &&
+        (!this.started || resumeGeneration !== this.lifecycleGeneration)
+      )
+        return
       if (
         job.enabled === state.enabled &&
         job.status === state.status &&

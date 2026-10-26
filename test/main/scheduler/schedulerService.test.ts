@@ -1050,6 +1050,62 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
     }
   })
 
+  it.each([false, true])(
+    'fences resume reconciliation after stop, including a restarted service (%s)',
+    async (restart) => {
+      const { db, sqlitePresenter } = createHarness()
+      const status = baseStatus()
+      const schedulerManager = {
+        reconcile: vi.fn().mockResolvedValue(status),
+        stop: vi.fn().mockResolvedValue(status),
+        getStatus: vi.fn(() => status)
+      }
+      const deps = createRequiredSchedulerDeps()
+      const service = new SchedulerServiceCtor({
+        ...deps,
+        database: sqlitePresenter as never,
+        schedulerManager: schedulerManager as never
+      })
+      try {
+        await service.handleSystemResume()
+        expect(schedulerManager.reconcile).not.toHaveBeenCalled()
+        const { job } = await service.upsert({
+          name: 'Resume lifecycle',
+          enabled: true,
+          cronExpr: '0 0 1 1 *',
+          timezone: 'UTC',
+          agentId: 'agent-1',
+          taskPrompt: 'Summarize issues'
+        })
+        service.start()
+        await vi.waitFor(() => expect(schedulerManager.reconcile).toHaveBeenCalledWith('startup'))
+        schedulerManager.reconcile.mockClear()
+        deps.agentSettings.listAgents.mockClear()
+        const pending =
+          Promise.withResolvers<Awaited<ReturnType<typeof deps.agentSettings.listAgents>>>()
+        deps.agentSettings.listAgents.mockReturnValueOnce(pending.promise)
+        const resume = service.handleSystemResume()
+        await vi.waitFor(() => expect(deps.agentSettings.listAgents).toHaveBeenCalledOnce())
+        await service.stop()
+        if (restart) {
+          service.start()
+          await vi.waitFor(() => expect(schedulerManager.reconcile).toHaveBeenCalledWith('startup'))
+        }
+        pending.resolve([{ id: 'agent-1', name: 'Test agent', type: 'deepchat', enabled: false }])
+        await resume
+        const repository = new CronJobsRepositoryCtor(sqlitePresenter as never)
+        expect(repository.getJob(job.id)).toEqual(job)
+        expect(schedulerManager.reconcile).not.toHaveBeenCalledWith('system-resume')
+        await service.handleSystemResume()
+        if (restart) expect(schedulerManager.reconcile).toHaveBeenCalledWith('system-resume')
+        else expect(schedulerManager.reconcile).not.toHaveBeenCalledWith('system-resume')
+      } finally {
+        await service.destroy()
+        db.close()
+      }
+    }
+  )
+
   it('creates a fresh session for manual runs when the executor is wired', async () => {
     const { db, sqlitePresenter } = createHarness()
     try {

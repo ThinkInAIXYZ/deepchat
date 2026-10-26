@@ -645,9 +645,52 @@ The normal build's Provider catalog refresh is retained.
 This slice adds no process and moves no storage ownership; the data-only port remains in-process
 until G5 moves the cohesive backend. No full process-tree recapture or performance improvement
 claim is required for this extraction. Native credential compatibility is verified on macOS arm64;
-Windows/Linux credential-store behavior remains unverified locally. Checkpoint CI remains a
-separate requirement. `DatabaseSecurityService`, Provider/OAuth credential stores, power events
+Windows/Linux credential-store behavior remains unverified locally. Credential checkpoint
+`c80d36b69` passes required CI `40271838825`, including its barrier; package run `40271838879`
+remains in progress. `DatabaseSecurityService`, Provider/OAuth credential stores, power events
 and the remaining Store/configuration contracts are still G4 work.
+
+### Scheduler system-resume input slice
+
+Keep the native `powerMonitor` subscription in the main composition and deliver system resume
+through a data-only Scheduler service operation. Remove Electron imports, native event objects
+and asynchronous fallback attachment from the Scheduler business owner. Main owns one listener
+until shutdown and ignores events during maintenance or shutdown; Scheduler ignores events while
+stopped and fences in-flight resume reconciliation across stop/start generations before durable
+updates or timer dispatch. Preserve the existing schedule reconciliation and due-run semantics.
+
+Characterize the existing application with two native-emitter resume notifications in the current
+scheduler E2E before changing this consumer. This is migration characterization, not test-first
+implementation. Compare the same manual/timed execution and relaunch scenario after cutover;
+select durable lifecycle tests after implementation. This port extraction adds no process and
+does not require another whole-process performance capture. Actual OS suspend/resume remains
+separate from delivery through Electron's native emitter.
+
+The default main composition now owns one native resume listener and removes it through the
+shutdown coordinator. It filters maintenance/shutdown delivery and observes reconciliation
+failures. `SchedulerService.handleSystemResume` receives no Electron object or callback. Its
+start/stop generation rejects stale reconciliation before schedule writes and timer dispatch,
+including an event whose Agent lookup finishes after a stop/start cycle. The business owner
+has no Electron import or asynchronous fallback subscription.
+
+Local acceptance passes 38 native-enabled scheduler checks without skips, plus 18 existing
+composition checks. The actual application receives two resume notifications through Electron's
+native emitter with exactly one listener, then completes manual/timed execution, durable run
+identity checks, relaunch, disabling and shutdown. The matching scenario passes before/after
+cutover in 8.6/7.9 seconds. App/scoped types, build, format, lint and i18n pass. Evidence:
+`.deepchat/rutis-g4-resume-acceptance/`. This establishes event delivery and lifecycle fencing;
+physical device suspend/resume and Windows/Linux native delivery remain unverified locally.
+
+### Next Store cutover
+
+Select Session transcript clearing as the next actual durable command. `createSessionDataFromDatabase`
+already composes the transcript, pending inputs, settings and Tape against one database. Move the
+clear transaction assembly into that owner and connect `SessionTranscriptMutations` to the coarse
+operation. Remove main composition's `runInTransaction` callback dependency. Retry truncation
+already owns its transaction inside `SessionTranscript.deleteFromOrderSeq`; retain that atomic
+operation rather than introducing another generic transaction port. Preserve runtime preparation
+before the mutation, post-commit invalidation, clear rollback, Tape incarnation/projection cleanup
+and retry behavior. This does not turn internal row APIs or transaction callbacks into RPC.
 
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
