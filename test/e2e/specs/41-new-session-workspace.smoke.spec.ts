@@ -120,9 +120,7 @@ test('new-session files and native browser survive the first message @smoke', as
       )
     }, pageUrl)
     const iconCases = [
-      ['deepseek-chat', 'deepseek'],
       ['openrouter/google/gemini-3.1-pro', 'gemini'],
-      ['glm-5.1', 'glm'],
       ['fixture-model', 'openai']
     ] as const
     const providerId = await app.page.evaluate(

@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test, expect } from '../fixtures/electronApp'
 import { selectAgent } from '../helpers/chat'
@@ -40,7 +40,7 @@ const [release, requests] = process.argv.slice(2)
 const send = (message) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...message }) + '\n')
 const reply = (id, result) => send({ id, result })
 const configOptions = [
-  { id: 'mode', name: 'Mode', type: 'select', currentValue: 'agent', options: [{ value: 'agent', name: 'Agent' }] },
+  { id: 'mode', name: 'Mode', type: 'select', currentValue: 'agent', options: [{ value: 'agent', name: 'Agent' }, { value: 'plan', name: 'Plan' }] },
   { id: 'model', name: 'Model', type: 'select', currentValue: 'fixture-model', options: ${JSON.stringify(models.map(({ modelId, name }) => ({ value: modelId, name })))} },
   { id: 'permission', name: 'Permission', type: 'select', currentValue: 'full-access', options: [{ value: 'full-access', name: 'Full Access' }] },
   { id: 'extra', name: 'Extra setting', type: 'boolean', currentValue: false }
@@ -60,8 +60,12 @@ createInterface({ input: process.stdin }).on('line', line => {
     reply(id, { sessionId, configOptions })
     setTimeout(() => send({ method: 'session/update', params: { sessionId, update: { sessionUpdate: 'usage_update', used: 1000, size: 100000 } } }), 50)
   } else if (method === 'session/set_config_option') {
-    configOptions.find(option => option.id === params.configId).currentValue = params.value
-    reply(id, { configOptions })
+    const timer = setInterval(() => {
+      if (!existsSync(release)) return
+      clearInterval(timer)
+      configOptions.find(option => option.id === params.configId).currentValue = params.value
+      reply(id, { configOptions })
+    }, 25)
   } else if (id !== undefined) reply(id, {})
 })
 `
@@ -174,6 +178,14 @@ createInterface({ input: process.stdin }).on('line', line => {
     await expect(controls.first().locator('.composer-control-details')).toHaveCSS('opacity', '1')
     await editor.focus()
     await app.page.mouse.move(0, 0)
+    const occupancy = app.page.getByTestId('context-occupancy')
+    await expect(occupancy.locator('.composer-control-details')).toHaveCSS('opacity', '0')
+    await app.page.locator('.acp-inline-option[data-option-id="permission"]').focus()
+    await app.page.keyboard.press('Tab')
+    await expect(occupancy).toBeFocused()
+    await expect(occupancy.locator('.composer-control-details')).toHaveCSS('opacity', '1')
+    expect(await occupancy.evaluate((element) => element.matches(':focus-visible'))).toBe(true)
+    await editor.focus()
     await expect(async () => {
       const metrics = await toolbar.evaluate((element) => {
         const buttons = Array.from(element.querySelectorAll('button'))
@@ -251,8 +263,18 @@ createInterface({ input: process.stdin }).on('line', line => {
   await app.page.mouse.move(0, 0)
   await expect(modeTrigger).toHaveAttribute('aria-expanded', 'true')
   await expect(modeTrigger.locator('.composer-control-details')).toHaveCSS('opacity', '1')
-  await app.page.keyboard.press('Escape')
-  await app.page.keyboard.press('Shift+Tab')
+  unlinkSync(release)
+  await app.page
+    .locator('.acp-inline-option-item[data-option-id="mode"][data-value="plan"]')
+    .click()
+  await expect(modeTrigger).toBeDisabled()
+  await app.page.getByTestId('chat-input-editor').locator('[contenteditable="true"]').focus()
+  await app.page.mouse.move(0, 0)
+  await expect(modeTrigger.locator('.composer-control-details')).toHaveCSS('opacity', '1')
+  writeFileSync(release, '')
+  await expect(modeTrigger).toBeEnabled()
+  await expect(modeTrigger).toContainText('Plan')
+  await modelTrigger.focus()
   await expect(modelTrigger).toBeFocused()
   await modelTrigger.press('Enter')
   const selectedModelId = longModelId
@@ -262,7 +284,8 @@ createInterface({ input: process.stdin }).on('line', line => {
   await modelTrigger.click()
   const selectedOption = modelMenu.locator(`button[data-value="${selectedModelId}"]`)
   await expect(selectedOption).toBeDisabled()
-  await selectedOption.hover()
+  const selectedOptionTrigger = selectedOption.locator('..')
+  await selectedOptionTrigger.hover()
   const selectedTooltip = app.page.locator('[data-slot="tooltip-content"]').filter({
     hasText: selectedModelId
   })
@@ -272,6 +295,14 @@ createInterface({ input: process.stdin }).on('line', line => {
   )
   await app.page.mouse.move(0, 0)
   await expect(selectedTooltip).toHaveCount(0)
+  await modelMenu.focus()
+  await expect(app.page.locator('[data-slot="tooltip-content"]')).toHaveCount(0)
+  await selectedOptionTrigger.focus()
+  await expect(selectedOptionTrigger).toBeFocused()
+  await expect(selectedTooltip).toBeVisible()
+  await selectedOptionTrigger.press('Enter')
+  await expect(selectedOption).toBeDisabled()
+  await expect(modelMenu).toBeVisible()
   await modelMenu.focus()
   await expect(app.page.locator('[data-slot="tooltip-content"]')).toHaveCount(0)
   await app.page.keyboard.press('Escape')

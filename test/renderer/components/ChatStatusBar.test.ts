@@ -56,7 +56,7 @@ type ExtraModelGroup = {
 }
 
 type SetupOptions = {
-  agentSlot?: boolean
+  showAgentBadge?: boolean
   agentId?: string
   agentType?: 'deepchat' | 'acp'
   hasActiveSession?: boolean
@@ -777,13 +777,8 @@ const setup = async (options: SetupOptions = {}) => {
 
   const ChatStatusBar = (await import('@/components/chat/ChatStatusBar.vue')).default
   const wrapper = mount(ChatStatusBar, {
-    slots: options.agentSlot
-      ? {
-          agent: ({ loading }: { loading: boolean }) =>
-            h('span', { 'data-testid': 'agent-loading-state', 'data-loading': String(loading) })
-        }
-      : {},
     props: {
+      showAgentBadge: options.showAgentBadge ?? true,
       acpDraftSessionId: options.acpDraftSessionId ?? null
     },
     global: {
@@ -1016,6 +1011,7 @@ describe('ChatStatusBar model and session panels', () => {
     })
 
     const occupancy = wrapper.get('[data-testid="context-occupancy"]')
+    expect(occupancy.attributes('tabindex')).toBe('0')
     expect(occupancy.text()).toContain('75%')
     expect(occupancy.attributes('data-freshness')).toBe('current')
     expect(occupancy.attributes('data-source')).toBe('provider')
@@ -2919,7 +2915,12 @@ describe('ChatStatusBar model and session panels', () => {
 
   it('uses model-family icons in custom-provider pickers and falls back for unknown models', async () => {
     const providerId = 'custom-provider'
-    const modelIds = ['deepseek-chat', 'openrouter/google/gemini-3.1-pro', 'opaque-model']
+    const modelIds = [
+      'deepseek-chat',
+      'openrouter/google/gemini-3.1-pro',
+      'opaque-model',
+      'openrouter/opaque-model'
+    ]
     const { wrapper } = await setup({
       agentId: 'deepchat',
       defaultModel: { providerId, modelId: modelIds[0] },
@@ -2935,7 +2936,8 @@ describe('ChatStatusBar model and session panels', () => {
     for (const [modelId, iconId] of [
       [modelIds[0], 'deepseek'],
       [modelIds[1], 'gemini'],
-      [modelIds[2], providerId]
+      [modelIds[2], providerId],
+      [modelIds[3], providerId]
     ]) {
       expect(
         wrapper
@@ -2945,9 +2947,27 @@ describe('ChatStatusBar model and session panels', () => {
           .attributes('data-model-id')
       ).toBe(iconId)
     }
-    await (wrapper.vm as any).selectModel(providerId, modelIds[2])
+    await (wrapper.vm as any).selectModel(providerId, modelIds[3])
     await flushPromises()
     expect(picker.get('.model-icon-stub').attributes('data-model-id')).toBe(providerId)
+  })
+
+  it.each([
+    ['openrouter/google/gemini-3.1-pro', 'gemini'],
+    ['openrouter/opaque-model', null]
+  ])('matches the ACP model name without branding its namespace: %s', async (modelId, iconId) => {
+    const { wrapper } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: true,
+      activeProviderId: 'acp',
+      acpSessionConfig: createAcpConfigState({}, modelId)
+    })
+    const model = wrapper.get('.acp-inline-option[data-option-id="model"]')
+    if (iconId) {
+      expect(model.get('.model-icon-stub').attributes('data-model-id')).toBe(iconId)
+    } else {
+      expect(model.get('.icon-stub').attributes('data-icon')).toBe('lucide:cpu')
+    }
   })
 
   it('defers ACP process warmup until startup deferred tasks are released', async () => {
@@ -3016,21 +3036,17 @@ describe('ChatStatusBar model and session panels', () => {
     const { wrapper, providerRuntime, agentStore } = await setup({
       agentId: 'deepchat',
       hasActiveSession: false,
-      agentSlot: true
+      showAgentBadge: false
     })
     providerRuntime.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
     agentStore.selectedAgentId = 'acp-agent'
     await flushPromises()
     expect(wrapper.find('.acp-agent-badge').exists()).toBe(false)
-    expect(wrapper.get('[data-testid="agent-loading-state"]').attributes('data-loading')).toBe(
-      'true'
-    )
+    expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
 
     pendingWarmup.resolve(createAcpConfigState())
     await flushPromises()
-    expect(wrapper.get('[data-testid="agent-loading-state"]').attributes('data-loading')).toBe(
-      'false'
-    )
+    expect((wrapper.vm as any).isAcpConfigLoading).toBe(false)
     expect(wrapper.findAll('.acp-inline-option')).toHaveLength(3)
   })
 

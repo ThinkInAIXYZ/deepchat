@@ -2,10 +2,9 @@
   <div :class="['w-full', props.maxWidthClass]">
     <div class="flex w-full items-center justify-between gap-2 py-1">
       <div class="flex min-w-max flex-1 items-center gap-1">
-        <slot name="agent" :loading="isAcpConfigLoading" />
         <template v-if="isAcpAgent">
           <div
-            v-if="props.showAgentBadge && !$slots.agent"
+            v-if="props.showAgentBadge"
             :title="acpAgentLabel"
             class="acp-agent-badge flex h-6 min-w-14 shrink items-center gap-1 rounded-full px-2 text-xs text-muted-foreground"
           >
@@ -42,7 +41,8 @@
               >
                 <ModelIcon
                   v-if="
-                    isAcpModelOption(option) && resolveModelIconKey(String(option.currentValue))
+                    isAcpModelOption(option) &&
+                    resolveModelIconKey(String(option.currentValue).split('/').at(-1))
                   "
                   :model-id="resolveModelIconId(null, String(option.currentValue))"
                   custom-class="size-3.5 shrink-0"
@@ -83,25 +83,36 @@
                     :key="`${option.id}-${entry.value}`"
                   >
                     <TooltipTrigger as-child>
-                      <button
-                        type="button"
-                        :data-option-id="option.id"
-                        :data-value="entry.value"
-                        :disabled="
+                      <span
+                        class="block rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        :tabindex="
                           acpConfigReadOnly ||
                           isAcpOptionSaving(option.id) ||
                           String(option.currentValue) === entry.value
+                            ? 0
+                            : undefined
                         "
-                        :class="[
-                          'acp-inline-option-item block w-full truncate rounded-md px-2 py-1.5 text-left text-xs transition-colors disabled:opacity-60',
-                          String(option.currentValue) === entry.value
-                            ? 'bg-muted/60 text-foreground'
-                            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                        ]"
-                        @click="onAcpSelectOption(option.id, entry.value)"
                       >
-                        {{ entry.value }}
-                      </button>
+                        <button
+                          type="button"
+                          :data-option-id="option.id"
+                          :data-value="entry.value"
+                          :disabled="
+                            acpConfigReadOnly ||
+                            isAcpOptionSaving(option.id) ||
+                            String(option.currentValue) === entry.value
+                          "
+                          :class="[
+                            'acp-inline-option-item block w-full truncate rounded-md px-2 py-1.5 text-left text-xs transition-colors disabled:pointer-events-none disabled:opacity-60',
+                            String(option.currentValue) === entry.value
+                              ? 'bg-muted/60 text-foreground'
+                              : 'text-muted-foreground enabled:hover:bg-muted/60 enabled:hover:text-foreground'
+                          ]"
+                          @click="onAcpSelectOption(option.id, entry.value)"
+                        >
+                          {{ entry.value }}
+                        </button>
+                      </span>
                     </TooltipTrigger>
                     <TooltipContent
                       :collision-padding="8"
@@ -363,7 +374,8 @@
           :data-source="contextOccupancy.source"
           :title="contextOccupancyTitle"
           :aria-label="contextOccupancyTitle"
-          class="composer-control flex h-6 min-w-8 items-center px-2 text-xs text-muted-foreground"
+          tabindex="0"
+          class="composer-control flex h-6 min-w-8 items-center rounded-md px-2 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Icon
             :icon="contextOccupancy.freshness === 'stale' ? 'lucide:clock-3' : 'lucide:gauge'"
@@ -1831,8 +1843,8 @@ const resolveModelIconId = (providerId?: string | null, modelId?: string | null)
   if (providerId === 'acp' && modelId) {
     return modelId
   }
-  const modelIcon =
-    resolveModelIconKey(modelId?.split('/').at(-1)) ?? resolveModelIconKey(modelId ?? undefined)
+  // ModelIcon accepts registry keys as well as provider and Agent IDs.
+  const modelIcon = resolveModelIconKey(modelId?.split('/').at(-1))
   if (modelIcon) return modelIcon
   return providerId || 'anthropic'
 }

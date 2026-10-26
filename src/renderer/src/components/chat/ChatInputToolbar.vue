@@ -4,6 +4,7 @@
     class="composer-toolbar flex items-center gap-2 px-3 pb-3 pt-1"
     @pointerenter="resetRevealedControls"
     @pointerover="revealControl"
+    @transitionend="keepFocusedControlVisible"
   >
     <div class="flex shrink-0 items-center gap-1">
       <!-- Attach button -->
@@ -262,6 +263,20 @@ function revealControl(event: PointerEvent) {
   event.target.closest('.composer-control')?.setAttribute('data-composer-revealed', '')
 }
 
+// Label expansion can push a focused control past the scroll container's edge.
+function keepFocusedControlVisible(event: TransitionEvent) {
+  if (
+    event.propertyName !== 'grid-template-columns' ||
+    !(event.target instanceof Element) ||
+    !event.target.classList.contains('composer-control-details')
+  )
+    return
+  const control = event.target.closest<HTMLElement>('.composer-control')
+  if (control?.matches(':focus-visible')) {
+    control.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }
+}
+
 const hasActiveInput = computed(() => props.hasInput || props.hasText)
 const voiceInputButtonClass = computed(() => {
   if (props.isVoiceInputListening) {
@@ -341,7 +356,9 @@ function handlePrimaryAction() {
     opacity var(--dc-motion-fast) var(--dc-ease-out-soft);
 }
 
-:deep(.composer-control:is(:focus-visible, [aria-expanded='true']) .composer-control-details) {
+:deep(
+  .composer-control:is(:focus-visible, :disabled, [aria-expanded='true']) .composer-control-details
+) {
   grid-template-columns: 1fr;
   margin-inline-start: 0.25rem;
   opacity: 1;

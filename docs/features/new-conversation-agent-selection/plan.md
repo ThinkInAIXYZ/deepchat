@@ -94,3 +94,22 @@ window for hover checks and dismisses nested tooltips before testing Escape/focu
 An isolated copy of the real local configuration verified loaded DeepSeek, Qwen, GLM, and GPT icons
 for custom OpenAI-compatible providers. Provider icons retain their API-type behavior. No live
 model completion was requested.
+
+## Accessibility and Icon Fallback Verification
+
+- [x] Make context usage keyboard-focusable and keep focused controls visible after label expansion.
+      Preserve readable values on disabled toolbar controls.
+- [x] Give disabled ACP option rows focusable tooltip anchors while retaining native disabled
+      actions and suppressing action hover styling.
+- [x] Match model icons only against the final ID path segment, preserve unknown-model provider
+      fallback, remove the unused Agent slot, and keep one namespaced icon case in the workspace
+      Electron fixture.
+
+Format, i18n, lint, typecheck, production compilation, 110 focused component tests, and two Electron
+smoke tests passed. The ACP smoke covers keyboard context reveal, focus visibility after expansion
+at narrow widths, visible values during a held configuration save, and disabled selected-row
+tooltips on hover and focus. The existing CI E2E selection is unchanged.
+
+A WAL-aware snapshot of the real local profile verified DeepSeek, Qwen, GLM, and GPT model icons,
+keyboard context reveal in an existing DeepChat conversation, and hover/focus tooltips on DimCode's
+disabled selected model row. Its action remained disabled. No live model generation was requested.
