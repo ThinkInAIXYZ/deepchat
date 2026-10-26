@@ -2,6 +2,7 @@ import { createRequire } from 'node:module'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { HarnessRuntime } from '@/harness/runtime'
 import { RutisMemoryVectorStores } from '@/harness/memory-vector'
@@ -185,16 +186,45 @@ it.each([1000, 10000, 50000])(
       })}\n`
     )
     expect(runningRuntime.memoryTransport.pending).toBe(0)
-    if (process.env.CI && process.platform !== 'win32') {
+    if (rows === 1000 && process.env.CI && process.platform !== 'win32') {
       const profileDir = path.join(directory, 'cpu-profile')
       actualFs.mkdirSync(profileDir)
+      const preload = path.join(profileDir, 'native-phases.mjs')
+      const nativePhases = path.join(profileDir, 'native-phases.json')
+      actualFs.writeFileSync(
+        preload,
+        `import fs from 'node:fs'
+import { DuckDBConnection, DuckDBAppender } from ${JSON.stringify(
+          pathToFileURL(path.resolve('out/harness/node_modules/@duckdb/node-api/lib/index.js')).href
+        )}
+const events = []
+for (const [prototype, methods] of [
+  [DuckDBConnection.prototype, ['run', 'createAppender']],
+  [DuckDBAppender.prototype, ['appendDataChunk', 'closeSync']]
+]) {
+  for (const method of methods) {
+    const original = prototype[method]
+    prototype[method] = function (...args) {
+      const start = performance.now()
+      const name = method === 'run' ? String(args[0]).split(/\\s+/)[0] : method
+      const record = () => events.push({ name, ms: performance.now() - start })
+      const result = original.apply(this, args)
+      if (result && typeof result.finally === 'function') return result.finally(record)
+      record()
+      return result
+    }
+  }
+}
+process.on('exit', () => fs.writeFileSync(${JSON.stringify(nativePhases)}, JSON.stringify(events)))
+`
+      )
       const wrapper = path.join(directory, 'profile-electron')
       const shellQuote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'"
       actualFs.writeFileSync(
         wrapper,
         `#!/bin/sh
 case " $* " in
-  *--max-semi-space-size=*) exec ${shellQuote(require('electron'))} --cpu-prof --cpu-prof-dir=${shellQuote(profileDir)} --cpu-prof-name=memory.cpuprofile "$@" ;;
+  *--max-semi-space-size=*) exec ${shellQuote(require('electron'))} --import=${shellQuote(pathToFileURL(preload).href)} --cpu-prof --cpu-prof-interval=100 --cpu-prof-dir=${shellQuote(profileDir)} --cpu-prof-name=memory.cpuprofile "$@" ;;
   *) exec ${shellQuote(require('electron'))} "$@" ;;
 esac
 `
@@ -213,7 +243,19 @@ esac
       })
       try {
         const store = await profiledStores.createVectorStore('agent', embedding, DIMENSIONS)
-        for (let sample = 0; sample < 100; sample++) await store.upsert(diagnosticRecords)
+        const writes: number[] = []
+        for (let sample = 0; sample < 20; sample++) {
+          const records = Array.from({ length: 50 }, (_, index) => ({
+            memoryId: `memory-${String(sample * 50 + index).padStart(8, '0')}`,
+            embedding: Array.from({ length: DIMENSIONS }, (_, component) =>
+              component === (sample * 50 + index) % DIMENSIONS ? 1 : 0
+            )
+          }))
+          writes.push(await timed(() => store.upsert(records)))
+        }
+        process.stdout.write(
+          `[memory-vector-cold-profile-writes] ${JSON.stringify({ rows, writes })}\n`
+        )
       } finally {
         await profiledStores.dispose()
         await profiledRuntime.stop()
@@ -233,6 +275,7 @@ esac
         `[memory-vector-cpu-profile] ${JSON.stringify({
           rows,
           samples: profile.samples.length,
+          nativePhases: JSON.parse(actualFs.readFileSync(nativePhases, 'utf8')),
           frames: profile.nodes
             .map((node) => ({ ...node.callFrame, hits: hits.get(node.id) ?? 0 }))
             .sort((a, b) => b.hits - a.hits)

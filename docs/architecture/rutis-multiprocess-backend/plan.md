@@ -326,45 +326,27 @@ Frozen artifact inventory:
 
 ### Native transport, lifecycle and distribution validation
 
-G3 remains unaccepted. Pushed checkpoint `c3ea72f6d` passes static, build and renderer checks in
-run `40244161954`. Its native storage scope passes 362 checks and retrieval quality passes seven.
-Linux write gaps are 5.77/5.27/3.73 ms at 1k/10k/50k; 1k query p95 is 5.60 ms above direct native.
-Fresh full paired resource capture has not started because the earlier scales still fail the
-unchanged gates. Single resource preflights identify their own frozen outputs and are diagnostic.
+G3 remains unaccepted and G4 has not started. Pushed implementation `6a2544ddb` passes
+static, Main, renderer and build checks in required run `40245677754`; native storage passes
+362 checks and retrieval quality passes seven. Only the Linux 1k write gate fails: native/remote
+means are 7.948/14.684 ms, giving 6.737-ms overhead against the unchanged 5-ms budget. The 10k/50k
+write gaps are 4.654/3.705 ms and pass. All query and first-use gates pass. Package run
+`40245677758` passes all six targets, including the actual packaged Memory smoke.
 
-Post-measurement phase timings and a separate V8 CPU-sampling run diagnose the native commit path
-without warming or replacing adoption samples. These temporary diagnostics must be removed after
-fixing the bottleneck and before G3 acceptance. A local codec microprobe saves only about 0.2 ms;
-that evidence does not justify a new dependency or a changed wire codec.
+The remaining correction must improve cold writes without prewarming the first 20 adoption
+samples. Five local comparisons of a Float32 exponent-bit finite check show no improvement
+(median extra latency 1.864/1.900 ms for current/prototype). A standard native base64 decoder
+reduces median extra latency from 1.902 to 1.786 ms locally, insufficient evidence for another
+compatibility branch. Neither prototype is selected. Native ownership locking, heap limits and
+numeric adoption budgets stay unchanged.
 
-Checkpoint `d02a42ecf` passes all six package checks, but Linux write gaps are
-9.14/6.78/6.73 ms. Native commit dominates the phase timings. A temporary local packed-column
-prototype reduces 100 remote writes from about 464 to 438 ms; changing heap size, ownership locking,
-decoder allocation, dispatch mode or DuckDB thread count shows no material improvement.
-The selected correction keeps the received Float32 matrix packed through native insertion,
-using the already packaged, same-version DuckDB bindings. Validate finite values, exact byte
-length, endianness, actual column type and native capacity before copying; preserve validity,
-subarray offsets and the existing atomic rollback/fatal-error path. Require persisted native
-value/rollback tests and unchanged Linux adoption gates before retaining this correction.
+Temporary diagnostics run after adoption measurements in a separate worker. They record its first
+20 distinct 50-row writes, native statement/appender phases and V8 samples at 100-microsecond
+intervals. This targets the failing 1k workload; the diagnostic writes do not warm or replace
+adoption samples. Remove these probes before G3 acceptance. Current 100-write profiles establish
+that the canonical decoder removed the earlier regex cost, but do not explain the remaining
+cold-write gap. Full matching resource capture waits for the Linux operation gates.
 
-Packed checkpoint `e519b5441` still fails Linux write gaps at 7.25/6.59/5.55 ms, while native
-storage (362 checks), retrieval quality and query/first-use gates pass. Local native statement
-timings are almost equal between direct and remote owners; the remaining gap is chiefly transport.
-The selected transport correction retains the 256-KiB frame ceiling, 1-MiB buffer/control reserve,
-one outstanding receipt and one upload. Keep the ID-bearing first chunk at 64 KiB, use at most
-240 KiB for later chunks, and pack complete rows with Float32 array conversion. A typical 300-KiB
-batch then needs two application round trips instead of five. Isolated larger-chunk probes reduce
-100 local remote writes from 438 to 409 ms; require unchanged write/query, loaded-control and
-resource gates before adoption. No numeric adoption budget is relaxed.
-
-Two-round checkpoint `c3ea72f6d` passes the Linux 50k write gate (3.73-ms extra), but the
-1k/10k write gaps remain 5.77/5.27 ms and 1k query p95 is 5.60 ms above direct native.
-Native V8 samples attribute 37-61 samples per 100 writes to base64 regular-expression validation
-and another 14-18 to decoding/copying. A Node canonical-round-trip decoder prototype reduces
-100 remote writes from 399 to 377 ms and sampled worker CPU from 400 to 360 ms locally.
-Select a pinned runtime patch preserving canonical rejection, exact private backing buffers and
-independent decodings. Require durable codec contracts, actual native/E2E checks and unchanged
-adoption gates. A validity-mask microprobe shows no material further gain and is not selected.
 The selected implementation keeps first chunks at 64 KiB, continuation chunks at 240 KiB and stages one 16-MiB/50-record
 upload in Rust. Only commit dispatches the native upsert. Native parts are at most eight MiB,
 so base64 and bounded metadata fit Rutis's 16-MiB internal message limit. The native owner
@@ -413,20 +395,20 @@ Seven actual application checks pass: launch and plugin-host failure recovery, s
 delegation queue/cancel/release, Memory recall/deletion/restart/clear, nine-Agent cache convergence,
 model/dimension changes, native-worker loss, FTS/chat continuity and explicit rebuilding. The
 clear-after-loss case targets an evicted Agent so deleted vectors cannot reappear after restart.
-A staged-upload dense-50k resource preflight passes with a 1457.00-MiB sampled active peak and
-1045.89-MiB settled footprint. This single run does not establish five-pair resource acceptance
-for the packed-column correction.
-Complete matching paired resource acceptance and aligned Linux timing remain required before G4. Frozen application trees use
-`/tmp/deepchat-rutis-g3-staged-ordered-artifacts.json`, with baseline output SHA-256
+The selected implementation's dense-50k preflight records a 1561.19-MiB sampled active peak
+and 1026.06-MiB settled last-ten-second median. A separate 10k loaded-control preflight passes.
+Single runs do not establish five-pair acceptance. The recorded output hashes are baseline
 `9c7a05a8d8e59e817bfccdd6551e4fe9e33a36a2aecc19f6e94c3198b41589ab` and candidate
-`a29ae185cac80197725a89d624d8910c1570b074d8e8ed75736876f8df4308fd`.
-Reports use the `/tmp/deepchat-rutis-g3-staged-ordered-` prefix.
+`2970d4a9178ffb4c9ece8959487695d797e68c573510028d7af5851e58faa74a`.
+Reconstruct and verify immutable outputs and external dependencies before the complete paired
+capture; temporary capture files are unavailable in the current environment. Earlier SDK paired
+results above identify a different implementation and cannot establish current G3 acceptance.
 
 The six native package jobs execute `smoke:harness:memory` against the packaged Rust host and
 Electron executable, using production clients for native CRUD, fractional values, restart/reset,
-admission continuity and strict child shutdown. All six pass on packaging checkpoint `b550ddaba`
-in run `40231700259`. The selected transport implementation must pass these actual package checks
-on all six targets; copied layout checks alone cannot establish distribution parity.
+admission continuity and strict child shutdown. All six pass on `6a2544ddb`. Required CI and all
+six package jobs must pass on the final selected revision; copied layout checks alone cannot
+establish distribution parity.
 
 - [x] Retain DuckDB v2 in TS; move native handles and file-owner lifetime into one Rutis service.
       Keep existing lease/embedding policy coherent; adapt synchronous health/quarantine and
