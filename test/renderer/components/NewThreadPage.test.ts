@@ -892,6 +892,18 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     )
   })
 
+  it('keeps an explicit Chats draft free of directory-selection prompts for ACP', async () => {
+    const { wrapper } = await setup({
+      selectedProject: null,
+      selectionSource: 'manual'
+    })
+
+    expect(wrapper.get('[data-testid="new-thread-project-trigger"]').text()).toContain(
+      'chat.sidebar.chats'
+    )
+    expect(wrapper.find('[data-testid="new-thread-acp-workdir-status"]').exists()).toBe(false)
+  })
+
   it('ensures ACP draft session and passes session-id to ChatInputBox', async () => {
     const { wrapper, sessionClient } = await setup()
 

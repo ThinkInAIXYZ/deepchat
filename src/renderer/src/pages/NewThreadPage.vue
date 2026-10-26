@@ -241,16 +241,12 @@
             </DropdownMenu>
           </div>
           <p
-            v-if="isAcpWorkdirMissing || isAcpWorkdirInvalid"
+            v-if="isAcpWorkdirInvalid"
             data-testid="new-thread-acp-workdir-status"
             role="status"
             class="mt-1 px-2.5 text-xs text-muted-foreground break-words"
           >
-            {{
-              isAcpWorkdirInvalid
-                ? selectedProjectUnavailableTooltip
-                : t('chat.input.acpWorkdirSelect')
-            }}
+            {{ selectedProjectUnavailableTooltip }}
           </p>
         </div>
       </div>

@@ -317,7 +317,7 @@ createInterface({ input: process.stdin }).on('line', line => {
   ).toBe(true)
   await app.page.emulateMedia({ reducedMotion: null })
 
-  const selectWorkspace = (path: string) =>
+  const selectWorkspace = (path: string | null) =>
     app.page.evaluate((path) => {
       const root = document.querySelector('#app') as HTMLElement & { __vue_app__?: any }
       root.__vue_app__.config.globalProperties.$pinia._s
@@ -333,6 +333,12 @@ createInterface({ input: process.stdin }).on('line', line => {
   await selectWorkspace(workspace)
   await expect(app.page.getByTestId('new-thread-acp-workdir-status')).toHaveCount(0)
   await expect(modelTrigger).toBeVisible()
+  await selectWorkspace(null)
+  await expect(app.page.getByTestId('new-thread-project-trigger-icon')).toHaveAttribute(
+    'data-icon',
+    'lucide:message-square'
+  )
+  await expect(app.page.getByTestId('new-thread-acp-workdir-status')).toHaveCount(0)
   expect(routeErrors).toEqual([])
   expect(app.consoleLogs.filter((line) => line.includes('DeepChat Agent not found'))).toEqual([])
   expect(app.pageErrors).toEqual([])

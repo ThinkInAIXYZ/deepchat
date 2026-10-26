@@ -33,8 +33,8 @@ PR: https://github.com/ThinkInAIXYZ/deepchat/pull/2469 (base: `dev`; closes #246
 
 ## ACP Preparation Verification
 
-- [x] Preserve warmup feedback in the composer selector and explain missing workspaces; keep ACP
-      identities outside local Skill routes and discard pending native Skill results on switches.
+- [x] Preserve warmup feedback in the composer selector and report unavailable selected workspaces;
+      keep ACP identities outside local Skill routes and discard pending native Skill results on switches.
 - [x] Distinguish automatic Agent workspace defaults from manual choices; keep the active execution
       context unchanged on failed deactivation.
 - [x] Validate loading/configuration readiness, invalid-to-valid workspace recovery, and route errors

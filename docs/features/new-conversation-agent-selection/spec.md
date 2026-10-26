@@ -71,8 +71,9 @@ New Thread   -> [message composer                     ]
 ## ACP Preparation And Scope
 
 The composer selector displays the existing ACP configuration-loading state until warmup completes.
-Unavailable or absent workspaces display the existing localized directory reason and block draft
-preparation/submission; choosing a usable directory resumes the normal ACP preparation path. Native
+Chats do not display a directory-selection prompt. An unavailable selected workspace displays the
+existing localized directory reason. ACP preparation/submission waits for a usable directory;
+choosing one resumes the normal preparation path. Native
 Skill catalog and active-Skill requests only run with a DeepChat Agent scope. ACP selection has no
 local Skill scope, and late native Skill responses cannot populate ACP composer state.
 
