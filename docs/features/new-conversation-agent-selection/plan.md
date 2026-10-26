@@ -10,7 +10,7 @@ Objective: implement the selection and ownership contract in [spec.md](./spec.md
       observable behavior, including affected existing E2E helpers.
 - [x] Run format, i18n, lint, typecheck, relevant renderer tests, and Electron checks with multiple
       Agents from an isolated copy of the real local profile. Remove temporary probes.
-- [ ] Commit and open a PR against `dev`, explain ownership and selection rules with BEFORE/AFTER
+- [x] Commit and open a PR against `dev`, explain ownership and selection rules with BEFORE/AFTER
       ASCII layouts, include validation evidence and `Closes #2462`, and attach the PR to this chat.
 
 
@@ -27,3 +27,5 @@ Objective: implement the selection and ownership contract in [spec.md](./spec.md
 - The real-profile checks created empty sessions and prepared configured Agents without requesting
   live model completions. First-message execution used the Electron smoke suite's loopback fixture.
 - Normal-build provider and ACP catalog refreshes are retained.
+
+PR: https://github.com/ThinkInAIXYZ/deepchat/pull/2469 (base: `dev`; closes #2462).
