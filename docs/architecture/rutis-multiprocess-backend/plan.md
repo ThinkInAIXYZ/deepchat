@@ -326,26 +326,27 @@ Frozen artifact inventory:
 
 ### Native transport, lifecycle and distribution validation
 
-G3 remains unaccepted and G4 has not started. Pushed implementation `6a2544ddb` passes
-static, Main, renderer and build checks in required run `40245677754`; native storage passes
-362 checks and retrieval quality passes seven. Only the Linux 1k write gate fails: native/remote
-means are 7.948/14.684 ms, giving 6.737-ms overhead against the unchanged 5-ms budget. The 10k/50k
-write gaps are 4.654/3.705 ms and pass. All query and first-use gates pass. Package run
-`40245677758` passes all six targets, including the actual packaged Memory smoke.
+G3 remains unaccepted and G4 has not started. Implementation `6a2544ddb` passes Linux native
+storage (362 checks), retrieval quality (seven) and all 13 performance checks in run `40248084214`
+at diagnostic revision `07e3f688a`. Native/remote write means are 5.422/8.760, 5.454/7.655 and
+7.432/9.058 ms at 1k/10k/50k; extra latency is 3.338/2.201/1.626 ms. Query p95 pairs are
+5.750/5.822, 13.424/14.896 and 47.966/49.149 ms. First-open median/p95 are at most
+202.315/204.746 ms. All required checks in this run pass; final exact-head checks remain required. Package run `40245677758` passes all six targets on the same application
+implementation, including the actual packaged Memory smoke.
 
-The remaining correction must improve cold writes without prewarming the first 20 adoption
-samples. Five local comparisons of a Float32 exponent-bit finite check show no improvement
-(median extra latency 1.864/1.900 ms for current/prototype). A standard native base64 decoder
-reduces median extra latency from 1.902 to 1.786 ms locally, insufficient evidence for another
-compatibility branch. Neither prototype is selected. Native ownership locking, heap limits and
-numeric adoption budgets stay unchanged.
+Shared-runner variation remains visible: the same implementation's earlier required run
+`40245677754` fails the 1k write gate at 7.948/14.684 ms (6.737-ms extra against the unchanged
+5-ms budget), while 10k/50k writes and all query/first-use gates pass. The passing run is not
+attributed to a production fix. Numeric budgets, the first 20 write samples and cold-worker
+behavior are unchanged; final required CI must pass before G3 acceptance.
 
-Temporary diagnostics run after adoption measurements in a separate worker. They record its first
-20 distinct 50-row writes, native statement/appender phases and V8 samples at 100-microsecond
-intervals. This targets the failing 1k workload; the diagnostic writes do not warm or replace
-adoption samples. Remove these probes before G3 acceptance. Current 100-write profiles establish
-that the canonical decoder removed the earlier regex cost, but do not explain the remaining
-cold-write gap. Full matching resource capture waits for the Linux operation gates.
+Five local comparisons of a Float32 exponent-bit finite check show no improvement (median extra
+latency 1.864/1.900 ms for current/prototype). A standard native base64 decoder reduces median
+extra latency from 1.902 to 1.786 ms locally, insufficient evidence for another compatibility
+branch. Neither prototype is selected. Cold-worker native phase timings and V8 sampling leave no
+measured justification for further native scalar or decoder changes. Temporary first/last sample,
+phase and CPU probes are removed; formal adoption samples, runtime/ABI equality and all 13
+performance checks remain.
 
 The selected implementation keeps first chunks at 64 KiB, continuation chunks at 240 KiB and stages one 16-MiB/50-record
 upload in Rust. Only commit dispatches the native upsert. Native parts are at most eight MiB,
@@ -383,9 +384,7 @@ All 13 performance checks across seven files pass under matching Electron Node 2
 Remote timings include encoding, gateway copies and native work. Thirty queries transfer
 280,650-280,710 application gateway bytes including replies; pending calls drain to zero.
 Five new workers per scale meet the 500-ms median and one-second p95 first-use limits.
-First/last five write samples are reported for CI diagnosis without changing the adoption gates.
-Report: `/tmp/deepchat-rutis-g3-canonical-codec-perf.log`. Post-measurement phase diagnostics confirm
-typical 300-KiB writes use only begin and commit; observed pending calls remain at one.
+Typical 300-KiB writes use only begin and commit; observed pending calls remain at one.
 Persisted native checks cover packed batches with
 unaligned source offsets, Float32 extremes/negative zero, ordinary/packed writer reuse, whole-batch
 duplicate-key rollback and pre-effect rejection of malformed or non-finite input. Shared mutable
@@ -400,9 +399,12 @@ and 1026.06-MiB settled last-ten-second median. A separate 10k loaded-control pr
 Single runs do not establish five-pair acceptance. The recorded output hashes are baseline
 `9c7a05a8d8e59e817bfccdd6551e4fe9e33a36a2aecc19f6e94c3198b41589ab` and candidate
 `2970d4a9178ffb4c9ece8959487695d797e68c573510028d7af5851e58faa74a`.
-Reconstruct and verify immutable outputs and external dependencies before the complete paired
-capture; temporary capture files are unavailable in the current environment. Earlier SDK paired
-results above identify a different implementation and cannot establish current G3 acceptance.
+Reconstructed immutable outputs use baseline `ce5ddbad74d68dd7745bda91dcf35dc871930e6eebfb094dc5de6d1d6d00c7f4`
+and the same candidate hash. Shared catalogs/scenarios and frozen SDK consumers match their
+manifests. Both isolated trees pass the actual Memory E2E. Durable local evidence is under
+`.deepchat/rutis-g3-acceptance/`; its `artifacts.json` records output, SDK, catalog, scenario,
+patch and lock hashes. Complete paired capture remains required. Earlier SDK paired results
+above identify a different implementation and cannot establish current G3 acceptance.
 
 The six native package jobs execute `smoke:harness:memory` against the packaged Rust host and
 Electron executable, using production clients for native CRUD, fractional values, restart/reset,
