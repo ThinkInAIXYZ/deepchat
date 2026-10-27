@@ -463,6 +463,10 @@ Common commands include `/start`, `/help`, `/pair`, `/new`, `/sessions`, `/use`,
       <img src="./src/renderer/src/assets/llm-icons/aistupidlevel.svg" width="50" height="50" alt="AI Stupid Level Icon"><br/>
       <a href="https://aistupidlevel.info/">AI Stupid Level</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/runcrate.svg" width="50" height="50" alt="Runcrate Icon"><br/>
+      <a href="https://www.runcrate.ai/?utm_source=deepchat">Runcrate</a>
+    </td>
   </tr>
 
 </table>

@@ -12,6 +12,7 @@ export type AiSdkBehaviorPreset =
 export type AiSdkModelSourceStrategy =
   | 'openai'
   | 'apimodels'
+  | 'runcrate'
   | 'apimart'
   | 'openai-codex'
   | 'opencode-go'
@@ -609,6 +610,19 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     createDefinition({
       ...OPENAI_BASE,
       credentialStrategy: 'api-key'
+    })
+  ],
+  [
+    'runcrate',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'runcrate',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'deepseek-ai/DeepSeek-V4.1-Flash',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
     })
   ],
   [

@@ -1770,6 +1770,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         }
         return models
       }
+      case 'runcrate':
+        return this.fetchRuncrateModels()
       case 'bedrock':
         return this.fetchBedrockModels()
       case 'new-api':
@@ -2118,6 +2120,49 @@ export class AiSdkProvider extends BaseLLMProvider {
         ...(contextLength !== undefined ? { contextLength } : {}),
         ...(maxTokens !== undefined ? { maxTokens } : {}),
         ...(typeof model.description === 'string' ? { description: model.description } : {})
+      })
+    }
+    return models
+  }
+
+  /**
+   * Runcrate's public catalog also lists image, video, audio and embedding models.
+   * Keep the text-in, text-out models and read the limits and features it publishes.
+   */
+  private async fetchRuncrateModels(): Promise<MODEL_META[]> {
+    const records = await this.fetchOpenAIModelRecords({ timeout: this.getModelFetchTimeout() })
+    const toStrings = (value: unknown): string[] | undefined =>
+      Array.isArray(value)
+        ? value.filter((item): item is string => typeof item === 'string')
+        : undefined
+
+    const models: MODEL_META[] = []
+    for (const model of records) {
+      const modelId = typeof model.id === 'string' ? model.id.trim() : ''
+      const outputModalities = toStrings(model.output_modalities)
+      const inputModalities = toStrings(model.input_modalities)
+      if (!modelId || !outputModalities?.includes('text') || !inputModalities?.includes('text')) {
+        continue
+      }
+      const features = toStrings(model.supported_features)
+      const contextLength = toPositiveFiniteNumber(model.context_length)
+      const maxTokens = toPositiveFiniteNumber(model.max_output_length)
+      models.push({
+        id: modelId,
+        name: modelId,
+        group: 'default',
+        providerId: this.provider.id,
+        isCustom: false,
+        type: ModelType.Chat,
+        ...(contextLength !== undefined ? { contextLength } : {}),
+        ...(maxTokens !== undefined ? { maxTokens } : {}),
+        ...(features
+          ? { functionCall: features.includes('tools'), reasoning: features.includes('reasoning') }
+          : {}),
+        ...(inputModalities ? { vision: inputModalities.includes('image') } : {}),
+        ...(typeof model.owned_by === 'string' && model.owned_by.trim()
+          ? { ownedBy: model.owned_by.trim() }
+          : {})
       })
     }
     return models

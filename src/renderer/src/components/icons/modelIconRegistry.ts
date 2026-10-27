@@ -54,6 +54,7 @@ import requestyColorIcon from '@/assets/llm-icons/requesty.png?url'
 import litellmColorIcon from '@/assets/llm-icons/litellm.svg?url'
 import opperColorIcon from '@/assets/llm-icons/opper.svg?url'
 import aistupidlevelIcon from '@/assets/llm-icons/aistupidlevel.svg?url'
+import runcrateIcon from '@/assets/llm-icons/runcrate.svg?url'
 import demonrouteColorIcon from '@/assets/llm-icons/demonroute.svg?url'
 import orcarouterColorIcon from '@/assets/llm-icons/orcarouter.svg?url'
 import synthoraiColorIcon from '@/assets/llm-icons/synthorai.svg?url'
@@ -200,6 +201,7 @@ export const modelIcons = {
   litellm: litellmColorIcon,
   opper: opperColorIcon,
   aistupidlevel: aistupidlevelIcon,
+  runcrate: runcrateIcon,
   demonroute: demonrouteColorIcon,
   orcarouter: orcarouterColorIcon,
   synthorai: synthoraiColorIcon,
@@ -282,6 +284,7 @@ const monoIconUrls = new Set<string>([
   atlascloudIcon,
   opperColorIcon,
   aistupidlevelIcon,
+  runcrateIcon,
   demonrouteColorIcon,
   githubColorIcon,
   qiniuIcon,
