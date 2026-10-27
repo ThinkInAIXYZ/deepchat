@@ -665,6 +665,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'cloudgpu',
+    name: 'CloudGPU',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://cloudgpu.app/v1',
+    enable: false,
+    websites: {
+      official: 'https://cloudgpu.app/?utm_source=deepchat',
+      apiKey: 'https://cloudgpu.app/api/console?utm_source=deepchat',
+      docs: 'https://cloudgpu.app/api/docs?utm_source=deepchat',
+      models: 'https://cloudgpu.app/api?utm_source=deepchat'
+    }
+  },
+  {
     id: 'aistupidlevel',
     name: 'AI Stupid Level',
     apiType: 'openai-completions',

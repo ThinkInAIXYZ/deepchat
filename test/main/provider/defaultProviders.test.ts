@@ -151,6 +151,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes CloudGPU as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'cloudgpu',
+        name: 'CloudGPU',
+        apiType: 'openai-completions',
+        baseUrl: 'https://cloudgpu.app/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://cloudgpu.app/?utm_source=deepchat',
+          apiKey: 'https://cloudgpu.app/api/console?utm_source=deepchat',
+          docs: 'https://cloudgpu.app/api/docs?utm_source=deepchat',
+          models: 'https://cloudgpu.app/api?utm_source=deepchat',
+          defaultBaseUrl: 'https://cloudgpu.app/v1'
+        })
+      })
+    )
+  })
+
   it('includes AI Stupid Level as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

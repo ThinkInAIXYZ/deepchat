@@ -461,6 +461,10 @@ DeepChat 可以通过聊天软件远程控制，让你离开桌面后也能继�
       <img src="./src/renderer/src/assets/llm-icons/runcrate.svg" width="50" height="50" alt="Runcrate Icon"><br/>
       <a href="https://www.runcrate.ai/?utm_source=deepchat">Runcrate</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/cloudgpu.svg" width="50" height="50" alt="CloudGPU Icon"><br/>
+      <a href="https://cloudgpu.app/?utm_source=deepchat">CloudGPU</a>
+    </td>
   </tr>
 
 </table>

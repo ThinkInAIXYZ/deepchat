@@ -1784,6 +1784,8 @@ export class AiSdkProvider extends BaseLLMProvider {
       }
       case 'runcrate':
         return this.fetchRuncrateModels()
+      case 'cloudgpu':
+        return this.fetchCloudgpuModels()
       case 'bedrock':
         return this.fetchBedrockModels()
       case 'new-api':
@@ -2172,6 +2174,34 @@ export class AiSdkProvider extends BaseLLMProvider {
           ? { functionCall: features.includes('tools'), reasoning: features.includes('reasoning') }
           : {}),
         ...(inputModalities ? { vision: inputModalities.includes('image') } : {}),
+        ...(typeof model.owned_by === 'string' && model.owned_by.trim()
+          ? { ownedBy: model.owned_by.trim() }
+          : {})
+      })
+    }
+    return models
+  }
+
+  /**
+   * CloudGPU's public catalog answers without a key and lists more than the chat families
+   * this provider surfaces. Keep ids that start with deepseek-, kimi-, glm- or minimax-.
+   */
+  private async fetchCloudgpuModels(): Promise<MODEL_META[]> {
+    const records = await this.fetchOpenAIModelRecords({ timeout: this.getModelFetchTimeout() })
+    const chatPrefixes = ['deepseek-', 'kimi-', 'glm-', 'minimax-']
+    const models: MODEL_META[] = []
+    for (const model of records) {
+      const modelId = typeof model.id === 'string' ? model.id.trim() : ''
+      if (!modelId || !chatPrefixes.some((prefix) => modelId.startsWith(prefix))) {
+        continue
+      }
+      models.push({
+        id: modelId,
+        name: modelId,
+        group: 'default',
+        providerId: this.provider.id,
+        isCustom: false,
+        type: ModelType.Chat,
         ...(typeof model.owned_by === 'string' && model.owned_by.trim()
           ? { ownedBy: model.owned_by.trim() }
           : {})

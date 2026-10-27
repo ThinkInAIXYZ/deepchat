@@ -105,6 +105,15 @@ The catalog is public, so connection checks generate text with `gpt-5.6-luna` an
 
 Upstream reference: [Language Models API](https://apimodels.app/docs/llm?p=openai).
 
+## CloudGPU
+
+`cloudgpu` uses the OpenAI-compatible transport with API-key credentials. Live model discovery
+keeps only ids that start with `deepseek-`, `kimi-`, `glm-` or `minimax-`. The catalog is public,
+so connection checks generate text with `deepseek-v4.1-flash` and the shared 16-token output limit
+to validate credentials. Embeddings are disabled for this profile.
+
+Upstream reference: [API docs](https://cloudgpu.app/api/docs?utm_source=deepchat).
+
 ## OpenAI Codex
 
 `openai-codex` is separate from standard `openai`: distinct provider ID, runtime kind, credential store,
