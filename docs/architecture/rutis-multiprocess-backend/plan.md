@@ -1682,19 +1682,20 @@ ambiguity and disabled-record behavior remain unchanged. Legacy global functions
 obsolete Electron mock are removed. Synchronous operations remain owner-local; G5 must provide
 acknowledged mutations for any desktop writer retained outside the moved policy authority.
 
-Validation: **698 checks across 10 affected native files and 23 generated-catalog checks across
-two files pass**. App and new owner-fixture/unit/E2E types, the normal application build,
+Validation: **744 checks across 12 affected native files, 23 generated-model checks across two
+files and 16 ACP registry checks across two files pass**. App and new owner-fixture/unit/E2E types,
+the normal application build,
 format/check, lint and i18n pass. Coverage includes persistence-error propagation, independent
 owners, replacement/removal, policy ambiguity, existing plugin lifecycle/MCP App contracts and
 current-policy `ask` enforcement even with full access. No production check or timeout is relaxed.
 
 The frozen `f0ca555fe` app and candidate pass the same real HTTP MCP fixture, stored policy file,
 tool catalog filtering, permitted calls, ambiguous-owner rejection, disabled policy and relaunch
-workload (13.2/12.7 s). Both comparison runs set the owned E2E profile before loading the unchanged
+workload (13.2/13.3 s). Both comparison runs set the owned E2E profile before loading the unchanged
 app entry: the old module-level native constructor ran before the application's profile override.
 The driver restores the exact entry bytes afterward. This is test-profile isolation, not a policy
 implementation or a performance comparison. Normal candidate startup additionally passes all
-four app cases in 27.7 s, including Code Mode complete/held READY, Agent image/workspace reads and
+four app cases in 29.3 s, including Code Mode complete/held READY, Agent image/workspace reads and
 the policy workload without that driver. No real user policy file is modified by the fixture.
 
 The policy owner, full 204-module ToolService graph, actual 350-module Harness entry and
@@ -1703,7 +1704,14 @@ native AppHost dependencies remain outside that claim; no composed headless back
 writer is established. Artifact hashes and evidence are in
 `.deepchat/rutis-g4-plugin-policy-acceptance/`. No performance/resource capture or speed claim is
 added. The new checkpoint needs its own exact-head CI. G4 stays active; G5 is unstarted.
-The normal generated Provider catalog refresh is retained separately in `1952466fd`.
+The normal generated Provider catalog refreshes are retained in `1952466fd` and `8cabd095e`; the
+latter also retains the ACP catalog's website update.
+
+The branch includes `dev` at `830745fec`, merged as `996efc3b0`. This preserves the upstream Code
+Mode subagent contract fix: nested children retain their current authority under the frozen parent
+entrypoint ceiling. Its two frontend fixtures use the branch's required public helper capability
+and RSS method, with no private factory replacement. The merged app, contract/Tool suites and
+matching policy workload are the final validation source; new CI must inspect this integrated head.
 
 - [ ] Complete the writer, synchronous-reader and desktop-consumer inventory.
   - [x] Enumerate SQLite/DuckDB construction and wrapper entrypoints, inherited shared facades,
