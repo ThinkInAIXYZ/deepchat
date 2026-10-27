@@ -657,6 +657,57 @@ schema repair/migrations, import/export, rekey, backup coordination, and reopen 
 the backend. Electron main supplies unlock interaction and platform crypto through asynchronous
 ports. It does not retain a writable shadow connection after cutover.
 
+Single-writer authority does not mean one connection for every file and operation. The Store
+owner may open maintenance and snapshot connections internally; separate derived-cache/vector
+files retain their own owners. A connection used only for reading is still writable-capable when
+opened without a read-only option. Do not use that intent as evidence that Main can retain it.
+
+The current connection inventory is:
+
+| Source under `src/` | Connection and file role | G5 ownership requirement |
+| --- | --- | --- |
+| `main/data/databaseConnection.ts`, `main/data/mainDatabase.ts` | Normal shared SQLite writer, reopen and the common writable-capable connection factory; file-repair helper also opens through that factory | Move factory, normal writer, schema and repair with the Store owner; Main receives no connection or password-bearing reopen callback |
+| `main/app/mainProcess.ts`, `main/app/composition.ts` and domain `data/database.ts` facades | Settings, Provider, MCP and Agent attach to the same startup database; Session, Memory, Project, delegation, Scheduler and app facades reuse it | Move these facades and synchronous repositories together; constructing a new facade must not open a second shared writer |
+| `main/app/databaseSecurity.ts` | Password validation, source copy, encrypted staged file and target verification open writable-capable handles | Execute inside the Store maintenance owner; native wrapping and unlock presentation remain explicit Main capabilities |
+| `main/sync/dataImporter.ts`, `main/sync/configImportService.ts`, `main/sync/index.ts` | Incremental import opens source and target paths; configuration import opens the target; overwrite replaces the closed active file; backup cleanup mutates a private copied file | Keep target opening/replacement and all temporary connections in the exclusive maintenance operation; do not leave Main with a path-based target opener |
+| `main/data/backupReadLock.ts`, `main/sync/index.ts` | Backup snapshots pin the active file through a connection opened by the writable-capable factory; the active owner drains/checkpoints WAL; fallback ships the matching WAL | Keep snapshot lifetime, checkpoint and file copy with the Store owner; a backup receipt cannot release the actual copy lifetime |
+| `main/provider/providerImportService.ts`, `main/app/startupMigrations/legacyChatImportService.ts` | Provider and legacy chat source files are explicitly read-only; legacy import writes through the shared Session facade | Preserve read-only sources; run shared-target mutations at the Store owner, including bootstrap import before ordinary admission |
+| `main/desktop/browser/BrowserProfileImportService.ts` | Read-only browser cookie source and staged snapshot; writes a private backup snapshot, not the application database | Keep native browser/keychain consent and temporary-file cleanup in the desktop owner; never treat this as a shared-writer exemption |
+| `main/data/schemaCatalog.ts` | Temporary `:memory:` SQLite schema inspection | Keep internal to schema/repair work; no profile writer is created |
+| `main/ocr/ocrArtifactStore.ts`, `main/ocr/ocrRuntimeService.ts` | Separate encrypted `ocr/ocr-cache.db`, optional memory fallback and native cache-key provider | Retain the OCR cache owner and explicit crypto/resource lifetime; this file is not the shared application writer |
+| `harness/memory-vector.ts`, `main/memory/infra/memoryVectorStore.ts` | G3 worker owns the vector-directory lock database and per-Agent writable DuckDB files | Preserve worker ownership, leases, quarantine and generation fences; Main must not reopen those files |
+| `main/memory/infra/legacyV1Reader.ts` | Temporary in-memory DuckDB attaches the legacy vector file with `READ_ONLY` | Keep migration source reads under the existing vector owner and abandonment fence |
+| `main/knowledge/database/knowledgeDatabase.ts`, `main/knowledge/index.ts` | Knowledge has independent writable DuckDB files plus temporary extension inspection | Preserve its existing file and initialization owner; G3 did not migrate Knowledge and G5 cannot claim otherwise |
+
+The boundary follows existing business operations, rather than these connection wrappers:
+
+| Existing owner and source | Work that stays indivisible inside the backend | Data crossing the boundary |
+| --- | --- | --- |
+| `SessionTranscript`, `SessionSettingsStore`, `SessionTape` and `main/session/data/index.ts` | Message facts, transcript projection/head changes, retry truncation and clear/reset; existing Tape bootstrap reads can also write | Existing bounded Session/Tape commands and projections with session/incarnation identity; no remote projection-head read followed by a separate mutation |
+| `SessionPendingInputs`, `SessionPendingInputStore` and runtime pending-input coordinators | Claim/consume/release receipts, accepted user facts and steer-message settlement under the existing transaction/runtime authority | Input/claim identities and acknowledged outcomes; `runInTransaction` closures remain local |
+| `DeepChatMemoryIngestionProjectionTable` and Memory tables | `readCurrentRange` observes Tape and projection heads in one SQL statement; claim/tombstone checks, revisions and ingestion progress retain their existing owner-side consistency | Bounded current-range observations and existing Memory operations, with stale/current results; never split head checks from their rows |
+| `AgentRepository`, `DeepChatAgentRepository` | Agent deletion checks protected/session state, retires Memory claims/directives, clears audit and deletes the Agent in one transaction | Agent identity and deletion receipt; namespace-retirement callbacks remain in the same owner |
+| `LiveDelegationRepository` and its service/runtime | Capacity observation, contract identity, turn/event writes, effect intent and terminal settlement/CAS | Existing authorized delegation commands and correlated outcomes; mutation callbacks and capacity reads do not become independent RPCs |
+| `CronJobsRepository` | Due-run insertion and schedule advancement, run claims and job/run/delivery deletion | Existing bounded Scheduler commands and snapshot; the 100-job scan and owner-side committed dispatch remain unchanged |
+| `ProjectService` | Environment removal clears Session project assignments and updates project/preferences/projection together; directory selection commits project activation after native selection | Selected path and acknowledged versioned Project snapshot; native dialogs/open-path operations remain desktop capabilities |
+| `SyncReplicaStore` and composition guards | Authorization/session-deletion guard, conflict checks, trigger suppression, imported rows, tombstones and peer cursor advancement | Validated bounded sync batch and result; authenticated transport establishes authority, not a caller-supplied callback |
+| Settings, Provider, MCP and ACP database adapters | Configuration identity/CAS and acknowledged mutations remain with their business owners | Explicit public snapshots and mutations; no raw Store, table, row getter or database handle |
+
+Database readers also move with these owners. `main/session/data/sessionReferences.ts`,
+`main/session/sessionHistorySearch.ts` and
+`main/mcp/inMemoryServers/conversationSearchServer.ts` query the inherited shared connection;
+they do not justify a second desktop read facade with schema/migration access. Keep reference
+authorization and bounded search contracts at their existing operation boundary. Tape inspector
+subscriptions currently combine backend head reads with renderer lifecycle hooks in Main's
+composition: split the committed head data from native subscription ownership, preserving initial
+snapshot admission, incarnation identity, revisions and renderer destruction cleanup. The debug
+mock-session route also writes through the shared connection and must execute at the writer when
+enabled. Table getters that initialize or repair schema remain backend work even on a read path.
+
+This inventory identifies connections and atomic operation groups; it does not establish that
+the corresponding owners have moved. Keep the actual Store cutover pending until remaining
+configuration/desktop consumers are classified and all Main writable paths are removed.
+
 Move scheduler claim/update transactions into backend-owned batch operations. Its utility process
 may retain timers and schedule calculation, but receives snapshots and requests durable claims
 from the backend. Preserve existing misfire and duplicate-run behavior. Inventory all other
@@ -704,7 +755,29 @@ remain private to the data owner.
 Desktop consumers receive a versioned snapshot of the configuration fields they need. Mutations
 are acknowledged by the backend before snapshots/events advance. Keep synchronous reads local to
 that snapshot; do not turn every `SettingsStore.get` into RPC. Bootstrap-only legacy settings and
-encryption metadata retain a documented file owner, without two processes writing the same key.
+encryption metadata retain a documented file owner. Ownership applies to the physical file as
+well as its keys: two processes writing different keys through whole-file serialization can still
+overwrite each other's updates. Atomic rename does not provide inter-process read/modify/write
+serialization.
+
+`AppSettingsDbBackedStore` routes sensitive/portable keys to SQLite and other keys to the existing
+legacy `app-settings` file; its `store` getter merges both. G5's profile owner controls that file
+along with the database-backed configuration authority. Main may perform the existing default/
+migration bootstrap only before an exclusive handoff; it stops file writes before the backend
+accepts ownership. During normal operation Main receives allowlisted public snapshots and awaits
+acknowledged mutations. It must not keep a second ElectronStore writer, including for unrelated
+UI keys. Preserve file format, defaults, migrations and machine-local backup exclusions. Backend
+business readers keep owner-local synchronous reads; native UI reads use acknowledged snapshots.
+
+Configuration consumers include Agent defaults/prompt/trace/migration state, Provider-specific
+options, Session usage backfill, Project preferences, Skill/Knowledge/Hook/Remote settings, Sync,
+Nowledge/export, onboarding and file/Tool limits. Some getters normalize or migrate and write
+state, and Nowledge cleanup enumerates the merged store; those operations remain owner-local.
+Desktop theme/fonts/window/login, proxy application, updater and renderer logging retain their
+native effects in Main. The selected AppSettingsService/public-route snapshot remains a public
+projection, not a transport for the merged store or credential-bearing Remote/Hook/Nowledge data.
+Plugin install/consent state and `plugin-tool-policies` have their separate desktop file owners;
+backend consumers require approved, generation-fenced policy data instead of native Store imports.
 
 Split crypto from persistence: the backend stores wrapped credentials; Electron main performs
 authorized wrapping/unwrapping. Send unlock material only through the private transient channel

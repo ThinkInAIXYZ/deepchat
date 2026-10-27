@@ -1610,11 +1610,18 @@ Electron/electron-store forbidden and no native imports. This establishes module
 composed headless backend or a relocated writer. Evidence and artifact hashes are in
 `.deepchat/rutis-g4-code-mode-acceptance/`. The normal generated Provider catalog refresh is retained
 separately in `f560f941e`. No performance/resource suite was repeated, no timing gate was added and
-no speed gain is claimed. The preceding `12a73394f` CI completed before publication; this checkpoint still
-needs its own exact-head CI. Remaining desktop/Store boundaries keep G4 active; G5 is unstarted.
+no speed gain is claimed. The preceding `12a73394f` CI completed before publication. Code Mode head
+`32f457ff7` passes required `40473854228`/barrier `122089643930`; six-platform package run
+`40473854200` is in progress.
+Remaining desktop/Store boundaries keep G4 active; G5 is unstarted.
 
-- [ ] Inventory all writable database connections, synchronous repositories/config readers,
-      transaction callbacks, scheduler run claims and maintenance consumers.
+- [ ] Complete the writer, synchronous-reader and desktop-consumer inventory.
+  - [x] Enumerate SQLite/DuckDB construction and wrapper entrypoints, inherited shared facades,
+        staged/import/snapshot connections and independent derived-cache/vector owners.
+  - [x] Map Session/Tape/pending-input, Memory, Agent deletion, delegation, Scheduler, Project
+        and Sync transactions to indivisible business operation groups.
+  - [ ] Classify remaining synchronous configuration consumers and desktop effects, including
+        mixed database/file settings, plugin trust state and native image/runtime inputs.
 - [ ] Replace cross-boundary closures/row APIs with bounded transactional business commands for
       Session/Tape/Memory/config and scheduler claims. Preserve atomic head observations and CAS;
       leave exactly one writer authority throughout each cutover.
@@ -1626,6 +1633,44 @@ needs its own exact-head CI. Remaining desktop/Store boundaries keep G4 active; 
 
 Completion: the core can depend on serializable operations and host ports without synchronous IPC,
 generic SQL, duplicated writer state or privileged Electron objects crossing the boundary.
+
+### Shared-writer inventory evidence
+
+The source audit at `32f457ff7` finds 11 direct SQLite constructors in seven files and six DuckDB
+instance creation sites in four files. The RFC records each constructor family, wrappers,
+production callers and file role, including the G3 vector worker's directory-lock database and
+Knowledge's independent files. `openSQLiteDatabase` configures WAL and creates a writable-capable
+handle; snapshot/read intent alone does not make its callers read-only. `DataImporter` opens
+both source and path-based target through writable-capable constructors. Production incremental
+import uses these paths while the normal application writer is closed under maintenance.
+
+The existing data facades inherit the startup `MainDatabase`; they are not independent connection
+owners. Atomic groups include Agent deletion plus Memory namespace retirement and audit removal,
+Project removal plus Session assignments, Sync conflict/trigger/cursor settlement, pending-input
+receipts and Tape/transcript projections. Shared connection readers also include Session references,
+history search, the built-in MCP conversation-search server and Tape inspector head subscriptions;
+debug mock-session creation remains a writer operation. Memory's current-range query observes its
+projection and Tape head in one SQL statement; replacing it with independent remote reads would lose that
+guarantee. Existing local transaction closures can move with this cohesive backend without new
+row-level RPCs.
+
+Configuration remains incomplete: `AppSettingsDbBackedStore` mixes sensitive/portable database
+keys with machine-local legacy-file keys. Its `store` getter merges both. Main's desktop/settings
+and general config routes still have synchronous access, and plugin trust/install state retains
+separate native stores. A full merged Store snapshot is not an acceptable public backend payload.
+Keep allowlisted public snapshots and secret boundaries. One writer must own the entire legacy
+file: different-key writes still race because the pinned Conf adapter serializes the whole object
+before atomic replacement. G5 therefore hands the profile file to the configuration owner after
+exclusive bootstrap; Main then uses snapshots/acknowledged mutations, including for UI keys.
+The RFC maps remaining consumer families and desktop-only effects. Complete their concrete ports
+before G5. This audit is source evidence, not new runtime wiring or backend acceptance.
+Constructor inventories and source-search evidence are in
+`.deepchat/rutis-g4-code-mode-acceptance/`.
+
+The audit also records 34 direct SettingsStore import consumers and validates all 24 explicit
+inventory source references. Format/check, lint, i18n and app typechecks pass. This documentation
+checkpoint changes no application code; the accepted `32f457ff7` runtime evidence remains
+applicable without repeating builds, application E2E or performance/resource captures.
 
 ## G5. Move the cohesive Harness and shared core into the TS backend
 
