@@ -1171,7 +1171,8 @@ export async function createMainProcessControl(dependencies: {
     },
     (agentId) => memoryService.onAgentMemoryMaintenanceConfigChanged(agentId),
     skillSettings,
-    agentLifecycle
+    agentLifecycle,
+    () => databaseRequests.assertRouteAllowed('config.ensureAcpAgentInstalled')
   )
   const acpRuntimeOwner = createAcpRuntimeOwner({
     bootstrap: acpBootstrap,
@@ -3880,11 +3881,15 @@ export async function createMainProcessControl(dependencies: {
   ): Promise<DatabaseMaintenanceResult> {
     try {
       await startupWorkloadCoordinator.cancelAndDrainTarget('main')
+      await agentSettings.cancelAndDrainAcpWork()
       if (['stopping', 'stopped'].includes(appLifecycleState)) {
         throw new Error(`App lifecycle is ${appLifecycleState}`)
       }
     } catch (error) {
-      if (databaseRequests.state === 'maintenance') databaseRequests.resume()
+      if (databaseRequests.state === 'maintenance') {
+        databaseRequests.resume()
+        agentSettings.notifyAgentCatalogChanged()
+      }
       throw error
     }
 
@@ -4005,6 +4010,7 @@ export async function createMainProcessControl(dependencies: {
       scheduleBackgroundWork(startupRunId)
       databaseRequests.resume()
       appSettingsService.publishSnapshot()
+      agentSettings.notifyAgentCatalogChanged()
       syncReplica?.wake()
       await automaticSync?.start()
     } catch (error) {

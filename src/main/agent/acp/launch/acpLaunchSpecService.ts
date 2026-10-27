@@ -4,6 +4,7 @@ import path from 'path'
 import { execFileSync } from 'child_process'
 import { createHash } from 'crypto'
 import { unzipSync } from 'fflate'
+import { replaceDirectory } from '@/toolchains/extract'
 import type { AcpAgentConfig } from '@shared/types/acp'
 import type {
   AcpAgentInstallState,
@@ -89,6 +90,17 @@ const listFilesRecursive = (root: string): string[] => {
 
 export class AcpLaunchSpecService {
   private readonly installRoot: string
+  private stopped = false
+  private readonly uninstallingAgents = new Set<string>()
+  private readonly installations = new Map<
+    string,
+    {
+      agentId: string
+      controller: AbortController
+      repair: boolean
+      promise: Promise<AcpAgentInstallState>
+    }
+  >()
 
   constructor(registryRoot: string) {
     this.installRoot = path.join(registryRoot, 'agents')
@@ -151,7 +163,61 @@ export class AcpLaunchSpecService {
   async ensureRegistryAgentInstalled(
     agent: AcpRegistryAgent,
     currentState: AcpAgentInstallState | null,
-    options?: { repair?: boolean }
+    options?: { repair?: boolean; signal?: AbortSignal }
+  ): Promise<AcpAgentInstallState> {
+    if (this.stopped) throw new DOMException('ACP installer is stopping', 'AbortError')
+    if (this.uninstallingAgents.has(agent.id)) throw new Error('ACP uninstall is in progress')
+    options?.signal?.throwIfAborted()
+    const key = JSON.stringify([agent.id, agent.version])
+    const existing = this.installations.get(key)
+    if (existing) {
+      if (!options?.repair || existing.repair) return existing.promise
+      await existing.promise.catch(() => undefined)
+      existing.controller.signal.throwIfAborted()
+      return this.ensureRegistryAgentInstalled(agent, currentState, options)
+    }
+    if (this.installations.size >= 32) throw new Error('Too many pending ACP installations')
+    const controller = new AbortController()
+    const signal = options?.signal
+      ? AbortSignal.any([controller.signal, options.signal])
+      : controller.signal
+    const promise = Promise.resolve()
+      .then(() => {
+        signal.throwIfAborted()
+        return this.installRegistryAgent(agent, currentState, options?.repair === true, signal)
+      })
+      .finally(() => {
+        if (this.installations.get(key)?.promise === promise) this.installations.delete(key)
+      })
+    this.installations.set(key, {
+      agentId: agent.id,
+      controller,
+      repair: options?.repair === true,
+      promise
+    })
+    return promise
+  }
+
+  stop(): void {
+    this.stopped = true
+    this.cancelPendingInstallations()
+  }
+
+  cancelPendingInstallations(agentId?: string): void {
+    for (const job of this.installations.values()) {
+      if (!agentId || job.agentId === agentId) job.controller.abort()
+    }
+  }
+
+  async drain(): Promise<void> {
+    await Promise.allSettled([...this.installations.values()].map((job) => job.promise))
+  }
+
+  private async installRegistryAgent(
+    agent: AcpRegistryAgent,
+    currentState: AcpAgentInstallState | null,
+    repair: boolean,
+    signal: AbortSignal
   ): Promise<AcpAgentInstallState> {
     const selection = this.selectRegistryDistribution(agent)
     const lastCheckedAt = Date.now()
@@ -180,9 +246,13 @@ export class AcpLaunchSpecService {
 
     const binaryConfig = selection.binary
     const installDir = this.getBinaryInstallDir(agent)
+    const previousDir = `${installDir}.prev`
+    if (!fs.existsSync(installDir) && fs.existsSync(previousDir)) {
+      fs.renameSync(previousDir, installDir)
+    }
     const commandPath = this.resolveInstalledBinaryPath(installDir, binaryConfig.cmd)
 
-    if (!options?.repair && commandPath) {
+    if (!repair && commandPath) {
       return {
         status: 'installed',
         distributionType: 'binary',
@@ -194,30 +264,40 @@ export class AcpLaunchSpecService {
       }
     }
 
+    let stagingDir: string | undefined
     try {
-      if (options?.repair && fs.existsSync(installDir)) {
-        fs.rmSync(installDir, { recursive: true, force: true })
-      }
-      ensureDir(installDir)
-
+      signal.throwIfAborted()
+      ensureDir(path.dirname(installDir))
+      stagingDir = fs.mkdtempSync(`${installDir}.staging-`)
       const downloadedArchive = await this.downloadArchive(
         binaryConfig.archive,
         agent,
-        binaryConfig.sha256
+        binaryConfig.sha256,
+        signal
       )
       try {
-        await this.extractArchive(downloadedArchive.archivePath, installDir)
+        signal.throwIfAborted()
+        await this.extractArchive(downloadedArchive.archivePath, stagingDir)
+        signal.throwIfAborted()
       } finally {
         fs.rmSync(downloadedArchive.tempDir, { recursive: true, force: true })
       }
 
-      const installedCommand = this.resolveInstalledBinaryPath(installDir, binaryConfig.cmd)
+      const installedCommand = this.resolveInstalledBinaryPath(stagingDir, binaryConfig.cmd)
       if (!installedCommand) {
         throw new Error(`Installed archive does not contain ${binaryConfig.cmd}`)
       }
 
       if (process.platform !== 'win32') {
         fs.chmodSync(installedCommand, 0o755)
+      }
+      signal.throwIfAborted()
+      fs.rmSync(previousDir, { recursive: true, force: true })
+      replaceDirectory(stagingDir, installDir)
+      try {
+        fs.rmSync(previousDir, { recursive: true, force: true })
+      } catch (error) {
+        console.warn('[ACP] Failed to remove the previous installation:', error)
       }
 
       return {
@@ -230,6 +310,7 @@ export class AcpLaunchSpecService {
         error: null
       }
     } catch (error) {
+      signal.throwIfAborted()
       return {
         status: 'error',
         distributionType: 'binary',
@@ -239,6 +320,8 @@ export class AcpLaunchSpecService {
         installDir,
         error: error instanceof Error ? error.message : String(error)
       }
+    } finally {
+      if (stagingDir) fs.rmSync(stagingDir, { recursive: true, force: true })
     }
   }
 
@@ -246,28 +329,45 @@ export class AcpLaunchSpecService {
     agent: AcpRegistryAgent,
     installState: AcpAgentInstallState | null
   ): Promise<void> {
-    const selection = this.selectRegistryDistribution(agent)
-    if (selection?.type !== 'binary') {
-      return
-    }
+    if (this.stopped) throw new DOMException('ACP installer is stopping', 'AbortError')
+    if (this.uninstallingAgents.has(agent.id)) throw new Error('ACP uninstall is in progress')
+    this.uninstallingAgents.add(agent.id)
+    try {
+      this.cancelPendingInstallations(agent.id)
+      await Promise.allSettled(
+        [...this.installations.values()]
+          .filter((job) => job.agentId === agent.id)
+          .map((job) => job.promise)
+      )
+      if (this.stopped) throw new DOMException('ACP installer is stopping', 'AbortError')
+      const selection = this.selectRegistryDistribution(agent)
+      if (selection?.type !== 'binary') {
+        return
+      }
 
-    const candidateDirs = new Set<string>()
-    if (typeof installState?.installDir === 'string' && installState.installDir.trim()) {
-      candidateDirs.add(path.resolve(installState.installDir))
-    }
-    candidateDirs.add(this.getBinaryInstallDir(agent))
+      const candidateDirs = new Set<string>()
+      if (typeof installState?.installDir === 'string' && installState.installDir.trim()) {
+        candidateDirs.add(path.resolve(installState.installDir))
+      }
+      candidateDirs.add(this.getBinaryInstallDir(agent))
 
-    for (const installDir of candidateDirs) {
-      this.removeInstallDir(installDir)
-    }
+      for (const installDir of candidateDirs) {
+        this.removeInstallDir(installDir)
+      }
 
-    this.pruneEmptyAgentInstallRoot(agent.id)
+      this.pruneEmptyAgentInstallRoot(agent.id)
+    } finally {
+      this.uninstallingAgents.delete(agent.id)
+    }
   }
 
   async resolveRegistryLaunchSpec(
     agent: AcpRegistryAgent,
-    installState: AcpAgentInstallState | null
+    installState: AcpAgentInstallState | null,
+    signal?: AbortSignal
   ): Promise<AcpResolvedLaunchSpec> {
+    if (this.stopped) throw new DOMException('ACP installer is stopping', 'AbortError')
+    signal?.throwIfAborted()
     const selection = this.selectRegistryDistribution(agent)
     if (!selection) {
       throw new Error(
@@ -276,7 +376,7 @@ export class AcpLaunchSpecService {
     }
 
     if (selection.type === 'binary') {
-      const ensuredState = await this.ensureRegistryAgentInstalled(agent, installState)
+      const ensuredState = await this.ensureRegistryAgentInstalled(agent, installState, { signal })
       if (ensuredState.status !== 'installed' || !ensuredState.installDir) {
         throw new Error(ensuredState.error || `Failed to install ACP agent ${agent.id}`)
       }
@@ -407,7 +507,8 @@ export class AcpLaunchSpecService {
   private async downloadArchive(
     url: string,
     agent: AcpRegistryAgent,
-    expectedSha256?: string
+    expectedSha256: string | undefined,
+    signal: AbortSignal
   ): Promise<DownloadedArchive> {
     const safeAgentId = sanitizeInstallSegment(agent.id, 'agent id')
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `deepchat-acp-${safeAgentId}-`))
@@ -417,14 +518,18 @@ export class AcpLaunchSpecService {
         throw new Error(`Invalid archive URL for ACP registry agent ${agent.id}`)
       }
       const archivePath = path.join(tempDir, archiveName)
-      const response = await fetch(url, {
-        signal: AbortSignal.timeout(ACP_BINARY_DOWNLOAD_TIMEOUT_MS)
-      })
+      const downloadSignal = AbortSignal.any([
+        signal,
+        AbortSignal.timeout(ACP_BINARY_DOWNLOAD_TIMEOUT_MS)
+      ])
+      const response = await fetch(url, { signal: downloadSignal })
+      downloadSignal.throwIfAborted()
       if (!response.ok) {
         throw new Error(`Failed to download archive: ${response.status} ${response.statusText}`)
       }
 
       const archive = Buffer.from(await response.arrayBuffer())
+      downloadSignal.throwIfAborted()
       if (expectedSha256 !== undefined) {
         const normalizedSha256 = expectedSha256.trim().toLowerCase()
         if (!SHA256_PATTERN.test(normalizedSha256)) {

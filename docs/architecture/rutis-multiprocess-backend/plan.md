@@ -1458,6 +1458,59 @@ behavior is unverified locally, and the new packaging layout needs its exact-hea
 This slice owns registry refresh. ACP installation/prewarm jobs and remaining host/writer
 dependencies remain G4 work before the cohesive G5 cutover; G4 is not complete.
 
+### ACP installation and launch preparation ownership
+
+Own explicit installation, enable-triggered preinstallation, repair, uninstall and binary launch
+preparation through one installation resource. Coalesce identical work, serialize conflicting work
+for one Agent, propagate cancellation through download/body/extraction boundaries and await real
+settlement. Stage and validate a replacement before changing the installed directory. Track the
+repository/Provider continuations, fence stale descriptors and preserve the previous acknowledged
+install state on canceled work. The existing database admission gate also governs background work;
+its local callback moves with the Store in G5 rather than becoming synchronous IPC.
+
+Characterize actual binary install/reopen behavior on the immutable application before replacement,
+because the same cache files and persisted install state must retain a single owner.
+
+- [x] Connect installation/launch cancellation, actual drain and maintenance/stop admission to
+      the existing service and callers; preserve prompt enable acknowledgement and archive guards.
+- [x] Compare installation/reopen, canceled late bodies, failed repair and maintenance recovery in
+      the app; run relevant native/static checks and remove the unowned background continuations.
+
+Install, repair and implicit launch share the existing physical installer. It admits at most 32
+physical installations, coalesces matching work and queues repair behind an ordinary install.
+Uninstall reserves its Agent before awaiting canceled work. The Settings owner tracks actual
+installation, launch, uninstall and derived Provider lifetimes; stop and database maintenance drain
+them before writer teardown. Descriptor changes cancel prior work. Cancellation restores only an
+unchanged pending SQL state and cannot publish a late installed/error result. Main supplies the
+existing local database admission check; enable still acknowledges before background installation.
+Replacements use validated staging and the existing directory activation/rollback helper. A failed
+repair retains the original binary; ordinary interrupted activation can restore its `.prev` tree.
+
+Validation: **244 checks across 20 files pass**, with native SQLite required for the 16-file
+affected group (176 checks); four generated-catalog files add 68 checks. App/scoped types, normal
+build, final application build, format/check, lint and i18n pass. Installer, AgentSettings and the
+complete ProviderRuntime module graph import in ordinary Node with Electron/electron-store
+forbidden. The build-generated Provider catalog is retained separately.
+
+The immutable `3ede3013a` app passes the matching binary install/repair/reopen case (4.2 s); the
+candidate passes (4.6 s). Six real-app cases pass in 34.8 s: acknowledged binary persistence,
+held-repair graceful shutdown with no late replacement/state commit, database maintenance drain,
+failed repair preserving the old binary, post-maintenance repair/reopen, registry refresh/shutdown
+and encrypted legacy unlock/rekey/disable. The maintenance case also passes with public uninstall
+and persisted `not_installed` verification (5.2 s). These are functional observations without a
+timing gate or speed claim; no performance suite/resource capture was repeated. Immutable baseline
+hashes match the accepted registry candidate. Evidence is
+`.deepchat/rutis-g4-acp-installer-acceptance/`.
+
+The preceding `45cbdf4c0` required run `40458182691` and all six packages `40458182714`, including
+package-required `122042123850`, pass before the registry checkpoint is published. The published
+registry head `3ede3013a` passes required `40462217782`/barrier `122051412704` and all six packages
+`40462217827`/barrier `122055725559` before this checkpoint is published. This installer checkpoint
+still needs its own CI results after publication. Full native Windows/Linux app
+behavior, power loss across filesystem activation/SQL publication and moving synchronous archive
+extraction out of Main remain unverified. Remaining configuration/host/writer contracts keep G4
+active; G5 has not started.
+
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
 - [ ] Replace cross-boundary closures/row APIs with bounded transactional business commands for

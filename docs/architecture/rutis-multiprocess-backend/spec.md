@@ -896,6 +896,19 @@ remove native lookups from the shared helper. Preserve workspace containment, co
 fallbacks, launch/toolchain selection, terminal output bounds, persisted links and process cleanup.
 This preparation does not relocate ACP execution or its native PTY binding to another process.
 
+ACP installation owns explicit install/repair, enable-triggered preinstallation, uninstall and
+binary launch preparation, including their repository and Provider continuations. Identical work
+shares one physical download; conflicting same-Agent mutations cannot publish stale state or
+recreate files after uninstall. Cancellation covers headers, bodies and extraction boundaries;
+drain waits for actual settlement before database maintenance or close. Canceled work restores its
+previous acknowledged install state only while it still owns the pending state. Background
+admission uses the existing local database gate, which moves with the Store in G5. Prepare,
+validate and chmod a replacement in a managed staging directory before activating it; download or
+validation failure preserves the installed binary. Keep archive traversal/checksum guards and the
+120-second download timeout. Enable acknowledgement remains prompt. This does not establish
+power-loss durability across filesystem activation and SQL publication or move synchronous
+extraction out of Main.
+
 ACP registry ownership includes its manifest, icon cache and acknowledged repository/Provider
 updates. Main supplies absolute profile/built-in directories and an asynchronous icon-text
 capability; the core receives no Electron Response or native object. Retain the existing URL,
