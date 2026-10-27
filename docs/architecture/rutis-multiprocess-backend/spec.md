@@ -896,6 +896,17 @@ remove native lookups from the shared helper. Preserve workspace containment, co
 fallbacks, launch/toolchain selection, terminal output bounds, persisted links and process cleanup.
 This preparation does not relocate ACP execution or its native PTY binding to another process.
 
+ACP registry ownership includes its manifest, icon cache and acknowledged repository/Provider
+updates. Main supplies absolute profile/built-in directories and an asynchronous icon-text
+capability; the core receives no Electron Response or native object. Retain the existing URL,
+SVG, privacy, TTL and request-timeout policies. Package one registry/icon snapshot outside ASAR
+and remove implicit app/cwd path lookup. Local initialization performs no network work. The
+existing Main startup task owns automatic refresh; manual refresh remains within route ownership.
+Keep refresh single-flight, carry cancellation through icon work, and recheck before cache writes,
+repository effects and event publication. Terminal stop aborts work; drain waits for actual
+completion before database disposal. A canceled startup task cannot write after maintenance,
+while a new task or manual request can still use the live owner.
+
 First-party configuration selects the core entry and service exports. Rutis dependency injection
 and scopes are not authorization. This migration introduces no arbitrary third-party Rutis code
 loading or untrusted peer access. Existing `.dcplugin` and portable user-plugin behavior retain

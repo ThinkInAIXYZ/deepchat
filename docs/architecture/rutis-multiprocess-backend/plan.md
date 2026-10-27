@@ -1414,6 +1414,50 @@ The broader Provider import probe exposed the native TLS helper; passing its hos
 that dependency. Normal generated catalog data is retained separately. G4 remains active, and
 native Windows/Linux full-app behavior and the cohesive G5 backend/writer move remain unverified.
 
+### ACP registry ownership and bootstrap
+
+Main supplies the registry's explicit profile/resource directories and native icon-fetch capability.
+AgentSettings receives that owner directly. Load local catalog data without detached network work;
+automatic refresh belongs to the existing Main startup task, and manual refresh retains route
+ownership. Stop, cancel and drain before database disposal; fence late cache/icon writes, repository
+updates, Provider refresh and events. Package one registry/icon snapshot outside ASAR.
+
+This migration characterizes actual refresh/icon persistence on the immutable application before
+implementation, because its network, cache and repository effects must retain one owner.
+
+- [x] Replace actual registry construction, asset paths, startup/shutdown ownership and refresh
+      cancellation; remove native imports, cwd fallback and detached initialization.
+- [x] Compare real refresh/icon/reopen behavior, validate late replies and task/shutdown fencing,
+      preserve privacy/TTL/URL/SVG contracts and run affected static/native/package checks.
+
+Main constructs the registry with absolute profile/built-in roots and a URL-checked, cancelable
+native icon-text capability. The service and AgentSettings import no Electron or electron-store;
+there is no cwd resource fallback. Initial loading is local. The existing idle Provider task owns
+automatic registry and model-catalog refresh concurrently and waits for both to settle before
+ending. Registry refresh is single-flight through its service and repository/Provider/event
+continuations. Shutdown aborts it and drains actual work; task cancellation fences every late
+effect without stopping the owner needed after maintenance. A manifest becomes committed after
+its icon work settles, and cancellation cannot prune icons or replace the acknowledged catalog.
+
+The affected native suite passes 106 checks across eight files, including held headers/body/icon
+responses, caller cancellation and fresh reuse, actual drain, late repository/Provider completion,
+privacy/TTL, SVG/checksum normalization and three-platform package asset validation. App/scoped
+regression types, normal build, format/check, lint and i18n pass. Registry, AgentSettings and the
+complete ProviderRuntime module graph load in ordinary Node with Electron/electron-store forbidden.
+The one bundled registry/icon snapshot moves outside ASAR; the package hook validates ordinary
+files for the manifest and all declared registry icons. Unused implicit-resource constants are
+removed. Normal builds introduce no generated-catalog diff in this slice.
+
+The immutable `45cbdf4c0` app passes the matching refresh/icon/persistence E2E in 4.6 s; the migrated
+app passes in 4.4 s. Four selected app scenarios pass in 27.6 s, including real registry refresh,
+sanitized icon cache, graceful reopen, unchanged legacy JSON, held-refresh shutdown/reopen without
+late catalog or Agent writes, ACP prompt/child-output behavior and encrypted legacy unlock/rekey/
+disable. Timings are functional observations; no performance suite or resource recapture was run.
+Evidence is `.deepchat/rutis-g4-acp-registry-acceptance/`. Full native Windows/Linux application
+behavior is unverified locally, and the new packaging layout needs its exact-head CI evidence.
+This slice owns registry refresh. ACP installation/prewarm jobs and remaining host/writer
+dependencies remain G4 work before the cohesive G5 cutover; G4 is not complete.
+
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
 - [ ] Replace cross-boundary closures/row APIs with bounded transactional business commands for

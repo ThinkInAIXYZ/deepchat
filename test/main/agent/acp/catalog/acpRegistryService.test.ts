@@ -2,10 +2,12 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  AcpRegistryService,
+  type AcpRegistryServiceOptions
+} from '@/agent/acp/catalog/acpRegistryService'
 
-const mockGetPath = vi.fn()
-const mockGetAppPath = vi.fn()
-const mockNetFetch = vi.fn()
+const mockFetchIcon = vi.fn()
 
 vi.mock('fs', async () => {
   const actual = await vi.importActual<typeof import('node:fs')>('node:fs')
@@ -15,16 +17,6 @@ vi.mock('fs', async () => {
     default: actual
   }
 })
-
-vi.mock('electron', () => ({
-  app: {
-    getPath: mockGetPath,
-    getAppPath: mockGetAppPath
-  },
-  net: {
-    fetch: mockNetFetch
-  }
-}))
 
 type RegistryManifestFixture = {
   version: string
@@ -54,10 +46,13 @@ describe('AcpRegistryService', () => {
   let appRoot: string
   let userDataRoot: string
 
-  const importService = async () => {
-    const mod = await import('@/agent/acp/catalog/acpRegistryService')
-    return mod.AcpRegistryService
-  }
+  const createService = (options: Partial<AcpRegistryServiceOptions> = {}) =>
+    new AcpRegistryService({
+      userDataDirectory: userDataRoot,
+      builtInDirectory: path.join(appRoot, 'resources', 'acp-registry'),
+      fetchIcon: mockFetchIcon,
+      ...options
+    })
 
   const writeBuiltInIcon = (agentId: string, markup: string) => {
     const iconDir = path.join(appRoot, 'resources', 'acp-registry', 'icons')
@@ -95,14 +90,7 @@ describe('AcpRegistryService', () => {
     fs.mkdirSync(appRoot, { recursive: true })
     fs.mkdirSync(userDataRoot, { recursive: true })
 
-    mockGetPath.mockImplementation((name: string) => {
-      if (name === 'userData') {
-        return userDataRoot
-      }
-      return userDataRoot
-    })
-    mockGetAppPath.mockReturnValue(appRoot)
-    mockNetFetch.mockReset()
+    mockFetchIcon.mockReset()
     vi.unstubAllGlobals()
   })
 
@@ -118,8 +106,7 @@ describe('AcpRegistryService', () => {
       '<svg viewBox="0 0 16 16"><path fill="currentColor" d="M0 0h16v16H0z" /></svg>'
     )
 
-    const AcpRegistryService = await importService()
-    const service = new AcpRegistryService()
+    const service = createService()
 
     const markup = await service.getIconMarkup(
       'claude-acp',
@@ -128,7 +115,7 @@ describe('AcpRegistryService', () => {
 
     expect(markup).toContain('focusable="false"')
     expect(markup).toContain('color="currentColor"')
-    expect(mockNetFetch).not.toHaveBeenCalled()
+    expect(mockFetchIcon).not.toHaveBeenCalled()
   })
 
   it('skips the automatic registry refresh when privacy mode is enabled', async () => {
@@ -138,12 +125,12 @@ describe('AcpRegistryService', () => {
     const globalFetch = vi.fn()
     vi.stubGlobal('fetch', globalFetch)
 
-    const AcpRegistryService = await importService()
-    const service = new AcpRegistryService({
+    const service = createService({
       isPrivacyModeEnabled: () => true
     })
 
-    await service.initialize()
+    service.initialize()
+    await service.refresh(false, { automatic: true })
 
     expect(globalFetch).not.toHaveBeenCalled()
     expect(service.listAgents()).toHaveLength(1)
@@ -171,8 +158,7 @@ describe('AcpRegistryService', () => {
       ]
     })
 
-    const AcpRegistryService = await importService()
-    const service = new AcpRegistryService({
+    const service = createService({
       isPrivacyModeEnabled: () => true
     })
 
@@ -207,8 +193,7 @@ describe('AcpRegistryService', () => {
       ]
     })
 
-    const AcpRegistryService = await importService()
-    const service = new AcpRegistryService({
+    const service = createService({
       isPrivacyModeEnabled: () => true
     })
 
@@ -229,21 +214,15 @@ describe('AcpRegistryService', () => {
     })
     vi.stubGlobal('fetch', globalFetch)
 
-    mockNetFetch.mockResolvedValue({
-      ok: true,
-      text: vi
-        .fn()
-        .mockResolvedValue(
-          '<svg viewBox="0 0 16 16"><path fill="currentColor" d="M0 0h16v16H0z" /></svg>'
-        )
-    })
+    mockFetchIcon.mockResolvedValue(
+      '<svg viewBox="0 0 16 16"><path fill="currentColor" d="M0 0h16v16H0z" /></svg>'
+    )
 
     const staleIconDir = path.join(userDataRoot, 'acp-registry', 'icons')
     fs.mkdirSync(staleIconDir, { recursive: true })
     fs.writeFileSync(path.join(staleIconDir, 'obsolete.svg'), '<svg></svg>', 'utf-8')
 
-    const AcpRegistryService = await importService()
-    const service = new AcpRegistryService()
+    const service = createService()
 
     await service.refresh(true)
 
@@ -252,7 +231,7 @@ describe('AcpRegistryService', () => {
 
     const markup = await service.getIconMarkup('claude-acp', manifest.agents[0].icon)
     expect(markup).toContain('currentColor')
-    expect(mockNetFetch).toHaveBeenCalledTimes(1)
+    expect(mockFetchIcon).toHaveBeenCalledTimes(1)
   })
 
   it('keeps manual refresh available while privacy mode is enabled', async () => {
@@ -265,24 +244,18 @@ describe('AcpRegistryService', () => {
     })
     vi.stubGlobal('fetch', globalFetch)
 
-    mockNetFetch.mockResolvedValue({
-      ok: true,
-      text: vi
-        .fn()
-        .mockResolvedValue(
-          '<svg viewBox="0 0 16 16"><path fill="currentColor" d="M0 0h16v16H0z" /></svg>'
-        )
-    })
+    mockFetchIcon.mockResolvedValue(
+      '<svg viewBox="0 0 16 16"><path fill="currentColor" d="M0 0h16v16H0z" /></svg>'
+    )
 
-    const AcpRegistryService = await importService()
-    const service = new AcpRegistryService({
+    const service = createService({
       isPrivacyModeEnabled: () => true
     })
 
     await service.refresh(true)
 
     expect(globalFetch).toHaveBeenCalledTimes(1)
-    expect(mockNetFetch).toHaveBeenCalledTimes(1)
+    expect(mockFetchIcon).toHaveBeenCalledTimes(1)
   })
 
   it('preserves existing cached icon when refreshing a new icon fails', async () => {
@@ -298,14 +271,9 @@ describe('AcpRegistryService', () => {
     const oldMarkup = '<svg viewBox="0 0 16 16"><path fill="currentColor" d="M0 0h8v16H0z" /></svg>'
     fs.writeFileSync(path.join(iconDir, 'claude-acp.svg'), oldMarkup, 'utf-8')
 
-    mockNetFetch.mockResolvedValue({
-      ok: false,
-      status: 503,
-      statusText: 'Service Unavailable'
-    })
+    mockFetchIcon.mockRejectedValue(new Error('Service Unavailable'))
 
-    const AcpRegistryService = await importService()
-    const service = new AcpRegistryService()
+    const service = createService()
 
     await service.refresh(true)
 
@@ -320,23 +288,125 @@ describe('AcpRegistryService', () => {
       version: '1',
       agents: [createManifest('claude-acp').agents[0], createManifest('claude-acp').agents[0]]
     }
-    const emptyAppRoot = path.join(tempRoot, 'empty-app-root')
-    const emptyCwd = path.join(tempRoot, 'empty-cwd')
-    fs.mkdirSync(emptyAppRoot, { recursive: true })
-    fs.mkdirSync(emptyCwd, { recursive: true })
-    mockGetAppPath.mockReturnValue(emptyAppRoot)
-    vi.spyOn(process, 'cwd').mockReturnValue(emptyCwd)
     const globalFetch = vi.fn().mockResolvedValue({
       ok: true,
       text: vi.fn().mockResolvedValue(JSON.stringify(duplicateManifest))
     })
     vi.stubGlobal('fetch', globalFetch)
 
-    const AcpRegistryService = await importService()
-    const service = new AcpRegistryService()
+    const service = createService()
 
     await expect(service.refresh(true)).rejects.toThrow(
       '[ACP Registry] No registry snapshot is available.'
     )
   })
+
+  it('loads the local catalog without starting detached network work', async () => {
+    const manifest = createManifest()
+    delete manifest.agents[0].icon
+    writeBuiltInManifest(manifest)
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(manifest)))
+    vi.stubGlobal('fetch', fetch)
+    const service = createService()
+
+    service.initialize()
+    expect(service.listAgents()[0].id).toBe('claude-acp')
+    expect(fetch).not.toHaveBeenCalled()
+    await service.refresh(false, { automatic: true })
+    expect(fetch).toHaveBeenCalledOnce()
+  })
+
+  it.each(['shutdown', 'task cancellation'])(
+    'drains a held refresh and rejects late writes after %s',
+    async (reason) => {
+      const initial = createManifest('initial')
+      writeBuiltInManifest(initial)
+      const service = createService()
+      service.initialize()
+      const cache = path.join(userDataRoot, 'acp-registry', 'registry.json')
+      const meta = path.join(userDataRoot, 'acp-registry', 'meta.json')
+      fs.writeFileSync(cache, JSON.stringify(initial))
+      fs.writeFileSync(meta, JSON.stringify({ version: '1', lastUpdated: 1 }))
+      const original = [cache, meta].map((file) => fs.readFileSync(file, 'utf8'))
+      let release!: (response: Response) => void
+      let requestSignal!: AbortSignal
+      const fetch = vi.fn((_url: string, options: { signal: AbortSignal }) => {
+        requestSignal = options.signal
+        return new Promise<Response>((resolve) => {
+          release = resolve
+        })
+      })
+      vi.stubGlobal('fetch', fetch)
+      const caller = new AbortController()
+      const refresh = service.refresh(true, { signal: caller.signal })
+      const rejected = expect(refresh).rejects.toMatchObject({ name: 'AbortError' })
+      const joined = expect(service.refresh(true)).rejects.toMatchObject({ name: 'AbortError' })
+      expect(fetch).toHaveBeenCalledOnce()
+      if (reason === 'shutdown') service.stop()
+      else caller.abort()
+      expect(requestSignal.aborted).toBe(true)
+      let drained = false
+      const drain = service.drain().then(() => {
+        drained = true
+      })
+      await Promise.resolve()
+      expect(drained).toBe(false)
+      release(new Response(JSON.stringify(createManifest('late'))))
+      await Promise.all([rejected, joined, drain])
+      expect([cache, meta].map((file) => fs.readFileSync(file, 'utf8'))).toEqual(original)
+      expect(service.listAgents()[0].id).toBe('initial')
+
+      if (reason === 'task cancellation') {
+        const next = createManifest('fresh')
+        delete next.agents[0].icon
+        fetch.mockResolvedValue(new Response(JSON.stringify(next)))
+        expect((await service.refresh(true))[0].id).toBe('fresh')
+      } else {
+        await expect(service.refresh(true)).rejects.toMatchObject({ name: 'AbortError' })
+        expect(fetch).toHaveBeenCalledOnce()
+      }
+    }
+  )
+
+  it.each(['manifest body', 'icon body'])(
+    'fences a late %s and preserves the committed catalog on shutdown',
+    async (phase) => {
+      const initial = createManifest('initial')
+      writeBuiltInManifest(initial)
+      const service = createService()
+      service.initialize()
+      const cache = path.join(userDataRoot, 'acp-registry', 'registry.json')
+      fs.writeFileSync(cache, JSON.stringify(initial))
+      const original = fs.readFileSync(cache, 'utf8')
+      let release!: (text: string) => void
+      let entered!: () => void
+      const started = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      const held = () => {
+        entered()
+        return new Promise<string>((resolve) => {
+          release = resolve
+        })
+      }
+      const next = createManifest('late')
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          text: phase === 'manifest body' ? held : async () => JSON.stringify(next)
+        })
+      )
+      mockFetchIcon.mockImplementation(held)
+      const rejected = expect(service.refresh(true)).rejects.toMatchObject({ name: 'AbortError' })
+      await started
+      service.stop()
+      release(phase === 'manifest body' ? JSON.stringify(next) : '<svg><path /></svg>')
+      await Promise.all([rejected, service.drain()])
+      expect(fs.readFileSync(cache, 'utf8')).toBe(original)
+      expect(fs.existsSync(path.join(userDataRoot, 'acp-registry', 'icons', 'late.svg'))).toBe(
+        false
+      )
+    }
+  )
 })

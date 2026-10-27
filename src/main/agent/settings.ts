@@ -22,7 +22,7 @@ import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { SettingsStore } from '@/config/settingsStore'
 import { AcpCatalogSettings } from '@/agent/acp/catalog/settings'
-import { AcpRegistryService } from '@/agent/acp/catalog/acpRegistryService'
+import type { AcpRegistryService } from '@/agent/acp/catalog/acpRegistryService'
 import { AcpLaunchSpecService } from '@/agent/acp/launch/acpLaunchSpecService'
 import {
   normalizeAutoCompactionRetainRecentPairs,
@@ -172,15 +172,15 @@ const getLiveLegacyModelSelection = (value: unknown): ModelSelection | null => {
 }
 
 export class AgentSettings implements AgentSettingsPort {
-  private readonly registry: AcpRegistryService
   private readonly launchSpecs: AcpLaunchSpecService
   private deleteDeepChatAgentTasks?: Map<string, Promise<DeleteDeepChatAgentResult>>
+  private registryRefreshPromise: Promise<AcpRegistryAgent[]> | null = null
 
   constructor(
     private readonly settings: SettingsStore,
     private readonly repository: AgentRepository,
     private readonly acpCatalog: AcpCatalogSettings,
-    isPrivacyModeEnabled: () => boolean,
+    private readonly registry: AcpRegistryService,
     userDataPath: string,
     private readonly provider: AgentSettingsProviderPort,
     private readonly events: AgentSettingsEvents,
@@ -192,13 +192,11 @@ export class AgentSettings implements AgentSettingsPort {
     private readonly skillMigrationSettings: AgentSkillMigrationSettingsPort,
     private readonly agentLifecycle: AgentLifecycleGatePort
   ) {
-    this.registry = new AcpRegistryService({
-      isPrivacyModeEnabled
-    })
     this.launchSpecs = new AcpLaunchSpecService(path.join(userDataPath, 'acp-registry'))
   }
 
   start(): void {
+    this.registry.initialize()
     this.initializeUnifiedAgents()
     const needsIndependentConfigMigration =
       (this.settings.get<number>('unifiedAgentsMigrationVersion') ?? 0) <
@@ -219,21 +217,15 @@ export class AgentSettings implements AgentSettingsPort {
       }
     }
     this.provider.setAcpProviderEnabled(this.acpCatalog.getGlobalEnabled())
-    const previousAgents = this.registry.listAgents()
-    void this.registry
-      .initialize()
-      .then(async () => {
-        const registryAgents = this.registry.listAgents()
-        this.syncRegistryAgentsToRepository()
-        const changedAgentIds = findChangedAcpRegistryAgentIds(previousAgents, registryAgents)
-        if (changedAgentIds.length > 0) {
-          await this.provider.refreshAcpProviderAgents(changedAgentIds)
-        }
-        this.notifyAcpAgentsChanged()
-      })
-      .catch((error) => {
-        console.error('[ACP] Failed to initialize registry service:', error)
-      })
+  }
+
+  stop(): void {
+    this.registry.stop()
+  }
+
+  async drain(): Promise<void> {
+    await Promise.allSettled([this.registryRefreshPromise])
+    await this.registry.drain()
   }
 
   async getAcpEnabled(): Promise<boolean> {
@@ -299,15 +291,39 @@ export class AgentSettings implements AgentSettingsPort {
     })
   }
 
-  async refreshAcpRegistry(force = true): Promise<AcpRegistryAgent[]> {
+  async refreshAcpRegistry(
+    force = true,
+    options: { automatic?: boolean; signal?: AbortSignal } = {}
+  ): Promise<AcpRegistryAgent[]> {
+    if (this.registry.isStopped) throw new DOMException('ACP registry is stopping', 'AbortError')
+    options.signal?.throwIfAborted()
+    if (this.registryRefreshPromise) return this.registryRefreshPromise
+    this.registryRefreshPromise = this.refreshRegistry(force, options).finally(() => {
+      this.registryRefreshPromise = null
+    })
+    return this.registryRefreshPromise
+  }
+
+  private async refreshRegistry(
+    force: boolean,
+    options: { automatic?: boolean; signal?: AbortSignal }
+  ): Promise<AcpRegistryAgent[]> {
+    const assertCurrent = () => {
+      if (this.registry.isStopped) throw new DOMException('ACP registry is stopping', 'AbortError')
+      options.signal?.throwIfAborted()
+    }
+    assertCurrent()
     const previousAgents = this.registry.listAgents()
-    const refreshedAgents = await this.registry.refresh(force)
+    const refreshedAgents = await this.registry.refresh(force, options)
+    assertCurrent()
     this.syncRegistryAgentsToRepository()
     const changedAgentIds = findChangedAcpRegistryAgentIds(previousAgents, refreshedAgents)
     if (changedAgentIds.length > 0) {
       await this.provider.refreshAcpProviderAgents(changedAgentIds)
     }
+    assertCurrent()
     const agents = await this.listAcpRegistryAgents()
+    assertCurrent()
     this.notifyAcpAgentsChanged()
     return agents
   }

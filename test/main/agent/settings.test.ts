@@ -18,6 +18,63 @@ const createDeferred = <T>() => {
 }
 
 describe('AgentSettings ACP availability', () => {
+  it.each(['registry', 'provider'])(
+    'drains the pending %s operation and fences database/events after registry stop',
+    async (phase) => {
+      const entered = createDeferred<void>()
+      const previous = [{ id: 'agent-1', name: 'Agent', version: '1' }]
+      const updated = [{ ...previous[0], version: '2' }]
+      const pending = createDeferred<typeof updated>()
+      const syncRegistryAgentsToRepository = vi.fn()
+      const notifyAcpAgentsChanged = vi.fn()
+      const listAcpRegistryAgents = vi.fn(async () => updated)
+      const registry = {
+        isStopped: false,
+        listAgents: () => previous,
+        refresh: vi.fn(async () => {
+          if (phase === 'registry') {
+            entered.resolve()
+            return pending.promise
+          }
+          return updated
+        }),
+        stop: () => {
+          registry.isStopped = true
+        },
+        drain: vi.fn(async () => undefined)
+      }
+      const settings = Object.assign(Object.create(AgentSettings.prototype), {
+        registry,
+        provider: {
+          refreshAcpProviderAgents: vi.fn(async () => {
+            entered.resolve()
+            await pending.promise
+          })
+        },
+        syncRegistryAgentsToRepository,
+        listAcpRegistryAgents,
+        notifyAcpAgentsChanged
+      }) as AgentSettings
+      const rejected = expect(settings.refreshAcpRegistry(true)).rejects.toMatchObject({
+        name: 'AbortError'
+      })
+      await entered.promise
+      const writes = syncRegistryAgentsToRepository.mock.calls.length
+      settings.stop()
+      let drained = false
+      const drain = settings.drain().then(() => {
+        drained = true
+      })
+      await Promise.resolve()
+      expect(drained).toBe(false)
+      pending.resolve(updated)
+      await Promise.all([rejected, drain])
+      expect(syncRegistryAgentsToRepository).toHaveBeenCalledTimes(writes)
+      expect(listAcpRegistryAgents).not.toHaveBeenCalled()
+      expect(notifyAcpAgentsChanged).not.toHaveBeenCalled()
+    }
+  )
+
   it('restores the previous state when disabling cannot stop active runtimes', async () => {
     const runtimeError = new Error('runtime busy')
     const setGlobalEnabled = vi.fn().mockReturnValue(true)

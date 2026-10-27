@@ -17,6 +17,7 @@ files:
   - '!out/cli/**'
   - '!out/harness/**'
   - '!resources/model-db/**'
+  - '!resources/acp-registry/**'
   - '!crates/**'
   - '!keys/*'
   - '!scripts/*'
@@ -47,6 +48,9 @@ asarUnpack:
   - '**/node_modules/@arcships/light-ocr*/**/*'
   - '**/node_modules/@zerob13/nativekit/prebuilds/**/*'
 extraResources:
+  - from: ./resources/acp-registry/
+    to: app.asar.unpacked/resources/acp-registry
+    filter: ['registry.json', 'icons/**/*']
   - from: ./resources/model-db/
     to: app.asar.unpacked/resources/model-db
     filter: ['providers.json']

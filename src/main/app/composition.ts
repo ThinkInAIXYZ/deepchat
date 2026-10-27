@@ -39,6 +39,7 @@ import {
   app,
   ipcMain,
   powerMonitor,
+  net,
   webContents as electronWebContents
 } from 'electron'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
@@ -216,6 +217,8 @@ import { createDeepChatAgentHarness, type DeepChatAgentHarness } from '@/agent/d
 import type { RunJournalObservation } from '@/agent/deepchat/runtime/types'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import { createAcpRuntimeOwner } from '@/agent/acp/createRuntimeOwner'
+import { AcpRegistryService } from '@/agent/acp/catalog/acpRegistryService'
+import { isAcpRegistryIconUrl } from '@/agent/acp/catalog/acpRegistryConstants'
 import { createAcpRoutes } from '@/agent/acp/routes'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import type {
@@ -1103,11 +1106,32 @@ export async function createMainProcessControl(dependencies: {
       openExternal: (url) => shell.openExternal(url)
     }
   )
+  const acpRegistry = new AcpRegistryService({
+    userDataDirectory: app.getPath('userData'),
+    builtInDirectory: path.join(
+      app.isPackaged ? path.join(process.resourcesPath, 'app.asar.unpacked') : app.getAppPath(),
+      'resources',
+      'acp-registry'
+    ),
+    isPrivacyModeEnabled: () => dependencies.privacySettings.isEnabled(),
+    fetchIcon: async (url, signal) => {
+      if (!isAcpRegistryIconUrl(url)) throw new Error('Unsupported ACP registry icon URL')
+      signal.throwIfAborted()
+      const response = await net.fetch(url, { signal })
+      if (!response.ok) {
+        throw new Error(`Failed to fetch icon: ${response.status} ${response.statusText}`)
+      }
+      const text = await response.text()
+      signal.throwIfAborted()
+      if (text.length > 1024 * 1024) throw new Error('ACP registry icon exceeds the size limit')
+      return text
+    }
+  })
   const agentSettings = new AgentSettings(
     dependencies.settingsStore,
     agentRepository,
     dependencies.acpCatalogSettings,
-    () => dependencies.privacySettings.isEnabled(),
+    acpRegistry,
     app.getPath('userData'),
     {
       getModelConfig: (modelId, providerId) => providerSettings.getModelConfig(modelId, providerId),
@@ -3040,13 +3064,21 @@ export async function createMainProcessControl(dependencies: {
 
   async function initializeIdleProviderWarmup(taskContext: StartupWorkloadTaskContext) {
     taskContext.signal.throwIfAborted()
-    const catalogRefresh = await providerDbLoader.refreshIfNeeded(true, {
-      automatic: true,
-      signal: taskContext.signal
-    })
+    const [registryRefresh, catalogRefresh] = await Promise.allSettled([
+      agentSettings.refreshAcpRegistry(false, {
+        automatic: true,
+        signal: taskContext.signal
+      }),
+      providerDbLoader.refreshIfNeeded(true, {
+        automatic: true,
+        signal: taskContext.signal
+      })
+    ])
     taskContext.signal.throwIfAborted()
-    if (catalogRefresh.status === 'error') {
-      console.warn('[ProviderDbLoader] Startup refresh failed:', catalogRefresh.message)
+    if (registryRefresh.status === 'rejected') throw registryRefresh.reason
+    if (catalogRefresh.status === 'rejected') throw catalogRefresh.reason
+    if (catalogRefresh.value.status === 'error') {
+      console.warn('[ProviderDbLoader] Startup refresh failed:', catalogRefresh.value.message)
     }
     const enabledProviders = providerSettings
       .getEnabledProviders()
@@ -3091,6 +3123,7 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('cliServer.stop', () => cliServer.stop())
     await runDestroyStep('oauthService.stop', () => oauthService.stop())
     await providerDbLoader.drain()
+    await agentSettings.drain()
     await startupWorkloadCoordinator.cancelAndDrainTarget('main')
     await runDestroyStep('automaticSync.close', () => automaticSync!.close())
     await runDestroyStep('syncPeerService.stop', () => syncPeerService.stop())
@@ -3766,6 +3799,7 @@ export async function createMainProcessControl(dependencies: {
       appLifecycleState = 'stopping'
       databaseRequests.beginShutdown()
       providerDbLoader.stop()
+      agentSettings.stop()
       databaseSecurityService.stop()
       dependencies.secretStore.pause()
       windowPresenter.setApplicationQuitting(true)

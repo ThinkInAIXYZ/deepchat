@@ -836,6 +836,7 @@ async function afterPack(context) {
   const { targets, appOutDir } = context
 
   await validateProviderCatalog(context)
+  await validateAcpRegistry(context)
 
   await copyFffNativePackages(context)
   await copyParcelWatcherNativePackages(context)
@@ -870,6 +871,43 @@ export async function validateProviderCatalog(context) {
     Object.keys(catalog.providers).length === 0
   ) {
     throw new Error('Bundled Provider catalog is empty or invalid')
+  }
+}
+
+export async function validateAcpRegistry(context) {
+  const directory = path.join(
+    getResourcesDir(context),
+    'app.asar.unpacked',
+    'resources',
+    'acp-registry'
+  )
+  const manifestPath = path.join(directory, 'registry.json')
+  const info = await fs.lstat(manifestPath)
+  if (!info.isFile() || info.isSymbolicLink()) {
+    throw new Error('Bundled ACP registry is not a regular file')
+  }
+  const manifest = await readJson(manifestPath)
+  if (
+    typeof manifest.version !== 'string' ||
+    !manifest.version.trim() ||
+    !Array.isArray(manifest.agents) ||
+    !manifest.agents.length
+  ) {
+    throw new Error('Bundled ACP registry is empty or invalid')
+  }
+  for (const agent of manifest.agents) {
+    if (
+      !agent.icon?.startsWith('https://cdn.agentclientprotocol.com/registry/') ||
+      !agent.icon.endsWith('.svg')
+    )
+      continue
+    if (typeof agent.id !== 'string' || !/^[A-Za-z0-9._-]+$/.test(agent.id)) {
+      throw new Error('Bundled ACP registry icon has an invalid agent ID')
+    }
+    const icon = await fs.lstat(path.join(directory, 'icons', `${agent.id}.svg`))
+    if (!icon.isFile() || icon.isSymbolicLink()) {
+      throw new Error('Bundled ACP registry icon is not a regular file')
+    }
   }
 }
 
