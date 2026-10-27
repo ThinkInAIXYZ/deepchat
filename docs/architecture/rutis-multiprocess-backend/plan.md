@@ -1200,6 +1200,56 @@ normal build, format/check, lint and i18n. The same four real-app scenarios pass
 (12.3/5.3/3.0/2.9 seconds). All samples remain recorded as functional observations, without a timing
 gate or speed claim. Integration evidence uses the `dev-integration-*` logs in the same directory.
 
+### Shutdown ownership before writer close
+
+The startup-drain integration checkpoint `ec74d772c` passes required run `40437135796`, including
+`pr-required` job `121970616884`, and package run `40437135856` with all six platforms and
+`package-required` job `121975288948`. No rerun is requested.
+
+`DatabaseRequestGate` owns stopping admission and a completion-only promise for the actual maintenance
+operation. The six typed commands, including verified-peer imports, use that owner; results and
+credentials are not retained. Ordinary admission may resume before the final asynchronous setup
+returns, but another maintenance owner cannot overlap it. CLI authorization retains its ordinary
+lifetime. Only the two device dispatches that await shutdown before restart/reset are excluded from
+their own drain; validation and the exclusive terminal-action claim remain unchanged.
+
+Shutdown closes request admission and background availability synchronously, invalidates native
+security/credential work and cancels startup replies. Actual startup callbacks then drain after CLI
+and OAuth ingress stop, before their service dependencies are disposed. Ordinary requests and the
+actual maintenance operation drain before writer close. These critical waits are not best-effort
+destroy steps: a bounded failure rejects teardown before closing the database or granting an action.
+
+Interrupted maintenance checks shutdown before reopen/reconciliation and before resuming services.
+A remote initialization that finishes after shutdown is compensated before completion. Failed
+recovery starts cleanup only after releasing the maintenance lifetime, avoiding teardown waiting on
+its own caller. The cancellation-only shutdown path and recovery-side reopen during shutdown are
+replaced by these default paths, without a feature flag or fallback.
+
+Forty-one affected main/CLI/security/route files pass 722 checks under Electron Node mode with native
+SQLite required and no skips. Durable contracts cover concurrent request/maintenance completion,
+restart/reset self-waiting, authorization lifetime, bounded failure/retry and final maintenance
+exclusivity. App and scoped gate/E2E types, normal build, format/check, lint and i18n pass. The branch
+includes `dev` at `2a8a36b3a`; its Provider integration is covered by the selected suites. Normal
+build-generated Provider catalog refreshes are retained.
+
+The baseline launch/close and encrypted-reopen scenarios pass in 14.8 seconds (3.7/10.9 seconds).
+The final seven-scenario application matrix passes in 39.1 seconds: launch/close 7.7 seconds;
+encryption/legacy unlock/rekey/disable 10.7 seconds; CLI backup/import/repair/relaunch 5.0 seconds;
+concurrent maintenance rejection 2.9 seconds; native credential drain 2.7 seconds; shutdown with a
+held native credential 4.7 seconds; shutdown with held maintenance 5.0 seconds. Native quit closes
+the window while work remains owned, permits release through the still-live Main connection, exits
+with code zero, and reopens without an interrupted secret or encryption commit. All profiles are
+owned/disposable and no external account is contacted. These whole-scenario durations include
+startup and presentation; they are functional observations without a timing gate or speed claim.
+
+The E2E fixture retains the launched child handle across debugger disposal and recognizes an already
+completed exit-zero process as graceful. Resource-measurement errors and forced-close behavior still
+fail or report their existing outcomes. Accepted app evidence is `final-e2e.log` and `final-results`
+under `.deepchat/rutis-g4-shutdown-acceptance/`; earlier driver probes remain there for diagnosis.
+No process, IPC or storage-path change requires a complete resource recapture. Remaining detached
+background owners, configuration snapshots and native/window dependencies keep G4 open. Full
+Windows/Linux native application and physical power-loss/suspend scenarios remain unverified.
+
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
 - [ ] Replace cross-boundary closures/row APIs with bounded transactional business commands for

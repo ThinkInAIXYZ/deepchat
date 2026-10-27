@@ -312,3 +312,73 @@ test('maintenance drains a credential request delayed in native encryption @smok
   }
   expect(await active.close()).toBe('graceful')
 })
+
+for (const kind of ['credential', 'maintenance'] as const) {
+  test(`shutdown drains pending native ${kind} work before closing the database @smoke`, async ({
+    launchApp
+  }) => {
+    const active = await launchApp()
+    const appProcess = active.electronApp.process()
+    expect(active.ownsUserDataDir).toBe(true)
+    await waitForAppReady(active.page)
+    const value = `disposable-shutdown-${kind}`
+    await holdEncryption(active.electronApp, value, value)
+    const pending = active.page
+      .evaluate(
+        async ({ kind, value }) => {
+          if (kind === 'maintenance') {
+            await window.deepchat.invoke('databaseSecurity.enable', { password: value })
+          } else {
+            await window.deepchat.invoke('sync.setCloudConfig', {
+              config: {
+                enabled: false,
+                endpoint: 'http://127.0.0.1:1',
+                bucket: 'fixture',
+                accessKeyId: 'fixture',
+                secretAccessKey: value
+              }
+            })
+          }
+        },
+        { kind, value }
+      )
+      .then(
+        () => true,
+        () => false
+      )
+    try {
+      await expect
+        .poll(() =>
+          active.electronApp.evaluate(
+            () =>
+              (globalThis as unknown as { __maintenanceFixture: { entered: boolean } })
+                .__maintenanceFixture.entered
+          )
+        )
+        .toBe(true)
+      const windowClosed = active.page.waitForEvent('close')
+      await active.electronApp.evaluate(({ app }) => {
+        setImmediate(() => app.quit())
+      })
+      await windowClosed
+      await releaseEncryption(active.electronApp)
+      await expect.poll(() => appProcess.exitCode).toBe(0)
+      expect(await active.close()).toBe('graceful')
+      expect(await pending).toBe(false)
+    } finally {
+      await releaseEncryption(active.electronApp).catch(() => undefined)
+    }
+
+    const reopened = await launchApp()
+    await waitForAppReady(reopened.page)
+    expect(
+      (await reopened.page.evaluate(() => window.deepchat.invoke('databaseSecurity.getStatus', {})))
+        .status.enabled
+    ).toBe(false)
+    expect(
+      (await reopened.page.evaluate(() => window.deepchat.invoke('sync.getCloudConfig', {}))).config
+        .hasSecret
+    ).toBe(false)
+    expect(await reopened.close()).toBe('graceful')
+  })
+}

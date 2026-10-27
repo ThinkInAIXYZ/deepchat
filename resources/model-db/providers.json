@@ -355451,66 +355451,6 @@
           "type": "chat"
         },
         {
-          "id": "imagen-4.0-fast-generate-001",
-          "name": "imagen-4.0-fast-generate-001",
-          "display_name": "imagen-4.0-fast-generate-001",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "imageGeneration"
-        },
-        {
-          "id": "imagen-4.0-generate-001",
-          "name": "imagen-4.0-generate-001",
-          "display_name": "imagen-4.0-generate-001",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "imageGeneration"
-        },
-        {
-          "id": "imagen-4.0-ultra-generate-001",
-          "name": "imagen-4.0-ultra-generate-001",
-          "display_name": "imagen-4.0-ultra-generate-001",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "imageGeneration"
-        },
-        {
           "id": "gpt-image-1",
           "name": "gpt-image-1",
           "display_name": "gpt-image-1",

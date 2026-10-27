@@ -807,6 +807,20 @@ failure rejects maintenance before service teardown or writer replacement and re
 admission; it must not revive or duplicate a still-running startup owner. Background migrations are
 scheduled again after successful maintenance or on the next launch.
 
+Shutdown closes ordinary admission and background availability before teardown. Cancel and drain
+actual startup callbacks before disposing their service dependencies, then drain ordinary requests
+and the actual database-maintenance owner before closing the writer. Keep completion-only ownership
+for maintenance, including verified-peer commands; do not retain command results or credentials.
+The two device commands that await shutdown before restarting or resetting data cannot wait for
+their own request lease. Their existing validation and exclusive shutdown-action claim still apply.
+CLI authorization completes before dispatch and retains its ordinary lifetime for those commands.
+
+A maintenance operation interrupted by shutdown must not reopen the database, reconcile runtime
+state or resume background services. Recovery-triggered shutdown starts only after that operation
+releases its own lifetime. Critical completion barriers have bounded failure paths and propagate
+failure before writer close or a terminal action; best-effort cleanup must not swallow them or claim
+successful ownership release. These are lifecycle deadlines, not performance acceptance budgets.
+
 ### Public routes and desktop capabilities
 
 Reuse existing shared route names, schemas, caller types, and output projection. Classify each

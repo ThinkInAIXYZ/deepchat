@@ -302,6 +302,7 @@ export const test = base.extend<ElectronFixtures>({
         },
         timeout: 120_000
       })
+      const appProcess = electronApp.process()
 
       let closeOutcomePromise: Promise<'graceful' | 'forced'> | undefined
       let resources: Awaited<ReturnType<typeof measureResources>>
@@ -322,6 +323,10 @@ export const test = base.extend<ElectronFixtures>({
             } catch (error) {
               measurementFailure = error
             }
+            if (appProcess.exitCode === 0) {
+              if (measurementFailure) throw measurementFailure
+              return 'graceful'
+            }
             const closePromise = electronApp.close()
             const closedGracefully = await Promise.race([
               closePromise.then(
@@ -335,7 +340,7 @@ export const test = base.extend<ElectronFixtures>({
               if (measurementFailure) throw measurementFailure
               return 'graceful'
             }
-            electronApp.process().kill('SIGKILL')
+            appProcess.kill('SIGKILL')
             await Promise.race([closePromise.catch(() => undefined), delay(1_000)])
             if (measurementFailure) throw measurementFailure
             return 'forced'

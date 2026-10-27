@@ -3,10 +3,12 @@ import { DatabaseRequestGate } from '@/app/databaseRequestGate'
 
 const deferred = <T>() => {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((done) => {
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((done, fail) => {
     resolve = done
+    reject = fail
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 afterEach(() => vi.useRealTimers())
@@ -115,5 +117,99 @@ describe('database request ownership', () => {
     await expect(gate.runRequest('window.getCurrentState', async () => undefined)).rejects.toThrow(
       'Application stopped'
     )
+  })
+
+  it('drains requests and actual maintenance completion during shutdown', async () => {
+    const gate = new DatabaseRequestGate(() => undefined)
+    const normal = deferred<void>()
+    const owner = deferred<void>()
+    const request = gate.runRequest('providers.add', () => normal.promise)
+    const maintenance = gate.runMaintenance(() => owner.promise)
+    await Promise.resolve()
+    gate.beginShutdown()
+    let drained = false
+    const drain = gate.drainForShutdown().then(() => {
+      drained = true
+    })
+    for (const method of ['providers.add', 'window.getCurrentState', 'device.restartApp']) {
+      await expect(gate.runRequest(method, async () => undefined)).rejects.toThrow('stopping')
+    }
+    normal.resolve()
+    await request
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(drained).toBe(false)
+    const error = new Error('interrupted maintenance')
+    const rejected = expect(maintenance).rejects.toBe(error)
+    owner.reject(error)
+    await rejected
+    await drain
+    expect(gate.state).toBe('stopping')
+  })
+
+  it.each(['device.restartApp', 'device.resetDataByType'])(
+    'does not wait for the %s request that owns shutdown',
+    async (method) => {
+      const gate = new DatabaseRequestGate(() => undefined)
+      await gate.runRequest(method, async () => {
+        gate.beginShutdown()
+        await gate.drainForShutdown()
+      })
+    }
+  )
+
+  it('includes lifecycle authorization before its shutdown dispatch', async () => {
+    const gate = new DatabaseRequestGate(() => undefined)
+    const release = deferred<void>()
+    const authorization = gate.runAuthorization('device.resetDataByType', () => release.promise)
+    gate.beginShutdown()
+    let drained = false
+    const drain = gate.drainForShutdown().then(() => {
+      drained = true
+    })
+    await Promise.resolve()
+    expect(drained).toBe(false)
+    release.resolve()
+    await authorization
+    await drain
+  })
+
+  it('bounds shutdown waiting without losing an unfinished maintenance owner', async () => {
+    vi.useFakeTimers()
+    const gate = new DatabaseRequestGate(() => undefined)
+    const release = deferred<void>()
+    const maintenance = gate.runMaintenance(() => release.promise)
+    gate.beginShutdown()
+    const timeout = expect(gate.drainForShutdown()).rejects.toThrow('30000ms')
+    await vi.advanceTimersByTimeAsync(30_000)
+    await timeout
+    expect(vi.getTimerCount()).toBe(0)
+    let drained = false
+    const retry = gate.drainForShutdown().then(() => {
+      drained = true
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(drained).toBe(false)
+    release.resolve()
+    await maintenance
+    await retry
+    expect(vi.getTimerCount()).toBe(0)
+    expect(() => gate.resume()).toThrow('cannot resume')
+  })
+
+  it('retains exclusive maintenance ownership after ordinary admission resumes', async () => {
+    const gate = new DatabaseRequestGate(() => undefined)
+    const entered = deferred<void>()
+    const release = deferred<void>()
+    const maintenance = gate.runMaintenance(async () => {
+      gate.resume()
+      entered.resolve()
+      await release.promise
+    })
+    await entered.promise
+    await expect(gate.runMaintenance(async () => undefined)).rejects.toThrow('still completing')
+    expect(await gate.runRequest('providers.add', async () => 'ready')).toBe('ready')
+    release.resolve()
+    await maintenance
+    await gate.runMaintenance(async () => gate.resume())
   })
 })

@@ -769,7 +769,7 @@ export async function createMainProcessControl(dependencies: {
     },
     authorize: async (input) => {
       if (!cliRequestPolicy) throw new Error('CLI request policy is not ready')
-      return await databaseRequests.runRequest(input.entry.contract.name, () =>
+      return await databaseRequests.runAuthorization(input.entry.contract.name, () =>
         cliRequestPolicy.authorize(input)
       )
     },
@@ -3064,6 +3064,7 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('agentCliTokenAuthority.clear', () => agentCliTokenAuthority.clear())
     await runDestroyStep('cliServer.stop', () => cliServer.stop())
     await runDestroyStep('oauthService.stop', () => oauthService.stop())
+    await startupWorkloadCoordinator.cancelAndDrainTarget('main')
     await runDestroyStep('automaticSync.close', () => automaticSync!.close())
     await runDestroyStep('syncPeerService.stop', () => syncPeerService.stop())
     await runDestroyStep('syncHostService.stop', () => syncHostService.stop())
@@ -3176,6 +3177,7 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('ocrRuntimeService.close', () => ocrRuntimeService.close())
     await runDestroyStep('providerRuntime.shutdown', () => providerRuntime.shutdown())
     await runDestroyStep('acpRuntime.shutdown', () => acpRuntimeOwner.shutdown())
+    await databaseRequests.drainForShutdown()
     await runDestroyStep('mainDatabase.close', () => mainDatabase.close())
     await runDestroyStep('shortcutPresenter.destroy', () => shortcutPresenter.destroy())
     await runDestroyStep('notificationService.clearAllNotifications', () =>
@@ -3735,6 +3737,7 @@ export async function createMainProcessControl(dependencies: {
     async () => {
       shutdownStepFailures = 0
       appLifecycleState = 'stopping'
+      databaseRequests.beginShutdown()
       databaseSecurityService.stop()
       dependencies.secretStore.pause()
       windowPresenter.setApplicationQuitting(true)
@@ -3793,18 +3796,33 @@ export async function createMainProcessControl(dependencies: {
     if (['stopping', 'stopped'].includes(appLifecycleState)) {
       throw new Error(`App lifecycle is ${appLifecycleState}`)
     }
-    if (databaseRequests.state !== 'running') {
-      throw new Error(`App database maintenance is ${databaseRequests.state}`)
+    const maintenanceState = databaseRequests.state
+    if (maintenanceState !== 'running') {
+      throw new Error(`App database maintenance is ${maintenanceState}`)
     }
     if (syncService.isBackupInProgress()) throw new Error('sync.tunnel.error.busy')
-    databaseRequests.beginMaintenance()
+    try {
+      return await databaseRequests.runMaintenance(() => performDatabaseMaintenance(command))
+    } catch (error) {
+      if (
+        databaseRequests.state === 'failed' &&
+        !['stopping', 'stopped'].includes(appLifecycleState)
+      )
+        await stopForCleanup()
+      throw error
+    }
+  }
+
+  async function performDatabaseMaintenance(
+    command: DatabaseMaintenanceCommand
+  ): Promise<DatabaseMaintenanceResult> {
     try {
       await startupWorkloadCoordinator.cancelAndDrainTarget('main')
       if (['stopping', 'stopped'].includes(appLifecycleState)) {
         throw new Error(`App lifecycle is ${appLifecycleState}`)
       }
     } catch (error) {
-      databaseRequests.resume()
+      if (databaseRequests.state === 'maintenance') databaseRequests.resume()
       throw error
     }
 
@@ -3902,19 +3920,23 @@ export async function createMainProcessControl(dependencies: {
     }
 
     try {
+      if (['stopping', 'stopped'].includes(appLifecycleState)) {
+        throw new Error(`App lifecycle is ${appLifecycleState}`)
+      }
       if (!mainDatabase.getDatabase().open) {
         reopenApplicationDatabase()
       }
       deepChatAgentHarness.reconcileAfterDatabaseReopen()
-      if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped') {
-        throw new Error(`App lifecycle is ${appLifecycleState}`)
-      }
       dependencies.secretStore.resume()
       memoryIngestionObserver.resumeIngestion()
       memoryService.startBackgroundMaintenance()
       hookService.start()
       cronJobs.start()
       await remoteService.initialize()
+      if (['stopping', 'stopped'].includes(appLifecycleState)) {
+        await remoteService.destroy()
+        throw new Error(`App lifecycle is ${appLifecycleState}`)
+      }
       liveDelegationService = createLiveDelegationService()
       liveDelegationService.start()
       const startupRunId = startupWorkloadCoordinator.createRun('main')
@@ -3924,8 +3946,7 @@ export async function createMainProcessControl(dependencies: {
       syncReplica?.wake()
       await automaticSync?.start()
     } catch (error) {
-      databaseRequests.fail()
-      await stopForCleanup()
+      if (!['stopping', 'stopped'].includes(appLifecycleState)) databaseRequests.fail()
       throw error
     }
 
