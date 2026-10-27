@@ -122,7 +122,10 @@ import {
   ExecutionContractDispatchError,
   assertExecutionContractAllowsDispatch
 } from '@/tape/domain/executionContract'
-import { RunCodeRuntimeManager } from './codeMode/runCodeRuntimeManager'
+import {
+  RunCodeRuntimeManager,
+  type RunCodeRuntimeManagerOptions
+} from './codeMode/runCodeRuntimeManager'
 import {
   APPLY_PATCH_TOOL_NAME,
   CODE_MODE_EXEC_TOOL_NAME,
@@ -151,6 +154,7 @@ type McpToolPort = Pick<
 >
 
 interface ToolServiceOptions {
+  spawnCodeModeHost: RunCodeRuntimeManagerOptions['spawnHost']
   mcpService: McpToolPort
   providerSettings: Pick<ProviderSettingsPort, 'getModelConfig' | 'isKnownModel'>
   settings: Pick<SettingsStore, 'get'>
@@ -277,6 +281,7 @@ export class ToolService implements ToolServicePort {
     this.mapper = new ToolMapper()
     this.conversationMappers = new Map()
     this.runCodeRuntime = new RunCodeRuntimeManager({
+      spawnHost: options.spawnCodeModeHost,
       executeNested: async (input) =>
         await this.callTool(
           {
@@ -643,6 +648,10 @@ export class ToolService implements ToolServicePort {
         ? createCodexCodeModeToolDefinitions(decoratedCatalog)
         : [createRunCodeToolDefinition()]
     return [...codeEntryTools, ...codeModeDirectTools]
+  }
+
+  stopCodeRuntime(): void {
+    this.runCodeRuntime.stop()
   }
 
   async shutdownCodeRuntime(): Promise<void> {

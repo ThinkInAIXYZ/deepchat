@@ -14,6 +14,7 @@ import {
 
 class FakeUtilityProcess extends EventEmitter {
   readonly pid = 42
+  readonly getRssBytes = vi.fn<(signal: AbortSignal) => Promise<number | null>>(async () => null)
   readonly messages: RunCodeParentMessage[] = []
   readonly kill = vi.fn(() => true)
 
@@ -79,7 +80,7 @@ const createManager = (
   host: FakeUtilityProcess,
   executeNested: RunCodeRuntimeManagerOptions['executeNested'] = vi.fn(async () => ({
     content: 'nested result',
-    rawData: { content: 'nested result' }
+    rawData: { toolCallId: 'fixture-nested-call', content: 'nested result' }
   }))
 ) =>
   new RunCodeRuntimeManager({
@@ -91,6 +92,196 @@ const createManager = (
   })
 
 describe('RunCodeRuntimeManager', () => {
+  const deferred = <T>() => {
+    let resolve!: (value: T) => void
+    const promise = new Promise<T>((settle) => {
+      resolve = settle
+    })
+    return { promise, resolve }
+  }
+  const codeInput = () => ({
+    sessionId: 'session-1',
+    toolCallId: 'call-1',
+    frontend: 'function' as const,
+    source: 'return true',
+    executionCatalog: [] as MCPToolDefinition[],
+    outerDispatch: outerDispatch(),
+    options: {}
+  })
+
+  it('reserves a session during asynchronous startup before a second dispatch can commit', async () => {
+    const ready = deferred<FakeUtilityProcess>()
+    const spawnHost = vi.fn(() => ready.promise)
+    const manager = new RunCodeRuntimeManager({ spawnHost, executeNested: vi.fn() })
+    const first = manager.execute(codeInput())
+    await vi.waitFor(() => expect(spawnHost).toHaveBeenCalledOnce())
+    await expect(manager.execute({ ...codeInput(), toolCallId: 'second' })).rejects.toThrow(
+      'already has a code cell starting'
+    )
+    const host = new FakeUtilityProcess(true)
+    ready.resolve(host)
+    await vi.waitFor(() => expect(host.listenerCount('message')).toBe(1))
+    host.becomeReady()
+    await expect(first).resolves.toMatchObject({ content: expect.stringContaining('from console') })
+    expect(spawnHost).toHaveBeenCalledOnce()
+    await manager.shutdown()
+  })
+
+  it('keeps shutdown pending for an uncancelable physical spawn and never starts its late cell', async () => {
+    const ready = deferred<FakeUtilityProcess>()
+    const spawnHost = vi.fn(() => ready.promise)
+    const manager = new RunCodeRuntimeManager({ spawnHost, executeNested: vi.fn() })
+    const rejected = expect(manager.execute(codeInput())).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+    await vi.waitFor(() => expect(spawnHost).toHaveBeenCalledOnce())
+    let stopped = false
+    const stop = manager.shutdown().then(() => {
+      stopped = true
+    })
+    await rejected
+    expect(stopped).toBe(false)
+    await expect(manager.execute(codeInput())).rejects.toThrow('shutting down')
+    const host = new FakeUtilityProcess(false)
+    ready.resolve(host)
+    await stop
+    expect(host.kill).toHaveBeenCalledOnce()
+    expect(host.messages).toEqual([])
+  })
+
+  it.each(['caller', 'session'])(
+    'retains the startup lease after %s cancellation until actual settlement',
+    async (kind) => {
+      const ready = deferred<FakeUtilityProcess>()
+      const next = new FakeUtilityProcess(true)
+      const spawnHost = vi
+        .fn()
+        .mockImplementationOnce(() => ready.promise)
+        .mockImplementationOnce(async () => {
+          setTimeout(() => next.becomeReady(), 0)
+          return next
+        })
+      const manager = new RunCodeRuntimeManager({ spawnHost, executeNested: vi.fn() })
+      const caller = new AbortController()
+      const rejected = expect(
+        manager.execute({ ...codeInput(), options: { signal: caller.signal } })
+      ).rejects.toThrow(kind === 'caller' ? 'aborted' : 'session canceled')
+      await vi.waitFor(() => expect(spawnHost).toHaveBeenCalledOnce())
+      if (kind === 'caller') caller.abort()
+      else manager.cancelSession('session-1', 'session canceled')
+      await rejected
+      await expect(manager.execute(codeInput())).rejects.toThrow('already has a code cell starting')
+      const old = new FakeUtilityProcess(false)
+      ready.resolve(old)
+      await vi.waitFor(() => expect(old.kill).toHaveBeenCalledOnce())
+      await expect(manager.execute(codeInput())).resolves.toHaveProperty('content')
+      expect(old.messages).toEqual([])
+      expect(spawnHost).toHaveBeenCalledTimes(2)
+      await manager.shutdown()
+    }
+  )
+
+  it('drains an uncancelable nested handler after the cell has exited without accepting its late result', async () => {
+    const host = new FakeUtilityProcess(false)
+    const entered = deferred<void>(),
+      release = deferred<void>()
+    let nestedSignal: AbortSignal | undefined
+    const manager = createManager(host, async (input) => {
+      nestedSignal = input.options.signal
+      entered.resolve()
+      await release.promise
+      return {
+        content: 'late result',
+        rawData: { toolCallId: 'fixture-nested-call', content: 'late result' }
+      }
+    })
+    const rejected = expect(
+      manager.execute({ ...codeInput(), executionCatalog: [tool('exec')] })
+    ).rejects.toThrow('shut down')
+    await vi.waitFor(() => expect(host.messages[0]?.type).toBe('START'))
+    const start = host.messages[0] as Extract<RunCodeParentMessage, { type: 'START' }>
+    host.emit('message', {
+      type: 'NESTED_CALL',
+      version: RUN_CODE_PROTOCOL_VERSION,
+      cellId: start.cellId,
+      callId: 'nested',
+      bindingId: start.bindings[0].id,
+      arguments: {}
+    })
+    await entered.promise
+    let stopped = false
+    const stop = manager.shutdown().then(() => {
+      stopped = true
+    })
+    await rejected
+    expect(nestedSignal?.aborted).toBe(true)
+    expect(stopped).toBe(false)
+    release.resolve()
+    await stop
+    expect(host.messages.some((message) => message.type === 'NESTED_RESULT')).toBe(false)
+  })
+
+  it('coalesces RSS reads and drains a held sample without acting on its late value', async () => {
+    vi.useFakeTimers()
+    try {
+      const host = new FakeUtilityProcess(false),
+        sample = deferred<number | null>()
+      host.getRssBytes.mockReturnValue(sample.promise)
+      const manager = createManager(host)
+      const rejected = expect(manager.execute(codeInput())).rejects.toThrow('shut down')
+      await vi.advanceTimersByTimeAsync(3_000)
+      expect(host.getRssBytes).toHaveBeenCalledOnce()
+      let stopped = false
+      const stop = manager.shutdown().then(() => {
+        stopped = true
+      })
+      await rejected
+      expect(host.getRssBytes.mock.calls[0][0].aborted).toBe(true)
+      expect(stopped).toBe(false)
+      sample.resolve(513 * 1024 * 1024)
+      await stop
+      expect(host.messages.filter((message) => message.type === 'STOP')).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('enforces the existing hard RSS limit through the injected sampling capability', async () => {
+    vi.useFakeTimers()
+    try {
+      const host = new FakeUtilityProcess(false)
+      host.getRssBytes.mockResolvedValue(513 * 1024 * 1024)
+      const manager = createManager(host)
+      const rejected = expect(manager.execute(codeInput())).rejects.toThrow('512 MiB RSS limit')
+      await vi.advanceTimersByTimeAsync(1_001)
+      await rejected
+      await manager.shutdown()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the five-second readiness deadline and releases a silent helper', async () => {
+    vi.useFakeTimers()
+    try {
+      const host = new FakeUtilityProcess(false)
+      const manager = new RunCodeRuntimeManager({
+        spawnHost: async () => host,
+        executeNested: vi.fn()
+      })
+      const rejected = expect(manager.execute(codeInput())).rejects.toThrow('within 5 seconds')
+      await vi.advanceTimersByTimeAsync(4_999)
+      expect(host.kill).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      await rejected
+      expect(host.kill).toHaveBeenCalledOnce()
+      expect(host.messages).toEqual([])
+      await manager.shutdown()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('rejects partial execution-journal capability wiring before starting a cell', async () => {
     const host = new FakeUtilityProcess(false)
     const manager = createManager(host)
@@ -236,8 +427,9 @@ describe('RunCodeRuntimeManager', () => {
       const spawning = new Promise<FakeUtilityProcess>((resolve) => {
         resolveHost = resolve
       })
+      const spawnHost = vi.fn(() => spawning)
       const manager = new RunCodeRuntimeManager({
-        spawnHost: () => spawning,
+        spawnHost,
         executeNested: vi.fn()
       })
       const execution = manager.execute({
@@ -250,6 +442,7 @@ describe('RunCodeRuntimeManager', () => {
         options: { signal: controller.signal }
       })
       const cancellation = expect(execution).rejects.toMatchObject({ name: 'AbortError' })
+      await vi.waitFor(() => expect(spawnHost).toHaveBeenCalledOnce())
       if (stage !== 'spawn') {
         resolveHost(host)
         await vi.waitFor(() => expect(host.listenerCount('message')).toBe(1))
@@ -345,10 +538,10 @@ describe('RunCodeRuntimeManager', () => {
     const manager = createManager(
       host,
       vi.fn(async () => ({
-        content: [{ type: 'text', text: 'rendered fallback' }],
+        content: [{ type: 'text' as const, text: 'rendered fallback' }],
         rawData: {
           toolCallId: 'nested-1',
-          content: [{ type: 'text', text: 'rendered fallback' }],
+          content: [{ type: 'text' as const, text: 'rendered fallback' }],
           structuredContent: { answer: 42 }
         }
       }))
@@ -409,7 +602,7 @@ describe('RunCodeRuntimeManager', () => {
       host,
       vi.fn(async () => ({
         content: 'nested failure',
-        rawData: { content: 'nested failure', isError: true }
+        rawData: { toolCallId: 'fixture-nested-call', content: 'nested failure', isError: true }
       }))
     )
     const execution = manager.execute({
@@ -545,7 +738,7 @@ describe('RunCodeRuntimeManager', () => {
         normalizedArguments: input.arguments as Record<string, unknown>,
         target: { serverName: 'test', originalName: input.definition.function.name }
       })
-      return { content: 'done', rawData: { content: 'done' } }
+      return { content: 'done', rawData: { toolCallId: 'fixture-nested-call', content: 'done' } }
     })
     const manager = createManager(host, executeNested)
     const yielded = await manager.execute({
@@ -616,7 +809,7 @@ describe('RunCodeRuntimeManager', () => {
         target: { serverName: 'test', originalName: input.definition.function.name }
       })
       await nestedPending
-      return { content: 'done', rawData: { content: 'done' } }
+      return { content: 'done', rawData: { toolCallId: 'fixture-nested-call', content: 'done' } }
     })
     const manager = createManager(host, executeNested)
     const execution = manager.execute({
@@ -678,18 +871,21 @@ describe('RunCodeRuntimeManager', () => {
       .mockResolvedValueOnce({
         content: 'permission required',
         rawData: {
+          toolCallId: 'fixture-nested-call',
           content: 'permission required',
           requiresPermission: true,
           permissionRequest: {
+            serverName: 'agent-filesystem',
+            description: 'Approve fixture command',
             toolName: 'exec',
-            permissionType: 'command',
+            permissionType: 'command' as const,
             command: 'git status --short'
           }
         }
       })
       .mockResolvedValueOnce({
         content: 'clean',
-        rawData: { content: 'clean' }
+        rawData: { toolCallId: 'fixture-nested-call', content: 'clean' }
       })
     const manager = createManager(host, executeNested)
     const input = {
@@ -720,7 +916,7 @@ describe('RunCodeRuntimeManager', () => {
     })
 
     await expect(firstExecution).resolves.toMatchObject({
-      rawData: { requiresPermission: true }
+      rawData: { toolCallId: 'fixture-nested-call', requiresPermission: true }
     })
 
     const retriedExecution = manager.execute({
@@ -758,18 +954,21 @@ describe('RunCodeRuntimeManager', () => {
       .mockResolvedValueOnce({
         content: 'permission required',
         rawData: {
+          toolCallId: 'fixture-nested-call',
           content: 'permission required',
           requiresPermission: true,
           permissionRequest: {
+            serverName: 'agent-filesystem',
+            description: 'Approve fixture command',
             toolName: 'exec',
-            permissionType: 'command',
+            permissionType: 'command' as const,
             command: 'git status --short'
           }
         }
       })
       .mockResolvedValueOnce({
         content: 'nested failure',
-        rawData: { content: 'nested failure', isError: true }
+        rawData: { toolCallId: 'fixture-nested-call', content: 'nested failure', isError: true }
       })
     const manager = createManager(host, executeNested)
     const input = {
@@ -799,7 +998,7 @@ describe('RunCodeRuntimeManager', () => {
       arguments: { command: 'git status --short' }
     })
     await expect(firstExecution).resolves.toMatchObject({
-      rawData: { requiresPermission: true }
+      rawData: { toolCallId: 'fixture-nested-call', requiresPermission: true }
     })
 
     const retriedExecution = manager.execute({
@@ -837,9 +1036,12 @@ describe('RunCodeRuntimeManager', () => {
       const executeNested = vi.fn(async () => ({
         content: 'permission required',
         rawData: {
+          toolCallId: 'fixture-nested-call',
           content: 'permission required',
           requiresPermission: true,
           permissionRequest: {
+            serverName: 'agent-filesystem',
+            description: 'Approve fixture command',
             toolName: 'exec',
             permissionType: 'command' as const,
             command: 'git status --short'
@@ -872,7 +1074,7 @@ describe('RunCodeRuntimeManager', () => {
         arguments: { command: 'git status --short' }
       })
       await expect(execution).resolves.toMatchObject({
-        rawData: { requiresPermission: true }
+        rawData: { toolCallId: 'fixture-nested-call', requiresPermission: true }
       })
 
       const heartbeat = setInterval(() => {
@@ -911,7 +1113,10 @@ describe('RunCodeRuntimeManager', () => {
         await new Promise<void>((resolve) => {
           finishNested = resolve
         })
-        return { content: 'late result', rawData: { content: 'late result' } }
+        return {
+          content: 'late result',
+          rawData: { toolCallId: 'fixture-nested-call', content: 'late result' }
+        }
       })
       const manager = createManager(host, executeNested)
       const execution = manager.execute({

@@ -1556,10 +1556,62 @@ performance/resource suite was repeated and no speed gain is claimed. Evidence i
 `.deepchat/rutis-g4-background-exec-acceptance/`.
 
 The installer baseline `edfb8ab43` passes required `40464593274`/barrier `122059109164` and all six
-packages `40464593265`/barrier `122065276883` before this checkpoint is published. The new checkpoint
-still needs its own exact-head CI. Native Windows/Linux full-app behavior, Code Mode and other
+packages `40464593265`/barrier `122065276883` before this checkpoint is published. Background head
+`12a73394f` passes required `40467842999`/barrier `122069829980` and all six packages
+`40467843051`/barrier `122075929024`. Native Windows/Linux full-app behavior, Code Mode and other
 desktop capability ports, remaining Store ownership and the cohesive backend move remain open.
 G4 is active; G5 has not started.
+
+### Code Mode helper and callback ownership
+
+Supply the existing Code Mode manager with a required approved helper capability. Keep native
+launch configuration, events and bound RSS reads in Main; retain VM/protocol/journal bounds and
+session state semantics. Reserve pending startup before any await, track actual callback lifetime
+through cancellation and close/drain it before Store teardown. Coalesce RSS reads and fence old
+cells without adding a generic process supervisor.
+
+Characterize actual Code Mode nested execution and isolated VM globals before the
+host boundary changes, because tool feedback and journal commitment must remain compatible.
+
+- [x] Inject the host capability through ToolService; remove native defaults and own pending
+      startup, sampling and nested callbacks across cancel/shutdown.
+- [x] Compare real Code Mode execution/reopen and held readiness shutdown; verify concurrency,
+      memory limits, lifecycle faults and affected Tool/Harness contracts.
+
+Main supplies the approved absolute helper entry and a plain host channel through ToolService.
+The adapter retains the restricted environment, 64 MiB heap and unsigned-library policy; RSS
+reads are bound to that helper rather than an arbitrary PID. The manager retains the existing
+READY deadline, heartbeat, source/output bounds, 512 MiB hard RSS limit, execution journal,
+permission retry and frontend-specific state semantics. Native imports and path guessing are
+removed from the manager.
+
+Session startup is reserved before asynchronous effects. Cancellation returns promptly while
+the owner retains actual startup completion and compensates a late host. Stop closes admission;
+shutdown drains actual nested-tool and coalesced RSS callbacks before Skill/Store teardown.
+Aborted callbacks cannot publish a late result. Main invokes this critical drain directly rather
+than logging a failure and continuing to close the writer.
+
+Validation: **547 checks across 10 affected native suites and 23 generated-catalog checks across
+two files pass**. App and scoped native-adapter/manager/E2E types, normal/final application builds,
+format/check, lint and i18n pass. Regression cases cover concurrent startup, canceled startup
+reuse, late host compensation, uncooperative nested callbacks, actual RSS drain/coalescing and
+the unchanged READY and RSS limits. The touched manager fixtures also pass strict typechecking.
+
+The immutable `12a73394f` app and candidate pass the same nested execution, cell-global isolation
+and persisted-message reopen scenario; the final exact-assertion comparison passes in 6.4/5.2 s.
+Seven candidate app cases pass in 33.9 s, including held Code Mode READY shutdown with helper exit
+and no subsequent tool/model round, background execution completion/shutdown/held startup and
+native credential/database-maintenance shutdown holds. The function frontend is exercised in
+the app; Codex store/yield/permission semantics remain covered by the VM/manager suites, without
+claiming an authenticated Codex account E2E.
+
+The manager, actual 350-module Harness entry and ProviderRuntime import in ordinary Node with
+Electron/electron-store forbidden and no native imports. This establishes module loading, not a
+composed headless backend or a relocated writer. Evidence and artifact hashes are in
+`.deepchat/rutis-g4-code-mode-acceptance/`. The normal generated Provider catalog refresh is retained
+separately in `f560f941e`. No performance/resource suite was repeated, no timing gate was added and
+no speed gain is claimed. The preceding `12a73394f` CI completed before publication; this checkpoint still
+needs its own exact-head CI. Remaining desktop/Store boundaries keep G4 active; G5 is unstarted.
 
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.

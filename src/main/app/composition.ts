@@ -326,6 +326,7 @@ import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigr
 import { AcpAuthService } from '@/agent/acp/auth/acpAuthService'
 import { BackgroundExecService } from '@/agent/shared/process/backgroundExecSessionManager'
 import { spawnBackgroundExecHost } from './backgroundExecHost'
+import { spawnCodeModeHost } from './codeModeHost'
 import {
   runBuiltinMcpAllowlistCompatibilityMigration,
   runDisabledAgentToolCapabilityCleanupMigration,
@@ -2142,6 +2143,8 @@ export async function createMainProcessControl(dependencies: {
 
   // Initialize the merged MCP and built-in Tool service.
   toolService = new ToolService({
+    spawnCodeModeHost: (signal) =>
+      spawnCodeModeHost(path.join(app.getAppPath(), 'out/main/codeModeUtilityHost.js'), signal),
     mcpService: mcpService,
     providerSettings: providerSettings,
     settings: dependencies.settingsStore,
@@ -3158,7 +3161,7 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('hookService.stop', () => hookService.stop())
     await runDestroyStep('sessionRuntimes.suspend', () => suspendSessionRuntimes())
     await backgroundExec.shutdown()
-    await runDestroyStep('toolService.shutdownCodeRuntime', () => toolService.shutdownCodeRuntime())
+    await toolService.shutdownCodeRuntime()
     const pendingSkillInitialization = skillInitializationPromise
     if (pendingSkillInitialization) {
       await runDestroyStep('skillInitialization.drain', async () => {
@@ -3809,6 +3812,7 @@ export async function createMainProcessControl(dependencies: {
       agentSettings.stop()
       deepChatAgentHarness.abortGenerations()
       backgroundExec.stop()
+      toolService.stopCodeRuntime()
       databaseSecurityService.stop()
       dependencies.secretStore.pause()
       windowPresenter.setApplicationQuitting(true)

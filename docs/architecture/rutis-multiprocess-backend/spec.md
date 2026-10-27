@@ -922,6 +922,16 @@ Helper loss can restart on subsequent ordinary work; terminal shutdown cannot re
 process objects remain inside Main's adapter. G5 supplies the corresponding backend-owned launch
 capability without exposing arbitrary process-launch IPC.
 
+Code Mode receives its approved helper launch through a required host capability. Main owns the
+absolute helper entry, native events and per-host RSS sampling; preserve the restricted environment,
+64 MiB heap, unsigned-library policy, protocol/READY deadline and memory/output limits. Reserve a
+session before asynchronous startup. Caller cancellation keeps a prompt receipt while the owner
+retains physical startup and compensates a late helper. Shutdown closes admission, cancels pending
+startup and waits for actual startup, RSS and nested-tool callbacks before Store teardown. Sampling
+coalesces per cell and cannot act after that cell stops. Preserve session-scoped state, permission
+retry, capability/journal identities and existing result/yield semantics. No optional native
+fallback, process object, raw metric list or generic PID/launch endpoint crosses the boundary.
+
 ACP registry ownership includes its manifest, icon cache and acknowledged repository/Provider
 updates. Main supplies absolute profile/built-in directories and an asynchronous icon-text
 capability; the core receives no Electron Response or native object. Retain the existing URL,
