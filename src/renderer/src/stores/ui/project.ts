@@ -13,7 +13,7 @@ export interface UIProject {
   isSynthetic?: boolean
 }
 
-type ProjectSelectionSource = 'none' | 'manual' | 'default'
+type ProjectSelectionSource = 'none' | 'manual' | 'default' | 'agent'
 
 type OpenFolderPickerOptions = {
   select?: boolean
@@ -64,7 +64,7 @@ export const useProjectStore = defineStore('project', () => {
     const nextProjects = baseProjects.filter((project) => !project.isSynthetic)
     const syntheticPaths: string[] = []
     if (
-      selectionSource.value === 'manual' &&
+      (selectionSource.value === 'manual' || selectionSource.value === 'agent') &&
       selectedProjectPath.value &&
       !nextProjects.some((project) => project.path === selectedProjectPath.value)
     ) {
@@ -104,7 +104,7 @@ export const useProjectStore = defineStore('project', () => {
     removedEnvironments.value = snapshot.removedEnvironments
     if (
       selectedProjectPath.value &&
-      selectionSource.value === 'manual' &&
+      (selectionSource.value === 'manual' || selectionSource.value === 'agent') &&
       [...archivedEnvironments.value, ...removedEnvironments.value].some(
         (environment) =>
           normalizeWorkspacePath(environment.path) ===
@@ -182,6 +182,12 @@ export const useProjectStore = defineStore('project', () => {
       error.value = message
       throw new Error(message)
     }
+  }
+
+  async function ensureChatWorkspace(): Promise<string> {
+    const result = await projectClient.ensureChatWorkspace()
+    await requireProjectSnapshot(result.version)
+    return result.path
   }
 
   function ensureListenersRegistered(): void {
@@ -371,6 +377,7 @@ export const useProjectStore = defineStore('project', () => {
     applyBootstrapDefaultProjectPath,
     refreshEnvironmentData,
     refreshProjectSnapshot,
+    ensureChatWorkspace,
     selectProject,
     setDefaultProject,
     clearDefaultProject: () => setDefaultProject(null),

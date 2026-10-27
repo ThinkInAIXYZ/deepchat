@@ -1,6 +1,12 @@
 <template>
-  <div class="flex flex-wrap items-center gap-2 px-3 pb-3 pt-1">
-    <div class="flex items-center gap-1">
+  <div
+    data-testid="chat-input-toolbar"
+    class="composer-toolbar flex items-center gap-2 px-3 pb-3 pt-1"
+    @pointerenter="resetRevealedControls"
+    @pointerover="revealControl"
+    @transitionend="keepFocusedControlVisible"
+  >
+    <div class="flex shrink-0 items-center gap-1">
       <!-- Attach button -->
       <DcButton
         variant="ghost"
@@ -15,7 +21,7 @@
       />
     </div>
 
-    <div v-if="$slots.settings" class="min-w-0 flex-1">
+    <div v-if="$slots.settings" class="scrollbar-hide min-w-0 flex-1 overflow-x-auto">
       <slot name="settings" />
     </div>
 
@@ -242,6 +248,35 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+// Keep revealed controls stable while moving between them or into an open menu.
+function resetRevealedControls(event: PointerEvent) {
+  const toolbar = event.currentTarget as HTMLElement
+  if (toolbar.querySelector('[aria-expanded="true"]')) return
+  for (const control of toolbar.querySelectorAll('[data-composer-revealed]')) {
+    if (!control.matches(':hover')) control.removeAttribute('data-composer-revealed')
+  }
+}
+
+function revealControl(event: PointerEvent) {
+  if (event.pointerType === 'touch' || !(event.target instanceof Element)) return
+  event.target.closest('.composer-control')?.setAttribute('data-composer-revealed', '')
+}
+
+// Label expansion can push a focused control past the scroll container's edge.
+function keepFocusedControlVisible(event: TransitionEvent) {
+  if (
+    event.propertyName !== 'grid-template-columns' ||
+    !(event.target instanceof Element) ||
+    !event.target.classList.contains('composer-control-details')
+  )
+    return
+  const control = event.target.closest<HTMLElement>('.composer-control')
+  if (control?.matches(':focus-visible')) {
+    control.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }
+}
+
 const hasActiveInput = computed(() => props.hasInput || props.hasText)
 const voiceInputButtonClass = computed(() => {
   if (props.isVoiceInputListening) {
@@ -301,6 +336,43 @@ function handlePrimaryAction() {
 </script>
 
 <style scoped>
+:deep(.composer-control) {
+  min-width: 2rem;
+  gap: 0;
+  padding-inline: 0.5rem;
+}
+
+:deep(.composer-control-details) {
+  display: grid;
+  min-width: 0;
+  max-width: min(18rem, 50vw);
+  grid-template-columns: 0fr;
+  overflow: hidden;
+  opacity: 0;
+  margin-inline-start: 0;
+  transition:
+    grid-template-columns var(--dc-motion-default) var(--dc-ease-out-soft),
+    margin-inline-start var(--dc-motion-default) var(--dc-ease-out-soft),
+    opacity var(--dc-motion-fast) var(--dc-ease-out-soft);
+}
+
+:deep(
+  .composer-control:is(:focus-visible, :disabled, [aria-expanded='true']) .composer-control-details
+) {
+  grid-template-columns: 1fr;
+  margin-inline-start: 0.25rem;
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .composer-toolbar:is(:hover, :has([aria-expanded='true']))
+    :deep(.composer-control[data-composer-revealed] .composer-control-details) {
+    grid-template-columns: 1fr;
+    margin-inline-start: 0.25rem;
+    opacity: 1;
+  }
+}
+
 .voice-wave {
   width: 18px;
   height: 18px;
@@ -353,6 +425,10 @@ function handlePrimaryAction() {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  :deep(.composer-control-details) {
+    transition: none;
+  }
+
   .voice-wave-bar {
     animation: none;
     transform: scaleY(0.8);

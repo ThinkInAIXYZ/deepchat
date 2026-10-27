@@ -284,7 +284,7 @@ describe('NewThreadPage guided onboarding', () => {
 
   it('anchors the switch-agent guide to the selector while the menu is closed', async () => {
     const selector = document.createElement('button')
-    selector.dataset.testid = 'sidebar-agent-selector'
+    selector.dataset.testid = 'new-thread-agent-selector'
     selector.setAttribute('aria-expanded', 'false')
     document.body.appendChild(selector)
     const { wrapper } = await setup('switch-agent')

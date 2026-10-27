@@ -448,8 +448,7 @@
   "onboarding": {
     "agentSwitch": {
       "title": "Tukar kepada DeepChat Agent",
-      "description": "Sebelum memulakan sembang, tukar kembali kepada aliran perbualan DeepChat daripada ACP Agent.",
-      "caption": "Klik butang Agent yang diserlahkan di bar sisi untuk meneruskan."
+      "description": "Sebelum memulakan sembang, tukar kembali kepada aliran perbualan DeepChat daripada ACP Agent."
     },
     "switchModel": {
       "description": "Pilih model yang anda mahu gunakan untuk perbualan DeepChat pertama anda.",

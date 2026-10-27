@@ -533,8 +533,7 @@
   "onboarding": {
     "agentSwitch": {
       "title": "DeepChat Agent غا ئۆتۈش",
-      "description": "سۆھبەت باشلىماس تۇنجىسى، ACP Agent تىن DeepChat سۆھبەت ئاقىمىغا قايتىڭ.",
-      "caption": "تەرىپ يانتۇ قىسمىدىكى يورۇقلانغان Agent كۇنۇپكىسىنى چېكىپ داۋام قىلىڭ."
+      "description": "سۆھبەت باشلىماس تۇنجىسى، ACP Agent تىن DeepChat سۆھبەت ئاقىمىغا قايتىڭ."
     },
     "switchModel": {
       "description": "بىرىنچى DeepChat سۆھبىتى ئۈچۈن ئىشلىتىدىغان مودېلنى تاللاڭ.",

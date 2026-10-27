@@ -63,10 +63,11 @@ export const useAgentStore = defineStore('agent', () => {
   }
 
   function syncSelectedAgent(): void {
-    for (const selection of [selectedAgentId, filterAgentId]) {
-      if (selection.value && !enabledAgents.value.some((agent) => agent.id === selection.value)) {
-        selection.value = null
-      }
+    if (selectedAgentId.value && !enabledAgents.value.some((a) => a.id === selectedAgentId.value)) {
+      selectedAgentId.value = 'deepchat'
+    }
+    if (filterAgentId.value && !enabledAgents.value.some((a) => a.id === filterAgentId.value)) {
+      filterAgentId.value = null
     }
   }
 
@@ -183,15 +184,12 @@ export const useAgentStore = defineStore('agent', () => {
     }
   }
 
-  function setSelectedAgent(id: string | null, options?: { preserveFilter?: boolean }): void {
+  function setSelectedAgent(id: string | null): void {
     selectedAgentId.value = id
-    if (!options?.preserveFilter) {
-      filterAgentId.value = id
-    }
   }
 
-  function selectAgent(id: string | null): void {
-    setSelectedAgent(filterAgentId.value === id ? null : id)
+  function setFilterAgent(id: string | null): void {
+    filterAgentId.value = id
   }
 
   if (!listenersRegistered) {
@@ -229,6 +227,6 @@ export const useAgentStore = defineStore('agent', () => {
     fetchAgents,
     refreshAgentsByType,
     refreshAgentsByIds,
-    selectAgent
+    setFilterAgent
   }
 })

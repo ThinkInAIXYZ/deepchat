@@ -221,6 +221,8 @@ const setup = async (options: SetupOptions = {}) => {
     setSelectedAgent: vi.fn((id: string | null) => {
       operations.push(`set:${id ?? 'all'}`)
       agentStore.selectedAgentId = id
+    }),
+    setFilterAgent: vi.fn((id: string | null) => {
       agentStore.filterAgentId = id
     })
   })
@@ -670,61 +672,24 @@ describe('WindowSideBar agent switch', () => {
     TEST_TIMEOUT_MS
   )
 
-  it('selects all agents only through the explicit all-agents item', async () => {
-    const { wrapper, agentStore, sessionStore } = await setup()
-
-    await wrapper.get('[data-testid="sidebar-agent-all-button"]').trigger('click')
-    await flushPromises()
-
-    expect(sessionStore.closeSession).toHaveBeenCalledOnce()
-    expect(agentStore.setSelectedAgent).toHaveBeenCalledWith(null)
-    expect(agentStore.filterAgentId).toBeNull()
+  it.each([null, 'acp-a'])('changes only history filtering when selecting %s', async (id) => {
+    const { wrapper, agentStore, sessionStore, router } = await setup()
+    await (wrapper.vm as any).handleAgentSelect(id)
+    expect(agentStore.setFilterAgent).toHaveBeenCalledWith(id)
+    expect(agentStore.filterAgentId).toBe(id)
+    expect(agentStore.selectedAgentId).toBe('deepchat')
+    expect(sessionStore.closeSession).not.toHaveBeenCalled()
+    expect(router.push).not.toHaveBeenCalled()
   })
 
-  it(
-    'closes active session before applying selected agent',
-    async () => {
-      const { wrapper, operations, agentStore, sessionStore } = await setup()
-
-      await (wrapper.vm as any).handleAgentSelect('acp-a')
-
-      expect(sessionStore.closeSession).toHaveBeenCalledTimes(1)
-      expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
-      expect(operations).toEqual(['close', 'set:acp-a'])
-    },
-    TEST_TIMEOUT_MS
-  )
-
-  it(
-    'expands the collapsed sidebar before applying selected agent',
-    async () => {
-      const { wrapper, operations, agentStore, sidebarStore } = await setup({
-        collapsed: true,
-        activeSession: {
-          id: 'session-deepchat',
-          agentId: 'deepchat'
-        },
-        enabledAgents: [
-          { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
-          { id: 'acp-a', name: 'ACP A', type: 'acp', enabled: true }
-        ]
-      })
-
-      const sidebar = wrapper.get('[data-testid="window-sidebar"]')
-      expect(sidebar.classes()).toContain('w-12')
-
-      await wrapper
-        .get('[data-testid="sidebar-agent-button"][data-agent-id="acp-a"]')
-        .trigger('click')
-      await flushPromises()
-
-      expect(sidebarStore.setCollapsed).toHaveBeenCalledWith(false)
-      expect(wrapper.get('[data-testid="window-sidebar"]').classes()).toContain('w-[264px]')
-      expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-a')
-      expect(operations).toEqual(['close', 'set:acp-a'])
-    },
-    TEST_TIMEOUT_MS
-  )
+  it('expands the collapsed sidebar while preserving the active conversation', async () => {
+    const { wrapper, agentStore, sidebarStore, sessionStore } = await setup({ collapsed: true })
+    await (wrapper.vm as any).handleAgentSelect('acp-a')
+    expect(sidebarStore.setCollapsed).toHaveBeenCalledWith(false)
+    expect(agentStore.filterAgentId).toBe('acp-a')
+    expect(agentStore.selectedAgentId).toBe('deepchat')
+    expect(sessionStore.closeSession).not.toHaveBeenCalled()
+  })
 
   it('routes to chat before delegating sidebar new chat clicks to the unified session action', async () => {
     const { wrapper, sessionStore, router } = await setup({

@@ -44,7 +44,7 @@
             :files="attachedFiles"
             :session-id="acpDraftSessionId"
             :agent-id="selectedAgent.id"
-            :workspace-path="projectStore.selectedProject?.path ?? null"
+            :workspace-path="composerWorkspacePath"
             :is-acp-session="isAcpSelectedAgent"
             :supports-vision="composerSupportsVision"
             :editable="!isSubmittingInput"
@@ -91,6 +91,7 @@
                     ref="chatStatusBarRef"
                     :acp-draft-session-id="acpDraftSessionId"
                     max-width-class="max-w-none"
+                    :show-agent-badge="false"
                   />
                 </template>
               </ChatInputToolbar>
@@ -116,84 +117,151 @@
         </div>
 
         <div class="mt-2 w-full max-w-[var(--dc-chat-content-width)]">
-          <!-- Project selector -->
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <DcButton
-                variant="ghost"
-                size="sm"
-                data-testid="new-thread-project-trigger"
-                class="h-7 px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          <div data-testid="new-thread-context-selectors" class="flex min-w-0 items-center gap-1">
+            <!-- Project selector -->
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <DcButton
+                  variant="ghost"
+                  size="sm"
+                  data-testid="new-thread-project-trigger"
+                  class="h-7 min-w-0 shrink px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Icon
+                    :icon="selectedProjectIcon"
+                    :data-icon="selectedProjectIcon"
+                    data-testid="new-thread-project-trigger-icon"
+                    class="w-3.5 h-3.5"
+                  />
+                  <span class="max-w-[min(16rem,40vw)] truncate">{{ selectedProjectName }}</span>
+                  <Icon
+                    v-if="selectedProjectDirectoryInvalid"
+                    icon="lucide:circle-alert"
+                    data-testid="new-thread-project-missing-warning"
+                    class="w-3.5 h-3.5 text-amber-500"
+                    :title="selectedProjectUnavailableTooltip"
+                  />
+                  <Icon icon="lucide:chevron-down" class="w-3 h-3" />
+                </DcButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="center"
+                class="min-w-[200px] max-h-[min(28rem,calc(var(--reka-dropdown-menu-content-available-height)-0.75rem))] overflow-y-auto"
               >
-                <Icon
-                  :icon="selectedProjectIcon"
-                  :data-icon="selectedProjectIcon"
-                  data-testid="new-thread-project-trigger-icon"
-                  class="w-3.5 h-3.5"
+                <DropdownMenuLabel class="text-xs">{{
+                  t('common.project.recent')
+                }}</DropdownMenuLabel>
+                <DropdownMenuItem
+                  data-testid="new-thread-clear-project"
+                  class="gap-2 text-xs py-1.5 px-2"
+                  :disabled="!canClearProjectSelection"
+                  @click="clearSelectedProject"
+                >
+                  <Icon
+                    :icon="chatProjectIcon"
+                    :data-icon="chatProjectIcon"
+                    data-testid="new-thread-clear-project-icon"
+                    class="w-3.5 h-3.5 text-muted-foreground"
+                  />
+                  <span>{{ t('chat.sidebar.chats') }}</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  v-for="project in selectableProjects"
+                  :key="project.path"
+                  class="gap-2 text-xs py-1.5 px-2"
+                  @click="projectStore.selectProject(project.path)"
+                >
+                  <Icon
+                    :icon="getProjectMenuIcon(project.path)"
+                    class="w-3.5 h-3.5 text-muted-foreground"
+                  />
+                  <div class="flex flex-col min-w-0 flex-1">
+                    <span class="truncate">{{ getProjectDisplayName(project) }}</span>
+                    <span class="text-[10px] text-muted-foreground truncate">{{
+                      project.path
+                    }}</span>
+                  </div>
+                  <Icon
+                    v-if="isSelectedInvalidProjectPath(project.path)"
+                    icon="lucide:circle-alert"
+                    data-testid="new-thread-project-menu-missing-warning"
+                    class="w-3.5 h-3.5 text-amber-500 shrink-0"
+                    :title="selectedProjectUnavailableTooltip"
+                  />
+                </DropdownMenuItem>
+                <DcDropdownActionItem
+                  icon="lucide:folder-open"
+                  :label="t('common.project.openFolder')"
+                  class="text-xs py-1.5 px-2"
+                  @select="handleOpenFolderPicker"
                 />
-                <span>{{ selectedProjectName }}</span>
-                <Icon
-                  v-if="selectedProjectDirectoryInvalid"
-                  icon="lucide:circle-alert"
-                  data-testid="new-thread-project-missing-warning"
-                  class="w-3.5 h-3.5 text-amber-500"
-                  :title="selectedProjectUnavailableTooltip"
-                />
-                <Icon icon="lucide:chevron-down" class="w-3 h-3" />
-              </DcButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="center"
-              class="min-w-[200px] max-h-[min(28rem,calc(var(--reka-dropdown-menu-content-available-height)-0.75rem))] overflow-y-auto"
-            >
-              <DropdownMenuLabel class="text-xs">{{
-                t('common.project.recent')
-              }}</DropdownMenuLabel>
-              <DropdownMenuItem
-                data-testid="new-thread-clear-project"
-                class="gap-2 text-xs py-1.5 px-2"
-                :disabled="!canClearProjectSelection"
-                @click="clearSelectedProject"
-              >
-                <Icon
-                  :icon="chatProjectIcon"
-                  :data-icon="chatProjectIcon"
-                  data-testid="new-thread-clear-project-icon"
-                  class="w-3.5 h-3.5 text-muted-foreground"
-                />
-                <span>{{ t('chat.sidebar.chats') }}</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                v-for="project in selectableProjects"
-                :key="project.path"
-                class="gap-2 text-xs py-1.5 px-2"
-                @click="projectStore.selectProject(project.path)"
-              >
-                <Icon
-                  :icon="getProjectMenuIcon(project.path)"
-                  class="w-3.5 h-3.5 text-muted-foreground"
-                />
-                <div class="flex flex-col min-w-0 flex-1">
-                  <span class="truncate">{{ getProjectDisplayName(project) }}</span>
-                  <span class="text-[10px] text-muted-foreground truncate">{{ project.path }}</span>
-                </div>
-                <Icon
-                  v-if="isSelectedInvalidProjectPath(project.path)"
-                  icon="lucide:circle-alert"
-                  data-testid="new-thread-project-menu-missing-warning"
-                  class="w-3.5 h-3.5 text-amber-500 shrink-0"
-                  :title="selectedProjectUnavailableTooltip"
-                />
-              </DropdownMenuItem>
-              <DcDropdownActionItem
-                icon="lucide:folder-open"
-                :label="t('common.project.openFolder')"
-                class="text-xs py-1.5 px-2"
-                @select="handleOpenFolderPicker"
-              />
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <DcButton
+                  data-testid="new-thread-agent-selector"
+                  :data-selected-agent-id="selectedAgent.id"
+                  variant="ghost"
+                  size="sm"
+                  :disabled="isSubmittingInput"
+                  :aria-busy="chatStatusBarRef?.isAcpConfigLoading || undefined"
+                  :aria-label="`${t('chat.mode.agent')}: ${selectedAgent.name}`"
+                  :title="selectedAgent.name"
+                  class="h-7 min-w-14 shrink gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <AgentAvatar :agent="selectedAgent" class-name="size-3.5 shrink-0" />
+                  <span class="max-w-[min(12rem,30vw)] truncate">{{ selectedAgent.name }}</span>
+                  <Spinner
+                    v-if="chatStatusBarRef?.isAcpConfigLoading"
+                    data-testid="new-thread-agent-loading"
+                    :aria-label="t('common.loading')"
+                    class="size-3 shrink-0"
+                  />
+                  <Icon v-else icon="lucide:chevron-down" class="size-3 shrink-0" />
+                </DcButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" class="w-60">
+                <DropdownMenuItem
+                  v-for="agent in agentStore.enabledAgents"
+                  :key="agent.id"
+                  data-testid="new-thread-agent-option"
+                  :data-agent-id="agent.id"
+                  role="menuitemradio"
+                  :aria-checked="selectedAgent.id === agent.id"
+                  class="gap-2"
+                  @select="selectDraftAgent(agent.id)"
+                >
+                  <AgentAvatar :agent="agent" class-name="size-4 shrink-0" />
+                  <span class="min-w-0 flex-1 truncate">{{ agent.name }}</span>
+                  <Icon v-if="selectedAgent.id === agent.id" icon="lucide:check" class="size-4" />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DcButton
+              v-if="chatWorkspacePreparationError"
+              data-testid="new-thread-chat-workspace-retry"
+              variant="ghost"
+              size="icon-sm"
+              icon="lucide:rotate-cw"
+              class="shrink-0 text-destructive"
+              :loading="isPreparingChatWorkspace"
+              :disabled="isPreparingChatWorkspace"
+              :aria-busy="isPreparingChatWorkspace || undefined"
+              :label="`${t('common.retry')}: ${chatWorkspacePreparationError}`"
+              :tooltip="`${t('common.retry')}: ${chatWorkspacePreparationError}`"
+              @click="prepareChatWorkspace"
+            />
+          </div>
+          <p
+            v-if="isAcpWorkdirInvalid"
+            data-testid="new-thread-acp-workdir-status"
+            role="status"
+            class="mt-1 px-2.5 text-xs text-muted-foreground break-words"
+          >
+            {{ selectedProjectUnavailableTooltip }}
+          </p>
         </div>
       </div>
 
@@ -236,6 +304,7 @@ import { nanoid } from 'nanoid'
 import { persistGuidedOnboardingResumeIntent } from '@/lib/onboardingResume'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { DcButton } from '@dc-ui/components/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -253,11 +322,11 @@ import {
 } from '@/features/chat-page/composables/useComposerInputRouting'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
+import AgentAvatar from '@/components/icons/AgentAvatar.vue'
 import AcpAuthDialog from '@/components/acp/AcpAuthDialog.vue'
 import {
   openChatStatusBarModelPicker,
-  switchAttachmentToVisionModel,
-  type ChatStatusBarModelPicker
+  switchAttachmentToVisionModel
 } from '@/components/chat/attachmentModelPicker'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useProjectStore } from '@/stores/ui/project'
@@ -383,7 +452,7 @@ const {
   captureDraft,
   acceptSubmission
 } = useNewThreadComposerDraft(() => agentStore.selectedAgentId, chatInputRef)
-const chatStatusBarRef = ref<ChatStatusBarModelPicker | null>(null)
+const chatStatusBarRef = ref<InstanceType<typeof ChatStatusBar> | null>(null)
 const acpDraftSessionId = ref<string | null>(null)
 const localDraftSessionId = ref<string | null>(null)
 const isPreparingWorkspace = ref(false)
@@ -561,10 +630,18 @@ const selectedAgent = computed(() => {
     return agentStore.selectedAgent
   }
 
-  return { id: selectedAgentId, type: resolveAgentType(selectedAgentId) }
+  return {
+    id: selectedAgentId,
+    type: resolveAgentType(selectedAgentId),
+    name: selectedAgentId === 'deepchat' ? 'DeepChat' : selectedAgentId
+  }
 })
 const isAcpSelectedAgent = computed(() => selectedAgent.value.type === 'acp')
 const isDeepChatSelectedAgent = computed(() => selectedAgent.value.type === 'deepchat')
+const selectDraftAgent = (agentId: string) => {
+  draftStore.agentId = agentId
+  agentStore.setSelectedAgent(agentId)
+}
 const composerSupportsVision = computed<boolean | null>(() => {
   if (
     isAcpSelectedAgent.value ||
@@ -588,6 +665,14 @@ const isDefaultChatWorkspaceProject = (path: string | null | undefined) => {
   return Boolean(chatWorkspacePath) && normalizeWorkspacePath(path) === chatWorkspacePath
 }
 const selectedProjectPath = computed(() => normalizeProjectPath(projectStore.selectedProject?.path))
+const composerWorkspacePath = computed(
+  () =>
+    selectedProjectPath.value ??
+    (isAcpSelectedAgent.value ? normalizeProjectPath(projectStore.defaultChatWorkspacePath) : null)
+)
+const needsChatWorkspace = computed(() => isAcpSelectedAgent.value && !composerWorkspacePath.value)
+const isPreparingChatWorkspace = ref(false)
+const chatWorkspacePreparationError = ref<string | null>(null)
 const archivedProjectPaths = computed(
   () => new Set(projectStore.archivedEnvironments.map((environment) => environment.path))
 )
@@ -616,7 +701,11 @@ const hasExplicitNoProjectSelection = computed(
   () => projectStore.selectionSource === 'manual' && !projectStore.selectedProject?.path?.trim()
 )
 const selectedSessionProjectDir = computed<string | null | undefined>(() =>
-  hasExplicitNoProjectSelection.value ? null : projectStore.selectedProject?.path
+  isAcpSelectedAgent.value
+    ? composerWorkspacePath.value
+    : hasExplicitNoProjectSelection.value
+      ? null
+      : projectStore.selectedProject?.path
 )
 const isSelectedChatProject = computed(
   () =>
@@ -648,8 +737,8 @@ const selectedProjectDirectoryInvalid = computed(
   () => selectedProjectDirectoryStatus.value === 'invalid'
 )
 const selectedProjectUnavailableTooltip = computed(() =>
-  selectedProjectPath.value
-    ? t('chat.input.workspaceUnavailableTooltip', { path: selectedProjectPath.value })
+  composerWorkspacePath.value
+    ? t('chat.input.workspaceUnavailableTooltip', { path: composerWorkspacePath.value })
     : ''
 )
 const isSelectedInvalidProjectPath = (projectPath: string | null | undefined): boolean =>
@@ -659,18 +748,18 @@ const isAcpWorkdirMissing = computed(() => {
   if (!isAcpSelectedAgent.value) {
     return false
   }
-  return !selectedProjectPath.value
+  return !composerWorkspacePath.value
 })
 const isAcpWorkdirInvalid = computed(
   () =>
     isAcpSelectedAgent.value &&
-    Boolean(selectedProjectPath.value) &&
+    Boolean(composerWorkspacePath.value) &&
     selectedProjectDirectoryInvalid.value
 )
 const isAcpWorkdirChecking = computed(
   () =>
     isAcpSelectedAgent.value &&
-    Boolean(selectedProjectPath.value) &&
+    Boolean(composerWorkspacePath.value) &&
     selectedProjectDirectoryStatus.value === 'checking'
 )
 const isAcpWorkdirUnavailable = computed(
@@ -683,7 +772,7 @@ const syncGuideTargets = () => {
   }
 
   agentGuideTargetRef.value = document.querySelector(
-    '[data-testid="sidebar-agent-selector"]'
+    '[data-testid="new-thread-agent-selector"]'
   ) as HTMLElement | null
   modelGuideTargetRef.value = document.querySelector(
     '[data-testid="app-model-switcher"]'
@@ -704,7 +793,6 @@ const activeChatGuide = computed(() => {
       key: 'switch-agent',
       title: t('chat.onboarding.agentSwitch.title'),
       description: t('chat.onboarding.agentSwitch.description'),
-      caption: t('chat.onboarding.agentSwitch.caption'),
       targetEl: agentGuideTargetRef.value,
       stepIndex: switchAgentGuide.stepIndex.value,
       totalSteps: switchAgentGuide.totalSteps.value,
@@ -1384,7 +1472,6 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
           projectDir: normalizeProjectPath(pendingProjectDirIntent.projectDir)
         }
       : null
-  draftStore.agentId = agentId
   draftStore.providerId = undefined
   draftStore.modelId = undefined
   draftStore.permissionMode = 'full_access'
@@ -1408,11 +1495,15 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   if (selectedAgent.value.type === 'acp') {
     const resolvedProjectPath = projectDirIntent
       ? projectDirIntent.projectDir
-      : (currentProjectPath ?? globalDefaultProjectPath)
+      : selectedProjectSource === 'manual'
+        ? currentProjectPath
+        : selectedProjectSource === 'agent'
+          ? globalDefaultProjectPath
+          : (currentProjectPath ?? globalDefaultProjectPath)
     if (projectDirIntent) {
       projectStore.selectProject(projectDirIntent.projectDir, 'manual')
-    } else if (!currentProjectPath && globalDefaultProjectPath) {
-      projectStore.selectProject(globalDefaultProjectPath, 'default')
+    } else if (selectedProjectSource !== 'manual') {
+      projectStore.selectProject(resolvedProjectPath, 'default')
     }
     draftStore.projectDir = resolvedProjectPath ?? undefined
     draftStore.providerId = 'acp'
@@ -1436,18 +1527,16 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
     projectStore.selectionSource === selectedProjectSource
   const resolvedProjectPath = projectDirIntent
     ? projectDirIntent.projectDir
-    : canApplyProjectDefault
-      ? (agentDefaultProjectPath ?? currentProjectPath ?? globalDefaultProjectPath)
+    : canApplyProjectDefault && selectedProjectSource !== 'manual'
+      ? (agentDefaultProjectPath ??
+        (selectedProjectSource === 'agent'
+          ? globalDefaultProjectPath
+          : (currentProjectPath ?? globalDefaultProjectPath)))
       : currentSelectedProjectPath
   if (projectDirIntent) {
     projectStore.selectProject(projectDirIntent.projectDir, 'manual')
-  } else if (canApplyProjectDefault && agentDefaultProjectPath) {
-    projectStore.selectProject(
-      agentDefaultProjectPath,
-      agentDefaultProjectPath === globalDefaultProjectPath ? 'default' : 'manual'
-    )
-  } else if (canApplyProjectDefault && !currentProjectPath && globalDefaultProjectPath) {
-    projectStore.selectProject(globalDefaultProjectPath, 'default')
+  } else if (canApplyProjectDefault && selectedProjectSource !== 'manual') {
+    projectStore.selectProject(resolvedProjectPath, agentDefaultProjectPath ? 'agent' : 'default')
   }
   draftStore.projectDir = resolvedProjectPath ?? undefined
   draftStore.providerId = config.defaultModelPreset?.providerId
@@ -1584,7 +1673,7 @@ const ensureAcpDraftSession = async (
       return
     }
     const currentAgentId = agentStore.selectedAgentId
-    const currentProjectDir = projectStore.selectedProject?.path?.trim()
+    const currentProjectDir = composerWorkspacePath.value
     if (currentAgentId !== agentId || currentProjectDir !== projectDir) {
       return
     }
@@ -1627,8 +1716,37 @@ const ensureAcpDraftSession = async (
   }
 }
 
+async function prepareChatWorkspace() {
+  if (!needsChatWorkspace.value || isPreparingChatWorkspace.value) return
+  isPreparingChatWorkspace.value = true
+  try {
+    await projectStore.ensureChatWorkspace()
+    chatWorkspacePreparationError.value = null
+  } catch (error) {
+    if (!needsChatWorkspace.value) return
+    chatWorkspacePreparationError.value = error instanceof Error ? error.message : String(error)
+    notifyRenderer({
+      kind: 'error',
+      code: 'chat.workspace.selectFailed',
+      title: t('common.error.operationFailed'),
+      description: chatWorkspacePreparationError.value
+    })
+  } finally {
+    isPreparingChatWorkspace.value = false
+  }
+}
+
 watch(
-  () => selectedProjectPath.value,
+  needsChatWorkspace,
+  (needsWorkspace) => {
+    if (needsWorkspace) void prepareChatWorkspace()
+    else chatWorkspacePreparationError.value = null
+  },
+  { immediate: true }
+)
+
+watch(
+  () => composerWorkspacePath.value,
   async (projectPath) => {
     const requestSeq = ++selectedProjectDirectoryCheckSeq.value
     if (!projectPath) {
@@ -1658,7 +1776,7 @@ watch(
   () =>
     [
       agentStore.selectedAgentId,
-      selectedProjectPath.value,
+      composerWorkspacePath.value,
       selectedProjectDirectoryStatus.value
     ] as const,
   ([selectedAgentId, projectPath, directoryStatus]) => {
@@ -1687,7 +1805,7 @@ watch(
 
 async function handleAcpAuthSucceeded() {
   const agentId = agentStore.selectedAgentId
-  const projectPath = projectStore.selectedProject?.path?.trim()
+  const projectPath = composerWorkspacePath.value
   acpAuthDialogOpen.value = false
   acpAuthChallenge.value = null
   if (!agentId || !projectPath) return

@@ -20,6 +20,12 @@ export const projectGetSnapshotRoute = defineRouteContract({
   output: ProjectSnapshotSchema
 })
 
+export const projectEnsureChatWorkspaceRoute = defineRouteContract({
+  name: 'project.ensureChatWorkspace',
+  input: z.object({}).default({}),
+  output: z.object({ path: z.string().min(1), version: RevisionSchema })
+})
+
 export const projectListRecentRoute = defineRouteContract({
   name: 'project.listRecent',
   input: z.object({

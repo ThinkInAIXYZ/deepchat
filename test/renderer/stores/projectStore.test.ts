@@ -44,6 +44,7 @@ async function setupStore() {
     }) => void
   > = []
   const projectClient = {
+    ensureChatWorkspace: vi.fn().mockResolvedValue({ path: '/mock/chat', version: 2 }),
     getSnapshot: vi.fn().mockResolvedValue(snapshot(1)),
     reorderEnvironments: vi.fn().mockResolvedValue({ updated: true }),
     archiveEnvironment: vi.fn().mockResolvedValue({ updated: true, version: 1 }),
@@ -295,6 +296,18 @@ describe('projectStore snapshot ownership', () => {
     expect(store.selectionSource.value).toBe('none')
   })
 
+  it('preserves an Agent default across global snapshot refreshes', async () => {
+    const { store, projectClient } = await setupStore()
+    store.selectProject('/agent-default', 'agent')
+    projectClient.getSnapshot.mockResolvedValue({
+      ...snapshot(2, ['/global']),
+      defaultProjectPath: '/global'
+    })
+    await store.refreshProjectSnapshot()
+    expect(store.selectedProjectPath.value).toBe('/agent-default')
+    expect(store.selectionSource.value).toBe('agent')
+  })
+
   it('returns and selects a picked workspace by default', async () => {
     const { store, projectClient } = await setupStore()
     projectClient.selectDirectoryWithVersion.mockResolvedValue({ path: '/work/new', version: 2 })
@@ -348,6 +361,21 @@ describe('projectStore snapshot ownership', () => {
     expect(store.selectedProjectPath.value).toBe('/work/current')
     expect(store.selectionSource.value).toBe('manual')
     expect(store.environments.value.map((item) => item.path)).toEqual(['/work/current'])
+  })
+
+  it('prepares Chats while preserving the manual workspace choice and custom default', async () => {
+    const { store, projectClient } = await setupStore()
+    store.selectProject(null, 'manual')
+    projectClient.getSnapshot.mockResolvedValue({
+      ...snapshot(2),
+      defaultProjectPath: '/custom-default',
+      defaultChatWorkspacePath: '/mock/chat'
+    })
+    await expect(store.ensureChatWorkspace()).resolves.toBe('/mock/chat')
+    expect(store.defaultChatWorkspacePath.value).toBe('/mock/chat')
+    expect(store.defaultProjectPath.value).toBe('/custom-default')
+    expect(store.selectedProjectPath.value).toBeNull()
+    expect(store.selectionSource.value).toBe('manual')
   })
 
   it('preserves snapshot errors without rewrapping them as picker failures', async () => {

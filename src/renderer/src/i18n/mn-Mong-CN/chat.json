@@ -533,8 +533,7 @@
   "onboarding": {
     "agentSwitch": {
       "title": "ᠶᠢ ᠰᠣᠯᠢᠵᠤ DeepChat Agent",
-      "description": "ᠶᠠᠷᠢᠯᠴᠠᠵᠤ ᠡᠬᠢᠯᠡᠬᠦ ᠡᠴᠡ ᠡᠮᠦᠨ᠎ᠡ ACP Agent ᠡᠴᠡ DeepChat ᠃",
-      "caption": "ᠶᠢᠨ ᠬᠠᠵᠠᠭᠤ ᠶᠢᠨ Agent ᠳᠡᠬᠢ ᠢᠯᠡ ᠲᠣᠪᠣᠶᠢᠭᠰᠠᠨ ᠳᠠᠷᠤᠭᠤᠯ  ᠶᠢ ᠳᠠᠷᠤᠪᠠᠯ ᠳᠠᠬᠢᠨ ᠠᠵᠢᠯᠯᠠᠨ᠎ᠠ ᠃"
+      "description": "ᠶᠠᠷᠢᠯᠴᠠᠵᠤ ᠡᠬᠢᠯᠡᠬᠦ ᠡᠴᠡ ᠡᠮᠦᠨ᠎ᠡ ACP Agent ᠡᠴᠡ DeepChat ᠃"
     },
     "switchModel": {
       "description": "ᠠᠩᠬ᠎ᠠ ᠤᠳᠠᠭᠠᠨ ᠤ ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠳᠤ ᠬᠡᠷᠡᠭ᠍ᠯᠡᠬᠦ ᠭᠡᠰᠡᠨ ᠬᠡᠪ DeepChat ᠢ ᠰᠤᠩᠭᠤ ᠃",

@@ -324,14 +324,15 @@ const setup = async (options?: {
 }
 
 describe('McpIndicator', () => {
-  it('renders icon-only trigger for deepchat and keeps built-in tools session scoped', async () => {
+  it('names the compact settings trigger and keeps built-in tools session scoped', async () => {
     const { wrapper, agentSessionPresenter } = await setup({
       hasActiveSession: true,
       activeAgentId: 'deepchat'
     })
 
     const buttons = wrapper.findAll('button')
-    expect(buttons[0].text()).toBe('')
+    expect(buttons[0].attributes('aria-label')).toBe('Advanced Settings')
+    expect(buttons[0].text()).toContain('Advanced Settings')
     expect(wrapper.text()).toContain('Tools')
     expect(wrapper.text()).not.toContain('MCP 1')
     expect(wrapper.text().indexOf('Tools')).toBeLessThan(wrapper.text().indexOf('demo-server'))

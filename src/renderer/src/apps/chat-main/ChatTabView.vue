@@ -8,15 +8,7 @@
           forces expensive compositing during conversation switches.
         -->
         <div
-          v-if="pageRouter.currentRoute === 'newThread' && agentStore.selectedAgentId === null"
-          ref="routeContent"
-          key="agent-welcome"
-          class="chat-route-shell flex h-full min-h-0 w-full flex-col overflow-hidden"
-        >
-          <AgentWelcomePage />
-        </div>
-        <div
-          v-else-if="pageRouter.currentRoute === 'newThread'"
+          v-if="pageRouter.currentRoute === 'newThread'"
           ref="routeContent"
           key="new-thread"
           class="chat-route-shell flex h-full min-h-0 w-full flex-col overflow-hidden"
@@ -68,7 +60,6 @@ import AgentBrowserPiP from '@/components/browser/AgentBrowserPiP.vue'
 import AgentComputerUsePiP from '@/components/computerUse/AgentComputerUsePiP.vue'
 import NewThreadPage from '@/pages/NewThreadPage.vue'
 import ChatPage from '@/features/chat-page/ChatPage.vue'
-import AgentWelcomePage from '@/pages/AgentWelcomePage.vue'
 import { usePageRouterStore } from '@/stores/ui/pageRouter'
 import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
@@ -89,6 +80,15 @@ const sessionStore = useSessionStore()
 const agentStore = useAgentStore()
 const projectStore = useProjectStore()
 const draftStore = useDraftStore()
+watch(
+  () => pageRouter.currentRoute,
+  (route) => {
+    if (route === 'newThread') {
+      agentStore.setSelectedAgent(sessionStore.newConversationTargetAgentId)
+    }
+  },
+  { immediate: true, flush: 'sync' }
+)
 const updateWorkspacePath = async (path: string | null) => {
   if (pageRouter.currentRoute === 'newThread') {
     projectStore.selectProject(path, 'manual')

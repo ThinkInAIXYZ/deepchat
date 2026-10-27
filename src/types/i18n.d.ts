@@ -938,7 +938,6 @@ declare module 'vue-i18n' {
       agentSwitch: {
         title: string
         description: string
-        caption: string
       }
       switchModel: {
         description: string
@@ -4962,12 +4961,6 @@ declare module 'vue-i18n' {
         openrouter: string
       }
       importProviders: string
-    }
-    agentPage: {
-      title: string
-      deepchatType: string
-      acpType: string
-      manageAgents: string
     }
   }
 }

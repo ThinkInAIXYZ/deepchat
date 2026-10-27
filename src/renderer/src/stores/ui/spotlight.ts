@@ -6,7 +6,6 @@ import { createSettingsClient } from '@api/SettingsClient'
 import { createSessionClient } from '@api/SessionClient'
 import { useProviderStore } from '@/stores/providerStore'
 import { useAgentStore } from './agent'
-import { usePageRouterStore } from './pageRouter'
 import { useSessionStore } from './session'
 import { SETTINGS_NAVIGATION_ITEMS, type SettingsNavigationItem } from '@shared/settingsNavigation'
 import type { HistorySearchHit } from '@shared/contracts/routes/sessions.routes'
@@ -139,7 +138,6 @@ export const useSpotlightStore = defineStore('spotlight', () => {
   const providerStore = useProviderStore()
   const sessionStore = useSessionStore()
   const agentStore = useAgentStore()
-  const pageRouterStore = usePageRouterStore()
 
   const open = ref(false)
   const activationKey = ref(0)
@@ -447,12 +445,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
     }
 
     if (item.kind === 'agent') {
-      if (sessionStore.hasActiveSession) {
-        await sessionStore.closeSession()
-      } else {
-        pageRouterStore.goToNewThread()
-      }
-      agentStore.setSelectedAgent(item.agentId ?? null)
+      await sessionStore.startNewConversation({ agentId: item.agentId ?? undefined, refresh: true })
       return
     }
 

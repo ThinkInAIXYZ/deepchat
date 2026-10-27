@@ -153,12 +153,16 @@ function blocks(run: AcpSubagentRun): DisplayAssistantMessageBlock[] {
     <PopoverTrigger as-child>
       <button
         type="button"
-        class="flex h-6 items-center gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+        class="composer-control flex h-6 min-w-8 items-center whitespace-nowrap px-2 text-xs text-muted-foreground hover:text-foreground"
         :aria-label="label('sessionStatus')"
       >
-        <Icon icon="lucide:activity" class="h-3.5 w-3.5" />
-        <span>{{ label('sessionStatus') }}</span>
-        <span v-if="state.goal">· {{ label(state.goal.status) }}</span>
+        <Icon icon="lucide:activity" class="size-3.5 shrink-0" />
+        <span class="composer-control-details">
+          <span class="flex min-w-0 items-center gap-1 overflow-hidden">
+            <span class="truncate">{{ label('sessionStatus') }}</span>
+            <span v-if="state.goal">· {{ label(state.goal.status) }}</span>
+          </span>
+        </span>
       </button>
     </PopoverTrigger>
     <PopoverContent

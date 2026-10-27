@@ -114,6 +114,7 @@ const setup = async (options?: {
     name: string
   } | null
   isDirectory?: boolean | ((path: string) => Promise<boolean> | boolean)
+  selectionSource?: 'manual' | 'default' | 'agent' | 'none'
   defaultProjectPath?: string | null
   defaultChatWorkspacePath?: string | null
   defaultModel?: { providerId: string; modelId: string }
@@ -159,22 +160,28 @@ const setup = async (options?: {
   const projectStore = reactive({
     selectedProject: initialSelectedProject as { path: string; name: string } | null,
     selectedProjectName: initialSelectedProject?.name ?? 'workspace',
-    selectionSource: 'manual' as 'manual' | 'default',
+    selectionSource: options?.selectionSource ?? 'manual',
     defaultProjectPath: options?.defaultProjectPath ?? null,
     defaultChatWorkspacePath: options?.defaultChatWorkspacePath ?? null,
+    ensureChatWorkspace: vi.fn(async () => {
+      projectStore.defaultChatWorkspacePath ??= '/tmp/chats'
+      return projectStore.defaultChatWorkspacePath
+    }),
     projects: [],
     environments: [],
     archivedEnvironments: [],
     removedEnvironments: [],
-    selectProject: vi.fn((path: string | null, source: 'manual' | 'default' = 'manual') => {
-      projectStore.selectionSource = source
-      projectStore.selectedProject = path
-        ? {
-            path,
-            name: path.split(/[/\\]/).pop() ?? path
-          }
-        : null
-    }),
+    selectProject: vi.fn(
+      (path: string | null, source: 'manual' | 'default' | 'agent' | 'none' = 'manual') => {
+        projectStore.selectionSource = source
+        projectStore.selectedProject = path
+          ? {
+              path,
+              name: path.split(/[/\\]/).pop() ?? path
+            }
+          : null
+      }
+    ),
     openFolderPicker: vi.fn()
   })
 
@@ -889,6 +896,81 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     )
   })
 
+  it('prepares and sends an ACP Chats draft without a directory-selection prompt', async () => {
+    const { wrapper, sessionClient, sessionStore, projectStore } = await setup({
+      selectedProject: null,
+      selectionSource: 'manual',
+      defaultProjectPath: '/custom-default'
+    })
+
+    expect(wrapper.get('[data-testid="new-thread-project-trigger"]').text()).toContain(
+      'chat.sidebar.chats'
+    )
+    expect(wrapper.find('[data-testid="new-thread-acp-workdir-status"]').exists()).toBe(false)
+    expect(projectStore.selectedProject).toBeNull()
+    expect(projectStore.defaultProjectPath).toBe('/custom-default')
+    expect(sessionClient.ensureAcpDraftSession).toHaveBeenCalledWith({
+      agentId: 'acp-agent',
+      projectDir: '/tmp/chats',
+      permissionMode: 'full_access'
+    })
+    ;(wrapper.vm as any).message = 'Hello from Chats'
+    expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
+      'false'
+    )
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+    expect(sessionStore.sendMessage).toHaveBeenCalledWith('draft-1', {
+      text: 'Hello from Chats',
+      files: []
+    })
+  })
+
+  it('reuses the ready Chats directory and prepares it again when a snapshot loses it', async () => {
+    const { wrapper, projectStore, sessionClient } = await setup({
+      selectedProject: null,
+      defaultChatWorkspacePath: '/tmp/chats'
+    })
+    expect(projectStore.ensureChatWorkspace).not.toHaveBeenCalled()
+    expect(sessionClient.ensureAcpDraftSession).toHaveBeenCalledWith(
+      expect.objectContaining({ projectDir: '/tmp/chats' })
+    )
+
+    projectStore.defaultChatWorkspacePath = null
+    await flushPromises()
+    expect(projectStore.ensureChatWorkspace).toHaveBeenCalledOnce()
+    expect(projectStore.defaultChatWorkspacePath).toBe('/tmp/chats')
+    expect(wrapper.find('[data-testid="new-thread-acp-workdir-status"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="new-thread-chat-workspace-retry"]').exists()).toBe(false)
+  })
+
+  it('keeps a retry control after Chats preparation fails and resumes ACP on retry', async () => {
+    const { wrapper, projectStore, sessionClient } = await setup()
+    projectStore.ensureChatWorkspace.mockRejectedValueOnce(new Error('Workspace is read-only'))
+    projectStore.selectedProject = null
+    await flushPromises()
+
+    const retry = wrapper.get('[data-testid="new-thread-chat-workspace-retry"]')
+    expect(retry.attributes('label')).toContain('Workspace is read-only')
+    expect(wrapper.find('[data-testid="new-thread-acp-workdir-status"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
+      'true'
+    )
+    await retry.trigger('click')
+    await flushPromises()
+
+    expect(projectStore.ensureChatWorkspace).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-testid="new-thread-chat-workspace-retry"]').exists()).toBe(false)
+    expect(sessionClient.ensureAcpDraftSession).toHaveBeenLastCalledWith({
+      agentId: 'acp-agent',
+      projectDir: '/tmp/chats',
+      permissionMode: 'full_access'
+    })
+    expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
+      'false'
+    )
+  })
+
   it('ensures ACP draft session and passes session-id to ChatInputBox', async () => {
     const { wrapper, sessionClient } = await setup()
 
@@ -1048,6 +1130,9 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     expect(wrapper.find('[data-testid="chat-input-box"]').attributes('data-submit-disabled')).toBe(
       'true'
     )
+    expect(wrapper.get('[data-testid="new-thread-acp-workdir-status"]').attributes('role')).toBe(
+      'status'
+    )
     expect(sessionClient.ensureAcpDraftSession).not.toHaveBeenCalled()
 
     ;(wrapper.vm as any).message = 'hello invalid acp'
@@ -1107,6 +1192,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="new-thread-project-missing-warning"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="new-thread-acp-workdir-status"]').exists()).toBe(false)
     expect(sessionClient.ensureAcpDraftSession).toHaveBeenCalledWith({
       agentId: 'acp-agent',
       projectDir: '/tmp/valid-workspace',
@@ -1495,7 +1581,7 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     )
   })
 
-  it('prefers the agent default directory over the current selection', async () => {
+  it('preserves the manually selected directory when switching Agents', async () => {
     const { projectStore, agentStore, draftStore } = await setup({
       defaultProjectPath: '/workspaces/global',
       resolvedAgentConfig: {
@@ -1508,13 +1594,46 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     agentStore.selectedAgentId = 'deepchat'
     await flushPromises()
 
-    expect(projectStore.selectProject).toHaveBeenCalledWith('/workspaces/agent-writer', 'manual')
-    expect(projectStore.selectedProject).toEqual({
-      path: '/workspaces/agent-writer',
-      name: 'agent-writer'
-    })
-    expect(draftStore.projectDir).toBe('/workspaces/agent-writer')
+    expect(projectStore.selectProject).not.toHaveBeenCalledWith(
+      '/workspaces/agent-writer',
+      expect.anything()
+    )
+    expect(projectStore.selectedProject?.path).toBe('/tmp/workspace')
+    expect(draftStore.projectDir).toBe('/tmp/workspace')
   })
+
+  it.each(['/agent-b', undefined])(
+    'applies the next Agent default %s while retaining manual choices',
+    async (agentBDefault) => {
+      const { projectStore, agentStore } = await setup({
+        selectedAgentId: 'writer-a',
+        selectedAgentType: 'deepchat',
+        selectionSource: 'default',
+        selectedProject: null,
+        defaultProjectPath: '/global',
+        resolveDeepChatAgentConfig: async (id) => ({
+          defaultProjectPath: id === 'writer-a' ? '/agent-a' : agentBDefault
+        })
+      })
+      Object.assign(agentStore, {
+        agents: [
+          { id: 'writer-a', type: 'deepchat', name: 'A' },
+          { id: 'writer-b', type: 'deepchat', name: 'B' }
+        ]
+      })
+      expect(projectStore.selectedProject?.path).toBe('/agent-a')
+      expect(projectStore.selectionSource).toBe('agent')
+      agentStore.selectedAgentId = 'writer-b'
+      await flushPromises()
+      expect(projectStore.selectedProject?.path).toBe(agentBDefault ?? '/global')
+      expect(projectStore.selectionSource).toBe(agentBDefault ? 'agent' : 'default')
+
+      projectStore.selectProject('/manual', 'manual')
+      agentStore.selectedAgentId = 'writer-a'
+      await flushPromises()
+      expect(projectStore.selectedProject?.path).toBe('/manual')
+    }
+  )
 
   it('prefers a new-conversation workspace intent over the agent default directory', async () => {
     const { projectStore, draftStore, sessionStore } = await setup({

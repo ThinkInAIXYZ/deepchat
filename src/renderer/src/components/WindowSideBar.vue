@@ -821,8 +821,6 @@ const collapsed = computed(() => sidebarStore.collapsed)
 const pluginsRouteActive = computed(() =>
   String(router?.currentRoute?.value?.name ?? '').startsWith('plugins')
 )
-let agentSwitchSeq = 0
-let agentSwitchQueue: Promise<void> = Promise.resolve()
 
 const sidebarSelectedAgentId = computed(() => agentStore.filterAgentId)
 
@@ -1119,44 +1117,12 @@ const handleNewChatForWorkspaceGroup = async (group: SessionGroup) => {
   await handleNewChatForProject(getWorkspacePath(group))
 }
 
-const handleAgentSelect = async (id: string | null) => {
+const handleAgentSelect = (id: string | null) => {
   if (collapsed.value) {
     sidebarStore.setCollapsed(false)
   }
 
-  const requestSeq = ++agentSwitchSeq
-
-  agentSwitchQueue = agentSwitchQueue
-    .then(async () => {
-      const currentAgentId = sidebarSelectedAgentId.value
-      const nextAgentId = id
-      if (nextAgentId === currentAgentId) {
-        return
-      }
-
-      if (sessionStore.hasActiveSession) {
-        try {
-          await sessionStore.closeSession()
-        } catch (error) {
-          console.warn(
-            '[WindowSideBar] Failed to close active session before switching agent:',
-            error
-          )
-          return
-        }
-      }
-
-      if (requestSeq !== agentSwitchSeq) {
-        return
-      }
-
-      agentStore.setSelectedAgent(nextAgentId)
-    })
-    .catch((error) => {
-      console.warn('[WindowSideBar] Agent switch pipeline failed:', error)
-    })
-
-  await agentSwitchQueue
+  agentStore.setFilterAgent(id)
 }
 
 const handleSessionClick = async (session: { id: string }) => {
