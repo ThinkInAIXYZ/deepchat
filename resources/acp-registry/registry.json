@@ -228,7 +228,7 @@
     {
       "id": "codebuddy-code",
       "name": "Codebuddy Code",
-      "version": "2.176.0",
+      "version": "2.177.0",
       "description": "Tencent Cloud's official intelligent coding tool",
       "website": "https://www.codebuddy.cn/cli/",
       "authors": [
@@ -238,7 +238,7 @@
       "license_url": "https://www.codebuddy.cn/agreement/",
       "distribution": {
         "npx": {
-          "package": "@tencent-ai/codebuddy-code@2.176.0",
+          "package": "@tencent-ai/codebuddy-code@2.177.0",
           "args": [
             "--acp"
           ]
@@ -775,7 +775,7 @@
     {
       "id": "grok-build",
       "name": "Grok Build",
-      "version": "1.0.70",
+      "version": "1.0.71",
       "description": "xAI's coding agent and CLI",
       "website": "https://x.ai/cli",
       "authors": [
@@ -785,7 +785,7 @@
       "license_url": "https://x.ai/legal/terms-of-service",
       "distribution": {
         "npx": {
-          "package": "@xai-official/grok@1.0.70",
+          "package": "@xai-official/grok@1.0.71",
           "args": [
             "agent",
             "stdio"
@@ -920,7 +920,7 @@
     {
       "id": "kilo",
       "name": "Kilo",
-      "version": "7.8.17",
+      "version": "7.8.18",
       "description": "The open source coding agent",
       "repository": "https://github.com/Kilo-Org/kilocode",
       "website": "https://kilo.ai/",
@@ -933,48 +933,48 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.8.17/kilo-darwin-arm64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.8.18/kilo-darwin-arm64.zip",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "9f831b47ea48159d1bbbc52dd73e3a7426715b14a36c1c7007660cf8ff12839c"
+            "sha256": "1ea2285a2f45ec27b7fa3b644f92700adf4a91fd671aaf18ba0cb8f26c795df5"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.8.17/kilo-darwin-x64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.8.18/kilo-darwin-x64.zip",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "c29ce4ee5e68aa4fa65ef44754a10f061c359b491005ce3f6d21dc1f92be9331"
+            "sha256": "00f6ac8fb49368e5726dc23780ee1c18fd1fd89a817e8cc38c1fe9d7db6232d2"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.8.17/kilo-linux-arm64.tar.gz",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.8.18/kilo-linux-arm64.tar.gz",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "02ac19531143b6691947f7ed9b137e5d64697a3d9f6de4143cf710b6dc96dc64"
+            "sha256": "55a1c13fca09eb96e5de6ec8206e1e47e5f9ec0dbf02bd1316be737bfd0666ae"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.8.17/kilo-linux-x64.tar.gz",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.8.18/kilo-linux-x64.tar.gz",
             "cmd": "./kilo",
             "args": [
               "acp"
             ],
-            "sha256": "73491b15e9816fa1c982331ff4d8418e5aa9fd6d861853ab4c81935200ae8f6a"
+            "sha256": "503561fb8c4b8ede26703457a912b98cf18c9c9e8961649f3718cf7676b5c02a"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.8.17/kilo-windows-x64.zip",
+            "archive": "https://github.com/Kilo-Org/kilocode/releases/download/v7.8.18/kilo-windows-x64.zip",
             "cmd": "./kilo.exe",
             "args": [
               "acp"
             ],
-            "sha256": "dfd6e391c6f0d8e3aaf568784729873ef2ce1f6ca96c2ff8f342caa93ab61917"
+            "sha256": "4d13c566a3e7d91ceb6986ea037a4eee6aa145918a75b38f8208034c07e74780"
           }
         },
         "npx": {
-          "package": "@kilocode/cli@7.8.17",
+          "package": "@kilocode/cli@7.8.18",
           "args": [
             "acp"
           ]
@@ -984,7 +984,7 @@
     {
       "id": "kimchi",
       "name": "Kimchi",
-      "version": "1.21.0",
+      "version": "1.21.2",
       "description": "Coding agent powered by multi-model orchestration",
       "repository": "https://github.com/getkimchi/kimchi",
       "website": "https://kimchi.dev",
@@ -996,8 +996,8 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.21.0/kimchi_darwin_arm64.tar.gz",
-            "sha256": "2cb5bc08ca1f78ba69a27a4931f97f7a343ede51be5850a4ca05337490ccd2d4",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.21.2/kimchi_darwin_arm64.tar.gz",
+            "sha256": "0e344a5da0bddf7081144bc65373ec59bd6fdc9c283b4b6aee64c65b9daf6527",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1005,8 +1005,8 @@
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.21.0/kimchi_darwin_amd64.tar.gz",
-            "sha256": "d00fb6d88e8eb3d34ced03dfb027ed8b45c7e40afd857c6d4175bea28ee9c297",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.21.2/kimchi_darwin_amd64.tar.gz",
+            "sha256": "48140345ad71cf4bf847e04a85794a28fe11cc4a86dae7ea7a1aafaefbf4d8a3",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1014,8 +1014,8 @@
             ]
           },
           "linux-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.21.0/kimchi_linux_arm64.tar.gz",
-            "sha256": "bf37cd64981c5288d29930d5f54a2415b1afb9438bb7aaa6abeaecdf523de9eb",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.21.2/kimchi_linux_arm64.tar.gz",
+            "sha256": "397f75a100f381ddc03891046479fef3cebcbcb8827de3950ca1eb46e36cbcb8",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1023,8 +1023,8 @@
             ]
           },
           "linux-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.21.0/kimchi_linux_amd64.tar.gz",
-            "sha256": "e40425789650a71fcc3974ec09ead56c5fadb030790895033e884431ac0c794a",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.21.2/kimchi_linux_amd64.tar.gz",
+            "sha256": "1bfcf92dbc1ec9a5bcd095b9767d4e4f1195a144f6cc7e10b6acb40d29209014",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1032,8 +1032,8 @@
             ]
           },
           "windows-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.21.0/kimchi_windows_amd64.zip",
-            "sha256": "2203a1d43d20f569c527eb23cb41beb7417c363ad4c555061d4c4d0f4f2d5a3f",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.21.2/kimchi_windows_amd64.zip",
+            "sha256": "4696531768317956c644e3ce0eff25c2e471125c9f7f50e296dd3362c96ead14",
             "cmd": "./bin/kimchi.exe",
             "args": [
               "--mode",
@@ -1190,7 +1190,7 @@
     {
       "id": "nova",
       "name": "Nova",
-      "version": "1.1.59",
+      "version": "1.1.60",
       "description": "Nova by Compass AI - a fully-fledged software engineer at your command",
       "repository": "https://github.com/Compass-Agentic-Platform/nova",
       "website": "https://www.compassap.ai/portfolio/nova.html",
@@ -1202,7 +1202,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/nova.svg",
       "distribution": {
         "npx": {
-          "package": "@compass-ai/nova@1.1.59",
+          "package": "@compass-ai/nova@1.1.60",
           "args": [
             "acp"
           ]
