@@ -3798,6 +3798,15 @@ export async function createMainProcessControl(dependencies: {
     }
     if (syncService.isBackupInProgress()) throw new Error('sync.tunnel.error.busy')
     databaseRequests.beginMaintenance()
+    try {
+      await startupWorkloadCoordinator.cancelAndDrainTarget('main')
+      if (['stopping', 'stopped'].includes(appLifecycleState)) {
+        throw new Error(`App lifecycle is ${appLifecycleState}`)
+      }
+    } catch (error) {
+      databaseRequests.resume()
+      throw error
+    }
 
     let operationResult: DatabaseMaintenanceResult | undefined
     let operationError: unknown
@@ -3805,7 +3814,6 @@ export async function createMainProcessControl(dependencies: {
       dependencies.secretStore.pause()
       replicaEndpoint.stop()
       await automaticSync?.pause()
-      startupWorkloadCoordinator.cancelTarget('main')
       memoryService.stopBackgroundMaintenance()
       await liveDelegationService.stop()
       await cronJobs.stop()

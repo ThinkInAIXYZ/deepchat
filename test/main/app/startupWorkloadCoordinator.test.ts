@@ -279,6 +279,99 @@ describe('StartupWorkloadCoordinator', () => {
     expect(onFailure).not.toHaveBeenCalled()
   })
 
+  it('drains actual callbacks across canceled runs without waiting for another target', async () => {
+    const { StartupWorkloadCoordinator } = await import('@/app/startupWorkloadCoordinator')
+    const coordinator = new StartupWorkloadCoordinator()
+    const first = createDeferred<void>()
+    const next = createDeferred<void>()
+    const settings = createDeferred<void>()
+    const schedule = (target: 'main' | 'settings', result: Promise<void>) =>
+      coordinator.scheduleTask({
+        id: 'owner',
+        target,
+        phase: 'background',
+        resource: 'io',
+        labelKey: 'startup.test',
+        run: async () => await result
+      })
+    const original = schedule('main', first.promise)
+    const originalRejected = expect(original).rejects.toMatchObject({ name: 'AbortError' })
+    coordinator.createRun('main')
+    await originalRejected
+    const current = schedule('main', next.promise)
+    const currentRejected = expect(current).rejects.toMatchObject({ name: 'AbortError' })
+    const unrelated = schedule('settings', settings.promise)
+
+    let drained = false
+    const drain = coordinator.cancelAndDrainTarget('main').then(() => {
+      drained = true
+    })
+    await currentRejected
+    next.resolve()
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(drained).toBe(false)
+    first.reject(new Error('late callback failure'))
+    await drain
+    expect(drained).toBe(true)
+    settings.resolve()
+    await unrelated
+    expect(coordinator.isIdle()).toBe(true)
+  })
+
+  it('cancels queued work without executing it while an active callback drains', async () => {
+    const { StartupWorkloadCoordinator } = await import('@/app/startupWorkloadCoordinator')
+    const coordinator = new StartupWorkloadCoordinator()
+    const release = createDeferred<void>()
+    const schedule = (id: string, run: () => Promise<void>) =>
+      coordinator.scheduleTask({
+        id,
+        target: 'main',
+        phase: 'background',
+        resource: 'cpu',
+        labelKey: 'startup.test',
+        run
+      })
+    const active = schedule('active', () => release.promise)
+    const runQueued = vi.fn(async () => undefined)
+    const queued = schedule('queued', runQueued)
+    const rejected = [active, queued].map((task) =>
+      expect(task).rejects.toMatchObject({ name: 'AbortError' })
+    )
+    const drain = coordinator.cancelAndDrainTarget('main')
+    await Promise.all(rejected)
+    release.resolve()
+    await drain
+    expect(runQueued).not.toHaveBeenCalled()
+    expect(coordinator.isIdle()).toBe(true)
+  })
+
+  it('bounds drain failure and keeps an old callback available to a later drain', async () => {
+    vi.useFakeTimers()
+    const { StartupWorkloadCoordinator } = await import('@/app/startupWorkloadCoordinator')
+    const coordinator = new StartupWorkloadCoordinator()
+    const release = createDeferred<void>()
+    const task = coordinator.scheduleTask({
+      id: 'held',
+      target: 'main',
+      phase: 'background',
+      resource: 'io',
+      labelKey: 'startup.test',
+      run: () => release.promise
+    })
+    const rejected = expect(task).rejects.toMatchObject({ name: 'AbortError' })
+    const timeout = expect(coordinator.cancelAndDrainTarget('main')).rejects.toThrow('30000ms')
+    await rejected
+    await vi.advanceTimersByTimeAsync(30_000)
+    await timeout
+    expect(vi.getTimerCount()).toBe(0)
+    expect(coordinator.isIdle()).toBe(false)
+    const retry = coordinator.cancelAndDrainTarget('main')
+    release.resolve()
+    await retry
+    expect(vi.getTimerCount()).toBe(0)
+    expect(coordinator.isIdle()).toBe(true)
+  })
+
   it('does not starve interactive io work behind occupied background lanes', async () => {
     const { StartupWorkloadCoordinator } = await import('@/app/startupWorkloadCoordinator')
     const coordinator = new StartupWorkloadCoordinator()

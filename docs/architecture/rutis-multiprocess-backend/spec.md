@@ -799,6 +799,14 @@ reject that reply before the handler exits. Recheck the original task signal bef
 retain running-handler ownership through cancellation. Bound request drain to 30 seconds before
 maintenance dispatch; a timeout must leave the current writer in place.
 
+Main startup work has a separate actual-completion lifetime from its reply. Before maintenance
+pauses or recreates services, cancel the Main startup target and drain running callbacks, including
+callbacks from an already canceled run. Pending work never executes and releases its deduplication
+entry. Keep immediate cancellation replies and existing resource-lane limits. A 30-second drain
+failure rejects maintenance before service teardown or writer replacement and restores ordinary
+admission; it must not revive or duplicate a still-running startup owner. Background migrations are
+scheduled again after successful maintenance or on the next launch.
+
 ### Public routes and desktop capabilities
 
 Reuse existing shared route names, schemas, caller types, and output projection. Classify each

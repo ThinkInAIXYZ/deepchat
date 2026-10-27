@@ -1154,6 +1154,45 @@ an acknowledged request, remaining configuration snapshots and native/window dep
 need explicit ownership/lifecycle contracts before G4 closes. Physical shutdown/power-loss and full
 native Windows/Linux application workloads remain unverified locally.
 
+### Startup work completion before maintenance
+
+The request-ownership checkpoint `99fdb0710` passes required run `40352516093`, including
+`pr-required` job `121679711290`, and package run `40352516371` with all six platforms and
+`package-required` job `121689282632`. No rerun is requested.
+
+The startup coordinator separates cancellation acknowledgement from actual callback completion.
+`cancelAndDrainTarget` uses the existing in-flight inventory, including canceled older runs, and
+waits for actual callbacks. Canceled pending tasks never execute and release their deduplication
+entries. Immediate replies and the existing CPU/IO lane limits remain intact. There is no additional
+task registry or transport protocol.
+
+Main maintenance awaits that operation for its startup target before pausing/recreating services or
+changing the writer, then rechecks shutdown. A 30-second preflight failure restores ordinary
+admission before any service teardown or database replacement. It cannot duplicate an active
+startup owner. Successful maintenance schedules background migrations again; a failed preflight
+does not reschedule unfinished work. The old cancellation-only maintenance wiring is removed.
+
+Eight affected coordinator, request, route, composition, logging and migration/usage files pass
+139 checks under Electron Node mode with native SQLite required and no skips. Durable regressions
+cover an old canceled run and its replacement, late callback failure, unrelated-target isolation,
+queued cancellation and a bounded failure followed by another drain. The deadline uses fake time;
+these checks enforce lifecycle behavior rather than a shared-runner timing budget.
+
+The same four real-app scenarios pass before/after in 21.6/21.3 seconds in owned disposable profiles.
+Encryption, legacy unlock, wrong-password recovery, rekey and disable take 11.1/10.8 seconds;
+CLI Provider-list, backup, incremental/overwrite import, repair and relaunch take 4.9/4.8 seconds.
+Concurrent maintenance rejection and delayed native credential drain retain parity in 2.8/2.8 and
+2.6/2.6 seconds. No external account is contacted. App/scoped types, the normal build, format/check,
+lint and i18n pass. Normal build-generated Provider/ACP catalog refreshes are retained separately.
+Evidence is under `.deepchat/rutis-g4-startup-drain-acceptance/`. There is no process, IPC or
+storage-path change requiring a full resource capture, and no speed claim is made.
+
+Held startup callbacks and timeout behavior are verified at the real coordinator boundary; the
+application comparison exercises its default maintenance wiring without a held-startup fault.
+Other background effects after acknowledgement, shutdown ownership, configuration snapshots and
+remaining native/window dependencies keep G4 open. Physical shutdown/power-loss and full native
+Windows/Linux application workloads remain unverified locally.
+
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
 - [ ] Replace cross-boundary closures/row APIs with bounded transactional business commands for

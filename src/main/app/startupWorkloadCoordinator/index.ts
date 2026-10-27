@@ -74,6 +74,8 @@ type StartupTaskRecord<T> = {
   resolve: (value: T | PromiseLike<T>) => void
   reject: (reason?: unknown) => void
   promise: Promise<T>
+  finished: Promise<void>
+  finish: () => void
 }
 
 const PHASE_PRIORITY: Record<StartupWorkloadPhase, number> = {
@@ -133,7 +135,8 @@ export class StartupWorkloadCoordinator {
 
     const tasks = [...runState.tasks]
     for (const task of tasks) {
-      if (task.state === 'pending') {
+      const pending = task.state === 'pending'
+      if (pending) {
         this.removePendingTask(task.internalKey)
       }
 
@@ -144,6 +147,8 @@ export class StartupWorkloadCoordinator {
         task.reject(this.createAbortError(task.id))
       }
 
+      if (pending) this.finishTask(task, 'cancelled')
+
       if (!task.visibleId) {
         runState.tasks.delete(task)
       }
@@ -151,6 +156,29 @@ export class StartupWorkloadCoordinator {
 
     this.publishSnapshot(target)
     this.runs.delete(target)
+  }
+
+  async cancelAndDrainTarget(target: StartupWorkloadTarget): Promise<void> {
+    this.cancelTarget(target)
+    const pending = [...this.inFlightByDedupeKey.values()]
+      .filter((task) => task.target === target)
+      .map((task) => task.finished)
+    if (pending.length === 0) return
+
+    let timeout: NodeJS.Timeout | undefined
+    try {
+      await Promise.race([
+        Promise.all(pending),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error(`Startup workload target "${target}" did not drain (30000ms)`)),
+            30_000
+          )
+        })
+      ])
+    } finally {
+      clearTimeout(timeout)
+    }
   }
 
   replayTarget(target: StartupWorkloadTarget): void {
@@ -194,6 +222,10 @@ export class StartupWorkloadCoordinator {
       resolveTask = resolve
       rejectTask = reject
     })
+    let finish!: () => void
+    const finished = new Promise<void>((resolve) => {
+      finish = resolve
+    })
 
     const now = Date.now()
     const task: StartupTaskRecord<T> = {
@@ -213,7 +245,9 @@ export class StartupWorkloadCoordinator {
       run: options.run,
       resolve: resolveTask,
       reject: rejectTask,
-      promise
+      promise,
+      finished,
+      finish
     }
 
     runState.tasks.add(task as StartupTaskRecord<unknown>)
@@ -370,6 +404,7 @@ export class StartupWorkloadCoordinator {
     task.state = finalState
     task.updatedAt = Date.now()
     this.inFlightByDedupeKey.delete(task.dedupeKey)
+    task.finish()
 
     const runState = this.runs.get(task.target)
     if (!runState || runState.runId !== task.runId) {
