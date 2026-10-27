@@ -161,6 +161,7 @@ export class ExecutionContractDispatchError extends Error {
 export interface ExecutionContractDispatchInput {
   request: DeepChatExecutionContractRequest
   currentTool: MCPToolDefinition
+  parentTool?: MCPToolDefinition
   currentWorkspace: DeepChatExecutionWorkspaceCeiling
   currentMaxSubagentDepth: number
   requestedSubagentDepth: number
@@ -943,8 +944,10 @@ export function assertExecutionContractAllowsDispatch(
   }
 
   let currentTool: DeepChatExecutionToolCeiling
+  let dispatchTool: DeepChatExecutionToolCeiling
   try {
     currentTool = buildExecutionToolCeiling(input.currentTool)
+    dispatchTool = input.parentTool ? buildExecutionToolCeiling(input.parentTool) : currentTool
   } catch (error) {
     throw new ExecutionContractDispatchError(
       'Current tool authority is missing a valid stable identity or execution policy.',
@@ -953,31 +956,34 @@ export function assertExecutionContractAllowsDispatch(
     )
   }
   const ceiling = contract.ceilings.tools.find(
-    (candidate) => candidate.target.providerVisibleName === currentTool.target.providerVisibleName
+    (candidate) => candidate.target.providerVisibleName === dispatchTool.target.providerVisibleName
   )
   if (!ceiling) {
     throw new ExecutionContractDispatchError(
-      `Tool '${currentTool.target.providerVisibleName}' is outside the frozen View ceiling.`,
+      `Tool '${dispatchTool.target.providerVisibleName}' is outside the frozen View ceiling.`,
       'tool_not_allowed'
     )
   }
   if (
-    buildExecutionToolTargetKey(ceiling.target) !== buildExecutionToolTargetKey(currentTool.target)
+    buildExecutionToolTargetKey(ceiling.target) !== buildExecutionToolTargetKey(dispatchTool.target)
   ) {
     throw new ExecutionContractDispatchError(
-      `Tool '${currentTool.target.providerVisibleName}' no longer resolves to the frozen target.`,
+      `Tool '${dispatchTool.target.providerVisibleName}' no longer resolves to the frozen target.`,
       'target_mismatch'
     )
   }
-  if (!isToolEffectWithinCeiling(currentTool.execution.effect, ceiling.execution.effect)) {
+  if (
+    !isToolEffectWithinCeiling(dispatchTool.execution.effect, ceiling.execution.effect) ||
+    !isToolEffectWithinCeiling(currentTool.execution.effect, dispatchTool.execution.effect)
+  ) {
     throw new ExecutionContractDispatchError(
       `Tool '${currentTool.target.providerVisibleName}' exceeds its frozen effect ceiling.`,
       'effect_exceeds_ceiling'
     )
   }
-  if (currentTool.execution.mode !== ceiling.execution.mode) {
+  if (dispatchTool.execution.mode !== ceiling.execution.mode) {
     throw new ExecutionContractDispatchError(
-      `Tool '${currentTool.target.providerVisibleName}' execution mode changed after View assembly.`,
+      `Tool '${dispatchTool.target.providerVisibleName}' execution mode changed after View assembly.`,
       'execution_mode_mismatch'
     )
   }

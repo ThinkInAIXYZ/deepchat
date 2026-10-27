@@ -88,7 +88,7 @@ import {
 } from '@/cli/programmaticToolParentRegistry'
 import { buildToolSearchDefinition } from './agentTools/toolSearchTool'
 
-type MainProcessToolCallOptions = ToolCallOptions & {
+type MainProcessToolCallOptions = InternalToolCallOptions & {
   readonly toolSurfaceDeferredDispatch?: ToolSurfaceDeferredDispatch
   readonly toolSurfaceContext?: ToolSurfaceExecutionContext
   readonly toolSurfaceSnapshot?: ToolSurfaceSnapshot
@@ -232,10 +232,12 @@ type ConversationToolModeContext = {
   mode: ToolModeConfiguration['mode']
   frontend: 'codex' | 'function'
   executionCatalog: readonly MCPToolDefinition[]
+  codeEntryTools?: readonly MCPToolDefinition[]
 }
 
 type InternalToolCallOptions = ToolCallOptions & {
   codeModeNested?: boolean
+  codeModeParentTool?: MCPToolDefinition
 }
 
 type CodexExecInput = {
@@ -637,17 +639,20 @@ export class ToolService implements ToolServicePort {
 
     if (input.mode === 'code') this.assertCodeModeCatalog(frontend, executionCatalog)
     this.publishConfiguredCatalog(conversationId, [...executionCatalog, ...codeModeDirectTools])
+    const codeEntryTools =
+      input.mode === 'agent'
+        ? []
+        : frontend === 'codex'
+          ? createCodexCodeModeToolDefinitions(decoratedCatalog)
+          : [createRunCodeToolDefinition()]
     this.conversationToolModes.set(conversationId, {
       mode: input.mode,
       frontend,
-      executionCatalog
+      executionCatalog,
+      codeEntryTools
     })
 
     if (input.mode === 'agent') return executionCatalog
-    const codeEntryTools =
-      frontend === 'codex'
-        ? createCodexCodeModeToolDefinitions(decoratedCatalog)
-        : [createRunCodeToolDefinition()]
     return [...codeEntryTools, ...codeModeDirectTools]
   }
 
@@ -1305,6 +1310,12 @@ export class ToolService implements ToolServicePort {
         : this.parseAgentToolArguments(request.function.arguments, toolName),
       target: { serverName: CODE_MODE_TOOL_SERVER_NAME, originalName: toolName }
     }
+    const runtimeOptions: InternalToolCallOptions = {
+      ...options,
+      codeModeParentTool: context.codeEntryTools?.find(
+        (definition) => definition.function.name === toolName
+      )
+    }
     const result = waitInput
       ? await this.runCodeRuntime.wait({
           sessionId,
@@ -1314,7 +1325,7 @@ export class ToolService implements ToolServicePort {
           maxTokens: waitInput.maxTokens,
           terminate: waitInput.terminate,
           outerDispatch,
-          options: options ?? {}
+          options: runtimeOptions
         })
       : await this.runCodeRuntime.execute({
           sessionId,
@@ -1331,7 +1342,7 @@ export class ToolService implements ToolServicePort {
             : {}),
           executionCatalog: context.executionCatalog,
           outerDispatch,
-          options: options ?? {}
+          options: runtimeOptions
         })
     const rawData = result.rawData ?? {
       content: result.content,
@@ -1710,6 +1721,7 @@ export class ToolService implements ToolServicePort {
         requestSeq: requestSeq as number
       },
       currentTool: currentDefinition,
+      parentTool: options?.codeModeNested ? options.codeModeParentTool : undefined,
       currentWorkspace: currentProjectDir
         ? { kind: 'path', path: currentProjectDir }
         : { kind: 'runtime_default' },
