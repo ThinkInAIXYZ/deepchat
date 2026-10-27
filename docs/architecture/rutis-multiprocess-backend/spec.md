@@ -987,6 +987,17 @@ proxy URL through the host capability without importing the native proxy module.
 nor its server manager may construct a native dependency or locate a process-global toolchain.
 This boundary does not relocate MCP execution or its AppHost presentation owner.
 
+MCP App instances, pending creation and consent decisions use one native-free registry beside
+their source and tool authorization owners. Count pending creation against the existing total and
+per-owner instance limits. Revocation by window, server or maintenance invalidates pending creation
+before it can publish a late view. Main supplies required asynchronous owner observation and link
+opening. The creation owner aborts pending observation and metadata waits on revocation, including
+SDK resource requests, while the server owner retains its shared connection. Main retains
+protocol responses and native session permission handlers. Native handlers use
+bounded policy and browser-permission business operations, validate the current native owner and
+deny uncertain or revoked work. Preserve saved-source/configuration fences, separate sandbox
+origin/CSP, explicit per-request consent and the absence of standing browser grants.
+
 ACP installation owns explicit install/repair, enable-triggered preinstallation, uninstall and
 binary launch preparation, including their repository and Provider continuations. Identical work
 shares one physical download; conflicting same-Agent mutations cannot publish stale state or

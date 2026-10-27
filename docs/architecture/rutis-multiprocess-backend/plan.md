@@ -1661,6 +1661,61 @@ active. G5 has not started.
 Agent Tool head `f0ca555fe` passes required `40478827867`/barrier `122106538990` and all six
 packages `40478827913`/barrier `122113041876` before the policy checkpoint is published.
 
+### MCP App registry and desktop adapter
+
+Keep one registry for instance/source/consent authority. Move native protocol, window observation,
+link opening and session permissions to the Main adapter. Require owner observation before creating
+an App; bound creation reservations with the existing instance limits and invalidate them on owner,
+server and maintenance revocation. Keep authorization and source validation beside the registry.
+
+- [x] Connect the native-free registry/host to required desktop capabilities and asynchronous
+      native policy/permission commands; remove the old native registry wiring.
+- [x] Compare real App hydration, sandbox policy, consent, tools, source changes, window closure
+      and relaunch; validate lifecycle/security limits and ordinary Node loading.
+
+One native-free registry retains instances, source validators, pending consent and pending creation.
+Reservations count against the existing 64-instance and 32-per-owner limits. Owner/server revocation
+and maintenance clear cancel them and abort observation/metadata waits; the SDK resource request
+receives the same owner signal. Late results cannot publish a view. Shared MCP connection startup
+and execution remain with the existing server owner. Creation always releases its reservation.
+
+Main's protocol adapter observes the actual native owner before App hydration and revalidates its
+window identity before protocol responses, permission callbacks and approved links. It receives
+only policy, browser-permission and owner-revocation business operations. Protocol policy is a
+plain isolated projection; browser permission decisions remain with the one registry and require
+current source/owner state after consent. Native callbacks settle once even if the caller disappears.
+First-party/default-session behavior, separate sandbox origin, CSP, consent bounds/timeouts and
+the absence of standing browser grants remain compatible. The old native registry imports,
+observer and session-permission implementation are removed; their native adapter is wired by default.
+
+Validation: **964 checks across 34 affected files and 23 generated-catalog checks across two files
+pass**, with native SQLite required. App and all affected MCP unit/new E2E types, normal/final app
+builds, format/check, lint and i18n pass. Durable cases cover pending-creation capacity and release,
+owner/server/maintenance cancellation, resource reads whose SDK ignores cancellation, revoked
+approval, isolated policy, late native policy responses and single native callback settlement.
+
+The immutable `ef4e8052a` app and final candidate pass the same real model/MCP/persistence/native
+protocol/consent/relaunch workload (6.7/6.3 s). A model tool call creates the saved App source;
+actual protocol responses retain CSP and permission headers. App tool calls, settings-window
+rejection, explicit link allow/deny, graceful shutdown with pending consent, reopening saved sources
+and deletion making a saved App inert all pass. The native browser launch is recorded at the shell
+boundary; external browser navigation and physical camera/microphone access are not exercised.
+The three final policy, stdio and App cases pass in 28.1 s. Timings are functional observations,
+without performance gates, resource recapture or speed claims. The normal generated Provider
+catalog refresh is retained separately in `5a79f205d`.
+
+Registry (one module), AppHost (five), the full McpService module graph (34), ToolService (204),
+actual Harness entry (350) and ProviderRuntime (131) import in ordinary Node with Electron and
+electron-store forbidden at build/runtime. The native protocol adapter remains in Main. This
+establishes module loading, not a composed headless backend or a relocated writer. G5 must move
+the registry with its source and permission authority, keeping source closures/signals local and
+transporting desktop policy/permission/ownership operations through the private gateway with
+generation fences. Artifact hashes and evidence are in `.deepchat/rutis-g4-mcp-apps-acceptance/`.
+G4 stays active and G5 is unstarted; this checkpoint still needs its own publication/CI evidence.
+
+The preceding MCP environment head `ef4e8052a` passes required `40493590061`/barrier `122156301597`
+and all six packages `40493590206`/barrier `122162440119` before this App checkpoint is published.
+
 ### MCP runtime environment
 
 Supply the existing MCP client and registry probe with required host values and capabilities.

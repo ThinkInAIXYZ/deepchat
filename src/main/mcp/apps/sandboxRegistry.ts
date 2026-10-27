@@ -1,5 +1,4 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { session, webContents, type Session } from 'electron'
 import type {
   McpAppConsentKind,
   McpAppConsentRequestPayload,
@@ -14,17 +13,16 @@ const MAX_PENDING_CONSENTS = 64
 const MAX_SANDBOX_INSTANCES = 64
 const MAX_SANDBOX_INSTANCES_PER_WEB_CONTENTS = 32
 
-type PermissionRequestHandler = NonNullable<Parameters<Session['setPermissionRequestHandler']>[0]>
-type PermissionCheckHandler = NonNullable<Parameters<Session['setPermissionCheckHandler']>[0]>
-type ElectronPermission =
-  | Parameters<PermissionRequestHandler>[1]
-  | Parameters<PermissionCheckHandler>[1]
-
 export const MCP_APP_SCHEME = 'mcp-app'
 
 export type McpAppRouteContext = {
   webContentsId: number
   windowId: number | null
+}
+
+export type McpAppDesktopPort = {
+  observeOwner(context: McpAppRouteContext): Promise<void>
+  openExternal(url: string, context: McpAppRouteContext): Promise<void>
 }
 
 export type McpAppSandboxInstance = {
@@ -62,56 +60,6 @@ type ConsentPublisher = (
   payload: { request: McpAppConsentRequestPayload; version: number }
 ) => void
 
-const isFirstPartyRendererUrl = (value: string): boolean => {
-  try {
-    const url = new URL(value)
-    if (url.protocol === 'file:') {
-      return true
-    }
-    return (
-      (url.protocol === 'http:' || url.protocol === 'https:') &&
-      (url.hostname === 'localhost' || url.hostname === '127.0.0.1')
-    )
-  } catch {
-    return false
-  }
-}
-
-const parseMcpAppInstanceId = (value: string | undefined): string | null => {
-  if (!value) {
-    return null
-  }
-  try {
-    const url = new URL(value)
-    return url.protocol === `${MCP_APP_SCHEME}:` && url.hostname ? url.hostname : null
-  } catch {
-    return null
-  }
-}
-
-const resolvePermissionKinds = (
-  permission: ElectronPermission,
-  mediaTypes: string[] | undefined
-): McpAppConsentKind[] => {
-  if (permission === 'geolocation') {
-    return ['geolocation']
-  }
-  if (permission === 'clipboard-sanitized-write') {
-    return ['clipboard-write']
-  }
-  if (permission !== 'media') {
-    return []
-  }
-  const kinds: McpAppConsentKind[] = []
-  if (mediaTypes?.includes('video')) {
-    kinds.push('camera')
-  }
-  if (mediaTypes?.includes('audio')) {
-    kinds.push('microphone')
-  }
-  return kinds
-}
-
 const hasDeclaredPermission = (
   permissions: McpAppPermissions | undefined,
   kind: McpAppConsentKind
@@ -134,15 +82,91 @@ export class McpAppSandboxRegistry {
   private readonly instances = new Map<string, McpAppSandboxInstance>()
   private readonly liveValidators = new Map<string, () => boolean>()
   private readonly pendingConsents = new Map<string, PendingConsent>()
-  private readonly observedWebContents = new Set<number>()
+  private readonly creations = new Map<
+    string,
+    { context: McpAppRouteContext; serverId: string; controller: AbortController }
+  >()
   private publishConsent?: ConsentPublisher
-  private configuredSession: Session | null = null
 
   setConsentPublisher(publisher: ConsentPublisher): void {
     this.publishConsent = publisher
   }
 
+  reserveCreation(context: McpAppRouteContext, serverId: string): string {
+    this.pruneExpired()
+    const owned =
+      Array.from(this.instances.values()).filter(
+        (instance) => instance.webContentsId === context.webContentsId
+      ).length +
+      Array.from(this.creations.values()).filter(
+        (creation) => creation.context.webContentsId === context.webContentsId
+      ).length
+    if (
+      this.instances.size + this.creations.size >= MAX_SANDBOX_INSTANCES ||
+      owned >= MAX_SANDBOX_INSTANCES_PER_WEB_CONTENTS
+    )
+      throw new Error('MCP App sandbox instance limit reached')
+    const id = randomUUID()
+    this.creations.set(id, { context: { ...context }, serverId, controller: new AbortController() })
+    return id
+  }
+
+  assertCreationCurrent(creationId: string): void {
+    if (!this.creations.has(creationId)) {
+      throw new Error('MCP App view creation is no longer active')
+    }
+  }
+
+  cancelCreation(creationId: string): void {
+    const creation = this.creations.get(creationId)
+    this.creations.delete(creationId)
+    creation?.controller.abort(new Error('MCP App view creation is no longer active'))
+  }
+
+  getCreationSignal(creationId: string): AbortSignal {
+    this.assertCreationCurrent(creationId)
+    return this.creations.get(creationId)!.controller.signal
+  }
+
+  async getProtocolPolicy(instanceId: string): Promise<{
+    context: McpAppRouteContext
+    csp?: McpAppCsp
+    permissions?: McpAppPermissions
+  } | null> {
+    const instance = this.getForProtocol(instanceId)
+    if (!instance) return null
+    return structuredClone({
+      context: { webContentsId: instance.webContentsId, windowId: instance.windowId },
+      csp: instance.csp,
+      permissions: instance.permissions
+    })
+  }
+
+  async requestBrowserPermission(
+    instanceId: string,
+    context: McpAppRouteContext,
+    kinds: readonly McpAppConsentKind[]
+  ): Promise<boolean> {
+    const instance = this.getForProtocol(instanceId)
+    if (
+      !instance ||
+      instance.webContentsId !== context.webContentsId ||
+      instance.windowId !== context.windowId ||
+      kinds.length === 0 ||
+      kinds.length > 4 ||
+      kinds.some((kind) => !hasDeclaredPermission(instance.permissions, kind))
+    )
+      return false
+    const decisions = await Promise.all(
+      kinds.map((kind) =>
+        this.requestConsent(instance, { kind, title: kind, detail: instance.descriptor.toolName })
+      )
+    )
+    return decisions.every(Boolean) && this.getForProtocol(instanceId) === instance
+  }
+
   create(input: {
+    creationId: string
     context: McpAppRouteContext
     conversationId: string
     messageId: string
@@ -156,6 +180,14 @@ export class McpAppSandboxRegistry {
     advisoryDomain?: string
     validateLive(): boolean
   }): McpAppSandboxInstance {
+    this.assertCreationCurrent(input.creationId)
+    const creation = this.creations.get(input.creationId)!
+    if (
+      creation.context.webContentsId !== input.context.webContentsId ||
+      creation.context.windowId !== input.context.windowId ||
+      creation.serverId !== input.descriptor.serverId
+    )
+      throw new Error('MCP App creation binding changed')
     this.pruneExpired()
     const ownerInstanceCount = Array.from(this.instances.values()).filter(
       (instance) => instance.webContentsId === input.context.webContentsId
@@ -184,19 +216,9 @@ export class McpAppSandboxRegistry {
       expiresAt: Date.now() + DEFAULT_INSTANCE_TTL_MS,
       toolAccessSuspended: false
     }
+    this.creations.delete(input.creationId)
     this.instances.set(instanceId, instance)
     this.liveValidators.set(instanceId, input.validateLive)
-
-    if (!this.observedWebContents.has(input.context.webContentsId)) {
-      const owner = webContents.fromId(input.context.webContentsId)
-      if (owner) {
-        this.observedWebContents.add(input.context.webContentsId)
-        owner.once('destroyed', () => {
-          this.revokeByWebContents(input.context.webContentsId)
-          this.observedWebContents.delete(input.context.webContentsId)
-        })
-      }
-    }
 
     return instance
   }
@@ -247,6 +269,9 @@ export class McpAppSandboxRegistry {
   }
 
   revokeByWebContents(webContentsId: number): void {
+    for (const [id, creation] of this.creations) {
+      if (creation.context.webContentsId === webContentsId) this.cancelCreation(id)
+    }
     for (const instance of this.instances.values()) {
       if (instance.webContentsId === webContentsId) {
         this.revoke(instance.instanceId)
@@ -255,6 +280,9 @@ export class McpAppSandboxRegistry {
   }
 
   revokeByServer(serverId: string): void {
+    for (const [id, creation] of this.creations) {
+      if (creation.serverId === serverId) this.cancelCreation(id)
+    }
     for (const instance of this.instances.values()) {
       if (instance.descriptor.serverId === serverId) {
         this.revoke(instance.instanceId)
@@ -263,6 +291,7 @@ export class McpAppSandboxRegistry {
   }
 
   clear(): void {
+    for (const id of this.creations.keys()) this.cancelCreation(id)
     for (const instanceId of this.instances.keys()) {
       this.revoke(instanceId)
     }
@@ -366,72 +395,6 @@ export class McpAppSandboxRegistry {
     pending.resolve(approved)
     this.deletePendingConsent(requestId)
     return true
-  }
-
-  configureDefaultSessionPermissions(target: Session = session.defaultSession): void {
-    if (this.configuredSession === target) {
-      return
-    }
-    this.configuredSession = target
-
-    target.setPermissionRequestHandler((owner, permission, callback, details) => {
-      const requestingUrl = details.requestingUrl || owner.getURL()
-      const securityOrigin =
-        'securityOrigin' in details && typeof details.securityOrigin === 'string'
-          ? details.securityOrigin
-          : undefined
-      const instanceId =
-        parseMcpAppInstanceId(requestingUrl) ?? parseMcpAppInstanceId(securityOrigin)
-      if (!instanceId) {
-        const ownerUrl = owner.getURL()
-        callback(!isFirstPartyRendererUrl(ownerUrl) || isFirstPartyRendererUrl(requestingUrl))
-        return
-      }
-
-      const instance = this.getForProtocol(instanceId)
-      const mediaTypes =
-        'mediaTypes' in details && Array.isArray(details.mediaTypes)
-          ? details.mediaTypes.map(String)
-          : undefined
-      const kinds = resolvePermissionKinds(permission, mediaTypes)
-      if (
-        !instance ||
-        instance.webContentsId !== owner.id ||
-        kinds.length === 0 ||
-        kinds.some((kind) => !hasDeclaredPermission(instance.permissions, kind))
-      ) {
-        callback(false)
-        return
-      }
-      void Promise.all(
-        kinds.map((kind) =>
-          this.requestConsent(instance, {
-            kind,
-            title: kind,
-            detail: instance.descriptor.toolName
-          })
-        )
-      )
-        .then((decisions) => callback(decisions.every(Boolean)))
-        .catch(() => callback(false))
-    })
-
-    target.setPermissionCheckHandler((owner, _permission, requestingOrigin, details) => {
-      const requestingUrl =
-        requestingOrigin || details.requestingUrl || details.securityOrigin || owner?.getURL() || ''
-      const instanceId =
-        parseMcpAppInstanceId(requestingUrl) ??
-        parseMcpAppInstanceId(details.securityOrigin) ??
-        parseMcpAppInstanceId(details.requestingUrl)
-      if (!instanceId) {
-        const ownerUrl = owner?.getURL()
-        return (
-          !ownerUrl || !isFirstPartyRendererUrl(ownerUrl) || isFirstPartyRendererUrl(requestingUrl)
-        )
-      }
-      // MCP App browser permissions are request-scoped; there is no standing grant to check.
-      return false
-    })
   }
 
   private pruneExpired(): void {

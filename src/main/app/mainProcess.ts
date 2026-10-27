@@ -138,7 +138,7 @@ export async function startMainProcess(
       mcpSettings.onUpgrade(configMigration.previousAppVersion)
     }
     proxyConfig.initFromConfig(proxySettings.getMode(), proxySettings.getCustomUrl())
-    await registerProtocols(mcpAppSandboxRegistry)
+    const mcpAppDesktop = await registerProtocols(mcpAppSandboxRegistry)
 
     mainProcess = await createMainProcessControl({
       previousAppVersion: configMigration.previousAppVersion,
@@ -164,6 +164,7 @@ export async function startMainProcess(
         })
       ),
       mcpAppSandboxRegistry,
+      mcpAppDesktop,
       acpCatalogSettings,
       database,
       settingsDatabase,

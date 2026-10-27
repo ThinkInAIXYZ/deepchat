@@ -452,6 +452,40 @@ describe('McpClient Runtime Command Processing Tests', () => {
     })
   })
 
+  it('cancels an owned resource read while an uncooperative SDK result is pending', async () => {
+    let release!: (value: { contents: unknown[] }) => void
+    const sdk = {
+      ...createSdkToolClient([], 'modern'),
+      readResource: vi.fn(
+        () =>
+          new Promise<{ contents: unknown[] }>((resolve) => {
+            release = resolve
+          })
+      )
+    }
+    vi.mocked(Client).mockImplementationOnce(function Client() {
+      return sdk as never
+    })
+    const client = createMcpClient('resource-owner', {
+      type: 'http',
+      baseUrl: 'http://127.0.0.1:12345/mcp'
+    })
+    await client.connect()
+    const controller = new AbortController()
+    const reading = client.readResourceContents('ui://fixture/index.html', controller.signal)
+    const rejected = expect(reading).rejects.toThrow('Resource owner closed')
+    await vi.waitFor(() => expect(sdk.readResource).toHaveBeenCalled())
+    expect(sdk.readResource).toHaveBeenCalledWith(
+      { uri: 'ui://fixture/index.html' },
+      { signal: controller.signal }
+    )
+    controller.abort(new Error('Resource owner closed'))
+    await rejected
+    release({ contents: [{ uri: 'ui://fixture/index.html', text: 'late' }] })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    await client.disconnect()
+  })
+
   describe('Environment Variable Processing', () => {
     it('does not disclose host environment values to user-owned MCP servers', async () => {
       vi.stubEnv('DEEPCHAT_TEST_HOST_SECRET', 'host-only-secret')

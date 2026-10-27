@@ -1,6 +1,7 @@
 import { createPluginToolPolicies } from '../../helpers/pluginToolPolicies'
 import { describe, expect, it, vi } from 'vitest'
 import { McpAppHost } from '@/mcp/apps/appHost'
+import { McpAppSandboxRegistry } from '@/mcp/apps/sandboxRegistry'
 import type { McpAppDescriptor, Tool } from '@shared/types/mcp'
 
 const context = { webContentsId: 7, windowId: 11 }
@@ -26,7 +27,7 @@ const tool: Tool = {
   }
 }
 
-const createHarness = () => {
+const createHarness = (registryOverride?: McpAppSandboxRegistry) => {
   let currentConfig = {
     serverId: descriptor.serverId,
     configGeneration: descriptor.configGeneration,
@@ -92,6 +93,10 @@ const createHarness = () => {
     toolAccessSuspended: false
   }
   const registry = {
+    reserveCreation: vi.fn(() => 'creation-id'),
+    getCreationSignal: vi.fn(() => new AbortController().signal),
+    assertCreationCurrent: vi.fn(),
+    cancelCreation: vi.fn(),
     create: vi.fn((input: Record<string, unknown>) => ({ ...instance, ...input })),
     assertOwned: vi.fn(() => instance),
     revoke: vi.fn(),
@@ -102,6 +107,10 @@ const createHarness = () => {
     requestAppDecision: vi.fn().mockResolvedValue({ allowed: true })
   }
   const validateSource = vi.fn(() => true)
+  const desktop = {
+    observeOwner: vi.fn(async (): Promise<void> => undefined),
+    openExternal: vi.fn(async (): Promise<void> => undefined)
+  }
   const host = new McpAppHost({
     toolPolicies: createPluginToolPolicies(),
     settings: {
@@ -111,7 +120,8 @@ const createHarness = () => {
       getClient: vi.fn(() => client)
     } as never,
     permissionBroker: permissionBroker as never,
-    registry: registry as never,
+    registry: registryOverride ?? (registry as never),
+    desktop,
     ensureServerRunning: vi.fn(),
     getPermissionMode: vi.fn().mockResolvedValue('default'),
     validateSource,
@@ -121,6 +131,7 @@ const createHarness = () => {
   return {
     client,
     host,
+    desktop,
     permissionBroker,
     registry,
     validateSource,
@@ -131,6 +142,81 @@ const createHarness = () => {
 }
 
 describe('MCP App host', () => {
+  it('does not publish a view after its owner closes during resource loading', async () => {
+    const registry = new McpAppSandboxRegistry()
+    const { host, client } = createHarness(registry)
+    let release!: (resources: unknown[]) => void
+    client.readResourceContents.mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve
+      })
+    )
+    const pending = host.prepareView(
+      {
+        descriptor,
+        conversationId: 'conversation-id',
+        messageId: 'message-id',
+        blockId: 'block-id',
+        toolInput: {}
+      },
+      context
+    )
+    await vi.waitFor(() => expect(client.readResourceContents).toHaveBeenCalled())
+    registry.revokeByWebContents(context.webContentsId)
+    release([
+      {
+        uri: descriptor.resourceUri,
+        mimeType: descriptor.resourceMimeType,
+        text: '<main>Late</main>',
+        _meta: { ui: {} }
+      }
+    ])
+    await expect(pending).rejects.toThrow('no longer active')
+  })
+
+  it('fences a delayed desktop observation when maintenance clears creation', async () => {
+    const registry = new McpAppSandboxRegistry()
+    const { host, desktop, client } = createHarness(registry)
+    let release!: () => void
+    desktop.observeOwner.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        release = resolve
+      })
+    )
+    const pending = host.prepareView(
+      {
+        descriptor,
+        conversationId: 'conversation-id',
+        messageId: 'message-id',
+        blockId: 'block-id',
+        toolInput: {}
+      },
+      context
+    )
+    registry.clear()
+    release()
+    await expect(pending).rejects.toThrow('no longer active')
+    expect(client.readResourceContents).not.toHaveBeenCalled()
+  })
+
+  it('opens links only after consent and current source validation through the desktop port', async () => {
+    const { host, registry, desktop, validateSource } = createHarness()
+    registry.requestConsent.mockResolvedValueOnce(false)
+    expect(await host.openLink('instance-id', 'https://example.com', context)).toBe(false)
+    expect(desktop.openExternal).not.toHaveBeenCalled()
+    expect(await host.openLink('instance-id', 'https://example.com', context)).toBe(true)
+    expect(desktop.openExternal).toHaveBeenCalledWith('https://example.com/', context)
+    desktop.openExternal.mockClear()
+    registry.requestConsent.mockImplementationOnce(async () => {
+      validateSource.mockReturnValue(false)
+      return true
+    })
+    await expect(host.openLink('instance-id', 'https://example.com', context)).rejects.toThrow(
+      'source no longer matches'
+    )
+    expect(desktop.openExternal).not.toHaveBeenCalled()
+  })
+
   it('hydrates an exact saved App binding and finds metadata on later resource pages', async () => {
     const { client, host, registry } = createHarness()
 
@@ -145,8 +231,12 @@ describe('MCP App host', () => {
       context
     )
 
-    expect(client.listResourcesPage).toHaveBeenNthCalledWith(1, undefined)
-    expect(client.listResourcesPage).toHaveBeenNthCalledWith(2, 'second-page')
+    expect(client.listResourcesPage).toHaveBeenNthCalledWith(1, undefined, expect.any(AbortSignal))
+    expect(client.listResourcesPage).toHaveBeenNthCalledWith(
+      2,
+      'second-page',
+      expect.any(AbortSignal)
+    )
     expect(registry.create).toHaveBeenCalledWith(
       expect.objectContaining({
         descriptor,

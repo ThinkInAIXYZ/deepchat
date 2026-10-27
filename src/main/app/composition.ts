@@ -138,7 +138,7 @@ import { RendererPerformanceLogService } from './rendererPerformanceLogService'
 import type { PrivacySettings } from './privacy'
 import type { ProxySettings } from '@/platform/proxySettings'
 import type { McpSettings } from '@/mcp/settings'
-import type { McpAppSandboxRegistry } from '@/mcp/apps/sandboxRegistry'
+import type { McpAppSandboxRegistry, McpAppDesktopPort } from '@/mcp/apps/sandboxRegistry'
 import type { AcpCatalogSettings } from '@/agent/acp/catalog/settings'
 import { ToolService } from '../tool'
 import { createToolRoutes } from '../tool/routes'
@@ -562,6 +562,7 @@ export async function createMainProcessControl(dependencies: {
   mcpSettings: McpSettings
   pluginToolPolicies: PluginToolPolicyStore
   mcpAppSandboxRegistry: McpAppSandboxRegistry
+  mcpAppDesktop: McpAppDesktopPort
   acpCatalogSettings: AcpCatalogSettings
   database: MainDatabase
   settingsDatabase: SettingsDatabase
@@ -1764,6 +1765,7 @@ export async function createMainProcessControl(dependencies: {
     computerUsePreviewPresenter,
     {
       registry: dependencies.mcpAppSandboxRegistry,
+      desktop: dependencies.mcpAppDesktop,
       permissionBroker: toolPermissionBroker,
       getPermissionMode: async (conversationId) =>
         sessionData.settings.get(conversationId)?.permission_mode ?? 'default',

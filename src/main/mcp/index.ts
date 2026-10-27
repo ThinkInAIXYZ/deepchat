@@ -56,7 +56,7 @@ import type { SemanticNotificationPublisher } from '@/notifications'
 import { McpSettings } from './settings'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type { ToolPermissionBroker } from '@/tool/permission'
-import type { McpAppSandboxRegistry } from './apps/sandboxRegistry'
+import type { McpAppSandboxRegistry, McpAppDesktopPort } from './apps/sandboxRegistry'
 import { McpAppHost } from './apps/appHost'
 import type { PluginToolPolicyStore } from '@/plugin/toolPolicyStore'
 import { hasMcpIdentityBearingChange } from './serverIdentity'
@@ -183,6 +183,7 @@ export class McpService implements McpServicePort {
     computerUsePreviewObserver?: ComputerUsePreviewObserver,
     mcpApps?: {
       registry: McpAppSandboxRegistry
+      desktop: McpAppDesktopPort
       permissionBroker: ToolPermissionBroker
       getPermissionMode(conversationId: string): Promise<PermissionMode>
       validateSource(input: {
@@ -282,6 +283,7 @@ export class McpService implements McpServicePort {
           serverManager: this.serverManager,
           permissionBroker: mcpApps.permissionBroker,
           registry: mcpApps.registry,
+          desktop: mcpApps.desktop,
           ensureServerRunning: async (serverName) => {
             if (this.pluginRuntimeSupervisor.ownsServer(serverName)) {
               await this.pluginRuntimeSupervisor.ensureRunning(serverName, 'external')

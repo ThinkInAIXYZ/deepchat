@@ -158,6 +158,10 @@ const createMcpService = (
     mcpApps
       ? ({
           registry: mcpApps.registry,
+          desktop: {
+            observeOwner: vi.fn(async () => undefined),
+            openExternal: vi.fn(async () => undefined)
+          },
           permissionBroker: {},
           getPermissionMode: vi.fn(),
           validateSource: vi.fn(),

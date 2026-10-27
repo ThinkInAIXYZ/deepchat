@@ -1877,15 +1877,22 @@ export class McpClient {
     return content
   }
 
-  async readResourceContents(resourceUri: string): Promise<Resource[]> {
+  async readResourceContents(resourceUri: string, signal?: AbortSignal): Promise<Resource[]> {
     try {
-      await this.ensureConnectedForRequest()
+      await this.ensureConnectedForRequest(signal)
+      signal?.throwIfAborted()
 
       if (!this.client) {
         throw new Error(`MCP client ${this.serverName} not initialized`)
       }
 
-      const rawResource = await this.client.readResource({ uri: resourceUri })
+      const rawResource = await awaitWithAbort(
+        signal
+          ? this.client.readResource({ uri: resourceUri }, { signal })
+          : this.client.readResource({ uri: resourceUri }),
+        signal
+      )
+      signal?.throwIfAborted()
       this.assertControlResult(rawResource, `resource ${resourceUri}`)
       return rawResource.contents.map((content) => ({
         uri: content.uri,
