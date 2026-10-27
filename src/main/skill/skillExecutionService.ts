@@ -12,7 +12,7 @@ import {
   type SkillRuntimePolicy,
   type SkillScriptRuntime
 } from '@shared/types/skill'
-import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
+import type { BackgroundExecPort } from '@/agent/shared/process/backgroundExecSessionManager'
 import { mergeCommandEnvironment } from '@/agent/shared/process/shellEnvHelper'
 import {
   createUtf8OutputDecoderPair,
@@ -56,6 +56,7 @@ export interface SkillRunOptions {
 }
 
 interface SkillExecutionServiceOptions {
+  backgroundExec: BackgroundExecPort
   resolveConversationWorkdir?: (conversationId: string) => Promise<string | null>
 }
 
@@ -98,9 +99,11 @@ interface ForegroundExecutionResult {
 }
 
 export class SkillExecutionService {
+  private readonly backgroundExec: BackgroundExecPort
   private readonly resolveConversationWorkdir?: (conversationId: string) => Promise<string | null>
 
-  constructor(options: SkillExecutionServiceOptions = {}) {
+  constructor(options: SkillExecutionServiceOptions) {
+    this.backgroundExec = options.backgroundExec
     this.resolveConversationWorkdir = options.resolveConversationWorkdir
   }
 
@@ -153,7 +156,7 @@ export class SkillExecutionService {
         const displayCommand =
           plan.shellCommand ?? this.formatDirectInvocation(plan.command, plan.args)
         ownershipTransferred = true
-        const result = await backgroundExecSessionManager.start(
+        const result = await this.backgroundExec.start(
           options.conversationId,
           displayCommand,
           plan.cwd,
@@ -182,14 +185,14 @@ export class SkillExecutionService {
 
         if (input.stdin !== undefined) {
           try {
-            await backgroundExecSessionManager.write(
+            await this.backgroundExec.write(
               options.conversationId,
               result.sessionId,
               input.stdin,
               true
             )
           } catch (error) {
-            await backgroundExecSessionManager
+            await this.backgroundExec
               .remove(options.conversationId, result.sessionId)
               .catch((cleanupError) => {
                 logger.warn('[SkillExecutionService] Failed to remove background session', {

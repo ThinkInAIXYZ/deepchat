@@ -909,6 +909,19 @@ validation failure preserves the installed binary. Keep archive traversal/checks
 power-loss durability across filesystem activation and SQL publication or move synchronous
 extraction out of Main.
 
+Background command execution keeps its existing dedicated helper and process/session ownership.
+Main supplies an approved absolute helper entry and cancelable launch capability; the business
+owner accepts a plain command/event/lifecycle facade with no Electron fallback or path guesses.
+Tool, Bash and Skill consumers receive the same owner explicitly. Stop rejects new work before
+canceling helper startup, fences requests after asynchronous authority checks, compensates a late
+spawn and awaits actual callback settlement. Child identity attestation, conversation isolation,
+permission/journal commitment, output offloading and owned Skill package cleanup remain intact.
+Root shutdown requests current Harness generation cancellation before stopping the command owner,
+so a rejected helper startup cannot begin another model round while the app is already stopping.
+Helper loss can restart on subsequent ordinary work; terminal shutdown cannot reopen it. Native
+process objects remain inside Main's adapter. G5 supplies the corresponding backend-owned launch
+capability without exposing arbitrary process-launch IPC.
+
 ACP registry ownership includes its manifest, icon cache and acknowledged repository/Provider
 updates. Main supplies absolute profile/built-in directories and an asynchronous icon-text
 capability; the core receives no Electron Response or native object. Retain the existing URL,

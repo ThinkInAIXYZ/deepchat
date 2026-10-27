@@ -88,6 +88,13 @@ export class DeepChatAgentRuntime {
     return this.instances.delete(sessionId)
   }
 
+  abortGenerations(): void {
+    for (const instance of this.instances.values()) {
+      instance.requestGenerationAbort()
+      instance.abortDeferredToolCalls()
+    }
+  }
+
   getToolRegistryRevision(): number {
     return this.toolRegistryRevision
   }

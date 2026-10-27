@@ -45,6 +45,7 @@ import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJob
 import type { z } from 'zod'
 import type { LiveDelegationConsentReceipt } from '@/orchestration/liveDelegationConsent'
 import type { ReadSessionInput } from '@shared/sessionReferences'
+import type { BackgroundExecPort } from '@/agent/shared/process/backgroundExecSessionManager'
 
 export type AgentToolCronJobUpsertInput = z.input<typeof cronJobsUpsertInputSchema>
 
@@ -257,6 +258,7 @@ export interface AgentToolPermissionPort {
 }
 
 export interface AgentToolDependencies {
+  backgroundExec: BackgroundExecPort
   sessions: AgentToolSessionPort
   tape: AgentTapeToolPort
   memory: AgentMemoryToolPort

@@ -1,10 +1,17 @@
 import { vi } from 'vitest'
 import type { AgentToolDependencies } from '@/tool/runtimePorts'
 import { AgentInvocationAdmission } from '../../../../src/harness/admission'
+import { BackgroundExecService } from '@/agent/shared/process/backgroundExecSessionManager'
+
+export const createBackgroundExecFixture = () =>
+  new BackgroundExecService(async () => {
+    throw new Error('Background helper launch must be supplied by the test')
+  })
 
 export const createAgentToolDependencies = (
   overrides: Record<string, any> = {}
 ): AgentToolDependencies => ({
+  backgroundExec: overrides.backgroundExec ?? createBackgroundExecFixture(),
   agentInvocationAdmission: overrides.agentInvocationAdmission ?? new AgentInvocationAdmission(),
   sessions: {
     resolveConversationWorkdir:

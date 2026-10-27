@@ -184,7 +184,17 @@ describe('session boundary composition', () => {
     )
     expect(destroySource).toContain("'yoBrowserPresenter.shutdown'")
     expect(destroySource).toContain("'tabPresenter.destroy'")
-    expect(destroySource).toContain("'backgroundExecSessionManager.shutdown'")
+    const backgroundDrain = destroySource.indexOf('await backgroundExec.shutdown()')
+    expect(backgroundDrain).toBeGreaterThan(destroyStepIndex('sessionRuntimes.suspend'))
+    expect(backgroundDrain).toBeLessThan(destroyStepIndex('skillService.destroy'))
+    expect(backgroundDrain).toBeLessThan(destroyStepIndex('mainDatabase.close'))
+    expect(compositionSource).toContain('backgroundExec.stop()')
+    const shutdownSource = compositionSource.slice(
+      compositionSource.indexOf('const shutdownCoordinator =')
+    )
+    expect(shutdownSource.indexOf('deepChatAgentHarness.abortGenerations()')).toBeLessThan(
+      shutdownSource.indexOf('backgroundExec.stop()')
+    )
     expect(destroyStepIndex('windowPresenter.destroyWindows')).toBeLessThan(
       destroyStepIndex('mainDatabase.close')
     )

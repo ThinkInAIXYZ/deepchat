@@ -1511,6 +1511,56 @@ behavior, power loss across filesystem activation/SQL publication and moving syn
 extraction out of Main remain unverified. Remaining configuration/host/writer contracts keep G4
 active; G5 has not started.
 
+### Background execution helper ownership
+
+Replace the global Electron-aware proxy with one explicitly composed background execution owner.
+Supply its typed helper command/event/lifecycle capability from Main, using the existing Scheduler
+adapter pattern. Inject that owner into Bash, Tool and Skill consumers. Preserve the dedicated
+helper, child/session leases, authority checks and output/Skill-tree cleanup. Fence pending startup
+and post-authority continuations during shutdown, await real callbacks and reject terminal restart.
+Do not add another process supervisor or generic launch endpoint.
+
+Characterize the real app's exec/process feedback and child cleanup before replacing ownership,
+because command dispatch and helper lifetime must remain identical across the cutover.
+
+- [x] Compose the helper capability and one owner; replace all implicit singleton/native fallback
+      wiring and retain process/session recovery contracts.
+- [x] Verify ordinary exec/process feedback, cancellation, held startup/authority shutdown and
+      restart boundaries; compare the actual app and validate affected callers and packaging.
+
+Main composes one BackgroundExecService with an absolute approved helper entry and a cancelable
+native launch adapter. Bash, process tools and Skill execution receive that same owner. The owner
+retains actual startup, authority callbacks, RPC and rejected Skill-tree cleanup; terminal stop
+cannot restart the helper. Late events from an old helper cannot affect its replacement. Root
+shutdown first cancels hydrated Harness generations without reading the database, then stops
+command admission. Actual helper/callback cleanup drains before Skill owners and the writer close;
+a failed drain cannot become a logged-and-continued teardown step.
+
+Validation: **988 checks across 36 affected files pass** under Electron with native SQLite required.
+App and new regression/E2E types, normal/final application builds, format/check, lint and i18n pass.
+The existing ported legacy fixtures retain 107 type errors on both an isolated immutable baseline
+source tree and the candidate, with no new diagnostics; these are not represented as passing typed
+fixtures. Runtime suites pass. No check, timeout or native-import guard was relaxed.
+
+Background execution, Skill execution, ProviderRuntime and the actual Harness entry import in
+ordinary Node with Electron/electron-store forbidden. The 350-module Harness graph has no native
+imports; this verifies module loading, not a composed headless backend or a relocated writer.
+
+The immutable `edfb8ab43` app passes matching exec/process completion and active-child shutdown/
+reopen cases (5.1/4.8 s); the final candidate passes (5.3/5.0 s). Six final app cases pass in 34.3 s,
+including held helper startup shutdown with no command or subsequent model round, child exit and
+persisted message recovery, encrypted legacy unlock/rekey/disable and shutdown while native
+credential/database maintenance work is held. The held-start case exposed and verifies the early
+in-memory generation cancellation requirement. Timings are functional observations only; no
+performance/resource suite was repeated and no speed gain is claimed. Evidence is
+`.deepchat/rutis-g4-background-exec-acceptance/`.
+
+The installer baseline `edfb8ab43` passes required `40464593274`/barrier `122059109164` and all six
+packages `40464593265`/barrier `122065276883` before this checkpoint is published. The new checkpoint
+still needs its own exact-head CI. Native Windows/Linux full-app behavior, Code Mode and other
+desktop capability ports, remaining Store ownership and the cohesive backend move remain open.
+G4 is active; G5 has not started.
+
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
 - [ ] Replace cross-boundary closures/row APIs with bounded transactional business commands for

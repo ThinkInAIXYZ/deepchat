@@ -556,6 +556,7 @@ export class AgentToolManager {
       this.bashHandler = new AgentBashHandler(
         [this.agentWorkspacePath],
         this.commandPermissionHandler,
+        this.dependencies.backgroundExec,
         this.commandEnvironment
       )
     }
@@ -579,6 +580,7 @@ export class AgentToolManager {
       this.bashHandler = new AgentBashHandler(
         [effectiveWorkspacePath],
         this.commandPermissionHandler,
+        this.dependencies.backgroundExec,
         this.commandEnvironment
       )
     } else {
@@ -1333,8 +1335,7 @@ export class AgentToolManager {
       throw new Error('process tool requires a conversation ID')
     }
 
-    const { backgroundExecSessionManager } =
-      await import('@/agent/shared/process/backgroundExecSessionManager')
+    const backgroundExec = this.dependencies.backgroundExec
 
     const validationResult = this.fileSystemSchemas.process.safeParse(args)
     if (!validationResult.success) {
@@ -1351,7 +1352,7 @@ export class AgentToolManager {
 
     switch (action) {
       case 'list': {
-        const sessions = await backgroundExecSessionManager.list(conversationId)
+        const sessions = await backgroundExec.list(conversationId)
         return {
           content: JSON.stringify({ status: 'ok', sessions }, null, 2)
         }
@@ -1362,7 +1363,7 @@ export class AgentToolManager {
           throw new Error('sessionId is required for poll action')
         }
         const outputLimits = await this.resolveOutputLimitsForConversation(conversationId)
-        const result = await backgroundExecSessionManager.poll(
+        const result = await backgroundExec.poll(
           conversationId,
           sessionId,
           outputLimits.commandOutputInlineChars
@@ -1376,12 +1377,7 @@ export class AgentToolManager {
         if (!sessionId) {
           throw new Error('sessionId is required for log action')
         }
-        const result = await backgroundExecSessionManager.log(
-          conversationId,
-          sessionId,
-          offset,
-          limit
-        )
+        const result = await backgroundExec.log(conversationId, sessionId, offset, limit)
         return {
           content: JSON.stringify(result, null, 2)
         }
@@ -1391,13 +1387,7 @@ export class AgentToolManager {
         if (!sessionId) {
           throw new Error('sessionId is required for write action')
         }
-        await backgroundExecSessionManager.write(
-          conversationId,
-          sessionId,
-          data ?? '',
-          eof,
-          commitMutation
-        )
+        await backgroundExec.write(conversationId, sessionId, data ?? '', eof, commitMutation)
         return {
           content: JSON.stringify({ status: 'ok', sessionId })
         }
@@ -1407,7 +1397,7 @@ export class AgentToolManager {
         if (!sessionId) {
           throw new Error('sessionId is required for kill action')
         }
-        await backgroundExecSessionManager.kill(conversationId, sessionId, commitMutation)
+        await backgroundExec.kill(conversationId, sessionId, commitMutation)
         return {
           content: JSON.stringify({ status: 'ok', sessionId })
         }
@@ -1417,7 +1407,7 @@ export class AgentToolManager {
         if (!sessionId) {
           throw new Error('sessionId is required for clear action')
         }
-        await backgroundExecSessionManager.clear(conversationId, sessionId, commitMutation)
+        await backgroundExec.clear(conversationId, sessionId, commitMutation)
         return {
           content: JSON.stringify({ status: 'ok', sessionId })
         }
@@ -1427,7 +1417,7 @@ export class AgentToolManager {
         if (!sessionId) {
           throw new Error('sessionId is required for remove action')
         }
-        await backgroundExecSessionManager.remove(conversationId, sessionId, commitMutation)
+        await backgroundExec.remove(conversationId, sessionId, commitMutation)
         return {
           content: JSON.stringify({ status: 'ok', sessionId })
         }
@@ -1493,6 +1483,7 @@ export class AgentToolManager {
         const bashHandler = new AgentBashHandler(
           allowedDirectories,
           this.commandPermissionHandler,
+          this.dependencies.backgroundExec,
           this.commandEnvironment
         )
         const execArgs = parsedArgs as {
@@ -2880,6 +2871,7 @@ export class AgentToolManager {
   private getSkillExecutionService(): SkillExecutionService {
     if (!this.skillExecutionService) {
       this.skillExecutionService = new SkillExecutionService({
+        backgroundExec: this.dependencies.backgroundExec,
         resolveConversationWorkdir: (conversationId) =>
           this.getWorkdirForConversation(conversationId)
       })

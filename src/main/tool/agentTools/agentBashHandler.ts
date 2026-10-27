@@ -5,7 +5,7 @@ import os from 'os'
 import { z } from 'zod'
 import logger from '@shared/logger'
 import {
-  backgroundExecSessionManager,
+  type BackgroundExecPort,
   getBackgroundExecConfig
 } from '@/agent/shared/process/backgroundExecSessionManager'
 import { terminateProcessTree } from '@/agent/shared/process/processTree'
@@ -126,6 +126,7 @@ export class AgentBashHandler {
   constructor(
     allowedDirectories: string[],
     commandPermissionHandler: CommandPermissionService,
+    private readonly backgroundExec: BackgroundExecPort,
     private readonly commandEnvironment?: AgentCommandEnvironmentPort
   ) {
     if (allowedDirectories.length === 0) {
@@ -358,7 +359,7 @@ export class AgentBashHandler {
       options.signal?.throwIfAborted()
     }
 
-    const session = await backgroundExecSessionManager.start(conversationId, command, cwd, {
+    const session = await this.backgroundExec.start(conversationId, command, cwd, {
       commandShell: options.commandShell,
       timeout,
       env: options.env,
@@ -372,7 +373,7 @@ export class AgentBashHandler {
 
     let removal: Promise<void> | undefined
     const removeSession = (): Promise<void> => {
-      removal ??= backgroundExecSessionManager.remove(conversationId, session.sessionId)
+      removal ??= this.backgroundExec.remove(conversationId, session.sessionId)
       return removal
     }
     const signal = options.programmatic === true ? options.signal : undefined
@@ -405,12 +406,7 @@ export class AgentBashHandler {
     }
 
     try {
-      await backgroundExecSessionManager.write(
-        conversationId,
-        session.sessionId,
-        options.stdin ?? '',
-        true
-      )
+      await this.backgroundExec.write(conversationId, session.sessionId, options.stdin ?? '', true)
     } catch (error) {
       await removeSession().catch((cause) => {
         logger.warn('[AgentBashHandler] Failed to cleanup a session after stdin delivery failed', {
@@ -427,7 +423,7 @@ export class AgentBashHandler {
     try {
       const yielded =
         options.stdin === undefined && options.programmatic !== true
-          ? await backgroundExecSessionManager.waitForCompletionOrYield(
+          ? await this.backgroundExec.waitForCompletionOrYield(
               conversationId,
               session.sessionId,
               options.yieldMs ?? getBackgroundExecConfig().backgroundMs,
@@ -437,7 +433,7 @@ export class AgentBashHandler {
               kind: 'completed' as const,
               result: await (abortObserved && signal
                 ? Promise.race([
-                    backgroundExecSessionManager.getCompletionResult(
+                    this.backgroundExec.getCompletionResult(
                       conversationId,
                       session.sessionId,
                       options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS
@@ -448,7 +444,7 @@ export class AgentBashHandler {
                       throw new DOMException('Aborted', 'AbortError')
                     })
                   ])
-                : backgroundExecSessionManager.getCompletionResult(
+                : this.backgroundExec.getCompletionResult(
                     conversationId,
                     session.sessionId,
                     options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS
@@ -756,22 +752,17 @@ export class AgentBashHandler {
       timeoutMs: timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
       background: true
     })
-    const result = await backgroundExecSessionManager.start(
-      conversationId,
-      prepared.command,
-      spawnCwd,
-      {
-        commandShell: options.commandShell,
-        timeout: timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
-        env: prepared.env,
-        outputPrefix: options.outputPrefix,
-        previewChars: options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS,
-        offloadThresholdChars: Math.min(
-          COMMAND_OFFLOAD_THRESHOLD,
-          options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS
-        )
-      }
-    )
+    const result = await this.backgroundExec.start(conversationId, prepared.command, spawnCwd, {
+      commandShell: options.commandShell,
+      timeout: timeout ?? COMMAND_DEFAULT_TIMEOUT_MS,
+      env: prepared.env,
+      outputPrefix: options.outputPrefix,
+      previewChars: options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS,
+      offloadThresholdChars: Math.min(
+        COMMAND_OFFLOAD_THRESHOLD,
+        options.outputPreviewChars ?? COMMAND_PREVIEW_CHARS
+      )
+    })
 
     return {
       output: { status: 'running', sessionId: result.sessionId }

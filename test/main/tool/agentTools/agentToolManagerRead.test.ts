@@ -6,7 +6,7 @@ import path from 'path'
 import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import { POSIX_COMMAND_SHELL } from '../../../helpers/commandShell'
 import { AgentBashHandler } from '@/tool/agentTools/agentBashHandler'
-import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
+import { createBackgroundExecFixture } from './agentToolDependencies'
 import * as sessionVisionResolverModule from '@/agent/vision/sessionVisionResolver'
 import { createAgentToolDependencies } from './agentToolDependencies'
 import { CommandPermissionService } from '@/tool/permission'
@@ -45,6 +45,8 @@ vi.mock('electron', () => ({
 }))
 
 describe('AgentToolManager read routing', () => {
+  let backgroundExecSessionManager: ReturnType<typeof createBackgroundExecFixture>
+
   let workspaceDir: string
   let providerSettings: any
   let manager: AgentToolManager
@@ -64,6 +66,7 @@ describe('AgentToolManager read routing', () => {
   let preCheckWithoutCommandShell: AgentToolManager['preCheckToolPermission']
 
   beforeEach(async () => {
+    backgroundExecSessionManager = createBackgroundExecFixture()
     vi.clearAllMocks()
     workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-read-'))
     fileService = {
@@ -100,6 +103,7 @@ describe('AgentToolManager read routing', () => {
       providerSettings,
       agentSettings: providerSettings,
       dependencies: createAgentToolDependencies({
+        backgroundExec: backgroundExecSessionManager,
         resolveConversationWorkdir,
         resolveConversationSessionInfo,
         skillService: {

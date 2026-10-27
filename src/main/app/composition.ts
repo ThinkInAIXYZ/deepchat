@@ -324,7 +324,8 @@ import {
 import { CliRequestError } from '@/cli/errors'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 import { AcpAuthService } from '@/agent/acp/auth/acpAuthService'
-import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
+import { BackgroundExecService } from '@/agent/shared/process/backgroundExecSessionManager'
+import { spawnBackgroundExecHost } from './backgroundExecHost'
 import {
   runBuiltinMcpAllowlistCompatibilityMigration,
   runDisabledAgentToolCapabilityCleanupMigration,
@@ -1951,7 +1952,14 @@ export async function createMainProcessControl(dependencies: {
       })
     }
   }
+  const backgroundExec = new BackgroundExecService((signal) =>
+    spawnBackgroundExecHost(
+      path.join(app.getAppPath(), 'out/main/backgroundExecUtilityHost.js'),
+      signal
+    )
+  )
   const agentToolDependencies: AgentToolDependencies = {
+    backgroundExec,
     readSession: (callerSessionId, input) =>
       sessionData.sessionReferences.read(callerSessionId, input),
     agentInvocationAdmission,
@@ -3149,6 +3157,7 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('remoteService.destroy', () => remoteService.destroy())
     await runDestroyStep('hookService.stop', () => hookService.stop())
     await runDestroyStep('sessionRuntimes.suspend', () => suspendSessionRuntimes())
+    await backgroundExec.shutdown()
     await runDestroyStep('toolService.shutdownCodeRuntime', () => toolService.shutdownCodeRuntime())
     const pendingSkillInitialization = skillInitializationPromise
     if (pendingSkillInitialization) {
@@ -3205,9 +3214,6 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('skillSyncService.destroy', () => skillSyncService.destroy())
     await runDestroyStep('skillService.destroy', () => skillService.destroy())
     await runDestroyStep('fileWatcherService.destroy', () => fileWatcherService.destroy())
-    await runDestroyStep('backgroundExecSessionManager.shutdown', () =>
-      backgroundExecSessionManager.shutdown()
-    )
     // Fence new ingestion synchronously, then let Memory disposal abort provider-bound work before
     // awaiting the existing chains. This avoids both late SQLite writes and shutdown deadlocks.
     const memoryIngestionDrain = (() => {
@@ -3801,6 +3807,8 @@ export async function createMainProcessControl(dependencies: {
       databaseRequests.beginShutdown()
       providerDbLoader.stop()
       agentSettings.stop()
+      deepChatAgentHarness.abortGenerations()
+      backgroundExec.stop()
       databaseSecurityService.stop()
       dependencies.secretStore.pause()
       windowPresenter.setApplicationQuitting(true)

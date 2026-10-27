@@ -42,7 +42,7 @@ vi.mock('@/skill/skillExecutionPackageTree', async (importOriginal) => {
 })
 
 import { spawn } from 'child_process'
-import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
+import { createBackgroundExecFixture } from '../tool/agentTools/agentToolDependencies'
 import { terminateProcessTree } from '@/agent/shared/process/processTree'
 import { materializeSkillExecutionPackageTree } from '@/skill/skillExecutionPackageTree'
 
@@ -53,6 +53,8 @@ class MockWritableStream extends EventEmitter {
 }
 
 describe('SkillExecutionService', () => {
+  let backgroundExecSessionManager: ReturnType<typeof createBackgroundExecFixture>
+
   let service: SkillExecutionService
   let resolveConversationWorkdir: ReturnType<typeof vi.fn>
   let authority: ResolvedSkillExecutionAuthority
@@ -61,6 +63,7 @@ describe('SkillExecutionService', () => {
   const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
 
   beforeEach(() => {
+    backgroundExecSessionManager = createBackgroundExecFixture()
     vi.clearAllMocks()
     vi.mocked(spawn).mockReset()
     vi.mocked(terminateProcessTree).mockReset()
@@ -148,6 +151,7 @@ describe('SkillExecutionService', () => {
 
     resolveConversationWorkdir = vi.fn().mockResolvedValue('/workspace/session')
     service = new SkillExecutionService({
+      backgroundExec: backgroundExecSessionManager,
       resolveConversationWorkdir
     })
   })
