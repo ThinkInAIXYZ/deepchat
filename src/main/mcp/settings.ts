@@ -5,9 +5,6 @@ import type {
   McpEnterpriseIdentityProfile
 } from '@shared/types/mcp'
 import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
-import ElectronStore from 'electron-store'
-// app is used in DEFAULT_INMEMORY_SERVERS but removed buildInFileSystem
-// import { app } from 'electron'
 import { compare } from 'compare-versions'
 import { isBuiltinKnowledgeSupported } from '../knowledge/support'
 import type { StoreLike } from '../config/storeLike'
@@ -383,6 +380,45 @@ export const SYSTEM_INMEM_MCP_SERVERS: Record<string, MCPServerConfig> = {
   // custom-prompts-server has been removed, now provides prompt functionality through config data source
 }
 
+function cloneServerConfig(config: MCPServerConfig): MCPServerConfig {
+  const cloneFn = (
+    globalThis as typeof globalThis & {
+      structuredClone?: (value: MCPServerConfig) => MCPServerConfig
+    }
+  ).structuredClone
+
+  if (typeof cloneFn === 'function') {
+    return cloneFn(config)
+  }
+
+  return JSON.parse(JSON.stringify(config)) as MCPServerConfig
+}
+
+function buildDefaultServerConfigs(): Record<string, MCPServerConfig> {
+  const enabledServers = new Set(DEFAULT_ENABLED_SERVER_NAMES)
+
+  return Object.fromEntries(
+    Object.entries(DEFAULT_MCP_SERVERS.mcpServers).map(([name, config]) => [
+      name,
+      {
+        ...cloneServerConfig(config as unknown as MCPServerConfig),
+        enabled: enabledServers.has(name)
+      }
+    ])
+  )
+}
+
+export function createMcpSettingsDefaults(): IMcpSettings {
+  return {
+    mcpServers: buildDefaultServerConfigs(),
+    mcpEnabled: DEFAULT_MCP_SERVERS.mcpEnabled,
+    autoDetectNpmRegistry: true,
+    npmRegistryCache: undefined,
+    customNpmRegistry: undefined,
+    removedBuiltInServers: []
+  }
+}
+
 export class McpSettings {
   private mcpStore: StoreLike<IMcpSettings & Record<string, unknown>>
   private mcpDatabase?: McpDatabase
@@ -399,23 +435,13 @@ export class McpSettings {
   }
 
   constructor(
+    store: StoreLike<IMcpSettings>,
     private readonly variableSecrets?: Pick<
       SecretStore,
       'get' | 'getWrapped' | 'wrap' | 'setWrapped' | 'restoreWrapped' | 'captureOperation'
     >
   ) {
-    // Initialize MCP settings storage
-    this.mcpStore = new ElectronStore<IMcpSettings>({
-      name: 'mcp-settings',
-      defaults: {
-        mcpServers: this.buildDefaultServerConfigs(),
-        mcpEnabled: DEFAULT_MCP_SERVERS.mcpEnabled,
-        autoDetectNpmRegistry: true,
-        npmRegistryCache: undefined,
-        customNpmRegistry: undefined,
-        removedBuiltInServers: []
-      }
-    })
+    this.mcpStore = store
   }
 
   getMigrationSnapshot(): Record<string, unknown> {
@@ -449,20 +475,6 @@ export class McpSettings {
     return [...DEFAULT_ENABLED_SERVER_NAMES]
   }
 
-  private buildDefaultServerConfigs(): Record<string, MCPServerConfig> {
-    const enabledServers = new Set(this.getDefaultEnabledServerNames())
-
-    return Object.fromEntries(
-      Object.entries(DEFAULT_MCP_SERVERS.mcpServers).map(([name, config]) => [
-        name,
-        {
-          ...this.cloneServerConfig(config as unknown as MCPServerConfig),
-          enabled: enabledServers.has(name)
-        }
-      ])
-    )
-  }
-
   private resolveLegacyEnabledServers(): Set<string> {
     const enabled = new Set<string>()
     const oldDefaultServer = this.mcpStore.get('defaultServer')
@@ -489,7 +501,7 @@ export class McpSettings {
     legacyKeysPresent: boolean,
     defaultEnabledServers: Set<string>
   ): MCPServerConfig {
-    const cloned = this.cloneServerConfig(config) as MCPServerConfig & {
+    const cloned = cloneServerConfig(config) as MCPServerConfig & {
       autoApprove?: unknown
     }
     delete cloned.autoApprove
@@ -589,20 +601,6 @@ export class McpSettings {
     this.setRemovedBuiltInServers(removed)
   }
 
-  private cloneServerConfig(config: MCPServerConfig): MCPServerConfig {
-    const cloneFn = (
-      globalThis as typeof globalThis & {
-        structuredClone?: (value: MCPServerConfig) => MCPServerConfig
-      }
-    ).structuredClone
-
-    if (typeof cloneFn === 'function') {
-      return cloneFn(config)
-    }
-
-    return JSON.parse(JSON.stringify(config)) as MCPServerConfig
-  }
-
   private ensureUniqueServerIdentities(
     servers: Record<string, MCPServerConfig>
   ): Record<string, MCPServerConfig> {
@@ -685,10 +683,7 @@ export class McpSettings {
   // Get MCP server configuration
   async getMcpServers(): Promise<Record<string, MCPServerConfig>> {
     const storedServers = this.removeDeprecatedBuiltInServers(
-      this.mcpStore.get<Record<string, MCPServerConfig>>(
-        'mcpServers',
-        this.buildDefaultServerConfigs()
-      )
+      this.mcpStore.get<Record<string, MCPServerConfig>>('mcpServers', buildDefaultServerConfigs())
     )
     const legacyEnabledServers = this.resolveLegacyEnabledServers()
     const legacyKeysPresent =
@@ -729,7 +724,7 @@ export class McpSettings {
         updatedServers[serverName] = this.normalizeServerConfig(
           serverName,
           {
-            ...this.cloneServerConfig(serverConfig as MCPServerConfig),
+            ...cloneServerConfig(serverConfig as MCPServerConfig),
             enabled: defaultEnabledServers.has(serverName)
           },
           new Set(),
@@ -944,7 +939,7 @@ export class McpSettings {
   // 添加MCP服务器
   async addMcpServer(name: string, config: MCPServerConfig): Promise<boolean> {
     const mcpServers = await this.getMcpServers()
-    const hostOwnedConfig = this.cloneServerConfig(config)
+    const hostOwnedConfig = cloneServerConfig(config)
     delete hostOwnedConfig.serverId
     delete hostOwnedConfig.configGeneration
     delete hostOwnedConfig.bindingHash

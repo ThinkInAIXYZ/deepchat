@@ -855,6 +855,16 @@ JSON storage or replace its storage authority after use. Legacy JSON import rema
 operation that completes before module settings attach to the one database writer. Catalog-cache
 bootstrap and other native configuration domains require separate explicit ownership before G5.
 
+MCP and ACP settings receive their initial storage explicitly; pure default builders retain the
+existing platform-specific server defaults and ACP migration format. Main constructs native
+bootstrap files before import and database attachment. After attachment, MCP configuration uses
+its database adapter. ACP enabled/version/shared MCP selection also use the database; its legacy
+registry/manual/install metadata becomes an isolated read-only snapshot for import and fallback
+reads. Live Agent changes already use the unified Agent repository. Remove unused legacy mutation
+entrypoints and reject writes through the attached legacy projection. Normalize legacy ACP data
+before the migration snapshot, and transfer the configuration/database owner together at G5
+without retaining a writable Main shadow.
+
 First-party configuration selects the core entry and service exports. Rutis dependency injection
 and scopes are not authorization. This migration introduces no arbitrary third-party Rutis code
 loading or untrusted peer access. Existing `.dcplugin` and portable user-plugin behavior retain

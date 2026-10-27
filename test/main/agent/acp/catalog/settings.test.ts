@@ -1,44 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockStores = vi.hoisted(() => new Map<string, Record<string, any>>())
+import { createMemoryStore } from '../../../../helpers/memoryStore'
 
-const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
-
-vi.mock('electron-store', () => ({
-  default: class MockElectronStore {
-    private readonly data: Record<string, any>
-
-    constructor(options: { name: string; defaults?: Record<string, any> }) {
-      if (!mockStores.has(options.name)) {
-        mockStores.set(options.name, clone(options.defaults ?? {}))
-      }
-      this.data = mockStores.get(options.name)!
-    }
-
-    get(key: string) {
-      return this.data[key]
-    }
-
-    set(key: string, value: any) {
-      this.data[key] = value
-    }
-
-    delete(key: string) {
-      delete this.data[key]
-    }
-  }
-}))
-
-vi.mock('@/mcp/settings', () => ({
-  McpSettings: class MockMcpSettings {
-    async getMcpServers() {
-      return {
-        github: { type: 'stdio' },
-        memory: { type: 'inmemory' }
-      }
-    }
-  }
-}))
+const mockStores = new Map<string, Record<string, unknown>>()
+const github = {
+  command: 'fixture',
+  args: [],
+  env: {},
+  descriptions: '',
+  icons: '',
+  disable: false,
+  enabled: true,
+  type: 'stdio' as const
+}
+const mcpSettings = {
+  getMcpServers: async () => ({ github, memory: { ...github, type: 'inmemory' as const } })
+}
 
 describe('AcpCatalogSettings registry-first migration', () => {
   beforeEach(() => {
@@ -88,9 +65,12 @@ describe('AcpCatalogSettings registry-first migration', () => {
       ]
     })
 
-    const { AcpCatalogSettings } = await import('@/agent/acp/catalog/settings')
-    const { McpSettings } = await import('@/mcp/settings')
-    const helper = new AcpCatalogSettings({ mcpSettings: new McpSettings() })
+    const { AcpCatalogSettings, createAcpCatalogDefaults } =
+      await import('@/agent/acp/catalog/settings')
+    const helper = new AcpCatalogSettings({
+      mcpSettings,
+      store: createMemoryStore(mockStores.get('acp_agents') ?? createAcpCatalogDefaults())
+    })
 
     expect(helper.getAgentState('kimi')).toEqual(
       expect.objectContaining({
@@ -113,15 +93,23 @@ describe('AcpCatalogSettings registry-first migration', () => {
     expect(helper.getSharedMcpSelections()).toEqual(['github'])
   })
 
-  it('persists registry env overrides and validates shared MCP selections', async () => {
-    const { AcpCatalogSettings } = await import('@/agent/acp/catalog/settings')
-    const { McpSettings } = await import('@/mcp/settings')
-    const helper = new AcpCatalogSettings({ mcpSettings: new McpSettings() })
-
-    helper.setAgentEnvOverride('claude-code-acp', {
-      ANTHROPIC_AUTH_TOKEN: 'token',
-      EMPTY_LINE: ''
+  it('normalizes legacy registry env overrides and validates shared MCP selections', async () => {
+    mockStores.set('acp_agents', {
+      version: '4',
+      registryStates: {
+        'claude-code-acp': {
+          agentId: 'claude-code-acp',
+          envOverride: { ANTHROPIC_AUTH_TOKEN: 'token', EMPTY_LINE: '' }
+        }
+      }
     })
+    const { AcpCatalogSettings, createAcpCatalogDefaults } =
+      await import('@/agent/acp/catalog/settings')
+    const helper = new AcpCatalogSettings({
+      mcpSettings,
+      store: createMemoryStore(mockStores.get('acp_agents') ?? createAcpCatalogDefaults())
+    })
+
     await helper.setAgentMcpSelections('claude-code-acp', true, ['github', 'memory'])
 
     expect(helper.getAgentState('claude-acp')).toEqual(
@@ -167,9 +155,12 @@ describe('AcpCatalogSettings registry-first migration', () => {
       }
     })
 
-    const { AcpCatalogSettings } = await import('@/agent/acp/catalog/settings')
-    const { McpSettings } = await import('@/mcp/settings')
-    const helper = new AcpCatalogSettings({ mcpSettings: new McpSettings() })
+    const { AcpCatalogSettings, createAcpCatalogDefaults } =
+      await import('@/agent/acp/catalog/settings')
+    const helper = new AcpCatalogSettings({
+      mcpSettings,
+      store: createMemoryStore(mockStores.get('acp_agents') ?? createAcpCatalogDefaults())
+    })
 
     expect(helper.getSharedMcpSelections()).toEqual(['github', 'legacy-extra'])
     expect(helper.getAgentState('claude-acp')).toEqual(

@@ -6,11 +6,12 @@ import { unzipSync, zipSync } from 'fflate'
 import { afterEach, expect, it, vi } from 'vitest'
 import { UserPlugins, type UserPluginRecord, type UserPluginStore } from '@/plugin/userPlugins'
 import { UserPluginHooks } from '@/plugin/userPluginHooks'
-import { McpSettings } from '@/mcp/settings'
+import { McpSettings, createMcpSettingsDefaults } from '@/mcp/settings'
 import { mcpVariableBindingScope } from '@/mcp/environmentBindings'
 import { SecretStore } from '@/config/secretStore'
 import type { TapeAnchorAppendInput, DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import { USER_PLUGIN_INSTALL_DIRECTORY } from '@shared/pluginPaths'
+import { createMemoryStore } from '../../helpers/memoryStore'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -101,7 +102,7 @@ function fixture() {
       decrypt: async (wrapped) => Buffer.from(wrapped, 'base64').toString()
     }
   )
-  const mcpSettings = new McpSettings(secrets)
+  const mcpSettings = new McpSettings(createMemoryStore(createMcpSettingsDefaults()), secrets)
   const skills = new Map<string, string>()
   const supervisor = {
     registerServer: vi.fn(),

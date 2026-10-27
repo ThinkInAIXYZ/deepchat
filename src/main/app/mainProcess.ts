@@ -20,8 +20,8 @@ import { McpAppSandboxRegistry } from '@/mcp/apps/sandboxRegistry'
 import { SplashWindow } from './splashWindow'
 import { PrivacySettings } from './privacy'
 import { ProxySettings } from '@/platform/proxySettings'
-import { McpSettings } from '@/mcp/settings'
-import { AcpCatalogSettings } from '@/agent/acp/catalog/settings'
+import { McpSettings, createMcpSettingsDefaults } from '@/mcp/settings'
+import { AcpCatalogSettings, createAcpCatalogDefaults } from '@/agent/acp/catalog/settings'
 import { SettingsDatabase } from '@/settings/data/database'
 import { migrateConfigStorage } from '@/config/migration'
 import { ProviderDatabase } from '@/provider/data/database'
@@ -50,9 +50,21 @@ export async function startMainProcess(
     const secretStore = new SecretStore(settingsStore, credentialCrypto)
     const privacySettings = new PrivacySettings(settingsStore)
     const proxySettings = new ProxySettings(settingsStore)
-    const mcpSettings = new McpSettings(secretStore)
+    const mcpSettings = new McpSettings(
+      new ElectronStore({
+        name: 'mcp-settings',
+        defaults: createMcpSettingsDefaults()
+      }) as unknown as StoreLike<ReturnType<typeof createMcpSettingsDefaults>>,
+      secretStore
+    )
     const mcpAppSandboxRegistry = new McpAppSandboxRegistry()
-    const acpCatalogSettings = new AcpCatalogSettings({ mcpSettings })
+    const acpCatalogSettings = new AcpCatalogSettings({
+      mcpSettings,
+      store: new ElectronStore({
+        name: 'acp_agents',
+        defaults: createAcpCatalogDefaults()
+      }) as unknown as StoreLike<ReturnType<typeof createAcpCatalogDefaults>>
+    })
     const databaseSecurityService = new DatabaseSecurityService({
       dbPath: path.join(app.getPath('userData'), 'app_db', 'agent.db'),
       metadata: new ElectronStore<{ metadata: DatabaseSecurityMetadata }>({

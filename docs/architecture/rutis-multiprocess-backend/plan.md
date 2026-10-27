@@ -502,7 +502,7 @@ removing the scheduler connection alone does not complete G4.
 | Schema catalog | `schemaCatalog.ts` opens an in-memory database for schema inspection | Keep this temporary local connection internal to the Store owner |
 | OCR artifacts | `ocrArtifactStore.ts` owns a separate encrypted derived-cache database | Preserve its explicit independent file owner; this is not a second writer of the shared application file |
 | Vector stores | The G3 Memory worker and Knowledge's existing DuckDB owner use separate files | Preserve their existing resource authorities and maintenance fences |
-| Configuration | Main constructs legacy `app-settings`; `SettingsStore` attaches `AppSettingsDbBackedStore`; Provider model facts/overrides require database stores; MCP/ACP and startup imports retain legacy file adapters | Use acknowledged mutations and versioned read snapshots, with explicit bootstrap and machine-local file ownership; remove remaining native runtime defaults before G5 |
+| Configuration | Main constructs legacy app/MCP/ACP settings; runtime settings use database adapters; Provider model stores are required; attached ACP retains only an isolated legacy snapshot | Use acknowledged mutations and versioned read snapshots, with explicit bootstrap and machine-local file ownership; remove remaining native runtime defaults before G5 |
 | Credentials and desktop state | Main supplies async crypto/unlock; DatabaseSecurity, SecretStore, Sync, MCP and Codex/Grok own explicit private persistence; remaining native/window/plugin settings still require extraction | Keep authorized crypto/native operations separate from persistence; retain existing plugin consent and settings ownership |
 
 ### Ordered implementation slices
@@ -1281,6 +1281,55 @@ plugin-startup failure and encrypted legacy unlock/rekey/disable. These are func
 not a speed claim. Evidence and original diagnostic attempts remain under
 `.deepchat/rutis-g4-provider-config-acceptance/`. Full native Windows/Linux application behavior
 remains unverified locally. G4 remains active for the remaining configuration and host contracts.
+
+### MCP and ACP configuration bootstrap
+
+Both settings classes require storage at construction. Main creates the existing named files
+from pure default builders. These retain
+platform-specific MCP defaults, secret-operation dependencies, startup normalization, legacy
+import and database attachment order. ACP's live Agent mutations already use the unified database
+repository. Capture registry/manual/install legacy data into an isolated read-only snapshot at
+attachment and remove unused legacy mutation entrypoints. Enabled/version/shared MCP selections
+remain database-backed. G5 transfers configuration and its database owner together without a
+writable Main shadow or per-key IPC.
+
+- [x] Replace default construction and all real callers, fixtures and exports; preserve MCP
+      configuration transactions and ACP migration behavior.
+- [x] Compare actual MCP and ACP configuration changes across graceful exit/reopen, validate
+      affected settings/migration/plugin contracts, and verify the settings modules load without
+      Electron. No process, IPC, layout or storage schema change requires a full resource capture.
+
+The attached ACP adapter copies legacy input, returns isolated read values and rejects legacy
+writes/deletes. A rejected mixed-key batch fails before changing database settings. Seven unused
+legacy mutation/access helpers have been removed; actual Agent mutations continue through the
+unified repository. Normalization still runs before database attachment and its migration snapshot.
+Legacy config import reads the extracted source files and applies database payloads, so it does
+not require an active writable JSON adapter.
+
+Validation: 30 native affected files/380 checks and the separate config-import file/six checks pass
+under Electron Node with native SQLite required. Nine plugin files/201 checks pass under normal
+Node, matching their child-process fixtures. Modified settings/plugin/E2E scoped types, app node/web
+types, normal build, format, lint and i18n pass. A temporary bundled probe constructs both settings
+classes and defaults with `electron` and `electron-store` forbidden. The initial combined run used
+Electron's executable for Node-only hook fixtures and failed six child-process cases; the correct
+Node run passes. That diagnostic and the corrected snapshot-test fixture failure remain in the
+acceptance directory. No runtime timeout or environment guard has been relaxed, and no owned hook
+process remains.
+
+The normal build refreshes the generated Provider catalog; three catalog files/50 checks pass.
+The generated data is retained in its own commit so the configuration change can be reviewed
+independently.
+
+The immutable `ec82c12b4` application passes the same new configuration E2E in 6.6 s; the migrated
+application passes in 6.9 s. It adds a disabled MCP server and manual ACP Agent, updates Agent
+configuration and shared MCP selection/global availability, reopens and checks persistence,
+removes/resets the configuration, reopens again and verifies absence. Legacy MCP/ACP JSON bytes
+remain unchanged. All three selected app cases pass in 27.0 s, including encrypted database
+legacy unlock/rekey/disable and native MCP credential/settings-window ownership. These are
+functional results without a timing gate or speed claim. Evidence is under
+`.deepchat/rutis-g4-mcp-acp-config-acceptance/`. Normal generated catalog refreshes are retained
+separately. Catalog bootstrap, other native dependencies and the cohesive writer move keep G4/G5
+open; full native Windows/Linux application behavior remains unverified locally.
 
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
