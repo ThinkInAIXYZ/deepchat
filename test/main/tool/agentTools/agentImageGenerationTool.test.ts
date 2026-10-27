@@ -1,21 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import os from 'os'
 import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import { IMAGE_GENERATE_TOOL_NAME } from '@/tool/agentTools/agentImageGenerationTool'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import { createAgentToolDependencies } from './agentToolDependencies'
 import { CommandPermissionService } from '@/tool/permission'
-
-vi.mock('electron', () => ({
-  app: {
-    getPath: () => os.tmpdir()
-  },
-  nativeImage: {
-    createFromPath: () => ({
-      getSize: () => ({ width: 128, height: 96 })
-    })
-  }
-}))
 
 describe('Agent image generation tool', () => {
   let providerSettings: any

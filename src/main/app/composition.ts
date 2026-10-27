@@ -39,6 +39,7 @@ import {
   app,
   ipcMain,
   powerMonitor,
+  nativeImage,
   net,
   webContents as electronWebContents
 } from 'electron'
@@ -2123,6 +2124,14 @@ export async function createMainProcessControl(dependencies: {
     },
     cacheImage: (data, options) => deviceService.cacheImage(data, options),
     desktop: {
+      tempDirectory: app.getPath('temp'),
+      profileTempDirectory: path.join(app.getPath('userData'), 'temp'),
+      readImageSize: async (filePath, signal) => {
+        signal?.throwIfAborted()
+        const size = nativeImage.createFromPath(filePath).getSize()
+        signal?.throwIfAborted()
+        return { width: size.width, height: size.height }
+      },
       createSettingsWindow: () => windowPresenter.createSettingsWindow(),
       sendToWindow: (windowId, channel, ...args) =>
         windowPresenter.sendToWindow(windowId, channel, ...args),

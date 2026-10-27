@@ -33,19 +33,6 @@ vi.mock('fs', async (importOriginal) => {
   }
 })
 
-vi.mock('electron', () => ({
-  app: {
-    getAppPath: () => '/mock/app',
-    getPath: () => '/tmp',
-    isPackaged: false
-  },
-  nativeImage: {
-    createFromPath: vi.fn(() => ({
-      getSize: () => ({ width: 0, height: 0 })
-    }))
-  }
-}))
-
 function buildRuntimePort() {
   return createAgentToolDependencies({
     resolveConversationWorkdir: vi.fn().mockResolvedValue(null),

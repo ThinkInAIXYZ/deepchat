@@ -1,4 +1,6 @@
 import { vi } from 'vitest'
+import os from 'node:os'
+import path from 'node:path'
 import type { AgentToolDependencies } from '@/tool/runtimePorts'
 import { AgentInvocationAdmission } from '../../../../src/harness/admission'
 import { BackgroundExecService } from '@/agent/shared/process/backgroundExecSessionManager'
@@ -115,10 +117,14 @@ export const createAgentToolDependencies = (
       generateCompletionStandalone: vi.fn(),
       generateImageStandalone: vi.fn()
     } as any),
-  desktop: overrides.desktop ?? {
+  desktop: {
+    tempDirectory: path.join(os.tmpdir(), 'deepchat-electron-temp'),
+    profileTempDirectory: path.join(os.tmpdir(), 'deepchat-electron-user-data', 'temp'),
+    readImageSize: overrides.readImageSize ?? vi.fn(async () => ({ width: 128, height: 96 })),
     createSettingsWindow: vi.fn(),
     sendToWindow: vi.fn().mockReturnValue(true),
-    sendSettingsNavigation: vi.fn().mockReturnValue(true)
+    sendSettingsNavigation: vi.fn().mockReturnValue(true),
+    ...overrides.desktop
   },
   permissions: {
     getApprovedFilePaths: overrides.getApprovedFilePaths ?? vi.fn().mockReturnValue([]),

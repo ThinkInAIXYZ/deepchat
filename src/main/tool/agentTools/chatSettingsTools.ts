@@ -142,7 +142,10 @@ export class ChatSettingsToolHandler {
       desktopSettings: AgentDisplaySettingsPort
       skillSettings: SkillSettingsPort
       skillService: SkillServicePort
-      windowRuntime: AgentDesktopToolPort
+      windowRuntime: Pick<
+        AgentDesktopToolPort,
+        'createSettingsWindow' | 'sendToWindow' | 'sendSettingsNavigation'
+      >
     }
   ) {}
 

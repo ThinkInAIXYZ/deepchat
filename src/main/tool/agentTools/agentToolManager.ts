@@ -12,7 +12,6 @@ import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { z } from 'zod'
 import fs from 'fs'
 import path from 'path'
-import { app, nativeImage } from 'electron'
 import logger from '@shared/logger'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -532,6 +531,13 @@ export class AgentToolManager {
     this.commandPermissionHandler = options.commandPermissionHandler
     this.commandEnvironment = options.commandEnvironment
     this.dependencies = options.dependencies
+    for (const directory of [
+      this.dependencies.desktop.tempDirectory,
+      this.dependencies.desktop.profileTempDirectory
+    ]) {
+      if (!path.isAbsolute(directory))
+        throw new Error('Agent Tool host directories must be absolute')
+    }
     this.liveDelegationTool = this.dependencies.liveDelegation
       ? new LiveDelegationAgentTool(this.dependencies.liveDelegation)
       : null
@@ -2279,8 +2285,8 @@ export class AgentToolManager {
 
     if (includeRuntimeRoots) {
       addPath(conversationId ? resolveSessionDir(conversationId) : null)
-      addPath(app.getPath('temp'))
-      addPath(path.join(app.getPath('userData'), 'temp'))
+      addPath(this.dependencies.desktop.tempDirectory)
+      addPath(this.dependencies.desktop.profileTempDirectory)
     }
 
     if (conversationId) {
@@ -2463,17 +2469,24 @@ export class AgentToolManager {
     return mimeType.startsWith('image/')
   }
 
-  private buildImageMetadataBlock(filePath: string, mimeType: string, fileSize: number): string {
+  private async buildImageMetadataBlock(
+    filePath: string,
+    mimeType: string,
+    fileSize: number,
+    signal?: AbortSignal
+  ): Promise<string> {
+    throwIfAbortRequested(signal)
     let width: number | null = null
     let height: number | null = null
     try {
-      const image = nativeImage.createFromPath(filePath)
-      const size = image.getSize()
+      const size = await this.dependencies.desktop.readImageSize(filePath, signal)
+      throwIfAbortRequested(signal)
       if (size.width > 0 && size.height > 0) {
         width = size.width
         height = size.height
       }
     } catch (error) {
+      throwIfAbortRequested(signal)
       logger.warn('[AgentToolManager] Failed to read image dimensions', { filePath, error })
     }
 
@@ -2497,7 +2510,13 @@ export class AgentToolManager {
     throwIfAbortRequested(signal)
     const fileBuffer = await fs.promises.readFile(filePath)
     throwIfAbortRequested(signal)
-    const metadata = this.buildImageMetadataBlock(filePath, mimeType, fileBuffer.length)
+    const metadata = await this.buildImageMetadataBlock(
+      filePath,
+      mimeType,
+      fileBuffer.length,
+      signal
+    )
+    throwIfAbortRequested(signal)
     const dataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`
     let previewData: string | undefined
     let dispatchCommitFailed = false
@@ -2792,7 +2811,11 @@ export class AgentToolManager {
   }
 
   private getDefaultAgentWorkspacePath(): string {
-    const tempDir = path.join(app.getPath('temp'), 'deepchat-agent', 'workspaces')
+    const tempDir = path.join(
+      this.dependencies.desktop.tempDirectory,
+      'deepchat-agent',
+      'workspaces'
+    )
     try {
       fs.mkdirSync(tempDir, { recursive: true })
     } catch (error) {
@@ -2800,7 +2823,7 @@ export class AgentToolManager {
         '[AgentToolManager] Failed to create default workspace, using system temp:',
         error
       )
-      return app.getPath('temp')
+      return this.dependencies.desktop.tempDirectory
     }
     return tempDir
   }

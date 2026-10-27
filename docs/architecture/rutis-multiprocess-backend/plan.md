@@ -1611,9 +1611,52 @@ composed headless backend or a relocated writer. Evidence and artifact hashes ar
 `.deepchat/rutis-g4-code-mode-acceptance/`. The normal generated Provider catalog refresh is retained
 separately in `f560f941e`. No performance/resource suite was repeated, no timing gate was added and
 no speed gain is claimed. The preceding `12a73394f` CI completed before publication. Code Mode head
-`32f457ff7` passes required `40473854228`/barrier `122089643930`; six-platform package run
-`40473854200` is in progress.
+`32f457ff7` passes required `40473854228`/barrier `122089643930` and all six packages
+`40473854200`/barrier `122095514524`.
 Remaining desktop/Store boundaries keep G4 active; G5 is unstarted.
+
+### Agent Tool host inputs
+
+Supply AgentToolManager's existing desktop port with explicit absolute temporary/profile-temporary
+roots and an asynchronous image-dimension capability. Keep nativeImage and app paths in Main;
+remove native imports from the business manager. Preserve the existing runtime directory allowlist,
+default-workspace creation/fallback, file/symlink checks, image metadata and vision selection.
+Recheck cancellation after the host result and before cache/Provider effects. Native image objects
+and generic path/root discovery must not cross the boundary; do not introduce a second supervisor.
+
+- [x] Replace native defaults with required host inputs at the actual ToolService composition.
+- [x] Compare real image metadata/text-read/reopen behavior against the accepted app; validate
+      injected roots, metadata failure, cancellation and affected Tool/Harness contracts.
+
+Main supplies the existing system/profile temporary roots and native image-size probe through the
+required desktop port. The manager validates absolute roots and uses them for the unchanged read
+allowlist and default-workspace fallback. It awaits dimensions, preserves unknown-metadata failure
+behavior and checks cancellation before preview caching or vision work. The probe returns only
+numeric dimensions. The settings-window consumer keeps its original three-method subset rather than
+receiving image/filesystem capabilities. Seven obsolete native mocks are removed from pure Tool
+suites; ToolService still imports the separate plugin policy Store and is not claimed portable.
+
+Validation: **689 checks across 14 affected native files and 23 generated-catalog checks across
+two files pass**. App and new E2E types, normal/final application builds, format/check, lint and
+i18n pass. Durable cases cover supplied roots, default workspace, approval for unrelated files,
+metadata failure and cancellation of a delayed image result before cache/Provider effects. The
+existing vision preference, journal, symlink and permission suites remain green. No production
+guard or timeout was relaxed.
+
+The same actual image metadata, workspace read and persisted-message reopen scenario passes on
+immutable `32f457ff7` and the final candidate (both 5.3 s). Four final app cases pass in 21.0 s,
+including background process feedback, Code Mode nested execution and held-READY helper shutdown.
+All profiles are disposable and the Provider fixture is local. Artifact hashes and evidence are in
+`.deepchat/rutis-g4-agent-tool-host-acceptance/`.
+The normal generated Provider catalog refresh is retained separately in `c4f306e01`.
+
+AgentToolManager's 126-module graph, the actual 350-module Harness entry and ProviderRuntime import
+in ordinary Node with Electron/electron-store forbidden. This proves module loading, not a composed
+headless backend or relocated writer. Native image decoding retains its current synchronous Main
+placement. No performance/resource suite was repeated and no latency or memory gain is claimed.
+The preceding `32f457ff7` required and six-platform CI completed before publication. This target
+still needs its own exact-head CI; remaining configuration, plugin-policy and native/Store ports
+keep G4 active. G5 has not started.
 
 - [ ] Complete the writer, synchronous-reader and desktop-consumer inventory.
   - [x] Enumerate SQLite/DuckDB construction and wrapper entrypoints, inherited shared facades,

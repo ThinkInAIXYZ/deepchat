@@ -17,25 +17,6 @@ vi.mock('fs', async (importOriginal) => {
   }
 })
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: (name: string) => {
-      if (name === 'temp') {
-        return path.join(os.tmpdir(), 'deepchat-electron-temp')
-      }
-      if (name === 'home') {
-        return path.join(os.tmpdir(), 'deepchat-electron-home')
-      }
-      return os.tmpdir()
-    }
-  },
-  nativeImage: {
-    createFromPath: () => ({
-      getSize: () => ({ width: 128, height: 96 })
-    })
-  }
-}))
-
 describe('AgentToolManager skill file access', () => {
   const electronHome = path.join(os.tmpdir(), 'deepchat-electron-home')
   const agentId = `agent-a-${process.pid}`

@@ -1,20 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import os from 'os'
 import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import { YoBrowserUnavailableError, buildYoBrowserUnavailablePayload } from '@/tool/browser/errors'
 import { createAgentToolDependencies } from './agentToolDependencies'
 import { CommandPermissionService } from '@/tool/permission'
-
-vi.mock('electron', () => ({
-  app: {
-    getPath: () => os.tmpdir()
-  },
-  nativeImage: {
-    createFromPath: () => ({
-      getSize: () => ({ width: 128, height: 96 })
-    })
-  }
-}))
 
 describe('AgentToolManager YoBrowser routing', () => {
   let manager: AgentToolManager

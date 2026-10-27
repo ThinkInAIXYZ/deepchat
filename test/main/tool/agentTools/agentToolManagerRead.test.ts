@@ -22,28 +22,6 @@ vi.mock('fs', async (importOriginal) => {
   }
 })
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: (name: string) => {
-      if (name === 'temp') {
-        return path.join(os.tmpdir(), 'deepchat-electron-temp')
-      }
-      if (name === 'home') {
-        return path.join(os.tmpdir(), 'deepchat-electron-home')
-      }
-      if (name === 'userData') {
-        return path.join(os.tmpdir(), 'deepchat-electron-user-data')
-      }
-      return os.tmpdir()
-    }
-  },
-  nativeImage: {
-    createFromPath: () => ({
-      getSize: () => ({ width: 128, height: 96 })
-    })
-  }
-}))
-
 describe('AgentToolManager read routing', () => {
   let backgroundExecSessionManager: ReturnType<typeof createBackgroundExecFixture>
 
@@ -62,6 +40,8 @@ describe('AgentToolManager read routing', () => {
   let resolveConversationWorkdir: ReturnType<typeof vi.fn>
   let resolveConversationSessionInfo: ReturnType<typeof vi.fn>
   let settingsGet: ReturnType<typeof vi.fn>
+  let readImageSize: ReturnType<typeof vi.fn>
+  let cacheImage: ReturnType<typeof vi.fn>
   let callToolWithoutCommandShell: AgentToolManager['callTool']
   let preCheckWithoutCommandShell: AgentToolManager['preCheckToolPermission']
 
@@ -95,6 +75,8 @@ describe('AgentToolManager read routing', () => {
       resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
     }
     settingsGet = vi.fn()
+    readImageSize = vi.fn(async () => ({ width: 128, height: 96 }))
+    cacheImage = vi.fn(async (data: string) => data)
     manager = new AgentToolManager({
       skillSettings: { isEnabled: () => false } as any,
       settings: { get: settingsGet },
@@ -104,6 +86,8 @@ describe('AgentToolManager read routing', () => {
       agentSettings: providerSettings,
       dependencies: createAgentToolDependencies({
         backgroundExec: backgroundExecSessionManager,
+        readImageSize,
+        cacheImage,
         resolveConversationWorkdir,
         resolveConversationSessionInfo,
         skillService: {
@@ -1282,6 +1266,105 @@ describe('AgentToolManager read routing', () => {
         logLabel: 'read:conv1'
       })
     )
+  })
+
+  it('uses only supplied runtime roots and preserves the default workspace', async () => {
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-host-roots-'))
+    const temporary = path.join(base, 'native-temp')
+    const profileTemporary = path.join(base, 'profile-temp')
+    const defaultWorkspace = path.join(temporary, 'deepchat-agent', 'workspaces')
+    try {
+      await fs.mkdir(defaultWorkspace, { recursive: true })
+      await fs.mkdir(profileTemporary, { recursive: true })
+      await fs.writeFile(path.join(defaultWorkspace, 'workspace.txt'), 'DEFAULT_WORKSPACE')
+      await fs.writeFile(path.join(profileTemporary, 'profile.txt'), 'PROFILE_TEMPORARY')
+      await fs.writeFile(path.join(base, 'denied.txt'), 'UNRELATED_FILE')
+      fileService.getMimeType.mockResolvedValue('text/plain')
+      const build = (tempDirectory = temporary) =>
+        new AgentToolManager({
+          agentWorkspacePath: null,
+          settings: { get: settingsGet },
+          providerSettings,
+          agentSettings: providerSettings,
+          skillSettings: { isEnabled: () => false } as any,
+          desktopSettings: { applyDisplayChange: vi.fn() },
+          commandPermissionHandler: new CommandPermissionService(),
+          dependencies: createAgentToolDependencies({
+            backgroundExec: backgroundExecSessionManager,
+            fileService,
+            resolveConversationWorkdir: vi.fn(async () => null),
+            skillService: {
+              getSkillsDir: vi.fn(async () => path.join(base, 'skills')),
+              getActiveSkills: vi.fn(async () => []),
+              getActiveSkillsAllowedTools: vi.fn(async () => [])
+            },
+            desktop: { tempDirectory, profileTempDirectory: profileTemporary }
+          })
+        })
+      const isolated = build()
+      isolated.syncContext({ chatMode: 'agent', agentWorkspacePath: null })
+      const options = { commandShell: POSIX_COMMAND_SHELL, allowExternalFileAccess: false }
+      await expect(
+        isolated.callTool('read', { path: 'workspace.txt' }, 'host-session', options)
+      ).resolves.toMatchObject({ content: expect.stringContaining('DEFAULT_WORKSPACE') })
+      await expect(
+        isolated.callTool(
+          'read',
+          { path: path.join(profileTemporary, 'profile.txt') },
+          'host-session',
+          options
+        )
+      ).resolves.toMatchObject({ content: expect.stringContaining('PROFILE_TEMPORARY') })
+      await expect(
+        isolated.callTool('read', { path: path.join(base, 'denied.txt') }, 'host-session', options)
+      ).resolves.toMatchObject({
+        rawData: {
+          requiresPermission: true,
+          permissionRequest: { permissionType: 'read' }
+        }
+      })
+      expect(() => build('relative')).toThrow('host directories must be absolute')
+    } finally {
+      await fs.rm(base, { recursive: true, force: true })
+    }
+  })
+
+  it('retains unknown metadata when the supplied image probe fails', async () => {
+    const filePath = path.join(workspaceDir, 'image-probe-error.png')
+    await fs.writeFile(filePath, Buffer.from([0, 1, 2, 3]))
+    fileService.getMimeType.mockResolvedValue('image/png')
+    readImageSize.mockRejectedValue(new Error('Image decoder unavailable'))
+    providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({})
+    const result = await manager.callTool('read', { path: filePath }, 'conv1')
+    expect(result.content).toContain('resolution: unknown')
+    expect(providerRuntime.generateCompletionStandalone).not.toHaveBeenCalled()
+  })
+
+  it('fences a late image size after cancellation before cache or Provider work', async () => {
+    const filePath = path.join(workspaceDir, 'image-probe-abort.png')
+    await fs.writeFile(filePath, Buffer.from([0, 1, 2, 3]))
+    fileService.getMimeType.mockResolvedValue('image/png')
+    const resolvedPath = await fs.realpath(filePath)
+    let finish!: (size: { width: number; height: number }) => void
+    readImageSize.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    const controller = new AbortController()
+    const execution = manager.callTool('read', { path: filePath }, 'conv1', {
+      signal: controller.signal
+    })
+    const rejected = expect(execution).rejects.toMatchObject({ name: 'AbortError' })
+    await vi.waitFor(() =>
+      expect(readImageSize).toHaveBeenCalledWith(resolvedPath, controller.signal)
+    )
+    controller.abort()
+    finish({ width: 128, height: 96 })
+    await rejected
+    expect(cacheImage).not.toHaveBeenCalled()
+    expect(providerRuntime.generateCompletionStandalone).not.toHaveBeenCalled()
   })
 
   it('falls back to image metadata when neither the current model nor the agent can analyze images', async () => {

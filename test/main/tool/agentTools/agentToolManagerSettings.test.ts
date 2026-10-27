@@ -45,13 +45,6 @@ function makeSkillResolution(name: string, content: string, agentId = 'agent-a')
   }
 }
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: () => '/tmp',
-    getAppPath: () => '/mock/app'
-  }
-}))
-
 describe('AgentToolManager DeepChat settings tool gating', () => {
   const providerSettings = {} as any
   const skillService = {

@@ -235,6 +235,9 @@ export type AgentProviderToolPort = Pick<
 >
 
 export interface AgentDesktopToolPort {
+  readonly tempDirectory: string
+  readonly profileTempDirectory: string
+  readImageSize(filePath: string, signal?: AbortSignal): Promise<{ width: number; height: number }>
   createSettingsWindow(): Promise<number | null>
   sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean
   sendSettingsNavigation(windowId: number, navigation: SettingsNavigationPayload): boolean

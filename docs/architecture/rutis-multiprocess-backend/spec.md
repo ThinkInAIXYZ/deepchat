@@ -1005,6 +1005,15 @@ coalesces per cell and cannot act after that cell stops. Preserve session-scoped
 retry, capability/journal identities and existing result/yield semantics. No optional native
 fallback, process object, raw metric list or generic PID/launch endpoint crosses the boundary.
 
+AgentToolManager receives absolute system/profile temporary roots and an asynchronous image-size
+operation through its required desktop capability. Main owns app-path discovery and nativeImage;
+only width/height values leave the adapter. Preserve the existing allowed runtime directories,
+default workspace creation and temporary-root fallback, file/symlink authorization, image preview,
+metadata failure fallback and vision selection. Carry cancellation through the image probe and
+recheck before image caching or Provider work; a late result cannot start those effects. The
+business manager has no native import or implicit native host construction. This capability does
+not expose a new generic file-read or root-discovery route to renderers or external plugins.
+
 ACP registry ownership includes its manifest, icon cache and acknowledged repository/Provider
 updates. Main supplies absolute profile/built-in directories and an asynchronous icon-text
 capability; the core receives no Electron Response or native object. Retain the existing URL,
