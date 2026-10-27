@@ -1655,8 +1655,55 @@ in ordinary Node with Electron/electron-store forbidden. This proves module load
 headless backend or relocated writer. Native image decoding retains its current synchronous Main
 placement. No performance/resource suite was repeated and no latency or memory gain is claimed.
 The preceding `32f457ff7` required and six-platform CI completed before publication. This target
-still needs its own exact-head CI; remaining configuration, plugin-policy and native/Store ports
-keep G4 active. G5 has not started.
+retains the accepted CI evidence below. Remaining configuration and native/Store ports keep G4
+active. G5 has not started.
+
+Agent Tool head `f0ca555fe` passes required `40478827867`/barrier `122106538990` and all six
+packages `40478827913`/barrier `122113041876` before the policy checkpoint is published.
+
+### Plugin tool policy owner
+
+Move plugin policy reads and mutations into one required, native-free owner. Main constructs the
+existing `plugin-tool-policies` file adapter; PluginService, MCP ToolManager/AppHost and ToolService
+receive the same owner. Remove module-level native construction and global policy functions.
+Preserve file shape, replacement/removal by owner, explicit allow/ask/deny, undeclared-tool closure,
+ambiguity and disabled-owner behavior. Policy decisions remain local with the execution owners;
+G5 moves this state with them and gives retained desktop writers acknowledged commands.
+
+- [x] Replace the global policy Store and retarget every production reader/writer to one owner.
+- [x] Compare real MCP policy persistence, denied tools, ambiguous owners and disabled policies;
+      validate mutation failures, owner isolation and Tool/MCP/plugin contracts.
+
+Main supplies the existing named file adapter after profile selection. One native-free
+PluginToolPolicyStore serves activation/migration/disable/shutdown writes and ToolService, MCP
+ToolManager and MCP AppHost reads. The owner retains current backing-store reads without a second
+decision cache. Owner/server replacement, owner-wide deletion, allow/ask/deny, undeclared closure,
+ambiguity and disabled-record behavior remain unchanged. Legacy global functions and ToolService's
+obsolete Electron mock are removed. Synchronous operations remain owner-local; G5 must provide
+acknowledged mutations for any desktop writer retained outside the moved policy authority.
+
+Validation: **698 checks across 10 affected native files and 23 generated-catalog checks across
+two files pass**. App and new owner-fixture/unit/E2E types, the normal application build,
+format/check, lint and i18n pass. Coverage includes persistence-error propagation, independent
+owners, replacement/removal, policy ambiguity, existing plugin lifecycle/MCP App contracts and
+current-policy `ask` enforcement even with full access. No production check or timeout is relaxed.
+
+The frozen `f0ca555fe` app and candidate pass the same real HTTP MCP fixture, stored policy file,
+tool catalog filtering, permitted calls, ambiguous-owner rejection, disabled policy and relaunch
+workload (13.2/12.7 s). Both comparison runs set the owned E2E profile before loading the unchanged
+app entry: the old module-level native constructor ran before the application's profile override.
+The driver restores the exact entry bytes afterward. This is test-profile isolation, not a policy
+implementation or a performance comparison. Normal candidate startup additionally passes all
+four app cases in 27.7 s, including Code Mode complete/held READY, Agent image/workspace reads and
+the policy workload without that driver. No real user policy file is modified by the fixture.
+
+The policy owner, full 204-module ToolService graph, actual 350-module Harness entry and
+ProviderRuntime import in ordinary Node with Electron/electron-store forbidden. MCP runtime and
+native AppHost dependencies remain outside that claim; no composed headless backend or relocated
+writer is established. Artifact hashes and evidence are in
+`.deepchat/rutis-g4-plugin-policy-acceptance/`. No performance/resource capture or speed claim is
+added. The new checkpoint needs its own exact-head CI. G4 stays active; G5 is unstarted.
+The normal generated Provider catalog refresh is retained separately in `1952466fd`.
 
 - [ ] Complete the writer, synchronous-reader and desktop-consumer inventory.
   - [x] Enumerate SQLite/DuckDB construction and wrapper entrypoints, inherited shared facades,

@@ -42,7 +42,7 @@ import type {
   RuntimeDependencyRecord
 } from '@shared/types/plugin'
 import { CUA_PLUGIN_ID, OFFICIAL_PLUGIN_SOURCE } from '@shared/types/plugin'
-import { registerPluginToolPolicy, unregisterPluginToolPolicies } from './toolPolicyStore'
+import type { PluginToolPolicyStore } from './toolPolicyStore'
 import type {
   PluginRuntimeSafetyStore,
   PluginRuntimeSentinel,
@@ -91,6 +91,7 @@ export interface PluginSettingsWindowPort {
 }
 
 type PluginServiceDeps = {
+  toolPolicies: Pick<PluginToolPolicyStore, 'register' | 'unregister'>
   nowledgeMem?: NowledgeMemConnections
   exportNowledgeSession?: (input: NowledgeExportInput) => Promise<{ threadId: string }>
   contextTape?: TapeAnchorWriter & TapeNonContextEntryReader & TapeIncarnationReader
@@ -165,6 +166,7 @@ export interface PluginServicePort {
 }
 
 export class PluginService implements PluginServicePort {
+  private readonly toolPolicies: PluginServiceDeps['toolPolicies']
   readonly contextHooks?: UserPluginHooks
   private readonly nowledgeMem?: NowledgeMemConnections
   private readonly exportNowledgeSession?: PluginServiceDeps['exportNowledgeSession']
@@ -213,6 +215,7 @@ export class PluginService implements PluginServicePort {
   private readonly activationErrors = new Map<string, string>()
 
   constructor(deps: PluginServiceDeps) {
+    this.toolPolicies = deps.toolPolicies
     this.mcpSettings = deps.mcpSettings
     this.mcpService = deps.mcpService
     this.skillService = deps.skillService
@@ -345,7 +348,7 @@ export class PluginService implements PluginServicePort {
       // A forced quit can leave the separately persisted policy behind. Clear
       // it before removing the legacy server; activation re-registers the
       // current policy later when installation intent remains enabled.
-      unregisterPluginToolPolicies(CUA_PLUGIN_ID)
+      this.toolPolicies.unregister(CUA_PLUGIN_ID)
       await this.mcpSettings.removeMcpServer('cua-driver')
     }
 
@@ -359,7 +362,7 @@ export class PluginService implements PluginServicePort {
     this.userPlugins?.shutdown()
     const pluginIds = new Set(this.getInstallations().map((installation) => installation.pluginId))
     for (const pluginId of pluginIds) {
-      unregisterPluginToolPolicies(pluginId)
+      this.toolPolicies.unregister(pluginId)
     }
 
     this.settingsWindow.closeAll()
@@ -651,7 +654,7 @@ export class PluginService implements PluginServicePort {
     }
 
     await this.skillService.unregisterPluginSkillsByOwner(pluginId)
-    unregisterPluginToolPolicies(pluginId)
+    this.toolPolicies.unregister(pluginId)
     this.settingsWindow.close(pluginId)
     this.removeResourceRecordsByOwner(pluginId)
     if (runtimeStopError) {
@@ -907,7 +910,7 @@ export class PluginService implements PluginServicePort {
 
   private registerToolPolicies(plugin: ResolvedOfficialPlugin): void {
     for (const policy of plugin.manifest.toolPolicies ?? []) {
-      registerPluginToolPolicy({
+      this.toolPolicies.register({
         pluginId: plugin.manifest.id,
         serverId: policy.serverId,
         tools: policy.tools,

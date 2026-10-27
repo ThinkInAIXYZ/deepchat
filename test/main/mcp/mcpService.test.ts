@@ -1,3 +1,4 @@
+import { createPluginToolPolicies } from '../../helpers/pluginToolPolicies'
 import type { McpToolDefinitionsSnapshot, MCPServerConfig } from '@shared/types/mcp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -123,6 +124,7 @@ const createMcpService = (
     onRegistryChanged,
     semanticNotificationsMock,
     publishDeepchatEventMock,
+    createPluginToolPolicies(),
     {
       store: new McpOAuthCredentialStore({
         filePath: '/tmp/deepchat-mcp-service/credentials.json',

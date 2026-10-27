@@ -29,6 +29,7 @@ import { providerDbLoader } from '@/provider/providerDbLoader'
 import { McpDatabase } from '@/mcp/data/database'
 import { AgentDatabase } from '@/agent/data/database'
 import { mainLogger, setMainLoggingEnabled } from '@/logging'
+import { PluginToolPolicyStore, type StoredToolPolicy } from '@/plugin/toolPolicyStore'
 
 export type { MainProcessControl } from './composition'
 
@@ -156,6 +157,12 @@ export async function startMainProcess(
       privacySettings,
       proxySettings,
       mcpSettings,
+      pluginToolPolicies: new PluginToolPolicyStore(
+        new ElectronStore<{ policies: StoredToolPolicy[] }>({
+          name: 'plugin-tool-policies',
+          defaults: { policies: [] }
+        })
+      ),
       mcpAppSandboxRegistry,
       acpCatalogSettings,
       database,

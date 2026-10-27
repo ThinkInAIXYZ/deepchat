@@ -776,8 +776,19 @@ state, and Nowledge cleanup enumerates the merged store; those operations remain
 Desktop theme/fonts/window/login, proxy application, updater and renderer logging retain their
 native effects in Main. The selected AppSettingsService/public-route snapshot remains a public
 projection, not a transport for the merged store or credential-bearing Remote/Hook/Nowledge data.
-Plugin install/consent state and `plugin-tool-policies` have their separate desktop file owners;
-backend consumers require approved, generation-fenced policy data instead of native Store imports.
+Plugin install/consent state retains its separate desktop file owners. Tool policies follow the
+business permission owner below; consumers use authoritative policy data rather than native Store
+imports or independently writable snapshots.
+
+Plugin tool policies have one explicit business owner with a required local persistence adapter.
+Main constructs the existing `plugin-tool-policies` file after the effective profile is selected;
+PluginService, MCP ToolManager/AppHost and ToolService use that same owner. Preserve the existing
+policy array and owner/server replacement, owner-wide removal, allow/ask/deny, undeclared-tool
+closure and ambiguous/disabled-owner semantics. Reads expose decisions or denied tool names, not
+the backing Store. No module-level native construction or implicit global lookup remains.
+Keep current synchronous policy decisions and mutations local to their shared authority; G5 moves
+the policy state with its execution consumers and supplies acknowledged commands to any retained
+desktop writer. This extraction does not substitute a cached policy shadow or synchronous IPC.
 
 Split crypto from persistence: the backend stores wrapped credentials; Electron main performs
 authorized wrapping/unwrapping. Send unlock material only through the private transient channel

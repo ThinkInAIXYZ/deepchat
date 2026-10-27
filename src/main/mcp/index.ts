@@ -57,6 +57,7 @@ import type { PermissionMode } from '@shared/types/agent-interface'
 import type { ToolPermissionBroker } from '@/tool/permission'
 import type { McpAppSandboxRegistry } from './apps/sandboxRegistry'
 import { McpAppHost } from './apps/appHost'
+import type { PluginToolPolicyStore } from '@/plugin/toolPolicyStore'
 import { hasMcpIdentityBearingChange } from './serverIdentity'
 import type { CacheImageOptions } from '@/platform/imageCache'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
@@ -171,6 +172,7 @@ export class McpService implements McpServicePort {
     onRegistryChanged: () => void,
     semanticNotifications: SemanticNotificationPublisher,
     private readonly publishEvent: DeepchatEventPublisher,
+    toolPolicies: Pick<PluginToolPolicyStore, 'resolve' | 'deniedTools'>,
     oauth: { store: McpOAuthCredentialStore; openExternal(url: string): Promise<void> },
     cacheImage?: (data: string, options?: CacheImageOptions) => Promise<string>,
     pluginRuntimeSupervisor?: PluginRuntimeSupervisor,
@@ -249,6 +251,7 @@ export class McpService implements McpServicePort {
       agentSettings,
       this.mcpSettings,
       this.serverManager,
+      toolPolicies,
       semanticNotifications,
       this.publishEvent,
       {
@@ -266,6 +269,7 @@ export class McpService implements McpServicePort {
     )
     this.appHost = mcpApps
       ? new McpAppHost({
+          toolPolicies,
           settings: this.mcpSettings,
           serverManager: this.serverManager,
           permissionBroker: mcpApps.permissionBroker,

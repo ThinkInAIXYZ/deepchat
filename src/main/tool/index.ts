@@ -114,7 +114,7 @@ type MainProcessToolPreCheckOptions = Pick<
 >
 import type { AgentCommandEnvironmentPort } from './agentTools/agentBashHandler'
 import type { ToolEffectObserver } from './effectObserver'
-import { resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
+import type { PluginToolPolicyStore } from '@/plugin/toolPolicyStore'
 import { composeSubagentAuthority } from '@/session/subagentAuthority'
 import type { LiveDelegationConsentIssuer } from '@/orchestration/liveDelegationConsent'
 import { parseChildAgentResultEnvelopeText } from '@shared/orchestration/resultSafety'
@@ -154,6 +154,7 @@ type McpToolPort = Pick<
 >
 
 interface ToolServiceOptions {
+  pluginToolPolicies: Pick<PluginToolPolicyStore, 'resolve'>
   spawnCodeModeHost: RunCodeRuntimeManagerOptions['spawnHost']
   mcpService: McpToolPort
   providerSettings: Pick<ProviderSettingsPort, 'getModelConfig' | 'isKnownModel'>
@@ -2063,7 +2064,7 @@ export class ToolService implements ToolServicePort {
     if (!serverName) {
       return true
     }
-    const policy = resolvePluginToolPolicy(
+    const policy = this.options.pluginToolPolicies.resolve(
       serverName,
       definition.raw?.name ?? definition.function.name
     )
@@ -2093,7 +2094,7 @@ export class ToolService implements ToolServicePort {
     }
 
     const policy = definition
-      ? resolvePluginToolPolicy(
+      ? this.options.pluginToolPolicies.resolve(
           definition.server.name,
           definition.raw?.name ?? definition.function.name
         )

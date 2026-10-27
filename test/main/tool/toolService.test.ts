@@ -1,3 +1,4 @@
+import { createPluginToolPolicies } from '../../helpers/pluginToolPolicies'
 import { describe, expect, it, vi } from 'vitest'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import { ToolService } from '@/tool'
@@ -59,36 +60,7 @@ import {
   createToolSurfaceCanaryRunEvidenceRecorder
 } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
 
-vi.mock('electron', async () => {
-  const { join } = await import('node:path')
-  const { tmpdir } = await import('node:os')
-  const { rmSync } = await import('node:fs')
-  // Isolate the mocked userData per worker process and clean it up on exit so
-  // parallel workers never share persistent electron-store state.
-  const userDataDir = join(tmpdir(), `deepchat-vitest-userdata-toolservice-${process.pid}`)
-  process.on('exit', () => {
-    try {
-      rmSync(userDataDir, { recursive: true, force: true })
-    } catch {
-      // best-effort cleanup
-    }
-  })
-  const electronModuleMock = {
-    app: {
-      getName: () => 'DeepChat',
-      getVersion: () => '0.0.0-test',
-      getPath: (type: string) => (type === 'userData' ? userDataDir : '/mock/path')
-    },
-    ipcMain: {
-      on: () => {},
-      handle: () => {}
-    },
-    shell: {
-      openPath: async () => ''
-    }
-  }
-  return { ...electronModuleMock, default: electronModuleMock }
-})
+const pluginToolPolicies = createPluginToolPolicies()
 
 const buildToolDefinition = (name: string, serverName: string): MCPToolDefinition => ({
   execution: TOOL_EXECUTION.write,
@@ -300,6 +272,7 @@ describe('ToolService', () => {
   it('carries only the active frozen Programmatic capability to native exec', async () => {
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService: {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
@@ -481,6 +454,7 @@ describe('ToolService', () => {
     )
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService: {
         getAllToolDefinitions,
@@ -782,6 +756,7 @@ describe('ToolService', () => {
     } as any
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -846,6 +821,7 @@ describe('ToolService', () => {
     })!
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService: { getAllToolDefinitions: vi.fn(), callTool: vi.fn() } as any,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -909,6 +885,7 @@ describe('ToolService', () => {
     }
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -968,6 +945,7 @@ describe('ToolService', () => {
     const active = buildToolSurfaceExecutionContext()
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService: { getAllToolDefinitions: vi.fn(), callTool: vi.fn() } as any,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -1042,6 +1020,7 @@ describe('ToolService', () => {
     } as any
     toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -1105,6 +1084,7 @@ describe('ToolService', () => {
     } as any
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -1154,6 +1134,7 @@ describe('ToolService', () => {
     }
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService: {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
@@ -1245,6 +1226,7 @@ describe('ToolService', () => {
     const registerOutcomeProjection = vi.fn()
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService: {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
@@ -1299,6 +1281,7 @@ describe('ToolService', () => {
     const createService = () => {
       const service = new ToolService({
         spawnCodeModeHost,
+        pluginToolPolicies,
         skillSettings: { isEnabled: () => false } as any,
         mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
         agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -1384,6 +1367,7 @@ describe('ToolService', () => {
       const mcpService = { getAllToolDefinitions: vi.fn().mockResolvedValue([]) }
       const toolService = new ToolService({
         spawnCodeModeHost,
+        pluginToolPolicies,
         skillSettings: { isEnabled: () => false } as any,
         mcpService: mcpService as any,
         agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -1435,6 +1419,7 @@ describe('ToolService', () => {
   it('projects one execution catalog into Agent, Code, and Minimal modes', async () => {
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -1670,6 +1655,7 @@ describe('ToolService', () => {
   it('fails Code Mode before provider I/O when normalized tool names collide', () => {
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -1723,6 +1709,7 @@ describe('ToolService', () => {
     } as any
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -1790,6 +1777,7 @@ describe('ToolService', () => {
     } as any
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -1865,6 +1853,7 @@ describe('ToolService', () => {
     } as any
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -1913,6 +1902,7 @@ describe('ToolService', () => {
     }))
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -1984,6 +1974,7 @@ describe('ToolService', () => {
       })
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -2054,6 +2045,7 @@ describe('ToolService', () => {
     } as any
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -2143,6 +2135,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -2209,6 +2202,7 @@ describe('ToolService', () => {
     }))
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -2334,6 +2328,7 @@ describe('ToolService', () => {
     const tapeToolNames = new Set<string>(Object.values(TAPE_TOOL_NAMES))
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       mcpService: {
         getAllToolDefinitions: vi
           .fn()
@@ -2362,6 +2357,7 @@ describe('ToolService', () => {
     const skillNames = new Set<string>(SKILL_AGENT_TOOL_NAMES)
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       mcpService: {
         getAllToolDefinitions: vi
           .fn()
@@ -2413,6 +2409,7 @@ describe('ToolService', () => {
   it('propagates Agent catalog failures only for fail-closed resolutions', async () => {
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       mcpService: {
         getAllToolDefinitions: vi.fn().mockResolvedValue([])
       } as any,
@@ -2453,6 +2450,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -2496,6 +2494,7 @@ describe('ToolService', () => {
     } as any
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -2572,6 +2571,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -2647,6 +2647,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -2690,6 +2691,7 @@ describe('ToolService', () => {
     } as any
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -2795,6 +2797,7 @@ describe('ToolService', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService: {
         getAllToolDefinitions: vi.fn(),
@@ -2835,6 +2838,7 @@ describe('ToolService', () => {
     const resolveConversationSessionInfo = vi.fn()
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService: {
         getAllToolDefinitions: vi.fn(),
@@ -2863,6 +2867,7 @@ describe('ToolService', () => {
     const resolveConversationSessionInfo = vi.fn(() => new Promise(() => undefined))
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService: {
         getAllToolDefinitions: vi.fn(),
@@ -2914,6 +2919,7 @@ describe('ToolService', () => {
   it('keeps Subagent orchestration outside disabled catalog controls', async () => {
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
       skillSettings: { isEnabled: () => false } as any,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -2961,6 +2967,7 @@ describe('ToolService', () => {
   it('reserves live delegation names and ignores generic disabled-tool state', async () => {
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       mcpService: {
         getAllToolDefinitions: vi
           .fn()
@@ -3031,6 +3038,7 @@ describe('ToolService', () => {
     const liveDelegationConsent = new LiveDelegationConsentAuthority()
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
       skillSettings: { isEnabled: () => false } as any,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -3163,6 +3171,7 @@ describe('ToolService', () => {
     }
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       mcpService: mcpService as any,
       skillSettings: { isEnabled: () => false } as any,
       agentSettings: {
@@ -3227,6 +3236,7 @@ describe('ToolService', () => {
     }
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       mcpService: mcpService as any,
       skillSettings: { isEnabled: () => false } as any,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -3265,6 +3275,7 @@ describe('ToolService', () => {
   it('rejects malformed live-delegation results at the model-facing boundary', async () => {
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       mcpService: { getAllToolDefinitions: vi.fn().mockResolvedValue([]) } as any,
       skillSettings: { isEnabled: () => false } as any,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -3317,6 +3328,7 @@ describe('ToolService', () => {
   it('keeps the recall pair in the runtime catalog despite stale disabled values', async () => {
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       mcpService: {
         getAllToolDefinitions: vi.fn().mockResolvedValue([])
       } as any,
@@ -3363,6 +3375,7 @@ describe('ToolService', () => {
     } as any
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       mcpService,
       skillSettings: { isEnabled: () => false } as any,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -3449,6 +3462,7 @@ describe('ToolService', () => {
   it('does not fall back to another conversation mapping when a tool is unavailable', async () => {
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       mcpService: {
         getAllToolDefinitions: vi.fn().mockResolvedValue([])
       } as any,
@@ -3515,6 +3529,7 @@ describe('ToolService', () => {
   it('keeps a draft-origin mapping available for the first persisted turn', async () => {
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       mcpService: {
         getAllToolDefinitions: vi.fn().mockResolvedValue([])
       } as any,
@@ -3557,6 +3572,7 @@ describe('ToolService', () => {
   it('exposes cronjob only when runtime ports are available and the tool is enabled', async () => {
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService: {
         getAllToolDefinitions: vi.fn().mockResolvedValue([])
@@ -3745,6 +3761,7 @@ describe('ToolService', () => {
     const upsertCronJob = vi.fn()
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService: {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
@@ -3800,6 +3817,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -3834,6 +3852,7 @@ describe('ToolService', () => {
     } as any
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -3875,6 +3894,47 @@ describe('ToolService', () => {
     expect(mcpService.callTool).not.toHaveBeenCalled()
   })
 
+  it('observes current plugin decisions and preserves ask under full access', async () => {
+    const policies = createPluginToolPolicies()
+    const policy = {
+      pluginId: 'tool-service-policy',
+      serverId: 'server-a',
+      tools: { mcp_only: 'allow' as const },
+      enabled: true
+    }
+    policies.register(policy)
+    const mcpService = {
+      getAllToolDefinitions: vi.fn(async () => [buildToolDefinition('mcp_only', 'server-a')]),
+      callTool: vi.fn()
+    } as any
+    const service = new ToolService({
+      spawnCodeModeHost,
+      pluginToolPolicies: policies,
+      mcpService,
+      skillSettings: { isEnabled: () => false } as any,
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+      providerSettings: { getModelConfig: vi.fn() } as any,
+      settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
+      agentTools: buildAgentToolRuntimeMock()
+    })
+    await service.getAllToolDefinitions({ chatMode: 'agent', conversationId: 'policy-session' })
+    const request = {
+      id: 'current-policy',
+      type: 'function' as const,
+      function: { name: 'mcp_only', arguments: '{}' },
+      conversationId: 'policy-session'
+    }
+    expect(await service.preCheckToolPermission(request, { permissionMode: 'default' })).toBeNull()
+    policies.register({ ...policy, tools: { mcp_only: 'ask' } })
+    await expect(
+      service.preCheckToolPermission(request, { permissionMode: 'full_access' })
+    ).resolves.toMatchObject({ needsPermission: true })
+    const result = await service.callTool(request, { permissionMode: 'full_access' })
+    expect(result.rawData.requiresPermission).toBe(true)
+    expect(mcpService.callTool).not.toHaveBeenCalled()
+  })
+
   it('rejects an unstable MCP target during pre-check and execution', async () => {
     const definition = buildToolDefinition('mcp_only', 'server-a')
     definition.server.id = undefined
@@ -3884,6 +3944,7 @@ describe('ToolService', () => {
     } as any
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -3932,6 +3993,7 @@ describe('ToolService', () => {
     } as any
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -3997,6 +4059,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -4051,6 +4114,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -4112,6 +4176,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -4173,6 +4238,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -4217,6 +4283,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -4262,6 +4329,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
@@ -4356,6 +4424,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       spawnCodeModeHost,
+      pluginToolPolicies,
       skillSettings: { isEnabled: () => false } as any,
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,

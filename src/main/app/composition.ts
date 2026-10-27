@@ -249,6 +249,7 @@ import { createProjectRoutes } from '../project/routes'
 import { RemoteService } from '../remote'
 import type { RemoteServiceLike } from '../remote/ports'
 import { PluginService, type PluginServicePort } from '../plugin'
+import type { PluginToolPolicyStore } from '@/plugin/toolPolicyStore'
 import { createPluginRoutes } from '../plugin/routes'
 import { PluginRuntimeSupervisor } from '../plugin/runtimeSupervisor'
 import { AgentRepository } from '../agent/repository'
@@ -559,6 +560,7 @@ export async function createMainProcessControl(dependencies: {
   privacySettings: PrivacySettings
   proxySettings: ProxySettings
   mcpSettings: McpSettings
+  pluginToolPolicies: PluginToolPolicyStore
   mcpAppSandboxRegistry: McpAppSandboxRegistry
   acpCatalogSettings: AcpCatalogSettings
   database: MainDatabase
@@ -1743,6 +1745,7 @@ export async function createMainProcessControl(dependencies: {
     () => deepChatAgentHarness.refreshToolRegistry(),
     semanticNotifications,
     publishDeepchatEvent,
+    dependencies.pluginToolPolicies,
     {
       store: new McpOAuthCredentialStore({
         filePath: path.join(app.getPath('userData'), 'mcp-oauth', 'credentials.json'),
@@ -2152,6 +2155,7 @@ export async function createMainProcessControl(dependencies: {
 
   // Initialize the merged MCP and built-in Tool service.
   toolService = new ToolService({
+    pluginToolPolicies: dependencies.pluginToolPolicies,
     spawnCodeModeHost: (signal) =>
       spawnCodeModeHost(path.join(app.getAppPath(), 'out/main/codeModeUtilityHost.js'), signal),
     mcpService: mcpService,
@@ -2182,6 +2186,7 @@ export async function createMainProcessControl(dependencies: {
   // Plugin activation is a shared startup barrier for Skill migration and MCP startup.
   const pluginSettingsWindow = new PluginSettingsWindow()
   pluginService = new PluginService({
+    toolPolicies: dependencies.pluginToolPolicies,
     nowledgeMem: nowledgeMemConnections,
     exportNowledgeSession: (input) => agentSessionExportService.submitToNowledgeMem(input),
     contextTape: sessionData.tapeStore,

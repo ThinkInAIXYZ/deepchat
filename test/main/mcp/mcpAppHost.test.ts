@@ -1,3 +1,4 @@
+import { createPluginToolPolicies } from '../../helpers/pluginToolPolicies'
 import { describe, expect, it, vi } from 'vitest'
 import { McpAppHost } from '@/mcp/apps/appHost'
 import type { McpAppDescriptor, Tool } from '@shared/types/mcp'
@@ -102,6 +103,7 @@ const createHarness = () => {
   }
   const validateSource = vi.fn(() => true)
   const host = new McpAppHost({
+    toolPolicies: createPluginToolPolicies(),
     settings: {
       getMcpServers
     } as never,
