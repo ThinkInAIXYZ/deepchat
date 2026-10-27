@@ -36,6 +36,7 @@ import {
 import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { ProviderRuntimePort } from '@shared/types/provider'
 import { ServerManager } from './serverManager'
+import type { McpClientRuntime } from './mcpClient'
 import type { McpClient as RuntimeMcpClient } from './mcpClient'
 import { ToolManager, type ComputerUsePreviewObserver } from './toolManager'
 import { McpRouterManager } from './mcprouterManager'
@@ -173,6 +174,9 @@ export class McpService implements McpServicePort {
     semanticNotifications: SemanticNotificationPublisher,
     private readonly publishEvent: DeepchatEventPublisher,
     toolPolicies: Pick<PluginToolPolicyStore, 'resolve' | 'deniedTools'>,
+    runtime: Pick<McpClientRuntime, 'homeDirectory' | 'appVersion' | 'toolchains'> & {
+      getProxyUrl(): string | null
+    },
     oauth: { store: McpOAuthCredentialStore; openExternal(url: string): Promise<void> },
     cacheImage?: (data: string, options?: CacheImageOptions) => Promise<string>,
     pluginRuntimeSupervisor?: PluginRuntimeSupervisor,
@@ -236,6 +240,9 @@ export class McpService implements McpServicePort {
       this.privacy,
       inMemoryServerFactory,
       {
+        homeDirectory: runtime.homeDirectory,
+        appVersion: runtime.appVersion,
+        toolchains: runtime.toolchains,
         sampling: this,
         resolveMcpBindings: (config) => this.mcpSettings.getMcpVariableBindings(config),
         elicitation: this,
@@ -245,6 +252,7 @@ export class McpService implements McpServicePort {
       () => this.handleRegistryChanged(),
       semanticNotifications,
       this.publishEvent,
+      runtime.getProxyUrl,
       this.mcpOAuthManager
     )
     this.toolManager = new ToolManager(

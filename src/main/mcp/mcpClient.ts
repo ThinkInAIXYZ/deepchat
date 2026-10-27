@@ -37,11 +37,9 @@ import type {
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
-import { app } from 'electron'
-// import { NO_PROXY, proxyConfig } from '@/platform/proxy'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import { expandRuntimePath, getDefaultRuntimePaths } from '@/lib/runtimeHelper'
-import { ToolchainService } from '@/toolchains'
+import type { ToolchainService } from '@/toolchains/service'
 import { getPathEntriesFromEnv, setPathEntriesOnEnv } from '@/agent/shared/process/shellEnvHelper'
 import { terminateProcessTreeByPid } from '@/agent/shared/process/processTree'
 import { childProcessRegistry } from '@/agent/shared/process/childProcessRegistry'
@@ -195,6 +193,9 @@ interface ServerStatusChangedOptions {
 }
 
 export type McpClientRuntime = {
+  readonly homeDirectory: string
+  readonly appVersion: string
+  toolchains: Pick<ToolchainService, 'rewriteCommand' | 'resolve' | 'resolvedBinDirs'>
   resolveMcpBindings?(config: Partial<MCPServerConfig>): Promise<Record<string, string>>
   sampling: Pick<McpServicePort, 'handleSamplingRequest' | 'cancelSamplingRequest'>
   elicitation: Pick<McpServicePort, 'handleElicitationRequest' | 'cancelElicitationRequest'>
@@ -304,7 +305,6 @@ export class McpClient {
   private readonly inMemoryServerFactory?: InMemoryServerFactory
   private readonly runtime: McpClientRuntime
   private readonly onRegistryChanged: () => void
-  private readonly toolchainService: ToolchainService
   private probe: McpServerDiagnostics['probe'] = { outcome: 'not-run' }
 
   constructor(
@@ -318,6 +318,9 @@ export class McpClient {
     onRegistryChanged: () => void,
     private readonly publishEvent: DeepchatEventPublisher
   ) {
+    if (!path.isAbsolute(runtime.homeDirectory)) {
+      throw new Error('MCP home directory must be absolute')
+    }
     this.serverName = serverName
     this.serverConfig = serverConfig
     this.npmRegistry = npmRegistry
@@ -326,7 +329,6 @@ export class McpClient {
     this.inMemoryServerFactory = inMemoryServerFactory
     this.runtime = runtime
     this.onRegistryChanged = onRegistryChanged
-    this.toolchainService = ToolchainService.getInstance()
   }
 
   private emitServerStatusChanged(
@@ -356,16 +358,16 @@ export class McpClient {
     command: string,
     args: string[]
   ): { command: string; args: string[] } {
-    return this.toolchainService.rewriteCommand(command, args)
+    return this.runtime.toolchains.rewriteCommand(command, args)
   }
 
   public expandPath(inputPath: string): string {
-    return expandRuntimePath(inputPath, app.getPath('home'))
+    return expandRuntimePath(inputPath, this.runtime.homeDirectory)
   }
 
   public get nodeRuntimePath(): string | null {
     try {
-      return this.toolchainService.resolve('node').rootDir
+      return this.runtime.toolchains.resolve('node').rootDir
     } catch {
       return null
     }
@@ -373,7 +375,7 @@ export class McpClient {
 
   public get uvRuntimePath(): string | null {
     try {
-      return this.toolchainService.resolve('uv').rootDir
+      return this.runtime.toolchains.resolve('uv').rootDir
     } catch {
       return null
     }
@@ -388,7 +390,7 @@ export class McpClient {
   ): void {
     setPathEntriesOnEnv(
       env,
-      [this.toolchainService.resolvedBinDirs(), inheritedPaths, getDefaultRuntimePaths(homeDir)],
+      [this.runtime.toolchains.resolvedBinDirs(), inheritedPaths, getDefaultRuntimePaths(homeDir)],
       { includeDefaultPaths: false }
     )
   }
@@ -574,7 +576,7 @@ export class McpClient {
         command = this.expandPath(command)
         args = args.map((arg) => this.expandPath(arg))
 
-        const HOME_DIR = app.getPath('home')
+        const homeDirectory = this.runtime.homeDirectory
 
         // Define allowed environment variables whitelist
         const allowedEnvVars = [
@@ -597,7 +599,7 @@ export class McpClient {
         const env: Record<string, string> = {}
 
         // Handle command and argument replacement
-        const processedCommand = this.toolchainService.rewriteCommand(command, args)
+        const processedCommand = this.processCommandWithArgs(command, args)
         command = processedCommand.command
         args = processedCommand.args
 
@@ -605,7 +607,7 @@ export class McpClient {
 
         if (this.serverConfig.inheritEnv === 'minimal') {
           Object.assign(env, createMinimalProcessEnvironment(process.env, process.platform))
-          this.addRuntimePathsToEnvironment(env, HOME_DIR)
+          this.addRuntimePathsToEnvironment(env, homeDirectory)
         } else if (isNodeCommand) {
           // Node.js/UV commands use whitelist processing
           if (process.env) {
@@ -625,7 +627,7 @@ export class McpClient {
               }
             })
 
-            this.addRuntimePathsToEnvironment(env, HOME_DIR, existingPaths)
+            this.addRuntimePathsToEnvironment(env, homeDirectory, existingPaths)
           }
         } else {
           // 非 Node.js/UV 命令，保留所有系统环境变量，只补充 PATH
@@ -644,7 +646,7 @@ export class McpClient {
             existingPaths.push(env.Path)
           }
 
-          this.addRuntimePathsToEnvironment(env, HOME_DIR, existingPaths)
+          this.addRuntimePathsToEnvironment(env, homeDirectory, existingPaths)
         }
 
         // 添加自定义环境变量
@@ -738,7 +740,7 @@ export class McpClient {
       if (this.connectAborted || attempt !== this.startupAttempt)
         throw new McpConnectionCancelledError(this.serverName)
       this.client = new Client(
-        { name: 'DeepChat', version: app.getVersion() },
+        { name: 'DeepChat', version: this.runtime.appVersion },
         {
           capabilities: {
             sampling: {},

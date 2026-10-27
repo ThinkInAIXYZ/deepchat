@@ -7,7 +7,6 @@ import {
   type McpConnectResult
 } from './mcpClient'
 import axios from 'axios'
-import { proxyConfig } from '@/platform/proxy'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { SemanticNotificationPublisher } from '@/notifications'
 import type { McpOAuthManager } from './mcpOAuthManager'
@@ -52,6 +51,7 @@ export class ServerManager {
     onRegistryChanged: () => void,
     private readonly semanticNotifications: SemanticNotificationPublisher,
     private readonly publishEvent: DeepchatEventPublisher,
+    private readonly getProxyUrl: () => string | null,
     mcpOAuthManager?: McpOAuthManager
   ) {
     this.mcpSettings = mcpSettings
@@ -133,7 +133,7 @@ export class ServerManager {
     const testPackage = 'tiny-runtime-injector'
 
     // Get proxy configuration
-    const proxyUrl = proxyConfig.getProxyUrl()
+    const proxyUrl = this.getProxyUrl()
     const proxyOptions = (() => {
       if (!proxyUrl) return {}
       const u = new URL(proxyUrl)

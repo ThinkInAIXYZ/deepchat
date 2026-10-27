@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import axios from 'axios'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 const semanticNotificationsMock = vi.hoisted(() => ({
@@ -18,12 +19,6 @@ const clientMocks = vi.hoisted(() => ({
       super(`Connection to MCP server ${serverName} was cancelled`)
       this.name = 'McpConnectionCancelledError'
     }
-  }
-}))
-
-vi.mock('@/platform/proxy', () => ({
-  proxyConfig: {
-    getProxyUrl: vi.fn(() => '')
   }
 }))
 
@@ -77,7 +72,8 @@ describe('ServerManager notifications and plugin isolation', () => {
 
   function createManager(
     providerSettings: ReturnType<typeof createProviderSettings>,
-    oauth?: McpOAuthManager
+    oauth?: McpOAuthManager,
+    getProxyUrl: () => string | null = () => null
   ) {
     return new ServerManager(
       providerSettings as never,
@@ -87,9 +83,39 @@ describe('ServerManager notifications and plugin isolation', () => {
       vi.fn(),
       semanticNotificationsMock,
       publishDeepchatEventMock,
+      getProxyUrl,
       oauth
     )
   }
+
+  it('uses the current supplied proxy for each registry probe', async () => {
+    const settings = {
+      ...createProviderSettings({}),
+      getCustomNpmRegistry: () => null,
+      setNpmRegistryCache: vi.fn()
+    }
+    let proxyUrl: string | null = 'http://fixture:credential@127.0.0.1:4567'
+    const manager = createManager(settings, undefined, () => proxyUrl)
+    const get = vi.spyOn(axios, 'get').mockResolvedValue({ status: 200 })
+    try {
+      await manager.testNpmRegistrySpeed(false)
+      expect(get).toHaveBeenCalledTimes(3)
+      for (const [, options] of get.mock.calls) {
+        expect(options?.proxy).toEqual({
+          host: '127.0.0.1',
+          port: 4567,
+          auth: { username: 'fixture', password: 'credential' }
+        })
+      }
+      get.mockClear()
+      proxyUrl = null
+      await manager.testNpmRegistrySpeed(false)
+      expect(get).toHaveBeenCalledTimes(3)
+      for (const [, options] of get.mock.calls) expect(options?.proxy).toBeUndefined()
+    } finally {
+      get.mockRestore()
+    }
+  })
 
   it('suppresses semantic connection occurrences for plugin-owned MCP servers', async () => {
     const providerSettings = createProviderSettings({

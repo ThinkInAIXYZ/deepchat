@@ -1747,6 +1747,12 @@ export async function createMainProcessControl(dependencies: {
     publishDeepchatEvent,
     dependencies.pluginToolPolicies,
     {
+      homeDirectory: app.getPath('home'),
+      appVersion: app.getVersion(),
+      toolchains: toolchainService,
+      getProxyUrl: () => proxyConfig.getProxyUrl()
+    },
+    {
       store: new McpOAuthCredentialStore({
         filePath: path.join(app.getPath('userData'), 'mcp-oauth', 'credentials.json'),
         crypto: secureCredentialCrypto

@@ -980,6 +980,13 @@ remove native lookups from the shared helper. Preserve workspace containment, co
 fallbacks, launch/toolchain selection, terminal output bounds, persisted links and process cleanup.
 This preparation does not relocate ACP execution or its native PTY binding to another process.
 
+MCP client execution receives an absolute home directory, application version and the existing
+toolchain owner explicitly from composition. Preserve command rewriting, live toolchain selection,
+PATH precedence, environment binding isolation and process cleanup. Registry probes read the current
+proxy URL through the host capability without importing the native proxy module. Neither the client
+nor its server manager may construct a native dependency or locate a process-global toolchain.
+This boundary does not relocate MCP execution or its AppHost presentation owner.
+
 ACP installation owns explicit install/repair, enable-triggered preinstallation, uninstall and
 binary launch preparation, including their repository and Provider continuations. Identical work
 shares one physical download; conflicting same-Agent mutations cannot publish stale state or

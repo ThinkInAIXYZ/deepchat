@@ -1661,6 +1661,46 @@ active. G5 has not started.
 Agent Tool head `f0ca555fe` passes required `40478827867`/barrier `122106538990` and all six
 packages `40478827913`/barrier `122113041876` before the policy checkpoint is published.
 
+### MCP runtime environment
+
+Supply the existing MCP client and registry probe with required host values and capabilities.
+Keep one toolchain owner, preserve live command/PATH selection, home expansion, client identity,
+environment isolation and child cleanup. Remove runtime Electron/proxy imports and singleton lookup;
+keep native discovery and proxy resolution at composition. Process placement is unchanged.
+
+- [x] Connect explicit home/version/toolchain and proxy capabilities to every production caller.
+- [x] Compare real stdio MCP initialization, command/environment/cwd, calls, restart and cleanup;
+      validate existing MCP, toolchain and lifecycle contracts and ordinary Node loading.
+
+Main supplies the absolute home directory, application version and existing ToolchainService owner
+to McpService and every client. Commands, configured runtime roots and PATH still read that owner's
+current state. Registry probes use the current host proxy URL, including configured credentials,
+through a required callback. The client no longer imports Electron or obtains a global toolchain;
+the server manager no longer imports the native proxy module. Obsolete native/singleton test mocks
+are removed. Native discovery and proxy resolution remain at composition.
+
+Validation: **976 checks across 36 files pass**, covering MCP transport/auth/settings/policy,
+toolchains, plugin lifecycle, ToolService, Harness, composition, runtime bindings and generated
+catalogs, with native SQLite required. App and affected MCP unit/E2E types, the normal build,
+format/check, lint and i18n pass. Durable cases cover supplied home/version and absolute-path
+validation plus live registry-proxy replacement. Environment restrictions, protocol deadlines,
+process identity and cancellation tests remain enforced.
+
+The immutable `3b3890dad` app and candidate pass the same real stdio workload (7.3/7.5 s): public
+custom-Node selection, home expansion, client identity, configured working directory and PATH
+precedence, minimal-environment secret exclusion, tool calls, stop/restart, graceful close and
+persisted relaunch. Every observed child exits. Normal candidate HTTP plugin-policy and stdio
+cases pass in 20.9 s; both Code Mode helper cases separately pass. These are functional observations
+without timing gates. The normal generated ACP registry refresh is isolated in `08ddc763f`.
+
+McpClient (18 modules), ServerManager (19), ToolchainService (13), full ToolService (204), actual
+Harness entry (350) and ProviderRuntime (131) import in ordinary Node with Electron/electron-store
+forbidden at build and runtime. This establishes those loading graphs; MCP AppHost presentation,
+a composed headless backend and relocated persistence owners remain open. No process placement,
+performance capture or speed claim changes. Evidence and artifact hashes are in
+`.deepchat/rutis-g4-mcp-runtime-acceptance/`. G4 stays active and G5 is unstarted; publication and
+exact-head CI remain separate acceptance evidence.
+
 ### Plugin tool policy owner
 
 Move plugin policy reads and mutations into one required, native-free owner. Main constructs the

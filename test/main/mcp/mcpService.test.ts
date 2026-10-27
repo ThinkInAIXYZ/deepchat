@@ -126,6 +126,18 @@ const createMcpService = (
     publishDeepchatEventMock,
     createPluginToolPolicies(),
     {
+      homeDirectory: '/mock/home',
+      appVersion: '1.0.0',
+      toolchains: {
+        rewriteCommand: (command, args) => ({ command, args }),
+        resolvedBinDirs: () => [],
+        resolve: () => {
+          throw new Error('Toolchain is not configured')
+        }
+      },
+      getProxyUrl: () => null
+    },
+    {
       store: new McpOAuthCredentialStore({
         filePath: '/tmp/deepchat-mcp-service/credentials.json',
         crypto: {
