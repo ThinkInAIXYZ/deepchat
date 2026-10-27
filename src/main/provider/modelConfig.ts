@@ -14,7 +14,6 @@ import {
 } from '@shared/modelConfigDefaults'
 import { applyMoonshotKimiReasoningTemperaturePolicy } from '@shared/modelRequestPolicy'
 import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
-import ElectronStore from 'electron-store'
 import {
   hasAnthropicReasoningToggle,
   getReasoningEffortDefault,
@@ -90,17 +89,10 @@ const normalizeVerbosityValue = (
 }
 
 export class ModelConfigHelper {
-  private modelConfigStore: StoreLike<Record<string, unknown>>
   private memoryCache: Map<string, IModelConfig> = new Map()
   private cacheInitialized: boolean = false
 
-  constructor(
-    store: StoreLike<Record<string, unknown>> = new ElectronStore<Record<string, unknown>>({
-      name: 'model-config'
-    })
-  ) {
-    this.modelConfigStore = store
-  }
+  constructor(private readonly modelConfigStore: StoreLike<Record<string, unknown>>) {}
 
   /**
    * Infer model type from provider model data

@@ -2,7 +2,8 @@ import { electronApp } from '@electron-toolkit/utils'
 import { app, safeStorage } from 'electron'
 import ElectronStore from 'electron-store'
 import path from 'node:path'
-import { createSettingsStore } from '@/config/settingsStore'
+import { SettingsStore } from '@/config/settingsStore'
+import type { StoreLike } from '@/config/storeLike'
 import { SecretStore } from '@/config/secretStore'
 import { credentialCrypto } from './credentialCrypto'
 import {
@@ -43,7 +44,8 @@ export async function startMainProcess(
 
   try {
     electronApp.setAppUserModelId('com.wefonk.deepchat')
-    const settingsStore = createSettingsStore()
+    const currentAppVersion = app.getVersion()
+    const settingsStore = createSettingsStore(currentAppVersion)
     setMainLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     const secretStore = new SecretStore(settingsStore, credentialCrypto)
     const privacySettings = new PrivacySettings(settingsStore)
@@ -112,7 +114,8 @@ export async function startMainProcess(
       settings: settingsStore,
       mcpSettings: mcpSettings.getMigrationSnapshot(),
       acpCatalog: acpCatalogSettings.getMigrationSnapshot(),
-      userDataPath: app.getPath('userData')
+      userDataPath: app.getPath('userData'),
+      currentAppVersion
     })
     settingsStore.attachDatabase(settingsDatabase)
     mcpSettings.connectDatabase(mcpDatabase)
@@ -125,6 +128,7 @@ export async function startMainProcess(
 
     mainProcess = await createMainProcessControl({
       previousAppVersion: configMigration.previousAppVersion,
+      currentAppVersion,
       settingsStore,
       secretStore,
       privacySettings,
@@ -158,4 +162,41 @@ export async function startMainProcess(
     }
     throw error
   }
+}
+
+function createSettingsStore(currentAppVersion: string): SettingsStore {
+  const userDataPath = app.getPath('userData')
+  return new SettingsStore(
+    new ElectronStore<Record<string, unknown>>({
+      name: 'app-settings',
+      defaults: {
+        language: 'system',
+        providers: [],
+        closeToQuit: false,
+        proxyMode: 'system',
+        customProxyUrl: '',
+        searchPreviewEnabled: true,
+        contentProtectionEnabled: false,
+        privacyModeEnabled: false,
+        syncEnabled: false,
+        syncFolderPath: path.join(userDataPath, 'sync'),
+        lastSyncTime: 0,
+        copyWithCotEnabled: true,
+        autoCompactionEnabled: true,
+        autoCompactionTriggerThreshold: 80,
+        autoCompactionRetainRecentPairs: 2,
+        loggingEnabled: false,
+        floatingButtonEnabled: false,
+        fontFamily: '',
+        codeFontFamily: '',
+        default_system_prompt: '',
+        skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
+        enableSkills: true,
+        skillDraftSuggestionsEnabled: false,
+        appVersion: currentAppVersion,
+        hooksNotifications: { hooks: [] },
+        agentCommandShell: { preference: 'auto' }
+      }
+    }) as unknown as StoreLike<Record<string, unknown>>
+  )
 }

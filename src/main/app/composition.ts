@@ -544,6 +544,7 @@ function createLivePort<T extends object>(resolve: () => T): T {
 
 export async function createMainProcessControl(dependencies: {
   previousAppVersion?: string
+  currentAppVersion: string
   settingsStore: SettingsStore
   secretStore: SecretStore
   privacySettings: PrivacySettings
@@ -857,6 +858,7 @@ export async function createMainProcessControl(dependencies: {
     dependencies.privacySettings,
     dependencies.providerDatabase,
     publishDeepchatEvent,
+    dependencies.currentAppVersion,
     dependencies.previousAppVersion
   )
 

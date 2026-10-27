@@ -23,9 +23,6 @@ import {
   resolveModelVision
 } from '@shared/modelConfigDefaults'
 import { DEFAULT_PROVIDERS } from '@/provider/defaults'
-import path from 'path'
-import { app } from 'electron'
-import fs from 'fs'
 import { compare } from 'compare-versions'
 import { ModelConfigHelper } from '@/provider/modelConfig'
 import { providerDbLoader, type ProviderDbRefreshResult } from '@/provider/providerDbLoader'
@@ -35,7 +32,6 @@ import { ProviderHelper } from '@/provider/providerHelper'
 import { ModelStatusHelper } from '@/provider/modelStatusHelper'
 import {
   ProviderModelHelper,
-  PROVIDER_MODELS_DIR,
   type ProviderModelRouteMetadata
 } from '@/provider/providerModelHelper'
 import { stripDerivedProviderModelFields } from '@/provider/providerModelFacts'
@@ -337,8 +333,6 @@ export type ProviderModelResolutionPort = Pick<
 >
 
 export class ProviderSettings implements ProviderSettingsPort {
-  private userDataPath: string
-  private currentAppVersion: string
   private modelConfigHelper: ModelConfigHelper // Model configuration helper
   private providerHelper: ProviderHelper
   private modelStatusHelper: ModelStatusHelper
@@ -351,12 +345,11 @@ export class ProviderSettings implements ProviderSettingsPort {
     private readonly privacy: PrivacySettingsPort,
     private readonly database: ProviderDatabase,
     private readonly publishEvent: DeepchatEventPublisher,
+    currentAppVersion: string,
     previousAppVersion?: string
   ) {
     this.appSettings = settings
     this.store = new ProviderDbStore(settings, () => this.database.settingsTable)
-    this.userDataPath = app.getPath('userData')
-    this.currentAppVersion = app.getVersion()
     this.providerHelper = new ProviderHelper({
       store: this.store,
       setSetting: this.setSetting.bind(this),
@@ -376,14 +369,12 @@ export class ProviderSettings implements ProviderSettingsPort {
     )
 
     this.providerModelHelper = new ProviderModelHelper({
-      userDataPath: this.userDataPath,
+      createStore: (providerId) =>
+        new ProviderModelDbStore(providerId, () => this.database.settingsTable),
       setModelStatus: this.modelStatusHelper.setModelStatus.bind(this.modelStatusHelper),
       deleteModelStatus: this.modelStatusHelper.deleteModelStatus.bind(this.modelStatusHelper),
       publishEvent: this.publishEvent
     })
-    this.providerModelHelper.setStoreFactory(
-      (providerId) => new ProviderModelDbStore(providerId, () => this.database.settingsTable)
-    )
     this.providerHelper.setCleanupHooks({
       deleteProviderModelStatuses: this.modelStatusHelper.deleteProviderModelStatuses.bind(
         this.modelStatusHelper
@@ -392,10 +383,6 @@ export class ProviderSettings implements ProviderSettingsPort {
         this.providerModelHelper
       )
     })
-
-    // Initialize built-in ACP agents on first run or version upgrade
-    // Initialize provider models directory
-    this.initProviderModelsDir()
 
     // 初始化 Provider DB（外部聚合 JSON，本地内置为兜底）
     providerDbLoader.subscribeCatalogChanges((change) => {
@@ -408,7 +395,7 @@ export class ProviderSettings implements ProviderSettingsPort {
       console.warn('[ProviderSettings] Failed to initialize provider DB:', error)
     })
 
-    if (previousAppVersion !== this.currentAppVersion) {
+    if (previousAppVersion !== currentAppVersion) {
       this.migrateConfigData(previousAppVersion)
     }
 
@@ -442,13 +429,6 @@ export class ProviderSettings implements ProviderSettingsPort {
     this.appSettings.deleteLegacy(PROVIDERS_STORE_KEY)
     console.info('[Config] Removed legacy providers from app-settings JSON after SQLite migration')
     return legacyProviders.length
-  }
-
-  private initProviderModelsDir(): void {
-    const modelsDir = path.join(this.userDataPath, PROVIDER_MODELS_DIR)
-    if (!fs.existsSync(modelsDir)) {
-      fs.mkdirSync(modelsDir, { recursive: true })
-    }
   }
 
   // 提供聚合 Provider DB（只读）给渲染层/其他模块

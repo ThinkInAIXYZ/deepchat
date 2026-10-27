@@ -502,7 +502,7 @@ removing the scheduler connection alone does not complete G4.
 | Schema catalog | `schemaCatalog.ts` opens an in-memory database for schema inspection | Keep this temporary local connection internal to the Store owner |
 | OCR artifacts | `ocrArtifactStore.ts` owns a separate encrypted derived-cache database | Preserve its explicit independent file owner; this is not a second writer of the shared application file |
 | Vector stores | The G3 Memory worker and Knowledge's existing DuckDB owner use separate files | Preserve their existing resource authorities and maintenance fences |
-| Configuration | `SettingsStore` starts from `app-settings` and attaches `AppSettingsDbBackedStore`; Provider/MCP/ACP/model settings also have legacy file adapters | Audit actual injected adapters and desktop readers; use acknowledged mutations and versioned read snapshots, with explicit bootstrap and machine-local file ownership |
+| Configuration | Main constructs legacy `app-settings`; `SettingsStore` attaches `AppSettingsDbBackedStore`; Provider model facts/overrides require database stores; MCP/ACP and startup imports retain legacy file adapters | Use acknowledged mutations and versioned read snapshots, with explicit bootstrap and machine-local file ownership; remove remaining native runtime defaults before G5 |
 | Credentials and desktop state | Main supplies async crypto/unlock; DatabaseSecurity, SecretStore, Sync, MCP and Codex/Grok own explicit private persistence; remaining native/window/plugin settings still require extraction | Keep authorized crypto/native operations separate from persistence; retain existing plugin consent and settings ownership |
 
 ### Ordered implementation slices
@@ -1249,6 +1249,38 @@ under `.deepchat/rutis-g4-shutdown-acceptance/`; earlier driver probes remain th
 No process, IPC or storage-path change requires a complete resource recapture. Remaining detached
 background owners, configuration snapshots and native/window dependencies keep G4 open. Full
 Windows/Linux native application and physical power-loss/suspend scenarios remain unverified.
+
+### Provider configuration authority
+
+Provider model facts and user overrides require their database adapters at construction. The
+runtime helpers have no legacy JSON defaults or mutable store-factory setter, and Provider settings
+no longer discovers paths, creates a legacy model directory or reads the Electron version. Main
+owns the native settings factory and supplies its version to both migration and Provider
+initialization. Legacy import still completes before settings attach to the one writer; no
+configuration writer, per-key IPC, schema or public route has been added.
+
+- [x] Replace the actual helper defaults and mutable store-factory wiring, then remove direct
+      Electron/path discovery from Provider settings and native-store construction from the
+      shared settings wrapper.
+- [x] Validate affected configuration/migration/Provider contracts and compare actual application
+      model save, override, reset and reopen behavior against the accepted application artifact.
+      Process placement, IPC and storage layout are unchanged; no full performance recapture is
+      required. Catalog bootstrap and the other native/configuration owners still keep G4 open.
+
+Validation: 83 affected files/1,125 checks pass under Electron Node with native SQLite required;
+the modified configuration fixtures and E2E pass scoped types. Normal build, app node/web types,
+format, lint and i18n pass. A temporary bundled-import probe loads the settings wrapper and
+Provider model helper with both `electron` and `electron-store` forbidden. This does not establish
+that the complete Provider graph is portable: catalog bootstrap still imports Electron.
+
+The immutable `38306fcda` application artifact passes the new model-store E2E in 6.9 s. The migrated
+application passes the same case in 6.6 s: atomic custom-model/override save, graceful exit/reopen,
+persisted values, reset/removal, another reopen, and unchanged legacy JSON contents throughout.
+All five selected application cases pass in 43.8 s, including launch, obsolete-plugin repair,
+plugin-startup failure and encrypted legacy unlock/rekey/disable. These are functional observations,
+not a speed claim. Evidence and original diagnostic attempts remain under
+`.deepchat/rutis-g4-provider-config-acceptance/`. Full native Windows/Linux application behavior
+remains unverified locally. G4 remains active for the remaining configuration and host contracts.
 
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.

@@ -847,6 +847,14 @@ the Electron host. Shared console diagnostics are platform-independent and retai
 the desktop entry supplies the development debug flag. Moving a Skill owner must not introduce
 Electron imports through logging or utility barrels, a second service instance or a native fallback.
 
+The desktop entry owns legacy settings-file construction and supplies the current application
+version to configuration migration and Provider initialization. The shared settings wrapper must
+not import Electron or construct a native store. Provider model facts and user overrides require
+the existing database-backed stores at construction; no runtime helper may silently create legacy
+JSON storage or replace its storage authority after use. Legacy JSON import remains a startup
+operation that completes before module settings attach to the one database writer. Catalog-cache
+bootstrap and other native configuration domains require separate explicit ownership before G5.
+
 First-party configuration selects the core entry and service exports. Rutis dependency injection
 and scopes are not authorization. This migration introduces no arbitrary third-party Rutis code
 loading or untrusted peer access. Existing `.dcplugin` and portable user-plugin behavior retain
