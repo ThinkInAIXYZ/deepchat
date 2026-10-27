@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
@@ -128,7 +129,11 @@ describe('AiSdkProvider mistral', () => {
       ]
     })
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const models = await provider.fetchModels()
 
     expect(models).toEqual([
@@ -160,7 +165,8 @@ describe('AiSdkProvider mistral', () => {
         apiType: 'mistral',
         custom: true
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     const models = await provider.fetchModels()
 
@@ -178,7 +184,8 @@ describe('AiSdkProvider mistral', () => {
       createProvider({
         apiKey: ''
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
 
     await expect(provider.check()).resolves.toEqual({
@@ -189,7 +196,11 @@ describe('AiSdkProvider mistral', () => {
   })
 
   it('verifies Mistral with a small generate-text request', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     ;(provider as any).isInitialized = true
 
     await expect(provider.check()).resolves.toEqual({

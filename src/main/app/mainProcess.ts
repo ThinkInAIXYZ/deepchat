@@ -25,6 +25,7 @@ import { AcpCatalogSettings, createAcpCatalogDefaults } from '@/agent/acp/catalo
 import { SettingsDatabase } from '@/settings/data/database'
 import { migrateConfigStorage } from '@/config/migration'
 import { ProviderDatabase } from '@/provider/data/database'
+import { providerDbLoader } from '@/provider/providerDbLoader'
 import { McpDatabase } from '@/mcp/data/database'
 import { AgentDatabase } from '@/agent/data/database'
 import { mainLogger, setMainLoggingEnabled } from '@/logging'
@@ -141,6 +142,15 @@ export async function startMainProcess(
     mainProcess = await createMainProcessControl({
       previousAppVersion: configMigration.previousAppVersion,
       currentAppVersion,
+      providerCatalogBootstrap: {
+        userDataDirectory: app.getPath('userData'),
+        builtInCatalogPath: path.join(
+          app.isPackaged ? path.join(process.resourcesPath, 'app.asar.unpacked') : app.getAppPath(),
+          'resources',
+          'model-db',
+          'providers.json'
+        )
+      },
       settingsStore,
       secretStore,
       privacySettings,
@@ -166,10 +176,12 @@ export async function startMainProcess(
     await splashWindow.close()
     return mainProcess
   } catch (error) {
+    providerDbLoader.stop()
     await splashWindow.close()
     if (mainProcess) {
       await mainProcess.stopForCleanup()
     } else {
+      await providerDbLoader.drain()
       database?.close()
     }
     throw error

@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import dns from 'node:dns/promises'
 import { BlockList, isIP, type LookupFunction } from 'node:net'
-import { app } from 'electron'
 import { nanoid } from 'nanoid'
 import axios, { type AxiosRequestConfig } from 'axios'
 
@@ -33,6 +32,14 @@ const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
   '.webp': 'image/webp'
+}
+
+function getCacheDirectory(): string {
+  const userDataDirectory = process.env.DEEPCHAT_USER_DATA_DIR
+  if (!userDataDirectory || !path.isAbsolute(userDataDirectory)) {
+    throw new Error('Image cache requires an absolute bootstrap profile directory')
+  }
+  return path.join(userDataDirectory, 'images')
 }
 
 const IMAGE_EXTENSION_BY_MIME: Record<string, string> = Object.fromEntries(
@@ -295,7 +302,7 @@ export async function cacheImage(
   options.signal?.throwIfAborted()
   if (imageData.trim().toLowerCase().startsWith(IMGCACHE_URL_PREFIX)) return imageData.trim()
 
-  const cacheDir = path.join(app.getPath('userData'), 'images')
+  const cacheDir = getCacheDirectory()
   if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true })
   const fileName = `img_${Date.now()}_${nanoid(8)}`
 
@@ -332,7 +339,7 @@ export async function resolveCachedImageDataUrl(
     throw new Error('Unsupported cached image reference')
   }
 
-  const cacheDir = path.join(app.getPath('userData'), 'images')
+  const cacheDir = getCacheDirectory()
   const cachePath = safeDecodePath(normalizedSource.slice(IMGCACHE_URL_PREFIX.length))
   const fullPath = path.resolve(cacheDir, cachePath)
   if (!isPathInsideRoot(cacheDir, fullPath)) {

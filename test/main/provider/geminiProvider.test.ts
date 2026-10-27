@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
@@ -108,7 +109,8 @@ describe('AiSdkProvider gemini', () => {
         custom: true,
         baseUrl: 'https://generativelanguage.googleapis.com/v1'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     const models = await provider.fetchModels()
 
@@ -148,7 +150,8 @@ describe('AiSdkProvider gemini', () => {
         name: 'Custom Gemini',
         custom: true
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
 
     await expect(provider.refreshModels()).rejects.toThrow('API key not valid')

@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
@@ -119,7 +120,10 @@ const createProviderRuntime = (providerSettings: ProviderSettingsPort) => {
   )
   return new ProviderRuntime(
     providerSettings,
-    { getLanguage: vi.fn().mockReturnValue('en-US') },
+    {
+      defaultHeaders: providerTestEnvironment.defaultHeaders,
+      getLanguage: vi.fn().mockReturnValue('en-US')
+    },
     {} as never,
     {} as never,
     new AcpRuntimeOwner(() => {

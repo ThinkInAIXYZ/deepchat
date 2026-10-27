@@ -32,7 +32,12 @@ batching or storage-path changes, or an explicit performance objective. Ordinary
 extraction does not automatically need another process-tree benchmark. Select affected workloads
 and a bounded measurement/confirmation budget first. Treat noise-level differences as inconclusive,
 keep all samples, and block adoption only on a reproducible material regression rather than an
-isolated timing overrun. Do not rerun CI or unchanged benchmarks to obtain a passing timing sample.
+isolated timing overrun. A structural change starts with one representative affected resource
+workload; only an explicit performance adoption decision requires five paired samples. Allow at
+most one predeclared confirmation batch for a suspected regression. If it remains inconclusive,
+record the uncertainty and stop measuring; CI timing noise does not block a structural extraction.
+Further measurement requires changed code, a changed workload or concrete new evidence. Do not
+rerun CI or unchanged benchmarks to obtain a passing timing sample.
 
 ## Live goals and dependencies
 
@@ -1330,6 +1335,41 @@ functional results without a timing gate or speed claim. Evidence is under
 `.deepchat/rutis-g4-mcp-acp-config-acceptance/`. Normal generated catalog refreshes are retained
 separately. Catalog bootstrap, other native dependencies and the cohesive writer move keep G4/G5
 open; full native Windows/Linux application behavior remains unverified locally.
+
+### Provider catalog and request bootstrap
+
+Remove native dependencies from Provider catalog/settings and HTTP execution bootstrap as one
+dependency group. Main supplies the profile/catalog resource paths and default request headers;
+the existing locale capability remains live. Package the one built-in catalog outside ASAR for
+ordinary Node access. Separate Copilot token exchange from native device-login presentation.
+Catalog import stays inert until explicit bootstrap. Retain existing cache ownership, privacy,
+TTL, payload limits and request/error behavior. The existing Main idle Provider task owns automatic
+refresh, so maintenance cancellation/drain also fences it. Stop and drain all refreshes at shutdown
+and fence late writes/publications.
+
+- [x] Replace actual bootstrap/header/token imports, every affected caller and fixture, and
+      packaged resource wiring; remove the old native paths and header helper.
+- [x] Validate catalog refresh/lifetime, HTTP metadata and token/security contracts, compare
+      matching real-app operations, verify ordinary Node imports/resource access and run the
+      affected application/static/package checks. No speed claim is part of this slice.
+
+The affected Provider, Device, image-cache, package and startup/app-boundary suites pass 1,165
+checks across 81 files with native SQLite required. Durable checks cover inert explicit bootstrap,
+unchanged request metadata, token sanitization, absolute image-cache roots, three-platform catalog
+resource validation, real refresh drain and late response/body fencing on shutdown or task
+cancellation. Ordinary Node imports of Provider settings, Copilot HTTP and the AI SDK Provider pass
+with Electron and electron-store forbidden. App/scoped types, normal build, format, lint and i18n
+pass. Normal ACP registry refreshes remain in a separate generated-data commit.
+
+The immutable `7fb11102f` application passes the matching catalog/request E2E in 2.4 s; the migrated
+application passes in 2.1 s. Four migrated application checks pass: catalog/header bootstrap,
+held-refresh graceful shutdown/reopen without late cache writes, model persistence without legacy
+JSON writes, and encrypted legacy unlock/rekey/disable. Evidence is under
+`.deepchat/rutis-g4-provider-bootstrap-acceptance/`. These are functional observations. No process
+topology, cache schema or data-volume change requires a performance capture, and no performance
+suite was repeated. The one built-in catalog moves outside ASAR; package/resource checks cover
+ordinary Node access. The existing `7fb11102f` required and all six package CI checks pass; the new
+checkpoint still needs its own CI results. G4 remains active and G5 has not started.
 
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.

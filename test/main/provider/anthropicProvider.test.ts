@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
@@ -98,7 +99,8 @@ describe('AiSdkProvider anthropic', () => {
       createProvider({
         apiKey: ''
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
 
     await expect(provider.check()).resolves.toEqual({
@@ -114,7 +116,8 @@ describe('AiSdkProvider anthropic', () => {
       createProvider({
         apiKey: ''
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     ;(provider as any).isInitialized = true
 
@@ -135,7 +138,11 @@ describe('AiSdkProvider anthropic', () => {
   })
 
   it('passes system prompts through the AI SDK text path', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     ;(provider as any).isInitialized = true
     const signal = new AbortController().signal
 
@@ -161,7 +168,11 @@ describe('AiSdkProvider anthropic', () => {
   })
 
   it('preserves the legacy positional system prompt argument', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     ;(provider as any).isInitialized = true
 
     await provider.generateText('hi', 'claude-sonnet-4-5-20250929', 0.2, 32, 'Legacy system prompt')
@@ -182,7 +193,11 @@ describe('AiSdkProvider anthropic', () => {
   })
 
   it('reads model identities without duplicating catalog capability state', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const models = await (provider as any).fetchProviderModels()
 
     expect(models).toEqual([
@@ -211,7 +226,8 @@ describe('AiSdkProvider anthropic', () => {
         name: 'Custom Anthropic',
         custom: true
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     const models = await provider.fetchModels()
 
@@ -251,7 +267,8 @@ describe('AiSdkProvider anthropic', () => {
         name: 'Custom Anthropic',
         custom: true
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
 
     await expect(provider.refreshModels()).rejects.toThrow('Invalid API key')

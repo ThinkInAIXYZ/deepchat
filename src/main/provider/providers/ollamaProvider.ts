@@ -19,7 +19,7 @@ import {
   SUMMARY_TITLES_PROMPT,
   type ProviderGenerateTextOptions
 } from '../baseProvider'
-import type { ProviderLocalePort } from '../ports'
+import type { ProviderEnvironmentPort } from '../ports'
 import { execFile } from 'node:child_process'
 import { Ollama, ShowResponse } from 'ollama'
 import {
@@ -48,7 +48,7 @@ export class OllamaProvider extends BaseLLMProvider {
   constructor(
     provider: LLM_PROVIDER,
     providerSettings: ProviderSettingsPort,
-    locale: ProviderLocalePort
+    locale: ProviderEnvironmentPort
   ) {
     super(provider, providerSettings, locale)
     this.ollama = this.createOllamaClient()

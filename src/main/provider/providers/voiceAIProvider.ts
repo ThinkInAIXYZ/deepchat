@@ -15,7 +15,7 @@ import {
   createProviderHttpErrorFromResponse,
   extractProviderFailureMetadata
 } from '../providerFailure'
-import type { ProviderLocalePort } from '../ports'
+import type { ProviderEnvironmentPort } from '../ports'
 
 const DEFAULT_BASE_URL = 'https://dev.voice.ai'
 const DEFAULT_AUDIO_FORMAT = 'mp3'
@@ -62,7 +62,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
   constructor(
     provider: LLM_PROVIDER,
     providerSettings: ProviderSettingsPort,
-    locale: ProviderLocalePort
+    locale: ProviderEnvironmentPort
   ) {
     super(provider, providerSettings, locale)
     this.init()

@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
@@ -120,7 +121,8 @@ describe('NewApiProvider capability routing', () => {
         'gpt-4o': {
           endpointType: 'openai-response'
         }
-      })
+      }),
+      providerTestEnvironment
     )
     const routeDecision = (provider as any).resolveRouteDecision('gpt-4o')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
@@ -137,7 +139,8 @@ describe('NewApiProvider capability routing', () => {
         'gemini-model': {
           endpointType: 'gemini'
         }
-      })
+      }),
+      providerTestEnvironment
     )
     const routeDecision = (provider as any).resolveRouteDecision('gemini-model')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
@@ -156,7 +159,8 @@ describe('NewApiProvider capability routing', () => {
         'gemini-model': {
           endpointType: 'gemini'
         }
-      })
+      }),
+      providerTestEnvironment
     )
     ;(provider as any).isInitialized = true
 
@@ -196,7 +200,8 @@ describe('NewApiProvider capability routing', () => {
         'claude-model': {
           endpointType: 'anthropic'
         }
-      })
+      }),
+      providerTestEnvironment
     )
     const routeDecision = (provider as any).resolveRouteDecision('claude-model')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
@@ -233,7 +238,8 @@ describe('NewApiProvider capability routing', () => {
             }
           ]
         }
-      )
+      ),
+      providerTestEnvironment
     )
     const routeDecision = (provider as any).resolveRouteDecision('claude-opus-4-7')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
@@ -270,7 +276,7 @@ describe('NewApiProvider capability routing', () => {
       type: ModelType.Chat,
       ownedBy: undefined
     })
-    const provider = new AiSdkProvider(createProvider(), providerSettings)
+    const provider = new AiSdkProvider(createProvider(), providerSettings, providerTestEnvironment)
 
     const routeDecision = (provider as any).resolveRouteDecision('cached-model')
 
@@ -350,7 +356,7 @@ describe('NewApiProvider capability routing', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     const providerSettings = createProviderSettings()
-    const provider = new AiSdkProvider(createProvider(), providerSettings)
+    const provider = new AiSdkProvider(createProvider(), providerSettings, providerTestEnvironment)
 
     const models = await (provider as any).fetchProviderModels()
 
@@ -402,7 +408,7 @@ describe('NewApiProvider capability routing', () => {
     )
 
     const providerSettings = createProviderSettings()
-    const provider = new AiSdkProvider(createProvider(), providerSettings)
+    const provider = new AiSdkProvider(createProvider(), providerSettings, providerTestEnvironment)
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -440,7 +446,7 @@ describe('NewApiProvider capability routing', () => {
     )
 
     const providerSettings = createProviderSettings()
-    const provider = new AiSdkProvider(createProvider(), providerSettings)
+    const provider = new AiSdkProvider(createProvider(), providerSettings, providerTestEnvironment)
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -484,7 +490,8 @@ describe('NewApiProvider capability routing', () => {
             }
           ]
         }
-      )
+      ),
+      providerTestEnvironment
     )
     const routeDecision = (provider as any).resolveRouteDecision('qwen3.7-max')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
@@ -549,7 +556,7 @@ describe('NewApiProvider capability routing', () => {
         endpointType: 'openai'
       }
     })
-    const provider = new AiSdkProvider(createProvider(), providerSettings)
+    const provider = new AiSdkProvider(createProvider(), providerSettings, providerTestEnvironment)
     const getStoredModel = vi.spyOn(provider as any, 'getStoredModel')
     const resolveCapabilityIdentity = vi.spyOn(provider as any, 'resolveCapabilityIdentity')
 
@@ -603,7 +610,7 @@ describe('NewApiProvider capability routing', () => {
     )
 
     const providerSettings = createProviderSettings()
-    const provider = new AiSdkProvider(createProvider(), providerSettings)
+    const provider = new AiSdkProvider(createProvider(), providerSettings, providerTestEnvironment)
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -621,7 +628,8 @@ describe('NewApiProvider capability routing', () => {
         {
           'new-api': models
         }
-      )
+      ),
+      providerTestEnvironment
     )
     const routeDecision = (runtimeProvider as any).resolveRouteDecision('gpt-5.5')
     const selectedProvider = (runtimeProvider as any).getRuntimeProvider(
@@ -657,7 +665,8 @@ describe('NewApiProvider capability routing', () => {
             }
           ]
         }
-      )
+      ),
+      providerTestEnvironment
     )
     const routeDecision = (provider as any).resolveRouteDecision('gpt-5.5')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
@@ -687,7 +696,11 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -704,7 +717,8 @@ describe('NewApiProvider capability routing', () => {
         {
           'new-api': models
         }
-      )
+      ),
+      providerTestEnvironment
     )
     const routeDecision = (runtimeProvider as any).resolveRouteDecision('gpt-4.1')
 
@@ -739,7 +753,11 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -775,7 +793,11 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -806,7 +828,11 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -843,7 +869,11 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const models = await (provider as any).fetchProviderModels()
 
     expect(models).toHaveLength(2)
@@ -874,7 +904,11 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -913,7 +947,11 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const models = await (provider as any).fetchProviderModels()
 
     expect(models).toHaveLength(2)
@@ -943,7 +981,7 @@ describe('NewApiProvider capability routing', () => {
     )
 
     const providerSettings = createProviderSettings()
-    const provider = new AiSdkProvider(createProvider(), providerSettings)
+    const provider = new AiSdkProvider(createProvider(), providerSettings, providerTestEnvironment)
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -975,7 +1013,8 @@ describe('NewApiProvider capability routing', () => {
             }
           ]
         }
-      )
+      ),
+      providerTestEnvironment
     )
     const routeDecision = (provider as any).resolveRouteDecision('gpt-5.4')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
@@ -993,7 +1032,11 @@ describe('NewApiProvider capability routing', () => {
       apiType: 'openai',
       baseUrl: 'https://zenmux.ai/api'
     })
-    const provider = new AiSdkProvider(zenmuxProvider, createProviderSettings())
+    const provider = new AiSdkProvider(
+      zenmuxProvider,
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const routeDecision = (provider as any).resolveRouteDecision('anthropic/claude-sonnet-4.5')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
     const runtimeContext = (provider as any).buildRuntimeContext(
@@ -1018,7 +1061,8 @@ describe('NewApiProvider capability routing', () => {
         apiType: 'anthropic',
         baseUrl: 'https://proxy.example.com/anthropic'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     const routeDecision = (provider as any).resolveRouteDecision('claude-opus-4-7')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
@@ -1039,7 +1083,8 @@ describe('NewApiProvider capability routing', () => {
         apiType: 'anthropic',
         baseUrl: 'https://api.minimaxi.com/anthropic'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     const routeDecision = (provider as any).resolveRouteDecision('MiniMax-M2.5')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
@@ -1060,7 +1105,7 @@ describe('NewApiProvider capability routing', () => {
         type: ModelType.Chat
       }
     })
-    const provider = new AiSdkProvider(createProvider(), providerSettings)
+    const provider = new AiSdkProvider(createProvider(), providerSettings, providerTestEnvironment)
     ;(provider as any).isInitialized = true
 
     const result = await provider.completions(
@@ -1080,7 +1125,7 @@ describe('NewApiProvider capability routing', () => {
 
   it('preserves the collect-stream image fallback without rereading model config', async () => {
     const providerSettings = createProviderSettings()
-    const provider = new AiSdkProvider(createProvider(), providerSettings)
+    const provider = new AiSdkProvider(createProvider(), providerSettings, providerTestEnvironment)
     ;(provider as any).isInitialized = true
 
     await provider.collectStreamResponse(

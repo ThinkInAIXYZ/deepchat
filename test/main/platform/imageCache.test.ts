@@ -10,14 +10,9 @@ vi.unmock('node:fs/promises')
 vi.unmock('path')
 vi.unmock('node:path')
 
-const electronMock = vi.hoisted(() => ({ userDataPath: '' }))
+const profile = { userDataPath: '' }
 const axiosMock = vi.hoisted(() => vi.fn())
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: vi.fn(() => electronMock.userDataPath)
-  }
-}))
 vi.mock('axios', () => ({ default: axiosMock }))
 
 import { cacheImage, resolveCachedImageDataUrl } from '@/platform/imageCache'
@@ -29,9 +24,10 @@ describe('imageCache', () => {
   beforeEach(async () => {
     axiosMock.mockReset()
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    electronMock.userDataPath = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-image-cache-'))
-    tempDirectories.push(electronMock.userDataPath)
-    await fs.mkdir(path.join(electronMock.userDataPath, 'images'))
+    profile.userDataPath = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-image-cache-'))
+    vi.stubEnv('DEEPCHAT_USER_DATA_DIR', profile.userDataPath)
+    tempDirectories.push(profile.userDataPath)
+    await fs.mkdir(path.join(profile.userDataPath, 'images'))
   })
 
   afterEach(async () => {
@@ -41,6 +37,18 @@ describe('imageCache', () => {
         .map((directory) => fs.rm(directory, { recursive: true, force: true }))
     )
     vi.mocked(console.error).mockRestore()
+    vi.unstubAllEnvs()
+  })
+
+  it('requires an absolute bootstrap profile before accessing cached files', async () => {
+    vi.stubEnv('DEEPCHAT_USER_DATA_DIR', undefined)
+    await expect(resolveCachedImageDataUrl('imgcache://fixture.png')).rejects.toThrow(
+      'absolute bootstrap profile'
+    )
+    vi.stubEnv('DEEPCHAT_USER_DATA_DIR', 'relative-profile')
+    await expect(cacheImage('data:image/png;base64,AA==')).rejects.toThrow(
+      'absolute bootstrap profile'
+    )
   })
 
   it('preserves distinct valid images whose base64 differs only by case', async () => {
@@ -112,7 +120,7 @@ describe('imageCache', () => {
     )
 
     await expect(cacheImage(sourceUrl, { allowPrivateNetwork: false })).resolves.toBe(sourceUrl)
-    await expect(fs.readdir(path.join(electronMock.userDataPath, 'images'))).resolves.toEqual([])
+    await expect(fs.readdir(path.join(profile.userDataPath, 'images'))).resolves.toEqual([])
   })
 
   it.each(['http', 'HTTP'])(
@@ -138,9 +146,7 @@ describe('imageCache', () => {
         })
       )
       await expect(
-        fs.readFile(
-          path.join(electronMock.userDataPath, 'images', cached.slice('imgcache://'.length))
-        )
+        fs.readFile(path.join(profile.userDataPath, 'images', cached.slice('imgcache://'.length)))
       ).resolves.toEqual(Buffer.from('0000001866747970617669660000000061766966', 'hex'))
     }
   )
@@ -154,7 +160,7 @@ describe('imageCache', () => {
     })
 
     await expect(cacheImage(sourceUrl, { allowPrivateNetwork: true })).resolves.toBe(sourceUrl)
-    await expect(fs.readdir(path.join(electronMock.userDataPath, 'images'))).resolves.toEqual([])
+    await expect(fs.readdir(path.join(profile.userDataPath, 'images'))).resolves.toEqual([])
   })
 
   it('does not cache HTTP responses above the image size limit', async () => {
@@ -166,7 +172,7 @@ describe('imageCache', () => {
     })
 
     await expect(cacheImage(sourceUrl, { allowPrivateNetwork: true })).resolves.toBe(sourceUrl)
-    await expect(fs.readdir(path.join(electronMock.userDataPath, 'images'))).resolves.toEqual([])
+    await expect(fs.readdir(path.join(profile.userDataPath, 'images'))).resolves.toEqual([])
   })
 
   it('propagates caller cancellation to the active HTTP request', async () => {
@@ -196,14 +202,12 @@ describe('imageCache', () => {
 
     expect(cached).toMatch(/^imgcache:\/\/.+\.png$/)
     await expect(
-      fs.readFile(
-        path.join(electronMock.userDataPath, 'images', cached.slice('imgcache://'.length))
-      )
+      fs.readFile(path.join(profile.userDataPath, 'images', cached.slice('imgcache://'.length)))
     ).resolves.toEqual(Buffer.from('image'))
   })
 
   it('resolves a cached image to a MIME-correct data URL', async () => {
-    await fs.writeFile(path.join(electronMock.userDataPath, 'images', 'generated.png'), 'image')
+    await fs.writeFile(path.join(profile.userDataPath, 'images', 'generated.png'), 'image')
 
     await expect(resolveCachedImageDataUrl('imgcache://generated.png')).resolves.toBe(
       'data:image/png;base64,aW1hZ2U='
@@ -211,7 +215,7 @@ describe('imageCache', () => {
   })
 
   it('resolves cached images with an uppercase scheme', async () => {
-    await fs.writeFile(path.join(electronMock.userDataPath, 'images', 'generated.png'), 'image')
+    await fs.writeFile(path.join(profile.userDataPath, 'images', 'generated.png'), 'image')
 
     await expect(resolveCachedImageDataUrl('IMGCACHE://generated.png')).resolves.toBe(
       'data:image/png;base64,aW1hZ2U='
@@ -225,13 +229,9 @@ describe('imageCache', () => {
   })
 
   it('rejects symbolic links that escape the image cache root', async () => {
-    const outsidePath = path.join(electronMock.userDataPath, 'outside.png')
+    const outsidePath = path.join(profile.userDataPath, 'outside.png')
     await fs.writeFile(outsidePath, 'image')
-    await fs.symlink(
-      outsidePath,
-      path.join(electronMock.userDataPath, 'images', 'outside.png'),
-      'file'
-    )
+    await fs.symlink(outsidePath, path.join(profile.userDataPath, 'images', 'outside.png'), 'file')
 
     await expect(resolveCachedImageDataUrl('imgcache://outside.png')).rejects.toThrow(
       'Cached image reference is not a regular file'
@@ -246,7 +246,7 @@ describe('imageCache', () => {
 
   it('rejects cached images above the MCP image input limit', async () => {
     await fs.writeFile(
-      path.join(electronMock.userDataPath, 'images', 'oversized.png'),
+      path.join(profile.userDataPath, 'images', 'oversized.png'),
       Buffer.alloc(8 * 1024 * 1024 + 1)
     )
 
@@ -256,7 +256,7 @@ describe('imageCache', () => {
   })
 
   it('rejects unsupported cached image types', async () => {
-    await fs.writeFile(path.join(electronMock.userDataPath, 'images', 'generated.txt'), 'image')
+    await fs.writeFile(path.join(profile.userDataPath, 'images', 'generated.txt'), 'image')
 
     await expect(resolveCachedImageDataUrl('imgcache://generated.txt')).rejects.toThrow(
       'Unsupported cached image type'

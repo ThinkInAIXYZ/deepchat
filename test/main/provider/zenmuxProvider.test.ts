@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
@@ -53,7 +54,11 @@ describe('AiSdkProvider zenmux', () => {
   })
 
   it('routes anthropic models through the cache-aware OpenAI-compatible runtime', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const routeDecision = (provider as any).resolveRouteDecision('anthropic/claude-sonnet-4-5')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
 
@@ -63,7 +68,11 @@ describe('AiSdkProvider zenmux', () => {
   })
 
   it('routes non-anthropic models through the openai-compatible runtime', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const routeDecision = (provider as any).resolveRouteDecision('moonshotai/kimi-k2.5')
 
     expect(routeDecision.providerKind).toBe('openai-compatible')
@@ -77,7 +86,11 @@ describe('AiSdkProvider zenmux', () => {
       })
     })
     vi.stubGlobal('fetch', fetchMock)
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
 
     const models = await provider.fetchModels()
 
@@ -91,7 +104,11 @@ describe('AiSdkProvider zenmux', () => {
   })
 
   it('fails fast for embeddings on anthropic models', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
 
     await expect(provider.getEmbeddings('anthropic/claude-sonnet-4-5', ['hello'])).rejects.toThrow(
       'Embeddings not supported for Anthropic models: anthropic/claude-sonnet-4-5'
@@ -99,7 +116,11 @@ describe('AiSdkProvider zenmux', () => {
   })
 
   it('fails fast for embedding dimensions on anthropic models', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
 
     await expect(provider.getDimensions('anthropic/claude-sonnet-4-5')).rejects.toThrow(
       'Embeddings not supported for Anthropic models: anthropic/claude-sonnet-4-5'

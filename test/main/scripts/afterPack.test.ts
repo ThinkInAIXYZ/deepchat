@@ -11,7 +11,7 @@ vi.mock('node:fs', async () => {
 })
 
 const loadAfterPack = async () => {
-  return (await import('../../../scripts/afterPack.js')).default as (context: {
+  const afterPack = (await import('../../../scripts/afterPack.js')).default as (context: {
     targets: Array<{ name: string }>
     appOutDir: string
     electronPlatformName: string
@@ -23,6 +23,24 @@ const loadAfterPack = async () => {
       }
     }
   }) => Promise<void>
+  return async (context: Parameters<typeof afterPack>[0]) => {
+    const resources =
+      context.electronPlatformName === 'darwin'
+        ? path.join(
+            context.appOutDir,
+            `${context.packager?.appInfo?.productFilename ?? 'DeepChat'}.app`,
+            'Contents',
+            'Resources'
+          )
+        : path.join(context.appOutDir, 'resources')
+    const catalogDirectory = path.join(resources, 'app.asar.unpacked', 'resources', 'model-db')
+    await mkdir(catalogDirectory, { recursive: true })
+    await writeFile(
+      path.join(catalogDirectory, 'providers.json'),
+      JSON.stringify({ providers: { fixture: { id: 'fixture', models: [{ id: 'fixture' }] } } })
+    )
+    await afterPack(context)
+  }
 }
 
 const loadPackageLightOcrAssets = async () => {
@@ -409,7 +427,26 @@ describe('afterPack', () => {
     await rm(tmpDir, { recursive: true, force: true })
   })
 
-  it('keeps non-Linux packages unchanged', async () => {
+  it.each(['darwin', 'win32', 'linux'])(
+    'requires a readable unpacked Provider catalog for %s',
+    async (electronPlatformName) => {
+      const { validateProviderCatalog } = await import('../../../scripts/afterPack.js')
+      const context = { appOutDir: tmpDir, electronPlatformName }
+      await expect(validateProviderCatalog(context)).rejects.toThrow()
+      const resources = electronPlatformName === 'darwin'
+        ? path.join(tmpDir, 'DeepChat.app', 'Contents', 'Resources')
+        : path.join(tmpDir, 'resources')
+      const directory = path.join(resources, 'app.asar.unpacked', 'resources', 'model-db')
+      await mkdir(directory, { recursive: true })
+      const catalog = path.join(directory, 'providers.json')
+      await writeFile(catalog, JSON.stringify({ providers: { fixture: { id: 'fixture' } } }))
+      await expect(validateProviderCatalog(context)).resolves.toBeUndefined()
+      await writeFile(catalog, JSON.stringify({ providers: {} }))
+      await expect(validateProviderCatalog(context)).rejects.toThrow('empty or invalid')
+    }
+  )
+
+  it('keeps non-Linux launchers unchanged', async () => {
     const afterPack = await loadAfterPack()
     const launcherPath = path.join(tmpDir, 'DeepChat')
     await writeFile(launcherPath, 'launcher')

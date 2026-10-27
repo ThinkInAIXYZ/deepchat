@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
@@ -83,7 +84,10 @@ const createProviderSettings = (): ProviderSettingsPort =>
     getModelStatus: vi.fn().mockReturnValue(true)
   }) as unknown as ProviderSettingsPort
 
-const locale = { getLanguage: () => 'en-US' }
+const locale = {
+  defaultHeaders: providerTestEnvironment.defaultHeaders,
+  getLanguage: () => 'en-US'
+}
 
 describe('AiSdkProvider openai-compatible', () => {
   beforeEach(() => {

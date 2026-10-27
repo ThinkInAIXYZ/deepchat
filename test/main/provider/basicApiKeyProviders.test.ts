@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
@@ -98,7 +99,7 @@ describe('basic API-key provider registrations', () => {
       id: 'fireworks-ai',
       models: [{ id: modelId, display_name: 'GPT OSS 120B' }]
     })
-    const provider = new AiSdkProvider(defaults, createProviderSettings())
+    const provider = new AiSdkProvider(defaults, createProviderSettings(), providerTestEnvironment)
     expect(await provider.fetchModels({ suppressErrors: false })).toEqual([
       {
         id: modelId,
@@ -153,7 +154,7 @@ describe('basic API-key provider registrations', () => {
       })
     )
     global.fetch = fetchMock
-    const provider = new AiSdkProvider(config, createProviderSettings())
+    const provider = new AiSdkProvider(config, createProviderSettings(), providerTestEnvironment)
     expect(await provider.check()).toEqual({ isOk: true, errorMsg: null })
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [url, init] = fetchMock.mock.calls[0]
@@ -265,13 +266,18 @@ describe('basic API-key provider registrations', () => {
       })
     )
     global.fetch = fetchMock
-    const missingToken = new AiSdkProvider(defaults, createProviderSettings())
+    const missingToken = new AiSdkProvider(
+      defaults,
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     fetchMock.mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }))
     expect(await missingToken.check()).toMatchObject({ isOk: false })
 
     const provider = new AiSdkProvider(
       { ...defaults, apiKey: 'astrlink-test-token', baseUrl: 'http://127.0.0.1:28419/v1' },
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
       expect.objectContaining({
@@ -318,7 +324,7 @@ describe('basic API-key provider registrations', () => {
     )
     global.fetch = fetchMock as typeof fetch
 
-    const provider = new AiSdkProvider(defaults, createProviderSettings())
+    const provider = new AiSdkProvider(defaults, createProviderSettings(), providerTestEnvironment)
     expect(resolveAiSdkProviderDefinition(defaults)).toMatchObject({
       runtimeKind: 'openai-compatible',
       modelSource: 'openai',
@@ -363,7 +369,7 @@ describe('basic API-key provider registrations', () => {
     global.fetch = fetchMock as unknown as typeof fetch
 
     const config = { ...defaults, apiKey: 'test-key' }
-    const provider = new AiSdkProvider(config, createProviderSettings())
+    const provider = new AiSdkProvider(config, createProviderSettings(), providerTestEnvironment)
     expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
       runtimeKind: 'openai-compatible',
       modelSource: 'openai',
@@ -434,7 +440,7 @@ describe('basic API-key provider registrations', () => {
     global.fetch = fetchMock as unknown as typeof fetch
 
     const config = { ...defaults, apiKey: 'test-key' }
-    const provider = new AiSdkProvider(config, createProviderSettings())
+    const provider = new AiSdkProvider(config, createProviderSettings(), providerTestEnvironment)
     expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
       runtimeKind: 'openai-compatible',
       modelSource: 'requesty',
@@ -548,7 +554,11 @@ describe('basic API-key provider registrations', () => {
     )
     global.fetch = fetchMock as unknown as typeof fetch
 
-    const provider = new AiSdkProvider({ ...defaults }, createProviderSettings())
+    const provider = new AiSdkProvider(
+      { ...defaults },
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     expect(resolveAiSdkProviderDefinition(defaults)).toMatchObject({
       runtimeKind: 'openai-compatible',
       modelSource: 'litellm',
@@ -610,7 +620,11 @@ describe('basic API-key provider registrations', () => {
       if (reversed) deployments.reverse()
       global.fetch = vi.fn().mockImplementation(async () => Response.json({ data: deployments }))
 
-      const provider = new AiSdkProvider({ ...defaults }, createProviderSettings())
+      const provider = new AiSdkProvider(
+        { ...defaults },
+        createProviderSettings(),
+        providerTestEnvironment
+      )
       await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
         expect.objectContaining({
           id: 'pool',
@@ -635,7 +649,8 @@ describe('basic API-key provider registrations', () => {
 
     const provider = new AiSdkProvider(
       { ...defaults, apiKey: 'sk-virtual' },
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
 
     await expect(provider.getKeyStatus()).resolves.toEqual({
@@ -660,11 +675,19 @@ describe('basic API-key provider registrations', () => {
       )
     global.fetch = fetchMock as unknown as typeof fetch
 
-    const keyless = new AiSdkProvider({ ...defaults }, createProviderSettings())
+    const keyless = new AiSdkProvider(
+      { ...defaults },
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     await expect(keyless.getKeyStatus()).resolves.toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
 
-    const master = new AiSdkProvider({ ...defaults, apiKey: 'sk-master' }, createProviderSettings())
+    const master = new AiSdkProvider(
+      { ...defaults, apiKey: 'sk-master' },
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     await expect(master.getKeyStatus()).resolves.toBeNull()
   })
 
@@ -682,7 +705,8 @@ describe('basic API-key provider registrations', () => {
       )
       const provider = new AiSdkProvider(
         { ...defaults, apiKey: 'sk-virtual' },
-        createProviderSettings()
+        createProviderSettings(),
+        providerTestEnvironment
       )
       const result = expect(provider.getKeyStatus()).rejects.toMatchObject({
         name: 'AbortError',
@@ -727,7 +751,8 @@ describe('basic API-key provider registrations', () => {
 
       const provider = new AiSdkProvider(
         { ...defaults, apiKey: 'sk-virtual' },
-        createProviderSettings()
+        createProviderSettings(),
+        providerTestEnvironment
       )
 
       await expect(provider.fetchModels({ suppressErrors: false })).resolves.toEqual([
@@ -755,7 +780,8 @@ describe('basic API-key provider registrations', () => {
 
     const provider = new AiSdkProvider(
       { ...defaults, apiKey: 'sk-virtual' },
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
 
     await expect(provider.fetchModels({ suppressErrors: false })).rejects.toThrow(
@@ -789,7 +815,7 @@ describe('basic API-key provider registrations', () => {
     global.fetch = fetchMock as unknown as typeof fetch
 
     const config = { ...defaults, apiKey: 'test-key' }
-    const provider = new AiSdkProvider(config, createProviderSettings())
+    const provider = new AiSdkProvider(config, createProviderSettings(), providerTestEnvironment)
     expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
       runtimeKind: 'openai-compatible',
       modelSource: 'demonroute',
@@ -843,7 +869,7 @@ describe('basic API-key provider registrations', () => {
     global.fetch = fetchMock as unknown as typeof fetch
 
     const config = { ...defaults, apiKey: 'test-key' }
-    const provider = new AiSdkProvider(config, createProviderSettings())
+    const provider = new AiSdkProvider(config, createProviderSettings(), providerTestEnvironment)
     expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
       runtimeKind: 'openai-compatible',
       modelSource: 'openai',
@@ -987,7 +1013,7 @@ describe('basic API-key provider registrations', () => {
       })
     )
     global.fetch = fetchMock
-    const provider = new AiSdkProvider(defaults, createProviderSettings())
+    const provider = new AiSdkProvider(defaults, createProviderSettings(), providerTestEnvironment)
 
     expect(await provider.fetchModels({ suppressErrors: false })).toEqual([
       {
@@ -1038,7 +1064,8 @@ describe('basic API-key provider registrations', () => {
     global.fetch = fetchMock
     const provider = new AiSdkProvider(
       { ...defaults, apiKey: 'test-key' },
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
 
     expect(await provider.check()).toEqual({
@@ -1102,7 +1129,7 @@ describe('basic API-key provider registrations', () => {
     global.fetch = fetchMock as unknown as typeof fetch
 
     const config = { ...defaults, apiKey: 'test-key' }
-    const provider = new AiSdkProvider(config, createProviderSettings())
+    const provider = new AiSdkProvider(config, createProviderSettings(), providerTestEnvironment)
     expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
       runtimeKind: 'openai-compatible',
       modelSource: 'openai',
@@ -1160,7 +1187,8 @@ describe('basic API-key provider registrations', () => {
         name: 'AMD GPU Cloud',
         baseUrl: 'https://developer.amd.com.cn/radeon/api/v1'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     const models = await provider.fetchModels()
 
@@ -1230,7 +1258,8 @@ describe('basic API-key provider registrations', () => {
         name: 'OrcaRouter',
         baseUrl: 'https://api.orcarouter.ai/v1'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     const models = await provider.fetchModels()
 
@@ -1283,7 +1312,8 @@ describe('basic API-key provider registrations', () => {
         name: 'Synthorai',
         baseUrl: 'https://synthorai.io/v1'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     const models = await provider.fetchModels()
 
@@ -1322,7 +1352,8 @@ describe('basic API-key provider registrations', () => {
         name: 'Modelsell',
         baseUrl: 'https://modelsell.com/v1'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     const models = await provider.fetchModels()
 
@@ -1367,7 +1398,8 @@ describe('basic API-key provider registrations', () => {
         name: 'OpenRouter',
         baseUrl: 'https://openrouter.ai/api/v1'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     const models = await provider.fetchModels()
 
@@ -1417,7 +1449,8 @@ describe('basic API-key provider registrations', () => {
           name: providerId,
           baseUrl: `https://${providerId}.example/v1`
         }),
-        createProviderSettings()
+        createProviderSettings(),
+        providerTestEnvironment
       )
       const models = await provider.fetchModels()
 
@@ -1454,7 +1487,8 @@ describe('basic API-key provider registrations', () => {
         name: 'GreenPT',
         baseUrl: 'https://api.greenpt.ai/v1'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     const models = await provider.fetchModels()
 
@@ -1531,7 +1565,8 @@ describe('basic API-key provider registrations', () => {
         name: 'OpenCode Go',
         baseUrl: 'https://opencode.ai/zen/go/v1'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     const models = await provider.fetchModels()
 
@@ -1596,7 +1631,11 @@ describe('basic API-key provider registrations', () => {
       ]
     })
 
-    const provider = new AiSdkProvider(createProvider({}), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider({}),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const models = await provider.fetchModels()
 
     expect(mockGetProvider).toHaveBeenCalledWith('nvidia')
@@ -1641,7 +1680,8 @@ describe('basic API-key provider registrations', () => {
         name: 'StepFun Token Plan',
         baseUrl: 'https://api.stepfun.com/step_plan/v1'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     const models = await provider.fetchModels()
 
@@ -1664,7 +1704,8 @@ describe('basic API-key provider registrations', () => {
         name: 'StepFun Token Plan',
         baseUrl: 'https://api.stepfun.com/step_plan/v1'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     ;(provider as any).isInitialized = true
 
@@ -1701,7 +1742,7 @@ describe('basic API-key provider registrations', () => {
       credentialStrategy: 'api-key',
       checkModelId: 'deepseek-ai/DeepSeek-V4.1-Flash'
     })
-    const provider = new AiSdkProvider(config, createProviderSettings())
+    const provider = new AiSdkProvider(config, createProviderSettings(), providerTestEnvironment)
     ;(provider as any).isInitialized = true
 
     await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
@@ -1750,7 +1791,7 @@ describe('basic API-key provider registrations', () => {
       })
     )
     global.fetch = fetchMock
-    const provider = new AiSdkProvider(defaults, createProviderSettings())
+    const provider = new AiSdkProvider(defaults, createProviderSettings(), providerTestEnvironment)
 
     expect(await provider.fetchModels({ suppressErrors: false })).toEqual([
       {
@@ -1781,7 +1822,8 @@ describe('basic API-key provider registrations', () => {
         name: 'OpenCode Go',
         baseUrl: 'https://opencode.ai/zen/go/v1'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     ;(provider as any).isInitialized = true
 
@@ -1814,7 +1856,8 @@ describe('basic API-key provider registrations', () => {
         name: 'OpenCode Go',
         baseUrl: 'https://opencode.ai/zen/go/v1'
       }),
-      providerSettings
+      providerSettings,
+      providerTestEnvironment
     )
     ;(provider as any).isInitialized = true
     const resolveRouteDecision = vi.spyOn(provider as any, 'resolveRouteDecision')
@@ -1853,9 +1896,14 @@ describe('basic API-key provider registrations', () => {
         apiType: 'new-api',
         baseUrl: 'https://new-api.example.com'
       }),
-      imageProviderSettings
+      imageProviderSettings,
+      providerTestEnvironment
     )
-    const compatibleProvider = new AiSdkProvider(createProvider({}), createProviderSettings())
+    const compatibleProvider = new AiSdkProvider(
+      createProvider({}),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     ;(imageProvider as any).isInitialized = false
     ;(compatibleProvider as any).isInitialized = false
 
@@ -1881,7 +1929,8 @@ describe('basic API-key provider registrations', () => {
         name: 'OpenCode Go',
         baseUrl: 'https://opencode.ai/zen/go/v1'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     ;(provider as any).isInitialized = true
 
@@ -1913,7 +1962,8 @@ describe('basic API-key provider registrations', () => {
         apiType: 'anthropic',
         baseUrl: 'https://api.minimax.io/anthropic/v1'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     ;(provider as any).isInitialized = true
 

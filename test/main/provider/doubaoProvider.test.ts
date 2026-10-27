@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
@@ -88,7 +89,11 @@ describe('AiSdkProvider doubao', () => {
       ]
     })
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const models = await provider.fetchModels()
 
     expect(models).toEqual([

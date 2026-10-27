@@ -33,7 +33,7 @@ import {
   SUMMARY_TITLES_PROMPT,
   type ProviderGenerateTextOptions
 } from '../baseProvider'
-import type { ProviderLocalePort } from '../ports'
+import type { ProviderEnvironmentPort } from '../ports'
 import {
   runAiSdkCoreStream,
   runAiSdkDimensions,
@@ -228,7 +228,7 @@ export class AiSdkProvider extends BaseLLMProvider {
   constructor(
     provider: LLM_PROVIDER,
     providerSettings: ProviderSettingsPort,
-    locale: ProviderLocalePort
+    locale: ProviderEnvironmentPort
   ) {
     super(provider, providerSettings, locale)
     const definition = resolveAiSdkProviderDefinition(provider)

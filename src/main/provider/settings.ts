@@ -25,7 +25,11 @@ import {
 import { DEFAULT_PROVIDERS } from '@/provider/defaults'
 import { compare } from 'compare-versions'
 import { ModelConfigHelper } from '@/provider/modelConfig'
-import { providerDbLoader, type ProviderDbRefreshResult } from '@/provider/providerDbLoader'
+import {
+  providerDbLoader,
+  type ProviderDbRefreshResult,
+  type ProviderDbBootstrap
+} from '@/provider/providerDbLoader'
 import { ProviderAggregate, type ProviderModel } from '@shared/types/model-db'
 import { modelCapabilities } from '@/provider/modelCapabilities'
 import { ProviderHelper } from '@/provider/providerHelper'
@@ -346,6 +350,7 @@ export class ProviderSettings implements ProviderSettingsPort {
     private readonly database: ProviderDatabase,
     private readonly publishEvent: DeepchatEventPublisher,
     currentAppVersion: string,
+    catalogBootstrap: ProviderDbBootstrap,
     previousAppVersion?: string
   ) {
     this.appSettings = settings
@@ -391,6 +396,7 @@ export class ProviderSettings implements ProviderSettingsPort {
       this.publishEvent('models.changed', { reason, version: Date.now() })
     })
     providerDbLoader.setPrivacyModeResolver(() => this.privacy.isEnabled())
+    providerDbLoader.configure(catalogBootstrap)
     providerDbLoader.initialize().catch((error) => {
       console.warn('[ProviderSettings] Failed to initialize provider DB:', error)
     })

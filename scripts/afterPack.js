@@ -835,6 +835,8 @@ async function encodeMacVssExtension(context) {
 async function afterPack(context) {
   const { targets, appOutDir } = context
 
+  await validateProviderCatalog(context)
+
   await copyFffNativePackages(context)
   await copyParcelWatcherNativePackages(context)
   await copyOpendalNativePackages(context)
@@ -845,6 +847,29 @@ async function afterPack(context) {
 
   if (isLinux(targets)) {
     await afterPackLinux({ appOutDir })
+  }
+}
+
+export async function validateProviderCatalog(context) {
+  const catalogPath = path.join(
+    getResourcesDir(context),
+    'app.asar.unpacked',
+    'resources',
+    'model-db',
+    'providers.json'
+  )
+  const info = await fs.lstat(catalogPath)
+  if (!info.isFile() || info.isSymbolicLink()) {
+    throw new Error('Bundled Provider catalog is not a regular file')
+  }
+  const catalog = await readJson(catalogPath)
+  if (
+    !catalog.providers ||
+    typeof catalog.providers !== 'object' ||
+    Array.isArray(catalog.providers) ||
+    Object.keys(catalog.providers).length === 0
+  ) {
+    throw new Error('Bundled Provider catalog is empty or invalid')
   }
 }
 

@@ -76,7 +76,8 @@ import { createProviderRoutes } from '../provider/routes'
 import { ProviderSettings } from '../provider/settings'
 import type { SettingsStore } from '../config/settingsStore'
 import type { SecretStore } from '../config/secretStore'
-import { providerDbLoader } from '../provider/providerDbLoader'
+import { providerDbLoader, type ProviderDbBootstrap } from '../provider/providerDbLoader'
+import { buildDefaultProviderHeaders } from '../provider/providerHeaders'
 import { AcpProvider } from '../provider/providers/acpProvider'
 import { proxyConfig, ProxyMode } from '../platform/proxy'
 import { DeviceService } from '../device'
@@ -545,6 +546,7 @@ function createLivePort<T extends object>(resolve: () => T): T {
 export async function createMainProcessControl(dependencies: {
   previousAppVersion?: string
   currentAppVersion: string
+  providerCatalogBootstrap: ProviderDbBootstrap
   settingsStore: SettingsStore
   secretStore: SecretStore
   privacySettings: PrivacySettings
@@ -859,6 +861,7 @@ export async function createMainProcessControl(dependencies: {
     dependencies.providerDatabase,
     publishDeepchatEvent,
     dependencies.currentAppVersion,
+    dependencies.providerCatalogBootstrap,
     dependencies.previousAppVersion
   )
 
@@ -1180,7 +1183,10 @@ export async function createMainProcessControl(dependencies: {
   })
   providerRuntime = new ProviderRuntime(
     providerSettings,
-    desktopSettings,
+    {
+      getLanguage: () => desktopSettings.getLanguage(),
+      defaultHeaders: buildDefaultProviderHeaders(dependencies.currentAppVersion)
+    },
     agentSettings,
     dependencies.mcpSettings,
     acpRuntimeOwner,
@@ -3024,6 +3030,15 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function initializeIdleProviderWarmup(taskContext: StartupWorkloadTaskContext) {
+    taskContext.signal.throwIfAborted()
+    const catalogRefresh = await providerDbLoader.refreshIfNeeded(true, {
+      automatic: true,
+      signal: taskContext.signal
+    })
+    taskContext.signal.throwIfAborted()
+    if (catalogRefresh.status === 'error') {
+      console.warn('[ProviderDbLoader] Startup refresh failed:', catalogRefresh.message)
+    }
     const enabledProviders = providerSettings
       .getEnabledProviders()
       .map((provider) => provider.id)
@@ -3066,6 +3081,7 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('agentCliTokenAuthority.clear', () => agentCliTokenAuthority.clear())
     await runDestroyStep('cliServer.stop', () => cliServer.stop())
     await runDestroyStep('oauthService.stop', () => oauthService.stop())
+    await providerDbLoader.drain()
     await startupWorkloadCoordinator.cancelAndDrainTarget('main')
     await runDestroyStep('automaticSync.close', () => automaticSync!.close())
     await runDestroyStep('syncPeerService.stop', () => syncPeerService.stop())
@@ -3740,6 +3756,7 @@ export async function createMainProcessControl(dependencies: {
       shutdownStepFailures = 0
       appLifecycleState = 'stopping'
       databaseRequests.beginShutdown()
+      providerDbLoader.stop()
       databaseSecurityService.stop()
       dependencies.secretStore.pause()
       windowPresenter.setApplicationQuitting(true)

@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
@@ -62,7 +63,11 @@ describe('AihubmixProvider AI SDK runtime headers', () => {
   })
 
   it('preserves the DeepChat APP-Code header in AI SDK mode', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     ;(provider as any).isInitialized = true
 
     for await (const _event of provider.coreStream(
@@ -92,7 +97,11 @@ describe('AihubmixProvider AI SDK runtime headers', () => {
   })
 
   it('treats Seedance models as video generation even when metadata is still chat', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     ;(provider as any).isInitialized = true
 
     const modelConfig = {

@@ -39,7 +39,7 @@ import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
   AcpProviderAdminPort,
-  ProviderLocalePort
+  ProviderEnvironmentPort
 } from './ports'
 import {
   BaseLLMProvider,
@@ -151,7 +151,7 @@ export class ProviderRuntime
 
   constructor(
     providerSettings: ProviderSettingsPort,
-    locale: ProviderLocalePort,
+    locale: ProviderEnvironmentPort,
     agentSettings: Pick<AgentSettingsPort, 'getAcpEnabled' | 'getAcpAgents'>,
     mcpSettings: McpSettings,
     acpRuntimeOwner: AcpRuntimeOwner,

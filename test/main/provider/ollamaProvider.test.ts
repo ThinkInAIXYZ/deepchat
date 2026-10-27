@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelType } from '../../../src/shared/model'
@@ -39,12 +40,6 @@ vi.mock('@shared/logger', () => ({
 vi.mock('@electron-toolkit/utils', () => ({
   is: {
     dev: false
-  }
-}))
-
-vi.mock('../../../src/main/device', () => ({
-  DeviceService: {
-    getDefaultHeaders: () => ({})
   }
 }))
 
@@ -136,7 +131,8 @@ describe('OllamaProvider.fetchModels', () => {
         apiKey: 'test-key',
         baseUrl: 'http://localhost:11434/api'
       },
-      providerSettings
+      providerSettings,
+      providerTestEnvironment
     )
     const runtimeContext = (ollamaProvider as any).getAiSdkRuntimeContext('local-custom-model')
 
@@ -165,7 +161,8 @@ describe('OllamaProvider.fetchModels', () => {
         ...provider,
         customHeaders: { 'X-Tenant-ID': 'team-a' }
       },
-      providerSettings
+      providerSettings,
+      providerTestEnvironment
     )
 
     const options = mockOllamaConstructorOptions.at(-1) as {
@@ -178,7 +175,7 @@ describe('OllamaProvider.fetchModels', () => {
   })
 
   it('merges local and running models, keeps running-only models, and preserves capabilities', async () => {
-    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings, providerTestEnvironment)
     vi.mocked(providerSettings.getProviderModels).mockClear()
 
     vi.spyOn(ollamaProvider, 'listModels').mockResolvedValue([
@@ -252,7 +249,7 @@ describe('OllamaProvider.fetchModels', () => {
   })
 
   it('does not promote catalog fallback capabilities into provider facts', async () => {
-    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings, providerTestEnvironment)
     vi.spyOn(ollamaProvider, 'listModels').mockRejectedValue(new Error('ollama unavailable'))
     vi.spyOn(ollamaProvider, 'listRunningModels').mockResolvedValue([])
     vi.mocked(providerSettings.getDbProviderModels).mockReturnValue([
@@ -286,7 +283,7 @@ describe('OllamaProvider.fetchModels', () => {
   })
 
   it('uses ollama list output as the local model source when the SDK list is empty', async () => {
-    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings, providerTestEnvironment)
     ;(ollamaProvider as any).ollama = {
       list: vi.fn(async () => ({ models: [] })),
       show: vi.fn(async () => {
@@ -325,7 +322,7 @@ describe('OllamaProvider.fetchModels', () => {
   })
 
   it('preserves list model info when the show response is sparse', async () => {
-    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings, providerTestEnvironment)
     ;(ollamaProvider as any).ollama = {
       list: vi.fn(async () => ({
         models: [createModel('qwen3:8b', { family: 'qwen', contextLength: 32768 })]
@@ -348,7 +345,7 @@ describe('OllamaProvider.fetchModels', () => {
   })
 
   it('keeps the running context separate from theoretical model metadata', async () => {
-    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings, providerTestEnvironment)
     let runtimeContextLength: unknown = 8192
     const ps = vi.fn(async () => ({
       models: [
@@ -397,7 +394,7 @@ describe('OllamaProvider.fetchModels', () => {
   })
 
   it('distinguishes a stopped model from an unavailable runtime query', async () => {
-    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings, providerTestEnvironment)
     mockOllamaPs
       .mockResolvedValueOnce({ models: [] })
       .mockRejectedValueOnce(new Error('ps unavailable'))
@@ -410,7 +407,7 @@ describe('OllamaProvider.fetchModels', () => {
   })
 
   it('diagnoses a running model from Ollama versions without runtime context metadata', async () => {
-    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings, providerTestEnvironment)
     mockOllamaPs.mockResolvedValue({
       models: [{ name: 'qwen3:8b' }]
     })
@@ -421,7 +418,7 @@ describe('OllamaProvider.fetchModels', () => {
   })
 
   it('matches the implicit latest tag in either model-name direction', async () => {
-    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings, providerTestEnvironment)
     mockOllamaPs
       .mockResolvedValueOnce({
         models: [{ name: 'qwen3', context_length: 8192 }]
@@ -441,7 +438,7 @@ describe('OllamaProvider.fetchModels', () => {
   it('bounds a stalled runtime context query without loading the model', async () => {
     vi.useFakeTimers()
     try {
-      const ollamaProvider = new OllamaProvider(provider, providerSettings)
+      const ollamaProvider = new OllamaProvider(provider, providerSettings, providerTestEnvironment)
       let transportSignal: AbortSignal | undefined
       const transportFetch = vi.fn(
         (_input: string | URL | Request, init?: RequestInit) =>
@@ -475,7 +472,7 @@ describe('OllamaProvider.fetchModels', () => {
   })
 
   it('propagates cancellation of a stalled runtime context query', async () => {
-    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings, providerTestEnvironment)
     let transportSignal: AbortSignal | undefined
     const transportFetch = vi.fn(
       (_input: string | URL | Request, init?: RequestInit) =>
@@ -507,7 +504,7 @@ describe('OllamaProvider.fetchModels', () => {
   })
 
   it('confirms pull success against the ollama list model set', async () => {
-    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings, providerTestEnvironment)
     ;(ollamaProvider as any).ollama = {
       pull: vi.fn(async () => ({
         async *[Symbol.asyncIterator]() {
@@ -543,7 +540,7 @@ describe('OllamaProvider.fetchModels', () => {
 
   it('only enables insecure pulls behind the explicit TLS debug flag', async () => {
     process.env.DEEPCHAT_ALLOW_INSECURE_TLS = '1'
-    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings, providerTestEnvironment)
     ;(ollamaProvider as any).ollama = {
       pull: vi.fn(async () => ({
         async *[Symbol.asyncIterator]() {
@@ -567,7 +564,7 @@ describe('OllamaProvider.fetchModels', () => {
   })
 
   it('treats latest tags from ollama list as a successful untagged pull', async () => {
-    const ollamaProvider = new OllamaProvider(provider, providerSettings)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings, providerTestEnvironment)
     ;(ollamaProvider as any).ollama = {
       pull: vi.fn(async () => ({
         async *[Symbol.asyncIterator]() {

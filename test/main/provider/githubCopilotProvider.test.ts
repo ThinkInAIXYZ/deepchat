@@ -3,12 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GithubCopilotProvider } from '../../../src/main/provider/providers/githubCopilotProvider'
 import { extractProviderFailureMetadata } from '@/provider/providerFailure'
 
-import { getGitHubCopilotToken } from '../../../src/main/provider/auth/githubCopilotDeviceFlow'
+import { getGitHubCopilotToken } from '../../../src/main/provider/auth/githubCopilotToken'
 
-vi.mock('../../../src/main/provider/auth/githubCopilotDeviceFlow', async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import('../../../src/main/provider/auth/githubCopilotDeviceFlow')
-  >()),
+vi.mock('../../../src/main/provider/auth/githubCopilotToken', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../src/main/provider/auth/githubCopilotToken')>()),
   getGitHubCopilotToken: vi.fn()
 }))
 

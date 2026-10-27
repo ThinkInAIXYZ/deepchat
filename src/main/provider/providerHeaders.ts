@@ -18,6 +18,14 @@ const CROSS_ORIGIN_SENSITIVE_HEADERS = [
 
 export const MASKED_PROVIDER_CUSTOM_HEADER_VALUE = '***MASKED***'
 
+export function buildDefaultProviderHeaders(appVersion: string): Record<string, string> {
+  return {
+    'HTTP-Referer': 'https://deepchatai.cn',
+    'X-Title': 'DeepChat',
+    'User-Agent': `DeepChat/${appVersion}`
+  }
+}
+
 type ProviderFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>
 
 const getRequestUrl = (input: string | URL | Request): URL | null => {

@@ -16,6 +16,7 @@ files:
   - '!out/main/lightOcrHelper.js'
   - '!out/cli/**'
   - '!out/harness/**'
+  - '!resources/model-db/**'
   - '!crates/**'
   - '!keys/*'
   - '!scripts/*'
@@ -46,6 +47,9 @@ asarUnpack:
   - '**/node_modules/@arcships/light-ocr*/**/*'
   - '**/node_modules/@zerob13/nativekit/prebuilds/**/*'
 extraResources:
+  - from: ./resources/model-db/
+    to: app.asar.unpacked/resources/model-db
+    filter: ['providers.json']
   - from: ./out/harness/
     to: app.asar.unpacked/harness
     filter: ['**/*']

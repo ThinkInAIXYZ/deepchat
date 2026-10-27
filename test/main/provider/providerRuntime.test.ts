@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import { describe, it, expect, beforeEach, vi, beforeAll, afterEach } from 'vitest'
 import { ProviderRuntime } from '../../../src/main/provider/index'
 import { ProviderSettings } from '../../../src/main/provider/settings'
@@ -120,7 +121,10 @@ describe('ProviderRuntime Integration Tests', () => {
     )
     return new ProviderRuntime(
       providerSettings,
-      { getLanguage: vi.fn().mockReturnValue('en-US') },
+      {
+        defaultHeaders: providerTestEnvironment.defaultHeaders,
+        getLanguage: vi.fn().mockReturnValue('en-US')
+      },
       {} as never,
       {} as never,
       new AcpRuntimeOwner(() => {
@@ -226,7 +230,10 @@ describe('ProviderRuntime Integration Tests', () => {
   it('instantiates every built-in profile without an extra special-provider allowlist', () => {
     const manager = new ProviderInstanceManager({
       providerSettings: mockProviderSettings,
-      locale: { getLanguage: () => 'en-US' },
+      locale: {
+        defaultHeaders: providerTestEnvironment.defaultHeaders,
+        getLanguage: () => 'en-US'
+      },
       agentSettings: { getAcpEnabled: () => false, getAcpAgents: () => [] },
       activeStreams: new Map(),
       rateLimitManager: { cleanupProviderRateLimit: vi.fn(), syncProviders: vi.fn() } as never,

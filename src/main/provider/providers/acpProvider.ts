@@ -11,7 +11,7 @@ import {
   SUMMARY_TITLES_PROMPT,
   type ProviderGenerateTextOptions
 } from '../baseProvider'
-import type { ProviderLocalePort } from '../ports'
+import type { ProviderEnvironmentPort } from '../ports'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMResponse } from '@shared/types/provider'
@@ -157,7 +157,7 @@ export class AcpProvider extends BaseLLMProvider {
   constructor(
     provider: LLM_PROVIDER,
     providerSettings: ProviderSettingsPort,
-    locale: ProviderLocalePort,
+    locale: ProviderEnvironmentPort,
     agentSettings: Pick<AgentSettingsPort, 'getAcpEnabled' | 'getAcpAgents'>,
     runtimeOwner: AcpRuntimeOwner,
     private readonly publishEvent: DeepchatEventPublisher

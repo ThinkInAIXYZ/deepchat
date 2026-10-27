@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AWS_BEDROCK_PROVIDER } from '@shared/types/provider'
@@ -125,7 +126,8 @@ describe('AiSdkProvider aws-bedrock', () => {
       createProvider({
         credential: undefined
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
 
     await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
@@ -144,7 +146,11 @@ describe('AiSdkProvider aws-bedrock', () => {
       ]
     })
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const models = await provider.fetchModels()
 
     expect(models).toEqual([
@@ -163,7 +169,11 @@ describe('AiSdkProvider aws-bedrock', () => {
   it('falls back to the provider DB snapshot when the Bedrock catalog lookup fails', async () => {
     mockBedrockSend.mockRejectedValue(new Error('catalog unavailable'))
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const models = await provider.fetchModels()
 
     expect(models).toEqual([
@@ -185,7 +195,11 @@ describe('AiSdkProvider aws-bedrock', () => {
       ]
     })
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     ;(provider as any).isInitialized = true
 
     await expect(provider.check()).resolves.toEqual({

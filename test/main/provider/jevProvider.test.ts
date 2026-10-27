@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { ModelType } from '@shared/model'
 import type { LLM_PROVIDER } from '@shared/types/provider'
@@ -67,6 +68,7 @@ const createProviderSettings = (): ProviderSettingsPort =>
 
 const createProviderInstance = (overrides?: Partial<LLM_PROVIDER>) =>
   new JevProvider(createProvider(overrides), createProviderSettings(), {
+    defaultHeaders: providerTestEnvironment.defaultHeaders,
     getLanguage: vi.fn().mockReturnValue('en-US')
   })
 
@@ -183,6 +185,7 @@ describe('JevProvider', () => {
         createProvider({ models: bundled }),
         createProviderSettings(),
         {
+          defaultHeaders: providerTestEnvironment.defaultHeaders,
           getLanguage: vi.fn().mockReturnValue('en-US')
         }
       )

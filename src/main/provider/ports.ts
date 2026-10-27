@@ -11,8 +11,9 @@ export interface ProviderCatalogPort {
   getAgentType(agentId: string): Promise<'deepchat' | 'acp' | null>
 }
 
-export interface ProviderLocalePort {
+export interface ProviderEnvironmentPort {
   getLanguage(): string
+  defaultHeaders: Readonly<Record<string, string>>
 }
 
 export interface AcpAsLlmProviderSessionControlPort {

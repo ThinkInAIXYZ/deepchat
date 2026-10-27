@@ -365,9 +365,11 @@ Durable transaction callbacks and arbitrary synchronous repository calls are not
 Establish two baselines: the application before admission extraction and committed `ffcd98770`.
 Use the first to account for the total architecture cost and the second to attribute each next
 module. Preserve immutable artifacts and isolated profiles, with versions and workload parameters.
-Run at least five paired samples on the same machine; report warm/cold results and baseline
-variance. Use a deterministic local Provider fixture for local CPU/memory comparisons, then
-separately validate real-provider behavior. Do not benchmark against a live user database.
+For an explicit performance adoption decision, run at least five paired samples on the same
+machine and report warm/cold results and baseline variance. This sample count does not apply to
+ordinary correctness E2E or every structural extraction. Use a deterministic local Provider
+fixture for local CPU/memory comparisons, then separately validate real-provider behavior.
+Do not benchmark against a live user database.
 
 | Workload | Evidence required |
 | --- | --- |
@@ -405,16 +407,19 @@ benchmarking; they are not a mandatory timing gate for each migration slice. Eve
 requires relevant correctness/lifecycle tests and matching baseline/migrated application E2E.
 Select targeted fixed-device resource comparisons when a module materially changes process
 placement, IPC volume, batching or storage access, or when measured performance is its adoption
-objective. Include transport and the whole process tree where those costs change. Ordinary port
-extraction does not require a complete resource capture solely because it changes an async call.
-Reuse verified immutable runtime evidence for documentation or test-only edits.
+objective. Include transport and the whole process tree where those costs change. For a structural
+extraction, start with one representative affected workload; expand only when it exposes a concrete
+suspected regression. Ordinary port extraction requires no performance rerun solely because it
+changes an async call. Reuse verified immutable runtime evidence for documentation or test-only edits.
 
 Choose the affected workloads and measurement budget before running. Report central tendency and
 spread against a matching local baseline; do not infer a regression or improvement from one sample
 or a noise-level difference. An isolated timing overrun does not block the next slice. Investigate
-a material suspected regression with a bounded confirmation, retaining every sample; a reproducible
-material regression must be resolved before adoption. An inconclusive result establishes no speed
-claim. Do not retry shared CI until it happens to pass, repeat unchanged whole-app captures, or
+a material suspected regression with at most one predeclared confirmation batch, retaining every
+sample; a reproducible material regression must be resolved before adoption. If that batch remains
+inconclusive, stop measuring and record the uncertainty without a speed claim. Further measurement
+requires a changed implementation, workload or concrete new evidence. CI timing noise alone cannot
+block a structural extraction. Do not retry shared CI until it happens to pass, repeat unchanged whole-app captures, or
 optimize production code solely to meet a noisy shared-runner sample.
 Size completion waits for the bounded fixture and shutdown work; a fixture timeout is not an
 additional adoption latency budget. Production handshake, retrieval and ownership deadlines remain
@@ -864,6 +869,22 @@ reads. Live Agent changes already use the unified Agent repository. Remove unuse
 entrypoints and reject writes through the attached legacy projection. Normalize legacy ACP data
 before the migration snapshot, and transfer the configuration/database owner together at G5
 without retaining a writable Main shadow.
+
+Provider catalog bootstrap receives its profile cache directory and bundled catalog file from
+Main. Importing model capability/settings modules performs no native path lookup or cache I/O
+before this bootstrap. Packaged catalog bytes live outside ASAR so ordinary Node can read the
+same file. Keep one catalog/cache owner, privacy-aware automatic refresh, existing payload/TTL
+bounds and single-flight refresh. Initial catalog loading performs no network work. Automatic
+refresh belongs to the existing Main idle Provider task, including its maintenance cancellation
+and drain; a canceled task cannot publish or write a late response. Shutdown cancels every refresh,
+fences late cache writes/events and waits for actual completion before disposing dependent owners.
+Provider request metadata
+is a plain bootstrap header snapshot beside the existing locale capability. Token exchange and
+HTTP failure sanitization must not import the native Copilot device-login window.
+Shared image-cache reads/writes use the existing trusted `DEEPCHAT_USER_DATA_DIR` process bootstrap
+set by Main, require an absolute profile directory and have no native/home-directory fallback.
+Retain all path, symlink, size, cancellation and remote-address checks. This removes an image
+mapper's transitive Electron dependency without changing cache location or granting new access.
 
 First-party configuration selects the core entry and service exports. Rutis dependency injection
 and scopes are not authorization. This migration introduces no arbitrary third-party Rutis code
