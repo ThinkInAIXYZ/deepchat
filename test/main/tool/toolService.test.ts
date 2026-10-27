@@ -1,5 +1,7 @@
+import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
+import { RUN_CODE_PROTOCOL_VERSION, type RunCodeParentMessage } from '@shared/codeModeProtocol'
 import { ToolService } from '@/tool'
 import { RunCodeRuntimeManager } from '@/tool/codeMode/runCodeRuntimeManager'
 import { POSIX_COMMAND_SHELL } from '../../helpers/commandShell'
@@ -1681,6 +1683,148 @@ describe('ToolService', () => {
       })
     ).toThrow("both map to 'mcp_read'")
   })
+
+  it.each(['deepseek', 'openai-codex'])(
+    'dispatches Code Mode subagent children under the %s entrypoint contract',
+    async (providerId) => {
+      const definitions: MCPToolDefinition[] = [
+        ...['exec', 'read', 'glob'].map((name) => ({
+          ...buildToolDefinition(name, 'agent-filesystem'),
+          source: 'agent' as const,
+          server: { name: 'agent-filesystem', icons: '', description: 'Filesystem tools' },
+          execution: name === 'exec' ? TOOL_EXECUTION.write : TOOL_EXECUTION.read.parallel
+        })),
+        buildContractMcpDefinition()
+      ]
+      const authority = {
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        projectDir: '/workspace',
+        sessionKind: 'subagent' as const,
+        parentSessionId: 'parent-1',
+        disabledAgentTools: [],
+        enabledMcpServerIds: [definitions[3].server.id!],
+        subagentCapability: {
+          available: false as const,
+          reason: 'policy_disabled' as const,
+          cacheKey: 'off'
+        }
+      }
+      const mcpService = {
+        callTool: vi.fn(async () => ({ content: 'remote result', rawData: {} }))
+      } as any
+      const toolService = new ToolService({
+        skillSettings: { isEnabled: () => false } as any,
+        mcpService,
+        agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
+        providerSettings: { getModelConfig: vi.fn() } as any,
+        settings: { get: vi.fn() },
+        commandPermissionHandler: new CommandPermissionService(),
+        agentTools: buildAgentToolRuntimeMock({
+          resolveConversationSessionInfo: vi.fn(async (sessionId: string) =>
+            sessionId === 'parent-1'
+              ? { ...authority, sessionId, sessionKind: 'regular' }
+              : authority
+          ),
+          resolveConversationExecutionAuthority: vi.fn(async () => authority),
+          resolveConversationExecutionAuthorityNow: vi.fn(() => authority)
+        })
+      })
+      const agentToolManager = (toolService as any).ensureAgentToolManager(null)
+      agentToolManager.callTool = vi.fn(async () => 'native result')
+      const [entrypoint] = toolService.configureToolMode({
+        conversationId: 'session-1',
+        mode: 'code',
+        providerId,
+        commandShell: POSIX_COMMAND_SHELL,
+        executionCatalog: definitions
+      })
+      const nestedResults: RunCodeParentMessage[] = []
+      const host = Object.assign(new EventEmitter(), {
+        pid: 42,
+        kill: vi.fn(() => true),
+        postMessage(message: RunCodeParentMessage) {
+          if (message.type === 'START') {
+            queueMicrotask(() => {
+              for (const binding of message.bindings) {
+                host.emit('message', {
+                  type: 'NESTED_CALL',
+                  version: RUN_CODE_PROTOCOL_VERSION,
+                  cellId: message.cellId,
+                  callId: binding.id,
+                  bindingId: binding.id,
+                  arguments: {}
+                })
+              }
+            })
+          } else if (message.type === 'NESTED_RESULT') {
+            nestedResults.push(message)
+            if (nestedResults.length === definitions.length) {
+              queueMicrotask(() =>
+                host.emit('message', {
+                  type: 'RESULT',
+                  version: RUN_CODE_PROTOCOL_VERSION,
+                  cellId: message.cellId,
+                  output: [],
+                  store: {}
+                })
+              )
+            }
+          } else if (message.type === 'STOP') {
+            queueMicrotask(() => host.emit('exit', 0))
+          }
+        }
+      })
+      const runtime = (toolService as any).runCodeRuntime
+      runtime.managerOptions.spawnHost = async () => {
+        setTimeout(
+          () =>
+            host.emit('message', {
+              type: 'READY',
+              version: RUN_CODE_PROTOCOL_VERSION,
+              pid: host.pid
+            }),
+          0
+        )
+        return host
+      }
+
+      try {
+        await toolService.callTool(
+          {
+            id: 'code-call-1',
+            type: 'function',
+            function: {
+              name: entrypoint.function.name,
+              arguments:
+                providerId === 'openai-codex'
+                  ? 'await tools.exec({})'
+                  : JSON.stringify({
+                      code: 'await tools.exec({})',
+                      description: 'Run nested tools'
+                    })
+            },
+            conversationId: 'session-1'
+          },
+          {
+            runId: CONTRACT_RUN_ID,
+            messageId: 'message-1',
+            requestSeq: 1,
+            executionContract: buildToolExecutionContract(entrypoint),
+            permissionMode: 'full_access'
+          }
+        )
+        expect(nestedResults).toHaveLength(definitions.length)
+        for (const result of nestedResults) {
+          expect(result).toMatchObject({ type: 'NESTED_RESULT', ok: true })
+        }
+        expect(agentToolManager.callTool).toHaveBeenCalledTimes(3)
+        expect(mcpService.callTool).toHaveBeenCalledOnce()
+      } finally {
+        await toolService.shutdownCodeRuntime()
+      }
+    }
+  )
 
   it('meets the frozen execution contract with current authority at dispatch', async () => {
     const definition = buildContractMcpDefinition()

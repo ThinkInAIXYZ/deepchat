@@ -556,6 +556,86 @@ describe('ExecutionContract domain', () => {
     ).toThrow(expect.objectContaining({ code: 'target_mismatch' }))
   })
 
+  it('bounds nested tools by their frozen parent without requiring child View membership', () => {
+    const parentTool = agentTool('run_code', TOOL_EXECUTION.write)
+    const contract = buildExecutionContract(buildInput({ tools: [parentTool] }))
+    const dispatchInput = {
+      request: contract.request,
+      parentTool,
+      currentTool: agentTool('read'),
+      currentWorkspace: { kind: 'path' as const, path: '/workspace/project' },
+      currentMaxSubagentDepth: 1,
+      requestedSubagentDepth: 0
+    }
+
+    expect(() => assertExecutionContractAllowsDispatch(contract, dispatchInput)).not.toThrow()
+    expect(() =>
+      assertExecutionContractAllowsDispatch(contract, {
+        ...dispatchInput,
+        currentTool: agentTool('exec', TOOL_EXECUTION.write)
+      })
+    ).not.toThrow()
+    expect(() =>
+      assertExecutionContractAllowsDispatch(contract, { ...dispatchInput, parentTool: undefined })
+    ).toThrow(expect.objectContaining({ code: 'tool_not_allowed' }))
+    expect(() =>
+      assertExecutionContractAllowsDispatch(contract, {
+        ...dispatchInput,
+        parentTool: agentTool('missing_parent', TOOL_EXECUTION.write)
+      })
+    ).toThrow(expect.objectContaining({ code: 'tool_not_allowed' }))
+    expect(() =>
+      assertExecutionContractAllowsDispatch(contract, {
+        ...dispatchInput,
+        parentTool: { ...parentTool, server: { ...parentTool.server, name: 'other-server' } }
+      })
+    ).toThrow(expect.objectContaining({ code: 'target_mismatch' }))
+
+    const readParent = agentTool('run_code', TOOL_EXECUTION.read.sequential)
+    const readContract = buildExecutionContract(buildInput({ tools: [readParent] }))
+    expect(() =>
+      assertExecutionContractAllowsDispatch(readContract, {
+        ...dispatchInput,
+        parentTool: readParent
+      })
+    ).not.toThrow()
+    expect(() =>
+      assertExecutionContractAllowsDispatch(readContract, {
+        ...dispatchInput,
+        parentTool: readParent,
+        currentTool: agentTool('exec', TOOL_EXECUTION.write)
+      })
+    ).toThrow(expect.objectContaining({ code: 'effect_exceeds_ceiling' }))
+    expect(() => assertExecutionContractAllowsDispatch(readContract, dispatchInput)).toThrow(
+      expect.objectContaining({ code: 'effect_exceeds_ceiling' })
+    )
+    expect(() =>
+      assertExecutionContractAllowsDispatch(contract, {
+        ...dispatchInput,
+        parentTool: agentTool('run_code', TOOL_EXECUTION.read.parallel)
+      })
+    ).toThrow(expect.objectContaining({ code: 'execution_mode_mismatch' }))
+    expect(() =>
+      assertExecutionContractAllowsDispatch(contract, {
+        ...dispatchInput,
+        currentWorkspace: { kind: 'path', path: '/workspace/other' }
+      })
+    ).toThrow(expect.objectContaining({ code: 'workspace_mismatch' }))
+    expect(() =>
+      assertExecutionContractAllowsDispatch(contract, {
+        ...dispatchInput,
+        requestedSubagentDepth: 1,
+        currentMaxSubagentDepth: 0
+      })
+    ).toThrow(expect.objectContaining({ code: 'subagent_depth_exceeded' }))
+    expect(() =>
+      assertExecutionContractAllowsDispatch(contract, {
+        ...dispatchInput,
+        request: { ...contract.request, requestSeq: 3 }
+      })
+    ).toThrow(expect.objectContaining({ code: 'identity_mismatch' }))
+  })
+
   it('binds paused execution to the complete provider View identity and contract hash', () => {
     const contract = buildExecutionContract(buildInput())
     const binding = buildExecutionContractBinding(contract)
