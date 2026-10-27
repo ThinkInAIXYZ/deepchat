@@ -117,11 +117,13 @@ describe('ProviderRuntime Integration Tests', () => {
       mockSqlitePresenter as never,
       {
         newEnvironmentsTable: { listPathsForSession: () => [], syncPath: vi.fn() }
-      } as never
+      } as never,
+      '/home/tester'
     )
     return new ProviderRuntime(
       providerSettings,
       {
+        allowInsecureTls: providerTestEnvironment.allowInsecureTls,
         defaultHeaders: providerTestEnvironment.defaultHeaders,
         getLanguage: vi.fn().mockReturnValue('en-US')
       },
@@ -231,6 +233,7 @@ describe('ProviderRuntime Integration Tests', () => {
     const manager = new ProviderInstanceManager({
       providerSettings: mockProviderSettings,
       locale: {
+        allowInsecureTls: providerTestEnvironment.allowInsecureTls,
         defaultHeaders: providerTestEnvironment.defaultHeaders,
         getLanguage: () => 'en-US'
       },

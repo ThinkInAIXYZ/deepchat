@@ -40,7 +40,7 @@ import path from 'node:path'
 import { app } from 'electron'
 // import { NO_PROXY, proxyConfig } from '@/platform/proxy'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
-import { RuntimeHelper } from '@/lib/runtimeHelper'
+import { expandRuntimePath, getDefaultRuntimePaths } from '@/lib/runtimeHelper'
 import { ToolchainService } from '@/toolchains'
 import { getPathEntriesFromEnv, setPathEntriesOnEnv } from '@/agent/shared/process/shellEnvHelper'
 import { terminateProcessTreeByPid } from '@/agent/shared/process/processTree'
@@ -304,7 +304,6 @@ export class McpClient {
   private readonly inMemoryServerFactory?: InMemoryServerFactory
   private readonly runtime: McpClientRuntime
   private readonly onRegistryChanged: () => void
-  private readonly runtimeHelper = RuntimeHelper.getInstance()
   private readonly toolchainService: ToolchainService
   private probe: McpServerDiagnostics['probe'] = { outcome: 'not-run' }
 
@@ -361,7 +360,7 @@ export class McpClient {
   }
 
   public expandPath(inputPath: string): string {
-    return this.runtimeHelper.expandPath(inputPath)
+    return expandRuntimePath(inputPath, app.getPath('home'))
   }
 
   public get nodeRuntimePath(): string | null {
@@ -389,11 +388,7 @@ export class McpClient {
   ): void {
     setPathEntriesOnEnv(
       env,
-      [
-        this.toolchainService.resolvedBinDirs(),
-        inheritedPaths,
-        this.runtimeHelper.getDefaultPaths(homeDir)
-      ],
+      [this.toolchainService.resolvedBinDirs(), inheritedPaths, getDefaultRuntimePaths(homeDir)],
       { includeDefaultPaths: false }
     )
   }
@@ -576,8 +571,8 @@ export class McpClient {
         let args = (this.serverConfig.args as string[]).map(resolveBinding)
 
         // Handle path expansion (including ~ and environment variables)
-        command = this.runtimeHelper.expandPath(command)
-        args = args.map((arg) => this.runtimeHelper.expandPath(arg))
+        command = this.expandPath(command)
+        args = args.map((arg) => this.expandPath(arg))
 
         const HOME_DIR = app.getPath('home')
 

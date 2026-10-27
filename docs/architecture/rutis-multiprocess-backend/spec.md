@@ -2,8 +2,8 @@
 
 ## Status and decision
 
-Status: admission migrated; Memory vector extraction in progress.
-Evidence date: 2026-10-26. Baseline implementation: `f35adff34` (admission code `ffcd98770`).
+Status: G0-G3 complete; Store and desktop boundary extraction in progress (G4).
+Evidence date: 2026-10-27. Baseline implementation: `f35adff34` (admission code `ffcd98770`).
 Implementation reference: Rutis `v0.16.0`, released on 2026-10-24. Crates and npm packages are pinned
 to that version.
 
@@ -517,7 +517,7 @@ client is the initial mobile access path; it does not promise the desktop's nati
 | Public routing                   | [`routeRegistry.ts`](../../../src/main/routes/routeRegistry.ts) has caller identity and output projection; shared contracts define route schemas                            | Preserve the existing renderer/CLI surface while adapting backend-owned handlers                                                          |
 | Agent ownership                  | [`Harness boundaries`](../deepchat-agent-harness-boundaries/spec.md) define instance/run/operation/message fences and synchronous queue settlement                          | Framework generations do not replace these business identities or ordering requirements                                                   |
 | Existing child processes         | Scheduler, Code Mode, background execution, file watching, OCR, MCP, and ACP already use processes; Skill discovery also uses workers                                       | Reuse their launch, cancellation, and recovery contracts; avoid duplicate supervisors                                                     |
-| Scheduler writes                 | [`schedulerUtilityHost.ts`](../../../src/main/scheduler/schedulerUtilityHost.ts) updates schedules and inserts run claims through its own database connection               | A single database mutation authority requires moving these transactions, not merely moving the main database constructor                  |
+| Scheduler writes                 | [`repository.ts`](../../../src/main/scheduler/repository.ts) owns atomic due-job claims; the utility host receives bounded scan replies without a database connection       | Move this repository with the shared Store; keep the timer helper outside the writer authority                                             |
 | Runtime deployment               | [`Managed Toolchains`](../managed-toolchains/spec.md) makes official Node optional; [`build-cli.mjs`](../../../scripts/build-cli.mjs) already uses Electron's Node mode     | The core backend must start offline without downloading or selecting a user Node installation                                             |
 
 The existing [`renderer API core`](../../../src/renderer/api/core.ts) resolves `window.deepchat`,
@@ -881,10 +881,20 @@ fences late cache writes/events and waits for actual completion before disposing
 Provider request metadata
 is a plain bootstrap header snapshot beside the existing locale capability. Token exchange and
 HTTP failure sanitization must not import the native Copilot device-login window.
+Ollama model pulls receive the existing TLS debug policy from Main through the Provider environment
+port. Keep the native development/explicit-debug decision at the host; a backend import must not
+load Electron to evaluate it. Production certificate-validation policy is unchanged.
 Shared image-cache reads/writes use the existing trusted `DEEPCHAT_USER_DATA_DIR` process bootstrap
 set by Main, require an absolute profile directory and have no native/home-directory fallback.
 Retain all path, symlink, size, cancellation and remote-address checks. This removes an image
 mapper's transitive Electron dependency without changing cache location or granting new access.
+
+ACP connection/session execution receives application version, home and temporary directories as
+plain host bootstrap values. Thread these through the existing lazy runtime owner to its process,
+terminal and persistence owners. Keep shell/environment expansion pure and share it with MCP;
+remove native lookups from the shared helper. Preserve workspace containment, controlled temporary
+fallbacks, launch/toolchain selection, terminal output bounds, persisted links and process cleanup.
+This preparation does not relocate ACP execution or its native PTY binding to another process.
 
 First-party configuration selects the core entry and service exports. Rutis dependency injection
 and scopes are not authorization. This migration introduces no arbitrary third-party Rutis code

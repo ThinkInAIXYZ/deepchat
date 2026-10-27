@@ -3,9 +3,11 @@ import type { AgentSettingsPort } from '@/agent/settings'
 import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
 import { AcpClientRuntime, AcpRuntimeOwner, type AcpRegistryPort } from './client'
 import { AcpSessionPersistence } from './runtime'
+import type { AcpRuntimeBootstrap } from './runtime/types'
 import type { McpSettings } from '@/mcp/settings'
 
 export interface AcpRuntimeOwnerDependencies {
+  bootstrap: AcpRuntimeBootstrap
   providerConfig: Pick<ProviderModelResolutionPort, 'getProviderById'>
   agentSettings: AgentSettingsPort
   mcpSettings: McpSettings
@@ -23,6 +25,7 @@ export function createAcpRuntimeOwner(dependencies: AcpRuntimeOwnerDependencies)
     const provider = dependencies.providerConfig.getProviderById('acp')
     if (!provider) throw new Error('[ACP] Provider configuration not found')
     return new AcpClientRuntime({
+      bootstrap: dependencies.bootstrap,
       publishEvent: dependencies.publishEvent,
       provider,
       agentSettings: dependencies.agentSettings,

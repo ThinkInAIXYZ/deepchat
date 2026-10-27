@@ -94,6 +94,7 @@ const createProviderSettings = (): ProviderSettingsPort =>
 
 const createProviderInstance = (providerSettings = createProviderSettings()) =>
   new ApimartProvider(createProvider(), providerSettings, {
+    allowInsecureTls: providerTestEnvironment.allowInsecureTls,
     defaultHeaders: providerTestEnvironment.defaultHeaders,
     getLanguage: vi.fn().mockReturnValue('en-US')
   })
@@ -152,6 +153,7 @@ describe('ApimartProvider', () => {
     const manager = new ProviderInstanceManager({
       providerSettings: createProviderSettings(),
       locale: {
+        allowInsecureTls: providerTestEnvironment.allowInsecureTls,
         defaultHeaders: providerTestEnvironment.defaultHeaders,
         getLanguage: () => 'en-US'
       },

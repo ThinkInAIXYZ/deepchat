@@ -78,6 +78,7 @@ import type { SettingsStore } from '../config/settingsStore'
 import type { SecretStore } from '../config/secretStore'
 import { providerDbLoader, type ProviderDbBootstrap } from '../provider/providerDbLoader'
 import { buildDefaultProviderHeaders } from '../provider/providerHeaders'
+import { isInsecureTlsAllowed } from '../lib/insecureTls'
 import { AcpProvider } from '../provider/providers/acpProvider'
 import { proxyConfig, ProxyMode } from '../platform/proxy'
 import { DeviceService } from '../device'
@@ -1070,10 +1071,16 @@ export async function createMainProcessControl(dependencies: {
   const skillSettings = new SkillSettings(dependencies.settingsStore, app.getPath('home'))
   const traceSettings = new AgentTraceSettings(dependencies.settingsStore)
 
+  const acpBootstrap = {
+    appVersion: dependencies.currentAppVersion,
+    homeDirectory: app.getPath('home'),
+    temporaryDirectory: app.getPath('temp')
+  }
   const acpSessionPersistence = new AcpSessionPersistence(
     agentDatabase,
     sessionData.database,
     projectDatabase,
+    acpBootstrap.homeDirectory,
     () => projectService.notifyEnvironmentProjectionChanged()
   )
   let providerRuntime!: ProviderRuntime
@@ -1143,6 +1150,7 @@ export async function createMainProcessControl(dependencies: {
     agentLifecycle
   )
   const acpRuntimeOwner = createAcpRuntimeOwner({
+    bootstrap: acpBootstrap,
     providerConfig: providerSettings,
     agentSettings,
     mcpSettings: dependencies.mcpSettings,
@@ -1185,7 +1193,8 @@ export async function createMainProcessControl(dependencies: {
     providerSettings,
     {
       getLanguage: () => desktopSettings.getLanguage(),
-      defaultHeaders: buildDefaultProviderHeaders(dependencies.currentAppVersion)
+      defaultHeaders: buildDefaultProviderHeaders(dependencies.currentAppVersion),
+      allowInsecureTls: isInsecureTlsAllowed()
     },
     agentSettings,
     dependencies.mcpSettings,

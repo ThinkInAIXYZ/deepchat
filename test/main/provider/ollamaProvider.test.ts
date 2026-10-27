@@ -37,12 +37,6 @@ vi.mock('@shared/logger', () => ({
   }
 }))
 
-vi.mock('@electron-toolkit/utils', () => ({
-  is: {
-    dev: false
-  }
-}))
-
 const createModel = (
   name: string,
   options?: {
@@ -503,7 +497,8 @@ describe('OllamaProvider.fetchModels', () => {
     expect(transportSignal?.aborted).toBe(true)
   })
 
-  it('confirms pull success against the ollama list model set', async () => {
+  it('pulls securely under the host policy and verifies the installed model', async () => {
+    process.env.DEEPCHAT_ALLOW_INSECURE_TLS = '1'
     const ollamaProvider = new OllamaProvider(provider, providerSettings, providerTestEnvironment)
     ;(ollamaProvider as any).ollama = {
       pull: vi.fn(async () => ({
@@ -538,9 +533,11 @@ describe('OllamaProvider.fetchModels', () => {
     )
   })
 
-  it('only enables insecure pulls behind the explicit TLS debug flag', async () => {
-    process.env.DEEPCHAT_ALLOW_INSECURE_TLS = '1'
-    const ollamaProvider = new OllamaProvider(provider, providerSettings, providerTestEnvironment)
+  it('enables insecure pulls only when the host TLS policy allows them', async () => {
+    const ollamaProvider = new OllamaProvider(provider, providerSettings, {
+      ...providerTestEnvironment,
+      allowInsecureTls: true
+    })
     ;(ollamaProvider as any).ollama = {
       pull: vi.fn(async () => ({
         async *[Symbol.asyncIterator]() {

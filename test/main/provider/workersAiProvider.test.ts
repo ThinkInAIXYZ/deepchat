@@ -76,6 +76,7 @@ const createProviderSettings = (): ProviderSettingsPort =>
 
 const createProviderInstance = (overrides?: Partial<LLM_PROVIDER>) =>
   new WorkersAiProvider(createProvider(overrides), createProviderSettings(), {
+    allowInsecureTls: providerTestEnvironment.allowInsecureTls,
     defaultHeaders: providerTestEnvironment.defaultHeaders,
     getLanguage: vi.fn().mockReturnValue('en-US')
   })
@@ -552,6 +553,7 @@ describe('WorkersAiProvider', () => {
         createProvider({ apiType: 'openai-completions' }),
         createProviderSettings(),
         {
+          allowInsecureTls: providerTestEnvironment.allowInsecureTls,
           defaultHeaders: providerTestEnvironment.defaultHeaders,
           getLanguage: vi.fn().mockReturnValue('en-US')
         }

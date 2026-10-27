@@ -14,6 +14,7 @@ export interface ProviderCatalogPort {
 export interface ProviderEnvironmentPort {
   getLanguage(): string
   defaultHeaders: Readonly<Record<string, string>>
+  readonly allowInsecureTls: boolean
 }
 
 export interface AcpAsLlmProviderSessionControlPort {

@@ -29,13 +29,6 @@ const sdkMock = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('electron', () => ({
-  app: {
-    getVersion: vi.fn(() => '0.0.0-test'),
-    getPath: vi.fn(() => '/tmp')
-  }
-}))
-
 const childProcessRegistryMock = vi.hoisted(() => ({
   record: vi.fn(),
   clear: vi.fn(),
@@ -64,6 +57,7 @@ describe('AcpProcessManager initialized capabilities', () => {
       sdkMock.initialize.mockClear()
       const { AcpProcessManager } = await import('@/agent/acp/runtime/acpProcessManager')
       const manager = new AcpProcessManager({
+        bootstrap: { appVersion: '0.0.0-test', homeDirectory: '/tmp', temporaryDirectory: '/tmp' },
         publishEvent: vi.fn(),
         providerId: 'acp',
         resolveLaunchSpec: vi.fn(),
@@ -122,7 +116,9 @@ describe('AcpProcessManager initialized capabilities', () => {
       expect(handle.supportsSessionClose).toBe(true)
       expect(handle.supportsSessionFork).toBe(true)
       expect(handle.authMethods).toEqual([{ id: 'terminal', name: 'Terminal', type: 'terminal' }])
-      const clientCapabilities = sdkMock.initialize.mock.calls.at(-1)?.[0].clientCapabilities
+      const initialize = sdkMock.initialize.mock.calls.at(-1)?.[0]
+      expect(initialize.clientInfo).toEqual({ name: 'DeepChat', version: '0.0.0-test' })
+      const clientCapabilities = initialize.clientCapabilities
       if (terminalAuthAvailable) expect(clientCapabilities.auth).toEqual({ terminal: true })
       else expect(clientCapabilities.auth).toBeUndefined()
       const received = vi.fn()

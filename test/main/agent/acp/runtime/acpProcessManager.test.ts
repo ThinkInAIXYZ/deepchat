@@ -19,13 +19,6 @@ const childProcessRegistryMock = vi.hoisted(() => ({
   reapStaleOnce: vi.fn().mockResolvedValue(null)
 }))
 
-vi.mock('electron', () => ({
-  app: {
-    getVersion: vi.fn(() => '0.0.0-test'),
-    getPath: vi.fn(() => '/tmp')
-  }
-}))
-
 vi.mock('cross-spawn', () => ({
   default: vi.fn()
 }))
@@ -80,8 +73,29 @@ describe('parseLoadSessionCapability', () => {
 describe('AcpProcessManager config cache fallback', () => {
   const normalizePathValue = (value: string) => value.replace(/\\/g, '/')
 
+  it.each(['homeDirectory', 'temporaryDirectory'])(
+    'rejects a relative bootstrap %s before acquiring process resources',
+    (key) => {
+      expect(
+        () =>
+          new AcpProcessManager({
+            bootstrap: {
+              appVersion: '0.0.0-test',
+              homeDirectory: '/tmp',
+              temporaryDirectory: '/tmp',
+              [key]: 'relative-profile'
+            },
+            publishEvent: publishDeepchatEventMock,
+            providerId: 'acp',
+            resolveLaunchSpec: vi.fn()
+          })
+      ).toThrow('ACP bootstrap directories must be absolute')
+    }
+  )
+
   const createManager = () =>
     new AcpProcessManager({
+      bootstrap: { appVersion: '0.0.0-test', homeDirectory: '/tmp', temporaryDirectory: '/tmp' },
       publishEvent: publishDeepchatEventMock,
       providerId: 'acp',
       resolveLaunchSpec: vi.fn().mockResolvedValue({
@@ -123,10 +137,7 @@ describe('AcpProcessManager config cache fallback', () => {
     ]
   })
 
-  const createProcessHandle = (
-    child: MockSpawnedChild,
-    state: 'warmup' | 'bound' = 'warmup'
-  ) => {
+  const createProcessHandle = (child: MockSpawnedChild, state: 'warmup' | 'bound' = 'warmup') => {
     Object.defineProperty(child, 'pid', { value: undefined })
     return {
       providerId: 'acp',
@@ -224,9 +235,9 @@ describe('AcpProcessManager config cache fallback', () => {
     const second = manager.createAuthChallenge(handle as any, { origin: 'settings_probe' })
 
     await manager.prepareTerminalAuthentication(first.id, 'browser-login')
-    await expect(
-      manager.prepareTerminalAuthentication(second.id, 'browser-login')
-    ).rejects.toThrow('already running for this agent and workdir')
+    await expect(manager.prepareTerminalAuthentication(second.id, 'browser-login')).rejects.toThrow(
+      'already running for this agent and workdir'
+    )
 
     manager.abandonAuthentication(first.id)
     await expect(
@@ -338,6 +349,7 @@ describe('AcpProcessManager config cache fallback', () => {
 
   it('does not expose terminal methods as supported when the capability is disabled', () => {
     const manager = new AcpProcessManager({
+      bootstrap: { appVersion: '0.0.0-test', homeDirectory: '/tmp', temporaryDirectory: '/tmp' },
       publishEvent: publishDeepchatEventMock,
       providerId: 'acp',
       resolveLaunchSpec: vi.fn().mockResolvedValue({
@@ -364,6 +376,7 @@ describe('AcpProcessManager config cache fallback', () => {
 
   it('rejects terminal authentication when the capability is disabled', async () => {
     const manager = new AcpProcessManager({
+      bootstrap: { appVersion: '0.0.0-test', homeDirectory: '/tmp', temporaryDirectory: '/tmp' },
       publishEvent: publishDeepchatEventMock,
       providerId: 'acp',
       resolveLaunchSpec: vi.fn(),
@@ -699,6 +712,7 @@ describe('AcpProcessManager config cache fallback', () => {
         cwd: '/tmp/workspace'
       }
       const manager = new AcpProcessManager({
+        bootstrap: { appVersion: '0.0.0-test', homeDirectory: '/tmp', temporaryDirectory: '/tmp' },
         publishEvent: publishDeepchatEventMock,
         providerId: 'acp',
         resolveLaunchSpec: vi.fn().mockResolvedValue(launchSpec),
@@ -713,14 +727,6 @@ describe('AcpProcessManager config cache fallback', () => {
       vi.spyOn(shellEnvHelper, 'getShellEnvironment').mockResolvedValue({
         PATH: '/shell/bin'
       })
-      vi.spyOn((manager as any).runtimeHelper, 'expandPath').mockImplementation(
-        (value: string) => value
-      )
-      vi.spyOn((manager as any).runtimeHelper, 'getDefaultPaths').mockReturnValue(['/default/bin'])
-      vi.spyOn((manager as any).runtimeHelper, 'isInstalledInSystemDirectory').mockReturnValue(
-        false
-      )
-      vi.spyOn((manager as any).runtimeHelper, 'getUserNpmPrefix').mockReturnValue(null)
       existsSpy = vi.spyOn(fs, 'existsSync').mockReturnValue(true)
       statSpy = vi.spyOn(fs, 'statSync').mockReturnValue({
         isDirectory: () => true
@@ -780,9 +786,6 @@ describe('AcpProcessManager config cache fallback', () => {
     vi.spyOn(shellEnvHelper, 'getShellEnvironment').mockResolvedValue({
       PATH: '/shell/bin'
     })
-    vi.spyOn((manager as any).runtimeHelper, 'expandPath').mockImplementation(
-      (value: string) => value
-    )
 
     try {
       await expect(
@@ -1091,6 +1094,7 @@ describe('AcpProcessManager child process launch records', () => {
 
   const createManager = () =>
     new AcpProcessManager({
+      bootstrap: { appVersion: '0.0.0-test', homeDirectory: '/tmp', temporaryDirectory: '/tmp' },
       publishEvent: publishDeepchatEventMock,
       providerId: 'acp',
       resolveLaunchSpec: vi.fn()
@@ -1113,9 +1117,12 @@ describe('AcpProcessManager child process launch records', () => {
 
   it('waits for orphan recovery before spawning an agent', async () => {
     let finishRecovery!: () => void
-    childProcessRegistryMock.reapStaleOnce.mockImplementationOnce(() => new Promise<void>((resolve) => {
-      finishRecovery = resolve
-    }))
+    childProcessRegistryMock.reapStaleOnce.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRecovery = resolve
+        })
+    )
     const manager = createManager()
     const child = new MockSpawnedChild()
     vi.mocked(spawn).mockReturnValue(child as never)

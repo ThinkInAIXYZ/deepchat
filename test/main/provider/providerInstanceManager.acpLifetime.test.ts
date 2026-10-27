@@ -75,6 +75,7 @@ describe('ProviderInstanceManager ACP lifetime', () => {
         getProviders: () => [...providers.values()]
       } as never,
       locale: {
+        allowInsecureTls: providerTestEnvironment.allowInsecureTls,
         defaultHeaders: providerTestEnvironment.defaultHeaders,
         getLanguage: () => 'en-US'
       },
@@ -127,6 +128,7 @@ describe('ProviderInstanceManager ACP lifetime', () => {
         getProviders: () => [...providers.values()]
       } as never,
       locale: {
+        allowInsecureTls: providerTestEnvironment.allowInsecureTls,
         defaultHeaders: providerTestEnvironment.defaultHeaders,
         getLanguage: () => 'en-US'
       },
@@ -166,6 +168,7 @@ describe('ProviderInstanceManager ACP lifetime', () => {
         getProviders: () => [...providers.values()]
       } as never,
       locale: {
+        allowInsecureTls: providerTestEnvironment.allowInsecureTls,
         defaultHeaders: providerTestEnvironment.defaultHeaders,
         getLanguage: () => 'en-US'
       },
@@ -249,6 +252,7 @@ describe('ProviderInstanceManager ACP lifetime', () => {
     const manager = new ProviderInstanceManager({
       providerSettings: providerSettings as never,
       locale: {
+        allowInsecureTls: providerTestEnvironment.allowInsecureTls,
         defaultHeaders: providerTestEnvironment.defaultHeaders,
         getLanguage: () => 'en-US'
       },

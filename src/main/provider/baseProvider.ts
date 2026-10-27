@@ -49,7 +49,7 @@ export abstract class BaseLLMProvider {
   protected customModels: MODEL_META[] = []
   protected isInitialized: boolean = false
   protected providerSettings: ProviderSettingsPort
-  private readonly locale: ProviderEnvironmentPort
+  protected readonly environment: ProviderEnvironmentPort
   private modelFetchPromise: Promise<MODEL_META[]> | null = null
 
   protected defaultHeaders: Record<string, string>
@@ -61,7 +61,7 @@ export abstract class BaseLLMProvider {
   ) {
     this.provider = provider
     this.providerSettings = providerSettings
-    this.locale = locale
+    this.environment = locale
     this.defaultHeaders = { ...locale.defaultHeaders }
 
     // Initialize models and customModels from cached config data
@@ -419,7 +419,7 @@ export abstract class BaseLLMProvider {
    * @returns 格式化的提示词
    */
   protected getFunctionCallWrapPrompt(tools: MCPToolDefinition[]): string {
-    const locale = this.locale.getLanguage() || 'zh-CN'
+    const locale = this.environment.getLanguage() || 'zh-CN'
 
     return `你具备调用外部工具的能力来协助解决用户的问题
 ====

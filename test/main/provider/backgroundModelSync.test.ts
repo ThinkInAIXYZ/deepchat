@@ -116,11 +116,13 @@ const createProviderRuntime = (providerSettings: ProviderSettingsPort) => {
     mockSqlitePresenter as never,
     {
       newEnvironmentsTable: { listPathsForSession: () => [], syncPath: vi.fn() }
-    } as never
+    } as never,
+    '/home/tester'
   )
   return new ProviderRuntime(
     providerSettings,
     {
+      allowInsecureTls: providerTestEnvironment.allowInsecureTls,
       defaultHeaders: providerTestEnvironment.defaultHeaders,
       getLanguage: vi.fn().mockReturnValue('en-US')
     },

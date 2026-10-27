@@ -85,6 +85,7 @@ const createProviderSettings = (): ProviderSettingsPort =>
   }) as unknown as ProviderSettingsPort
 
 const locale = {
+  allowInsecureTls: providerTestEnvironment.allowInsecureTls,
   defaultHeaders: providerTestEnvironment.defaultHeaders,
   getLanguage: () => 'en-US'
 }

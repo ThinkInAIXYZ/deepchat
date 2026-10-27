@@ -4,6 +4,7 @@ import {
   AcpSessionController,
   AcpSessionPersistence,
   type AcpSessionCapabilityEvents,
+  type AcpRuntimeBootstrap,
   type AcpProcessHandle,
   type AcpSessionRecord
 } from '@/agent/acp/runtime'
@@ -27,6 +28,7 @@ export class AcpClientRuntime {
   readonly sessionController: AcpSessionController
 
   constructor(input: {
+    bootstrap: AcpRuntimeBootstrap
     provider: LLM_PROVIDER
     agentSettings: AgentSettingsPort
     mcpSettings: McpSettings
@@ -40,7 +42,8 @@ export class AcpClientRuntime {
       input.provider,
       input.agentSettings,
       input.registry,
-      input.publishEvent
+      input.publishEvent,
+      input.bootstrap
     )
     this.sessionRuntime = new AcpSessionRuntime({
       providerId: input.provider.id,

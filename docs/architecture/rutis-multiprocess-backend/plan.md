@@ -1371,6 +1371,49 @@ suite was repeated. The one built-in catalog moves outside ASAR; package/resourc
 ordinary Node access. The existing `7fb11102f` required and all six package CI checks pass; the new
 checkpoint still needs its own CI results. G4 remains active and G5 has not started.
 
+### ACP execution bootstrap
+
+Remove native version/home/temp lookups from ACP process, terminal and session-persistence owners
+as one dependency group. Supply plain bootstrap through the actual lazy runtime composition; make
+the existing path-expansion/default-path helper pure and retarget its ACP and MCP callers. Keep
+the current launch, containment, protocol, persistence and process cleanup behavior.
+The complete Provider import graph also requires passing Ollama's existing TLS debug policy from
+Main through its environment port; retain the existing host decision and secure production default.
+
+- [x] Replace actual bootstrap/helper wiring and remove direct Electron dependencies and unused
+      native helper methods; do not retain an implicit native construction fallback.
+- [x] Compare matching real-app ACP execution on immutable and migrated builds, validate affected
+      execution/session/terminal/MCP contracts and ordinary Node imports, then run required static
+      and package checks. No process/IPC/data-volume change or performance claim is selected.
+
+Main supplies application version and absolute home/temp roots through the existing lazy ACP owner,
+client and process manager. Terminal and persistence owners receive their roots explicitly. The
+shared helper now exports two pure path functions; its singleton and two unused native methods
+are removed. Windows process hiding depends on the target platform rather than Electron presence.
+Ollama receives the unchanged host TLS decision through the Provider environment. A host-denied
+pull stays secure even if the backend's ambient debug flag is set; an explicit host grant allows
+the existing debug behavior. The app's native TLS policy helper remains with Main.
+
+The final affected Electron suite passes 1,454 checks across 108 files with native SQLite required;
+the real PTY auth case separately passes under ordinary Node, for 1,455 checks across 109 files.
+The generated catalog suites also pass 59 checks. App types, normal build, final app build,
+format/check, lint and i18n pass. Bootstrap validation, supplied terminal roots, protocol version,
+session restoration, PATH precedence and TLS host-policy checks retain durable coverage. Four
+ACP/core imports and the complete ProviderRuntime module graph load under ordinary Node with
+Electron and electron-store forbidden. This proves import portability, not a composed headless host.
+
+The immutable `a217ff4e5` app passes the matching ACP protocol/structured-answer E2E (7.1 s); the
+final app passes (7.7 s). The final group passes three cases in 14.6 s: ACP owning-prompt/child-output
+behavior, Provider catalog/header bootstrap, and held-refresh shutdown/reopen without late writes.
+ACP settings routes and encrypted legacy unlock/rekey/disable also pass in the preceding app
+selection. Timings are functional observations. No performance suite or resource capture was run.
+Evidence is `.deepchat/rutis-g4-acp-runtime-acceptance/`; immutable baseline hashes are verified.
+Initial failures retain their logs: two tests spied on the deleted helper, and the exact-environment
+PTY case needed its ordinary Node executable. No production timeout or security rule was relaxed.
+The broader Provider import probe exposed the native TLS helper; passing its host policy removes
+that dependency. Normal generated catalog data is retained separately. G4 remains active, and
+native Windows/Linux full-app behavior and the cohesive G5 backend/writer move remain unverified.
+
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
 - [ ] Replace cross-boundary closures/row APIs with bounded transactional business commands for

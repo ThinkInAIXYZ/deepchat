@@ -68,6 +68,7 @@ const createProviderSettings = (): ProviderSettingsPort =>
 
 const createProviderInstance = (overrides?: Partial<LLM_PROVIDER>) =>
   new JevProvider(createProvider(overrides), createProviderSettings(), {
+    allowInsecureTls: providerTestEnvironment.allowInsecureTls,
     defaultHeaders: providerTestEnvironment.defaultHeaders,
     getLanguage: vi.fn().mockReturnValue('en-US')
   })
@@ -185,6 +186,7 @@ describe('JevProvider', () => {
         createProvider({ models: bundled }),
         createProviderSettings(),
         {
+          allowInsecureTls: providerTestEnvironment.allowInsecureTls,
           defaultHeaders: providerTestEnvironment.defaultHeaders,
           getLanguage: vi.fn().mockReturnValue('en-US')
         }
