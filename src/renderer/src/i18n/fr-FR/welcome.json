@@ -69,11 +69,5 @@
       "openrouter": "OpenRouter"
     },
     "importProviders": "Importer depuis d’autres agents"
-  },
-  "agentPage": {
-    "title": "Choisissez un agent pour commencer à créer",
-    "deepchatType": "Agent DeepChat",
-    "acpType": "Agent ACP",
-    "manageAgents": "Gérer les agents DeepChat"
   }
 }

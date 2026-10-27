@@ -1,17 +1,19 @@
 <template>
   <div :class="['w-full', props.maxWidthClass]">
-    <div class="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 py-1">
-      <div class="flex min-w-0 flex-wrap items-center gap-1">
+    <div class="flex w-full items-center justify-between gap-2 py-1">
+      <div class="flex min-w-max flex-1 items-center gap-1">
         <template v-if="isAcpAgent">
           <div
-            class="acp-agent-badge flex h-6 min-w-0 items-center gap-1 rounded-full px-2 text-xs text-muted-foreground"
+            v-if="props.showAgentBadge"
+            :title="acpAgentLabel"
+            class="acp-agent-badge flex h-6 min-w-14 shrink items-center gap-1 rounded-full px-2 text-xs text-muted-foreground"
           >
             <ModelIcon
               :model-id="acpAgentIconId"
               custom-class="w-3.5 h-3.5 shrink-0"
               :is-dark="themeStore.isDark"
             />
-            <span class="truncate">{{ acpAgentLabel }}</span>
+            <span class="max-w-[min(12rem,30vw)] truncate">{{ acpAgentLabel }}</span>
             <Spinner
               v-if="isAcpConfigLoading"
               class="acp-agent-loading-indicator size-3 shrink-0"
@@ -29,20 +31,43 @@
                 variant="ghost"
                 size="sm"
                 :title="getAcpOptionDisplayValue(option)"
+                :aria-label="`${option.label}: ${getAcpOptionDisplayValue(option)}`"
                 :data-option-id="option.id"
-                class="acp-inline-option h-6 max-w-[9rem] min-w-0 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                class="acp-inline-option h-6 min-w-8 shrink gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                :class="
+                  isAcpModelOption(option) ? 'min-w-14 max-w-[min(18rem,40vw)]' : 'composer-control'
+                "
                 :disabled="acpConfigReadOnly || isAcpOptionSaving(option.id)"
               >
-                <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
-                <Icon icon="lucide:chevron-down" class="h-3 w-3 shrink-0" />
+                <ModelIcon
+                  v-if="
+                    isAcpModelOption(option) &&
+                    resolveModelIconKey(String(option.currentValue).split('/').at(-1))
+                  "
+                  :model-id="resolveModelIconId(null, String(option.currentValue))"
+                  custom-class="size-3.5 shrink-0"
+                  :is-dark="themeStore.isDark"
+                />
+                <Icon v-else :icon="getAcpOptionIcon(option)" class="size-3.5 shrink-0" />
+                <span :class="isAcpModelOption(option) ? 'min-w-0' : 'composer-control-details'">
+                  <span class="flex min-w-0 items-center gap-1 overflow-hidden">
+                    <span class="truncate">{{ getAcpOptionDisplayValue(option) }}</span>
+                    <Icon icon="lucide:chevron-down" class="size-3 shrink-0" />
+                  </span>
+                </span>
               </DcButton>
             </PopoverTrigger>
 
-            <PopoverContent align="start" class="w-56 overflow-hidden p-0">
+            <PopoverContent
+              align="start"
+              :collision-padding="8"
+              class="w-80 max-w-[calc(100vw-1rem)] overflow-hidden p-0"
+            >
               <div class="border-b px-3 py-2">
                 <div
                   :data-option-id="option.id"
-                  class="acp-inline-option-title text-sm font-medium"
+                  class="acp-inline-option-title truncate text-sm font-medium"
+                  :title="option.label"
                 >
                   {{ option.label }}
                 </div>
@@ -50,29 +75,49 @@
 
               <div
                 v-if="(option.options?.length ?? 0) > 0"
-                class="dc-overscroll-contain max-h-60 overflow-y-auto px-2 py-2"
+                class="dc-overscroll-contain max-h-60 overflow-x-hidden overflow-y-auto px-2 py-2"
               >
-                <button
-                  v-for="entry in option.options ?? []"
-                  :key="`${option.id}-${entry.value}`"
-                  type="button"
-                  :data-option-id="option.id"
-                  :data-value="entry.value"
-                  :disabled="
-                    acpConfigReadOnly ||
-                    isAcpOptionSaving(option.id) ||
-                    String(option.currentValue) === entry.value
-                  "
-                  :class="[
-                    'acp-inline-option-item flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs transition-colors disabled:pointer-events-none disabled:opacity-60',
-                    String(option.currentValue) === entry.value
-                      ? 'bg-muted/60 text-foreground'
-                      : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
-                  ]"
-                  @click="onAcpSelectOption(option.id, entry.value)"
-                >
-                  {{ entry.value }}
-                </button>
+                <TooltipProvider :delay-duration="200">
+                  <Tooltip
+                    v-for="entry in option.options ?? []"
+                    :key="`${option.id}-${entry.value}`"
+                  >
+                    <TooltipTrigger as-child>
+                      <span
+                        :role="isAcpOptionDisabled(option, entry.value) ? 'button' : undefined"
+                        :aria-disabled="isAcpOptionDisabled(option, entry.value) || undefined"
+                        :aria-label="
+                          isAcpOptionDisabled(option, entry.value) ? entry.value : undefined
+                        "
+                        class="block rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        :tabindex="isAcpOptionDisabled(option, entry.value) ? 0 : undefined"
+                      >
+                        <button
+                          type="button"
+                          :data-option-id="option.id"
+                          :data-value="entry.value"
+                          :disabled="isAcpOptionDisabled(option, entry.value)"
+                          :aria-hidden="isAcpOptionDisabled(option, entry.value) || undefined"
+                          :class="[
+                            'acp-inline-option-item block w-full truncate rounded-md px-2 py-1.5 text-left text-xs transition-colors disabled:pointer-events-none disabled:opacity-60',
+                            String(option.currentValue) === entry.value
+                              ? 'bg-muted/60 text-foreground'
+                              : 'text-muted-foreground enabled:hover:bg-muted/60 enabled:hover:text-foreground'
+                          ]"
+                          @click="onAcpSelectOption(option.id, entry.value)"
+                        >
+                          {{ entry.value }}
+                        </button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      :collision-padding="8"
+                      class="max-w-[min(32rem,calc(100vw-1rem))] text-white [overflow-wrap:anywhere]"
+                    >
+                      {{ entry.value }}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
 
               <div v-else class="px-3 py-4 text-xs text-muted-foreground">
@@ -91,19 +136,21 @@
               variant="ghost"
               size="sm"
               :class="[
-                'h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground',
+                'h-6 min-w-14 shrink gap-1 px-2 text-xs text-muted-foreground hover:text-foreground',
                 !isModelOptionsReady ? 'opacity-70' : ''
               ]"
               :aria-busy="!isModelOptionsReady"
+              :aria-label="`${t('settings.model.title')}: ${displayModelText}`"
+              :title="displayModelText"
             >
               <ModelIcon
                 :model-id="displayIconId"
-                custom-class="w-3.5 h-3.5"
+                custom-class="w-3.5 h-3.5 shrink-0"
                 :is-dark="themeStore.isDark"
               />
               <span class="max-w-[min(15rem,40vw)] truncate">{{ displayModelText }}</span>
-              <Spinner v-if="showModelOptionsLoading" class="size-3" />
-              <Icon v-else icon="lucide:chevron-down" class="w-3 h-3" />
+              <Spinner v-if="showModelOptionsLoading" class="size-3 shrink-0" />
+              <Icon v-else icon="lucide:chevron-down" class="size-3 shrink-0" />
             </DcButton>
           </PopoverTrigger>
 
@@ -210,12 +257,12 @@
           v-else
           variant="ghost"
           size="sm"
-          class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground"
+          class="h-6 min-w-14 shrink gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
           :disabled="true"
         >
           <ModelIcon
             :model-id="displayIconId"
-            custom-class="w-3.5 h-3.5"
+            custom-class="w-3.5 h-3.5 shrink-0"
             :is-dark="themeStore.isDark"
           />
           <span class="max-w-[min(15rem,40vw)] truncate">{{ displayModelText }}</span>
@@ -228,7 +275,7 @@
               variant="ghost"
               size="sm"
               :class="[
-                'h-6 gap-1 px-2 text-xs',
+                'composer-control h-6 min-w-8 shrink px-2 text-xs',
                 proactiveCollaborationEnabled
                   ? 'bg-primary/10 text-[color:var(--text-primary)] ring-1 ring-inset ring-primary/30 hover:bg-primary/15 hover:text-[color:var(--text-primary)]'
                   : 'text-muted-foreground hover:text-foreground'
@@ -238,12 +285,15 @@
               :aria-pressed="proactiveCollaborationEnabled"
             >
               <Icon
-                v-if="proactiveCollaborationEnabled"
-                icon="lucide:git-fork"
+                :icon="proactiveCollaborationEnabled ? 'lucide:git-fork' : 'lucide:brain'"
                 class="h-3.5 w-3.5 shrink-0"
               />
-              <span>{{ reasoningEffortDisplayLabel }}</span>
-              <Icon icon="lucide:chevron-down" class="h-3 w-3" />
+              <span class="composer-control-details">
+                <span class="flex min-w-0 items-center gap-1 overflow-hidden">
+                  <span class="truncate">{{ reasoningEffortDisplayLabel }}</span>
+                  <Icon icon="lucide:chevron-down" class="size-3 shrink-0" />
+                </span>
+              </span>
             </DcButton>
           </PopoverTrigger>
 
@@ -312,7 +362,7 @@
         </Popover>
       </div>
 
-      <div class="flex items-center gap-1">
+      <div class="flex shrink-0 items-center gap-1">
         <div
           v-if="contextOccupancy"
           data-testid="context-occupancy"
@@ -320,23 +370,26 @@
           :data-source="contextOccupancy.source"
           :title="contextOccupancyTitle"
           :aria-label="contextOccupancyTitle"
-          class="flex h-6 items-center gap-1.5 px-2 text-xs text-muted-foreground"
+          tabindex="0"
+          class="composer-control flex h-6 min-w-8 items-center rounded-md px-2 text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Icon icon="lucide:gauge" class="h-3.5 w-3.5 shrink-0" />
-          <span
-            class="h-1.5 w-10 shrink-0 overflow-hidden rounded-full bg-muted-foreground/20 ring-1 ring-inset ring-border"
-          >
-            <span
-              :class="['block h-full rounded-full', contextOccupancyFillClass]"
-              :style="{ width: contextOccupancyFillWidth }"
-            />
-          </span>
-          <span class="tabular-nums">{{ contextOccupancyPercent }}</span>
           <Icon
-            v-if="contextOccupancy.freshness === 'stale'"
-            icon="lucide:clock-3"
-            class="h-3 w-3 shrink-0 opacity-70"
+            :icon="contextOccupancy.freshness === 'stale' ? 'lucide:clock-3' : 'lucide:gauge'"
+            class="size-3.5 shrink-0"
           />
+          <span class="composer-control-details">
+            <span class="flex min-w-0 items-center gap-1.5 overflow-hidden">
+              <span
+                class="h-1.5 w-10 shrink-0 overflow-hidden rounded-full bg-muted-foreground/20 ring-1 ring-inset ring-border"
+              >
+                <span
+                  :class="['block h-full rounded-full', contextOccupancyFillClass]"
+                  :style="{ width: contextOccupancyFillWidth }"
+                />
+              </span>
+              <span class="tabular-nums">{{ contextOccupancyPercent }}</span>
+            </span>
+          </span>
         </div>
 
         <AcpSessionStatus
@@ -350,11 +403,14 @@
             <DcButton
               variant="ghost"
               size="sm"
-              class="acp-overflow-button h-6 w-6 px-0 text-xs text-muted-foreground hover:text-foreground"
+              class="composer-control acp-overflow-button h-6 min-w-8 px-2 text-xs text-muted-foreground hover:text-foreground"
               :tooltip="t('chat.advancedSettings.button')"
               :aria-label="t('chat.advancedSettings.button')"
             >
               <Icon icon="lucide:settings-2" class="h-3.5 w-3.5" />
+              <span class="composer-control-details">
+                <span class="min-w-0 truncate">{{ t('chat.advancedSettings.button') }}</span>
+              </span>
             </DcButton>
           </PopoverTrigger>
 
@@ -1138,17 +1194,23 @@
               variant="ghost"
               size="sm"
               :class="[
-                'h-6 px-2 gap-1.5 text-xs',
+                'composer-control h-6 min-w-8 px-2 text-xs',
                 permissionMode === 'full_access'
                   ? 'text-orange-500 hover:text-orange-600'
                   : permissionMode === 'auto_approve'
                     ? 'text-[color:var(--text-primary)] hover:text-[color:var(--text-primary)]'
                     : 'text-muted-foreground hover:text-foreground'
               ]"
+              :aria-label="permissionModeLabel"
+              :title="permissionModeLabel"
             >
               <Icon :icon="permissionIcon" class="w-3.5 h-3.5" />
-              <span>{{ permissionModeLabel }}</span>
-              <Icon icon="lucide:chevron-down" class="w-3 h-3" />
+              <span class="composer-control-details">
+                <span class="flex min-w-0 items-center gap-1 overflow-hidden">
+                  <span class="truncate">{{ permissionModeLabel }}</span>
+                  <Icon icon="lucide:chevron-down" class="size-3 shrink-0" />
+                </span>
+              </span>
             </DcButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="min-w-48">
@@ -1207,6 +1269,7 @@ import {
   CollapsibleTrigger
 } from '@shadcn/components/ui/collapsible'
 import type { SystemPrompt } from '@shared/types/prompt'
+import type { AcpConfigOption } from '@shared/types/acp'
 import type { RENDERER_MODEL_META } from '@shared/types/provider'
 import type {
   DeepChatAgentConfig,
@@ -1251,6 +1314,7 @@ import AcpSessionStatus from '@/components/acp/AcpSessionStatus.vue'
 import { useAcpExtensionsStore } from '@/stores/acpExtensions'
 import SessionSettingsPopover from '@/components/chat-input/McpIndicator.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
+import { resolveModelIconKey } from '@/components/icons/modelIconRegistry'
 import OpenAIImageGenerationSettingsFields from '@/components/settings/OpenAIImageGenerationSettingsFields.vue'
 import OpenAIVideoGenerationSettingsFields from '@/components/settings/OpenAIVideoGenerationSettingsFields.vue'
 import { createConfigClient } from '@api/ConfigClient'
@@ -1268,7 +1332,10 @@ import { useDraftStore } from '@/stores/ui/draft'
 import { useProjectStore } from '@/stores/ui/project'
 import { useSessionStore } from '@/stores/ui/session'
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
-import { useChatStatusBarAcpConfig } from './composables/useChatStatusBarAcpConfig'
+import {
+  isAcpModelOption,
+  useChatStatusBarAcpConfig
+} from './composables/useChatStatusBarAcpConfig'
 import GenerationParameterLoadingSkeleton from '@/components/GenerationParameterLoadingSkeleton.vue'
 import {
   useModelCapabilities,
@@ -1279,10 +1346,12 @@ import type { OrchestrationCapability } from '@shared/orchestration/policy'
 const props = withDefaults(
   defineProps<{
     acpDraftSessionId?: string | null
+    showAgentBadge?: boolean
     maxWidthClass?: string
   }>(),
   {
     acpDraftSessionId: null,
+    showAgentBadge: true,
     maxWidthClass: 'max-w-2xl'
   }
 )
@@ -1577,7 +1646,7 @@ const acpWorkspacePath = computed(() => {
   if (hasActiveSession.value && sessionStore.activeSession?.providerId === 'acp') {
     return sessionStore.activeSession.projectDir?.trim() || null
   }
-  return projectStore.selectedProject?.path?.trim() || null
+  return projectStore.selectedProject?.path?.trim() || projectStore.defaultChatWorkspacePath || null
 })
 
 const lockedAcpModelId = computed(() => {
@@ -1770,6 +1839,9 @@ const resolveModelIconId = (providerId?: string | null, modelId?: string | null)
   if (providerId === 'acp' && modelId) {
     return modelId
   }
+  // ModelIcon accepts registry keys as well as provider and Agent IDs.
+  const modelIcon = resolveModelIconKey(modelId?.split('/').at(-1))
+  if (modelIcon) return modelIcon
   return providerId || 'anthropic'
 }
 
@@ -1802,6 +1874,16 @@ const {
   resolveModelName,
   resolveModelIconId
 })
+
+const isAcpOptionDisabled = (option: AcpConfigOption, value: string): boolean =>
+  acpConfigReadOnly.value || isAcpOptionSaving(option.id) || String(option.currentValue) === value
+
+const getAcpOptionIcon = (option: AcpConfigOption): string => {
+  if (isAcpModelOption(option)) return 'lucide:cpu'
+  if (option.category === 'mode' || option.id === 'mode') return 'lucide:workflow'
+  if (option.category === 'permission' || option.id.includes('permission')) return 'lucide:shield'
+  return 'lucide:settings-2'
+}
 
 const clearPendingGenerationPersist = () => {
   if (generationPersistTimer) {
@@ -2653,6 +2735,7 @@ watch(
     () => sessionStore.activeSession?.projectDir,
     () => agentStore.selectedAgentId,
     () => projectStore.selectedProject?.path,
+    () => projectStore.defaultChatWorkspacePath,
     () => props.acpDraftSessionId,
     () => isAcpAgent.value
   ],
@@ -3305,6 +3388,7 @@ async function selectPermissionMode(mode: PermissionMode) {
 
 defineExpose({
   acpConfigState,
+  isAcpConfigLoading,
   localSettings,
   permissionMode,
   orchestrationCapability,

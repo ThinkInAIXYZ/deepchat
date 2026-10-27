@@ -7,7 +7,7 @@ vi.mock('@/stores/acpExtensions', () => ({
   })
 }))
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive, ref } from 'vue'
+import { defineComponent, h, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { ReasoningEffort, ReasoningPortrait } from '../../../src/shared/types/model-db'
 import type { AcpConfigState } from '@shared/types/acp'
@@ -56,6 +56,7 @@ type ExtraModelGroup = {
 }
 
 type SetupOptions = {
+  showAgentBadge?: boolean
   agentId?: string
   agentType?: 'deepchat' | 'acp'
   hasActiveSession?: boolean
@@ -777,6 +778,7 @@ const setup = async (options: SetupOptions = {}) => {
   const ChatStatusBar = (await import('@/components/chat/ChatStatusBar.vue')).default
   const wrapper = mount(ChatStatusBar, {
     props: {
+      showAgentBadge: options.showAgentBadge ?? true,
       acpDraftSessionId: options.acpDraftSessionId ?? null
     },
     global: {
@@ -1009,6 +1011,7 @@ describe('ChatStatusBar model and session panels', () => {
     })
 
     const occupancy = wrapper.get('[data-testid="context-occupancy"]')
+    expect(occupancy.attributes('tabindex')).toBe('0')
     expect(occupancy.text()).toContain('75%')
     expect(occupancy.attributes('data-freshness')).toBe('current')
     expect(occupancy.attributes('data-source')).toBe('provider')
@@ -1036,7 +1039,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect(occupancy.attributes('data-freshness')).toBe('stale')
     expect(occupancy.attributes('data-source')).toBe('estimated')
     expect(occupancy.attributes('title')).toContain('chat.contextOccupancy.stale')
-    expect(occupancy.get('span > span').attributes('style')).toContain('width: 0%')
+    expect(occupancy.get('span[style]').attributes('style')).toContain('width: 0%')
     expect(occupancy.find('[data-icon="lucide:clock-3"]').exists()).toBe(true)
   })
 
@@ -2910,6 +2913,63 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.find('.model-icon-stub').attributes('data-model-id')).toBe('dimcode-acp')
   })
 
+  it('uses model-family icons in custom-provider pickers and falls back for unknown models', async () => {
+    const providerId = 'custom-provider'
+    const modelIds = [
+      'deepseek-chat',
+      'openrouter/google/gemini-3.1-pro',
+      'opaque-model',
+      'openrouter/opaque-model'
+    ]
+    const { wrapper } = await setup({
+      agentId: 'deepchat',
+      defaultModel: { providerId, modelId: modelIds[0] },
+      extraModelGroups: [
+        {
+          providerId,
+          models: modelIds.map((id) => ({ id, name: 'Friendly model label' }))
+        }
+      ]
+    })
+    const picker = wrapper.get('[data-testid="app-model-switcher"]')
+    expect(picker.get('.model-icon-stub').attributes('data-model-id')).toBe('deepseek')
+    for (const [modelId, iconId] of [
+      [modelIds[0], 'deepseek'],
+      [modelIds[1], 'gemini'],
+      [modelIds[2], providerId],
+      [modelIds[3], providerId]
+    ]) {
+      expect(
+        wrapper
+          .get(
+            `[data-testid="model-option"][data-provider-id="${providerId}"][data-model-id="${modelId}"] .model-icon-stub`
+          )
+          .attributes('data-model-id')
+      ).toBe(iconId)
+    }
+    await (wrapper.vm as any).selectModel(providerId, modelIds[3])
+    await flushPromises()
+    expect(picker.get('.model-icon-stub').attributes('data-model-id')).toBe(providerId)
+  })
+
+  it.each([
+    ['openrouter/google/gemini-3.1-pro', 'gemini'],
+    ['openrouter/opaque-model', null]
+  ])('matches the ACP model name without branding its namespace: %s', async (modelId, iconId) => {
+    const { wrapper } = await setup({
+      agentId: 'acp-agent',
+      hasActiveSession: true,
+      activeProviderId: 'acp',
+      acpSessionConfig: createAcpConfigState({}, modelId)
+    })
+    const model = wrapper.get('.acp-inline-option[data-option-id="model"]')
+    if (iconId) {
+      expect(model.get('.model-icon-stub').attributes('data-model-id')).toBe(iconId)
+    } else {
+      expect(model.get('.icon-stub').attributes('data-icon')).toBe('lucide:cpu')
+    }
+  })
+
   it('defers ACP process warmup until startup deferred tasks are released', async () => {
     const { providerRuntime, flushStartupDeferredTasks } = await setup({
       agentId: 'acp-agent',
@@ -2965,10 +3025,29 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(true)
     expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
     expect(wrapper.find('.acp-overflow-button').exists()).toBe(false)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(true)
+
+    pendingWarmup.resolve(createAcpConfigState())
+    await flushPromises()
+  })
+
+  it('exposes warmup loading to the composer Agent selector without duplicating the badge', async () => {
+    const pendingWarmup = createDeferred<AcpConfigState | null>()
+    const { wrapper, providerRuntime, agentStore } = await setup({
+      agentId: 'deepchat',
+      hasActiveSession: false,
+      showAgentBadge: false
+    })
+    providerRuntime.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
+    agentStore.selectedAgentId = 'acp-agent'
+    await flushPromises()
+    expect(wrapper.find('.acp-agent-badge').exists()).toBe(false)
     expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
 
     pendingWarmup.resolve(createAcpConfigState())
     await flushPromises()
+    expect((wrapper.vm as any).isAcpConfigLoading).toBe(false)
+    expect(wrapper.findAll('.acp-inline-option')).toHaveLength(3)
   })
 
   it('clears ACP badge loading when the current warmup config-ready event arrives', async () => {
@@ -2985,7 +3064,7 @@ describe('ChatStatusBar model and session panels', () => {
     agentStore.selectedAgentId = 'acp-agent'
     await flushPromises()
 
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(true)
 
     emitAcpConfigOptionsReady({
       agentId: 'acp-agent',
@@ -2994,7 +3073,6 @@ describe('ChatStatusBar model and session panels', () => {
     })
     await flushPromises()
 
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(false)
     expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(false)
     expect(wrapper.findAll('.acp-inline-option')).toHaveLength(3)
 
@@ -3016,12 +3094,12 @@ describe('ChatStatusBar model and session panels', () => {
 
     agentStore.selectedAgentId = 'codex'
     await flushPromises()
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(true)
 
     agentStore.selectedAgentId = 'claude'
     await flushPromises()
 
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(true)
     expect((wrapper.vm as any).acpConfigState).toBeNull()
 
     emitAcpConfigOptionsReady({
@@ -3031,7 +3109,7 @@ describe('ChatStatusBar model and session panels', () => {
     })
     await flushPromises()
 
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(true)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(true)
     expect((wrapper.vm as any).acpConfigState).toBeNull()
 
     emitAcpConfigOptionsReady({
@@ -3041,7 +3119,7 @@ describe('ChatStatusBar model and session panels', () => {
     })
     await flushPromises()
 
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(false)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(false)
     expect((wrapper.vm as any).acpConfigState.options[0].currentValue).toBe('gpt-5-mini')
 
     pendingWarmup.resolve(claudeConfig)
@@ -3066,7 +3144,21 @@ describe('ChatStatusBar model and session panels', () => {
     expect(wrapper.find('.acp-inline-option[data-option-id="model"]').exists()).toBe(true)
     expect(wrapper.find('.acp-inline-option[data-option-id="thought_level"]').exists()).toBe(true)
     expect(wrapper.find('.acp-inline-option[data-option-id="mode"]').exists()).toBe(true)
+    expect(
+      wrapper.findAll('.acp-inline-option').map((control) => control.attributes('data-option-id'))
+    ).toEqual(['model', 'mode', 'thought_level'])
     expect(wrapper.find('.acp-inline-option[data-option-id="safe_edits"]').exists()).toBe(false)
+    const modelControl = wrapper.find('.acp-inline-option[data-option-id="model"]')
+    expect(modelControl.attributes('aria-label')).toBe('Model: gpt-5')
+    expect(modelControl.find('.model-icon-stub').attributes('data-model-id')).toBe('gpt')
+    expect(
+      wrapper.find('.acp-inline-option[data-option-id="mode"] .icon-stub').attributes('data-icon')
+    ).toBe('lucide:workflow')
+    expect(
+      wrapper
+        .find('.acp-inline-option[data-option-id="thought_level"] .icon-stub')
+        .attributes('data-icon')
+    ).toBe('lucide:settings-2')
     expect(wrapper.find('.acp-overflow-button').exists()).toBe(true)
     expect(wrapper.findAll('.acp-overflow-option')).toHaveLength(1)
     expect(wrapper.find('.acp-overflow-option[data-option-id="safe_edits"]').exists()).toBe(true)
@@ -3095,7 +3187,7 @@ describe('ChatStatusBar model and session panels', () => {
       acpProcessConfig: emptyConfig
     })
 
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(false)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(false)
     expect((wrapper.vm as any).acpConfigState).toEqual(emptyConfig)
     expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
     expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(false)
@@ -3203,7 +3295,7 @@ describe('ChatStatusBar model and session panels', () => {
       'acp-agent',
       '/tmp/workspace-two'
     )
-    expect((wrapper.vm as any).isAcpConfigLoading).toBe(false)
+    expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(false)
     expect((wrapper.vm as any).acpConfigState).toBeNull()
     expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
   })

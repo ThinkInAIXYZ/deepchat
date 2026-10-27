@@ -232,10 +232,10 @@ describe('ModelIcon', () => {
       }
     })
 
-    providerStore.providers = [{ id: 'custom-openai-compatible', apiType: 'openai' }]
+    providerStore.providers = [{ id: 'custom-provider-uuid', apiType: 'openai-completions' }]
     const apiTypeFallback = mount(ModelIcon, {
       props: {
-        modelId: 'custom-openai-compatible'
+        modelId: 'custom-provider-uuid'
       }
     })
 

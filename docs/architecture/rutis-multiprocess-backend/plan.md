@@ -1193,6 +1193,13 @@ Other background effects after acknowledgement, shutdown ownership, configuratio
 remaining native/window dependencies keep G4 open. Physical shutdown/power-loss and full native
 Windows/Linux application workloads remain unverified locally.
 
+The branch incorporates `dev` at `5128430a9`. Its business files merge without conflicts; the two
+generated catalog conflicts are resolved by the normal build scripts. The integrated tree passes
+217 main checks across ten files and 291 related renderer checks across seven files, app types,
+normal build, format/check, lint and i18n. The same four real-app scenarios pass in 23.7 seconds
+(12.3/5.3/3.0/2.9 seconds). All samples remain recorded as functional observations, without a timing
+gate or speed claim. Integration evidence uses the `dev-integration-*` logs in the same directory.
+
 - [ ] Inventory all writable database connections, synchronous repositories/config readers,
       transaction callbacks, scheduler run claims and maintenance consumers.
 - [ ] Replace cross-boundary closures/row APIs with bounded transactional business commands for

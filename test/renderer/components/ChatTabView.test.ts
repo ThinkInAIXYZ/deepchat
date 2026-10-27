@@ -59,6 +59,9 @@ const setup = async (options: SetupOptions = {}) => {
   })
   const agentStore = reactive({
     selectedAgentId: options.selectedAgentId ?? null,
+    setSelectedAgent: vi.fn((id: string) => {
+      agentStore.selectedAgentId = id
+    }),
     applyBootstrapAgents: vi.fn(),
     fetchAgents: vi.fn().mockResolvedValue(undefined)
   })
@@ -185,12 +188,6 @@ const setup = async (options: SetupOptions = {}) => {
     default: defineComponent({
       name: 'AgentComputerUsePiP',
       template: '<div data-testid="agent-computer-use-pip-stub" />'
-    })
-  }))
-  vi.doMock('@/pages/AgentWelcomePage.vue', () => ({
-    default: defineComponent({
-      name: 'AgentWelcomePage',
-      template: '<div data-testid="agent-welcome-page" />'
     })
   }))
   vi.doMock('@/pages/NewThreadPage.vue', () => ({
@@ -410,7 +407,7 @@ describe('ChatTabView startup and routing', () => {
     expect(wrapper.find('[data-testid="collapsed-new-chat-button"]').exists()).toBe(false)
   })
 
-  it('does not render the legacy collapsed new chat button on the all-agents welcome page', async () => {
+  it('opens the composer directly with no selected Agent', async () => {
     const { wrapper } = await setup({
       collapsed: true,
       currentRoute: 'newThread',
@@ -418,7 +415,7 @@ describe('ChatTabView startup and routing', () => {
       newConversationTargetAgentId: 'deepchat'
     })
 
-    expect(wrapper.find('[data-testid="agent-welcome-page"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="new-thread-page"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="collapsed-new-chat-button"]').exists()).toBe(false)
   })
 

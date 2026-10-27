@@ -533,8 +533,7 @@
   "onboarding": {
     "agentSwitch": {
       "title": "切换到 DeepChat Agent",
-      "description": "开始聊天前，先从 ACP Agent 切回 DeepChat 对话流。",
-      "caption": "点击侧边栏里高亮的 Agent 按钮即可继续。"
+      "description": "开始聊天前，先从 ACP Agent 切回 DeepChat 对话流。"
     },
     "switchModel": {
       "description": "为第一次 DeepChat 对话选择你想使用的模型。",

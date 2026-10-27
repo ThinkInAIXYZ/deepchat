@@ -222,7 +222,7 @@ const conversationId = computed(() => props.sessionId)
 const skillAgentId = computed(() => props.agentId?.trim() || 'deepchat')
 const skillsData = useSkillsData(
   conversationId,
-  skillAgentId,
+  computed(() => (props.isAcpSession ? null : skillAgentId.value)),
   computed(() => (props.isAcpSession ? null : props.workspacePath))
 )
 const activeSkillNames = computed(() => skillsData.composerActiveSkills.value)

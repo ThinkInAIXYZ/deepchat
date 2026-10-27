@@ -29,6 +29,8 @@ const allowedDirectScrollWrites: Record<string, ScrollWriteKind[]> = {
     'scrollIntoView',
     'scrollIntoView'
   ],
+  // Toolbar focus reveal scrolls its independent settings strip after label expansion.
+  'src/renderer/src/components/chat/ChatInputToolbar.vue': ['scrollIntoView'],
   'src/renderer/src/components/chat/ChatMinimap.vue': ['scrollTop'],
   'src/renderer/src/components/chat/mentions/SuggestionList.vue': ['scrollIntoView'],
   'src/renderer/src/components/markdown/useMarkdownLinkNavigation.ts': [

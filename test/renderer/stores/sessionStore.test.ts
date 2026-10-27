@@ -14,6 +14,7 @@ const dependencies = vi.hoisted(() => ({
   usePageRouterStore: vi.fn(),
   useAttachmentPreparationStore: vi.fn(),
   useAgentStore: vi.fn(),
+  useDraftStore: vi.fn(),
   useMessageStore: vi.fn(),
   getRuntimeWebContentsId: vi.fn()
 }))
@@ -38,6 +39,7 @@ vi.mock('@/stores/ui/attachmentPreparation', () => ({
   useAttachmentPreparationStore: dependencies.useAttachmentPreparationStore
 }))
 vi.mock('@/stores/ui/agent', () => ({ useAgentStore: dependencies.useAgentStore }))
+vi.mock('@/stores/ui/draft', () => ({ useDraftStore: dependencies.useDraftStore }))
 vi.mock('@/stores/ui/message', () => ({ useMessageStore: dependencies.useMessageStore }))
 
 type SessionListTestItem = {
@@ -53,6 +55,7 @@ type SetupStoreOptions = {
   getSettingPromise?: Promise<unknown>
   selectedAgentId?: string | null
   filterAgentId?: string | null
+  draftAgentId?: string
   enabledAgents?: Array<{ id: string; name?: string; type?: 'deepchat' | 'acp'; enabled?: boolean }>
   onboardingCurrentStepId?:
     | 'provider'
@@ -321,6 +324,8 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
       steps: []
     })
   }
+  const draftStore = reactive({ agentId: options.draftAgentId ?? 'deepchat' })
+  dependencies.useDraftStore.mockReturnValue(draftStore)
   const agentStore = reactive({
     selectedAgentId: options.selectedAgentId ?? null,
     filterAgentId:
@@ -333,14 +338,9 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
       enabled: agent.enabled ?? true,
       ...agent
     })),
-    setSelectedAgent: vi.fn(
-      (id: string | null, selectionOptions?: { preserveFilter?: boolean }) => {
-        agentStore.selectedAgentId = id
-        if (!selectionOptions?.preserveFilter) {
-          agentStore.filterAgentId = id
-        }
-      }
-    )
+    setSelectedAgent: vi.fn((id: string | null) => {
+      agentStore.selectedAgentId = id
+    })
   })
   const settings = { ...(options.initialSettings ?? {}) }
   const configClient = {
@@ -417,6 +417,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     chatClient,
     onboardingClient,
     agentStore,
+    draftStore,
     pageRouter,
     attachmentPreparationStore,
     emitSessionUpdate,
@@ -968,175 +969,87 @@ describe('sessionStore group mode preferences', () => {
 })
 
 describe('sessionStore.startNewConversation', () => {
-  it('selects the first enabled agent from the all-agents welcome state', async () => {
-    const { store, agentStore, pageRouter, sessionClient } = await setupStore({
-      selectedAgentId: null,
-      enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
-    })
-
-    await store.startNewConversation({ refresh: true })
-
-    expect(agentStore.selectedAgentId).toBe('deepchat')
-    expect(agentStore.filterAgentId).toBeNull()
-    expect(sessionClient.deactivate).not.toHaveBeenCalled()
-    expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
-  })
-
-  it('keeps the active session agent and workspace intent during a chat', async () => {
-    const { store, agentStore, pageRouter, sessionClient } = await setupStore({
-      selectedAgentId: null,
-      enabledAgents: []
-    })
-
-    store.sessions.value = [createSession({ id: 'session-active', agentId: 'acp-a' })]
-    store.activeSessionId.value = 'session-active'
-
-    await store.startNewConversation({ refresh: true, projectDir: '/work/design' })
-
-    expect(agentStore.selectedAgentId).toBe('acp-a')
-    expect(agentStore.filterAgentId).toBeNull()
-    expect(sessionClient.deactivate).toHaveBeenCalledTimes(1)
-    expect(store.activeSessionId.value).toBeNull()
-    expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
-    expect(store.newConversationProjectDirIntent.value).toEqual({
-      id: 1,
-      projectDir: '/work/design',
-      consumed: false
-    })
-
-    store.consumeNewConversationProjectDirIntent(1)
-
-    expect(store.newConversationProjectDirIntent.value?.consumed).toBe(true)
-  })
-
-  it('preserves an explicit null workspace intent for Chats', async () => {
-    const { store } = await setupStore({
-      selectedAgentId: 'deepchat',
-      enabledAgents: [{ id: 'deepchat' }]
-    })
-
-    await store.startNewConversation({ refresh: true, projectDir: null })
-
-    expect(store.newConversationProjectDirIntent.value).toEqual({
-      id: 1,
-      projectDir: null,
-      consumed: false
-    })
-  })
-
-  it('preserves the selected agent when one is already chosen', async () => {
-    const { store, agentStore, pageRouter, sessionClient } = await setupStore({
-      selectedAgentId: 'acp-a',
-      enabledAgents: [{ id: 'acp-a', type: 'acp' }]
-    })
-
-    await store.startNewConversation({ refresh: true })
-
-    expect(agentStore.setSelectedAgent).not.toHaveBeenCalled()
-    expect(sessionClient.deactivate).not.toHaveBeenCalled()
-    expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
-  })
-
-  it('uses persisted workspace history under All Agents without hiding loaded conversations', async () => {
-    const { store, agentStore, sessionClient } = await setupStore({
-      selectedAgentId: 'deepchat',
-      filterAgentId: null,
-      enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
-    })
-    store.sessions.value = [
-      createSession({ id: 'other-workspace', projectDir: '/work/other', updatedAt: 500 }),
-      createSession({ id: 'older', projectDir: '/work/app', updatedAt: 100 })
-    ]
-    const history = store.getFilteredGroups(null)
-    sessionClient.listLightweight.mockResolvedValueOnce({
-      items: [
-        createSession({ id: 'latest', agentId: 'acp-a', projectDir: '/work/app', updatedAt: 300 })
-      ],
-      hasMore: true,
-      nextCursor: { id: 'latest', updatedAt: 300 }
-    })
-
-    await store.startNewConversation({ projectDir: '/work/app' })
-
-    expect(sessionClient.listLightweight).toHaveBeenCalledWith({
-      projectDir: '/work/app',
-      includeDrafts: false,
-      includeSubagents: false,
-      limit: 1
-    })
-    expect(agentStore.selectedAgentId).toBe('acp-a')
-    expect(agentStore.filterAgentId).toBeNull()
-    expect(store.getFilteredGroups(agentStore.filterAgentId)).toEqual(history)
-    expect(store.newConversationProjectDirIntent.value?.projectDir).toBe('/work/app')
-  })
-
-  it('prefers an explicit Agent filter over the active Agent and workspace history', async () => {
-    const { store, agentStore, sessionClient } = await setupStore({
-      selectedAgentId: 'deepchat',
-      filterAgentId: 'acp-a',
-      enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
-    })
-
-    await store.startNewConversation({ projectDir: '/work/app' })
-
-    expect(agentStore.selectedAgentId).toBe('acp-a')
-    expect(agentStore.filterAgentId).toBe('acp-a')
-    expect(sessionClient.listLightweight).not.toHaveBeenCalled()
-  })
-
-  it.each(['unavailable-agent', 'empty', 'failed'])(
-    'falls back when workspace history is %s',
-    async (scenario) => {
-      const { store, agentStore, sessionClient, pageRouter } = await setupStore({
-        enabledAgents: [{ id: 'deepchat' }]
+  it.each([undefined, '/work/app', null])(
+    'uses the draft Agent regardless of filtering, active history, or workspace %s',
+    async (projectDir) => {
+      const { store, agentStore, draftStore, pageRouter, sessionClient } = await setupStore({
+        selectedAgentId: 'history-agent',
+        filterAgentId: 'filtered-agent',
+        draftAgentId: 'acp-a',
+        enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
       })
-      if (scenario === 'failed') {
-        sessionClient.listLightweight.mockRejectedValueOnce(new Error('read failed'))
-      } else if (scenario === 'unavailable-agent') {
-        sessionClient.listLightweight.mockResolvedValueOnce({
-          items: [createSession({ agentId: 'removed-agent' })],
-          hasMore: false,
-          nextCursor: null
-        })
-      }
+      store.sessions.value = [createSession({ id: 'active', agentId: 'history-agent' })]
+      store.activeSessionId.value = 'active'
 
-      await store.startNewConversation({ projectDir: '/work/app' })
+      await store.startNewConversation({
+        refresh: true,
+        ...(projectDir !== undefined ? { projectDir } : {})
+      })
 
-      expect(agentStore.selectedAgentId).toBe('deepchat')
-      expect(agentStore.filterAgentId).toBeNull()
+      expect(agentStore.selectedAgentId).toBe('acp-a')
+      expect(draftStore.agentId).toBe('acp-a')
+      expect(agentStore.filterAgentId).toBe('filtered-agent')
+      expect(sessionClient.listLightweight).not.toHaveBeenCalled()
+      expect(sessionClient.deactivate).toHaveBeenCalledOnce()
+      expect(store.activeSessionId.value).toBeNull()
       expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
+      expect(store.newConversationProjectDirIntent.value).toEqual(
+        projectDir === undefined ? null : { id: 1, projectDir, consumed: false }
+      )
     }
   )
 
-  it.each(['workspace', 'session', 'agent'])(
-    'ignores a workspace lookup superseded by a newer %s selection',
-    async (selection) => {
-      const { store, agentStore, sessionClient, pageRouter } = await setupStore({
-        enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
-      })
-      const pending = createDeferred<unknown>()
-      sessionClient.listLightweight.mockReturnValueOnce(pending.promise)
-      const first = store.startNewConversation({ projectDir: '/work/first' })
+  it('keeps the draft Agent when browsing another Agent conversation', async () => {
+    const { store, agentStore, draftStore } = await setupStore({
+      draftAgentId: 'deepchat',
+      enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
+    })
+    store.sessions.value = [createSession({ id: 'acp-session', agentId: 'acp-a' })]
+    await store.selectSession('acp-session')
+    expect(agentStore.selectedAgentId).toBe('acp-a')
+    expect(draftStore.agentId).toBe('deepchat')
 
-      if (selection === 'workspace') {
-        await store.startNewConversation({ projectDir: '/work/second' })
-      } else if (selection === 'session') {
-        store.sessions.value = [createSession()]
-        await store.selectSession('session-1')
-      } else {
-        agentStore.setSelectedAgent('deepchat')
-      }
-      pageRouter.goToNewThread.mockClear()
-      pending.resolve({
-        items: [createSession({ agentId: 'acp-a' })],
-        hasMore: false,
-        nextCursor: null
-      })
-      await first
+    await store.startNewConversation()
 
+    expect(agentStore.selectedAgentId).toBe('deepchat')
+    expect(draftStore.agentId).toBe('deepchat')
+  })
+
+  it('keeps the active execution context when deactivation fails', async () => {
+    const { store, agentStore, sessionClient, pageRouter } = await setupStore({
+      selectedAgentId: 'acp-a',
+      enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
+    })
+    store.sessions.value = [createSession({ id: 'active', agentId: 'acp-a' })]
+    store.activeSessionId.value = 'active'
+    sessionClient.deactivate.mockRejectedValueOnce(new Error('deactivation failed'))
+    await store.startNewConversation()
+    expect(store.activeSessionId.value).toBe('active')
+    expect(agentStore.selectedAgentId).toBe('acp-a')
+    expect(pageRouter.goToNewThread).not.toHaveBeenCalled()
+  })
+
+  it('allows an explicit Agent command without changing the history filter', async () => {
+    const { store, agentStore, draftStore } = await setupStore({
+      filterAgentId: 'deepchat',
+      enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
+    })
+    await store.startNewConversation({ agentId: 'acp-a' })
+    expect(agentStore.selectedAgentId).toBe('acp-a')
+    expect(draftStore.agentId).toBe('acp-a')
+    expect(agentStore.filterAgentId).toBe('deepchat')
+  })
+
+  it.each(['deepchat', 'removed-agent'])(
+    'defaults %s to DeepChat independently of catalog ordering',
+    async (draftAgentId) => {
+      const { store, agentStore, draftStore } = await setupStore({
+        draftAgentId,
+        enabledAgents: [{ id: 'acp-a', type: 'acp' }, { id: 'deepchat' }]
+      })
+      await store.startNewConversation()
       expect(agentStore.selectedAgentId).toBe('deepchat')
-      expect(pageRouter.goToNewThread).not.toHaveBeenCalled()
-      expect(store.newConversationProjectDirIntent.value?.projectDir).not.toBe('/work/first')
+      expect(draftStore.agentId).toBe('deepchat')
     }
   )
 })

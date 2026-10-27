@@ -448,8 +448,7 @@
   "onboarding": {
     "agentSwitch": {
       "title": "DeepChat Agent'a geç",
-      "description": "Sohbet etmeden önce ACP'den uzaklaşın ve yerleşik DeepChat akışına dönün.",
-      "caption": "Devam etmek için kenar çubuğunda vurgulanan agent düğmesini tıklayın."
+      "description": "Sohbet etmeden önce ACP'den uzaklaşın ve yerleşik DeepChat akışına dönün."
     },
     "switchModel": {
       "description": "İlk DeepChat görüşmeniz için kullanmak istediğiniz modeli seçin.",

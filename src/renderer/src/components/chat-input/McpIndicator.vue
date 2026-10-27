@@ -4,21 +4,20 @@
       <DcButton
         variant="ghost"
         size="sm"
-        :class="
-          isDeepchatContext
-            ? 'dc-blur-panel h-6 w-6 p-0 text-muted-foreground hover:text-foreground'
-            : 'dc-blur-panel h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground'
-        "
+        class="composer-control dc-blur-panel h-6 min-w-8 px-2 text-xs text-muted-foreground hover:text-foreground"
         :title="triggerTitle"
         :aria-label="triggerTitle"
       >
-        <template v-if="isDeepchatContext">
-          <Icon icon="lucide:sliders-horizontal" class="h-3.5 w-3.5" />
-        </template>
-        <template v-else>
-          <span>{{ triggerLabel }}</span>
-          <Icon icon="lucide:chevron-down" class="h-3 w-3" />
-        </template>
+        <Icon
+          :icon="isDeepchatContext ? 'lucide:sliders-horizontal' : 'lucide:plug'"
+          class="size-3.5 shrink-0"
+        />
+        <span class="composer-control-details">
+          <span class="flex min-w-0 items-center gap-1 overflow-hidden">
+            <span class="truncate">{{ isDeepchatContext ? triggerTitle : triggerLabel }}</span>
+            <Icon icon="lucide:chevron-down" class="size-3 shrink-0" />
+          </span>
+        </span>
       </DcButton>
     </template>
 

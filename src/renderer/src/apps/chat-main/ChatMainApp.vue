@@ -277,6 +277,7 @@ const activatePendingStartDeeplink = async () => {
       }
     }
 
+    draftStore.agentId = 'deepchat'
     agentStore.setSelectedAgent('deepchat')
 
     if (sessionStore.hasActiveSession) {

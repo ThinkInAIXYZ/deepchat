@@ -42,22 +42,26 @@ export function useSkillsData(
   const pendingSkills = ref<string[]>([]) // Skills selected for the next message in the composer
   const sessionActiveSkillsLoading = ref(false)
   const sessionActiveSkillRemoving = ref<string | null>(null)
-  const normalizedAgentId = computed(() => agentId.value?.trim() || 'deepchat')
+  const normalizedAgentId = computed(() => agentId.value?.trim() || null)
 
   // === Computed ===
   /**
    * All available skills from the store
    */
   const skills = computed<SkillMetadata[]>(() =>
-    normalizedWorkspacePath.value
-      ? projectSkills.value
-      : skillsStore.getSkillsForAgent(normalizedAgentId.value)
+    !normalizedAgentId.value
+      ? []
+      : normalizedWorkspacePath.value
+        ? projectSkills.value
+        : skillsStore.getSkillsForAgent(normalizedAgentId.value)
   )
-  const loading = computed(
-    () =>
-      sessionActiveSkillsLoading.value ||
-      projectLoading.value ||
-      skillsStore.isSkillsLoading(normalizedAgentId.value)
+  const loading = computed(() =>
+    Boolean(
+      normalizedAgentId.value &&
+      (sessionActiveSkillsLoading.value ||
+        projectLoading.value ||
+        skillsStore.isSkillsLoading(normalizedAgentId.value))
+    )
   )
 
   /**
@@ -94,7 +98,7 @@ export function useSkillsData(
   const loadActiveSkills = async () => {
     const requestedConversationId = conversationId.value
     const sequence = ++activeSkillsLoadSequence
-    if (!requestedConversationId) {
+    if (!requestedConversationId || !normalizedAgentId.value) {
       sessionActiveSkills.value = []
       sessionActiveSkillsLoading.value = false
       return
@@ -170,6 +174,7 @@ export function useSkillsData(
   const removeSessionActiveSkill = async (skillName: string) => {
     const requestedConversationId = conversationId.value
     if (
+      !normalizedAgentId.value ||
       !requestedConversationId ||
       sessionActiveSkillsLoading.value ||
       sessionActiveSkillRemoving.value
@@ -211,7 +216,11 @@ export function useSkillsData(
     skills: string[]
     change: 'activated' | 'deactivated'
   }) => {
-    if (payload.conversationId === conversationId.value && Array.isArray(payload.skills)) {
+    if (
+      normalizedAgentId.value &&
+      payload.conversationId === conversationId.value &&
+      Array.isArray(payload.skills)
+    ) {
       if (sessionActiveSkillsLoading.value) {
         void loadActiveSkills()
         return
@@ -235,7 +244,7 @@ export function useSkillsData(
     const sequence = ++projectLoadSequence
     const requestedWorkspace = normalizedWorkspacePath.value
     const requestedAgent = normalizedAgentId.value
-    if (!requestedWorkspace) {
+    if (!requestedWorkspace || !requestedAgent) {
       projectSkills.value = []
       projectLoading.value = false
       return
@@ -259,7 +268,7 @@ export function useSkillsData(
   // === Watchers ===
   // Watch for conversation changes and reload active skills
   watch(
-    () => conversationId.value,
+    [() => conversationId.value, normalizedAgentId, normalizedWorkspacePath],
     () => {
       activeSkillMutationSequence += 1
       sessionActiveSkills.value = []
@@ -278,12 +287,8 @@ export function useSkillsData(
         (previousAgentId !== nextAgentId || previousWorkspace !== nextWorkspace)
       ) {
         pendingSkills.value = []
-        activeSkillMutationSequence += 1
-        sessionActiveSkills.value = []
-        sessionActiveSkillRemoving.value = null
-        void loadActiveSkills()
       }
-      if (!nextWorkspace) void skillsStore.ensureSkillsLoaded(nextAgentId)
+      if (nextAgentId && !nextWorkspace) void skillsStore.ensureSkillsLoaded(nextAgentId)
       void refreshProjectSkills()
     },
     { immediate: true }

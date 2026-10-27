@@ -6,6 +6,15 @@ import type { AcpConfigState } from '@shared/types/acp'
 
 const ACP_INLINE_OPTION_LIMIT = 3
 
+export const isAcpModelOption = (option: AcpConfigOption): boolean =>
+  option.category === 'model' || option.id === 'model'
+
+const getAcpOptionPriority = (option: AcpConfigOption): number => {
+  if (isAcpModelOption(option)) return 0
+  if (option.category === 'mode' || option.id === 'mode') return 1
+  return 2
+}
+
 type Readable<T> = Ref<T> | ComputedRef<T>
 
 type UseChatStatusBarAcpConfigOptions = {
@@ -176,6 +185,7 @@ export function useChatStatusBarAcpConfig(options: UseChatStatusBarAcpConfigOpti
   const acpInlineOptions = computed(() =>
     acpConfigOptions.value
       .filter((option) => option.type === 'select')
+      .sort((a, b) => getAcpOptionPriority(a) - getAcpOptionPriority(b))
       .slice(0, ACP_INLINE_OPTION_LIMIT)
   )
 

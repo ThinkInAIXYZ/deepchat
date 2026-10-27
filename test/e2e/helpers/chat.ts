@@ -11,11 +11,12 @@ const createModelOptionSelector = (modelId: string, providerId?: string): string
 }
 
 export async function selectAgent(page: Page, agentId = 'deepchat'): Promise<void> {
-  const selector = page.getByTestId('sidebar-agent-selector')
+  if (!(await page.getByTestId('new-thread-page').isVisible())) await createNewChat(page)
+  const selector = page.getByTestId('new-thread-agent-selector')
   if ((await selector.getAttribute('data-selected-agent-id')) !== agentId) {
     const button = page
       .locator(
-        `[data-testid="sidebar-agent-button"][data-agent-id="${escapeAttributeValue(agentId)}"]`
+        `[data-testid="new-thread-agent-option"][data-agent-id="${escapeAttributeValue(agentId)}"]`
       )
       .first()
     if ((await selector.getAttribute('aria-expanded')) !== 'true') await selector.click()
@@ -103,16 +104,19 @@ export function getAssistantMessages(page: Page) {
 }
 
 export async function getActiveSessionId(page: Page): Promise<string> {
-  const activeSession = page
-    .locator('[data-testid="sidebar-session-item"][data-active="true"]')
-    .first()
-  await expect(activeSession).toBeVisible({ timeout: 30_000 })
-  const sessionId = await activeSession.getAttribute('data-session-id')
-
-  if (!sessionId) {
-    throw new Error('Active session id was not found in the sidebar.')
-  }
-
+  let sessionId = ''
+  await expect
+    .poll(
+      async () => {
+        sessionId = await page.evaluate(async () => {
+          const { session } = await window.deepchat.invoke('sessions.getActive', {})
+          return session?.id ?? ''
+        })
+        return sessionId
+      },
+      { timeout: 30_000 }
+    )
+    .not.toBe('')
   return sessionId
 }
 
