@@ -170,6 +170,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes Obscurify.ai as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'obscurify',
+        name: 'Obscurify.ai',
+        apiType: 'openai-completions',
+        baseUrl: 'https://obscurify.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://obscurify.ai/?utm_source=deepchat',
+          apiKey: 'https://obscurify.ai/account',
+          docs: 'https://obscurify.ai/api-docs',
+          models: 'https://obscurify.ai/model_cards',
+          defaultBaseUrl: 'https://obscurify.ai/v1'
+        })
+      })
+    )
+  })
+
   it('includes AI Stupid Level as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

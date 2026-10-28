@@ -1866,6 +1866,92 @@ describe('basic API-key provider registrations', () => {
     )
   })
 
+  it('checks Obscurify.ai with a chat model instead of its public model list', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'obscurify')!
+    expect(defaults).toBeDefined()
+    const config = { ...defaults, apiKey: 'test-key' }
+    // The /v1/models catalog is public, so listing models cannot validate a key.
+    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'obscurify',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none',
+      checkModelId: 'meta-llama/llama-3.3-70b-instruct'
+    })
+    const provider = new AiSdkProvider(config, createProviderSettings())
+    ;(provider as any).isInitialized = true
+
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerKind: 'openai-compatible',
+        provider: expect.objectContaining({
+          id: 'obscurify',
+          apiKey: 'test-key',
+          baseUrl: 'https://obscurify.ai/v1'
+        })
+      }),
+      [{ role: 'user', content: 'Hello' }],
+      'meta-llama/llama-3.3-70b-instruct',
+      expect.any(Object),
+      0.2,
+      16
+    )
+  })
+
+  it('reads context length and tool support from the Obscurify.ai catalog', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'obscurify')!
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        object: 'list',
+        data: [
+          { id: 'moonshotai/kimi-k2-0905', context_length: 262144, tools: true },
+          { id: 'vendor/plain-model', context_length: 0, tools: false },
+          { id: 'vendor/no-metadata' },
+          { id: '  ' },
+          { id: 7 }
+        ]
+      })
+    )
+    global.fetch = fetchMock
+    const provider = new AiSdkProvider(defaults, createProviderSettings())
+
+    expect(await provider.fetchModels({ suppressErrors: false })).toEqual([
+      {
+        id: 'moonshotai/kimi-k2-0905',
+        name: 'moonshotai/kimi-k2-0905',
+        group: 'default',
+        providerId: 'obscurify',
+        isCustom: false,
+        type: 'chat',
+        contextLength: 262144,
+        functionCall: true
+      },
+      {
+        id: 'vendor/plain-model',
+        name: 'vendor/plain-model',
+        group: 'default',
+        providerId: 'obscurify',
+        isCustom: false,
+        type: 'chat',
+        functionCall: false
+      },
+      {
+        id: 'vendor/no-metadata',
+        name: 'vendor/no-metadata',
+        group: 'default',
+        providerId: 'obscurify',
+        isCustom: false,
+        type: 'chat'
+      }
+    ])
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://obscurify.ai/v1/models',
+      expect.objectContaining({ method: 'GET' })
+    )
+  })
+
   it('lists only text chat models from the public Runcrate catalog', async () => {
     const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'runcrate')!
     const fetchMock = vi.fn().mockResolvedValue(

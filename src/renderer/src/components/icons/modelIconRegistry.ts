@@ -57,6 +57,7 @@ import aistupidlevelIcon from '@/assets/llm-icons/aistupidlevel.svg?url'
 import runcrateIcon from '@/assets/llm-icons/runcrate.svg?url'
 import cloudgpuIcon from '@/assets/llm-icons/cloudgpu.svg?url'
 import cheapaimodelIcon from '@/assets/llm-icons/cheapaimodel.svg?url'
+import obscurifyIcon from '@/assets/llm-icons/obscurify.svg?url'
 import demonrouteColorIcon from '@/assets/llm-icons/demonroute.svg?url'
 import orcarouterColorIcon from '@/assets/llm-icons/orcarouter.svg?url'
 import synthoraiColorIcon from '@/assets/llm-icons/synthorai.svg?url'
@@ -210,6 +211,7 @@ export const modelIcons = {
   runcrate: runcrateIcon,
   cloudgpu: cloudgpuIcon,
   cheapaimodel: cheapaimodelIcon,
+  obscurify: obscurifyIcon,
   demonroute: demonrouteColorIcon,
   orcarouter: orcarouterColorIcon,
   synthorai: synthoraiColorIcon,
@@ -296,6 +298,7 @@ const monoIconUrls = new Set<string>([
   cloudgpuIcon,
   xxapiIcon,
   llmbuzzIcon,
+  obscurifyIcon,
   demonrouteColorIcon,
   githubColorIcon,
   qiniuIcon,

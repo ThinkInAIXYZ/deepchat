@@ -721,6 +721,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'obscurify',
+    name: 'Obscurify.ai',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://obscurify.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://obscurify.ai/?utm_source=deepchat',
+      apiKey: 'https://obscurify.ai/account',
+      docs: 'https://obscurify.ai/api-docs',
+      models: 'https://obscurify.ai/model_cards'
+    }
+  },
+  {
     id: 'aistupidlevel',
     name: 'AI Stupid Level',
     apiType: 'openai-completions',

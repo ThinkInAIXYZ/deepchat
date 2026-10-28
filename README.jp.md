@@ -473,6 +473,12 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
       <a href="https://cheapaimodel.ai/?utm_source=deepchat">cheapaimodel</a>
     </td>
   </tr>
+  <tr align="center">
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/obscurify.svg" width="50" height="50" alt="Obscurify.ai Icon"><br/>
+      <a href="https://obscurify.ai/?utm_source=deepchat">Obscurify.ai</a>
+    </td>
+  </tr>
 
 </table>
 

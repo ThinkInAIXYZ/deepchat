@@ -116,6 +116,16 @@ Embeddings are disabled for this profile.
 
 Upstream reference: [API docs](https://cloudgpu.app/api/docs?utm_source=deepchat).
 
+## Obscurify.ai
+
+`obscurify` uses the OpenAI-compatible transport with API-key credentials. Live model discovery
+lists every model from the public `/v1/models` catalog and reads its `context_length` and `tools`
+flag. The catalog is public, so connection checks generate text with
+`meta-llama/llama-3.3-70b-instruct` and the shared 16-token output limit to validate credentials.
+Embeddings are disabled for this profile.
+
+Upstream reference: [API docs](https://obscurify.ai/api-docs).
+
 ## OpenAI Codex
 
 `openai-codex` is separate from standard `openai`: distinct provider ID, runtime kind, credential store,

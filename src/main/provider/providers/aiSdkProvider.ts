@@ -1786,6 +1786,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         return this.fetchRuncrateModels()
       case 'cloudgpu':
         return this.fetchCloudgpuModels()
+      case 'obscurify':
+        return this.fetchObscurifyModels()
       case 'bedrock':
         return this.fetchBedrockModels()
       case 'new-api':
@@ -2217,6 +2219,33 @@ export class AiSdkProvider extends BaseLLMProvider {
         ...(typeof model.owned_by === 'string' && model.owned_by.trim()
           ? { ownedBy: model.owned_by.trim() }
           : {})
+      })
+    }
+    return models
+  }
+
+  /**
+   * Obscurify.ai's public catalog answers without a key and publishes each model's context length
+   * and whether it accepts tools.
+   */
+  private async fetchObscurifyModels(): Promise<MODEL_META[]> {
+    const records = await this.fetchOpenAIModelRecords({ timeout: this.getModelFetchTimeout() })
+    const models: MODEL_META[] = []
+    for (const model of records) {
+      const modelId = typeof model.id === 'string' ? model.id.trim() : ''
+      if (!modelId) {
+        continue
+      }
+      const contextLength = toPositiveFiniteNumber(model.context_length)
+      models.push({
+        id: modelId,
+        name: modelId,
+        group: 'default',
+        providerId: this.provider.id,
+        isCustom: false,
+        type: ModelType.Chat,
+        ...(contextLength !== undefined ? { contextLength } : {}),
+        ...(typeof model.tools === 'boolean' ? { functionCall: model.tools } : {})
       })
     }
     return models
