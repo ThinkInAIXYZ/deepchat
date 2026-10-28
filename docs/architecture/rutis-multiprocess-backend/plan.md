@@ -2182,6 +2182,13 @@ artifact hashes are in `.deepchat/rutis-g4-storage-roots-acceptance/`. Normal ge
 catalog changes are retained separately. G4 remains active for remaining native/configuration
 consumer contracts and the final writer/reader/desktop inventory; G5–G12 retain their full scope.
 
+Baseline `9c67d7431` passes required `40649481834`/barrier `122738133598` and all six packages
+`40649481736`/barrier `122746406102` before publication. Initial static/macOS x64 jobs stopped
+during dependency downloads, before application checks. Their diagnosed SheetJS connection reset
+and npm registry timeout are retained with the retry evidence. Latest required/platform jobs and
+both barriers pass. The storage checkpoint requires its own exact-head CI; the documentation-only
+native-boundary audit reuses the accepted runtime artifacts without another build or E2E capture.
+
 - [ ] Complete the writer, synchronous-reader and desktop-consumer inventory.
   - [x] Enumerate SQLite/DuckDB construction and wrapper entrypoints, inherited shared facades,
         staged/import/snapshot connections and independent derived-cache/vector owners.
@@ -2238,6 +2245,40 @@ The audit also records 34 direct SettingsStore import consumers and validates al
 inventory source references. Format/check, lint, i18n and app typechecks pass. This documentation
 checkpoint changes no application code; the accepted `32f457ff7` runtime evidence remains
 applicable without repeating builds, application E2E or performance/resource captures.
+
+### Remaining native-runtime boundary audit
+
+Complete the remaining native/runtime/configuration contracts and final ownership inventory as
+one G4 completion batch. Locally finish each affected owner and its relevant tests/application
+comparison before advancing; publish the completed batch after normal quality checks and the
+preceding CI barriers. Do not trigger another all-platform publication for each constructor fact
+or documentation-only audit. Preserve the full contracts below, then verify the batch's actual
+default composition before starting G5.
+
+| Owner/call chain | Current boundary | Required work before claiming the selected cutover |
+| --- | --- | --- |
+| RemoteConversationRunner | Session/catalog/turn/projection ports are async; image cache and generated-asset roots still call app.getPath | Supply explicit roots and preserve file/workspace authorization |
+| ChannelAdapter and five built-in factories | Base adapter calls Electron net.fetch; subclasses receive it through inheritance | Explicit approved binary-fetch capability, preserved native proxy and declared/actual 20 MiB bounds, cancellation/drain and a legal large-payload carrier |
+| RemoteService Feishu/Weixin login | Business sessions hold BrowserWindow objects and own native navigation handlers | Main window resource owner, data-only operation identity/events, preserved navigation/web security and actual cancellation/close/server settlement |
+| Provider OAuthService/Copilot windows | Main owns browser/clipboard/external effects but also calls Provider settings synchronously | Keep presentation native; use authorized owner queries and acknowledged credential/configuration settlement at G5 |
+| Window/Tray/Notification/Shortcut/Floating | Native consumers read DesktopSettings synchronously; floating bounds write back | Private committed allowlisted projection and acknowledged mutations; no per-get RPC or second settings-file writer |
+| Upgrade settings and renderer diagnostics | App version supplies channel default; Main diagnostics reads the logging flag | Explicit version fact and logging-flag projection; native updater and diagnostic file lifetime remain Main-owned |
+
+The attachment audit reads ChannelAdapter's actual 20 MiB contract and the existing CLI
+ArtifactSpool. Ordinary control frames cannot carry a maximum-sized base64 body. Reuse authorized
+artifact/staging machinery without borrowing CLI human/Agent ownership for channel requests.
+Native window extraction must retain the auth session and callback-server lifetime, not just move
+the BrowserWindow constructor. The RFC records these carrier/authority/lifecycle requirements.
+These are remaining contracts, not completed implementations or a reason to reduce G5–G12 scope.
+
+Native read consumers need resolved language, notifications, close-to-quit, content protection,
+shortcut mappings, floating enablement/bounds and the diagnostic logging flag. Floating bounds
+currently write without publishing an event; shortcut changes use a separate event. A private
+committed projection must cover those mutations explicitly, including asynchronous error/drain
+handling for floating persistence. Update-channel normalization also writes; it belongs to the
+configuration owner. Plugin installation/safety metadata uses Main's independent plugin-settings
+file; tool-policy authority uses the separate plugin-tool-policies owner already inventoried above.
+Do not merge those files or retain a second policy writer during handoff.
 
 ## G5. Move the cohesive Harness and shared core into the TS backend
 

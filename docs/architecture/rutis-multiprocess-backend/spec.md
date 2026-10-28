@@ -788,6 +788,18 @@ acknowledged mutations. It must not keep a second ElectronStore writer, includin
 UI keys. Preserve file format, defaults, migrations and machine-local backup exclusions. Backend
 business readers keep owner-local synchronous reads; native UI reads use acknowledged snapshots.
 
+The private native-consumer projection includes resolved language, notification enablement,
+close-to-quit, content protection, shortcut mappings, floating enablement/bounds and the logging
+flag needed by Main diagnostics. Native system-theme observation stays in Main. Keep the public
+settings projection separate from these internal consumers. Derive committed values at the
+configuration owner, fence snapshots by owner generation/revision and install the initial snapshot
+before dependent native initialization. Existing events alone are insufficient: floating bounds
+currently persist without an event, and shortcut changes use their own event. Every affected
+mutation must acknowledge its committed value. Convert floating-bound persistence and its error/
+shutdown handling together; replacing a synchronous setter with an ignored Promise loses failures
+and pending writes. Updater channel defaulting can write configuration, so normalize it at the
+configuration owner from an explicit version fact rather than inside a Main snapshot getter.
+
 Construct the application settings file through the same pinned Conf engine used by ElectronStore,
 with required absolute profile/home directories and an explicit application version. Main supplies
 those bootstrap facts and uses that factory in the actual startup path. Retain `app-settings.json`,
@@ -1123,6 +1135,32 @@ than looping through the backend. Preserve data-URL/raw/cache/HTTP image handlin
 rules, cancellation responses and actual-byte saves; nativeImage values never leave that owner.
 Main's image-cache access is read-only, and a save writes only the native dialog's selected target.
 This split adds no generic filesystem route, replacement image engine or gateway-size increase.
+
+Remote's channel/session policy and binding/configuration authority move together; channel I/O and
+login presentation receive explicit host capabilities. RemoteConversationRunner requires its
+profile image/generated-asset roots rather than discovering them through Electron. Preserve
+Electron net.fetch on desktop so attachment requests retain the configured native proxy behavior;
+a headless host supplies its own approved implementation. ChannelAdapter's existing 20 MiB
+attachment bound applies to both declared and actual bytes. A legal attachment exceeds ordinary
+control-frame budgets, so its host operation needs authorized artifact references or bounded staged
+transfer before G5 wiring. Do not return a Response, stream object or full oversized base64 reply,
+raise the gateway limit, silently lower the public attachment limit or replay a lost download.
+
+The existing CLI ArtifactSpool supplies useful file/quota/lifetime machinery, but its human/Agent
+caller ownership is not channel authority. Do not fabricate a human CLI caller for a channel
+download or give it access to unrelated CLI artifacts. Bind private transfers to the authenticated
+channel/request and backend generation; reserve capacity before reading, preserve size/MIME/error
+behavior and retain actual download/cleanup ownership across cancellation and disconnect.
+
+Main owns Feishu/Weixin native login windows; the Remote owner retains auth/session state, callback
+server, nonce, expiry and credential/configuration commitment. Native capabilities carry plain
+operation IDs, URLs and closed/error events, never BrowserWindow/WebContents objects. Preserve
+Feishu's brand/redirect navigation rules, popup denial and isolated secure web preferences.
+Register an operation before awaiting native startup, fence late opens/close events by generation
+and operation identity, compensate a late native open after cancellation, and drain callback-server
+and window cleanup before owner teardown. Native events cannot synchronously re-enter a pending
+business command. These remaining boundaries must be implemented and exercised; native module
+loading alone does not complete Remote's cutover.
 
 ACP registry ownership includes its manifest, icon cache and acknowledged repository/Provider
 updates. Main supplies absolute profile/built-in directories and an asynchronous icon-text
