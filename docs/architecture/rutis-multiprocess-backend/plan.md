@@ -1661,6 +1661,55 @@ active. G5 has not started.
 Agent Tool head `f0ca555fe` passes required `40478827867`/barrier `122106538990` and all six
 packages `40478827913`/barrier `122113041876` before the policy checkpoint is published.
 
+### Portable application settings file owner
+
+Make the existing application settings file constructible by the future backend without Electron.
+Keep its storage engine, defaults, filename, migration behavior and database attachment contract.
+Main supplies required absolute profile/home paths and the current application version.
+
+- [x] Connect the portable factory to actual Main startup and remove the old app-settings native
+      factory. Keep the same SettingsStore instance and database-backed routing after attachment.
+- [x] Validate legacy JSON, unknown fields, dot paths, corrupt-file rejection, defaults, database
+      routing and real configuration/credential persistence across graceful relaunch.
+
+The factory uses `conf@15.1.0`, the exact engine already resolved beneath ElectronStore 11.0.2.
+It is now an explicit dependency; the lockfile adds only its root importer entry and resolves no
+new engine/package version. `configName`, absolute `cwd` and `projectVersion` replace the native
+wrapper's name/path/version mapping. The same defaults remain in the existing settings module.
+No replacement JSON serializer, file format, watcher, cache, writable shadow or generic Store RPC
+is introduced. Other desktop-owned ElectronStore files retain their existing owners.
+
+Sensitive and portable settings still route through AppSettingsDbBackedStore after the existing
+migration and database attachment. Machine-local keys retain the same file adapter. Main remains
+the active writer in G4; the portable constructor does not establish the G5 exclusive handoff or
+allow Main and the backend to write different keys concurrently. DesktopSettings/AppSettingsService
+still need native observation/effect and acknowledged snapshot/mutation contracts. OS login state
+comes from the native API; it is not a persisted preference to copy into a second settings store.
+
+Validation: **87 checks across 13 affected files pass** with native SQLite required. Coverage includes
+the six real-file/bootstrap contracts, config migration, attached settings/metadata, private crypto,
+database security, public settings, onboarding and Sync settings. App and modified unit/E2E types,
+the normal build, format/check, lint and i18n pass. The new file-contract suite explicitly uses the
+real filesystem instead of the repository's default fs mock.
+
+The immutable `cd7cc392f` app and candidate pass the same final legacy/bootstrap/credential/relaunch
+workload (5.0/4.6 s). It uses an owned profile with an old version, custom workspace and unknown
+extension data, updates file-backed language/UI/limits and a database-backed preference, then
+reopens with each value retained in its original store. A disabled loopback cloud configuration
+keeps its secret wrapped on disk and readable after relaunch without rewriting the ciphertext.
+No external service/account or OS login registration is modified. The comparison restores and
+hash-verifies the candidate output after the frozen-baseline run; no output swap remains active.
+
+The settings factory graph (three modules) and database adapter (two) load with Electron and
+electron-store forbidden at build/runtime. A real factory creates and writes the legacy file in
+ordinary Node. This establishes a portable configuration owner, not a composed headless Harness
+or relocated writer. No performance/resource capture or speed claim is added. Normal build
+catalogs are unchanged. Evidence is `.deepchat/rutis-g4-settings-owner-acceptance/`.
+
+This checkpoint needs its own exact-head CI after publication. The Hook baseline `cd7cc392f`
+passes required `40623544678`/barrier `122604697934` and all six packages `40623544682`/barrier
+`122608652902` before this settings-owner checkpoint is pushed. G4 remains active; G5 is unstarted.
+
 ### Hook metadata and command lifetimes
 
 Keep Hook configuration, subscriptions, enrichment and command ownership together. Supply the
@@ -1705,7 +1754,8 @@ This is module-loading/owner evidence, not a composed headless backend. No schem
 process placement, dependency, layout or performance claim changes. No performance/resource suite
 is repeated. Evidence and immutable build hashes are in `.deepchat/rutis-g4-hooks-acceptance/`.
 
-Local acceptance is complete; this Hook checkpoint needs its own exact-head CI after publication.
+Published Hook head `cd7cc392f` passes required `40623544678`/barrier `122604697934` and all six
+packages `40623544682`/barrier `122608652902`.
 The Project baseline `b7a50e3aa` passes required `40621219551`/barrier `122597419315` and all six
 packages `40621219651`/barrier `122602071741` before the Hook checkpoint is pushed. G4 remains
 active and G5 is unstarted.

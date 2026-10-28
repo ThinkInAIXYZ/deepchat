@@ -2,7 +2,7 @@ import { electronApp } from '@electron-toolkit/utils'
 import { app, safeStorage } from 'electron'
 import ElectronStore from 'electron-store'
 import path from 'node:path'
-import { SettingsStore } from '@/config/settingsStore'
+import { createSettingsStore } from '@/config/settingsStore'
 import type { StoreLike } from '@/config/storeLike'
 import { SecretStore } from '@/config/secretStore'
 import { credentialCrypto } from './credentialCrypto'
@@ -47,7 +47,11 @@ export async function startMainProcess(
   try {
     electronApp.setAppUserModelId('com.wefonk.deepchat')
     const currentAppVersion = app.getVersion()
-    const settingsStore = createSettingsStore(currentAppVersion)
+    const settingsStore = createSettingsStore({
+      userDataDirectory: app.getPath('userData'),
+      homeDirectory: app.getPath('home'),
+      currentAppVersion
+    })
     setMainLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     const secretStore = new SecretStore(settingsStore, credentialCrypto)
     const privacySettings = new PrivacySettings(settingsStore)
@@ -194,41 +198,4 @@ export async function startMainProcess(
     }
     throw error
   }
-}
-
-function createSettingsStore(currentAppVersion: string): SettingsStore {
-  const userDataPath = app.getPath('userData')
-  return new SettingsStore(
-    new ElectronStore<Record<string, unknown>>({
-      name: 'app-settings',
-      defaults: {
-        language: 'system',
-        providers: [],
-        closeToQuit: false,
-        proxyMode: 'system',
-        customProxyUrl: '',
-        searchPreviewEnabled: true,
-        contentProtectionEnabled: false,
-        privacyModeEnabled: false,
-        syncEnabled: false,
-        syncFolderPath: path.join(userDataPath, 'sync'),
-        lastSyncTime: 0,
-        copyWithCotEnabled: true,
-        autoCompactionEnabled: true,
-        autoCompactionTriggerThreshold: 80,
-        autoCompactionRetainRecentPairs: 2,
-        loggingEnabled: false,
-        floatingButtonEnabled: false,
-        fontFamily: '',
-        codeFontFamily: '',
-        default_system_prompt: '',
-        skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
-        enableSkills: true,
-        skillDraftSuggestionsEnabled: false,
-        appVersion: currentAppVersion,
-        hooksNotifications: { hooks: [] },
-        agentCommandShell: { preference: 'auto' }
-      }
-    }) as unknown as StoreLike<Record<string, unknown>>
-  )
 }

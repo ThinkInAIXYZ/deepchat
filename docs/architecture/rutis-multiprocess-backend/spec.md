@@ -788,6 +788,15 @@ acknowledged mutations. It must not keep a second ElectronStore writer, includin
 UI keys. Preserve file format, defaults, migrations and machine-local backup exclusions. Backend
 business readers keep owner-local synchronous reads; native UI reads use acknowledged snapshots.
 
+Construct the application settings file through the same pinned Conf engine used by ElectronStore,
+with required absolute profile/home directories and an explicit application version. Main supplies
+those bootstrap facts and uses that factory in the actual startup path. Retain `app-settings.json`,
+defaults, dot-path semantics, default migration behavior and atomic writes; no replacement JSON
+writer or second cache is needed. Declaring the already resolved engine directly makes backend
+construction independent of Electron. The database-backed adapter still owns sensitive/portable
+keys after attachment. This factory alone does not transfer ownership: G5 must close Main's writable
+access and hand the existing file/database authority to the backend before it begins normal work.
+
 Configuration consumers include Agent defaults/prompt/trace/migration state, Provider-specific
 options, Session usage backfill, Project preferences, Skill/Knowledge/Hook/Remote settings, Sync,
 Nowledge/export, onboarding and file/Tool limits. Some getters normalize or migrate and write

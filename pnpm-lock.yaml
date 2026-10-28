@@ -129,6 +129,9 @@ importers:
       compare-versions:
         specifier: ^6.1.1
         version: 6.1.1
+      conf:
+        specifier: 15.1.0
+        version: 15.1.0
       cron-parser:
         specifier: ^5.10.0
         version: 5.10.0
