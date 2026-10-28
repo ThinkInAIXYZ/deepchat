@@ -3,12 +3,6 @@ import fs from 'fs/promises'
 import path from 'path'
 import { FileService } from '../../../src/main/file'
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: vi.fn((name: string) => (name === 'userData' ? '/mock/user/data' : '/mock'))
-  }
-}))
-
 vi.mock('fs/promises', () => ({
   default: {
     mkdir: vi.fn().mockResolvedValue(undefined),
@@ -34,7 +28,8 @@ describe('FileService.readFile', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(fs.realpath).mockImplementation(async (targetPath: string) => {
+    vi.mocked(fs.realpath).mockImplementation(async (inputPath) => {
+      const targetPath = inputPath.toString()
       if (targetPath === '/mock/user/data') {
         return '/mock/user/data'
       }
@@ -50,7 +45,7 @@ describe('FileService.readFile', () => {
 
   it('reads relative files from the user data directory', async () => {
     vi.mocked(fs.readFile).mockResolvedValue('hello world' as never)
-    const presenter = new FileService(mockSettings)
+    const presenter = new FileService(mockSettings, '/mock/user/data')
 
     const content = await presenter.readFile('notes/today.md')
 
@@ -62,7 +57,7 @@ describe('FileService.readFile', () => {
   })
 
   it('rejects absolute paths', async () => {
-    const presenter = new FileService(mockSettings)
+    const presenter = new FileService(mockSettings, '/mock/user/data')
 
     await expect(presenter.readFile('/etc/passwd')).rejects.toThrow(
       'Absolute paths are not allowed'
@@ -71,7 +66,7 @@ describe('FileService.readFile', () => {
   })
 
   it('rejects paths that escape the user data directory', async () => {
-    const presenter = new FileService(mockSettings)
+    const presenter = new FileService(mockSettings, '/mock/user/data')
 
     await expect(presenter.readFile('../outside.txt')).rejects.toThrow(
       'File path escapes user data directory'

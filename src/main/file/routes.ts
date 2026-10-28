@@ -1,4 +1,5 @@
 import type { FileServicePort } from '@shared/types/file'
+import type { DesktopImageActions } from '@/desktop/imageActions'
 import {
   fileCopyImageRoute,
   fileGetMimeTypeRoute,
@@ -11,7 +12,10 @@ import {
 } from '@shared/contracts/routes'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
-export function createFileRoutes(fileService: FileServicePort): DeepchatRouteMap {
+export function createFileRoutes(
+  fileService: FileServicePort,
+  images: Pick<DesktopImageActions, 'saveImage' | 'copyImage'>
+): DeepchatRouteMap {
   return createRouteMap([
     [
       fileGetMimeTypeRoute.name,
@@ -69,14 +73,14 @@ export function createFileRoutes(fileService: FileServicePort): DeepchatRouteMap
       fileSaveImageRoute.name,
       async (rawInput) => {
         const input = fileSaveImageRoute.input.parse(rawInput)
-        return fileSaveImageRoute.output.parse(await fileService.saveImage(input))
+        return fileSaveImageRoute.output.parse(await images.saveImage(input))
       }
     ],
     [
       fileCopyImageRoute.name,
       async (rawInput) => {
         const input = fileCopyImageRoute.input.parse(rawInput)
-        return fileCopyImageRoute.output.parse(await fileService.copyImage(input))
+        return fileCopyImageRoute.output.parse(await images.copyImage(input))
       }
     ]
   ])

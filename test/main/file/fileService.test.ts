@@ -5,12 +5,6 @@ import { FileValidationResult, IFileValidationService } from '../../../src/main/
 // Mock all external dependencies
 const mockSettings = { get: vi.fn() }
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: vi.fn().mockReturnValue('/mock/user/data')
-  }
-}))
-
 vi.mock('fs/promises', () => ({
   default: {
     mkdir: vi.fn().mockResolvedValue(undefined),
@@ -25,7 +19,8 @@ vi.mock('path', () => ({
   default: {
     join: vi.fn((...args) => args.join('/')),
     extname: vi.fn(),
-    dirname: vi.fn()
+    dirname: vi.fn(),
+    isAbsolute: vi.fn(() => true)
   }
 }))
 
@@ -58,7 +53,7 @@ describe('FileService Integration with FileValidationService', () => {
     }
 
     // Create FileService with mocked service
-    fileService = new FileService(mockSettings, mockFileValidationService)
+    fileService = new FileService(mockSettings, '/mock/user/data', mockFileValidationService)
   })
 
   describe('validateFileForKnowledgeBase', () => {

@@ -2088,6 +2088,55 @@ its own exact-head CI. G4 remains active: finish the concrete configuration/nati
 consumer and writer/reader audit before G5's exclusive profile handoff and cohesive backend move.
 G5–G12 retain their full scope and conditional adoption requirements.
 
+### File preparation and native image actions
+
+- [x] Require an absolute profile root for FileService and remove its Electron dependency.
+      Preserve document/image adapters, validation, relative-read containment and generated-name
+      temporary image writes; await directory creation before the first write.
+- [x] Keep save-dialog selection, clipboard decoding/writes and native HTTP image retrieval in
+      DesktopImageActions. Wire existing renderer routes directly to this Main capability.
+- [x] Remove unused arbitrary profile write/delete and generic temporary-write methods. Keep
+      adapter creation private; the business port returns data rather than adapter instances.
+
+FileService owns Node-capable preparation and existing size/token/PDF/image behavior. Its explicit
+profile root replaces app.getPath, and temporary writes no longer race constructor-side directory
+creation. DesktopImageActions owns the existing data-URL, raw base64, image-cache and HTTP image
+flows. Main retains Electron net.fetch and native image decoding, including existing MIME/filename
+rules and fallback behavior. A canceled dialog performs no save; successful saves write the
+original bytes to the selected target. NativeImage values remain inside Main. Existing public
+schemas, sender checks and Main request admission/drain remain in place. No extra process, image
+engine, dependency, generic filesystem route or fallback is added.
+
+Validation: **139 distinct checks across 10 files pass**: 125 native-enabled file/dispatcher/image
+checks in eight files and 14 generated-catalog checks in two files. Durable image cases cover
+dialog cancellation and selected-target byte preservation, encoded cache traversal, failed native
+downloads and invalid clipboard decoding. App and selected file/image/unit/E2E types, normal build,
+format, lint and i18n pass. The large legacy dispatcher remains runtime-tested; its existing wider
+fixture type debt is outside the additional selected test typecheck.
+
+Immutable `36583fcfe` and the candidate pass the same real-app file/image workload (5.5/4.9 s).
+The owned profile supplies actual text/PNG files. Real public routes prepare text and image
+thumbnails, persist generated temporary image bytes, read relative files and reject traversal.
+All four image source forms save identical bytes and reach actual native decoding. A local HTTP
+server exercises Electron's network path. The fixture controls only native dialog selection and
+clipboard output, so it writes no system clipboard or user-selected external file. Cancel and
+decode failures retain their existing results; graceful close and relaunch preserve profile reads.
+These times are functional observations; no performance/resource suite or speed claim is added.
+
+The full FileService graph (21 modules) compiles, imports and executes in ordinary Node with
+Electron/electron-store forbidden at build and runtime. Actual text preparation, sharp image
+compression/thumbnail generation, first temporary-directory write, relative reads and symlink/
+traversal fences pass. This proves the file boundary, not the cohesive headless Harness or the G5
+writer handoff. Evidence and verified/restored artifact hashes are in
+`.deepchat/rutis-g4-file-boundary-acceptance/`. The normal generated Provider catalog refresh is
+retained separately from the implementation.
+
+Baseline `36583fcfe` passes required `40644539422`/barrier `122672429696` and all six packages
+`40644539477`/barrier `122677486296` before this checkpoint is published. This checkpoint needs its
+own exact-head CI. G4 remains active: remaining configuration/runtime consumers and the final
+writer/reader/desktop inventory precede G5's exclusive profile handoff. G5–G12 keep their full
+scope and conditional adoption rules.
+
 - [ ] Complete the writer, synchronous-reader and desktop-consumer inventory.
   - [x] Enumerate SQLite/DuckDB construction and wrapper entrypoints, inherited shared facades,
         staged/import/snapshot connections and independent derived-cache/vector owners.

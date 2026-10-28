@@ -121,6 +121,7 @@ import {
 } from '../notifications'
 import { DesktopSettings } from '../desktop/settings'
 import { DesktopConfigurationHost } from '../desktop/configurationHost'
+import { DesktopImageActions } from '../desktop/imageActions'
 import { FontSettings } from '../desktop/fontSettings'
 import { TabPresenter } from '../desktop/tab'
 import { DesktopSessionBinding } from '@/desktop/sessionBinding'
@@ -1433,7 +1434,8 @@ export async function createMainProcessControl(dependencies: {
       })
   )
   shortcutPresenter = new ShortcutPresenter(desktopSettings, windowPresenter, publishDeepchatEvent)
-  fileService = new FileService(dependencies.settingsStore)
+  fileService = new FileService(dependencies.settingsStore, app.getPath('userData'))
+  const desktopImageActions = new DesktopImageActions(app.getPath('userData'))
   ocrSettings = new OcrSettings(dependencies.settingsStore, publishDeepchatEvent)
   const recordSettingsActivity = (input: SettingsActivityInput) => {
     void settingsDatabase.recordSettingsActivity(input).catch((error) => {
@@ -3421,7 +3423,7 @@ export async function createMainProcessControl(dependencies: {
         })
       }
     })
-    const fileRoutes = createFileRoutes(fileService)
+    const fileRoutes = createFileRoutes(fileService, desktopImageActions)
     const ocrRoutes = createOcrRoutes({ runtime: ocrRuntimeService })
     const toolchainRoutes = createToolchainRoutes({
       service: toolchainService,

@@ -1095,6 +1095,18 @@ recheck before image caching or Provider work; a late result cannot start those 
 business manager has no native import or implicit native host construction. This capability does
 not expose a new generic file-read or root-discovery route to renderers or external plugins.
 
+File preparation remains with its Node-capable business owner: MIME detection, document/image
+adapters, validation, generated-name temporary image writes and message-file projections.
+Require its absolute profile directory at construction and await temporary-directory creation when
+writing. Keep adapter instances internal and expose no arbitrary profile write/delete operation.
+Preserve existing size, token, PDF routing and symlink
+read checks. Main owns image save dialogs, clipboard decoding/writes and native network image
+retrieval as a separate desktop action capability. Route those UI actions directly to Main rather
+than looping through the backend. Preserve data-URL/raw/cache/HTTP image handling, MIME and filename
+rules, cancellation responses and actual-byte saves; nativeImage values never leave that owner.
+Main's image-cache access is read-only, and a save writes only the native dialog's selected target.
+This split adds no generic filesystem route, replacement image engine or gateway-size increase.
+
 ACP registry ownership includes its manifest, icon cache and acknowledged repository/Provider
 updates. Main supplies absolute profile/built-in directories and an asynchronous icon-text
 capability; the core receives no Electron Response or native object. Retain the existing URL,

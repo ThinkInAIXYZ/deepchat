@@ -1661,7 +1661,10 @@ function createRuntime() {
       void sqlitePresenter.recordSettingsActivity(input)
     }
   })
-  const fileRoutes = createFileRoutes(fileService)
+  const fileRoutes = createFileRoutes(fileService, {
+    saveImage: vi.fn().mockResolvedValue({ canceled: true }),
+    copyImage: vi.fn().mockResolvedValue({ copied: true })
+  })
   const knowledgeSettings = {
     getKnowledgeConfigs: vi.fn(() => knowledgeConfigs),
     setKnowledgeConfigs: vi.fn((configs: typeof knowledgeConfigs) => {
