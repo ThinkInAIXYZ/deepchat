@@ -679,6 +679,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'cheapaimodel',
+    name: 'cheapaimodel',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.cheapaimodel.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://cheapaimodel.ai/?utm_source=deepchat',
+      apiKey: 'https://console.cheapaimodel.ai/keys?utm_source=deepchat',
+      docs: 'https://cheapaimodel.ai/docs?utm_source=deepchat',
+      models: 'https://cheapaimodel.ai/models?utm_source=deepchat'
+    }
+  },
+  {
     id: 'aistupidlevel',
     name: 'AI Stupid Level',
     apiType: 'openai-completions',

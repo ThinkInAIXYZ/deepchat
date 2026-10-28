@@ -245,6 +245,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes cheapaimodel as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'cheapaimodel',
+        name: 'cheapaimodel',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.cheapaimodel.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://cheapaimodel.ai/?utm_source=deepchat',
+          apiKey: 'https://console.cheapaimodel.ai/keys?utm_source=deepchat',
+          docs: 'https://cheapaimodel.ai/docs?utm_source=deepchat',
+          models: 'https://cheapaimodel.ai/models?utm_source=deepchat',
+          defaultBaseUrl: 'https://api.cheapaimodel.ai/v1'
+        })
+      })
+    )
+  })
+
   it('includes AtmoRouter as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

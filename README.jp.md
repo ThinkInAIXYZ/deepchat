@@ -468,6 +468,10 @@ DeepChatはメッセージアプリからリモート操作できるため、デ
       <img src="./src/renderer/src/assets/llm-icons/cloudgpu.svg" width="50" height="50" alt="CloudGPU Icon"><br/>
       <a href="https://cloudgpu.app/?utm_source=deepchat">CloudGPU</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/cheapaimodel.svg" width="50" height="50" alt="cheapaimodel Icon"><br/>
+      <a href="https://cheapaimodel.ai/?utm_source=deepchat">cheapaimodel</a>
+    </td>
   </tr>
 
 </table>
