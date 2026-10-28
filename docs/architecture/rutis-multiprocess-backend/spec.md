@@ -804,6 +804,18 @@ state, and Nowledge cleanup enumerates the merged store; those operations remain
 Desktop theme/fonts/window/login, proxy application, updater and renderer logging retain their
 native effects in Main. The selected AppSettingsService/public-route snapshot remains a public
 projection, not a transport for the merged store or credential-bearing Remote/Hook/Nowledge data.
+Desktop appearance and login commands share the settings owner's bounded serial queue. Native
+theme/login observations and language/theme refreshes return awaited plain data or completion;
+the host receives the resolved locale/color rather than calling back into a pending core command.
+Resolve system language from the explicit process bootstrap locale. Query login state from the
+OS only when requested, and publish a login mutation's observed OS result rather than a stored
+preference. Preserve display receipts' previous value inside the same command ordering boundary.
+Main owns the system-theme listener; its coalesced observations use that queue and are fenced
+during maintenance. Stop admission and drain actual host work before closing configuration
+storage; an expired drain cannot authorize teardown or a second owner. Resume observations after
+maintenance and remove the native listener at shutdown. These contracts prepare the G5 handoff;
+they do not establish a second writable desktop configuration cache.
+
 Plugin install/consent state retains its separate desktop file owners. Tool policies follow the
 business permission owner below; consumers use authoritative policy data rather than native Store
 imports or independently writable snapshots.

@@ -9,8 +9,8 @@ import type {
   IYoBrowserPresenter
 } from '@shared/types/desktop'
 import type { DialogServicePort } from '@shared/types/dialog'
-import { getLocaleDirection } from '@shared/locales'
 import type { DesktopSettings } from './settings'
+import type { AppSettingsService } from '@/app/settingsService'
 import {
   browserAttachCurrentWindowRoute,
   browserFocusContentRoute,
@@ -82,6 +82,7 @@ export function createDesktopRoutes(deps: {
   tabPresenter: ITabPresenter
   dialogService: DialogServicePort
   settings: DesktopSettings
+  appearance: Pick<AppSettingsService, 'getLanguage' | 'setLanguage' | 'getTheme' | 'setTheme'>
   setFloatingButtonEnabled(enabled: boolean): void
   recordActivity(input: SettingsActivityInput): void
 }): DeepchatRouteMap {
@@ -107,48 +108,36 @@ export function createDesktopRoutes(deps: {
   }
   const readBrowserStatus = async (sessionId: string) =>
     await browserPresenter.getBrowserStatus(sessionId)
-  const readLanguage = () => {
-    const locale = deps.settings.getLanguage()
-    return {
-      requestedLanguage: deps.settings.getRequestedLanguage(),
-      locale,
-      direction: getLocaleDirection(locale)
-    }
-  }
-  const readTheme = () => ({
-    theme: deps.settings.getTheme(),
-    isDark: deps.settings.getCurrentThemeIsDark()
-  })
 
   return createRouteMap([
     [
       configGetLanguageRoute.name,
       async (rawInput) => {
         configGetLanguageRoute.input.parse(rawInput)
-        return configGetLanguageRoute.output.parse(readLanguage())
+        return configGetLanguageRoute.output.parse(await deps.appearance.getLanguage())
       }
     ],
     [
       configSetLanguageRoute.name,
       async (rawInput) => {
         const input = configSetLanguageRoute.input.parse(rawInput)
-        deps.settings.setLanguage(input.language)
-        return configSetLanguageRoute.output.parse(readLanguage())
+        return configSetLanguageRoute.output.parse(
+          await deps.appearance.setLanguage(input.language)
+        )
       }
     ],
     [
       configGetThemeRoute.name,
       async (rawInput) => {
         configGetThemeRoute.input.parse(rawInput)
-        return configGetThemeRoute.output.parse(readTheme())
+        return configGetThemeRoute.output.parse(await deps.appearance.getTheme())
       }
     ],
     [
       configSetThemeRoute.name,
       async (rawInput) => {
         const input = configSetThemeRoute.input.parse(rawInput)
-        deps.settings.setTheme(input.theme)
-        return configSetThemeRoute.output.parse(readTheme())
+        return configSetThemeRoute.output.parse(await deps.appearance.setTheme(input.theme))
       }
     ],
     [

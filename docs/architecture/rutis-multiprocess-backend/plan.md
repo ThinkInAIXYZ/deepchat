@@ -1965,6 +1965,65 @@ entrypoint ceiling. Its two frontend fixtures use the branch's required public h
 and RSS method, with no private factory replacement. The merged app, contract/Tool suites and
 matching policy workload are the final validation source; new CI must inspect this integrated head.
 
+
+### Desktop appearance and native settings commands
+
+- [x] Require plain bootstrap locale and asynchronous theme/login/UI capabilities; remove
+      Electron imports and native listener ownership from DesktopSettings.
+- [x] Route public appearance changes, display receipts and settings snapshots through the same
+      bounded owner queue; wait for native completion before success and change events.
+- [x] Fence/coalesce system-theme observations and drain actual host work during maintenance
+      and shutdown. Compare the matching application behavior and preserve existing sender checks.
+
+AppSettingsService serializes appearance commands, display mutations, settings updates and reads.
+Normal admission stops at 64 outstanding commands. A coalesced system observation has a reserved
+position so saturation cannot lose the latest OS color; an event during active observation can
+schedule one following observation. Previous-value display receipts are read inside that ordering
+boundary. Native theme and login operations return observed values. Selected snapshots query login
+only when requested; a stored login preference cannot replace the OS result. Invalid/fenced/full
+commands reject before work, and failed commands do not acknowledge success or wedge the queue.
+
+Main supplies the Chromium application locale after readiness, NativeTheme operations, observed
+login registration and awaited UI refresh. Floating UI receives the resolved locale/color directly,
+avoiding a callback into the core command waiting for that host. Tab context menus retain the
+resolved locale for new tabs. Main owns the NativeTheme listener, fences it during maintenance and
+reconciles after startup/resume. Shutdown removes the listener and directly awaits settings stop
+before event/storage teardown. Stop rejects queued/new commands and waits for active host work;
+the unchanged 30-second lifecycle deadline leaves the owner fenced and prevents restart while
+work remains. It is not a performance budget. There is no additional process, file writer, native
+fallback, broad configuration snapshot or public protocol/schema change.
+
+Validation: **180 distinct checks across 14 files pass**: 165 in 11 affected native-enabled files
+and 15 in three renderer state suites. Durable checks cover awaited effects, concurrent display
+receipts, OS-observed login values, selected reads, failures, saturation including system events,
+coalescing, shutdown and a timed-out native drain. The floating host applies resolved appearance
+without reentering pending core work. App and selected owner/native-settings/floating/E2E types,
+normal application builds, format, lint and i18n pass. The legacy dispatcher fixture runs in the
+native group; it is outside the additional selected test typecheck.
+
+Immutable `592d32b92` and the final candidate pass the same three real-app cases (18.8/16.7 s):
+settings revisions under frozen/rolled-back clocks, legacy file/database/credential persistence,
+and desktop appearance/login/relaunch. Theme and Persian/English language changes update both
+chat and settings windows. The locale manifest preserves `rtl` for Persian and `auto` for English.
+The login setter is replaced at the native SDK boundary inside an owned disposable process:
+requesting true can still observe false, and the unrelated stored true remains untouched. No real
+OS login registration is written. Both variants close gracefully and preserve restored values on
+relaunch. Times are functional observations; no performance/resource capture or speed claim is
+added. Baseline and candidate use the same fixture, package version and runtime resources.
+
+The DesktopSettings graph (three modules) and AppSettingsService graph (87) compile, import and
+execute in ordinary Node with Electron/electron-store forbidden at build/runtime. The probe
+constructs both owners and exercises bootstrap, language/theme commands, a full settings read and
+stop. This proves that boundary, not a composed headless Harness or relocated shared writer.
+Immutable hashes, diagnostics and acceptance logs are in
+`.deepchat/rutis-g4-desktop-settings-acceptance/`; the final output is restored and hash-verified.
+
+The settings-file baseline `592d32b92` passes required `40627565171`/barrier `122617966427` and all
+six packages `40627565315`/barrier `122622838387` before this slice is published. This slice needs
+its own exact-head CI. G4 remains active: font enumeration, logging/restart and other native/config
+consumer contracts still require audit/extraction before G5's exclusive profile/writer handoff.
+G5–G12 retain their full scope and conditional adoption rules.
+
 - [ ] Complete the writer, synchronous-reader and desktop-consumer inventory.
   - [x] Enumerate SQLite/DuckDB construction and wrapper entrypoints, inherited shared facades,
         staged/import/snapshot connections and independent derived-cache/vector owners.

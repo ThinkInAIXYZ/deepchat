@@ -4,9 +4,13 @@ import { DesktopSettings } from '@/desktop/settings'
 import { FontSettings } from '@/desktop/fontSettings'
 import { SETTINGS_KEYS } from '@shared/contracts/routes'
 
-vi.mock('electron', () => ({
-  app: { getLoginItemSettings: () => ({ openAtLogin: false }) }
-}))
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
 
 function setup() {
   const stored = new Map<string, unknown>([['cloudSyncSecret', 'wrapped-secret']])
@@ -17,11 +21,23 @@ function setup() {
     })
   }
   const publishEvent = vi.fn()
-  const desktopSettings = new DesktopSettings(
-    storage as never,
-    { refreshLanguage: vi.fn(), refreshTheme: vi.fn() },
-    publishEvent
-  )
+  let theme: 'system' | 'dark' | 'light' = 'system'
+  const host = {
+    systemLocale: 'en-US',
+    readTheme: vi.fn(async () => ({
+      theme,
+      isDark: theme === 'dark'
+    })),
+    applyTheme: vi.fn(async (value: 'system' | 'dark' | 'light') => {
+      theme = value
+      return theme === 'dark'
+    }),
+    refreshLanguage: vi.fn(async (_locale: string): Promise<void> => undefined),
+    refreshTheme: vi.fn(async (_isDark: boolean): Promise<void> => undefined),
+    readLaunchAtLogin: vi.fn(async () => false),
+    setLaunchAtLogin: vi.fn(async (_enabled: boolean) => false)
+  }
+  const desktopSettings = new DesktopSettings(storage as never, host, publishEvent)
   let version = 0
   let active = true
   const owner = new AppSettingsService({
@@ -46,6 +62,7 @@ function setup() {
   })
   return {
     owner,
+    host,
     stored,
     storage,
     publishEvent,
@@ -70,7 +87,7 @@ describe('AppSettingsService', () => {
     })
     expect(updated.version).toBeGreaterThan(snapshot.version)
     expect((await owner.getSnapshot(['fontFamily'])).values).toEqual(updated.values)
-    owner.publishSnapshot()
+    await owner.publishSnapshot()
     expect(publishEvent).toHaveBeenLastCalledWith('settings.changed', {
       changedKeys: [...SETTINGS_KEYS],
       version: expect.any(Number),
@@ -113,7 +130,7 @@ describe('AppSettingsService', () => {
       'owner unavailable'
     )
     await expect(owner.getSnapshot()).rejects.toThrow('owner unavailable')
-    expect(() => owner.publishSnapshot()).toThrow('owner unavailable')
+    await expect(owner.publishSnapshot()).rejects.toThrow('owner unavailable')
     expect(storage.set).not.toHaveBeenCalled()
   })
 
@@ -127,5 +144,148 @@ describe('AppSettingsService', () => {
     ).rejects.toThrow('storage unavailable')
     expect(publishEvent).not.toHaveBeenCalled()
     expect((await owner.getSnapshot(['copyWithCotEnabled'])).values.copyWithCotEnabled).toBe(true)
+  })
+
+  it('orders native acknowledgements, display receipts and following snapshots together', async () => {
+    const { owner, host, publishEvent } = setup()
+    const refreshing = deferred<void>()
+    host.refreshTheme.mockReturnValueOnce(refreshing.promise)
+    const first = owner.setTheme('dark')
+    await vi.waitFor(() => expect(host.refreshTheme).toHaveBeenCalledWith(true))
+    const display = owner.applyDisplayChange({ id: 'theme', value: 'light' })
+    const snapshot = owner.getTheme()
+    expect(publishEvent).not.toHaveBeenCalled()
+    refreshing.resolve()
+    expect(await first).toEqual({ theme: 'dark', isDark: true })
+    expect(await display).toMatchObject({ previousValue: 'dark', value: 'light' })
+    expect(await snapshot).toEqual({ theme: 'light', isDark: false })
+  })
+
+  it('awaits normalized language refresh and recovers after a failed native command', async () => {
+    const { owner, host, publishEvent, stored } = setup()
+    const refreshing = deferred<void>()
+    host.refreshLanguage.mockReturnValueOnce(refreshing.promise)
+    const changed = owner.setLanguage('fa')
+    await vi.waitFor(() => expect(host.refreshLanguage).toHaveBeenCalledWith('fa-IR'))
+    expect(publishEvent).not.toHaveBeenCalled()
+    refreshing.resolve()
+    expect(await changed).toEqual({ requestedLanguage: 'fa-IR', locale: 'fa-IR', direction: 'rtl' })
+    publishEvent.mockClear()
+    host.applyTheme.mockRejectedValueOnce(new Error('native unavailable'))
+    await expect(owner.setTheme('dark')).rejects.toThrow('native unavailable')
+    expect(stored.has('appTheme')).toBe(false)
+    expect(publishEvent).not.toHaveBeenCalled()
+    expect(await owner.setTheme('light')).toEqual({ theme: 'light', isDark: false })
+  })
+
+  it('queries login state only when selected and returns the observed OS value', async () => {
+    const { owner, host, stored, publishEvent } = setup()
+    await owner.getSnapshot(['autoScrollEnabled'])
+    await owner.update([{ key: 'fontSizeLevel', value: 2 }])
+    expect(host.readLaunchAtLogin).not.toHaveBeenCalled()
+    expect((await owner.getSnapshot(['launchAtLoginEnabled'])).values).toEqual({
+      launchAtLoginEnabled: false
+    })
+    expect((await owner.update([{ key: 'launchAtLoginEnabled', value: true }])).values).toEqual({
+      launchAtLoginEnabled: false
+    })
+    expect(host.setLaunchAtLogin).toHaveBeenCalledWith(true)
+    expect(stored.has('launchAtLoginEnabled')).toBe(false)
+    expect(publishEvent).toHaveBeenLastCalledWith(
+      'settings.changed',
+      expect.objectContaining({ values: { launchAtLoginEnabled: false } })
+    )
+  })
+
+  it('fences queued commands and drains active host work before restart', async () => {
+    const { owner, host, stored } = setup()
+    const refreshing = deferred<void>()
+    host.refreshTheme.mockReturnValueOnce(refreshing.promise)
+    const started = owner.setTheme('dark')
+    await vi.waitFor(() => expect(host.refreshTheme).toHaveBeenCalled())
+    const queued = owner.update([{ key: 'fontSizeLevel', value: 3 }])
+    const queuedRejected = expect(queued).rejects.toThrow('Settings owner is stopped')
+    let drained = false
+    const stopping = owner.stop().then(() => {
+      drained = true
+    })
+    await expect(owner.getTheme()).rejects.toThrow('Settings owner is stopped')
+    await expect(owner.observeSystemTheme()).rejects.toThrow('Settings owner is stopped')
+    expect(() => owner.start()).toThrow('still draining')
+    expect(drained).toBe(false)
+    refreshing.resolve()
+    await started
+    await queuedRejected
+    await stopping
+    expect(stored.has('fontSizeLevel')).toBe(false)
+    owner.start()
+    expect((await owner.update([{ key: 'fontSizeLevel', value: 2 }])).values).toEqual({
+      fontSizeLevel: 2
+    })
+  })
+
+  it('does not release or restart an owner whose native drain timed out', async () => {
+    const { owner, host } = setup()
+    const refreshing = deferred<void>()
+    host.refreshTheme.mockReturnValueOnce(refreshing.promise)
+    const started = owner.setTheme('dark')
+    await vi.waitFor(() => expect(host.refreshTheme).toHaveBeenCalled())
+    vi.useFakeTimers()
+    try {
+      const stopped = expect(owner.stop()).rejects.toThrow('did not drain')
+      await vi.advanceTimersByTimeAsync(30_000)
+      await stopped
+      expect(() => owner.start()).toThrow('still draining')
+      refreshing.resolve()
+      await started
+      await owner.stop()
+      owner.start()
+      expect(await owner.getTheme()).toEqual({ theme: 'dark', isDark: true })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('bounds pending commands while a native observation is blocked', async () => {
+    const { owner, host } = setup()
+    const login = deferred<boolean>()
+    host.readLaunchAtLogin.mockReturnValueOnce(login.promise)
+    const snapshot = owner.getSnapshot()
+    await vi.waitFor(() => expect(host.readLaunchAtLogin).toHaveBeenCalled())
+    const changes = Array.from({ length: 63 }, (_, index) =>
+      owner.update([{ key: 'fontSizeLevel', value: (index % 4) + 1 }])
+    )
+    await expect(owner.update([{ key: 'fontSizeLevel', value: 1 }])).rejects.toThrow(
+      'queue is full'
+    )
+    const observations = Array.from({ length: 100 }, () => owner.observeSystemTheme())
+    login.resolve(false)
+    await snapshot
+    await Promise.all(changes)
+    await Promise.all(observations)
+    expect(host.readTheme).toHaveBeenCalledTimes(1)
+    expect((await owner.getSnapshot(['fontSizeLevel'])).values).toEqual({ fontSizeLevel: 3 })
+  })
+
+  it('coalesces pending system events and observes a newer change after active native work', async () => {
+    const { owner, host, publishEvent } = setup()
+    const observed = deferred<{ theme: 'system'; isDark: boolean }>()
+    host.readTheme.mockReturnValueOnce(observed.promise)
+    host.readTheme.mockResolvedValue({ theme: 'system', isDark: true })
+    const first = owner.observeSystemTheme()
+    await vi.waitFor(() => expect(host.readTheme).toHaveBeenCalledTimes(1))
+    const following = Array.from({ length: 100 }, () => owner.observeSystemTheme())
+    observed.resolve({ theme: 'system', isDark: false })
+    await first
+    await Promise.all(following)
+    expect(host.readTheme).toHaveBeenCalledTimes(2)
+    const colors = publishEvent.mock.calls
+      .filter(([name]) => name === 'config.systemTheme.changed')
+      .map(([, payload]) => payload.isDark)
+    expect(colors).toEqual([false, true])
+    await owner.setTheme('light')
+    publishEvent.mockClear()
+    await owner.observeSystemTheme()
+    expect(publishEvent).not.toHaveBeenCalled()
   })
 })

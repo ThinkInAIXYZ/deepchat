@@ -177,8 +177,8 @@ describe('FloatingButtonPresenter drag layout sync', () => {
     getFloatingButtonEnabled: vi.fn(() => true),
     getFloatingButtonBounds: vi.fn(() => null),
     setFloatingButtonBounds: vi.fn(),
-    getLanguage: vi.fn(() => 'zh-CN'),
-    getCurrentThemeIsDark: vi.fn(() => false)
+    getLanguage: vi.fn(() => 'zh-CN' as const),
+    getCurrentThemeIsDark: vi.fn(async () => false)
   })
 
   const createFloatingPresenter = (
@@ -226,6 +226,24 @@ describe('FloatingButtonPresenter drag layout sync', () => {
     floatingPresenter = null
     await vi.runOnlyPendingTimersAsync()
     vi.useRealTimers()
+  })
+
+  it('applies acknowledged host appearance without reentering the pending core command', async () => {
+    const settings = createDesktopSettings()
+    floatingPresenter = createFloatingPresenter(createProviderSettings(), settings)
+    await floatingPresenter.initialize()
+    settings.getLanguage.mockClear()
+    settings.getCurrentThemeIsDark.mockClear()
+    settings.getCurrentThemeIsDark.mockRejectedValue(new Error('core command is awaiting host'))
+    floatingPresenter.refreshLanguage('fa-IR')
+    await floatingPresenter.refreshTheme(true)
+    expect(webContentsSendMock).toHaveBeenCalledWith(
+      FLOATING_BUTTON_EVENTS.LANGUAGE_CHANGED,
+      'fa-IR'
+    )
+    expect(webContentsSendMock).toHaveBeenCalledWith(FLOATING_BUTTON_EVENTS.THEME_CHANGED, 'dark')
+    expect(settings.getLanguage).not.toHaveBeenCalled()
+    expect(settings.getCurrentThemeIsDark).not.toHaveBeenCalled()
   })
 
   it('keeps the collapsed size stable when dragging interrupts collapse animation', async () => {
@@ -327,6 +345,9 @@ describe('FloatingButtonPresenter drag layout sync', () => {
         projectDir: null,
         isPinned: false,
         isDraft: false,
+        sessionKind: 'regular',
+        orchestrationPolicy: 'explicit',
+        toolModeOverride: null,
         createdAt: 1,
         updatedAt: 10,
         status: 'idle',
@@ -340,6 +361,9 @@ describe('FloatingButtonPresenter drag layout sync', () => {
         projectDir: null,
         isPinned: false,
         isDraft: false,
+        sessionKind: 'regular',
+        orchestrationPolicy: 'explicit',
+        toolModeOverride: null,
         createdAt: 2,
         updatedAt: 11,
         status: 'generating',

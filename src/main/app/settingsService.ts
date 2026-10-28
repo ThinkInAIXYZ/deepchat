@@ -1,5 +1,7 @@
 import {
   SETTINGS_KEYS,
+  configSetLanguageRoute,
+  configSetThemeRoute,
   settingsGetSnapshotRoute,
   settingsUpdateRoute,
   type DeepchatRouteOutput,
@@ -21,6 +23,7 @@ import type { DesktopSettings } from '@/desktop/settings'
 import type { FontSettings } from '@/desktop/fontSettings'
 import type { LoggingService } from './logging'
 import type { OcrSettingsPort } from '@/ocr/ocrSettings'
+import { getLocaleDirection } from '@shared/locales'
 
 export interface AppSettingsServiceDependencies {
   agentDefaults: DeepChatDefaults
@@ -38,37 +41,156 @@ export interface AppSettingsServiceDependencies {
 }
 
 export class AppSettingsService {
+  private accepting = true
+  private pendingCommands = 0
+  private tail: Promise<void> = Promise.resolve()
+  private systemThemeObservation: Promise<void> | undefined
+
   constructor(private readonly deps: AppSettingsServiceDependencies) {}
 
-  private readonly readSnapshot = (): SettingsSnapshotValues => ({
-    fontSizeLevel: this.deps.desktopSettings.getFontSizeLevel(),
-    fontFamily: this.deps.fonts.getFontFamily(),
-    codeFontFamily: this.deps.fonts.getCodeFontFamily(),
-    autoScrollEnabled: this.deps.desktopSettings.getAutoScrollEnabled(),
-    autoCompactionEnabled: this.deps.agentDefaults.getAutoCompactionEnabled(),
-    autoCompactionTriggerThreshold: this.deps.agentDefaults.getAutoCompactionTriggerThreshold(),
-    autoCompactionRetainRecentPairs: this.deps.agentDefaults.getAutoCompactionRetainRecentPairs(),
-    contentProtectionEnabled: this.deps.desktopSettings.getContentProtectionEnabled(),
-    privacyModeEnabled: this.deps.privacy.isEnabled(),
-    notificationsEnabled: this.deps.desktopSettings.getNotificationsEnabled(),
-    launchAtLoginEnabled: this.deps.desktopSettings.getLaunchAtLoginEnabled(),
-    traceDebugEnabled: this.deps.traceSettings.isEnabled(),
-    copyWithCotEnabled: this.deps.desktopSettings.getCopyWithCotEnabled(),
-    loggingEnabled: this.deps.logging.getEnabled(),
-    ocrAutoExtractForNonVisionModels: this.deps.ocr.getAutomaticExtractionEnabled(),
-    ocrBackend: this.deps.ocr.getBackend()
-  })
+  private async enqueue<T>(run: () => T | Promise<T>, systemObservation = false): Promise<T> {
+    this.deps.assertActive()
+    if (!this.accepting) throw new Error('Settings owner is stopped')
+    if (this.pendingCommands >= 64 && !systemObservation)
+      throw new Error('Settings command queue is full')
+    this.pendingCommands++
+    const result = this.tail
+      .then(() => {
+        this.deps.assertActive()
+        if (!this.accepting) throw new Error('Settings owner is stopped')
+        return run()
+      })
+      .finally(() => this.pendingCommands--)
+    this.tail = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return await result
+  }
+
+  async stop(): Promise<void> {
+    this.accepting = false
+    let timeout: NodeJS.Timeout | undefined
+    try {
+      await Promise.race([
+        this.tail,
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error('Settings owner did not drain (30000ms)')),
+            30_000
+          )
+        })
+      ])
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  start(): void {
+    if (this.pendingCommands > 0) throw new Error('Settings owner is still draining')
+    this.accepting = true
+  }
+
+  async initializeDesktop(): Promise<void> {
+    await this.enqueue(() => this.deps.desktopSettings.initialize())
+  }
+
+  async observeSystemTheme(): Promise<void> {
+    this.deps.assertActive()
+    if (!this.accepting) throw new Error('Settings owner is stopped')
+    if (this.systemThemeObservation) return await this.systemThemeObservation
+    // Reserve the single coalesced observation so a full command queue cannot lose an OS change.
+    const pending = this.enqueue(async () => {
+      this.systemThemeObservation = undefined
+      await this.deps.desktopSettings.observeSystemTheme()
+    }, true)
+    this.systemThemeObservation = pending
+    const clear = () => {
+      if (this.systemThemeObservation === pending) this.systemThemeObservation = undefined
+    }
+    void pending.then(clear, clear)
+    await pending
+  }
+
+  private readLanguage(): DeepchatRouteOutput<'config.getLanguage'> {
+    const locale = this.deps.desktopSettings.getLanguage()
+    return {
+      requestedLanguage: this.deps.desktopSettings.getRequestedLanguage(),
+      locale,
+      direction: getLocaleDirection(locale)
+    }
+  }
+
+  async getLanguage(): Promise<DeepchatRouteOutput<'config.getLanguage'>> {
+    return await this.enqueue(() => this.readLanguage())
+  }
+
+  async setLanguage(language: string): Promise<DeepchatRouteOutput<'config.setLanguage'>> {
+    const input = configSetLanguageRoute.input.parse({ language })
+    return await this.enqueue(async () => {
+      await this.deps.desktopSettings.setLanguage(input.language)
+      return this.readLanguage()
+    })
+  }
+
+  private async readTheme(): Promise<DeepchatRouteOutput<'config.getTheme'>> {
+    return {
+      theme: this.deps.desktopSettings.getTheme(),
+      isDark: await this.deps.desktopSettings.getCurrentThemeIsDark()
+    }
+  }
+
+  async getTheme(): Promise<DeepchatRouteOutput<'config.getTheme'>> {
+    return await this.enqueue(() => this.readTheme())
+  }
+
+  async setTheme(
+    theme: 'dark' | 'light' | 'system'
+  ): Promise<DeepchatRouteOutput<'config.setTheme'>> {
+    const input = configSetThemeRoute.input.parse({ theme })
+    return await this.enqueue(async () => ({
+      theme: input.theme,
+      isDark: await this.deps.desktopSettings.setTheme(input.theme)
+    }))
+  }
+
+  private readonly readSnapshot = async (
+    keys?: SettingsKey[]
+  ): Promise<Partial<SettingsSnapshotValues>> => {
+    const values: Partial<SettingsSnapshotValues> = {
+      fontSizeLevel: this.deps.desktopSettings.getFontSizeLevel(),
+      fontFamily: this.deps.fonts.getFontFamily(),
+      codeFontFamily: this.deps.fonts.getCodeFontFamily(),
+      autoScrollEnabled: this.deps.desktopSettings.getAutoScrollEnabled(),
+      autoCompactionEnabled: this.deps.agentDefaults.getAutoCompactionEnabled(),
+      autoCompactionTriggerThreshold: this.deps.agentDefaults.getAutoCompactionTriggerThreshold(),
+      autoCompactionRetainRecentPairs: this.deps.agentDefaults.getAutoCompactionRetainRecentPairs(),
+      contentProtectionEnabled: this.deps.desktopSettings.getContentProtectionEnabled(),
+      privacyModeEnabled: this.deps.privacy.isEnabled(),
+      notificationsEnabled: this.deps.desktopSettings.getNotificationsEnabled(),
+      traceDebugEnabled: this.deps.traceSettings.isEnabled(),
+      copyWithCotEnabled: this.deps.desktopSettings.getCopyWithCotEnabled(),
+      loggingEnabled: this.deps.logging.getEnabled(),
+      ocrAutoExtractForNonVisionModels: this.deps.ocr.getAutomaticExtractionEnabled(),
+      ocrBackend: this.deps.ocr.getBackend()
+    }
+    if (!keys?.length || keys.includes('launchAtLoginEnabled')) {
+      values.launchAtLoginEnabled = await this.deps.desktopSettings.getLaunchAtLoginEnabled()
+    }
+    return this.pickSnapshot(values, keys)
+  }
   private readonly pickSnapshot = (
-    snapshot: SettingsSnapshotValues,
+    snapshot: Partial<SettingsSnapshotValues>,
     keys?: SettingsKey[]
   ): Partial<SettingsSnapshotValues> => {
     const result: Partial<SettingsSnapshotValues> = {}
     for (const key of keys?.length ? keys : SETTINGS_KEYS) {
-      ;(result as Record<SettingsKey, SettingsSnapshotValues[SettingsKey]>)[key] = snapshot[key]
+      ;(result as Record<SettingsKey, SettingsSnapshotValues[SettingsKey] | undefined>)[key] =
+        snapshot[key]
     }
     return result
   }
-  private readonly applyChange = (change: SettingsChange): void => {
+  private readonly applyChange = (change: SettingsChange): void | Promise<void> => {
     switch (change.key) {
       case 'fontSizeLevel':
         this.deps.desktopSettings.setFontSizeLevel(change.value)
@@ -102,8 +224,7 @@ export class AppSettingsService {
         this.deps.desktopSettings.setNotificationsEnabled(change.value)
         return
       case 'launchAtLoginEnabled':
-        this.deps.desktopSettings.setLaunchAtLoginEnabled(change.value)
-        return
+        return this.deps.desktopSettings.setLaunchAtLoginEnabled(change.value)
       case 'traceDebugEnabled':
         this.deps.traceSettings.setEnabled(change.value)
         return
@@ -149,58 +270,61 @@ export class AppSettingsService {
 
   async getSnapshot(keys?: SettingsKey[]): Promise<DeepchatRouteOutput<'settings.getSnapshot'>> {
     const input = settingsGetSnapshotRoute.input.parse({ keys })
-    this.deps.assertActive()
-    const version = this.deps.nextVersion()
-    return { version, values: this.pickSnapshot(this.readSnapshot(), input.keys) }
+    return await this.enqueue(async () => {
+      const version = this.deps.nextVersion()
+      return { version, values: await this.readSnapshot(input.keys) }
+    })
   }
 
   async update(changes: SettingsChange[]): Promise<DeepchatRouteOutput<'settings.update'>> {
     const input = settingsUpdateRoute.input.parse({ changes })
-    this.deps.assertActive()
-    for (const change of input.changes) {
-      this.applyChange(change)
-      this.recordChange(change)
-    }
-    const changedKeys = input.changes.map((change) => change.key)
-    return {
-      version: this.deps.nextVersion(),
-      changedKeys,
-      values: this.pickSnapshot(this.readSnapshot(), changedKeys)
-    }
+    return await this.enqueue(async () => {
+      for (const change of input.changes) {
+        const pending = this.applyChange(change)
+        if (pending) await pending
+        this.recordChange(change)
+      }
+      const changedKeys = input.changes.map((change) => change.key)
+      const values = await this.readSnapshot(changedKeys)
+      return { version: this.deps.nextVersion(), changedKeys, values }
+    })
   }
 
-  publishSnapshot(): void {
-    this.deps.assertActive()
-    this.deps.publishEvent('settings.changed', {
-      version: this.deps.nextVersion(),
-      changedKeys: [...SETTINGS_KEYS],
-      values: this.readSnapshot()
+  async publishSnapshot(): Promise<void> {
+    await this.enqueue(async () => {
+      const version = this.deps.nextVersion()
+      this.deps.publishEvent('settings.changed', {
+        version,
+        changedKeys: [...SETTINGS_KEYS],
+        values: await this.readSnapshot()
+      })
     })
   }
 
   async applyDisplayChange(raw: ChatSettingMutation): Promise<ApplyChatSettingSuccess> {
     const change = ChatSettingMutationSchema.parse(raw)
-    this.deps.assertActive()
-    const settings = this.deps.desktopSettings
-    let previousValue: ApplyChatSettingSuccess['previousValue']
-    switch (change.id) {
-      case 'copyWithCotEnabled':
-        previousValue = settings.getCopyWithCotEnabled()
-        settings.setCopyWithCotEnabled(change.value)
-        break
-      case 'fontSizeLevel':
-        previousValue = settings.getFontSizeLevel()
-        settings.setFontSizeLevel(change.value)
-        break
-      case 'language':
-        previousValue = settings.getRequestedLanguage()
-        settings.setLanguage(change.value)
-        break
-      case 'theme':
-        previousValue = settings.getTheme()
-        settings.setTheme(change.value)
-        break
-    }
-    return { ok: true, id: change.id, value: change.value, previousValue, appliedAt: Date.now() }
+    return await this.enqueue(async () => {
+      const settings = this.deps.desktopSettings
+      let previousValue: ApplyChatSettingSuccess['previousValue']
+      switch (change.id) {
+        case 'copyWithCotEnabled':
+          previousValue = settings.getCopyWithCotEnabled()
+          settings.setCopyWithCotEnabled(change.value)
+          break
+        case 'fontSizeLevel':
+          previousValue = settings.getFontSizeLevel()
+          settings.setFontSizeLevel(change.value)
+          break
+        case 'language':
+          previousValue = settings.getRequestedLanguage()
+          await settings.setLanguage(change.value)
+          break
+        case 'theme':
+          previousValue = settings.getTheme()
+          await settings.setTheme(change.value)
+          break
+      }
+      return { ok: true, id: change.id, value: change.value, previousValue, appliedAt: Date.now() }
+    })
   }
 }

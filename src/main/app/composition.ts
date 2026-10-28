@@ -39,6 +39,7 @@ import {
   app,
   ipcMain,
   powerMonitor,
+  nativeTheme,
   nativeImage,
   net,
   webContents as electronWebContents
@@ -1068,11 +1069,25 @@ export async function createMainProcessControl(dependencies: {
   const desktopSettings = new DesktopSettings(
     dependencies.settingsStore,
     {
-      refreshLanguage: () => {
-        floatingButtonPresenter.refreshLanguage()
-        void tabPresenter.refreshLanguage()
+      systemLocale: app.getLocale(),
+      readTheme: async () => ({
+        theme: nativeTheme.themeSource,
+        isDark: nativeTheme.shouldUseDarkColors
+      }),
+      applyTheme: async (theme) => {
+        nativeTheme.themeSource = theme
+        return nativeTheme.shouldUseDarkColors
       },
-      refreshTheme: () => floatingButtonPresenter.refreshTheme()
+      refreshLanguage: async (locale) => {
+        floatingButtonPresenter.refreshLanguage(locale)
+        await tabPresenter.refreshLanguage(locale)
+      },
+      refreshTheme: (isDark) => floatingButtonPresenter.refreshTheme(isDark),
+      readLaunchAtLogin: async () => app.getLoginItemSettings().openAtLogin,
+      setLaunchAtLogin: async (enabled) => {
+        app.setLoginItemSettings({ openAtLogin: enabled })
+        return app.getLoginItemSettings().openAtLogin
+      }
     },
     publishDeepchatEvent
   )
@@ -2870,7 +2885,14 @@ export async function createMainProcessControl(dependencies: {
   }
   powerMonitor.on('resume', onSystemResume)
 
-  desktopSettings.initializeTheme()
+  await appSettingsService.initializeDesktop()
+  const onSystemThemeUpdated = () => {
+    if (appLifecycleState !== 'running' || databaseRequests.state !== 'running') return
+    void appSettingsService.observeSystemTheme().catch((error) => {
+      console.warn('[Settings] Failed to refresh system theme:', error)
+    })
+  }
+  nativeTheme.on('updated', onSystemThemeUpdated)
 
   function setupTray() {
     console.info('setupTray', !!trayPresenter)
@@ -3174,6 +3196,8 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function destroy(): Promise<void> {
+    nativeTheme.off('updated', onSystemThemeUpdated)
+    await appSettingsService.stop()
     await runDestroyStep('agentCliTokenAuthority.clear', () => agentCliTokenAuthority.clear())
     await runDestroyStep('cliServer.stop', () => cliServer.stop())
     await runDestroyStep('oauthService.stop', () => oauthService.stop())
@@ -3385,6 +3409,7 @@ export async function createMainProcessControl(dependencies: {
       tabPresenter,
       dialogService,
       settings: desktopSettings,
+      appearance: appSettingsService,
       setFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled),
       recordActivity: (input) => {
         void settingsDatabase.recordSettingsActivity(input).catch((error) => {
@@ -3951,6 +3976,7 @@ export async function createMainProcessControl(dependencies: {
     let operationResult: DatabaseMaintenanceResult | undefined
     let operationError: unknown
     try {
+      await appSettingsService.stop()
       dependencies.secretStore.pause()
       replicaEndpoint.stop()
       await automaticSync?.pause()
@@ -4063,8 +4089,10 @@ export async function createMainProcessControl(dependencies: {
       liveDelegationService.start()
       const startupRunId = startupWorkloadCoordinator.createRun('main')
       scheduleBackgroundWork(startupRunId)
+      appSettingsService.start()
       databaseRequests.resume()
-      appSettingsService.publishSnapshot()
+      await appSettingsService.publishSnapshot()
+      await appSettingsService.observeSystemTheme()
       agentSettings.notifyAgentCatalogChanged()
       syncReplica?.wake()
       await automaticSync?.start()
@@ -4223,6 +4251,7 @@ export async function createMainProcessControl(dependencies: {
   cronJobs.start()
   memoryService.startBackgroundMaintenance()
   appLifecycleState = 'running'
+  onSystemThemeUpdated()
   try {
     await artifactSpool.initialize()
     await cliServer.start()

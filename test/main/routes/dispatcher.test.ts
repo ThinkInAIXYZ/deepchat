@@ -1649,6 +1649,12 @@ function createRuntime() {
     tabPresenter,
     dialogService: dialogService as unknown as DialogServicePort,
     settings: desktopSettings as never,
+    appearance: {
+      getLanguage: () => appSettingsService.getLanguage(),
+      setLanguage: (language) => appSettingsService.setLanguage(language),
+      getTheme: () => appSettingsService.getTheme(),
+      setTheme: (theme) => appSettingsService.setTheme(theme)
+    },
     setFloatingButtonEnabled,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)

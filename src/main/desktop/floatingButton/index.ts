@@ -208,7 +208,7 @@ export class FloatingButtonPresenter {
     }
   }
 
-  public refreshLanguage(): void {
+  public refreshLanguage(locale = this.settings.getLanguage()): void {
     if (!this.floatingWindow?.exists()) {
       return
     }
@@ -218,13 +218,10 @@ export class FloatingButtonPresenter {
       return
     }
 
-    buttonWindow.webContents.send(
-      FLOATING_BUTTON_EVENTS.LANGUAGE_CHANGED,
-      this.settings.getLanguage()
-    )
+    buttonWindow.webContents.send(FLOATING_BUTTON_EVENTS.LANGUAGE_CHANGED, locale)
   }
 
-  public async refreshTheme(): Promise<void> {
+  public async refreshTheme(isDark?: boolean): Promise<void> {
     if (!this.floatingWindow?.exists()) {
       return
     }
@@ -234,7 +231,8 @@ export class FloatingButtonPresenter {
       return
     }
 
-    buttonWindow.webContents.send(FLOATING_BUTTON_EVENTS.THEME_CHANGED, await this.resolveTheme())
+    const theme = isDark === undefined ? await this.resolveTheme() : isDark ? 'dark' : 'light'
+    buttonWindow.webContents.send(FLOATING_BUTTON_EVENTS.THEME_CHANGED, theme)
   }
 
   private async createFloatingWindow(): Promise<void> {
@@ -631,7 +629,7 @@ export class FloatingButtonPresenter {
   }
 
   private async resolveTheme(): Promise<'dark' | 'light'> {
-    const isDark = this.settings.getCurrentThemeIsDark()
+    const isDark = await this.settings.getCurrentThemeIsDark()
     return isDark ? 'dark' : 'light'
   }
 

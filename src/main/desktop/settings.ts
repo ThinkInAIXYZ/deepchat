@@ -2,7 +2,6 @@ import type { SettingsStore } from '@/config/settingsStore'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { ShortcutKeySetting } from '@shared/types/desktop'
 import { defaultShortcutKey } from './shortcutKeySettings'
-import { app, nativeTheme } from 'electron'
 import type { FloatingButtonBounds } from '@shared/types/floating-widget'
 import {
   getLocaleDirection,
@@ -12,13 +11,20 @@ import {
   type SupportedLocale
 } from '@shared/locales'
 
+export interface DesktopSettingsHost {
+  readonly systemLocale: string
+  readTheme(): Promise<{ theme: 'dark' | 'light' | 'system'; isDark: boolean }>
+  applyTheme(theme: 'dark' | 'light' | 'system'): Promise<boolean>
+  refreshLanguage(locale: SupportedLocale): Promise<void>
+  refreshTheme(isDark: boolean): Promise<void>
+  readLaunchAtLogin(): Promise<boolean>
+  setLaunchAtLogin(enabled: boolean): Promise<boolean>
+}
+
 export class DesktopSettings {
   constructor(
     private readonly settings: SettingsStore,
-    private readonly effects: {
-      refreshLanguage(): void
-      refreshTheme(): Promise<void>
-    },
+    private readonly host: DesktopSettingsHost,
     private readonly publishEvent: DeepchatEventPublisher
   ) {}
 
@@ -28,52 +34,55 @@ export class DesktopSettings {
 
   getLanguage(): SupportedLocale {
     const language = this.getRequestedLanguage()
-    return resolveSupportedLocale(language === 'system' ? app.getLocale() : language)
+    return resolveSupportedLocale(language === 'system' ? this.host.systemLocale : language)
   }
 
-  setLanguage(language: string): void {
+  async setLanguage(language: string): Promise<void> {
     const requestedLanguage = resolveRequestedLocale(language)
     this.settings.set('language', requestedLanguage)
     const locale = this.getLanguage()
+    await this.host.refreshLanguage(locale)
     this.publishEvent('config.language.changed', {
       requestedLanguage,
       locale,
       direction: getLocaleDirection(locale),
       version: Date.now()
     })
-    this.effects.refreshLanguage()
   }
 
-  initializeTheme(): void {
-    nativeTheme.themeSource = this.getTheme()
-    nativeTheme.on('updated', () => {
-      if (nativeTheme.themeSource !== 'system') return
-      this.publishEvent('config.systemTheme.changed', {
-        isDark: nativeTheme.shouldUseDarkColors,
-        version: Date.now()
-      })
-      void this.effects.refreshTheme()
-    })
+  async initialize(): Promise<void> {
+    await this.host.applyTheme(this.getTheme())
+    await this.host.refreshLanguage(this.getLanguage())
   }
 
-  setTheme(theme: 'dark' | 'light' | 'system'): boolean {
-    nativeTheme.themeSource = theme
-    this.settings.set('appTheme', theme)
-    this.publishEvent('config.theme.changed', {
-      theme,
-      isDark: nativeTheme.shouldUseDarkColors,
+  async observeSystemTheme(): Promise<void> {
+    const observed = await this.host.readTheme()
+    if (this.getTheme() !== 'system' || observed.theme !== 'system') return
+    await this.host.refreshTheme(observed.isDark)
+    this.publishEvent('config.systemTheme.changed', {
+      isDark: observed.isDark,
       version: Date.now()
     })
-    void this.effects.refreshTheme()
-    return nativeTheme.shouldUseDarkColors
+  }
+
+  async setTheme(theme: 'dark' | 'light' | 'system'): Promise<boolean> {
+    const isDark = await this.host.applyTheme(theme)
+    this.settings.set('appTheme', theme)
+    await this.host.refreshTheme(isDark)
+    this.publishEvent('config.theme.changed', {
+      theme,
+      isDark,
+      version: Date.now()
+    })
+    return isDark
   }
 
   getTheme(): 'dark' | 'light' | 'system' {
     return this.settings.get<'dark' | 'light' | 'system'>('appTheme') || 'system'
   }
 
-  getCurrentThemeIsDark(): boolean {
-    return nativeTheme.shouldUseDarkColors
+  async getCurrentThemeIsDark(): Promise<boolean> {
+    return (await this.host.readTheme()).isDark
   }
 
   getNotificationsEnabled(): boolean {
@@ -119,16 +128,16 @@ export class DesktopSettings {
     })
   }
 
-  getLaunchAtLoginEnabled(): boolean {
-    return app.getLoginItemSettings().openAtLogin
+  async getLaunchAtLoginEnabled(): Promise<boolean> {
+    return await this.host.readLaunchAtLogin()
   }
 
-  setLaunchAtLoginEnabled(enabled: boolean): void {
-    app.setLoginItemSettings({ openAtLogin: Boolean(enabled) })
+  async setLaunchAtLoginEnabled(enabled: boolean): Promise<void> {
+    const observed = await this.host.setLaunchAtLogin(Boolean(enabled))
     this.publishEvent('settings.changed', {
       changedKeys: ['launchAtLoginEnabled'],
       version: Date.now(),
-      values: { launchAtLoginEnabled: this.getLaunchAtLoginEnabled() }
+      values: { launchAtLoginEnabled: observed }
     })
   }
 

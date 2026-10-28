@@ -50,6 +50,7 @@ export class TabPresenter implements ITabPresenter {
 
   private windowTypes: Map<number, 'chat' | 'browser'> = new Map()
   private chromeHeights: Map<number, number> = new Map()
+  private contextMenuLocale: string | undefined
   private static readonly DEFAULT_CHROME_HEIGHT = 60
   private static readonly DEFAULT_WINDOW_TYPE: 'chat' | 'browser' = 'chat'
 
@@ -103,7 +104,8 @@ export class TabPresenter implements ITabPresenter {
     this.chromeHeights.delete(windowId)
   }
 
-  async refreshLanguage(): Promise<void> {
+  async refreshLanguage(locale?: string): Promise<void> {
+    if (locale) this.contextMenuLocale = locale
     for (const [tabId] of this.tabWindowMap.entries()) {
       await this.setupTabContextMenu(tabId)
     }
@@ -730,7 +732,7 @@ export class TabPresenter implements ITabPresenter {
       this.tabContextMenuDisposers.delete(tabId)
     }
 
-    const lang = app.getLocale()
+    const lang = this.contextMenuLocale ?? app.getLocale()
     const labels = await getContextMenuLabels(lang)
 
     const disposer = contextMenu({
