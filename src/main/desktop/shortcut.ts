@@ -8,13 +8,13 @@ import type {
   IWindowPresenter,
   ShortcutKeySetting
 } from '@shared/types/desktop'
-import type { DesktopSettings } from './settings'
+import type { DesktopConfigurationProjection } from './configurationProjection'
 import { getContextMenuLabels, type TranslationMap } from '@shared/i18n'
 import { is } from '@electron-toolkit/utils'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 
 export class ShortcutPresenter implements IShortcutPresenter {
-  private settings: Pick<DesktopSettings, 'getShortcutKeys' | 'getLanguage'>
+  private settings: Pick<DesktopConfigurationProjection, 'getShortcutKeys' | 'getLanguage'>
   private windowPresenter: IWindowPresenter
   private shortcutKeys: ShortcutKeySetting = {
     ...defaultShortcutKey
@@ -25,7 +25,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
    * @param shortKey 可选的自定义快捷键设置
    */
   constructor(
-    settings: Pick<DesktopSettings, 'getShortcutKeys' | 'getLanguage'>,
+    settings: Pick<DesktopConfigurationProjection, 'getShortcutKeys' | 'getLanguage'>,
     windowPresenter: IWindowPresenter,
     private readonly publishEvent: DeepchatEventPublisher
   ) {

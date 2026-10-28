@@ -16,13 +16,19 @@ describe('DesktopSettings', () => {
     readLaunchAtLogin: vi.fn(async () => false),
     setLaunchAtLogin: vi.fn(async () => false),
     applyContentProtection: vi.fn(async () => undefined),
+    applyFloatingButtonEnabled: vi.fn(async () => undefined),
     refreshLanguage: vi.fn(async () => undefined),
     refreshTheme: vi.fn(async () => undefined)
   }
 
   it('publishes the font size change after persisting it', () => {
     const settings = { set: vi.fn() }
-    const desktopSettings = new DesktopSettings(settings as never, host, publishDeepchatEventMock)
+    const desktopSettings = new DesktopSettings(
+      settings as never,
+      host,
+      publishDeepchatEventMock,
+      vi.fn()
+    )
 
     desktopSettings.setFontSizeLevel(4)
 
@@ -39,7 +45,12 @@ describe('DesktopSettings', () => {
       get: vi.fn(() => undefined),
       set: vi.fn()
     }
-    const desktopSettings = new DesktopSettings(settings as never, host, publishDeepchatEventMock)
+    const desktopSettings = new DesktopSettings(
+      settings as never,
+      host,
+      publishDeepchatEventMock,
+      vi.fn()
+    )
 
     expect(desktopSettings.getCopyWithCotEnabled()).toBe(true)
 
@@ -59,7 +70,12 @@ describe('DesktopSettings', () => {
       set: vi.fn()
     }
     host.systemLocale = 'zh-Hant-HK'
-    const desktopSettings = new DesktopSettings(settings as never, host, publishDeepchatEventMock)
+    const desktopSettings = new DesktopSettings(
+      settings as never,
+      host,
+      publishDeepchatEventMock,
+      vi.fn()
+    )
 
     expect(desktopSettings.getLanguage()).toBe('zh-HK')
 
@@ -73,7 +89,12 @@ describe('DesktopSettings', () => {
       get: vi.fn(() => 'fa-IR'),
       set: vi.fn()
     }
-    const desktopSettings = new DesktopSettings(settings as never, host, publishDeepchatEventMock)
+    const desktopSettings = new DesktopSettings(
+      settings as never,
+      host,
+      publishDeepchatEventMock,
+      vi.fn()
+    )
 
     await desktopSettings.setLanguage('fa')
 

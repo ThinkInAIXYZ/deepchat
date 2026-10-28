@@ -169,7 +169,7 @@ export class UpgradeService {
   }
 
   constructor(
-    private readonly settings: UpdateSettings,
+    private readonly settings: Pick<UpdateSettings, 'getChannel'>,
     private readonly isPrivacyModeEnabled: () => boolean,
     requestUpdateInstall: (installAction: () => void) => Promise<void>,
     private readonly publishEvent: DeepchatEventPublisher,

@@ -20,13 +20,15 @@ export interface DesktopSettingsHost {
   readLaunchAtLogin(): Promise<boolean>
   setLaunchAtLogin(enabled: boolean): Promise<boolean>
   applyContentProtection(enabled: boolean): Promise<void>
+  applyFloatingButtonEnabled(enabled: boolean): Promise<void>
 }
 
 export class DesktopSettings {
   constructor(
     private readonly settings: SettingsStore,
     private readonly host: DesktopSettingsHost,
-    private readonly publishEvent: DeepchatEventPublisher
+    private readonly publishEvent: DeepchatEventPublisher,
+    private readonly committed: () => void
   ) {}
 
   getRequestedLanguage(): RequestedLocale {
@@ -41,6 +43,7 @@ export class DesktopSettings {
   async setLanguage(language: string): Promise<void> {
     const requestedLanguage = resolveRequestedLocale(language)
     this.settings.set('language', requestedLanguage)
+    this.committed()
     const locale = this.getLanguage()
     await this.host.refreshLanguage(locale)
     this.publishEvent('config.language.changed', {
@@ -69,6 +72,7 @@ export class DesktopSettings {
   async setTheme(theme: 'dark' | 'light' | 'system'): Promise<boolean> {
     const isDark = await this.host.applyTheme(theme)
     this.settings.set('appTheme', theme)
+    this.committed()
     await this.host.refreshTheme(isDark)
     this.publishEvent('config.theme.changed', {
       theme,
@@ -112,6 +116,7 @@ export class DesktopSettings {
 
   setAutoScrollEnabled(enabled: boolean): void {
     this.settings.set('autoScrollEnabled', Boolean(enabled))
+    this.committed()
     this.publishEvent('settings.changed', {
       changedKeys: ['autoScrollEnabled'],
       version: Date.now(),
@@ -122,6 +127,7 @@ export class DesktopSettings {
   setNotificationsEnabled(enabled: boolean): void {
     const value = Boolean(enabled)
     this.settings.set('notificationsEnabled', value)
+    this.committed()
     this.publishEvent('settings.changed', {
       changedKeys: ['notificationsEnabled'],
       version: Date.now(),
@@ -153,6 +159,7 @@ export class DesktopSettings {
   async setContentProtectionEnabled(enabled: boolean): Promise<void> {
     const value = Boolean(enabled)
     this.settings.set('contentProtectionEnabled', value)
+    this.committed()
     await this.host.applyContentProtection(value)
     this.publishEvent('settings.changed', {
       changedKeys: ['contentProtectionEnabled'],
@@ -165,9 +172,11 @@ export class DesktopSettings {
     return this.settings.get<boolean>('floatingButtonEnabled') ?? false
   }
 
-  setFloatingButtonEnabled(enabled: boolean): void {
+  async setFloatingButtonEnabled(enabled: boolean): Promise<void> {
     const value = Boolean(enabled)
     this.settings.set('floatingButtonEnabled', value)
+    this.committed()
+    await this.host.applyFloatingButtonEnabled(value)
     this.publishEvent('config.floatingButton.changed', {
       enabled: value,
       version: Date.now()
@@ -189,6 +198,7 @@ export class DesktopSettings {
 
   setFloatingButtonBounds(bounds: FloatingButtonBounds): void {
     this.settings.set('floatingButtonBounds', bounds)
+    this.committed()
   }
 
   getShortcutKeys(): ShortcutKeySetting {
@@ -200,11 +210,13 @@ export class DesktopSettings {
 
   setShortcutKeys(shortcuts: ShortcutKeySetting): void {
     this.settings.set('shortcutKey', shortcuts)
+    this.committed()
     this.publishShortcutKeysChanged()
   }
 
   resetShortcutKeys(): void {
     this.settings.set('shortcutKey', { ...defaultShortcutKey })
+    this.committed()
     this.publishShortcutKeysChanged()
   }
 
@@ -217,6 +229,7 @@ export class DesktopSettings {
 
   private setSetting(key: 'fontSizeLevel' | 'copyWithCotEnabled', value: number | boolean): void {
     this.settings.set(key, value)
+    this.committed()
     this.publishEvent('settings.changed', {
       changedKeys: [key],
       version: Date.now(),

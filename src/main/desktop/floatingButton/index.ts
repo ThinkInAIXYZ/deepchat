@@ -21,7 +21,7 @@ import type { SessionQuery } from '@/session/query'
 import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import type { WindowPresenter } from '../window'
 import type { TabPresenter } from '../tab'
-import type { DesktopSettings } from '../settings'
+import type { DesktopConfigurationProjection } from '../configurationProjection'
 
 const EMPTY_SNAPSHOT: FloatingWidgetSnapshot = {
   expanded: false,
@@ -82,7 +82,7 @@ export class FloatingButtonPresenter {
       'getAcpRegistryIconMarkup' | 'listAgents' | 'getAcpEnabled'
     >,
     private readonly settings: Pick<
-      DesktopSettings,
+      DesktopConfigurationProjection,
       | 'getFloatingButtonEnabled'
       | 'getFloatingButtonBounds'
       | 'setFloatingButtonBounds'
@@ -329,7 +329,8 @@ export class FloatingButtonPresenter {
       void this.openSession(sessionId.trim())
     })
 
-    ipcMain.on(FLOATING_BUTTON_EVENTS.DRAG_START, (_event, payload: unknown) => {
+    ipcMain.on(FLOATING_BUTTON_EVENTS.DRAG_START, (event, payload: unknown) => {
+      if (!this.isWidgetSender(event)) return
       if (!isPointPayload(payload)) {
         return
       }
@@ -360,7 +361,8 @@ export class FloatingButtonPresenter {
       }
     })
 
-    ipcMain.on(FLOATING_BUTTON_EVENTS.DRAG_MOVE, (_event, payload: unknown) => {
+    ipcMain.on(FLOATING_BUTTON_EVENTS.DRAG_MOVE, (event, payload: unknown) => {
+      if (!this.isWidgetSender(event)) return
       if (!isPointPayload(payload)) {
         return
       }
@@ -380,7 +382,8 @@ export class FloatingButtonPresenter {
       })
     })
 
-    ipcMain.on(FLOATING_BUTTON_EVENTS.DRAG_END, () => {
+    ipcMain.on(FLOATING_BUTTON_EVENTS.DRAG_END, (event) => {
+      if (!this.isWidgetSender(event)) return
       if (!dragState || !this.floatingWindow?.exists()) {
         this.isDragging = false
         dragState = null
@@ -414,6 +417,15 @@ export class FloatingButtonPresenter {
         this.applyWindowLayout()
       }
     })
+  }
+
+  private isWidgetSender(event: Electron.IpcMainEvent): boolean {
+    const window = this.floatingWindow?.getWindow()
+    if (!window || window.isDestroyed()) return false
+    return (
+      event.sender.id === window.webContents.id &&
+      event.senderFrame === window.webContents.mainFrame
+    )
   }
 
   private setExpanded(expanded: boolean): void {
@@ -569,11 +581,15 @@ export class FloatingButtonPresenter {
 
   private persistFloatingBounds(snapped: WidgetRect & { dockSide: FloatingWidgetDockSide }): void {
     try {
-      this.settings.setFloatingButtonBounds({
-        x: snapped.x,
-        y: snapped.y,
-        dockSide: snapped.dockSide
-      })
+      void this.settings
+        .setFloatingButtonBounds({
+          x: snapped.x,
+          y: snapped.y,
+          dockSide: snapped.dockSide
+        })
+        .catch((error) => {
+          console.error('Failed to persist floating button bounds:', error)
+        })
     } catch (error) {
       console.error('Failed to persist floating button bounds:', error)
     }

@@ -1000,6 +1000,9 @@ function createRuntime() {
   const applyCustomProxyUrl = vi.fn()
   const applyContentProtection = vi.fn()
   const desktopSettings = {
+    getLanguage: vi.fn(() => 'en-US'),
+    getCloseToQuit: vi.fn(() => false),
+    getFloatingButtonBounds: vi.fn(() => null),
     getCopyWithCotEnabled: vi.fn(() => settings.copyWithCotEnabled),
     setCopyWithCotEnabled: vi.fn((enabled: boolean) => {
       settings.copyWithCotEnabled = enabled
@@ -1026,8 +1029,9 @@ function createRuntime() {
       applyContentProtection(value)
     }),
     getFloatingButtonEnabled: vi.fn(() => settings.floatingButtonEnabled),
-    setFloatingButtonEnabled: vi.fn((value: boolean) => {
+    setFloatingButtonEnabled: vi.fn(async (value: boolean) => {
       settings.floatingButtonEnabled = value
+      await setFloatingButtonEnabled(value)
     }),
     getShortcutKeys: vi.fn(() => ({})),
     setShortcutKeys: vi.fn(),
@@ -1640,6 +1644,25 @@ function createRuntime() {
     getTapeInspection: () => tapeInspection,
     getAuditEntries: () => (sqlitePresenter as any).agentMemoryAuditTable
   })
+  let settingsSnapshotRevision = 0
+  const appSettingsService = new AppSettingsService({
+    ownerId: 'fixture-owner',
+    updateSettings: updateSettings as never,
+    publishNativeSnapshot: vi.fn(),
+    agentDefaults: agentDefaults as never,
+    privacy: privacySettings as never,
+    traceSettings: traceSettings as never,
+    desktopSettings: desktopSettings as never,
+    fonts: fontSettings as never,
+    logging: loggingService as never,
+    ocr: ocrSettings,
+    publishEvent: publishDeepchatEvent,
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    },
+    nextVersion: () => ++settingsSnapshotRevision,
+    assertActive: () => {}
+  })
   const desktopRoutes = createDesktopRoutes({
     ownsDraftSession: sessionLifecyclePort.ownsDraftSession,
     windowPresenter,
@@ -1649,14 +1672,13 @@ function createRuntime() {
     desktopSessionBinding,
     tabPresenter,
     dialogService: dialogService as unknown as DialogServicePort,
-    settings: desktopSettings as never,
+    settings: appSettingsService,
     appearance: {
       getLanguage: () => appSettingsService.getLanguage(),
       setLanguage: (language) => appSettingsService.setLanguage(language),
       getTheme: () => appSettingsService.getTheme(),
       setTheme: (theme) => appSettingsService.setTheme(theme)
     },
-    setFloatingButtonEnabled,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
     }
@@ -1778,7 +1800,7 @@ function createRuntime() {
   const exporterRoutes = createExporterRoutes(exporter)
   const upgradeRoutes = createUpgradeRoutes({
     upgrade: {} as never,
-    settings: updateSettings as never
+    settings: appSettingsService
   })
   const syncRoutes = createSyncRoutes({
     sync: syncService,
@@ -1800,22 +1822,6 @@ function createRuntime() {
       updateConfig: (config) => hookSettings.setHooksNotificationsConfig(config as never),
       testHookCommand
     } as never
-  })
-  let settingsSnapshotRevision = 0
-  const appSettingsService = new AppSettingsService({
-    agentDefaults: agentDefaults as never,
-    privacy: privacySettings as never,
-    traceSettings: traceSettings as never,
-    desktopSettings: desktopSettings as never,
-    fonts: fontSettings as never,
-    logging: loggingService as never,
-    ocr: ocrSettings,
-    publishEvent: publishDeepchatEvent,
-    recordActivity: (input) => {
-      void sqlitePresenter.recordSettingsActivity(input)
-    },
-    nextVersion: () => ++settingsSnapshotRevision,
-    assertActive: () => {}
   })
   const appSettingsRoutes = createAppSettingsRoutes({
     appSettings: appSettingsService,

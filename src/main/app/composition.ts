@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { SyncReplicaStore } from '@/sync/replica/store'
 import { SyncReplicaEndpoint } from '@/sync/replica/endpoint'
 import { AutomaticSync } from '@/sync/replica/automatic'
@@ -121,6 +122,7 @@ import {
 } from '../notifications'
 import { DesktopSettings } from '../desktop/settings'
 import { DesktopConfigurationHost } from '../desktop/configurationHost'
+import { DesktopConfigurationProjection } from '../desktop/configurationProjection'
 import { DesktopImageActions } from '../desktop/imageActions'
 import { FontSettings } from '../desktop/fontSettings'
 import { TabPresenter } from '../desktop/tab'
@@ -662,6 +664,8 @@ export async function createMainProcessControl(dependencies: {
     if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped')
       throw new Error(`App lifecycle is ${appLifecycleState}`)
   })
+  let nativeSettings: DesktopConfigurationProjection
+  let appSettingsService: AppSettingsService
   let shutdownStepFailures = 0
   let pluginInitializationPromise: Promise<void> | null = null
   let skillInitializationPromise: Promise<void> | null = null
@@ -669,9 +673,8 @@ export async function createMainProcessControl(dependencies: {
 
   windowPresenter = new WindowPresenter(
     {
-      getCloseToQuit: () => dependencies.settingsStore.get<boolean>('closeToQuit') ?? false,
-      getContentProtectionEnabled: () =>
-        dependencies.settingsStore.get<boolean>('contentProtectionEnabled') ?? false
+      getCloseToQuit: () => nativeSettings.getCloseToQuit(),
+      getContentProtectionEnabled: () => nativeSettings.getContentProtectionEnabled()
     },
     dependencies.onWindowCreated,
     startupWorkloadCoordinator
@@ -1095,9 +1098,11 @@ export async function createMainProcessControl(dependencies: {
       applyContentProtection: async (enabled) => {
         ;(windowPresenter as WindowPresenter).applyContentProtection(enabled)
         desktopConfigurationHost.requestRestart()
-      }
+      },
+      applyFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled)
     },
-    publishDeepchatEvent
+    publishDeepchatEvent,
+    () => appSettingsService.publishNativeSnapshot()
   )
   const fontSettings = new FontSettings(dependencies.settingsStore, publishDeepchatEvent, () =>
     desktopConfigurationHost.listSystemFonts()
@@ -1367,10 +1372,12 @@ export async function createMainProcessControl(dependencies: {
   const loggingService = new LoggingService(
     dependencies.settingsStore,
     desktopConfigurationHost,
-    publishDeepchatEvent
+    publishDeepchatEvent,
+    () => appSettingsService.publishNativeSnapshot()
   )
   const rendererPerformanceLogService = new RendererPerformanceLogService(
-    dependencies.settingsStore
+    () => nativeSettings.getLoggingEnabled(),
+    app.getPath('userData')
   )
   const resolveProjectDirectory = (name: 'documents' | 'home'): string | null => {
     try {
@@ -1421,10 +1428,13 @@ export async function createMainProcessControl(dependencies: {
     sqlitePresenter: sessionData.database,
     settings: dependencies.settingsStore
   })
-  const updateSettings = new UpdateSettings(dependencies.settingsStore)
+  const updateSettings = new UpdateSettings(
+    dependencies.settingsStore,
+    dependencies.currentAppVersion
+  )
   upgradeService = new UpgradeService(
-    updateSettings,
-    () => dependencies.privacySettings.isEnabled(),
+    { getChannel: () => nativeSettings.getChannel() },
+    () => nativeSettings.isPrivacyModeEnabled(),
     dependencies.requestUpdateInstall,
     publishDeepchatEvent,
     (observation) =>
@@ -1433,7 +1443,6 @@ export async function createMainProcessControl(dependencies: {
         error: { category: observation.errorCategory }
       })
   )
-  shortcutPresenter = new ShortcutPresenter(desktopSettings, windowPresenter, publishDeepchatEvent)
   fileService = new FileService(dependencies.settingsStore, app.getPath('userData'))
   const desktopImageActions = new DesktopImageActions(app.getPath('userData'))
   ocrSettings = new OcrSettings(dependencies.settingsStore, publishDeepchatEvent)
@@ -1442,7 +1451,10 @@ export async function createMainProcessControl(dependencies: {
       console.warn('[SettingsActivity] Failed to record settings activity:', error)
     })
   }
-  const appSettingsService = new AppSettingsService({
+  appSettingsService = new AppSettingsService({
+    ownerId: randomUUID(),
+    updateSettings,
+    publishNativeSnapshot: (snapshot) => nativeSettings.apply(snapshot),
     agentDefaults,
     privacy: dependencies.privacySettings,
     traceSettings,
@@ -1459,6 +1471,12 @@ export async function createMainProcessControl(dependencies: {
         throw new Error(`App database maintenance is ${databaseRequests.state}`)
     }
   })
+  nativeSettings = new DesktopConfigurationProjection(
+    appSettingsService.readNativeSnapshot(),
+    () => nativeTheme.shouldUseDarkColors,
+    (bounds) => appSettingsService.setFloatingButtonBounds(bounds)
+  )
+  shortcutPresenter = new ShortcutPresenter(nativeSettings, windowPresenter, publishDeepchatEvent)
   const toolchainHomeDir = app.getPath('home')
   const toolchainService = ToolchainService.initialize({
     appPath: app.getAppPath(),
@@ -1738,8 +1756,8 @@ export async function createMainProcessControl(dependencies: {
     getAppVersion: () => app.getVersion(),
     logger
   })
-  notificationService = new NotificationService(desktopSettings, publishDeepchatEvent)
-  trayPresenter = new TrayPresenter(desktopSettings, windowPresenter)
+  notificationService = new NotificationService(nativeSettings, publishDeepchatEvent)
+  trayPresenter = new TrayPresenter(nativeSettings, windowPresenter)
   dialogService = new DialogService(publishDeepchatEvent)
   agentPreviewCoordinator = new AgentPreviewCoordinator()
   yoBrowserPresenter = new YoBrowserPresenter(
@@ -2501,7 +2519,7 @@ export async function createMainProcessControl(dependencies: {
   ;(windowPresenter as WindowPresenter).bindTabPresenter(tabPresenter)
   floatingButtonPresenter = new FloatingButtonPresenter(
     agentSettings,
-    desktopSettings,
+    nativeSettings,
     sessionQuery,
     desktopSessionBinding,
     windowPresenter as WindowPresenter,
@@ -3215,7 +3233,9 @@ export async function createMainProcessControl(dependencies: {
 
   async function destroy(): Promise<void> {
     nativeTheme.off('updated', onSystemThemeUpdated)
+    nativeSettings.stopWrites()
     await appSettingsService.stop()
+    await nativeSettings.drainWrites()
     await runDestroyStep('agentCliTokenAuthority.clear', () => agentCliTokenAuthority.clear())
     await runDestroyStep('cliServer.stop', () => cliServer.stop())
     await runDestroyStep('oauthService.stop', () => oauthService.stop())
@@ -3426,9 +3446,8 @@ export async function createMainProcessControl(dependencies: {
       desktopSessionBinding,
       tabPresenter,
       dialogService,
-      settings: desktopSettings,
+      settings: appSettingsService,
       appearance: appSettingsService,
-      setFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled),
       recordActivity: (input) => {
         void settingsDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
@@ -3549,7 +3568,10 @@ export async function createMainProcessControl(dependencies: {
       resetDataByType: (resetType) => resetApplicationData(resetType)
     })
     const onboardingRoutes = createOnboardingRoutes(dependencies.settingsStore)
-    const upgradeRoutes = createUpgradeRoutes({ upgrade: upgradeService, settings: updateSettings })
+    const upgradeRoutes = createUpgradeRoutes({
+      upgrade: upgradeService,
+      settings: appSettingsService
+    })
     const exporterRoutes = createExporterRoutes(exporter)
     const syncRoutes = createSyncRoutes({
       sync: syncService,
@@ -3996,7 +4018,9 @@ export async function createMainProcessControl(dependencies: {
     let operationResult: DatabaseMaintenanceResult | undefined
     let operationError: unknown
     try {
+      nativeSettings.stopWrites()
       await appSettingsService.stop()
+      await nativeSettings.drainWrites()
       dependencies.secretStore.pause()
       replicaEndpoint.stop()
       await automaticSync?.pause()
@@ -4113,6 +4137,7 @@ export async function createMainProcessControl(dependencies: {
       databaseRequests.resume()
       await appSettingsService.publishSnapshot()
       await appSettingsService.observeSystemTheme()
+      nativeSettings.startWrites()
       agentSettings.notifyAgentCatalogChanged()
       syncReplica?.wake()
       await automaticSync?.start()

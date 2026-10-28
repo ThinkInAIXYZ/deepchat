@@ -3,6 +3,7 @@ import { AppSettingsService } from '@/app/settingsService'
 import { DesktopSettings } from '@/desktop/settings'
 import { FontSettings } from '@/desktop/fontSettings'
 import { LoggingService } from '@/app/logging'
+import { UpdateSettings } from '@/upgrade/settings'
 import { SETTINGS_KEYS } from '@shared/contracts/routes'
 
 function deferred<T>() {
@@ -37,9 +38,13 @@ function setup() {
     refreshTheme: vi.fn(async (_isDark: boolean): Promise<void> => undefined),
     readLaunchAtLogin: vi.fn(async () => false),
     setLaunchAtLogin: vi.fn(async (_enabled: boolean) => false),
-    applyContentProtection: vi.fn(async (_enabled: boolean): Promise<void> => undefined)
+    applyContentProtection: vi.fn(async (_enabled: boolean): Promise<void> => undefined),
+    applyFloatingButtonEnabled: vi.fn(async (_enabled: boolean): Promise<void> => undefined)
   }
-  const desktopSettings = new DesktopSettings(storage as never, host, publishEvent)
+  let owner!: AppSettingsService
+  const nativeSnapshots = vi.fn()
+  const committed = () => owner.publishNativeSnapshot()
+  const desktopSettings = new DesktopSettings(storage as never, host, publishEvent, committed)
   const enumerateFonts = vi.fn(async (): Promise<string[]> => [])
   const loggingHost = {
     applyLogging: vi.fn(async (_enabled: boolean): Promise<void> => undefined),
@@ -47,7 +52,10 @@ function setup() {
   }
   let version = 0
   let active = true
-  const owner = new AppSettingsService({
+  owner = new AppSettingsService({
+    ownerId: 'settings-owner',
+    updateSettings: new UpdateSettings(storage as never, '1.1.4-beta.7'),
+    publishNativeSnapshot: nativeSnapshots,
     desktopSettings,
     fonts: new FontSettings(storage as never, publishEvent, enumerateFonts),
     agentDefaults: {
@@ -57,7 +65,7 @@ function setup() {
     } as never,
     privacy: { isEnabled: () => true } as never,
     traceSettings: { isEnabled: () => false } as never,
-    logging: new LoggingService(storage as never, loggingHost, publishEvent),
+    logging: new LoggingService(storage as never, loggingHost, publishEvent, committed),
     ocr: { getAutomaticExtractionEnabled: () => true, getBackend: () => 'auto' } as never,
     recordActivity: vi.fn(),
     publishEvent,
@@ -68,6 +76,7 @@ function setup() {
   })
   return {
     owner,
+    nativeSnapshots,
     host,
     loggingHost,
     enumerateFonts,
@@ -81,6 +90,77 @@ function setup() {
 }
 
 describe('AppSettingsService', () => {
+  it('serializes floating presentation effects before acknowledging each change', async () => {
+    const { owner, host, stored } = setup()
+    const pending = Promise.withResolvers<void>()
+    host.applyFloatingButtonEnabled.mockReturnValueOnce(pending.promise)
+    const first = owner.setFloatingButtonEnabled(true)
+    await vi.waitFor(() => expect(host.applyFloatingButtonEnabled).toHaveBeenCalledOnce())
+    const second = owner.setFloatingButtonEnabled(false)
+    await Promise.resolve()
+    expect(stored.get('floatingButtonEnabled')).toBe(true)
+    pending.resolve()
+    expect(await first).toBe(true)
+    expect(await second).toBe(false)
+    expect(host.applyFloatingButtonEnabled.mock.calls).toEqual([[true], [false]])
+    await owner.stop()
+  })
+
+  it('does not finish stopping while native floating presentation is pending', async () => {
+    const { owner, host } = setup()
+    const pending = Promise.withResolvers<void>()
+    host.applyFloatingButtonEnabled.mockReturnValueOnce(pending.promise)
+    const enabling = owner.setFloatingButtonEnabled(true)
+    await vi.waitFor(() => expect(host.applyFloatingButtonEnabled).toHaveBeenCalledOnce())
+    let stopped = false
+    const stopping = owner.stop().then(() => {
+      stopped = true
+    })
+    await Promise.resolve()
+    expect(stopped).toBe(false)
+    await expect(owner.setFloatingButtonEnabled(false)).rejects.toThrow('stopped')
+    pending.resolve()
+    await enabling
+    await stopping
+    expect(stopped).toBe(true)
+  })
+
+  it('publishes allowlisted native state at commit before ordinary settings events', async () => {
+    const { owner, nativeSnapshots, publishEvent, stored } = setup()
+    stored.set('shortcutKey', { privateToken: 'unexpected-secret' })
+    stored.set('floatingButtonBounds', {
+      x: 1,
+      y: 2,
+      dockSide: 'left',
+      secret: 'unexpected-secret'
+    })
+    await owner.update([{ key: 'notificationsEnabled', value: false }])
+    const committed = nativeSnapshots.mock.calls.at(-1)![0]
+    expect(committed).toMatchObject({
+      ownerId: 'settings-owner',
+      notificationsEnabled: false,
+      updateChannel: 'beta'
+    })
+    expect(JSON.stringify(committed)).not.toContain('wrapped-secret')
+    expect(JSON.stringify(committed)).not.toContain('unexpected-secret')
+    expect(nativeSnapshots.mock.invocationCallOrder[0]).toBeLessThan(
+      publishEvent.mock.invocationCallOrder[0]
+    )
+    await owner.setFloatingButtonBounds({ x: 20, y: 30, dockSide: 'right' })
+    expect(nativeSnapshots.mock.calls.at(-1)![0].floatingButtonBounds).toEqual(
+      stored.get('floatingButtonBounds')
+    )
+    expect(await owner.setUpdateChannel('stable')).toBe('stable')
+    expect(nativeSnapshots.mock.calls.at(-1)![0].updateChannel).toBe('stable')
+    await expect(owner.setFloatingButtonBounds({ x: NaN, y: 0, dockSide: 'left' })).rejects.toThrow(
+      'Invalid floating bounds'
+    )
+    await owner.stop()
+    await expect(owner.setFloatingButtonBounds({ x: 0, y: 0, dockSide: 'left' })).rejects.toThrow(
+      'stopped'
+    )
+  })
+
   it('returns an allowlisted serializable snapshot and normalized mutation values', async () => {
     const { owner, publishEvent } = setup()
     const snapshot = await owner.getSnapshot()

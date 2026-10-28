@@ -1180,6 +1180,26 @@ their reviewed package, consent, ownership, and execution contracts.
 
 ### Gateway and event flow
 
+Native Window, Tray, Notification, Shortcut and floating-widget readers use a private committed
+configuration projection. Its explicit allowlist contains resolved language, notification,
+close-to-quit, content-protection, shortcut, floating-widget, diagnostic logging, privacy and
+update-channel values. Nested shortcut and bounds objects are allowlisted too. Never copy the
+merged settings Store or credentials into this projection. Publish it immediately after the
+configuration write, before native effects or ordinary settings events; native effect callbacks
+must not query the pending configuration command again. Main reads native theme state directly.
+
+The projection carries an owner identity and monotonically increasing safe-integer revision,
+rejects foreign/stale snapshots and returns defensive copies. These fences do not establish a
+cross-process readiness or owner-replacement protocol; G5 must authenticate adoption of a new
+backend generation. Main's projection is neither a writer nor a public renderer snapshot.
+Floating bounds use an acknowledged owner mutation, with no optimistic cached update. Validate
+the current floating window and its main frame before accepting drag writes. Stop native write
+admission before draining the configuration queue and outstanding native writes for maintenance
+or shutdown. Floating enable/disable awaits actual native completion within the same serialized
+configuration command, so a queued disable or Store close cannot overtake window creation.
+Update-channel normalization remains with the configuration owner; Main supplies the application
+version, native updater and diagnostic-file lifetime explicitly.
+
 The selected sixteen-field application settings projection uses one Main presentation revision
 sequence across snapshots, mutation replies and `settings.changed` events. Renderers retain this
 revision and accept values per key, so late replies cannot reverse newer fields or discard unrelated

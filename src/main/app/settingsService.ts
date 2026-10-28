@@ -24,6 +24,11 @@ import type { FontSettings } from '@/desktop/fontSettings'
 import type { LoggingService } from './logging'
 import type { OcrSettingsPort } from '@/ocr/ocrSettings'
 import { getLocaleDirection } from '@shared/locales'
+import type { NativeConfigurationSnapshot } from '@shared/types/nativeConfiguration'
+import type { FloatingButtonBounds } from '@shared/types/floating-widget'
+import type { ShortcutKeySetting } from '@shared/types/desktop'
+import type { UpdateSettings } from '@/upgrade/settings'
+import { defaultShortcutKey } from '@/desktop/shortcutKeySettings'
 
 export interface AppSettingsServiceDependencies {
   agentDefaults: DeepChatDefaults
@@ -37,6 +42,9 @@ export interface AppSettingsServiceDependencies {
   publishEvent: DeepchatEventPublisher
   nextVersion(): number
   assertActive(): void
+  ownerId: string
+  updateSettings: UpdateSettings
+  publishNativeSnapshot(snapshot: NativeConfigurationSnapshot): void
 }
 
 export class AppSettingsService {
@@ -44,6 +52,7 @@ export class AppSettingsService {
   private pendingCommands = 0
   private tail: Promise<void> = Promise.resolve()
   private systemThemeObservation: Promise<void> | undefined
+  private nativeVersion = 0
 
   constructor(private readonly deps: AppSettingsServiceDependencies) {}
 
@@ -88,6 +97,87 @@ export class AppSettingsService {
   start(): void {
     if (this.pendingCommands > 0) throw new Error('Settings owner is still draining')
     this.accepting = true
+  }
+
+  readNativeSnapshot(): NativeConfigurationSnapshot {
+    const settings = this.deps.desktopSettings
+    const shortcuts = settings.getShortcutKeys()
+    const bounds = settings.getFloatingButtonBounds()
+    return structuredClone({
+      ownerId: this.deps.ownerId,
+      version: ++this.nativeVersion,
+      language: settings.getLanguage(),
+      notificationsEnabled: settings.getNotificationsEnabled(),
+      closeToQuit: settings.getCloseToQuit(),
+      contentProtectionEnabled: settings.getContentProtectionEnabled(),
+      shortcutKeys: Object.fromEntries(
+        Object.keys(defaultShortcutKey).map((key) => [
+          key,
+          shortcuts[key as keyof ShortcutKeySetting]
+        ])
+      ) as ShortcutKeySetting,
+      floatingButtonEnabled: settings.getFloatingButtonEnabled(),
+      floatingButtonBounds: bounds ? { x: bounds.x, y: bounds.y, dockSide: bounds.dockSide } : null,
+      loggingEnabled: this.deps.logging.getEnabled(),
+      privacyModeEnabled: this.deps.privacy.isEnabled(),
+      updateChannel: this.deps.updateSettings.getChannel()
+    })
+  }
+
+  publishNativeSnapshot(): void {
+    this.deps.publishNativeSnapshot(this.readNativeSnapshot())
+  }
+
+  async getFloatingButtonEnabled(): Promise<boolean> {
+    return await this.enqueue(() => this.deps.desktopSettings.getFloatingButtonEnabled())
+  }
+
+  async setFloatingButtonEnabled(enabled: boolean): Promise<boolean> {
+    return await this.enqueue(async () => {
+      await this.deps.desktopSettings.setFloatingButtonEnabled(enabled)
+      return this.deps.desktopSettings.getFloatingButtonEnabled()
+    })
+  }
+
+  async setFloatingButtonBounds(bounds: FloatingButtonBounds): Promise<void> {
+    if (
+      !Number.isFinite(bounds.x) ||
+      !Number.isFinite(bounds.y) ||
+      !['left', 'right'].includes(bounds.dockSide)
+    )
+      throw new Error('Invalid floating bounds')
+    const value = { x: bounds.x, y: bounds.y, dockSide: bounds.dockSide }
+    await this.enqueue(() => this.deps.desktopSettings.setFloatingButtonBounds(value))
+  }
+
+  async getShortcutKeys(): Promise<ShortcutKeySetting> {
+    return await this.enqueue(() => this.deps.desktopSettings.getShortcutKeys())
+  }
+
+  async setShortcutKeys(shortcuts: ShortcutKeySetting): Promise<ShortcutKeySetting> {
+    return await this.enqueue(() => {
+      this.deps.desktopSettings.setShortcutKeys(shortcuts)
+      return this.deps.desktopSettings.getShortcutKeys()
+    })
+  }
+
+  async resetShortcutKeys(): Promise<ShortcutKeySetting> {
+    return await this.enqueue(() => {
+      this.deps.desktopSettings.resetShortcutKeys()
+      return this.deps.desktopSettings.getShortcutKeys()
+    })
+  }
+
+  async getUpdateChannel(): Promise<'stable' | 'beta'> {
+    return await this.enqueue(() => this.deps.updateSettings.getChannel())
+  }
+
+  async setUpdateChannel(channel: 'stable' | 'beta'): Promise<'stable' | 'beta'> {
+    return await this.enqueue(() => {
+      this.deps.updateSettings.setChannel(channel)
+      this.publishNativeSnapshot()
+      return this.deps.updateSettings.getChannel()
+    })
   }
 
   async initializeDesktop(): Promise<void> {
@@ -224,6 +314,7 @@ export class AppSettingsService {
         return this.deps.desktopSettings.setContentProtectionEnabled(change.value)
       case 'privacyModeEnabled':
         this.deps.privacy.setEnabled(change.value)
+        this.publishNativeSnapshot()
         return
       case 'notificationsEnabled':
         this.deps.desktopSettings.setNotificationsEnabled(change.value)
@@ -296,6 +387,7 @@ export class AppSettingsService {
 
   async publishSnapshot(): Promise<void> {
     await this.enqueue(async () => {
+      this.publishNativeSnapshot()
       const version = this.deps.nextVersion()
       this.deps.publishEvent('settings.changed', {
         version,

@@ -14,7 +14,7 @@ import icon from '../../../../resources/icon.png?asset' // App icon (macOS/Linux
 import iconWin from '../../../../resources/icon.ico?asset' // App icon (Windows)
 import { is } from '@electron-toolkit/utils' // Electron utilities
 import type { IWindowPresenter } from '@shared/types/desktop'
-import type { DesktopSettings } from '../settings'
+import type { DesktopConfigurationProjection } from '../configurationProjection'
 import {
   resolveSettingsNavigationPath,
   type SettingsNavigationPayload
@@ -43,7 +43,10 @@ type PendingSettingsMessage = {
 export class WindowPresenter implements IWindowPresenter {
   // Map managing all BrowserWindow instances, key is window ID
   windows: Map<number, BrowserWindow>
-  private settings: Pick<DesktopSettings, 'getCloseToQuit' | 'getContentProtectionEnabled'>
+  private settings: Pick<
+    DesktopConfigurationProjection,
+    'getCloseToQuit' | 'getContentProtectionEnabled'
+  >
   // Exit flag indicating if app is in the process of quitting (set by 'before-quit' hook)
   private isQuitting: boolean = false
   // Current focused window ID (internal record)
@@ -81,7 +84,10 @@ export class WindowPresenter implements IWindowPresenter {
   }
 
   constructor(
-    settings: Pick<DesktopSettings, 'getCloseToQuit' | 'getContentProtectionEnabled'>,
+    settings: Pick<
+      DesktopConfigurationProjection,
+      'getCloseToQuit' | 'getContentProtectionEnabled'
+    >,
     private readonly onWindowCreated: (isMainWindow: boolean) => void,
     startupWorkloadCoordinator?: StartupWorkloadCoordinator
   ) {

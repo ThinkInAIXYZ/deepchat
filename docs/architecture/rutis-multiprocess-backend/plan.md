@@ -2261,8 +2261,8 @@ default composition before starting G5.
 | ChannelAdapter and five built-in factories | Base adapter calls Electron net.fetch; subclasses receive it through inheritance | Explicit approved binary-fetch capability, preserved native proxy and declared/actual 20 MiB bounds, cancellation/drain and a legal large-payload carrier |
 | RemoteService Feishu/Weixin login | Business sessions hold BrowserWindow objects and own native navigation handlers | Main window resource owner, data-only operation identity/events, preserved navigation/web security and actual cancellation/close/server settlement |
 | Provider OAuthService/Copilot windows | Main owns browser/clipboard/external effects but also calls Provider settings synchronously | Keep presentation native; use authorized owner queries and acknowledged credential/configuration settlement at G5 |
-| Window/Tray/Notification/Shortcut/Floating | Native consumers read DesktopSettings synchronously; floating bounds write back | Private committed allowlisted projection and acknowledged mutations; no per-get RPC or second settings-file writer |
-| Upgrade settings and renderer diagnostics | App version supplies channel default; Main diagnostics reads the logging flag | Explicit version fact and logging-flag projection; native updater and diagnostic file lifetime remain Main-owned |
+| Window/Tray/Notification/Shortcut/Floating | Configuration readers use a private committed projection; floating bounds use acknowledged owner mutations; Agent/catalogue queries are already async | Preserve the projection and existing async owner queries at G5 handoff |
+| Upgrade settings and renderer diagnostics | Core receives the explicit application version; Main reads projected channel/privacy/logging flags | Preserve normalization under the configuration owner and Main's native updater/diagnostic lifetime at G5 |
 
 The attachment audit reads ChannelAdapter's actual 20 MiB contract and the existing CLI
 ArtifactSpool. Ordinary control frames cannot carry a maximum-sized base64 body. Reuse authorized
@@ -2271,14 +2271,62 @@ Native window extraction must retain the auth session and callback-server lifeti
 the BrowserWindow constructor. The RFC records these carrier/authority/lifecycle requirements.
 These are remaining contracts, not completed implementations or a reason to reduce G5–G12 scope.
 
-Native read consumers need resolved language, notifications, close-to-quit, content protection,
-shortcut mappings, floating enablement/bounds and the diagnostic logging flag. Floating bounds
-currently write without publishing an event; shortcut changes use a separate event. A private
-committed projection must cover those mutations explicitly, including asynchronous error/drain
-handling for floating persistence. Update-channel normalization also writes; it belongs to the
-configuration owner. Plugin installation/safety metadata uses Main's independent plugin-settings
+Native configuration consumers use resolved language, notifications, close-to-quit, content
+protection, shortcut mappings, floating enablement/bounds, logging, privacy and update channel.
+The private committed projection covers bounds writes and separate shortcut events explicitly,
+including asynchronous error/drain handling for floating persistence. Update-channel normalization
+belongs to the configuration owner. Plugin installation/safety metadata uses Main's independent plugin-settings
 file; tool-policy authority uses the separate plugin-tool-policies owner already inventoried above.
 Do not merge those files or retain a second policy writer during handoff.
+
+### Native configuration projection
+
+The actual Main composition supplies Window, Tray, Notification, Shortcut and Floating with a
+private `DesktopConfigurationProjection`, replacing their direct DesktopSettings reads. The
+configuration owner publishes explicit allowlisted values immediately after each stored mutation,
+before native effects and public events. Nested shortcuts and bounds exclude unknown keys; the
+projection rejects foreign owner identities, stale/invalid revisions and caller mutations of its
+returned objects. It contains no credentials or merged Store state. Native theme reads stay in
+Main, avoiding re-entry into a pending configuration command.
+
+Floating bounds writes receive the existing serialized settings owner's acknowledgement and
+publish committed values without optimistic cache changes. Drag mutation handlers validate the
+current floating window and main frame. Floating enable/disable awaits actual native presentation
+inside the same owner queue, preventing a queued disable or teardown from overtaking creation.
+Maintenance/shutdown close native write admission, stop and drain the settings owner, then drain
+outstanding native writes; successful recovery refreshes the projection before reopening writes.
+The existing 64-command bound and stop deadline remain unchanged. Mutation routes return the
+same command's receipt rather than enqueueing another read that a subsequent edit could overtake.
+
+UpdateSettings receives the explicit application version and retains existing channel defaults and
+normalization under the configuration owner. Upgrade reads the projected channel/privacy values.
+Renderer diagnostics receives the projected logging flag and explicit profile directory; its file
+rotation, sanitization and native lifetime remain Main-owned. The selected classes import without
+Electron, electron-store or font-list in ordinary Node: DesktopSettings/FontSettings/Logging/
+AppSettingsService/projection/UpdateSettings/renderer diagnostics contain 3/1/1/88/1/1/85 modules.
+The probe executes owner mutations, committed cache publication and shutdown/drain. This does not
+prove a composed headless Harness, cross-process owner replacement or G5's exclusive writer move.
+
+Validation passes 330 checks across 29 files, app and selected test/E2E types, normal build, format,
+lint and i18n. The same eight application cases pass on immutable `ae0be4fef` and the candidate:
+five maintenance/rekey/credential/shutdown cases, desktop settings, font/logging and
+the native projection workload. Actual floating-window drag persists/restores bounds after window
+recreation; shortcut registration and updater channel selection observe committed owner values;
+graceful profile relaunch preserves configuration. Only the final SDK registration/update check
+is observed without registering a system shortcut or contacting the update service. These are
+functional checks, with no performance capture or speed claim. Evidence and artifact hashes
+are in `.deepchat/rutis-g4-native-projection-acceptance/`.
+
+One interrupted, uninstrumented follow-up records a forced maintenance close. Both the targeted
+two-case diagnostic and the full eight-case run with native process output complete gracefully;
+the isolated failure remains an unexplained observation, with its evidence retained. Final G4
+integration must recheck graceful maintenance/shutdown rather than classify it as timing noise.
+
+The published `ae0be4fef` passes required run `40668735420`/barrier `122752954520` and all six package
+targets in `40668735436`/barrier `122759825407`. The native projection belongs to the remaining G4
+completion batch and is not independently published. Remote attachment/auth-window capabilities,
+Provider OAuth configuration settlement and the final inventory
+remain required. G4 stays active; G5–G12 retain their full scope.
 
 ## G5. Move the cohesive Harness and shared core into the TS backend
 

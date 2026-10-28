@@ -28,7 +28,7 @@ describe('LoggingService', () => {
         finish = resolve
       })
       const host = { applyLogging: vi.fn(() => pending), openLoggingFolder: vi.fn(async () => {}) }
-      const service = new LoggingService(settings as never, host, publish)
+      const service = new LoggingService(settings as never, host, publish, vi.fn())
       const changed = service.setEnabled(enabled)
       expect(host.applyLogging).toHaveBeenCalledWith(enabled)
       expect(operations).toEqual(['settings'])
@@ -48,7 +48,7 @@ describe('LoggingService', () => {
         throw new Error('folder unavailable')
       })
     }
-    const service = new LoggingService({ set: vi.fn() } as never, host, publish)
+    const service = new LoggingService({ set: vi.fn() } as never, host, publish, vi.fn())
     await expect(service.setEnabled(true)).rejects.toThrow('native gate unavailable')
     expect(publish).not.toHaveBeenCalled()
     await expect(service.openFolder()).rejects.toThrow('folder unavailable')

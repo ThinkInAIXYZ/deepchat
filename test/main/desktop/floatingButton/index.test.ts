@@ -79,6 +79,7 @@ const {
 
   return {
     electronState: {
+      frame: {},
       workArea,
       eventHandlers,
       invokeHandlers,
@@ -151,6 +152,7 @@ vi.mock('@/desktop/floatingButton/FloatingButtonWindow', () => ({
       isDestroyed: () => false,
       webContents: {
         id: 1,
+        mainFrame: electronState.frame,
         send: webContentsSendMock
       }
     }))
@@ -176,7 +178,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
   const createDesktopSettings = () => ({
     getFloatingButtonEnabled: vi.fn(() => true),
     getFloatingButtonBounds: vi.fn(() => null),
-    setFloatingButtonBounds: vi.fn(),
+    setFloatingButtonBounds: vi.fn(async () => {}),
     getLanguage: vi.fn(() => 'zh-CN' as const),
     getCurrentThemeIsDark: vi.fn(async () => false)
   })
@@ -207,7 +209,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
       throw new Error(`Missing IPC handler for ${channel}`)
     }
 
-    return await handler({}, payload)
+    return await handler({ sender: { id: 1 }, senderFrame: electronState.frame }, payload)
   }
 
   beforeEach(() => {
@@ -321,6 +323,23 @@ describe('FloatingButtonPresenter drag layout sync', () => {
       y: 230,
       dockSide: 'right'
     })
+  })
+
+  it('rejects drag writes from another window or a nested frame', async () => {
+    const settings = createDesktopSettings()
+    floatingPresenter = createFloatingPresenter(createProviderSettings(), settings)
+    await floatingPresenter.initialize()
+    const before = { ...floatingWindowState.bounds }
+    for (const event of [
+      { sender: { id: 999 }, senderFrame: electronState.frame },
+      { sender: { id: 1 }, senderFrame: {} }
+    ]) {
+      electronState.eventHandlers.get(FLOATING_BUTTON_EVENTS.DRAG_START)!(event, { x: 100, y: 100 })
+      electronState.eventHandlers.get(FLOATING_BUTTON_EVENTS.DRAG_MOVE)!(event, { x: 200, y: 200 })
+      electronState.eventHandlers.get(FLOATING_BUTTON_EVENTS.DRAG_END)!(event)
+    }
+    expect(settings.setFloatingButtonBounds).not.toHaveBeenCalled()
+    expect(floatingWindowState.bounds).toEqual(before)
   })
 
   it('loads all regular sessions without restricting the agent id', async () => {
