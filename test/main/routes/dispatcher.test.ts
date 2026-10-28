@@ -998,6 +998,7 @@ function createRuntime() {
   }
   const applyProxyMode = vi.fn()
   const applyCustomProxyUrl = vi.fn()
+  const applyContentProtection = vi.fn()
   const desktopSettings = {
     getCopyWithCotEnabled: vi.fn(() => settings.copyWithCotEnabled),
     setCopyWithCotEnabled: vi.fn((enabled: boolean) => {
@@ -1022,6 +1023,7 @@ function createRuntime() {
     getContentProtectionEnabled: vi.fn(() => settings.contentProtectionEnabled),
     setContentProtectionEnabled: vi.fn((value: boolean) => {
       settings.contentProtectionEnabled = value
+      applyContentProtection(value)
     }),
     getFloatingButtonEnabled: vi.fn(() => settings.floatingButtonEnabled),
     setFloatingButtonEnabled: vi.fn((value: boolean) => {
@@ -1042,7 +1044,6 @@ function createRuntime() {
     }),
     getSystemFonts: vi.fn().mockResolvedValue(['Inter', 'JetBrains Mono'])
   }
-  const applyContentProtection = vi.fn()
   const setFloatingButtonEnabled = vi.fn()
   const loggingService = {
     getEnabled: vi.fn(() => settings.loggingEnabled),
@@ -1806,7 +1807,6 @@ function createRuntime() {
     fonts: fontSettings as never,
     logging: loggingService as never,
     ocr: ocrSettings,
-    applyContentProtection,
     publishEvent: publishDeepchatEvent,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
@@ -1820,7 +1820,6 @@ function createRuntime() {
       get: (key) => providerSettings.getSetting(key),
       set: (key, value) => providerSettings.setSetting(key, value)
     },
-    fonts: fontSettings as never,
     commandShell,
     publishEvent: publishDeepchatEvent,
     recordActivity: (input) => {

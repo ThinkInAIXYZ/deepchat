@@ -58,7 +58,6 @@ export class WindowPresenter implements IWindowPresenter {
   private pendingSettingsMessages: PendingSettingsMessage[] = []
   private pendingSettingsProviderInstalls: ProviderInstallPreview[] = []
   private readonly startupWorkloadCoordinator?: StartupWorkloadCoordinator
-  private readonly restartApp: () => void
   private tabPresenter!: TabPresenter
   // Serializes async tab lookups/deliveries per window so consecutive broadcasts
   // cannot reorder against each other when a delayed `getTab` resolves out of turn.
@@ -83,22 +82,19 @@ export class WindowPresenter implements IWindowPresenter {
 
   constructor(
     settings: Pick<DesktopSettings, 'getCloseToQuit' | 'getContentProtectionEnabled'>,
-    restartApp: () => void,
     private readonly onWindowCreated: (isMainWindow: boolean) => void,
     startupWorkloadCoordinator?: StartupWorkloadCoordinator
   ) {
     this.windows = new Map()
     this.settings = settings
-    this.restartApp = restartApp
     this.startupWorkloadCoordinator = startupWorkloadCoordinator
   }
 
   applyContentProtection(enabled: boolean): void {
-    logger.info(`Content protection setting changed to ${enabled}, restarting application.`)
+    logger.info(`Content protection setting changed to ${enabled}.`)
     this.windows.forEach((window) => {
       if (!window.isDestroyed()) this.updateContentProtection(window, enabled)
     })
-    setTimeout(() => this.restartApp(), 1000)
   }
 
   bindTabPresenter(tabPresenter: TabPresenter): void {

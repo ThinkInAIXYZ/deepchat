@@ -15,6 +15,7 @@ describe('DesktopSettings', () => {
     applyTheme: vi.fn(async () => false),
     readLaunchAtLogin: vi.fn(async () => false),
     setLaunchAtLogin: vi.fn(async () => false),
+    applyContentProtection: vi.fn(async () => undefined),
     refreshLanguage: vi.fn(async () => undefined),
     refreshTheme: vi.fn(async () => undefined)
   }

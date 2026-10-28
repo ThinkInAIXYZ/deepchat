@@ -1,5 +1,5 @@
 import { inspect } from 'node:util'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { originalConsole } from '@shared/logger'
 import { LoggingService } from '@/app/logging'
 import {
@@ -14,32 +14,45 @@ import {
 } from '@/app/startupWorkloadCoordinator'
 
 describe('LoggingService', () => {
-  beforeEach(() => vi.useFakeTimers())
-  afterEach(() => vi.useRealTimers())
-
   it.each([false, true])(
-    'applies the %s persistence gate before publishing and scheduling restart',
-    (enabled) => {
+    'awaits the native persistence gate before publishing %s',
+    async (enabled) => {
       const operations: string[] = []
       const settings = {
         get: vi.fn(() => false),
         set: vi.fn(() => operations.push('settings'))
       }
-      const restart = vi.fn(() => operations.push('restart'))
       const publish = vi.fn(() => operations.push('publish'))
-      const setPersistence = vi.fn(() => operations.push('persistence'))
-      const service = new LoggingService(settings as never, restart, publish, setPersistence)
-
-      service.setEnabled(enabled)
-
-      expect(setPersistence).toHaveBeenCalledWith(enabled)
-      expect(operations).toEqual(['settings', 'persistence', 'publish'])
-      vi.advanceTimersByTime(999)
-      expect(restart).not.toHaveBeenCalled()
-      vi.advanceTimersByTime(1)
-      expect(restart).toHaveBeenCalledOnce()
+      let finish!: () => void
+      const pending = new Promise<void>((resolve) => {
+        finish = resolve
+      })
+      const host = { applyLogging: vi.fn(() => pending), openLoggingFolder: vi.fn(async () => {}) }
+      const service = new LoggingService(settings as never, host, publish)
+      const changed = service.setEnabled(enabled)
+      expect(host.applyLogging).toHaveBeenCalledWith(enabled)
+      expect(operations).toEqual(['settings'])
+      finish()
+      await changed
+      expect(operations).toEqual(['settings', 'publish'])
     }
   )
+
+  it('does not acknowledge a failed native logging change or hide a folder error', async () => {
+    const publish = vi.fn()
+    const host = {
+      applyLogging: vi.fn(async () => {
+        throw new Error('native gate unavailable')
+      }),
+      openLoggingFolder: vi.fn(async () => {
+        throw new Error('folder unavailable')
+      })
+    }
+    const service = new LoggingService({ set: vi.fn() } as never, host, publish)
+    await expect(service.setEnabled(true)).rejects.toThrow('native gate unavailable')
+    expect(publish).not.toHaveBeenCalled()
+    await expect(service.openFolder()).rejects.toThrow('folder unavailable')
+  })
 })
 
 it('controls legacy console debug output through an explicit host flag', async () => {

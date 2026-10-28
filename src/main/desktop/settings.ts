@@ -19,6 +19,7 @@ export interface DesktopSettingsHost {
   refreshTheme(isDark: boolean): Promise<void>
   readLaunchAtLogin(): Promise<boolean>
   setLaunchAtLogin(enabled: boolean): Promise<boolean>
+  applyContentProtection(enabled: boolean): Promise<void>
 }
 
 export class DesktopSettings {
@@ -149,9 +150,10 @@ export class DesktopSettings {
     return this.settings.get<boolean>('contentProtectionEnabled') ?? false
   }
 
-  setContentProtectionEnabled(enabled: boolean): void {
+  async setContentProtectionEnabled(enabled: boolean): Promise<void> {
     const value = Boolean(enabled)
     this.settings.set('contentProtectionEnabled', value)
+    await this.host.applyContentProtection(value)
     this.publishEvent('settings.changed', {
       changedKeys: ['contentProtectionEnabled'],
       version: Date.now(),

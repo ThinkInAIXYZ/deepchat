@@ -1,10 +1,7 @@
-import fontList from 'font-list'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FontSettings } from '@/desktop/fontSettings'
 
-vi.mock('font-list', () => ({ default: { getFonts: vi.fn() } }))
-
-const getFontsMock = vi.mocked(fontList.getFonts)
+const getFontsMock = vi.fn<() => Promise<string[]>>()
 
 const createSettings = () => {
   const values = new Map<string, unknown>()
@@ -19,7 +16,7 @@ describe('FontSettings', () => {
 
   it('normalizes and caches system fonts', async () => {
     getFontsMock.mockResolvedValue(['Inter Regular', 'Inter Bold', 'Menlo'])
-    const fonts = new FontSettings(createSettings() as never, vi.fn())
+    const fonts = new FontSettings(createSettings() as never, vi.fn(), getFontsMock)
 
     const detected = await fonts.getSystemFonts()
     const cached = await fonts.getSystemFonts()
@@ -31,7 +28,7 @@ describe('FontSettings', () => {
 
   it('returns an empty array when font detection fails', async () => {
     getFontsMock.mockRejectedValue(new Error('failed to load'))
-    const fonts = new FontSettings(createSettings() as never, vi.fn())
+    const fonts = new FontSettings(createSettings() as never, vi.fn(), getFontsMock)
 
     await expect(fonts.getSystemFonts()).resolves.toEqual([])
   })

@@ -816,6 +816,18 @@ storage; an expired drain cannot authorize teardown or a second owner. Resume ob
 maintenance and remove the native listener at shutdown. These contracts prepare the G5 handoff;
 they do not establish a second writable desktop configuration cache.
 
+Font enumeration and logging-folder access are awaited native capabilities. Keep font family
+normalization and selection persistence with configuration; preserve the current normalized catalog
+cache and empty-catalog degradation. Font queries and folder requests enter the same bounded
+settings owner as mutations, so shutdown drains actual native work rather than an abandoned reply.
+Main owns the existing font-list implementation and private profile/logs path; no renderer-supplied
+path or replacement platform enumerator is needed. Propagate a native folder-open error instead of
+acknowledging an unsuccessful launch. Content-protection and logging changes await their native
+effects before publishing success. Main coalesces logging and content-protection changes into one delayed restart request,
+pauses its timer during maintenance without losing the intent, resumes after successful recovery,
+and cancels it on shutdown. Once fired, restart authority belongs to the existing Main shutdown
+coordinator; draining configuration must not wait on its own restart teardown.
+
 Plugin install/consent state retains its separate desktop file owners. Tool policies follow the
 business permission owner below; consumers use authoritative policy data rather than native Store
 imports or independently writable snapshots.
@@ -1331,8 +1343,10 @@ lag, reconnect/resync cost, transfer bounds, device-operation settlement, and he
 cost. Do not present browser availability as proof of mobile native execution or data sync as proof
 of live Session control.
 
-Use the same build, profile fixture, local Provider fixture, and machine for at least five paired
-baseline/spike runs. Measure idle and active workloads, including simultaneous Sessions and a
+For an explicit performance adoption decision, use the same build, profile fixture, local Provider
+fixture and machine for at least five paired baseline/spike runs. Other changes follow the affected
+workload selection and bounded confirmation rules above. Measure idle and active workloads for the
+selected comparison, including simultaneous Sessions and a
 background scan. Record main event-loop delay p95/p99, renderer input-to-paint latency p95, startup
 to business readiness, stream latency, aggregate and per-process RSS/CPU, IPC bytes/queue depth, and
 restart-to-readiness. Reuse existing performance logging where applicable; never log request bodies,

@@ -35,7 +35,6 @@ describe('WindowPresenter', () => {
       {
         getContentProtectionEnabled: vi.fn(() => false)
       } as any,
-      vi.fn(),
       vi.fn()
     )
 
@@ -80,7 +79,6 @@ describe('WindowPresenter', () => {
       {
         getContentProtectionEnabled: vi.fn(() => false)
       } as any,
-      vi.fn(),
       vi.fn()
     )
 
@@ -113,7 +111,6 @@ describe('WindowPresenter', () => {
       {
         getContentProtectionEnabled: vi.fn(() => false)
       } as any,
-      vi.fn(),
       vi.fn()
     )
 
@@ -150,7 +147,6 @@ describe('WindowPresenter', () => {
       {
         getContentProtectionEnabled: vi.fn(() => false)
       } as any,
-      vi.fn(),
       vi.fn()
     )
 
@@ -215,7 +211,6 @@ describe('WindowPresenter', () => {
         getContentProtectionEnabled: vi.fn(() => false),
         getCloseToQuit: vi.fn(() => false)
       } as any,
-      vi.fn(),
       onWindowCreated
     )
     const tabPresenter = {
@@ -310,7 +305,6 @@ describe('WindowPresenter', () => {
         getContentProtectionEnabled: vi.fn(() => false),
         getCloseToQuit: vi.fn(() => true)
       } as any,
-      vi.fn(),
       vi.fn()
     )
     presenter.bindTabPresenter({
@@ -342,7 +336,6 @@ describe('WindowPresenter', () => {
       {
         getContentProtectionEnabled: vi.fn(() => false)
       } as any,
-      vi.fn(),
       vi.fn()
     )
 
@@ -362,7 +355,6 @@ describe('WindowPresenter', () => {
       {
         getContentProtectionEnabled: vi.fn(() => false)
       } as any,
-      vi.fn(),
       vi.fn()
     )
 
@@ -382,7 +374,7 @@ describe('WindowPresenter', () => {
       id: 'tab-1',
       webContents: { id: 21, isDestroyed: vi.fn(() => false), send }
     }
-    let pendingFirstLookup: ((value: unknown) => void) | null = null
+    let pendingFirstLookup!: (value: unknown) => void
     let getTabCalls = 0
     const tabPresenter = {
       getWindowTabsData: vi.fn(async () => [{ id: 'tab-1' }]),
@@ -403,7 +395,7 @@ describe('WindowPresenter', () => {
     const second = presenter.sendToAllWindows('test-msg', 'second')
 
     await new Promise((resolve) => setTimeout(resolve, 0))
-    pendingFirstLookup?.(tab)
+    pendingFirstLookup(tab)
     await Promise.all([first, second])
 
     // Main webContents of both broadcasts first (synchronous), then tab

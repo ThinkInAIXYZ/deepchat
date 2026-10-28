@@ -2024,6 +2024,70 @@ its own exact-head CI. G4 remains active: font enumeration, logging/restart and 
 consumer contracts still require audit/extraction before G5's exclusive profile/writer handoff.
 G5–G12 retain their full scope and conditional adoption rules.
 
+
+### Font, logging and content-protection capabilities
+
+- [x] Move font enumeration and logging-directory access behind required asynchronous native
+      capabilities; keep normalization, cache and preference persistence with configuration.
+- [x] Route font/folder requests and native content-protection/logging changes through the shared
+      settings queue. Publish success only after the corresponding native operation completes.
+- [x] Give Main one restart intent for logging and content protection; remove both unowned timers
+      and the obsolete WindowPresenter restart callback. Exercise the actual application restart
+      teardown and preserve settings on relaunch.
+
+DesktopConfigurationHost uses the existing font-list implementation, the required absolute private
+profile path and the Main logging gate. LoggingService and FontSettings no longer import native
+platform packages. The existing font normalization, case matching, catalog cache and empty-catalog
+failure behavior remain compatible. Public font lookup and folder opening enter AppSettingsService,
+so actual native work belongs to its bounded command queue and drain. Main creates only the private
+logs directory and checks the native folder-launch result; no renderer path is accepted.
+Content-protection and logging mutations await their native effects before events and receipts.
+
+The native configuration host starts paused. One pending restart intent coalesces logging and
+content-protection changes with the existing one-second delay. Main activates it after startup,
+pauses it before maintenance drains, and resumes it after successful recovery, including the early
+maintenance-rejection path. Shutdown closes it before any awaited teardown step, preventing a
+pending timer from taking over a quit. A fired restart transfers to the existing shutdown
+coordinator; closing the host never waits on its own restart. Closed hosts reject new work.
+WindowPresenter now applies window flags without owning a restart timer or callback. There is no
+additional process, supervisor, file writer, dependency, fallback or public schema change.
+
+Validation: **208 distinct checks across 17 files pass**: 179 native-enabled checks in 12 affected
+files, 15 renderer state checks in three files and 14 generated-catalog checks in two files.
+Selected owner/native-host/window/unit/E2E types and normal application builds pass. Durable cases
+cover native completion and errors, fixed directory ownership, a close during directory creation,
+font normalization/cache and actual pending-query drain, queued folder fencing, content/logging
+acknowledgements, startup/maintenance pause-resume, shared restart coalescing, close cancellation,
+failed restart reporting and transfer without self-deadlock. The legacy dispatcher fixture is
+runtime-tested; its wider existing type debt remains outside the additional selected test typecheck.
+Format, lint, i18n and app typechecks pass.
+
+Immutable `5635e8b14` and the candidate pass the same three real-app cases (22.0/21.9 s): settings
+revision/clock behavior, desktop appearance/login/relaunch and the native font/logging restart
+workload. Actual installed fonts populate the normalized cache and preserve selected families.
+The logging-folder SDK boundary records the private path without opening an external folder.
+Content-protection calls apply real window flags. The real delayed restart drains the application
+and reaches relaunch/exit; the fixture observes those final native calls without spawning a second
+app, then completes the intended process exit with code zero. Manual relaunch restores font,
+content-protection and logging preferences and the native protected-window flag. Logging produces
+the application shutdown record in the owned profile. These are functional observations, not a
+performance claim; no performance/resource suite is repeated.
+
+DesktopSettings, FontSettings, LoggingService and AppSettingsService graphs (3/1/1/87 modules)
+compile, import and execute in ordinary Node with Electron, electron-store and font-list forbidden
+at build/runtime. The probe constructs all four owners and executes font discovery, canonical
+selection, logging/content changes, folder access and stop through explicit host implementations.
+This proves these boundaries, not a composed headless Harness or relocated shared writer.
+Evidence and verified baseline/candidate hashes are in
+`.deepchat/rutis-g4-font-logging-acceptance/`; the candidate output is restored after comparison.
+The normal generated Provider catalog refresh is retained separately from the implementation.
+
+Baseline `5635e8b14` passes required `40630680323`/barrier `122628063550` and all six packages
+`40630680405`/barrier `122632459124` before this checkpoint is published. The checkpoint requires
+its own exact-head CI. G4 remains active: finish the concrete configuration/native-image/runtime
+consumer and writer/reader audit before G5's exclusive profile handoff and cohesive backend move.
+G5–G12 retain their full scope and conditional adoption requirements.
+
 - [ ] Complete the writer, synchronous-reader and desktop-consumer inventory.
   - [x] Enumerate SQLite/DuckDB construction and wrapper entrypoints, inherited shared facades,
         staged/import/snapshot connections and independent derived-cache/vector owners.

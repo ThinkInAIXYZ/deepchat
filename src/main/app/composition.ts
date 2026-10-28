@@ -120,6 +120,7 @@ import {
   type SemanticNotificationPublisher
 } from '../notifications'
 import { DesktopSettings } from '../desktop/settings'
+import { DesktopConfigurationHost } from '../desktop/configurationHost'
 import { FontSettings } from '../desktop/fontSettings'
 import { TabPresenter } from '../desktop/tab'
 import { DesktopSessionBinding } from '@/desktop/sessionBinding'
@@ -671,9 +672,6 @@ export async function createMainProcessControl(dependencies: {
       getContentProtectionEnabled: () =>
         dependencies.settingsStore.get<boolean>('contentProtectionEnabled') ?? false
     },
-    () => {
-      restartApplication().catch((error) => logger.error('Application restart failed:', error))
-    },
     dependencies.onWindowCreated,
     startupWorkloadCoordinator
   )
@@ -1066,6 +1064,11 @@ export async function createMainProcessControl(dependencies: {
     dependencies.settingsStore,
     sessionData.tapeStore
   )
+  const desktopConfigurationHost = new DesktopConfigurationHost(
+    app.getPath('userData'),
+    setMainLoggingEnabled,
+    restartApplication
+  )
   const desktopSettings = new DesktopSettings(
     dependencies.settingsStore,
     {
@@ -1087,11 +1090,17 @@ export async function createMainProcessControl(dependencies: {
       setLaunchAtLogin: async (enabled) => {
         app.setLoginItemSettings({ openAtLogin: enabled })
         return app.getLoginItemSettings().openAtLogin
+      },
+      applyContentProtection: async (enabled) => {
+        ;(windowPresenter as WindowPresenter).applyContentProtection(enabled)
+        desktopConfigurationHost.requestRestart()
       }
     },
     publishDeepchatEvent
   )
-  const fontSettings = new FontSettings(dependencies.settingsStore, publishDeepchatEvent)
+  const fontSettings = new FontSettings(dependencies.settingsStore, publishDeepchatEvent, () =>
+    desktopConfigurationHost.listSystemFonts()
+  )
   const skillSettings = new SkillSettings(dependencies.settingsStore, app.getPath('home'))
   const traceSettings = new AgentTraceSettings(dependencies.settingsStore)
 
@@ -1356,11 +1365,8 @@ export async function createMainProcessControl(dependencies: {
   deviceService = new DeviceService()
   const loggingService = new LoggingService(
     dependencies.settingsStore,
-    () => {
-      restartApplication().catch((error) => logger.error('Application restart failed:', error))
-    },
-    publishDeepchatEvent,
-    setMainLoggingEnabled
+    desktopConfigurationHost,
+    publishDeepchatEvent
   )
   const rendererPerformanceLogService = new RendererPerformanceLogService(
     dependencies.settingsStore
@@ -1442,8 +1448,6 @@ export async function createMainProcessControl(dependencies: {
     fonts: fontSettings,
     logging: loggingService,
     ocr: ocrSettings,
-    applyContentProtection: (enabled) =>
-      (windowPresenter as WindowPresenter).applyContentProtection(enabled),
     recordActivity: recordSettingsActivity,
     publishEvent: publishDeepchatEvent,
     nextVersion: nextSettingsVersion,
@@ -3578,14 +3582,13 @@ export async function createMainProcessControl(dependencies: {
     const appSettingsRoutes = createAppSettingsRoutes({
       settings: dependencies.settingsStore,
       appSettings: appSettingsService,
-      fonts: fontSettings,
       commandShell: commandShellService,
       publishEvent: publishDeepchatEvent,
       recordActivity: recordSettingsActivity,
       listActivities: (limit) => settingsDatabase.listSettingsActivity(limit)
     })
     const appRoutes = createAppRoutes({
-      logging: loggingService,
+      logging: { openFolder: () => appSettingsService.openLoggingFolder() },
       rendererPerformance: rendererPerformanceLogService,
       isMainWindowContext: (caller) =>
         windowPresenter.mainWindow?.webContents.id === caller.webContentsId,
@@ -3875,6 +3878,7 @@ export async function createMainProcessControl(dependencies: {
     async () => {
       shutdownStepFailures = 0
       appLifecycleState = 'stopping'
+      desktopConfigurationHost.close()
       databaseRequests.beginShutdown()
       providerDbLoader.stop()
       agentSettings.stop()
@@ -3959,6 +3963,7 @@ export async function createMainProcessControl(dependencies: {
   async function performDatabaseMaintenance(
     command: DatabaseMaintenanceCommand
   ): Promise<DatabaseMaintenanceResult> {
+    desktopConfigurationHost.pause()
     try {
       await startupWorkloadCoordinator.cancelAndDrainTarget('main')
       await agentSettings.cancelAndDrainAcpWork()
@@ -3968,6 +3973,7 @@ export async function createMainProcessControl(dependencies: {
     } catch (error) {
       if (databaseRequests.state === 'maintenance') {
         databaseRequests.resume()
+        desktopConfigurationHost.resume()
         agentSettings.notifyAgentCatalogChanged()
       }
       throw error
@@ -4096,6 +4102,7 @@ export async function createMainProcessControl(dependencies: {
       agentSettings.notifyAgentCatalogChanged()
       syncReplica?.wake()
       await automaticSync?.start()
+      desktopConfigurationHost.resume()
     } catch (error) {
       if (!['stopping', 'stopped'].includes(appLifecycleState)) databaseRequests.fail()
       throw error
@@ -4251,6 +4258,7 @@ export async function createMainProcessControl(dependencies: {
   cronJobs.start()
   memoryService.startBackgroundMaintenance()
   appLifecycleState = 'running'
+  desktopConfigurationHost.resume()
   onSystemThemeUpdated()
   try {
     await artifactSpool.initialize()

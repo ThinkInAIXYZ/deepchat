@@ -14,7 +14,6 @@ import {
   type ConfigEntryValues,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
-import type { FontSettings } from '@/desktop/fontSettings'
 import type { AppSettingsService } from './settingsService'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { CommandShellService } from '@/agent/shared/process/commandShellService'
@@ -23,8 +22,7 @@ import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
 export function createAppSettingsRoutes(deps: {
   settings: Pick<SettingsStore, 'get' | 'set'>
-  appSettings: Pick<AppSettingsService, 'getSnapshot' | 'update'>
-  fonts: FontSettings
+  appSettings: Pick<AppSettingsService, 'getSnapshot' | 'update' | 'listSystemFonts'>
   commandShell: Pick<CommandShellService, 'getConfig' | 'setConfig' | 'checkGitBash'>
   publishEvent: DeepchatEventPublisher
   recordActivity(input: SettingsActivityInput): void
@@ -97,7 +95,7 @@ export function createAppSettingsRoutes(deps: {
       async (rawInput) => {
         settingsListSystemFontsRoute.input.parse(rawInput)
         return settingsListSystemFontsRoute.output.parse({
-          fonts: await deps.fonts.getSystemFonts()
+          fonts: await deps.appSettings.listSystemFonts()
         })
       }
     ],

@@ -1,4 +1,3 @@
-import fontList from 'font-list'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 
@@ -25,7 +24,8 @@ export class FontSettings {
 
   constructor(
     private readonly settings: SettingsStore,
-    private readonly publishEvent: DeepchatEventPublisher
+    private readonly publishEvent: DeepchatEventPublisher,
+    private readonly enumerateFonts: () => Promise<string[]>
   ) {}
 
   getFontFamily(): string {
@@ -48,7 +48,7 @@ export class FontSettings {
     if (this.systemFontsCache) return this.systemFontsCache
 
     try {
-      const detected = await fontList.getFonts()
+      const detected = await this.enumerateFonts()
       const seen = new Set<string>()
       this.systemFontsCache = detected.flatMap((font) => {
         const name = normalizeFontNameValue(font)
@@ -58,7 +58,7 @@ export class FontSettings {
         return [name]
       })
     } catch (error) {
-      console.warn('Failed to detect system fonts with font-list:', error)
+      console.warn('Failed to detect system fonts:', error)
       this.systemFontsCache = []
     }
     return this.systemFontsCache

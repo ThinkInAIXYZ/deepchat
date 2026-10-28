@@ -33,7 +33,6 @@ export interface AppSettingsServiceDependencies {
   fonts: FontSettings
   logging: LoggingService
   ocr: OcrSettingsPort
-  applyContentProtection(enabled: boolean): void
   recordActivity(input: SettingsActivityInput): void
   publishEvent: DeepchatEventPublisher
   nextVersion(): number
@@ -93,6 +92,14 @@ export class AppSettingsService {
 
   async initializeDesktop(): Promise<void> {
     await this.enqueue(() => this.deps.desktopSettings.initialize())
+  }
+
+  async listSystemFonts(): Promise<string[]> {
+    return await this.enqueue(() => this.deps.fonts.getSystemFonts())
+  }
+
+  async openLoggingFolder(): Promise<void> {
+    await this.enqueue(() => this.deps.logging.openFolder())
   }
 
   async observeSystemTheme(): Promise<void> {
@@ -214,9 +221,7 @@ export class AppSettingsService {
         this.deps.agentDefaults.setAutoCompactionRetainRecentPairs(change.value)
         return
       case 'contentProtectionEnabled':
-        this.deps.desktopSettings.setContentProtectionEnabled(change.value)
-        this.deps.applyContentProtection(change.value)
-        return
+        return this.deps.desktopSettings.setContentProtectionEnabled(change.value)
       case 'privacyModeEnabled':
         this.deps.privacy.setEnabled(change.value)
         return
@@ -232,8 +237,7 @@ export class AppSettingsService {
         this.deps.desktopSettings.setCopyWithCotEnabled(change.value)
         return
       case 'loggingEnabled':
-        this.deps.logging.setEnabled(change.value)
-        return
+        return this.deps.logging.setEnabled(change.value)
       case 'ocrAutoExtractForNonVisionModels':
         this.deps.ocr.setAutomaticExtractionEnabled(change.value)
         return

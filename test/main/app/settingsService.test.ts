@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AppSettingsService } from '@/app/settingsService'
 import { DesktopSettings } from '@/desktop/settings'
 import { FontSettings } from '@/desktop/fontSettings'
+import { LoggingService } from '@/app/logging'
 import { SETTINGS_KEYS } from '@shared/contracts/routes'
 
 function deferred<T>() {
@@ -35,14 +36,20 @@ function setup() {
     refreshLanguage: vi.fn(async (_locale: string): Promise<void> => undefined),
     refreshTheme: vi.fn(async (_isDark: boolean): Promise<void> => undefined),
     readLaunchAtLogin: vi.fn(async () => false),
-    setLaunchAtLogin: vi.fn(async (_enabled: boolean) => false)
+    setLaunchAtLogin: vi.fn(async (_enabled: boolean) => false),
+    applyContentProtection: vi.fn(async (_enabled: boolean): Promise<void> => undefined)
   }
   const desktopSettings = new DesktopSettings(storage as never, host, publishEvent)
+  const enumerateFonts = vi.fn(async (): Promise<string[]> => [])
+  const loggingHost = {
+    applyLogging: vi.fn(async (_enabled: boolean): Promise<void> => undefined),
+    openLoggingFolder: vi.fn(async (): Promise<void> => undefined)
+  }
   let version = 0
   let active = true
   const owner = new AppSettingsService({
     desktopSettings,
-    fonts: new FontSettings(storage as never, publishEvent),
+    fonts: new FontSettings(storage as never, publishEvent, enumerateFonts),
     agentDefaults: {
       getAutoCompactionEnabled: () => true,
       getAutoCompactionTriggerThreshold: () => 80,
@@ -50,9 +57,8 @@ function setup() {
     } as never,
     privacy: { isEnabled: () => true } as never,
     traceSettings: { isEnabled: () => false } as never,
-    logging: { getEnabled: () => false } as never,
+    logging: new LoggingService(storage as never, loggingHost, publishEvent),
     ocr: { getAutomaticExtractionEnabled: () => true, getBackend: () => 'auto' } as never,
-    applyContentProtection: vi.fn(),
     recordActivity: vi.fn(),
     publishEvent,
     nextVersion: () => ++version,
@@ -63,6 +69,8 @@ function setup() {
   return {
     owner,
     host,
+    loggingHost,
+    enumerateFonts,
     stored,
     storage,
     publishEvent,
@@ -287,5 +295,49 @@ describe('AppSettingsService', () => {
     publishEvent.mockClear()
     await owner.observeSystemTheme()
     expect(publishEvent).not.toHaveBeenCalled()
+  })
+
+  it.each(['contentProtectionEnabled', 'loggingEnabled'] as const)(
+    'awaits native %s completion before its event and receipt',
+    async (key) => {
+      const { owner, host, loggingHost, publishEvent } = setup()
+      const effect =
+        key === 'contentProtectionEnabled' ? host.applyContentProtection : loggingHost.applyLogging
+      const finishing = deferred<void>()
+      effect.mockReturnValueOnce(finishing.promise)
+      const changed = owner.update([{ key, value: true }])
+      await vi.waitFor(() => expect(effect).toHaveBeenCalledWith(true))
+      expect(publishEvent).not.toHaveBeenCalled()
+      finishing.resolve()
+      expect((await changed).values).toEqual({ [key]: true })
+      expect(publishEvent).toHaveBeenCalledWith(
+        'settings.changed',
+        expect.objectContaining({ values: { [key]: true } })
+      )
+    }
+  )
+
+  it('drains actual font enumeration and fences queued folder requests before stopping', async () => {
+    const { owner, enumerateFonts, loggingHost } = setup()
+    const enumerated = deferred<string[]>()
+    enumerateFonts.mockReturnValueOnce(enumerated.promise)
+    const fonts = owner.listSystemFonts()
+    await vi.waitFor(() => expect(enumerateFonts).toHaveBeenCalledOnce())
+    const folder = expect(owner.openLoggingFolder()).rejects.toThrow('Settings owner is stopped')
+    let drained = false
+    const stopping = owner.stop().then(() => {
+      drained = true
+    })
+    expect(drained).toBe(false)
+    enumerated.resolve(['Inter Regular', 'Inter Bold', 'Menlo'])
+    expect(await fonts).toEqual(['Inter', 'Menlo'])
+    await folder
+    await stopping
+    expect(loggingHost.openLoggingFolder).not.toHaveBeenCalled()
+    owner.start()
+    expect(await owner.listSystemFonts()).toEqual(['Inter', 'Menlo'])
+    expect(enumerateFonts).toHaveBeenCalledOnce()
+    await owner.openLoggingFolder()
+    expect(loggingHost.openLoggingFolder).toHaveBeenCalledOnce()
   })
 })
