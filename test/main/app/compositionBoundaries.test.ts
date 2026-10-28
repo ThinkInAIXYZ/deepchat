@@ -24,9 +24,6 @@ describe('session boundary composition', () => {
     expect(compositionSource).toMatch(
       /new LegacyChatImportService\([^)]*memoryDatabase,\s*sessionData\.tapeStore/
     )
-    expect(compositionSource).toMatch(
-      /sessionData\.tapeStore,\s*undefined,\s*\(\) => projectService\.notifyEnvironmentProjectionChanged\(\)/
-    )
     expect(compositionSource).toContain(
       'legacyChatImportService.repairImportedLegacySessionSkills(conversationId)'
     )

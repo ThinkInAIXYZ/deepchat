@@ -2137,6 +2137,51 @@ own exact-head CI. G4 remains active: remaining configuration/runtime consumers 
 writer/reader/desktop inventory precede G5's exclusive profile handoff. G5–G12 keep their full
 scope and conditional adoption rules.
 
+### Storage roots and native folder acknowledgement
+
+- [x] Remove Electron path discovery from SyncService, SyncSettings and LegacyChatImportService.
+      Supply required absolute profile/temporary/home/source paths from actual Main composition.
+- [x] Await the native sync-folder launch and reject both SDK errors and failed native results.
+      Keep directory selection and backup/import policy with the business owner.
+- [x] Supply Knowledge's existing unpacked extension directory explicitly to the service and
+      every database create/open path. Keep its DuckDB/VSS engine and file ownership intact.
+
+Sync retains its existing filenames, archive paths, configuration filtering, snapshot/read locks,
+encrypted backup behavior and incremental/overwrite rollback. Source and staged files remain
+owned by the existing maintenance operations; this slice adds no writable Main shadow and does
+not perform G5's handoff. Legacy startup import uses the same profile chat.db as an explicitly
+read-only source and the same shared target facades. Knowledge removes its module-level native
+lookup, retains existing VSS loading/fallback and keeps independent file/task state. Main supplies
+runtime facts and the asynchronous shell capability. There is no additional process, engine,
+dependency, fallback, public schema, generic path-discovery route or permission expansion.
+
+Validation: **97 distinct checks across nine files pass**: 83 native-enabled sync/Knowledge/import/
+composition checks in seven files and 14 generated-catalog checks in two. New durable cases cover
+the supplied home default, waiting for actual native folder completion and propagating returned
+errors/rejections. Existing native backup consistency cases retain encrypted snapshot, WAL and
+concurrent-copy coverage. An obsolete source assertion requiring an undefined import path is
+removed; actual application import/relaunch checks verify the explicit source. App and selected
+sync-settings/new-E2E types, normal build, format, lint and i18n pass.
+
+Immutable `9c67d7431` and the candidate pass the same six application cases (24.4/24.7 s): five
+maintenance/backup/rekey/credential/shutdown cases and the storage-root workload. A disposable
+chat.db is populated through native SQLite before launch, imported from the expected source,
+preserved byte-for-byte and restored on relaunch. Sync creates and opens the configured private
+backup directory through the actual route; the fixture observes the final shell SDK call without
+opening an external folder. Knowledge loads the existing native VSS extension, creates its file
+under app_db/KnowledgeBase, closes gracefully and reopens after relaunch with configuration intact.
+No model/provider network call is needed. These are functional observations, not a performance
+claim; no performance/resource suite is repeated.
+
+The full SyncService/SyncSettings/LegacyChatImportService/KnowledgeService graphs (33/1/16/13
+modules) compile and import in ordinary Node with Electron/electron-store forbidden at build and
+runtime. The probe executes default/custom sync folder operations and actual native Knowledge
+initialization, VSS loading, file listing, close and reopen. It does not claim a native SQLite
+backup/import under ordinary Node or a composed headless Harness. Evidence and verified/restored
+artifact hashes are in `.deepchat/rutis-g4-storage-roots-acceptance/`. Normal generated Provider
+catalog changes are retained separately. G4 remains active for remaining native/configuration
+consumer contracts and the final writer/reader/desktop inventory; G5–G12 retain their full scope.
+
 - [ ] Complete the writer, synchronous-reader and desktop-consumer inventory.
   - [x] Enumerate SQLite/DuckDB construction and wrapper entrypoints, inherited shared facades,
         staged/import/snapshot connections and independent derived-cache/vector owners.

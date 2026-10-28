@@ -23,7 +23,6 @@ Object.assign(fsModule, realFs)
 ).promises
 const fs = realFs
 
-const { app } = await import('electron')
 const { SyncService } = await import('../../../src/main/sync')
 
 let userDataDir: string
@@ -32,17 +31,12 @@ let dbPath: string
 let writerDb: Database.Database | null = null
 let sidecarConnections: Database.Database[] = []
 let postCheckpointImages: Buffer[] = []
-let getPathSpy: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
   userDataDir = fs.mkdtempSync(path.join(osActual.tmpdir(), 'deepchat-user-'))
   syncDir = fs.mkdtempSync(path.join(osActual.tmpdir(), 'deepchat-sync-'))
   dbPath = path.join(userDataDir, 'app_db', 'agent.db')
   postCheckpointImages = []
-  getPathSpy = vi.spyOn(app, 'getPath').mockImplementation((type: string) => {
-    if (type === 'userData') return userDataDir
-    return osActual.tmpdir()
-  })
   fs.mkdirSync(path.dirname(dbPath), { recursive: true })
   fs.writeFileSync(path.join(userDataDir, 'app-settings.json'), JSON.stringify({ theme: 'dark' }))
 })
@@ -57,7 +51,6 @@ afterEach(() => {
   sidecarConnections = []
   writerDb?.close()
   writerDb = null
-  getPathSpy.mockRestore()
   fs.rmSync(userDataDir, { recursive: true, force: true })
   fs.rmSync(syncDir, { recursive: true, force: true })
 })
@@ -115,7 +108,12 @@ function buildService(
       }
     } as never,
     {} as never,
-    vi.fn() as never
+    vi.fn() as never,
+    {
+      profileDirectory: userDataDir,
+      temporaryDirectory: osActual.tmpdir(),
+      openPath: async () => ''
+    }
   )
 }
 

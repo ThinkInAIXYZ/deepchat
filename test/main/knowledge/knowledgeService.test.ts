@@ -157,6 +157,7 @@ describe('KnowledgeService Validation Methods', () => {
     knowledgeService = new KnowledgeService({
       config: mockProviderSettings,
       storageRoot: mockDbDir,
+      extensionDirectory: '/mock/runtime/duckdb/extensions',
       files: mockFileService,
       dialog: mockDialogPresenter,
       embeddings: mockProviderRuntime,

@@ -1056,7 +1056,7 @@ export async function createMainProcessControl(dependencies: {
     projectDatabase,
     memoryDatabase,
     sessionData.tapeStore,
-    undefined,
+    path.join(app.getPath('userData'), 'app_db', 'chat.db'),
     () => projectService.notifyEnvironmentProjectionChanged()
   )
   usageStatsService = new UsageStatsService(
@@ -1530,7 +1530,8 @@ export async function createMainProcessControl(dependencies: {
   const syncSettings = new SyncSettings(
     dependencies.settingsStore,
     dependencies.secretStore,
-    publishDeepchatEvent
+    publishDeepchatEvent,
+    app.getPath('home')
   )
   const hookSettings = new HookSettings(dependencies.settingsStore)
   const knowledgeSettings = new KnowledgeSettings(
@@ -1542,7 +1543,12 @@ export async function createMainProcessControl(dependencies: {
     mainDatabase,
     settingsDatabase,
     providerDatabase,
-    publishDeepchatEvent
+    publishDeepchatEvent,
+    {
+      profileDirectory: app.getPath('userData'),
+      temporaryDirectory: app.getPath('temp'),
+      openPath: (directory) => shell.openPath(directory)
+    }
   )
   const syncTokenStorage = {
     protectToken: async (token: string) => {
@@ -1751,6 +1757,12 @@ export async function createMainProcessControl(dependencies: {
   knowledgeService = new KnowledgeService({
     config: knowledgeSettings,
     storageRoot: dbDir,
+    extensionDirectory: path.join(
+      app.getAppPath().replace('app.asar', 'app.asar.unpacked'),
+      'runtime',
+      'duckdb',
+      'extensions'
+    ),
     files: fileService,
     dialog: dialogService,
     embeddings: providerRuntime,

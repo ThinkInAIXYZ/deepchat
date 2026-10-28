@@ -2,10 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const publishDeepchatEvent = vi.hoisted(() => vi.fn())
 
-vi.mock('electron', () => ({
-  app: { getPath: vi.fn(() => '/home/test') }
-}))
-
 import { SyncSettings } from '@/sync/settings'
 import { SecretStore } from '@/config/secretStore'
 
@@ -22,10 +18,28 @@ function createSettings(initial: Record<string, unknown> = {}) {
 describe('SyncSettings', () => {
   beforeEach(() => vi.clearAllMocks())
 
+  it('uses the supplied home root until an explicit sync folder is selected', () => {
+    const settings = createSettings()
+    const service = new SyncSettings(
+      settings as never,
+      {} as never,
+      publishDeepchatEvent,
+      '/home/test'
+    )
+    expect(service.getFolderPath()).toMatch(/[/\\]home[/\\]test[/\\]DeepchatSync$/)
+    service.setFolderPath('/selected/sync')
+    expect(service.getFolderPath()).toBe('/selected/sync')
+  })
+
   it('owns local sync settings and publishes their current state', () => {
     const settings = createSettings({ syncFolderPath: '/sync' })
     const secrets = { get: vi.fn(() => ''), isAvailable: vi.fn(() => true) }
-    const syncSettings = new SyncSettings(settings as never, secrets as never, publishDeepchatEvent)
+    const syncSettings = new SyncSettings(
+      settings as never,
+      secrets as never,
+      publishDeepchatEvent,
+      '/home/test'
+    )
 
     syncSettings.setEnabled(true)
 
@@ -51,7 +65,12 @@ describe('SyncSettings', () => {
       get: vi.fn(() => 'secret'),
       isAvailable: vi.fn(() => true)
     }
-    const syncSettings = new SyncSettings(settings as never, secrets as never, publishDeepchatEvent)
+    const syncSettings = new SyncSettings(
+      settings as never,
+      secrets as never,
+      publishDeepchatEvent,
+      '/home/test'
+    )
 
     await expect(syncSettings.setCloudConfig({ secretAccessKey: 'new-secret' })).rejects.toThrow(
       'write failed'
@@ -68,7 +87,7 @@ describe('SyncSettings', () => {
       encrypt,
       decrypt: async (wrapped) => wrapped.slice('wrapped:'.length)
     })
-    const service = new SyncSettings(settings as never, secrets, publishDeepchatEvent)
+    const service = new SyncSettings(settings as never, secrets, publishDeepchatEvent, '/home/test')
     const first = service.setCloudConfig({
       endpoint: 'https://cloud.example',
       accessKeyId: 'access',
@@ -102,7 +121,7 @@ describe('SyncSettings', () => {
       encrypt,
       decrypt: async () => ''
     })
-    const service = new SyncSettings(settings as never, secrets, publishDeepchatEvent)
+    const service = new SyncSettings(settings as never, secrets, publishDeepchatEvent, '/home/test')
     const first = expect(service.setCloudConfig({ secretAccessKey: 'key' })).rejects.toThrow(
       'interrupted'
     )
@@ -132,7 +151,7 @@ describe('SyncSettings', () => {
       secrets.resume()
       return wrapped
     })
-    const service = new SyncSettings(settings as never, secrets, publishDeepchatEvent)
+    const service = new SyncSettings(settings as never, secrets, publishDeepchatEvent, '/home/test')
     await expect(service.setCloudConfig({ secretAccessKey: 'key' })).rejects.toThrow('interrupted')
     expect(settings.values.size).toBe(0)
   })

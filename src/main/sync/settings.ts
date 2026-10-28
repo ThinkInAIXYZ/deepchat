@@ -1,4 +1,3 @@
-import { app } from 'electron'
 import path from 'node:path'
 import type { SecretStore } from '@/config/secretStore'
 import type { SettingsStore } from '@/config/settingsStore'
@@ -15,12 +14,17 @@ const CLOUD_SYNC_SECRET_KEY = 'cloudSyncSecret'
 
 export class SyncSettings {
   private cloudMutation: Promise<void> = Promise.resolve()
+  private readonly defaultFolderPath: string
 
   constructor(
     private readonly settings: SettingsStore,
     private readonly secrets: SecretStore,
-    private readonly publishEvent: DeepchatEventPublisher
-  ) {}
+    private readonly publishEvent: DeepchatEventPublisher,
+    homeDirectory: string
+  ) {
+    if (!path.isAbsolute(homeDirectory)) throw new Error('Sync home directory must be absolute')
+    this.defaultFolderPath = path.join(homeDirectory, 'DeepchatSync')
+  }
 
   getEnabled(): boolean {
     return this.settings.get<boolean>('syncEnabled') ?? false
@@ -32,9 +36,7 @@ export class SyncSettings {
   }
 
   getFolderPath(): string {
-    return (
-      this.settings.get<string>('syncFolderPath') || path.join(app.getPath('home'), 'DeepchatSync')
-    )
+    return this.settings.get<string>('syncFolderPath') || this.defaultFolderPath
   }
 
   setFolderPath(folderPath: string): void {

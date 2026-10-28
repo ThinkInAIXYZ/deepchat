@@ -828,6 +828,23 @@ pauses its timer during maintenance without losing the intent, resumes after suc
 and cancels it on shutdown. Once fired, restart authority belongs to the existing Main shutdown
 coordinator; draining configuration must not wait on its own restart teardown.
 
+Storage business owners receive explicit runtime directories rather than importing Electron to
+discover them. SyncSettings requires the absolute home directory for its unchanged default folder.
+SyncService requires absolute profile and temporary directories for configuration/database files,
+archive extraction, staged backup copies and validation. It awaits Main's folder-open capability
+and propagates both native rejection and a returned error before acknowledging success. Main keeps
+the native shell effect; no database connection or file writer is added there. Backup snapshots,
+configuration import, rollback and active/source/staged connection lifetimes remain with the
+existing maintenance owner and move with the shared writer at G5.
+
+LegacyChatImportService requires its absolute source path. Main supplies the existing profile
+chat.db path; the importer retains read-only source access and writes through the existing shared
+target facades. KnowledgeService receives its absolute DuckDB extension directory from Main and
+passes it to every database create/open path. Main performs the existing ASAR-unpacked resource
+resolution. Preserve VSS loading/fallback, schema/migrations, task recovery and independent Knowledge
+files; these files are not Memory's G3 vector stores. These boundaries add no alternate database
+engine, implicit native fallback, separate supervisor or second profile owner.
+
 Plugin install/consent state retains its separate desktop file owners. Tool policies follow the
 business permission owner below; consumers use authoritative policy data rather than native Store
 imports or independently writable snapshots.
