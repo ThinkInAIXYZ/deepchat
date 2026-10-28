@@ -693,6 +693,15 @@ The boundary follows existing business operations, rather than these connection 
 | `SyncReplicaStore` and composition guards | Authorization/session-deletion guard, conflict checks, trigger suppression, imported rows, tombstones and peer cursor advancement | Validated bounded sync batch and result; authenticated transport establishes authority, not a caller-supplied callback |
 | Settings, Provider, MCP and ACP database adapters | Configuration identity/CAS and acknowledged mutations remain with their business owners | Explicit public snapshots and mutations; no raw Store, table, row getter or database handle |
 
+Project bootstrap receives absolute system/profile directories and nullable Documents/Home paths
+from Main. Capture these roots before serving snapshots; do not await native directory discovery
+between synchronous settings and database reads. Directory selection and open-path operations use
+required asynchronous host capabilities. Main supplies the existing DeviceService and shell adapter,
+including native lookup failure diagnostics; Project retains candidate ordering, managed-directory
+fallback, persisted revisions and its original transaction boundary. No native constructor fallback,
+second settings writer or row-level transport is introduced. G5 moves this owner with its shared
+database/settings authority and transports only native selection/open commands and plain results.
+
 Database readers also move with these owners. `main/session/data/sessionReferences.ts`,
 `main/session/sessionHistorySearch.ts` and
 `main/mcp/inMemoryServers/conversationSearchServer.ts` query the inherited shared connection;

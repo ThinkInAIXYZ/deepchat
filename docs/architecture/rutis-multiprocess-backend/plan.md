@@ -1661,6 +1661,57 @@ active. G5 has not started.
 Agent Tool head `f0ca555fe` passes required `40478827867`/barrier `122106538990` and all six
 packages `40478827913`/barrier `122113041876` before the policy checkpoint is published.
 
+### Project bootstrap and native capabilities
+
+Keep Project snapshots, settings revisions and environment transactions with their existing owner.
+Supply native system/profile roots, optional Documents/Home roots, directory selection and path
+opening from Main. Do not introduce awaited native discovery inside a synchronous snapshot.
+
+- [x] Wire the required host into the actual ProjectService constructor and remove its Electron
+      import/native directory discovery. Retain the existing shared database and settings owner.
+- [x] Validate managed-workspace fallback, native failures, environment mutations, Session clearing,
+      persisted revisions and the matching baseline/candidate application workload.
+
+Main resolves the native directories once at bootstrap and preserves diagnostics for unavailable
+Documents/Home paths. Project rejects relative host roots and captures normalized candidates;
+later host-object changes cannot alter the roots of a versioned snapshot. Candidate order remains
+Documents, Home, then the profile's managed workspace. Existing custom defaults, lazy preparation,
+directory-creation fallback and temporary-path classification remain compatible. Main supplies the
+same DeviceService and shell operations through required asynchronous capabilities. Native picker
+cancellation/failure does not commit a selection; shell error strings still reject the operation.
+
+Project removal still clears Session assignments, project/preferences and the environment projection
+in one database transaction. Snapshot/settings reads remain in one uninterrupted turn, revisions
+persist through the same SettingsStore, and no second writer/cache, public route, process, IPC or
+schema is added. G5 must move this owner with the shared database/configuration authority and carry
+only native selection/open operations over the desktop capability boundary.
+
+Validation: **249 checks across nine affected files and 41 generated-catalog checks across four
+files pass**, with native SQLite required. App and modified unit/fixture/new E2E types, the normal
+build, format/check, lint and i18n pass. Durable host cases cover absolute roots, unavailable native
+directories, stable captured candidates and selection failure without a mutation. Existing snapshot,
+transaction, concurrent selection, Session lifecycle and authenticated route checks remain green.
+
+The immutable `c6758fe56` app and candidate pass the same Project/native-boundary/persistence
+workload (5.0/5.8 s). It uses only an owned disposable profile, seeds a custom default before first
+launch and creates the managed workspace beneath that profile. Cancellation, selection, open-path
+error propagation, reorder/archive/restore, removal clearing a Session/default, graceful shutdown
+and exact snapshot/revision persistence on relaunch pass. Native dialog/shell results are supplied
+at the Electron API boundary; physical picker interaction and launching a file manager are not
+exercised. The fixture's profile preparation is restricted to its owned profile before first launch.
+Project (three modules) and its route graph (86) load in ordinary Node with Electron/electron-store
+forbidden at build/runtime. This is module-loading evidence, not a composed headless backend.
+
+No performance/resource suite is repeated and no speed gain is claimed. Normal generated Provider
+and ACP registry refreshes are retained separately. Artifact hashes and evidence are in
+`.deepchat/rutis-g4-project-acceptance/`. This checkpoint needs exact-head CI after publication;
+remaining Store/configuration and desktop boundaries keep G4 active. G5 is unstarted.
+
+The MCP App baseline `c6758fe56` passes required `40498105485`/barrier `122171636540` and all six
+packages `40498105509` attempt 2/barrier `122594009042` before this Project checkpoint is pushed.
+The single failed-job retry resolves a runner DNS failure downloading pinned Rust; production
+checks, timing budgets and source remain unchanged.
+
 ### MCP App registry and desktop adapter
 
 Keep one registry for instance/source/consent authority. Move native protocol, window observation,
@@ -1711,7 +1762,8 @@ establishes module loading, not a composed headless backend or a relocated write
 the registry with its source and permission authority, keeping source closures/signals local and
 transporting desktop policy/permission/ownership operations through the private gateway with
 generation fences. Artifact hashes and evidence are in `.deepchat/rutis-g4-mcp-apps-acceptance/`.
-G4 stays active and G5 is unstarted; this checkpoint still needs its own publication/CI evidence.
+G4 stays active and G5 is unstarted. Published head `c6758fe56` passes required `40498105485`/barrier
+`122171636540` and all six packages `40498105509` attempt 2/barrier `122594009042`.
 
 The preceding MCP environment head `ef4e8052a` passes required `40493590061`/barrier `122156301597`
 and all six packages `40493590206`/barrier `122162440119` before this App checkpoint is published.

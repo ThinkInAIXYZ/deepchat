@@ -94,7 +94,9 @@ export type ElectronAppInstance = {
 type ElectronFixtures = {
   privacyModeEnabled: boolean
   app: ElectronAppInstance
-  launchApp: () => Promise<ElectronAppInstance>
+  launchApp: (options?: {
+    prepareUserData?: (userDataDir: string) => void
+  }) => Promise<ElectronAppInstance>
 }
 
 const resolvePackagedExecutable = (): string => {
@@ -280,7 +282,13 @@ export const test = base.extend<ElectronFixtures>({
       })
     }
 
-    const launchApp = async (): Promise<ElectronAppInstance> => {
+    const launchApp: ElectronFixtures['launchApp'] = async (options) => {
+      if (options?.prepareUserData) {
+        if (!ownsUserDataDir || launchCount !== 0) {
+          throw new Error('Profile preparation requires an owned profile before its first launch')
+        }
+        options.prepareUserData(userDataDir)
+      }
       launchCount += 1
       const currentLaunch = launchCount
       const packaged = process.env.DEEPCHAT_E2E_APP_MODE === 'packaged'

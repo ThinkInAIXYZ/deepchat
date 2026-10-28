@@ -1350,10 +1350,29 @@ export async function createMainProcessControl(dependencies: {
   const rendererPerformanceLogService = new RendererPerformanceLogService(
     dependencies.settingsStore
   )
+  const resolveProjectDirectory = (name: 'documents' | 'home'): string | null => {
+    try {
+      return app.getPath(name)
+    } catch (error) {
+      console.warn(
+        `[ProjectService] Failed to resolve ${name === 'documents' ? 'Documents' : 'Home'} path:`,
+        error
+      )
+      return null
+    }
+  }
   projectService = new ProjectService(
     projectDatabase,
     sessionData.database,
-    deviceService,
+    {
+      tempDirectory: app.getPath('temp'),
+      userDataDirectory: app.getPath('userData'),
+      appDataDirectory: app.getPath('appData'),
+      documentsDirectory: resolveProjectDirectory('documents'),
+      homeDirectory: resolveProjectDirectory('home'),
+      selectDirectory: () => deviceService.selectDirectory(),
+      openPath: (directory) => shell.openPath(directory)
+    },
     dependencies.settingsStore,
     (projectPath, version) =>
       publishDeepchatEvent('config.defaultProjectPath.changed', {
