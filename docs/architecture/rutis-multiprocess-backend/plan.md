@@ -1686,14 +1686,16 @@ allow Main and the backend to write different keys concurrently. DesktopSettings
 still need native observation/effect and acknowledged snapshot/mutation contracts. OS login state
 comes from the native API; it is not a persisted preference to copy into a second settings store.
 
-Validation: **87 checks across 13 affected files pass** with native SQLite required. Coverage includes
+Validation: **184 checks across 16 affected native files, eight renderer icon checks and 14
+generated-catalog checks across two additional files pass**. Native SQLite is required for the
+affected native group. Coverage includes
 the six real-file/bootstrap contracts, config migration, attached settings/metadata, private crypto,
 database security, public settings, onboarding and Sync settings. App and modified unit/E2E types,
 the normal build, format/check, lint and i18n pass. The new file-contract suite explicitly uses the
 real filesystem instead of the repository's default fs mock.
 
-The immutable `cd7cc392f` app and candidate pass the same final legacy/bootstrap/credential/relaunch
-workload (5.0/4.6 s). It uses an owned profile with an old version, custom workspace and unknown
+The immutable `cd7cc392f` app and integrated candidate pass the same final legacy/bootstrap/credential/relaunch
+workload (5.8/4.8 s). Both use the current package version and resources. It uses an owned profile with an old version, custom workspace and unknown
 extension data, updates file-backed language/UI/limits and a database-backed preference, then
 reopens with each value retained in its original store. A disabled loopback cloud configuration
 keeps its secret wrapped on disk and readable after relaunch without rewriting the ciphertext.
@@ -1703,8 +1705,11 @@ hash-verifies the candidate output after the frozen-baseline run; no output swap
 The settings factory graph (three modules) and database adapter (two) load with Electron and
 electron-store forbidden at build/runtime. A real factory creates and writes the legacy file in
 ordinary Node. This establishes a portable configuration owner, not a composed headless Harness
-or relocated writer. No performance/resource capture or speed claim is added. Normal build
-catalogs are unchanged. Evidence is `.deepchat/rutis-g4-settings-owner-acceptance/`.
+or relocated writer. No performance/resource capture or speed claim is added. The branch includes
+`dev` at `b62eb0d2b`, including CloudGPU and `1.1.4-beta.7`. Its new Provider fixtures receive the
+same required host environment as existing providers; no production fallback is added. App/scoped
+types, build and matching application evidence validate this integrated source. The normal build's
+Provider catalog refresh is retained. Evidence is `.deepchat/rutis-g4-settings-owner-acceptance/`.
 
 This checkpoint needs its own exact-head CI after publication. The Hook baseline `cd7cc392f`
 passes required `40623544678`/barrier `122604697934` and all six packages `40623544682`/barrier

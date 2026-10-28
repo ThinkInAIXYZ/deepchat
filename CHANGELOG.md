@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.1.4-beta.7 (2026-10-28)
+- Select the Agent directly in the new-conversation composer while preserving Agent-specific drafts, model choices, and workspace defaults
+- Restored ACP composer preparation, automatically created or recovered the Chats workspace, and kept composer controls and option menus usable in narrow windows
+- Fixed Code Mode access to subagent tools
+- Added the CloudGPU, Runcrate, AtmoRouter, apimodels.app, and AI Stupid Level providers with compatible chat model filtering
+- Added Webz news search, EvoLink media generation, and deed.page hosting MCP presets, plus an optional Baizhi cloud browser plugin example
+- Fixed MCP OAuth issuer matching and callback handling while preserving existing client registrations
+- Refreshed the bundled model and ACP catalogs
+- 在新对话输入框中直接选择 Agent，并保留各 Agent 的草稿、模型选择和工作区默认值
+- 恢复 ACP 输入框预准备，自动创建或恢复 Chats 工作区，并改善窄窗口中的输入框控件和选项菜单
+- 修复 Code Mode 无法调用子代理工具的问题
+- 新增 CloudGPU、Runcrate、AtmoRouter、apimodels.app 和 AI Stupid Level 服务商，并筛选兼容的聊天模型
+- 新增 Webz 新闻搜索、EvoLink 媒体生成和 deed.page 托管 MCP 预设，以及可选的百智云浏览器插件示例
+- 修复 MCP OAuth 授权服务地址匹配与回调处理，并保留已有客户端注册信息
+- 刷新内置模型与 ACP 目录
+
 ## v1.1.4-beta.6 (2026-10-22)
 - Simplified sidebar navigation and consolidated conversation search in global search, with matching conversation titles shown before message results
 - Fixed global search selecting results while confirming text with an input method, and loaded bundled icons before rendering the interface
