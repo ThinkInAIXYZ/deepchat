@@ -2183,16 +2183,28 @@ export class AiSdkProvider extends BaseLLMProvider {
   }
 
   /**
-   * CloudGPU's public catalog answers without a key and lists more than the chat families
-   * this provider surfaces. Keep ids that start with deepseek-, kimi-, glm- or minimax-.
+   * CloudGPU's public catalog answers without a key and has no capability field. List every id
+   * except the ones that are clearly not chat models (embedding, rerank, image, audio, speech).
    */
   private async fetchCloudgpuModels(): Promise<MODEL_META[]> {
     const records = await this.fetchOpenAIModelRecords({ timeout: this.getModelFetchTimeout() })
-    const chatPrefixes = ['deepseek-', 'kimi-', 'glm-', 'minimax-']
+    const nonChatPatterns = [
+      'embed',
+      'rerank',
+      'image',
+      'flux-',
+      'audio',
+      'speech',
+      'tts',
+      'whisper',
+      '-asr',
+      'transcri'
+    ]
     const models: MODEL_META[] = []
     for (const model of records) {
       const modelId = typeof model.id === 'string' ? model.id.trim() : ''
-      if (!modelId || !chatPrefixes.some((prefix) => modelId.startsWith(prefix))) {
+      const lower = modelId.toLowerCase()
+      if (!modelId || nonChatPatterns.some((pattern) => lower.includes(pattern))) {
         continue
       }
       models.push({

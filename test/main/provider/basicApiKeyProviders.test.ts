@@ -1756,22 +1756,26 @@ describe('basic API-key provider registrations', () => {
     )
   })
 
-  it('lists only DeepSeek, Kimi, GLM and MiniMax ids from the public CloudGPU catalog', async () => {
+  it('lists every CloudGPU catalog id except non-chat models', async () => {
     const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'cloudgpu')!
     const fetchMock = vi.fn().mockResolvedValue(
       Response.json({
         object: 'list',
         data: [
+          { id: 'auto', owned_by: 'cloudgpu' },
           { id: 'deepseek-v4.1-flash', owned_by: 'cloudgpu' },
           { id: 'kimi-k3', owned_by: 'cloudgpu' },
           { id: 'glm-5.1', owned_by: '  ' },
           { id: 'minimax-m3' },
-          { id: 'auto', owned_by: 'cloudgpu' },
+          { id: 'vendor-chat-large' },
           { id: 'flux-1-schnell' },
+          { id: 'glm-image' },
+          { id: 'deepseek-embed' },
+          { id: 'vendor-reranker' },
           { id: 'whisper-v3' },
           { id: 'kokoro-tts' },
-          { id: 'deepseek' },
-          { id: 'glm' },
+          { id: 'vendor-asr' },
+          { id: 'vendor-audio-preview' },
           { id: '  ' },
           { id: 12 }
         ]
@@ -1780,42 +1784,25 @@ describe('basic API-key provider registrations', () => {
     global.fetch = fetchMock
     const provider = new AiSdkProvider(defaults, createProviderSettings())
 
-    expect(await provider.fetchModels({ suppressErrors: false })).toEqual([
-      {
-        id: 'deepseek-v4.1-flash',
-        name: 'deepseek-v4.1-flash',
-        group: 'default',
-        providerId: 'cloudgpu',
-        isCustom: false,
-        type: 'chat',
-        ownedBy: 'cloudgpu'
-      },
-      {
-        id: 'kimi-k3',
-        name: 'kimi-k3',
-        group: 'default',
-        providerId: 'cloudgpu',
-        isCustom: false,
-        type: 'chat',
-        ownedBy: 'cloudgpu'
-      },
-      {
-        id: 'glm-5.1',
-        name: 'glm-5.1',
-        group: 'default',
-        providerId: 'cloudgpu',
-        isCustom: false,
-        type: 'chat'
-      },
-      {
-        id: 'minimax-m3',
-        name: 'minimax-m3',
-        group: 'default',
-        providerId: 'cloudgpu',
-        isCustom: false,
-        type: 'chat'
-      }
+    const models = await provider.fetchModels({ suppressErrors: false })
+    expect(models.map(({ id }) => id)).toEqual([
+      'auto',
+      'deepseek-v4.1-flash',
+      'kimi-k3',
+      'glm-5.1',
+      'minimax-m3',
+      'vendor-chat-large'
     ])
+    expect(models).toContainEqual({
+      id: 'auto',
+      name: 'auto',
+      group: 'default',
+      providerId: 'cloudgpu',
+      isCustom: false,
+      type: 'chat',
+      ownedBy: 'cloudgpu'
+    })
+    expect(models.find(({ id }) => id === 'glm-5.1')).not.toHaveProperty('ownedBy')
     expect(fetchMock).toHaveBeenCalledWith(
       'https://cloudgpu.app/v1/models',
       expect.objectContaining({ method: 'GET' })

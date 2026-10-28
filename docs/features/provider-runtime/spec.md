@@ -108,9 +108,11 @@ Upstream reference: [Language Models API](https://apimodels.app/docs/llm?p=opena
 ## CloudGPU
 
 `cloudgpu` uses the OpenAI-compatible transport with API-key credentials. Live model discovery
-keeps only ids that start with `deepseek-`, `kimi-`, `glm-` or `minimax-`. The catalog is public,
-so connection checks generate text with `deepseek-v4.1-flash` and the shared 16-token output limit
-to validate credentials. Embeddings are disabled for this profile.
+lists every chat model from the public `/v1/models` catalog. The catalog has no capability field,
+so ids that are clearly not chat models (embedding, rerank, image, audio, speech, TTS and
+transcription ids) are skipped by name. The catalog is public, so connection checks generate text
+with `deepseek-v4.1-flash` and the shared 16-token output limit to validate credentials.
+Embeddings are disabled for this profile.
 
 Upstream reference: [API docs](https://cloudgpu.app/api/docs?utm_source=deepchat).
 
