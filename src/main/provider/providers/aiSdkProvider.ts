@@ -1784,6 +1784,8 @@ export class AiSdkProvider extends BaseLLMProvider {
       }
       case 'runcrate':
         return this.fetchRuncrateModels()
+      case 'cloudgpu':
+        return this.fetchCloudgpuModels()
       case 'bedrock':
         return this.fetchBedrockModels()
       case 'new-api':
@@ -2172,6 +2174,46 @@ export class AiSdkProvider extends BaseLLMProvider {
           ? { functionCall: features.includes('tools'), reasoning: features.includes('reasoning') }
           : {}),
         ...(inputModalities ? { vision: inputModalities.includes('image') } : {}),
+        ...(typeof model.owned_by === 'string' && model.owned_by.trim()
+          ? { ownedBy: model.owned_by.trim() }
+          : {})
+      })
+    }
+    return models
+  }
+
+  /**
+   * CloudGPU's public catalog answers without a key and has no capability field. List every id
+   * except the ones that are clearly not chat models (embedding, rerank, image, audio, speech).
+   */
+  private async fetchCloudgpuModels(): Promise<MODEL_META[]> {
+    const records = await this.fetchOpenAIModelRecords({ timeout: this.getModelFetchTimeout() })
+    const nonChatPatterns = [
+      'embed',
+      'rerank',
+      'image',
+      'flux-',
+      'audio',
+      'speech',
+      'tts',
+      'whisper',
+      '-asr',
+      'transcri'
+    ]
+    const models: MODEL_META[] = []
+    for (const model of records) {
+      const modelId = typeof model.id === 'string' ? model.id.trim() : ''
+      const lower = modelId.toLowerCase()
+      if (!modelId || nonChatPatterns.some((pattern) => lower.includes(pattern))) {
+        continue
+      }
+      models.push({
+        id: modelId,
+        name: modelId,
+        group: 'default',
+        providerId: this.provider.id,
+        isCustom: false,
+        type: ModelType.Chat,
         ...(typeof model.owned_by === 'string' && model.owned_by.trim()
           ? { ownedBy: model.owned_by.trim() }
           : {})

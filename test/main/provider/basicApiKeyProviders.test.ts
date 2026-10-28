@@ -1722,6 +1722,93 @@ describe('basic API-key provider registrations', () => {
     )
   })
 
+  it('checks CloudGPU with a chat model instead of its public model list', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'cloudgpu')!
+    expect(defaults).toBeDefined()
+    const config = { ...defaults, apiKey: 'test-key' }
+    // CloudGPU's /v1/models answers without a key, so listing models cannot validate one.
+    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'cloudgpu',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none',
+      checkModelId: 'deepseek-v4.1-flash'
+    })
+    const provider = new AiSdkProvider(config, createProviderSettings())
+    ;(provider as any).isInitialized = true
+
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerKind: 'openai-compatible',
+        provider: expect.objectContaining({
+          id: 'cloudgpu',
+          apiKey: 'test-key',
+          baseUrl: 'https://cloudgpu.app/v1'
+        })
+      }),
+      [{ role: 'user', content: 'Hello' }],
+      'deepseek-v4.1-flash',
+      expect.any(Object),
+      0.2,
+      16
+    )
+  })
+
+  it('lists every CloudGPU catalog id except non-chat models', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'cloudgpu')!
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        object: 'list',
+        data: [
+          { id: 'auto', owned_by: 'cloudgpu' },
+          { id: 'deepseek-v4.1-flash', owned_by: 'cloudgpu' },
+          { id: 'kimi-k3', owned_by: 'cloudgpu' },
+          { id: 'glm-5.1', owned_by: '  ' },
+          { id: 'minimax-m3' },
+          { id: 'vendor-chat-large' },
+          { id: 'flux-1-schnell' },
+          { id: 'glm-image' },
+          { id: 'deepseek-embed' },
+          { id: 'vendor-reranker' },
+          { id: 'whisper-v3' },
+          { id: 'kokoro-tts' },
+          { id: 'vendor-asr' },
+          { id: 'vendor-audio-preview' },
+          { id: '  ' },
+          { id: 12 }
+        ]
+      })
+    )
+    global.fetch = fetchMock
+    const provider = new AiSdkProvider(defaults, createProviderSettings())
+
+    const models = await provider.fetchModels({ suppressErrors: false })
+    expect(models.map(({ id }) => id)).toEqual([
+      'auto',
+      'deepseek-v4.1-flash',
+      'kimi-k3',
+      'glm-5.1',
+      'minimax-m3',
+      'vendor-chat-large'
+    ])
+    expect(models).toContainEqual({
+      id: 'auto',
+      name: 'auto',
+      group: 'default',
+      providerId: 'cloudgpu',
+      isCustom: false,
+      type: 'chat',
+      ownedBy: 'cloudgpu'
+    })
+    expect(models.find(({ id }) => id === 'glm-5.1')).not.toHaveProperty('ownedBy')
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://cloudgpu.app/v1/models',
+      expect.objectContaining({ method: 'GET' })
+    )
+  })
+
   it('lists only text chat models from the public Runcrate catalog', async () => {
     const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'runcrate')!
     const fetchMock = vi.fn().mockResolvedValue(
