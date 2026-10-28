@@ -1661,6 +1661,55 @@ active. G5 has not started.
 Agent Tool head `f0ca555fe` passes required `40478827867`/barrier `122106538990` and all six
 packages `40478827913`/barrier `122113041876` before the policy checkpoint is published.
 
+### Hook metadata and command lifetimes
+
+Keep Hook configuration, subscriptions, enrichment and command ownership together. Supply the
+application version from Main for both normal and test payloads. Diagnostic acknowledgement must
+not release a native command that still owns open stdio or an accepted Session lookup.
+
+- [x] Remove HookService's Electron dependency and wire its required application version in the
+      actual Main composition, preserving the version-1 payload and command environment.
+- [x] Retain child ownership through native close, including after timeout/error diagnostics;
+      stop admission and await accepted enrichment and child completion before Store teardown.
+- [x] Compare the existing configuration/test/relaunch workload and verify actual shutdown with
+      a real model-triggered Hook whose descendant keeps the command's stdio open.
+
+The existing owner keeps per-session event eligibility/order and concurrent command execution.
+Stop sends the existing shell termination signal and waits for actual child/stdio closure and
+accepted enrichment. A 30-second drain failure rejects maintenance/shutdown; restart rejects while
+prior work remains owned. New explicit test commands reject after stop. Main awaits Hook stop
+directly before later teardown, so its failure cannot be swallowed by best-effort cleanup and
+permit database closure. Command timeout diagnostics, output bounds/redaction, configuration
+persistence, accepted subscriber identity and stopped-event suppression remain compatible.
+
+Validation: **530 distinct checks across five affected files pass**, with native SQLite required
+for the affected group. The final four-file group passes 515 checks, and the RuntimeHookSink's
+15 checks pass on the same production sources. App and modified Hook/unit/E2E types, the normal
+build, format/check, lint and i18n pass. Durable cases cover both supplied-version payloads,
+timeout/error acknowledgement before native close, blocked late test commands, failed drain/restart,
+late enrichment suppression and successful restart after prior work finishes.
+
+The immutable `b7a50e3aa` app and candidate pass the same configuration/test/version/relaunch
+workload (6.7/7.0 s). A separate baseline characterization reproduces premature shutdown: the
+application closes while the real Hook descendant remains alive and holds stdio. The candidate's
+same native-lifetime regression passes in 4.8 s: actual loopback Provider execution emits a
+SessionStart payload with the native application version, shell termination leaves the descendant
+holding stdio, the app remains alive until the fixture releases that child, shutdown is graceful,
+and relaunch does not replay the Hook. Both candidate cases pass in 11.9 s. The baseline failure
+and traces are retained. The existing direct-shell signal policy is unchanged; this cutover adds
+no detached process group or descendant-tree termination guarantee. Missing close fails the drain.
+
+HookService (one module), HookSettings (two) and routes (85) load in ordinary Node with
+Electron/electron-store forbidden at build/runtime; a plain Hook owner also starts/stops there.
+This is module-loading/owner evidence, not a composed headless backend. No schema, public route,
+process placement, dependency, layout or performance claim changes. No performance/resource suite
+is repeated. Evidence and immutable build hashes are in `.deepchat/rutis-g4-hooks-acceptance/`.
+
+Local acceptance is complete; this Hook checkpoint needs its own exact-head CI after publication.
+The Project baseline `b7a50e3aa` passes required `40621219551`/barrier `122597419315` and all six
+packages `40621219651`/barrier `122602071741` before the Hook checkpoint is pushed. G4 remains
+active and G5 is unstarted.
+
 ### Project bootstrap and native capabilities
 
 Keep Project snapshots, settings revisions and environment transactions with their existing owner.
@@ -1704,8 +1753,9 @@ forbidden at build/runtime. This is module-loading evidence, not a composed head
 
 No performance/resource suite is repeated and no speed gain is claimed. Normal generated Provider
 and ACP registry refreshes are retained separately. Artifact hashes and evidence are in
-`.deepchat/rutis-g4-project-acceptance/`. This checkpoint needs exact-head CI after publication;
-remaining Store/configuration and desktop boundaries keep G4 active. G5 is unstarted.
+`.deepchat/rutis-g4-project-acceptance/`. Published head `b7a50e3aa` passes required
+`40621219551`/barrier `122597419315` and all six packages `40621219651`/barrier `122602071741`.
+Remaining Store/configuration and desktop boundaries keep G4 active. G5 is unstarted.
 
 The MCP App baseline `c6758fe56` passes required `40498105485`/barrier `122171636540` and all six
 packages `40498105509` attempt 2/barrier `122594009042` before this Project checkpoint is pushed.

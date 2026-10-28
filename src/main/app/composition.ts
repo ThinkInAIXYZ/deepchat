@@ -2227,9 +2227,11 @@ export async function createMainProcessControl(dependencies: {
   // Initialize Skill Sync service
   skillSyncService = new SkillSyncService(skillService, skillSettings, publishDeepchatEvent)
 
-  hookService = new HookService(hookSettings, {
-    getSession: (sessionId) => sessionQuery.getSession(sessionId)
-  })
+  hookService = new HookService(
+    hookSettings,
+    { getSession: (sessionId) => sessionQuery.getSession(sessionId) },
+    app.getVersion()
+  )
   const providerCatalogPort: ProviderCatalogPort = {
     getProviderModels: (providerId) => providerSettings.getProviderModels(providerId),
     getCustomModels: (providerId) => providerSettings.getCustomModels(providerId),
@@ -3199,7 +3201,7 @@ export async function createMainProcessControl(dependencies: {
     })
     await runDestroyStep('cronJobs.destroy', () => cronJobs.destroy())
     await runDestroyStep('remoteService.destroy', () => remoteService.destroy())
-    await runDestroyStep('hookService.stop', () => hookService.stop())
+    await hookService.stop()
     await runDestroyStep('sessionRuntimes.suspend', () => suspendSessionRuntimes())
     await backgroundExec.shutdown()
     await toolService.shutdownCodeRuntime()

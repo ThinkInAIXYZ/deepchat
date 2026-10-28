@@ -215,7 +215,8 @@ const createHarness = (hooks: HookCommandItem[] = []) => {
   const getSession = vi.fn().mockResolvedValue(null)
   const service = new HookService(
     { getHooksNotificationsConfig, setHooksNotificationsConfig },
-    { getSession }
+    { getSession },
+    '9.8.7-hook-fixture'
   )
   return {
     service,
@@ -297,7 +298,8 @@ describe('HookService subscription index', () => {
         getHooksNotificationsConfig: () => stored,
         setHooksNotificationsConfig: (next) => next
       },
-      { getSession: vi.fn().mockResolvedValue(null) }
+      { getSession: vi.fn().mockResolvedValue(null) },
+      '9.8.7-hook-fixture'
     )
 
     const snapshot = service.getConfigSnapshot()
@@ -537,22 +539,132 @@ describe('HookService delivery ordering', () => {
     const result = await pending
     expect(result.error).toBe('spawn ENOENT')
     expect(result.stderr).toBe('Authorization: ***REDACTED***\n')
+    let drained = false
+    const stopped = service.stop().then(() => {
+      drained = true
+    })
+    await flush()
+    expect(drained).toBe(false)
+    child.emit('close', null)
+    await stopped
   })
 
-  it('kills running hook commands on stop', async () => {
+  it('keeps stop pending until a killed hook child actually closes', async () => {
     const { service } = createHarness([enabledHook('a', ['PostToolUse'])])
     const child = new FakeChild()
     spawnMock.mockImplementationOnce(() => child)
 
     service.notify(toolEvent('session-1', 'call-1'))
     await flush()
-    await service.stop()
+    let drained = false
+    const stopped = service.stop().then(() => {
+      drained = true
+    })
+    await flush()
 
     expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+    expect(drained).toBe(false)
+    await expect(service.testHookCommand('a')).resolves.toMatchObject({
+      success: false,
+      error: 'Hook commands are stopped'
+    })
+    expect(spawnMock).toHaveBeenCalledTimes(1)
+    child.emit('close', null)
+    await stopped
+    expect(drained).toBe(true)
+  })
+
+  it('retains native lifetime after command diagnostics time out', async () => {
+    vi.useFakeTimers()
+    try {
+      const { service } = createHarness([enabledHook('a', ['SessionStart'])])
+      const child = new FakeChild()
+      spawnMock.mockImplementationOnce(() => child)
+
+      const command = service.testHookCommand('a')
+      await vi.advanceTimersByTimeAsync(30_000)
+      await expect(command).resolves.toMatchObject({ error: 'Command timed out' })
+      let drained = false
+      const stopped = service.stop().then(() => {
+        drained = true
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(drained).toBe(false)
+      child.emit('close', null)
+      await stopped
+      expect(drained).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('rejects stop and restart while native child closure remains uncertain', async () => {
+    vi.useFakeTimers()
+    try {
+      const { service } = createHarness([enabledHook('a', ['SessionStart'])])
+      const child = new FakeChild()
+      spawnMock.mockImplementationOnce(() => child)
+      const command = service.testHookCommand('a')
+      const stopped = expect(service.stop()).rejects.toThrow(
+        'Hook work did not drain before shutdown'
+      )
+      await vi.advanceTimersByTimeAsync(30_000)
+      await stopped
+      expect(() => service.start()).toThrow('Hook work must drain before restarting')
+      child.emit('close', null)
+      await command
+      service.start()
+      expect(service.isObserved('SessionStart')).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('retains pending enrichment after a drain deadline without dispatching it later', async () => {
+    vi.useFakeTimers()
+    try {
+      const { service, getSession } = createHarness([enabledHook('a', ['PostToolUse'])])
+      let release: (value: null) => void = () => undefined
+      getSession.mockReturnValueOnce(
+        new Promise<null>((resolve) => {
+          release = resolve
+        })
+      )
+      service.notify({
+        event: 'PostToolUse',
+        session: { sessionId: 'held' },
+        tool: { callId: 'late' }
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      const stopped = expect(service.stop()).rejects.toThrow(
+        'Hook work did not drain before shutdown'
+      )
+      await vi.advanceTimersByTimeAsync(30_000)
+      await stopped
+      expect(() => service.start()).toThrow('Hook work must drain before restarting')
+      release(null)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(spawnMock).not.toHaveBeenCalled()
+      service.start()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
 describe('HookService payload projection', () => {
+  it('uses the supplied application version for explicit test commands', async () => {
+    const { service } = createHarness([enabledHook('a', ['SessionStart'])])
+
+    await service.testHookCommand('a')
+
+    expect(spawnedPayloads()[0]).toMatchObject({
+      payloadVersion: 1,
+      isTest: true,
+      app: { version: '9.8.7-hook-fixture', platform: process.platform }
+    })
+  })
+
   it('truncates tool previews before any clone runs', async () => {
     const { service } = createHarness([enabledHook('a', ['PostToolUse'])])
     const clone = vi.spyOn(globalThis, 'structuredClone')
@@ -617,7 +729,7 @@ describe('HookService payload projection', () => {
       event: 'SessionEnd',
       time: undefined,
       isTest: false,
-      app: { version: expect.any(String), platform: process.platform },
+      app: { version: '9.8.7-hook-fixture', platform: process.platform },
       session: {
         conversationId: 'session-1',
         agentId: 'deepchat',

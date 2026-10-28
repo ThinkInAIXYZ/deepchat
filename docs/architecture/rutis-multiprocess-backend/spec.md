@@ -702,6 +702,16 @@ fallback, persisted revisions and its original transaction boundary. No native c
 second settings writer or row-level transport is introduced. G5 moves this owner with its shared
 database/settings authority and transports only native selection/open commands and plain results.
 
+Hook configuration, subscriptions, event enrichment and command ownership move together. Supply
+the application version at composition instead of importing Electron for payload metadata. A
+command's bounded diagnostic result is distinct from native child/stdio closure: timeout or an
+error report cannot release that lifetime. Stop rejects new commands, kills existing children and
+waits for both accepted enrichment and actual child closure. A 30-second drain failure rejects
+maintenance/shutdown before Store teardown, and restart rejects while prior work remains owned.
+Main must await this critical stop directly. Preserve command timeout results, redaction, event
+eligibility/order, cancellation before enrichment completes and no automatic replay of uncertain
+effects. Retain Node command execution with the cohesive owner; it needs no Electron launch adapter.
+
 Database readers also move with these owners. `main/session/data/sessionReferences.ts`,
 `main/session/sessionHistorySearch.ts` and
 `main/mcp/inMemoryServers/conversationSearchServer.ts` query the inherited shared connection;
