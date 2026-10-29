@@ -16,12 +16,13 @@ import {
 } from './imageTextExtractionService'
 import { LightOcrProcessHost, type LightOcrProcessHostStatus } from './lightOcrProcessHost'
 import { OcrArtifactStore, type OcrArtifactStoreStats } from './ocrArtifactStore'
-import { SafeStorageOcrCacheKeyProvider } from './ocrCacheKeyProvider'
+import type { OcrCacheKeyProvider } from './ocrCacheKeyProvider'
 import { OcrExtractionScheduler } from './ocrExtractionScheduler'
 import { OcrRuntimeAssetResolver, type OcrRuntimeAvailability } from './ocrRuntimeAssetResolver'
 import { OcrSourceSnapshotBudget } from './ocrSourceSnapshotBudget'
 
 export interface OcrRuntimeServiceOptions {
+  cacheKeyProvider: OcrCacheKeyProvider
   appPath: string
   isPackaged: boolean
   nodeRuntimePath: string | null
@@ -208,7 +209,7 @@ export class OcrRuntimeService {
       })
       store = new OcrArtifactStore({
         dbPath: path.join(cacheDir, 'ocr-cache.db'),
-        keyProvider: new SafeStorageOcrCacheKeyProvider(path.join(cacheDir, 'cache-key.json'))
+        keyProvider: this.options.cacheKeyProvider
       })
       scheduler = new OcrExtractionScheduler()
       const snapshotBudget = new OcrSourceSnapshotBudget()

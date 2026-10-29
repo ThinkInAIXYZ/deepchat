@@ -2438,6 +2438,11 @@ core; its synchronous local transactions and integrity callbacks do not become r
 - [x] Verify default composition, portable import, relevant regressions and the same real-app
       plugin scenarios against immutable artifacts.
 - [ ] Finish the final writer/reader/native inventory and completed-batch validation before G5.
+- [x] Supply OCR's native cache-key provider explicitly from Main; preserve encrypted cache
+      persistence, unavailable-key fallback and the same cache clear/relaunch application behavior.
+- [ ] Supply Codex/Grok auth owner commands to Main's OAuth facade. Keep their controllers,
+      credential queues and synchronous storage observations with Provider consumers; Main must
+      not initialize those owners or receive writable credential-store instances at G5 handoff.
 
 Native SDK presentation remains Main-owned. These contracts do not move the cohesive backend or
 authorize an additional settings writer. Publish the complete G4 batch after final validation.
@@ -2481,6 +2486,47 @@ plus all five existing maintenance/credential/shutdown cases. The five cases' ac
 is retained. No performance suite or resource recapture is selected and no speed gain is claimed.
 Evidence and verified hashes are in `.deepchat/rutis-g4-plugin-owner-acceptance/`. This work stays
 local with the remaining G4 completion batch; G5 and later goals remain pending.
+
+### OCR native cache-key capability and final ownership inventory
+
+OcrRuntimeService requires its existing asynchronous key-provider interface. Main constructs the
+safeStorage implementation for the unchanged profile `ocr/cache-key.json` path; resource creation
+uses that required provider for `ocr/ocr-cache.db`. The runtime imports only the provider's type.
+Wrapped-key persistence remains a single native file owner, separate from the OCR cache database;
+the native driver, memory fallback, unreadable-key recovery, clear and resource close are unchanged.
+No new capability route, default provider, storage engine or process is introduced.
+
+All **97 selected checks across eight files pass**: 85 runtime/key/asset/attachment/route/composition
+checks and 12 native SQLite image/document artifact persistence checks, with SQLite required and no
+skip. App and changed-test types, the normal build and the immutable-artifact check pass. Matching
+`75-ocr-cache-key.smoke.spec.ts` passes on immutable `3eaf16a21` and the candidate: actual app routes
+select the existing Node toolchain, clear the cache, close gracefully, relaunch and clear again.
+The candidate reports persistent mode on both launches with native encryption available, an
+encrypted database header and an unchanged wrapped-key file. This exercises cache ownership and
+native key access; it does not claim a new OCR recognition or performance result.
+
+The integrated candidate passes **16 application cases across ten files**, including plugin
+install/Hooks/settings windows, maintenance and credential drains, MCP child lifecycle, desktop
+configuration, font/logging, file/image effects, Remote authorization, Copilot credential commitment
+and the OCR cache. Each selected owner's immutable baseline evidence remains available. No
+performance/resource recapture or speed claim is selected. OCR-specific evidence and hashes are
+in `.deepchat/rutis-g4-ocr-key-acceptance/`.
+
+The source inventory currently checks **52 entries and 796 unique transitive inputs** without
+Electron, electron-store, font-list or electron-toolkit runtime imports. Skill Sync's modulePath
+reference is recorded separately and its actual worker source is checked as an additional entry;
+the audit does not substitute a placeholder for runtime/package validation. All 63 direct native
+import files have an explicit Main/device role, including UI/OS effects, ingress/bootstrap,
+native crypto and key persistence, protocols, updater and OAuth presentation. Workspace's native
+file/Git/preview owner has no shared database or settings import. Source graphs/classifications and
+connection/configuration call sites are in `.deepchat/rutis-g4-final-inventory/`.
+
+This is source-boundary evidence, not a composed backend or exclusive writer handoff. Main's
+OAuthService still constructs the Node Codex/Grok auth owners from complete credential stores;
+the next selected boundary supplies their acknowledged auth commands while retaining each whole
+controller and credential queue with Provider consumers. G4 stays active until this boundary and
+the final complete-batch inventory/validation are done, then the batch's own required and six
+platform package CI barriers pass. G5 has not started.
 
 ## G5. Move the cohesive Harness and shared core into the TS backend
 

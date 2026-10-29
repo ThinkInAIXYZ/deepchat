@@ -5,6 +5,7 @@ import { OcrRuntimeService } from '@/ocr/ocrRuntimeService'
 
 function createUnsupportedService() {
   return new OcrRuntimeService({
+    cacheKeyProvider: { loadOrCreateKey: async () => null },
     appPath: '/application',
     isPackaged: true,
     nodeRuntimePath: null,
@@ -47,6 +48,7 @@ describe('OcrRuntimeService', () => {
     } as never)
 
     const service = new OcrRuntimeService({
+      cacheKeyProvider: { loadOrCreateKey: async () => null },
       appPath: '/application',
       isPackaged: true,
       nodeRuntimePath: null,
@@ -79,6 +81,7 @@ describe('OcrRuntimeService', () => {
       } as never)
 
     const service = new OcrRuntimeService({
+      cacheKeyProvider: { loadOrCreateKey: async () => null },
       appPath: '/application',
       isPackaged: true,
       nodeRuntimePath: null,
@@ -113,6 +116,7 @@ describe('OcrRuntimeService', () => {
       } as never)
 
     const service = new OcrRuntimeService({
+      cacheKeyProvider: { loadOrCreateKey: async () => null },
       appPath: '/application',
       isPackaged: true,
       nodeRuntimePath: null,

@@ -679,6 +679,14 @@ The current connection inventory is:
 | `main/memory/infra/legacyV1Reader.ts` | Temporary in-memory DuckDB attaches the legacy vector file with `READ_ONLY` | Keep migration source reads under the existing vector owner and abandonment fence |
 | `main/knowledge/database/knowledgeDatabase.ts`, `main/knowledge/index.ts` | Knowledge has independent writable DuckDB files plus temporary extension inspection | Preserve its existing file and initialization owner; G3 did not migrate Knowledge and G5 cannot claim otherwise |
 
+OCR runtime composition requires its asynchronous cache-key provider. Main supplies the existing
+safeStorage provider for the fixed `ocr/cache-key.json` path; the runtime does not construct or
+import a native provider. Keep that wrapped-key file under one native owner and the independent
+encrypted OCR database under its resource owner. Preserve unavailable-key memory fallback,
+unreadable-key recovery, helper lifetime and cache clear/close behavior. G5 transports this private
+key operation only to the approved core generation; key material never enters public status,
+logs, loader configuration or command arguments.
+
 The boundary follows existing business operations, rather than these connection wrappers:
 
 | Existing owner and source | Work that stays indivisible inside the backend | Data crossing the boundary |
@@ -1214,6 +1222,13 @@ and credential commitment. The private sign-in target contains only Provider ID,
 and an opaque configuration identity. Main receives no saved API key, full Provider configuration
 or settings-file mutation capability. It validates the new token with GitHub and awaits the Core
 credential command before acknowledging success.
+
+Codex/Grok login controllers, callback/refresh state and credential queues stay with their Provider
+consumers. Main's OAuth facade receives asynchronous status/login/callback/cancel/logout commands;
+it does not initialize those business owners or receive their complete writable credential stores.
+Keep synchronous load-error/revision observations inside each controller's existing authority.
+Native browser opening and crypto remain explicit host capabilities, with the existing public
+auth status schemas and stop/drain behavior.
 
 Core compares and commits in one command without an await between reading current configuration
 and writing. The identity covers Provider ID, protocol, current credential and normalized client

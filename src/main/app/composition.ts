@@ -95,6 +95,7 @@ import { ToolchainResolutionError } from '@/toolchains/errors'
 import { createToolchainRoutes } from '@/toolchains/routes'
 import { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
 import { OcrRuntimeService } from '@/ocr/ocrRuntimeService'
+import { SafeStorageOcrCacheKeyProvider } from '@/ocr/ocrCacheKeyProvider'
 import { OcrSettings } from '@/ocr/ocrSettings'
 import { createOcrRoutes } from '@/ocr/routes'
 import { McpService } from '../mcp'
@@ -1521,6 +1522,9 @@ export async function createMainProcessControl(dependencies: {
       })
   }
   ocrRuntimeService = new OcrRuntimeService({
+    cacheKeyProvider: new SafeStorageOcrCacheKeyProvider(
+      path.join(app.getPath('userData'), 'ocr', 'cache-key.json')
+    ),
     appPath: app.getAppPath(),
     isPackaged: app.isPackaged,
     nodeRuntimePath: null,
