@@ -193,6 +193,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'xxapi',
+    name: 'xxapi',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://xxapi.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://xxapi.ai/',
+      apiKey: 'https://xxapi.ai/keys',
+      docs: 'https://docs.xxapi.ai/getting-started',
+      models: 'https://xxapi.ai/pricing'
+    }
+  },
+  {
     id: 'apimodels',
     name: 'apimodels.app',
     apiType: 'openai-completions',

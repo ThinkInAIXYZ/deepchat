@@ -302,6 +302,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes xxapi as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'xxapi',
+        name: 'xxapi',
+        apiType: 'openai-completions',
+        baseUrl: 'https://xxapi.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://xxapi.ai/',
+          apiKey: 'https://xxapi.ai/keys',
+          docs: 'https://docs.xxapi.ai/getting-started',
+          models: 'https://xxapi.ai/pricing',
+          defaultBaseUrl: 'https://xxapi.ai/v1'
+        })
+      })
+    )
+  })
+
   it('includes apimodels.app as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
