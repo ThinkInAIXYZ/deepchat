@@ -53,7 +53,7 @@ regression gates to them. Do not rerun CI or unchanged benchmarks to obtain a pa
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
 | G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
 | G4 Store commands and desktop ports | Complete, `356143755` | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
-| G5 Cohesive TS Harness backend | In progress: Core Memory transport | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
+| G5 Cohesive TS Harness backend | In progress: Core control/startup composition | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
 | G7 Rust control owner | Planned | G2, G5 | Admission and cohesive run/interaction settlement preserve all fences |
 | G8 Rust batch computations | Conditional | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go |
@@ -3012,6 +3012,49 @@ Default Kernel, public routes, business writer and application lifecycle still e
 Full Core runtime/startup/CLI/Toolchain composition, Native proxy/descendant/effect authority,
 stalled-startup shutdown and signed/all-platform lifecycle need acceptance before G5 publication.
 G5 remains active and unpublished; G6-G12 retain their scope and dependency order.
+
+### Local control, Toolchain and startup composition
+
+The existing Core runtime now constructs the CLI server, request policy, shared approval broker,
+command/file/settings permissions, programmatic dispatch and parent registry, audit and launcher.
+Run/compute/audio/OCR/Skill dispatch uses its local services and the same database gate, Agent
+token authority and artifact spool. Default Main wiring uses these objects and removes its inline
+constructors. Trusted approval-target discovery and window request/close delivery remain native.
+No additional plugin, process, abstraction, dependency or implementation switch is introduced.
+
+Toolchain discovery/demand, OCR runtime and attachment routing also compose with their consumers.
+Main supplies the existing native OCR cache-key provider. Core organizes ACP/Skill startup
+migrations, deferred MCP/Remote/Skill initialization, Provider warmup, legacy import, usage and
+normalization backfill, capability cleanup and Toolchain GC. Existing task IDs and scheduling
+semantics remain; maintenance supplies its new run ID, and failure delivery retains that actual
+run identity. Main awaits migration completion before initial window admission and retains its
+native floating-window effect and structured logging adapter.
+
+Acceptance passes **398 distinct checks across 20 affected files**, without new unit tests.
+A disposable constructor check blocks Electron/native desktop imports at bundle and load time:
+the graph of **915 source files** constructs the real SQLite-backed Core services, Rust
+supervisor and local CLI listener under Node, then closes them. It establishes portability and composition,
+not a complete Rutis Core execution or the headless CLI horizon.
+
+Immutable `f511c078b` and the candidate each pass the **same ten distinct application scenarios
+across six files**: streaming, delegation, five maintenance/shutdown cases, Agent tools, OCR
+native-key/cache persistence and CLI security approval/persistence. One durable application case
+uses the built CLI and actual app to reject and approve a logging-security change, verify its
+effect and reopen the profile. The initial batch passes the other nine cases on both artifacts;
+its new CLI assertion uses the wrong denial code. The corrected assertion matches the documented
+`approval_denied` contract and that case passes on both unchanged artifacts. Those initial results
+remain recorded; only the corrected case is repeated, with no deadline increase or timing gate.
+
+App and new-test types, normal build, format/check, lint and i18n pass. Normal generated catalog
+refreshes remain separate. Evidence and source/artifact hashes are under
+`.deepchat/rutis-g5-core-control-acceptance/`. Default process placement is unchanged, so no
+performance/resource capture is selected and no speed claim is made.
+
+G5 remains active and unpublished. The actual worker still opens profile/configuration and
+private service transports; it does not yet invoke the complete Kernel. Native callback/event
+transport, descendant/proxy authority, complete public route and lifecycle/maintenance adoption,
+default writer handoff and supported signed/native package acceptance remain required. All
+remaining goals keep their scope and dependency order.
 
 ## G6. Extract the complete Memory capability
 

@@ -23,8 +23,6 @@ import {
   normalizeMainLogRunStopReason,
   type MainLogRunStopReason,
   type MainLogShutdownReason,
-  type MainLogStartupComponent,
-  type MainLogStartupComponentFailureCategory,
   type SafeLogError
 } from '@/logging/mainLogEvents'
 import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
@@ -56,7 +54,6 @@ import { WindowPresenter } from '../desktop/window'
 import { PluginSettingsWindow } from '../desktop/pluginSettingsWindow'
 import { ShortcutPresenter } from '../desktop/shortcut'
 import type { FileServicePort } from '@shared/types/file'
-import type { ToolchainKind } from '@shared/types/toolchains'
 import type { WorkspaceServicePort } from '@shared/types/workspace'
 import type { SkillMetadataSnapshotPort, SkillServicePort } from '@shared/types/skill'
 import type { SkillSyncServicePort } from '@shared/types/skillSync'
@@ -88,14 +85,9 @@ import { proxyConfig, ProxyMode } from '../platform/proxy'
 import { DeviceService } from '../device'
 import { UpgradeService } from '../upgrade'
 
-import { getShellEnvironment } from '@/agent/shared/process/shellEnvHelper'
-import { mergeDetectionEnv, ToolchainService } from '@/toolchains'
-import { ToolchainResolutionError } from '@/toolchains/errors'
 import { createToolchainRoutes } from '@/toolchains/routes'
-import { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
 import { OcrRuntimeService } from '@/ocr/ocrRuntimeService'
 import { SafeStorageOcrCacheKeyProvider } from '@/ocr/ocrCacheKeyProvider'
-import { OcrSettings } from '@/ocr/ocrSettings'
 import { createOcrRoutes } from '@/ocr/routes'
 import { McpService } from '../mcp'
 
@@ -168,8 +160,7 @@ import { ApprovalBroker, createApprovalRoutes } from '@/approval'
 import {
   CommandPermissionService,
   FilePermissionService,
-  SettingsPermissionService,
-  ToolPermissionBroker
+  SettingsPermissionService
 } from '../tool/permission'
 
 import { createExporterRoutes } from '../exporter/routes'
@@ -179,10 +170,6 @@ import { HookService } from '../hook'
 import { SchedulerService } from '../scheduler'
 
 import { spawnSchedulerHost } from './schedulerHost'
-import {
-  TOOL_SURFACE_PRODUCTION_ROLLOUT_POLICY_V1,
-  ToolSurfaceRolloutOwner
-} from '@/agent/deepchat/runtime/toolSurfaceRollout'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { SessionQuery } from '@/session/query'
@@ -206,7 +193,6 @@ import {
   type LiveDelegationService,
   type LiveDelegationLifecycleObservation
 } from '@/orchestration/liveDelegationService'
-import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
 import { createProjectRoutes } from '../project/routes'
 
 import type { RemoteServiceLike } from '../remote/ports'
@@ -223,15 +209,9 @@ import {
 
 import type { AcpProviderAdminPort } from '../provider/ports'
 import type { SessionPermissionPort, SessionUiPort } from '../session/contracts'
-import {
-  isStartupWorkloadCancellation,
-  scheduleObservedStartupTask,
-  StartupWorkloadCoordinator
-} from '../app/startupWorkloadCoordinator'
-import type { StartupWorkloadTaskContext } from '../app/startupWorkloadCoordinator'
+import { StartupWorkloadCoordinator } from '../app/startupWorkloadCoordinator'
 import type { LegacyChatImportService } from './startupMigrations/legacyChatImportService'
 import type { UsageStatsService } from '../session/usageStatsService'
-import type { SessionDataMigrationSQLitePort } from './startupMigrations/sessionDataMigrations'
 import type { SessionHistorySearch } from '@/session/sessionHistorySearch'
 import type { SessionTranslation } from '@/session/sessionTranslation'
 import { createSessionRoutes } from '@/session/routes'
@@ -245,38 +225,19 @@ import { registerDeepchatRoutes } from './routeIpc'
 import { createNodeScheduler } from '@/routes/scheduler'
 import { coordinateApplicationDataReset } from './applicationDataReset'
 import {
-  AgentCliCommandAccess,
   AgentCliTokenAuthority,
   ArtifactSpool,
-  type CliAudioTranscriptionService,
-  CliAuditLog,
   type CliComputeService,
-  CliLauncherService,
-  CliMutationGuard,
-  CliOcrService,
-  ProgrammaticToolDispatcher,
-  ProgrammaticToolParentRegistry,
-  CliRequestPolicy,
-  type CliRunService,
-  CliServer,
   CliSkillService,
   createArtifactRoutes,
   createCliComputeRoutes,
   createCliMcpAdminRoutes,
   createCliProviderModelAdminRoutes,
-  createCliRoutes,
-  resolveBundledCliDirectory
+  createCliRoutes
 } from '@/cli'
-import { CliRequestError } from '@/cli/errors'
-import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 
 import { spawnBackgroundExecHost } from './backgroundExecHost'
 import { spawnCodeModeHost } from './codeModeHost'
-import {
-  runBuiltinMcpAllowlistCompatibilityMigration,
-  runDisabledAgentToolCapabilityCleanupMigration,
-  runMainlineNormalizationMigration
-} from './startupMigrations/sessionDataMigrations'
 import { activateAppOnMac } from '@/lib/activateApp'
 import { TypedEventHub } from '@/events/typedEventHub'
 import { SessionEventRouter } from '@/events/sessionEventRouter'
@@ -521,7 +482,6 @@ export async function createMainProcessControl(dependencies: {
   let shortcutPresenter: IShortcutPresenter
   let fileService: FileServicePort
   let ocrRuntimeService: OcrRuntimeService
-  let ocrSettings: OcrSettings
   let mcpService: McpService
   let syncService: SyncService
   let syncPeerService: SyncPeerService
@@ -563,24 +523,16 @@ export async function createMainProcessControl(dependencies: {
   let filePermissionService: FilePermissionService
   let settingsPermissionService: SettingsPermissionService
   let approvalBroker: ApprovalBroker
-  let toolPermissionBroker: ToolPermissionBroker
   let legacyChatImportService: LegacyChatImportService
   let usageStatsService: UsageStatsService
   let appSessionService: AppSessionService
-  let sessionDataMigrationSQLite: SessionDataMigrationSQLitePort
   let sessionHistorySearch: SessionHistorySearch
   let agentSessionExportService: AgentSessionExportService
   let sessionTranslation: SessionTranslation
   let liveDelegationService: LiveDelegationService
   let routeDispatcher: RouteDispatcher | undefined
   let cliComputeService: CliComputeService
-  let cliAudioTranscriptionService: CliAudioTranscriptionService
-  let cliOcrService: CliOcrService
   let cliSkillService: CliSkillService
-  let cliMutationGuard: CliMutationGuard
-  let cliRequestPolicy: CliRequestPolicy
-  let cliRunService: CliRunService
-  let hasInitialized = false
   let appLifecycleState: 'starting' | 'running' | 'stopping' | 'stopped' = 'starting'
   const databaseRequests = new DatabaseRequestGate(() => {
     if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped')
@@ -620,96 +572,9 @@ export async function createMainProcessControl(dependencies: {
     getBoundRendererIds: (sessionId) => resolveBoundRendererIds(sessionId)
   })
   const agentCliTokenAuthority = new AgentCliTokenAuthority()
-  const toolSurfaceRollout = new ToolSurfaceRolloutOwner(TOOL_SURFACE_PRODUCTION_ROLLOUT_POLICY_V1)
-  let programmaticToolDispatcher: ProgrammaticToolDispatcher
   const artifactSpool = new ArtifactSpool({
     directory: path.join(app.getPath('userData'), 'local-control', 'artifacts'),
     consumeAgentBytes: (tokenId, bytes) => agentCliTokenAuthority.consumeBytes(tokenId, bytes),
-    log: logger
-  })
-  const cliAuditLog = new CliAuditLog({
-    directory: path.join(app.getPath('userData'), 'local-control')
-  })
-  const cliServer = new CliServer({
-    userDataPath: app.getPath('userData'),
-    appVersion: app.getVersion(),
-    dispatch: async (method, input, caller, signal) => {
-      if (cliAudioTranscriptionService?.handlesRpc(method)) {
-        return await databaseRequests.runRequest(method, () =>
-          cliAudioTranscriptionService!.dispatchRpc(method, input, caller, signal)
-        )
-      }
-      if (cliOcrService?.handlesRpc(method)) {
-        return await databaseRequests.runRequest(method, () =>
-          cliOcrService!.dispatchRpc(method, input, caller, signal)
-        )
-      }
-      if (!routeDispatcher) throw new Error('CLI route dispatcher is not ready')
-      signal.throwIfAborted()
-      const output = await dispatchDeepchatRoute(routeDispatcher, method, input, { caller })
-      signal.throwIfAborted()
-      return output
-    },
-    dispatchProgrammaticTool: async (
-      method,
-      input,
-      caller,
-      operation,
-      signal,
-      takeSettlementOwnership
-    ) => {
-      return await databaseRequests.runRequest(method, () =>
-        programmaticToolDispatcher.dispatch(
-          method,
-          input,
-          caller,
-          operation,
-          signal,
-          takeSettlementOwnership
-        )
-      )
-    },
-    completeProgrammaticToolPreDispatchFailure: (method, operation, error) => {
-      programmaticToolDispatcher.completePreDispatchFailure(method, operation, error)
-    },
-    dispatchStream: async (method, input, caller, requestId, signal, emit) => {
-      if (cliRunService?.handlesStream(method)) {
-        databaseRequests.assertRouteAllowed(method)
-        return await cliRunService.dispatchStream(method, input, caller, signal, emit)
-      }
-      if (!cliComputeService) throw new Error('CLI compute service is not ready')
-      return await databaseRequests.runRequest(method, () =>
-        cliComputeService.dispatchStream(method, input, caller, requestId, signal, emit)
-      )
-    },
-    dispatchUpload: async (method, input, upload, caller, signal) => {
-      return await databaseRequests.runRequest(method, async () => {
-        if (cliAudioTranscriptionService?.handlesUpload(method)) {
-          return await cliAudioTranscriptionService.dispatchUpload(
-            method,
-            input,
-            upload,
-            caller,
-            signal
-          )
-        }
-        if (cliOcrService?.handlesUpload(method)) {
-          return await cliOcrService.dispatchUpload(method, input, upload, caller, signal)
-        }
-        if (cliSkillService?.handlesUpload(method)) {
-          return await cliSkillService.dispatchUpload(method, input, upload, caller, signal)
-        }
-        throw new Error(`CLI upload service is not ready for ${method}`)
-      })
-    },
-    authorize: async (input) => {
-      if (!cliRequestPolicy) throw new Error('CLI request policy is not ready')
-      return await databaseRequests.runAuthorization(input.entry.contract.name, () =>
-        cliRequestPolicy.authorize(input)
-      )
-    },
-    beginAgentRequest: (token) => agentCliTokenAuthority.beginRequest(token),
-    artifactSpool,
     log: logger
   })
   const semanticNotificationScheduler = new TimeoutNotificationScheduler()
@@ -821,72 +686,15 @@ export async function createMainProcessControl(dependencies: {
   providerSettings = coreData.providerSettings
   appSessionService = coreData.appSessionService
   resolveSessionRunId = coreData.resolveSessionRunId
-  sessionDataMigrationSQLite = coreData.sessionDataMigrationSQLite
   legacyChatImportService = coreData.legacyChatImportService
   usageStatsService = coreData.usageStatsService
   const {
     memoryDatabase,
     sessionData,
     tapeInspectorHeadWatcher,
-    agentDatabase,
     settingsDatabase,
     promptSettings
   } = coreData
-  const programmaticToolParents = new ProgrammaticToolParentRegistry({
-    tokenAuthority: agentCliTokenAuthority,
-    executionJournal: sessionData.programmaticExecutionJournal
-  })
-  programmaticToolDispatcher = new ProgrammaticToolDispatcher({
-    parents: programmaticToolParents,
-    executeChild: async (input) => await toolService.callProgrammaticToolChild(input),
-    authorizeChild: async ({
-      caller,
-      grant,
-      childOrdinal,
-      entry,
-      arguments: childArguments,
-      permission,
-      signal
-    }) => {
-      const requestId = permission.requestId?.trim()
-      if (!requestId) {
-        throw new CliRequestError(
-          'unavailable',
-          'Programmatic Tool permission request is unavailable',
-          { httpStatus: 503 }
-        )
-      }
-      await cliMutationGuard.authorize({
-        operation: 'tool.call',
-        effect: permission.permissionType === 'read' ? 'read' : 'destructive',
-        principal: caller.principal,
-        connectionId: caller.connectionId,
-        clientRequestId: `${grant.operation.providerToolCallId}:${childOrdinal}`,
-        arguments: {
-          target: entry.target.providerVisibleName,
-          arguments: childArguments
-        },
-        displayData: {
-          target: entry.target.providerVisibleName,
-          ...(typeof permission.argumentsPreview === 'string'
-            ? { argumentsPreview: permission.argumentsPreview }
-            : {})
-        },
-        signal,
-        timeoutMs: grant.quotas.maxDurationMs
-      })
-      if (!toolPermissionBroker.approve(requestId, grant.operation.sessionId)) {
-        throw new CliRequestError(
-          'unavailable',
-          'Programmatic Tool permission request is no longer active',
-          { httpStatus: 503 }
-        )
-      }
-    },
-    cancelChildPermission: (requestId, sessionId) => {
-      toolPermissionBroker.cancel(requestId, sessionId)
-    }
-  })
   const desktopConfigurationHost = new DesktopConfigurationHost(
     app.getPath('userData'),
     setMainLoggingEnabled,
@@ -932,15 +740,9 @@ export async function createMainProcessControl(dependencies: {
         throw new Error(`App database maintenance is ${databaseRequests.state}`)
     }
   })
-  const {
-    desktopSettings,
-    skillSettings,
-    traceSettings,
-    commandShellService,
-    recordSettingsActivity
-  } = coreSettings
+  const { desktopSettings, skillSettings, commandShellService, recordSettingsActivity } =
+    coreSettings
   appSettingsService = coreSettings.appSettingsService
-  ocrSettings = coreSettings.ocrSettings
 
   const coreProviders = createCoreProviders({
     profile: {
@@ -1018,7 +820,6 @@ export async function createMainProcessControl(dependencies: {
     unsubscribeProviderDbCatalog
   } = coreProviders
   cliComputeService = coreProviders.cliComputeService
-  cliAudioTranscriptionService = coreProviders.cliAudioTranscriptionService
   oauthService = new OAuthService(
     {
       getGitHubCopilotSignInTarget: async (providerId) => {
@@ -1036,80 +837,6 @@ export async function createMainProcessControl(dependencies: {
     coreProviders.accounts
   )
   acpProviderAdminPort = providerRuntime
-  const commandPermissionHandler = new CommandPermissionService()
-  const resolveCliDirectory = () =>
-    resolveBundledCliDirectory({
-      appPath: app.getAppPath(),
-      resourcesPath: process.resourcesPath,
-      isPackaged: app.isPackaged
-    })
-  const cliLauncherService = new CliLauncherService({
-    homeDirectory: app.getPath('home'),
-    userDataDirectory: app.getPath('userData'),
-    environmentPath: process.env.PATH,
-    shell: process.env.SHELL,
-    localAppDataDirectory: process.env.LOCALAPPDATA,
-    resolveCliDirectory
-  })
-  const agentCliCommandAccess = new AgentCliCommandAccess({
-    tokenAuthority: agentCliTokenAuthority,
-    commandPermission: commandPermissionHandler,
-    resolveCliDirectory
-  })
-  commandPermissionService = commandPermissionHandler
-  filePermissionService = new FilePermissionService()
-  settingsPermissionService = new SettingsPermissionService()
-  approvalBroker = new ApprovalBroker({ log: logger })
-  toolPermissionBroker = new ToolPermissionBroker({ approvalBroker })
-  cliMutationGuard = new CliMutationGuard(approvalBroker, {
-    getTarget: async () => {
-      const focused = await semanticNotificationTargets.getFocusedTarget()
-      const target =
-        focused?.kind === 'main'
-          ? focused
-          : (await semanticNotificationTargets.getExistingTargets()).find(
-              (candidate) => candidate.kind === 'main'
-            )
-      return target ? { windowId: target.windowId, webContentsId: target.webContentsId } : null
-    },
-    present: async (target, payload) => {
-      const readyTarget = await semanticNotificationTargets.getTargetForWindow(target.windowId)
-      if (
-        !readyTarget ||
-        readyTarget.kind !== 'main' ||
-        readyTarget.webContentsId !== target.webContentsId
-      ) {
-        return false
-      }
-      windowPresenter.show(target.windowId, true)
-      return await semanticNotificationTargets.sendDeepchatEvent(
-        readyTarget,
-        approvalRequestedEvent.name,
-        payload
-      )
-    },
-    close: async (target, payload) => {
-      const readyTarget = await semanticNotificationTargets.getTargetByWebContents(
-        target.webContentsId
-      )
-      if (!readyTarget || readyTarget.kind !== 'main' || readyTarget.windowId !== target.windowId) {
-        return
-      }
-      await semanticNotificationTargets.sendDeepchatEvent(
-        readyTarget,
-        approvalClosedEvent.name,
-        payload
-      )
-    }
-  })
-  handleApprovalRendererUnavailable = (webContentsId) => {
-    cliMutationGuard.cancelRenderer(webContentsId)
-  }
-  cliRequestPolicy = new CliRequestPolicy({
-    mutationGuard: cliMutationGuard,
-    audit: (record) => cliAuditLog.record(record)
-  })
-  const liveDelegationConsent = new LiveDelegationConsentAuthority()
   deviceService = new DeviceService()
   const rendererPerformanceLogService = new RendererPerformanceLogService(
     () => nativeSettings.getLoggingEnabled(),
@@ -1144,77 +871,6 @@ export async function createMainProcessControl(dependencies: {
     (bounds) => appSettingsService.setFloatingButtonBounds(bounds)
   )
   shortcutPresenter = new ShortcutPresenter(nativeSettings, windowPresenter, publishDeepchatEvent)
-  const toolchainHomeDir = app.getPath('home')
-  const toolchainService = ToolchainService.initialize({
-    appPath: app.getAppPath(),
-    userDataDir: app.getPath('userData'),
-    env: mergeDetectionEnv(process.env, toolchainHomeDir, process.platform),
-    allowProbe: () => !dependencies.privacySettings.isEnabled(),
-    onProgress: (progress) =>
-      publishDeepchatEvent('toolchains.progress', { ...progress, version: Date.now() }),
-    onMissing: (missing) =>
-      publishDeepchatEvent('toolchains.missing', { missing, version: Date.now() }),
-    onStateChanged: (kind?: ToolchainKind) => {
-      publishDeepchatEvent('toolchains.changed', { version: Date.now() })
-      ocrRuntimeService?.refreshAvailability(kind)
-      const state = ToolchainService.getInstance().getState()
-      if (state.node.source === 'unconfigured' && state.uv.source === 'unconfigured') {
-        return
-      }
-      void mcpService?.retryUnstartedEnabledServers().catch((error) => {
-        logger.warn('[ToolchainService] Failed to retry MCP servers after PATH refresh', error)
-      })
-    }
-  })
-  if (process.platform !== 'win32') {
-    void getShellEnvironment()
-      .then((shellEnv) => {
-        toolchainService.updateDetectionEnv(
-          mergeDetectionEnv(shellEnv, toolchainHomeDir, process.platform)
-        )
-      })
-      .catch((error) => {
-        logger.warn('[ToolchainService] Failed to refresh login-shell PATH', error)
-      })
-  }
-  ocrRuntimeService = new OcrRuntimeService({
-    cacheKeyProvider: new SafeStorageOcrCacheKeyProvider(
-      path.join(app.getPath('userData'), 'ocr', 'cache-key.json')
-    ),
-    appPath: app.getAppPath(),
-    isPackaged: app.isPackaged,
-    nodeRuntimePath: null,
-    resolveNode: () => {
-      const resolved = toolchainService.resolve('node', { purpose: 'ocr' })
-      if (!resolved.version) {
-        throw new ToolchainResolutionError(
-          'node',
-          'version_mismatch',
-          'OCR Node version is unavailable'
-        )
-      }
-      return { executable: resolved.node, version: resolved.version }
-    },
-    tempBaseDir: app.getPath('temp'),
-    userDataDir: app.getPath('userData')
-  })
-  cliOcrService = new CliOcrService({
-    appVersion: app.getVersion(),
-    ocrRuntime: ocrRuntimeService,
-    artifactSpool,
-    log: logger
-  })
-  const attachmentRouter = new AttachmentCapabilityRouter({
-    extraction: ocrRuntimeService,
-    getAutomaticOcrEnabled: () => ocrSettings.getAutomaticExtractionEnabled(),
-    getBackendPreference: () => ocrSettings.getBackend(),
-    getMaxFileSize: () => dependencies.settingsStore.get<number>('maxFileSize') ?? 30 * 1024 * 1024,
-    onDiagnostic: (event) => {
-      if (traceSettings.isEnabled()) {
-        logger.info('[OCR] attachment representation resolved', event)
-      }
-    }
-  })
   notificationService = new NotificationService(nativeSettings, publishDeepchatEvent)
   trayPresenter = new TrayPresenter(nativeSettings, windowPresenter)
   dialogService = new DialogService(publishDeepchatEvent)
@@ -1331,18 +987,60 @@ export async function createMainProcessControl(dependencies: {
         : [path.join(app.getAppPath(), 'resources', 'skills')]
     },
     settings: coreSettings,
-    toolchains: toolchainService,
     fileWatcherService,
-    permissions: {
-      agentCliTokenAuthority,
-      commandPermissionService,
-      filePermissionService,
-      settingsPermissionService,
-      toolPermissionBroker
+    artifactSpool,
+    resolveRouteDispatcher: () => routeDispatcher,
+    startupWorkloadCoordinator,
+    startupRunId: dependencies.startupRunId,
+    initializeFloatingButton,
+    ocrCacheKeyProvider: new SafeStorageOcrCacheKeyProvider(
+      path.join(app.getPath('userData'), 'ocr', 'cache-key.json')
+    ),
+    approvalPresentation: {
+      getTarget: async () => {
+        const focused = await semanticNotificationTargets.getFocusedTarget()
+        const target =
+          focused?.kind === 'main'
+            ? focused
+            : (await semanticNotificationTargets.getExistingTargets()).find(
+                (candidate) => candidate.kind === 'main'
+              )
+        return target ? { windowId: target.windowId, webContentsId: target.webContentsId } : null
+      },
+      present: async (target, payload) => {
+        const readyTarget = await semanticNotificationTargets.getTargetForWindow(target.windowId)
+        if (
+          !readyTarget ||
+          readyTarget.kind !== 'main' ||
+          readyTarget.webContentsId !== target.webContentsId
+        ) {
+          return false
+        }
+        windowPresenter.show(target.windowId, true)
+        return await semanticNotificationTargets.sendDeepchatEvent(
+          readyTarget,
+          approvalRequestedEvent.name,
+          payload
+        )
+      },
+      close: async (target, payload) => {
+        const readyTarget = await semanticNotificationTargets.getTargetByWebContents(
+          target.webContentsId
+        )
+        if (
+          !readyTarget ||
+          readyTarget.kind !== 'main' ||
+          readyTarget.windowId !== target.windowId
+        ) {
+          return
+        }
+        await semanticNotificationTargets.sendDeepchatEvent(
+          readyTarget,
+          approvalClosedEvent.name,
+          payload
+        )
+      }
     },
-    commandPermissionHandler,
-    commandEnvironment: agentCliCommandAccess,
-    liveDelegationConsent,
     databaseRequests,
     syncActiveSessions,
     importSnapshot: (filePath, mode) =>
@@ -1423,27 +1121,36 @@ export async function createMainProcessControl(dependencies: {
       })
     },
     runJournalObserver: emitRunJournalObservation,
-    toolSurfaceRollout,
     agentCliTokenAuthority,
-    programmaticToolParents,
-    attachmentRouter,
     sessionUiPort,
     publishEvent: publishDeepchatEvent,
     isStopping: () => appLifecycleState === 'stopping' || appLifecycleState === 'stopped',
     mcpReadinessChanged: (ready) => deeplinkService.observeMcpReadiness(ready),
-    reportStartupFailure: (component, category) =>
-      reportMainStartupComponentFailure(dependencies.startupRunId, component, category)
+    reportStartupFailure: (component, category, failure) => {
+      reportMainStartupComponentFailure(
+        failure?.startupRunId ?? dependencies.startupRunId,
+        component,
+        category
+      )
+      if (failure) reportNativeMainError(failure.message, failure.error)
+    }
   })
+  const { toolchainService, cliServer, cliLauncherService, cliAuditLog, cliMutationGuard } =
+    coreRuntime
+  commandPermissionService = coreRuntime.commandPermissionService
+  filePermissionService = coreRuntime.filePermissionService
+  settingsPermissionService = coreRuntime.settingsPermissionService
+  approvalBroker = coreRuntime.approvalBroker
+  ocrRuntimeService = coreRuntime.ocrRuntimeService
+  handleApprovalRendererUnavailable = (webContentsId) => {
+    cliMutationGuard.cancelRenderer(webContentsId)
+  }
   const {
     syncSettings,
     knowledgeSettings,
     replicaEndpoint,
     backgroundExec,
-    initializeSkills,
-    ensureSkillServicesInitialized,
-    initializeSkillSyncScan,
-    initializeMcp,
-    initializeRemoteControl
+    ensureSkillServicesInitialized
   } = coreRuntime
   projectService = coreRuntime.projectService
   exporter = coreRuntime.exporter
@@ -1471,6 +1178,7 @@ export async function createMainProcessControl(dependencies: {
   cronJobs = coreRuntime.cronJobs
   sessionPermissionPort = coreRuntime.sessionPermissionPort
   const coreExecution = coreRuntime.execution
+  const cliRunService = coreExecution.cliRunService
   agentSettings.start()
   deepChatAgentHarness = coreExecution.deepChatAgentHarness
   memoryIngestionObserver = coreExecution.memoryIngestionObserver
@@ -1480,7 +1188,6 @@ export async function createMainProcessControl(dependencies: {
   sessionAssignment = coreExecution.sessionAssignment
   sessionTurn = coreExecution.sessionTurn
   sessionLifecycle = coreExecution.sessionLifecycle
-  cliRunService = coreExecution.cliRunService
   sessionHistorySearch = coreExecution.sessionHistorySearch
   agentSessionExportService = coreExecution.agentSessionExportService
   sessionTranslation = coreExecution.sessionTranslation
@@ -1522,126 +1229,6 @@ export async function createMainProcessControl(dependencies: {
     trayPresenter.init()
   }
 
-  function scheduleMainStartupTask(
-    startupRunId: string,
-    task: Omit<Parameters<StartupWorkloadCoordinator['scheduleTask']>[0], 'runId'>,
-    errorMessage: string,
-    failure: {
-      component: MainLogStartupComponent
-      category: MainLogStartupComponentFailureCategory
-    }
-  ): void {
-    scheduleObservedStartupTask({
-      coordinator: startupWorkloadCoordinator,
-      startupRunId,
-      task,
-      onFailure: (failedStartupRunId, error) => {
-        reportMainStartupComponentFailure(failedStartupRunId, failure.component, failure.category)
-        reportNativeMainError(errorMessage, error)
-      }
-    })
-  }
-
-  function init(mainRunId: string) {
-    if (hasInitialized) {
-      console.info('[Startup][Main] Main startup skipped because startup already ran')
-      return
-    }
-
-    liveDelegationService.start()
-    hasInitialized = true
-
-    const providers = providerSettings.getProviders()
-    console.info(`[Startup][Main] Main startup begin providers=${providers.length}`)
-    scheduleMainStartupTask(
-      mainRunId,
-      {
-        id: 'main:floating-button',
-        target: 'main',
-        phase: 'deferred',
-        resource: 'io',
-        labelKey: 'startup.main.floatingButton',
-        run: async () => {
-          await initializeFloatingButton()
-        }
-      },
-      'Failed to schedule floating button initialization:',
-      { component: 'floating_widget', category: 'resource' }
-    )
-
-    scheduleMainStartupTask(
-      mainRunId,
-      {
-        id: 'main:skills-sync-scan',
-        target: 'main',
-        phase: 'background',
-        resource: 'cpu',
-        labelKey: 'startup.main.skillsSyncScan',
-        run: async (taskContext) => {
-          await taskContext.yield()
-          await initializeSkillSyncScan(taskContext.signal)
-        }
-      },
-      'Failed to schedule SkillSyncService background scan:',
-      { component: 'skill_sync', category: 'unknown' }
-    )
-
-    scheduleMainStartupTask(
-      mainRunId,
-      {
-        id: 'main:mcp-init',
-        target: 'main',
-        phase: 'background',
-        resource: 'io',
-        labelKey: 'startup.main.mcpInit',
-        run: async (taskContext) => {
-          await taskContext.yield()
-          await initializeMcp()
-        }
-      },
-      'Failed to schedule MCP initialization:',
-      { component: 'mcp', category: 'unknown' }
-    )
-
-    scheduleMainStartupTask(
-      mainRunId,
-      {
-        id: 'main:remote-runtime',
-        target: 'main',
-        phase: 'background',
-        resource: 'io',
-        labelKey: 'startup.main.remoteRuntime',
-        run: async (taskContext) => {
-          await taskContext.yield()
-          await initializeRemoteControl()
-        }
-      },
-      'Failed to schedule remote runtime initialization:',
-      { component: 'remote_runtime', category: 'unknown' }
-    )
-
-    void startupWorkloadCoordinator
-      .whenIdle('main', async () => {
-        await startupWorkloadCoordinator.scheduleTask({
-          id: 'main:provider-warmup-idle',
-          target: 'main',
-          phase: 'background',
-          resource: 'io',
-          labelKey: 'startup.main.provider.warmup',
-          visibleId: 'main.provider.warmup',
-          dedupeKey: 'main.provider.warmup:idle',
-          runId: mainRunId,
-          run: async (taskContext) => {
-            await initializeIdleProviderWarmup(taskContext)
-          }
-        })
-      })
-      .catch((error) => {
-        if (isStartupWorkloadCancellation(error)) return
-        console.error('Failed to schedule idle provider warmup:', error)
-      })
-  }
-
   async function initializeFloatingButton() {
     try {
       await floatingButtonPresenter.initialize()
@@ -1650,62 +1237,6 @@ export async function createMainProcessControl(dependencies: {
       reportMainStartupComponentFailure(dependencies.startupRunId, 'floating_widget', 'resource')
       console.error('Failed to initialize FloatingButtonPresenter:', error)
     }
-  }
-
-  async function initializeIdleProviderWarmup(taskContext: StartupWorkloadTaskContext) {
-    taskContext.signal.throwIfAborted()
-    const [registryRefresh, catalogRefresh] = await Promise.allSettled([
-      agentSettings.refreshAcpRegistry(false, {
-        automatic: true,
-        signal: taskContext.signal
-      }),
-      providerDbLoader.refreshIfNeeded(true, {
-        automatic: true,
-        signal: taskContext.signal
-      })
-    ])
-    taskContext.signal.throwIfAborted()
-    if (registryRefresh.status === 'rejected') throw registryRefresh.reason
-    if (catalogRefresh.status === 'rejected') throw catalogRefresh.reason
-    if (catalogRefresh.value.status === 'error') {
-      console.warn('[ProviderDbLoader] Startup refresh failed:', catalogRefresh.value.message)
-    }
-    const enabledProviders = providerSettings
-      .getEnabledProviders()
-      .map((provider) => provider.id)
-      .filter((providerId, index, ids) => ids.indexOf(providerId) === index)
-
-    if (enabledProviders.length === 0) {
-      taskContext.reportProgress(1)
-      return
-    }
-
-    console.info(
-      `[Startup][Main] startup.provider.warmup.deferred begin providers=${enabledProviders.length}`
-    )
-
-    for (const [index, providerId] of enabledProviders.entries()) {
-      if (taskContext.signal.aborted) {
-        const error = new Error(`Provider warmup aborted for ${providerId}`)
-        error.name = 'AbortError'
-        throw error
-      }
-
-      const providerModels = providerSettings.getProviderModels(providerId)
-      const customModels = providerSettings.getCustomModels(providerId)
-      providerSettings.getDbProviderModels(providerId)
-      providerSettings.getBatchModelStatus(providerId, [
-        ...providerModels.map((model) => model.id),
-        ...customModels.map((model) => model.id)
-      ])
-
-      taskContext.reportProgress((index + 1) / enabledProviders.length)
-      await taskContext.yield()
-    }
-
-    console.info(
-      `[Startup][Main] startup.provider.warmup.deferred done providers=${enabledProviders.length}`
-    )
   }
 
   async function destroy(): Promise<void> {
@@ -2263,121 +1794,6 @@ export async function createMainProcessControl(dependencies: {
     })
   }
 
-  async function runAcpRegistryMigration(): Promise<void> {
-    const service = new AcpRegistryMigrationService(
-      dependencies.settingsStore,
-      agentSettings,
-      agentDatabase
-    )
-    try {
-      await service.runIfNeeded()
-    } catch (error) {
-      reportMainStartupComponentFailure(
-        dependencies.startupRunId,
-        'acp_registry_migration',
-        'persistence'
-      )
-      console.error('Failed to migrate ACP registry references:', error)
-    }
-
-    try {
-      await service.compensateEnabledRegistryAgentInstalls()
-    } catch (error) {
-      reportMainStartupComponentFailure(
-        dependencies.startupRunId,
-        'acp_install_compensation',
-        'persistence'
-      )
-      console.error('Failed to compensate ACP install states:', error)
-    }
-  }
-
-  function scheduleBackgroundWork(startupRunId: string): void {
-    scheduleMainStartupTask(
-      startupRunId,
-      {
-        id: 'main:legacy-import',
-        target: 'main',
-        phase: 'background',
-        resource: 'io',
-        labelKey: 'startup.main.legacyImport',
-        run: async () => legacyChatImportService.start(false)
-      },
-      'Failed to start legacy import task:',
-      { component: 'legacy_import', category: 'persistence' }
-    )
-
-    scheduleMainStartupTask(
-      startupRunId,
-      {
-        id: 'main:usage-stats-backfill',
-        target: 'main',
-        phase: 'background',
-        resource: 'io',
-        labelKey: 'startup.main.usageStatsBackfill',
-        run: async (taskContext) => usageStatsService.startBackfill(taskContext)
-      },
-      'Failed to start usage stats backfill:',
-      { component: 'usage_stats_backfill', category: 'persistence' }
-    )
-
-    scheduleMainStartupTask(
-      startupRunId,
-      {
-        id: 'main:sqlite-mainline-normalization',
-        target: 'main',
-        phase: 'background',
-        resource: 'io',
-        labelKey: 'startup.main.sqliteMainlineNormalization',
-        run: async (taskContext) =>
-          runMainlineNormalizationMigration(
-            { sqlitePresenter: sessionDataMigrationSQLite },
-            taskContext
-          )
-      },
-      'Failed to start normalization backfill:',
-      { component: 'sqlite_mainline_normalization', category: 'persistence' }
-    )
-
-    scheduleMainStartupTask(
-      startupRunId,
-      {
-        id: 'main:disabled-agent-tool-capability-cleanup',
-        target: 'main',
-        phase: 'background',
-        resource: 'io',
-        labelKey: 'startup.main.disabledSearchToolCleanup',
-        run: async (taskContext) =>
-          runDisabledAgentToolCapabilityCleanupMigration(
-            {
-              sqlitePresenter: sessionDataMigrationSQLite,
-              agentSettings
-            },
-            taskContext
-          )
-      },
-      'Failed to start disabled agent tool capability cleanup:',
-      { component: 'disabled_agent_tool_capability_cleanup', category: 'persistence' }
-    )
-
-    scheduleMainStartupTask(
-      startupRunId,
-      {
-        id: 'main:toolchain-gc',
-        target: 'main',
-        phase: 'background',
-        resource: 'io',
-        labelKey: 'startup.main.toolchainGc',
-        run: async (taskContext) => {
-          await taskContext.yield()
-          toolchainService.gcUnreachableTrees()
-        }
-      },
-      'Failed to collect unused toolchain trees:',
-      { component: 'toolchain_gc', category: 'resource' }
-    )
-  }
-
   const shutdownCoordinator = new MainShutdownCoordinator(
     async () => {
       shutdownStepFailures = 0
@@ -2606,7 +2022,7 @@ export async function createMainProcessControl(dependencies: {
       liveDelegationService = createLiveDelegationService()
       liveDelegationService.start()
       const startupRunId = startupWorkloadCoordinator.createRun('main')
-      scheduleBackgroundWork(startupRunId)
+      coreRuntime.scheduleBackgroundWork(startupRunId)
       appSettingsService.start()
       databaseRequests.resume()
       await appSettingsService.publishSnapshot()
@@ -2749,15 +2165,7 @@ export async function createMainProcessControl(dependencies: {
   registerRoutes()
   deeplinkService.init()
   setupApplicationListeners()
-  await runAcpRegistryMigration()
-  await runBuiltinMcpAllowlistCompatibilityMigration({
-    sqlitePresenter: sessionDataMigrationSQLite,
-    agentSettings
-  })
-  // Migration must finish before any renderer or background runtime can read a manual Agent scope.
-  // A failed migration is startup-fatal; continuing would persist an empty active-Skill selection.
-  await initializeSkills()
-  await agentSettings.retryPendingDeletedAgentSkillCleanup()
+  await coreRuntime.initializeStartup()
 
   if (windowPresenter.getAllWindows().length === 0) {
     const windowId = await windowPresenter.createAppWindow({ initialRoute: 'chat' })
@@ -2799,7 +2207,7 @@ export async function createMainProcessControl(dependencies: {
       logger.warn('[CLI] Failed to install or refresh the command launcher', error)
     }
   }
-  init(dependencies.startupRunId)
-  scheduleBackgroundWork(dependencies.startupRunId)
+  coreRuntime.startStartupTasks()
+  coreRuntime.scheduleBackgroundWork()
   return control
 }

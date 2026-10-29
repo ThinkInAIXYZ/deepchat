@@ -1307,6 +1307,22 @@ keep their schemas; no generic OAuth fallback or unregistered loopback login ser
 
 ### Gateway and event flow
 
+The cohesive Core runtime constructs local-control authorization, the shared approval broker,
+command/file/settings permissions, programmatic parent/child dispatch, audit and CLI server wiring.
+CLI Run, compute, audio, OCR and Skill requests execute against those same local service owners
+and the database request gate. Keep the one Agent token authority and artifact spool shared with
+Provider/tool execution. Desktop presentation supplies trusted approval-target discovery and
+acknowledged request/close delivery; it does not construct a parallel authorization policy.
+
+Toolchain discovery and demand, OCR execution/attachment routing, startup migrations, deferred
+initialization, Provider warmup and background persistence tasks compose with Core's consumers.
+Main supplies explicit roots, the wrapped OCR cache-key capability, native floating-window startup
+and structured startup-error delivery. Preserve startup task identities, cancellation/drain and
+the actual failed run identity, including a new run after database maintenance. Skill and ACP
+migrations finish before ordinary renderer/background admission. Native presentation retains its
+existing owner; these composition boundaries alone do not prove physical Core adoption or the
+headless CLI horizon.
+
 Native Window, Tray, Notification, Shortcut and floating-widget readers use a private committed
 configuration projection. Its explicit allowlist contains resolved language, notification,
 close-to-quit, content-protection, shortcut, floating-widget, diagnostic logging, privacy and
