@@ -1813,6 +1813,40 @@ describe('basic API-key provider registrations', () => {
     )
   })
 
+  it('checks Wally with a chat model instead of its public model list', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'wally')!
+    expect(defaults).toBeDefined()
+    const config = { ...defaults, apiKey: 'test-key' }
+    // Wally's /v1/models answers without a key, so listing models cannot validate one.
+    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none',
+      checkModelId: 'deepseek-v4.1-flash'
+    })
+    const provider = new AiSdkProvider(config, createProviderSettings())
+    ;(provider as any).isInitialized = true
+
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerKind: 'openai-compatible',
+        provider: expect.objectContaining({
+          id: 'wally',
+          apiKey: 'test-key',
+          baseUrl: 'https://inference.runanywhere.ai/v1'
+        })
+      }),
+      [{ role: 'user', content: 'Hello' }],
+      'deepseek-v4.1-flash',
+      expect.any(Object),
+      0.2,
+      16
+    )
+  })
+
   it('lists every CloudGPU catalog id except non-chat models', async () => {
     const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'cloudgpu')!
     const fetchMock = vi.fn().mockResolvedValue(

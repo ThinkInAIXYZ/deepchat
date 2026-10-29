@@ -707,6 +707,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'wally',
+    name: 'Wally',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://inference.runanywhere.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://www.runwally.com/',
+      apiKey: 'https://console.runanywhere.ai/',
+      docs: 'https://docs.runanywhere.ai/wally-cloud/api',
+      models: 'https://www.runwally.com/pricing'
+    }
+  },
+  {
     id: 'cheapaimodel',
     name: 'cheapaimodel',
     apiType: 'openai-completions',

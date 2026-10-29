@@ -666,6 +666,19 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'wally',
+    createDefinition({
+      ...OPENAI_BASE,
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none',
+      checkModelId: 'deepseek-v4.1-flash',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
     'obscurify',
     createDefinition({
       ...OPENAI_BASE,
