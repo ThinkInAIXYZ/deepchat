@@ -42,7 +42,7 @@ describe('Agent image generation tool', () => {
           generateImageStandalone
         },
         createSettingsWindow: vi.fn(),
-        sendToWindow: vi.fn().mockReturnValue(true),
+
         getApprovedFilePaths: vi.fn().mockReturnValue([]),
         consumeSettingsApproval: vi.fn().mockReturnValue(false),
         ...(cacheImage ? { cacheImage } : {})

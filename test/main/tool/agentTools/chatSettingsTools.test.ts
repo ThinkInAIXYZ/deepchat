@@ -42,7 +42,7 @@ describe('ChatSettingsToolHandler', () => {
     skillSettings.isEnabled.mockReturnValue(true)
     skillService.getActiveSkills.mockResolvedValue([CHAT_SETTINGS_SKILL_NAME])
     windowPresenter.createSettingsWindow.mockResolvedValue(1)
-    windowPresenter.sendSettingsNavigation.mockReturnValue(true)
+    windowPresenter.sendSettingsNavigation.mockResolvedValue(true)
   })
 
   it('rejects toggle when skill is inactive', async () => {
@@ -140,17 +140,40 @@ describe('ChatSettingsToolHandler', () => {
     expect(desktopSettings.applyDisplayChange).not.toHaveBeenCalled()
   })
 
-  it('opens settings and navigates to section', async () => {
+  it('waits for settings navigation acknowledgement', async () => {
+    const acknowledgement = Promise.withResolvers<boolean>()
+    windowPresenter.sendSettingsNavigation.mockReturnValueOnce(acknowledgement.promise)
     const handler = buildHandler()
-    const result = await handler.open({ section: 'mcp' }, 'conv-1')
-
-    expect(windowPresenter.createSettingsWindow).toHaveBeenCalled()
-    expect(windowPresenter.sendSettingsNavigation).toHaveBeenCalledWith(1, {
-      routeName: 'settings-mcp',
-      section: 'mcp'
+    let settled = false
+    const opening = handler.open({ section: 'mcp' }, 'conv-1').then((result) => {
+      settled = true
+      return result
     })
-    expect(result.ok).toBe(true)
+
+    await vi.waitFor(() => {
+      expect(windowPresenter.sendSettingsNavigation).toHaveBeenCalledWith(1, {
+        routeName: 'settings-mcp',
+        section: 'mcp'
+      })
+    })
+    expect(settled).toBe(false)
+    acknowledgement.resolve(true)
+    await expect(opening).resolves.toMatchObject({ ok: true, routeName: 'settings-mcp' })
   })
+
+  it.each([false, new Error('Native window closed')])(
+    'reports navigation failure after a negative or failed native receipt (%s)',
+    async (outcome) => {
+      windowPresenter.sendSettingsNavigation.mockImplementationOnce(async () => {
+        if (outcome instanceof Error) throw outcome
+        return outcome
+      })
+      await expect(buildHandler().open({ section: 'mcp' }, 'conv-1')).resolves.toMatchObject({
+        ok: false,
+        errorCode: 'open_failed'
+      })
+    }
+  )
 })
 
 describe('buildChatSettingsToolDefinitions', () => {

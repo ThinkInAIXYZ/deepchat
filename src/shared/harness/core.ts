@@ -46,7 +46,13 @@ export const CorePayloadSchema = z.union([
 ])
 export type CorePayload = z.infer<typeof CorePayloadSchema>
 
-export const CoreMethodSchema = z.enum(['openProfile', 'configure', 'status', 'stop'])
+export const CoreMethodSchema = z.enum([
+  'openProfile',
+  'configure',
+  'observeSystemTheme',
+  'status',
+  'stop'
+])
 export type CoreMethod = z.infer<typeof CoreMethodSchema>
 
 export const CoreStatusSchema = z

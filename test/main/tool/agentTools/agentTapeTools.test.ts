@@ -120,7 +120,7 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
     },
     cacheImage: vi.fn(),
     createSettingsWindow: vi.fn(),
-    sendToWindow: vi.fn(),
+
     getApprovedFilePaths: vi.fn().mockReturnValue([]),
     consumeSettingsApproval: vi.fn().mockReturnValue(false),
     ...overrides

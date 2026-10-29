@@ -1352,7 +1352,10 @@ operations while maintenance or shutdown is active.
 
 Agent display changes use one validated asynchronous data-only mutation and an acknowledgement
 with the native owner's previous/applied value. Keep skill authorization and durable dispatch
-commitment at the Agent owner. G5 routes portable preferences directly to the backend configuration
+commitment at the Agent owner. Settings navigation awaits the Native delivery receipt before
+reporting success; a negative or failed receipt reports `open_failed`. This capability carries
+only typed settings navigation, without a generic window-channel endpoint.
+G5 routes portable preferences directly to the backend configuration
 owner and native device effects to Main; a Core-to-Main-to-Core mutation loop must not replace
 direct ownership. Other configuration entry domains and host capabilities still require their own
 G4 boundaries. Neither a second settings writer nor cached secret values belong in this projection.
@@ -1365,7 +1368,10 @@ incarnations as their existing separate identities.
 
 The initial private Core bootstrap link uses the existing 64-KiB control frames and a separate
 one-shot Core generation. It admits at most four ordinary calls and reserves two additional call
-slots for status/stop; up to sixteen reverse Native calls are tracked independently. Native replies
+slots for status/stop and one coalesced system-theme observation. The observation queries Native
+theme state, serializes with configuration and repeats once for a notification received during
+an active observation; it does not carry a caller-supplied color or retry an unknown outcome.
+Up to sixteen reverse Native calls are tracked independently. Native replies
 are settled independently of Core request execution, so profile startup can await a Native effect
 while stop/status remain callable. A dropped reply does not release a profile or a Native write.
 Status has a 5-second observation deadline and stop has a 30-second observation deadline; expiry

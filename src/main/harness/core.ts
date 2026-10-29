@@ -109,6 +109,9 @@ export class CoreRuntimeConnection {
   private ordinary = 0
   private control = 0
   private statusPending = false
+  private themeObservationPending = false
+  private themeObservation: Promise<void> | undefined
+  private themeObservationDirty = false
   private stopped = false
   private stopPromise: Promise<CoreStatus> | undefined
 
@@ -165,6 +168,25 @@ export class CoreRuntimeConnection {
     return await this.request('configure', CoreConfigurationCommandSchema.parse(command))
   }
 
+  observeSystemTheme(): Promise<void> {
+    if (this.stopPromise || this.stopped || this.failure)
+      return Promise.reject(this.failure ?? new Error('Core is stopping'))
+    this.themeObservationDirty = true
+    if (this.themeObservation) return this.themeObservation
+    this.themeObservation = (async () => {
+      try {
+        while (this.themeObservationDirty && !this.stopPromise) {
+          this.themeObservationDirty = false
+          await this.request('observeSystemTheme', undefined)
+        }
+      } finally {
+        this.themeObservation = undefined
+        this.themeObservationDirty = false
+      }
+    })()
+    return this.themeObservation
+  }
+
   async status(): Promise<CoreStatus> {
     return CoreStatusSchema.parse(
       await this.observe(this.request('status', undefined), 5_000, 'CoreUnavailableError')
@@ -198,11 +220,18 @@ export class CoreRuntimeConnection {
   private async request(method: CoreMethod, args: unknown): Promise<unknown> {
     if (this.failure || this.stopped) throw this.failure ?? new Error('Core generation is stopped')
     const control = method === 'status' || method === 'stop'
+    const observation = method === 'observeSystemTheme'
     if (!control && this.stopPromise) throw new Error('Core is stopping')
     if (method === 'status' && this.statusPending) throw new Error('Core status request is pending')
-    if (control ? this.control >= CORE_CONTROL_CALLS : this.ordinary >= CORE_CALLS)
+    if (observation && this.themeObservationPending)
+      throw new Error('Core theme observation is pending')
+    if (
+      !observation &&
+      (control ? this.control >= CORE_CONTROL_CALLS : this.ordinary >= CORE_CALLS)
+    )
       throw new Error('Core request limit exceeded')
-    if (control) this.control++
+    if (observation) this.themeObservationPending = true
+    else if (control) this.control++
     else this.ordinary++
     if (method === 'status') this.statusPending = true
     let ref: CorePayload | undefined
@@ -220,7 +249,8 @@ export class CoreRuntimeConnection {
         }
       })
     } finally {
-      if (control) this.control--
+      if (observation) this.themeObservationPending = false
+      else if (control) this.control--
       else this.ordinary--
       if (method === 'status') this.statusPending = false
       if (ref && !this.failure) await this.payloads.release(ref)

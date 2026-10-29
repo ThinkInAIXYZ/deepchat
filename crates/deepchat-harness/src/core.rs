@@ -513,16 +513,19 @@ impl Plugin for Gateway {
                 .take()
                 .ok_or_else(|| CordisError::ServiceNotFound("Core generation ended".into()))?;
             type Call = Pin<
-                Box<dyn Future<Output = (u64, bool, bool, std::result::Result<Json, Json>)> + Send>,
+                Box<
+                    dyn Future<Output = (u64, bool, bool, bool, std::result::Result<Json, Json>)>
+                        + Send,
+                >,
             >;
             let mut calls = FuturesUnordered::<Call>::new();
-            let (mut ordinary, mut control, mut last_id) = (0, 0, 0);
+            let (mut ordinary, mut control, mut observations, mut last_id) = (0, 0, 0, 0);
             loop {
                 tokio::select! {
                     biased;
                     _ = ctx.cancelled() => break,
-                    Some((id, is_control, stopping, result)) = calls.next(), if !calls.is_empty() => {
-                        if is_control { control -= 1; } else { ordinary -= 1; }
+                    Some((id, is_control, observation, stopping, result)) = calls.next(), if !calls.is_empty() => {
+                        if observation { observations -= 1; } else if is_control { control -= 1; } else { ordinary -= 1; }
                         if stopping && result.is_ok() { self.native.retire().await; }
                         let frame = match result { Ok(value) => json!({"type":"coreReply","id":id,"value":value}), Err(error) => json!({"type":"coreReply","id":id,"error":error}) };
                         if self.outgoing.send(frame).await.is_err() { break; }
@@ -530,14 +533,15 @@ impl Plugin for Gateway {
                     request = incoming.recv() => match request {
                         Some(Request::CoreCall { id, method, args }) => {
                             let is_control = matches!(method.as_str(), "status" | "stop");
-                            if id == 0 || id > 9_007_199_254_740_991 || id <= last_id || !matches!(method.as_str(), "openProfile" | "configure" | "status" | "stop") || if is_control { control >= 2 } else { ordinary >= 4 } {
+                            let observation = method == "observeSystemTheme";
+                            if id == 0 || id > 9_007_199_254_740_991 || id <= last_id || !matches!(method.as_str(), "openProfile" | "configure" | "observeSystemTheme" | "status" | "stop") || if observation { observations >= 1 } else if is_control { control >= 2 } else { ordinary >= 4 } {
                                 return Err(CordisError::ServiceNotFound("Invalid Core operation or quota".into()));
                             }
                             last_id = id;
                             let stopping = method == "stop";
-                            let value = service.invoke(&method, Value::List(if is_control { vec![] } else { vec![args.into()] }));
-                            if is_control { control += 1; } else { ordinary += 1; }
-                            calls.push(Box::pin(async move { (id, is_control, stopping, match value { Ok(value) => invoke(value).await, Err(error) => Err(bridge_error(error)) }) }));
+                            let value = service.invoke(&method, Value::List(if is_control || observation { vec![] } else { vec![args.into()] }));
+                            if observation { observations += 1; } else if is_control { control += 1; } else { ordinary += 1; }
+                            calls.push(Box::pin(async move { (id, is_control, observation, stopping, match value { Ok(value) => invoke(value).await, Err(error) => Err(bridge_error(error)) }) }));
                         },
                         None => break,
                         _ => return Err(CordisError::ServiceNotFound("Invalid Core request".into())),

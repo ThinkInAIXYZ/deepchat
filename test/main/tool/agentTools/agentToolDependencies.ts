@@ -35,11 +35,8 @@ export const createAgentToolDependencies = (
       overrides.resolveConversationExecutionAuthority ?? vi.fn().mockResolvedValue(null)
   },
   tape: {
-    getTapeInfo: overrides.getTapeInfo ?? vi.fn(),
     searchTape: overrides.searchTape ?? vi.fn(),
-    getTapeContext: overrides.getTapeContext ?? vi.fn(),
-    listTapeAnchors: overrides.listTapeAnchors ?? vi.fn(),
-    handoffTape: overrides.handoffTape ?? vi.fn()
+    getTapeContext: overrides.getTapeContext ?? vi.fn()
   },
   memory: {
     isMemoryEnabled: overrides.isMemoryEnabled ?? vi.fn(() => false),
@@ -122,8 +119,7 @@ export const createAgentToolDependencies = (
     profileTempDirectory: path.join(os.tmpdir(), 'deepchat-electron-user-data', 'temp'),
     readImageSize: overrides.readImageSize ?? vi.fn(async () => ({ width: 128, height: 96 })),
     createSettingsWindow: vi.fn(),
-    sendToWindow: vi.fn().mockReturnValue(true),
-    sendSettingsNavigation: vi.fn().mockReturnValue(true),
+    sendSettingsNavigation: vi.fn().mockResolvedValue(true),
     ...overrides.desktop
   },
   permissions: {

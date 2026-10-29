@@ -2881,8 +2881,6 @@ export class AgentToolManager {
         skillService: this.getSkillService(),
         windowRuntime: {
           createSettingsWindow: () => this.dependencies.desktop.createSettingsWindow(),
-          sendToWindow: (windowId, channel, ...args) =>
-            this.dependencies.desktop.sendToWindow(windowId, channel, ...args),
           sendSettingsNavigation: (windowId, navigation) =>
             this.dependencies.desktop.sendSettingsNavigation(windowId, navigation)
         }

@@ -109,7 +109,7 @@ describe('AgentToolManager read routing', () => {
         fileService: fileService,
         providerRuntime: providerRuntime,
         createSettingsWindow: vi.fn(),
-        sendToWindow: vi.fn().mockReturnValue(true),
+
         getApprovedFilePaths: vi.fn().mockReturnValue([]),
         consumeSettingsApproval: vi.fn().mockReturnValue(false)
       })

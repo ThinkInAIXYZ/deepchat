@@ -6,7 +6,7 @@ import { waitForAppReady } from '../helpers/wait'
 
 test.use({ privacyModeEnabled: true })
 
-test('Agent tools preserve image metadata, workspace access and reopen @smoke', async ({
+test('Agent tools preserve file access and settings navigation across reopen @smoke', async ({
   launchApp
 }) => {
   const image = readFileSync(new URL('../../../resources/icon.png', import.meta.url))
@@ -47,7 +47,8 @@ test('Agent tools preserve image metadata, workspace access and reopen @smoke', 
     }
     const results = body.messages.filter((message: { role: string }) => message.role === 'tool')
     toolResults = results.map((message: { content: unknown }) => JSON.stringify(message.content))
-    const complete = results.length >= 2
+    const complete = results.length >= 3
+    const openingSettings = results.length === 2
     const delta = complete
       ? { content: 'AGENT_HOST_VERIFIED' }
       : {
@@ -58,8 +59,12 @@ test('Agent tools preserve image metadata, workspace access and reopen @smoke', 
               id: `host-read-${results.length}`,
               type: 'function',
               function: {
-                name: 'read',
-                arguments: JSON.stringify({ path: results.length ? 'workspace.txt' : imagePath })
+                name: openingSettings ? 'deepchat_settings_open' : 'read',
+                arguments: JSON.stringify(
+                  openingSettings
+                    ? { section: 'mcp' }
+                    : { path: results.length ? 'workspace.txt' : imagePath }
+                )
               }
             }
           ]
@@ -136,24 +141,34 @@ test('Agent tools preserve image metadata, workspace access and reopen @smoke', 
             }
           }
         })
+        await window.deepchat.invoke('skills.setAssignments', {
+          agentId: 'deepchat',
+          skillNames: ['deepchat-settings']
+        })
         const { session } = await window.deepchat.invoke('sessions.create', {
           agentId: 'deepchat',
-          message: 'Verify image metadata and workspace file access.',
+          message:
+            'Verify image metadata and workspace file access, then open DeepChat MCP settings.',
           providerId,
           modelId: 'host-fixture',
           projectDir,
           permissionMode: 'full_access',
-          toolModeOverride: 'agent'
+          toolModeOverride: 'agent',
+          activeSkills: ['deepchat-settings']
         })
         return session.id
       },
       { baseUrl: `http://127.0.0.1:${port}/v1`, projectDir }
     )
-    await expect.poll(() => toolResults.length).toBe(2)
+    await expect.poll(() => toolResults.length).toBe(3)
     expect(toolResults[0]).toContain('[Image Metadata]')
     expect(toolResults[0]).toContain(`resolution: ${resolution}`)
     expect(toolResults[0]).toContain('neither the current session model nor the agent vision model')
     expect(toolResults[1]).toContain('WORKSPACE_HOST_READ_VERIFIED')
+    expect(toolResults[2]).toContain('settings-mcp')
+    await expect
+      .poll(() => active.electronApp.windows().some((page) => page.url().endsWith('#/mcp')))
+      .toBe(true)
     await expect
       .poll(async () =>
         JSON.stringify(

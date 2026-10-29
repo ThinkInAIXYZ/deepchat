@@ -63,7 +63,7 @@ function buildRuntimePort() {
       generateImageStandalone: vi.fn()
     },
     createSettingsWindow: vi.fn(),
-    sendToWindow: vi.fn().mockReturnValue(true),
+
     getApprovedFilePaths: vi.fn().mockReturnValue([]),
     consumeSettingsApproval: vi.fn().mockReturnValue(false)
   })

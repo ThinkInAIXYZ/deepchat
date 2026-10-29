@@ -142,10 +142,7 @@ export class ChatSettingsToolHandler {
       desktopSettings: AgentDisplaySettingsPort
       skillSettings: SkillSettingsPort
       skillService: SkillServicePort
-      windowRuntime: Pick<
-        AgentDesktopToolPort,
-        'createSettingsWindow' | 'sendToWindow' | 'sendSettingsNavigation'
-      >
+      windowRuntime: Pick<AgentDesktopToolPort, 'createSettingsWindow' | 'sendSettingsNavigation'>
     }
   ) {}
 
@@ -338,10 +335,26 @@ export class ChatSettingsToolHandler {
     }
 
     if (routeName) {
-      this.options.windowRuntime.sendSettingsNavigation(windowId, {
-        routeName,
-        section: normalizedSection
-      })
+      try {
+        const delivered = await this.options.windowRuntime.sendSettingsNavigation(windowId, {
+          routeName,
+          section: normalizedSection
+        })
+        if (!delivered) {
+          return {
+            ok: false,
+            errorCode: 'open_failed',
+            message: 'Settings navigation was not delivered.'
+          }
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          errorCode: 'open_failed',
+          message: 'Failed to navigate settings window.',
+          details: error instanceof Error ? error.message : String(error)
+        }
+      }
     }
 
     return {

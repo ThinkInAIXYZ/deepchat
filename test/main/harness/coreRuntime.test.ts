@@ -31,6 +31,8 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       available?: () => Promise<boolean>
       detached?: boolean
       publishSnapshot?: (snapshot: NativeConfigurationSnapshot) => Promise<void>
+      refreshTheme?: (isDark: boolean) => Promise<void>
+      readTheme?: () => Promise<{ theme: 'dark' | 'light' | 'system'; isDark: boolean }>
       transport?: (runtime: HarnessRuntime) => Pick<HarnessRuntime, 'connectCore' | 'stop'>
     } = {}
   ) {
@@ -68,10 +70,12 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
     const publishEvent = vi.fn()
     const desktop = {
       systemLocale: 'en-US',
-      readTheme: async () => ({ theme: 'system' as const, isDark: false }),
+      readTheme: options.readTheme ?? (async () => ({ theme: 'system' as const, isDark: false })),
       applyTheme: async () => false,
       refreshLanguage: async () => {},
-      refreshTheme: async () => {},
+      refreshTheme: async (isDark) => {
+        await options.refreshTheme?.(isDark)
+      },
       readLaunchAtLogin: async () => false,
       setLaunchAtLogin: async (enabled: boolean) => enabled,
       applyContentProtection: async () => {},
@@ -253,6 +257,76 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
         reopened.closeProfile()
       } finally {
         release.resolve()
+      }
+    }
+  )
+
+  it(
+    'coalesces native observations and reserves shutdown with ordinary calls saturated',
+    { timeout: 30_000 },
+    async () => {
+      const pause = () => ({
+        entered: Promise.withResolvers<void>(),
+        release: Promise.withResolvers<void>()
+      })
+      let receipt = pause()
+      let isDark = false
+      const refreshTheme = vi.fn(async (_isDark: boolean) => {
+        const current = receipt
+        current.entered.resolve()
+        await current.release.promise
+      })
+      const f = await fixture({
+        refreshTheme,
+        readTheme: async () => ({ theme: 'system', isDark })
+      })
+      await f.connection.openProfile(f.options)
+      try {
+        const observing = f.connection.observeSystemTheme()
+        const observed = Promise.allSettled([observing])
+        await receipt.entered.promise
+        const ordinary = Array.from({ length: 4 }, () =>
+          f.connection.configure({ operation: 'read', input: { keys: ['fontFamily'] } })
+        )
+        const settled = Promise.allSettled(ordinary)
+        expect(f.connection.observeSystemTheme()).toBe(observing)
+        isDark = true
+        await expect(f.connection.status()).resolves.toMatchObject({ phase: 'profile-open' })
+        receipt.release.resolve()
+        await expect(observing).resolves.toBeUndefined()
+        await observed
+        await settled
+        expect(refreshTheme).toHaveBeenLastCalledWith(true)
+        expect(f.publishEvent).toHaveBeenLastCalledWith(
+          'config.systemTheme.changed',
+          expect.objectContaining({ isDark: true })
+        )
+
+        receipt = pause()
+        const finalObservation = Promise.allSettled([f.connection.observeSystemTheme()])
+        await receipt.entered.promise
+        const queued = Promise.allSettled(
+          Array.from({ length: 4 }, () =>
+            f.connection.configure({ operation: 'read', input: { keys: ['fontFamily'] } })
+          )
+        )
+        const stopping = f.connection.stop()
+        await expect.poll(async () => (await f.connection.status()).phase).toBe('stopping')
+        await expect(
+          initializeCoreProfile({ ...f.options, host: f.host, crypto: f.crypto })
+        ).rejects.toMatchObject({ name: 'CoreProfileOwnershipUnavailableError' })
+        receipt.release.resolve()
+        await finalObservation
+        await queued
+        await expect(stopping).resolves.toMatchObject({ phase: 'stopped' })
+        const reopened = await initializeCoreProfile({
+          ...f.options,
+          host: f.host,
+          crypto: f.crypto
+        })
+        reopened.closeProfile()
+      } finally {
+        receipt.release.resolve()
       }
     }
   )

@@ -44,6 +44,10 @@ Further measurement requires changed code, a changed workload or concrete new ev
 runners may enforce deterministic work, payload and queue limits; do not add relative wall-clock
 regression gates to them. Do not rerun CI or unchanged benchmarks to obtain a passing timing sample.
 
+After acceptance, remove obsolete source/build copies, disposable profiles and test media. Retain
+compact receipts, raw measurements and only the immutable baselines still needed for pending work.
+Reuse the retained baseline instead of accumulating a complete output tree for every checkpoint.
+
 ## Live goals and dependencies
 
 | Goal | State | Dependencies | Completion condition |
@@ -3055,6 +3059,33 @@ private service transports; it does not yet invoke the complete Kernel. Native c
 transport, descendant/proxy authority, complete public route and lifecycle/maintenance adoption,
 default writer handoff and supported signed/native package acceptance remain required. All
 remaining goals keep their scope and dependency order.
+
+### Native settings navigation and theme observations
+
+Agent settings navigation now awaits the typed Native delivery receipt, returning `open_failed`
+on a negative or failed receipt. The unused generic window-channel capability is removed from
+the Agent port and its callers. The actual Core worker accepts one coalesced system-theme
+observation independently of its four ordinary calls and two status/stop slots. It queries Native
+state through the existing configuration capability and uses the same configuration/event queue.
+Notifications during an active observation trigger a fresh query after its acknowledgement;
+stop fences new observations and drains accepted Native effects before releasing profile ownership.
+
+Acceptance passes **160 distinct checks across 11 affected files**, including six actual Core
+integration checks, plus six Rust tests and locked clippy. Durable coverage verifies navigation
+acknowledgement/failure, observation coalescing, saturated ordinary calls and profile ownership
+until actual Native completion. App/scoped test types, normal build, format/check, lint and i18n
+pass. Normal generated catalogs remain separate.
+
+Immutable `f511c078b` and the candidate each pass the same three application scenarios: Agent
+image/workspace access and actual MCP settings navigation with reopen, desktop theme/login
+observations, and CLI security approval/persistence. The initial Agent assertion used the wrong
+window path; correcting it to the existing `#/mcp` route requires repeating only that scenario.
+Initial results are retained. Evidence is `.deepchat/rutis-g5-kernel-native-acceptance/`.
+
+Default process placement is unchanged, so no performance/resource capture is selected. Completed
+acceptance copies, disposable profiles and media are pruned; compact evidence and the one needed
+immutable baseline remain. G5 stays active and unpublished. The complete Kernel, writer, routes
+and application lifecycle still require default Core adoption and acceptance.
 
 ## G6. Extract the complete Memory capability
 

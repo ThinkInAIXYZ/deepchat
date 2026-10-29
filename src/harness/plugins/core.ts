@@ -42,6 +42,7 @@ export default definePlugin<CoreCarrierConfig>({
       identity: 'async',
       openProfile: 'async',
       configure: 'async',
+      observeSystemTheme: 'async',
       status: 'async',
       stop: 'async'
     }
@@ -131,6 +132,31 @@ export default definePlugin<CoreCarrierConfig>({
           .string()
           .optional()
           .parse(await callNative('crypto.backend', []))
+    }
+    const runConfiguration = async (
+      execute: (owner: NonNullable<typeof configuration>['appSettingsService']) => Promise<unknown>
+    ): Promise<CorePayload> => {
+      if (phase !== 'profile-open' || !configuration)
+        throw new Error('Core configuration is unavailable')
+      const operation = configurationTail.then(async () => {
+        if (phase !== 'profile-open' || !configuration)
+          throw new Error('Core configuration is unavailable')
+        const events: DeepchatEventEnvelope[] = []
+        configurationEvents = events
+        try {
+          const [outcome] = await Promise.allSettled([execute(configuration.appSettingsService)])
+          if (events.length) await callNative('configuration', [{ operation: 'events', events }])
+          if (outcome.status === 'rejected') throw outcome.reason
+          return await store.encode(outcome.value)
+        } finally {
+          configurationEvents = undefined
+        }
+      })
+      configurationTail = operation.then(
+        () => undefined,
+        () => undefined
+      )
+      return await operation
     }
     const stop = (): Promise<void> => {
       if (stopping) return stopping
@@ -258,43 +284,23 @@ export default definePlugin<CoreCarrierConfig>({
         return await opening
       },
       async configure(ref: CorePayload): Promise<CorePayload> {
-        if (phase !== 'profile-open' || !configuration)
-          throw new Error('Core configuration is unavailable')
-        const operation = configurationTail.then(async () => {
-          if (phase !== 'profile-open' || !configuration)
-            throw new Error('Core configuration is unavailable')
+        return await runConfiguration(async (owner) => {
           const command = CoreConfigurationCommandSchema.parse(await store.decode(ref))
           if (phase !== 'profile-open') throw new Error('Core configuration is unavailable')
-          const events: DeepchatEventEnvelope[] = []
-          configurationEvents = events
-          try {
-            const owner = configuration.appSettingsService
-            const [outcome] = await Promise.allSettled([
-              (async () => {
-                switch (command.operation) {
-                  case 'read':
-                    return await owner.getSnapshot(command.input.keys)
-                  case 'update':
-                    return await owner.update(command.input.changes)
-                  case 'nativeSnapshot':
-                    return owner.readNativeSnapshot()
-                  case 'initialize':
-                    return await owner.initializeDesktop()
-                }
-              })()
-            ])
-            if (events.length) await callNative('configuration', [{ operation: 'events', events }])
-            if (outcome.status === 'rejected') throw outcome.reason
-            return await store.encode(outcome.value)
-          } finally {
-            configurationEvents = undefined
+          switch (command.operation) {
+            case 'read':
+              return await owner.getSnapshot(command.input.keys)
+            case 'update':
+              return await owner.update(command.input.changes)
+            case 'nativeSnapshot':
+              return owner.readNativeSnapshot()
+            case 'initialize':
+              return await owner.initializeDesktop()
           }
         })
-        configurationTail = operation.then(
-          () => undefined,
-          () => undefined
-        )
-        return await operation
+      },
+      async observeSystemTheme() {
+        return await runConfiguration(async (owner) => await owner.observeSystemTheme())
       },
       async status() {
         return await store.encode(status())

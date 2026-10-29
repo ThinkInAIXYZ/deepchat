@@ -1071,9 +1071,7 @@ export async function createMainProcessControl(dependencies: {
         return { width: size.width, height: size.height }
       },
       createSettingsWindow: () => windowPresenter.createSettingsWindow(),
-      sendToWindow: (windowId, channel, ...args) =>
-        windowPresenter.sendToWindow(windowId, channel, ...args),
-      sendSettingsNavigation: (windowId, navigation) =>
+      sendSettingsNavigation: async (windowId, navigation) =>
         windowPresenter.sendSettingsNavigation(windowId, navigation)
     },
     pluginSettingsWindow,
