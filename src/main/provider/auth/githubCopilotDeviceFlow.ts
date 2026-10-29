@@ -1,6 +1,8 @@
 import { BrowserWindow, clipboard, shell } from 'electron'
-import { exec } from 'child_process'
 import logger from '@shared/logger'
+import { z } from 'zod'
+import { setTimeout as delay } from 'node:timers/promises'
+import { readAuthResponse } from './responseBody'
 
 const GITHUB_DEVICE_URL = 'https://github.com/login/device'
 const GITHUB_COPILOT_DEVICE_FLOW_CLIENT_ID = 'Iv1.b507a08c87ecfe98'
@@ -10,57 +12,69 @@ export interface DeviceFlowConfig {
   scope: string
 }
 
-export interface DeviceCodeResponse {
-  device_code: string
-  user_code: string
-  verification_uri: string
-  expires_in: number
-  interval: number
-}
-
-export interface AccessTokenResponse {
-  access_token?: string
-  token_type?: string
-  scope?: string
-  error?: string
-  error_description?: string
-}
+const seconds = z
+  .number()
+  .int()
+  .positive()
+  .max(Math.floor(2 ** 31 / 1000))
+const DeviceCodeSchema = z.object({
+  device_code: z.string().min(1).max(4096),
+  user_code: z
+    .string()
+    .min(1)
+    .max(128)
+    .regex(/^[A-Za-z0-9-]+$/),
+  verification_uri: z.literal(GITHUB_DEVICE_URL),
+  expires_in: seconds,
+  interval: seconds
+})
+type DeviceCodeResponse = z.infer<typeof DeviceCodeSchema>
+const AccessTokenSchema = z.object({
+  access_token: z
+    .string()
+    .regex(/^[\x21-\x7e]+$/)
+    .optional(),
+  error: z.string().optional(),
+  error_description: z.string().optional(),
+  interval: seconds.optional()
+})
 
 export class GitHubCopilotDeviceFlow {
-  private config: DeviceFlowConfig
-  private pollingInterval: NodeJS.Timeout | null = null
-
-  constructor(config: DeviceFlowConfig) {
-    this.config = config
-  }
+  constructor(private readonly config: DeviceFlowConfig) {}
 
   /**
    * Start Device Flow authentication process
    */
-  async startDeviceFlow(): Promise<string> {
+  async startDeviceFlow(signal: AbortSignal): Promise<string> {
+    signal.throwIfAborted()
+    const expiration = new AbortController()
+    const active = AbortSignal.any([signal, expiration.signal])
+    let timer: NodeJS.Timeout | undefined
     try {
-      // Step 1: Request device code
-      const deviceCodeResponse = await this.requestDeviceCode()
-
-      // Step 2: Show user code and open browser
-      await this.showUserCodeAndOpenBrowser(deviceCodeResponse)
-
-      // Step 3: Poll for access token
-      const accessToken = await this.pollForAccessToken(deviceCodeResponse)
-
-      return accessToken
+      const deviceCodeResponse = await this.requestDeviceCode(active)
+      active.throwIfAborted()
+      const receivedAt = Date.now()
+      timer = setTimeout(
+        () => expiration.abort(new Error('Device code expired')),
+        deviceCodeResponse.expires_in * 1000
+      )
+      await this.showUserCodeAndOpenBrowser(deviceCodeResponse, active)
+      active.throwIfAborted()
+      return await this.pollForAccessToken(deviceCodeResponse, active, receivedAt)
     } catch (error) {
-      console.error('[GitHub Copilot] Device flow failed:', error)
+      active.throwIfAborted()
       throw new Error(
         `Device flow authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
+    } finally {
+      clearTimeout(timer)
     }
   }
 
   /**
    * Step 1: Request device code
    */
-  private async requestDeviceCode(): Promise<DeviceCodeResponse> {
+  private async requestDeviceCode(signal: AbortSignal): Promise<DeviceCodeResponse> {
     const url = 'https://github.com/login/device/code'
     const body = {
       client_id: this.config.clientId,
@@ -68,15 +82,19 @@ export class GitHubCopilotDeviceFlow {
     }
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'DeepChat/1.0.0'
-        },
-        body: JSON.stringify(body)
-      })
+      const response = await readAuthResponse(
+        await fetch(url, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'User-Agent': 'DeepChat/1.0.0'
+          },
+          body: JSON.stringify(body),
+          signal
+        }),
+        signal
+      )
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '')
@@ -85,10 +103,11 @@ export class GitHubCopilotDeviceFlow {
         )
       }
 
-      const data = (await response.json()) as DeviceCodeResponse
-      return data
+      const parsed = DeviceCodeSchema.safeParse(await response.json())
+      if (!parsed.success) throw new Error('Invalid GitHub device-code response')
+      return parsed.data
     } catch (error) {
-      console.warn(error)
+      signal.throwIfAborted()
       throw error
     }
   }
@@ -96,26 +115,84 @@ export class GitHubCopilotDeviceFlow {
   /**
    * Step 2: Show user code and open browser
    */
-  private async showUserCodeAndOpenBrowser(deviceCodeResponse: DeviceCodeResponse): Promise<void> {
-    return new Promise((resolve) => {
-      // Create a window to display user code
-      const instructionWindow = new BrowserWindow({
-        width: 340,
-        height: 320,
-        show: false,
-        webPreferences: {
-          nodeIntegration: false,
-          contextIsolation: true
-        },
-        autoHideMenuBar: true,
-        title: 'GitHub Copilot Device Authentication',
-        resizable: false,
-        minimizable: false,
-        maximizable: false
+  private async showUserCodeAndOpenBrowser(
+    deviceCodeResponse: DeviceCodeResponse,
+    signal: AbortSignal
+  ): Promise<void> {
+    signal.throwIfAborted()
+    const result = Promise.withResolvers<void>()
+    void result.promise.catch(() => {})
+    const closed = Promise.withResolvers<void>()
+    const effects = new Set<Promise<unknown>>()
+    let active = true
+    let opening: Promise<void> | undefined
+    // Create a window to display user code
+    const instructionWindow = new BrowserWindow({
+      width: 340,
+      height: 320,
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        webSecurity: true
+      },
+      autoHideMenuBar: true,
+      title: 'GitHub Copilot Device Authentication',
+      resizable: false,
+      minimizable: false,
+      maximizable: false
+    })
+    instructionWindow.once('closed', () => {
+      closed.resolve()
+      result.resolve()
+    })
+    const abort = () => result.reject(signal.reason)
+    signal.addEventListener('abort', abort, { once: true })
+    const run = (effect: () => Promise<unknown>): Promise<unknown> => {
+      const operation = Promise.resolve().then(() => {
+        if (active && !signal.aborted && !instructionWindow.isDestroyed()) return effect()
+        return undefined
       })
+      effects.add(operation)
+      void operation.then(
+        () => effects.delete(operation),
+        () => effects.delete(operation)
+      )
+      return operation
+    }
+    // Destroyed frames can lose command replies; physical closure retires their local effects.
+    const runWindow = (effect: () => Promise<unknown>) =>
+      run(async () => await Promise.race([effect(), closed.promise]))
+    const openBrowser = () => {
+      if (!active || signal.aborted || instructionWindow.isDestroyed() || opening) return
+      opening = run(async () => {
+        try {
+          await shell.openExternal(GITHUB_DEVICE_URL)
+        } catch {
+          if (active && !signal.aborted && !instructionWindow.isDestroyed())
+            await runWindow(
+              async () =>
+                await instructionWindow.webContents.executeJavaScript(
+                  `alert('Cannot automatically open browser. Please manually visit: ${GITHUB_DEVICE_URL}');`
+                )
+            ).catch(() => {})
+        }
+      })
+        .then(() => undefined)
+        .finally(() => {
+          opening = undefined
+        })
+      void opening.catch(() => {})
+    }
+    const closeWindow = async () => {
+      try {
+        if (!instructionWindow.isDestroyed()) instructionWindow.destroy()
+      } finally {
+        await closed.promise
+      }
+    }
 
-      // 创建HTML内容
-      const htmlContent = `
+    const htmlContent = `
         <!DOCTYPE html>
         <html>
         <head>
@@ -225,7 +302,7 @@ export class GitHubCopilotDeviceFlow {
           <script>
             async function openBrowser() {
               try {
-                const githubUrl = GITHUB_DEVICE_URL;
+                const githubUrl = '${GITHUB_DEVICE_URL}';
                 // Try to copy link to clipboard
                 await window.electronAPI.copyToClipboard(githubUrl);
 
@@ -263,239 +340,135 @@ export class GitHubCopilotDeviceFlow {
         </html>
       `
 
-      // Load HTML content
-      instructionWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`)
-
-      // Inject API
-      instructionWindow.webContents.on('dom-ready', () => {
-        instructionWindow.webContents.executeJavaScript(`
+    instructionWindow.webContents.on('dom-ready', () => {
+      void runWindow(
+        async () =>
+          await instructionWindow.webContents.executeJavaScript(`
           window.electronAPI = {
-            openExternal: (url) => {
-              // Send message via console.log, main process receives via console-message event
-              console.log(JSON.stringify({ type: 'open-external', url }));
-            },
-            copyToClipboard: (text) => {
-              // Send message via console.log, main process receives via console-message event
-              console.log(JSON.stringify({ type: 'copy-to-clipboard', text }));
-            },
+            openExternal: () => console.log(JSON.stringify({ type: 'open-external' })),
+            copyToClipboard: (text) => console.log(JSON.stringify({ type: 'copy-to-clipboard', text }))
           };
+          void 0;
         `)
-      })
-
-      // Handle messages
-      instructionWindow.webContents.on('ipc-message', (_event, channel, ...args) => {
-        if (channel === 'open-external') {
-          shell.openExternal(args[0])
-        }
-      })
-
-      // Listen to page messages
-      instructionWindow.webContents.on('console-message', (_event, _level, message) => {
-        try {
-          const msg = typeof message === 'string' ? JSON.parse(message) : message
-          if (msg.type === 'open-external') {
-            shell.openExternal(msg.url)
-          } else if (msg.type === 'copy-to-clipboard') {
-            if (typeof msg.text === 'string') {
-              clipboard.writeText(msg.text)
-            }
-          }
-        } catch {
-          // ignore
-        }
-      })
-
-      instructionWindow.show()
-
-      // Automatically open browser
-      setTimeout(async () => {
-        try {
-          // Use fixed GitHub device activation page
-          const url = GITHUB_DEVICE_URL
-          logger.info('Attempting to open URL:', url)
-
-          if (process.platform === 'win32') {
-            // First try using explorer command
-            exec(`explorer "${url}"`, (error) => {
-              if (error) {
-                console.error('Explorer command failed:', error)
-                // If explorer fails, try using start command
-                exec(`start "" "${url}"`, (startError) => {
-                  if (startError) {
-                    console.error('Start command failed:', startError)
-                    // Use a safer method for clipboard operations
-                    instructionWindow.webContents.executeJavaScript(`
-                      const shouldCopy = confirm('Cannot automatically open browser. Copy link to clipboard?');
-                      if (shouldCopy) {
-                        // use the exposed Electron API for clipboard access
-                        window.electronAPI.copyToClipboard('${url}');
-                        alert('Link copied to clipboard. Please paste it into your browser address bar.');
-                      } else {
-                        alert('Please manually visit: ${url}');
-                      }
-                    `)
-                  }
-                })
-              }
-            })
-          } else {
-            // Non-Windows systems use default shell.openExternal
-            await shell.openExternal(url)
-          }
-        } catch (error) {
-          console.error('Failed to open browser:', error)
-          instructionWindow.webContents.executeJavaScript(`
-            alert('Cannot automatically open browser. Please manually visit: ${GITHUB_DEVICE_URL}');
-          `)
-        }
-      }, 1000)
-
-      // Set timeout to close window
-      setTimeout(() => {
-        if (!instructionWindow.isDestroyed()) {
-          instructionWindow.close()
-        }
-        resolve()
-      }, 30000) // Auto close after 30 seconds
-
-      // Handle window close
-      instructionWindow.on('closed', () => {
-        resolve()
-      })
+      ).catch(() => {})
     })
+    instructionWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    instructionWindow.webContents.on('will-navigate', (event) => event.preventDefault())
+    instructionWindow.webContents.on('console-message', (...args: unknown[]) => {
+      if (!active || signal.aborted || instructionWindow.isDestroyed()) return
+      const details = args[1]
+      const message =
+        typeof args[2] === 'string'
+          ? args[2]
+          : details && typeof details === 'object' && 'message' in details
+            ? details.message
+            : undefined
+      if (typeof message !== 'string') return
+      try {
+        const value: unknown = JSON.parse(message)
+        if (!value || typeof value !== 'object' || !('type' in value)) return
+        if (value.type === 'open-external') openBrowser()
+        else if (
+          value.type === 'copy-to-clipboard' &&
+          'text' in value &&
+          (value.text === GITHUB_DEVICE_URL || value.text === deviceCodeResponse.user_code)
+        )
+          clipboard.writeText(value.text)
+      } catch {
+        // Ignore unrelated page diagnostics.
+      }
+    })
+    const browserTimer = setTimeout(openBrowser, 1000)
+    const windowTimer = setTimeout(() => {
+      try {
+        if (!instructionWindow.isDestroyed()) instructionWindow.destroy()
+      } catch (error) {
+        result.reject(error)
+      }
+    }, 30_000)
+    try {
+      if (signal.aborted) abort()
+      else {
+        void runWindow(
+          async () =>
+            await instructionWindow.loadURL(
+              `data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`
+            )
+        ).catch(result.reject)
+        instructionWindow.show()
+      }
+      await result.promise
+      signal.throwIfAborted()
+    } finally {
+      active = false
+      clearTimeout(browserTimer)
+      clearTimeout(windowTimer)
+      signal.removeEventListener('abort', abort)
+      try {
+        await closeWindow()
+      } finally {
+        await Promise.allSettled(effects)
+      }
+    }
   }
 
   /**
    * Step 3: Poll for access token
    */
-  private async pollForAccessToken(deviceCodeResponse: DeviceCodeResponse): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const startTime = Date.now()
-      const expiresAt = startTime + deviceCodeResponse.expires_in * 1000
-      let pollCount = 0
-      let currentInterval = deviceCodeResponse.interval
-
-      const poll = async () => {
-        pollCount++
-
-        if (pollCount > 100) {
-          // 增加最大轮询次数
-          if (this.pollingInterval) {
-            clearInterval(this.pollingInterval)
-            this.pollingInterval = null
-          }
-          reject(new Error('Maximum polling attempts exceeded'))
-          return
-        }
-
-        // Check if timed out
-        if (Date.now() >= expiresAt) {
-          if (this.pollingInterval) {
-            clearInterval(this.pollingInterval)
-            this.pollingInterval = null
-          }
-          reject(new Error('Device code expired'))
-          return
-        }
-
-        try {
-          const response = await fetch('https://github.com/login/oauth/access_token', {
-            method: 'POST',
-            headers: {
-              Accept: 'application/json',
-              'Content-Type': 'application/json',
-              'User-Agent': 'DeepChat/1.0.0'
-            },
-            body: JSON.stringify({
-              client_id: this.config.clientId,
-              device_code: deviceCodeResponse.device_code,
-              grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
-            })
-          })
-
-          if (!response.ok) {
-            return // Continue polling
-          }
-
-          const data = (await response.json()) as AccessTokenResponse
-
-          if (data.error) {
-            switch (data.error) {
-              case 'authorization_pending':
-                return // Continue polling
-
-              case 'slow_down':
-                // Increase polling interval by at least 5 seconds as per OAuth 2.0 spec
-                currentInterval += 5
-                if (this.pollingInterval) {
-                  clearInterval(this.pollingInterval)
-                  this.pollingInterval = setInterval(poll, currentInterval * 1000)
-                }
-                return
-
-              case 'expired_token':
-                if (this.pollingInterval) {
-                  clearInterval(this.pollingInterval)
-                  this.pollingInterval = null
-                }
-                reject(new Error('Device code expired during polling'))
-                return
-
-              case 'access_denied':
-                if (this.pollingInterval) {
-                  clearInterval(this.pollingInterval)
-                  this.pollingInterval = null
-                }
-                reject(new Error('User denied access to GitHub Copilot'))
-                return
-
-              default:
-                if (this.pollingInterval) {
-                  clearInterval(this.pollingInterval)
-                  this.pollingInterval = null
-                }
-                reject(new Error(`OAuth error: ${data.error_description || data.error}`))
-                return
-            }
-          }
-
-          if (data.access_token) {
-            if (this.pollingInterval) {
-              clearInterval(this.pollingInterval)
-              this.pollingInterval = null
-            }
-            resolve(data.access_token)
-            return
-          }
-        } catch {
-          // Continue polling, network errors may be temporary
-          return
-        }
+  private async pollForAccessToken(
+    deviceCodeResponse: DeviceCodeResponse,
+    signal: AbortSignal,
+    receivedAt: number
+  ): Promise<string> {
+    const expiresAt = receivedAt + deviceCodeResponse.expires_in * 1000
+    let interval = deviceCodeResponse.interval
+    let nextPollAt = receivedAt + interval * 1000
+    for (let attempt = 0; attempt < 100; attempt++) {
+      signal.throwIfAborted()
+      const remaining = expiresAt - Date.now()
+      if (remaining <= 0) throw new Error('Device code expired')
+      await delay(Math.max(0, Math.min(nextPollAt - Date.now(), remaining)), undefined, { signal })
+      signal.throwIfAborted()
+      if (Date.now() >= expiresAt) throw new Error('Device code expired')
+      let response: Response
+      try {
+        response = await fetch('https://github.com/login/oauth/access_token', {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'User-Agent': 'DeepChat/1.0.0'
+          },
+          body: JSON.stringify({
+            client_id: this.config.clientId,
+            device_code: deviceCodeResponse.device_code,
+            grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
+          }),
+          signal
+        })
+      } catch {
+        signal.throwIfAborted()
+        nextPollAt = Date.now() + interval * 1000
+        continue
       }
-
-      // Start polling
-      this.pollingInterval = setInterval(poll, deviceCodeResponse.interval * 1000)
-
-      // Execute first poll immediately
-      poll()
-    })
-  }
-
-  /**
-   * Stop polling
-   */
-  public stopPolling(): void {
-    if (this.pollingInterval) {
-      clearInterval(this.pollingInterval)
-      this.pollingInterval = null
+      const bounded = await readAuthResponse(response, signal)
+      const body: unknown = await bounded.json().catch(() => null)
+      signal.throwIfAborted()
+      if (!bounded.ok && body === null) {
+        nextPollAt = Date.now() + interval * 1000
+        continue
+      }
+      const parsed = AccessTokenSchema.safeParse(body)
+      if (!parsed.success) throw new Error('Invalid GitHub OAuth token response')
+      const data = parsed.data
+      if (data.error) {
+        if (data.error === 'slow_down') interval = Math.max(interval + 5, data.interval ?? 0)
+        else if (data.error !== 'authorization_pending')
+          throw new Error(`OAuth error: ${data.error_description || data.error}`)
+      } else if (bounded.ok && data.access_token) return data.access_token
+      nextPollAt = Date.now() + interval * 1000
     }
-  }
-
-  /**
-   * 清理资源
-   */
-  public dispose(): void {
-    this.stopPolling()
+    throw new Error('Maximum polling attempts exceeded')
   }
 }
 
@@ -517,35 +490,4 @@ export function createGitHubCopilotDeviceFlow(clientIdOverride?: string): GitHub
   })
 
   return new GitHubCopilotDeviceFlow(config)
-}
-
-/**
- * 创建一个全局的 GitHub Copilot Device Flow 实例
- */
-let globalDeviceFlowInstance: GitHubCopilotDeviceFlow | null = null
-let globalDeviceFlowClientId: string | null = null
-
-export function getGlobalGitHubCopilotDeviceFlow(
-  clientIdOverride?: string
-): GitHubCopilotDeviceFlow {
-  const effectiveClientId =
-    clientIdOverride?.trim() ||
-    import.meta.env.VITE_GITHUB_CLIENT_ID?.trim() ||
-    GITHUB_COPILOT_DEVICE_FLOW_CLIENT_ID
-
-  if (!globalDeviceFlowInstance || globalDeviceFlowClientId !== effectiveClientId) {
-    globalDeviceFlowInstance?.dispose()
-    globalDeviceFlowInstance = null
-    globalDeviceFlowInstance = createGitHubCopilotDeviceFlow(effectiveClientId)
-    globalDeviceFlowClientId = effectiveClientId || null
-  }
-  return globalDeviceFlowInstance
-}
-
-export function disposeGlobalGitHubCopilotDeviceFlow(): void {
-  if (globalDeviceFlowInstance) {
-    globalDeviceFlowInstance.dispose()
-    globalDeviceFlowInstance = null
-  }
-  globalDeviceFlowClientId = null
 }

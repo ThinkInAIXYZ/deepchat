@@ -16,6 +16,8 @@ export interface GitHubCopilotAuthorizationPort {
 export class OAuthService implements OAuthServicePort {
   private stopped = false
   private readonly copilotController = new AbortController()
+  private readonly copilotLogins = new Set<Promise<boolean>>()
+  private stopping: Promise<void> | undefined
 
   constructor(
     private readonly providerAuth: GitHubCopilotCredentialOwner,
@@ -23,35 +25,32 @@ export class OAuthService implements OAuthServicePort {
     private readonly authorization: GitHubCopilotAuthorizationPort
   ) {}
 
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
+    if (this.stopping) return this.stopping
     this.stopped = true
     this.copilotController.abort()
-    await Promise.all([this.accounts.stop(), this.providerAuth.invalidateGitHubCopilotSignIns()])
+    this.stopping = (async () => {
+      const results = await Promise.allSettled([
+        Promise.resolve().then(async () => await this.accounts.stop()),
+        Promise.resolve().then(
+          async () => await this.providerAuth.invalidateGitHubCopilotSignIns()
+        ),
+        Promise.allSettled(this.copilotLogins)
+      ])
+      const errors = results.flatMap((result) =>
+        result.status === 'rejected' ? [result.reason] : []
+      )
+      if (errors.length === 1) throw errors[0]
+      if (errors.length) throw new AggregateError(errors, 'OAuth owner did not retire')
+    })()
+    return this.stopping
   }
 
   /**
    * Start GitHub Copilot Device Flow login process (recommended)
    */
-  async startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean> {
-    try {
-      if (this.stopped) throw new Error('OAuth service is stopped')
-      const target = await this.providerAuth.getGitHubCopilotSignInTarget(providerId)
-      if (this.stopped) throw new Error('OAuth service is stopped')
-      const accessToken = await this.authorization.device(
-        target.clientId,
-        this.copilotController.signal
-      )
-      if (this.stopped) throw new Error('OAuth service is stopped')
-      await getGitHubCopilotToken(accessToken, this.copilotController.signal)
-      if (this.stopped) throw new Error('OAuth service is stopped')
-      await this.providerAuth.commitGitHubCopilotCredential(target, accessToken)
-      logger.info('[GitHub Copilot] Device Flow login completed successfully')
-
-      return true
-    } catch (error) {
-      console.error('[GitHub Copilot] Device Flow login failed:', error)
-      throw error
-    }
+  startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean> {
+    return this.signIn(providerId, 'device')
   }
 
   async getOpenAICodexStatus(): Promise<OpenAICodexAuthStatus> {
@@ -95,43 +94,35 @@ export class OAuthService implements OAuthServicePort {
   /**
    * Start GitHub Copilot OAuth login process (traditional method)
    */
-  async startGitHubCopilotLogin(providerId: string): Promise<boolean> {
-    try {
-      logger.info(
-        '[GitHub Copilot][OAuth] Starting traditional OAuth login for provider:',
-        providerId
-      )
+  startGitHubCopilotLogin(providerId: string): Promise<boolean> {
+    return this.signIn(providerId, 'browser')
+  }
 
-      logger.info('[GitHub Copilot][OAuth] Creating GitHub OAuth instance...')
+  private signIn(providerId: string, kind: 'browser' | 'device'): Promise<boolean> {
+    if (this.stopped) return Promise.reject(new Error('OAuth service is stopped'))
+    const assertActive = () => {
       if (this.stopped) throw new Error('OAuth service is stopped')
+    }
+    const operation = Promise.resolve().then(async () => {
+      assertActive()
       const target = await this.providerAuth.getGitHubCopilotSignInTarget(providerId)
-      if (this.stopped) throw new Error('OAuth service is stopped')
-      const accessToken = await this.authorization.browser(
+      assertActive()
+      const accessToken = await this.authorization[kind](
         target.clientId,
         this.copilotController.signal
       )
-      if (this.stopped) throw new Error('OAuth service is stopped')
-
+      assertActive()
       await getGitHubCopilotToken(accessToken, this.copilotController.signal)
-      if (this.stopped) throw new Error('OAuth service is stopped')
+      assertActive()
       await this.providerAuth.commitGitHubCopilotCredential(target, accessToken)
-      logger.info('[GitHub Copilot][OAuth] Traditional OAuth login completed successfully')
-
+      logger.info('[GitHub Copilot] Sign-in completed', { kind })
       return true
-    } catch (error) {
-      console.error('[GitHub Copilot][OAuth][ERROR] Traditional OAuth login failed:')
-      console.error(
-        '[GitHub Copilot][OAuth][ERROR] Error type:',
-        error instanceof Error ? error.constructor.name : typeof error
-      )
-      console.error(
-        '[GitHub Copilot][OAuth][ERROR] Error message:',
-        error instanceof Error ? error.message : error
-      )
-      if (error instanceof Error && error.stack) {
-        console.error('[GitHub Copilot][OAuth][ERROR] Stack trace:', error.stack)
-      }
-      throw error
-    }
+    })
+    this.copilotLogins.add(operation)
+    void operation.then(
+      () => this.copilotLogins.delete(operation),
+      () => this.copilotLogins.delete(operation)
+    )
+    return operation
   }
 }

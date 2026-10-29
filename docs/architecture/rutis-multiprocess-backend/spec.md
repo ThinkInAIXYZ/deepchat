@@ -1456,7 +1456,8 @@ version source, and an ordinary renderer session's `null` CLI ownership must rem
 unknown/deleted ownership.
 
 The SDK worker assembles this root through a private lifecycle request while business readiness
-remains false until complete default ingress, startup and owner activation are acknowledged. Its
+remains false until its startup and owner activation are acknowledged. Default application
+handoff requires separate acceptance. Its
 route dispatcher and import/rekey/repair controller use the same local data/Provider/runtime owners;
 Main adds native route maps and supplies presentation effects without database-maintenance RPC.
 Native desktop methods come from a fixed capability table with validated arguments and event
@@ -1472,7 +1473,20 @@ Plugin route ownership queries await a typed Native result. Main's sender author
 synchronous native window registry and accepts only a concrete owner identity; promise/object
 results cannot establish renderer authority. Copilot credential-target selection, access validation
 and commitment stay in Core. Native browser/device authorization returns its acquired credential,
-and physical cancellation/closure must be acknowledged before default Core adoption.
+and physical cancellation/closure must be acknowledged before default Core adoption. Each Copilot
+login owns its window, timers and HTTP work. Core fences new logins and drains target reads,
+authorization, access validation and accepted credential writes, including when sibling account
+retirement fails. Native cancellation propagates into requests and waits for actual owned-window
+closure and underlying response-stream cancellation. A destroyed frame's closure receipt retires
+its local navigation/script effects when their replies are lost; external browser effects retain
+their own acknowledgement. No timeout or abort flag substitutes for either receipt.
+Device flows use independent operation state and serial polling with one expiry lifetime. Polling
+honors the minimum interval and server slowdown from the
+[GitHub device-flow contract](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow).
+The temporary instruction page can copy only its current code or the fixed GitHub device URL and
+can open only that URL. Browser callbacks require the configured endpoint and nonce; authorization
+codes and nonce-bearing URLs are not logged. Both native windows retain context isolation and web
+security. Existing native window presentation deadlines and transport limits remain unchanged.
 
 Accepted login-shell initialization belongs to runtime shutdown. Concurrent reads share its
 process, stopping fences late environment/state refresh and timeout waits for actual process/stdio

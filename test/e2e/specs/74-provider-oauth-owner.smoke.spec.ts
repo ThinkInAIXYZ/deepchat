@@ -1,15 +1,19 @@
 import { test, expect } from '../fixtures/electronApp'
 import { waitForAppReady } from '../helpers/wait'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 type CopilotFixture = {
-  mode: 'accept' | 'hold'
+  mode: 'accept' | 'hold' | 'present'
   entered: boolean
+  presented: boolean
+  oauthRequests: number
   release(): void
 }
 
 test.use({ privacyModeEnabled: true })
 
-test('Copilot sign-in acknowledges current credentials and rejects stale configuration @smoke', async ({
+test('Copilot sign-in preserves credentials and drains native authorization at quit @smoke', async ({
   launchApp
 }) => {
   let active = await launchApp()
@@ -25,23 +29,41 @@ test('Copilot sign-in acknowledges current credentials and rejects stale configu
     { ...provider, apiKey: 'saved-disposable-token', enable: false }
   )
 
-  await active.electronApp.evaluate(({ BrowserWindow, clipboard, shell }) => {
+  const retirementReceipt = join(active.userDataDir, 'copilot-native-retirement.json')
+  await active.electronApp.evaluate(({ BrowserWindow, clipboard, shell }, receiptPath) => {
     const originalFetch = globalThis.fetch
     const originalLoad = BrowserWindow.prototype.loadURL
     let release: (() => void) | undefined
+    let windowClosed = false
     const fixture: CopilotFixture = {
       mode: 'accept',
       entered: false,
+      presented: false,
+      oauthRequests: 0,
       release() {
         release?.()
       }
     }
+    const publishRetirement = () => {
+      const fs = process.getBuiltinModule('node:fs') as typeof import('node:fs')
+      fs.writeFileSync(
+        receiptPath,
+        JSON.stringify({ closed: windowClosed, oauthRequests: fixture.oauthRequests })
+      )
+    }
     BrowserWindow.prototype.loadURL = function (url, options) {
       const loading = originalLoad.call(this, url, options)
       if (url.startsWith('data:') && url.includes('GitHub%20Copilot%20Device%20Authentication')) {
-        void loading.then(() => {
-          if (!this.isDestroyed()) this.close()
-        })
+        if (fixture.mode === 'present') {
+          fixture.presented = true
+          this.once('closed', () => {
+            windowClosed = true
+            publishRetirement()
+          })
+        } else
+          void loading.then(() => {
+            if (!this.isDestroyed()) this.close()
+          })
       }
       return loading
     }
@@ -57,8 +79,11 @@ test('Copilot sign-in acknowledges current credentials and rejects stale configu
           expires_in: 900,
           interval: 1
         })
-      if (url === 'https://github.com/login/oauth/access_token')
+      if (url === 'https://github.com/login/oauth/access_token') {
+        fixture.oauthRequests++
+        if (fixture.mode === 'present') publishRetirement()
         return Response.json({ access_token: 'new-disposable-token' })
+      }
       if (url === 'https://api.github.com/copilot_internal/v2/token') {
         fixture.entered = true
         if (fixture.mode === 'hold')
@@ -70,7 +95,8 @@ test('Copilot sign-in acknowledges current credentials and rejects stale configu
       return await originalFetch(input, init)
     }
     ;(globalThis as typeof globalThis & { copilotFixture: CopilotFixture }).copilotFixture = fixture
-  })
+  }, retirementReceipt)
+  let pending: Promise<unknown> | undefined
   try {
     expect(
       await active.page.evaluate(
@@ -123,6 +149,28 @@ test('Copilot sign-in acknowledges current credentials and rejects stale configu
       apiKey: 'newer-disposable-token',
       enable: false
     })
+    await active.electronApp.evaluate(() => {
+      const fixture = (globalThis as typeof globalThis & { copilotFixture: CopilotFixture })
+        .copilotFixture
+      fixture.mode = 'present'
+      fixture.presented = false
+    })
+    pending = active.page
+      .evaluate(
+        (providerId) =>
+          window.deepchat.invoke('oauth.githubCopilot.startDeviceFlowLogin', { providerId }),
+        provider.id
+      )
+      .catch(() => undefined)
+    await expect
+      .poll(() =>
+        active.electronApp.evaluate(
+          () =>
+            (globalThis as typeof globalThis & { copilotFixture: CopilotFixture }).copilotFixture
+              .presented
+        )
+      )
+      .toBe(true)
   } finally {
     await active.electronApp.evaluate(() =>
       (
@@ -130,7 +178,14 @@ test('Copilot sign-in acknowledges current credentials and rejects stale configu
       ).copilotFixture.release()
     )
     expect(await active.close()).toBe('graceful')
+    await pending
   }
+  const retired = JSON.parse(readFileSync(retirementReceipt, 'utf8'))
+  expect(retired).toEqual({ closed: true, oauthRequests: 2 })
+  await test.info().attach('copilot-native-retirement', {
+    body: JSON.stringify(retired),
+    contentType: 'application/json'
+  })
   active = await launchApp()
   await waitForAppReady(active.page)
   expect(

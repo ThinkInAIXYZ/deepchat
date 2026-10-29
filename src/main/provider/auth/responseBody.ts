@@ -1,15 +1,21 @@
 const MAX_AUTH_RESPONSE_BYTES = 8 * 1024 * 1024
 
 export async function readAuthResponse(response: Response, signal: AbortSignal): Promise<Response> {
-  signal.throwIfAborted()
+  if (signal.aborted) {
+    await response.body?.cancel(signal.reason)
+    signal.throwIfAborted()
+  }
   if (Number(response.headers.get('content-length')) > MAX_AUTH_RESPONSE_BYTES) {
     await response.body?.cancel()
     throw new Error('Provider auth response exceeds the size limit')
   }
   if (!response.body) return response
   const reader = response.body.getReader()
+  let cancellation: Promise<void> | undefined
+  let complete = false
+  const cancel = (reason?: unknown) => (cancellation ??= reader.cancel(reason))
   const abort = () => {
-    void reader.cancel(signal.reason).catch(() => undefined)
+    void cancel(signal.reason).catch(() => undefined)
   }
   signal.addEventListener('abort', abort, { once: true })
   const chunks: Uint8Array[] = []
@@ -19,10 +25,13 @@ export async function readAuthResponse(response: Response, signal: AbortSignal):
       signal.throwIfAborted()
       const { done, value } = await reader.read()
       signal.throwIfAborted()
-      if (done) break
+      if (done) {
+        complete = true
+        break
+      }
       size += value.byteLength
       if (size > MAX_AUTH_RESPONSE_BYTES) {
-        await reader.cancel()
+        await cancel()
         throw new Error('Provider auth response exceeds the size limit')
       }
       chunks.push(value)
@@ -34,6 +43,11 @@ export async function readAuthResponse(response: Response, signal: AbortSignal):
     })
   } finally {
     signal.removeEventListener('abort', abort)
-    reader.releaseLock()
+    try {
+      if (!complete) await cancel(signal.aborted ? signal.reason : undefined)
+      else await cancellation
+    } finally {
+      reader.releaseLock()
+    }
   }
 }

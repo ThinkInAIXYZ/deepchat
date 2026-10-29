@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { setImmediate as nextTurn } from 'node:timers/promises'
 import { OAuthService } from '../../../src/harness/core/oauth'
 import type { GitHubCopilotSignInTarget } from '@shared/types/oauth'
 
@@ -58,15 +59,31 @@ describe('GitHub Copilot login owner commands', () => {
   })
 
   it.each([false, true])(
-    'awaits account stop and revokes Copilot targets when owner fails=%s',
+    'drains accepted authorization and account stop when owner fails=%s',
     async (fails) => {
       const { owner, service, accounts } = setup()
       const stopped = Promise.withResolvers<void>()
+      const entered = Promise.withResolvers<void>()
+      const authorization = Promise.withResolvers<string>()
+      mocks.startDeviceFlow.mockImplementation(async () => {
+        entered.resolve()
+        return await authorization.promise
+      })
+      const login = Promise.allSettled([
+        service.startGitHubCopilotDeviceFlowLogin('github-copilot')
+      ])
+      await entered.promise
       accounts.stop.mockReturnValue(stopped.promise)
       let acknowledged = false
-      const stopping = service.stop().then(() => {
-        acknowledged = true
-      })
+      const stopping = service.stop()
+      void stopping.then(
+        () => {
+          acknowledged = true
+        },
+        () => {
+          acknowledged = true
+        }
+      )
       const result = fails
         ? expect(stopping).rejects.toThrow('Account stop failed')
         : expect(stopping).resolves.toBeUndefined()
@@ -75,11 +92,20 @@ describe('GitHub Copilot login owner commands', () => {
       expect(owner.invalidateGitHubCopilotSignIns).toHaveBeenCalledOnce()
       if (fails) stopped.reject(new Error('Account stop failed'))
       else stopped.resolve()
+      await nextTurn()
+      expect(acknowledged).toBe(false)
+      authorization.resolve('late-token')
+      expect((await login)[0]).toMatchObject({
+        status: 'rejected',
+        reason: {
+          message: 'OAuth service is stopped'
+        }
+      })
       await result
       await expect(service.startGitHubCopilotDeviceFlowLogin('github-copilot')).rejects.toThrow(
         'stopped'
       )
-      expect(mocks.startDeviceFlow).not.toHaveBeenCalled()
+      expect(mocks.startDeviceFlow).toHaveBeenCalledOnce()
     }
   )
 
@@ -145,9 +171,11 @@ describe('GitHub Copilot login owner commands', () => {
       owner.getGitHubCopilotSignInTarget.mockReturnValue(reading.promise)
       const login = service[method](target.providerId)
       const rejected = expect(login).rejects.toThrow('stopped')
-      await service.stop()
+      await vi.waitFor(() => expect(owner.getGitHubCopilotSignInTarget).toHaveBeenCalledOnce())
+      const stopping = service.stop()
       reading.resolve(target)
       await rejected
+      await stopping
       expect(owner.invalidateGitHubCopilotSignIns).toHaveBeenCalledOnce()
       expect(mocks.startDeviceFlow).not.toHaveBeenCalled()
       expect(mocks.startLogin).not.toHaveBeenCalled()
@@ -166,12 +194,32 @@ describe('GitHub Copilot login owner commands', () => {
         })
       )
       const login = service[method](target.providerId)
-      const rejected = expect(login).rejects.toThrow('stopped')
+      const rejected = Promise.allSettled([login])
       const signal = await entered.promise
-      await service.stop()
+      const stopping = service.stop()
       expect(signal.aborted).toBe(true)
-      response.resolve(accepted())
-      await rejected
+      const canceled = Promise.withResolvers<void>()
+      const retired = Promise.withResolvers<void>()
+      response.resolve(
+        new Response(
+          new ReadableStream({
+            cancel: async () => {
+              canceled.resolve()
+              await retired.promise
+            }
+          })
+        )
+      )
+      await canceled.promise
+      let settled = false
+      void stopping.then(() => {
+        settled = true
+      })
+      await nextTurn()
+      expect(settled).toBe(false)
+      retired.resolve()
+      expect((await rejected)[0]).toEqual({ status: 'rejected', reason: signal.reason })
+      await stopping
       expect(owner.commitGitHubCopilotCredential).not.toHaveBeenCalled()
     })
   }

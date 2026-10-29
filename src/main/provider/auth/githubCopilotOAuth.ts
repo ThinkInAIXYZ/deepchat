@@ -2,6 +2,8 @@ import logger from '@shared/logger'
 import { BrowserWindow } from 'electron'
 import { randomBytes } from 'crypto'
 import { is } from '@electron-toolkit/utils'
+import { z } from 'zod'
+import { readAuthResponse } from './responseBody'
 
 export interface GitHubOAuthConfig {
   clientId: string
@@ -11,91 +13,100 @@ export interface GitHubOAuthConfig {
 }
 
 export class GitHubCopilotOAuth {
-  private authWindow: BrowserWindow | null = null
-  private state: string = ''
-
   constructor(private config: GitHubOAuthConfig) {}
 
   /**
    * Start GitHub OAuth login process
    */
-  async startLogin(): Promise<string> {
-    return new Promise((resolve, reject) => {
-      // Generate random state for security verification
-      this.state = randomBytes(16).toString('hex')
-
-      // Build authorization URL
-      const authUrl = this.buildAuthUrl()
-      logger.info('Starting GitHub OAuth with URL:', authUrl)
-
-      // Create authorization window
-      this.authWindow = new BrowserWindow({
-        width: 500,
-        height: 700,
-        show: false,
-        webPreferences: {
-          nodeIntegration: false,
-          contextIsolation: true,
-          webSecurity: true
-        },
-        autoHideMenuBar: true,
-        title: 'GitHub Copilot Authorization'
-      })
-
-      // Monitor URL changes to capture authorization callback
-      this.authWindow.webContents.on('will-redirect', (_event, url) => {
-        logger.info('Redirecting to:', url)
-        this.handleCallback(url, resolve, reject)
-      })
-
-      // Note: did-get-redirect-request is deprecated in newer Electron versions
-      // this.authWindow.webContents.on('did-get-redirect-request', (event, oldUrl, newUrl) => {
-      //   console.log('Redirect request:', oldUrl, '->', newUrl)
-      //   this.handleCallback(newUrl, resolve, reject)
-      // })
-
-      // Monitor navigation events
-      this.authWindow.webContents.on('did-navigate', (_event, url) => {
-        logger.info('Navigated to:', url)
-        this.handleCallback(url, resolve, reject)
-      })
-
-      // Monitor new window events (GitHub may open in new window)
-      this.authWindow.webContents.setWindowOpenHandler(({ url }) => {
-        logger.info('New window requested for:', url)
-        this.handleCallback(url, resolve, reject)
-        return { action: 'deny' }
-      })
-
-      // Handle window close
-      this.authWindow.on('closed', () => {
-        this.authWindow = null
-        reject(new Error('User cancelled authorization'))
-      })
-
-      // Load authorization page
-      this.authWindow.loadURL(authUrl)
-      this.authWindow.show()
-
-      // Set timeout
-      setTimeout(() => {
-        if (this.authWindow) {
-          this.closeWindow()
-          reject(new Error('Authorization timeout'))
-        }
-      }, 300000) // 5 minute timeout
+  async startLogin(signal: AbortSignal): Promise<string> {
+    signal.throwIfAborted()
+    const state = randomBytes(16).toString('hex')
+    const redirect = new URL(this.config.redirectUri)
+    const result = Promise.withResolvers<string>()
+    void result.promise.catch(() => {})
+    const closed = Promise.withResolvers<void>()
+    const window = new BrowserWindow({
+      width: 500,
+      height: 700,
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        webSecurity: true
+      },
+      autoHideMenuBar: true,
+      title: 'GitHub Copilot Authorization'
     })
+    window.once('closed', () => {
+      closed.resolve()
+      result.reject(new Error('User cancelled authorization'))
+    })
+    const abort = () => result.reject(signal.reason)
+    signal.addEventListener('abort', abort, { once: true })
+    const timeout = setTimeout(() => result.reject(new Error('Authorization timeout')), 300_000)
+    const callback = (url: string): boolean => {
+      let target: URL
+      try {
+        target = new URL(url)
+      } catch {
+        return false
+      }
+      if (
+        target.protocol !== redirect.protocol ||
+        target.host !== redirect.host ||
+        target.pathname !== redirect.pathname
+      )
+        return false
+      if (target.searchParams.get('state') !== state)
+        result.reject(new Error('Security verification failed: state parameter mismatch'))
+      else if (target.searchParams.has('error'))
+        result.reject(new Error(`GitHub authorization failed: ${target.searchParams.get('error')}`))
+      else if (target.searchParams.get('code')) result.resolve(target.searchParams.get('code')!)
+      return true
+    }
+    window.webContents.on('will-redirect', (event, url) => {
+      if (callback(url)) event.preventDefault()
+    })
+    window.webContents.on('did-navigate', (_event, url) => callback(url))
+    window.webContents.setWindowOpenHandler(({ url }) => {
+      callback(url)
+      return { action: 'deny' }
+    })
+    const closeWindow = async () => {
+      try {
+        if (!window.isDestroyed()) window.destroy()
+      } finally {
+        await closed.promise
+      }
+    }
+    try {
+      if (signal.aborted) abort()
+      else {
+        void window.loadURL(this.buildAuthUrl(state)).catch(result.reject)
+        window.show()
+      }
+      const code = await result.promise
+      signal.throwIfAborted()
+      return code
+    } catch (error) {
+      signal.throwIfAborted()
+      throw error
+    } finally {
+      clearTimeout(timeout)
+      signal.removeEventListener('abort', abort)
+      await closeWindow()
+    }
   }
 
   /**
    * Build GitHub OAuth authorization URL
    */
-  private buildAuthUrl(): string {
+  private buildAuthUrl(state: string): string {
     const params = new URLSearchParams({
       client_id: this.config.clientId,
       redirect_uri: this.config.redirectUri,
       scope: this.config.scope,
-      state: this.state,
+      state,
       response_type: 'code'
     })
 
@@ -103,78 +114,47 @@ export class GitHubCopilotOAuth {
   }
 
   /**
-   * Handle OAuth callback
-   */
-  private handleCallback(
-    url: string,
-    resolve: (code: string) => void,
-    reject: (error: Error) => void
-  ): void {
-    try {
-      const urlObj = new URL(url)
-
-      // Check if this is our callback URL
-      if (url.startsWith(this.config.redirectUri)) {
-        const code = urlObj.searchParams.get('code')
-        const error = urlObj.searchParams.get('error')
-        const returnedState = urlObj.searchParams.get('state')
-
-        // Verify state parameter
-        if (returnedState !== this.state) {
-          console.error('State mismatch:', returnedState, 'vs', this.state)
-          this.closeWindow()
-          reject(new Error('Security verification failed: state parameter mismatch'))
-          return
-        }
-
-        if (error) {
-          console.error('OAuth error:', error)
-          this.closeWindow()
-          reject(new Error(`GitHub authorization failed: ${error}`))
-        } else if (code) {
-          logger.info('OAuth success, received authorization code')
-          this.closeWindow()
-          resolve(code)
-        } else {
-          console.warn('No code or error in callback URL:', url)
-        }
-      }
-    } catch (error) {
-      console.error('Error parsing callback URL:', error)
-      this.closeWindow()
-      reject(new Error('Failed to parse callback URL'))
-    }
-  }
-
-  /**
    * Exchange authorization code for access token
    */
-  async exchangeCodeForToken(code: string): Promise<string> {
+  async exchangeCodeForToken(code: string, signal: AbortSignal): Promise<string> {
+    signal.throwIfAborted()
     try {
-      const response = await fetch('https://github.com/login/oauth/access_token', {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'DeepChat/1.0.0'
-        },
-        body: JSON.stringify({
-          client_id: this.config.clientId,
-          client_secret: this.config.clientSecret,
-          code: code,
-          redirect_uri: this.config.redirectUri
-        })
-      })
+      const response = await readAuthResponse(
+        await fetch('https://github.com/login/oauth/access_token', {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'User-Agent': 'DeepChat/1.0.0'
+          },
+          signal,
+          body: JSON.stringify({
+            client_id: this.config.clientId,
+            client_secret: this.config.clientSecret,
+            code: code,
+            redirect_uri: this.config.redirectUri
+          })
+        }),
+        signal
+      )
 
       if (!response.ok) {
         throw new Error(`Token exchange failed: ${response.status} ${response.statusText}`)
       }
 
-      const data = (await response.json()) as {
-        access_token?: string
-        error?: string
-        error_description?: string
-      }
+      const parsed = z
+        .object({
+          access_token: z
+            .string()
+            .regex(/^[\x21-\x7e]+$/)
+            .optional(),
+          error: z.string().optional(),
+          error_description: z.string().optional()
+        })
+        .safeParse(await response.json())
+      if (!parsed.success) throw new Error('Invalid GitHub OAuth token response')
+      const data = parsed.data
+      signal.throwIfAborted()
 
       if (data.error) {
         throw new Error(`Token exchange error: ${data.error_description || data.error}`)
@@ -186,18 +166,8 @@ export class GitHubCopilotOAuth {
 
       return data.access_token
     } catch (error) {
-      console.error('Token exchange failed:', error)
+      signal.throwIfAborted()
       throw error
-    }
-  }
-
-  /**
-   * Close authorization window
-   */
-  private closeWindow(): void {
-    if (this.authWindow && !this.authWindow.isDestroyed()) {
-      this.authWindow.close()
-      this.authWindow = null
     }
   }
 }

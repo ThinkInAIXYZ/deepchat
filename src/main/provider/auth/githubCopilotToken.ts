@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { createProviderHttpErrorFromResponse, type ProviderHttpError } from '../providerFailure'
+import { readAuthResponse } from './responseBody'
 
 const GITHUB_TOKEN_PATTERN = /^[\x21-\x7e]+$/
 
@@ -73,15 +74,18 @@ export async function getGitHubCopilotToken(
     throw new Error('No GitHub OAuth token available. Please sign in to GitHub Copilot.')
   }
   try {
-    const response = await fetch('https://api.github.com/copilot_internal/v2/token', {
-      headers: {
-        Authorization: `token ${oauthToken}`,
-        Accept: 'application/json',
-        'User-Agent': GITHUB_COPILOT_CHAT_HEADERS['User-Agent'],
-        'X-GitHub-Api-Version': '2025-04-01'
-      },
-      ...(signal ? { signal } : {})
-    })
+    const response = await readAuthResponse(
+      await fetch('https://api.github.com/copilot_internal/v2/token', {
+        headers: {
+          Authorization: `token ${oauthToken}`,
+          Accept: 'application/json',
+          'User-Agent': GITHUB_COPILOT_CHAT_HEADERS['User-Agent'],
+          'X-GitHub-Api-Version': '2025-04-01'
+        },
+        ...(signal ? { signal } : {})
+      }),
+      signal ?? new AbortController().signal
+    )
     if (!response.ok) {
       throw await createGitHubCopilotHttpError(response, 'token', [oauthToken])
     }

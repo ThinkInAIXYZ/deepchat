@@ -3293,8 +3293,9 @@ fences the SDK configuration ingress rather than leaving a writable configuratio
 
 Copilot credential-target selection, access validation and acknowledged commitment use the Core
 OAuth facade. Native authorization presentation/token acquisition remains a typed Main capability;
-its existing physical window cancellation is an explicit remaining requirement before default
-Core adoption. Plugin-window ownership checks await their Native query, while Main sender
+its flows propagate cancellation and await owned-window, request and response-body retirement.
+Complete production Core Native binding remains required before default adoption.
+Plugin-window ownership checks await their Native query, while Main sender
 authorization retains a synchronous registry and rejects promise/object results. Proxy mutations
 await Native application; actual HTTP/PAC/custom/auth behavior still needs cutover acceptance.
 
@@ -3355,6 +3356,56 @@ The default application still constructs its writer and runtime in Main. G5 rema
 unpublished until complete production Native binding, default writer/routes/lifecycle handoff,
 old-path removal, whole-goal acceptance and native/signed packages pass. No performance recapture
 or speed claim accompanies this private ingress/startup work.
+
+### Native Copilot authorization retirement
+
+The default Main adapter creates one browser/device authorization operation per invocation. The
+shared global device-flow instance and polling interval are removed. Each operation owns its
+window, timers and HTTP work, propagates cancellation and waits for actual closure. Device polling
+is serial, respects expiry and server slowdown, and cannot accept a token while an OAuth error is
+present. The instruction page retains its layout and only opens the fixed GitHub URL or copies
+its current code/link. Browser callbacks require the exact configured endpoint and nonce; callback
+URLs and authorization codes are not logged.
+
+Window-local navigation/script commands can lose their replies during destruction. The actual
+closed event retires those frame-local effects; independent external-browser work still requires
+its own acknowledgement. The shared bounded response reader coalesces and awaits underlying
+stream cancellation before releasing its reader. Existing body limits and presentation/transport
+deadlines remain unchanged.
+
+The Core OAuth facade tracks accepted target reads, authorization, access validation and durable
+credential commitment. Stop fences new work, aborts owned operations and waits for every accepted
+login and sibling account/target retirement, including failure paths. It cannot acknowledge an
+uncertain Native effect merely because another account stop failed. No new plugin, process,
+dependency, persistent store or application debug route is introduced.
+
+```text
+BEFORE
+Quit -> abort flag -> authorization may remain active
+
+AFTER
+Quit -> cancel request -> owned window closed + stream canceled -> owner drained
+```
+
+The same real-app acceptance scenario exercises credential commitment, stale-configuration
+rejection, an open native authorization window during quit and persistence after reopen. The
+immutable baseline requires forced exit with the pending window. Native unit contracts also hold
+window closure, external browser acknowledgement and stream cancellation independently; a lost
+frame reply is retired only by actual closure. Complete default Core writer/routes/lifecycle,
+production helper/Browser bindings, descendant/proxy authority and native/signed packages remain
+required. G5 remains active and unpublished.
+
+Validation passes **122 TypeScript checks across ten files**: 108 Native/auth contracts, 11 SDK
+ownership/desktop contracts and three renderer checks. Six durable Native cases extend the existing
+file; private-method spies are replaced with real public flow behavior. Existing stop cases hold
+accepted authorization, late headers and underlying stream cancellation through account failure.
+The seven affected app scenarios pass: six credential/maintenance/shutdown cases and the current
+Copilot case with its actual closed-window receipt, no post-stop token poll and persistent reopen.
+The response-body/frame corrections retain the bounded failure contracts; no presentation deadline
+or performance gate is increased. Normal/current builds, Node/web/affected-test types, format/check,
+lint and i18n pass, with only the existing Remote warning. Rust is unchanged. Evidence is
+`.deepchat/rutis-g5-kernel-assembly-acceptance/`; completed heavy artifacts are pruned while compact
+receipts and the one needed baseline remain.
 
 ## G6. Extract the complete Memory capability
 
