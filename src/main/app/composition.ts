@@ -1126,9 +1126,17 @@ export async function createMainProcessControl(dependencies: {
   let providerRuntime!: ProviderRuntime
   oauthService = new OAuthService(
     {
-      getProviderById: (providerId) => providerSettings.getProviderById(providerId),
-      setProviderById: (providerId, provider) =>
-        providerRuntime.setProviderById(providerId, provider)
+      getGitHubCopilotSignInTarget: async (providerId) => {
+        if (databaseRequests.state !== 'running')
+          throw new Error(`App database maintenance is ${databaseRequests.state}`)
+        return await providerRuntime.getGitHubCopilotSignInTarget(providerId)
+      },
+      commitGitHubCopilotCredential: async (target, apiKey) => {
+        if (databaseRequests.state !== 'running')
+          throw new Error(`App database maintenance is ${databaseRequests.state}`)
+        await providerRuntime.commitGitHubCopilotCredential(target, apiKey)
+      },
+      invalidateGitHubCopilotSignIns: () => providerRuntime.invalidateGitHubCopilotSignIns()
     },
     publishDeepchatEvent,
     {
@@ -4008,6 +4016,7 @@ export async function createMainProcessControl(dependencies: {
   ): Promise<DatabaseMaintenanceResult> {
     desktopConfigurationHost.pause()
     try {
+      await providerRuntime.invalidateGitHubCopilotSignIns()
       await startupWorkloadCoordinator.cancelAndDrainTarget('main')
       await agentSettings.cancelAndDrainAcpWork()
       if (['stopping', 'stopped'].includes(appLifecycleState)) {

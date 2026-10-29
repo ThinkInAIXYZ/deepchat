@@ -1196,6 +1196,21 @@ and scopes are not authorization. This migration introduces no arbitrary third-p
 loading or untrusted peer access. Existing `.dcplugin` and portable user-plugin behavior retain
 their reviewed package, consent, ownership, and execution contracts.
 
+Provider OAuth presentation stays in Main while ProviderRuntime owns configuration observations
+and credential commitment. The private sign-in target contains only Provider ID, public client ID
+and an opaque configuration identity. Main receives no saved API key, full Provider configuration
+or settings-file mutation capability. It validates the new token with GitHub and awaits the Core
+credential command before acknowledging success.
+
+Core compares and commits in one command without an await between reading current configuration
+and writing. The identity covers Provider ID, protocol, current credential and normalized client
+ID using a private per-runtime key. It rejects targets from another runtime, stale concurrent
+logins and malformed tokens while merging unrelated current settings. This identity detects stale
+configuration; authenticated caller grants remain a separate G5 requirement. Maintenance rotates
+the identity key; stopped runtimes reject queries and writes. Main fences late query/validation
+results during shutdown and aborts token validation. Existing registered Copilot/Codex/Grok routes
+keep their schemas; no generic OAuth fallback or unregistered loopback login server is retained.
+
 ### Gateway and event flow
 
 Native Window, Tray, Notification, Shortcut and floating-widget readers use a private committed

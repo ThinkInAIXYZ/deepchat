@@ -1,17 +1,19 @@
 import type { OpenAICodexAuthStatus } from './openai-codex'
 import type { XaiGrokAuthStatus } from './xai-grok'
 
-export interface OAuthConfig {
-  authUrl: string
-  redirectUri: string
-  clientId: string
-  clientSecret?: string
-  scope: string
-  responseType: string
+export interface GitHubCopilotSignInTarget {
+  providerId: string
+  clientId?: string
+  configurationId: string
+}
+
+export interface GitHubCopilotCredentialOwner {
+  getGitHubCopilotSignInTarget(providerId: string): Promise<GitHubCopilotSignInTarget>
+  commitGitHubCopilotCredential(target: GitHubCopilotSignInTarget, apiKey: string): Promise<void>
+  invalidateGitHubCopilotSignIns(): Promise<void>
 }
 
 export interface OAuthServicePort {
-  startOAuthLogin(providerId: string, config: OAuthConfig): Promise<boolean>
   startGitHubCopilotLogin(providerId: string): Promise<boolean>
   startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean>
   getOpenAICodexStatus(): Promise<OpenAICodexAuthStatus>

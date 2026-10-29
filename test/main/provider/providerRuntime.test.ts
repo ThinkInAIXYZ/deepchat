@@ -229,6 +229,107 @@ describe('ProviderRuntime Integration Tests', () => {
     vi.unstubAllGlobals()
   })
 
+  describe('Copilot credential settlement', () => {
+    const setupCopilot = () => {
+      const provider: LLM_PROVIDER = {
+        ...mockProvider,
+        id: 'github-copilot',
+        apiType: 'github-copilot',
+        apiKey: 'saved-oauth-token',
+        copilotClientId: 'client-one',
+        enable: false
+      }
+      mockProviderSettings.getProviderById = vi.fn((id) =>
+        id === provider.id ? { ...provider } : undefined
+      )
+      mockProviderSettings.getProviders = vi.fn(() => [{ ...provider }])
+      mockProviderSettings.setProviderById = vi.fn((_id, next) => Object.assign(provider, next))
+      return provider
+    }
+
+    it('returns a secret-free sign-in target and preserves current unrelated settings on commit', async () => {
+      const provider = setupCopilot()
+      const target = await providerRuntime.getGitHubCopilotSignInTarget(provider.id)
+      expect(Object.keys(target).sort()).toEqual(['clientId', 'configurationId', 'providerId'])
+      expect(JSON.stringify(target)).not.toContain(provider.apiKey)
+      provider.name = 'Renamed Copilot'
+      provider.customHeaders = { 'X-Custom': 'current' }
+      provider.copilotClientId = ' client-one '
+      await providerRuntime.commitGitHubCopilotCredential(target, 'new-oauth-token')
+      expect(mockProviderSettings.setProviderById).toHaveBeenCalledWith(provider.id, {
+        ...provider,
+        name: 'Renamed Copilot',
+        apiKey: 'new-oauth-token',
+        customHeaders: { 'X-Custom': 'current' }
+      })
+    })
+
+    it.each(['credentials', 'client', 'protocol', 'removal'] as const)(
+      'rejects a stale sign-in target after a provider change: %s',
+      async (change) => {
+        const provider = setupCopilot()
+        const target = await providerRuntime.getGitHubCopilotSignInTarget(provider.id)
+        if (change === 'credentials') provider.apiKey = 'newer-token'
+        if (change === 'client') provider.copilotClientId = 'different-client'
+        if (change === 'protocol') provider.apiType = 'openai-compatible'
+        if (change === 'removal')
+          vi.mocked(mockProviderSettings.getProviderById).mockReturnValue(undefined)
+        await expect(
+          providerRuntime.commitGitHubCopilotCredential(target, 'new-oauth-token')
+        ).rejects.toThrow('configuration changed')
+        expect(mockProviderSettings.setProviderById).not.toHaveBeenCalled()
+      }
+    )
+
+    it('settles concurrent sign-ins against the committed identity without overwriting the winner', async () => {
+      const provider = setupCopilot()
+      const target = await providerRuntime.getGitHubCopilotSignInTarget(provider.id)
+      const results = await Promise.allSettled([
+        providerRuntime.commitGitHubCopilotCredential(target, 'first-token'),
+        providerRuntime.commitGitHubCopilotCredential(target, 'second-token')
+      ])
+      expect(results.map((result) => result.status)).toEqual(['fulfilled', 'rejected'])
+      expect(provider.apiKey).toBe('first-token')
+      expect(mockProviderSettings.setProviderById).toHaveBeenCalledOnce()
+    })
+
+    it('invalidates outstanding sign-ins across maintenance and rejects work after shutdown', async () => {
+      const provider = setupCopilot()
+      const target = await providerRuntime.getGitHubCopilotSignInTarget(provider.id)
+      await providerRuntime.invalidateGitHubCopilotSignIns()
+      await expect(
+        providerRuntime.commitGitHubCopilotCredential(target, 'new-token')
+      ).rejects.toThrow('configuration changed')
+      const fresh = await providerRuntime.getGitHubCopilotSignInTarget(provider.id)
+      await providerRuntime.shutdown()
+      await expect(
+        providerRuntime.commitGitHubCopilotCredential(fresh, 'new-token')
+      ).rejects.toThrow('stopped')
+      await expect(providerRuntime.getGitHubCopilotSignInTarget(provider.id)).rejects.toThrow(
+        'stopped'
+      )
+      expect(mockProviderSettings.setProviderById).not.toHaveBeenCalled()
+    })
+
+    it('does not accept a target issued by another runtime or a malformed token', async () => {
+      const provider = setupCopilot()
+      const other = createProviderRuntime(mockProviderSettings)
+      try {
+        const foreign = await other.getGitHubCopilotSignInTarget(provider.id)
+        await expect(
+          providerRuntime.commitGitHubCopilotCredential(foreign, 'new-token')
+        ).rejects.toThrow('configuration changed')
+        const target = await providerRuntime.getGitHubCopilotSignInTarget(provider.id)
+        await expect(
+          providerRuntime.commitGitHubCopilotCredential(target, 'token\nheader')
+        ).rejects.toThrow('Invalid')
+        expect(mockProviderSettings.setProviderById).not.toHaveBeenCalled()
+      } finally {
+        await other.shutdown()
+      }
+    })
+  })
+
   it('instantiates every built-in profile without an extra special-provider allowlist', () => {
     const manager = new ProviderInstanceManager({
       providerSettings: mockProviderSettings,

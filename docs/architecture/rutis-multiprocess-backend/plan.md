@@ -2260,7 +2260,7 @@ default composition before starting G5.
 | RemoteConversationRunner | Session/catalog/turn/projection and workspace-default queries are async; Main supplies the absolute profile root | Preserve file/workspace authorization and the existing cache/generated-asset paths at G5 handoff |
 | ChannelAdapter and five built-in factories | Lifecycle/event adapter has no native import; actual downloads remain inside the clients/Runner | Co-locate those business owners at G5; require a carrier only for an actual later host/device transfer |
 | RemoteService Feishu/Weixin login | Main owns windows behind operation-ID commands/events; Core drains startup/polls/callback servers and fences late results | Bridge this private port with authenticated G5 ownership and preserve actual cancellation/close/server settlement |
-| Provider OAuthService/Copilot windows | Main owns browser/clipboard/external effects but also calls Provider settings synchronously | Keep presentation native; use authorized owner queries and acknowledged credential/configuration settlement at G5 |
+| Provider OAuthService/Copilot windows | Main owns presentation and validates new tokens; Core issues secret-free targets and atomically commits against current configuration | Preserve the private owner commands, maintenance invalidation and authenticated G5 caller grants |
 | Window/Tray/Notification/Shortcut/Floating | Configuration readers use a private committed projection; floating bounds use acknowledged owner mutations; Agent/catalogue queries are already async | Preserve the projection and existing async owner queries at G5 handoff |
 | Upgrade settings and renderer diagnostics | Core receives the explicit application version; Main reads projected channel/privacy/logging flags | Preserve normalization under the configuration owner and Main's native updater/diagnostic lifetime at G5 |
 
@@ -2324,8 +2324,7 @@ integration must recheck graceful maintenance/shutdown rather than classify it a
 
 The published `ae0be4fef` passes required run `40668735420`/barrier `122752954520` and all six package
 targets in `40668735436`/barrier `122759825407`. The native projection belongs to the remaining G4
-completion batch and is not independently published. Provider OAuth configuration settlement
-and the final inventory
+completion batch and is not independently published. The final native-consumer inventory
 remain required. G4 stays active; G5–G12 retain their full scope.
 
 ### Remote native authentication and profile roots
@@ -2363,8 +2362,8 @@ fixture intercepts only vendor HTTP and native loadURL destinations with disposa
 account or external authorization is used. Evidence and artifact hashes are retained in
 `.deepchat/rutis-g4-remote-native-acceptance/`. No resource capture or performance claim is added.
 
-This work belongs to the unpublished G4 completion batch. Provider OAuth configuration settlement
-and the final writer/reader/native inventory remain required before G5. Existing floating Agent/catalogue queries
+This work belongs to the unpublished G4 completion batch. The final writer/reader/native inventory
+remains required before G5. Existing floating Agent/catalogue queries
 already use async owner methods and need no extra synchronous-getter replacement. G4 remains active.
 
 ### Remote module closure
@@ -2391,6 +2390,42 @@ user-close cancellation, window cleanup, Weixin account persistence and graceful
 baseline evidence from the identical fixture is reused; no unchanged baseline or performance
 capture is repeated. Artifact hashes and evidence are in
 `.deepchat/rutis-g4-remote-closure-acceptance/`.
+
+### Provider OAuth configuration settlement
+
+OAuthService uses required asynchronous Provider owner commands rather than synchronous settings
+reads or full Provider writes. Core issues a target containing Provider ID, client ID and an opaque
+configuration identity; the Native facade never receives the saved credential or unrelated
+configuration. Device and browser login retain their existing presentation and GitHub token
+validation, then await actual credential commitment before returning success. Persistence errors
+propagate to the caller. Shutdown aborts token validation and fences pending target reads and late
+validation results before they can start another effect or submit a write.
+
+ProviderRuntime compares current identity and writes without an intervening await. The comparison
+covers Provider ID, protocol, saved token and trimmed client ID with a private per-runtime key;
+current name, enablement and custom headers survive unrelated changes. Concurrent logins cannot
+overwrite a winning commit. Foreign-runtime, revoked, removed, reconfigured and malformed-token
+requests reject. Maintenance invalidates captured targets before Store work; shutdown rejects
+reads and writes. This is a stale-state fence, not authorization or a persisted database revision.
+The unregistered generic OAuth method, callback server and window implementation are removed;
+registered public route names, inputs and outputs remain unchanged.
+
+Validation passes 79 checks across four files covering the real ProviderRuntime commands, Native
+login facade, existing Copilot token/client behavior and composition. App and selected test/E2E
+types, normal build, format, lint and i18n pass. The same owned-profile application workload passes
+on immutable `3ddf2b657` and the candidate: actual device login instructions, GitHub verification,
+credential receipt, rejection after concurrent configuration change and graceful persisted
+relaunch. Vendor HTTP, clipboard and external browser launch are intercepted only in the disposable
+app process; instruction windows are real and closed through Native APIs. The candidate also
+passes all five existing maintenance/rekey/credential/shutdown cases. Their accepted baseline
+remains available from the preceding integration. No resource capture or speed claim is added.
+Evidence and verified hashes are in `.deepchat/rutis-g4-provider-oauth-acceptance/`.
+
+G4 remains active for the final writer/reader/Native inventory. Main's retained plugin integration
+still consumes synchronous MCP readiness/error observations; classify those actual consumers and
+use the existing owner status/capability boundaries before claiming G5 readiness. Native SDK
+presentation remains Main-owned; this checkpoint does not move the cohesive backend or authorize
+an additional settings writer.
 
 ## G5. Move the cohesive Harness and shared core into the TS backend
 
