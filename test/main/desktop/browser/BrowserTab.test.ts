@@ -16,7 +16,7 @@ class MockWebContents extends EventEmitter {
     isAttached: vi.fn(() => false),
     detach: vi.fn(),
     attach: vi.fn(),
-    sendCommand: vi.fn(async () => ({}))
+    sendCommand: vi.fn(async (_method: string, _params?: unknown): Promise<unknown> => ({}))
   }
   session = {}
   navigationHistory = {
@@ -101,9 +101,9 @@ describe('BrowserTab', () => {
   const createTab = () => {
     const webContents = new MockWebContents()
     const cdpManager = {
-      createSession: vi.fn(async () => undefined),
+      createSession: vi.fn(async (): Promise<unknown> => undefined),
       getDOM: vi.fn(async () => '<html></html>'),
-      evaluateScript: vi.fn(async () => 1)
+      evaluateScript: vi.fn(async (): Promise<unknown> => 1)
     }
     const screenshotManager = {
       captureScreenshot: vi.fn(async () => 'image-data')
@@ -316,6 +316,54 @@ describe('BrowserTab', () => {
     await tab.sendCdpCommand('Page.reload', undefined, () => order.push('commit'))
 
     expect(order).toEqual(['commit', 'target'])
+  })
+
+  it('waits for remote authorization and rechecks cancellation and target lifetime', async () => {
+    for (const operation of ['navigation', 'cdp'] as const) {
+      for (const terminal of ['approved', 'denied', 'canceled', 'destroyed'] as const) {
+        const { tab, webContents } = createTab()
+        const permission = Promise.withResolvers<void>()
+        const entered = Promise.withResolvers<void>()
+        const controller = new AbortController()
+        const authorize = () => {
+          entered.resolve()
+          return permission.promise
+        }
+        const result =
+          operation === 'navigation'
+            ? tab.navigateUntilDomReady(
+                'https://example.com',
+                30000,
+                authorize,
+                undefined,
+                controller.signal
+              )
+            : tab.sendCdpCommand('Page.reload', {}, authorize, undefined, controller.signal)
+        const settled = result.then(
+          () => undefined,
+          (error: unknown) => error
+        )
+        await entered.promise
+        expect(webContents.loadURL).not.toHaveBeenCalled()
+        expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+        if (terminal === 'canceled') controller.abort(new Error('run canceled'))
+        if (terminal === 'destroyed') webContents.destroyed = true
+        if (terminal === 'denied') permission.reject(new Error('dispatch denied'))
+        else permission.resolve()
+        if (terminal === 'approved') {
+          await Promise.resolve()
+          if (operation === 'navigation') {
+            expect(webContents.loadURL).toHaveBeenCalledOnce()
+            webContents.finishLoad()
+          } else expect(webContents.debugger.sendCommand).toHaveBeenCalledOnce()
+          expect(await settled).toBeUndefined()
+        } else {
+          expect(await settled).toBeInstanceOf(Error)
+          expect(webContents.loadURL).not.toHaveBeenCalled()
+          expect(webContents.debugger.sendCommand).not.toHaveBeenCalled()
+        }
+      }
+    }
   })
 
   it('does not commit when CDP readiness or session validation fails', async () => {

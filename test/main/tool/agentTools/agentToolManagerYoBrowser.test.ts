@@ -15,6 +15,11 @@ describe('AgentToolManager YoBrowser routing', () => {
       skillSettings: { isEnabled: () => false } as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
+      desktopSettings: {
+        async applyDisplayChange() {
+          throw new Error('Unexpected display mutation')
+        }
+      },
       agentWorkspacePath: null,
       agentSettings: {
         resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})

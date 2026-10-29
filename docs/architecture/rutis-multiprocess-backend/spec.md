@@ -1414,6 +1414,22 @@ work queues at fourteen calls, with at most 64 waiting requests and 64 MiB of qu
 Coalesce helper termination identities into batches of 32, so many cancellations cannot consume
 all control slots. Stop rejects queued ordinary work and waits for accepted Native calls to settle.
 
+Browser tool dispatch uses a fixed Native command and callback protocol on the same reserved event
+lane. Core retains the dispatch-commit callback; Main supplies normalized arguments and awaits its
+acknowledgement immediately before the native target. A rejected commit is a call outcome, not a
+generation failure. Unknown identities or repeated authorization attempts fence the generation.
+Preserve recoverable Browser-unavailable payloads and the original Core commit error. No functions,
+live Browser objects or arbitrary native method names cross the link.
+
+Register Browser ownership before admission, retain cancellation across a late admission reply and
+compensate failed admission. Cancellation and close use the reserved Native retirement capacity.
+Main must provide a physical retirement receipt covering Browser closure and native effects that
+outlived a canceled client wait; releasing a waiting promise alone is insufficient. Synchronous
+dispatch commits retain their current timing; asynchronous commits are acknowledged before target
+dispatch, followed by fresh cancellation and target-lifetime checks. Helper and Browser events
+share a serialized, count/byte-bounded queue with value snapshots, rather than competing for the
+single reserved slot. Business authorization denial does not retire the event transport.
+
 Bootstrap values use Node V8 serialization, preserving `undefined`, dates and binary values. Values
 up to 16 KiB stay inline in control frames. Larger values use authenticated AES-256-GCM carriers in
 a generation-private 0700 temporary directory, with 0600 exclusive files, unpredictable identities,

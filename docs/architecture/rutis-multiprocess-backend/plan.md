@@ -3178,6 +3178,42 @@ Evidence is `.deepchat/rutis-g5-native-helper-acceptance/`; no performance captu
 No new build/profile copies are retained. G5 stays active and unpublished until complete Kernel,
 writer, public-route and lifecycle adoption with old-path removal and native/package acceptance.
 
+### Native Browser dispatch and authorization transport
+
+- [x] Implement fixed Browser commands and callback receipts in the Core SDK link. Preserve
+      normalized dispatch commitment, cancellation, recoverable errors and native retirement;
+      serialize Browser/helper callbacks through the existing reserved event slot.
+- [ ] Bind this Browser port and Main's physical-retirement capability into the complete SDK
+      Kernel. The private worker owns the proxy but does not yet invoke the complete runtime.
+
+Core keeps the actual authorization callback and returns a distinct denial outcome without
+fencing a healthy generation. Main retains native Browser objects and normalizes target arguments.
+Canceled late admission is compensated; unknown callbacks and repeated authorization are fenced.
+Only promised commits introduce an asynchronous wait. Native navigation and CDP dispatch recheck
+cancellation and target lifetime after that wait. Current synchronous commit timing is retained.
+Main's required retirement receipt must cover effects that survive a canceled caller wait.
+
+The helper and Browser sources share one bounded snapshot queue for the reserved event lane.
+Browser cancellation/close reuse the two Native retirement slots. Recoverable Browser-unavailable
+payloads and the original Core commit errors survive transport; no uncertain operation is replayed.
+
+Local verification passes **184 distinct TypeScript checks across ten files**, including four
+durable additions for acknowledged authorization, late cancellation/physical retirement, encrypted
+event ordering and real Browser dispatch after a held commit. The actual SDK profile/event
+regressions require native SQLite. All six Rust checks, normal build, types, format/check, lint,
+i18n, Rust fmt and Clippy pass. Existing Browser fixtures now match their actual callback types.
+
+Immutable `f511c078b` and the candidate pass the same actual Browser typed-route load/status/destroy
+scenario. The separately selected first-message Workspace/Browser case fails on both artifacts
+before sending: its second custom model (`fixture-model`) is absent from the model picker. This
+is an unresolved baseline failure, not accepted first-message or complete-Kernel evidence; retain
+the compact failure context and investigate before whole-G5 acceptance. No deadline or retry is
+added. Evidence is `.deepchat/rutis-g5-browser-acceptance/`.
+
+No performance capture or gain claim is made. G5 remains active and unpublished: complete Kernel
+assembly, remaining Native callbacks, the default writer/public routes/lifecycle/maintenance,
+descendant/proxy authority, full acceptance and native/signed packages remain required.
+
 ## G6. Extract the complete Memory capability
 
 - [ ] Move the existing facade and internal retrieval/extraction/reflection/persona/directive/

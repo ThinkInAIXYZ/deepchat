@@ -3,12 +3,10 @@ import {
   type CoreConfigurationCommand
 } from '@shared/harness/configuration'
 import { rm } from 'node:fs/promises'
+import { deserialize, serialize } from 'node:v8'
 import { z } from 'zod'
-import {
-  CoreHelperEventsSchema,
-  isCoreHelperDrain,
-  type CoreHelperEvent
-} from '@shared/harness/helpers'
+import { CoreHelperEventsSchema, type CoreHelperEvent } from '@shared/harness/helpers'
+import { CoreBrowserEventSchema, type CoreBrowserEvent } from '@shared/harness/browser'
 import type { HarnessRuntime } from './runtime'
 import type { CoreProfileHost } from '@/app/profileStartup'
 import type { DatabaseSecurityCryptoPort } from '@/app/databaseSecurity'
@@ -18,6 +16,9 @@ import {
   CORE_CALLS,
   CORE_CONTROL_CALLS,
   CORE_NATIVE_CALLS,
+  CORE_NATIVE_QUEUED,
+  CORE_VALUE_BYTES,
+  isCoreNativeDrain,
   CoreStatusSchema,
   type CoreStatus,
   type CoreMethod,
@@ -116,6 +117,9 @@ export class CoreRuntimeConnection {
   private statusPending = false
   private themeObservationPending = false
   private nativeEventsPending = false
+  private nativeEventTail: Promise<void> = Promise.resolve()
+  private nativeEventQueued = 0
+  private nativeEventBytes = 0
   private themeObservation: Promise<void> | undefined
   private themeObservationDirty = false
   private stopped = false
@@ -175,8 +179,37 @@ export class CoreRuntimeConnection {
   }
 
   async deliverNativeEvents(events: CoreHelperEvent[]): Promise<void> {
+    await this.deliverNative(CoreHelperEventsSchema.parse(events))
+  }
+
+  async deliverBrowserEvent(event: CoreBrowserEvent): Promise<unknown> {
+    return await this.deliverNative(CoreBrowserEventSchema.parse(event))
+  }
+
+  private async deliverNative(event: unknown): Promise<unknown> {
     try {
-      await this.request('nativeEvents', CoreHelperEventsSchema.parse(events))
+      const encoded = serialize(event)
+      if (
+        this.nativeEventQueued >= CORE_NATIVE_QUEUED ||
+        this.nativeEventBytes + encoded.length > CORE_VALUE_BYTES
+      )
+        throw new Error('Core Native event queue exceeded')
+      const snapshot: unknown = deserialize(encoded)
+      this.nativeEventQueued++
+      this.nativeEventBytes += encoded.length
+      const operation = this.nativeEventTail.then(async () => {
+        try {
+          return await this.request('nativeEvents', snapshot)
+        } finally {
+          this.nativeEventQueued--
+          this.nativeEventBytes -= encoded.length
+        }
+      })
+      this.nativeEventTail = operation.then(
+        () => undefined,
+        () => undefined
+      )
+      return await operation
     } catch (error) {
       this.invalidateNative(
         error instanceof Error ? error : new Error('Core Native event delivery failed')
@@ -349,7 +382,7 @@ export class CoreRuntimeConnection {
     try {
       const args = await this.payloads.decode(frame.args)
       if (this.stopped) return
-      const drain = frame.method === 'helpers' && isCoreHelperDrain(args)
+      const drain = isCoreNativeDrain(frame.method, args)
       if ((this.failure || this.stopPromise) && !drain)
         throw new Error('Core Native admission is stopping')
       const result = await this.native(frame.method, args)

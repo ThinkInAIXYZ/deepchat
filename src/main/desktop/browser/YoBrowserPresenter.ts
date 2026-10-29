@@ -133,7 +133,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     hostWindowId?: number,
     activitySource?: YoBrowserActivitySource,
     agentRunId?: string,
-    beforeDispatch?: () => void,
+    beforeDispatch?: () => unknown,
     signal?: AbortSignal
   ): Promise<YoBrowserStatus> {
     signal?.throwIfAborted()
@@ -560,7 +560,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     params?: Record<string, unknown>,
     activitySource?: YoBrowserActivitySource,
     agentRunId?: string,
-    beforeDispatch?: () => void,
+    beforeDispatch?: () => unknown,
     signal?: AbortSignal
   ): Promise<unknown> {
     const state = this.sessionBrowsers.get(sessionId)

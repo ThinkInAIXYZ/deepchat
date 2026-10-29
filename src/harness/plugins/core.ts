@@ -1,5 +1,6 @@
 import { createCoreAdmission, type CoreAdmissionService } from '../core/admission'
 import { CoreNativeHelpers } from '../core/helpers'
+import { CoreNativeBrowser } from '../core/browser'
 import { CoreNativeCalls } from '../core/native'
 import { createCoreSettings } from '../core/settings'
 import { CoreMemoryRuntime, type CoreMemoryService } from '../core/memory'
@@ -18,6 +19,7 @@ import type { DatabaseSecurityCryptoPort } from '@/app/databaseSecurity'
 import { CorePayloadStore } from '../core/payload'
 import {
   CoreCarrierConfigSchema,
+  CoreNativeEventSchema,
   type CoreCarrierConfig,
   type CoreNativeMethod,
   type CorePayload,
@@ -97,6 +99,12 @@ export default definePlugin<CoreCarrierConfig>({
         void stop().catch(() => {})
       }
     )
+    const browser = new CoreNativeBrowser(
+      async (command) => await callNative('browser', [command]),
+      () => {
+        void stop().catch(() => {})
+      }
+    )
     const host: CoreProfileHost = {
       setLoggingEnabled: async (enabled) => {
         await callNative('profile.logging', [enabled])
@@ -164,6 +172,7 @@ export default definePlugin<CoreCarrierConfig>({
       stopping = (async () => {
         // An in-flight Native effect must settle before profile startup can retire its lock.
         await opening?.catch(() => undefined)
+        await browser.close()
         await helpers.close()
         await configurationTail
         await configuration?.appSettingsService.stop()
@@ -305,8 +314,12 @@ export default definePlugin<CoreCarrierConfig>({
         return await runConfiguration(async (owner) => await owner.observeSystemTheme())
       },
       async nativeEvents(ref: CorePayload): Promise<CorePayload> {
-        helpers.accept(await store.decode(ref))
-        return await store.encode(undefined)
+        const event = CoreNativeEventSchema.parse(await store.decode(ref))
+        if (Array.isArray(event)) {
+          helpers.accept(event)
+          return await store.encode(undefined)
+        }
+        return await store.encode(await browser.accept(event))
       },
       async status() {
         return await store.encode(status())

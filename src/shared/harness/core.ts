@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { CoreHelperEventsSchema, isCoreHelperDrain } from './helpers'
+import { CoreBrowserEventSchema, isCoreBrowserDrain } from './browser'
 
 export const CORE_INLINE_BYTES = 16 * 1024
 export const CORE_VALUE_BYTES = 64 * 1024 * 1024
@@ -19,9 +21,19 @@ export const CoreNativeMethodSchema = z.enum([
   'profile.recovery',
   'profile.quit',
   'configuration',
-  'helpers'
+  'helpers',
+  'browser'
 ])
 export type CoreNativeMethod = z.infer<typeof CoreNativeMethodSchema>
+
+export const CoreNativeEventSchema = z.union([CoreHelperEventsSchema, CoreBrowserEventSchema])
+
+export function isCoreNativeDrain(method: CoreNativeMethod, args: unknown): boolean {
+  return (
+    (method === 'helpers' && isCoreHelperDrain(args)) ||
+    (method === 'browser' && isCoreBrowserDrain(args))
+  )
+}
 
 export const CoreCarrierConfigSchema = z
   .object({

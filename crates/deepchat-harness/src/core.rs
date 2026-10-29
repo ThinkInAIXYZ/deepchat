@@ -338,6 +338,7 @@ impl HostDispatch for Native {
                 | "profile.quit"
                 | "configuration"
                 | "helpers"
+                | "browser"
         ) {
             return Err(BridgeError::Value("Unknown Core Native capability".into()));
         }

@@ -222,7 +222,7 @@ export interface AgentBrowserToolPort {
     args: Record<string, unknown>,
     conversationId?: string,
     runId?: string,
-    beforeInvoke?: (normalizedArguments: Record<string, unknown>) => void,
+    beforeInvoke?: (normalizedArguments: Record<string, unknown>) => unknown,
     signal?: AbortSignal
   ): Promise<string>
 }

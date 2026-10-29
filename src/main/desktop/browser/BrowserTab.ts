@@ -72,14 +72,17 @@ export class BrowserTab {
   async navigateUntilDomReady(
     url: string,
     timeoutMs: number = 30000,
-    beforeDispatch?: () => void,
+    beforeDispatch?: () => unknown,
     onDispatched?: () => void,
     signal?: AbortSignal
   ): Promise<void> {
     signal?.throwIfAborted()
     this.ensureAvailable()
-    beforeDispatch?.()
+    const authorization = beforeDispatch?.()
+    if (authorization && typeof (authorization as PromiseLike<unknown>).then === 'function')
+      await authorization
     signal?.throwIfAborted()
+    this.ensureAvailable()
     this.beginMainFrameNavigation(url)
 
     const loadPromise = this.webContents.loadURL(url)
@@ -123,7 +126,7 @@ export class BrowserTab {
   async sendCdpCommand(
     method: string,
     params?: Record<string, unknown>,
-    beforeDispatch?: () => void,
+    beforeDispatch?: () => unknown,
     onDispatched?: () => void,
     signal?: AbortSignal
   ): Promise<unknown> {
@@ -136,8 +139,11 @@ export class BrowserTab {
 
     const session = await awaitWithAbort(this.ensureSession(), signal)
     signal?.throwIfAborted()
-    beforeDispatch?.()
+    const authorization = beforeDispatch?.()
+    if (authorization && typeof (authorization as PromiseLike<unknown>).then === 'function')
+      await authorization
     signal?.throwIfAborted()
+    this.ensureAvailable()
     const responsePromise = session.sendCommand(method, params ?? {})
     onDispatched?.()
     const response = await awaitWithAbort(responsePromise, signal)

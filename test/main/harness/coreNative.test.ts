@@ -41,7 +41,7 @@ it('reserves Native retirement capacity and drains real receipts while fencing q
     command.message.source = 'changed-after-call'
     const controls = [
       native.call('helpers', [{ operation: 'close' }]),
-      native.call('helpers', [{ operation: 'terminate', ids: [randomUUID()] }])
+      native.call('browser', [{ operation: 'cancel', id: randomUUID() }])
     ]
     await vi.waitFor(() => expect(calls).toHaveLength(16))
     calls[0].receipt.resolve()

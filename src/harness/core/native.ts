@@ -3,10 +3,10 @@ import {
   CORE_NATIVE_CALLS,
   CORE_NATIVE_QUEUED,
   CORE_VALUE_BYTES,
+  isCoreNativeDrain,
   type CoreNativeMethod,
   type CorePayload
 } from '@shared/harness/core'
-import { isCoreHelperDrain } from '@shared/harness/helpers'
 import type { CorePayloadStore } from './payload'
 
 export class CoreNativeCalls {
@@ -41,7 +41,7 @@ export class CoreNativeCalls {
   }
 
   private async execute(method: CoreNativeMethod, args: unknown[]): Promise<unknown> {
-    const control = method === 'helpers' && isCoreHelperDrain(args)
+    const control = isCoreNativeDrain(method, args)
     const assertActive = () => {
       if (this.isStopping() && !control) throw new Error('Core Native admission is stopping')
     }
