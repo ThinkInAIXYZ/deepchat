@@ -6,7 +6,7 @@ import { DeepChatTapeEntriesTable } from '@/tape/infrastructure/sqlite/tapeEntry
 
 import { createMemoryPerfObserver } from './performanceObserver'
 import { describeIfNativeSqlite, requireDatabase } from '../../nativeSqliteHarness'
-import { measurePerformance, reportPerformance } from './timing'
+import { assertTimingBudget, measurePerformance, reportPerformance } from './timing'
 
 function messagePayload(sessionId: string, index: number): string {
   const id = `message-${index.toString().padStart(6, '0')}`
@@ -124,7 +124,7 @@ describeIfNativeSqlite('Agent Memory #28 Tape scale', () => {
 
       const largest = reports.get(100_000)
       expect(largest).toBeDefined()
-      expect(largest!.range).toBeLessThanOrEqual(largest!.full * 0.2)
+      assertTimingBudget('tape-range-100k', largest!.range, largest!.full * 0.2)
     } finally {
       db.close()
     }

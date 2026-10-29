@@ -1,7 +1,5 @@
-import { app } from 'electron'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import type { SettingsStore } from '@/config/settingsStore'
 import {
   RendererPerformanceRecordSchema,
   type RendererPerformanceRecord
@@ -26,17 +24,20 @@ export class RendererPerformanceLogService {
   private writeQueue: Promise<boolean> = Promise.resolve(true)
 
   constructor(
-    private readonly settings: Pick<SettingsStore, 'get'>,
-    private readonly getUserDataPath: () => string = () => app.getPath('userData'),
+    private readonly isLoggingEnabled: () => boolean,
+    private readonly userDataDirectory: string,
     private readonly fsImpl: RendererPerformanceLogFs = fs,
     private readonly now: () => number = Date.now,
     private readonly onWriteError: () => void = () => {
       console.warn('[RendererPerformance] Failed to persist diagnostic record')
     }
-  ) {}
+  ) {
+    if (!path.isAbsolute(userDataDirectory))
+      throw new Error('Diagnostic profile directory must be absolute')
+  }
 
   async record(rawRecord: unknown): Promise<boolean> {
-    if (!this.settings.get<boolean>('loggingEnabled')) {
+    if (!this.isLoggingEnabled()) {
       return false
     }
 
@@ -50,7 +51,7 @@ export class RendererPerformanceLogService {
       recordedAt: this.now()
     }
     const line = `${JSON.stringify(record)}\n`
-    const logDirectory = path.join(this.getUserDataPath(), 'logs')
+    const logDirectory = path.join(this.userDataDirectory, 'logs')
     const logPath = path.join(logDirectory, 'renderer-performance.ndjson')
 
     const write = async (): Promise<boolean> => {

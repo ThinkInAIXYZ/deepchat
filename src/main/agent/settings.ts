@@ -22,7 +22,7 @@ import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { SettingsStore } from '@/config/settingsStore'
 import { AcpCatalogSettings } from '@/agent/acp/catalog/settings'
-import { AcpRegistryService } from '@/agent/acp/catalog/acpRegistryService'
+import type { AcpRegistryService } from '@/agent/acp/catalog/acpRegistryService'
 import { AcpLaunchSpecService } from '@/agent/acp/launch/acpLaunchSpecService'
 import {
   normalizeAutoCompactionRetainRecentPairs,
@@ -172,15 +172,24 @@ const getLiveLegacyModelSelection = (value: unknown): ModelSelection | null => {
 }
 
 export class AgentSettings implements AgentSettingsPort {
-  private readonly registry: AcpRegistryService
   private readonly launchSpecs: AcpLaunchSpecService
   private deleteDeepChatAgentTasks?: Map<string, Promise<DeleteDeepChatAgentResult>>
+  private registryRefreshPromise: Promise<AcpRegistryAgent[]> | null = null
+  private acpWork?: Map<AbortController, { agentId?: string; promise: Promise<unknown> }>
+  private acpInstalls?: Map<
+    string,
+    {
+      repair: boolean
+      promise: Promise<AcpAgentInstallState>
+    }
+  >
+  private acpUninstalls?: Map<string, Promise<void>>
 
   constructor(
     private readonly settings: SettingsStore,
     private readonly repository: AgentRepository,
     private readonly acpCatalog: AcpCatalogSettings,
-    isPrivacyModeEnabled: () => boolean,
+    private readonly registry: AcpRegistryService,
     userDataPath: string,
     private readonly provider: AgentSettingsProviderPort,
     private readonly events: AgentSettingsEvents,
@@ -190,15 +199,14 @@ export class AgentSettings implements AgentSettingsPort {
     private readonly cleanupDeletedAgentSkills: (agentId: string) => Promise<void>,
     private readonly notifyMemoryConfigChanged: (agentId: string) => void,
     private readonly skillMigrationSettings: AgentSkillMigrationSettingsPort,
-    private readonly agentLifecycle: AgentLifecycleGatePort
+    private readonly agentLifecycle: AgentLifecycleGatePort,
+    private readonly assertAcpOperationAllowed: () => void
   ) {
-    this.registry = new AcpRegistryService({
-      isPrivacyModeEnabled
-    })
     this.launchSpecs = new AcpLaunchSpecService(path.join(userDataPath, 'acp-registry'))
   }
 
   start(): void {
+    this.registry.initialize()
     this.initializeUnifiedAgents()
     const needsIndependentConfigMigration =
       (this.settings.get<number>('unifiedAgentsMigrationVersion') ?? 0) <
@@ -219,21 +227,59 @@ export class AgentSettings implements AgentSettingsPort {
       }
     }
     this.provider.setAcpProviderEnabled(this.acpCatalog.getGlobalEnabled())
-    const previousAgents = this.registry.listAgents()
-    void this.registry
-      .initialize()
-      .then(async () => {
-        const registryAgents = this.registry.listAgents()
-        this.syncRegistryAgentsToRepository()
-        const changedAgentIds = findChangedAcpRegistryAgentIds(previousAgents, registryAgents)
-        if (changedAgentIds.length > 0) {
-          await this.provider.refreshAcpProviderAgents(changedAgentIds)
-        }
-        this.notifyAcpAgentsChanged()
+  }
+
+  stop(): void {
+    this.registry.stop()
+    this.cancelAcpWork()
+    this.launchSpecs.stop()
+  }
+
+  async drain(): Promise<void> {
+    await Promise.allSettled([this.registryRefreshPromise])
+    while (this.acpWork?.size || this.acpUninstalls?.size) {
+      await Promise.allSettled([
+        ...[...(this.acpWork?.values() ?? [])].map((job) => job.promise),
+        ...(this.acpUninstalls?.values() ?? [])
+      ])
+    }
+    await this.launchSpecs.drain()
+    await this.registry.drain()
+  }
+
+  async cancelAndDrainAcpWork(): Promise<void> {
+    this.cancelAcpWork()
+    await this.drain()
+  }
+
+  private cancelAcpWork(agentId?: string): void {
+    for (const [controller, job] of this.acpWork ?? []) {
+      if (!agentId || job.agentId === agentId) controller.abort()
+    }
+    this.launchSpecs.cancelPendingInstallations(agentId)
+  }
+
+  private runAcpWork<T>(
+    run: (signal: AbortSignal, assertCurrent: () => void) => Promise<T>,
+    agentId?: string,
+    controller = new AbortController()
+  ): Promise<T> {
+    const jobs = (this.acpWork ??= new Map())
+    const assertCurrent = () => {
+      controller.signal.throwIfAborted()
+      if (this.registry.isStopped) throw new DOMException('ACP owner is stopping', 'AbortError')
+      this.assertAcpOperationAllowed()
+    }
+    const promise = Promise.resolve()
+      .then(() => {
+        assertCurrent()
+        return run(controller.signal, assertCurrent)
       })
-      .catch((error) => {
-        console.error('[ACP] Failed to initialize registry service:', error)
+      .finally(() => {
+        jobs.delete(controller)
       })
+    jobs.set(controller, { agentId, promise })
+    return promise
   }
 
   async getAcpEnabled(): Promise<boolean> {
@@ -299,15 +345,46 @@ export class AgentSettings implements AgentSettingsPort {
     })
   }
 
-  async refreshAcpRegistry(force = true): Promise<AcpRegistryAgent[]> {
+  async refreshAcpRegistry(
+    force = true,
+    options: { automatic?: boolean; signal?: AbortSignal } = {}
+  ): Promise<AcpRegistryAgent[]> {
+    if (this.registry.isStopped) throw new DOMException('ACP registry is stopping', 'AbortError')
+    options.signal?.throwIfAborted()
+    if (this.registryRefreshPromise) return this.registryRefreshPromise
+    this.registryRefreshPromise = this.refreshRegistry(force, options).finally(() => {
+      this.registryRefreshPromise = null
+    })
+    return this.registryRefreshPromise
+  }
+
+  private async refreshRegistry(
+    force: boolean,
+    options: { automatic?: boolean; signal?: AbortSignal }
+  ): Promise<AcpRegistryAgent[]> {
+    const assertCurrent = () => {
+      if (this.registry.isStopped) throw new DOMException('ACP registry is stopping', 'AbortError')
+      options.signal?.throwIfAborted()
+    }
+    assertCurrent()
     const previousAgents = this.registry.listAgents()
-    const refreshedAgents = await this.registry.refresh(force)
+    const refreshedAgents = await this.registry.refresh(force, options)
+    assertCurrent()
     this.syncRegistryAgentsToRepository()
     const changedAgentIds = findChangedAcpRegistryAgentIds(previousAgents, refreshedAgents)
+    for (const agentId of changedAgentIds) this.cancelAcpWork(agentId)
+    await Promise.allSettled(
+      [...(this.acpWork?.values() ?? [])]
+        .filter((job) => job.agentId && changedAgentIds.includes(job.agentId))
+        .map((job) => job.promise)
+    )
+    assertCurrent()
     if (changedAgentIds.length > 0) {
       await this.provider.refreshAcpProviderAgents(changedAgentIds)
     }
+    assertCurrent()
     const agents = await this.listAcpRegistryAgents()
+    assertCurrent()
     this.notifyAcpAgentsChanged()
     return agents
   }
@@ -351,28 +428,48 @@ export class AgentSettings implements AgentSettingsPort {
 
   async uninstallAcpRegistryAgent(agentId: string): Promise<void> {
     const registryAgent = this.getRegistryAgentOrThrow(agentId)
+    const uninstalls = (this.acpUninstalls ??= new Map())
+    const existing = uninstalls.get(registryAgent.id)
+    if (existing) return existing
     if (this.repository.hasAgentSessions(registryAgent.id)) {
       throw new Error(
         'ACP registry agent still has related conversations. Move or delete them first.'
       )
     }
-    const currentState = this.repository.getAgentInstallState(registryAgent.id)
-    await this.launchSpecs.uninstallRegistryAgent(registryAgent, currentState)
-    const updated = this.repository.clearRegistryAcpAgentInstallation(registryAgent.id, {
-      status: 'not_installed',
-      version: registryAgent.version,
-      distributionType: this.launchSpecs.selectRegistryDistribution(registryAgent)?.type,
-      lastCheckedAt: Date.now(),
-      installedAt: null,
-      installDir: null,
-      error: null
+    const promise = this.uninstallRegistryAgent(registryAgent).finally(() => {
+      if (uninstalls.get(registryAgent.id) === promise) uninstalls.delete(registryAgent.id)
     })
-    if (!updated) {
-      throw new Error(
-        `ACP registry agent not found or still has related conversations: ${registryAgent.id}`
-      )
-    }
-    this.handleAcpAgentsMutated([registryAgent.id])
+    uninstalls.set(registryAgent.id, promise)
+    return promise
+  }
+
+  private async uninstallRegistryAgent(registryAgent: AcpRegistryAgent): Promise<void> {
+    this.cancelAcpWork(registryAgent.id)
+    await Promise.allSettled(
+      [...(this.acpWork?.values() ?? [])]
+        .filter((job) => job.agentId === registryAgent.id)
+        .map((job) => job.promise)
+    )
+    await this.runAcpWork(async (_signal, assertCurrent) => {
+      const currentState = this.repository.getAgentInstallState(registryAgent.id)
+      await this.launchSpecs.uninstallRegistryAgent(registryAgent, currentState)
+      assertCurrent()
+      const updated = this.repository.clearRegistryAcpAgentInstallation(registryAgent.id, {
+        status: 'not_installed',
+        version: registryAgent.version,
+        distributionType: this.launchSpecs.selectRegistryDistribution(registryAgent)?.type,
+        lastCheckedAt: Date.now(),
+        installedAt: null,
+        installDir: null,
+        error: null
+      })
+      if (!updated) {
+        throw new Error(
+          `ACP registry agent not found or still has related conversations: ${registryAgent.id}`
+        )
+      }
+      this.handleAcpAgentsMutated([registryAgent.id])
+    }, registryAgent.id)
   }
 
   async listManualAcpAgents(): Promise<AcpManualAgent[]> {
@@ -419,23 +516,32 @@ export class AgentSettings implements AgentSettingsPort {
   }
 
   async resolveAcpLaunchSpec(agentId: string, _workdir?: string): Promise<AcpResolvedLaunchSpec> {
-    const resolvedId = resolveAcpAgentAlias(agentId)
-    const manualAgent = this.repository.getManualAcpAgent(resolvedId)
-    if (manualAgent) return this.launchSpecs.resolveManualLaunchSpec(manualAgent)
+    return this.runAcpWork(async (signal, assertCurrent) => {
+      const resolvedId = resolveAcpAgentAlias(agentId)
+      if (this.acpUninstalls?.has(resolvedId)) throw new Error('ACP uninstall is in progress')
+      const manualAgent = this.repository.getManualAcpAgent(resolvedId)
+      if (manualAgent) return this.launchSpecs.resolveManualLaunchSpec(manualAgent)
 
-    const registryAgent = this.getRegistryAgentOrThrow(resolvedId)
-    const installState = this.repository.getAgentInstallState(registryAgent.id)
-    const launchSpec = await this.launchSpecs.resolveRegistryLaunchSpec(registryAgent, installState)
-    this.repository.setAgentInstallState(resolvedId, {
-      status: 'installed',
-      distributionType: launchSpec.distributionType,
-      version: launchSpec.version,
-      lastCheckedAt: Date.now(),
-      installedAt: installState?.installedAt ?? Date.now(),
-      installDir: launchSpec.installDir ?? null,
-      error: null
-    })
-    return launchSpec
+      const registryAgent = this.getRegistryAgentOrThrow(resolvedId)
+      const installState = this.repository.getAgentInstallState(registryAgent.id)
+      const launchSpec = await this.launchSpecs.resolveRegistryLaunchSpec(
+        registryAgent,
+        installState,
+        signal
+      )
+      assertCurrent()
+      this.assertRegistryDescriptor(registryAgent)
+      this.repository.setAgentInstallState(resolvedId, {
+        status: 'installed',
+        distributionType: launchSpec.distributionType,
+        version: launchSpec.version,
+        lastCheckedAt: Date.now(),
+        installedAt: installState?.installedAt ?? Date.now(),
+        installDir: launchSpec.installDir ?? null,
+        error: null
+      })
+      return launchSpec
+    }, resolveAcpAgentAlias(agentId))
   }
 
   async getAcpSharedMcpSelections(): Promise<string[]> {
@@ -664,16 +770,57 @@ export class AgentSettings implements AgentSettingsPort {
     this.events.publishSessionsUpdated()
   }
 
-  private async installRegistryAgent(
+  private installRegistryAgent(agentId: string, repair: boolean): Promise<AcpAgentInstallState> {
+    const resolvedId = resolveAcpAgentAlias(agentId)
+    if (this.acpUninstalls?.has(resolvedId)) {
+      return Promise.reject(new Error('ACP uninstall is in progress'))
+    }
+    const installs = (this.acpInstalls ??= new Map())
+    const existing = installs.get(resolvedId)
+    if (existing) {
+      if (!repair || existing.repair) return existing.promise
+      return this.runAcpWork(async (_signal, assertCurrent) => {
+        await existing.promise.catch(() => undefined)
+        assertCurrent()
+        return this.installRegistryAgent(resolvedId, true)
+      }, resolvedId)
+    }
+    const controller = new AbortController()
+    const promise = this.runAcpWork(
+      (signal, assertCurrent) =>
+        this.performRegistryInstall(resolvedId, repair, signal, assertCurrent),
+      resolvedId,
+      controller
+    ).finally(() => {
+      if (installs.get(resolvedId)?.promise === promise) installs.delete(resolvedId)
+    })
+    installs.set(resolvedId, { repair, promise })
+    return promise
+  }
+
+  private assertRegistryDescriptor(agent: AcpRegistryAgent): void {
+    const current = this.registry.getAgent(agent.id)
+    if (
+      !current ||
+      current.version !== agent.version ||
+      !isDeepStrictEqual(current.distribution, agent.distribution)
+    ) {
+      throw new DOMException('ACP registry descriptor changed', 'AbortError')
+    }
+  }
+
+  private async performRegistryInstall(
     agentId: string,
-    repair: boolean
+    repair: boolean,
+    signal: AbortSignal,
+    assertCurrent: () => void
   ): Promise<AcpAgentInstallState> {
     const registryAgent = this.getRegistryAgentOrThrow(agentId)
     const currentState = this.repository.getAgentInstallState(registryAgent.id)
     const installingState: AcpAgentInstallState = {
       status: 'installing',
       version: registryAgent.version,
-      distributionType: this.launchSpecs.selectRegistryDistribution(registryAgent)?.type,
+      distributionType: this.launchSpecs.selectRegistryDistribution(registryAgent)?.type ?? null,
       lastCheckedAt: Date.now(),
       installedAt: currentState?.installedAt ?? null,
       installDir: currentState?.installDir ?? null,
@@ -681,18 +828,30 @@ export class AgentSettings implements AgentSettingsPort {
     }
     this.repository.setAgentInstallState(registryAgent.id, installingState)
     this.notifyAcpAgentsChanged([registryAgent.id])
-    if (repair) await this.provider.refreshAcpProviderAgents([registryAgent.id])
-
     try {
+      if (repair) await this.provider.refreshAcpProviderAgents([registryAgent.id])
+      assertCurrent()
+      this.assertRegistryDescriptor(registryAgent)
       const installedState = await this.launchSpecs.ensureRegistryAgentInstalled(
         registryAgent,
         currentState,
-        repair ? { repair: true } : undefined
+        { repair, signal }
       )
+      assertCurrent()
+      this.assertRegistryDescriptor(registryAgent)
       this.repository.setAgentInstallState(registryAgent.id, installedState)
       this.handleAcpAgentsMutated([registryAgent.id])
       return installedState
     } catch (error) {
+      if (signal.aborted || (error instanceof Error && error.name === 'AbortError')) {
+        if (
+          isDeepStrictEqual(this.repository.getAgentInstallState(registryAgent.id), installingState)
+        ) {
+          this.repository.setAgentInstallState(registryAgent.id, currentState)
+        }
+        throw error
+      }
+      assertCurrent()
       const failedState: AcpAgentInstallState = {
         status: 'error',
         version: registryAgent.version,
@@ -902,7 +1061,13 @@ export class AgentSettings implements AgentSettingsPort {
   private handleAcpAgentsMutated(agentIds?: string[]): void {
     this.provider.clearAcpProviderModelStatus()
     this.notifyAcpAgentsChanged(agentIds)
-    void this.provider.refreshAcpProviderAgents(agentIds).catch((error) => {
+    void this.runAcpWork(
+      async (_signal, assertCurrent) => {
+        await this.provider.refreshAcpProviderAgents(agentIds)
+        assertCurrent()
+      },
+      agentIds?.length === 1 ? agentIds[0] : undefined
+    ).catch((error) => {
       console.warn('[ACP] Failed to refresh agent processes after config change:', error)
     })
   }

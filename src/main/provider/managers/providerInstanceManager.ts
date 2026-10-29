@@ -14,14 +14,14 @@ import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
 import type { AcpRuntimeOwner } from '@/agent/acp/client'
 import { resolveAiSdkProviderDefinition } from '../providerRegistry'
-import type { ProviderLocalePort } from '../ports'
+import type { ProviderEnvironmentPort } from '../ports'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 
 interface ProviderInstanceManagerOptions {
   providerSettings: ProviderSettingsPort
-  locale: ProviderLocalePort
+  locale: ProviderEnvironmentPort
   agentSettings: Pick<AgentSettingsPort, 'getAcpEnabled' | 'getAcpAgents'>
   activeStreams: Map<string, StreamState>
   rateLimitManager: RateLimitManager

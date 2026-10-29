@@ -150,6 +150,9 @@ describe('PR Check workflow contracts', () => {
     ])
     expect(getRunCommands(workflow.jobs['test-main'])).toEqual([
       'pnpm install --frozen-lockfile',
+      'cargo fmt --check --manifest-path crates/deepchat-harness/Cargo.toml\n' +
+        'cargo clippy --locked --manifest-path crates/deepchat-harness/Cargo.toml --all-targets -- -D warnings\n' +
+        'cargo test --locked --manifest-path crates/deepchat-harness/Cargo.toml\n',
       'pnpm run test:main'
     ])
     expect(getRunCommands(workflow.jobs['test-renderer'])).toEqual([
@@ -178,13 +181,14 @@ describe('PR Check workflow contracts', () => {
     const orderedStepNames = [
       'Install dependencies',
       'Install and verify DuckDB VSS',
+      'Build Rutis harness for native integration',
       'Validate portable memory behavior',
       'Smoke native SQLite',
       'Validate native Tape storage',
       'Validate encrypted OCR artifact storage',
       'Validate native memory storage',
       'Validate memory retrieval quality',
-      'Validate memory performance bounds',
+      'Validate memory workload bounds and report timings',
       'Upload memory retrieval report'
     ]
     const indexes = orderedStepNames.map((name) =>
@@ -207,6 +211,7 @@ describe('PR Check workflow contracts', () => {
     expect(getStep(nativeJob, 'Validate portable memory behavior').run).toBe(
       'pnpm run test:memory'
     )
+    expect(getStep(nativeJob, 'Build Rutis harness for native integration').run).toBe('pnpm run harness:build')
     // better-sqlite3-multiple-ciphers 13+ ships N-API prebuilds; the Node-ABI
     // rebuild step is gone and must not come back.
     expect(
@@ -239,12 +244,15 @@ describe('PR Check workflow contracts', () => {
     expect(getStep(nativeJob, 'Validate memory retrieval quality').env).toEqual({
       DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
     })
-    expect(getStep(nativeJob, 'Validate memory performance bounds').run).toBe(
+    expect(getStep(nativeJob, 'Validate memory workload bounds and report timings').run).toBe(
       'pnpm run test:main:memory-perf'
     )
-    expect(getStep(nativeJob, 'Validate memory performance bounds').env).toEqual({
-      DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
+    expect(getStep(nativeJob, 'Validate memory workload bounds and report timings').env).toEqual({
+      DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1',
+      DEEPCHAT_MEMORY_PERF_REPORT_ONLY: '1'
     })
+    expect(nativeJob).not.toHaveProperty('continue-on-error')
+    for (const step of nativeJob.steps ?? []) expect(step).not.toHaveProperty('continue-on-error')
     expect(getStep(nativeJob, 'Upload memory retrieval report')).toMatchObject({
       if: 'always()',
       with: {

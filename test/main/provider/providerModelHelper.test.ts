@@ -1,68 +1,32 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ModelConfig } from '@shared/types/provider'
+import type { MODEL_META, ModelConfig } from '@shared/types/provider'
 import { ApiEndpointType, ModelType } from '../../../src/shared/model'
+import { createMemoryStore } from '../../helpers/memoryStore'
 
-const storeStates = vi.hoisted(
-  () =>
-    new Map<
-      string,
-      {
-        data: Record<string, unknown>
-        get: ReturnType<typeof vi.fn>
-        set: ReturnType<typeof vi.fn>
-        clear: ReturnType<typeof vi.fn>
-      }
-    >()
-)
-
+const storeStates = new Map<string, ReturnType<typeof createModelStoreData>>()
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
-vi.mock('electron-store', () => ({
-  default: class MockElectronStore {
-    private readonly state: {
-      data: Record<string, unknown>
-      get: ReturnType<typeof vi.fn>
-      set: ReturnType<typeof vi.fn>
-      clear: ReturnType<typeof vi.fn>
-    }
-
-    constructor(options: { name: string; defaults?: Record<string, unknown> }) {
-      const existing = storeStates.get(options.name)
-      if (existing) {
-        this.state = existing
-        return
-      }
-
-      const data = structuredClone(options.defaults ?? {})
-      const state = {
-        data,
-        get: vi.fn((key: string) => data[key]),
-        set: vi.fn((key: string, value: unknown) => {
-          data[key] = value
-        }),
-        clear: vi.fn(() => {
-          Object.keys(data).forEach((key) => {
-            delete data[key]
-          })
-        })
-      }
-      storeStates.set(options.name, state)
-      this.state = state
-    }
-
-    get(key: string) {
-      return this.state.get(key)
-    }
-
-    set(key: string, value: unknown) {
-      this.state.set(key, value)
-    }
-
-    clear() {
-      this.state.clear()
-    }
+function createModelStoreData() {
+  const store = createMemoryStore<{ models: MODEL_META[]; custom_models: MODEL_META[] }>({
+    models: [],
+    custom_models: []
+  })
+  return {
+    ...store,
+    get store() {
+      return store.store
+    },
+    get: vi.fn(store.get) as typeof store.get & ReturnType<typeof vi.fn>,
+    set: vi.fn(store.set) as typeof store.set & ReturnType<typeof vi.fn>,
+    clear: vi.fn(store.clear)
   }
-}))
+}
+
+function createModelStore(providerId: string) {
+  const key = `models_${encodeURIComponent(providerId).replace(/\*/g, '%2A')}`
+  if (!storeStates.has(key)) storeStates.set(key, createModelStoreData())
+  return storeStates.get(key)!
+}
 
 vi.mock('electron', () => ({
   app: {
@@ -88,6 +52,7 @@ const createBaseModel = (providerId: string, modelId: string) => ({
   id: modelId,
   name: modelId,
   providerId,
+  group: 'default',
   contextLength: 32000,
   maxTokens: 8000,
   isCustom: false,
@@ -139,7 +104,7 @@ describe('ProviderModelHelper cache', () => {
   it('reuses provider model snapshots within the ttl window', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -163,7 +128,7 @@ describe('ProviderModelHelper cache', () => {
   it('invalidates cached provider models after setProviderModels writes', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -191,7 +156,7 @@ describe('ProviderModelHelper cache', () => {
   it('invalidates cached provider models after custom model writes', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -218,7 +183,7 @@ describe('ProviderModelHelper cache', () => {
   it('removes stale catalog projections in memory without writing from the read path', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -260,7 +225,7 @@ describe('ProviderModelHelper cache', () => {
   it('returns cached NewAPI route facts without deriving selectable endpoints', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -293,7 +258,7 @@ describe('ProviderModelHelper cache', () => {
   it('does not materialize missing type fields in the raw cache', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -326,7 +291,7 @@ describe('ProviderModelHelper cache', () => {
   it('drops selectable endpoints because they are an effective projection', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -359,7 +324,7 @@ describe('ProviderModelHelper cache', () => {
   it('does not project effective types into cached provider facts', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -398,7 +363,7 @@ describe('ProviderModelHelper cache', () => {
   it('keeps cached media endpoint metadata sparse', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -426,7 +391,7 @@ describe('ProviderModelHelper cache', () => {
   it('does not derive media type from a sparse cached model id', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -458,7 +423,7 @@ describe('ProviderModelHelper cache', () => {
   it('does not mix legacy user config into cached provider facts', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -486,7 +451,7 @@ describe('ProviderModelHelper cache', () => {
   it('does not mix explicit user type into cached provider facts', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -516,31 +481,31 @@ describe('ProviderModelHelper cache', () => {
 
   it('uses targeted model reads for route metadata when the store supports them', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
+    const listModels = vi.fn()
+    const getProviderModel = vi.fn(
+      (source: 'provider' | 'custom', modelId: string): MODEL_META | undefined =>
+        source === 'provider' && modelId === 'kimi-k3'
+          ? {
+              ...createBaseModel('new-api', modelId),
+              supportedEndpointTypes: ['openai', 'anthropic']
+            }
+          : undefined
+    )
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
-      publishEvent: publishDeepchatEventMock
+      publishEvent: publishDeepchatEventMock,
+      createStore: () => ({
+        store: { models: [], custom_models: [] },
+        get<TValue = unknown>(_key: string, defaultValue?: TValue): TValue | undefined {
+          listModels()
+          return defaultValue
+        },
+        set: vi.fn(),
+        delete: vi.fn(),
+        getProviderModel
+      })
     })
-    const listModels = vi.fn()
-    const getProviderModel = vi.fn((source: 'provider' | 'custom', modelId: string) =>
-      source === 'provider' && modelId === 'kimi-k3'
-        ? {
-            ...createBaseModel('new-api', modelId),
-            supportedEndpointTypes: ['openai', 'anthropic']
-          }
-        : undefined
-    )
-    helper.setStoreFactory(() => ({
-      store: { models: [], custom_models: [] },
-      get<TValue = unknown>(_key: string, defaultValue?: TValue): TValue | undefined {
-        listModels()
-        return defaultValue
-      },
-      set: vi.fn(),
-      delete: vi.fn(),
-      getProviderModel
-    }))
 
     expect(helper.getProviderModelRouteMetadata('new-api', 'kimi-k3')).toEqual({
       endpointType: undefined,
@@ -566,7 +531,7 @@ describe('ProviderModelHelper cache', () => {
   it('keeps stored non-New API model type authoritative in route metadata', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -606,7 +571,7 @@ describe('ProviderModelHelper cache', () => {
   it('applies explicit user route intent after provider route facts', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -640,13 +605,7 @@ describe('ProviderModelHelper cache', () => {
 
   it('does not synthesize a chat type for sparse route facts', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
-    const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
-      setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn(),
-      publishEvent: publishDeepchatEventMock
-    })
-    const providerModel = {
+    const providerModel: MODEL_META = {
       id: 'aggregated-model',
       name: 'Aggregated Model',
       group: 'default',
@@ -654,17 +613,22 @@ describe('ProviderModelHelper cache', () => {
       isCustom: false,
       endpointType: undefined,
       ownedBy: undefined,
-      supportedEndpointTypes: ['openai', 'anthropic'] as const
+      supportedEndpointTypes: ['openai', 'anthropic']
     }
-    helper.setStoreFactory(() => ({
-      store: { models: [providerModel], custom_models: [] },
-      get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
-        if (key === 'models') return [providerModel] as TValue
-        return defaultValue
-      },
-      set: vi.fn(),
-      delete: vi.fn()
-    }))
+    const helper = new ProviderModelHelper({
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock,
+      createStore: () => ({
+        store: { models: [providerModel], custom_models: [] },
+        get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
+          if (key === 'models') return [providerModel] as TValue
+          return defaultValue
+        },
+        set: vi.fn(),
+        delete: vi.fn()
+      })
+    })
 
     expect(helper.getProviderModels('new-api')[0]).toMatchObject({
       endpointType: undefined,
@@ -680,12 +644,6 @@ describe('ProviderModelHelper cache', () => {
 
   it('checks targeted provider and custom rows after a fresh-cache miss', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
-    const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
-      setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn(),
-      publishEvent: publishDeepchatEventMock
-    })
     const providerModel = createBaseModel('new-api', 'provider-model')
     const customModel = {
       ...createBaseModel('new-api', 'custom-model'),
@@ -695,17 +653,22 @@ describe('ProviderModelHelper cache', () => {
     const getProviderModel = vi.fn((source: 'provider' | 'custom', modelId: string) =>
       source === 'custom' && modelId === customModel.id ? customModel : undefined
     )
-    helper.setStoreFactory(() => ({
-      store: { models: [providerModel], custom_models: [customModel] },
-      get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
-        if (key === 'models') return [providerModel] as TValue
-        if (key === 'custom_models') return [customModel] as TValue
-        return defaultValue
-      },
-      set: vi.fn(),
-      delete: vi.fn(),
-      getProviderModel
-    }))
+    const helper = new ProviderModelHelper({
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock,
+      createStore: () => ({
+        store: { models: [providerModel], custom_models: [customModel] },
+        get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
+          if (key === 'models') return [providerModel] as TValue
+          if (key === 'custom_models') return [customModel] as TValue
+          return defaultValue
+        },
+        set: vi.fn(),
+        delete: vi.fn(),
+        getProviderModel
+      })
+    })
 
     helper.getProviderModels('new-api')
     expect(helper.getProviderModelRouteMetadata('new-api', customModel.id)).toMatchObject({
@@ -718,12 +681,6 @@ describe('ProviderModelHelper cache', () => {
 
   it('finds a provider row inserted after a provider-list snapshot was cached', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
-    const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
-      setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn(),
-      publishEvent: publishDeepchatEventMock
-    })
     const cachedModel = createBaseModel('new-api', 'cached-model')
     const insertedModel = {
       ...createBaseModel('new-api', 'inserted-model'),
@@ -732,16 +689,21 @@ describe('ProviderModelHelper cache', () => {
     const getProviderModel = vi.fn((source: 'provider' | 'custom', modelId: string) =>
       source === 'provider' && modelId === insertedModel.id ? insertedModel : undefined
     )
-    helper.setStoreFactory(() => ({
-      store: { models: [cachedModel], custom_models: [] },
-      get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
-        if (key === 'models') return [cachedModel] as TValue
-        return defaultValue
-      },
-      set: vi.fn(),
-      delete: vi.fn(),
-      getProviderModel
-    }))
+    const helper = new ProviderModelHelper({
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock,
+      createStore: () => ({
+        store: { models: [cachedModel], custom_models: [] },
+        get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
+          if (key === 'models') return [cachedModel] as TValue
+          return defaultValue
+        },
+        set: vi.fn(),
+        delete: vi.fn(),
+        getProviderModel
+      })
+    })
 
     helper.getProviderModels('new-api')
 
@@ -758,7 +720,7 @@ describe('ProviderModelHelper cache', () => {
   it('clears persisted provider models and custom models for a removed provider', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -782,7 +744,7 @@ describe('ProviderModelHelper cache', () => {
   it('encodes invalid provider id characters before creating store files', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -831,12 +793,12 @@ describe('ProviderSettings effective model projection', () => {
       },
       publishEvent: publishDeepchatEventMock
     }) as InstanceType<typeof ProviderSettings>
-    const presenterWithHelper = presenter as InstanceType<typeof ProviderSettings> & {
+    const presenterWithHelper = presenter as unknown as {
       providerModelHelper: InstanceType<typeof ProviderModelHelper>
     }
 
     presenterWithHelper.providerModelHelper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock
@@ -893,12 +855,12 @@ describe('ProviderSettings effective model projection', () => {
       },
       publishEvent: publishDeepchatEventMock
     }) as InstanceType<typeof ProviderSettings>
-    const presenterWithHelper = presenter as InstanceType<typeof ProviderSettings> & {
+    const presenterWithHelper = presenter as unknown as {
       providerModelHelper: InstanceType<typeof ProviderModelHelper>
     }
 
     presenterWithHelper.providerModelHelper = new ProviderModelHelper({
-      userDataPath: 'C:/mock-user-data',
+      createStore: createModelStore,
       setModelStatus: vi.fn(),
       deleteModelStatus: vi.fn(),
       publishEvent: publishDeepchatEventMock

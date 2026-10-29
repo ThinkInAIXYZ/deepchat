@@ -1042,4 +1042,108 @@ describe('PluginRuntimeSupervisor', () => {
     normalStop.resolve()
     await disable
   })
+  it.each(['launch-check', 'adapter-start', 'process-start'] as const)(
+    'cleans a canceled authentication restart during %s',
+    async (stage) => {
+      const supervisor = new PluginRuntimeSupervisor()
+      const { port, running, active } = createProcessPort()
+      const entered = deferred<void>()
+      const finish = deferred<void>()
+      const safety = createSafetyStore()
+      const guard = {
+        verify: vi.fn(async () => {
+          if (stage === 'launch-check') {
+            entered.resolve()
+            await finish.promise
+          }
+          return runtimeFingerprint('a')
+        })
+      }
+      const adapter = {
+        start: vi.fn(async () => {
+          if (stage === 'adapter-start') {
+            entered.resolve()
+            await finish.promise
+          }
+        }),
+        stop: vi.fn(async () => undefined)
+      }
+      if (stage === 'process-start')
+        vi.mocked(port.start).mockImplementation(async (name) => {
+          active.add(name)
+          entered.resolve()
+          await finish.promise
+          running.add(name)
+        })
+      supervisor.attachProcessPort(port)
+      supervisor.attachSafetyStore(safety.store)
+      register(supervisor, 'fixture', 'eager', adapter, guard)
+      let current = true
+      const pending = supervisor.restartIfRunning('fixture', 'authentication', () => {
+        if (!current) throw new Error('authentication interrupted')
+      })
+      const rejected = expect(pending).rejects.toThrow('authentication interrupted')
+      await entered.promise
+      current = false
+      finish.resolve()
+      await rejected
+      expect(running.size).toBe(0)
+      expect(active.size).toBe(0)
+      expect(safety.values.size).toBe(0)
+      if (stage !== 'process-start') expect(port.start).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not restart a plugin when authentication is canceled during its stop', async () => {
+    const supervisor = new PluginRuntimeSupervisor()
+    const { port } = createProcessPort()
+    supervisor.attachProcessPort(port)
+    register(supervisor, 'fixture')
+    await supervisor.ensureRunning('fixture', 'external')
+    const entered = deferred<void>()
+    const finish = deferred<void>()
+    vi.mocked(port.stop).mockImplementationOnce(async () => {
+      entered.resolve()
+      await finish.promise
+    })
+    let current = true
+    const pending = supervisor.restartIfRunning('fixture', 'authentication', () => {
+      if (!current) throw new Error('authentication interrupted')
+    })
+    const rejected = expect(pending).rejects.toThrow('authentication interrupted')
+    await entered.promise
+    current = false
+    finish.resolve()
+    await rejected
+    expect(port.start).toHaveBeenCalledOnce()
+  })
+
+  it('rejects a superseded stop waiting for another plugin start without stopping its process', async () => {
+    const supervisor = new PluginRuntimeSupervisor()
+    const { port, running, active } = createProcessPort()
+    const entered = deferred<void>()
+    const finish = deferred<void>()
+    vi.mocked(port.start).mockImplementation(async (name) => {
+      active.add(name)
+      entered.resolve()
+      await finish.promise
+      running.add(name)
+    })
+    supervisor.attachProcessPort(port)
+    register(supervisor, 'fixture')
+    const started = supervisor.ensureRunning('fixture', 'external')
+    await entered.promise
+    let current = true
+    const stopped = supervisor.requestExternalStop('fixture', () => {
+      if (!current) throw new Error('authentication interrupted')
+    })
+    const rejected = expect(stopped).rejects.toThrow('authentication interrupted')
+    current = false
+    finish.resolve()
+    await started
+    await rejected
+    expect(running.has('fixture')).toBe(true)
+    expect(port.stop).not.toHaveBeenCalled()
+    await supervisor.requestExternalStop('fixture')
+  })
 })

@@ -1724,10 +1724,8 @@ describe('DeepChatAgentHarness', () => {
     })
     transcriptMutations = new SessionTranscriptMutations({
       transcript: sessionData.transcript,
-      settings: sessionData.settings,
-      pendingInputs: sessionData.pendingInputs,
       runtime: agent,
-      runInTransaction: (operation) => sessionData.database.getDatabase().transaction(operation)()
+      clearTranscript: sessionData.clearTranscript
     })
   })
 

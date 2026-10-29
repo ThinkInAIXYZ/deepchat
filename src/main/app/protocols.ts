@@ -14,7 +14,7 @@ import {
   WORKSPACE_PREVIEW_PROTOCOL
 } from '@/workspace/workspacePreviewProtocol'
 import { registerMcpAppProtocol } from '@/mcp/apps/sandboxProtocol'
-import type { McpAppSandboxRegistry } from '@/mcp/apps/sandboxRegistry'
+import type { McpAppSandboxRegistry, McpAppDesktopPort } from '@/mcp/apps/sandboxRegistry'
 
 const workspacePreviewMimeCache = new Map<string, string>()
 
@@ -148,7 +148,7 @@ const findDeepCdnResourcesDir = async (candidates: string[]): Promise<string> =>
 
 export async function registerProtocols(
   mcpAppSandboxRegistry: McpAppSandboxRegistry
-): Promise<void> {
+): Promise<McpAppDesktopPort> {
   logger.info('registerProtocols: Registering application protocols')
 
   // Register 'deepcdn' protocol for loading built-in resources (simulating CDN)
@@ -298,7 +298,8 @@ export async function registerProtocols(
     }
   })
 
-  registerMcpAppProtocol(mcpAppSandboxRegistry)
+  const mcpAppDesktop = registerMcpAppProtocol(mcpAppSandboxRegistry)
 
   logger.info('registerProtocols: Application protocols registered successfully')
+  return mcpAppDesktop
 }

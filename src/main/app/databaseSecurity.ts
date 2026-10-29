@@ -1,6 +1,5 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { app, safeStorage } from 'electron'
-import ElectronStore from 'electron-store'
+import type { CredentialCryptoPort } from '@/config/secretStore'
 import fs from 'fs'
 import path from 'path'
 import Database from 'better-sqlite3-multiple-ciphers'
@@ -16,7 +15,7 @@ import {
 import { shouldExcludeFromSqliteCopy } from '@/data/sqliteCopyExclusions'
 import { orderSqliteTablesForCopy } from '@/data/sqliteCopyOrder'
 
-type DatabaseSecurityMetadata = {
+export type DatabaseSecurityMetadata = {
   version: 1
   enabled: boolean
   cipher: 'sqlcipher'
@@ -25,6 +24,15 @@ type DatabaseSecurityMetadata = {
   safeStorageBackend?: string
   lastMigrationAt?: number
   lastMigrationDirection?: 'enable' | 'change-password' | 'disable'
+}
+
+export interface DatabaseSecurityCryptoPort extends CredentialCryptoPort {
+  getBackend(): Promise<string | undefined>
+}
+
+export interface DatabaseSecurityMetadataStore {
+  get(key: 'metadata'): DatabaseSecurityMetadata | undefined
+  set(key: 'metadata', value: DatabaseSecurityMetadata): void
 }
 
 type UnlockRequest = {
@@ -48,7 +56,7 @@ export interface DatabaseSecurityMigrationDatabasePort {
   isOpen(): boolean
 }
 
-const DEFAULT_METADATA: DatabaseSecurityMetadata = {
+export const DEFAULT_DATABASE_SECURITY_METADATA: DatabaseSecurityMetadata = {
   version: 1,
   enabled: false,
   cipher: 'sqlcipher',
@@ -98,70 +106,103 @@ function isFtsMaintenanceSchemaObject(row: SqliteSchemaRow & { tbl_name?: string
 }
 
 export class DatabaseSecurityService {
-  private readonly store: ElectronStore<{ metadata: DatabaseSecurityMetadata }>
+  private readonly store: DatabaseSecurityMetadataStore
   private readonly dbPath: string
   private migrationInProgress = false
+  private generation = 0
+  private stopped = false
 
-  constructor(options?: { dbPath?: string }) {
-    const dbDir = path.join(app.getPath('userData'), 'app_db')
-    this.dbPath = options?.dbPath ?? path.join(dbDir, 'agent.db')
-    this.store = new ElectronStore<{ metadata: DatabaseSecurityMetadata }>({
-      name: 'database-security',
-      defaults: {
-        metadata: DEFAULT_METADATA
-      }
-    })
+  constructor(
+    private readonly options: {
+      dbPath: string
+      metadata: DatabaseSecurityMetadataStore
+      crypto: DatabaseSecurityCryptoPort
+    }
+  ) {
+    this.dbPath = options.dbPath
+    this.store = options.metadata
+    if (this.isMigrationInProgress(this.dbPath))
+      throw new Error('Database migration is already in progress')
     this.recoverInterruptedMigrationFiles()
+  }
+
+  stop(): void {
+    this.stopped = true
+    this.generation++
+  }
+
+  private captureOperation(): () => void {
+    const generation = this.generation
+    const check = () => {
+      if (this.stopped || generation !== this.generation)
+        throw new Error('Database security operation interrupted')
+    }
+    check()
+    return check
   }
 
   getDatabasePath(): string {
     return this.dbPath
   }
 
-  private rememberPasswordAfterUnlock(
+  private async rememberPasswordAfterUnlock(
     password: string,
     metadata: DatabaseSecurityMetadata,
-    safeStorageAvailable: boolean
-  ): void {
+    safeStorageAvailable: boolean,
+    check: () => void
+  ): Promise<void> {
     if (!safeStorageAvailable) {
       return
     }
+    const wrappedPassword = await this.options.crypto.encrypt(password)
+    check()
+    const safeStorageBackend = await this.getSafeStorageBackend()
+    check()
     this.persistMetadata({
       ...metadata,
       passwordStorage: 'safeStorage',
-      wrappedPassword: this.wrapPassword(password),
-      safeStorageBackend: this.getSafeStorageBackend()
+      wrappedPassword,
+      safeStorageBackend
     })
   }
 
-  persistRecoveredEncryptionMetadata(password: string): void {
-    this.assertPassword(password)
-    const safeStorageAvailable = this.isSafeStorageAvailable()
-    const metadata = this.getMetadata()
-    this.persistMetadata({
-      version: 1,
-      enabled: true,
-      cipher: 'sqlcipher',
-      passwordStorage: safeStorageAvailable ? 'safeStorage' : 'manual',
-      wrappedPassword: safeStorageAvailable ? this.wrapPassword(password) : undefined,
-      safeStorageBackend: this.getSafeStorageBackend(),
-      lastMigrationAt: metadata.lastMigrationAt,
-      lastMigrationDirection: metadata.lastMigrationDirection
+  async persistRecoveredEncryptionMetadata(password: string): Promise<void> {
+    await this.runMigration(async (check) => {
+      this.assertPassword(password)
+      const metadata = this.getMetadata()
+      const recovered = await this.prepareMetadata(password, {
+        version: 1,
+        enabled: true,
+        cipher: 'sqlcipher',
+        passwordStorage: 'manual',
+        lastMigrationAt: metadata.lastMigrationAt,
+        lastMigrationDirection: metadata.lastMigrationDirection
+      })
+      check()
+      this.persistMetadata(recovered)
     })
   }
 
   clearEncryptionMetadata(): void {
-    this.persistMetadata({ ...DEFAULT_METADATA })
+    this.captureOperation()
+    if (this.isMigrationInProgress(this.dbPath))
+      throw new Error('Database migration is already in progress')
+    this.generation++
+    this.persistMetadata({ ...DEFAULT_DATABASE_SECURITY_METADATA })
   }
 
-  getStatus(): DatabaseSecurityStatus {
+  async getStatus(): Promise<DatabaseSecurityStatus> {
+    const check = this.captureOperation()
+    const safeStorageAvailable = await this.isSafeStorageAvailable()
+    check()
+    const safeStorageBackend = await this.getSafeStorageBackend()
+    check()
     const metadata = this.getMetadata()
-    const safeStorageAvailable = this.isSafeStorageAvailable()
     return {
       enabled: metadata.enabled,
       cipher: 'sqlcipher',
       safeStorageAvailable,
-      safeStorageBackend: this.getSafeStorageBackend(),
+      safeStorageBackend,
       passwordStorage: metadata.passwordStorage,
       manualUnlockRequired:
         metadata.enabled &&
@@ -174,12 +215,16 @@ export class DatabaseSecurityService {
   }
 
   async resolveStartupPassword(unlockProvider: UnlockProvider): Promise<string | undefined> {
+    if (this.isMigrationInProgress(this.dbPath))
+      throw new Error('Database migration is already in progress')
+    const check = this.captureOperation()
     const metadata = this.getMetadata()
     if (!metadata.enabled) {
       return undefined
     }
 
-    const safeStorageAvailable = this.isSafeStorageAvailable()
+    const safeStorageAvailable = await this.isSafeStorageAvailable()
+    check()
     let safeStorageUnlockFailed = false
     if (
       safeStorageAvailable &&
@@ -188,10 +233,12 @@ export class DatabaseSecurityService {
     ) {
       let password: string | undefined
       try {
-        password = this.unwrapPassword(metadata.wrappedPassword)
+        password = await this.options.crypto.decrypt(metadata.wrappedPassword)
+        check()
         this.validatePassword(password)
         return password
       } catch (error) {
+        check()
         if (password !== undefined && isDecryptedDatabaseCorruptionError(error)) {
           return password
         }
@@ -211,25 +258,42 @@ export class DatabaseSecurityService {
 
     while (true) {
       const password = await unlockProvider({ reason, safeStorageAvailable })
+      check()
       if (password === null) {
-        app.quit()
         throw new Error('Database unlock canceled')
       }
 
       try {
         this.validatePassword(password)
-        this.rememberPasswordAfterUnlock(password, metadata, safeStorageAvailable)
-        return password
       } catch (error) {
         if (isDecryptedDatabaseCorruptionError(error)) {
-          this.rememberPasswordAfterUnlock(password, metadata, safeStorageAvailable)
+          await this.rememberPasswordAfterUnlock(password, metadata, safeStorageAvailable, check)
+          check()
           return password
         }
         if (error instanceof OrphanWalDatabaseError) {
           throw error
         }
         reason = 'invalid'
+        continue
       }
+      await this.rememberPasswordAfterUnlock(password, metadata, safeStorageAvailable, check)
+      check()
+      return password
+    }
+  }
+
+  private async runMigration(operation: (check: () => void) => Promise<void>): Promise<void> {
+    this.captureOperation()
+    this.acquireMigrationLock(this.dbPath)
+    this.generation++
+    this.migrationInProgress = true
+    const check = this.captureOperation()
+    try {
+      return await operation(check)
+    } finally {
+      this.migrationInProgress = false
+      this.releaseMigrationLock(this.dbPath)
     }
   }
 
@@ -238,20 +302,27 @@ export class DatabaseSecurityService {
     database: DatabaseSecurityMigrationDatabasePort
     providerSettings: ProviderEncryptionCleanupPort
   }): Promise<DatabaseSecurityStatus> {
-    this.assertPassword(input.password)
-    const metadata = this.getMetadata()
-    if (metadata.enabled) {
-      throw new Error('Database encryption is already enabled')
-    }
-
-    this.cleanupLegacyProviderJson(input.providerSettings)
-    await this.migrateDatabase({
-      database: input.database,
-      sourcePassword: undefined,
-      targetPassword: input.password,
-      direction: 'enable'
+    await this.runMigration(async (check) => {
+      this.assertPassword(input.password)
+      if (this.getMetadata().enabled) throw new Error('Database encryption is already enabled')
+      const metadata = await this.prepareMetadata(input.password, {
+        version: 1,
+        enabled: true,
+        cipher: 'sqlcipher',
+        passwordStorage: 'manual',
+        lastMigrationAt: Date.now(),
+        lastMigrationDirection: 'enable'
+      })
+      check()
+      this.cleanupLegacyProviderJson(input.providerSettings)
+      this.migrateDatabase({
+        database: input.database,
+        sourcePassword: undefined,
+        targetPassword: input.password,
+        direction: 'enable',
+        metadata
+      })
     })
-    this.persistUnlockedMetadata(input.password, 'enable')
     return this.getStatus()
   }
 
@@ -261,22 +332,31 @@ export class DatabaseSecurityService {
     database: DatabaseSecurityMigrationDatabasePort
     providerSettings: ProviderEncryptionCleanupPort
   }): Promise<DatabaseSecurityStatus> {
-    this.assertEnabled()
-    this.assertPassword(input.currentPassword)
-    this.assertPassword(input.newPassword)
-    if (input.currentPassword === input.newPassword) {
-      throw new Error('New SQLite password must differ from the current password')
-    }
-    this.validatePassword(input.currentPassword)
-
-    this.cleanupLegacyProviderJson(input.providerSettings)
-    await this.migrateDatabase({
-      database: input.database,
-      sourcePassword: input.currentPassword,
-      targetPassword: input.newPassword,
-      direction: 'change-password'
+    await this.runMigration(async (check) => {
+      this.assertEnabled()
+      this.assertPassword(input.currentPassword)
+      this.assertPassword(input.newPassword)
+      if (input.currentPassword === input.newPassword)
+        throw new Error('New SQLite password must differ from the current password')
+      this.validatePassword(input.currentPassword)
+      const metadata = await this.prepareMetadata(input.newPassword, {
+        version: 1,
+        enabled: true,
+        cipher: 'sqlcipher',
+        passwordStorage: 'manual',
+        lastMigrationAt: Date.now(),
+        lastMigrationDirection: 'change-password'
+      })
+      check()
+      this.cleanupLegacyProviderJson(input.providerSettings)
+      this.migrateDatabase({
+        database: input.database,
+        sourcePassword: input.currentPassword,
+        targetPassword: input.newPassword,
+        direction: 'change-password',
+        metadata
+      })
     })
-    this.persistUnlockedMetadata(input.newPassword, 'change-password')
     return this.getStatus()
   }
 
@@ -285,20 +365,22 @@ export class DatabaseSecurityService {
     database: DatabaseSecurityMigrationDatabasePort
     providerSettings: ProviderEncryptionCleanupPort
   }): Promise<DatabaseSecurityStatus> {
-    this.assertEnabled()
-    this.assertPassword(input.currentPassword)
-    this.validatePassword(input.currentPassword)
-
-    await this.migrateDatabase({
-      database: input.database,
-      sourcePassword: input.currentPassword,
-      targetPassword: undefined,
-      direction: 'disable'
-    })
-    this.persistMetadata({
-      ...DEFAULT_METADATA,
-      lastMigrationAt: Date.now(),
-      lastMigrationDirection: 'disable'
+    await this.runMigration(async (check) => {
+      this.assertEnabled()
+      this.assertPassword(input.currentPassword)
+      this.validatePassword(input.currentPassword)
+      check()
+      this.migrateDatabase({
+        database: input.database,
+        sourcePassword: input.currentPassword,
+        targetPassword: undefined,
+        direction: 'disable',
+        metadata: {
+          ...DEFAULT_DATABASE_SECURITY_METADATA,
+          lastMigrationAt: Date.now(),
+          lastMigrationDirection: 'disable'
+        }
+      })
     })
     return this.getStatus()
   }
@@ -312,15 +394,17 @@ export class DatabaseSecurityService {
     }
   }
 
-  private async migrateDatabase(input: {
+  private migrateDatabase(input: {
     database: DatabaseSecurityMigrationDatabasePort
     sourcePassword: string | undefined
     targetPassword: string | undefined
     direction: MigrationDirection
-  }): Promise<void> {
+    metadata: DatabaseSecurityMetadata
+  }): void {
     const dbPath = input.database.getDatabasePath()
-    this.acquireMigrationLock(dbPath)
-    this.migrationInProgress = true
+    if (getMigrationLockPath(dbPath) !== getMigrationLockPath(this.dbPath))
+      throw new Error('Database security owner path mismatch')
+    const previousMetadata = this.getMetadata()
     const tempPath = this.getTempPath(dbPath)
     const rollbackPath = this.getRollbackPath(dbPath)
 
@@ -339,10 +423,12 @@ export class DatabaseSecurityService {
 
       try {
         input.database.reopenWithPassword(input.targetPassword)
+        this.persistMetadata(input.metadata)
       } catch (error) {
         input.database.close()
         this.restoreRollbackDatabase(dbPath, rollbackPath)
         input.database.reopenWithPassword(input.sourcePassword)
+        this.persistMetadata(previousMetadata)
         throw error
       }
 
@@ -362,9 +448,6 @@ export class DatabaseSecurityService {
         }
       }
       throw error
-    } finally {
-      this.migrationInProgress = false
-      this.releaseMigrationLock(dbPath)
     }
   }
 
@@ -620,25 +703,30 @@ export class DatabaseSecurityService {
     return counts
   }
 
-  private persistUnlockedMetadata(password: string, direction: MigrationDirection): void {
-    const safeStorageAvailable = this.isSafeStorageAvailable()
-    this.persistMetadata({
-      version: 1,
-      enabled: true,
-      cipher: 'sqlcipher',
-      passwordStorage: safeStorageAvailable ? 'safeStorage' : 'manual',
-      wrappedPassword: safeStorageAvailable ? this.wrapPassword(password) : undefined,
-      safeStorageBackend: this.getSafeStorageBackend(),
-      lastMigrationAt: Date.now(),
-      lastMigrationDirection: direction
-    })
+  private async prepareMetadata(
+    password: string,
+    metadata: DatabaseSecurityMetadata
+  ): Promise<DatabaseSecurityMetadata> {
+    const check = this.captureOperation()
+    const available = await this.isSafeStorageAvailable()
+    check()
+    const backend = await this.getSafeStorageBackend()
+    check()
+    const wrapped = available ? await this.options.crypto.encrypt(password) : undefined
+    check()
+    return {
+      ...metadata,
+      passwordStorage: available ? 'safeStorage' : 'manual',
+      wrappedPassword: wrapped,
+      safeStorageBackend: backend
+    }
   }
 
   private getMetadata(): DatabaseSecurityMetadata {
     const raw = this.store.get('metadata')
     return {
-      ...DEFAULT_METADATA,
-      ...clone(raw ?? DEFAULT_METADATA),
+      ...DEFAULT_DATABASE_SECURITY_METADATA,
+      ...clone(raw ?? DEFAULT_DATABASE_SECURITY_METADATA),
       cipher: 'sqlcipher',
       version: 1
     }
@@ -652,25 +740,17 @@ export class DatabaseSecurityService {
     providerSettings.cleanupLegacyProviderJsonForDatabaseEncryption()
   }
 
-  private wrapPassword(password: string): string {
-    return Buffer.from(safeStorage.encryptString(password)).toString('base64')
-  }
-
-  private unwrapPassword(wrappedPassword: string): string {
-    return safeStorage.decryptString(Buffer.from(wrappedPassword, 'base64'))
-  }
-
-  private isSafeStorageAvailable(): boolean {
+  private async isSafeStorageAvailable(): Promise<boolean> {
     try {
-      return safeStorage.isEncryptionAvailable()
+      return await this.options.crypto.isAvailable()
     } catch {
       return false
     }
   }
 
-  private getSafeStorageBackend(): string | undefined {
+  private async getSafeStorageBackend(): Promise<string | undefined> {
     try {
-      return process.platform === 'linux' ? safeStorage.getSelectedStorageBackend() : undefined
+      return await this.options.crypto.getBackend()
     } catch {
       return undefined
     }

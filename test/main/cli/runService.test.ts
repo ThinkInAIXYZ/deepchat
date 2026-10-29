@@ -16,6 +16,7 @@ import type {
 import { DEFAULT_ORCHESTRATION_POLICY } from '@shared/orchestration/policy'
 import { LOCAL_CONTROL_MAX_JSON_RESPONSE_BYTES } from '@shared/contracts/localControl'
 import { CliRunService, type CliRunServiceOptions } from '@/cli/runService'
+import { DatabaseRequestGate } from '@/app/databaseRequestGate'
 import { CliRequestError } from '@/cli/errors'
 import { TypedEventHub, type TypedEventRecord } from '@/events/typedEventHub'
 import type { CliRouteCaller, RouteContext } from '@/routes/routeRegistry'
@@ -47,6 +48,7 @@ const baseSession: SessionWithState = {
   sessionKind: 'regular',
   parentSessionId: null,
   subagentMeta: null,
+  toolModeOverride: null,
   orchestrationPolicy: DEFAULT_ORCHESTRATION_POLICY,
   createdAt: 100,
   updatedAt: 101,
@@ -145,6 +147,7 @@ function createHarness(
     storedSession?: SessionRecord | null
     messages?: ChatMessageRecord[]
     hasWaitingDescendantInteraction?: boolean
+    readSubscriptionSnapshot?: CliRunServiceOptions['readSubscriptionSnapshot']
   } = {}
 ): {
   service: CliRunService
@@ -195,6 +198,8 @@ function createHarness(
       projection,
       sessions,
       getPendingAssistantMessages,
+      readSubscriptionSnapshot:
+        overrides.readSubscriptionSnapshot ?? (async (read) => await read()),
       hasWaitingDescendantInteraction: vi.fn(
         () => overrides.hasWaitingDescendantInteraction ?? false
       ),
@@ -1023,6 +1028,53 @@ describe('CliRunService', () => {
 
     await expect(result).resolves.toMatchObject({ runId: 'run-1', lastCursor: 'test-epoch_1:0' })
     expect(turn.cancelGeneration).not.toHaveBeenCalled()
+  })
+
+  it('drains only the initial database snapshot while the event watcher stays connected', async () => {
+    const gate = new DatabaseRequestGate(() => undefined)
+    const { service, projection } = createHarness({
+      readSubscriptionSnapshot: (read) => gate.runRequest('events.subscribe', read)
+    })
+    let release!: (session: SessionWithState) => void
+    vi.spyOn(projection, 'getSession').mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve
+        })
+    )
+    let ready!: () => void
+    const snapshotReady = new Promise<void>((resolve) => {
+      ready = resolve
+    })
+    const controller = new AbortController()
+    let finished = false
+    const result = service
+      .dispatchStream(
+        eventsSubscribeRoute.name,
+        { runId: 'run-1' },
+        humanCaller,
+        controller.signal,
+        async (event) => {
+          if (event === 'runs.snapshot') ready()
+        }
+      )
+      .finally(() => {
+        finished = true
+      })
+    gate.beginMaintenance()
+    let drained = false
+    const drain = gate.drain().then(() => {
+      drained = true
+    })
+    await Promise.resolve()
+    expect(drained).toBe(false)
+    release(baseSession)
+    await snapshotReady
+    await drain
+    expect(finished).toBe(false)
+    controller.abort()
+    await result
+    gate.resume()
   })
 
   it('rejects renderer callers before exposing run existence', async () => {

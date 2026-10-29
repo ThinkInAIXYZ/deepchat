@@ -105,6 +105,7 @@ export interface KnowledgeEventPublisher {
 export type KnowledgeServiceDeps = {
   config: KnowledgeConfigPort
   storageRoot: string
+  extensionDirectory: string
   files: KnowledgeFilePort
   dialog: KnowledgeDialogPort
   embeddings: KnowledgeEmbeddingPort

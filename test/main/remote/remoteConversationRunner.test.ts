@@ -3,7 +3,6 @@ import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { app } from 'electron'
 import { RemoteConversationRunner } from '@/remote/conversation/runner'
 import type {
   RemoteSessionAssignmentPort,
@@ -24,6 +23,8 @@ const createSession = (overrides: Partial<SessionWithState> = {}): SessionWithSt
   isPinned: false,
   isDraft: false,
   sessionKind: 'regular',
+  orchestrationPolicy: 'explicit',
+  toolModeOverride: null,
   createdAt: 1,
   updatedAt: 1,
   status: 'idle',
@@ -88,7 +89,7 @@ const createRemoteSessionPorts = (
 
 const createCatalog = (overrides: Partial<RemoteCatalogPort> = {}): RemoteCatalogPort => ({
   getAgentType: vi.fn(async (agentId: string) => (agentId === 'acp-agent' ? 'acp' : 'deepchat')),
-  listAgents: vi.fn(async () => [
+  listAgents: vi.fn<RemoteCatalogPort['listAgents']>(async () => [
     {
       agentId: 'deepchat',
       agentName: 'DeepChat',
@@ -111,18 +112,20 @@ const createWorkspace = (
     throw new Error('unused')
   })
 ): RemoteWorkspacePort => ({
-  getDefaultProjectPath: vi.fn(() => defaultProjectPath),
+  getDefaultProjectPath: vi.fn(async () => defaultProjectPath),
   prepareFile
 })
 
+let profileDirectory = '/mock/path'
+
 const createRunner = (
-  deps: ConstructorParameters<typeof RemoteConversationRunner>[0],
+  deps: Omit<ConstructorParameters<typeof RemoteConversationRunner>[0], 'profileDirectory'>,
   bindingStore: ConstructorParameters<typeof RemoteConversationRunner>[1]
 ) =>
-  new RemoteConversationRunner(deps, {
-    getActiveEvent: vi.fn().mockReturnValue(null),
-    ...bindingStore
-  } as ConstructorParameters<typeof RemoteConversationRunner>[1])
+  new RemoteConversationRunner({ profileDirectory, ...deps }, {
+    ...bindingStore,
+    getActiveEvent: bindingStore.getActiveEvent ?? vi.fn().mockReturnValue(null)
+  } as unknown as ConstructorParameters<typeof RemoteConversationRunner>[1])
 
 const encryptAes128Ecb = (content: Buffer, key: Buffer): Buffer => {
   const cipher = crypto.createCipheriv('aes-128-ecb', key, null)
@@ -132,7 +135,7 @@ const encryptAes128Ecb = (content: Buffer, key: Buffer): Buffer => {
 describe('RemoteConversationRunner', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-    vi.mocked(app.getPath).mockImplementation(() => '/mock/path')
+    profileDirectory = '/mock/path'
   })
 
   it('cancels an active generation through the Session turn port', async () => {
@@ -259,6 +262,7 @@ describe('RemoteConversationRunner', () => {
       path: path.join(workspace, '.deepchat/remote-assets/telegram/hash/message/note.txt'),
       mimeType: 'text/plain',
       content: 'hello file',
+      token: 1,
       metadata: {
         fileName: 'note.txt',
         fileSize: 10,
@@ -276,7 +280,7 @@ describe('RemoteConversationRunner', () => {
       }
     })
     const fileService = {
-      prepareFile: vi.fn(async (filePath: string, mimeType: string) => ({
+      prepareFile: vi.fn(async (filePath: string, mimeType = 'text/plain') => ({
         ...preparedFile,
         path: filePath,
         mimeType
@@ -351,11 +355,12 @@ describe('RemoteConversationRunner', () => {
       turn: { sendMessage },
       projection: { getSession: vi.fn().mockResolvedValue(session) }
     })
-    const prepareFile = vi.fn(async (filePath: string, mimeType: string) => ({
+    const prepareFile = vi.fn(async (filePath: string, mimeType = 'text/plain') => ({
       name: 'scan.png',
       path: filePath,
       mimeType,
       content: '',
+      token: 1,
       metadata: {
         fileName: 'scan.png',
         fileSize: 3,
@@ -415,11 +420,12 @@ describe('RemoteConversationRunner', () => {
       }
     })
     const fileService = {
-      prepareFile: vi.fn(async (filePath: string, mimeType: string) => ({
+      prepareFile: vi.fn(async (filePath: string, mimeType = 'text/plain') => ({
         name: path.basename(filePath),
         path: filePath,
         mimeType,
         content: '',
+        token: 1,
         metadata: {
           fileName: path.basename(filePath),
           fileSize: 0,
@@ -501,6 +507,7 @@ describe('RemoteConversationRunner', () => {
       path: path.join(workspace, '.deepchat/remote-assets/telegram/hash/message/note.txt'),
       mimeType: 'text/plain',
       content: 'hello file',
+      token: 1,
       metadata: {
         fileName: 'note.txt',
         fileSize: 10,
@@ -518,7 +525,7 @@ describe('RemoteConversationRunner', () => {
       }
     })
     const fileService = {
-      prepareFile: vi.fn(async (filePath: string, mimeType: string) => ({
+      prepareFile: vi.fn(async (filePath: string, mimeType = 'text/plain') => ({
         ...preparedFile,
         path: filePath,
         mimeType
@@ -669,6 +676,7 @@ describe('RemoteConversationRunner', () => {
       path: path.join(workspace, '.deepchat/remote-assets/weixin-ilink/hash/message/image-1.png'),
       mimeType: 'image/png',
       content: '',
+      token: 1,
       metadata: {
         fileName: 'image-1.png',
         fileSize: plainContent.length,
@@ -686,7 +694,7 @@ describe('RemoteConversationRunner', () => {
       }
     })
     const fileService = {
-      prepareFile: vi.fn(async (filePath: string, mimeType: string) => ({
+      prepareFile: vi.fn(async (filePath: string, mimeType = 'text/plain') => ({
         ...preparedFile,
         path: filePath,
         mimeType
@@ -766,9 +774,7 @@ describe('RemoteConversationRunner', () => {
     const toolOutputImage = Buffer.from('tool output image')
     await fs.writeFile(path.join(cacheDir, 'generated.png'), cachedImage)
     await fs.writeFile(path.join(cacheDir, 'screenshot.png'), screenshotImage)
-    vi.mocked(app.getPath).mockImplementation((name: string) =>
-      name === 'userData' ? userData : '/mock/path'
-    )
+    profileDirectory = userData
 
     const assistantMessage = {
       id: 'assistant-images',
@@ -927,9 +933,7 @@ describe('RemoteConversationRunner', () => {
   it('persists generated remote images in user data when no workspace is available', async () => {
     const userData = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-user-data-'))
     const image = Buffer.from('generated image without workspace')
-    vi.mocked(app.getPath).mockImplementation((name: string) =>
-      name === 'userData' ? userData : '/mock/path'
-    )
+    profileDirectory = userData
 
     const assistantMessage = {
       id: 'assistant-images-no-workspace',

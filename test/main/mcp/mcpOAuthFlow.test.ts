@@ -15,14 +15,12 @@ import { McpOAuthManager } from '@/mcp/mcpOAuthManager'
 import { DeepChatMcpOAuthProvider } from '@/mcp/mcpOAuthProvider'
 import { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
 import { MCP_OAUTH_REDIRECT_PATH, MCP_OAUTH_REDIRECT_PORT } from '@/mcp/oauthConstants'
-
 const endpoint = 'https://mcp.example/mcp'
 const identity = {
   serverId: '11111111-1111-4111-8111-111111111111',
   configGeneration: 1,
   bindingHash: 'a'.repeat(64)
 }
-
 describe('MCP interactive OAuth', () => {
   let manager: McpOAuthManager
   let store: McpOAuthCredentialStore
@@ -31,7 +29,6 @@ describe('MCP interactive OAuth', () => {
   let registrations: OAuthClientMetadata[]
   let tokenRequests: URLSearchParams[]
   let reservedServers: Server[]
-
   beforeEach(() => {
     registrations = []
     tokenRequests = []
@@ -40,9 +37,8 @@ describe('MCP interactive OAuth', () => {
     vi.mocked(safeStorage.isEncryptionAvailable).mockReturnValue(false)
     vi.mocked(shell.openExternal).mockResolvedValue(undefined)
   })
-
   afterEach(async () => {
-    manager?.logout('example', config)
+    await manager?.logout('example', config)
     await Promise.all(
       reservedServers
         .filter((server) => server.listening)
@@ -50,7 +46,6 @@ describe('MCP interactive OAuth', () => {
     )
     vi.unstubAllGlobals()
   })
-
   async function registeredCallbackUri(occupied = false): Promise<string> {
     const server = createServer().listen(0, '127.0.0.1')
     reservedServers.push(server)
@@ -61,7 +56,6 @@ describe('MCP interactive OAuth', () => {
     }
     return `http://localhost:${port}/mcp/oauth/callback/legacy-random-path`
   }
-
   function setup(issuer: string, clientMetadataUrl?: string): void {
     config = {
       ...identity,
@@ -114,15 +108,24 @@ describe('MCP interactive OAuth', () => {
         throw new Error(`Unexpected OAuth request: ${url}`)
       })
     )
-    store = new McpOAuthCredentialStore('/tmp/deepchat-oauth-flow/credentials.json')
-    manager = new McpOAuthManager(store, vi.fn())
+    store = new McpOAuthCredentialStore({
+      filePath: '/tmp/deepchat-oauth-flow/credentials.json',
+      crypto: {
+        isAvailable: async () => false,
+        encrypt: async () => {
+          throw new Error('Unexpected native encryption')
+        },
+        decrypt: async () => {
+          throw new Error('Unexpected native decryption')
+        }
+      }
+    })
+    manager = new McpOAuthManager(store, shell.openExternal, vi.fn())
   }
-
   function latestAuthorization(): URL {
     const calls = vi.mocked(shell.openExternal).mock.calls
     return new URL(calls[calls.length - 1][0])
   }
-
   function completeAuthorization(
     parameters: Record<string, string> = { code: 'authorization-code' }
   ) {
@@ -135,9 +138,8 @@ describe('MCP interactive OAuth', () => {
     }
     return manager.completeAuthFromCallbackUrl('example', config, callback.toString())
   }
-
-  function seedClient(redirectUris?: string[], clientId = 'legacy-client'): void {
-    store.saveEntry('legacy-credential', {
+  async function seedClient(redirectUris?: string[], clientId = 'legacy-client'): Promise<void> {
+    await store.saveEntry('legacy-credential', {
       binding: {
         ...identity,
         endpoint,
@@ -159,7 +161,6 @@ describe('MCP interactive OAuth', () => {
       }
     })
   }
-
   it.each(['https://auth.example', 'https://auth.example/'])(
     'exchanges and refreshes tokens for issuer %s',
     async (issuer) => {
@@ -167,7 +168,6 @@ describe('MCP interactive OAuth', () => {
       expect((await manager.startAuth('example', config)).state).toBe('authenticating')
       const authorization = latestAuthorization()
       expect((await completeAuthorization()).state).toBe('authenticated')
-
       const verifier = tokenRequests[0].get('code_verifier')!
       expect(createHash('sha256').update(verifier).digest('base64url')).toBe(
         authorization.searchParams.get('code_challenge')
@@ -192,13 +192,11 @@ describe('MCP interactive OAuth', () => {
       ).toBeUndefined()
     }
   )
-
   it('reuses the registered callback after denial with fresh state and PKCE', async () => {
     setup('https://auth.example')
     await manager.startAuth('example', config)
     const first = latestAuthorization()
     expect((await completeAuthorization({ error: 'access_denied' })).state).toBe('error')
-
     expect((await manager.startAuth('example', config)).state).toBe('authenticating')
     const second = latestAuthorization()
     expect(new URL(second.searchParams.get('redirect_uri')!).pathname).toBe(
@@ -212,21 +210,22 @@ describe('MCP interactive OAuth', () => {
     expect((await completeAuthorization()).state).toBe('authenticated')
     expect(registrations).toHaveLength(1)
   })
-
   it.each(['bound', 'legacy'])(
     'preserves a %s registration with a raw stored issuer and normalized config',
     async (storage) => {
       setup('https://auth.example')
       const registeredUri = await registeredCallbackUri()
-      seedClient([registeredUri])
-      store.clearEntryScope('legacy-credential', 'tokens')
+      await seedClient([registeredUri])
+      await store.clearEntryScope('legacy-credential', 'tokens')
       config.authorization!.authorizationServerIssuer = 'https://auth.example/'
       if (storage === 'legacy') {
         const key = createHash('sha256').update(`example\nhttp\n${endpoint}`).digest('hex')
-        store.saveEntry(key, { ...store.load('legacy-credential'), binding: undefined })
-        store.clearEntry('legacy-credential')
+        await store.saveEntry(key, {
+          ...(await store.load('legacy-credential')),
+          binding: undefined
+        })
+        await store.clearEntry('legacy-credential')
       }
-
       expect((await manager.startAuth('example', config)).state).toBe('authenticating')
       const authorization = latestAuthorization()
       expect(new URL(authorization.searchParams.get('redirect_uri')!).pathname).toBe(
@@ -235,11 +234,13 @@ describe('MCP interactive OAuth', () => {
       expect(authorization.searchParams.get('client_id')).toBe('legacy-client')
       expect((await completeAuthorization()).state).toBe('authenticated')
       expect(registrations).toHaveLength(0)
-      const stored = store.findInteractiveCredential({
-        ...identity,
-        endpoint,
-        authorizationServerIssuer: 'https://auth.example/'
-      })?.entry
+      const stored = (
+        await store.findInteractiveCredential({
+          ...identity,
+          endpoint,
+          authorizationServerIssuer: 'https://auth.example/'
+        })
+      )?.entry
       expect(stored?.binding?.authorizationServerIssuer).toBe('https://auth.example/')
       expect(stored?.discoveryState?.authorizationServerMetadata?.issuer).toBe(
         'https://auth.example'
@@ -247,15 +248,13 @@ describe('MCP interactive OAuth', () => {
       expect(stored?.clientInformation?.issuer).toBe('https://auth.example')
     }
   )
-
   it.each([false, true])(
     'handles a registered callback port with occupied=%s',
     async (occupied) => {
       setup('https://auth.example')
       const registeredUri = await registeredCallbackUri(occupied)
-      seedClient([registeredUri])
-      store.clearEntryScope('legacy-credential', 'tokens')
-
+      await seedClient([registeredUri])
+      await store.clearEntryScope('legacy-credential', 'tokens')
       expect((await manager.startAuth('example', config)).state).toBe('authenticating')
       const authorization = latestAuthorization()
       const redirect = new URL(authorization.searchParams.get('redirect_uri')!)
@@ -272,27 +271,29 @@ describe('MCP interactive OAuth', () => {
       expect((await completeAuthorization()).state).toBe('authenticated')
     }
   )
-
-  it.each(['tokens', 'clientInformation'])('ignores a malformed stored issuer in %s', (scope) => {
-    setup('https://auth.example')
-    store.saveEntry(
-      'malformed-credential',
-      scope === 'tokens'
-        ? { tokens: { access_token: 'stale-token', issuer: 'not-a-url' } }
-        : { clientInformation: { client_id: 'stale-client', issuer: 'not-a-url' } }
-    )
-    const provider = new DeepChatMcpOAuthProvider({
-      store,
-      binding: { ...identity, endpoint },
-      initialCredentialKey: 'malformed-credential',
-      credentialKey: (binding) => JSON.stringify(binding),
-      redirectUrl: 'http://localhost:1456/mcp/oauth/callback'
-    })
-
-    expect(provider.clientInformation({ issuer: 'https://auth.example' })).toBeUndefined()
-    expect(provider.tokens({ issuer: 'https://auth.example' })).toBeUndefined()
-  })
-
+  it.each(['tokens', 'clientInformation'])(
+    'ignores a malformed stored issuer in %s',
+    async (scope) => {
+      setup('https://auth.example')
+      await store.saveEntry(
+        'malformed-credential',
+        scope === 'tokens'
+          ? { tokens: { access_token: 'stale-token', token_type: 'Bearer', issuer: 'not-a-url' } }
+          : { clientInformation: { client_id: 'stale-client', issuer: 'not-a-url' } }
+      )
+      const provider = new DeepChatMcpOAuthProvider({
+        openExternal: shell.openExternal,
+        assertActive: () => undefined,
+        store,
+        binding: { ...identity, endpoint },
+        initialCredentialKey: 'malformed-credential',
+        credentialKey: (binding) => JSON.stringify(binding),
+        redirectUrl: 'http://localhost:1456/mcp/oauth/callback'
+      })
+      expect(await provider.clientInformation({ issuer: 'https://auth.example' })).toBeUndefined()
+      expect(await provider.tokens({ issuer: 'https://auth.example' })).toBeUndefined()
+    }
+  )
   it.each([
     { redirectUris: undefined },
     { redirectUris: [] },
@@ -306,8 +307,7 @@ describe('MCP interactive OAuth', () => {
     're-registers a client without a usable local callback: $redirectUris',
     async ({ redirectUris }) => {
       setup('https://auth.example')
-      seedClient(redirectUris)
-
+      await seedClient(redirectUris)
       expect((await manager.startAuth('example', config)).state).toBe('authenticating')
       expect(registrations).toHaveLength(1)
       expect(tokenRequests).toHaveLength(0)
@@ -319,20 +319,17 @@ describe('MCP interactive OAuth', () => {
       expect((await completeAuthorization()).state).toBe('authenticated')
     }
   )
-
   it('keeps an existing dynamic registration when a client metadata URL is configured', async () => {
     setup('https://auth.example', 'https://client.example/deepchat.json')
     const registeredUri = await registeredCallbackUri()
-    seedClient([registeredUri])
-    store.clearEntryScope('legacy-credential', 'tokens')
-
+    await seedClient([registeredUri])
+    await store.clearEntryScope('legacy-credential', 'tokens')
     expect((await manager.startAuth('example', config)).state).toBe('authenticating')
     expect(latestAuthorization().searchParams.get('client_id')).toBe('legacy-client')
     expect(latestAuthorization().searchParams.get('redirect_uri')).toBe(registeredUri)
     expect((await completeAuthorization()).state).toBe('authenticated')
     expect(registrations).toHaveLength(0)
   })
-
   it.each([false, true])(
     'uses a published callback for a URL-based client with existing=%s',
     async (existing) => {
@@ -343,8 +340,8 @@ describe('MCP interactive OAuth', () => {
       }
       setup('https://auth.example', clientMetadataUrl)
       if (existing) {
-        seedClient(undefined, clientMetadataUrl)
-        store.clearEntryScope('legacy-credential', 'tokens')
+        await seedClient(undefined, clientMetadataUrl)
+        await store.clearEntryScope('legacy-credential', 'tokens')
       }
       vi.mocked(shell.openExternal).mockImplementation(async (url) => {
         const authorization = new URL(url)
@@ -354,7 +351,6 @@ describe('MCP interactive OAuth', () => {
         redirect.port = new URL(publishedMetadata.redirect_uris[0]).port
         expect(publishedMetadata.redirect_uris).toContain(redirect.href)
       })
-
       expect((await manager.startAuth('example', config)).state).toBe('authenticating')
       expect((await completeAuthorization()).state).toBe('authenticated')
       expect(tokenRequests[0].get('redirect_uri')).toBe(
@@ -363,4 +359,27 @@ describe('MCP interactive OAuth', () => {
       expect(registrations).toHaveLength(0)
     }
   )
+
+  it('rejects a delayed browser acknowledgement after logout without restoring credentials', async () => {
+    setup('https://auth.example')
+    let acknowledge!: () => void
+    let opened!: () => void
+    const opening = new Promise<void>((resolve) => {
+      opened = resolve
+    })
+    vi.mocked(shell.openExternal).mockImplementationOnce(() => {
+      opened()
+      return new Promise<void>((resolve) => {
+        acknowledge = resolve
+      })
+    })
+    const pending = manager.startAuth('example', config)
+    const rejected = expect(pending).rejects.toThrow('interrupted')
+    await opening
+    expect((await manager.logout('example', config)).authenticated).toBe(false)
+    acknowledge()
+    await rejected
+    expect((await manager.getStatus('example', config)).authenticated).toBe(false)
+    expect(tokenRequests).toHaveLength(0)
+  })
 })

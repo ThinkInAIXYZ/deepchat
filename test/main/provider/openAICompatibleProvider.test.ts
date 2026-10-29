@@ -1,6 +1,9 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
+import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
+import { ModelType } from '@shared/model'
 import {
   AiSdkProvider,
   normalizeExtractedImageText
@@ -19,6 +22,15 @@ const {
   mockRunAiSdkDimensions: vi.fn(),
   mockRunAiSdkEmbeddings: vi.fn(),
   mockRunAiSdkGenerateText: vi.fn()
+}))
+
+const grokAuth = vi.hoisted(() => ({
+  captureOperation: () => () => undefined,
+  ensureAccessToken: vi.fn<() => Promise<string | null>>()
+}))
+
+vi.mock('../../../src/main/provider/auth/xaiGrok', () => ({
+  getGlobalXaiGrokAuth: () => grokAuth
 }))
 
 vi.mock('electron', () => ({
@@ -72,6 +84,12 @@ const createProviderSettings = (): ProviderSettingsPort =>
     getModelStatus: vi.fn().mockReturnValue(true)
   }) as unknown as ProviderSettingsPort
 
+const locale = {
+  allowInsecureTls: providerTestEnvironment.allowInsecureTls,
+  defaultHeaders: providerTestEnvironment.defaultHeaders,
+  getLanguage: () => 'en-US'
+}
+
 describe('AiSdkProvider openai-compatible', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -92,7 +110,7 @@ describe('AiSdkProvider openai-compatible', () => {
   it.each(['text-embedding-3-small', 'text-embedding-ada-002', 'text-embedding-3-large'])(
     'honors cancellation before returning hard-coded dimensions for %s',
     async (modelId) => {
-      const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+      const provider = new AiSdkProvider(createProvider(), createProviderSettings(), locale)
       const controller = new AbortController()
       controller.abort()
 
@@ -113,7 +131,11 @@ describe('AiSdkProvider openai-compatible', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const provider = new AiSdkProvider(createProvider({ enable: true }), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider({ enable: true }),
+      createProviderSettings(),
+      locale
+    )
     const results = await Promise.all(Array.from({ length: 8 }, () => provider.fetchModels()))
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -158,7 +180,7 @@ describe('AiSdkProvider openai-compatible', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(createProvider(), createProviderSettings(), locale)
     await provider.requestProviderJson('https://mock.example.com/v1/models', {
       method: 'GET',
       headers
@@ -170,8 +192,31 @@ describe('AiSdkProvider openai-compatible', () => {
     expect(requestHeaders.get('x-tenant-id')).toBe('team-a')
   })
 
+  it('resolves current Grok OAuth credentials for each direct catalog request', async () => {
+    grokAuth.ensureAccessToken
+      .mockResolvedValueOnce('first-oauth-token')
+      .mockResolvedValueOnce('current-oauth-token')
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => Response.json({ data: [] }))
+    vi.stubGlobal('fetch', fetchMock)
+    const provider = new AiSdkProvider(
+      createProvider({ id: 'grok', baseUrl: 'https://api.x.ai/v1' }),
+      createProviderSettings(),
+      locale
+    )
+
+    await provider.requestProviderJson('https://api.x.ai/v1/models')
+    await provider.requestProviderJson('https://api.x.ai/v1/models')
+
+    expect(grokAuth.ensureAccessToken).toHaveBeenCalledTimes(2)
+    expect(
+      fetchMock.mock.calls.map(([, options]) => new Headers(options?.headers).get('Authorization'))
+    ).toEqual(['Bearer first-oauth-token', 'Bearer current-oauth-token'])
+  })
+
   it('forwards streaming requests to the AI SDK runtime', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(createProvider(), createProviderSettings(), locale)
     ;(provider as any).isInitialized = true
 
     const modelConfig: ModelConfig = {
@@ -180,11 +225,11 @@ describe('AiSdkProvider openai-compatible', () => {
       vision: false,
       functionCall: true,
       reasoning: false,
-      type: 'chat'
+      type: ModelType.Chat
     }
 
     const signal = new AbortController().signal
-    const events = []
+    const events: LLMCoreStreamEvent[] = []
     for await (const event of provider.coreStream(
       [{ role: 'user', content: 'hello' }],
       'gpt-4o',
@@ -220,7 +265,7 @@ describe('AiSdkProvider openai-compatible', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(createProvider(), createProviderSettings(), locale)
     ;(provider as any).isInitialized = true
 
     const result = await provider.transcribeAudio(
@@ -262,7 +307,7 @@ describe('AiSdkProvider openai-compatible', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(createProvider(), createProviderSettings(), locale)
     ;(provider as any).isInitialized = true
 
     await expect(
@@ -271,7 +316,7 @@ describe('AiSdkProvider openai-compatible', () => {
   })
 
   it('uses image generation for OpenAI-compatible models declared by type', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(createProvider(), createProviderSettings(), locale)
     ;(provider as any).isInitialized = true
 
     const modelConfig = {
@@ -318,7 +363,8 @@ describe('AiSdkProvider openai-compatible', () => {
         apiType: 'openai-completions',
         baseUrl: 'https://example.openai.azure.com/openai/deployments/deepchat-prod'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      locale
     )
     ;(provider as any).isInitialized = true
 

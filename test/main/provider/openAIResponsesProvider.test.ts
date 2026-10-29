@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
@@ -69,7 +70,11 @@ describe('OpenAIResponsesProvider', () => {
   })
 
   it('uses the responses runtime for official OpenAI providers', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     ;(provider as any).isInitialized = true
 
     for await (const _event of provider.coreStream(
@@ -109,7 +114,8 @@ describe('OpenAIResponsesProvider', () => {
         name: 'Azure OpenAI',
         baseUrl: 'https://example.openai.azure.com/openai'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     ;(provider as any).isInitialized = true
 
@@ -160,7 +166,8 @@ describe('OpenAIResponsesProvider', () => {
         apiType: 'deepseek',
         baseUrl: 'https://api.deepseek.com/v1'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     ;(provider as any).isInitialized = true
 
@@ -200,7 +207,8 @@ describe('OpenAIResponsesProvider', () => {
         apiType: 'deepseek',
         baseUrl: 'https://api.deepseek.com/v1'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     ;(provider as any).isInitialized = true
 
@@ -241,7 +249,8 @@ describe('OpenAIResponsesProvider', () => {
         apiType: 'deepseek',
         baseUrl: 'https://api.deepseek.com/v1'
       }),
-      createProviderSettings()
+      createProviderSettings(),
+      providerTestEnvironment
     )
     ;(provider as any).isInitialized = true
 
@@ -286,7 +295,11 @@ describe('OpenAIResponsesProvider', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     ;(provider as any).isInitialized = true
 
     const text = await provider.transcribeAudio('gpt-4o-mini-transcribe', 'AQID', 'audio/wav')
@@ -313,7 +326,11 @@ describe('OpenAIResponsesProvider', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     ;(provider as any).isInitialized = true
 
     await expect(

@@ -1,0 +1,24 @@
+[package]
+name = "deepchat-harness"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+publish = false
+
+[dependencies]
+futures-util = "0.3"
+rutis = "=0.16.0"
+rutis-bridge = { version = "=0.16.0", default-features = false, features = ["node"] }
+rutis-loader = { version = "=0.16.0", features = ["node"] }
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = [
+  "rt-multi-thread",
+  "macros",
+  "time",
+  "signal",
+  "sync",
+  "io-util",
+  "io-std"
+] }
+url = "2"

@@ -835,9 +835,13 @@ async function encodeMacVssExtension(context) {
 async function afterPack(context) {
   const { targets, appOutDir } = context
 
+  await validateProviderCatalog(context)
+  await validateAcpRegistry(context)
+
   await copyFffNativePackages(context)
   await copyParcelWatcherNativePackages(context)
   await copyOpendalNativePackages(context)
+  await shareHarnessDuckDbNativePackage(context)
   await packageLightOcrAssets(context)
   await validateNativeKitPrebuilds(context)
   await encodeMacVssExtension(context)
@@ -845,6 +849,84 @@ async function afterPack(context) {
   if (isLinux(targets)) {
     await afterPackLinux({ appOutDir })
   }
+}
+
+export async function validateProviderCatalog(context) {
+  const catalogPath = path.join(
+    getResourcesDir(context),
+    'app.asar.unpacked',
+    'resources',
+    'model-db',
+    'providers.json'
+  )
+  const info = await fs.lstat(catalogPath)
+  if (!info.isFile() || info.isSymbolicLink()) {
+    throw new Error('Bundled Provider catalog is not a regular file')
+  }
+  const catalog = await readJson(catalogPath)
+  if (
+    !catalog.providers ||
+    typeof catalog.providers !== 'object' ||
+    Array.isArray(catalog.providers) ||
+    Object.keys(catalog.providers).length === 0
+  ) {
+    throw new Error('Bundled Provider catalog is empty or invalid')
+  }
+}
+
+export async function validateAcpRegistry(context) {
+  const directory = path.join(
+    getResourcesDir(context),
+    'app.asar.unpacked',
+    'resources',
+    'acp-registry'
+  )
+  const manifestPath = path.join(directory, 'registry.json')
+  const info = await fs.lstat(manifestPath)
+  if (!info.isFile() || info.isSymbolicLink()) {
+    throw new Error('Bundled ACP registry is not a regular file')
+  }
+  const manifest = await readJson(manifestPath)
+  if (
+    typeof manifest.version !== 'string' ||
+    !manifest.version.trim() ||
+    !Array.isArray(manifest.agents) ||
+    !manifest.agents.length
+  ) {
+    throw new Error('Bundled ACP registry is empty or invalid')
+  }
+  for (const agent of manifest.agents) {
+    if (
+      !agent.icon?.startsWith('https://cdn.agentclientprotocol.com/registry/') ||
+      !agent.icon.endsWith('.svg')
+    )
+      continue
+    if (typeof agent.id !== 'string' || !/^[A-Za-z0-9._-]+$/.test(agent.id)) {
+      throw new Error('Bundled ACP registry icon has an invalid agent ID')
+    }
+    const icon = await fs.lstat(path.join(directory, 'icons', `${agent.id}.svg`))
+    if (!icon.isFile() || icon.isSymbolicLink()) {
+      throw new Error('Bundled ACP registry icon is not a regular file')
+    }
+  }
+}
+
+export async function shareHarnessDuckDbNativePackage(context) {
+  const unpacked = path.join(getResourcesDir(context), 'app.asar.unpacked')
+  const harness = path.join(unpacked, 'harness')
+  if (!(await pathExists(harness))) return
+  const packageName = `@duckdb/node-bindings-${context.electronPlatformName}-${getArchName(context.arch)}`
+  const sourceDir = path.join(harness, 'node_modules', packageName)
+  const nativePackage = await readJson(path.join(sourceDir, 'package.json'))
+  const apiPackage = await readJson(
+    path.join(harness, 'node_modules', '@duckdb/node-api', 'package.json')
+  )
+  if (nativePackage.name !== packageName || nativePackage.version !== apiPackage.version) {
+    throw new Error('Harness DuckDB native package identity does not match its API')
+  }
+  // Both Knowledge and the standalone Memory runtime resolve this single unpacked native payload.
+  await copyPackageToUnpackedApp(sourceDir, path.join(unpacked, 'node_modules'), packageName)
+  await fs.rm(sourceDir, { recursive: true, force: true })
 }
 
 export default afterPack

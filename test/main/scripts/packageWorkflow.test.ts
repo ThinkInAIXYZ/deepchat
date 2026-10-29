@@ -161,6 +161,20 @@ const runBashStep = (script: string, env: NodeJS.ProcessEnv) =>
   })
 
 describe('native package reusable workflows', () => {
+  it('executes the packaged Memory worker on each native runner', () => {
+    for (const definition of Object.values(reusableWorkflows)) {
+      const workflow = readWorkflow<ReusableWorkflow>(definition.name)
+      const step = getStep(workflow, 'Verify packaged Memory runtime')
+      expect(step.if).toBeUndefined()
+      expect(step.run).toContain('pnpm run smoke:harness:memory --')
+      expect(step.run).toContain('--resources-path "')
+      expect(step.run).toContain('--executable "')
+      expect(workflow.jobs.package.steps.indexOf(step)).toBeGreaterThan(
+        workflow.jobs.package.steps.indexOf(getStep(workflow, 'Verify packaged DuckDB VSS'))
+      )
+    }
+  })
+
   it('owns the fixed runner mapping and a shared immutable input contract', () => {
     for (const definition of Object.values(reusableWorkflows)) {
       const workflow = readWorkflow<ReusableWorkflow>(definition.name)

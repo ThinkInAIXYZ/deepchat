@@ -57,6 +57,7 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
 2. Install required development tools:
 
    - Install [Node.js](https://nodejs.org/) (Latest LTS version recommended)
+   - Install Rustup for the native Rutis host; `rust-toolchain.toml` pins Rust 1.95.0. `pnpm run dev` and `pnpm run build` build the host automatically; packaged users do not need Rust.
 
 3. Additional setup based on your operating system:
 

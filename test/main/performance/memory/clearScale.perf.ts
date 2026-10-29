@@ -5,6 +5,7 @@ import { expect } from 'vitest'
 import { AgentMemoryTable } from '@/memory/data/tables/agentMemory'
 
 import { describeIfNativeSqlite, requireDatabase } from '../../nativeSqliteHarness'
+import { assertTimingBudget } from './timing'
 
 const CLEAR_CORPUS_SIZE = 10_000
 const CLEAR_BATCH_SIZE = 256
@@ -64,7 +65,7 @@ describeIfNativeSqlite('Agent Memory clear scale', () => {
         })}`
       )
       expect(batchCount).toBe(Math.ceil(CLEAR_CORPUS_SIZE / CLEAR_BATCH_SIZE))
-      expect(maxBatchMs).toBeLessThanOrEqual(CLEAR_MAX_BATCH_MS)
+      assertTimingBudget('clear-10k-max-batch', maxBatchMs, CLEAR_MAX_BATCH_MS)
       expect(job.removed).toBe(CLEAR_CORPUS_SIZE)
       expect(table.countByAgent('clear-agent')).toBe(0)
       expect(

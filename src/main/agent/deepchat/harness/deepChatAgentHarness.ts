@@ -27,10 +27,7 @@ import type { SessionStatePort } from '@/session/data/contracts'
 import type { SessionTranscriptRuntimePort } from '@/session/transcriptMutations'
 import type { DeepChatRuntimeServices } from './runtimeServices'
 
-/**
- * Public boundary of the DeepChat agent runtime. Every method delegates to exactly one owner; the
- * harness holds no phase, queue, cache, subscription, or derived fact of its own.
- */
+/** Delegates each public operation to its existing runtime owner without retaining state. */
 export class DeepChatAgentHarness
   implements DeepChatAgentBackendPort, SessionStatePort, SessionTranscriptRuntimePort
 {
@@ -73,6 +70,8 @@ export class DeepChatAgentHarness
   refreshToolRegistry(): void {
     this.services.runtime.markToolRegistryChanged()
   }
+
+  readonly abortGenerations = (): void => this.services.runtime.abortGenerations()
 
   readonly reconcileAfterDatabaseReopen = (): void => this.services.reconcileAfterDatabaseReopen()
 

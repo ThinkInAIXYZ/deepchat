@@ -1,3 +1,4 @@
+import { createBackgroundExecFixture } from './agentToolDependencies'
 import { EventEmitter } from 'events'
 import { spawn } from 'child_process'
 import fs from 'fs'
@@ -71,7 +72,11 @@ describe('AgentBashHandler output encoding', () => {
       isDirectory: () => true
     } as fs.Stats)
 
-    const handler = new AgentBashHandler(['/workspace'], new CommandPermissionService())
+    const handler = new AgentBashHandler(
+      ['/workspace'],
+      new CommandPermissionService(),
+      createBackgroundExecFixture()
+    )
     const resultPromise = (
       handler as unknown as {
         runDetachedShellProcess: (

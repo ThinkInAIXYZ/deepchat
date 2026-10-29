@@ -1,44 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-// Mock electron-store with in-memory storage to persist user configs across helper instances
-const state = vi.hoisted(() => ({
-  mockStores: new Map<string, Record<string, any>>(),
-  mockDb: null as any
-}))
-vi.mock('electron-store', () => {
-  return {
-    default: class MockElectronStore {
-      private storePath: string
-      private data: Record<string, any>
-      constructor(options: { name: string }) {
-        this.storePath = options.name
-        if (!state.mockStores.has(this.storePath)) state.mockStores.set(this.storePath, {})
-        this.data = state.mockStores.get(this.storePath)!
-      }
-      get(key: string) {
-        return this.data[key]
-      }
-      set(key: string, value: any) {
-        this.data[key] = value
-      }
-      delete(key: string) {
-        delete this.data[key]
-      }
-      has(key: string) {
-        return key in this.data
-      }
-      clear() {
-        Object.keys(this.data).forEach((k) => delete this.data[k])
-      }
-      get store() {
-        return { ...this.data }
-      }
-      get path() {
-        return `/mock/${this.storePath}.json`
-      }
-    }
-  }
-})
+import { createMemoryStore } from '../../helpers/memoryStore'
+
+const state = vi.hoisted(() => ({ mockDb: null as any }))
+let modelStore: ReturnType<typeof createMemoryStore>
 
 // Mock providerDbLoader with a mutable in-memory aggregate
 vi.mock('../../../src/main/provider/providerDbLoader', () => {
@@ -58,8 +23,7 @@ import { resolveCapabilityIdentity } from '../../../src/main/provider/capability
 
 describe('Provider DB strict matching and user overrides', () => {
   beforeEach(() => {
-    // Reset stores and mock DB before each test
-    state.mockStores.clear()
+    modelStore = createMemoryStore()
     state.mockDb = {
       providers: {
         openai: {
@@ -285,7 +249,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('returns provider DB config on strict provider+model match', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
     const cfg = helper.getModelConfig('test-model', 'test-provider')
     expect(cfg.maxTokens).toBe(2000)
     expect(cfg.contextLength).toBe(10000)
@@ -309,7 +273,7 @@ describe('Provider DB strict matching and user overrides', () => {
       reasoning: { supported: false }
     })
     ;(modelCapabilities as any).rebuildIndexFromDb()
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
 
     for (const prefix of ['codex', 'cursor', 'custom-source']) {
       const modelId = `${prefix}/gpt-5.6-sol`
@@ -346,7 +310,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('resolves OpenAI Codex models through the OpenAI catalog identity', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
 
     const config = helper.getModelConfig('gpt-5.6-sol', 'openai-codex')
 
@@ -358,7 +322,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('resolves the OpenAI Codex image model through the OpenAI catalog identity', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
 
     const config = helper.getModelConfig('gpt-image-2', 'openai-codex')
 
@@ -375,7 +339,7 @@ describe('Provider DB strict matching and user overrides', () => {
   it.each(['gpt-image-2.5-sunburst', 'gpt-image-2.5-flare'])(
     'routes Codex image model %s without catalog metadata and preserves user settings',
     (modelId) => {
-      const helper = new ModelConfigHelper()
+      const helper = new ModelConfigHelper(modelStore)
       expect(helper.getModelConfig(modelId, 'openai-codex')).toMatchObject({
         type: ModelType.ImageGeneration,
         apiEndpoint: ApiEndpointType.Image,
@@ -403,7 +367,7 @@ describe('Provider DB strict matching and user overrides', () => {
   )
 
   it('applies partial fallbacks when limit fields are missing', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
     const cfg1 = helper.getModelConfig('partial-limit', 'test-provider')
     expect(cfg1.contextLength).toBe(16000)
     expect(cfg1.maxTokens).toBe(4096)
@@ -421,7 +385,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('caps provider-derived maxTokens defaults at 32000', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
     const cfg = helper.getModelConfig('large-output', 'test-provider')
 
     expect(cfg.contextLength).toBe(200000)
@@ -429,7 +393,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('preserves explicit tool_call=false from provider DB', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
     const cfg = helper.getModelConfig('tool-call-disabled', 'test-provider')
     expect(cfg.contextLength).toBe(16000)
     expect(cfg.maxTokens).toBe(4096)
@@ -437,7 +401,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('falls back to safe defaults when providerId is not provided', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
     const cfg = helper.getModelConfig('test-model')
     expect(cfg.contextLength).toBe(16000)
     expect(cfg.maxTokens).toBe(4096)
@@ -446,7 +410,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('uses capability identity instead of provider iteration order for proxy defaults', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
 
     const proxyConfig = helper.getModelConfig('kimi-k3', 'new-api')
     const directConfig = helper.getModelConfig('kimi-k3', 'moonshot')
@@ -468,7 +432,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('does not inherit globally unique defaults for custom models under a known provider', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
 
     const knownProviderConfig = helper.getModelConfig('foreign-only', 'test-provider')
     const proxyConfig = helper.getModelConfig('foreign-only', 'new-api')
@@ -485,7 +449,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('preserves user ownership when reading route-only configuration', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
     const helperInternals = helper as any
     const cacheKey = helperInternals.generateCacheKey('new-api', 'custom-route-model')
 
@@ -521,7 +485,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('keeps an explicit capability provider override authoritative for proxy defaults', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
 
     const config = helper.getModelConfig('kimi-k3', 'new-api', 'capability-team')
 
@@ -532,7 +496,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('uses safe defaults instead of selecting an ambiguous global model match', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
 
     const cfg = helper.getModelConfig('shared-model', 'new-api')
 
@@ -565,7 +529,7 @@ describe('Provider DB strict matching and user overrides', () => {
         ...facts,
         supportedEndpointTypes: [...facts.supportedEndpointTypes]
       })
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
 
     expect(resolveConfig(helper)).toMatchObject({
       contextLength: 1_050_000,
@@ -586,7 +550,7 @@ describe('Provider DB strict matching and user overrides', () => {
       maxTokens: 32_000
     })
 
-    const restartedHelper = new ModelConfigHelper()
+    const restartedHelper = new ModelConfigHelper(modelStore)
     expect(resolveConfig(restartedHelper)).toMatchObject({
       contextLength: 1_050_000,
       maxTokens: 32_000
@@ -615,7 +579,7 @@ describe('Provider DB strict matching and user overrides', () => {
       ownedBy: 'openai',
       endpointType: 'openai'
     })
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
     const config = helper.getModelConfig(modelId, providerId, undefined, identity, {
       id: modelId,
       name: 'Opaque Renderer',
@@ -640,7 +604,7 @@ describe('Provider DB strict matching and user overrides', () => {
       ownedBy: 'openai',
       endpointType: 'openai'
     })
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
     const config = helper.getModelConfig(modelId, providerId, undefined, identity, {
       id: modelId,
       name: 'Opaque Renderer',
@@ -658,7 +622,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('prefers user config over provider DB and persists across restart', () => {
-    const helper1 = new ModelConfigHelper()
+    const helper1 = new ModelConfigHelper(modelStore)
     const userCfg = {
       maxTokens: 64000,
       contextLength: 128000,
@@ -673,18 +637,18 @@ describe('Provider DB strict matching and user overrides', () => {
     expect(read1).toMatchObject({ ...userCfg, isUserDefined: true })
 
     // Simulate app restart: new helper instance, same version
-    const helper2 = new ModelConfigHelper()
+    const helper2 = new ModelConfigHelper(modelStore)
     const read2 = helper2.getModelConfig('test-model', 'test-provider')
     expect(read2).toMatchObject({ ...userCfg, isUserDefined: true })
 
     // Simulate version bump: non-user entries would be cleared, user entries remain
-    const helper3 = new ModelConfigHelper()
+    const helper3 = new ModelConfigHelper(modelStore)
     const read3 = helper3.getModelConfig('test-model', 'test-provider')
     expect(read3).toMatchObject({ ...userCfg, isUserDefined: true })
   })
 
   it('rejects provider-derived imports while preserving user values', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
     const helperAny = helper as any
     const providerCacheKey = helperAny.generateCacheKey('test-provider', 'large-output')
 
@@ -729,7 +693,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('matches DB with case-insensitive provider/model IDs for provider data (strictly lowercase in DB)', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
     const cfg = helper.getModelConfig('TEST-MODEL', 'TEST-PROVIDER')
     // DB lookup lowercases internally
     expect(cfg.contextLength).toBe(10000)
@@ -737,7 +701,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('matches mixed-case provider DB model IDs case-insensitively', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
 
     const cfg = helper.getModelConfig('minimax-m2.5', 'minimax')
 
@@ -748,7 +712,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('applies MiniMax-M3 provider defaults when the provider DB cache is stale', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
 
     const cfg = helper.getModelConfig('minimax-m3', 'minimax')
 
@@ -761,7 +725,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('keeps MiniMax-M3 context floor after provider facts merge', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
     const cfg = helper.getModelConfig('minimax-m3', 'minimax', undefined, undefined, {
       id: 'minimax-m3',
       name: 'MiniMax M3',
@@ -781,7 +745,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('prefers portrait defaults over legacy reasoning defaults', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
 
     const cfg = helper.getModelConfig('claude-portrait', 'test-provider')
 
@@ -791,7 +755,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('preserves provider portrait sentinel budgets', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
 
     const cfg = helper.getModelConfig('gemini-budget', 'test-provider')
 
@@ -800,7 +764,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('keeps none as the provider default effort without enabling reasoning', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
 
     const cfg = helper.getModelConfig('gpt-5.2', 'test-provider')
 
@@ -810,7 +774,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('forces Moonshot Kimi defaults to the thinking-enabled temperature when reasoning defaults on', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
 
     const cfg = helper.getModelConfig('moonshotai/kimi-k2.6', 'moonshot')
 
@@ -819,7 +783,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('forces Moonshot Kimi :thinking variants to keep reasoning on and temperature at 1.0', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
 
     const cfg = helper.getModelConfig('moonshotai/kimi-k2.6:thinking', 'moonshot')
 
@@ -828,7 +792,7 @@ describe('Provider DB strict matching and user overrides', () => {
   })
 
   it('merges provider facts without persisting derived configuration', () => {
-    const helper = new ModelConfigHelper()
+    const helper = new ModelConfigHelper(modelStore)
 
     const cfg = helper.getModelConfig('claude-portrait', 'test-provider', undefined, undefined, {
       id: 'claude-portrait',

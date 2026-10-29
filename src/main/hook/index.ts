@@ -1,5 +1,4 @@
 import { spawn, type ChildProcess } from 'child_process'
-import { app } from 'electron'
 import fs from 'fs'
 import type {
   HookCommandItem,
@@ -199,14 +198,15 @@ const projectHookEvent = (event: HookEvent, time: string): HookEventProjection =
 
 export class HookService implements HookObserver {
   private accepting = true
-  private readonly activeChildren = new Set<ChildProcess>()
+  private readonly activeChildren = new Map<ChildProcess, Promise<void>>()
   /** Per-session delivery chain: emission order within a session, no coupling across sessions. */
   private readonly sessionChains = new Map<string, Promise<void>>()
   private snapshot: HookConfigSnapshot | null = null
 
   constructor(
     private readonly settings: HookSettingsPort,
-    private readonly query: HookQueryPort
+    private readonly query: HookQueryPort,
+    private readonly appVersion: string
   ) {}
 
   getConfigSnapshot(): HooksNotificationsSettings {
@@ -226,20 +226,36 @@ export class HookService implements HookObserver {
   }
 
   start(): void {
+    if (this.activeChildren.size > 0 || this.sessionChains.size > 0) {
+      throw new Error('Hook work must drain before restarting')
+    }
     this.accepting = true
     this.refreshSubscriptions()
   }
 
   async stop(): Promise<void> {
     this.accepting = false
-    for (const child of this.activeChildren) {
+    for (const child of this.activeChildren.keys()) {
       try {
         child.kill('SIGKILL')
       } catch {
         // Process may already be closing.
       }
     }
-    await Promise.allSettled(Array.from(this.sessionChains.values()))
+    const drain = Promise.allSettled([
+      ...this.sessionChains.values(),
+      ...this.activeChildren.values()
+    ])
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error('Hook work did not drain before shutdown')),
+        COMMAND_TIMEOUT_MS
+      )
+      void drain.then(() => {
+        clearTimeout(timeout)
+        resolve()
+      })
+    })
   }
 
   isObserved(event: HookEventName): boolean {
@@ -268,6 +284,9 @@ export class HookService implements HookObserver {
   }
 
   async testHookCommand(hookId: string): Promise<HookTestResult> {
+    if (!this.accepting) {
+      return { success: false, durationMs: 0, error: 'Hook commands are stopped' }
+    }
     const hook = this.getConfigSnapshot().hooks.find((item) => item.id === hookId)
     if (!hook) {
       return {
@@ -291,7 +310,7 @@ export class HookService implements HookObserver {
       event,
       time: new Date().toISOString(),
       isTest: true,
-      app: { version: app.getVersion(), platform: process.platform },
+      app: { version: this.appVersion, platform: process.platform },
       session: { conversationId: undefined, agentId: null, workdir: null },
       user: { messageId: undefined, promptPreview: 'Test message' },
       tool: null,
@@ -406,7 +425,7 @@ export class HookService implements HookObserver {
       time: projection.time,
       isTest: false,
       app: {
-        version: app.getVersion(),
+        version: this.appVersion,
         platform: process.platform
       },
       session: {
@@ -489,7 +508,13 @@ export class HookService implements HookObserver {
         env,
         windowsHide: true
       })
-      this.activeChildren.add(child)
+      let releaseChild: () => void
+      this.activeChildren.set(
+        child,
+        new Promise<void>((resolve) => {
+          releaseChild = resolve
+        })
+      )
 
       const finalize = (result: HookCommandResult) => {
         if (finished) {
@@ -525,7 +550,6 @@ export class HookService implements HookObserver {
       }, COMMAND_TIMEOUT_MS)
 
       child.on('error', (error) => {
-        this.activeChildren.delete(child)
         clearTimeout(timeout)
         finalize({
           success: false,
@@ -545,6 +569,7 @@ export class HookService implements HookObserver {
 
       child.on('close', (code) => {
         this.activeChildren.delete(child)
+        releaseChild()
         clearTimeout(timeout)
         finalize({
           success: !timedOut && code === 0,

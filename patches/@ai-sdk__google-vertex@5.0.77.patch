@@ -1,0 +1,122 @@
+diff --git a/dist/edge/index.js b/dist/edge/index.js
+index d9ab3f4a1ac8e4114a9057dd725ad6371fd740bf..4f8d63f6cc8a6f545201d3d436abf2b8a13b7382 100644
+--- a/dist/edge/index.js
++++ b/dist/edge/index.js
+@@ -35,6 +35,15 @@ import {
+   WORKFLOW_DESERIALIZE
+ } from "@ai-sdk/provider-utils";
+ import { z as z3 } from "zod/v4";
++// Validate and clone dense vectors without per-component parsing payloads.
++const finiteEmbeddingArraySchema = z3.custom((value) => {
++  if (!Array.isArray(value)) return false;
++  for (let index = 0; index < value.length; index++) {
++    if (!Number.isFinite(value[index])) return false;
++  }
++  return true;
++}).transform((value) => value.slice());
++
+ 
+ // src/google-vertex-error.ts
+ import { createJsonErrorResponseHandler } from "@ai-sdk/provider-utils";
+@@ -236,7 +245,7 @@ var googleVertexTextEmbeddingResponseSchema = z3.object({
+   predictions: z3.array(
+     z3.object({
+       embeddings: z3.object({
+-        values: z3.array(z3.number()),
++        values: finiteEmbeddingArraySchema,
+         statistics: z3.object({
+           token_count: z3.number()
+         })
+@@ -246,7 +255,7 @@ var googleVertexTextEmbeddingResponseSchema = z3.object({
+ });
+ var googleVertexEmbedContentResponseSchema = z3.object({
+   embedding: z3.object({
+-    values: z3.array(z3.number())
++    values: finiteEmbeddingArraySchema
+   }),
+   usageMetadata: z3.object({
+     promptTokenCount: z3.number().nullish()
+diff --git a/dist/index.js b/dist/index.js
+index 58ba8ad2d175fe8cedd8f7f52ab39ff64f83f818..e055b0ede020cb217dcdea4ed40247bdb6d03be2 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -50,6 +50,15 @@ import {
+   WORKFLOW_DESERIALIZE
+ } from "@ai-sdk/provider-utils";
+ import { z as z3 } from "zod/v4";
++// Validate and clone dense vectors without per-component parsing payloads.
++const finiteEmbeddingArraySchema = z3.custom((value) => {
++  if (!Array.isArray(value)) return false;
++  for (let index = 0; index < value.length; index++) {
++    if (!Number.isFinite(value[index])) return false;
++  }
++  return true;
++}).transform((value) => value.slice());
++
+ 
+ // src/google-vertex-error.ts
+ import { createJsonErrorResponseHandler } from "@ai-sdk/provider-utils";
+@@ -251,7 +260,7 @@ var googleVertexTextEmbeddingResponseSchema = z3.object({
+   predictions: z3.array(
+     z3.object({
+       embeddings: z3.object({
+-        values: z3.array(z3.number()),
++        values: finiteEmbeddingArraySchema,
+         statistics: z3.object({
+           token_count: z3.number()
+         })
+@@ -261,7 +270,7 @@ var googleVertexTextEmbeddingResponseSchema = z3.object({
+ });
+ var googleVertexEmbedContentResponseSchema = z3.object({
+   embedding: z3.object({
+-    values: z3.array(z3.number())
++    values: finiteEmbeddingArraySchema
+   }),
+   usageMetadata: z3.object({
+     promptTokenCount: z3.number().nullish()
+diff --git a/src/google-vertex-embedding-model.ts b/src/google-vertex-embedding-model.ts
+index 1b606de29a4fa91575ec8b82f895a1ca3fab37fe..3a3fc77c90da7395368dd456126c7f74793634dd 100644
+--- a/src/google-vertex-embedding-model.ts
++++ b/src/google-vertex-embedding-model.ts
+@@ -13,6 +13,7 @@ import {
+   WORKFLOW_DESERIALIZE,
+ } from '@ai-sdk/provider-utils';
+ import { z } from 'zod/v4';
++
+ import { googleVertexFailedResponseHandler } from './google-vertex-error';
+ import {
+   googleVertexEmbeddingModelOptions,
+@@ -20,6 +21,15 @@ import {
+ } from './google-vertex-embedding-model-options';
+ import type { GoogleVertexConfig } from './google-vertex-config';
+ 
++// Validate and clone dense vectors without per-component parsing payloads.
++const finiteEmbeddingArraySchema = z.custom<number[]>((value) => {
++  if (!Array.isArray(value)) return false;
++  for (let index = 0; index < value.length; index++) {
++    if (!Number.isFinite(value[index])) return false;
++  }
++  return true;
++}).transform((value) => value.slice());
++
+ export class GoogleVertexEmbeddingModel implements EmbeddingModelV4 {
+   readonly specificationVersion = 'v4';
+   readonly modelId: GoogleVertexEmbeddingModelId;
+@@ -191,7 +201,7 @@ const googleVertexTextEmbeddingResponseSchema = z.object({
+   predictions: z.array(
+     z.object({
+       embeddings: z.object({
+-        values: z.array(z.number()),
++        values: finiteEmbeddingArraySchema,
+         statistics: z.object({
+           token_count: z.number(),
+         }),
+@@ -202,7 +212,7 @@ const googleVertexTextEmbeddingResponseSchema = z.object({
+ 
+ const googleVertexEmbedContentResponseSchema = z.object({
+   embedding: z.object({
+-    values: z.array(z.number()),
++    values: finiteEmbeddingArraySchema,
+   }),
+   usageMetadata: z
+     .object({

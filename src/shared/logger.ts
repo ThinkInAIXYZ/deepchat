@@ -1,5 +1,3 @@
-import { is } from '@electron-toolkit/utils'
-
 // Legacy Main diagnostics remain console-only until their owners are migrated or removed. Persisted
 // diagnostics must go through the typed Main logger; arbitrary values must never reach a file sink.
 export const originalConsole = {
@@ -11,8 +9,14 @@ export const originalConsole = {
   trace: console.trace.bind(console)
 }
 
+let debugEnabled = false
+
+export function setLegacyConsoleDebugEnabled(enabled: boolean): void {
+  debugEnabled = enabled
+}
+
 const debug = (...params: unknown[]): void => {
-  if (is.dev) originalConsole.debug(...params)
+  if (debugEnabled) originalConsole.debug(...params)
 }
 
 const logger = {

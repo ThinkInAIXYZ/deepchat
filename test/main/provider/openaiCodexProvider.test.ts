@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import path from 'path'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -208,7 +209,11 @@ describe('OpenAI Codex provider registration', () => {
         }
       ]
     } as any)
-    const aiSdkProvider = new AiSdkProvider(provider, providerSettings as any)
+    const aiSdkProvider = new AiSdkProvider(
+      provider,
+      providerSettings as any,
+      providerTestEnvironment
+    )
 
     const models = await aiSdkProvider.fetchModels()
     providerDbSpy.mockRestore()

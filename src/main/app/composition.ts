@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { SyncReplicaStore } from '@/sync/replica/store'
 import { SyncReplicaEndpoint } from '@/sync/replica/endpoint'
 import { AutomaticSync } from '@/sync/replica/automatic'
@@ -25,6 +26,7 @@ import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/projec
 import {
   approvalClosedEvent,
   approvalRequestedEvent,
+  settingsChangedEvent,
   liveDelegationChangedEvent,
   sessionsTapeInspectorHeadChangedEvent,
   sessionsUpdatedEvent
@@ -32,7 +34,17 @@ import {
 import path from 'path'
 import { pathToFileURL } from 'node:url'
 import { DialogService } from '../desktop/dialog'
-import { safeStorage, app, ipcMain, webContents as electronWebContents } from 'electron'
+import {
+  safeStorage,
+  shell,
+  app,
+  ipcMain,
+  powerMonitor,
+  nativeTheme,
+  nativeImage,
+  net,
+  webContents as electronWebContents
+} from 'electron'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope, type DeepchatEventName } from '@shared/contracts/events'
 import { optimizer } from '@electron-toolkit/utils'
@@ -55,14 +67,22 @@ import type {
 import type { DialogServicePort } from '@shared/types/dialog'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { ProviderRuntime } from '../provider'
-import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
+import {
+  RutisAgentInvocationAdmission,
+  DEFAULT_AGENT_INVOCATION_CAPACITY,
+  DEFAULT_AGENT_INVOCATION_MAX_PENDING
+} from '@/agent/invocationAdmission'
+import { HarnessRuntime } from '../harness/runtime'
+import { RutisMemoryVectorStores } from '../harness/memory-vector'
 import { ProviderImportService } from '../provider/providerImportService'
 import { ProviderDatabase } from '../provider/data/database'
 import { createProviderRoutes } from '../provider/routes'
 import { ProviderSettings } from '../provider/settings'
 import type { SettingsStore } from '../config/settingsStore'
 import type { SecretStore } from '../config/secretStore'
-import { providerDbLoader } from '../provider/providerDbLoader'
+import { providerDbLoader, type ProviderDbBootstrap } from '../provider/providerDbLoader'
+import { buildDefaultProviderHeaders } from '../provider/providerHeaders'
+import { isInsecureTlsAllowed } from '../lib/insecureTls'
 import { AcpProvider } from '../provider/providers/acpProvider'
 import { proxyConfig, ProxyMode } from '../platform/proxy'
 import { DeviceService } from '../device'
@@ -75,10 +95,21 @@ import { ToolchainResolutionError } from '@/toolchains/errors'
 import { createToolchainRoutes } from '@/toolchains/routes'
 import { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
 import { OcrRuntimeService } from '@/ocr/ocrRuntimeService'
+import { SafeStorageOcrCacheKeyProvider } from '@/ocr/ocrCacheKeyProvider'
 import { OcrSettings } from '@/ocr/ocrSettings'
 import { createOcrRoutes } from '@/ocr/routes'
 import { McpService } from '../mcp'
-import { ImportMode, SyncService, type SyncImportDatabasePort } from '../sync'
+import { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
+import { credentialCrypto, secureCredentialCrypto } from './credentialCrypto'
+import {
+  ImportMode,
+  SyncService,
+  type SyncImportDatabasePort,
+  type SyncImportResult
+} from '../sync'
+import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
+import type { DatabaseRepairReport } from '@shared/types/databaseSchema'
+import { DatabaseRequestGate } from './databaseRequestGate'
 import { SyncSettings } from '../sync/settings'
 import { DeeplinkService } from '../deeplink'
 import { createDeeplinkActions } from '../deeplink/actions'
@@ -91,11 +122,19 @@ import {
   type SemanticNotificationPublisher
 } from '../notifications'
 import { DesktopSettings } from '../desktop/settings'
+import { DesktopConfigurationHost } from '../desktop/configurationHost'
+import { DesktopConfigurationProjection } from '../desktop/configurationProjection'
+import { DesktopRemoteAuthWindows } from '../desktop/remoteAuthWindows'
+import { DesktopImageActions } from '../desktop/imageActions'
 import { FontSettings } from '../desktop/fontSettings'
 import { TabPresenter } from '../desktop/tab'
 import { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import { TrayPresenter } from '../desktop/tray'
 import { OAuthService } from '../provider/auth'
+import { OpenAICodexCredentialStore } from '../provider/auth/openaiCodex/credentialStore'
+import { XaiGrokCredentialStore } from '../provider/auth/xaiGrok/credentialStore'
+import { initializeGlobalOpenAICodexAuth } from '../provider/auth/openaiCodex'
+import { initializeGlobalXaiGrokAuth } from '../provider/auth/xaiGrok'
 import { FloatingButtonPresenter } from '../desktop/floatingButton'
 import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
 import { ComputerUsePreviewPresenter } from '@/desktop/computerUse/ComputerUsePreviewPresenter'
@@ -108,7 +147,7 @@ import { RendererPerformanceLogService } from './rendererPerformanceLogService'
 import type { PrivacySettings } from './privacy'
 import type { ProxySettings } from '@/platform/proxySettings'
 import type { McpSettings } from '@/mcp/settings'
-import type { McpAppSandboxRegistry } from '@/mcp/apps/sandboxRegistry'
+import type { McpAppSandboxRegistry, McpAppDesktopPort } from '@/mcp/apps/sandboxRegistry'
 import type { AcpCatalogSettings } from '@/agent/acp/catalog/settings'
 import { ToolService } from '../tool'
 import { createToolRoutes } from '../tool/routes'
@@ -137,6 +176,8 @@ import { createSyncHostRoutes } from '../sync/host/routes'
 import { createPlatformRoutes } from '../platform/routes'
 import { createHookRoutes } from '../hook/routes'
 import { createAppSettingsRoutes } from './settingsRoutes'
+import { AppSettingsService } from './settingsService'
+import type { SettingsActivityInput } from '@shared/contracts/routes'
 import { createAppRoutes } from './routes'
 import { registerClipboardIpc } from './clipboardIpc'
 import { createRendererIpcAuthorizer } from './rendererIpcSecurity'
@@ -159,6 +200,8 @@ import { SkillExecutionAuthorityResolver } from '../skill/skillExecutionAuthorit
 import { HookService } from '../hook'
 import { HookSettings } from '../hook/config'
 import { SchedulerService, createCronJobRunSessionStarter } from '../scheduler'
+import { SchedulerProcessManager } from '@/scheduler/schedulerProcessManager'
+import { spawnSchedulerHost } from './schedulerHost'
 import { AgentManager } from '@/agent/manager/agentManager'
 import { createDeepChatAgentBackend } from '@/agent/manager/deepChatAgentBackend'
 import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
@@ -184,14 +227,15 @@ import { createDeepChatAgentHarness, type DeepChatAgentHarness } from '@/agent/d
 import type { RunJournalObservation } from '@/agent/deepchat/runtime/types'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import { createAcpRuntimeOwner } from '@/agent/acp/createRuntimeOwner'
+import { AcpRegistryService } from '@/agent/acp/catalog/acpRegistryService'
+import { isAcpRegistryIconUrl } from '@/agent/acp/catalog/acpRegistryConstants'
 import { createAcpRoutes } from '@/agent/acp/routes'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import type {
   MemoryIngestionDrainOutcome,
   MemoryIngestionObserver
 } from '@/agent/deepchat/memory/memoryIngestionObserver'
-import { MemoryService, isSafeAgentId, type MemoryServicePort } from '../memory'
-import { createMemoryVectorStorePaths, MemoryVectorStore } from '../memory/infra/memoryVectorStore'
+import { MemoryService, type MemoryServicePort } from '../memory'
 import { ProjectService } from '../project'
 import { ProjectDatabase } from '@/project/data/database'
 import { SettingsDatabase } from '@/settings/data/database'
@@ -214,8 +258,10 @@ import { createProjectRoutes } from '../project/routes'
 import { RemoteService } from '../remote'
 import type { RemoteServiceLike } from '../remote/ports'
 import { PluginService, type PluginServicePort } from '../plugin'
+import type { PluginToolPolicyStore } from '@/plugin/toolPolicyStore'
 import { createPluginRoutes } from '../plugin/routes'
 import { PluginRuntimeSupervisor } from '../plugin/runtimeSupervisor'
+import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
 import { AgentRepository } from '../agent/repository'
 import { AgentDatabase } from '@/agent/data/database'
 import { DeepChatDefaults } from '../agent/deepchat/defaults'
@@ -290,7 +336,9 @@ import {
 import { CliRequestError } from '@/cli/errors'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 import { AcpAuthService } from '@/agent/acp/auth/acpAuthService'
-import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
+import { BackgroundExecService } from '@/agent/shared/process/backgroundExecSessionManager'
+import { spawnBackgroundExecHost } from './backgroundExecHost'
+import { spawnCodeModeHost } from './codeModeHost'
 import {
   runBuiltinMcpAllowlistCompatibilityMigration,
   runDisabledAgentToolCapabilityCleanupMigration,
@@ -312,6 +360,22 @@ import {
 
 type ApplicationDatabaseMaintenancePort = SyncImportDatabasePort &
   DatabaseSecurityMigrationDatabasePort
+
+type DatabaseImportCommand =
+  | { kind: 'import-backup-file'; filePath: string; mode: 'increment' | 'overwrite' }
+  | { kind: 'import-backup'; fileName: string; mode: 'increment' | 'overwrite' }
+
+type DatabaseEncryptionCommand =
+  | { kind: 'enable-encryption'; password: string }
+  | { kind: 'change-password'; currentPassword: string; newPassword: string }
+  | { kind: 'disable-encryption'; currentPassword: string }
+
+type DatabaseRepairCommand = { kind: 'repair-schema' }
+type DatabaseMaintenanceCommand =
+  | DatabaseImportCommand
+  | DatabaseEncryptionCommand
+  | DatabaseRepairCommand
+type DatabaseMaintenanceResult = SyncImportResult | DatabaseSecurityStatus | DatabaseRepairReport
 
 export interface MainProcessControl {
   focusPrimaryWindow(): void
@@ -499,12 +563,16 @@ function createLivePort<T extends object>(resolve: () => T): T {
 
 export async function createMainProcessControl(dependencies: {
   previousAppVersion?: string
+  currentAppVersion: string
+  providerCatalogBootstrap: ProviderDbBootstrap
   settingsStore: SettingsStore
   secretStore: SecretStore
   privacySettings: PrivacySettings
   proxySettings: ProxySettings
   mcpSettings: McpSettings
+  pluginToolPolicies: PluginToolPolicyStore
   mcpAppSandboxRegistry: McpAppSandboxRegistry
+  mcpAppDesktop: McpAppDesktopPort
   acpCatalogSettings: AcpCatalogSettings
   database: MainDatabase
   settingsDatabase: SettingsDatabase
@@ -596,8 +664,13 @@ export async function createMainProcessControl(dependencies: {
   let cliRequestPolicy: CliRequestPolicy
   let cliRunService: CliRunService
   let hasInitialized = false
-  let databaseMaintenanceState: 'running' | 'maintenance' | 'failed' = 'running'
   let appLifecycleState: 'starting' | 'running' | 'stopping' | 'stopped' = 'starting'
+  const databaseRequests = new DatabaseRequestGate(() => {
+    if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped')
+      throw new Error(`App lifecycle is ${appLifecycleState}`)
+  })
+  let nativeSettings: DesktopConfigurationProjection
+  let appSettingsService: AppSettingsService
   let shutdownStepFailures = 0
   let pluginInitializationPromise: Promise<void> | null = null
   let skillInitializationPromise: Promise<void> | null = null
@@ -605,12 +678,8 @@ export async function createMainProcessControl(dependencies: {
 
   windowPresenter = new WindowPresenter(
     {
-      getCloseToQuit: () => dependencies.settingsStore.get<boolean>('closeToQuit') ?? false,
-      getContentProtectionEnabled: () =>
-        dependencies.settingsStore.get<boolean>('contentProtectionEnabled') ?? false
-    },
-    () => {
-      restartApplication().catch((error) => logger.error('Application restart failed:', error))
+      getCloseToQuit: () => nativeSettings.getCloseToQuit(),
+      getContentProtectionEnabled: () => nativeSettings.getContentProtectionEnabled()
     },
     dependencies.onWindowCreated,
     startupWorkloadCoordinator
@@ -652,12 +721,14 @@ export async function createMainProcessControl(dependencies: {
     appVersion: app.getVersion(),
     dispatch: async (method, input, caller, signal) => {
       if (cliAudioTranscriptionService?.handlesRpc(method)) {
-        assertRouteAllowedDuringDatabaseMaintenance(method)
-        return await cliAudioTranscriptionService.dispatchRpc(method, input, caller, signal)
+        return await databaseRequests.runRequest(method, () =>
+          cliAudioTranscriptionService!.dispatchRpc(method, input, caller, signal)
+        )
       }
       if (cliOcrService?.handlesRpc(method)) {
-        assertRouteAllowedDuringDatabaseMaintenance(method)
-        return await cliOcrService.dispatchRpc(method, input, caller, signal)
+        return await databaseRequests.runRequest(method, () =>
+          cliOcrService!.dispatchRpc(method, input, caller, signal)
+        )
       }
       if (!routeDispatcher) throw new Error('CLI route dispatcher is not ready')
       signal.throwIfAborted()
@@ -673,14 +744,15 @@ export async function createMainProcessControl(dependencies: {
       signal,
       takeSettlementOwnership
     ) => {
-      assertRouteAllowedDuringDatabaseMaintenance(method)
-      return await programmaticToolDispatcher.dispatch(
-        method,
-        input,
-        caller,
-        operation,
-        signal,
-        takeSettlementOwnership
+      return await databaseRequests.runRequest(method, () =>
+        programmaticToolDispatcher.dispatch(
+          method,
+          input,
+          caller,
+          operation,
+          signal,
+          takeSettlementOwnership
+        )
       )
     },
     completeProgrammaticToolPreDispatchFailure: (method, operation, error) => {
@@ -688,35 +760,39 @@ export async function createMainProcessControl(dependencies: {
     },
     dispatchStream: async (method, input, caller, requestId, signal, emit) => {
       if (cliRunService?.handlesStream(method)) {
-        assertRouteAllowedDuringDatabaseMaintenance(method)
+        databaseRequests.assertRouteAllowed(method)
         return await cliRunService.dispatchStream(method, input, caller, signal, emit)
       }
       if (!cliComputeService) throw new Error('CLI compute service is not ready')
-      assertRouteAllowedDuringDatabaseMaintenance(method)
-      return await cliComputeService.dispatchStream(method, input, caller, requestId, signal, emit)
+      return await databaseRequests.runRequest(method, () =>
+        cliComputeService.dispatchStream(method, input, caller, requestId, signal, emit)
+      )
     },
     dispatchUpload: async (method, input, upload, caller, signal) => {
-      assertRouteAllowedDuringDatabaseMaintenance(method)
-      if (cliAudioTranscriptionService?.handlesUpload(method)) {
-        return await cliAudioTranscriptionService.dispatchUpload(
-          method,
-          input,
-          upload,
-          caller,
-          signal
-        )
-      }
-      if (cliOcrService?.handlesUpload(method)) {
-        return await cliOcrService.dispatchUpload(method, input, upload, caller, signal)
-      }
-      if (cliSkillService?.handlesUpload(method)) {
-        return await cliSkillService.dispatchUpload(method, input, upload, caller, signal)
-      }
-      throw new Error(`CLI upload service is not ready for ${method}`)
+      return await databaseRequests.runRequest(method, async () => {
+        if (cliAudioTranscriptionService?.handlesUpload(method)) {
+          return await cliAudioTranscriptionService.dispatchUpload(
+            method,
+            input,
+            upload,
+            caller,
+            signal
+          )
+        }
+        if (cliOcrService?.handlesUpload(method)) {
+          return await cliOcrService.dispatchUpload(method, input, upload, caller, signal)
+        }
+        if (cliSkillService?.handlesUpload(method)) {
+          return await cliSkillService.dispatchUpload(method, input, upload, caller, signal)
+        }
+        throw new Error(`CLI upload service is not ready for ${method}`)
+      })
     },
     authorize: async (input) => {
       if (!cliRequestPolicy) throw new Error('CLI request policy is not ready')
-      return await cliRequestPolicy.authorize(input)
+      return await databaseRequests.runAuthorization(input.entry.contract.name, () =>
+        cliRequestPolicy.authorize(input)
+      )
     },
     beginAgentRequest: (token) => agentCliTokenAuthority.beginRequest(token),
     artifactSpool,
@@ -767,7 +843,15 @@ export async function createMainProcessControl(dependencies: {
       })
     }
   }
+  let settingsRevision = 0
+  const nextSettingsVersion = () => ++settingsRevision
   const publishDeepchatEvent = (name: DeepchatEventName, payload: unknown): void => {
+    if (name === 'settings.changed') {
+      payload = {
+        ...settingsChangedEvent.payload.parse(payload),
+        version: nextSettingsVersion()
+      }
+    }
     sessionEventRouter.publish(name, payload)
     if (name === 'sessions.status.changed') {
       const state = payload as { sessionId: string; status: string }
@@ -794,6 +878,8 @@ export async function createMainProcessControl(dependencies: {
     dependencies.privacySettings,
     dependencies.providerDatabase,
     publishDeepchatEvent,
+    dependencies.currentAppVersion,
+    dependencies.providerCatalogBootstrap,
     dependencies.previousAppVersion
   )
 
@@ -978,7 +1064,7 @@ export async function createMainProcessControl(dependencies: {
     projectDatabase,
     memoryDatabase,
     sessionData.tapeStore,
-    undefined,
+    path.join(app.getPath('userData'), 'app_db', 'chat.db'),
     () => projectService.notifyEnvironmentProjectionChanged()
   )
   usageStatsService = new UsageStatsService(
@@ -987,41 +1073,134 @@ export async function createMainProcessControl(dependencies: {
     dependencies.settingsStore,
     sessionData.tapeStore
   )
+  const desktopConfigurationHost = new DesktopConfigurationHost(
+    app.getPath('userData'),
+    setMainLoggingEnabled,
+    restartApplication
+  )
   const desktopSettings = new DesktopSettings(
     dependencies.settingsStore,
     {
-      refreshLanguage: () => {
-        floatingButtonPresenter.refreshLanguage()
-        void tabPresenter.refreshLanguage()
+      systemLocale: app.getLocale(),
+      readTheme: async () => ({
+        theme: nativeTheme.themeSource,
+        isDark: nativeTheme.shouldUseDarkColors
+      }),
+      applyTheme: async (theme) => {
+        nativeTheme.themeSource = theme
+        return nativeTheme.shouldUseDarkColors
       },
-      refreshTheme: () => floatingButtonPresenter.refreshTheme()
+      refreshLanguage: async (locale) => {
+        floatingButtonPresenter.refreshLanguage(locale)
+        await tabPresenter.refreshLanguage(locale)
+      },
+      refreshTheme: (isDark) => floatingButtonPresenter.refreshTheme(isDark),
+      readLaunchAtLogin: async () => app.getLoginItemSettings().openAtLogin,
+      setLaunchAtLogin: async (enabled) => {
+        app.setLoginItemSettings({ openAtLogin: enabled })
+        return app.getLoginItemSettings().openAtLogin
+      },
+      applyContentProtection: async (enabled) => {
+        ;(windowPresenter as WindowPresenter).applyContentProtection(enabled)
+        desktopConfigurationHost.requestRestart()
+      },
+      applyFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled)
     },
-    publishDeepchatEvent
+    publishDeepchatEvent,
+    () => appSettingsService.publishNativeSnapshot()
   )
-  const fontSettings = new FontSettings(dependencies.settingsStore, publishDeepchatEvent)
-  const skillSettings = new SkillSettings(dependencies.settingsStore)
+  const fontSettings = new FontSettings(dependencies.settingsStore, publishDeepchatEvent, () =>
+    desktopConfigurationHost.listSystemFonts()
+  )
+  const skillSettings = new SkillSettings(dependencies.settingsStore, app.getPath('home'))
   const traceSettings = new AgentTraceSettings(dependencies.settingsStore)
 
+  const acpBootstrap = {
+    appVersion: dependencies.currentAppVersion,
+    homeDirectory: app.getPath('home'),
+    temporaryDirectory: app.getPath('temp')
+  }
   const acpSessionPersistence = new AcpSessionPersistence(
     agentDatabase,
     sessionData.database,
     projectDatabase,
+    acpBootstrap.homeDirectory,
     () => projectService.notifyEnvironmentProjectionChanged()
   )
   let providerRuntime!: ProviderRuntime
+  const codexAuth = initializeGlobalOpenAICodexAuth(
+    publishDeepchatEvent,
+    new OpenAICodexCredentialStore({
+      filePath: path.join(app.getPath('userData'), 'openai-codex-auth', 'credentials.json'),
+      crypto: credentialCrypto
+    }),
+    (url) => shell.openExternal(url)
+  )
+  const grokAuth = initializeGlobalXaiGrokAuth(
+    publishDeepchatEvent,
+    new XaiGrokCredentialStore({
+      filePath: path.join(app.getPath('userData'), 'xai-grok-auth', 'credentials.json'),
+      crypto: credentialCrypto
+    }),
+    (url) => shell.openExternal(url)
+  )
   oauthService = new OAuthService(
     {
-      getProviderById: (providerId) => providerSettings.getProviderById(providerId),
-      setProviderById: (providerId, provider) =>
-        providerRuntime.setProviderById(providerId, provider)
+      getGitHubCopilotSignInTarget: async (providerId) => {
+        if (databaseRequests.state !== 'running')
+          throw new Error(`App database maintenance is ${databaseRequests.state}`)
+        return await providerRuntime.getGitHubCopilotSignInTarget(providerId)
+      },
+      commitGitHubCopilotCredential: async (target, apiKey) => {
+        if (databaseRequests.state !== 'running')
+          throw new Error(`App database maintenance is ${databaseRequests.state}`)
+        await providerRuntime.commitGitHubCopilotCredential(target, apiKey)
+      },
+      invalidateGitHubCopilotSignIns: () => providerRuntime.invalidateGitHubCopilotSignIns()
     },
-    publishDeepchatEvent
+    {
+      getOpenAICodexStatus: () => codexAuth.getStatus(),
+      startOpenAICodexBrowserLogin: () => codexAuth.startBrowserLogin(),
+      completeOpenAICodexBrowserLoginFromUrl: (url) =>
+        codexAuth.completeBrowserLoginFromCallbackUrl(url),
+      cancelOpenAICodexLogin: () => codexAuth.cancelLogin(),
+      logoutOpenAICodex: () => codexAuth.logout(),
+      getXaiGrokStatus: () => grokAuth.getStatus(),
+      startXaiGrokDeviceLogin: () => grokAuth.startDeviceLogin(),
+      cancelXaiGrokLogin: () => grokAuth.cancelLogin(),
+      logoutXaiGrok: () => grokAuth.logout(),
+      stop: async () => {
+        codexAuth.stop()
+        grokAuth.stop()
+      }
+    }
   )
+  const acpRegistry = new AcpRegistryService({
+    userDataDirectory: app.getPath('userData'),
+    builtInDirectory: path.join(
+      app.isPackaged ? path.join(process.resourcesPath, 'app.asar.unpacked') : app.getAppPath(),
+      'resources',
+      'acp-registry'
+    ),
+    isPrivacyModeEnabled: () => dependencies.privacySettings.isEnabled(),
+    fetchIcon: async (url, signal) => {
+      if (!isAcpRegistryIconUrl(url)) throw new Error('Unsupported ACP registry icon URL')
+      signal.throwIfAborted()
+      const response = await net.fetch(url, { signal })
+      if (!response.ok) {
+        throw new Error(`Failed to fetch icon: ${response.status} ${response.statusText}`)
+      }
+      const text = await response.text()
+      signal.throwIfAborted()
+      if (text.length > 1024 * 1024) throw new Error('ACP registry icon exceeds the size limit')
+      return text
+    }
+  })
   const agentSettings = new AgentSettings(
     dependencies.settingsStore,
     agentRepository,
     dependencies.acpCatalogSettings,
-    () => dependencies.privacySettings.isEnabled(),
+    acpRegistry,
     app.getPath('userData'),
     {
       getModelConfig: (modelId, providerId) => providerSettings.getModelConfig(modelId, providerId),
@@ -1061,9 +1240,11 @@ export async function createMainProcessControl(dependencies: {
     },
     (agentId) => memoryService.onAgentMemoryMaintenanceConfigChanged(agentId),
     skillSettings,
-    agentLifecycle
+    agentLifecycle,
+    () => databaseRequests.assertRouteAllowed('config.ensureAcpAgentInstalled')
   )
   const acpRuntimeOwner = createAcpRuntimeOwner({
+    bootstrap: acpBootstrap,
     providerConfig: providerSettings,
     agentSettings,
     mcpSettings: dependencies.mcpSettings,
@@ -1104,7 +1285,11 @@ export async function createMainProcessControl(dependencies: {
   })
   providerRuntime = new ProviderRuntime(
     providerSettings,
-    desktopSettings,
+    {
+      getLanguage: () => desktopSettings.getLanguage(),
+      defaultHeaders: buildDefaultProviderHeaders(dependencies.currentAppVersion),
+      allowInsecureTls: isInsecureTlsAllowed()
+    },
     agentSettings,
     dependencies.mcpSettings,
     acpRuntimeOwner,
@@ -1219,19 +1404,37 @@ export async function createMainProcessControl(dependencies: {
   deviceService = new DeviceService()
   const loggingService = new LoggingService(
     dependencies.settingsStore,
-    () => {
-      restartApplication().catch((error) => logger.error('Application restart failed:', error))
-    },
+    desktopConfigurationHost,
     publishDeepchatEvent,
-    setMainLoggingEnabled
+    () => appSettingsService.publishNativeSnapshot()
   )
   const rendererPerformanceLogService = new RendererPerformanceLogService(
-    dependencies.settingsStore
+    () => nativeSettings.getLoggingEnabled(),
+    app.getPath('userData')
   )
+  const resolveProjectDirectory = (name: 'documents' | 'home'): string | null => {
+    try {
+      return app.getPath(name)
+    } catch (error) {
+      console.warn(
+        `[ProjectService] Failed to resolve ${name === 'documents' ? 'Documents' : 'Home'} path:`,
+        error
+      )
+      return null
+    }
+  }
   projectService = new ProjectService(
     projectDatabase,
     sessionData.database,
-    deviceService,
+    {
+      tempDirectory: app.getPath('temp'),
+      userDataDirectory: app.getPath('userData'),
+      appDataDirectory: app.getPath('appData'),
+      documentsDirectory: resolveProjectDirectory('documents'),
+      homeDirectory: resolveProjectDirectory('home'),
+      selectDirectory: () => deviceService.selectDirectory(),
+      openPath: (directory) => shell.openPath(directory)
+    },
     dependencies.settingsStore,
     (projectPath, version) =>
       publishDeepchatEvent('config.defaultProjectPath.changed', {
@@ -1258,10 +1461,13 @@ export async function createMainProcessControl(dependencies: {
     sqlitePresenter: sessionData.database,
     settings: dependencies.settingsStore
   })
-  const updateSettings = new UpdateSettings(dependencies.settingsStore)
+  const updateSettings = new UpdateSettings(
+    dependencies.settingsStore,
+    dependencies.currentAppVersion
+  )
   upgradeService = new UpgradeService(
-    updateSettings,
-    () => dependencies.privacySettings.isEnabled(),
+    { getChannel: () => nativeSettings.getChannel() },
+    () => nativeSettings.isPrivacyModeEnabled(),
     dependencies.requestUpdateInstall,
     publishDeepchatEvent,
     (observation) =>
@@ -1270,9 +1476,40 @@ export async function createMainProcessControl(dependencies: {
         error: { category: observation.errorCategory }
       })
   )
-  shortcutPresenter = new ShortcutPresenter(desktopSettings, windowPresenter, publishDeepchatEvent)
-  fileService = new FileService(dependencies.settingsStore)
+  fileService = new FileService(dependencies.settingsStore, app.getPath('userData'))
+  const desktopImageActions = new DesktopImageActions(app.getPath('userData'))
   ocrSettings = new OcrSettings(dependencies.settingsStore, publishDeepchatEvent)
+  const recordSettingsActivity = (input: SettingsActivityInput) => {
+    void settingsDatabase.recordSettingsActivity(input).catch((error) => {
+      console.warn('[SettingsActivity] Failed to record settings activity:', error)
+    })
+  }
+  appSettingsService = new AppSettingsService({
+    ownerId: randomUUID(),
+    updateSettings,
+    publishNativeSnapshot: (snapshot) => nativeSettings.apply(snapshot),
+    agentDefaults,
+    privacy: dependencies.privacySettings,
+    traceSettings,
+    desktopSettings,
+    fonts: fontSettings,
+    logging: loggingService,
+    ocr: ocrSettings,
+    recordActivity: recordSettingsActivity,
+    publishEvent: publishDeepchatEvent,
+    nextVersion: nextSettingsVersion,
+    assertActive: () => {
+      databaseRequests.assertRouteAllowed('settings.update')
+      if (databaseRequests.state !== 'running')
+        throw new Error(`App database maintenance is ${databaseRequests.state}`)
+    }
+  })
+  nativeSettings = new DesktopConfigurationProjection(
+    appSettingsService.readNativeSnapshot(),
+    () => nativeTheme.shouldUseDarkColors,
+    (bounds) => appSettingsService.setFloatingButtonBounds(bounds)
+  )
+  shortcutPresenter = new ShortcutPresenter(nativeSettings, windowPresenter, publishDeepchatEvent)
   const toolchainHomeDir = app.getPath('home')
   const toolchainService = ToolchainService.initialize({
     appPath: app.getAppPath(),
@@ -1307,6 +1544,9 @@ export async function createMainProcessControl(dependencies: {
       })
   }
   ocrRuntimeService = new OcrRuntimeService({
+    cacheKeyProvider: new SafeStorageOcrCacheKeyProvider(
+      path.join(app.getPath('userData'), 'ocr', 'cache-key.json')
+    ),
     appPath: app.getAppPath(),
     isPackaged: app.isPackaged,
     nodeRuntimePath: null,
@@ -1344,7 +1584,8 @@ export async function createMainProcessControl(dependencies: {
   const syncSettings = new SyncSettings(
     dependencies.settingsStore,
     dependencies.secretStore,
-    publishDeepchatEvent
+    publishDeepchatEvent,
+    app.getPath('home')
   )
   const hookSettings = new HookSettings(dependencies.settingsStore)
   const knowledgeSettings = new KnowledgeSettings(
@@ -1356,19 +1597,24 @@ export async function createMainProcessControl(dependencies: {
     mainDatabase,
     settingsDatabase,
     providerDatabase,
-    publishDeepchatEvent
+    publishDeepchatEvent,
+    {
+      profileDirectory: app.getPath('userData'),
+      temporaryDirectory: app.getPath('temp'),
+      openPath: (directory) => shell.openPath(directory)
+    }
   )
   const syncTokenStorage = {
-    protectToken: (token: string) => {
+    protectToken: async (token: string) => {
       if (
-        !safeStorage.isEncryptionAvailable() ||
-        (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')
+        process.platform === 'linux' &&
+        safeStorage.getSelectedStorageBackend() === 'basic_text'
       ) {
         throw new Error('sync.error.safeStorageUnavailable')
       }
-      return safeStorage.encryptString(token).toString('base64')
+      return await dependencies.secretStore.wrap(token)
     },
-    revealToken: (wrapped: string) => safeStorage.decryptString(Buffer.from(wrapped, 'base64'))
+    revealToken: (wrapped: string) => dependencies.secretStore.unwrap(wrapped)
   }
   syncPeerService = new SyncPeerService({
     directory: path.join(app.getPath('userData'), 'sync-peer'),
@@ -1376,10 +1622,8 @@ export async function createMainProcessControl(dependencies: {
     ...syncTokenStorage,
     isLocalDatabaseEncrypted: () => Boolean(mainDatabase.getDatabasePassword()),
     importSnapshot: (filePath, mode) => {
-      if (databaseMaintenanceState !== 'running') throw new Error('sync.tunnel.error.busy')
-      return runDatabaseMaintenance((database) =>
-        syncService.importBackupFile(filePath, mode, database)
-      )
+      if (databaseRequests.state !== 'running') throw new Error('sync.tunnel.error.busy')
+      return runDatabaseMaintenance({ kind: 'import-backup-file', filePath, mode })
     }
   })
   const syncAppliedSessions = new Set<string>()
@@ -1396,7 +1640,7 @@ export async function createMainProcessControl(dependencies: {
     database: () => mainDatabase.getDatabase(),
     directory: path.join(app.getPath('userData'), 'sync-replica'),
     canApply: (kind, id) =>
-      databaseMaintenanceState === 'running' &&
+      databaseRequests.state === 'running' &&
       (kind === 'session'
         ? !syncActiveSessions.has(id) &&
           !hasPendingSyncSession(id) &&
@@ -1517,7 +1761,7 @@ export async function createMainProcessControl(dependencies: {
     directory: path.join(app.getPath('userData'), 'sync-host'),
     hostId: () => syncHostService.getHostId(),
     available: () =>
-      databaseMaintenanceState === 'running' &&
+      databaseRequests.state === 'running' &&
       !syncService.isBackupInProgress() &&
       !mainDatabase.getDatabasePassword()
   })
@@ -1526,7 +1770,7 @@ export async function createMainProcessControl(dependencies: {
     directory: path.join(app.getPath('userData'), 'sync-peer'),
     connection: () => syncPeerService.connection(),
     available: () =>
-      databaseMaintenanceState === 'running' &&
+      databaseRequests.state === 'running' &&
       !syncService.isBackupInProgress() &&
       !mainDatabase.getDatabasePassword(),
     isEncrypted: () => Boolean(mainDatabase.getDatabasePassword()),
@@ -1540,7 +1784,7 @@ export async function createMainProcessControl(dependencies: {
     ...syncTokenStorage,
 
     createBackup: () => {
-      if (databaseMaintenanceState !== 'running') throw new Error('sync.tunnel.error.busy')
+      if (databaseRequests.state !== 'running') throw new Error('sync.tunnel.error.busy')
       return syncService.createHostBackup()
     },
     getFolderPath: () => syncSettings.getFolderPath(),
@@ -1548,8 +1792,8 @@ export async function createMainProcessControl(dependencies: {
     getAppVersion: () => app.getVersion(),
     logger
   })
-  notificationService = new NotificationService(desktopSettings, publishDeepchatEvent)
-  trayPresenter = new TrayPresenter(desktopSettings, windowPresenter)
+  notificationService = new NotificationService(nativeSettings, publishDeepchatEvent)
+  trayPresenter = new TrayPresenter(nativeSettings, windowPresenter)
   dialogService = new DialogService(publishDeepchatEvent)
   agentPreviewCoordinator = new AgentPreviewCoordinator()
   yoBrowserPresenter = new YoBrowserPresenter(
@@ -1567,6 +1811,12 @@ export async function createMainProcessControl(dependencies: {
   knowledgeService = new KnowledgeService({
     config: knowledgeSettings,
     storageRoot: dbDir,
+    extensionDirectory: path.join(
+      app.getAppPath().replace('app.asar', 'app.asar.unpacked'),
+      'runtime',
+      'duckdb',
+      'extensions'
+    ),
     files: fileService,
     dialog: dialogService,
     embeddings: providerRuntime,
@@ -1602,11 +1852,26 @@ export async function createMainProcessControl(dependencies: {
     () => deepChatAgentHarness.refreshToolRegistry(),
     semanticNotifications,
     publishDeepchatEvent,
+    dependencies.pluginToolPolicies,
+    {
+      homeDirectory: app.getPath('home'),
+      appVersion: app.getVersion(),
+      toolchains: toolchainService,
+      getProxyUrl: async () => proxyConfig.getProxyUrl()
+    },
+    {
+      store: new McpOAuthCredentialStore({
+        filePath: path.join(app.getPath('userData'), 'mcp-oauth', 'credentials.json'),
+        crypto: secureCredentialCrypto
+      }),
+      openExternal: (url) => shell.openExternal(url)
+    },
     (data, options) => deviceService.cacheImage(data, options),
     pluginRuntimeSupervisor,
     computerUsePreviewPresenter,
     {
       registry: dependencies.mcpAppSandboxRegistry,
+      desktop: dependencies.mcpAppDesktop,
       permissionBroker: toolPermissionBroker,
       getPermissionMode: async (conversationId) =>
         sessionData.settings.get(conversationId)?.permission_mode ?? 'default',
@@ -1638,8 +1903,11 @@ export async function createMainProcessControl(dependencies: {
   })
   const deeplinkActions = createDeeplinkActions({
     window: windowPresenter,
-    config: providerSettings,
-    mcp: mcpService,
+    hasProvider: async (providerId) => {
+      if (databaseRequests.state !== 'running')
+        throw new Error(`App database maintenance is ${databaseRequests.state}`)
+      return Boolean(providerSettings.getProviderById(providerId))
+    },
     notifications: semanticNotifications
   })
   deeplinkService = new DeeplinkService(
@@ -1674,6 +1942,21 @@ export async function createMainProcessControl(dependencies: {
     fileWatcherService,
     publishDeepchatEvent,
     {
+      homeDirectory: app.getPath('home'),
+      tempDirectory: app.getPath('temp'),
+      userDataDirectory: app.getPath('userData'),
+      builtinSkillsDirectories: app.isPackaged
+        ? [
+            path.join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'skills'),
+            path.join(process.resourcesPath, 'resources', 'skills'),
+            path.join(process.resourcesPath, 'skills')
+          ]
+        : [path.join(app.getAppPath(), 'resources', 'skills')],
+      openSkillsDirectory: async (directory) => {
+        await shell.openPath(directory)
+      }
+    },
+    {
       isDeepChatAgent: async (agentId) =>
         (await agentSettings.getAgent(agentId))?.type === 'deepchat',
       listDeepChatAgents: async () =>
@@ -1706,9 +1989,11 @@ export async function createMainProcessControl(dependencies: {
     log: logger
   })
 
-  const agentInvocationAdmission = new AgentInvocationAdmission(undefined, undefined, {
+  const admissionDiagnostics = {
     observationsEnabled: () => mainLogger.isOutputEnabled(),
-    observe: (observation) => {
+    observe: (
+      observation: import('@shared/harness/admission').AgentInvocationAdmissionObservation
+    ) => {
       switch (observation.type) {
         case 'queued':
           mainLogger.emit('agent.admission.queued', observation)
@@ -1727,7 +2012,21 @@ export async function createMainProcessControl(dependencies: {
           break
       }
     }
+  }
+  const harnessRuntime = await HarnessRuntime.start({
+    directory: app.isPackaged
+      ? path.join(process.resourcesPath, 'app.asar.unpacked', 'harness')
+      : path.join(app.getAppPath(), 'out', 'harness'),
+    electronExecutable: process.execPath,
+    capacity: DEFAULT_AGENT_INVOCATION_CAPACITY,
+    maxPending: DEFAULT_AGENT_INVOCATION_MAX_PENDING,
+    observe: admissionDiagnostics.observe
   })
+  const agentInvocationAdmission = RutisAgentInvocationAdmission.create({
+    runtime: harnessRuntime,
+    diagnostics: admissionDiagnostics
+  })
+  console.info('[Harness] Rutis admission ready', agentInvocationAdmission.identity)
   const resolveConversationExecutionAuthorityNow = (conversationId: string) => {
     const session = appSessionService.get(conversationId)
     if (!session) return null
@@ -1775,7 +2074,14 @@ export async function createMainProcessControl(dependencies: {
       })
     }
   }
+  const backgroundExec = new BackgroundExecService((signal) =>
+    spawnBackgroundExecHost(
+      path.join(app.getAppPath(), 'out/main/backgroundExecUtilityHost.js'),
+      signal
+    )
+  )
   const agentToolDependencies: AgentToolDependencies = {
+    backgroundExec,
     readSession: (callerSessionId, input) =>
       sessionData.sessionReferences.read(callerSessionId, input),
     agentInvocationAdmission,
@@ -1938,6 +2244,14 @@ export async function createMainProcessControl(dependencies: {
     },
     cacheImage: (data, options) => deviceService.cacheImage(data, options),
     desktop: {
+      tempDirectory: app.getPath('temp'),
+      profileTempDirectory: path.join(app.getPath('userData'), 'temp'),
+      readImageSize: async (filePath, signal) => {
+        signal?.throwIfAborted()
+        const size = nativeImage.createFromPath(filePath).getSize()
+        signal?.throwIfAborted()
+        return { width: size.width, height: size.height }
+      },
       createSettingsWindow: () => windowPresenter.createSettingsWindow(),
       sendToWindow: (windowId, channel, ...args) =>
         windowPresenter.sendToWindow(windowId, channel, ...args),
@@ -1958,12 +2272,15 @@ export async function createMainProcessControl(dependencies: {
 
   // Initialize the merged MCP and built-in Tool service.
   toolService = new ToolService({
+    pluginToolPolicies: dependencies.pluginToolPolicies,
+    spawnCodeModeHost: (signal) =>
+      spawnCodeModeHost(path.join(app.getAppPath(), 'out/main/codeModeUtilityHost.js'), signal),
     mcpService: mcpService,
     providerSettings: providerSettings,
     settings: dependencies.settingsStore,
     agentSettings,
     skillSettings,
-    desktopSettings,
+    desktopSettings: appSettingsService,
     commandPermissionHandler,
     commandEnvironment: agentCliCommandAccess,
     permissionBroker: toolPermissionBroker,
@@ -1986,6 +2303,20 @@ export async function createMainProcessControl(dependencies: {
   // Plugin activation is a shared startup barrier for Skill migration and MCP startup.
   const pluginSettingsWindow = new PluginSettingsWindow()
   pluginService = new PluginService({
+    workingDirectory: process.cwd(),
+    profileDirectory: app.getPath('userData'),
+    homeDirectory: app.getPath('home'),
+    appPath: app.getAppPath(),
+    appVersion: app.getVersion(),
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    openExternal: (url) => shell.openExternal(url),
+    openPath: (filePath) => shell.openPath(filePath),
+    hookEnvironment: () =>
+      toolchainService.prependResolvedToEnv(
+        createMinimalProcessEnvironment(process.env, process.platform)
+      ),
+    toolPolicies: dependencies.pluginToolPolicies,
     nowledgeMem: nowledgeMemConnections,
     exportNowledgeSession: (input) => agentSessionExportService.submitToNowledgeMem(input),
     contextTape: sessionData.tapeStore,
@@ -1999,9 +2330,11 @@ export async function createMainProcessControl(dependencies: {
   // Initialize Skill Sync service
   skillSyncService = new SkillSyncService(skillService, skillSettings, publishDeepchatEvent)
 
-  hookService = new HookService(hookSettings, {
-    getSession: (sessionId) => sessionQuery.getSession(sessionId)
-  })
+  hookService = new HookService(
+    hookSettings,
+    { getSession: (sessionId) => sessionQuery.getSession(sessionId) },
+    app.getVersion()
+  )
   const providerCatalogPort: ProviderCatalogPort = {
     getProviderModels: (providerId) => providerSettings.getProviderModels(providerId),
     getCustomModels: (providerId) => providerSettings.getCustomModels(providerId),
@@ -2025,9 +2358,14 @@ export async function createMainProcessControl(dependencies: {
   })
   // Initialize agent memory layer (opt-in per agent; vectors stored separately from knowledge base)
   const memoryDbDir = path.join(dbDir, 'AgentMemory')
-  MemoryVectorStore.recoverQuarantinedStores(memoryDbDir)
-  const memoryVectorDbPaths = (agentId: string) =>
-    createMemoryVectorStorePaths(memoryDbDir, agentId)
+  const memoryVectorStores = new RutisMemoryVectorStores(harnessRuntime, {
+    memoryDbDir,
+    host: {
+      appPath: app.getAppPath(),
+      userDataPath: app.getPath('userData'),
+      isPackaged: app.isPackaged
+    }
+  })
   memoryService = new MemoryService({
     repository: createLivePort(() => memoryDatabase.agentMemoryTable),
     directiveRepository: createLivePort(() => memoryDatabase.agentMemoryDirectiveTable),
@@ -2051,26 +2389,10 @@ export async function createMainProcessControl(dependencies: {
           (agentId) => agentRepository.resolveDeepChatAgentConfig(agentId).memoryEnabled === true
         ),
     ...createMemoryProviderBindings(providerRuntime),
-    createVectorStore: (agentId, embedding, dimensions) => {
-      if (!isSafeAgentId(agentId)) {
-        throw new Error(`[Memory] refusing to open vector store for unsafe agentId: ${agentId}`)
-      }
-      return MemoryVectorStore.create(memoryVectorDbPaths(agentId), dimensions, embedding)
-    },
-    resetVectorStore: async (agentId) => {
-      if (!isSafeAgentId(agentId)) {
-        throw new Error(`[Memory] refusing to reset vector store for unsafe agentId: ${agentId}`)
-      }
-      MemoryVectorStore.destroyFiles(memoryVectorDbPaths(agentId))
-    },
-    markVectorStoreQuarantined: (agentId) => {
-      if (!isSafeAgentId(agentId)) {
-        throw new Error(
-          `[Memory] refusing to quarantine vector store for unsafe agentId: ${agentId}`
-        )
-      }
-      MemoryVectorStore.markQuarantined(memoryVectorDbPaths(agentId))
-    },
+    createVectorStore: (agentId, embedding, dimensions) =>
+      memoryVectorStores.createVectorStore(agentId, embedding, dimensions),
+    resetVectorStore: (agentId) => memoryVectorStores.resetVectorStore(agentId),
+    markVectorStoreQuarantined: (agentId) => memoryVectorStores.markVectorStoreQuarantined(agentId),
     onMemoryChanged: (agentId, reason, context) =>
       publishDeepchatEvent('memory.updated', {
         agentId,
@@ -2148,10 +2470,8 @@ export async function createMainProcessControl(dependencies: {
   })
   const sessionTranscriptMutations = new SessionTranscriptMutations({
     transcript: sessionData.transcript,
-    settings: sessionData.settings,
-    pendingInputs: sessionData.pendingInputs,
     runtime: deepChatAgentHarness,
-    runInTransaction: (operation) => sessionData.database.getDatabase().transaction(operation)()
+    clearTranscript: sessionData.clearTranscript
   })
   memoryIngestionObserver = deepChatAgentHarness.memoryIngestionObserver
   acpAgentRuntime = new AcpAgentRuntime(
@@ -2251,7 +2571,7 @@ export async function createMainProcessControl(dependencies: {
   ;(windowPresenter as WindowPresenter).bindTabPresenter(tabPresenter)
   floatingButtonPresenter = new FloatingButtonPresenter(
     agentSettings,
-    desktopSettings,
+    nativeSettings,
     sessionQuery,
     desktopSessionBinding,
     windowPresenter as WindowPresenter,
@@ -2464,6 +2784,7 @@ export async function createMainProcessControl(dependencies: {
             (turn.status === 'waiting_permission' || turn.status === 'waiting_question') &&
             resolveSessionRunId(delegation.parentSessionId) === runId
         ),
+    readSubscriptionSnapshot: (read) => databaseRequests.runRequest('events.subscribe', read),
     eventHub: typedEventHub,
     log: logger
   })
@@ -2581,7 +2902,12 @@ export async function createMainProcessControl(dependencies: {
       }
     })
   liveDelegationService = createLiveDelegationService()
+  const remoteAuthWindows = new DesktopRemoteAuthWindows((event) =>
+    remoteService.handleAuthWindowEvent(event)
+  )
   remoteService = new RemoteService({
+    profileDirectory: app.getPath('userData'),
+    authWindows: remoteAuthWindows,
     settings: dependencies.settingsStore,
     catalog: {
       getAgentType: (agentId) => agentSettings.getAgentType(agentId),
@@ -2613,7 +2939,7 @@ export async function createMainProcessControl(dependencies: {
       }
     },
     workspace: {
-      getDefaultProjectPath: () => projectService.getDefaultProjectPath(),
+      getDefaultProjectPath: async () => projectService.getDefaultProjectPath(),
       prepareFile: (filePath, type) => fileService.prepareFile(filePath, type)
     },
     lifecycle: sessionLifecycle,
@@ -2632,6 +2958,8 @@ export async function createMainProcessControl(dependencies: {
     }
   })
   cronJobs = new SchedulerService({
+    createSchedulerManager: (deps) =>
+      new SchedulerProcessManager({ ...deps, spawnHost: spawnSchedulerHost }),
     database: schedulerDatabase,
     agentSettings,
     sessionEvents: sessionRuntimeEvents,
@@ -2642,8 +2970,22 @@ export async function createMainProcessControl(dependencies: {
     }),
     remoteDeliveryPort: remoteService
   })
+  const onSystemResume = () => {
+    if (appLifecycleState !== 'running' || databaseRequests.state !== 'running') return
+    void cronJobs.handleSystemResume().catch((error) => {
+      console.warn('[CronJobs] Failed to reconcile after system resume:', error)
+    })
+  }
+  powerMonitor.on('resume', onSystemResume)
 
-  desktopSettings.initializeTheme()
+  await appSettingsService.initializeDesktop()
+  const onSystemThemeUpdated = () => {
+    if (appLifecycleState !== 'running' || databaseRequests.state !== 'running') return
+    void appSettingsService.observeSystemTheme().catch((error) => {
+      console.warn('[Settings] Failed to refresh system theme:', error)
+    })
+  }
+  nativeTheme.on('updated', onSystemThemeUpdated)
 
   function setupTray() {
     console.info('setupTray', !!trayPresenter)
@@ -2874,7 +3216,9 @@ export async function createMainProcessControl(dependencies: {
 
     try {
       deepChatAgentHarness.refreshToolRegistry()
-      deeplinkService.processPendingMcpInstall()
+      deeplinkService.observeMcpReadiness(
+        !['stopping', 'stopped'].includes(appLifecycleState) && databaseRequests.state === 'running'
+      )
     } catch (error) {
       reportMainStartupComponentFailure(dependencies.startupRunId, 'mcp_integration', 'unknown')
       console.error('Failed to finish MCP startup integration:', error)
@@ -2891,6 +3235,23 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function initializeIdleProviderWarmup(taskContext: StartupWorkloadTaskContext) {
+    taskContext.signal.throwIfAborted()
+    const [registryRefresh, catalogRefresh] = await Promise.allSettled([
+      agentSettings.refreshAcpRegistry(false, {
+        automatic: true,
+        signal: taskContext.signal
+      }),
+      providerDbLoader.refreshIfNeeded(true, {
+        automatic: true,
+        signal: taskContext.signal
+      })
+    ])
+    taskContext.signal.throwIfAborted()
+    if (registryRefresh.status === 'rejected') throw registryRefresh.reason
+    if (catalogRefresh.status === 'rejected') throw catalogRefresh.reason
+    if (catalogRefresh.value.status === 'error') {
+      console.warn('[ProviderDbLoader] Startup refresh failed:', catalogRefresh.value.message)
+    }
     const enabledProviders = providerSettings
       .getEnabledProviders()
       .map((provider) => provider.id)
@@ -2930,8 +3291,16 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function destroy(): Promise<void> {
+    nativeTheme.off('updated', onSystemThemeUpdated)
+    nativeSettings.stopWrites()
+    await appSettingsService.stop()
+    await nativeSettings.drainWrites()
     await runDestroyStep('agentCliTokenAuthority.clear', () => agentCliTokenAuthority.clear())
     await runDestroyStep('cliServer.stop', () => cliServer.stop())
+    await runDestroyStep('oauthService.stop', () => oauthService.stop())
+    await providerDbLoader.drain()
+    await agentSettings.drain()
+    await startupWorkloadCoordinator.cancelAndDrainTarget('main')
     await runDestroyStep('automaticSync.close', () => automaticSync!.close())
     await runDestroyStep('syncPeerService.stop', () => syncPeerService.stop())
     await runDestroyStep('syncHostService.stop', () => syncHostService.stop())
@@ -2948,11 +3317,17 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('agentInvocationAdmission.flushObservations', () =>
       agentInvocationAdmission.flushObservations()
     )
+    await runDestroyStep('cronJobs.detachResume', () => {
+      powerMonitor.off('resume', onSystemResume)
+    })
     await runDestroyStep('cronJobs.destroy', () => cronJobs.destroy())
     await runDestroyStep('remoteService.destroy', () => remoteService.destroy())
-    await runDestroyStep('hookService.stop', () => hookService.stop())
+    await runDestroyStep('remoteAuthWindows.closeAll', () => remoteAuthWindows.closeAll())
+    await hookService.stop()
+    await pluginService.contextHooks?.stop()
     await runDestroyStep('sessionRuntimes.suspend', () => suspendSessionRuntimes())
-    await runDestroyStep('toolService.shutdownCodeRuntime', () => toolService.shutdownCodeRuntime())
+    await backgroundExec.shutdown()
+    await toolService.shutdownCodeRuntime()
     const pendingSkillInitialization = skillInitializationPromise
     if (pendingSkillInitialization) {
       await runDestroyStep('skillInitialization.drain', async () => {
@@ -3008,9 +3383,6 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('skillSyncService.destroy', () => skillSyncService.destroy())
     await runDestroyStep('skillService.destroy', () => skillService.destroy())
     await runDestroyStep('fileWatcherService.destroy', () => fileWatcherService.destroy())
-    await runDestroyStep('backgroundExecSessionManager.shutdown', () =>
-      backgroundExecSessionManager.shutdown()
-    )
     // Fence new ingestion synchronously, then let Memory disposal abort provider-bound work before
     // awaiting the existing chains. This avoids both late SQLite writes and shutdown deadlocks.
     const memoryIngestionDrain = (() => {
@@ -3024,6 +3396,8 @@ export async function createMainProcessControl(dependencies: {
       }
     })()
     await runDestroyStep('memoryService.dispose', () => memoryService.dispose())
+    await runDestroyStep('memoryVectorStores.dispose', () => memoryVectorStores.dispose())
+    await runDestroyStep('harnessRuntime.stop', () => harnessRuntime.stop())
     let memoryIngestionDrainOutcome: MemoryIngestionDrainOutcome | undefined
     await runDestroyStep('memoryIngestionObserver.drainAndFence', async () => {
       const result = await memoryIngestionDrain
@@ -3039,6 +3413,7 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('ocrRuntimeService.close', () => ocrRuntimeService.close())
     await runDestroyStep('providerRuntime.shutdown', () => providerRuntime.shutdown())
     await runDestroyStep('acpRuntime.shutdown', () => acpRuntimeOwner.shutdown())
+    await databaseRequests.drainForShutdown()
     await runDestroyStep('mainDatabase.close', () => mainDatabase.close())
     await runDestroyStep('shortcutPresenter.destroy', () => shortcutPresenter.destroy())
     await runDestroyStep('notificationService.clearAllNotifications', () =>
@@ -3089,6 +3464,7 @@ export async function createMainProcessControl(dependencies: {
     const toolRoutes = createToolRoutes(toolService)
     const pluginRoutes = createPluginRoutes(pluginService, pluginSettingsWindow)
     const skillRoutes = createSkillRoutes({
+      tempDirectory: app.getPath('temp'),
       skillService,
       skillSyncService,
       skillSettings,
@@ -3131,15 +3507,15 @@ export async function createMainProcessControl(dependencies: {
       desktopSessionBinding,
       tabPresenter,
       dialogService,
-      settings: desktopSettings,
-      setFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled),
+      settings: appSettingsService,
+      appearance: appSettingsService,
       recordActivity: (input) => {
         void settingsDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
         })
       }
     })
-    const fileRoutes = createFileRoutes(fileService)
+    const fileRoutes = createFileRoutes(fileService, desktopImageActions)
     const ocrRoutes = createOcrRoutes({ runtime: ocrRuntimeService })
     const toolchainRoutes = createToolchainRoutes({
       service: toolchainService,
@@ -3253,15 +3629,20 @@ export async function createMainProcessControl(dependencies: {
       resetDataByType: (resetType) => resetApplicationData(resetType)
     })
     const onboardingRoutes = createOnboardingRoutes(dependencies.settingsStore)
-    const upgradeRoutes = createUpgradeRoutes({ upgrade: upgradeService, settings: updateSettings })
+    const upgradeRoutes = createUpgradeRoutes({
+      upgrade: upgradeService,
+      settings: appSettingsService
+    })
     const exporterRoutes = createExporterRoutes(exporter)
     const syncRoutes = createSyncRoutes({
       sync: syncService,
       settings: syncSettings,
       importFromSync: (backupFileName, importMode) =>
-        runDatabaseMaintenance((database) =>
-          syncService.importFromSync(backupFileName, importMode ?? ImportMode.INCREMENT, database)
-        ),
+        runDatabaseMaintenance({
+          kind: 'import-backup',
+          fileName: backupFileName,
+          mode: importMode ?? ImportMode.INCREMENT
+        }),
       pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode),
       recordActivity: (input) => {
         void settingsDatabase.recordSettingsActivity(input).catch((error) => {
@@ -3297,58 +3678,34 @@ export async function createMainProcessControl(dependencies: {
     })
     const appSettingsRoutes = createAppSettingsRoutes({
       settings: dependencies.settingsStore,
-      agentDefaults,
-      privacy: dependencies.privacySettings,
-      traceSettings,
-      desktopSettings,
-      fonts: fontSettings,
-      applyContentProtection: (enabled) =>
-        (windowPresenter as WindowPresenter).applyContentProtection(enabled),
-      logging: loggingService,
-      ocr: ocrSettings,
+      appSettings: appSettingsService,
       commandShell: commandShellService,
       publishEvent: publishDeepchatEvent,
-      recordActivity: (input) => {
-        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
-          console.warn('[SettingsActivity] Failed to record settings activity:', error)
-        })
-      },
+      recordActivity: recordSettingsActivity,
       listActivities: (limit) => settingsDatabase.listSettingsActivity(limit)
     })
     const appRoutes = createAppRoutes({
-      logging: loggingService,
+      logging: { openFolder: () => appSettingsService.openLoggingFolder() },
       rendererPerformance: rendererPerformanceLogService,
       isMainWindowContext: (caller) =>
         windowPresenter.mainWindow?.webContents.id === caller.webContentsId,
       agentSettings,
       projects: projectService,
       databaseSecurity: databaseSecurityService,
-      database: mainDatabase,
+      database: {
+        getDatabase: () => mainDatabase.getDatabase(),
+        repairSchema: () => runDatabaseMaintenance({ kind: 'repair-schema' })
+      },
       startupSession: sessionQuery,
       desktopSession: desktopSessionBinding,
       startup: startupWorkloadCoordinator,
       ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),
       enableDatabaseEncryption: (password) =>
-        runDatabaseMaintenance((database) =>
-          databaseSecurityService.enableEncryption({ password, database, providerSettings })
-        ),
+        runDatabaseMaintenance({ kind: 'enable-encryption', password }),
       changeDatabasePassword: (currentPassword, newPassword) =>
-        runDatabaseMaintenance((database) =>
-          databaseSecurityService.changePassword({
-            currentPassword,
-            newPassword,
-            database,
-            providerSettings
-          })
-        ),
+        runDatabaseMaintenance({ kind: 'change-password', currentPassword, newPassword }),
       disableDatabaseEncryption: (currentPassword) =>
-        runDatabaseMaintenance((database) =>
-          databaseSecurityService.disableEncryption({
-            currentPassword,
-            database,
-            providerSettings
-          })
-        ),
+        runDatabaseMaintenance({ kind: 'disable-encryption', currentPassword }),
       recordActivity: (input) => {
         void settingsDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
@@ -3394,9 +3751,7 @@ export async function createMainProcessControl(dependencies: {
     })
     const cliRunRoutes = cliRunService.createRoutes()
     routeDispatcher = createRouteDispatcher({
-      appDatabaseMaintenance: {
-        assertRouteAllowed: (routeName) => assertRouteAllowedDuringDatabaseMaintenance(routeName)
-      },
+      appDatabaseMaintenance: databaseRequests,
       routeMaps: [
         providerRoutes,
         toolRoutes,
@@ -3620,6 +3975,16 @@ export async function createMainProcessControl(dependencies: {
     async () => {
       shutdownStepFailures = 0
       appLifecycleState = 'stopping'
+      desktopConfigurationHost.close()
+      deeplinkService.observeMcpReadiness(false)
+      databaseRequests.beginShutdown()
+      providerDbLoader.stop()
+      agentSettings.stop()
+      deepChatAgentHarness.abortGenerations()
+      backgroundExec.stop()
+      toolService.stopCodeRuntime()
+      databaseSecurityService.stop()
+      dependencies.secretStore.pause()
       windowPresenter.setApplicationQuitting(true)
       startupWorkloadCoordinator.cancelTarget('main')
       await runDestroyStep('acpAuth.shutdown', () => acpAuthService.shutdown())
@@ -3665,44 +4030,70 @@ export async function createMainProcessControl(dependencies: {
     return shutdownCoordinator.cleanup()
   }
 
-  function assertRouteAllowedDuringDatabaseMaintenance(routeName: string): void {
-    if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped') {
+  function runDatabaseMaintenance(command: DatabaseImportCommand): Promise<SyncImportResult>
+  function runDatabaseMaintenance(
+    command: DatabaseEncryptionCommand
+  ): Promise<DatabaseSecurityStatus>
+  function runDatabaseMaintenance(command: DatabaseRepairCommand): Promise<DatabaseRepairReport>
+  async function runDatabaseMaintenance(
+    command: DatabaseMaintenanceCommand
+  ): Promise<DatabaseMaintenanceResult> {
+    if (['stopping', 'stopped'].includes(appLifecycleState)) {
       throw new Error(`App lifecycle is ${appLifecycleState}`)
     }
-    if (databaseMaintenanceState === 'running') return
-    if (routeName === 'sync.startBackup') throw new Error('sync.tunnel.error.busy')
-    if (
-      routeName.startsWith('chat.') ||
-      routeName.startsWith('sessions.') ||
-      routeName.startsWith('memory.') ||
-      routeName.startsWith('orchestration.') ||
-      routeName.startsWith('remoteControl.') ||
-      routeName.startsWith('cronJobs.')
-    ) {
-      throw new Error(`App database maintenance is ${databaseMaintenanceState}`)
+    const maintenanceState = databaseRequests.state
+    if (maintenanceState !== 'running') {
+      throw new Error(`App database maintenance is ${maintenanceState}`)
+    }
+    if (syncService.isBackupInProgress()) throw new Error('sync.tunnel.error.busy')
+    try {
+      return await databaseRequests.runMaintenance(() => performDatabaseMaintenance(command))
+    } catch (error) {
+      if (
+        databaseRequests.state === 'failed' &&
+        !['stopping', 'stopped'].includes(appLifecycleState)
+      )
+        await stopForCleanup()
+      throw error
     }
   }
 
-  async function runDatabaseMaintenance<T>(
-    operation: (database: ApplicationDatabaseMaintenancePort) => Promise<T>
-  ): Promise<T> {
-    if (databaseMaintenanceState !== 'running') {
-      throw new Error(`App database maintenance is ${databaseMaintenanceState}`)
+  async function performDatabaseMaintenance(
+    command: DatabaseMaintenanceCommand
+  ): Promise<DatabaseMaintenanceResult> {
+    desktopConfigurationHost.pause()
+    try {
+      await providerRuntime.invalidateGitHubCopilotSignIns()
+      await startupWorkloadCoordinator.cancelAndDrainTarget('main')
+      await agentSettings.cancelAndDrainAcpWork()
+      if (['stopping', 'stopped'].includes(appLifecycleState)) {
+        throw new Error(`App lifecycle is ${appLifecycleState}`)
+      }
+    } catch (error) {
+      if (databaseRequests.state === 'maintenance') {
+        databaseRequests.resume()
+        desktopConfigurationHost.resume()
+        agentSettings.notifyAgentCatalogChanged()
+      }
+      throw error
     }
-    if (syncService.isBackupInProgress()) throw new Error('sync.tunnel.error.busy')
-    databaseMaintenanceState = 'maintenance'
-    replicaEndpoint.stop()
-    await automaticSync?.pause()
-    startupWorkloadCoordinator.cancelTarget('main')
-    memoryService.stopBackgroundMaintenance()
 
-    let operationResult: T | undefined
+    let operationResult: DatabaseMaintenanceResult | undefined
     let operationError: unknown
     try {
+      nativeSettings.stopWrites()
+      await appSettingsService.stop()
+      await nativeSettings.drainWrites()
+      dependencies.secretStore.pause()
+      replicaEndpoint.stop()
+      await automaticSync?.pause()
+      memoryService.stopBackgroundMaintenance()
       await liveDelegationService.stop()
       await cronJobs.stop()
       await remoteService.destroy()
+      await remoteAuthWindows.closeAll()
       await hookService.stop()
+      await pluginService.contextHooks?.stop()
       const drain = await memoryIngestionObserver.drainAndFence()
       if (drain.timedOut) {
         throw new Error(
@@ -3716,7 +4107,11 @@ export async function createMainProcessControl(dependencies: {
         )
       }
       await suspendSessionRuntimes()
-      operationResult = await operation({
+      await databaseRequests.drain()
+      if (['stopping', 'stopped'].includes(appLifecycleState)) {
+        throw new Error(`App lifecycle is ${appLifecycleState}`)
+      }
+      const database: ApplicationDatabaseMaintenancePort = {
         getDatabasePath: () => mainDatabase.getDatabasePath(),
         checkpointAndClose: () => {
           const database = mainDatabase.getDatabase()
@@ -3733,36 +4128,95 @@ export async function createMainProcessControl(dependencies: {
         isOpen: () => mainDatabase.getDatabase().open,
         importLegacyChatDb: (sourceDbPath, mode) =>
           legacyChatImportService.importFromSourceDb(sourceDbPath, mode)
-      })
+      }
+      switch (command.kind) {
+        case 'import-backup-file':
+          operationResult = await syncService.importBackupFile(
+            command.filePath,
+            command.mode,
+            database
+          )
+          break
+        case 'import-backup':
+          operationResult = await syncService.importFromSync(
+            command.fileName,
+            command.mode,
+            database
+          )
+          break
+        case 'enable-encryption':
+          operationResult = await databaseSecurityService.enableEncryption({
+            password: command.password,
+            database,
+            providerSettings
+          })
+          break
+        case 'change-password':
+          operationResult = await databaseSecurityService.changePassword({
+            currentPassword: command.currentPassword,
+            newPassword: command.newPassword,
+            database,
+            providerSettings
+          })
+          break
+        case 'disable-encryption':
+          operationResult = await databaseSecurityService.disableEncryption({
+            currentPassword: command.currentPassword,
+            database,
+            providerSettings
+          })
+          break
+        case 'repair-schema':
+          operationResult = await mainDatabase.repairSchema()
+          break
+        default:
+          throw new Error('Unsupported database maintenance command')
+      }
     } catch (error) {
       operationError = error
     }
 
     try {
+      if (['stopping', 'stopped'].includes(appLifecycleState)) {
+        throw new Error(`App lifecycle is ${appLifecycleState}`)
+      }
       if (!mainDatabase.getDatabase().open) {
         reopenApplicationDatabase()
       }
       deepChatAgentHarness.reconcileAfterDatabaseReopen()
+      dependencies.secretStore.resume()
       memoryIngestionObserver.resumeIngestion()
       memoryService.startBackgroundMaintenance()
+      pluginService.contextHooks?.start()
       hookService.start()
       cronJobs.start()
       await remoteService.initialize()
+      if (['stopping', 'stopped'].includes(appLifecycleState)) {
+        await remoteService.destroy()
+        await remoteAuthWindows.closeAll()
+        throw new Error(`App lifecycle is ${appLifecycleState}`)
+      }
       liveDelegationService = createLiveDelegationService()
       liveDelegationService.start()
       const startupRunId = startupWorkloadCoordinator.createRun('main')
       scheduleBackgroundWork(startupRunId)
-      databaseMaintenanceState = 'running'
+      appSettingsService.start()
+      databaseRequests.resume()
+      await appSettingsService.publishSnapshot()
+      await appSettingsService.observeSystemTheme()
+      nativeSettings.startWrites()
+      agentSettings.notifyAgentCatalogChanged()
       syncReplica?.wake()
       await automaticSync?.start()
+      desktopConfigurationHost.resume()
     } catch (error) {
-      databaseMaintenanceState = 'failed'
-      await stopForCleanup()
+      if (!['stopping', 'stopped'].includes(appLifecycleState)) databaseRequests.fail()
       throw error
     }
 
     if (operationError) throw operationError
-    return operationResult as T
+    if (operationResult === undefined) throw new Error('Database maintenance returned no result')
+    return operationResult
   }
 
   function reopenApplicationDatabase(): void {
@@ -3791,9 +4245,11 @@ export async function createMainProcessControl(dependencies: {
     const download = await syncService.downloadLatestBackupFromCloud()
     if (!download.success || !download.fileName) return download
     const backupFileName = download.fileName
-    const result = await runDatabaseMaintenance((database) =>
-      syncService.importFromSync(backupFileName, importMode, database)
-    )
+    const result = await runDatabaseMaintenance({
+      kind: 'import-backup',
+      fileName: backupFileName,
+      mode: importMode
+    })
     return { ...result, fileName: backupFileName }
   }
 
@@ -3908,6 +4364,8 @@ export async function createMainProcessControl(dependencies: {
   cronJobs.start()
   memoryService.startBackgroundMaintenance()
   appLifecycleState = 'running'
+  desktopConfigurationHost.resume()
+  onSystemThemeUpdated()
   try {
     await artifactSpool.initialize()
     await cliServer.start()

@@ -6,84 +6,23 @@ import type { ModelConfig } from '@shared/types/provider'
 import { providerDbLoader } from '../../../src/main/provider/providerDbLoader'
 import { modelCapabilities } from '../../../src/main/provider/modelCapabilities'
 
-// Mock electron-store with in-memory storage
-const mockStores = new Map<string, Record<string, any>>()
+import { createMemoryStore } from '../../helpers/memoryStore'
 
 const rebuildModelCapabilities = () => {
   const capabilities = modelCapabilities as unknown as { rebuildIndexFromDb: () => void }
   capabilities.rebuildIndexFromDb()
 }
 
-vi.mock('electron-store', () => {
-  return {
-    default: class MockElectronStore {
-      private storePath: string
-      private data: Record<string, any>
-
-      constructor(options: { name: string }) {
-        this.storePath = options.name
-        if (!mockStores.has(this.storePath)) {
-          mockStores.set(this.storePath, {})
-        }
-        this.data = mockStores.get(this.storePath)!
-      }
-
-      get(key: string) {
-        return this.data[key]
-      }
-
-      set(key: string, value: any) {
-        this.data[key] = value
-      }
-
-      delete(key: string) {
-        delete this.data[key]
-      }
-
-      has(key: string) {
-        return key in this.data
-      }
-
-      clear() {
-        Object.keys(this.data).forEach((key) => delete this.data[key])
-      }
-
-      get store() {
-        return { ...this.data }
-      }
-
-      get path() {
-        return `/mock/path/${this.storePath}.json`
-      }
-    }
-  }
-})
-
 describe('ModelConfigHelper', () => {
   let modelConfigHelper: ModelConfigHelper
-  let originalStoreData: Map<string, Record<string, any>>
+  let modelStore: ReturnType<typeof createMemoryStore>
 
   beforeEach(() => {
-    // Save original store state for restoration
-    originalStoreData = new Map()
-    mockStores.forEach((value, key) => {
-      originalStoreData.set(key, { ...value })
-    })
-
-    // Clear stores for clean test state
-    mockStores.clear()
-
-    // Initialize test instances
-    modelConfigHelper = new ModelConfigHelper()
+    modelStore = createMemoryStore()
+    modelConfigHelper = new ModelConfigHelper(modelStore)
   })
 
   afterEach(() => {
-    // Restore original store state
-    mockStores.clear()
-    originalStoreData.forEach((value, key) => {
-      mockStores.set(key, value)
-    })
-
     vi.restoreAllMocks()
     rebuildModelCapabilities()
   })
@@ -414,7 +353,7 @@ describe('ModelConfigHelper', () => {
       const helperAny = modelConfigHelper as any
       const userKey = helperAny.generateCacheKey(providerId, userManagedModelId)
 
-      const refreshedHelper = new ModelConfigHelper()
+      const refreshedHelper = new ModelConfigHelper(modelStore)
 
       expect(refreshedHelper.hasUserConfig(userManagedModelId, providerId)).toBe(true)
       expect(refreshedHelper.getModelConfig(userManagedModelId, providerId).maxTokens).toBe(
@@ -528,7 +467,10 @@ describe('ModelConfigHelper', () => {
       const defaults = modelConfigHelper.getModelConfig('qwen3.8-max', 'demo')
       expect(defaults.reasoningEffort).toBeUndefined()
       expect(defaults.thinkingBudget).toBeUndefined()
-      modelConfigHelper.setModelConfig('qwen3.8-max', 'demo', { thinkingBudget: 8192 })
+      modelConfigHelper.setModelConfig('qwen3.8-max', 'demo', {
+        ...defaults,
+        thinkingBudget: 8192
+      })
       const budget = modelConfigHelper.getModelConfig('qwen3.8-max', 'demo')
       expect(budget.thinkingBudget).toBe(8192)
       expect(budget.reasoningEffort).toBeUndefined()

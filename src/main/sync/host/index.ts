@@ -40,8 +40,8 @@ export interface SyncHostServiceDeps {
   changed?: () => void
   replica?: SyncReplicaEndpoint
   resolveCloudflared?: () => string
-  protectToken?: (token: string) => string
-  revealToken?: (wrapped: string) => string
+  protectToken?: (token: string) => Promise<string>
+  revealToken?: (wrapped: string) => Promise<string>
   createBackup: () => Promise<SyncBackupInfo | null>
   getFolderPath: () => string
   getUserDataPath: () => string
@@ -73,6 +73,7 @@ export class SyncHostService {
   private preparationError: string | null = null
   private lastPreparedAt = 0
   private lifecycle: Promise<unknown> = Promise.resolve()
+  private generation = 0
   /** Identity minted before the first load, so every caller sees the same value. */
   private pendingHostId: string | null = null
 
@@ -164,9 +165,11 @@ export class SyncHostService {
       tunnel?: SyncTunnelConfig & { token?: string }
     } = {}
   ): Promise<SyncHostServiceStatus> {
+    const generation = this.generation
     await this.serialize(async () => {
       await this.state.load()
       if (enabled) {
+        this.assertGeneration(generation)
         if (!options.consent) throw new Error('sync.tunnel.error.consentRequired')
         const port = options.port ?? this.state.snapshot().port
         if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -198,7 +201,8 @@ export class SyncHostService {
         }
         if (options.tunnel?.token?.trim()) {
           if (!this.deps.protectToken) throw new Error('sync.tunnel.error.credentialsUnavailable')
-          wrappedToken = this.deps.protectToken(options.tunnel.token.trim())
+          wrappedToken = await this.deps.protectToken(options.tunnel.token.trim())
+          this.assertGeneration(generation)
         }
         if (config.mode === 'named' && !wrappedToken)
           throw new Error('sync.tunnel.error.tokenRequired')
@@ -209,8 +213,9 @@ export class SyncHostService {
           })
         // Start before persisting so a failed bind never leaves host mode marked enabled without a
         // listener, and roll the listener back if the flag itself cannot be written.
-        await this.startInternal(port)
+        await this.startInternal(port, generation)
         try {
+          this.assertGeneration(generation)
           await this.state.update((state) => {
             state.allowWrites = options.bidirectional === true
             if (!state.allowWrites) for (const device of state.devices) device.writable = false
@@ -235,15 +240,18 @@ export class SyncHostService {
   }
 
   async start(): Promise<void> {
-    await this.serialize(() => this.startInternal())
+    const generation = this.generation
+    await this.serialize(() => this.startInternal(undefined, generation))
   }
 
   async stop(): Promise<void> {
+    this.generation++
     await this.serialize(() => this.stopInternal())
   }
 
   /** Starts the endpoint only when host mode is enabled; safe to call unconditionally at boot. */
   async startIfEnabled(): Promise<void> {
+    const generation = this.generation
     await this.tunnel?.initialize()
     await this.initialize()
     await this.serialize(async () => {
@@ -255,7 +263,7 @@ export class SyncHostService {
         })
         return
       }
-      await this.startInternal(state.port)
+      await this.startInternal(state.port, generation)
     })
   }
 
@@ -382,25 +390,36 @@ export class SyncHostService {
     return this.endpoint.getAuditEntries()
   }
 
-  private async startInternal(port = this.state.snapshot().port): Promise<void> {
+  private assertGeneration(generation: number): void {
+    if (generation !== this.generation) throw new Error('sync.tunnel.error.busy')
+  }
+
+  private async startInternal(
+    port = this.state.snapshot().port,
+    generation = this.generation
+  ): Promise<void> {
+    this.assertGeneration(generation)
     if (this.endpoint.isRunning()) {
       return
     }
     this.startError = null
     try {
       await this.endpoint.start({ port })
+      this.assertGeneration(generation)
       const state = this.state.snapshot()
       if (state.tunnel.mode !== 'external') {
         if (!this.tunnel) throw new Error('sync.tunnel.error.tunnelUnavailable')
         let token: string | undefined
         if (state.tunnel.mode === 'named' && state.wrappedTunnelToken) {
           try {
-            token = this.deps.revealToken?.(state.wrappedTunnelToken)
+            token = await this.deps.revealToken?.(state.wrappedTunnelToken)
           } catch {
             throw new Error('sync.tunnel.error.credentialsUnavailable')
           }
         }
+        this.assertGeneration(generation)
         await this.tunnel.start(state.tunnel, port, token)
+        this.assertGeneration(generation)
       }
     } catch (error) {
       this.startError =

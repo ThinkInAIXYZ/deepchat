@@ -2,8 +2,6 @@ import logger from '@shared/logger'
 import type { MODEL_META, ModelRouteConfig } from '@shared/types/provider'
 import { isNewApiEndpointType, ModelType, resolveNewApiModelTypeFromMetadata } from '@shared/model'
 import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
-import ElectronStore from 'electron-store'
-import path from 'path'
 import type { StoreLike } from '@/config/storeLike'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import { emitModelsChanged } from './eventPublishers'
@@ -14,7 +12,6 @@ export interface IModelStore {
   custom_models: MODEL_META[]
 }
 
-export const PROVIDER_MODELS_DIR = 'provider_models'
 const PROVIDER_MODEL_CACHE_TTL_MS = 250
 
 type ProviderModelRouteSource = Pick<
@@ -27,7 +24,7 @@ type ModelStatusUpdater = (providerId: string, modelId: string, enabled: boolean
 type ModelStatusRemover = (providerId: string, modelId: string) => void
 
 interface ProviderModelHelperOptions {
-  userDataPath: string
+  createStore: (providerId: string) => ProviderModelStore
   setModelStatus: ModelStatusUpdater
   deleteModelStatus: ModelStatusRemover
   publishEvent: DeepchatEventPublisher
@@ -53,12 +50,11 @@ function isNonChatModelType(type: ModelType | undefined): type is ModelType {
 }
 
 export class ProviderModelHelper {
-  private readonly userDataPath: string
+  private readonly createStore: (providerId: string) => ProviderModelStore
   private readonly setModelStatus: ModelStatusUpdater
   private readonly deleteModelStatus: ModelStatusRemover
   private readonly publishEvent: DeepchatEventPublisher
   private readonly stores: Map<string, ProviderModelStore> = new Map()
-  private storeFactory: ((providerId: string) => ProviderModelStore) | null = null
   private readonly providerModelsCache = new Map<
     string,
     {
@@ -69,47 +65,15 @@ export class ProviderModelHelper {
   >()
 
   constructor(options: ProviderModelHelperOptions) {
-    this.userDataPath = options.userDataPath
+    this.createStore = options.createStore
     this.setModelStatus = options.setModelStatus
     this.deleteModelStatus = options.deleteModelStatus
     this.publishEvent = options.publishEvent
   }
 
-  private getStoreName(providerId: string): string {
-    const safeProviderId = encodeURIComponent(providerId).replace(/\*/g, '%2A')
-    return `models_${safeProviderId}`
-  }
-
-  setStoreFactory(factory: (providerId: string) => ProviderModelStore): void {
-    this.storeFactory = factory
-    this.stores.clear()
-    this.invalidateAllProviderModelsCache()
-  }
-
   getProviderModelStore(providerId: string): ProviderModelStore {
     if (!this.stores.has(providerId)) {
-      if (this.storeFactory) {
-        this.stores.set(providerId, this.storeFactory(providerId))
-        return this.stores.get(providerId)!
-      }
-
-      const storeName = this.getStoreName(providerId)
-      const storePath = path.join(this.userDataPath, PROVIDER_MODELS_DIR)
-      logger.info(
-        `[ProviderModelHelper] getProviderModelStore: creating isolated store "${storeName}" at "${storePath}" for provider "${providerId}"`
-      )
-      const store = new ElectronStore<IModelStore>({
-        name: storeName,
-        cwd: storePath,
-        defaults: {
-          models: [],
-          custom_models: []
-        }
-      })
-      this.stores.set(providerId, store as unknown as ProviderModelStore)
-      logger.info(
-        `[ProviderModelHelper] getProviderModelStore: store "${storeName}" created and cached for provider "${providerId}"`
-      )
+      this.stores.set(providerId, this.createStore(providerId))
     }
     return this.stores.get(providerId)!
   }

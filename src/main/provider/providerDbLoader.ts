@@ -1,6 +1,5 @@
 import fs from 'fs'
 import path from 'path'
-import { app } from 'electron'
 import {
   ProviderAggregate,
   ProviderEntry,
@@ -76,25 +75,57 @@ export type ProviderDbCatalogChange =
 
 export type ProviderDbCatalogListener = (change: ProviderDbCatalogChange) => void
 
+export type ProviderDbBootstrap = {
+  userDataDirectory: string
+  builtInCatalogPath: string
+}
+
 export class ProviderDbLoader {
   private cache: ProviderAggregate | null = null
-  private userDataDir: string
-  private cacheDir: string
-  private cacheFilePath: string
-  private metaFilePath: string
+  private bootstrap: ProviderDbBootstrap | null = null
+  private cacheDir = ''
+  private cacheFilePath = ''
+  private metaFilePath = ''
+  private stopped = false
+  private refreshController: AbortController | null = null
   private refreshPromise: Promise<ProviderDbRefreshResult> | null = null
   private privacyModeResolver: () => boolean = () => false
   private readonly catalogListeners = new Set<ProviderDbCatalogListener>()
 
-  constructor() {
-    this.userDataDir = process.env.DEEPCHAT_E2E_USER_DATA_DIR?.trim() || app.getPath('userData')
-    this.cacheDir = path.join(this.userDataDir, 'provider-db')
+  configure(bootstrap: ProviderDbBootstrap): void {
+    if (this.stopped) throw new Error('Provider catalog is stopping')
+    if (
+      !path.isAbsolute(bootstrap.userDataDirectory) ||
+      !path.isAbsolute(bootstrap.builtInCatalogPath)
+    ) {
+      throw new Error('Provider catalog paths must be absolute')
+    }
+    if (this.bootstrap) {
+      if (
+        this.bootstrap.userDataDirectory !== bootstrap.userDataDirectory ||
+        this.bootstrap.builtInCatalogPath !== bootstrap.builtInCatalogPath
+      ) {
+        throw new Error('Provider catalog is already configured for another profile')
+      }
+      return
+    }
+    this.bootstrap = { ...bootstrap }
+    this.cacheDir = path.join(bootstrap.userDataDirectory, 'provider-db')
     this.cacheFilePath = path.join(this.cacheDir, 'providers.json')
     this.metaFilePath = path.join(this.cacheDir, 'meta.json')
 
     try {
       if (!fs.existsSync(this.cacheDir)) fs.mkdirSync(this.cacheDir, { recursive: true })
     } catch {}
+  }
+
+  stop(): void {
+    this.stopped = true
+    this.refreshController?.abort()
+  }
+
+  async drain(): Promise<void> {
+    await this.refreshPromise
   }
 
   setPrivacyModeResolver(resolver?: () => boolean): void {
@@ -106,8 +137,10 @@ export class ProviderDbLoader {
     return () => this.catalogListeners.delete(listener)
   }
 
-  // Public: initialize on app start (non-blocking refresh)
+  // Load the initial catalog; the startup task owner schedules automatic refresh.
   async initialize(): Promise<void> {
+    if (!this.bootstrap) throw new Error('Provider catalog paths are required')
+    if (this.stopped) return
     // Load from cache or built-in
     this.cache = this.loadFromCache() ?? this.loadFromBuiltIn()
     if (this.cache) {
@@ -116,25 +149,11 @@ export class ProviderDbLoader {
         providersCount: Object.keys(this.cache.providers || {}).length
       })
     }
-
-    if (this.isAutomaticRefreshBlocked()) {
-      return
-    }
-
-    // Always refresh once in the background on startup to pick up upstream updates.
-    void this.refreshIfNeeded(true, { automatic: true })
-      .then((result) => {
-        if (result.status === 'error') {
-          console.warn('[ProviderDbLoader] Startup refresh failed:', result.message)
-        }
-      })
-      .catch((error) => {
-        console.warn('[ProviderDbLoader] Startup refresh failed:', error)
-      })
   }
 
   getDb(): ProviderAggregate | null {
     if (this.cache) return this.cache
+    if (!this.bootstrap || this.stopped) return null
     // Lazy try again if not initialized yet
     this.cache = this.loadFromCache() ?? this.loadFromBuiltIn()
     return this.cache
@@ -172,7 +191,8 @@ export class ProviderDbLoader {
 
   private loadFromBuiltIn(): ProviderAggregate | null {
     try {
-      const helperPath = path.join(app.getAppPath(), 'resources', 'model-db', 'providers.json')
+      const helperPath = this.bootstrap?.builtInCatalogPath
+      if (!helperPath) return null
       if (!fs.existsSync(helperPath)) return null
       const raw = fs.readFileSync(helperPath, 'utf-8')
       const parsed = JSON.parse(raw)
@@ -184,6 +204,7 @@ export class ProviderDbLoader {
   }
 
   private readMeta(): MetaFile | null {
+    if (!this.bootstrap || this.stopped) return null
     try {
       if (!fs.existsSync(this.metaFilePath)) return null
       const raw = fs.readFileSync(this.metaFilePath, 'utf-8')
@@ -223,8 +244,11 @@ export class ProviderDbLoader {
     force = false,
     options: {
       automatic?: boolean
+      signal?: AbortSignal
     } = {}
   ): Promise<ProviderDbRefreshResult> {
+    if (!this.bootstrap) throw new Error('Provider catalog paths are required')
+    if (this.stopped || options.signal?.aborted) return this.createResult('skipped')
     const meta = this.readMeta()
     if (options.automatic && this.isAutomaticRefreshBlocked()) {
       return this.createResult('skipped', meta)
@@ -244,9 +268,11 @@ export class ProviderDbLoader {
       return this.createResult('skipped', meta)
     }
 
-    this.refreshPromise = this.fetchAndUpdate(url, meta || undefined).finally(() => {
-      this.refreshPromise = null
-    })
+    this.refreshPromise = this.fetchAndUpdate(url, meta || undefined, options.signal).finally(
+      () => {
+        this.refreshPromise = null
+      }
+    )
 
     return this.refreshPromise
   }
@@ -288,8 +314,14 @@ export class ProviderDbLoader {
     }
   }
 
-  private async fetchAndUpdate(url: string, prevMeta?: MetaFile): Promise<ProviderDbRefreshResult> {
+  private async fetchAndUpdate(
+    url: string,
+    prevMeta?: MetaFile,
+    signal?: AbortSignal
+  ): Promise<ProviderDbRefreshResult> {
     const controller = new AbortController()
+    this.refreshController = controller
+    const requestSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
     const timeout = setTimeout(() => controller.abort(), 15000)
     try {
       const headers: Record<string, string> = {}
@@ -298,7 +330,8 @@ export class ProviderDbLoader {
         headers['If-None-Match'] = prevMeta.etag
       }
 
-      const res = await fetch(url, { headers, signal: controller.signal })
+      const res = await fetch(url, { headers, signal: requestSignal })
+      if (this.stopped || signal?.aborted) return this.createResult('skipped', prevMeta)
       const now = this.now()
 
       if (res.status === 304 && prevMeta) {
@@ -319,6 +352,7 @@ export class ProviderDbLoader {
       }
 
       const text = await readResponseTextWithLimit(res, MAX_PROVIDER_DB_PAYLOAD_BYTES)
+      if (this.stopped || signal?.aborted) return this.createResult('skipped', prevMeta)
       if (text === null) {
         const meta = this.createAttemptMeta(prevMeta, url, now)
         if (meta) this.writeMeta(meta)
@@ -362,12 +396,14 @@ export class ProviderDbLoader {
       })
       return this.createResult('updated', meta)
     } catch (error) {
+      if (this.stopped || signal?.aborted) return this.createResult('skipped', prevMeta)
       const meta = this.createAttemptMeta(prevMeta, url, this.now())
       if (meta) this.writeMeta(meta)
       const message = error instanceof Error ? error.message : 'Unknown provider DB refresh error'
       return this.createResult('error', meta, message)
     } finally {
       clearTimeout(timeout)
+      if (this.refreshController === controller) this.refreshController = null
     }
   }
 

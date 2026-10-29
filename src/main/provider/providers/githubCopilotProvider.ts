@@ -16,12 +16,12 @@ import {
   type ProviderGenerateTextOptions
 } from '../baseProvider'
 import { normalizeToolInputSchema } from '../aiSdk/toolMapper'
-import type { ProviderLocalePort } from '../ports'
+import type { ProviderEnvironmentPort } from '../ports'
 import {
   createGitHubCopilotHttpError,
   getGitHubCopilotToken,
   GITHUB_COPILOT_CHAT_HEADERS
-} from '../../provider/auth/githubCopilotDeviceFlow'
+} from '../../provider/auth/githubCopilotToken'
 
 export class GithubCopilotProvider extends BaseLLMProvider {
   private copilotToken: string | null = null
@@ -31,7 +31,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
   constructor(
     provider: LLM_PROVIDER,
     providerSettings: ProviderSettingsPort,
-    locale: ProviderLocalePort
+    locale: ProviderEnvironmentPort
   ) {
     super(provider, providerSettings, locale)
     this.init()

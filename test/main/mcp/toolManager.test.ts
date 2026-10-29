@@ -1,3 +1,4 @@
+import { createPluginToolPolicies } from '../../helpers/pluginToolPolicies'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CUA_PLUGIN_ID } from '@shared/types/plugin'
@@ -5,10 +6,9 @@ import { ToolManager, type ComputerUsePreviewObserver } from '@/mcp/toolManager'
 import { McpPreDispatchError } from '@/mcp/errors'
 import { validateAndCloneMcpTool } from '@/mcp/schemaValidation'
 import type { PluginRuntimeStartReason } from '@/plugin/runtimeSupervisor'
-import * as toolPolicyStore from '@/plugin/toolPolicyStore'
+const toolPolicies = createPluginToolPolicies()
 
 const TOOL_POLICY_PLUGIN_ID = 'com.deepchat.plugins.permission-test'
-const { registerPluginToolPolicy, unregisterPluginToolPolicies } = toolPolicyStore
 const semanticNotifications = {
   occur: vi.fn(),
   recover: vi.fn()
@@ -39,7 +39,7 @@ describe('ToolManager', () => {
   })
 
   afterEach(() => {
-    unregisterPluginToolPolicies(TOOL_POLICY_PLUGIN_ID)
+    toolPolicies.unregister(TOOL_POLICY_PLUGIN_ID)
     warnSpy.mockRestore()
   })
 
@@ -129,6 +129,7 @@ describe('ToolManager', () => {
       providerSettings as never,
       providerSettings as never,
       serverManager as never,
+      toolPolicies,
       semanticNotifications,
       runtime.publishEvent ?? vi.fn(),
       {
@@ -523,7 +524,7 @@ describe('ToolManager', () => {
         inputSchema: { type: 'object', properties: {}, required: [] }
       }
     ])
-    registerPluginToolPolicy({
+    toolPolicies.register({
       pluginId: TOOL_POLICY_PLUGIN_ID,
       serverId: serverName,
       tools: { known_tool: 'allow' },
@@ -551,7 +552,7 @@ describe('ToolManager', () => {
 
   it('does not advertise explicitly denied plugin catalog tools', async () => {
     const serverName = 'closed-policy-server'
-    registerPluginToolPolicy({
+    toolPolicies.register({
       pluginId: TOOL_POLICY_PLUGIN_ID,
       serverId: serverName,
       tools: {
@@ -2403,12 +2404,10 @@ describe('ToolManager', () => {
 
   it('refreshes PiP after a trusted click without exposing or awaiting the private snapshot', async () => {
     let snapshotPolicy: 'allow' | 'ask' = 'allow'
-    vi.spyOn(toolPolicyStore, 'resolvePluginToolPolicy').mockImplementation(
-      (_serverId, toolName) => ({
-        managed: toolName === 'get_window_state',
-        decision: toolName === 'get_window_state' ? snapshotPolicy : null
-      })
-    )
+    vi.spyOn(toolPolicies, 'resolve').mockImplementation((_serverId, toolName) => ({
+      managed: toolName === 'get_window_state',
+      decision: toolName === 'get_window_state' ? snapshotPolicy : null
+    }))
     const tools = [
       {
         name: 'click',
@@ -2464,6 +2463,7 @@ describe('ToolManager', () => {
       providerSettings as never,
       providerSettings as never,
       createServerManager([client]) as never,
+      toolPolicies,
       semanticNotifications,
       publishEvent,
       {
@@ -2627,12 +2627,10 @@ describe('ToolManager', () => {
   })
 
   it('blocks a private PiP snapshot when the live schema differs from the catalog', async () => {
-    vi.spyOn(toolPolicyStore, 'resolvePluginToolPolicy').mockImplementation(
-      (_serverId, toolName) => ({
-        managed: toolName === 'get_window_state',
-        decision: toolName === 'get_window_state' ? 'allow' : null
-      })
-    )
+    vi.spyOn(toolPolicies, 'resolve').mockImplementation((_serverId, toolName) => ({
+      managed: toolName === 'get_window_state',
+      decision: toolName === 'get_window_state' ? 'allow' : null
+    }))
     const liveTools = [
       {
         name: 'click',

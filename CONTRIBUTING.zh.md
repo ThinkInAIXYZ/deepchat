@@ -57,6 +57,7 @@
 2. 安装必要的开发工具:
 
    - 安装 [Node.js](https://nodejs.org/) (推荐使用最新的 LTS 版本)
+   - Install Rustup for the native Rutis host; `rust-toolchain.toml` pins Rust 1.95.0. `pnpm run dev` and `pnpm run build` build the host automatically; packaged users do not need Rust.
 
 3. 根据您的操作系统进行额外设置:
 

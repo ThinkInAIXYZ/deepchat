@@ -45,13 +45,6 @@ function makeSkillResolution(name: string, content: string, agentId = 'agent-a')
   }
 }
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: () => '/tmp',
-    getAppPath: () => '/mock/app'
-  }
-}))
-
 describe('AgentToolManager DeepChat settings tool gating', () => {
   const providerSettings = {} as any
   const skillService = {
@@ -85,8 +78,13 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       desktopSettings: {
-        getCopyWithCotEnabled: vi.fn(() => true),
-        setCopyWithCotEnabled: vi.fn()
+        applyDisplayChange: vi.fn(async (change) => ({
+          ok: true,
+          id: change.id,
+          value: change.value,
+          previousValue: true,
+          appliedAt: 1
+        }))
       } as any,
       agentWorkspacePath: null,
       providerSettings,

@@ -1,4 +1,3 @@
-import { app } from 'electron'
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -149,8 +148,7 @@ const safeDecodePath = (value: string): string => {
   }
 }
 
-const resolveCachedImagePath = (source: string): string => {
-  const cacheDir = path.join(app.getPath('userData'), 'images')
+const resolveCachedImagePath = (source: string, cacheDir: string): string => {
   const cachePath = safeDecodePath(source.slice(IMGCACHE_URL_PREFIX.length))
   const fullPath = path.resolve(cacheDir, cachePath)
   const relativePath = path.relative(cacheDir, fullPath)
@@ -172,7 +170,8 @@ const decodeBase64Image = (value: string, label: string): Buffer => {
 
 const resolveGeneratedImageContent = async (
   source: string,
-  fallbackMimeType: string
+  fallbackMimeType: string,
+  cacheDirectory: string
 ): Promise<{
   data: Buffer
   mimeType: string
@@ -191,7 +190,7 @@ const resolveGeneratedImageContent = async (
   }
 
   if (normalizedSource.startsWith(IMGCACHE_URL_PREFIX)) {
-    const imagePath = resolveCachedImagePath(normalizedSource)
+    const imagePath = resolveCachedImagePath(normalizedSource, cacheDirectory)
     return {
       data: await fs.readFile(imagePath),
       mimeType:
@@ -424,6 +423,7 @@ export type RemoteOpenSessionResult =
     }
 
 type RemoteConversationRunnerDeps = {
+  profileDirectory: string
   catalog: RemoteCatalogPort
   workspace: RemoteWorkspacePort
   lifecycle: RemoteSessionLifecyclePort
@@ -442,7 +442,10 @@ export class RemoteConversationRunner {
   constructor(
     private readonly deps: RemoteConversationRunnerDeps,
     private readonly bindingStore: RemoteBindingStore
-  ) {}
+  ) {
+    if (!path.isAbsolute(deps.profileDirectory))
+      throw new Error('Remote profile directory must be absolute')
+  }
 
   async createNewSession(
     endpointKey: string,
@@ -805,8 +808,8 @@ export class RemoteConversationRunner {
     return currentSession?.agentId ?? (await this.deps.resolveDefaultAgentId())
   }
 
-  private getGlobalDefaultWorkdir(): string | null {
-    const projectDir = this.deps.workspace.getDefaultProjectPath()
+  private async getGlobalDefaultWorkdir(): Promise<string | null> {
+    const projectDir = await this.deps.workspace.getDefaultProjectPath()
     const normalized = projectDir?.trim()
     return normalized ? normalized : null
   }
@@ -882,7 +885,7 @@ export class RemoteConversationRunner {
       return path.join(workspace, REMOTE_ASSET_ROOT)
     }
 
-    return path.join(app.getPath('userData'), REMOTE_GENERATED_ASSET_ROOT)
+    return path.join(this.deps.profileDirectory, REMOTE_GENERATED_ASSET_ROOT)
   }
 
   private async prepareRemoteAttachments(
@@ -1221,7 +1224,11 @@ export class RemoteConversationRunner {
     const assets: RemoteGeneratedImageAsset[] = []
     for (const [candidateIndex, candidate] of imageCandidates.entries()) {
       try {
-        const imageContent = await resolveGeneratedImageContent(candidate.data, candidate.mimeType)
+        const imageContent = await resolveGeneratedImageContent(
+          candidate.data,
+          candidate.mimeType,
+          path.join(this.deps.profileDirectory, 'images')
+        )
         const filenameBase = sanitizePathSegment(
           candidate.filenameBase,
           `generated-${candidateIndex + 1}`

@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import type { UpgradeService } from './index'
-import type { UpdateSettings } from './settings'
+import type { AppSettingsService } from '@/app/settingsService'
 import {
   configGetUpdateChannelRoute,
   configSetUpdateChannelRoute,
@@ -25,7 +25,7 @@ export function createUpgradeRoutes(deps: {
     | 'clearMockUpdate'
     | 'restartToUpdate'
   >
-  settings: UpdateSettings
+  settings: Pick<AppSettingsService, 'getUpdateChannel' | 'setUpdateChannel'>
 }): DeepchatRouteMap {
   const { upgrade } = deps
   return createRouteMap([
@@ -33,15 +33,18 @@ export function createUpgradeRoutes(deps: {
       configGetUpdateChannelRoute.name,
       async (rawInput) => {
         configGetUpdateChannelRoute.input.parse(rawInput)
-        return configGetUpdateChannelRoute.output.parse({ channel: deps.settings.getChannel() })
+        return configGetUpdateChannelRoute.output.parse({
+          channel: await deps.settings.getUpdateChannel()
+        })
       }
     ],
     [
       configSetUpdateChannelRoute.name,
       async (rawInput) => {
         const input = configSetUpdateChannelRoute.input.parse(rawInput)
-        deps.settings.setChannel(input.channel)
-        return configSetUpdateChannelRoute.output.parse({ channel: deps.settings.getChannel() })
+        return configSetUpdateChannelRoute.output.parse({
+          channel: await deps.settings.setUpdateChannel(input.channel)
+        })
       }
     ],
     [

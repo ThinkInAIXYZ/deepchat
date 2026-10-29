@@ -5,17 +5,6 @@ import { createAgentToolDependencies } from './agentToolDependencies'
 import { CommandPermissionService } from '@/tool/permission'
 import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: () => '/tmp/deepchat-test'
-  },
-  nativeImage: {
-    createFromPath: () => ({
-      getSize: () => ({ width: 1, height: 1 })
-    })
-  }
-}))
-
 const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
   createAgentToolDependencies({
     resolveConversationWorkdir: vi.fn().mockResolvedValue('/workspace'),

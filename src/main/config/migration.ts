@@ -1,4 +1,3 @@
-import { app } from 'electron'
 import ElectronStore from 'electron-store'
 import path from 'node:path'
 import type { Prompt, SystemPrompt } from '@shared/types/prompt'
@@ -44,9 +43,9 @@ export function migrateConfigStorage(options: {
   mcpSettings: Record<string, unknown>
   acpCatalog: { enabled: boolean; sharedMcpSelections: string[] }
   userDataPath: string
-  currentAppVersion?: string
+  currentAppVersion: string
 }): ConfigMigrationResult {
-  const currentAppVersion = options.currentAppVersion ?? app.getVersion()
+  const currentAppVersion = options.currentAppVersion
   const previousAppVersion = options.settings.get<string>('appVersion')
 
   migrateBusinessConfigToSqlite(options)

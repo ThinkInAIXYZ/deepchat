@@ -16,6 +16,8 @@ import type { SchedulerDatabase } from './data/database'
 import type { CronJobDeliveryRow } from './data/tables/cronJobDeliveries'
 import type { CronJobRow } from './data/tables/cronJobs'
 import type { CronJobRunRow } from './data/tables/cronJobRuns'
+import { randomUUID } from 'node:crypto'
+import { CronExpressionService } from './cronExpressionService'
 
 export type CronJobUpsertInput = z.input<typeof cronJobsUpsertInputSchema> & {
   now?: number
@@ -26,7 +28,16 @@ export interface CronJobsSchedulerSnapshot {
   nextRunAt: number | null
 }
 
+export interface SchedulerRunDueEvent {
+  jobId: string
+  runId: string
+  scheduledAt: number
+  reason: CronJobRunReason
+}
+
 export class CronJobsRepository {
+  private readonly scheduleService = new CronExpressionService()
+
   constructor(private readonly database: SchedulerDatabase) {}
 
   listJobs(): CronJob[] {
@@ -106,6 +117,59 @@ export class CronJobsRepository {
       enabledJobCount: this.database.cronJobsTable.countEnabled(),
       nextRunAt: this.database.cronJobsTable.getNextEnabledRunAt()
     }
+  }
+
+  queueDueRuns(now = Date.now()): SchedulerRunDueEvent[] {
+    const db = this.database.getDatabase()
+    return db.transaction(() => {
+      const rows = db
+        .prepare(
+          `SELECT id, cron_expr, timezone, next_run_at, misfire_policy, max_catch_up_runs
+           FROM cron_jobs
+           WHERE enabled = 1 AND status = 'ready' AND agent_id IS NOT NULL
+             AND task_prompt != '' AND next_run_at IS NOT NULL AND next_run_at <= ?
+           ORDER BY next_run_at ASC, id ASC
+           LIMIT 100`
+        )
+        .all(now) as Pick<
+        CronJobRow,
+        'id' | 'cron_expr' | 'timezone' | 'next_run_at' | 'misfire_policy' | 'max_catch_up_runs'
+      >[]
+      return rows.flatMap((row) => {
+        const reconciliation = this.scheduleService.reconcileDueRun(
+          {
+            cronExpr: row.cron_expr,
+            timezone: row.timezone,
+            misfirePolicy: row.misfire_policy,
+            maxCatchUpRuns: row.max_catch_up_runs
+          },
+          row.next_run_at!,
+          now
+        )
+        const events: SchedulerRunDueEvent[] = []
+        for (const scheduledAt of reconciliation.scheduledAts) {
+          const runId = randomUUID()
+          const result = db
+            .prepare(
+              `INSERT OR IGNORE INTO cron_job_runs (
+                 id, job_id, scheduled_at, queued_at, started_at, completed_at,
+                 status, reason, error, created_at, updated_at
+               ) VALUES (?, ?, ?, ?, NULL, NULL, 'queued', 'scheduled', NULL, ?, ?)`
+            )
+            .run(runId, row.id, scheduledAt, now, now, now)
+          if (result.changes > 0)
+            events.push({ jobId: row.id, runId, scheduledAt, reason: 'scheduled' })
+        }
+        const updated = db
+          .prepare(
+            `UPDATE cron_jobs SET next_run_at = ?, schedule_error = ?, updated_at = ?
+             WHERE id = ? AND next_run_at = ?`
+          )
+          .run(reconciliation.nextRunAt, reconciliation.error, now, row.id, row.next_run_at)
+        if (updated.changes !== 1) throw new Error('Cron schedule changed during due-run claim.')
+        return events
+      })
+    })()
   }
 
   queueRun(input: {

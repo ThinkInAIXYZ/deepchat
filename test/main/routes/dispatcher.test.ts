@@ -1,3 +1,4 @@
+import { AppSettingsService } from '@/app/settingsService'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { FileServicePort } from '@shared/types/file'
 import type { SkillServicePort } from '@shared/types/skill'
@@ -875,6 +876,10 @@ function createRuntime() {
   }
   const appDatabaseMaintenance = {
     assertRouteAllowed: vi.fn(),
+    async runRequest<T>(routeName: string, run: () => Promise<T>): Promise<T> {
+      this.assertRouteAllowed(routeName)
+      return await run()
+    },
     enableDatabaseEncryption: vi.fn().mockResolvedValue(enabledDatabaseSecurityStatus),
     changeDatabasePassword: vi.fn().mockResolvedValue(enabledDatabaseSecurityStatus),
     disableDatabaseEncryption: vi.fn().mockResolvedValue({
@@ -893,7 +898,20 @@ function createRuntime() {
     })
   }
   const startupWorkloadCoordinator = {
-    scheduleTask: vi.fn(async (task: { run: () => Promise<unknown> }) => await task.run()),
+    scheduleTask: vi.fn(
+      async (task: {
+        run: (context: {
+          signal: AbortSignal
+          reportProgress(progress: number): void
+          yield(): Promise<void>
+        }) => Promise<unknown>
+      }) =>
+        await task.run({
+          signal: new AbortController().signal,
+          reportProgress: () => undefined,
+          yield: async () => undefined
+        })
+    ),
     getRunId: vi.fn(() => 'startup:test'),
     replayTarget: vi.fn()
   }
@@ -980,7 +998,11 @@ function createRuntime() {
   }
   const applyProxyMode = vi.fn()
   const applyCustomProxyUrl = vi.fn()
+  const applyContentProtection = vi.fn()
   const desktopSettings = {
+    getLanguage: vi.fn(() => 'en-US'),
+    getCloseToQuit: vi.fn(() => false),
+    getFloatingButtonBounds: vi.fn(() => null),
     getCopyWithCotEnabled: vi.fn(() => settings.copyWithCotEnabled),
     setCopyWithCotEnabled: vi.fn((enabled: boolean) => {
       settings.copyWithCotEnabled = enabled
@@ -1004,10 +1026,12 @@ function createRuntime() {
     getContentProtectionEnabled: vi.fn(() => settings.contentProtectionEnabled),
     setContentProtectionEnabled: vi.fn((value: boolean) => {
       settings.contentProtectionEnabled = value
+      applyContentProtection(value)
     }),
     getFloatingButtonEnabled: vi.fn(() => settings.floatingButtonEnabled),
-    setFloatingButtonEnabled: vi.fn((value: boolean) => {
+    setFloatingButtonEnabled: vi.fn(async (value: boolean) => {
       settings.floatingButtonEnabled = value
+      await setFloatingButtonEnabled(value)
     }),
     getShortcutKeys: vi.fn(() => ({})),
     setShortcutKeys: vi.fn(),
@@ -1024,7 +1048,6 @@ function createRuntime() {
     }),
     getSystemFonts: vi.fn().mockResolvedValue(['Inter', 'JetBrains Mono'])
   }
-  const applyContentProtection = vi.fn()
   const setFloatingButtonEnabled = vi.fn()
   const loggingService = {
     getEnabled: vi.fn(() => settings.loggingEnabled),
@@ -1598,6 +1621,7 @@ function createRuntime() {
   })
   const assertSessionActiveSkillsMutable = vi.fn().mockResolvedValue(undefined)
   const skillRoutes = createSkillRoutes({
+    tempDirectory: '/tmp/deepchat-test',
     skillService,
     skillSyncService,
     skillSettings,
@@ -1620,6 +1644,25 @@ function createRuntime() {
     getTapeInspection: () => tapeInspection,
     getAuditEntries: () => (sqlitePresenter as any).agentMemoryAuditTable
   })
+  let settingsSnapshotRevision = 0
+  const appSettingsService = new AppSettingsService({
+    ownerId: 'fixture-owner',
+    updateSettings: updateSettings as never,
+    publishNativeSnapshot: vi.fn(),
+    agentDefaults: agentDefaults as never,
+    privacy: privacySettings as never,
+    traceSettings: traceSettings as never,
+    desktopSettings: desktopSettings as never,
+    fonts: fontSettings as never,
+    logging: loggingService as never,
+    ocr: ocrSettings,
+    publishEvent: publishDeepchatEvent,
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    },
+    nextVersion: () => ++settingsSnapshotRevision,
+    assertActive: () => {}
+  })
   const desktopRoutes = createDesktopRoutes({
     ownsDraftSession: sessionLifecyclePort.ownsDraftSession,
     windowPresenter,
@@ -1629,13 +1672,21 @@ function createRuntime() {
     desktopSessionBinding,
     tabPresenter,
     dialogService: dialogService as unknown as DialogServicePort,
-    settings: desktopSettings as never,
-    setFloatingButtonEnabled,
+    settings: appSettingsService,
+    appearance: {
+      getLanguage: () => appSettingsService.getLanguage(),
+      setLanguage: (language) => appSettingsService.setLanguage(language),
+      getTheme: () => appSettingsService.getTheme(),
+      setTheme: (theme) => appSettingsService.setTheme(theme)
+    },
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
     }
   })
-  const fileRoutes = createFileRoutes(fileService)
+  const fileRoutes = createFileRoutes(fileService, {
+    saveImage: vi.fn().mockResolvedValue({ canceled: true }),
+    copyImage: vi.fn().mockResolvedValue({ copied: true })
+  })
   const knowledgeSettings = {
     getKnowledgeConfigs: vi.fn(() => knowledgeConfigs),
     setKnowledgeConfigs: vi.fn((configs: typeof knowledgeConfigs) => {
@@ -1749,7 +1800,7 @@ function createRuntime() {
   const exporterRoutes = createExporterRoutes(exporter)
   const upgradeRoutes = createUpgradeRoutes({
     upgrade: {} as never,
-    settings: updateSettings as never
+    settings: appSettingsService
   })
   const syncRoutes = createSyncRoutes({
     sync: syncService,
@@ -1773,19 +1824,11 @@ function createRuntime() {
     } as never
   })
   const appSettingsRoutes = createAppSettingsRoutes({
+    appSettings: appSettingsService,
     settings: {
       get: (key) => providerSettings.getSetting(key),
       set: (key, value) => providerSettings.setSetting(key, value)
     },
-    agentDefaults: agentDefaults as never,
-    privacy: privacySettings as never,
-    traceSettings: traceSettings as never,
-    updateSettings: updateSettings as never,
-    desktopSettings: desktopSettings as never,
-    fonts: fontSettings as never,
-    applyContentProtection,
-    logging: loggingService as never,
-    ocr: ocrSettings,
     commandShell,
     publishEvent: publishDeepchatEvent,
     recordActivity: (input) => {

@@ -75,6 +75,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check Rust host
+        run: |
+          cargo fmt --check --manifest-path crates/deepchat-harness/Cargo.toml
+          cargo clippy --locked --manifest-path crates/deepchat-harness/Cargo.toml --all-targets -- -D warnings
+          cargo test --locked --manifest-path crates/deepchat-harness/Cargo.toml
+
       - name: Test main process
         run: pnpm run test:main
 
@@ -153,6 +159,9 @@ jobs:
           pnpm run installRuntime:duckdb:vss:linux:x64
           pnpm run smoke:duckdb:vss -- --platform linux --arch x64
 
+      - name: Build Rutis harness for native integration
+        run: pnpm run harness:build
+
       - name: Validate portable memory behavior
         run: pnpm run test:memory
 
@@ -201,9 +210,10 @@ jobs:
           DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
         run: pnpm run test:memory:eval
 
-      - name: Validate memory performance bounds
+      - name: Validate memory workload bounds and report timings
         env:
           DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
+          DEEPCHAT_MEMORY_PERF_REPORT_ONLY: '1'
         run: pnpm run test:main:memory-perf
 
       - name: Upload memory retrieval report

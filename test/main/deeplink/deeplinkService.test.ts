@@ -19,12 +19,7 @@ const presenterMock = vi.hoisted(() => ({
     getAllWindows: vi.fn().mockReturnValue([]),
     getFocusedWindow: vi.fn().mockReturnValue(null)
   },
-  providerSettings: {
-    getProviderById: vi.fn()
-  },
-  mcpService: {
-    isReady: vi.fn().mockReturnValue(true)
-  },
+  providerExists: vi.fn(),
   semanticNotifications: {
     occur: vi.fn(),
     recover: vi.fn()
@@ -42,16 +37,17 @@ describe('DeeplinkService', () => {
   const createProviderInstallBase64 = (payload: Record<string, string>) =>
     Buffer.from(JSON.stringify(payload)).toString('base64')
 
-  const createDeeplinkService = async () => {
+  const createDeeplinkService = async (mcpReady = true) => {
     const { createDeeplinkActions } = await import('@/deeplink/actions')
     const { DeeplinkService } = await import('@/deeplink')
     const actions = createDeeplinkActions({
       window: presenterMock.windowPresenter as any,
-      config: presenterMock.providerSettings as any,
-      mcp: presenterMock.mcpService as any,
+      hasProvider: presenterMock.providerExists,
       notifications: presenterMock.semanticNotifications
     })
-    return new DeeplinkService(actions.desktop, actions.mcp, actions.provider)
+    const service = new DeeplinkService(actions.desktop, actions.mcp, actions.provider)
+    service.observeMcpReadiness(mcpReady)
+    return service
   }
 
   beforeEach(async () => {
@@ -65,21 +61,9 @@ describe('DeeplinkService', () => {
     presenterMock.windowPresenter.setPendingSettingsProviderInstall.mockReset()
     presenterMock.windowPresenter.getAllWindows.mockReturnValue([])
     presenterMock.windowPresenter.getFocusedWindow.mockReturnValue(null)
-    presenterMock.mcpService.isReady.mockReturnValue(true)
-    presenterMock.providerSettings.getProviderById.mockImplementation((providerId: string) => {
-      if (providerId === 'openai') {
-        return {
-          id: 'openai',
-          name: 'OpenAI',
-          apiType: 'openai',
-          apiKey: '',
-          baseUrl: 'https://api.openai.com/v1',
-          enable: false
-        }
-      }
-
-      return undefined
-    })
+    presenterMock.providerExists.mockImplementation(
+      async (providerId: string) => providerId === 'openai'
+    )
   })
 
   afterEach(() => {
@@ -235,18 +219,61 @@ describe('DeeplinkService', () => {
       }
     }
     const url = `deepchat:mcp/install?code=${Buffer.from(JSON.stringify(payload)).toString('base64')}`
-    presenterMock.mcpService.isReady.mockReturnValue(false)
+    deeplinkService.observeMcpReadiness(false)
 
     await deeplinkService.handleDeepLink(url)
 
     expect((deeplinkService as any).pendingMcpInstallUrl).toBe(url)
     expect(presenterMock.windowPresenter.createSettingsWindow).not.toHaveBeenCalled()
 
-    presenterMock.mcpService.isReady.mockReturnValue(true)
-    deeplinkService.processPendingMcpInstall()
+    deeplinkService.observeMcpReadiness(true)
 
     expect(handleDeepLink).toHaveBeenNthCalledWith(2, url)
     expect((deeplinkService as any).pendingMcpInstallUrl).toBeNull()
+  })
+
+  it('awaits provider existence before allowing the native settings preview', async () => {
+    const service = await createDeeplinkService()
+    const query = Promise.withResolvers<boolean>()
+    presenterMock.providerExists.mockReturnValue(query.promise)
+    const payload = createProviderInstallBase64({
+      id: 'openai',
+      baseUrl: 'https://proxy.example.com/v1',
+      apiKey: 'incoming-fixture'
+    })
+    const request = service.handleDeepLink(`deepchat://provider/install?v=1&data=${payload}`)
+    expect(presenterMock.windowPresenter.createSettingsWindow).not.toHaveBeenCalled()
+    query.resolve(false)
+    await request
+    expect(presenterMock.windowPresenter.createSettingsWindow).not.toHaveBeenCalled()
+    expect(presenterMock.semanticNotifications.occur).toHaveBeenCalledWith({
+      code: 'providerDeeplink.failed',
+      reason: 'provider-not-found'
+    })
+  })
+
+  it('releases only the latest pending MCP preview once for an observed startup', async () => {
+    const { DeeplinkService } = await import('@/deeplink')
+    const requestInstall = vi.fn(async (_mcpConfig: string) => true)
+    const service = new DeeplinkService(
+      { requestStart: async () => true },
+      { requestInstall },
+      { hasProvider: async () => false, requestInstall: async () => true, reportFailure: () => {} }
+    )
+    for (const name of ['first', 'latest']) {
+      const payload = Buffer.from(
+        JSON.stringify({ mcpServers: { [name]: { command: 'node', args: [] } } })
+      ).toString('base64')
+      await service.handleDeepLink(`deepchat://mcp/install?code=${payload}`)
+    }
+    service.observeMcpReadiness(false)
+    expect(requestInstall).not.toHaveBeenCalled()
+    service.observeMcpReadiness(true)
+    await vi.waitFor(() => expect(requestInstall).toHaveBeenCalledOnce())
+    expect(Object.keys(JSON.parse(requestInstall.mock.calls[0][0]).mcpServers)).toEqual(['latest'])
+    service.observeMcpReadiness(true)
+    await Promise.resolve()
+    expect(requestInstall).toHaveBeenCalledOnce()
   })
 
   it('routes built-in provider imports to settings and stores the preview for replay', async () => {

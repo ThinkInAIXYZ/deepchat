@@ -86,7 +86,7 @@ export function createAppRoutes(deps: {
       async (rawInput) => {
         databaseSecurityGetStatusRoute.input.parse(rawInput)
         return databaseSecurityGetStatusRoute.output.parse({
-          status: deps.databaseSecurity.getStatus()
+          status: await deps.databaseSecurity.getStatus()
         })
       }
     ],

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { shouldExcludeFromSqliteCopy } from '@/data/sqliteCopyExclusions'
+import type { DatabaseSecurityMetadata } from '@/app/databaseSecurity'
 
 const mocks = vi.hoisted(() => {
   const stores = new Map<string, Record<string, unknown>>()
@@ -8,10 +9,6 @@ const mocks = vi.hoisted(() => {
     encryptString: vi.fn((value: string) => Buffer.from(`wrapped:${value}`, 'utf8')),
     decryptString: vi.fn((value: Buffer) => value.toString('utf8').replace(/^wrapped:/, '')),
     getSelectedStorageBackend: vi.fn(() => 'basic_text')
-  }
-  const app = {
-    getPath: vi.fn(() => '/tmp/deepchat-test'),
-    quit: vi.fn()
   }
   const openSQLiteDatabase = vi.fn(() => ({
     prepare: vi.fn(() => ({
@@ -23,42 +20,34 @@ const mocks = vi.hoisted(() => {
   return {
     stores,
     safeStorage,
-    app,
     openSQLiteDatabase
   }
 })
 
-vi.mock('electron', () => ({
-  app: mocks.app,
-  safeStorage: mocks.safeStorage
-}))
-
-vi.mock('electron-store', () => ({
-  default: class MockElectronStore {
-    private readonly name: string
-
-    constructor(options: { name: string; defaults?: Record<string, unknown> }) {
-      this.name = options.name
-      if (!mocks.stores.has(this.name)) {
-        mocks.stores.set(this.name, structuredClone(options.defaults ?? {}))
-      }
-    }
-
-    get(key: string) {
-      return mocks.stores.get(this.name)?.[key]
-    }
-
-    set(key: string, value: unknown) {
-      const store = mocks.stores.get(this.name) ?? {}
-      store[key] = value
-      mocks.stores.set(this.name, store)
-    }
-  }
-}))
-
 vi.mock('../../../src/main/data/databaseConnection', () => ({
   openSQLiteDatabase: mocks.openSQLiteDatabase
 }))
+
+function fixtureOptions() {
+  return {
+    dbPath: '/tmp/deepchat-test/agent.db',
+    metadata: {
+      get: () =>
+        mocks.stores.get('database-security')?.metadata as DatabaseSecurityMetadata | undefined,
+      set: (_key: 'metadata', metadata: DatabaseSecurityMetadata) => {
+        mocks.stores.set('database-security', { metadata })
+      }
+    },
+    crypto: {
+      isAvailable: async () => mocks.safeStorage.isEncryptionAvailable(),
+      encrypt: async (value: string) => mocks.safeStorage.encryptString(value).toString('base64'),
+      decrypt: async (wrapped: string) =>
+        mocks.safeStorage.decryptString(Buffer.from(wrapped, 'base64')),
+      getBackend: async () =>
+        process.platform === 'linux' ? mocks.safeStorage.getSelectedStorageBackend() : undefined
+    }
+  }
+}
 
 const enabledMetadata = (overrides: Record<string, unknown> = {}) => ({
   version: 1,
@@ -74,7 +63,7 @@ async function listMigratableTableNames(
   foreignKeys: Record<string, string[]> = {}
 ): Promise<string[]> {
   const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
-  const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
+  const presenter = new DatabaseSecurityService(fixtureOptions())
   const db = {
     prepare: vi.fn((sql: string) => {
       const tableName = sql.match(/foreign_key_list\("([^"]+)"\)/u)?.[1]
@@ -105,8 +94,6 @@ describe('DatabaseSecurityService', () => {
       value.toString('utf8').replace(/^wrapped:/, '')
     )
     mocks.safeStorage.getSelectedStorageBackend.mockReturnValue('basic_text')
-    mocks.app.getPath.mockReturnValue('/tmp/deepchat-test')
-    mocks.app.quit.mockReset()
     mocks.openSQLiteDatabase.mockReset()
     mocks.openSQLiteDatabase.mockImplementation(() => ({
       prepare: vi.fn(() => ({
@@ -126,9 +113,9 @@ describe('DatabaseSecurityService', () => {
     })
 
     const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
-    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const presenter = new DatabaseSecurityService(fixtureOptions())
 
-    expect(presenter.getStatus()).toMatchObject({
+    expect(await presenter.getStatus()).toMatchObject({
       enabled: true,
       safeStorageAvailable: false,
       passwordStorage: 'manual',
@@ -142,7 +129,7 @@ describe('DatabaseSecurityService', () => {
     })
 
     const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
-    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const presenter = new DatabaseSecurityService(fixtureOptions())
     const unlockProvider = vi.fn()
 
     await expect(presenter.resolveStartupPassword(unlockProvider)).resolves.toBe('secret')
@@ -159,7 +146,7 @@ describe('DatabaseSecurityService', () => {
     })
 
     const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
-    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const presenter = new DatabaseSecurityService(fixtureOptions())
     const requests: unknown[] = []
 
     const password = await presenter.resolveStartupPassword(async (request) => {
@@ -179,9 +166,9 @@ describe('DatabaseSecurityService', () => {
   it('persists recovered encryption metadata without forging a migration', async () => {
     mocks.safeStorage.isEncryptionAvailable.mockReturnValue(false)
     const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
-    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const presenter = new DatabaseSecurityService(fixtureOptions())
 
-    presenter.persistRecoveredEncryptionMetadata('recovered-secret')
+    await presenter.persistRecoveredEncryptionMetadata('recovered-secret')
 
     expect(mocks.stores.get('database-security')?.metadata).toMatchObject({
       version: 1,
@@ -202,7 +189,7 @@ describe('DatabaseSecurityService', () => {
     })
 
     const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
-    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const presenter = new DatabaseSecurityService(fixtureOptions())
 
     await expect(presenter.resolveStartupPassword(async () => 'secret')).resolves.toBe('secret')
   })
@@ -219,7 +206,7 @@ describe('DatabaseSecurityService', () => {
     })
 
     const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
-    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const presenter = new DatabaseSecurityService(fixtureOptions())
     const requests: unknown[] = []
 
     await expect(
@@ -247,14 +234,14 @@ describe('DatabaseSecurityService', () => {
     })
 
     const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
-    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const presenter = new DatabaseSecurityService(fixtureOptions())
 
     await expect(presenter.resolveStartupPassword(async () => 'secret')).rejects.toBeInstanceOf(
       OrphanWalDatabaseError
     )
   })
 
-  it('quits when startup unlock is canceled', async () => {
+  it('rejects when startup unlock is canceled', async () => {
     mocks.stores.set('database-security', {
       metadata: enabledMetadata({
         passwordStorage: 'manual',
@@ -263,20 +250,78 @@ describe('DatabaseSecurityService', () => {
     })
 
     const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
-    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const presenter = new DatabaseSecurityService(fixtureOptions())
 
     await expect(presenter.resolveStartupPassword(async () => null)).rejects.toThrow(
       'Database unlock canceled'
     )
-    expect(mocks.app.quit).toHaveBeenCalled()
+  })
+
+  it('discards a password decrypted after the owner stops', async () => {
+    mocks.stores.set('database-security', { metadata: enabledMetadata() })
+    const options = fixtureOptions()
+    let finish!: (password: string) => void
+    options.crypto.decrypt = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          finish = resolve
+        })
+    )
+    const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
+    const service = new DatabaseSecurityService(options)
+    const unlock = vi.fn()
+    const result = service.resolveStartupPassword(unlock)
+    const rejected = expect(result).rejects.toThrow('Database security operation interrupted')
+    await vi.waitFor(() => expect(options.crypto.decrypt).toHaveBeenCalled())
+    service.stop()
+    finish('secret')
+    await rejected
+    expect(mocks.openSQLiteDatabase).not.toHaveBeenCalled()
+    expect(unlock).not.toHaveBeenCalled()
+  })
+
+  it('discards a manual password wrapped after the owner stops', async () => {
+    const original = enabledMetadata({ passwordStorage: 'manual', wrappedPassword: undefined })
+    mocks.stores.set('database-security', { metadata: original })
+    const options = fixtureOptions()
+    let finish!: (wrapped: string) => void
+    options.crypto.encrypt = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          finish = resolve
+        })
+    )
+    const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
+    const service = new DatabaseSecurityService(options)
+    const result = service.resolveStartupPassword(async () => 'secret')
+    const rejected = expect(result).rejects.toThrow('Database security operation interrupted')
+    await vi.waitFor(() => expect(options.crypto.encrypt).toHaveBeenCalled())
+    service.stop()
+    finish('late-wrapped-secret')
+    await rejected
+    expect(mocks.stores.get('database-security')?.metadata).toEqual(original)
+  })
+
+  it('propagates native wrapping failure without retrying a valid manual password', async () => {
+    const original = enabledMetadata({ passwordStorage: 'manual', wrappedPassword: undefined })
+    mocks.stores.set('database-security', { metadata: original })
+    mocks.safeStorage.encryptString.mockImplementationOnce(() => {
+      throw new Error('vault locked')
+    })
+    const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
+    const service = new DatabaseSecurityService(fixtureOptions())
+    const unlock = vi.fn(async () => 'secret')
+    await expect(service.resolveStartupPassword(unlock)).rejects.toThrow('vault locked')
+    expect(unlock).toHaveBeenCalledTimes(1)
+    expect(mocks.stores.get('database-security')?.metadata).toEqual(original)
   })
 
   it('cleans legacy provider JSON before enabling encryption', async () => {
     const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
-    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const presenter = new DatabaseSecurityService(fixtureOptions())
     const migrateDatabase = vi
-      .spyOn(presenter as unknown as { migrateDatabase: () => Promise<void> }, 'migrateDatabase')
-      .mockResolvedValue(undefined)
+      .spyOn(presenter as unknown as { migrateDatabase: () => void }, 'migrateDatabase')
+      .mockReturnValue(undefined)
     const cleanupLegacyProviderJsonForDatabaseEncryption = vi.fn(() => 1)
 
     await presenter.enableEncryption({
@@ -293,7 +338,7 @@ describe('DatabaseSecurityService', () => {
 
   it('qualifies CREATE TABLE IF NOT EXISTS for the migration target schema', async () => {
     const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
-    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const presenter = new DatabaseSecurityService(fixtureOptions())
 
     expect(
       (

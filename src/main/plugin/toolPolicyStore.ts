@@ -1,15 +1,10 @@
-import ElectronStore from 'electron-store'
 import type { PluginToolPolicyDecision } from '@shared/types/plugin'
 
-type StoredToolPolicy = {
+export type StoredToolPolicy = {
   pluginId: string
   serverId: string
   tools: Record<string, PluginToolPolicyDecision>
   enabled: boolean
-}
-
-type ToolPolicySettings = {
-  policies: StoredToolPolicy[]
 }
 
 export type PluginToolPolicyLookup = {
@@ -17,69 +12,52 @@ export type PluginToolPolicyLookup = {
   decision: PluginToolPolicyDecision | null
 }
 
-const store = new ElectronStore<ToolPolicySettings>({
-  name: 'plugin-tool-policies',
-  defaults: {
-    policies: []
-  }
-})
+export class PluginToolPolicyStore {
+  constructor(
+    private readonly store: {
+      get(key: 'policies'): StoredToolPolicy[] | undefined
+      set(key: 'policies', policies: StoredToolPolicy[]): void
+    }
+  ) {}
 
-export function registerPluginToolPolicy(policy: StoredToolPolicy): void {
-  const policies = store.get('policies') ?? []
-  const filtered = policies.filter(
-    (item) => !(item.pluginId === policy.pluginId && item.serverId === policy.serverId)
-  )
-  store.set('policies', [...filtered, policy])
-}
-
-export function unregisterPluginToolPolicies(pluginId: string): void {
-  const policies = store.get('policies') ?? []
-  store.set(
-    'policies',
-    policies.filter((policy) => policy.pluginId !== pluginId)
-  )
-}
-
-export function getPluginToolPolicy(
-  serverId: string,
-  toolName: string
-): PluginToolPolicyDecision | null {
-  return resolvePluginToolPolicy(serverId, toolName).decision
-}
-
-function getEnabledServerPolicies(serverId: string): StoredToolPolicy[] {
-  const policies = store.get('policies') ?? []
-  return policies.filter((policy) => policy.enabled && policy.serverId === serverId)
-}
-
-export function getExplicitlyDeniedPluginTools(serverId: string): string[] {
-  const matches = getEnabledServerPolicies(serverId)
-  if (matches.length !== 1) {
-    return []
-  }
-  return Object.entries(matches[0].tools)
-    .filter(([, decision]) => decision === 'deny')
-    .map(([toolName]) => toolName)
-}
-
-export function resolvePluginToolPolicy(
-  serverId: string,
-  toolName: string
-): PluginToolPolicyLookup {
-  const matches = getEnabledServerPolicies(serverId)
-  if (matches.length === 0) {
-    return { managed: false, decision: null }
+  register(policy: StoredToolPolicy): void {
+    const policies = this.store.get('policies') ?? []
+    const filtered = policies.filter(
+      (item) => !(item.pluginId === policy.pluginId && item.serverId === policy.serverId)
+    )
+    this.store.set('policies', [...filtered, policy])
   }
 
-  // More than one enabled owner for a server is ambiguous. Treat it like an
-  // undeclared tool so stale policy records cannot accidentally widen access.
-  if (matches.length !== 1) {
-    return { managed: true, decision: null }
+  unregister(pluginId: string): void {
+    const policies = this.store.get('policies') ?? []
+    this.store.set(
+      'policies',
+      policies.filter((policy) => policy.pluginId !== pluginId)
+    )
   }
 
-  const decision = matches[0].tools[toolName]
-  return {
-    managed: true,
-    decision: decision === 'allow' || decision === 'ask' || decision === 'deny' ? decision : null
+  deniedTools(serverId: string): string[] {
+    const matches = this.getEnabledServerPolicies(serverId)
+    if (matches.length !== 1) return []
+    return Object.entries(matches[0].tools)
+      .filter(([, decision]) => decision === 'deny')
+      .map(([toolName]) => toolName)
+  }
+
+  resolve(serverId: string, toolName: string): PluginToolPolicyLookup {
+    const matches = this.getEnabledServerPolicies(serverId)
+    if (matches.length === 0) return { managed: false, decision: null }
+    // Ambiguous owners retain a closed policy, including undeclared tools.
+    if (matches.length !== 1) return { managed: true, decision: null }
+    const decision = matches[0].tools[toolName]
+    return {
+      managed: true,
+      decision: decision === 'allow' || decision === 'ask' || decision === 'deny' ? decision : null
+    }
+  }
+
+  private getEnabledServerPolicies(serverId: string): StoredToolPolicy[] {
+    const policies = this.store.get('policies') ?? []
+    return policies.filter((policy) => policy.enabled && policy.serverId === serverId)
   }
 }

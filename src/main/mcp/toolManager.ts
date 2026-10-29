@@ -19,7 +19,7 @@ import type { AgentSettingsPort } from '@/agent/settings'
 import { ServerManager } from './serverManager'
 import { McpClient } from './mcpClient'
 import { jsonrepair } from 'jsonrepair'
-import { getExplicitlyDeniedPluginTools, resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
+import type { PluginToolPolicyStore } from '@/plugin/toolPolicyStore'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { SemanticNotificationPublisher } from '@/notifications'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
@@ -338,6 +338,7 @@ export class ToolManager {
     agentSettings: Pick<AgentSettingsPort, 'getAcpAgents' | 'getAgentMcpSelections'>,
     mcpSettings: McpSettings,
     serverManager: ServerManager,
+    private readonly toolPolicies: Pick<PluginToolPolicyStore, 'resolve' | 'deniedTools'>,
     private readonly semanticNotifications: SemanticNotificationPublisher,
     private readonly publishEvent: DeepchatEventPublisher,
     private readonly pluginOwnership: PluginMcpOwnershipPort = NO_PLUGIN_OWNERSHIP,
@@ -695,7 +696,7 @@ export class ToolManager {
   }
 
   private filterExplicitlyDeniedTools(serverName: string, tools: readonly Tool[]): readonly Tool[] {
-    const deniedTools = new Set(getExplicitlyDeniedPluginTools(serverName))
+    const deniedTools = new Set(this.toolPolicies.deniedTools(serverName))
     return deniedTools.size === 0 ? tools : tools.filter((tool) => !deniedTools.has(tool.name))
   }
 
@@ -1006,7 +1007,7 @@ export class ToolManager {
           access?.throwPreDispatchErrors
         )
       }
-      const pluginPolicy = resolvePluginToolPolicy(toolServerName, originalName)
+      const pluginPolicy = this.toolPolicies.resolve(toolServerName, originalName)
       if (
         pluginPolicy.managed &&
         pluginPolicy.decision !== 'allow' &&
@@ -1333,7 +1334,7 @@ export class ToolManager {
     if (
       input.toolName !== 'click' ||
       input.response.isError === true ||
-      resolvePluginToolPolicy(input.client.serverName, 'get_window_state').decision !== 'allow' ||
+      this.toolPolicies.resolve(input.client.serverName, 'get_window_state').decision !== 'allow' ||
       !this.computerUsePreviewObserver?.shouldCaptureAfterClick
     ) {
       return

@@ -421,18 +421,27 @@ export class PluginRuntimeSupervisor {
     )
   }
 
-  async ensureRunning(serverName: string, reason: PluginRuntimeStartReason): Promise<void> {
+  async ensureRunning(
+    serverName: string,
+    reason: PluginRuntimeStartReason,
+    assertCurrent?: () => void
+  ): Promise<void> {
+    assertCurrent?.()
     if (this.probePromises.has(serverName)) {
       await this.waitForRuntimeProbe(serverName, true)
     }
-    await this.ensureRunningAuthorized(serverName, reason, false)
+    assertCurrent?.()
+    await this.ensureRunningAuthorized(serverName, reason, false, assertCurrent)
+    assertCurrent?.()
   }
 
   private async ensureRunningAuthorized(
     serverName: string,
     reason: PluginRuntimeStartReason,
-    allowQuarantinedFingerprint: boolean
+    allowQuarantinedFingerprint: boolean,
+    assertCurrent?: () => void
   ): Promise<void> {
+    assertCurrent?.()
     let entry = this.getStartableEntry(serverName)
     const processPort = this.getProcessPort()
     if (!processPort.isReady()) {
@@ -442,11 +451,14 @@ export class PluginRuntimeSupervisor {
     const stopping = this.stopPromises.get(serverName)
     if (stopping) {
       await stopping
+      assertCurrent?.()
       entry = this.getStartableEntry(serverName)
     }
     const existingStart = this.startPromises.get(serverName)
     if (existingStart) {
-      return await existingStart
+      await existingStart
+      assertCurrent?.()
+      return
     }
     if (entry.quarantine && processPort.isActive(serverName)) {
       const error = new PluginRuntimeQuarantinedError(serverName, entry.quarantine)
@@ -468,10 +480,11 @@ export class PluginRuntimeSupervisor {
       throw error
     }
 
-    const startPromise = this.startEntry(entry, reason, allowQuarantinedFingerprint)
+    const startPromise = this.startEntry(entry, reason, allowQuarantinedFingerprint, assertCurrent)
     this.startPromises.set(serverName, startPromise)
     try {
       await startPromise
+      assertCurrent?.()
     } finally {
       if (this.startPromises.get(serverName) === startPromise) {
         this.startPromises.delete(serverName)
@@ -489,11 +502,13 @@ export class PluginRuntimeSupervisor {
     await this.ensureRunning(serverName, 'external')
   }
 
-  async requestExternalStop(serverName: string): Promise<void> {
+  async requestExternalStop(serverName: string, assertCurrent?: () => void): Promise<void> {
+    assertCurrent?.()
     if (!this.entries.has(serverName)) {
       throw new Error(`Plugin runtime server "${serverName}" is not registered`)
     }
-    await this.stopServer(serverName)
+    await this.stopServer(serverName, 'normal', assertCurrent)
+    assertCurrent?.()
   }
 
   async testRuntime(pluginId: string, serverName: string): Promise<void> {
@@ -540,8 +555,10 @@ export class PluginRuntimeSupervisor {
 
   async restartIfRunning(
     serverName: string,
-    reason: Extract<PluginRuntimeStartReason, 'authentication' | 'configuration'>
+    reason: Extract<PluginRuntimeStartReason, 'authentication' | 'configuration'>,
+    assertCurrent?: () => void
   ): Promise<boolean> {
+    assertCurrent?.()
     const processPort = this.processPort
     const entry = this.entries.get(serverName)
     if (!entry) {
@@ -555,12 +572,14 @@ export class PluginRuntimeSupervisor {
       (!processPort.isActive(serverName) && !this.startPromises.has(serverName))
     ) {
       if (entry.registration.startMode === 'eager') {
-        await this.ensureRunning(serverName, reason)
+        await this.ensureRunning(serverName, reason, assertCurrent)
       }
       return true
     }
-    await this.stopServer(serverName)
-    await this.ensureRunning(serverName, reason)
+    await this.stopServer(serverName, 'normal', assertCurrent)
+    assertCurrent?.()
+    await this.ensureRunning(serverName, reason, assertCurrent)
+    assertCurrent?.()
     return true
   }
 
@@ -617,8 +636,10 @@ export class PluginRuntimeSupervisor {
   private async startEntry(
     entry: RuntimeEntry,
     reason: PluginRuntimeStartReason,
-    allowQuarantinedFingerprint: boolean
+    allowQuarantinedFingerprint: boolean,
+    assertCurrent?: () => void
   ): Promise<void> {
+    assertCurrent?.()
     const processPort = this.getProcessPort()
     const { registration } = entry
     entry.state = 'starting'
@@ -628,9 +649,16 @@ export class PluginRuntimeSupervisor {
       const initialFingerprint = registration.adapter
         ? await this.verifyLaunchArtifacts(entry)
         : undefined
+      assertCurrent?.()
       if (initialFingerprint) {
-        await this.authorizeGuardedSpawn(entry, initialFingerprint, allowQuarantinedFingerprint)
+        await this.authorizeGuardedSpawn(
+          entry,
+          initialFingerprint,
+          allowQuarantinedFingerprint,
+          assertCurrent
+        )
       }
+      assertCurrent?.()
       if (registration.adapter) {
         entry.adapterCleanupRequired = true
       }
@@ -643,6 +671,7 @@ export class PluginRuntimeSupervisor {
             }
           : undefined
       )
+      assertCurrent?.()
       if (entry.retiring || this.shuttingDown) {
         throw new Error(
           `Plugin runtime server "${registration.serverName}" was stopped during startup`
@@ -652,9 +681,16 @@ export class PluginRuntimeSupervisor {
       // boundaries. Re-verify the complete launch artifact contract here so a
       // replacement during daemon startup cannot become the proxy executable.
       const proxyFingerprint = await this.verifyLaunchArtifacts(entry)
+      assertCurrent?.()
       if (proxyFingerprint && !initialFingerprint) {
-        await this.authorizeGuardedSpawn(entry, proxyFingerprint, allowQuarantinedFingerprint)
+        await this.authorizeGuardedSpawn(
+          entry,
+          proxyFingerprint,
+          allowQuarantinedFingerprint,
+          assertCurrent
+        )
       }
+      assertCurrent?.()
       if (
         initialFingerprint &&
         proxyFingerprint &&
@@ -666,6 +702,7 @@ export class PluginRuntimeSupervisor {
         )
       }
       await processPort.start(registration.serverName, launch?.configOverride)
+      assertCurrent?.()
       if (!processPort.isRunning(registration.serverName)) {
         throw new Error(
           `Plugin runtime server "${registration.serverName}" did not reach running state`
@@ -718,8 +755,10 @@ export class PluginRuntimeSupervisor {
 
   private async stopServer(
     serverName: string,
-    mode: 'normal' | 'shutdown' = 'normal'
+    mode: 'normal' | 'shutdown' = 'normal',
+    assertCurrent?: () => void
   ): Promise<void> {
+    assertCurrent?.()
     const entry = this.entries.get(serverName)
     if (!entry) {
       return
@@ -730,13 +769,16 @@ export class PluginRuntimeSupervisor {
         await this.escalateStopForShutdown(entry, existingStop)
         return
       }
-      return await existingStop
+      await existingStop
+      assertCurrent?.()
+      return
     }
 
-    const stopPromise = this.stopEntry(entry, mode)
+    const stopPromise = this.stopEntry(entry, mode, assertCurrent)
     this.stopPromises.set(serverName, stopPromise)
     try {
       await stopPromise
+      assertCurrent?.()
     } finally {
       if (this.stopPromises.get(serverName) === stopPromise) {
         this.stopPromises.delete(serverName)
@@ -744,12 +786,18 @@ export class PluginRuntimeSupervisor {
     }
   }
 
-  private async stopEntry(entry: RuntimeEntry, mode: 'normal' | 'shutdown'): Promise<void> {
+  private async stopEntry(
+    entry: RuntimeEntry,
+    mode: 'normal' | 'shutdown',
+    assertCurrent?: () => void
+  ): Promise<void> {
+    assertCurrent?.()
     const { registration } = entry
     const startPromise = this.startPromises.get(registration.serverName)
     if (startPromise) {
       await startPromise.catch(() => undefined)
     }
+    assertCurrent?.()
 
     const processPort = this.processPort
     const errors: unknown[] = []
@@ -794,8 +842,10 @@ export class PluginRuntimeSupervisor {
   private async authorizeGuardedSpawn(
     entry: RuntimeEntry,
     fingerprint: PluginRuntimeFingerprint,
-    allowQuarantinedFingerprint: boolean
+    allowQuarantinedFingerprint: boolean,
+    assertCurrent?: () => void
   ): Promise<void> {
+    assertCurrent?.()
     const { registration } = entry
     const expectedRuntimeId = registration.runtimeId ?? registration.serverName
     if (
@@ -827,6 +877,7 @@ export class PluginRuntimeSupervisor {
       }
       await recoverStaleLaunch.call(registration.adapter, previous.launchContext)
     }
+    assertCurrent?.()
 
     const sentinel: PluginRuntimeSentinel = {
       schemaVersion: 1,

@@ -3,7 +3,7 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
+import { createBackgroundExecFixture } from './agentToolDependencies'
 import * as shellEnvironment from '@/agent/shared/process/shellEnvHelper'
 import {
   AgentBashHandler,
@@ -55,10 +55,13 @@ function createProgrammaticCommandEnvironment(order?: string[]): AgentCommandEnv
 }
 
 describe('AgentBashHandler', () => {
+  let backgroundExecSessionManager: ReturnType<typeof createBackgroundExecFixture>
+
   const workspaceRoot = process.cwd()
   const externalRoot = path.dirname(workspaceRoot)
 
   beforeEach(() => {
+    backgroundExecSessionManager = createBackgroundExecFixture()
     vi.mocked(fs.existsSync).mockReturnValue(true)
     vi.mocked(fs.statSync).mockReturnValue({ isDirectory: () => true } as fs.Stats)
   })
@@ -72,7 +75,11 @@ describe('AgentBashHandler', () => {
       PATH: '/shell/bin',
       NPM_CONFIG_REGISTRY: 'https://registry.example.test'
     })
-    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
+    const handler = new AgentBashHandler(
+      [workspaceRoot],
+      createPermissionService(),
+      backgroundExecSessionManager
+    )
     const command = 'find . -type f -name "*.ts" -o -name "*.vue" | grep "^./src"'
     const runShellProcess = vi
       .spyOn(handler as never, 'runShellProcess' as never)
@@ -113,7 +120,12 @@ describe('AgentBashHandler', () => {
         prependPath: ['/bundled/cli']
       }))
     }
-    const handler = new AgentBashHandler([workspaceRoot], permissionService, commandEnvironment)
+    const handler = new AgentBashHandler(
+      [workspaceRoot],
+      permissionService,
+      backgroundExecSessionManager,
+      commandEnvironment
+    )
     const prepareCommand = vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
       command: 'deepchat model invoke --prompt hello',
       env: { DEEPCHAT_CLI_AGENT_TOKEN: 'scoped-token' }
@@ -167,6 +179,7 @@ describe('AgentBashHandler', () => {
     const handler = new AgentBashHandler(
       [workspaceRoot],
       createPermissionService(),
+      backgroundExecSessionManager,
       commandEnvironment
     )
     const prepareCommand = vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
@@ -223,6 +236,7 @@ describe('AgentBashHandler', () => {
     const handler = new AgentBashHandler(
       [workspaceRoot],
       createPermissionService(),
+      backgroundExecSessionManager,
       commandEnvironment
     )
     const command = 'deepchat tool search --query calendar --limit 4'
@@ -277,6 +291,7 @@ describe('AgentBashHandler', () => {
     const handler = new AgentBashHandler(
       [workspaceRoot],
       createPermissionService(),
+      backgroundExecSessionManager,
       commandEnvironment
     )
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
@@ -333,7 +348,11 @@ describe('AgentBashHandler', () => {
       options: { stdin: '{}', programmatic: true }
     }
   ])('rejects owned stdin for $name before shell execution', async ({ args, options }) => {
-    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
+    const handler = new AgentBashHandler(
+      [workspaceRoot],
+      createPermissionService(),
+      backgroundExecSessionManager
+    )
     const prepareCommand = vi.spyOn(handler as never, 'prepareCommand' as never)
 
     await expect(
@@ -352,6 +371,7 @@ describe('AgentBashHandler', () => {
     const handler = new AgentBashHandler(
       [workspaceRoot],
       new CommandPermissionService(),
+      backgroundExecSessionManager,
       commandEnvironment
     )
 
@@ -370,7 +390,11 @@ describe('AgentBashHandler', () => {
   it('executes approved commands in the background', async () => {
     const originalCommand = 'find . -type f -name "*.ts" -o -name "*.vue"'
     const order: string[] = []
-    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
+    const handler = new AgentBashHandler(
+      [workspaceRoot],
+      createPermissionService(),
+      backgroundExecSessionManager
+    )
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
       command: originalCommand,
@@ -421,7 +445,11 @@ describe('AgentBashHandler', () => {
 
   it('allows an external cwd when explicitly enabled', async () => {
     const externalCwd = externalRoot
-    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
+    const handler = new AgentBashHandler(
+      [workspaceRoot],
+      createPermissionService(),
+      backgroundExecSessionManager
+    )
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
       command: 'pwd',
@@ -460,7 +488,11 @@ describe('AgentBashHandler', () => {
 
   it('rejects an external cwd when external access is not enabled', async () => {
     const externalCwd = externalRoot
-    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
+    const handler = new AgentBashHandler(
+      [workspaceRoot],
+      createPermissionService(),
+      backgroundExecSessionManager
+    )
     const runShellProcess = vi.spyOn(handler as never, 'runShellProcess' as never)
 
     await expect(
@@ -479,7 +511,11 @@ describe('AgentBashHandler', () => {
 
   it('does not commit dispatch when the resolved cwd is unusable', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(false)
-    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
+    const handler = new AgentBashHandler(
+      [workspaceRoot],
+      createPermissionService(),
+      backgroundExecSessionManager
+    )
     const beforeExecute = vi.fn()
     const runShellProcess = vi.spyOn(handler as never, 'runShellProcess' as never)
 
@@ -498,7 +534,11 @@ describe('AgentBashHandler', () => {
   })
 
   it('commits the prepared command before starting the shell process', async () => {
-    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
+    const handler = new AgentBashHandler(
+      [workspaceRoot],
+      createPermissionService(),
+      backgroundExecSessionManager
+    )
     const order: string[] = []
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
       command: 'find . -name "*.ts"',
@@ -528,7 +568,11 @@ describe('AgentBashHandler', () => {
   })
 
   it('returns a running session when foreground exec exceeds yieldMs', async () => {
-    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
+    const handler = new AgentBashHandler(
+      [workspaceRoot],
+      createPermissionService(),
+      backgroundExecSessionManager
+    )
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
       command: 'bun run dev caps gpt-4o',
@@ -576,6 +620,7 @@ describe('AgentBashHandler', () => {
     const handler = new AgentBashHandler(
       [workspaceRoot],
       createPermissionService(),
+      backgroundExecSessionManager,
       commandEnvironment
     )
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
@@ -631,6 +676,7 @@ describe('AgentBashHandler', () => {
     const handler = new AgentBashHandler(
       [workspaceRoot],
       createPermissionService(),
+      backgroundExecSessionManager,
       commandEnvironment
     )
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
@@ -670,6 +716,7 @@ describe('AgentBashHandler', () => {
     const handler = new AgentBashHandler(
       [workspaceRoot],
       createPermissionService(),
+      backgroundExecSessionManager,
       commandEnvironment
     )
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
@@ -733,6 +780,7 @@ describe('AgentBashHandler', () => {
     const handler = new AgentBashHandler(
       [workspaceRoot],
       createPermissionService(),
+      backgroundExecSessionManager,
       createProgrammaticCommandEnvironment()
     )
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
@@ -766,7 +814,11 @@ describe('AgentBashHandler', () => {
   })
 
   it('cleans up completed foreground sessions that finish inside the yield window', async () => {
-    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
+    const handler = new AgentBashHandler(
+      [workspaceRoot],
+      createPermissionService(),
+      backgroundExecSessionManager
+    )
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
       command: 'pnpm test --help',
@@ -808,7 +860,11 @@ describe('AgentBashHandler', () => {
   })
 
   it('keeps completed foreground sessions when output was offloaded', async () => {
-    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
+    const handler = new AgentBashHandler(
+      [workspaceRoot],
+      createPermissionService(),
+      backgroundExecSessionManager
+    )
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
       command: 'pnpm test --reporter=json',
@@ -871,7 +927,11 @@ describe('AgentBashHandler', () => {
       pid = 123
     }
 
-    const handler = new AgentBashHandler([workspaceRoot], createPermissionService())
+    const handler = new AgentBashHandler(
+      [workspaceRoot],
+      createPermissionService(),
+      backgroundExecSessionManager
+    )
     const child = new MockChild()
     vi.mocked(spawn).mockReturnValue(child as never)
     vi.spyOn(handler as never, 'createOutputFilePath' as never).mockReturnValue('/tmp/exec.log')

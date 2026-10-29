@@ -4,11 +4,7 @@ import { buildContext } from '@/agent/deepchat/runtime/contextBuilder'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { SessionTape } from '@/tape/application/sessionTape'
 import { buildEffectiveTapeView, searchEffectiveTapeRows } from '@/tape/domain/effectiveView'
-import {
-  buildRequestRefs,
-  createTapeViewManifest,
-  type TapeViewManifestBuildInput
-} from '@/tape/domain/viewManifest'
+import { buildRequestRefs, createTapeViewManifest } from '@/tape/domain/viewManifest'
 import {
   appendMessageRecordToTape,
   appendMessageReplacementToTape,

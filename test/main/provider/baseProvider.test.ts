@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER, MODEL_META, ModelConfig } from '@shared/types/provider'
@@ -9,7 +10,8 @@ import { BaseLLMProvider } from '../../../src/main/provider/baseProvider'
 class TestProvider extends BaseLLMProvider {
   constructor(
     providerSettings: ProviderSettingsPort,
-    private readonly modelFetcher: () => Promise<MODEL_META[]> = async () => []
+    private readonly modelFetcher: () => Promise<MODEL_META[]> = async () => [],
+    environment = providerTestEnvironment
   ) {
     super(
       {
@@ -21,7 +23,8 @@ class TestProvider extends BaseLLMProvider {
         apiVersion: '',
         models: []
       } as unknown as LLM_PROVIDER,
-      providerSettings
+      providerSettings,
+      environment
     )
   }
 
@@ -93,6 +96,7 @@ class TestProvider extends BaseLLMProvider {
 
 describe('BaseLLMProvider tool XML conversion', () => {
   const providerSettings = {
+    defaultHeaders: providerTestEnvironment.defaultHeaders,
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
     getLanguage: vi.fn().mockReturnValue('zh-CN'),
@@ -230,7 +234,7 @@ describe('BaseLLMProvider tool XML conversion', () => {
     const error = new Error('model endpoint returned 404')
     const models = [{ id: 'model-1', providerId: 'test-provider' }] as MODEL_META[]
     const fetchModels = vi.fn().mockRejectedValueOnce(error).mockResolvedValue(models)
-    const provider = new TestProvider(providerSettings, fetchModels)
+    const provider = new TestProvider(providerSettings, fetchModels, providerTestEnvironment)
 
     await expect(
       Promise.allSettled([provider.fetchModels(), provider.fetchModels({ suppressErrors: false })])
@@ -252,14 +256,18 @@ describe('BaseLLMProvider tool XML conversion', () => {
         throw persistenceError
       })
     } as unknown as ProviderSettingsPort
-    const provider = new TestProvider(failingProviderSettings, async () => [
-      {
-        id: 'model-1',
-        name: 'Model 1',
-        providerId: 'test-provider',
-        group: 'default'
-      } as MODEL_META
-    ])
+    const provider = new TestProvider(
+      failingProviderSettings,
+      async () => [
+        {
+          id: 'model-1',
+          name: 'Model 1',
+          providerId: 'test-provider',
+          group: 'default'
+        } as MODEL_META
+      ],
+      providerTestEnvironment
+    )
 
     await expect(provider.fetchModels()).rejects.toThrow('model persistence failed')
   })
@@ -271,7 +279,7 @@ describe('BaseLLMProvider tool XML conversion', () => {
       .fn()
       .mockReturnValueOnce(new Promise<MODEL_META[]>((resolve) => (resolveFirst = resolve)))
       .mockReturnValueOnce(new Promise<MODEL_META[]>((resolve) => (resolveSecond = resolve)))
-    const provider = new TestProvider(providerSettings, fetchModels)
+    const provider = new TestProvider(providerSettings, fetchModels, providerTestEnvironment)
     const first = provider.fetchModels()
 
     provider.updateConfig({ ...provider.getProviderSnapshot(), apiKey: 'updated-key' })
@@ -295,7 +303,7 @@ describe('BaseLLMProvider tool XML conversion', () => {
       .fn()
       .mockReturnValueOnce(new Promise<MODEL_META[]>((resolve) => (resolveFirst = resolve)))
       .mockResolvedValue(models)
-    const provider = new TestProvider(providerSettings, fetchModels)
+    const provider = new TestProvider(providerSettings, fetchModels, providerTestEnvironment)
     const first = provider.fetchModels()
 
     provider.updateConfig({ ...provider.getProviderSnapshot(), apiKey: 'updated-key' })
@@ -322,7 +330,7 @@ describe('BaseLLMProvider tool XML conversion', () => {
       }
     ]
     const fetchModels = vi.fn().mockResolvedValue(models)
-    const provider = new TestProvider(providerSettings, fetchModels)
+    const provider = new TestProvider(providerSettings, fetchModels, providerTestEnvironment)
     const [first, second] = await Promise.all([provider.fetchModels(), provider.fetchModels()])
     const expected = [{ ...models[0], providerId: 'test-provider' }]
 

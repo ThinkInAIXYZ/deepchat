@@ -1,4 +1,6 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
+import { createHmac, randomBytes } from 'node:crypto'
+import type { GitHubCopilotSignInTarget } from '@shared/types/oauth'
 import logger from '@shared/logger'
 import type { LLMResponse } from '@shared/types/provider'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -39,7 +41,7 @@ import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
   AcpProviderAdminPort,
-  ProviderLocalePort
+  ProviderEnvironmentPort
 } from './ports'
 import {
   BaseLLMProvider,
@@ -148,10 +150,11 @@ export class ProviderRuntime
   private readonly acpRuntimeOwner: AcpRuntimeOwner
   private readonly acpSessionPersistence: AcpSessionPersistence
   private shutdownPromise?: Promise<void>
+  private copilotSignInKey = randomBytes(32)
 
   constructor(
     providerSettings: ProviderSettingsPort,
-    locale: ProviderLocalePort,
+    locale: ProviderEnvironmentPort,
     agentSettings: Pick<AgentSettingsPort, 'getAcpEnabled' | 'getAcpAgents'>,
     mcpSettings: McpSettings,
     acpRuntimeOwner: AcpRuntimeOwner,
@@ -217,6 +220,53 @@ export class ProviderRuntime
     }
     this.providerSettings.setProviderById(providerId, provider)
     this.replaceProviders(this.providerSettings.getProviders())
+  }
+
+  private copilotConfigurationIdentity(provider: LLM_PROVIDER): string {
+    return createHmac('sha256', this.copilotSignInKey)
+      .update(
+        JSON.stringify([
+          provider.id,
+          provider.apiType,
+          provider.apiKey,
+          provider.copilotClientId?.trim() || ''
+        ])
+      )
+      .digest('hex')
+  }
+
+  async getGitHubCopilotSignInTarget(providerId: string): Promise<GitHubCopilotSignInTarget> {
+    if (this.shutdownPromise) throw new Error('Provider runtime is stopped')
+    const provider = this.providerSettings.getProviderById(providerId)
+    if (!provider) throw new Error(`Provider ${providerId} not found`)
+    if (provider.apiType !== 'github-copilot')
+      throw new Error('Provider is not configured for GitHub Copilot')
+    return {
+      providerId,
+      clientId: provider.copilotClientId,
+      configurationId: this.copilotConfigurationIdentity(provider)
+    }
+  }
+
+  async commitGitHubCopilotCredential(
+    target: GitHubCopilotSignInTarget,
+    apiKey: string
+  ): Promise<void> {
+    if (this.shutdownPromise) throw new Error('Provider runtime is stopped')
+    if (typeof apiKey !== 'string' || !/^[\x21-\x7e]+$/.test(apiKey))
+      throw new Error('Invalid GitHub OAuth token')
+    const provider = this.providerSettings.getProviderById(target.providerId)
+    if (
+      !provider ||
+      provider.apiType !== 'github-copilot' ||
+      this.copilotConfigurationIdentity(provider) !== target.configurationId
+    )
+      throw new Error('GitHub Copilot configuration changed during sign-in. Please try again.')
+    this.setProviderById(target.providerId, { ...provider, apiKey })
+  }
+
+  async invalidateGitHubCopilotSignIns(): Promise<void> {
+    this.copilotSignInKey = randomBytes(32)
   }
 
   updateProviderAtomic(providerId: string, updates: Partial<LLM_PROVIDER>): boolean {

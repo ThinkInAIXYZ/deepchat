@@ -8,12 +8,6 @@ vi.mock('node-pty', () => ({
   spawn: vi.fn()
 }))
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: vi.fn((name: string) => (name === 'temp' ? '/tmp' : '/tmp'))
-  }
-}))
-
 describe('AcpTerminalManager', () => {
   const createPty = () => ({
     onData: vi.fn(),
@@ -28,7 +22,7 @@ describe('AcpTerminalManager', () => {
   })
 
   it('uses the provided cwd when one is supplied', async () => {
-    const manager = new AcpTerminalManager()
+    const manager = new AcpTerminalManager('/tmp')
 
     await manager.createTerminal({
       sessionId: 'session-1',
@@ -46,27 +40,30 @@ describe('AcpTerminalManager', () => {
   })
 
   it('falls back to a controlled temp directory when cwd is missing', async () => {
-    const manager = new AcpTerminalManager()
+    const manager = new AcpTerminalManager('/tmp/acp-owned-temp')
 
     await manager.createTerminal({
       sessionId: 'session-1',
       command: 'pwd'
     })
 
-    expect(fs.mkdirSync).toHaveBeenCalledWith(path.normalize('/tmp/deepchat-acp/terminals'), {
-      recursive: true
-    })
+    expect(fs.mkdirSync).toHaveBeenCalledWith(
+      path.normalize('/tmp/acp-owned-temp/deepchat-acp/terminals'),
+      {
+        recursive: true
+      }
+    )
     expect(spawn).toHaveBeenCalledWith(
       'pwd',
       [],
       expect.objectContaining({
-        cwd: expect.stringContaining(path.normalize('/tmp/deepchat-acp/terminals'))
+        cwd: expect.stringContaining(path.normalize('/tmp/acp-owned-temp/deepchat-acp/terminals'))
       })
     )
   })
 
   it('passes command arguments directly without shell concatenation', async () => {
-    const manager = new AcpTerminalManager()
+    const manager = new AcpTerminalManager('/tmp')
 
     await manager.createTerminal({
       sessionId: 'session-1',
@@ -87,7 +84,7 @@ describe('AcpTerminalManager', () => {
   it('retains the latest terminal output when outputByteLimit is exceeded', async () => {
     const pty = createPty()
     vi.mocked(spawn).mockReturnValue(pty as never)
-    const manager = new AcpTerminalManager()
+    const manager = new AcpTerminalManager('/tmp')
 
     const response = await manager.createTerminal({
       sessionId: 'session-1',

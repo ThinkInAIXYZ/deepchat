@@ -12,7 +12,6 @@ import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { z } from 'zod'
 import fs from 'fs'
 import path from 'path'
-import { app, nativeImage } from 'electron'
 import logger from '@shared/logger'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -532,6 +531,13 @@ export class AgentToolManager {
     this.commandPermissionHandler = options.commandPermissionHandler
     this.commandEnvironment = options.commandEnvironment
     this.dependencies = options.dependencies
+    for (const directory of [
+      this.dependencies.desktop.tempDirectory,
+      this.dependencies.desktop.profileTempDirectory
+    ]) {
+      if (!path.isAbsolute(directory))
+        throw new Error('Agent Tool host directories must be absolute')
+    }
     this.liveDelegationTool = this.dependencies.liveDelegation
       ? new LiveDelegationAgentTool(this.dependencies.liveDelegation)
       : null
@@ -556,6 +562,7 @@ export class AgentToolManager {
       this.bashHandler = new AgentBashHandler(
         [this.agentWorkspacePath],
         this.commandPermissionHandler,
+        this.dependencies.backgroundExec,
         this.commandEnvironment
       )
     }
@@ -579,6 +586,7 @@ export class AgentToolManager {
       this.bashHandler = new AgentBashHandler(
         [effectiveWorkspacePath],
         this.commandPermissionHandler,
+        this.dependencies.backgroundExec,
         this.commandEnvironment
       )
     } else {
@@ -1333,8 +1341,7 @@ export class AgentToolManager {
       throw new Error('process tool requires a conversation ID')
     }
 
-    const { backgroundExecSessionManager } =
-      await import('@/agent/shared/process/backgroundExecSessionManager')
+    const backgroundExec = this.dependencies.backgroundExec
 
     const validationResult = this.fileSystemSchemas.process.safeParse(args)
     if (!validationResult.success) {
@@ -1351,7 +1358,7 @@ export class AgentToolManager {
 
     switch (action) {
       case 'list': {
-        const sessions = await backgroundExecSessionManager.list(conversationId)
+        const sessions = await backgroundExec.list(conversationId)
         return {
           content: JSON.stringify({ status: 'ok', sessions }, null, 2)
         }
@@ -1362,7 +1369,7 @@ export class AgentToolManager {
           throw new Error('sessionId is required for poll action')
         }
         const outputLimits = await this.resolveOutputLimitsForConversation(conversationId)
-        const result = await backgroundExecSessionManager.poll(
+        const result = await backgroundExec.poll(
           conversationId,
           sessionId,
           outputLimits.commandOutputInlineChars
@@ -1376,12 +1383,7 @@ export class AgentToolManager {
         if (!sessionId) {
           throw new Error('sessionId is required for log action')
         }
-        const result = await backgroundExecSessionManager.log(
-          conversationId,
-          sessionId,
-          offset,
-          limit
-        )
+        const result = await backgroundExec.log(conversationId, sessionId, offset, limit)
         return {
           content: JSON.stringify(result, null, 2)
         }
@@ -1391,13 +1393,7 @@ export class AgentToolManager {
         if (!sessionId) {
           throw new Error('sessionId is required for write action')
         }
-        await backgroundExecSessionManager.write(
-          conversationId,
-          sessionId,
-          data ?? '',
-          eof,
-          commitMutation
-        )
+        await backgroundExec.write(conversationId, sessionId, data ?? '', eof, commitMutation)
         return {
           content: JSON.stringify({ status: 'ok', sessionId })
         }
@@ -1407,7 +1403,7 @@ export class AgentToolManager {
         if (!sessionId) {
           throw new Error('sessionId is required for kill action')
         }
-        await backgroundExecSessionManager.kill(conversationId, sessionId, commitMutation)
+        await backgroundExec.kill(conversationId, sessionId, commitMutation)
         return {
           content: JSON.stringify({ status: 'ok', sessionId })
         }
@@ -1417,7 +1413,7 @@ export class AgentToolManager {
         if (!sessionId) {
           throw new Error('sessionId is required for clear action')
         }
-        await backgroundExecSessionManager.clear(conversationId, sessionId, commitMutation)
+        await backgroundExec.clear(conversationId, sessionId, commitMutation)
         return {
           content: JSON.stringify({ status: 'ok', sessionId })
         }
@@ -1427,7 +1423,7 @@ export class AgentToolManager {
         if (!sessionId) {
           throw new Error('sessionId is required for remove action')
         }
-        await backgroundExecSessionManager.remove(conversationId, sessionId, commitMutation)
+        await backgroundExec.remove(conversationId, sessionId, commitMutation)
         return {
           content: JSON.stringify({ status: 'ok', sessionId })
         }
@@ -1493,6 +1489,7 @@ export class AgentToolManager {
         const bashHandler = new AgentBashHandler(
           allowedDirectories,
           this.commandPermissionHandler,
+          this.dependencies.backgroundExec,
           this.commandEnvironment
         )
         const execArgs = parsedArgs as {
@@ -2288,8 +2285,8 @@ export class AgentToolManager {
 
     if (includeRuntimeRoots) {
       addPath(conversationId ? resolveSessionDir(conversationId) : null)
-      addPath(app.getPath('temp'))
-      addPath(path.join(app.getPath('userData'), 'temp'))
+      addPath(this.dependencies.desktop.tempDirectory)
+      addPath(this.dependencies.desktop.profileTempDirectory)
     }
 
     if (conversationId) {
@@ -2472,17 +2469,24 @@ export class AgentToolManager {
     return mimeType.startsWith('image/')
   }
 
-  private buildImageMetadataBlock(filePath: string, mimeType: string, fileSize: number): string {
+  private async buildImageMetadataBlock(
+    filePath: string,
+    mimeType: string,
+    fileSize: number,
+    signal?: AbortSignal
+  ): Promise<string> {
+    throwIfAbortRequested(signal)
     let width: number | null = null
     let height: number | null = null
     try {
-      const image = nativeImage.createFromPath(filePath)
-      const size = image.getSize()
+      const size = await this.dependencies.desktop.readImageSize(filePath, signal)
+      throwIfAbortRequested(signal)
       if (size.width > 0 && size.height > 0) {
         width = size.width
         height = size.height
       }
     } catch (error) {
+      throwIfAbortRequested(signal)
       logger.warn('[AgentToolManager] Failed to read image dimensions', { filePath, error })
     }
 
@@ -2506,7 +2510,13 @@ export class AgentToolManager {
     throwIfAbortRequested(signal)
     const fileBuffer = await fs.promises.readFile(filePath)
     throwIfAbortRequested(signal)
-    const metadata = this.buildImageMetadataBlock(filePath, mimeType, fileBuffer.length)
+    const metadata = await this.buildImageMetadataBlock(
+      filePath,
+      mimeType,
+      fileBuffer.length,
+      signal
+    )
+    throwIfAbortRequested(signal)
     const dataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`
     let previewData: string | undefined
     let dispatchCommitFailed = false
@@ -2801,7 +2811,11 @@ export class AgentToolManager {
   }
 
   private getDefaultAgentWorkspacePath(): string {
-    const tempDir = path.join(app.getPath('temp'), 'deepchat-agent', 'workspaces')
+    const tempDir = path.join(
+      this.dependencies.desktop.tempDirectory,
+      'deepchat-agent',
+      'workspaces'
+    )
     try {
       fs.mkdirSync(tempDir, { recursive: true })
     } catch (error) {
@@ -2809,7 +2823,7 @@ export class AgentToolManager {
         '[AgentToolManager] Failed to create default workspace, using system temp:',
         error
       )
-      return app.getPath('temp')
+      return this.dependencies.desktop.tempDirectory
     }
     return tempDir
   }
@@ -2880,6 +2894,7 @@ export class AgentToolManager {
   private getSkillExecutionService(): SkillExecutionService {
     if (!this.skillExecutionService) {
       this.skillExecutionService = new SkillExecutionService({
+        backgroundExec: this.dependencies.backgroundExec,
         resolveConversationWorkdir: (conversationId) =>
           this.getWorkdirForConversation(conversationId)
       })

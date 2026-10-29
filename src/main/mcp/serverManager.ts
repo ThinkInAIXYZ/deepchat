@@ -7,7 +7,6 @@ import {
   type McpConnectResult
 } from './mcpClient'
 import axios from 'axios'
-import { proxyConfig } from '@/platform/proxy'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { SemanticNotificationPublisher } from '@/notifications'
 import type { McpOAuthManager } from './mcpOAuthManager'
@@ -52,6 +51,7 @@ export class ServerManager {
     onRegistryChanged: () => void,
     private readonly semanticNotifications: SemanticNotificationPublisher,
     private readonly publishEvent: DeepchatEventPublisher,
+    private readonly getProxyUrl: () => Promise<string | null>,
     mcpOAuthManager?: McpOAuthManager
   ) {
     this.mcpSettings = mcpSettings
@@ -133,7 +133,7 @@ export class ServerManager {
     const testPackage = 'tiny-runtime-injector'
 
     // Get proxy configuration
-    const proxyUrl = proxyConfig.getProxyUrl()
+    const proxyUrl = await this.getProxyUrl()
     const proxyOptions = (() => {
       if (!proxyUrl) return {}
       const u = new URL(proxyUrl)
@@ -377,6 +377,7 @@ export class ServerManager {
         serverConfig,
         connectResult,
         connectionCompletion,
+        epoch,
         options
       )
       if (connectResult === 'connected') {
@@ -399,7 +400,10 @@ export class ServerManager {
       // user restarts or stops it. A later start replaces this client through the normal path.
       this.setServerLastError(name, error)
       const authHandled =
-        this.mcpOAuthManager?.handleConnectionError(name, serverConfig, error) ?? false
+        (await this.mcpOAuthManager
+          ?.handleConnectionError(name, serverConfig, error)
+          .catch(() => false)) ?? false
+      if (this.isStaleStart(name, epoch)) return 'stopped'
 
       if (!authHandled && !this.isPluginOwnedServerConfig(serverConfig)) {
         this.notifyConnectionFailure(name)
@@ -417,6 +421,7 @@ export class ServerManager {
     serverConfig: MCPServerConfig,
     connectResult: McpConnectResult,
     connectionCompletion: Promise<void> | null,
+    epoch: number,
     options: { onBackgroundConnected?: () => void } = {}
   ): void {
     if (connectResult !== 'soft-timeout-released') {
@@ -435,7 +440,7 @@ export class ServerManager {
         options.onBackgroundConnected?.()
         this.onRegistryChanged()
       })
-      .catch((error) => {
+      .catch(async (error) => {
         if (error instanceof McpConnectionCancelledError) {
           return
         }
@@ -446,7 +451,10 @@ export class ServerManager {
 
         this.setServerLastError(name, error)
         const authHandled =
-          this.mcpOAuthManager?.handleConnectionError(name, serverConfig, error) ?? false
+          (await this.mcpOAuthManager
+            ?.handleConnectionError(name, serverConfig, error)
+            .catch(() => false)) ?? false
+        if (this.isStaleStart(name, epoch) || this.clients.get(name) !== client) return
 
         if (!authHandled && !this.isPluginOwnedServerConfig(serverConfig)) {
           this.notifyConnectionFailure(name)

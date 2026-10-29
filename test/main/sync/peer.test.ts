@@ -9,7 +9,7 @@ vi.unmock('fs')
 vi.unmock('node:fs')
 
 import { SyncHostService } from '@/sync/host'
-import { SyncPeerService } from '@/sync/peer'
+import { SyncPeerService, type SyncPeerDeps } from '@/sync/peer'
 import { createSyncPeerRoutes } from '@/sync/peer/routes'
 import { SyncHostSnapshotSource } from '@/sync/host/snapshot'
 import { SYNC_HOST_PREPARE_PATH } from '@shared/contracts/syncHost'
@@ -29,18 +29,20 @@ describe('tunnel sync transfer boundary', () => {
   const key = randomBytes(32)
   const replicaId = randomUUID()
 
-  function createPeer(): SyncPeerService {
+  function createPeer(
+    crypto: Partial<Pick<SyncPeerDeps, 'protectToken' | 'revealToken'>> = {}
+  ): SyncPeerService {
     return new SyncPeerService({
       directory: path.join(root, 'peer'),
       replicaId: () => replicaId,
       fetch: (input, init) => requestFetch(input, init),
-      protectToken: (token) => {
+      protectToken: async (token) => {
         const iv = randomBytes(12)
         const cipher = createCipheriv('aes-256-gcm', key, iv)
         const ciphertext = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()])
         return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]).toString('base64')
       },
-      revealToken: (wrapped) => {
+      revealToken: async (wrapped) => {
         const data = Buffer.from(wrapped, 'base64')
         const cipher = createDecipheriv('aes-256-gcm', key, data.subarray(0, 12))
         cipher.setAuthTag(data.subarray(12, 28))
@@ -50,7 +52,8 @@ describe('tunnel sync transfer boundary', () => {
       importSnapshot: async (file) => {
         imported.push(await readFile(file))
         return { success: true, message: 'sync.success.importComplete' }
-      }
+      },
+      ...crypto
     })
   }
 
@@ -121,6 +124,145 @@ describe('tunnel sync transfer boundary', () => {
     await peer.stop()
     await host.stop()
     await rm(root, { recursive: true, force: true })
+  })
+
+  it('rejects immediate pairing cancellation before requesting native crypto', async () => {
+    const protectToken = vi.fn(async () => 'opaque')
+    peer = createPeer({ protectToken })
+    const code = host.createPairingCode()!
+    const pairing = peer.pair({
+      hostUrl: 'https://sync.example.test',
+      hostId: code.hostId,
+      code: code.code,
+      deviceName: 'Device'
+    })
+    const rejected = expect(pairing).rejects.toThrow()
+    await peer.cancel()
+    await rejected
+    expect(protectToken).not.toHaveBeenCalled()
+    expect(host.getPairingCode()?.code).toBe(code.code)
+  })
+
+  it.each(['availability', 'token'] as const)(
+    'preserves saved pairing when cancelled during %s wrapping',
+    async (stage) => {
+      await pair()
+      const before = await readFile(path.join(root, 'peer', 'pairing.json'), 'utf8')
+      await peer.stop()
+      const entered = Promise.withResolvers<void>()
+      const pending = Promise.withResolvers<string>()
+      peer = createPeer({
+        protectToken: async (value) => {
+          if (stage === 'availability' || value !== 'availability-check') {
+            entered.resolve()
+            return await pending.promise
+          }
+          return 'wrapped-check'
+        }
+      })
+      requests = []
+      const code = host.createPairingCode()!
+      const pairing = peer.pair({
+        hostUrl: 'https://sync.example.test',
+        hostId: code.hostId,
+        code: code.code,
+        deviceName: 'Replacement'
+      })
+      const rejected = expect(pairing).rejects.toThrow()
+      await entered.promise
+      const stopping = stage === 'token' ? peer.stop() : undefined
+      if (stage === 'availability') await peer.cancel()
+      pending.resolve('wrapped-replacement')
+      await rejected
+      await stopping
+      expect(await readFile(path.join(root, 'peer', 'pairing.json'), 'utf8')).toBe(before)
+      if (stage === 'availability') {
+        expect(requests).toEqual([])
+        expect(host.getPairingCode()?.code).toBe(code.code)
+      }
+    }
+  )
+
+  it.each(['forget', 'stop', 'pair'] as const)(
+    'does not release a pending connection credential after %s',
+    async (operation) => {
+      const port = Number(new URL(hostOrigin).port)
+      await host.setEnabled(true, { port, consent: true, bidirectional: true })
+      const code = host.createPairingCode()!
+      await peer.pair({
+        hostUrl: 'https://sync.example.test',
+        hostId: code.hostId,
+        code: code.code,
+        deviceName: 'Device',
+        bidirectional: true
+      })
+      await peer.stop()
+      const entered = Promise.withResolvers<void>()
+      const pending = Promise.withResolvers<string>()
+      peer = createPeer({
+        revealToken: async () => {
+          entered.resolve()
+          return await pending.promise
+        }
+      })
+      const reading = peer.connection()
+      const rejected = expect(reading).rejects.toThrow('credentialsUnavailable')
+      await entered.promise
+      if (operation === 'pair') {
+        const code = host.createPairingCode()!
+        await peer.pair({
+          hostUrl: 'https://sync.example.test',
+          hostId: code.hostId,
+          code: code.code,
+          deviceName: 'Replacement'
+        })
+      } else await peer[operation]()
+      pending.resolve('stale-credential')
+      await rejected
+    }
+  )
+
+  it('does not consume a pairing code when native token protection is unavailable', async () => {
+    peer = createPeer({
+      protectToken: async () => {
+        throw new Error('sync.error.safeStorageUnavailable')
+      }
+    })
+    const code = host.createPairingCode()!
+    await expect(
+      peer.pair({
+        hostUrl: 'https://sync.example.test',
+        hostId: code.hostId,
+        code: code.code,
+        deviceName: 'Device'
+      })
+    ).rejects.toThrow('safeStorageUnavailable')
+    expect(requests).toEqual([])
+    expect(host.getPairingCode()?.code).toBe(code.code)
+    expect((await peer.getStatus()).paired).toBe(false)
+  })
+
+  it('does not authenticate or import after cancelling a pending transfer unwrap', async () => {
+    await publish()
+    await pair()
+    await peer.stop()
+    const entered = Promise.withResolvers<void>()
+    const pending = Promise.withResolvers<string>()
+    peer = createPeer({
+      revealToken: async () => {
+        entered.resolve()
+        return await pending.promise
+      }
+    })
+    requests = []
+    await peer.pull('increment')
+    await entered.promise
+    await peer.cancel()
+    pending.resolve('cancelled-credential')
+    await settled()
+    expect(requests.every((request) => request.path.endsWith('/handshake'))).toBe(true)
+    expect(imported).toEqual([])
+    expect((await peer.getStatus()).phase).toBe('cancelled')
   })
 
   it('rejects non-renderer callers on every peer control route', async () => {

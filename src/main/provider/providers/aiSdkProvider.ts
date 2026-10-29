@@ -33,7 +33,7 @@ import {
   SUMMARY_TITLES_PROMPT,
   type ProviderGenerateTextOptions
 } from '../baseProvider'
-import type { ProviderLocalePort } from '../ports'
+import type { ProviderEnvironmentPort } from '../ports'
 import {
   runAiSdkCoreStream,
   runAiSdkDimensions,
@@ -43,7 +43,7 @@ import {
 } from '../aiSdk'
 import type { AiSdkProviderKind } from '../aiSdk/providerFactory'
 import { normalizeAzureBaseUrl, normalizeGeminiBaseUrl } from '../aiSdk/providerFactory'
-import { shouldUseXaiGrokOAuthFetch } from '../xaiGrokAuthAdapter'
+import { createXaiGrokFetch, shouldUseXaiGrokOAuthFetch } from '../xaiGrokAuthAdapter'
 import { getGlobalXaiGrokAuth } from '../../provider/auth/xaiGrok'
 import { isTrustedXaiApiEndpoint } from '../../provider/auth/xaiGrok/constants'
 import {
@@ -228,7 +228,7 @@ export class AiSdkProvider extends BaseLLMProvider {
   constructor(
     provider: LLM_PROVIDER,
     providerSettings: ProviderSettingsPort,
-    locale: ProviderLocalePort
+    locale: ProviderEnvironmentPort
   ) {
     super(provider, providerSettings, locale)
     const definition = resolveAiSdkProviderDefinition(provider)
@@ -579,16 +579,6 @@ export class AiSdkProvider extends BaseLLMProvider {
       base.baseUrl = 'https://api.fireworks.ai/inference/v1'
     }
 
-    if (shouldUseXaiGrokOAuthFetch(base)) {
-      const oauthToken = getGlobalXaiGrokAuth().peekAccessToken()
-      if (oauthToken) {
-        return {
-          ...base,
-          oauthToken
-        }
-      }
-    }
-
     return base
   }
 
@@ -896,19 +886,10 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
 
     try {
-      // Refresh Grok OAuth tokens before model/list requests that use sync headers.
       const runtimeProvider = this.getRuntimeProvider(resolvedDecision)
       const useGrokOAuth =
         shouldUseXaiGrokOAuthFetch(runtimeProvider) && isTrustedXaiApiEndpoint(url)
-      if (useGrokOAuth) {
-        await getGlobalXaiGrokAuth()
-          .ensureAccessToken()
-          .catch(() => null)
-      }
-      const refreshedRuntimeProvider = this.getRuntimeProvider(resolvedDecision)
-      const requestRuntimeProvider = useGrokOAuth
-        ? refreshedRuntimeProvider
-        : { ...refreshedRuntimeProvider, oauthToken: undefined }
+      const requestRuntimeProvider = { ...runtimeProvider, oauthToken: undefined }
       const requestHeaders = this.getRequestHeaders(
         resolvedDecision,
         requestRuntimeProvider,
@@ -923,7 +904,14 @@ export class AiSdkProvider extends BaseLLMProvider {
         }
         requestHeaders[name] = value
       })
-      const response = await this.fetchProvider(url, {
+      controller.signal.throwIfAborted()
+      const request = useGrokOAuth
+        ? createXaiGrokFetch(runtimeProvider, {}, (input, options) =>
+            this.fetchProvider(input, options)
+          )
+        : (input: string | URL | Request, options?: RequestInit) =>
+            this.fetchProvider(input, options)
+      const response = await request(url, {
         ...init,
         headers: requestHeaders,
         signal: controller.signal
@@ -2628,11 +2616,11 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
   }
 
-  private validateCredentials(strategy: AiSdkCredentialStrategy): string | null {
+  private async validateCredentials(strategy: AiSdkCredentialStrategy): Promise<string | null> {
     switch (strategy) {
       case 'api-key':
         if (shouldUseXaiGrokOAuthFetch(this.provider)) {
-          if (this.provider.apiKey || getGlobalXaiGrokAuth().isAuthenticated()) {
+          if (this.provider.apiKey || (await getGlobalXaiGrokAuth().isAuthenticated())) {
             return null
           }
           return 'Missing API key or xAI Grok OAuth sign-in'
@@ -2686,7 +2674,7 @@ export class AiSdkProvider extends BaseLLMProvider {
           }
         }
       case 'generate-text': {
-        const credentialError = this.validateCredentials(
+        const credentialError = await this.validateCredentials(
           this.definition.credentialStrategy ?? 'none'
         )
         if (credentialError) {

@@ -1,5 +1,4 @@
 import { SYNC_PORTABLE_SETTINGS } from '@shared/types/syncPortableSettings'
-import { app, shell } from 'electron'
 import { isNowledgeMachineLocalSetting } from '@shared/types/nowledgeMemPlugin'
 import path from 'path'
 import fs from 'fs'
@@ -122,22 +121,38 @@ export interface SyncImportResult {
   importedSessions?: number
 }
 
+export interface SyncHost {
+  profileDirectory: string
+  temporaryDirectory: string
+  openPath(directory: string): Promise<string>
+}
+
 export class SyncService {
   private isBackingUp = false
   private currentBackupStatus: BackupStatus = 'idle'
-  private readonly APP_SETTINGS_PATH = path.join(app.getPath('userData'), 'app-settings.json')
-  private readonly CUSTOM_PROMPTS_PATH = path.join(app.getPath('userData'), 'custom_prompts.json')
-  private readonly SYSTEM_PROMPTS_PATH = path.join(app.getPath('userData'), 'system_prompts.json')
-  private readonly MCP_SETTINGS_PATH = path.join(app.getPath('userData'), 'mcp-settings.json')
-  private readonly DB_PATH = path.join(app.getPath('userData'), 'app_db', 'agent.db')
+  private readonly APP_SETTINGS_PATH: string
+  private readonly CUSTOM_PROMPTS_PATH: string
+  private readonly SYSTEM_PROMPTS_PATH: string
+  private readonly MCP_SETTINGS_PATH: string
+  private readonly DB_PATH: string
 
   constructor(
     private readonly settings: SyncSettings,
     private readonly database: SyncDatabasePort,
     private readonly settingsDatabase: SettingsDatabase,
     private readonly providerDatabase: ProviderDatabase,
-    private readonly publishEvent: DeepchatEventPublisher
-  ) {}
+    private readonly publishEvent: DeepchatEventPublisher,
+    private readonly host: SyncHost
+  ) {
+    if (!path.isAbsolute(host.profileDirectory) || !path.isAbsolute(host.temporaryDirectory)) {
+      throw new Error('Sync runtime directories must be absolute')
+    }
+    this.APP_SETTINGS_PATH = path.join(host.profileDirectory, 'app-settings.json')
+    this.CUSTOM_PROMPTS_PATH = path.join(host.profileDirectory, 'custom_prompts.json')
+    this.SYSTEM_PROMPTS_PATH = path.join(host.profileDirectory, 'system_prompts.json')
+    this.MCP_SETTINGS_PATH = path.join(host.profileDirectory, 'mcp-settings.json')
+    this.DB_PATH = path.join(host.profileDirectory, 'app_db', 'agent.db')
+  }
 
   public async checkSyncFolder(): Promise<{ exists: boolean; path: string }> {
     const syncFolderPath = this.settings.getFolderPath()
@@ -150,7 +165,8 @@ export class SyncService {
     if (!exists) {
       fs.mkdirSync(syncFolderPath, { recursive: true })
     }
-    shell.openPath(syncFolderPath)
+    const error = await this.host.openPath(syncFolderPath)
+    if (error) throw new Error(error)
   }
 
   public isBackupInProgress(): boolean {
@@ -164,8 +180,8 @@ export class SyncService {
 
   // === Cloud sync (S3-compatible) ===
 
-  private buildCloudService(): CloudStorageService {
-    const resolved = this.settings.getResolvedCloudConfig()
+  private async buildCloudService(): Promise<CloudStorageService> {
+    const resolved = await this.settings.getResolvedCloudConfig()
     if (!resolved) {
       throw new Error('sync.error.cloudNotConfigured')
     }
@@ -206,7 +222,7 @@ export class SyncService {
 
   public async testCloudConnection(): Promise<CloudSyncResult> {
     try {
-      const service = this.buildCloudService()
+      const service = await this.buildCloudService()
       await service.testConnection()
       return { success: true, message: 'sync.success.cloudConnected' }
     } catch (error) {
@@ -217,7 +233,7 @@ export class SyncService {
 
   public async uploadLatestBackupToCloud(): Promise<CloudSyncResult> {
     try {
-      const service = this.buildCloudService()
+      const service = await this.buildCloudService()
       const backups = (await this.listBackups()).filter(({ fileName }) =>
         BACKUP_FILE_NAME_REGEX.test(fileName)
       )
@@ -251,7 +267,7 @@ export class SyncService {
 
   public async downloadLatestBackupFromCloud(): Promise<CloudSyncResult> {
     try {
-      const service = this.buildCloudService()
+      const service = await this.buildCloudService()
       const { path: syncFolderPath } = await this.checkSyncFolder()
       const backupsDir = this.getBackupsDirectory(syncFolderPath)
       const fileName = await service.downloadLatest(backupsDir)
@@ -356,7 +372,7 @@ export class SyncService {
       version: Date.now()
     })
 
-    const extractionDir = path.join(app.getPath('temp'), `deepchat-backup-${Date.now()}`)
+    const extractionDir = path.join(this.host.temporaryDirectory, `deepchat-backup-${Date.now()}`)
     fs.mkdirSync(extractionDir, { recursive: true })
 
     const tempCurrentFiles: Record<string, string | null> = {
@@ -577,7 +593,7 @@ export class SyncService {
     const active = this.database.getDatabase()
     if (!active.prepare("SELECT 1 FROM sqlite_master WHERE name='_sync_state'").get()) return
     const temporary = await fs.promises.mkdtemp(
-      path.join(app.getPath('temp'), 'deepchat-sync-backup-')
+      path.join(this.host.temporaryDirectory, 'deepchat-sync-backup-')
     )
     const file = path.join(temporary, 'agent.db')
     try {
@@ -1069,7 +1085,10 @@ export class SyncService {
   }
 
   private async validateBackupArchive(backupZipPath: string): Promise<void> {
-    const extractionDir = path.join(app.getPath('temp'), `deepchat-backup-validate-${Date.now()}`)
+    const extractionDir = path.join(
+      this.host.temporaryDirectory,
+      `deepchat-backup-validate-${Date.now()}`
+    )
     fs.mkdirSync(extractionDir, { recursive: true })
 
     try {
@@ -1168,7 +1187,7 @@ export class SyncService {
   }
 
   private createTempBackup(originalPath: string, name: string): string | null {
-    const tempPath = path.join(app.getPath('temp'), `${name}.${Date.now()}.bak`)
+    const tempPath = path.join(this.host.temporaryDirectory, `${name}.${Date.now()}.bak`)
     try {
       this.copyFile(originalPath, tempPath)
     } catch (error) {

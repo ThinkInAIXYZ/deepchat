@@ -1315,6 +1315,21 @@ describe('renderer api clients', () => {
     expect(bridge.on).toHaveBeenCalledWith('settings.commandShell.changed', expect.any(Function))
   })
 
+  it('preserves settings receipts and rejects invalid revisions without poisoning later values', async () => {
+    const bridge = createBridge()
+    const client = createSettingsClient(bridge)
+    const receipt = { version: 2, changedKeys: ['fontSizeLevel'], values: { fontSizeLevel: 3 } }
+    vi.mocked(bridge.invoke).mockResolvedValue(receipt as never)
+    expect(await client.getSnapshot()).toBe(receipt)
+    expect(await client.update([{ key: 'fontSizeLevel', value: 3 }])).toBe(receipt)
+    expect(() =>
+      client.acceptSnapshot({ version: Infinity, values: { fontSizeLevel: 0 } })
+    ).toThrow()
+    expect(client.acceptSnapshot(receipt)).toEqual(receipt.values)
+    expect(client.acceptSnapshot({ version: 1, values: { fontSizeLevel: 0 } })).toEqual({})
+    expect(client.acceptSnapshot(receipt)).toEqual(receipt.values)
+  })
+
   it('sends a cloneable history cursor from reactive message state', async () => {
     const bridge = createBridge()
     const cursor = reactive({ orderSeq: 101, id: 'message-101' })

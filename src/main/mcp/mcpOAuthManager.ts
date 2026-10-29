@@ -34,7 +34,7 @@ import {
   MCP_OAUTH_REDIRECT_PORT
 } from './oauthConstants'
 import {
-  McpOAuthCredentialStore,
+  type McpOAuthCredentialStore,
   normalizeMcpOAuthIssuer,
   type McpOAuthCredentialEntry
 } from './oauthCredentialStore'
@@ -51,6 +51,7 @@ type PendingMcpOAuthFlow = {
   provider: DeepChatMcpOAuthProvider
   callbackSession: OAuthLoopbackCallbackSession
   flowPromise?: Promise<void>
+  assertActive(): void
 }
 
 const OAUTH_AUTH_ERROR_PATTERNS = [
@@ -257,538 +258,722 @@ export class McpOAuthManager {
   private readonly statuses = new Map<string, McpServerAuthStatus>()
   private readonly pendingFlows = new Map<string, PendingMcpOAuthFlow>()
   private readonly enterpriseIdentity: McpEnterpriseIdentityManager | null
+  private stopped = false
+  private readonly generations = new Map<string, number>()
+
+  private invalidate(id?: string): void {
+    if (id) {
+      this.generations.set(id, (this.generations.get(id) ?? 0) + 1)
+      this.cancelPendingFlow(id)
+      this.statuses.delete(id)
+    }
+  }
+
+  private captureOperation(id?: string): () => void {
+    const generation = id ? (this.generations.get(id) ?? 0) : 0
+    const check = () => {
+      if (this.stopped || (id && generation !== (this.generations.get(id) ?? 0)))
+        throw new Error('MCP OAuth operation interrupted')
+    }
+    check()
+    return check
+  }
+
+  stop(): void {
+    this.stopped = true
+    for (const id of this.pendingFlows.keys()) this.cancelPendingFlow(id)
+    this.statuses.clear()
+    this.generations.clear()
+    this.enterpriseIdentity?.stop()
+    this.store.stop()
+  }
 
   constructor(
-    store = new McpOAuthCredentialStore(),
+    store: McpOAuthCredentialStore,
+    private readonly openExternal: (url: string) => Promise<void>,
     private readonly publishEvent: DeepchatEventPublisher,
-    private readonly onAuthenticated?: (serverName: string) => void | Promise<void>,
+    private readonly onRuntimeChange?: (
+      serverId: string,
+      action: 'restart' | 'stop',
+      assertCurrent: () => void
+    ) => void | Promise<void>,
     settings?: McpSettings,
     private readonly onServerBindingChanged?: (serverId: string) => void
   ) {
     this.store = store
     this.settings = settings
     this.enterpriseIdentity = settings
-      ? new McpEnterpriseIdentityManager(settings, store, publishEvent)
+      ? new McpEnterpriseIdentityManager(
+          settings,
+          store,
+          publishEvent,
+          openExternal,
+          async (profileId, assertCurrent) => {
+            const servers = await settings.getMcpServers()
+            assertCurrent()
+            for (const config of Object.values(servers)) {
+              if (config.serverId && config.authorization?.identityProfileId === profileId) {
+                const assertServerCurrent = this.captureOperation(config.serverId)
+                await this.applyRuntimeChange(config.serverId, 'stop', () => {
+                  assertCurrent()
+                  assertServerCurrent()
+                })
+              }
+            }
+          }
+        )
       : null
   }
-
-  getStatus(serverName: string, config?: Partial<MCPServerConfig> | null): McpServerAuthStatus {
-    if (!config || !isRemoteOAuthCapable(config)) {
-      const authenticated = hasAuthorizationHeader(config)
-      const mode = config ? getAuthorizationMode(config) : undefined
-      return {
-        serverName,
-        serverId: config?.serverId,
-        state: authenticated ? 'authenticated' : mode === 'none' ? 'none' : 'unsupported',
-        authenticated,
-        storage: this.store.getStorageState(),
-        persistent: this.store.isPersistent(),
-        mode
+  async getStatus(
+    serverName: string,
+    config?: Partial<MCPServerConfig> | null
+  ): Promise<McpServerAuthStatus> {
+    const assertCurrent = this.captureOperation(config?.serverId)
+    try {
+      if (!config || !isRemoteOAuthCapable(config)) {
+        const authenticated = hasAuthorizationHeader(config)
+        const mode = config ? getAuthorizationMode(config) : undefined
+        return {
+          serverName,
+          serverId: config?.serverId,
+          state: authenticated ? 'authenticated' : mode === 'none' ? 'none' : 'unsupported',
+          authenticated,
+          ...(await this.getStorageSnapshot()),
+          mode
+        }
       }
-    }
-
-    const binding = requireServerBinding(config as Partial<MCPServerConfig>)
-    const mode = getAuthorizationMode(config)
-    const pending = this.pendingFlows.get(binding.serverId)
-    if (pending) {
-      return this.buildStatus(serverName, binding, mode, {
-        state: 'authenticating',
-        authenticated: false
-      })
-    }
-
-    if (mode === 'interactive') {
-      const found = this.findInteractiveCredential(serverName, config, binding)
-      if (found?.entry.tokens?.access_token) {
-        return this.buildStatus(serverName, binding, mode, {
-          state: 'authenticated',
-          authenticated: true,
-          updatedAt: found.entry.updatedAt
+      const binding = requireServerBinding(config as Partial<MCPServerConfig>)
+      const mode = getAuthorizationMode(config)
+      const pending = this.pendingFlows.get(binding.serverId)
+      if (pending) {
+        return await this.buildStatus(serverName, binding, mode, {
+          state: 'authenticating',
+          authenticated: false
         })
       }
-    } else {
-      const credential = this.getSelectedCredentialStatus(binding, mode)
-      if (!credential.configured) {
-        return this.buildStatus(serverName, binding, mode, {
-          state: 'required',
-          authenticated: false,
-          credential
-        })
+      if (mode === 'interactive') {
+        const found = await this.findInteractiveCredential(serverName, config, binding)
+        assertCurrent()
+        if (found?.entry.tokens?.access_token) {
+          return await this.buildStatus(serverName, binding, mode, {
+            state: 'authenticated',
+            authenticated: true,
+            updatedAt: found.entry.updatedAt
+          })
+        }
+      } else {
+        const credential = await this.getSelectedCredentialStatus(binding, mode)
+        assertCurrent()
+        if (!credential.configured) {
+          return await this.buildStatus(serverName, binding, mode, {
+            state: 'required',
+            authenticated: false,
+            credential
+          })
+        }
+        const existing = this.statuses.get(binding.serverId)
+        if (existing?.state === 'authenticated') {
+          return { ...existing, serverName, credential }
+        }
+        if (!existing || existing.state !== 'error') {
+          return await this.buildStatus(serverName, binding, mode, {
+            state: 'none',
+            authenticated: false,
+            credential
+          })
+        }
       }
       const existing = this.statuses.get(binding.serverId)
-      if (existing?.state === 'authenticated') {
-        return { ...existing, serverName, credential }
+      if (existing?.state === 'required' || existing?.state === 'error') {
+        return { ...existing, serverName }
       }
-      if (!existing || existing.state !== 'error') {
-        return this.buildStatus(serverName, binding, mode, {
-          state: 'none',
-          authenticated: false,
-          credential
-        })
-      }
+      return await this.buildStatus(serverName, binding, mode, {
+        state: 'none',
+        authenticated: false
+      })
+    } finally {
+      assertCurrent()
     }
-
-    const existing = this.statuses.get(binding.serverId)
-    if (existing?.state === 'required' || existing?.state === 'error') {
-      return { ...existing, serverName }
-    }
-
-    return this.buildStatus(serverName, binding, mode, {
-      state: 'none',
-      authenticated: false
-    })
   }
-
   async createRuntimeProvider(
     serverName: string,
     config: Partial<MCPServerConfig>
   ): Promise<OAuthClientProvider | undefined> {
-    if (!isRemoteOAuthCapable(config)) {
-      return undefined
-    }
-    const completeConfig = config as MCPServerConfig
-    const binding = requireServerBinding(completeConfig)
-    const mode = getAuthorizationMode(completeConfig)
-
-    if (mode === 'interactive') {
-      const found = this.findInteractiveCredential(serverName, completeConfig, binding)
-      if (!found?.entry.tokens?.access_token) {
+    const assertCurrent = this.captureOperation(config.serverId)
+    try {
+      if (!isRemoteOAuthCapable(config)) {
         return undefined
       }
+      const completeConfig = config as MCPServerConfig
+      const binding = requireServerBinding(completeConfig)
+      const mode = getAuthorizationMode(completeConfig)
+      if (mode === 'interactive') {
+        const found = await this.findInteractiveCredential(serverName, completeConfig, binding)
+        assertCurrent()
+        if (!found?.entry.tokens?.access_token) {
+          return undefined
+        }
+        assertCurrent()
+        const info = await discoverOAuthServerInfo(binding.endpoint)
+        assertCurrent()
+        assertConfiguredDiscovery(completeConfig, info)
+        if (!this.isInteractiveCredentialCurrent(found.entry, info)) {
+          assertCurrent()
+          await this.store.clearEntry(found.key)
+          assertCurrent()
+          return undefined
+        }
+        const provider = this.createInteractiveProvider(completeConfig, binding, {
+          interactive: false,
+          assertActive: assertCurrent,
+          initialCredentialKey: found.key
+        })
+        await this.finalizeInteractiveBinding(
+          completeConfig,
+          provider,
+          info,
+          found.entry.clientInformation?.client_id
+        )
+        assertCurrent()
+        return provider
+      }
+      if (
+        !completeConfig.authorization?.authorizationServerIssuer ||
+        !completeConfig.authorization.protectedResourceUrl
+      ) {
+        throw new Error('MCP machine authorization requires an issuer and protected resource')
+      }
+      assertCurrent()
       const info = await discoverOAuthServerInfo(binding.endpoint)
-      assertConfiguredDiscovery(completeConfig, info)
-      if (!this.isInteractiveCredentialCurrent(found.entry, info)) {
-        this.store.clearEntry(found.key)
-        return undefined
+      assertCurrent()
+      const issuer = assertConfiguredDiscovery(completeConfig, info)
+      const discoveredBinding: McpCredentialBinding = {
+        ...binding,
+        authorizationServerIssuer: issuer,
+        protectedResourceUrl: normalizeUrlIdentifier(
+          info.resourceMetadata?.resource || binding.protectedResourceUrl!
+        )
       }
-      const provider = this.createInteractiveProvider(completeConfig, binding, {
-        interactive: false,
-        initialCredentialKey: found.key
+      const provider = await this.createMachineProvider(completeConfig, discoveredBinding, info)
+      assertCurrent()
+      const result = await auth(provider, {
+        serverUrl: binding.endpoint,
+        scope: completeConfig.authorization?.scopes?.join(' ')
       })
-      await this.finalizeInteractiveBinding(
-        completeConfig,
-        provider,
-        info,
-        found.entry.clientInformation?.client_id
+      assertCurrent()
+      if (result !== 'AUTHORIZED') {
+        throw new Error('MCP machine authorization did not produce an access token')
+      }
+      this.setStatus(
+        await this.buildStatus(serverName, discoveredBinding, mode, {
+          state: 'authenticated',
+          authenticated: true,
+          credential: await this.getSelectedCredentialStatus(discoveredBinding, mode)
+        }),
+        assertCurrent
       )
+      assertCurrent()
       return provider
+    } finally {
+      assertCurrent()
     }
-
-    if (
-      !completeConfig.authorization?.authorizationServerIssuer ||
-      !completeConfig.authorization.protectedResourceUrl
-    ) {
-      throw new Error('MCP machine authorization requires an issuer and protected resource')
-    }
-    const info = await discoverOAuthServerInfo(binding.endpoint)
-    const issuer = assertConfiguredDiscovery(completeConfig, info)
-    const discoveredBinding: McpCredentialBinding = {
-      ...binding,
-      authorizationServerIssuer: issuer,
-      protectedResourceUrl: normalizeUrlIdentifier(
-        info.resourceMetadata?.resource || binding.protectedResourceUrl!
-      )
-    }
-    const provider = await this.createMachineProvider(completeConfig, discoveredBinding, info)
-    const result = await auth(provider, {
-      serverUrl: binding.endpoint,
-      scope: completeConfig.authorization?.scopes?.join(' ')
-    })
-    if (result !== 'AUTHORIZED') {
-      throw new Error('MCP machine authorization did not produce an access token')
-    }
-    this.setStatus(
-      this.buildStatus(serverName, discoveredBinding, mode, {
-        state: 'authenticated',
-        authenticated: true,
-        credential: this.getSelectedCredentialStatus(discoveredBinding, mode)
-      })
-    )
-    return provider
   }
-
-  handleConnectionError(
+  async handleConnectionError(
     serverName: string,
     config: Partial<MCPServerConfig>,
     error: unknown
-  ): boolean {
-    if (!isRemoteOAuthCapable(config) || !isOAuthError(error)) {
-      return false
+  ): Promise<boolean> {
+    const assertCurrent = this.captureOperation(config?.serverId)
+    try {
+      if (!isRemoteOAuthCapable(config) || !isOAuthError(error)) {
+        return false
+      }
+      const binding = requireServerBinding(config)
+      const mode = getAuthorizationMode(config)
+      this.setStatus(
+        await this.buildStatus(serverName, binding, mode, {
+          state: mode === 'interactive' ? 'required' : 'error',
+          authenticated: false,
+          error: sanitizeError(error),
+          ...(mode === 'interactive'
+            ? {}
+            : { credential: await this.getSelectedCredentialStatus(binding, mode) })
+        }),
+        assertCurrent
+      )
+      assertCurrent()
+      return true
+    } finally {
+      assertCurrent()
     }
-    const binding = requireServerBinding(config)
-    const mode = getAuthorizationMode(config)
-    this.setStatus(
-      this.buildStatus(serverName, binding, mode, {
-        state: mode === 'interactive' ? 'required' : 'error',
-        authenticated: false,
-        error: sanitizeError(error),
-        ...(mode === 'interactive'
-          ? {}
-          : { credential: this.getSelectedCredentialStatus(binding, mode) })
-      })
-    )
-    return true
   }
-
   async startAuth(
     serverName: string,
     config: Partial<MCPServerConfig>
   ): Promise<McpServerAuthStatus> {
-    if (!isRemoteOAuthCapable(config) || !config.baseUrl) {
-      throw new Error('MCP server does not support OAuth authentication')
-    }
-    const completeConfig = config as MCPServerConfig
-    const binding = requireServerBinding(completeConfig)
-    const mode = getAuthorizationMode(completeConfig)
-    if (mode !== 'interactive') {
-      try {
-        await this.createRuntimeProvider(serverName, completeConfig)
-      } catch (error) {
-        this.setStatus(
-          this.buildStatus(serverName, binding, mode, {
-            state: 'error',
-            authenticated: false,
-            error: sanitizeError(error),
-            credential: this.getSelectedCredentialStatus(binding, mode)
-          })
-        )
-        return this.getStatus(serverName, config)
+    this.invalidate(config.serverId)
+    const assertCurrent = this.captureOperation(config.serverId)
+    try {
+      if (!isRemoteOAuthCapable(config) || !config.baseUrl) {
+        throw new Error('MCP server does not support OAuth authentication')
       }
-      await Promise.resolve(this.onAuthenticated?.(serverName)).catch((error) => {
-        logger.warn(
-          '[MCP OAuth] Failed to restart server after machine authentication:',
-          sanitizeError(error)
-        )
-      })
-      return this.getStatus(serverName, config)
-    }
-
-    this.cancelPendingFlow(binding.serverId)
-    const state = createState()
-    let existing = this.findInteractiveCredential(serverName, completeConfig, binding)
-    if (existing?.entry.discoveryState) {
-      try {
-        const info = await discoverOAuthServerInfo(binding.endpoint)
-        assertConfiguredDiscovery(completeConfig, info)
-        if (!this.isInteractiveCredentialCurrent(existing.entry, info)) {
-          this.store.clearEntry(existing.key)
-          existing = null
+      const completeConfig = config as MCPServerConfig
+      const binding = requireServerBinding(completeConfig)
+      const mode = getAuthorizationMode(completeConfig)
+      if (mode !== 'interactive') {
+        try {
+          await this.createRuntimeProvider(serverName, completeConfig)
+          assertCurrent()
+        } catch (error) {
+          this.setStatus(
+            await this.buildStatus(serverName, binding, mode, {
+              state: 'error',
+              authenticated: false,
+              error: sanitizeError(error),
+              credential: await this.getSelectedCredentialStatus(binding, mode)
+            }),
+            assertCurrent
+          )
+          assertCurrent()
+          return await this.getStatus(serverName, config)
         }
+        assertCurrent()
+        await this.applyRuntimeChange(binding.serverId, 'restart', assertCurrent).catch((error) => {
+          logger.warn(
+            '[MCP OAuth] Failed to restart server after machine authentication:',
+            sanitizeError(error)
+          )
+        })
+        assertCurrent()
+        return await this.getStatus(serverName, config)
+      }
+      this.cancelPendingFlow(binding.serverId)
+      const state = createState()
+      let existing = await this.findInteractiveCredential(serverName, completeConfig, binding)
+      assertCurrent()
+      if (existing?.entry.discoveryState) {
+        try {
+          assertCurrent()
+          const info = await discoverOAuthServerInfo(binding.endpoint)
+          assertCurrent()
+          assertConfiguredDiscovery(completeConfig, info)
+          if (!this.isInteractiveCredentialCurrent(existing.entry, info)) {
+            assertCurrent()
+            await this.store.clearEntry(existing.key)
+            assertCurrent()
+            existing = null
+          }
+        } catch (error) {
+          this.setStatus(
+            await this.buildStatus(serverName, binding, mode, {
+              state: 'error',
+              authenticated: false,
+              error: sanitizeError(error)
+            }),
+            assertCurrent
+          )
+          assertCurrent()
+          return await this.getStatus(serverName, config)
+        }
+      }
+      const client = existing?.entry.clientInformation
+      const dynamicClient =
+        client && client.client_id !== completeConfig.authorization?.clientMetadataUrl
+      let callbackPath =
+        completeConfig.authorization?.clientMetadataUrl && !dynamicClient
+          ? MCP_OAUTH_REDIRECT_PATH
+          : `${MCP_OAUTH_REDIRECT_PATH}/${encodeURIComponent(binding.serverId)}`
+      let registeredRedirect: URL | null | undefined
+      if (dynamicClient) {
+        registeredRedirect =
+          'redirect_uris' in client && Array.isArray(client.redirect_uris)
+            ? client.redirect_uris
+                .map((uri) => URL.parse(uri))
+                .find(
+                  (url) =>
+                    url?.protocol === 'http:' &&
+                    url.hostname === 'localhost' &&
+                    !url.username &&
+                    !url.password &&
+                    !url.search &&
+                    !url.hash &&
+                    (url.pathname === MCP_OAUTH_REDIRECT_PATH ||
+                      url.pathname.startsWith(`${MCP_OAUTH_REDIRECT_PATH}/`))
+                )
+            : undefined
+        if (registeredRedirect) {
+          callbackPath = registeredRedirect.pathname
+        }
+      }
+      let provider!: DeepChatMcpOAuthProvider
+      const callbackSession = await startOAuthLoopbackCallbackSession({
+        expectedState: state,
+        path: callbackPath,
+        preferredPort: Number(registeredRedirect?.port) || MCP_OAUTH_REDIRECT_PORT,
+        redirectHost: 'localhost',
+        timeoutMs: MCP_OAUTH_CALLBACK_TIMEOUT_MS,
+        invalidCallbackMessage: 'Invalid MCP OAuth callback',
+        validateParameters: (parameters) => {
+          const validation = provider.getCallbackValidation()
+          validateAuthorizationResponseIssuer({
+            iss: parameters.get('iss') || undefined,
+            expectedIssuer: validation.issuer,
+            issParameterSupported: validation.issParameterSupported
+          })
+        }
+      })
+      try {
+        assertCurrent()
+        if (
+          existing &&
+          dynamicClient &&
+          registeredRedirect?.href !== new URL(callbackSession.redirectUri).href
+        ) {
+          assertCurrent()
+          await this.store.clearEntryScope(existing.key, 'client')
+          assertCurrent()
+          await this.store.clearEntryScope(existing.key, 'tokens')
+          assertCurrent()
+        }
+        provider = this.createInteractiveProvider(completeConfig, binding, {
+          redirectUrl: callbackSession.redirectUri,
+          state,
+          interactive: true,
+          assertActive: assertCurrent,
+          initialCredentialKey: existing?.key
+        })
       } catch (error) {
+        callbackSession.close()
+        assertCurrent()
         this.setStatus(
-          this.buildStatus(serverName, binding, mode, {
+          await this.buildStatus(serverName, binding, mode, {
             state: 'error',
             authenticated: false,
             error: sanitizeError(error)
-          })
+          }),
+          assertCurrent
         )
-        return this.getStatus(serverName, config)
+        assertCurrent()
+        return await this.getStatus(serverName, config)
       }
-    }
-    const client = existing?.entry.clientInformation
-    const dynamicClient =
-      client && client.client_id !== completeConfig.authorization?.clientMetadataUrl
-    let callbackPath =
-      completeConfig.authorization?.clientMetadataUrl && !dynamicClient
-        ? MCP_OAUTH_REDIRECT_PATH
-        : `${MCP_OAUTH_REDIRECT_PATH}/${encodeURIComponent(binding.serverId)}`
-    let registeredRedirect: URL | null | undefined
-    if (dynamicClient) {
-      registeredRedirect =
-        'redirect_uris' in client && Array.isArray(client.redirect_uris)
-          ? client.redirect_uris
-              .map((uri) => URL.parse(uri))
-              .find(
-                (url) =>
-                  url?.protocol === 'http:' &&
-                  url.hostname === 'localhost' &&
-                  !url.username &&
-                  !url.password &&
-                  !url.search &&
-                  !url.hash &&
-                  (url.pathname === MCP_OAUTH_REDIRECT_PATH ||
-                    url.pathname.startsWith(`${MCP_OAUTH_REDIRECT_PATH}/`))
-              )
-          : undefined
-      if (registeredRedirect) {
-        callbackPath = registeredRedirect.pathname
-      }
-    }
-    let provider!: DeepChatMcpOAuthProvider
-    const callbackSession = await startOAuthLoopbackCallbackSession({
-      expectedState: state,
-      path: callbackPath,
-      preferredPort: Number(registeredRedirect?.port) || MCP_OAUTH_REDIRECT_PORT,
-      redirectHost: 'localhost',
-      timeoutMs: MCP_OAUTH_CALLBACK_TIMEOUT_MS,
-      invalidCallbackMessage: 'Invalid MCP OAuth callback',
-      validateParameters: (parameters) => {
-        const discovery = provider.discoveryState()
-        validateAuthorizationResponseIssuer({
-          iss: parameters.get('iss') || undefined,
-          expectedIssuer:
-            discovery?.authorizationServerMetadata?.issuer || discovery?.authorizationServerUrl,
-          issParameterSupported:
-            discovery?.authorizationServerMetadata
-              ?.authorization_response_iss_parameter_supported === true
-        })
-      }
-    })
-    try {
-      if (
-        existing &&
-        dynamicClient &&
-        registeredRedirect?.href !== new URL(callbackSession.redirectUri).href
-      ) {
-        this.store.clearEntryScope(existing.key, 'client')
-        this.store.clearEntryScope(existing.key, 'tokens')
-      }
-      provider = this.createInteractiveProvider(completeConfig, binding, {
-        redirectUrl: callbackSession.redirectUri,
-        state,
-        interactive: true,
-        initialCredentialKey: existing?.key
-      })
-    } catch (error) {
-      callbackSession.close()
-      this.setStatus(
-        this.buildStatus(serverName, binding, mode, {
-          state: 'error',
-          authenticated: false,
-          error: sanitizeError(error)
-        })
-      )
-      return this.getStatus(serverName, config)
-    }
-    const flow: PendingMcpOAuthFlow = {
-      serverId: binding.serverId,
-      serverName,
-      serverUrl: config.baseUrl,
-      initialBinding: binding,
-      binding,
-      provider,
-      callbackSession
-    }
-    this.pendingFlows.set(binding.serverId, flow)
-    this.setStatus(
-      this.buildStatus(serverName, binding, mode, {
-        state: 'authenticating',
-        authenticated: false
-      })
-    )
-
-    try {
-      const result = await auth(provider, {
+      const flow: PendingMcpOAuthFlow = {
+        serverId: binding.serverId,
+        serverName,
         serverUrl: config.baseUrl,
-        scope: completeConfig.authorization?.scopes?.join(' ')
-      })
-      const discovery = provider.discoveryState()
-      if (!discovery) {
-        throw new Error('MCP OAuth discovery state is unavailable')
+        initialBinding: binding,
+        binding,
+        provider,
+        callbackSession,
+        assertActive: assertCurrent
       }
-      flow.binding = await this.finalizeInteractiveBinding(completeConfig, provider, discovery)
-      if (result === 'AUTHORIZED') {
-        this.finishAuthenticatedFlow(flow)
-        return this.getStatus(serverName, await this.getCurrentConfig(serverName, completeConfig))
+      assertCurrent()
+      this.pendingFlows.set(binding.serverId, flow)
+      this.setStatus(
+        await this.buildStatus(serverName, binding, mode, {
+          state: 'authenticating',
+          authenticated: false
+        }),
+        assertCurrent
+      )
+      assertCurrent()
+      try {
+        assertCurrent()
+        const result = await auth(provider, {
+          serverUrl: config.baseUrl,
+          scope: completeConfig.authorization?.scopes?.join(' ')
+        })
+        assertCurrent()
+        const discovery = await provider.discoveryState()
+        assertCurrent()
+        if (!discovery) {
+          throw new Error('MCP OAuth discovery state is unavailable')
+        }
+        flow.binding = await this.finalizeInteractiveBinding(completeConfig, provider, discovery)
+        assertCurrent()
+        if (result === 'AUTHORIZED') {
+          await this.finishAuthenticatedFlow(flow)
+          assertCurrent()
+          return await this.getStatus(
+            serverName,
+            await this.getCurrentConfig(serverName, completeConfig)
+          )
+        }
+        flow.flowPromise = callbackSession
+          .waitForCallback()
+          .then(async (callback) => await this.finishAuthFlow(flow, callback.code, callback.iss))
+          .catch(async (error) => await this.failAuthFlow(flow, error))
+        return await this.getStatus(
+          serverName,
+          await this.getCurrentConfig(serverName, completeConfig)
+        )
+      } catch (error) {
+        await this.failAuthFlow(flow, error)
+        assertCurrent()
+        return await this.getStatus(
+          serverName,
+          await this.getCurrentConfig(serverName, completeConfig)
+        )
       }
-
-      flow.flowPromise = callbackSession
-        .waitForCallback()
-        .then((callback) => this.finishAuthFlow(flow, callback.code, callback.iss))
-        .catch((error) => this.failAuthFlow(flow, error))
-      return this.getStatus(serverName, await this.getCurrentConfig(serverName, completeConfig))
-    } catch (error) {
-      this.failAuthFlow(flow, error)
-      return this.getStatus(serverName, await this.getCurrentConfig(serverName, completeConfig))
+    } finally {
+      assertCurrent()
     }
   }
-
   async completeAuthFromCallbackUrl(
     serverName: string,
     config: Partial<MCPServerConfig>,
     callbackUrl: string
   ): Promise<McpServerAuthStatus> {
-    const binding = requireServerBinding(config)
-    const flow = this.pendingFlows.get(binding.serverId)
-    if (!flow) {
-      const status = this.getStatus(serverName, config)
-      if (status.authenticated) {
-        return status
+    const assertCurrent = this.captureOperation(config.serverId)
+    try {
+      const binding = requireServerBinding(config)
+      const flow = this.pendingFlows.get(binding.serverId)
+      if (!flow) {
+        const status = await this.getStatus(serverName, config)
+        assertCurrent()
+        if (status.authenticated) {
+          return status
+        }
+        this.setStatus(
+          await this.buildStatus(serverName, binding, getAuthorizationMode(config), {
+            state: 'error',
+            authenticated: false,
+            error: 'MCP OAuth authentication is not pending'
+          }),
+          assertCurrent
+        )
+        assertCurrent()
+        return await this.getStatus(serverName, config)
+      }
+      const callbackCredentialKey = createMcpCredentialKey('interactive_oauth', binding)
+      if (
+        callbackCredentialKey !==
+          createMcpCredentialKey('interactive_oauth', flow.initialBinding) &&
+        callbackCredentialKey !== createMcpCredentialKey('interactive_oauth', flow.binding)
+      ) {
+        await this.failAuthFlow(
+          flow,
+          new Error('MCP OAuth server binding changed during authentication')
+        )
+        assertCurrent()
+        return await this.getStatus(serverName, config)
+      }
+      const resolution = flow.callbackSession.resolveCallbackUrl(callbackUrl)
+      if (resolution.kind === 'not-found') {
+        await this.failAuthFlow(flow, new Error('MCP OAuth callback URL is invalid'))
+        assertCurrent()
+        return await this.getStatus(serverName, config)
+      }
+      await flow.flowPromise
+      assertCurrent()
+      return await this.getStatus(serverName, config)
+    } finally {
+      assertCurrent()
+    }
+  }
+  async logout(
+    serverName: string,
+    config?: Partial<MCPServerConfig> | null
+  ): Promise<McpServerAuthStatus> {
+    this.invalidate(config?.serverId)
+    const assertCurrent = this.captureOperation(config?.serverId)
+    try {
+      if (!config) {
+        return {
+          serverName,
+          state: 'unsupported',
+          authenticated: false,
+          ...(await this.getStorageSnapshot())
+        }
+      }
+      const binding = requireServerBinding(config)
+      this.cancelPendingFlow(binding.serverId)
+      const interactive = await this.findInteractiveCredential(serverName, config, binding)
+      assertCurrent()
+      if (interactive) {
+        assertCurrent()
+        await this.store.clearEntry(interactive.key)
+        assertCurrent()
       }
       this.setStatus(
-        this.buildStatus(serverName, binding, getAuthorizationMode(config), {
-          state: 'error',
-          authenticated: false,
-          error: 'MCP OAuth authentication is not pending'
-        })
+        await this.buildStatus(serverName, binding, getAuthorizationMode(config), {
+          state: 'none',
+          authenticated: false
+        }),
+        assertCurrent
       )
-      return this.getStatus(serverName, config)
+      assertCurrent()
+      const status = await this.getStatus(serverName, config)
+      await this.applyRuntimeChange(binding.serverId, 'stop', assertCurrent)
+      return status
+    } finally {
+      assertCurrent()
     }
-    const callbackCredentialKey = createMcpCredentialKey('interactive_oauth', binding)
-    if (
-      callbackCredentialKey !== createMcpCredentialKey('interactive_oauth', flow.initialBinding) &&
-      callbackCredentialKey !== createMcpCredentialKey('interactive_oauth', flow.binding)
-    ) {
-      this.failAuthFlow(flow, new Error('MCP OAuth server binding changed during authentication'))
-      return this.getStatus(serverName, config)
-    }
-
-    const resolution = flow.callbackSession.resolveCallbackUrl(callbackUrl)
-    if (resolution.kind === 'not-found') {
-      this.failAuthFlow(flow, new Error('MCP OAuth callback URL is invalid'))
-      return this.getStatus(serverName, config)
-    }
-
-    await flow.flowPromise
-    return this.getStatus(serverName, config)
   }
-
-  logout(serverName: string, config?: Partial<MCPServerConfig> | null): McpServerAuthStatus {
-    if (!config) {
-      return {
-        serverName,
-        state: 'unsupported',
-        authenticated: false,
-        storage: this.store.getStorageState(),
-        persistent: this.store.isPersistent()
-      }
+  async getCredentialStatuses(config: MCPServerConfig): Promise<McpCredentialStatus[]> {
+    const assertCurrent = this.captureOperation(config.serverId)
+    try {
+      const binding = requireServerBinding(config)
+      return await Promise.all(
+        (['client_secret', 'private_key', 'enterprise_resource_secret'] as const).map((kind) =>
+          this.getCredentialStatus(binding, kind)
+        )
+      )
+    } finally {
+      assertCurrent()
     }
-    const binding = requireServerBinding(config)
-    this.cancelPendingFlow(binding.serverId)
-    const interactive = this.findInteractiveCredential(serverName, config, binding)
-    if (interactive) {
-      this.store.clearEntry(interactive.key)
-    }
-    this.setStatus(
-      this.buildStatus(serverName, binding, getAuthorizationMode(config), {
-        state: 'none',
-        authenticated: false
-      })
-    )
-    return this.getStatus(serverName, config)
   }
-
-  getCredentialStatuses(config: MCPServerConfig): McpCredentialStatus[] {
-    const binding = requireServerBinding(config)
-    return (['client_secret', 'private_key', 'enterprise_resource_secret'] as const).map((kind) =>
-      this.getCredentialStatus(binding, kind)
-    )
-  }
-
-  setCredential(
+  async setCredential(
     binding: McpCredentialBinding,
     credential: McpCredentialInput
-  ): McpCredentialStatus {
-    if (credential.kind === 'client_secret') {
-      if (!credential.secret || credential.secret.length > 8192) {
-        throw new Error('MCP client secret is invalid')
+  ): Promise<McpCredentialStatus> {
+    this.invalidate(binding.serverId)
+    const assertCurrent = this.captureOperation(binding.serverId)
+    try {
+      if (credential.kind === 'client_secret') {
+        if (!credential.secret || credential.secret.length > 8192) {
+          throw new Error('MCP client secret is invalid')
+        }
+        assertCurrent()
+        await this.store.saveClientSecret(
+          createMcpCredentialKey('client_secret', binding),
+          credential.secret,
+          binding
+        )
+        assertCurrent()
+      } else if (credential.kind === 'enterprise_resource_secret') {
+        if (!credential.secret || credential.secret.length > 8192) {
+          throw new Error('MCP enterprise resource secret is invalid')
+        }
+        assertCurrent()
+        await this.store.saveEnterpriseResourceSecret(
+          createMcpCredentialKey('enterprise_resource_secret', binding),
+          credential.secret,
+          binding
+        )
+        assertCurrent()
+      } else {
+        if (!credential.privateKey || credential.privateKey.length > 64 * 1024) {
+          throw new Error('MCP private key is invalid')
+        }
+        const fingerprint = createFingerprint(credential.privateKey, credential.algorithm)
+        assertCurrent()
+        await this.store.savePrivateKey(createMcpCredentialKey('private_key', binding), {
+          privateKey: credential.privateKey,
+          algorithm: credential.algorithm,
+          fingerprint,
+          binding
+        })
+        assertCurrent()
       }
-      this.store.saveClientSecret(
-        createMcpCredentialKey('client_secret', binding),
-        credential.secret,
-        binding
-      )
-    } else if (credential.kind === 'enterprise_resource_secret') {
-      if (!credential.secret || credential.secret.length > 8192) {
-        throw new Error('MCP enterprise resource secret is invalid')
-      }
-      this.store.saveEnterpriseResourceSecret(
-        createMcpCredentialKey('enterprise_resource_secret', binding),
-        credential.secret,
-        binding
-      )
-    } else {
-      if (!credential.privateKey || credential.privateKey.length > 64 * 1024) {
-        throw new Error('MCP private key is invalid')
-      }
-      const fingerprint = createFingerprint(credential.privateKey, credential.algorithm)
-      this.store.savePrivateKey(createMcpCredentialKey('private_key', binding), {
-        privateKey: credential.privateKey,
-        algorithm: credential.algorithm,
-        fingerprint,
-        binding
-      })
+      const status = await this.getCredentialStatus(binding, credential.kind)
+      await this.applyRuntimeChange(binding.serverId, 'restart', assertCurrent)
+      return status
+    } finally {
+      assertCurrent()
     }
-    return this.getCredentialStatus(binding, credential.kind)
   }
-
-  removeCredential(binding: McpCredentialBinding, kind: McpCredentialKind): McpCredentialStatus {
-    this.store.clearEntry(createMcpCredentialKey(kind, binding))
-    return this.getCredentialStatus(binding, kind)
+  async removeCredential(
+    binding: McpCredentialBinding,
+    kind: McpCredentialKind
+  ): Promise<McpCredentialStatus> {
+    this.invalidate(binding.serverId)
+    const assertCurrent = this.captureOperation(binding.serverId)
+    try {
+      assertCurrent()
+      await this.store.clearEntry(createMcpCredentialKey(kind, binding))
+      assertCurrent()
+      const status = await this.getCredentialStatus(binding, kind)
+      await this.applyRuntimeChange(binding.serverId, 'stop', assertCurrent)
+      return status
+    } finally {
+      assertCurrent()
+    }
   }
-
-  clearServerCredentials(serverId: string): void {
-    this.cancelPendingFlow(serverId)
-    this.store.clearServerCredentials(serverId)
-    this.statuses.delete(serverId)
+  async clearServerCredentials(serverId: string): Promise<void> {
+    this.invalidate(serverId)
+    const assertCurrent = this.captureOperation(serverId)
+    try {
+      this.cancelPendingFlow(serverId)
+      assertCurrent()
+      await this.store.clearServerCredentials(serverId)
+      assertCurrent()
+      this.statuses.delete(serverId)
+    } finally {
+      assertCurrent()
+    }
   }
-
   listEnterpriseProfiles(): McpEnterpriseIdentityProfile[] {
     return this.requireEnterpriseIdentity().listProfiles()
   }
-
-  saveEnterpriseProfile(profile: McpEnterpriseIdentityProfile): McpEnterpriseIdentityProfile {
-    return this.requireEnterpriseIdentity().saveProfile(profile)
+  async saveEnterpriseProfile(
+    profile: McpEnterpriseIdentityProfile
+  ): Promise<McpEnterpriseIdentityProfile> {
+    return await this.requireEnterpriseIdentity().saveProfile(profile)
   }
-
-  removeEnterpriseProfile(profileId: string): void {
-    this.requireEnterpriseIdentity().removeProfile(profileId)
+  async removeEnterpriseProfile(profileId: string): Promise<void> {
+    await this.requireEnterpriseIdentity().removeProfile(profileId)
   }
-
-  setEnterpriseProfileClientSecret(profileId: string, secret: string): McpEnterpriseIdentityStatus {
-    return this.requireEnterpriseIdentity().setClientSecret(profileId, secret)
+  async setEnterpriseProfileClientSecret(
+    profileId: string,
+    secret: string
+  ): Promise<McpEnterpriseIdentityStatus> {
+    return await this.requireEnterpriseIdentity().setClientSecret(profileId, secret)
   }
-
-  getEnterpriseProfileStatus(profileId: string): McpEnterpriseIdentityStatus {
-    return this.requireEnterpriseIdentity().getStatus(profileId)
+  async getEnterpriseProfileStatus(profileId: string): Promise<McpEnterpriseIdentityStatus> {
+    return await this.requireEnterpriseIdentity().getStatus(profileId)
   }
-
-  startEnterpriseProfileAuth(profileId: string): Promise<McpEnterpriseIdentityStatus> {
-    return this.requireEnterpriseIdentity().startAuth(profileId)
+  async startEnterpriseProfileAuth(profileId: string): Promise<McpEnterpriseIdentityStatus> {
+    return await this.requireEnterpriseIdentity().startAuth(profileId)
   }
-
-  completeEnterpriseProfileAuthFromCallbackUrl(
+  async completeEnterpriseProfileAuthFromCallbackUrl(
     profileId: string,
     callbackUrl: string
   ): Promise<McpEnterpriseIdentityStatus> {
-    return this.requireEnterpriseIdentity().completeAuthFromCallbackUrl(profileId, callbackUrl)
+    return await this.requireEnterpriseIdentity().completeAuthFromCallbackUrl(
+      profileId,
+      callbackUrl
+    )
   }
-
-  logoutEnterpriseProfile(profileId: string): McpEnterpriseIdentityStatus {
-    return this.requireEnterpriseIdentity().logout(profileId)
+  async logoutEnterpriseProfile(profileId: string): Promise<McpEnterpriseIdentityStatus> {
+    return await this.requireEnterpriseIdentity().logout(profileId)
   }
-
-  getUsableAuthorizationExtensions(config: Partial<MCPServerConfig>): string[] {
-    const mode = getAuthorizationMode(config)
-    if (
-      !isRemoteOAuthCapable(config) ||
-      (mode !== 'client_credentials' && mode !== 'private_key_jwt' && mode !== 'cross_app_access')
-    ) {
-      return []
-    }
-
-    const binding = requireServerBinding(config)
-    if (
-      (mode === 'client_credentials' || mode === 'private_key_jwt') &&
-      this.getSelectedCredentialStatus(binding, mode).configured
-    ) {
-      return [AUTH_EXTENSION_CLIENT_CREDENTIALS]
-    }
-    if (mode === 'cross_app_access' && this.getSelectedCredentialStatus(binding, mode).configured) {
-      const profileId = config.authorization?.identityProfileId
-      if (profileId) {
-        try {
-          if (this.enterpriseIdentity?.getStatus(profileId).authenticated) {
-            return [AUTH_EXTENSION_ENTERPRISE]
+  async getUsableAuthorizationExtensions(config: Partial<MCPServerConfig>): Promise<string[]> {
+    const assertCurrent = this.captureOperation(config.serverId)
+    try {
+      const mode = getAuthorizationMode(config)
+      if (
+        !isRemoteOAuthCapable(config) ||
+        (mode !== 'client_credentials' && mode !== 'private_key_jwt' && mode !== 'cross_app_access')
+      ) {
+        return []
+      }
+      const binding = requireServerBinding(config)
+      if (
+        (mode === 'client_credentials' || mode === 'private_key_jwt') &&
+        (await this.getSelectedCredentialStatus(binding, mode)).configured
+      ) {
+        return [AUTH_EXTENSION_CLIENT_CREDENTIALS]
+      }
+      if (
+        mode === 'cross_app_access' &&
+        (await this.getSelectedCredentialStatus(binding, mode)).configured
+      ) {
+        const profileId = config.authorization?.identityProfileId
+        if (profileId) {
+          try {
+            if ((await this.enterpriseIdentity?.getStatus(profileId))?.authenticated) {
+              return [AUTH_EXTENSION_ENTERPRISE]
+            }
+          } catch {
+            return []
           }
-        } catch {
-          return []
         }
       }
+      return []
+    } finally {
+      assertCurrent()
     }
-    return []
   }
-
   private async getCurrentConfig(
     serverName: string,
     fallback: MCPServerConfig
@@ -803,7 +988,6 @@ export class McpOAuthManager {
       fallback
     )
   }
-
   private isInteractiveCredentialCurrent(
     entry: McpOAuthCredentialEntry,
     info: OAuthServerInfo
@@ -819,7 +1003,6 @@ export class McpOAuthManager {
       if (!storedIssuer || normalizeUrlIdentifier(storedIssuer) !== liveIssuer) {
         return false
       }
-
       const liveResource = info.resourceMetadata?.resource
       const storedResource =
         entry.binding?.protectedResourceUrl || entry.discoveryState?.resourceMetadata?.resource
@@ -832,83 +1015,58 @@ export class McpOAuthManager {
       return false
     }
   }
-
   private async finalizeInteractiveBinding(
     config: MCPServerConfig,
     provider: DeepChatMcpOAuthProvider,
     info: OAuthServerInfo,
     clientIdHint?: string
   ): Promise<McpCredentialBinding> {
-    const startingBinding = requireServerBinding(config)
-    const issuer = assertConfiguredDiscovery(config, info)
-    const providerBinding = provider.getBinding()
-    const resourceValue =
-      info.resourceMetadata?.resource ||
-      providerBinding.protectedResourceUrl ||
-      config.authorization?.protectedResourceUrl
-    const protectedResourceUrl = resourceValue ? normalizeUrlIdentifier(resourceValue) : undefined
-    const clientId =
-      clientIdHint || providerBinding.clientId || config.authorization?.clientId || undefined
-
-    let finalBinding: McpCredentialBinding = {
-      ...startingBinding,
-      authorizationServerIssuer: issuer,
-      protectedResourceUrl,
-      clientId
-    }
-    if (this.settings) {
-      const servers = await this.settings.getMcpServers()
-      const currentMatch = Object.entries(servers).find(
-        ([, current]) => current.serverId === startingBinding.serverId
-      )
-      if (!currentMatch) {
-        throw new Error('MCP server was removed during OAuth discovery')
-      }
-      const [currentServerName, currentConfig] = currentMatch
-      const currentBinding = requireServerBinding(currentConfig)
-      if (
-        currentBinding.configGeneration !== startingBinding.configGeneration ||
-        currentBinding.bindingHash !== startingBinding.bindingHash ||
-        normalizeUrlIdentifier(currentBinding.endpoint) !==
-          normalizeUrlIdentifier(startingBinding.endpoint)
-      ) {
-        throw new Error('MCP server binding changed during OAuth discovery')
-      }
-
-      const nextAuthorization = {
-        ...(currentConfig.authorization || { mode: 'interactive' as const }),
+    const assertCurrent = this.captureOperation(config.serverId)
+    try {
+      const startingBinding = requireServerBinding(config)
+      const issuer = assertConfiguredDiscovery(config, info)
+      const providerBinding = provider.getBinding()
+      const resourceValue =
+        info.resourceMetadata?.resource ||
+        providerBinding.protectedResourceUrl ||
+        config.authorization?.protectedResourceUrl
+      const protectedResourceUrl = resourceValue ? normalizeUrlIdentifier(resourceValue) : undefined
+      const clientId =
+        clientIdHint || providerBinding.clientId || config.authorization?.clientId || undefined
+      let finalBinding: McpCredentialBinding = {
+        ...startingBinding,
         authorizationServerIssuer: issuer,
         protectedResourceUrl,
         clientId
       }
-      const needsUpdate =
-        currentConfig.authorization?.authorizationServerIssuer !== issuer ||
-        currentConfig.authorization?.protectedResourceUrl !== protectedResourceUrl ||
-        currentConfig.authorization?.clientId !== clientId
-      if (needsUpdate) {
-        await this.settings.updateMcpServer(currentServerName, {
-          authorization: nextAuthorization
-        })
-        const updatedConfig = (await this.settings.getMcpServers())[currentServerName]
-        if (!updatedConfig || updatedConfig.serverId !== startingBinding.serverId) {
-          throw new Error('MCP server binding could not be finalized after OAuth discovery')
-        }
-        finalBinding = requireServerBinding(updatedConfig)
-        this.onServerBindingChanged?.(startingBinding.serverId)
-      } else {
-        finalBinding = currentBinding
+      if (this.settings) {
+        assertCurrent()
+        finalBinding = requireServerBinding(
+          this.settings.finalizeOAuthBinding(startingBinding, {
+            ...(config.authorization || { mode: 'interactive' as const }),
+            authorizationServerIssuer: issuer,
+            protectedResourceUrl,
+            clientId
+          })
+        )
+        if (
+          finalBinding.configGeneration !== startingBinding.configGeneration ||
+          finalBinding.bindingHash !== startingBinding.bindingHash
+        )
+          this.onServerBindingChanged?.(startingBinding.serverId)
       }
+      await provider.rebind({
+        ...finalBinding,
+        authorizationServerIssuer: issuer,
+        protectedResourceUrl,
+        clientId
+      })
+      assertCurrent()
+      return provider.getBinding()
+    } finally {
+      assertCurrent()
     }
-
-    provider.rebind({
-      ...finalBinding,
-      authorizationServerIssuer: issuer,
-      protectedResourceUrl,
-      clientId
-    })
-    return provider.getBinding()
   }
-
   private createInteractiveProvider(
     config: MCPServerConfig,
     binding: McpCredentialBinding,
@@ -917,10 +1075,13 @@ export class McpOAuthManager {
       state?: string
       interactive: boolean
       initialCredentialKey?: string
+      assertActive(): void
     }
   ): DeepChatMcpOAuthProvider {
     return new DeepChatMcpOAuthProvider({
       store: this.store,
+      openExternal: this.openExternal,
+      assertActive: options.assertActive,
       binding,
       credentialKey: (nextBinding) => createMcpCredentialKey('interactive_oauth', nextBinding),
       initialCredentialKey: options.initialCredentialKey,
@@ -931,167 +1092,186 @@ export class McpOAuthManager {
       scopes: config.authorization?.scopes
     })
   }
-
-  private findInteractiveCredential(
+  private async findInteractiveCredential(
     serverName: string,
     config: Partial<MCPServerConfig>,
     binding: McpCredentialBinding
   ) {
-    const current = this.store.findInteractiveCredential(binding)
-    if (current) {
-      return current
+    const assertCurrent = this.captureOperation(binding.serverId)
+    try {
+      const current = await this.store.findInteractiveCredential(binding)
+      assertCurrent()
+      if (current) {
+        return current
+      }
+      const legacyKey = createHash('sha256')
+        .update(`${serverName}\n${config.type || ''}\n${config.baseUrl || ''}`)
+        .digest('hex')
+      const legacy = await this.store.load(legacyKey)
+      assertCurrent()
+      if (!legacy) {
+        return null
+      }
+      const issuer =
+        legacy.discoveryState?.authorizationServerMetadata?.issuer ||
+        legacy.discoveryState?.authorizationServerUrl
+      if (
+        !issuer ||
+        (binding.authorizationServerIssuer &&
+          normalizeMcpOAuthIssuer(binding.authorizationServerIssuer) !==
+            normalizeMcpOAuthIssuer(issuer))
+      ) {
+        assertCurrent()
+        await this.store.clearEntry(legacyKey)
+        assertCurrent()
+        return null
+      }
+      const migratedBinding: McpCredentialBinding = {
+        ...binding,
+        authorizationServerIssuer: normalizeMcpOAuthIssuer(issuer),
+        protectedResourceUrl:
+          legacy.discoveryState?.resourceMetadata?.resource || binding.protectedResourceUrl
+      }
+      const nextKey = createMcpCredentialKey('interactive_oauth', migratedBinding)
+      assertCurrent()
+      return await this.store.moveInteractiveEntry(legacyKey, nextKey, migratedBinding)
+    } finally {
+      assertCurrent()
     }
-
-    const legacyKey = createHash('sha256')
-      .update(`${serverName}\n${config.type || ''}\n${config.baseUrl || ''}`)
-      .digest('hex')
-    const legacy = this.store.load(legacyKey)
-    if (!legacy) {
-      return null
-    }
-    const issuer =
-      legacy.discoveryState?.authorizationServerMetadata?.issuer ||
-      legacy.discoveryState?.authorizationServerUrl
-    if (
-      !issuer ||
-      (binding.authorizationServerIssuer &&
-        normalizeMcpOAuthIssuer(binding.authorizationServerIssuer) !==
-          normalizeMcpOAuthIssuer(issuer))
-    ) {
-      this.store.clearEntry(legacyKey)
-      return null
-    }
-    const migratedBinding: McpCredentialBinding = {
-      ...binding,
-      authorizationServerIssuer: normalizeMcpOAuthIssuer(issuer),
-      protectedResourceUrl:
-        legacy.discoveryState?.resourceMetadata?.resource || binding.protectedResourceUrl
-    }
-    const nextKey = createMcpCredentialKey('interactive_oauth', migratedBinding)
-    this.store.saveEntry(nextKey, {
-      ...legacy,
-      binding: migratedBinding
-    })
-    this.store.clearEntry(legacyKey)
-    return { key: nextKey, entry: this.store.load(nextKey)! }
   }
-
   private async createMachineProvider(
     config: MCPServerConfig,
     binding: McpCredentialBinding,
     info: OAuthServerInfo
   ): Promise<OAuthClientProvider> {
-    const mode = getAuthorizationMode(config)
-    const clientId = config.authorization?.clientId
-    if (!clientId) {
-      throw new Error('MCP machine authorization client ID is required')
-    }
-    const methods = supportedTokenAuthMethods(info.authorizationServerMetadata)
-    const issuer = discoveryIssuer(info)
-    const scope = config.authorization?.scopes?.join(' ')
-
-    if (mode === 'client_credentials') {
-      if (!methods.includes('client_secret_basic')) {
-        throw new Error('MCP authorization server does not support client_secret_basic')
+    const assertCurrent = this.captureOperation(binding.serverId)
+    try {
+      const mode = getAuthorizationMode(config)
+      const clientId = config.authorization?.clientId
+      if (!clientId) {
+        throw new Error('MCP machine authorization client ID is required')
       }
-      const credential = this.store.loadClientSecret(
-        createMcpCredentialKey('client_secret', binding)
-      )
-      if (!credential) {
-        throw new Error('MCP client secret is not configured')
-      }
-      return bindProviderToProtectedResource(
-        new ClientCredentialsProvider({
-          clientId,
-          clientSecret: credential.secret,
-          clientName: 'DeepChat',
-          scope,
-          expectedIssuer: issuer
-        }),
-        binding
-      )
-    }
-
-    if (mode === 'private_key_jwt') {
-      if (!methods.includes('private_key_jwt')) {
-        throw new Error('MCP authorization server does not support private_key_jwt')
-      }
-      const credential = this.store.loadPrivateKey(createMcpCredentialKey('private_key', binding))
-      if (!credential) {
-        throw new Error('MCP private key is not configured')
-      }
-      return bindProviderToProtectedResource(
-        new PrivateKeyJwtProvider({
-          clientId,
-          privateKey: credential.privateKey,
-          algorithm: credential.algorithm,
-          clientName: 'DeepChat',
-          scope,
-          expectedIssuer: issuer
-        }),
-        binding
-      )
-    }
-
-    if (mode === 'cross_app_access') {
-      if (!methods.includes('client_secret_basic')) {
-        throw new Error('MCP authorization server does not support client_secret_basic')
-      }
-      const profiles = (
-        info.authorizationServerMetadata as AuthorizationServerMetadata & {
-          authorization_grant_profiles_supported?: string[]
+      const methods = supportedTokenAuthMethods(info.authorizationServerMetadata)
+      const issuer = discoveryIssuer(info)
+      const scope = config.authorization?.scopes?.join(' ')
+      if (mode === 'client_credentials') {
+        if (!methods.includes('client_secret_basic')) {
+          throw new Error('MCP authorization server does not support client_secret_basic')
         }
-      ).authorization_grant_profiles_supported
-      if (!profiles?.includes('urn:ietf:params:oauth:grant-profile:id-jag')) {
-        throw new Error('MCP authorization server does not support the ID-JAG grant profile')
+        const credential = await this.store.loadClientSecret(
+          createMcpCredentialKey('client_secret', binding)
+        )
+        assertCurrent()
+        if (!credential) {
+          throw new Error('MCP client secret is not configured')
+        }
+        return bindProviderToProtectedResource(
+          new ClientCredentialsProvider({
+            clientId,
+            clientSecret: credential.secret,
+            clientName: 'DeepChat',
+            scope,
+            expectedIssuer: issuer
+          }),
+          binding
+        )
       }
-      const credential = this.store.loadEnterpriseResourceSecret(
-        createMcpCredentialKey('enterprise_resource_secret', binding)
-      )
-      if (!credential) {
-        throw new Error('MCP enterprise resource client secret is not configured')
+      if (mode === 'private_key_jwt') {
+        if (!methods.includes('private_key_jwt')) {
+          throw new Error('MCP authorization server does not support private_key_jwt')
+        }
+        const credential = await this.store.loadPrivateKey(
+          createMcpCredentialKey('private_key', binding)
+        )
+        assertCurrent()
+        if (!credential) {
+          throw new Error('MCP private key is not configured')
+        }
+        return bindProviderToProtectedResource(
+          new PrivateKeyJwtProvider({
+            clientId,
+            privateKey: credential.privateKey,
+            algorithm: credential.algorithm,
+            clientName: 'DeepChat',
+            scope,
+            expectedIssuer: issuer
+          }),
+          binding
+        )
       }
-      return bindProviderToProtectedResource(
-        await this.requireEnterpriseIdentity().createCrossAppProvider(
-          config,
-          credential.secret,
-          issuer
-        ),
-        binding
-      )
+      if (mode === 'cross_app_access') {
+        if (!methods.includes('client_secret_basic')) {
+          throw new Error('MCP authorization server does not support client_secret_basic')
+        }
+        const profiles = (
+          info.authorizationServerMetadata as AuthorizationServerMetadata & {
+            authorization_grant_profiles_supported?: string[]
+          }
+        ).authorization_grant_profiles_supported
+        if (!profiles?.includes('urn:ietf:params:oauth:grant-profile:id-jag')) {
+          throw new Error('MCP authorization server does not support the ID-JAG grant profile')
+        }
+        const credential = await this.store.loadEnterpriseResourceSecret(
+          createMcpCredentialKey('enterprise_resource_secret', binding)
+        )
+        assertCurrent()
+        if (!credential) {
+          throw new Error('MCP enterprise resource client secret is not configured')
+        }
+        return bindProviderToProtectedResource(
+          await this.requireEnterpriseIdentity().createCrossAppProvider(
+            config,
+            credential.secret,
+            issuer
+          ),
+          binding
+        )
+      }
+      throw new Error(`Unsupported MCP authorization mode: ${mode}`)
+    } finally {
+      assertCurrent()
     }
-
-    throw new Error(`Unsupported MCP authorization mode: ${mode}`)
   }
-
-  private getCredentialStatus(
+  private async getCredentialStatus(
     binding: McpCredentialBinding,
     kind: McpCredentialKind
-  ): McpCredentialStatus {
-    const status = this.store.getCredentialRecordStatus(createMcpCredentialKey(kind, binding), kind)
-    return {
-      serverId: binding.serverId,
-      kind,
-      configured: status.configured,
-      persistent: this.store.isPersistent(),
-      updatedAt: status.updatedAt,
-      fingerprint: status.fingerprint
+  ): Promise<McpCredentialStatus> {
+    const assertCurrent = this.captureOperation(binding.serverId)
+    try {
+      const status = await this.store.getCredentialRecordStatus(
+        createMcpCredentialKey(kind, binding),
+        kind
+      )
+      assertCurrent()
+      return {
+        serverId: binding.serverId,
+        kind,
+        configured: status.configured,
+        persistent: await this.store.isPersistent(),
+        updatedAt: status.updatedAt,
+        fingerprint: status.fingerprint
+      }
+    } finally {
+      assertCurrent()
     }
   }
-
-  private getSelectedCredentialStatus(
+  private async getSelectedCredentialStatus(
     binding: McpCredentialBinding,
     mode: McpAuthorizationMode
-  ): McpCredentialStatus {
-    const kind: McpCredentialKind =
-      mode === 'private_key_jwt'
-        ? 'private_key'
-        : mode === 'cross_app_access'
-          ? 'enterprise_resource_secret'
-          : 'client_secret'
-    return this.getCredentialStatus(binding, kind)
+  ): Promise<McpCredentialStatus> {
+    const assertCurrent = this.captureOperation(binding.serverId)
+    try {
+      const kind: McpCredentialKind =
+        mode === 'private_key_jwt'
+          ? 'private_key'
+          : mode === 'cross_app_access'
+            ? 'enterprise_resource_secret'
+            : 'client_secret'
+      return await this.getCredentialStatus(binding, kind)
+    } finally {
+      assertCurrent()
+    }
   }
-
   private async finishAuthFlow(
     flow: PendingMcpOAuthFlow,
     code: string,
@@ -1103,56 +1283,74 @@ export class McpOAuthManager {
         authorizationCode: code,
         iss
       })
-      this.finishAuthenticatedFlow(flow)
+      await this.finishAuthenticatedFlow(flow)
     } catch (error) {
-      this.failAuthFlow(flow, error)
+      await this.failAuthFlow(flow, error)
     }
   }
-
-  private finishAuthenticatedFlow(flow: PendingMcpOAuthFlow): void {
-    if (this.pendingFlows.get(flow.serverId) !== flow) {
-      return
-    }
+  private async finishAuthenticatedFlow(flow: PendingMcpOAuthFlow): Promise<void> {
+    if (this.stopped || this.pendingFlows.get(flow.serverId) !== flow) return
+    const assertCurrent = flow.assertActive
+    const entry = await this.store.findInteractiveCredential(flow.binding)
+    assertCurrent()
+    const storage = await this.getStorageSnapshot()
+    assertCurrent()
+    if (this.pendingFlows.get(flow.serverId) !== flow) return
     this.pendingFlows.delete(flow.serverId)
     flow.callbackSession.close()
-    const entry = this.store.findInteractiveCredential(flow.binding)
     const current = this.statuses.get(flow.serverId)
-    this.setStatus({
-      serverName: flow.serverName,
-      serverId: flow.serverId,
-      state: 'authenticated',
-      authenticated: true,
-      updatedAt: entry?.entry.updatedAt || Date.now(),
-      storage: this.store.getStorageState(),
-      persistent: this.store.isPersistent(),
-      mode: 'interactive',
-      ...(current?.credential ? { credential: current.credential } : {})
-    })
-
-    void Promise.resolve(this.onAuthenticated?.(flow.serverName)).catch((error) => {
-      logger.warn(
-        '[MCP OAuth] Failed to restart server after authentication:',
-        sanitizeError(error)
-      )
-    })
+    this.setStatus(
+      {
+        serverName: flow.serverName,
+        serverId: flow.serverId,
+        state: 'authenticated',
+        authenticated: true,
+        updatedAt: entry?.entry.updatedAt || Date.now(),
+        ...storage,
+        mode: 'interactive',
+        ...(current?.credential ? { credential: current.credential } : {})
+      },
+      assertCurrent
+    )
+    void Promise.resolve()
+      .then(() => {
+        assertCurrent()
+        return this.applyRuntimeChange(flow.serverId, 'restart', assertCurrent)
+      })
+      .catch((error) => {
+        if (!this.stopped)
+          logger.warn(
+            '[MCP OAuth] Failed to restart server after authentication:',
+            sanitizeError(error)
+          )
+      })
   }
 
-  private failAuthFlow(flow: PendingMcpOAuthFlow, error: unknown): void {
-    if (this.pendingFlows.get(flow.serverId) !== flow) {
-      return
+  private async failAuthFlow(flow: PendingMcpOAuthFlow, error: unknown): Promise<void> {
+    if (this.stopped || this.pendingFlows.get(flow.serverId) !== flow) return
+    const assertCurrent = flow.assertActive
+    try {
+      const storage = await this.getStorageSnapshot()
+      assertCurrent()
+      if (this.pendingFlows.get(flow.serverId) !== flow) return
+      this.pendingFlows.delete(flow.serverId)
+      flow.callbackSession.close()
+      this.setStatus(
+        {
+          serverName: flow.serverName,
+          serverId: flow.serverId,
+          state: 'error',
+          authenticated: false,
+          error: sanitizeError(error),
+          ...storage,
+          mode: 'interactive'
+        },
+        assertCurrent
+      )
+    } catch (failure) {
+      if (this.stopped || this.pendingFlows.get(flow.serverId) !== flow) return
+      throw failure
     }
-    this.pendingFlows.delete(flow.serverId)
-    flow.callbackSession.close()
-    this.setStatus({
-      serverName: flow.serverName,
-      serverId: flow.serverId,
-      state: 'error',
-      authenticated: false,
-      error: sanitizeError(error),
-      storage: this.store.getStorageState(),
-      persistent: this.store.isPersistent(),
-      mode: 'interactive'
-    })
   }
 
   private cancelPendingFlow(serverId: string): void {
@@ -1163,25 +1361,38 @@ export class McpOAuthManager {
     pending.callbackSession.close()
     this.pendingFlows.delete(serverId)
   }
-
-  private buildStatus(
+  private async buildStatus(
     serverName: string,
     binding: McpCredentialBinding,
     mode: McpAuthorizationMode,
     state: Pick<McpServerAuthStatus, 'state' | 'authenticated'> &
       Partial<Pick<McpServerAuthStatus, 'error' | 'updatedAt' | 'credential'>>
-  ): McpServerAuthStatus {
+  ): Promise<McpServerAuthStatus> {
     return {
       serverName,
       serverId: binding.serverId,
       ...state,
-      storage: this.store.getStorageState(),
-      persistent: this.store.isPersistent(),
+      ...(await this.getStorageSnapshot()),
       mode
     }
   }
+  private async applyRuntimeChange(
+    serverId: string,
+    action: 'restart' | 'stop',
+    assertCurrent: () => void
+  ): Promise<void> {
+    assertCurrent()
+    await this.onRuntimeChange?.(serverId, action, assertCurrent)
+    assertCurrent()
+  }
 
-  private setStatus(status: McpServerAuthStatus): void {
+  private async getStorageSnapshot() {
+    const storage = await this.store.getStorageState()
+    return { storage, persistent: storage === 'safeStorage' }
+  }
+
+  private setStatus(status: McpServerAuthStatus, assertCurrent: () => void): void {
+    assertCurrent()
     if (status.serverId) {
       this.statuses.set(status.serverId, status)
     }
@@ -1191,17 +1402,14 @@ export class McpOAuthManager {
       version: Date.now()
     })
   }
-
   private requireEnterpriseIdentity(): McpEnterpriseIdentityManager {
     if (!this.enterpriseIdentity) {
       throw new Error('MCP enterprise identity support is not configured')
     }
     return this.enterpriseIdentity
   }
-
   private getDefaultRedirectUri(): string {
     return `http://localhost:${MCP_OAUTH_REDIRECT_PORT}${MCP_OAUTH_REDIRECT_PATH}`
   }
 }
-
 export { isRemoteOAuthCapable, resolveOAuthLoopbackCallbackUrl }

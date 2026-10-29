@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { AgentCommandShellConfigSchema, GitBashAvailabilitySchema } from '../../commandShell'
-import { TimestampMsSchema, defineRouteContract } from '../common'
+import { RevisionSchema, TimestampMsSchema, defineRouteContract } from '../common'
 
 export const SETTINGS_KEYS = [
   'fontSizeLevel',
@@ -117,7 +117,7 @@ export const settingsGetSnapshotRoute = defineRouteContract({
     })
     .default({}),
   output: z.object({
-    version: TimestampMsSchema,
+    version: RevisionSchema,
     values: SettingsSnapshotValuesSchema.partial()
   })
 })
@@ -166,7 +166,7 @@ export const settingsUpdateRoute = defineRouteContract({
     changes: z.array(SettingsChangeSchema).min(1)
   }),
   output: z.object({
-    version: TimestampMsSchema,
+    version: RevisionSchema,
     changedKeys: z.array(SettingsKeySchema).min(1),
     values: SettingsSnapshotValuesSchema.partial()
   })

@@ -22,6 +22,8 @@ const sharedPackagePaths = new Set([
   'resources/runtime-versions.json',
   'scripts/afterPack.js',
   'scripts/build-cli.mjs',
+  'scripts/build-harness.mjs',
+  'rust-toolchain.toml',
   'scripts/build-cua-plugin-runtime.mjs',
   'scripts/compare-light-ocr-package-size.mjs',
   'scripts/install-runtime.mjs',
@@ -30,6 +32,7 @@ const sharedPackagePaths = new Set([
   'scripts/package-plugin.mjs',
   'scripts/plugin.mjs',
   'scripts/smoke-duckdb-vss.js',
+  'scripts/smoke-harness-memory.mjs',
   'scripts/smoke-light-ocr.js',
   'scripts/smoke-opendal-native.js',
   'scripts/ci/check-package-size.mjs',
@@ -80,7 +83,11 @@ const packageImpactRules = Object.freeze([
     matches: (changedPath) =>
       sharedPackagePaths.has(changedPath) ||
       changedPath.startsWith('.github/actions/light-ocr-package-size/') ||
-      changedPath.startsWith('plugins/')
+      changedPath.startsWith('plugins/') ||
+      changedPath.startsWith('crates/deepchat-harness/') ||
+      changedPath.startsWith('src/harness/') ||
+      changedPath.startsWith('src/main/harness/') ||
+      changedPath.startsWith('src/shared/harness/')
   },
   {
     id: 'windows-package-input',

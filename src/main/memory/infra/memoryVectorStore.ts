@@ -1,11 +1,25 @@
-import logger from '@shared/logger'
+import logger from 'node:console'
 import fs from 'node:fs'
 import path from 'node:path'
+import { endianness } from 'node:os'
+import duckdb from '@duckdb/node-bindings'
+import { isSafeAgentId } from '@shared/types/agent-memory'
 
-import { DuckDBConnection, DuckDBInstance, arrayValue } from '@duckdb/node-api'
+import {
+  ARRAY,
+  FLOAT,
+  INTEGER,
+  VARCHAR,
+  type DuckDBAppender,
+  DuckDBArrayType,
+  DuckDBConnection,
+  DuckDBDataChunk,
+  DuckDBInstance,
+  arrayValue
+} from '@duckdb/node-api'
 
 import type { MemoryPerfObserver } from '../ports'
-import { V1_PRESERVE_IDLE_TIMEOUT_MS } from '../runtimeConstants'
+import { REINDEX_BATCH_SIZE, V1_PRESERVE_IDLE_TIMEOUT_MS } from '../runtimeConstants'
 import type {
   IMemoryVectorStore,
   MemoryVectorMatch,
@@ -13,7 +27,13 @@ import type {
   MemoryVectorRecord
 } from '../types'
 import { LegacyV1Reader, MigrationAbandonFence } from './legacyV1Reader'
-import { LegacyVssUnavailableError } from './legacyVssLoader'
+import { LegacyVssUnavailableError, type MemoryVectorHost } from './legacyVssLoader'
+import {
+  createMemoryVectorStorePaths,
+  persistMemoryVectorQuarantine,
+  type MemoryVectorStorePaths
+} from './memoryVectorStorePaths'
+export { createMemoryVectorStorePaths, type MemoryVectorStorePaths } from './memoryVectorStorePaths'
 import {
   assertMemoryVectorDimensions,
   createMemoryVectorStoreV2FormatPlan,
@@ -29,6 +49,12 @@ import {
 } from './vectorStoreErrors'
 
 const QUARANTINE_FILE_SUFFIX = '.v2.duckdb.quarantine'
+
+export interface PackedMemoryVectors {
+  memoryIds: string[]
+  dimensions: number
+  bytes: Uint8Array<ArrayBuffer>
+}
 
 interface EmbeddingIdentity {
   providerId: string
@@ -58,26 +84,6 @@ type LegacyPreserveOutcome =
   | { status: 'succeeded'; store: MemoryVectorStore }
   | { status: 'failed'; error: unknown }
   | { status: 'timed-out' }
-
-export interface MemoryVectorStorePaths {
-  current: string
-  staging: string
-  quarantine: string
-  legacy: string
-}
-
-export function createMemoryVectorStorePaths(
-  memoryDbDir: string,
-  agentId: string
-): MemoryVectorStorePaths {
-  const current = path.join(memoryDbDir, `${agentId}.v2.duckdb`)
-  return {
-    current,
-    staging: `${current}.migrating`,
-    quarantine: `${current}.quarantine`,
-    legacy: path.join(memoryDbDir, `${agentId}.duckdb`)
-  }
-}
 
 function filesWithWal(filePath: string): string[] {
   return [filePath, `${filePath}.wal`]
@@ -151,6 +157,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
   private readonly vectorTable = MEMORY_VECTOR_STORE_TABLES.vector
   private readonly metaTable = MEMORY_VECTOR_STORE_TABLES.meta
   private usable = true
+  private insertChunk: DuckDBDataChunk | undefined
 
   private constructor(
     private readonly dbPath: string,
@@ -162,6 +169,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     paths: MemoryVectorStorePaths,
     dimensions: number,
     embedding: EmbeddingIdentity,
+    host: MemoryVectorHost,
     metric: 'cosine' | 'l2sq' | 'ip' = 'cosine',
     perfObserver?: MemoryPerfObserver
   ): Promise<MemoryVectorStore> {
@@ -212,7 +220,14 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     }
 
     if (fs.existsSync(paths.legacy)) {
-      return MemoryVectorStore.migrateLegacyV1(paths, dimensions, embedding, metric, perfObserver)
+      return MemoryVectorStore.migrateLegacyV1(
+        paths,
+        dimensions,
+        embedding,
+        host,
+        metric,
+        perfObserver
+      )
     }
 
     if (fs.existsSync(`${paths.current}.wal`)) {
@@ -245,7 +260,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith(QUARANTINE_FILE_SUFFIX)) continue
       const agentId = entry.name.slice(0, -QUARANTINE_FILE_SUFFIX.length)
-      if (!agentId) continue
+      if (!isSafeAgentId(agentId)) continue
       const paths = createMemoryVectorStorePaths(memoryDbDir, agentId)
       if (path.basename(paths.quarantine) !== entry.name) continue
       try {
@@ -268,17 +283,13 @@ export class MemoryVectorStore implements IMemoryVectorStore {
       ...filesWithWal(paths.current),
       ...filesWithWal(paths.staging),
       ...filesWithWal(paths.legacy),
+      `${paths.current}.lease`,
       ...(includeQuarantine ? [paths.quarantine] : [])
     ])
   }
 
   static markQuarantined(paths: MemoryVectorStorePaths): void {
-    fs.mkdirSync(path.dirname(paths.quarantine), { recursive: true })
-    try {
-      fs.writeFileSync(paths.quarantine, '', { flag: 'wx' })
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-    }
+    persistMemoryVectorQuarantine(paths)
   }
 
   private static async openCurrent(
@@ -309,6 +320,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     paths: MemoryVectorStorePaths,
     dimensions: number,
     embedding: EmbeddingIdentity,
+    host: MemoryVectorHost,
     metric: 'cosine' | 'l2sq' | 'ip',
     perfObserver?: MemoryPerfObserver
   ): Promise<MemoryVectorStore> {
@@ -334,6 +346,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
       paths,
       dimensions,
       embedding,
+      host,
       metric,
       perfObserver,
       fence
@@ -369,13 +382,14 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     paths: MemoryVectorStorePaths,
     dimensions: number,
     embedding: EmbeddingIdentity,
+    host: MemoryVectorHost,
     metric: 'cosine' | 'l2sq' | 'ip',
     perfObserver: MemoryPerfObserver | undefined,
     fence: MigrationAbandonFence
   ): Promise<MemoryVectorStore> {
     let reader: LegacyV1Reader
     try {
-      reader = await LegacyV1Reader.open(paths.legacy, dimensions, fence)
+      reader = await LegacyV1Reader.open(paths.legacy, dimensions, fence, host)
     } catch (error) {
       if (!(error instanceof LegacyVssUnavailableError)) throw error
       fence.assertActive()
@@ -685,6 +699,26 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     return this.upsertRecords(records)
   }
 
+  // The native upload owner retains these bytes until the transaction settles.
+  async upsertPacked(batch: PackedMemoryVectors): Promise<void> {
+    assertMemoryVectorDimensions(batch.dimensions)
+    const expectedBytes = batch.memoryIds.length * batch.dimensions * 4
+    if (
+      endianness() !== 'LE' ||
+      !(batch.bytes instanceof Uint8Array) ||
+      !(batch.bytes.buffer instanceof ArrayBuffer) ||
+      !Number.isSafeInteger(expectedBytes) ||
+      batch.bytes.byteLength !== expectedBytes
+    )
+      throw new Error('Invalid packed memory vector shape')
+    const values = new DataView(batch.bytes.buffer, batch.bytes.byteOffset, batch.bytes.byteLength)
+    for (let offset = 0; offset < expectedBytes; offset += 4) {
+      if (!Number.isFinite(values.getFloat32(offset, true)))
+        throw new Error('Memory vector contains a non-finite value')
+    }
+    return this.upsertRecords(batch)
+  }
+
   private async beginMigration(fence: MigrationAbandonFence): Promise<void> {
     fence.assertActive()
     await this.connection.run('BEGIN TRANSACTION;')
@@ -705,7 +739,8 @@ export class MemoryVectorStore implements IMemoryVectorStore {
     this.perfObserver?.increment('duckDbStatements')
     await this.connection.run(
       `INSERT INTO ${this.vectorTable} (memory_id, embedding) VALUES ${insertPlaceholders};`,
-      insertParams
+      insertParams,
+      records.flatMap((record) => [VARCHAR, ARRAY(FLOAT, record.embedding.length)])
     )
     fence.markProgress()
   }
@@ -717,31 +752,73 @@ export class MemoryVectorStore implements IMemoryVectorStore {
   }
 
   private async upsertRecords(
-    records: MemoryVectorRecord[],
+    records: MemoryVectorRecord[] | PackedMemoryVectors,
     fence?: MigrationAbandonFence
   ): Promise<void> {
-    if (!records.length) return
+    const memoryIds = Array.isArray(records)
+      ? records.map((record) => record.memoryId)
+      : records.memoryIds
+    if (!memoryIds.length) return
     fence?.assertActive()
     await this.connection.run('BEGIN TRANSACTION;')
     fence?.assertActive()
+    let appender: DuckDBAppender | undefined
+    let appenderClosed = false
     try {
-      const deletePlaceholders = records.map(() => '?').join(', ')
+      const deletePlaceholders = memoryIds.map(() => '?').join(', ')
       this.perfObserver?.increment('duckDbStatements')
       await this.connection.run(
         `DELETE FROM ${this.vectorTable} WHERE memory_id IN (${deletePlaceholders});`,
-        records.map((record) => record.memoryId)
+        memoryIds
       )
       fence?.assertActive()
-      const insertPlaceholders = records.map(() => '(?, ?::FLOAT[])').join(', ')
-      const insertParams = records.flatMap((record) => [
-        record.memoryId,
-        arrayValue(Array.from(record.embedding))
-      ])
       this.perfObserver?.increment('duckDbStatements')
-      await this.connection.run(
-        `INSERT INTO ${this.vectorTable} (memory_id, embedding) VALUES ${insertPlaceholders};`,
-        insertParams
+      appender = await this.connection.createAppender(this.vectorTable)
+      const vectorType = appender.columnType(1) as DuckDBArrayType
+      if (
+        Array.isArray(records)
+          ? records.some((record) => record.embedding.length !== vectorType.length)
+          : !(vectorType instanceof DuckDBArrayType) ||
+            vectorType.valueType !== FLOAT ||
+            records.dimensions !== vectorType.length
       )
+        throw new Error('Memory vector dimensions do not match')
+      // Reuse native column buffers instead of allocating one native value per vector component.
+      const chunk = (this.insertChunk ??= DuckDBDataChunk.create([VARCHAR, vectorType]))
+      for (let offset = 0; offset < memoryIds.length; offset += REINDEX_BATCH_SIZE) {
+        const ids = memoryIds.slice(offset, offset + REINDEX_BATCH_SIZE)
+        chunk.reset()
+        chunk.rowCount = ids.length
+        chunk.setColumnValues(0, ids)
+        if (Array.isArray(records)) {
+          chunk.setColumnValues(
+            1,
+            records.slice(offset, offset + ids.length).map((record) => arrayValue(record.embedding))
+          )
+        } else {
+          const parent = duckdb.data_chunk_get_vector(chunk.chunk, 1)
+          const child = duckdb.array_vector_get_child(parent)
+          // The checked FLOAT array and chunk row count bound both native buffers.
+          for (const [vector, count] of [
+            [parent, ids.length],
+            [child, ids.length * vectorType.length]
+          ] as const) {
+            duckdb.vector_ensure_validity_writable(vector)
+            const valid = new Uint8Array(Math.ceil(count / 64) * 8).fill(255)
+            duckdb.copy_data_to_vector_validity(vector, 0, valid.buffer, 0, valid.byteLength)
+          }
+          duckdb.copy_data_to_vector(
+            child,
+            0,
+            records.bytes.buffer,
+            records.bytes.byteOffset + offset * vectorType.length * 4,
+            ids.length * vectorType.length * 4
+          )
+        }
+        appender.appendDataChunk(chunk)
+      }
+      appenderClosed = true
+      appender.closeSync()
       fence?.assertActive()
       await this.connection.run('COMMIT;')
       fence?.assertActive()
@@ -750,6 +827,16 @@ export class MemoryVectorStore implements IMemoryVectorStore {
       if (isDuckDbFatalError(error)) {
         this.usable = false
         throw error
+      }
+      if (appender && !appenderClosed) {
+        try {
+          appender.closeSync()
+        } catch (closeError) {
+          if (isDuckDbFatalError(closeError)) {
+            this.usable = false
+            throw closeError
+          }
+        }
       }
       await this.connection.run('ROLLBACK;').catch(() => undefined)
       throw error
@@ -778,10 +865,11 @@ export class MemoryVectorStore implements IMemoryVectorStore {
         LIMIT ?;
       `
       this.perfObserver?.increment('duckDbStatements')
-      const reader = await this.connection.runAndReadAll(sql, [
-        arrayValue(Array.from(embedding)),
-        options.topK
-      ])
+      const reader = await this.connection.runAndReadAll(
+        sql,
+        [arrayValue(Array.from(embedding)), options.topK],
+        [ARRAY(FLOAT, embedding.length), INTEGER]
+      )
       const rows = reader.getRowObjectsJson()
       this.perfObserver?.increment('materializedRows', rows.length)
       return rows.map((row: Record<string, unknown>) => ({
@@ -883,6 +971,7 @@ export class MemoryVectorStore implements IMemoryVectorStore {
         this.connection.closeSync()
         this.connectionOpen = false
       } catch (error) {
+        if (isDuckDbFatalError(error)) throw error
         errors.push(error)
       }
     }
@@ -900,10 +989,8 @@ export class MemoryVectorStore implements IMemoryVectorStore {
   }
 
   async close(): Promise<void> {
-    try {
-      this.closeStrict()
-    } catch (error) {
-      logger.warn(String(error))
-    }
+    this.usable = false
+    this.closeStrict()
+    this.insertChunk = undefined
   }
 }

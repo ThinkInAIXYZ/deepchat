@@ -5,7 +5,6 @@ import spawn from 'cross-spawn'
 import type { ChildProcessWithoutNullStreams } from 'child_process'
 import { Readable, Writable } from 'node:stream'
 import { randomUUID } from 'node:crypto'
-import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import { client, PROTOCOL_VERSION, RequestError } from '@agentclientprotocol/sdk'
@@ -24,7 +23,7 @@ import type {
   AcpResolvedLaunchSpec
 } from '@shared/types/acp'
 import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
-import type { AgentProcessHandle, AgentProcessManager } from './types'
+import type { AcpRuntimeBootstrap, AgentProcessHandle, AgentProcessManager } from './types'
 import {
   getPathEntriesFromEnv,
   getShellEnvironment,
@@ -32,7 +31,7 @@ import {
   setPathEntriesOnEnv
 } from '@/agent/shared/process/shellEnvHelper'
 import { childProcessRegistry } from '@/agent/shared/process/childProcessRegistry'
-import { RuntimeHelper } from '@/lib/runtimeHelper'
+import { expandRuntimePath } from '@/lib/runtimeHelper'
 import { ToolchainService } from '@/toolchains'
 import {
   buildCapabilitySnapshot,
@@ -88,6 +87,7 @@ export interface AcpProcessHandle extends AgentProcessHandle {
 }
 
 interface AcpProcessManagerOptions {
+  bootstrap: AcpRuntimeBootstrap
   publishEvent: DeepChatEventPublisher
   providerId: string
   resolveLaunchSpec: (agentId: string, workdir?: string) => Promise<AcpResolvedLaunchSpec>
@@ -138,14 +138,6 @@ interface NpxCacheRepairResult {
   message: string
   target?: NpxCacheRepairTarget
   movedTo?: string
-}
-
-/**
- * Check if running in Electron environment.
- * Reference: @modelcontextprotocol/sdk/client/stdio.js
- */
-function isElectron(): boolean {
-  return 'type' in process
 }
 
 interface PermissionResolverEntry {
@@ -267,8 +259,8 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     string,
     { agentId: string; connectionId: string; handler: ProcessExitHandler }
   >()
-  private readonly runtimeHelper = RuntimeHelper.getInstance()
-  private readonly terminalManager = new AcpTerminalManager()
+  private readonly bootstrap: AcpRuntimeBootstrap
+  private readonly terminalManager: AcpTerminalManager
   private readonly sessionWorkdirs = new Map<string, string>()
   private readonly sessionConversations = new Map<string, string>()
   private readonly fsHandlers = new Map<string, AcpFsHandler>()
@@ -297,6 +289,14 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private shutdownPromise?: Promise<void>
 
   constructor(options: AcpProcessManagerOptions) {
+    if (
+      !path.isAbsolute(options.bootstrap.homeDirectory) ||
+      !path.isAbsolute(options.bootstrap.temporaryDirectory)
+    ) {
+      throw new Error('ACP bootstrap directories must be absolute')
+    }
+    this.bootstrap = { ...options.bootstrap }
+    this.terminalManager = new AcpTerminalManager(this.bootstrap.temporaryDirectory)
     this.elicitation = new AcpElicitationBridge(() =>
       this.publishEvent('acp.elicitation.changed', { version: this.elicitation.version })
     )
@@ -416,12 +416,12 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
    * Keeps file access constrained to a temp directory rather than the entire filesystem.
    */
   private getFallbackWorkdir(): string {
-    const tempDir = path.join(app.getPath('temp'), 'deepchat-acp', 'sessions')
+    const tempDir = path.join(this.bootstrap.temporaryDirectory, 'deepchat-acp', 'sessions')
     try {
       fs.mkdirSync(tempDir, { recursive: true })
     } catch (error) {
       console.warn('[ACP] Failed to create fallback workdir, defaulting to system temp:', error)
-      return app.getPath('temp')
+      return this.bootstrap.temporaryDirectory
     }
     return tempDir
   }
@@ -1487,7 +1487,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
           enableElicitation: this.enableElicitation,
           enableSubagentEvents: this.enableSubagentEvents
         }),
-        clientInfo: { name: 'DeepChat', version: app.getVersion() }
+        clientInfo: { name: 'DeepChat', version: this.bootstrap.appVersion }
       }
       this.debugLog.append(agent.id, {
         kind: 'request',
@@ -1868,9 +1868,9 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
     // Handle path expansion (including ~ and environment variables)
     const useResolvedToolchain =
       launchSpec.distributionType === 'npx' || launchSpec.distributionType === 'uvx'
-    const expandedCommand = this.runtimeHelper.expandPath(launchSpec.command)
+    const expandedCommand = expandRuntimePath(launchSpec.command, this.bootstrap.homeDirectory)
     const expandedArgs = (launchSpec.args ?? []).map((arg) =>
-      typeof arg === 'string' ? this.runtimeHelper.expandPath(arg) : arg
+      typeof arg === 'string' ? expandRuntimePath(arg, this.bootstrap.homeDirectory) : arg
     )
 
     const rewritten = useResolvedToolchain
@@ -2017,7 +2017,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
       cwd: launch.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
-      windowsHide: process.platform === 'win32' && isElectron()
+      windowsHide: process.platform === 'win32'
     }) as ChildProcessWithoutNullStreams
 
     console.info(`[ACP] Process spawned successfully for agent ${agent.id}, PID: ${child.pid}`)

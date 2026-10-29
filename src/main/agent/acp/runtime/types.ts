@@ -12,6 +12,12 @@ export type {
   AgentSessionState
 }
 
+export interface AcpRuntimeBootstrap {
+  appVersion: string
+  homeDirectory: string
+  temporaryDirectory: string
+}
+
 export interface AgentSessionManager<
   TSession extends AgentSessionState = AgentSessionState,
   TAgentDescriptor = string,

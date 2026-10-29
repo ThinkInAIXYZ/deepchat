@@ -5,13 +5,13 @@ import fs from 'fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockUtilityProcessFork,
+  mockSpawnHost,
   mockAssertPackageTree,
   mockCleanupPackageTree,
   mockTerminateProcessTree,
   registryMock
 } = vi.hoisted(() => ({
-  mockUtilityProcessFork: vi.fn(),
+  mockSpawnHost: vi.fn(),
   mockAssertPackageTree: vi.fn(),
   mockCleanupPackageTree: vi.fn(),
   mockTerminateProcessTree: vi.fn(),
@@ -24,22 +24,6 @@ const {
 
 vi.mock('child_process', () => ({
   spawn: vi.fn()
-}))
-
-vi.mock('electron', () => ({
-  app: {
-    getAppPath: vi.fn(() => '/mock/app'),
-    getPath: vi.fn((name: string) => (name === 'userData' ? '/mock/userData' : '/mock/home'))
-  },
-  utilityProcess: {
-    fork: mockUtilityProcessFork
-  }
-}))
-
-vi.mock('@electron-toolkit/utils', () => ({
-  is: {
-    dev: false
-  }
 }))
 
 vi.mock('@shared/logger', () => ({
@@ -65,7 +49,7 @@ vi.mock('@/agent/shared/process/childProcessRegistry', () => ({
 
 import {
   BackgroundExecSessionManager,
-  backgroundExecSessionManager
+  BackgroundExecService
 } from '@/agent/shared/process/backgroundExecSessionManager'
 import {
   CMD_COMMAND_SHELL,
@@ -91,6 +75,15 @@ class MockChildProcess extends EventEmitter {
 }
 
 class MockUtilityProcess extends EventEmitter {
+  onMessage(listener: (message: unknown) => void): void {
+    this.on('message', listener)
+  }
+  onExit(listener: (code: number) => void): void {
+    this.on('exit', listener)
+  }
+  onError(listener: (type: string, location: string) => void): void {
+    this.on('error', listener)
+  }
   postMessage = vi.fn()
   kill = vi.fn()
 }
@@ -132,7 +125,7 @@ describe('BackgroundExecSessionManager', () => {
   beforeEach(() => {
     manager = new BackgroundExecSessionManager()
     clearInterval((manager as never).cleanupIntervalId)
-    mockUtilityProcessFork.mockReset()
+    mockSpawnHost.mockReset()
     mockAssertPackageTree.mockResolvedValue(undefined)
     mockCleanupPackageTree.mockResolvedValue(undefined)
     mockTerminateProcessTree.mockResolvedValue(true)
@@ -883,55 +876,20 @@ describe('BackgroundExecSessionManager', () => {
 })
 
 describe('backgroundExecSessionManager utility proxy', () => {
-  const resetProxyState = () => {
-    const proxy = backgroundExecSessionManager as any
-    proxy.stopCompletedSessionReconciliation()
-    proxy.host = null
-    proxy.hostReady = null
-    proxy.shuttingDown = false
-    proxy.activeSessions.clear()
-    proxy.completedSessions.clear()
-    proxy.crashedSessions.clear()
-    proxy.pendingRequests.clear()
-  }
+  let backgroundExecSessionManager: BackgroundExecService
 
   beforeEach(() => {
-    mockUtilityProcessFork.mockReset()
+    mockSpawnHost.mockReset()
     mockAssertPackageTree.mockResolvedValue(undefined)
     mockCleanupPackageTree.mockResolvedValue(undefined)
     mockTerminateProcessTree.mockResolvedValue(true)
-    resetProxyState()
+    backgroundExecSessionManager = new BackgroundExecService(mockSpawnHost)
   })
 
   afterEach(() => {
-    resetProxyState()
+    ;(backgroundExecSessionManager as any).stopCompletedSessionReconciliation()
     vi.useRealTimers()
     vi.restoreAllMocks()
-  })
-
-  it('forks the dedicated entrypoint for the utility host', async () => {
-    const host = new MockUtilityProcess()
-    mockUtilityProcessFork.mockReturnValue(host)
-
-    const startPromise = (backgroundExecSessionManager as any).startHost()
-    await vi.waitFor(() => {
-      expect(mockUtilityProcessFork).toHaveBeenCalled()
-    })
-    host.emit('spawn')
-
-    await expect(startPromise).resolves.toBe(host)
-    expect(mockUtilityProcessFork).toHaveBeenCalledWith(
-      expect.stringMatching(
-        /[\\/]mock[\\/]app[\\/]out[\\/]main[\\/]backgroundExecUtilityHost\.js$/
-      ),
-      ['--deepchat-exec-utility-host'],
-      expect.objectContaining({
-        serviceName: 'DeepChat Exec Utility',
-        env: expect.objectContaining({
-          DEEPCHAT_EXEC_UTILITY_HOST: '1'
-        })
-      })
-    )
   })
 
   it('cleans an owned tree when utility ownership was never posted', async () => {
@@ -1056,7 +1014,7 @@ describe('backgroundExecSessionManager utility proxy', () => {
         timedOut: false
       }
     })
-    expect(mockUtilityProcessFork).not.toHaveBeenCalled()
+    expect(mockSpawnHost).not.toHaveBeenCalled()
   })
 
   it('keeps completed sessions visible when the utility host cannot list them', async () => {
@@ -1093,7 +1051,7 @@ describe('backgroundExecSessionManager utility proxy', () => {
     ])
     expect(request).toHaveBeenCalledOnce()
     expect(request).toHaveBeenCalledWith('poll', ['conv-1', 'bg_completed'])
-    expect(mockUtilityProcessFork).not.toHaveBeenCalled()
+    expect(mockSpawnHost).not.toHaveBeenCalled()
   })
 
   it('refreshes completed-session fallback metadata after clearing output', async () => {
@@ -1174,7 +1132,7 @@ describe('backgroundExecSessionManager utility proxy', () => {
     await backgroundExecSessionManager.remove('conv-1', 'bg_crashed')
 
     expect(proxy.crashedSessions.has('bg_crashed')).toBe(false)
-    expect(mockUtilityProcessFork).not.toHaveBeenCalled()
+    expect(mockSpawnHost).not.toHaveBeenCalled()
   })
 
   it('rejects unknown proxy mutations before committing dispatch', async () => {
@@ -1185,7 +1143,7 @@ describe('backgroundExecSessionManager utility proxy', () => {
     ).rejects.toThrow('Session missing not found')
 
     expect(beforeMutation).not.toHaveBeenCalled()
-    expect(mockUtilityProcessFork).not.toHaveBeenCalled()
+    expect(mockSpawnHost).not.toHaveBeenCalled()
   })
 
   it('commits tracked proxy writes before the utility-host request', async () => {
@@ -1331,10 +1289,10 @@ describe('backgroundExecSessionManager utility proxy', () => {
     })
     const firstHost = new MockUtilityProcess()
     const secondHost = new MockUtilityProcess()
-    mockUtilityProcessFork.mockReturnValueOnce(firstHost).mockReturnValueOnce(secondHost)
+    mockSpawnHost.mockReturnValueOnce(firstHost).mockReturnValueOnce(secondHost)
 
     const firstStart = proxy.startHost()
-    await vi.waitFor(() => expect(mockUtilityProcessFork).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(mockSpawnHost).toHaveBeenCalledTimes(1))
     firstHost.emit('spawn')
     await firstStart
     expect(proxy.completedSessionReconciliationTimer).not.toBeNull()
@@ -1344,7 +1302,7 @@ describe('backgroundExecSessionManager utility proxy', () => {
     expect(proxy.completedSessionReconciliationTimer).toBeNull()
 
     const secondStart = proxy.startHost()
-    await vi.waitFor(() => expect(mockUtilityProcessFork).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(mockSpawnHost).toHaveBeenCalledTimes(2))
     secondHost.emit('spawn')
     await secondStart
 

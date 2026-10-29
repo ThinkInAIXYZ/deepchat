@@ -19,7 +19,7 @@ import {
   SUMMARY_TITLES_PROMPT,
   type ProviderGenerateTextOptions
 } from '../baseProvider'
-import type { ProviderLocalePort } from '../ports'
+import type { ProviderEnvironmentPort } from '../ports'
 import { execFile } from 'node:child_process'
 import { Ollama, ShowResponse } from 'ollama'
 import {
@@ -30,7 +30,6 @@ import {
   type AiSdkRuntimeContext
 } from '../aiSdk'
 import { normalizeOllamaOpenAIBaseUrl, normalizeOllamaSdkHost } from '../aiSdk/providerFactory'
-import { isInsecureTlsAllowed } from '@/lib/insecureTls'
 import { buildResolvedCapabilitySnapshot, resolveCapabilityIdentity } from '../capabilityIdentity'
 
 const OLLAMA_LIST_TIMEOUT_MS = 5000
@@ -48,7 +47,7 @@ export class OllamaProvider extends BaseLLMProvider {
   constructor(
     provider: LLM_PROVIDER,
     providerSettings: ProviderSettingsPort,
-    locale: ProviderLocalePort
+    locale: ProviderEnvironmentPort
   ) {
     super(provider, providerSettings, locale)
     this.ollama = this.createOllamaClient()
@@ -768,7 +767,7 @@ export class OllamaProvider extends BaseLLMProvider {
     try {
       const stream = await this.ollama.pull({
         model: modelName,
-        insecure: isInsecureTlsAllowed(),
+        insecure: this.environment.allowInsecureTls,
         stream: true
       })
 

@@ -6,12 +6,12 @@ import { unzipSync, zipSync } from 'fflate'
 import { afterEach, expect, it, vi } from 'vitest'
 import { UserPlugins, type UserPluginRecord, type UserPluginStore } from '@/plugin/userPlugins'
 import { UserPluginHooks } from '@/plugin/userPluginHooks'
-import { McpSettings } from '@/mcp/settings'
+import { McpSettings, createMcpSettingsDefaults } from '@/mcp/settings'
 import { mcpVariableBindingScope } from '@/mcp/environmentBindings'
 import { SecretStore } from '@/config/secretStore'
-import { safeStorage } from 'electron'
 import type { TapeAnchorAppendInput, DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import { USER_PLUGIN_INSTALL_DIRECTORY } from '@shared/pluginPaths'
+import { createMemoryStore } from '../../helpers/memoryStore'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -90,13 +90,19 @@ function fixture() {
     appendAnchor: (input: TapeAnchorAppendInput) => DeepChatTapeEntryRow
   })
   const wrappedSecrets = new Map<string, string>()
-  vi.spyOn(safeStorage, 'isEncryptionAvailable').mockReturnValue(true)
-  const secrets = new SecretStore({
-    get: (key: string) => wrappedSecrets.get(key),
-    set: (key: string, value: string) => wrappedSecrets.set(key, value),
-    delete: (key: string) => wrappedSecrets.delete(key)
-  } as never)
-  const mcpSettings = new McpSettings(secrets)
+  const secrets = new SecretStore(
+    {
+      get: (key: string) => wrappedSecrets.get(key),
+      set: (key: string, value: string) => wrappedSecrets.set(key, value),
+      delete: (key: string) => wrappedSecrets.delete(key)
+    } as never,
+    {
+      isAvailable: async () => true,
+      encrypt: async (value) => Buffer.from(value).toString('base64'),
+      decrypt: async (wrapped) => Buffer.from(wrapped, 'base64').toString()
+    }
+  )
+  const mcpSettings = new McpSettings(createMemoryStore(createMcpSettingsDefaults()), secrets)
   const skills = new Map<string, string>()
   const supervisor = {
     registerServer: vi.fn(),
@@ -213,12 +219,12 @@ it.each([
       ok: false,
       error: 'Invalid MCP variable binding'
     })
-    expect(f.mcpSettings.getMcpVariableBindings(first)).toEqual({})
+    expect(await f.mcpSettings.getMcpVariableBindings(first)).toEqual({})
 
     // The fixture mocks safeStorage and connections; this checks storage boundaries, not OS encryption.
     const token = randomUUID()
     expect((await f.service.configureMcp(id, key, { [variable]: token })).ok).toBe(true)
-    expect(f.mcpSettings.getMcpVariableBindings(first)).toEqual({ [variable]: token })
+    expect(await f.mcpSettings.getMcpVariableBindings(first)).toEqual({ [variable]: token })
     expect(JSON.stringify(f.store.read())).not.toContain(token)
     expect(JSON.stringify(await f.service.get(id))).not.toContain(token)
     expect(JSON.stringify(await f.mcpSettings.getMcpServers())).not.toContain(token)
@@ -241,7 +247,7 @@ it.each([
     const current = (await f.mcpSettings.getMcpServers())[key]
     expect(current.serverId).toBe(first.serverId)
     expect(current.customHeaders).toEqual({ Authorization: 'Bearer ${' + variable + '}' })
-    expect(f.mcpSettings.getMcpVariableBindings(current)).toEqual({ [variable]: token })
+    expect(await f.mcpSettings.getMcpVariableBindings(current)).toEqual({ [variable]: token })
 
     const secretKey = `mcpVariableBindings.${current.serverId}`
     const savedSecret = f.wrappedSecrets.get(secretKey)
@@ -274,10 +280,10 @@ it.each([
     expect(mcpVariableBindingScope({ ...updated, env: current.env })).toBe(
       mcpVariableBindingScope(current)
     )
-    expect(f.mcpSettings.getMcpVariableBindings(updated)).toEqual({})
+    expect(await f.mcpSettings.getMcpVariableBindings(updated)).toEqual({})
     expect((await updatedService.get(id)).userPlugin?.setup[key]).toEqual([variable])
     expect((await updatedService.configureMcp(id, key, { [variable]: token })).ok).toBe(true)
-    expect(f.mcpSettings.getMcpVariableBindings(updated)).toEqual({ [variable]: token })
+    expect(await f.mcpSettings.getMcpVariableBindings(updated)).toEqual({ [variable]: token })
     expect((await updatedService.get(id)).userPlugin?.setup[key]).toEqual([])
     expect((await updatedService.uninstall(id)).ok).toBe(true)
     expect(await f.mcpSettings.getMcpServers()).toEqual(unrelated)
@@ -321,7 +327,7 @@ it('installs disabled, preserves host MCP identities across enable cycles, and r
   const current = (await f.mcpSettings.getMcpServers())[key]
   expect(current.serverId).toBe(first.serverId)
   expect(current.customHeaders).toEqual({ Authorization: 'Bearer ${EXAMPLE_PLUGIN_TOKEN}' })
-  expect(f.mcpSettings.getMcpVariableBindings(current)).toEqual({
+  expect(await f.mcpSettings.getMcpVariableBindings(current)).toEqual({
     EXAMPLE_PLUGIN_TOKEN: 'private-token'
   })
   expect(JSON.stringify(f.mcpSettings.getMigrationSnapshot())).not.toContain('private-token')
@@ -329,7 +335,7 @@ it('installs disabled, preserves host MCP identities across enable cycles, and r
   expect(
     (await f.service.configureMcp(id, key, { EXAMPLE_PLUGIN_TOKEN: 'rotated-token' })).ok
   ).toBe(true)
-  expect(f.mcpSettings.getMcpVariableBindings(current)).toEqual({
+  expect(await f.mcpSettings.getMcpVariableBindings(current)).toEqual({
     EXAMPLE_PLUGIN_TOKEN: 'rotated-token'
   })
   const unrelated = Object.entries(await f.mcpSettings.getMcpServers()).find(
@@ -382,7 +388,9 @@ it('blocks active-turn updates and rolls failed publication back with the previo
     customHeaders: { Authorization: 'Bearer ${EXAMPLE_PLUGIN_TOKEN}' }
   })
   expect(
-    f.mcpSettings.getMcpVariableBindings((await f.mcpSettings.getMcpServers())[`${id}.remote`])
+    await f.mcpSettings.getMcpVariableBindings(
+      (await f.mcpSettings.getMcpServers())[`${id}.remote`]
+    )
   ).toEqual({ EXAMPLE_PLUGIN_TOKEN: 'kept-secret' })
   expect(f.store.pending()).toBeNull()
   const success = await f.service.install({
@@ -422,7 +430,9 @@ it('restores an interrupted update and lets a concurrent disable cancel publicat
     customHeaders: { Authorization: 'Bearer ${EXAMPLE_PLUGIN_TOKEN}' }
   })
   expect(
-    f.mcpSettings.getMcpVariableBindings((await f.mcpSettings.getMcpServers())[`${id}.remote`])
+    await f.mcpSettings.getMcpVariableBindings(
+      (await f.mcpSettings.getMcpServers())[`${id}.remote`]
+    )
   ).toEqual({ EXAMPLE_PLUGIN_TOKEN: 'recovered-secret' })
   f.manifest('https://new.example/mcp')
   const update = await recovered.inspect({ kind: 'directory', path: f.source }, randomUUID())
@@ -488,7 +498,7 @@ it.each(['publication', 'cleanup', 'rollback cleanup'])(
     expect(f.skills.size).toBe(0)
     const restored = (await f.mcpSettings.getMcpServers())[`${id}.remote`]
     expect(restored).toMatchObject({ enabled: false, baseUrl: 'https://old.example/mcp' })
-    expect(f.mcpSettings.getMcpVariableBindings(restored)).toEqual({
+    expect(await f.mcpSettings.getMcpVariableBindings(restored)).toEqual({
       EXAMPLE_PLUGIN_TOKEN: 'rollback-secret'
     })
     failing.mockReset()
@@ -559,7 +569,7 @@ it('installs Sem disabled and retains its explicit repository binding through en
     env: { SEM_REPO: '${SEM_REPO}', SEM_NO_NETWORK: '1', SEM_NO_TELEMETRY: '1' },
     environmentVariables: ['SEM_REPO']
   })
-  expect(f.mcpSettings.getMcpVariableBindings(config)).toEqual({ SEM_REPO: repository })
+  expect(await f.mcpSettings.getMcpVariableBindings(config)).toEqual({ SEM_REPO: repository })
   expect((await f.service.disable(id)).ok).toBe(true)
   expect((await f.mcpSettings.getMcpServers())[key].enabled).toBe(false)
   expect((await f.service.uninstall(id)).ok).toBe(true)
@@ -622,7 +632,7 @@ it('installs the anonymous Parallel ZIP without changing existing MCP settings',
     },
     environmentVariables: []
   })
-  expect(f.mcpSettings.getMcpVariableBindings(enabled[key])).toEqual({})
+  expect(await f.mcpSettings.getMcpVariableBindings(enabled[key])).toEqual({})
   for (const [name, config] of Object.entries(existing)) expect(enabled[name]).toEqual(config)
   expect((await f.service.disable(id)).ok).toBe(true)
   expect((await f.mcpSettings.getMcpServers())[key].enabled).toBe(false)

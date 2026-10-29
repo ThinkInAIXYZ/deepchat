@@ -7,6 +7,61 @@ import { waitForAppReady } from '../helpers/wait'
 
 const require = createRequire(import.meta.url)
 
+test('official settings windows close on disable and shutdown despite beforeunload @smoke', async ({
+  launchApp
+}) => {
+  let active = await launchApp()
+  await waitForAppReady(active.page)
+  const pluginId = 'com.deepchat.plugins.feishu'
+  const openSettings = async () => {
+    const { result } = await active.page.evaluate(
+      (pluginId) =>
+        window.deepchat.invoke('plugins.invokeAction', { pluginId, actionId: 'settings.open' }),
+      pluginId
+    )
+    expect(result.ok, result.error).toBe(true)
+    const settings = active.electronApp
+      .windows()
+      .find((page) => page.url().includes('/settings/index.html?pluginId='))
+    expect(settings).toBeDefined()
+    expect(
+      await settings!.evaluate(() => ({ node: typeof process, require: typeof require }))
+    ).toEqual({ node: 'undefined', require: 'undefined' })
+    await settings!.evaluate(() => {
+      window.addEventListener('beforeunload', (event) => {
+        event.preventDefault()
+        event.returnValue = ''
+      })
+    })
+    return settings!
+  }
+  const settings = await openSettings()
+  const { result } = await active.page.evaluate(
+    (pluginId) => window.deepchat.invoke('plugins.disable', { pluginId }),
+    pluginId
+  )
+  expect(result.ok, result.error).toBe(true)
+  await expect.poll(() => settings.isClosed()).toBe(true)
+  expect(
+    await active.electronApp.evaluate(
+      ({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().filter((window) =>
+          window.webContents.getURL().includes('/settings/index.html?pluginId=')
+        ).length
+    )
+  ).toBe(0)
+  expect(await active.close()).toBe('graceful')
+  active = await launchApp()
+  await waitForAppReady(active.page)
+  const { plugin } = await active.page.evaluate(
+    (pluginId) => window.deepchat.invoke('plugins.get', { pluginId }),
+    pluginId
+  )
+  expect(plugin?.enabled).toBe(false)
+  await openSettings()
+  expect(await active.close()).toBe('graceful')
+})
+
 test('ZIP review installs a disabled user plugin and imports a working MCP server @smoke', async ({
   app
 }, testInfo) => {

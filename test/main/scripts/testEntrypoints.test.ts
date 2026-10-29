@@ -16,11 +16,12 @@ const windowsArm64Workflow = fs.readFileSync(
 describe('test entrypoint contracts', () => {
   it('keeps complete test suites one-shot and watch mode explicit', () => {
     expect(packageJson.scripts).toMatchObject({
-      test: 'vitest run',
-      'test:main': 'vitest run --config vitest.config.ts test/main',
+      test: 'pnpm run harness:build && vitest run',
+      'test:main': 'pnpm run harness:build && vitest run --config vitest.config.ts test/main',
       'test:renderer': 'vitest run --config vitest.config.renderer.ts test/renderer',
-      'test:coverage': 'vitest run --coverage',
-      'test:watch': 'vitest --watch'
+      'test:main:memory-perf': 'pnpm run harness:build && cross-env ELECTRON_RUN_AS_NODE=1 electron node_modules/vitest/vitest.mjs --config vitest.config.memory-perf.ts --run',
+      'test:coverage': 'pnpm run harness:build && vitest run --coverage',
+      'test:watch': 'pnpm run harness:build && vitest --watch'
     })
   })
 

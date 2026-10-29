@@ -313,7 +313,6 @@ Object.assign(fsMock, realFs)
 const fs = realFs
 
 const path = await vi.importActual<typeof import('path')>('path')
-const { app } = await import('electron')
 const { SyncService } = await import('../../../src/main/sync')
 const { ImportMode } = await import('../../../src/main/sync')
 const publishDeepchatEvent = vi.fn()
@@ -348,7 +347,7 @@ describe('SyncService backup import', () => {
     importLegacyChatDb: ReturnType<typeof vi.fn>
   }
   let dbPragma: ReturnType<typeof vi.fn>
-  let getPathSpy: ReturnType<typeof vi.spyOn>
+  let openPath: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     configImportMocks.importLegacyConfig.mockClear()
@@ -364,15 +363,7 @@ describe('SyncService backup import', () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-temp-'))
     syncDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sync-'))
 
-    getPathSpy = vi.spyOn(app, 'getPath').mockImplementation((type: string) => {
-      if (type === 'userData') {
-        return userDataDir
-      }
-      if (type === 'temp') {
-        return tempDir
-      }
-      return os.tmpdir()
-    })
+    openPath = vi.fn(async () => '')
 
     dbPragma = vi.fn()
     sqlitePresenter = {
@@ -435,7 +426,8 @@ describe('SyncService backup import', () => {
           return { listProviders: vi.fn(() => []) }
         }
       } as never,
-      publishDeepchatEvent
+      publishDeepchatEvent,
+      { profileDirectory: userDataDir, temporaryDirectory: tempDir, openPath }
     )
   })
 
@@ -445,10 +437,32 @@ describe('SyncService backup import', () => {
   ) => service.importFromSync(backupFileName, importMode, importDatabase)
 
   afterEach(() => {
-    getPathSpy.mockRestore()
     removeDir(syncDir)
     removeDir(tempDir)
     removeDir(userDataDir)
+  })
+
+  it('waits for the selected native folder operation before acknowledging success', async () => {
+    const native = Promise.withResolvers<string>()
+    openPath.mockReturnValueOnce(native.promise)
+    removeDir(syncDir)
+    let completed = false
+    const opening = service.openSyncFolder().then(() => {
+      completed = true
+    })
+    await vi.waitFor(() => expect(openPath).toHaveBeenCalledWith(syncDir))
+    expect(fs.existsSync(syncDir)).toBe(true)
+    expect(completed).toBe(false)
+    native.resolve('')
+    await opening
+    expect(completed).toBe(true)
+  })
+
+  it('propagates native folder launch failures', async () => {
+    openPath.mockResolvedValueOnce('folder permission denied')
+    await expect(service.openSyncFolder()).rejects.toThrow('folder permission denied')
+    openPath.mockRejectedValueOnce(new Error('native host unavailable'))
+    await expect(service.openSyncFolder()).rejects.toThrow('native host unavailable')
   })
 
   it('backs up migrated config through agent.db and keeps app-settings lightweight', async () => {

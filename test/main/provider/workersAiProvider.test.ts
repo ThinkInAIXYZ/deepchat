@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { ModelType } from '@shared/model'
 import type { LLM_PROVIDER } from '@shared/types/provider'
@@ -75,6 +76,8 @@ const createProviderSettings = (): ProviderSettingsPort =>
 
 const createProviderInstance = (overrides?: Partial<LLM_PROVIDER>) =>
   new WorkersAiProvider(createProvider(overrides), createProviderSettings(), {
+    allowInsecureTls: providerTestEnvironment.allowInsecureTls,
+    defaultHeaders: providerTestEnvironment.defaultHeaders,
     getLanguage: vi.fn().mockReturnValue('en-US')
   })
 
@@ -549,7 +552,11 @@ describe('WorkersAiProvider', () => {
       const chatOnly = new AiSdkProvider(
         createProvider({ apiType: 'openai-completions' }),
         createProviderSettings(),
-        { getLanguage: vi.fn().mockReturnValue('en-US') }
+        {
+          allowInsecureTls: providerTestEnvironment.allowInsecureTls,
+          defaultHeaders: providerTestEnvironment.defaultHeaders,
+          getLanguage: vi.fn().mockReturnValue('en-US')
+        }
       )
 
       expect(supportsJevJudgment(chatOnly)).toBe(false)

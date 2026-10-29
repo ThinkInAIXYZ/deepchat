@@ -133,6 +133,12 @@ jobs:
           test -f "${extension_path}"
           pnpm run smoke:duckdb:vss -- --platform win32 --arch "${TARGET_ARCH}" --extension-path "${extension_path}"
 
+      - name: Verify packaged Memory runtime
+        run: >-
+          pnpm run smoke:harness:memory --
+          --resources-path "dist/${{ env.UNPACKED_DIRECTORY }}/resources"
+          --executable "dist/${{ env.UNPACKED_DIRECTORY }}/DeepChat.exe"
+
       - name: Verify packaged OpenDAL native package
         run: >-
           pnpm run smoke:opendal:native --

@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   disposeGlobalGitHubCopilotDeviceFlow,
-  getGitHubCopilotToken,
   getGlobalGitHubCopilotDeviceFlow
 } from '@/provider/auth/githubCopilotDeviceFlow'
+import { getGitHubCopilotToken } from '@/provider/auth/githubCopilotToken'
 import { extractProviderFailureMetadata } from '@/provider/providerFailure'
 
 vi.mock('electron', () => ({

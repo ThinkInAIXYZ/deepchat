@@ -1,5 +1,4 @@
 import { createHash, createPublicKey, randomBytes, verify as verifySignature } from 'node:crypto'
-import { shell } from 'electron'
 import {
   CrossAppAccessProvider,
   discoverAndRequestJwtAuthGrant,
@@ -20,7 +19,7 @@ import {
 import { MCP_OAUTH_CALLBACK_TIMEOUT_MS, MCP_OAUTH_REDIRECT_PORT } from './oauthConstants'
 import type { McpSettings } from './settings'
 import {
-  McpOAuthCredentialStore,
+  type McpOAuthCredentialStore,
   type McpEnterpriseIdentityCredential
 } from './oauthCredentialStore'
 
@@ -43,6 +42,7 @@ type PendingEnterpriseFlow = {
   metadata: OpenIdMetadata
   callbackSession: OAuthLoopbackCallbackSession
   flowPromise?: Promise<void>
+  assertActive(): void
 }
 
 type JwtHeader = {
@@ -238,13 +238,55 @@ const statusError = (error: unknown): string => {
 export class McpEnterpriseIdentityManager {
   private readonly pendingFlows = new Map<string, PendingEnterpriseFlow>()
   private readonly statuses = new Map<string, McpEnterpriseIdentityStatus>()
+  private stopped = false
+  private readonly generations = new Map<string, number>()
+
+  private invalidate(id?: string): void {
+    if (id) {
+      this.generations.set(id, (this.generations.get(id) ?? 0) + 1)
+      this.cancelPendingFlow(id)
+      this.statuses.delete(id)
+    }
+  }
+
+  private captureOperation(id?: string): () => void {
+    const generation = id ? (this.generations.get(id) ?? 0) : 0
+    const check = () => {
+      if (this.stopped || (id && generation !== (this.generations.get(id) ?? 0)))
+        throw new Error('MCP enterprise identity operation interrupted')
+    }
+    check()
+    return check
+  }
+
+  private captureProfile(profile: McpEnterpriseIdentityProfile): () => void {
+    const check = this.captureOperation(profile.id)
+    const assertCurrent = () => {
+      check()
+      if (!sameProfileBinding(this.requireProfile(profile.id), profile))
+        throw new Error('MCP enterprise identity profile changed')
+    }
+    assertCurrent()
+    return assertCurrent
+  }
+
+  stop(): void {
+    this.stopped = true
+    for (const id of this.pendingFlows.keys()) this.cancelPendingFlow(id)
+    this.statuses.clear()
+    this.generations.clear()
+  }
 
   constructor(
     private readonly settings: McpSettings,
     private readonly store: McpOAuthCredentialStore,
-    private readonly publishEvent: DeepchatEventPublisher
+    private readonly publishEvent: DeepchatEventPublisher,
+    private readonly openExternal: (url: string) => Promise<void>,
+    private readonly onProfileInvalidated?: (
+      profileId: string,
+      assertCurrent: () => void
+    ) => Promise<void>
   ) {}
-
   listProfiles(): McpEnterpriseIdentityProfile[] {
     return this.settings.getEnterpriseIdentityProfiles().flatMap((profile) => {
       try {
@@ -254,196 +296,273 @@ export class McpEnterpriseIdentityManager {
       }
     })
   }
-
-  saveProfile(input: McpEnterpriseIdentityProfile): McpEnterpriseIdentityProfile {
+  async saveProfile(input: McpEnterpriseIdentityProfile): Promise<McpEnterpriseIdentityProfile> {
     const profile = this.normalizeProfile(input)
-    const profiles = this.listProfiles()
-    const existing = profiles.find((item) => item.id === profile.id)
-    if (existing && !sameProfileBinding(existing, profile)) {
+    const existing = this.listProfiles().find((item) => item.id === profile.id)
+    const bindingChanged = Boolean(existing && !sameProfileBinding(existing, profile))
+    if (bindingChanged) {
+      this.invalidate(profile.id)
       this.cancelPendingFlow(profile.id)
-      this.store.clearEnterpriseProfileCredentials(profile.id)
-      this.statuses.delete(profile.id)
     }
-    const next = [...profiles.filter((item) => item.id !== profile.id), profile].sort((a, b) =>
-      a.label.localeCompare(b.label)
-    )
-    this.settings.setEnterpriseIdentityProfiles(next)
-    return profile
-  }
-
-  removeProfile(profileId: string): void {
-    this.cancelPendingFlow(profileId)
-    const next = this.listProfiles().filter((profile) => profile.id !== profileId)
-    this.settings.setEnterpriseIdentityProfiles(next)
-    this.store.clearEnterpriseProfileCredentials(profileId)
-    this.statuses.delete(profileId)
-  }
-
-  setClientSecret(profileId: string, secret: string): McpEnterpriseIdentityStatus {
-    const profile = this.requireProfile(profileId)
-    if (profile.clientAuthentication !== 'client_secret') {
-      throw new Error('Enterprise profile is not configured for client secret authentication')
-    }
-    if (!secret || secret.length > 8192) {
-      throw new Error('Enterprise identity client secret is invalid')
-    }
-    this.store.saveEnterpriseIdentityClientSecret(
-      profileKey('enterprise_identity_client_secret', profile),
-      {
-        profileId: profile.id,
-        issuer: profile.issuer,
-        clientId: profile.clientId,
-        secret
+    const assertCurrent = this.captureOperation(profile.id)
+    try {
+      if (bindingChanged) {
+        assertCurrent()
+        await this.store.clearEnterpriseProfileCredentials(profile.id)
       }
-    )
-    return this.getStatus(profileId)
+      assertCurrent()
+      const profiles = this.listProfiles()
+      const current = profiles.find((item) => item.id === profile.id)
+      if (
+        bindingChanged &&
+        (!current || !sameProfileBinding(existing!, current) || existing!.label !== current.label)
+      )
+        throw new Error('MCP enterprise identity profile changed')
+      const next = [...profiles.filter((item) => item.id !== profile.id), profile].sort(
+        (left, right) => left.label.localeCompare(right.label)
+      )
+      assertCurrent()
+      this.settings.setEnterpriseIdentityProfiles(next)
+      if (bindingChanged) {
+        this.statuses.delete(profile.id)
+        await this.onProfileInvalidated?.(profile.id, assertCurrent)
+      }
+      return profile
+    } finally {
+      assertCurrent()
+    }
   }
 
-  getStatus(profileId: string): McpEnterpriseIdentityStatus {
-    const profile = this.requireProfile(profileId)
-    const clientSecretConfigured = this.hasClientSecret(profile)
-    const pending = this.pendingFlows.get(profileId)
-    if (pending) {
+  async removeProfile(profileId: string): Promise<void> {
+    this.invalidate(profileId)
+    const assertCurrent = this.captureOperation(profileId)
+    try {
+      this.cancelPendingFlow(profileId)
+      assertCurrent()
+      await this.store.clearEnterpriseProfileCredentials(profileId)
+      assertCurrent()
+      assertCurrent()
+      this.settings.setEnterpriseIdentityProfiles(
+        this.listProfiles().filter((profile) => profile.id !== profileId)
+      )
+      this.statuses.delete(profileId)
+      await this.onProfileInvalidated?.(profileId, assertCurrent)
+    } finally {
+      assertCurrent()
+    }
+  }
+  async setClientSecret(profileId: string, secret: string): Promise<McpEnterpriseIdentityStatus> {
+    this.invalidate(profileId)
+    const assertCurrent = this.captureProfile(this.requireProfile(profileId))
+    try {
+      const profile = this.requireProfile(profileId)
+      if (profile.clientAuthentication !== 'client_secret') {
+        throw new Error('Enterprise profile is not configured for client secret authentication')
+      }
+      if (!secret || secret.length > 8192) {
+        throw new Error('Enterprise identity client secret is invalid')
+      }
+      assertCurrent()
+      await this.store.saveEnterpriseIdentityClientSecret(
+        profileKey('enterprise_identity_client_secret', profile),
+        {
+          profileId: profile.id,
+          issuer: profile.issuer,
+          clientId: profile.clientId,
+          secret
+        }
+      )
+      assertCurrent()
+      return await this.getStatus(profileId)
+    } finally {
+      assertCurrent()
+    }
+  }
+  async getStatus(profileId: string): Promise<McpEnterpriseIdentityStatus> {
+    const assertCurrent = this.captureProfile(this.requireProfile(profileId))
+    try {
+      const profile = this.requireProfile(profileId)
+      const clientSecretConfigured = await this.hasClientSecret(profile)
+      assertCurrent()
+      const pending = this.pendingFlows.get(profileId)
+      if (pending) {
+        return {
+          profileId,
+          state: 'authenticating',
+          authenticated: false,
+          persistent: await this.store.isPersistent(),
+          clientSecretConfigured
+        }
+      }
+      const credential = await this.loadIdentity(profile)
+      assertCurrent()
+      if (credential && (credential.expiresAt > Date.now() || Boolean(credential.refreshToken))) {
+        return {
+          profileId,
+          state: 'authenticated',
+          authenticated: true,
+          persistent: await this.store.isPersistent(),
+          clientSecretConfigured,
+          subjectLabel: credential.subjectLabel,
+          updatedAt: credential.updatedAt
+        }
+      }
+      const existing = this.statuses.get(profileId)
+      if (existing?.state === 'error') {
+        return existing
+      }
       return {
         profileId,
-        state: 'authenticating',
+        state: 'signed_out',
         authenticated: false,
-        persistent: this.store.isPersistent(),
+        persistent: await this.store.isPersistent(),
         clientSecretConfigured
       }
-    }
-
-    const credential = this.loadIdentity(profile)
-    if (credential && (credential.expiresAt > Date.now() || Boolean(credential.refreshToken))) {
-      return {
-        profileId,
-        state: 'authenticated',
-        authenticated: true,
-        persistent: this.store.isPersistent(),
-        clientSecretConfigured,
-        subjectLabel: credential.subjectLabel,
-        updatedAt: credential.updatedAt
-      }
-    }
-
-    const existing = this.statuses.get(profileId)
-    if (existing?.state === 'error') {
-      return existing
-    }
-
-    return {
-      profileId,
-      state: 'signed_out',
-      authenticated: false,
-      persistent: this.store.isPersistent(),
-      clientSecretConfigured
+    } finally {
+      assertCurrent()
     }
   }
-
   async startAuth(profileId: string): Promise<McpEnterpriseIdentityStatus> {
-    const profile = this.requireProfile(profileId)
-    this.cancelPendingFlow(profileId)
-    let flow: PendingEnterpriseFlow | null = null
-
+    this.invalidate(profileId)
+    const assertCurrent = this.captureProfile(this.requireProfile(profileId))
     try {
-      const metadata = await this.discoverMetadata(profile)
-      const state = encodeBase64Url(randomBytes(24))
-      const nonce = encodeBase64Url(randomBytes(24))
-      const pkce = createPkcePair()
-      const callbackPath = `/mcp/enterprise/callback/${encodeBase64Url(randomBytes(12))}`
-      const callbackSession = await startOAuthLoopbackCallbackSession({
-        expectedState: state,
-        path: callbackPath,
-        preferredPort: MCP_OAUTH_REDIRECT_PORT,
-        redirectHost: 'localhost',
-        timeoutMs: MCP_OAUTH_CALLBACK_TIMEOUT_MS,
-        invalidCallbackMessage: 'Invalid enterprise identity callback',
-        validateParameters: (parameters) => {
-          validateAuthorizationResponseIssuer({
-            iss: parameters.get('iss') || undefined,
-            expectedIssuer: metadata.issuer,
-            issParameterSupported: metadata.authorization_response_iss_parameter_supported === true
-          })
+      const profile = this.requireProfile(profileId)
+      this.cancelPendingFlow(profileId)
+      let flow: PendingEnterpriseFlow | null = null
+      let callbackSession: OAuthLoopbackCallbackSession | null = null
+      try {
+        const metadata = await this.discoverMetadata(profile)
+        assertCurrent()
+        const state = encodeBase64Url(randomBytes(24))
+        const nonce = encodeBase64Url(randomBytes(24))
+        const pkce = createPkcePair()
+        const callbackPath = `/mcp/enterprise/callback/${encodeBase64Url(randomBytes(12))}`
+        callbackSession = await startOAuthLoopbackCallbackSession({
+          expectedState: state,
+          path: callbackPath,
+          preferredPort: MCP_OAUTH_REDIRECT_PORT,
+          redirectHost: 'localhost',
+          timeoutMs: MCP_OAUTH_CALLBACK_TIMEOUT_MS,
+          invalidCallbackMessage: 'Invalid enterprise identity callback',
+          validateParameters: (parameters) => {
+            validateAuthorizationResponseIssuer({
+              iss: parameters.get('iss') || undefined,
+              expectedIssuer: metadata.issuer,
+              issParameterSupported:
+                metadata.authorization_response_iss_parameter_supported === true
+            })
+          }
+        })
+        assertCurrent()
+        const authorizationUrl = new URL(metadata.authorization_endpoint)
+        authorizationUrl.searchParams.set('client_id', profile.clientId)
+        authorizationUrl.searchParams.set('response_type', 'code')
+        authorizationUrl.searchParams.set('redirect_uri', callbackSession.redirectUri)
+        authorizationUrl.searchParams.set('scope', normalizeScopes(profile.scopes).join(' '))
+        authorizationUrl.searchParams.set('state', state)
+        authorizationUrl.searchParams.set('nonce', nonce)
+        authorizationUrl.searchParams.set('code_challenge', pkce.challenge)
+        authorizationUrl.searchParams.set('code_challenge_method', 'S256')
+        flow = {
+          profile,
+          state,
+          nonce,
+          codeVerifier: pkce.verifier,
+          redirectUri: callbackSession.redirectUri,
+          metadata,
+          callbackSession,
+          assertActive: assertCurrent
         }
-      })
-      const authorizationUrl = new URL(metadata.authorization_endpoint)
-      authorizationUrl.searchParams.set('client_id', profile.clientId)
-      authorizationUrl.searchParams.set('response_type', 'code')
-      authorizationUrl.searchParams.set('redirect_uri', callbackSession.redirectUri)
-      authorizationUrl.searchParams.set('scope', normalizeScopes(profile.scopes).join(' '))
-      authorizationUrl.searchParams.set('state', state)
-      authorizationUrl.searchParams.set('nonce', nonce)
-      authorizationUrl.searchParams.set('code_challenge', pkce.challenge)
-      authorizationUrl.searchParams.set('code_challenge_method', 'S256')
-
-      flow = {
-        profile,
-        state,
-        nonce,
-        codeVerifier: pkce.verifier,
-        redirectUri: callbackSession.redirectUri,
-        metadata,
-        callbackSession
+        assertCurrent()
+        this.pendingFlows.set(profileId, flow)
+        await this.setStatus(
+          {
+            profileId,
+            state: 'authenticating',
+            authenticated: false,
+            persistent: await this.store.isPersistent()
+          },
+          assertCurrent
+        )
+        assertCurrent()
+        flow.flowPromise = callbackSession
+          .waitForCallback()
+          .then(async (callback) => await this.finishAuth(flow!, callback.code))
+          .catch(async (error) => await this.failAuth(flow!, error))
+        assertCurrent()
+        await this.openExternal(authorizationUrl.toString())
+        assertCurrent()
+        return await this.getStatus(profileId)
+      } catch (error) {
+        callbackSession?.close()
+        assertCurrent()
+        if (flow && this.pendingFlows.get(flow.profile.id) === flow)
+          this.cancelPendingFlow(flow.profile.id)
+        await this.setStatus(
+          {
+            profileId,
+            state: 'error',
+            authenticated: false,
+            persistent: await this.store.isPersistent(),
+            error: statusError(error)
+          },
+          assertCurrent
+        )
+        assertCurrent()
+        return await this.getStatus(profileId)
       }
-      this.pendingFlows.set(profileId, flow)
-      this.setStatus({
-        profileId,
-        state: 'authenticating',
-        authenticated: false,
-        persistent: this.store.isPersistent()
-      })
-      flow.flowPromise = callbackSession
-        .waitForCallback()
-        .then((callback) => this.finishAuth(flow!, callback.code))
-        .catch((error) => this.failAuth(flow!, error))
-
-      await shell.openExternal(authorizationUrl.toString())
-      return this.getStatus(profileId)
-    } catch (error) {
-      if (flow) {
-        this.cancelPendingFlow(flow.profile.id)
-      }
-      this.setStatus({
-        profileId,
-        state: 'error',
-        authenticated: false,
-        persistent: this.store.isPersistent(),
-        error: statusError(error)
-      })
-      return this.getStatus(profileId)
+    } finally {
+      assertCurrent()
     }
   }
-
   async completeAuthFromCallbackUrl(
     profileId: string,
     callbackUrl: string
   ): Promise<McpEnterpriseIdentityStatus> {
-    const flow = this.pendingFlows.get(profileId)
-    if (!flow) {
-      return this.getStatus(profileId)
+    const assertCurrent = this.captureProfile(this.requireProfile(profileId))
+    try {
+      const flow = this.pendingFlows.get(profileId)
+      if (!flow) {
+        return await this.getStatus(profileId)
+      }
+      const resolution = flow.callbackSession.resolveCallbackUrl(callbackUrl)
+      if (resolution.kind === 'not-found') {
+        await this.failAuth(flow, new Error('Enterprise identity callback URL is invalid'))
+        assertCurrent()
+        return await this.getStatus(profileId)
+      }
+      await flow.flowPromise
+      assertCurrent()
+      return await this.getStatus(profileId)
+    } finally {
+      assertCurrent()
     }
-    const resolution = flow.callbackSession.resolveCallbackUrl(callbackUrl)
-    if (resolution.kind === 'not-found') {
-      this.failAuth(flow, new Error('Enterprise identity callback URL is invalid'))
-      return this.getStatus(profileId)
+  }
+  async logout(profileId: string): Promise<McpEnterpriseIdentityStatus> {
+    this.invalidate(profileId)
+    const assertCurrent = this.captureProfile(this.requireProfile(profileId))
+    try {
+      const profile = this.requireProfile(profileId)
+      this.cancelPendingFlow(profileId)
+      assertCurrent()
+      await this.store.clearEntry(profileKey('enterprise_identity', profile))
+      assertCurrent()
+      await this.setStatus(
+        {
+          profileId,
+          state: 'signed_out',
+          authenticated: false,
+          persistent: await this.store.isPersistent()
+        },
+        assertCurrent
+      )
+      assertCurrent()
+      await this.onProfileInvalidated?.(profileId, assertCurrent)
+      return await this.getStatus(profileId)
+    } finally {
+      assertCurrent()
     }
-    await flow.flowPromise
-    return this.getStatus(profileId)
   }
-
-  logout(profileId: string): McpEnterpriseIdentityStatus {
-    const profile = this.requireProfile(profileId)
-    this.cancelPendingFlow(profileId)
-    this.store.clearEntry(profileKey('enterprise_identity', profile))
-    this.setStatus({
-      profileId,
-      state: 'signed_out',
-      authenticated: false,
-      persistent: this.store.isPersistent()
-    })
-    return this.getStatus(profileId)
-  }
-
   async createCrossAppProvider(
     config: MCPServerConfig,
     targetClientSecret: string,
@@ -455,25 +574,30 @@ export class McpEnterpriseIdentityManager {
       throw new Error('Enterprise authorization profile and target client ID are required')
     }
     const profile = this.requireProfile(profileId)
-
+    this.captureProfile(profile)
     return new CrossAppAccessProvider({
       clientId: targetClientId,
       clientSecret: targetClientSecret,
       clientName: 'DeepChat',
       expectedIssuer,
       assertion: async (context) => {
+        const assertProfileCurrent = this.captureProfile(profile)
+        assertProfileCurrent()
         const identity = await this.getValidIdentity(profile)
+        assertProfileCurrent()
         const idpClientSecret =
           profile.clientAuthentication === 'client_secret'
-            ? this.store.loadEnterpriseIdentityClientSecret(
+            ? (await this.store.loadEnterpriseIdentityClientSecret(
                 profileKey('enterprise_identity_client_secret', profile)
-              ) || undefined
+              )) || undefined
             : undefined
+        assertProfileCurrent()
         if (profile.clientAuthentication === 'client_secret' && !idpClientSecret) {
           throw new Error('Enterprise identity client secret is not configured')
         }
         const fetchFn: FetchLike = (input, init) =>
           context.fetchFn(input, { ...init, redirect: 'error' })
+        assertProfileCurrent()
         const grant = await discoverAndRequestJwtAuthGrant({
           idpUrl: profile.issuer,
           audience: context.authorizationServerUrl,
@@ -484,56 +608,79 @@ export class McpEnterpriseIdentityManager {
           scope: context.scope,
           fetchFn
         })
+        assertProfileCurrent()
         return grant.jwtAuthGrant
       }
     })
   }
-
   private async finishAuth(flow: PendingEnterpriseFlow, code: string): Promise<void> {
+    if (this.stopped || this.pendingFlows.get(flow.profile.id) !== flow) return
+    const assertCurrent = flow.assertActive
     try {
-      if (this.pendingFlows.get(flow.profile.id) !== flow) {
-        return
-      }
       const credential = await this.exchangeAuthorizationCode(flow, code)
+      assertCurrent()
       if (
         this.pendingFlows.get(flow.profile.id) !== flow ||
         !sameProfileBinding(this.requireProfile(flow.profile.id), flow.profile)
-      ) {
+      )
         return
-      }
-      const existing = this.loadIdentity(flow.profile)
-      if (existing && existing.subject !== credential.subject) {
+      const existing = await this.loadIdentity(flow.profile)
+      assertCurrent()
+      if (existing && existing.subject !== credential.subject)
         throw new Error('A different enterprise subject is already signed in; sign out first')
-      }
-      this.store.saveEnterpriseIdentity(profileKey('enterprise_identity', flow.profile), credential)
+      assertCurrent()
+      await this.store.saveEnterpriseIdentity(
+        profileKey('enterprise_identity', flow.profile),
+        credential
+      )
+      assertCurrent()
+      const persistent = await this.store.isPersistent()
+      assertCurrent()
+      if (this.pendingFlows.get(flow.profile.id) !== flow) return
       this.pendingFlows.delete(flow.profile.id)
       flow.callbackSession.close()
-      this.setStatus({
-        profileId: flow.profile.id,
-        state: 'authenticated',
-        authenticated: true,
-        persistent: this.store.isPersistent(),
-        subjectLabel: credential.subjectLabel,
-        updatedAt: Date.now()
-      })
+      await this.setStatus(
+        {
+          profileId: flow.profile.id,
+          state: 'authenticated',
+          authenticated: true,
+          persistent,
+          subjectLabel: credential.subjectLabel,
+          updatedAt: Date.now()
+        },
+        assertCurrent
+      )
+      assertCurrent()
     } catch (error) {
-      this.failAuth(flow, error)
+      await this.failAuth(flow, error)
+      assertCurrent()
     }
   }
 
-  private failAuth(flow: PendingEnterpriseFlow, error: unknown): void {
-    if (this.pendingFlows.get(flow.profile.id) !== flow) {
-      return
+  private async failAuth(flow: PendingEnterpriseFlow, error: unknown): Promise<void> {
+    if (this.stopped || this.pendingFlows.get(flow.profile.id) !== flow) return
+    const assertCurrent = flow.assertActive
+    try {
+      const persistent = await this.store.isPersistent()
+      assertCurrent()
+      if (this.pendingFlows.get(flow.profile.id) !== flow) return
+      this.pendingFlows.delete(flow.profile.id)
+      flow.callbackSession.close()
+      await this.setStatus(
+        {
+          profileId: flow.profile.id,
+          state: 'error',
+          authenticated: false,
+          persistent,
+          error: statusError(error)
+        },
+        assertCurrent
+      )
+      assertCurrent()
+    } catch (failure) {
+      if (this.stopped || this.pendingFlows.get(flow.profile.id) !== flow) return
+      throw failure
     }
-    this.pendingFlows.delete(flow.profile.id)
-    flow.callbackSession.close()
-    this.setStatus({
-      profileId: flow.profile.id,
-      state: 'error',
-      authenticated: false,
-      persistent: this.store.isPersistent(),
-      error: statusError(error)
-    })
   }
 
   private cancelPendingFlow(profileId: string): void {
@@ -544,25 +691,25 @@ export class McpEnterpriseIdentityManager {
     this.pendingFlows.delete(profileId)
     flow.callbackSession.close()
   }
-
-  private setStatus(
+  private async setStatus(
     status: Omit<McpEnterpriseIdentityStatus, 'clientSecretConfigured'> & {
       clientSecretConfigured?: boolean
-    }
-  ): void {
+    },
+    assertCurrent: () => void
+  ): Promise<void> {
     const profile = this.listProfiles().find((item) => item.id === status.profileId)
     const next = {
       ...status,
-      clientSecretConfigured: profile ? this.hasClientSecret(profile) : false,
+      clientSecretConfigured: profile ? await this.hasClientSecret(profile) : false,
       updatedAt: status.updatedAt || Date.now()
     }
+    assertCurrent()
     this.statuses.set(status.profileId, next)
     this.publishEvent('mcp.enterprise.auth.changed', {
       status: next,
       version: Date.now()
     })
   }
-
   private requireProfile(profileId: string): McpEnterpriseIdentityProfile {
     const profile = this.listProfiles().find((item) => item.id === profileId)
     if (!profile) {
@@ -570,7 +717,6 @@ export class McpEnterpriseIdentityManager {
     }
     return profile
   }
-
   private normalizeProfile(input: McpEnterpriseIdentityProfile): McpEnterpriseIdentityProfile {
     const profile = {
       id: input.id.trim(),
@@ -591,18 +737,16 @@ export class McpEnterpriseIdentityManager {
     }
     return profile
   }
-
-  private hasClientSecret(profile: McpEnterpriseIdentityProfile): boolean {
+  private async hasClientSecret(profile: McpEnterpriseIdentityProfile): Promise<boolean> {
     if (profile.clientAuthentication !== 'client_secret') {
       return false
     }
     return Boolean(
-      this.store.loadEnterpriseIdentityClientSecret(
+      await this.store.loadEnterpriseIdentityClientSecret(
         profileKey('enterprise_identity_client_secret', profile)
       )
     )
   }
-
   private async discoverMetadata(profile: McpEnterpriseIdentityProfile): Promise<OpenIdMetadata> {
     const issuer = new URL(profile.issuer)
     const issuerPath = issuer.pathname === '/' ? '' : issuer.pathname.replace(/\/$/, '')
@@ -644,11 +788,13 @@ export class McpEnterpriseIdentityManager {
     }
     return metadata as OpenIdMetadata
   }
-
   private async exchangeAuthorizationCode(
     flow: PendingEnterpriseFlow,
     code: string
   ): Promise<Omit<McpEnterpriseIdentityCredential, 'updatedAt'>> {
+    const assertCurrent = flow.assertActive
+    assertCurrent()
+
     const parameters = new URLSearchParams({
       grant_type: 'authorization_code',
       code,
@@ -660,7 +806,8 @@ export class McpEnterpriseIdentityManager {
       Accept: 'application/json',
       'Content-Type': 'application/x-www-form-urlencoded'
     })
-    this.applyIdpClientAuthentication(flow.profile, flow.metadata, parameters, headers)
+    await this.applyIdpClientAuthentication(flow.profile, flow.metadata, parameters, headers)
+    assertCurrent()
     const response = await fetch(flow.metadata.token_endpoint, {
       method: 'POST',
       headers,
@@ -668,10 +815,12 @@ export class McpEnterpriseIdentityManager {
       redirect: 'error',
       signal: AbortSignal.timeout(OIDC_REQUEST_TIMEOUT_MS)
     })
+    assertCurrent()
     if (!response.ok) {
       throw new Error(`Enterprise identity token exchange failed (${response.status})`)
     }
     const tokens = await readIdentityTokenResponse(response, 'Enterprise identity token response')
+    assertCurrent()
     if (!tokens.idToken) {
       throw new Error('Enterprise identity response did not include an ID token')
     }
@@ -681,6 +830,7 @@ export class McpEnterpriseIdentityManager {
       flow.metadata,
       flow.nonce
     )
+    assertCurrent()
     return {
       profileId: flow.profile.id,
       issuer: flow.profile.issuer,
@@ -697,99 +847,113 @@ export class McpEnterpriseIdentityManager {
       scope: tokens.scope
     }
   }
-
-  private applyIdpClientAuthentication(
+  private async applyIdpClientAuthentication(
     profile: McpEnterpriseIdentityProfile,
     metadata: OpenIdMetadata,
     parameters: URLSearchParams,
     headers: Headers
-  ): void {
-    if (profile.clientAuthentication === 'none') {
-      return
-    }
-    const secret = this.store.loadEnterpriseIdentityClientSecret(
-      profileKey('enterprise_identity_client_secret', profile)
-    )
-    if (!secret) {
-      throw new Error('Enterprise identity client secret is not configured')
-    }
-    const methods = metadata.token_endpoint_auth_methods_supported || ['client_secret_basic']
-    if (methods.includes('client_secret_basic')) {
-      headers.set(
-        'Authorization',
-        `Basic ${Buffer.from(
-          `${encodeFormComponent(profile.clientId)}:${encodeFormComponent(secret)}`
-        ).toString('base64')}`
+  ): Promise<void> {
+    const assertCurrent = this.captureProfile(profile)
+    try {
+      if (profile.clientAuthentication === 'none') {
+        return
+      }
+      const secret = await this.store.loadEnterpriseIdentityClientSecret(
+        profileKey('enterprise_identity_client_secret', profile)
       )
-      return
+      assertCurrent()
+      if (!secret) {
+        throw new Error('Enterprise identity client secret is not configured')
+      }
+      const methods = metadata.token_endpoint_auth_methods_supported || ['client_secret_basic']
+      if (methods.includes('client_secret_basic')) {
+        headers.set(
+          'Authorization',
+          `Basic ${Buffer.from(`${encodeFormComponent(profile.clientId)}:${encodeFormComponent(secret)}`).toString('base64')}`
+        )
+        return
+      }
+      if (methods.includes('client_secret_post')) {
+        parameters.set('client_secret', secret)
+        return
+      }
+      throw new Error('Enterprise identity provider does not support the configured client auth')
+    } finally {
+      assertCurrent()
     }
-    if (methods.includes('client_secret_post')) {
-      parameters.set('client_secret', secret)
-      return
-    }
-    throw new Error('Enterprise identity provider does not support the configured client auth')
   }
-
   private async getValidIdentity(
     profile: McpEnterpriseIdentityProfile
   ): Promise<McpEnterpriseIdentityCredential> {
-    const current = this.loadIdentity(profile)
-    if (!current) {
-      throw new Error('Enterprise identity sign-in is required')
+    const assertCurrent = this.captureProfile(profile)
+    try {
+      const current = await this.loadIdentity(profile)
+      assertCurrent()
+      if (!current) {
+        throw new Error('Enterprise identity sign-in is required')
+      }
+      if (current.expiresAt > Date.now() + 60000) {
+        return current
+      }
+      if (!current.refreshToken) {
+        throw new Error('Enterprise identity sign-in has expired')
+      }
+      const metadata = await this.discoverMetadata(profile)
+      assertCurrent()
+      const parameters = new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: current.refreshToken,
+        client_id: profile.clientId
+      })
+      const headers = new Headers({
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded'
+      })
+      await this.applyIdpClientAuthentication(profile, metadata, parameters, headers)
+      assertCurrent()
+      const response = await fetch(metadata.token_endpoint, {
+        method: 'POST',
+        headers,
+        body: parameters,
+        redirect: 'error',
+        signal: AbortSignal.timeout(OIDC_REQUEST_TIMEOUT_MS)
+      })
+      assertCurrent()
+      if (!response.ok) {
+        throw new Error(`Enterprise identity refresh failed (${response.status})`)
+      }
+      const tokens = await readIdentityTokenResponse(
+        response,
+        'Enterprise identity refresh response'
+      )
+      assertCurrent()
+      const idToken = tokens.idToken || current.idToken
+      const payload = await this.verifyIdToken(idToken, profile, metadata)
+      assertCurrent()
+      if (payload.sub !== current.subject) {
+        throw new Error('Enterprise identity subject changed during refresh')
+      }
+      assertCurrent()
+      return await this.store.saveEnterpriseIdentity(profileKey('enterprise_identity', profile), {
+        ...current,
+        idToken,
+        accessToken: tokens.accessToken || current.accessToken,
+        refreshToken: tokens.refreshToken || current.refreshToken,
+        expiresAt: Math.min(
+          (payload.exp || Math.floor(Date.now() / 1000) + 300) * 1000,
+          Date.now() + tokens.expiresInSeconds * 1000
+        ),
+        scope: tokens.scope || current.scope
+      })
+    } finally {
+      assertCurrent()
     }
-    if (current.expiresAt > Date.now() + 60_000) {
-      return current
-    }
-    if (!current.refreshToken) {
-      throw new Error('Enterprise identity sign-in has expired')
-    }
-
-    const metadata = await this.discoverMetadata(profile)
-    const parameters = new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: current.refreshToken,
-      client_id: profile.clientId
-    })
-    const headers = new Headers({
-      Accept: 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded'
-    })
-    this.applyIdpClientAuthentication(profile, metadata, parameters, headers)
-    const response = await fetch(metadata.token_endpoint, {
-      method: 'POST',
-      headers,
-      body: parameters,
-      redirect: 'error',
-      signal: AbortSignal.timeout(OIDC_REQUEST_TIMEOUT_MS)
-    })
-    if (!response.ok) {
-      throw new Error(`Enterprise identity refresh failed (${response.status})`)
-    }
-    const tokens = await readIdentityTokenResponse(response, 'Enterprise identity refresh response')
-    const idToken = tokens.idToken || current.idToken
-    const payload = await this.verifyIdToken(idToken, profile, metadata)
-    if (payload.sub !== current.subject) {
-      throw new Error('Enterprise identity subject changed during refresh')
-    }
-    return this.store.saveEnterpriseIdentity(profileKey('enterprise_identity', profile), {
-      ...current,
-      idToken,
-      accessToken: tokens.accessToken || current.accessToken,
-      refreshToken: tokens.refreshToken || current.refreshToken,
-      expiresAt: Math.min(
-        (payload.exp || Math.floor(Date.now() / 1000) + 300) * 1000,
-        Date.now() + tokens.expiresInSeconds * 1000
-      ),
-      scope: tokens.scope || current.scope
-    })
   }
-
-  private loadIdentity(
+  private async loadIdentity(
     profile: McpEnterpriseIdentityProfile
-  ): McpEnterpriseIdentityCredential | null {
-    return this.store.loadEnterpriseIdentity(profileKey('enterprise_identity', profile))
+  ): Promise<McpEnterpriseIdentityCredential | null> {
+    return await this.store.loadEnterpriseIdentity(profileKey('enterprise_identity', profile))
   }
-
   private async verifyIdToken(
     token: string,
     profile: McpEnterpriseIdentityProfile,
@@ -834,11 +998,11 @@ export class McpEnterpriseIdentityManager {
       (payload.iat != null &&
         (typeof payload.iat !== 'number' ||
           !Number.isSafeInteger(payload.iat) ||
-          payload.iat * 1000 > now + 60_000)) ||
+          payload.iat * 1000 > now + 60000)) ||
       (payload.nbf != null &&
         (typeof payload.nbf !== 'number' ||
           !Number.isSafeInteger(payload.nbf) ||
-          payload.nbf * 1000 > now + 60_000)) ||
+          payload.nbf * 1000 > now + 60000)) ||
       (expectedNonce != null && payload.nonce !== expectedNonce)
     ) {
       throw new Error('Enterprise identity ID token claims are invalid')
@@ -852,7 +1016,6 @@ export class McpEnterpriseIdentityManager {
     ) {
       throw new Error('Enterprise identity ID token authorized party is invalid')
     }
-
     const jwksResponse = await fetch(metadata.jwks_uri, {
       headers: { Accept: 'application/json' },
       redirect: 'error',
@@ -861,10 +1024,9 @@ export class McpEnterpriseIdentityManager {
     if (!jwksResponse.ok) {
       throw new Error(`Enterprise identity JWKS request failed (${jwksResponse.status})`)
     }
-    const jwks = await readBoundedJson<{ keys?: Array<Record<string, unknown>> }>(
-      jwksResponse,
-      'Enterprise identity JWKS'
-    )
+    const jwks = await readBoundedJson<{
+      keys?: Array<Record<string, unknown>>
+    }>(jwksResponse, 'Enterprise identity JWKS')
     if (!Array.isArray(jwks.keys) || jwks.keys.length > MAX_JWKS_KEYS) {
       throw new Error('Enterprise identity JWKS is invalid')
     }

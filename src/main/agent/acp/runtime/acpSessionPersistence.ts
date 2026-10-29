@@ -1,4 +1,3 @@
-import { app } from 'electron'
 import { toAcpRemoteSessionId, type AcpRemoteSessionId } from '@/agent/shared/agentSessionIds'
 import * as fs from 'fs'
 import path from 'node:path'
@@ -44,8 +43,13 @@ export class AcpSessionPersistence {
     private readonly agentDatabase: AgentDatabase,
     private readonly sessionDatabase: SessionDatabase,
     private readonly projectDatabase: ProjectDatabase,
+    private readonly homeDirectory: string,
     private readonly notifyEnvironmentProjectionChanged: () => void = () => undefined
-  ) {}
+  ) {
+    if (!path.isAbsolute(homeDirectory)) {
+      throw new Error('ACP session home directory must be absolute')
+    }
+  }
 
   getProjectMetadata(
     workdir: string,
@@ -395,13 +399,8 @@ export class AcpSessionPersistence {
   }
 
   getDefaultWorkdir(): string {
-    try {
-      const home = app.getPath('home')
-      if (this.isWorkdirUsable(home)) {
-        return home
-      }
-    } catch {
-      // fall through to process fallbacks
+    if (this.isWorkdirUsable(this.homeDirectory)) {
+      return this.homeDirectory
     }
 
     if (this.isWorkdirUsable(process.env.HOME)) {

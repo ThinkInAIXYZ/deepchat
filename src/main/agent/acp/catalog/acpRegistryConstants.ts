@@ -5,12 +5,6 @@ export const ACP_REGISTRY_ICON_PREFIX = 'https://cdn.agentclientprotocol.com/reg
 
 export const ACP_REGISTRY_CACHE_TTL_MS = 60 * 60 * 1000
 
-export const ACP_REGISTRY_RESOURCE_DIR = ['resources', 'acp-registry'] as const
-
-export const ACP_REGISTRY_RESOURCE_PATH = ['resources', 'acp-registry', 'registry.json'] as const
-
-export const ACP_REGISTRY_ICON_RESOURCE_DIR = ['resources', 'acp-registry', 'icons'] as const
-
 export const ACP_REGISTRY_ICON_CACHE_DIRNAME = 'icons'
 
 const ACP_REGISTRY_FILE_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/

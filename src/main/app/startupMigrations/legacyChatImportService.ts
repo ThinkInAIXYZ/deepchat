@@ -1,4 +1,3 @@
-import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import Database from 'better-sqlite3-multiple-ciphers'
@@ -46,7 +45,7 @@ export class LegacyChatImportService {
     projectDatabase: ProjectDatabase,
     memoryDatabase: MemoryDatabase,
     tapeFacts: TranscriptTapePort,
-    sourceDbPath?: string,
+    sourceDbPath: string,
     notifyEnvironmentProjectionChanged: () => void = () => undefined
   ) {
     this.appDatabase = appDatabase
@@ -54,7 +53,8 @@ export class LegacyChatImportService {
     this.projectDatabase = projectDatabase
     this.memoryDatabase = memoryDatabase
     this.messageStore = new SessionTranscript(this.sessionDatabase, tapeFacts)
-    this.sourceDbPath = sourceDbPath ?? path.join(app.getPath('userData'), 'app_db', 'chat.db')
+    if (!path.isAbsolute(sourceDbPath)) throw new Error('Legacy database path must be absolute')
+    this.sourceDbPath = sourceDbPath
     this.notifyEnvironmentProjectionChanged = notifyEnvironmentProjectionChanged
   }
 

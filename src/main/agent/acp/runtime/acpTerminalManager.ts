@@ -3,7 +3,6 @@ import path from 'path'
 import { spawn } from 'node-pty'
 import type { IPty } from 'node-pty'
 import { nanoid } from 'nanoid'
-import { app } from 'electron'
 import { RequestError } from '@agentclientprotocol/sdk'
 import type * as schema from '@agentclientprotocol/sdk'
 
@@ -37,19 +36,25 @@ export class AcpTerminalManager {
   private readonly terminals = new Map<string, TerminalState>()
   private readonly defaultMaxOutputBytes = 1024 * 1024 // 1MB default
 
+  constructor(private readonly temporaryDirectory: string) {
+    if (!path.isAbsolute(temporaryDirectory)) {
+      throw new Error('ACP terminal temporary directory must be absolute')
+    }
+  }
+
   private resolveTerminalCwd(cwd?: string | null): string {
     const normalized = cwd?.trim()
     if (normalized) {
       return path.resolve(normalized)
     }
 
-    const fallbackDir = path.join(app.getPath('temp'), 'deepchat-acp', 'terminals')
+    const fallbackDir = path.join(this.temporaryDirectory, 'deepchat-acp', 'terminals')
     try {
       fs.mkdirSync(fallbackDir, { recursive: true })
       console.warn(`[ACP Terminal] Missing cwd, using fallback directory: ${fallbackDir}`)
       return fallbackDir
     } catch (error) {
-      const tempDir = app.getPath('temp')
+      const tempDir = this.temporaryDirectory
       console.warn(
         `[ACP Terminal] Failed to create fallback directory, using temp path instead: ${tempDir}`,
         error

@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { AcpClientRuntime } from '@/agent/acp/client'
@@ -73,7 +74,11 @@ describe('ProviderInstanceManager ACP lifetime', () => {
       providerSettings: {
         getProviders: () => [...providers.values()]
       } as never,
-      locale: { getLanguage: () => 'en-US' },
+      locale: {
+        allowInsecureTls: providerTestEnvironment.allowInsecureTls,
+        defaultHeaders: providerTestEnvironment.defaultHeaders,
+        getLanguage: () => 'en-US'
+      },
       activeStreams: new Map(),
       rateLimitManager: {
         syncProviders: vi.fn(),
@@ -122,7 +127,11 @@ describe('ProviderInstanceManager ACP lifetime', () => {
       providerSettings: {
         getProviders: () => [...providers.values()]
       } as never,
-      locale: { getLanguage: () => 'en-US' },
+      locale: {
+        allowInsecureTls: providerTestEnvironment.allowInsecureTls,
+        defaultHeaders: providerTestEnvironment.defaultHeaders,
+        getLanguage: () => 'en-US'
+      },
       activeStreams: new Map(),
       rateLimitManager: {
         syncProviders: vi.fn(),
@@ -158,7 +167,11 @@ describe('ProviderInstanceManager ACP lifetime', () => {
       providerSettings: {
         getProviders: () => [...providers.values()]
       } as never,
-      locale: { getLanguage: () => 'en-US' },
+      locale: {
+        allowInsecureTls: providerTestEnvironment.allowInsecureTls,
+        defaultHeaders: providerTestEnvironment.defaultHeaders,
+        getLanguage: () => 'en-US'
+      },
       activeStreams: new Map([['stream', { providerId: 'acp', abortController } as never]]),
       rateLimitManager: {
         syncProviders: vi.fn(),
@@ -238,7 +251,11 @@ describe('ProviderInstanceManager ACP lifetime', () => {
     )
     const manager = new ProviderInstanceManager({
       providerSettings: providerSettings as never,
-      locale: { getLanguage: () => 'en-US' },
+      locale: {
+        allowInsecureTls: providerTestEnvironment.allowInsecureTls,
+        defaultHeaders: providerTestEnvironment.defaultHeaders,
+        getLanguage: () => 'en-US'
+      },
       activeStreams: new Map(),
       rateLimitManager,
       getCurrentProviderId: () => null,

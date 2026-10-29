@@ -1,8 +1,18 @@
-import { protocol } from 'electron'
-import type { McpAppCsp, McpAppPermissions } from '@shared/types/mcp'
-import { MCP_APP_SCHEME, type McpAppSandboxRegistry } from './sandboxRegistry'
+import { protocol, session, webContents, BrowserWindow, shell, type Session } from 'electron'
+import type { McpAppConsentKind, McpAppCsp, McpAppPermissions } from '@shared/types/mcp'
+import {
+  MCP_APP_SCHEME,
+  type McpAppSandboxRegistry,
+  type McpAppRouteContext,
+  type McpAppDesktopPort
+} from './sandboxRegistry'
 
 let schemeRegistered = false
+
+type McpAppSandboxPort = Pick<
+  McpAppSandboxRegistry,
+  'getProtocolPolicy' | 'requestBrowserPermission' | 'revokeByWebContents'
+>
 
 const normalizeCspSource = (source: string): string | null => {
   const valid = Array.from(source).every((character) => {
@@ -195,8 +205,9 @@ export function registerMcpAppScheme(): void {
   schemeRegistered = true
 }
 
-export function registerMcpAppProtocol(registry: McpAppSandboxRegistry): void {
-  protocol.handle(MCP_APP_SCHEME, (request) => {
+export function registerMcpAppProtocol(registry: McpAppSandboxPort): McpAppDesktopPort {
+  const observedOwners = new Set<number>()
+  protocol.handle(MCP_APP_SCHEME, async (request) => {
     let instanceId = ''
     try {
       const url = new URL(request.url)
@@ -211,8 +222,14 @@ export function registerMcpAppProtocol(registry: McpAppSandboxRegistry): void {
       })
     }
 
-    const instance = registry.getForProtocol(instanceId)
-    if (!instance) {
+    let policy: Awaited<ReturnType<McpAppSandboxRegistry['getProtocolPolicy']>> = null
+    try {
+      policy = await registry.getProtocolPolicy(instanceId)
+      if (policy) requireNativeOwner(policy.context)
+    } catch {
+      policy = null
+    }
+    if (!policy) {
       return new Response('MCP App instance expired', {
         status: 410,
         headers: {
@@ -225,12 +242,166 @@ export function registerMcpAppProtocol(registry: McpAppSandboxRegistry): void {
     return new Response(createSandboxProxyHtml(), {
       headers: {
         'Cache-Control': 'no-store',
-        'Content-Security-Policy': buildMcpAppContentSecurityPolicy(instance.csp),
+        'Content-Security-Policy': buildMcpAppContentSecurityPolicy(policy.csp),
         'Content-Type': 'text/html; charset=utf-8',
-        'Permissions-Policy': buildMcpAppPermissionsPolicy(instance.permissions),
+        'Permissions-Policy': buildMcpAppPermissionsPolicy(policy.permissions),
         'X-Content-Type-Options': 'nosniff'
       }
     })
   })
-  registry.configureDefaultSessionPermissions()
+  configureMcpAppSessionPermissions(registry)
+  return {
+    observeOwner: async (context) => {
+      const owner = requireNativeOwner(context)
+      if (!observedOwners.has(owner.id)) {
+        observedOwners.add(owner.id)
+        owner.once('destroyed', () => {
+          registry.revokeByWebContents(context.webContentsId)
+          observedOwners.delete(context.webContentsId)
+        })
+      }
+    },
+    openExternal: async (url, context) => {
+      requireNativeOwner(context)
+      await shell.openExternal(url)
+    }
+  }
+}
+
+type PermissionRequestHandler = NonNullable<Parameters<Session['setPermissionRequestHandler']>[0]>
+type PermissionCheckHandler = NonNullable<Parameters<Session['setPermissionCheckHandler']>[0]>
+type ElectronPermission =
+  | Parameters<PermissionRequestHandler>[1]
+  | Parameters<PermissionCheckHandler>[1]
+
+const isFirstPartyRendererUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value)
+    if (url.protocol === 'file:') {
+      return true
+    }
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      (url.hostname === 'localhost' || url.hostname === '127.0.0.1')
+    )
+  } catch {
+    return false
+  }
+}
+
+const parseMcpAppInstanceId = (value: string | undefined): string | null => {
+  if (!value) {
+    return null
+  }
+  try {
+    const url = new URL(value)
+    return url.protocol === `${MCP_APP_SCHEME}:` && url.hostname ? url.hostname : null
+  } catch {
+    return null
+  }
+}
+
+const resolvePermissionKinds = (
+  permission: ElectronPermission,
+  mediaTypes: string[] | undefined
+): McpAppConsentKind[] => {
+  if (permission === 'geolocation') {
+    return ['geolocation']
+  }
+  if (permission === 'clipboard-sanitized-write') {
+    return ['clipboard-write']
+  }
+  if (permission !== 'media') {
+    return []
+  }
+  const kinds: McpAppConsentKind[] = []
+  if (mediaTypes?.includes('video')) {
+    kinds.push('camera')
+  }
+  if (mediaTypes?.includes('audio')) {
+    kinds.push('microphone')
+  }
+  return kinds
+}
+
+const configuredSessions = new WeakMap<Session, McpAppSandboxPort>()
+
+const requireNativeOwner = (context: McpAppRouteContext) => {
+  const owner = webContents.fromId(context.webContentsId)
+  if (
+    !owner ||
+    owner.isDestroyed() ||
+    (BrowserWindow.fromWebContents(owner)?.id ?? null) !== context.windowId
+  )
+    throw new Error('MCP App owner is unavailable')
+  return owner
+}
+
+export function configureMcpAppSessionPermissions(
+  registry: McpAppSandboxPort,
+  target: Session = session.defaultSession
+): void {
+  if (configuredSessions.get(target) === registry) return
+  configuredSessions.set(target, registry)
+  target.setPermissionRequestHandler((owner, permission, callback, details) => {
+    const requestingUrl = details.requestingUrl || owner.getURL()
+    const securityOrigin =
+      'securityOrigin' in details && typeof details.securityOrigin === 'string'
+        ? details.securityOrigin
+        : undefined
+    const instanceId = parseMcpAppInstanceId(requestingUrl) ?? parseMcpAppInstanceId(securityOrigin)
+    if (!instanceId) {
+      const ownerUrl = owner.getURL()
+      callback(!isFirstPartyRendererUrl(ownerUrl) || isFirstPartyRendererUrl(requestingUrl))
+      return
+    }
+
+    const mediaTypes =
+      'mediaTypes' in details && Array.isArray(details.mediaTypes)
+        ? details.mediaTypes.map(String)
+        : undefined
+    const kinds = resolvePermissionKinds(permission, mediaTypes)
+    if (kinds.length === 0) {
+      callback(false)
+      return
+    }
+    const context = {
+      webContentsId: owner.id,
+      windowId: BrowserWindow.fromWebContents(owner)?.id ?? null
+    }
+    let settled = false
+    const complete = (allowed: boolean): void => {
+      if (settled) return
+      settled = true
+      callback(allowed)
+    }
+    void registry
+      .requestBrowserPermission(instanceId, context, kinds)
+      .then((approved) => {
+        try {
+          requireNativeOwner(context)
+          complete(approved)
+        } catch {
+          complete(false)
+        }
+      })
+      .catch(() => complete(false))
+  })
+
+  target.setPermissionCheckHandler((owner, _permission, requestingOrigin, details) => {
+    const requestingUrl =
+      requestingOrigin || details.requestingUrl || details.securityOrigin || owner?.getURL() || ''
+    const instanceId =
+      parseMcpAppInstanceId(requestingUrl) ??
+      parseMcpAppInstanceId(details.securityOrigin) ??
+      parseMcpAppInstanceId(details.requestingUrl)
+    if (!instanceId) {
+      const ownerUrl = owner?.getURL()
+      return (
+        !ownerUrl || !isFirstPartyRendererUrl(ownerUrl) || isFirstPartyRendererUrl(requestingUrl)
+      )
+    }
+    // MCP App browser permissions are request-scoped; there is no standing grant to check.
+    return false
+  })
 }

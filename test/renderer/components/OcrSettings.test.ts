@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, inject, provide, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { OcrRuntimeStatus } from '../../../src/shared/contracts/routes/ocr.routes'
+import type { SettingsSnapshotValues } from '@shared/contracts/routes'
 
 const AVAILABLE_STATUS: OcrRuntimeStatus = {
   platform: 'darwin',
@@ -46,10 +47,18 @@ async function setup(
     getSnapshot: settingsError
       ? vi.fn().mockRejectedValue(new Error('settings unavailable'))
       : vi.fn().mockResolvedValue({
-          ocrAutoExtractForNonVisionModels: true,
-          ocrBackend: 'auto'
+          version: 1,
+          values: { ocrAutoExtractForNonVisionModels: true, ocrBackend: 'auto' }
         }),
-    update: vi.fn().mockResolvedValue({ values: {} })
+    acceptSnapshot: vi.fn((snapshot) => snapshot.values),
+    onChanged: vi.fn((_listener: (payload: { values: Partial<SettingsSnapshotValues> }) => void) =>
+      vi.fn()
+    ),
+    update: vi.fn(async (changes) => ({
+      version: 2,
+      changedKeys: changes.map((change) => change.key),
+      values: Object.fromEntries(changes.map((change) => [change.key, change.value]))
+    }))
   }
   const ocrClient = {
     getRuntimeStatus:
@@ -69,7 +78,13 @@ async function setup(
   const pausePolling = vi.fn()
   const documentVisibility = ref<DocumentVisibilityState>('visible')
   const windowFocused = ref(true)
-  const useIntervalFn = vi.fn(() => ({ resume: resumePolling, pause: pausePolling }))
+  const useIntervalFn = vi.fn(
+    (
+      _callback: () => Promise<void>,
+      _intervalMs: number,
+      _options: { immediate: boolean; immediateCallback: boolean }
+    ) => ({ resume: resumePolling, pause: pausePolling })
+  )
   const notifyRenderer = vi.fn(() => true)
 
   vi.doMock('@api/SettingsClient', () => ({ createSettingsClient: () => settingsClient }))
@@ -306,6 +321,44 @@ describe('OcrSettings', () => {
     consoleError.mockRestore()
   })
 
+  it('receives settings changes and releases its listener on unmount', async () => {
+    const { wrapper, settingsClient } = await setup()
+    const listener = settingsClient.onChanged.mock.calls[0][0]
+    listener({ values: { ocrAutoExtractForNonVisionModels: false, ocrBackend: 'cpu' } })
+    await flushPromises()
+    expect(
+      wrapper.get('[data-testid="ocr-auto-extract-switch"]').attributes('data-model-value')
+    ).toBe('false')
+    await openAdvanced(wrapper)
+    const select = wrapper.findComponent({ name: 'Select' })
+    expect(select.props('modelValue')).toBe('cpu')
+    wrapper.unmount()
+    expect(settingsClient.onChanged.mock.results[0].value).toHaveBeenCalledOnce()
+  })
+
+  it.each(['resolve', 'reject'] as const)(
+    'ignores a late settings %s after unmount',
+    async (outcome) => {
+      const { wrapper, settingsClient, notifyRenderer } = await setup()
+      const pending = deferred<Awaited<ReturnType<typeof settingsClient.update>>>()
+      settingsClient.update.mockReturnValueOnce(pending.promise)
+      await wrapper.get('[data-testid="ocr-auto-extract-switch"]').trigger('click')
+      notifyRenderer.mockClear()
+      wrapper.unmount()
+      if (outcome === 'resolve') {
+        pending.resolve({
+          version: 2,
+          changedKeys: ['ocrAutoExtractForNonVisionModels'],
+          values: { ocrAutoExtractForNonVisionModels: false }
+        })
+      } else {
+        pending.reject(new Error('owner stopped'))
+      }
+      await flushPromises()
+      expect(notifyRenderer).not.toHaveBeenCalled()
+    }
+  )
+
   it('shows unsupported targets explicitly and prevents cache initialization', async () => {
     const { wrapper, ocrClient } = await setup({
       platform: 'linux',
@@ -498,7 +551,7 @@ describe('OcrSettings', () => {
     expect(wrapper.get('[data-testid="ocr-status-stale"]').text()).toContain(
       'settings.ocr.statusLoadFailed'
     )
-    expect(wrapper.get('[data-testid="ocr-retry-status"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="ocr-retry-status"]').exists()).toBe(true)
     await openAdvanced(wrapper)
     expect(wrapper.get('[data-testid="ocr-clear-cache"]').attributes('disabled')).toBeDefined()
     expect(wrapper.findAll('[data-testid="ocr-status-stale"]')).toHaveLength(1)
@@ -512,7 +565,7 @@ describe('OcrSettings', () => {
     await pollStatus()
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="ocr-status-stale"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="ocr-status-stale"]').exists()).toBe(true)
     expect(wrapper.findAll('[data-testid="ocr-status-stale"]')).toHaveLength(1)
   })
 

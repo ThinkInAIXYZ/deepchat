@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SKILL_NAME_MAX_LENGTH, type SkillInstallOptions } from '@shared/types/skill'
 import type { UnifiedSkillItem } from '@shared/types/skillManagement'
-import type { CanonicalSkill, ScanResult } from '@shared/types/skillSync'
+import type { CanonicalSkill, ImportPreview, ScanResult } from '@shared/types/skillSync'
 import {
   AgentSkillImportService,
   type AgentSkillImportServiceDependencies
@@ -15,14 +15,6 @@ vi.unmock('fs')
 vi.unmock('node:fs')
 vi.unmock('fs/promises')
 vi.unmock('node:fs/promises')
-
-const electronState = vi.hoisted(() => ({ tempPath: '/tmp' }))
-
-vi.mock('electron', () => ({
-  app: {
-    getPath: vi.fn(() => electronState.tempPath)
-  }
-}))
 
 const createExternalScan = (skills: ScanResult['skills']): ScanResult => ({
   toolId: 'codex',
@@ -42,8 +34,10 @@ describe('AgentSkillImportService', () => {
   let tempRoot: string
   let allSkills: UnifiedSkillItem[]
   let scans: ScanResult[]
-  let externalPreviews: Array<{ skill: CanonicalSkill; warnings: string[] }>
-  let installImportedSkill: ReturnType<typeof vi.fn>
+  let externalPreviews: ImportPreview[]
+  let installImportedSkill: ReturnType<
+    typeof vi.fn<AgentSkillImportServiceDependencies['skills']['installImportedSkill']>
+  >
   let dependencies: AgentSkillImportServiceDependencies
   let service: AgentSkillImportService
 
@@ -60,6 +54,7 @@ describe('AgentSkillImportService', () => {
       'utf-8'
     )
     allSkills.push({
+      agentId: 'deepchat',
       name: skill.name,
       description: skill.description,
       path: path.join(skillRoot, 'SKILL.md'),
@@ -87,20 +82,29 @@ describe('AgentSkillImportService', () => {
         }))
       )
     ]
-    externalPreviews = skills.map((skill) => ({ skill, warnings: [] }))
+    externalPreviews = skills.map((skill) => ({
+      skill,
+      warnings: [],
+      source: {
+        name: skill.name,
+        path: `/external/skills/${skill.name}`,
+        format: 'codex',
+        lastModified: new Date()
+      }
+    }))
   }
 
   beforeEach(async () => {
     tempRoot = await mkdtemp(path.join(os.tmpdir(), 'deepchat-agent-import-test-'))
-    electronState.tempPath = tempRoot
     await mkdir(path.join(tempRoot, 'allSkills'), { recursive: true })
     allSkills = []
     scans = []
     externalPreviews = []
     installImportedSkill = vi
-      .fn()
+      .fn<AgentSkillImportServiceDependencies['skills']['installImportedSkill']>()
       .mockResolvedValue({ success: true, skillName: 'installed-skill' })
     dependencies = {
+      tempDirectory: tempRoot,
       skills: {
         getAllSkills: vi.fn(async () => allSkills),
         installImportedSkill

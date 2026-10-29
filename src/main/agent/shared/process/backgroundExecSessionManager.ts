@@ -1,8 +1,6 @@
 import { spawn, type ChildProcess } from 'child_process'
 import fs from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
-import type { UtilityProcess } from 'electron'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import logger from './backgroundExecLogger'
@@ -1185,11 +1183,37 @@ export class BackgroundExecSessionManager {
   }
 }
 
-class BackgroundExecUtilityProxy {
-  private host: UtilityProcess | null = null
-  private hostReady: Promise<UtilityProcess> | null = null
+export interface BackgroundExecHost {
+  readonly pid: number | undefined
+  postMessage(message: BackgroundExecRpcRequest): void
+  kill(): void
+  onMessage(listener: (message: unknown) => void): void
+  onExit(listener: (code: number) => void): void
+  onError(listener: (type: string, location: string) => void): void
+}
+
+export type BackgroundExecPort = Pick<
+  BackgroundExecService,
+  | 'start'
+  | 'list'
+  | 'poll'
+  | 'log'
+  | 'waitForCompletionOrYield'
+  | 'getCompletionResult'
+  | 'write'
+  | 'kill'
+  | 'clear'
+  | 'remove'
+  | 'cleanupConversation'
+>
+
+export class BackgroundExecService {
+  private host: BackgroundExecHost | null = null
+  private hostReady: Promise<BackgroundExecHost> | null = null
   private requestId = 0
-  private shuttingDown = false
+  private readonly lifetime = new AbortController()
+  private shutdownPromise: Promise<void> | null = null
+  private readonly operations = new Set<Promise<unknown>>()
   private readonly pendingRequests = new Map<
     string,
     {
@@ -1202,7 +1226,35 @@ class BackgroundExecUtilityProxy {
   private readonly crashedSessions = new Map<string, TrackedSessionMeta>()
   private completedSessionReconciliationTimer: NodeJS.Timeout | null = null
 
-  async start(
+  constructor(private readonly spawnHost: (signal: AbortSignal) => Promise<BackgroundExecHost>) {}
+
+  private assertActive(): void {
+    this.lifetime.signal.throwIfAborted()
+  }
+
+  private trackOperation<T>(operation: () => Promise<T>): Promise<T> {
+    const promise = Promise.resolve()
+      .then(operation)
+      .finally(() => {
+        this.operations.delete(promise)
+      })
+    this.operations.add(promise)
+    return promise
+  }
+
+  start(
+    conversationId: string,
+    command: string,
+    cwd: string,
+    options: BackgroundExecStartOptions,
+    beforeStart?: () => Promise<void>
+  ): Promise<StartSessionResult> {
+    return this.trackOperation(() =>
+      this.startSession(conversationId, command, cwd, options, beforeStart)
+    )
+  }
+
+  private async startSession(
     conversationId: string,
     command: string,
     cwd: string,
@@ -1222,6 +1274,7 @@ class BackgroundExecUtilityProxy {
           }
         }
       )
+      this.assertActive()
       this.activeSessions.set(result.sessionId, {
         conversationId,
         sessionId: result.sessionId,
@@ -1247,6 +1300,7 @@ class BackgroundExecUtilityProxy {
   }
 
   async list(conversationId: string): Promise<SessionMeta[]> {
+    this.assertActive()
     const completedAtListStart = new Map(this.completedSessions)
     const active = Array.from(this.activeSessions.values())
       .filter((session) => session.conversationId === conversationId)
@@ -1264,6 +1318,7 @@ class BackgroundExecUtilityProxy {
         logger.warn('[BackgroundExecProxy] Failed to list utility sessions:', error)
       }
     }
+    this.assertActive()
     if (hostListSucceeded) {
       const hostSessionIds = new Set(hostSessions.map((session) => session.sessionId))
       for (const [sessionId, session] of completedAtListStart) {
@@ -1296,6 +1351,7 @@ class BackgroundExecUtilityProxy {
     sessionId: string,
     previewChars?: number
   ): Promise<PollResult> {
+    this.assertActive()
     const crashed = this.getCrashedSession(conversationId, sessionId)
     if (crashed) {
       return this.toCrashedPollResult(crashed)
@@ -1315,6 +1371,7 @@ class BackgroundExecUtilityProxy {
     offset = 0,
     limit = 1000
   ): Promise<LogResult> {
+    this.assertActive()
     const crashed = this.getCrashedSession(conversationId, sessionId)
     if (crashed) {
       return {
@@ -1333,6 +1390,7 @@ class BackgroundExecUtilityProxy {
     yieldMs = getConfig().backgroundMs,
     previewChars = FOREGROUND_PREVIEW_CHARS
   ): Promise<WaitForCompletionOrYieldResult> {
+    this.assertActive()
     const crashed = this.getCrashedCompletionResult(conversationId, sessionId)
     if (crashed) {
       return {
@@ -1358,6 +1416,7 @@ class BackgroundExecUtilityProxy {
     sessionId: string,
     previewChars = FOREGROUND_PREVIEW_CHARS
   ): Promise<SessionCompletionResult> {
+    this.assertActive()
     const crashed = this.getCrashedCompletionResult(conversationId, sessionId)
     if (crashed) {
       return crashed
@@ -1379,6 +1438,7 @@ class BackgroundExecUtilityProxy {
     eof = false,
     beforeMutation?: () => void
   ): Promise<void> {
+    this.assertActive()
     this.assertTrackedSessionOwner(conversationId, sessionId)
     if (
       this.getCrashedSession(conversationId, sessionId) ||
@@ -1395,6 +1455,7 @@ class BackgroundExecUtilityProxy {
     sessionId: string,
     beforeMutation?: () => void
   ): Promise<void> {
+    this.assertActive()
     this.assertTrackedSessionOwner(conversationId, sessionId)
     if (this.getCrashedSession(conversationId, sessionId)) return
     if (this.getCompletedSession(conversationId, sessionId)) return
@@ -1407,6 +1468,7 @@ class BackgroundExecUtilityProxy {
     sessionId: string,
     beforeMutation?: () => void
   ): Promise<void> {
+    this.assertActive()
     this.assertTrackedSessionOwner(conversationId, sessionId)
     if (this.getCrashedSession(conversationId, sessionId)) return
     const completed = this.getCompletedSession(conversationId, sessionId)
@@ -1433,6 +1495,7 @@ class BackgroundExecUtilityProxy {
     sessionId: string,
     beforeMutation?: () => void
   ): Promise<void> {
+    this.assertActive()
     this.assertTrackedSessionOwner(conversationId, sessionId)
     if (this.getCrashedSession(conversationId, sessionId)) {
       beforeMutation?.()
@@ -1452,6 +1515,7 @@ class BackgroundExecUtilityProxy {
   }
 
   async cleanupConversation(conversationId: string): Promise<void> {
+    this.assertActive()
     try {
       await this.request('cleanupConversation', [conversationId])
     } finally {
@@ -1474,49 +1538,63 @@ class BackgroundExecUtilityProxy {
     }
   }
 
-  async shutdown(): Promise<void> {
-    this.shuttingDown = true
+  stop(): void {
+    this.lifetime.abort(new DOMException('Background exec owner is stopping', 'AbortError'))
+    this.stopCompletedSessionReconciliation()
+  }
+
+  shutdown(): Promise<void> {
+    if (this.shutdownPromise) return this.shutdownPromise
+    this.stop()
+    this.shutdownPromise = this.performShutdown()
+    return this.shutdownPromise
+  }
+
+  private async performShutdown(): Promise<void> {
+    await this.hostReady?.catch(() => undefined)
     try {
-      if (this.host) {
-        await this.request('shutdown', [])
-      }
+      if (this.host) await this.postRequest(this.host, 'shutdown', [])
     } finally {
-      this.stopCompletedSessionReconciliation()
       this.host?.kill()
       this.host = null
-      this.hostReady = null
       this.rejectPendingRequests(new Error('Background exec utility process shut down.'))
+      while (this.operations.size) await Promise.allSettled(this.operations)
       this.activeSessions.clear()
       this.completedSessions.clear()
       this.crashedSessions.clear()
     }
   }
 
-  private async request<T = void>(
+  private request<T = void>(
     method: BackgroundExecRpcMethod,
     args: unknown[],
     lifecycle: { beforePost?: () => Promise<void>; onPosted?: () => void } = {}
   ): Promise<T> {
-    const host = await this.ensureHost()
-    await lifecycle.beforePost?.()
+    return this.trackOperation(async () => {
+      this.assertActive()
+      const host = await this.ensureHost()
+      this.assertActive()
+      await lifecycle.beforePost?.()
+      this.assertActive()
+      if (this.host !== host) throw new Error('Background exec helper changed before dispatch')
+      const result = await this.postRequest<T>(host, method, args, lifecycle.onPosted)
+      this.assertActive()
+      return result
+    })
+  }
+
+  private postRequest<T = void>(
+    host: BackgroundExecHost,
+    method: BackgroundExecRpcMethod,
+    args: unknown[],
+    onPosted?: () => void
+  ): Promise<T> {
     const id = `exec_rpc_${++this.requestId}`
-
-    return await new Promise<T>((resolve, reject) => {
-      this.pendingRequests.set(id, {
-        resolve: (value) => resolve(value as T),
-        reject
-      })
-
-      const payload: BackgroundExecRpcRequest = {
-        type: 'background-exec:request',
-        id,
-        method,
-        args
-      }
-
+    return new Promise<T>((resolve, reject) => {
+      this.pendingRequests.set(id, { resolve: (value) => resolve(value as T), reject })
       try {
-        host.postMessage(payload)
-        lifecycle.onPosted?.()
+        host.postMessage({ type: 'background-exec:request', id, method, args })
+        onPosted?.()
       } catch (error) {
         this.pendingRequests.delete(id)
         reject(error)
@@ -1524,84 +1602,39 @@ class BackgroundExecUtilityProxy {
     })
   }
 
-  private async ensureHost(): Promise<UtilityProcess> {
-    if (this.host) {
-      return this.host
-    }
-    if (this.hostReady) {
-      return await this.hostReady
-    }
-
-    this.shuttingDown = false
-    this.hostReady = this.startHost()
+  private async ensureHost(): Promise<BackgroundExecHost> {
+    this.assertActive()
+    if (this.host) return this.host
+    if (this.hostReady) return this.hostReady
+    const spawning = this.startHost()
+    this.hostReady = spawning
     try {
-      return await this.hostReady
+      return await spawning
     } finally {
-      this.hostReady = null
+      if (this.hostReady === spawning) this.hostReady = null
     }
   }
 
-  private async startHost(): Promise<UtilityProcess> {
-    const { app, utilityProcess } = await import('electron')
-    const modulePath = this.resolveUtilityHostEntryPoint(app.getAppPath())
-    const host = utilityProcess.fork(modulePath, ['--deepchat-exec-utility-host'], {
-      serviceName: 'DeepChat Exec Utility',
-      stdio: 'ignore',
-      env: {
-        ...process.env,
-        DEEPCHAT_EXEC_UTILITY_HOST: '1'
-      }
+  private async startHost(): Promise<BackgroundExecHost> {
+    this.assertActive()
+    const host = await this.spawnHost(this.lifetime.signal)
+    if (this.lifetime.signal.aborted) {
+      host.kill()
+      this.assertActive()
+    }
+    this.host = host
+    host.onMessage((message) => {
+      if (this.host === host) this.handleHostMessage(message)
     })
-
-    host.on('message', (message) => this.handleHostMessage(message))
-    host.on('exit', (code) => this.handleHostExit(code))
-    host.on('error', (type, location) => {
-      logger.error('[BackgroundExecProxy] Utility process error:', { type, location })
+    host.onExit((code) => {
+      if (this.host === host) this.handleHostExit(code)
     })
-
-    return await new Promise<UtilityProcess>((resolve, reject) => {
-      let settled = false
-      const settle = (callback: () => void) => {
-        if (settled) {
-          return
-        }
-        settled = true
-        host.off('spawn', onSpawn)
-        host.off('exit', onExit)
-        callback()
-      }
-      const onSpawn = () => {
-        settle(() => {
-          this.host = host
-          this.scheduleCompletedSessionReconciliation()
-          resolve(host)
-        })
-      }
-      const onExit = (code: number) => {
-        settle(() => {
-          reject(new Error(`Background exec utility process exited before spawn: ${code}`))
-        })
-      }
-
-      host.once('spawn', onSpawn)
-      host.once('exit', onExit)
+    host.onError((type, location) => {
+      if (this.host === host)
+        logger.error('[BackgroundExecProxy] Utility process error:', { type, location })
     })
-  }
-
-  private resolveUtilityHostEntryPoint(appPath?: string): string {
-    const modulePath = fileURLToPath(import.meta.url)
-    const candidates = [
-      ...(appPath
-        ? [
-            path.join(appPath, 'out/main/backgroundExecUtilityHost.js'),
-            path.join(appPath, 'backgroundExecUtilityHost.js')
-          ]
-        : []),
-      path.resolve(path.dirname(modulePath), 'backgroundExecUtilityHost.js'),
-      path.resolve(path.dirname(modulePath), '../backgroundExecUtilityHost.js'),
-      path.resolve(process.cwd(), 'out/main/backgroundExecUtilityHost.js')
-    ]
-    return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0]
+    this.scheduleCompletedSessionReconciliation()
+    return host
   }
 
   private handleHostMessage(message: unknown): void {
@@ -1630,7 +1663,7 @@ class BackgroundExecUtilityProxy {
 
   private handleHostExit(code: number): void {
     const error = new Error(`Background exec utility process exited with code ${code}.`)
-    if (!this.shuttingDown) {
+    if (!this.lifetime.signal.aborted) {
       for (const session of this.activeSessions.values()) {
         this.crashedSessions.set(session.sessionId, {
           ...session,
@@ -1692,6 +1725,7 @@ class BackgroundExecUtilityProxy {
     sessionId: string,
     result: PollResult | LogResult
   ): void {
+    this.assertActive()
     const session = this.activeSessions.get(sessionId)
     if (!session || session.conversationId !== conversationId) {
       return
@@ -1708,6 +1742,7 @@ class BackgroundExecUtilityProxy {
     sessionId: string,
     result: SessionCompletionResult | PollResult | LogResult
   ): void {
+    this.assertActive()
     const session = this.activeSessions.get(sessionId)
     if (!session || session.conversationId !== conversationId || result.status === 'running') {
       return
@@ -1730,7 +1765,7 @@ class BackgroundExecUtilityProxy {
       this.completedSessionReconciliationTimer ||
       this.completedSessions.size === 0 ||
       !this.host ||
-      this.shuttingDown
+      this.lifetime.signal.aborted
     ) {
       return
     }
@@ -1828,5 +1863,3 @@ class BackgroundExecUtilityProxy {
     return `Background exec utility process exited before session ${session.sessionId} completed. The command may have been terminated: ${session.command}`
   }
 }
-
-export const backgroundExecSessionManager = new BackgroundExecUtilityProxy()

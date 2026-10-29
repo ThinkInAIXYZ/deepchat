@@ -2,14 +2,14 @@ import { Tray, Menu, app, nativeImage, NativeImage } from 'electron'
 import * as path from 'path'
 import { getContextMenuLabels } from '@shared/i18n'
 import type { IWindowPresenter } from '@shared/types/desktop'
-import type { DesktopSettings } from './settings'
+import type { DesktopConfigurationProjection } from './configurationProjection'
 
 export class TrayPresenter {
   private tray: Tray | null = null
   private iconPath: string
 
   constructor(
-    private readonly settings: Pick<DesktopSettings, 'getLanguage'>,
+    private readonly settings: Pick<DesktopConfigurationProjection, 'getLanguage'>,
     private readonly windowPresenter: IWindowPresenter
   ) {
     this.iconPath = path.join(app.getAppPath(), 'resources')

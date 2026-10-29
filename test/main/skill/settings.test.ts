@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { app } from 'electron'
 import { SkillSettings } from '@/skill/settings'
 
 describe('SkillSettings', () => {
@@ -12,11 +11,10 @@ describe('SkillSettings', () => {
   beforeEach(() => {
     values.clear()
     vi.clearAllMocks()
-    vi.mocked(app.getPath).mockReturnValue('/home/tester')
   })
 
   it('returns the Skill defaults', () => {
-    const settings = new SkillSettings(store as never)
+    const settings = new SkillSettings(store as never, '/home/tester')
 
     expect(settings.isEnabled()).toBe(true)
     expect(settings.isDraftSuggestionsEnabled()).toBe(false)
@@ -24,10 +22,11 @@ describe('SkillSettings', () => {
   })
 
   it('reads and writes Skill-owned settings', () => {
-    const settings = new SkillSettings(store as never)
+    const settings = new SkillSettings(store as never, '/home/tester')
     const managementState = {
-      version: 2 as const,
-      agents: { deepchat: { skills: {} } }
+      version: 3 as const,
+      skills: {},
+      agents: { deepchat: { bindings: {} } }
     }
     const scanCache = { timestamp: '2026-07-16T00:00:00.000Z', tools: [] }
 
@@ -41,7 +40,7 @@ describe('SkillSettings', () => {
   })
 
   it('freezes legacy Agent migration targets once while preserving v1 state', () => {
-    const settings = new SkillSettings(store as never)
+    const settings = new SkillSettings(store as never, '/home/tester')
     values.set('skills.managementState', {
       version: 1,
       skills: {},

@@ -1,7 +1,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { randomBytes } from 'node:crypto'
-import { app, safeStorage } from 'electron'
+import type { CredentialCryptoPort } from '@/config/secretStore'
 import type {
   OAuthDiscoveryState,
   StoredOAuthClientInformation,
@@ -153,108 +153,149 @@ const isCredentialBinding = (value: unknown): value is McpCredentialBinding => {
   )
 }
 
-const isLinuxBasicTextBackend = (): boolean => {
-  if (process.platform !== 'linux') {
-    return false
-  }
-
-  try {
-    return safeStorage.getSelectedStorageBackend() === 'basic_text'
-  } catch {
-    return true
-  }
-}
+const MAX_PENDING_MUTATIONS = 32
+const MAX_NORMAL_MUTATIONS = 24
 
 export class McpOAuthCredentialStore {
   private readonly filePath: string
+  private readonly crypto: CredentialCryptoPort
   private loaded = false
   private loadFailed = false
+  private loading: Promise<void> | null = null
+  private mutations: Promise<void> = Promise.resolve()
+  private pendingMutations = 0
+  private pendingNormalMutations = 0
+  private generation = 0
+  private stopped = false
   private records: McpCredentialData = {}
 
-  constructor(filePath?: string) {
-    this.filePath = filePath || path.join(app.getPath('userData'), 'mcp-oauth', 'credentials.json')
+  constructor(options: { filePath: string; crypto: CredentialCryptoPort }) {
+    this.filePath = options.filePath
+    this.crypto = options.crypto
   }
 
-  getStorageState(): McpOAuthCredentialStorage {
+  stop(): void {
+    this.stopped = true
+    this.generation++
+    this.records = {}
+  }
+
+  private captureOperation(): () => void {
+    const generation = this.generation
+    const check = () => {
+      if (this.stopped || generation !== this.generation)
+        throw new Error('MCP credential operation interrupted')
+    }
+    check()
+    return check
+  }
+
+  async getStorageState(): Promise<McpOAuthCredentialStorage> {
+    const check = this.captureOperation()
     try {
-      if (!safeStorage.isEncryptionAvailable() || isLinuxBasicTextBackend()) {
-        return 'memory'
-      }
-      return 'safeStorage'
+      const available = await this.crypto.isAvailable()
+      check()
+      return available ? 'safeStorage' : 'memory'
     } catch {
+      check()
       return 'memory'
     }
   }
 
-  isPersistent(): boolean {
-    return this.getStorageState() === 'safeStorage'
+  async isPersistent(): Promise<boolean> {
+    return (await this.getStorageState()) === 'safeStorage'
   }
 
-  load(key: string): McpOAuthCredentialEntry | null {
-    const record = this.loadRecord(key)
-    return record?.credentialClass === 'interactive_oauth' ? record.value : null
-  }
-
-  saveEntry(key: string, entry: Partial<McpOAuthCredentialEntry>): McpOAuthCredentialEntry {
-    const current = this.load(key)
-    const next: McpOAuthCredentialEntry = {
-      ...(current || { updatedAt: Date.now() }),
-      ...entry,
-      updatedAt: Date.now()
-    }
-    this.saveRecord(key, {
-      credentialClass: 'interactive_oauth',
-      value: next
+  load(key: string): Promise<McpOAuthCredentialEntry | null> {
+    return this.read((records) => {
+      const record = records[key]
+      return record?.credentialClass === 'interactive_oauth' ? record.value : null
     })
-    return next
+  }
+
+  saveEntry(
+    key: string,
+    entry: Partial<McpOAuthCredentialEntry>
+  ): Promise<McpOAuthCredentialEntry> {
+    return this.write((records) => {
+      const record = records[key]
+      const current = record?.credentialClass === 'interactive_oauth' ? record.value : undefined
+      const next = { ...current, ...entry, updatedAt: Date.now() }
+      return {
+        records: this.withRecord(records, key, {
+          credentialClass: 'interactive_oauth',
+          value: next
+        }),
+        value: next
+      }
+    })
+  }
+
+  moveInteractiveEntry(
+    fromKey: string,
+    toKey: string,
+    binding: McpCredentialBinding
+  ): Promise<{ key: string; entry: McpOAuthCredentialEntry } | null> {
+    return this.write((records) => {
+      const source = records[fromKey]
+      if (source?.credentialClass !== 'interactive_oauth') return { records, value: null }
+      const target = records[toKey]
+      const entry = {
+        ...(target?.credentialClass === 'interactive_oauth' ? target.value : {}),
+        ...source.value,
+        binding,
+        updatedAt: Date.now()
+      }
+      const next = this.withRecord(records, toKey, {
+        credentialClass: 'interactive_oauth',
+        value: entry
+      })
+      if (fromKey !== toKey) delete next[fromKey]
+      return { records: next, value: { key: toKey, entry } }
+    })
   }
 
   findInteractiveCredential(
     binding: McpCredentialBinding
-  ): { key: string; entry: McpOAuthCredentialEntry } | null {
-    this.ensureLoaded()
-    const matches = Object.entries(this.records).filter(([, record]) => {
-      if (record.credentialClass !== 'interactive_oauth' || !record.value.binding) {
-        return false
-      }
-      const stored = record.value.binding
-      return (
-        stored.serverId === binding.serverId &&
-        stored.configGeneration === binding.configGeneration &&
-        stored.bindingHash === binding.bindingHash &&
-        stored.endpoint === binding.endpoint &&
-        (binding.protectedResourceUrl === undefined ||
-          stored.protectedResourceUrl === binding.protectedResourceUrl) &&
-        (binding.authorizationServerIssuer === undefined ||
-          (stored.authorizationServerIssuer !== undefined &&
-            normalizeMcpOAuthIssuer(stored.authorizationServerIssuer) ===
-              normalizeMcpOAuthIssuer(binding.authorizationServerIssuer))) &&
-        (binding.clientId === undefined || stored.clientId === binding.clientId)
-      )
+  ): Promise<{ key: string; entry: McpOAuthCredentialEntry } | null> {
+    return this.read((records) => {
+      const matches = Object.entries(records).filter(([, record]) => {
+        if (record.credentialClass !== 'interactive_oauth' || !record.value.binding) return false
+        const stored = record.value.binding
+        return (
+          stored.serverId === binding.serverId &&
+          stored.configGeneration === binding.configGeneration &&
+          stored.bindingHash === binding.bindingHash &&
+          stored.endpoint === binding.endpoint &&
+          (binding.protectedResourceUrl === undefined ||
+            stored.protectedResourceUrl === binding.protectedResourceUrl) &&
+          (binding.authorizationServerIssuer === undefined ||
+            (stored.authorizationServerIssuer !== undefined &&
+              normalizeMcpOAuthIssuer(stored.authorizationServerIssuer) ===
+                normalizeMcpOAuthIssuer(binding.authorizationServerIssuer))) &&
+          (binding.clientId === undefined || stored.clientId === binding.clientId)
+        )
+      })
+      if (matches.length !== 1) return null
+      const [key, record] = matches[0]
+      return { key, entry: (record as InteractiveCredentialRecord).value }
     })
-    if (matches.length !== 1) {
-      return null
-    }
-    const [key, record] = matches[0]
-    return {
-      key,
-      entry: (record as InteractiveCredentialRecord).value
-    }
   }
 
   saveClientSecret(
     key: string,
     secret: string,
     binding: McpCredentialBinding
-  ): McpSecretCredential {
+  ): Promise<McpSecretCredential> {
     const value = { secret, binding, updatedAt: Date.now() }
-    this.saveRecord(key, { credentialClass: 'client_secret', value })
-    return value
+    return this.saveRecord(key, { credentialClass: 'client_secret', value })
   }
 
-  loadClientSecret(key: string): McpSecretCredential | null {
-    const record = this.loadRecord(key)
-    return record?.credentialClass === 'client_secret' ? record.value : null
+  loadClientSecret(key: string): Promise<McpSecretCredential | null> {
+    return this.read((records) => {
+      const record = records[key]
+      return record?.credentialClass === 'client_secret' ? record.value : null
+    })
   }
 
   savePrivateKey(
@@ -265,50 +306,47 @@ export class McpOAuthCredentialStore {
       fingerprint: string
       binding: McpCredentialBinding
     }
-  ): McpPrivateKeyCredential {
+  ): Promise<McpPrivateKeyCredential> {
     const value = { ...input, updatedAt: Date.now() }
-    this.saveRecord(key, { credentialClass: 'private_key', value })
-    return value
+    return this.saveRecord(key, { credentialClass: 'private_key', value })
   }
 
-  loadPrivateKey(key: string): McpPrivateKeyCredential | null {
-    const record = this.loadRecord(key)
-    return record?.credentialClass === 'private_key' ? record.value : null
+  loadPrivateKey(key: string): Promise<McpPrivateKeyCredential | null> {
+    return this.read((records) => {
+      const record = records[key]
+      return record?.credentialClass === 'private_key' ? record.value : null
+    })
   }
 
   saveEnterpriseResourceSecret(
     key: string,
     secret: string,
     binding: McpCredentialBinding
-  ): McpSecretCredential {
+  ): Promise<McpSecretCredential> {
     const value = { secret, binding, updatedAt: Date.now() }
-    this.saveRecord(key, {
-      credentialClass: 'enterprise_resource_secret',
-      value
-    })
-    return value
+    return this.saveRecord(key, { credentialClass: 'enterprise_resource_secret', value })
   }
 
-  loadEnterpriseResourceSecret(key: string): McpSecretCredential | null {
-    const record = this.loadRecord(key)
-    return record?.credentialClass === 'enterprise_resource_secret' ? record.value : null
+  loadEnterpriseResourceSecret(key: string): Promise<McpSecretCredential | null> {
+    return this.read((records) => {
+      const record = records[key]
+      return record?.credentialClass === 'enterprise_resource_secret' ? record.value : null
+    })
   }
 
   saveEnterpriseIdentity(
     key: string,
-    value: Omit<McpEnterpriseIdentityCredential, 'updatedAt'>
-  ): McpEnterpriseIdentityCredential {
-    const next = { ...value, updatedAt: Date.now() }
-    this.saveRecord(key, {
-      credentialClass: 'enterprise_identity',
-      value: next
-    })
-    return next
+    input: Omit<McpEnterpriseIdentityCredential, 'updatedAt'>
+  ): Promise<McpEnterpriseIdentityCredential> {
+    const value = { ...input, updatedAt: Date.now() }
+    return this.saveRecord(key, { credentialClass: 'enterprise_identity', value })
   }
 
-  loadEnterpriseIdentity(key: string): McpEnterpriseIdentityCredential | null {
-    const record = this.loadRecord(key)
-    return record?.credentialClass === 'enterprise_identity' ? record.value : null
+  loadEnterpriseIdentity(key: string): Promise<McpEnterpriseIdentityCredential | null> {
+    return this.read((records) => {
+      const record = records[key]
+      return record?.credentialClass === 'enterprise_identity' ? record.value : null
+    })
   }
 
   saveEnterpriseIdentityClientSecret(
@@ -319,214 +357,241 @@ export class McpOAuthCredentialStore {
       clientId: string
       secret: string
     }
-  ): void {
-    this.saveRecord(key, {
+  ): Promise<void> {
+    return this.saveRecord(key, {
       credentialClass: 'enterprise_identity_client_secret',
       value: { ...value, updatedAt: Date.now() }
-    })
+    }).then(() => undefined)
   }
 
-  loadEnterpriseIdentityClientSecret(key: string): string | null {
-    const record = this.loadRecord(key)
-    return record?.credentialClass === 'enterprise_identity_client_secret'
-      ? record.value.secret
-      : null
+  loadEnterpriseIdentityClientSecret(key: string): Promise<string | null> {
+    return this.read((records) => {
+      const record = records[key]
+      return record?.credentialClass === 'enterprise_identity_client_secret'
+        ? record.value.secret
+        : null
+    })
   }
 
   getCredentialRecordStatus(
     key: string,
     kind: McpCredentialKind
-  ): { configured: boolean; updatedAt?: number; fingerprint?: string } {
-    const record = this.loadRecord(key)
-    if (!record || record.credentialClass !== kind) {
-      return { configured: false }
-    }
-
-    return {
-      configured: true,
-      updatedAt: record.value.updatedAt,
-      ...(record.credentialClass === 'private_key' ? { fingerprint: record.value.fingerprint } : {})
-    }
+  ): Promise<{ configured: boolean; updatedAt?: number; fingerprint?: string }> {
+    return this.read((records) => {
+      const record = records[key]
+      if (!record || record.credentialClass !== kind) return { configured: false }
+      return {
+        configured: true,
+        updatedAt: record.value.updatedAt,
+        ...(record.credentialClass === 'private_key'
+          ? { fingerprint: record.value.fingerprint }
+          : {})
+      }
+    })
   }
 
-  clearEntry(key: string): void {
-    this.ensureLoaded()
-    this.assertWritable()
-    if (!this.records[key]) {
-      return
-    }
-    delete this.records[key]
-    this.persist()
+  clearEntry(key: string): Promise<void> {
+    return this.write((records) => {
+      if (!records[key]) return { records, value: undefined }
+      const next = { ...records }
+      delete next[key]
+      return { records: next, value: undefined }
+    }, true)
   }
 
   clearEntryScope(
     key: string,
     scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'
-  ): void {
-    if (scope === 'all') {
-      this.clearEntry(key)
-      return
-    }
+  ): Promise<void> {
+    if (scope === 'all') return this.clearEntry(key)
+    return this.write((records) => {
+      const record = records[key]
+      if (record?.credentialClass !== 'interactive_oauth') return { records, value: undefined }
+      const value = { ...record.value, updatedAt: Date.now() }
+      if (scope === 'client') delete value.clientInformation
+      else if (scope === 'tokens') delete value.tokens
+      else if (scope === 'verifier') delete value.codeVerifier
+      else if (scope === 'discovery') delete value.discoveryState
+      return {
+        records: this.withRecord(records, key, { credentialClass: 'interactive_oauth', value }),
+        value: undefined
+      }
+    }, true)
+  }
 
-    const current = this.load(key)
-    if (!current) {
-      return
-    }
+  clearServerCredentials(serverId: string): Promise<void> {
+    return this.write((records) => {
+      const next = { ...records }
+      for (const [key, record] of Object.entries(records)) {
+        if (
+          (record.credentialClass === 'interactive_oauth' &&
+            record.value.binding?.serverId === serverId) ||
+          ((record.credentialClass === 'client_secret' ||
+            record.credentialClass === 'private_key' ||
+            record.credentialClass === 'enterprise_resource_secret') &&
+            record.value.binding.serverId === serverId)
+        )
+          delete next[key]
+      }
+      return {
+        records: Object.keys(next).length === Object.keys(records).length ? records : next,
+        value: undefined
+      }
+    }, true)
+  }
 
-    const next: McpOAuthCredentialEntry = { ...current, updatedAt: Date.now() }
-    if (scope === 'client') {
-      delete next.clientInformation
-    } else if (scope === 'tokens') {
-      delete next.tokens
-    } else if (scope === 'verifier') {
-      delete next.codeVerifier
-    } else if (scope === 'discovery') {
-      delete next.discoveryState
-    }
+  clearEnterpriseProfileCredentials(profileId: string): Promise<void> {
+    return this.write((records) => {
+      const next = { ...records }
+      for (const [key, record] of Object.entries(records)) {
+        if (
+          (record.credentialClass === 'enterprise_identity' ||
+            record.credentialClass === 'enterprise_identity_client_secret') &&
+          record.value.profileId === profileId
+        )
+          delete next[key]
+      }
+      return {
+        records: Object.keys(next).length === Object.keys(records).length ? records : next,
+        value: undefined
+      }
+    }, true)
+  }
 
-    this.saveRecord(key, {
-      credentialClass: 'interactive_oauth',
-      value: next
+  private async read<T>(select: (records: McpCredentialData) => T): Promise<T> {
+    const check = this.captureOperation()
+    await this.ensureLoaded()
+    await this.mutations
+    check()
+    return select(this.records)
+  }
+
+  private saveRecord<T extends StoredCredentialRecord>(
+    key: string,
+    record: T
+  ): Promise<T['value']> {
+    return this.write<T['value']>((records) => ({
+      records: this.withRecord(records, key, record),
+      value: record.value
+    }))
+  }
+
+  private withRecord(
+    records: McpCredentialData,
+    key: string,
+    record: StoredCredentialRecord
+  ): McpCredentialData {
+    if (!isBoundedString(key, MAX_CREDENTIAL_KEY_BYTES))
+      throw new Error('MCP credential key is invalid')
+    const normalized = this.normalizeRecord(record)
+    if (!normalized) throw new Error('MCP credential record is invalid')
+    return { ...records, [key]: normalized }
+  }
+
+  private async write<T>(
+    mutate: (records: McpCredentialData) => { records: McpCredentialData; value: T },
+    control = false
+  ): Promise<T> {
+    const check = this.captureOperation()
+    if (
+      this.pendingMutations >= MAX_PENDING_MUTATIONS ||
+      (!control && this.pendingNormalMutations >= MAX_NORMAL_MUTATIONS)
+    )
+      return Promise.reject(new Error('MCP credential mutation queue is full'))
+    this.pendingMutations++
+    if (!control) this.pendingNormalMutations++
+    const result = this.mutations.then(async () => {
+      check()
+      await this.ensureLoaded()
+      check()
+      this.assertWritable()
+      const next = mutate(this.records)
+      if (next.records !== this.records) {
+        if (
+          Object.keys(next.records).length > MAX_CREDENTIAL_RECORDS ||
+          Buffer.byteLength(JSON.stringify(next.records), 'utf8') > MAX_CREDENTIAL_PAYLOAD_BYTES
+        )
+          throw new Error('MCP credential store limit exceeded')
+        await this.persist(next.records, check)
+        check()
+        this.records = next.records
+      }
+      return next.value
+    })
+    this.mutations = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result.finally(() => {
+      this.pendingMutations--
+      if (!control) this.pendingNormalMutations--
+      check()
     })
   }
 
-  clearServerCredentials(serverId: string): void {
-    this.ensureLoaded()
-    this.assertWritable()
-    let changed = false
-    for (const [key, record] of Object.entries(this.records)) {
-      if (
-        (record.credentialClass === 'interactive_oauth' &&
-          record.value.binding?.serverId === serverId) ||
-        (record.credentialClass === 'client_secret' &&
-          record.value.binding.serverId === serverId) ||
-        (record.credentialClass === 'private_key' && record.value.binding.serverId === serverId) ||
-        (record.credentialClass === 'enterprise_resource_secret' &&
-          record.value.binding.serverId === serverId)
-      ) {
-        delete this.records[key]
-        changed = true
-      }
-    }
-    if (changed) {
-      this.persist()
-    }
+  private ensureLoaded(): Promise<void> {
+    this.captureOperation()
+    if (this.loaded) return Promise.resolve()
+    if (this.loading) return this.loading
+    const loading = this.loadFile().finally(() => {
+      if (this.loading === loading) this.loading = null
+    })
+    this.loading = loading
+    return loading
   }
 
-  clearEnterpriseProfileCredentials(profileId: string): void {
-    this.ensureLoaded()
-    this.assertWritable()
-    let changed = false
-    for (const [key, record] of Object.entries(this.records)) {
-      if (
-        (record.credentialClass === 'enterprise_identity' ||
-          record.credentialClass === 'enterprise_identity_client_secret') &&
-        record.value.profileId === profileId
-      ) {
-        delete this.records[key]
-        changed = true
-      }
-    }
-    if (changed) {
-      this.persist()
-    }
-  }
-
-  private loadRecord(key: string): StoredCredentialRecord | null {
-    this.ensureLoaded()
-    return this.records[key] || null
-  }
-
-  private saveRecord(key: string, record: StoredCredentialRecord): void {
-    this.ensureLoaded()
-    this.assertWritable()
-    if (!isBoundedString(key, MAX_CREDENTIAL_KEY_BYTES)) {
-      throw new Error('MCP credential key is invalid')
-    }
-    const normalized = this.normalizeRecord(record)
-    if (!normalized) {
-      throw new Error('MCP credential record is invalid')
-    }
-    const next = { ...this.records, [key]: normalized }
-    if (
-      Object.keys(next).length > MAX_CREDENTIAL_RECORDS ||
-      Buffer.byteLength(JSON.stringify(next), 'utf8') > MAX_CREDENTIAL_PAYLOAD_BYTES
-    ) {
-      throw new Error('MCP credential store limit exceeded')
-    }
-    this.records = next
-    this.persist()
-  }
-
-  private ensureLoaded(): void {
-    if (this.loaded) {
-      return
-    }
-    this.loaded = true
-
+  private async loadFile(): Promise<void> {
+    const check = this.captureOperation()
     try {
-      if (!fs.existsSync(this.filePath)) {
-        return
-      }
-
-      if (fs.statSync(this.filePath).size > MAX_CREDENTIAL_FILE_BYTES) {
+      if (!fs.existsSync(this.filePath)) return
+      if (fs.statSync(this.filePath).size > MAX_CREDENTIAL_FILE_BYTES)
         throw new Error('MCP credential file is oversized')
-      }
-      const serializedEnvelope = fs.readFileSync(this.filePath, 'utf-8')
-      if (Buffer.byteLength(serializedEnvelope, 'utf8') > MAX_CREDENTIAL_FILE_BYTES) {
+      const serialized = fs.readFileSync(this.filePath, 'utf8')
+      if (Buffer.byteLength(serialized, 'utf8') > MAX_CREDENTIAL_FILE_BYTES)
         throw new Error('MCP credential file is oversized')
-      }
-      const envelope = JSON.parse(serializedEnvelope) as
+      const envelope = JSON.parse(serialized) as
         | StoredCredentialEnvelopeV1
         | StoredCredentialEnvelopeV2
         | undefined
-      if (!envelope) {
-        return
-      }
-
+      if (!envelope) return
       if (envelope.version === 2 && envelope.storage === 'safeStorage') {
         if (
           !isBoundedString(envelope.wrapped, MAX_CREDENTIAL_FILE_BYTES) ||
           !isTimestamp(envelope.updatedAt)
-        ) {
+        )
           throw new Error('MCP credential envelope is invalid')
-        }
-        if (!this.isPersistent()) {
+        const persistent = await this.isPersistent()
+        check()
+        if (!persistent) {
           fs.unlinkSync(this.filePath)
           return
         }
-        const raw = safeStorage.decryptString(Buffer.from(envelope.wrapped, 'base64'))
-        if (Buffer.byteLength(raw, 'utf8') > MAX_CREDENTIAL_PAYLOAD_BYTES) {
+        const raw = await this.crypto.decrypt(envelope.wrapped)
+        check()
+        if (Buffer.byteLength(raw, 'utf8') > MAX_CREDENTIAL_PAYLOAD_BYTES)
           throw new Error('MCP credential payload is oversized')
+        this.records = this.normalizeRecords(JSON.parse(raw))
+        return
+      }
+      if (envelope.version !== 1) return
+      const persistent = await this.isPersistent()
+      check()
+      let entries: LegacyCredentialData
+      if (envelope.storage === 'safeStorage') {
+        if (!persistent) {
+          fs.unlinkSync(this.filePath)
+          return
         }
-        this.records = this.normalizeRecords(JSON.parse(raw) as McpCredentialData)
-        return
-      }
-
-      if (envelope.version !== 1) {
-        return
-      }
-
-      if (envelope.storage === 'safeStorage' && !this.isPersistent()) {
-        fs.unlinkSync(this.filePath)
-        return
-      }
-
-      const legacyEntries =
-        envelope.storage === 'safeStorage'
-          ? (() => {
-              if (!isBoundedString(envelope.wrapped, MAX_CREDENTIAL_FILE_BYTES)) {
-                throw new Error('Legacy MCP credential envelope is invalid')
-              }
-              const raw = safeStorage.decryptString(Buffer.from(envelope.wrapped, 'base64'))
-              if (Buffer.byteLength(raw, 'utf8') > MAX_CREDENTIAL_PAYLOAD_BYTES) {
-                throw new Error('Legacy MCP credential payload is oversized')
-              }
-              return JSON.parse(raw) as LegacyCredentialData
-            })()
-          : envelope.entries
-      this.records = Object.fromEntries(
-        Object.entries(legacyEntries)
+        if (!isBoundedString(envelope.wrapped, MAX_CREDENTIAL_FILE_BYTES))
+          throw new Error('Legacy MCP credential envelope is invalid')
+        const raw = await this.crypto.decrypt(envelope.wrapped)
+        check()
+        if (Buffer.byteLength(raw, 'utf8') > MAX_CREDENTIAL_PAYLOAD_BYTES)
+          throw new Error('Legacy MCP credential payload is oversized')
+        entries = JSON.parse(raw)
+      } else entries = envelope.entries
+      const records: McpCredentialData = Object.fromEntries(
+        Object.entries(entries)
           .slice(0, MAX_CREDENTIAL_RECORDS)
           .flatMap(([key, value]) => {
             const normalized = this.normalizeInteractiveEntry(value)
@@ -538,56 +603,61 @@ export class McpOAuthCredentialStore {
                       credentialClass: 'interactive_oauth',
                       value: normalized
                     } satisfies InteractiveCredentialRecord
-                  ] as const
+                  ]
                 ]
               : []
           })
       )
-
-      if (this.isPersistent()) {
-        this.persist()
-      } else if (envelope.storage === 'file') {
-        fs.unlinkSync(this.filePath)
-      }
+      if (persistent) await this.persist(records, check)
+      else if (envelope.storage === 'file') fs.unlinkSync(this.filePath)
+      check()
+      this.records = records
     } catch {
+      check()
       this.records = {}
       this.loadFailed = true
+    } finally {
+      if (!this.stopped) this.loaded = true
     }
   }
 
   private assertWritable(): void {
-    if (this.loadFailed) {
-      throw new Error('MCP credential store is unavailable')
-    }
+    if (this.loadFailed) throw new Error('MCP credential store is unavailable')
   }
 
-  private persist(): void {
-    if (!this.isPersistent()) {
+  private async persist(records: McpCredentialData, check: () => void): Promise<void> {
+    const persistent = await this.isPersistent()
+    check()
+    if (!persistent) {
       try {
-        if (fs.existsSync(this.filePath)) {
-          fs.unlinkSync(this.filePath)
-        }
-      } catch {
-        // Credentials remain memory-only when secure persistence is unavailable.
-      }
+        if (fs.existsSync(this.filePath)) fs.unlinkSync(this.filePath)
+      } catch {}
       return
     }
-
-    fs.mkdirSync(path.dirname(this.filePath), { recursive: true, mode: 0o700 })
+    const wrapped = await this.crypto.encrypt(JSON.stringify(this.normalizeRecords(records)))
+    check()
+    if (!isBoundedString(wrapped, MAX_CREDENTIAL_FILE_BYTES))
+      throw new Error('MCP credential envelope is invalid')
     const envelope: StoredCredentialEnvelopeV2 = {
       version: 2,
       storage: 'safeStorage',
-      wrapped: safeStorage
-        .encryptString(JSON.stringify(this.normalizeRecords(this.records)))
-        .toString('base64'),
+      wrapped,
       updatedAt: Date.now()
     }
-    const temporaryPath = `${this.filePath}.tmp-${process.pid}-${randomBytes(6).toString('hex')}`
-    fs.writeFileSync(temporaryPath, JSON.stringify(envelope), {
-      encoding: 'utf-8',
-      mode: 0o600
-    })
-    fs.renameSync(temporaryPath, this.filePath)
+    const serialized = JSON.stringify(envelope)
+    if (Buffer.byteLength(serialized, 'utf8') > MAX_CREDENTIAL_FILE_BYTES)
+      throw new Error('MCP credential file is oversized')
+    fs.mkdirSync(path.dirname(this.filePath), { recursive: true, mode: 0o700 })
+    const temporaryPath =
+      this.filePath + '.tmp-' + process.pid + '-' + randomBytes(6).toString('hex')
+    try {
+      fs.writeFileSync(temporaryPath, serialized, { encoding: 'utf8', mode: 0o600 })
+      fs.renameSync(temporaryPath, this.filePath)
+    } finally {
+      try {
+        fs.rmSync(temporaryPath, { force: true })
+      } catch {}
+    }
   }
 
   private normalizeRecords(records: unknown): McpCredentialData {

@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto'
-import { shell } from 'electron'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type {
   MCPContentItem,
@@ -24,11 +23,13 @@ import type { ToolPermissionBroker } from '@/tool/permission'
 import type {
   McpAppSandboxInstance,
   McpAppSandboxRegistry,
-  McpAppRouteContext
+  McpAppRouteContext,
+  McpAppDesktopPort
 } from './sandboxRegistry'
 import { MCP_APP_SCHEME } from './sandboxRegistry'
 import { assertBoundedMcpJson } from '../schemaValidation'
-import { resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import type { PluginToolPolicyStore } from '@/plugin/toolPolicyStore'
 
 const MCP_APP_RESOURCE_MIME_TYPE = 'text/html;profile=mcp-app'
 const MAX_APP_HTML_BYTES = 2 * 1024 * 1024
@@ -188,10 +189,12 @@ type BoundServer = {
 export class McpAppHost implements McpAppHostPort {
   constructor(
     private readonly deps: {
+      toolPolicies: Pick<PluginToolPolicyStore, 'resolve'>
       settings: McpSettings
       serverManager: ServerManager
       permissionBroker: ToolPermissionBroker
       registry: McpAppSandboxRegistry
+      desktop: McpAppDesktopPort
       ensureServerRunning(serverName: string): Promise<void>
       getPermissionMode(conversationId: string): Promise<PermissionMode>
       validateSource(input: {
@@ -229,59 +232,75 @@ export class McpAppHost implements McpAppHostPort {
     if (!this.deps.validateSource(input)) {
       throw new Error('The MCP App source no longer matches the saved tool result')
     }
-    const bound = await this.resolveBoundServer(input.descriptor)
-    const tools = await bound.client.listTools()
-    await this.assertBoundServerCurrent(input.descriptor, bound)
-    const tool = tools.find((entry) => entry.name === input.descriptor.toolName)
-    if (!tool || getToolUiResourceUri(tool) !== input.descriptor.resourceUri) {
-      throw new Error('MCP App tool declaration no longer matches the saved result')
-    }
+    const creationId = this.deps.registry.reserveCreation(context, input.descriptor.serverId)
+    const signal = this.deps.registry.getCreationSignal(creationId)
+    try {
+      await awaitWithAbort(this.deps.desktop.observeOwner(context), signal)
+      this.deps.registry.assertCreationCurrent(creationId)
+      if (!this.deps.validateSource(input)) {
+        throw new Error('The MCP App source no longer matches the saved tool result')
+      }
+      const bound = await awaitWithAbort(this.resolveBoundServer(input.descriptor), signal)
+      const tools = await awaitWithAbort(bound.client.listTools({ signal }), signal)
+      await awaitWithAbort(this.assertBoundServerCurrent(input.descriptor, bound), signal)
+      const tool = tools.find((entry) => entry.name === input.descriptor.toolName)
+      if (!tool || getToolUiResourceUri(tool) !== input.descriptor.resourceUri) {
+        throw new Error('MCP App tool declaration no longer matches the saved result')
+      }
 
-    const resources = await bound.client.readResourceContents(input.descriptor.resourceUri)
-    await this.assertBoundServerCurrent(input.descriptor, bound)
-    const matching = resources.filter((entry) => entry.uri === input.descriptor.resourceUri)
-    if (matching.length !== 1) {
-      throw new Error('MCP App resource must return exactly one matching content item')
-    }
-    const resource = matching[0]
-    if (resource.mimeType !== MCP_APP_RESOURCE_MIME_TYPE) {
-      throw new Error(`Unsupported MCP App resource MIME type: ${resource.mimeType ?? 'missing'}`)
-    }
+      const resources = await awaitWithAbort(
+        bound.client.readResourceContents(input.descriptor.resourceUri, signal),
+        signal
+      )
+      await awaitWithAbort(this.assertBoundServerCurrent(input.descriptor, bound), signal)
+      const matching = resources.filter((entry) => entry.uri === input.descriptor.resourceUri)
+      if (matching.length !== 1) {
+        throw new Error('MCP App resource must return exactly one matching content item')
+      }
+      const resource = matching[0]
+      if (resource.mimeType !== MCP_APP_RESOURCE_MIME_TYPE) {
+        throw new Error(`Unsupported MCP App resource MIME type: ${resource.mimeType ?? 'missing'}`)
+      }
 
-    const html = decodeResourceHtml(resource)
-    const uiMeta =
-      readUiMeta(resource) ??
-      (await this.findListedResourceUiMeta(bound.client, input.descriptor.resourceUri))
-    await this.assertBoundServerCurrent(input.descriptor, bound)
-    if (!this.deps.validateSource(input)) {
-      throw new Error('The MCP App source no longer matches the saved tool result')
-    }
-    const instance = this.deps.registry.create({
-      context,
-      conversationId: input.conversationId,
-      messageId: input.messageId,
-      blockId: input.blockId,
-      descriptor: { ...input.descriptor, serverName: bound.serverName },
-      toolInput: input.toolInput,
-      html,
-      csp: normalizeCsp(uiMeta?.csp),
-      permissions: normalizePermissions(uiMeta?.permissions),
-      prefersBorder: typeof uiMeta?.prefersBorder === 'boolean' ? uiMeta.prefersBorder : undefined,
-      advisoryDomain: normalizeAdvisoryDomain(uiMeta?.domain),
-      validateLive: () => this.deps.validateSource(input)
-    })
+      const html = decodeResourceHtml(resource)
+      const uiMeta =
+        readUiMeta(resource) ??
+        (await this.findListedResourceUiMeta(bound.client, input.descriptor.resourceUri, signal))
+      await awaitWithAbort(this.assertBoundServerCurrent(input.descriptor, bound), signal)
+      if (!this.deps.validateSource(input)) {
+        throw new Error('The MCP App source no longer matches the saved tool result')
+      }
+      const instance = this.deps.registry.create({
+        creationId,
+        context,
+        conversationId: input.conversationId,
+        messageId: input.messageId,
+        blockId: input.blockId,
+        descriptor: { ...input.descriptor, serverName: bound.serverName },
+        toolInput: input.toolInput,
+        html,
+        csp: normalizeCsp(uiMeta?.csp),
+        permissions: normalizePermissions(uiMeta?.permissions),
+        prefersBorder:
+          typeof uiMeta?.prefersBorder === 'boolean' ? uiMeta.prefersBorder : undefined,
+        advisoryDomain: normalizeAdvisoryDomain(uiMeta?.domain),
+        validateLive: () => this.deps.validateSource(input)
+      })
 
-    return {
-      instanceId: instance.instanceId,
-      sandboxUrl: `${MCP_APP_SCHEME}://${instance.instanceId}/sandbox.html`,
-      html: instance.html,
-      sandbox: 'allow-scripts allow-same-origin',
-      tool,
-      csp: instance.csp,
-      permissions: instance.permissions,
-      prefersBorder: instance.prefersBorder,
-      advisoryDomain: instance.advisoryDomain,
-      expiresAt: instance.expiresAt
+      return {
+        instanceId: instance.instanceId,
+        sandboxUrl: `${MCP_APP_SCHEME}://${instance.instanceId}/sandbox.html`,
+        html: instance.html,
+        sandbox: 'allow-scripts allow-same-origin',
+        tool,
+        csp: instance.csp,
+        permissions: instance.permissions,
+        prefersBorder: instance.prefersBorder,
+        advisoryDomain: instance.advisoryDomain,
+        expiresAt: instance.expiresAt
+      }
+    } finally {
+      this.deps.registry.cancelCreation(creationId)
     }
   }
 
@@ -539,7 +558,7 @@ export class McpAppHost implements McpAppHostPort {
     }
     this.assertLiveInstance(instanceId, context)
     await this.assertDescriptorCurrent(instance.descriptor)
-    await shell.openExternal(normalizedUrl)
+    await this.deps.desktop.openExternal(normalizedUrl, context)
     return true
   }
 
@@ -700,18 +719,19 @@ export class McpAppHost implements McpAppHostPort {
   }
 
   private isToolAllowedByPluginPolicy(serverName: string, toolName: string): boolean {
-    const policy = resolvePluginToolPolicy(serverName, toolName)
+    const policy = this.deps.toolPolicies.resolve(serverName, toolName)
     return !policy.managed || policy.decision === 'allow' || policy.decision === 'ask'
   }
 
   private async findListedResourceUiMeta(
     client: BoundServer['client'],
-    resourceUri: string
+    resourceUri: string,
+    signal: AbortSignal
   ): Promise<Record<string, unknown> | undefined> {
     try {
       let cursor: string | undefined
       for (let page = 0; page < MAX_RESOURCE_LIST_PAGES; page += 1) {
-        const result = await client.listResourcesPage(cursor)
+        const result = await awaitWithAbort(client.listResourcesPage(cursor, signal), signal)
         const resource = result.resources.find((entry) => entry.uri === resourceUri)
         if (resource) {
           return readUiMeta(resource as Resource)
@@ -723,6 +743,7 @@ export class McpAppHost implements McpAppHostPort {
       }
       return undefined
     } catch {
+      signal.throwIfAborted()
       return undefined
     }
   }

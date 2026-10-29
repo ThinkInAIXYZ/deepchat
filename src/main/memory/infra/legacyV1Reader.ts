@@ -1,7 +1,12 @@
 import { DuckDBConnection, DuckDBInstance } from '@duckdb/node-api'
 
 import type { MemoryVectorRecord } from '../types'
-import { escapeDuckDbSqlPath, LegacyVssUnavailableError, loadLegacyVss } from './legacyVssLoader'
+import {
+  escapeDuckDbSqlPath,
+  LegacyVssUnavailableError,
+  loadLegacyVss,
+  type MemoryVectorHost
+} from './legacyVssLoader'
 import { readSafeMemoryVectorRowCount } from './memoryVectorStoreFormat'
 
 const LEGACY_SCHEMA = 'legacy'
@@ -68,14 +73,15 @@ export class LegacyV1Reader {
   static async open(
     legacyPath: string,
     expectedDimensions: number,
-    fence: MigrationAbandonFence
+    fence: MigrationAbandonFence,
+    host: MemoryVectorHost
   ): Promise<LegacyV1Reader> {
     const dbInstance = await DuckDBInstance.create(':memory:')
     fence.markProgress()
     const connection = await dbInstance.connect()
     fence.markProgress()
     try {
-      await loadLegacyVss(connection, legacyPath, fence)
+      await loadLegacyVss(connection, legacyPath, host, fence)
     } catch (error) {
       if (!(error instanceof LegacyVssUnavailableError)) throw error
       fence.assertActive()

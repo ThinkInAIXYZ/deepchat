@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const mockStores = vi.hoisted(() => new Map<string, Record<string, any>>())
+import { createMemoryStore } from '../../helpers/memoryStore'
 
 const clone = <T>(value: T): T => {
   const cloneFn = (globalThis as typeof globalThis & { structuredClone?: (value: T) => T })
@@ -12,39 +12,6 @@ const clone = <T>(value: T): T => {
 
   return JSON.parse(JSON.stringify(value)) as T
 }
-
-vi.mock('electron-store', () => ({
-  default: class MockElectronStore {
-    private readonly data: Record<string, any>
-
-    constructor(options: { name: string; defaults?: Record<string, any> }) {
-      if (!mockStores.has(options.name)) {
-        mockStores.set(options.name, clone(options.defaults ?? {}))
-      }
-      this.data = mockStores.get(options.name)!
-    }
-
-    get(key: string) {
-      return this.data[key]
-    }
-
-    set(key: string | Record<string, any>, value?: any) {
-      if (typeof key === 'string') {
-        this.data[key] = value
-      } else {
-        Object.assign(this.data, key)
-      }
-    }
-
-    delete(key: string) {
-      delete this.data[key]
-    }
-
-    has(key: string) {
-      return key in this.data
-    }
-  }
-}))
 
 const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
 
@@ -75,10 +42,6 @@ const createKnowledgeConfig = (id: string, description = id) => ({
 })
 
 describe('McpSettings', () => {
-  beforeEach(() => {
-    mockStores.clear()
-  })
-
   afterEach(() => {
     vi.clearAllMocks()
     if (originalPlatform) {
@@ -87,8 +50,8 @@ describe('McpSettings', () => {
   })
 
   it('honors an empty legacy enabled set when legacy keys are present', async () => {
-    const { McpSettings } = await loadHelper('darwin')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
     const mcpStore = (helper as any).mcpStore
     const searchConfig = { ...mcpStore.get('mcpServers').bochaSearch }
 
@@ -105,8 +68,8 @@ describe('McpSettings', () => {
   })
 
   it('retires persisted in-memory artifacts without removing external servers', async () => {
-    const { McpSettings } = await loadHelper('darwin')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
     const store = (helper as any).mcpStore
     expect(store.get('mcpServers').Artifacts).toBeUndefined()
     store.set('mcpServers', {
@@ -124,14 +87,16 @@ describe('McpSettings', () => {
   })
 
   it('updates Router credentials through one fallback store write', async () => {
-    const { McpSettings } = await loadHelper('darwin')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
     const servers = {
       router: {
         command: '',
         args: [],
         env: {},
         type: 'http' as const,
+        descriptions: '',
+        icons: '',
         enabled: true,
         customHeaders: {
           Authorization: 'Bearer router-key'
@@ -154,8 +119,8 @@ describe('McpSettings', () => {
   })
 
   it("adds the disabled McDonald's MCP server with a token placeholder for existing users", async () => {
-    const { McpSettings } = await loadHelper('darwin')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
     const mcpStore = (helper as any).mcpStore
 
     mcpStore.set('mcpServers', {})
@@ -173,8 +138,8 @@ describe('McpSettings', () => {
   })
 
   it('adds the disabled You.com search MCP server (keyless free profile) for existing users', async () => {
-    const { McpSettings } = await loadHelper('darwin')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
     const mcpStore = (helper as any).mcpStore
 
     mcpStore.set('mcpServers', {})
@@ -189,8 +154,8 @@ describe('McpSettings', () => {
   })
 
   it('adds the disabled Serply search MCP server with a key placeholder for existing users', async () => {
-    const { McpSettings } = await loadHelper('darwin')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
     const mcpStore = (helper as any).mcpStore
 
     mcpStore.set('mcpServers', {})
@@ -208,8 +173,8 @@ describe('McpSettings', () => {
   })
 
   it('adds the disabled Webz.io news search MCP server with a token placeholder for existing users', async () => {
-    const { McpSettings } = await loadHelper('darwin')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
     const mcpStore = (helper as any).mcpStore
 
     mcpStore.set('mcpServers', {})
@@ -227,8 +192,8 @@ describe('McpSettings', () => {
   })
 
   it('adds the disabled SkyAccess empty leg MCP server (keyless) for existing users', async () => {
-    const { McpSettings } = await loadHelper('darwin')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
     const mcpStore = (helper as any).mcpStore
 
     mcpStore.set('mcpServers', {})
@@ -243,8 +208,8 @@ describe('McpSettings', () => {
   })
 
   it('adds the disabled Cohesivity backend infrastructure MCP server (keyless) for existing users', async () => {
-    const { McpSettings } = await loadHelper('darwin')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
     const mcpStore = (helper as any).mcpStore
 
     mcpStore.set('mcpServers', {})
@@ -259,8 +224,8 @@ describe('McpSettings', () => {
   })
 
   it('adds the disabled Keenable search MCP server (keyless) for existing users', async () => {
-    const { McpSettings } = await loadHelper('darwin')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
     const mcpStore = (helper as any).mcpStore
 
     mcpStore.set('mcpServers', {})
@@ -278,8 +243,8 @@ describe('McpSettings', () => {
   })
 
   it('adds the disabled EvoLink MCP server (OAuth sign-in) for existing users', async () => {
-    const { McpSettings } = await loadHelper('darwin')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
     const mcpStore = (helper as any).mcpStore
 
     mcpStore.set('mcpServers', {})
@@ -295,8 +260,8 @@ describe('McpSettings', () => {
   })
 
   it('adds the disabled deed.page static hosting MCP server (keyless) for existing users', async () => {
-    const { McpSettings } = await loadHelper('darwin')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
     const mcpStore = (helper as any).mcpStore
 
     mcpStore.set('mcpServers', {})
@@ -312,8 +277,8 @@ describe('McpSettings', () => {
   })
 
   it('does not recreate the Apple built-in server after the user removed it', async () => {
-    const { McpSettings } = await loadHelper('darwin')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
     const mcpStore = (helper as any).mcpStore
 
     mcpStore.set('mcpServers', {})
@@ -325,8 +290,8 @@ describe('McpSettings', () => {
   })
 
   it('removes the unpublished Computer Use demo MCP server config', async () => {
-    const { McpSettings } = await loadHelper('darwin')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
     const mcpStore = (helper as any).mcpStore
     const legacyServer = {
       command: '/Applications/DeepChat Computer Use.app/Contents/MacOS/cua-driver',
@@ -365,8 +330,8 @@ describe('McpSettings', () => {
   })
 
   it('migrates legacy builtin knowledge configs out of MCP env', async () => {
-    const { McpSettings } = await loadHelper('win32')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('win32')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
     const mcpStore = (helper as any).mcpStore
     const legacyConfig = createKnowledgeConfig('legacy-knowledge', 'Legacy config')
     const realConfig = createKnowledgeConfig('real-knowledge', 'Real config')
@@ -387,8 +352,8 @@ describe('McpSettings', () => {
   })
 
   it('keeps existing knowledge configs when legacy env has the same id', async () => {
-    const { McpSettings } = await loadHelper('win32')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('win32')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
     const mcpStore = (helper as any).mcpStore
     const realConfig = createKnowledgeConfig('same-id', 'Real config')
     const legacyConfig = createKnowledgeConfig('same-id', 'Legacy config')
@@ -409,8 +374,8 @@ describe('McpSettings', () => {
   })
 
   it('persists batch imported MCP servers', async () => {
-    const { McpSettings } = await loadHelper('darwin')
-    const helper = new McpSettings()
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
 
     const result = await helper.batchImportMcpServers([
       {
@@ -435,4 +400,92 @@ describe('McpSettings', () => {
       })
     )
   })
+
+  it('finalizes OAuth against the current binding while retaining unrelated settings', async () => {
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
+    await helper.addMcpServer('oauth', {
+      type: 'http',
+      baseUrl: 'https://mcp.example/mcp',
+      command: '',
+      args: [],
+      env: {},
+      descriptions: '',
+      icons: '',
+      enabled: false
+    })
+    const initial = (await helper.getMcpServers()).oauth
+    const expected = {
+      serverId: initial.serverId!,
+      configGeneration: initial.configGeneration!,
+      bindingHash: initial.bindingHash!,
+      endpoint: initial.baseUrl!
+    }
+    await helper.updateMcpServer('oauth', { descriptions: 'Current description' })
+    const authorization = {
+      mode: 'interactive' as const,
+      authorizationServerIssuer: 'https://auth.example/',
+      protectedResourceUrl: expected.endpoint,
+      clientId: 'client'
+    }
+    const finalized = helper.finalizeOAuthBinding(expected, authorization)
+    expect(finalized).toMatchObject({
+      descriptions: 'Current description',
+      authorization,
+      configGeneration: expected.configGeneration + 1
+    })
+    expect((await helper.getMcpServers()).oauth).toEqual(finalized)
+    const set = vi.spyOn((helper as any).mcpStore, 'set')
+    expect(
+      helper.finalizeOAuthBinding(
+        {
+          ...expected,
+          configGeneration: finalized.configGeneration!,
+          bindingHash: finalized.bindingHash!
+        },
+        authorization
+      )
+    ).toEqual(finalized)
+    expect(set).not.toHaveBeenCalled()
+  })
+
+  it.each(['replace', 'remove', 'write failure'] as const)(
+    'preserves owner state when OAuth finalization encounters %s',
+    async (change) => {
+      const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+      const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
+      await helper.addMcpServer('oauth', {
+        type: 'http',
+        baseUrl: 'https://mcp.example/mcp',
+        command: '',
+        args: [],
+        env: {},
+        descriptions: '',
+        icons: '',
+        enabled: false
+      })
+      const initial = (await helper.getMcpServers()).oauth
+      const expected = {
+        serverId: initial.serverId!,
+        configGeneration: initial.configGeneration!,
+        bindingHash: initial.bindingHash!,
+        endpoint: initial.baseUrl!
+      }
+      if (change === 'replace')
+        await helper.updateMcpServer('oauth', { baseUrl: 'https://replacement.example/mcp' })
+      if (change === 'remove') await helper.removeMcpServer('oauth')
+      const store = (helper as any).mcpStore
+      const before = clone(store.get('mcpServers'))
+      if (change === 'write failure')
+        vi.spyOn(store, 'set').mockImplementationOnce(() => {
+          throw new Error('write failure')
+        })
+      expect(() =>
+        helper.finalizeOAuthBinding(expected, { mode: 'interactive', clientId: 'discovered' })
+      ).toThrow(
+        change === 'replace' ? 'binding changed' : change === 'remove' ? 'removed' : 'write failure'
+      )
+      expect(store.get('mcpServers')).toEqual(before)
+    }
+  )
 })

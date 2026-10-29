@@ -1,8 +1,4 @@
-import fs from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
-import type { UtilityProcess } from 'electron'
 import type { MCPToolDefinition, MCPToolResponse, ToolDispatchCommitInput } from '@shared/types/mcp'
 import type { ToolCallOptions } from '@shared/types/tool'
 import {
@@ -20,13 +16,25 @@ import { MAX_EXECUTION_JOURNAL_NESTED_CHILDREN } from '@/tape/domain/executionJo
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { normalizeCodexToolName } from './toolModeTools'
 
-type CodeModeUtilityProcess = Pick<UtilityProcess, 'postMessage' | 'kill' | 'pid'> & {
-  on(event: 'message', listener: (message: unknown) => void): CodeModeUtilityProcess
-  on(event: 'exit', listener: (code: number) => void): CodeModeUtilityProcess
-  on(event: 'error', listener: (type: string, location: string) => void): CodeModeUtilityProcess
-  off(event: 'message', listener: (message: unknown) => void): CodeModeUtilityProcess
-  off(event: 'exit', listener: (code: number) => void): CodeModeUtilityProcess
-  off(event: 'error', listener: (type: string, location: string) => void): CodeModeUtilityProcess
+type CodeModeHostEvents = {
+  message: [message: unknown]
+  exit: [code: number]
+  error: [type: string, location: string]
+}
+
+export interface CodeModeHost {
+  readonly pid: number | undefined
+  postMessage(message: RunCodeParentMessage): void
+  kill(): void
+  on<T extends keyof CodeModeHostEvents>(
+    event: T,
+    listener: (...args: CodeModeHostEvents[T]) => void
+  ): void
+  off<T extends keyof CodeModeHostEvents>(
+    event: T,
+    listener: (...args: CodeModeHostEvents[T]) => void
+  ): void
+  getRssBytes(signal: AbortSignal): Promise<number | null>
 }
 
 export interface RunCodeNestedExecutionInput {
@@ -42,7 +50,7 @@ export interface RunCodeRuntimeManagerOptions {
   executeNested(
     input: RunCodeNestedExecutionInput
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
-  spawnHost?: () => Promise<CodeModeUtilityProcess>
+  spawnHost(signal: AbortSignal): Promise<CodeModeHost>
 }
 
 export interface RunCodeExecutionInput {
@@ -107,7 +115,7 @@ type ActiveCell = {
   runId?: string
   outerToolCallId: string
   frontend: RunCodeFrontend
-  host: CodeModeUtilityProcess
+  host: CodeModeHost
   state: CellState
   bindings: Map<
     string,
@@ -136,6 +144,7 @@ type ActiveCell = {
   startupRssBytes: number | null
   heartbeatTimer: NodeJS.Timeout | null
   rssTimer: NodeJS.Timeout | null
+  rssInspection: Promise<void> | null
   executionDeadlineTimer: NodeJS.Timeout | null
   yieldLeaseTimer: NodeJS.Timeout | null
   forceKillTimer: NodeJS.Timeout | null
@@ -252,12 +261,22 @@ export class RunCodeRuntimeManager {
   private readonly cellsById = new Map<string, ActiveCell>()
   private readonly cellsBySession = new Map<string, ActiveCell>()
   private readonly storesBySession = new Map<string, Record<string, unknown>>()
-  private shuttingDown = false
+  private readonly lifetime = new AbortController()
+  private readonly physicalCells = new Set<ActiveCell>()
+  private readonly operations = new Set<Promise<unknown>>()
+  private readonly pendingStarts = new Map<
+    string,
+    {
+      controller: AbortController
+      completion: Promise<{ result: Promise<RunCodeExecutionResult> }>
+    }
+  >()
+  private shutdownPromise: Promise<void> | null = null
 
   constructor(private readonly managerOptions: RunCodeRuntimeManagerOptions) {}
 
   async execute(input: RunCodeExecutionInput): Promise<RunCodeExecutionResult> {
-    if (this.shuttingDown) throw new Error('Code mode runtime is shutting down.')
+    if (this.lifetime.signal.aborted) throw new Error('Code mode runtime is shutting down.')
     input.options.signal?.throwIfAborted()
     assertCompleteJournalCapabilities(input.options)
     if (Buffer.byteLength(input.source, 'utf8') > RUN_CODE_SOURCE_MAX_BYTES) {
@@ -277,10 +296,13 @@ export class RunCodeRuntimeManager {
         this.clearCellLease(existing)
         this.bindAbortSignal(existing, input.options.signal)
         existing.waiter = createDeferred()
-        void this.retryPermissionCall(existing)
+        void this.trackOperation(this.retryPermissionCall(existing))
         return await existing.waiter.promise
       }
       throw new Error(`Session ${input.sessionId} already has an active code cell.`)
+    }
+    if (this.pendingStarts.has(input.sessionId)) {
+      throw new Error(`Session ${input.sessionId} already has a code cell starting.`)
     }
 
     const cellId = randomUUID()
@@ -318,50 +340,74 @@ export class RunCodeRuntimeManager {
       })
     }
 
-    input.options.commitDispatch?.(input.outerDispatch)
-    const host = await this.spawnReadyHost(input.options.signal)
-    if (input.options.signal?.aborted) {
-      try {
-        host.kill()
-      } catch {}
-      input.options.signal.throwIfAborted()
-    }
-
-    const cell = this.createCell({
-      id: cellId,
-      sessionId: input.sessionId,
-      runId: input.runId,
-      outerToolCallId: input.toolCallId,
-      frontend: input.frontend,
-      host,
-      bindings,
-      capabilityHash: canonicalCatalog.fullCatalogHash,
-      yieldTimeMs: input.yieldTimeMs ?? 10_000,
-      maxOutputTokens: input.maxOutputTokens ?? 10_000,
-      timeoutMs: input.timeoutMs ?? RUN_CODE_DEFAULT_TIMEOUT_MS,
-      options: input.options,
-      committedDispatchToolCallId: input.toolCallId
+    const controller = new AbortController()
+    const signal = AbortSignal.any([
+      this.lifetime.signal,
+      controller.signal,
+      ...(input.options.signal ? [input.options.signal] : [])
+    ])
+    const completion = this.trackOperation(
+      Promise.resolve().then(async () => {
+        signal.throwIfAborted()
+        input.options.commitDispatch?.(input.outerDispatch)
+        const host = await this.spawnReadyHost(signal)
+        if (signal.aborted) {
+          host.kill()
+          signal.throwIfAborted()
+        }
+        const cell = this.createCell({
+          id: cellId,
+          sessionId: input.sessionId,
+          runId: input.runId,
+          outerToolCallId: input.toolCallId,
+          frontend: input.frontend,
+          host,
+          bindings,
+          capabilityHash: canonicalCatalog.fullCatalogHash,
+          yieldTimeMs: input.yieldTimeMs ?? 10_000,
+          maxOutputTokens: input.maxOutputTokens ?? 10_000,
+          timeoutMs: input.timeoutMs ?? RUN_CODE_DEFAULT_TIMEOUT_MS,
+          options: input.options,
+          committedDispatchToolCallId: input.toolCallId
+        })
+        const waiter = cell.waiter
+        if (!waiter) throw new Error('Code cell lost its initial result waiter.')
+        void waiter.promise.catch(() => undefined)
+        this.physicalCells.add(cell)
+        this.cellsById.set(cell.id, cell)
+        this.cellsBySession.set(cell.sessionId, cell)
+        try {
+          signal.throwIfAborted()
+          this.attachCell(cell)
+          signal.throwIfAborted()
+          cell.state = 'running'
+          this.post(cell, {
+            type: 'START',
+            version: RUN_CODE_PROTOCOL_VERSION,
+            cellId,
+            frontend: input.frontend,
+            source: input.source,
+            bindings: [...bindings.values()].map(({ binding }) => binding),
+            store: structuredClone(this.storesBySession.get(input.sessionId) ?? {})
+          })
+          this.scheduleYield(cell)
+        } catch (error) {
+          this.failAndCleanup(cell, toError(error))
+          throw error
+        }
+        return { result: waiter.promise }
+      })
+    ).finally(() => {
+      if (this.pendingStarts.get(input.sessionId)?.completion === completion)
+        this.pendingStarts.delete(input.sessionId)
     })
-    this.cellsById.set(cell.id, cell)
-    this.cellsBySession.set(cell.sessionId, cell)
-    this.attachCell(cell)
-    cell.state = 'running'
-    this.post(cell, {
-      type: 'START',
-      version: RUN_CODE_PROTOCOL_VERSION,
-      cellId,
-      frontend: input.frontend,
-      source: input.source,
-      bindings: [...bindings.values()].map(({ binding }) => binding),
-      store: structuredClone(this.storesBySession.get(input.sessionId) ?? {})
-    })
-    this.scheduleYield(cell)
-    const waiter = cell.waiter
-    if (!waiter) throw new Error('Code cell lost its initial result waiter.')
-    return await waiter.promise
+    this.pendingStarts.set(input.sessionId, { controller, completion })
+    const prepared = await awaitWithAbort(completion, signal)
+    return await prepared.result
   }
 
   async wait(input: RunCodeWaitInput): Promise<RunCodeExecutionResult> {
+    this.lifetime.signal.throwIfAborted()
     input.options.signal?.throwIfAborted()
     assertCompleteJournalCapabilities(input.options)
     const cell = this.cellsById.get(input.cellId)
@@ -388,7 +434,7 @@ export class RunCodeRuntimeManager {
       this.clearCellLease(cell)
       this.bindAbortSignal(cell, input.options.signal)
       cell.waiter = createDeferred()
-      void this.retryPermissionCall(cell)
+      void this.trackOperation(this.retryPermissionCall(cell))
       return await cell.waiter.promise
     }
 
@@ -442,23 +488,42 @@ export class RunCodeRuntimeManager {
   }
 
   cancelSession(sessionId: string, reason = 'Session closed.'): void {
+    this.pendingStarts.get(sessionId)?.controller.abort(new Error(reason))
     const cell = this.cellsBySession.get(sessionId)
     if (cell) this.failAndCleanup(cell, new Error(reason))
     this.storesBySession.delete(sessionId)
   }
 
-  async shutdown(): Promise<void> {
-    this.shuttingDown = true
-    const cells = [...this.cellsById.values()]
+  stop(): void {
+    if (this.lifetime.signal.aborted) return
+    this.lifetime.abort(new DOMException('Code mode runtime shut down.', 'AbortError'))
+    for (const cell of this.cellsById.values())
+      this.failAndCleanup(cell, new Error('Code mode runtime shut down.'))
+  }
+
+  shutdown(): Promise<void> {
+    if (this.shutdownPromise) return this.shutdownPromise
+    this.stop()
+    this.shutdownPromise = this.performShutdown()
+    return this.shutdownPromise
+  }
+
+  private async performShutdown(): Promise<void> {
     await Promise.all(
-      cells.map(async (cell) => {
-        this.failAndCleanup(cell, new Error('Code mode runtime shut down.'))
-        await this.waitForExit(cell, STOP_GRACE_MS + 100)
-      })
+      [...this.physicalCells].map((cell) => this.waitForExit(cell, STOP_GRACE_MS + 100))
     )
+    while (this.operations.size) await Promise.allSettled(this.operations)
     this.cellsById.clear()
     this.cellsBySession.clear()
     this.storesBySession.clear()
+  }
+
+  private trackOperation<T>(promise: Promise<T>): Promise<T> {
+    const tracked = promise.finally(() => {
+      this.operations.delete(tracked)
+    })
+    this.operations.add(tracked)
+    return tracked
   }
 
   private createCell(input: {
@@ -467,7 +532,7 @@ export class RunCodeRuntimeManager {
     runId?: string
     outerToolCallId: string
     frontend: RunCodeFrontend
-    host: CodeModeUtilityProcess
+    host: CodeModeHost
     bindings: ActiveCell['bindings']
     yieldTimeMs: number
     maxOutputTokens: number
@@ -496,6 +561,7 @@ export class RunCodeRuntimeManager {
       startupRssBytes: null,
       heartbeatTimer: null,
       rssTimer: null,
+      rssInspection: null,
       executionDeadlineTimer: null,
       yieldLeaseTimer: null,
       forceKillTimer: null,
@@ -620,7 +686,7 @@ export class RunCodeRuntimeManager {
 
   private drainPendingNestedCalls(cell: ActiveCell): void {
     const pending = cell.pendingNestedMessages.splice(0)
-    for (const message of pending) void this.handleNestedCall(cell, message)
+    for (const message of pending) void this.trackOperation(this.handleNestedCall(cell, message))
   }
 
   private flushPendingHostSettlement(cell: ActiveCell): void {
@@ -793,7 +859,7 @@ export class RunCodeRuntimeManager {
         cell.lastHeartbeatAt = Date.now()
         return
       case 'NESTED_CALL':
-        void this.handleNestedCall(cell, message)
+        void this.trackOperation(this.handleNestedCall(cell, message))
         return
       case 'YIELDED':
         if (cell.frontend !== 'codex') {
@@ -963,6 +1029,7 @@ export class RunCodeRuntimeManager {
   }
 
   private detachCell(cell: ActiveCell): void {
+    this.physicalCells.delete(cell)
     if (cell.forceKillTimer) clearTimeout(cell.forceKillTimer)
     cell.forceKillTimer = null
     cell.host.off('message', cell.onMessage)
@@ -1045,45 +1112,49 @@ export class RunCodeRuntimeManager {
   }
 
   private inspectRss(cell: ActiveCell): void {
-    if (!cell.host.pid) return
-    void import('electron')
-      .then(({ app }) => {
-        if (cell.state === 'stopping') return
-        const metric = app.getAppMetrics().find((entry) => entry.pid === cell.host.pid)
-        const rssBytes = metric ? metric.memory.workingSetSize * 1024 : null
-        if (rssBytes === null) return
-        cell.startupRssBytes ??= rssBytes
-        const softLimit = Math.max(RSS_SOFT_MIN_BYTES, cell.startupRssBytes + RSS_SOFT_DELTA_BYTES)
-        if (rssBytes > RSS_HARD_BYTES) {
-          this.failAndCleanup(cell, new Error('Code cell exceeded the 512 MiB RSS limit.'))
-        } else if (rssBytes > softLimit) {
-          console.warn('[RunCodeRuntime] Code cell exceeded the RSS soft ceiling.', {
-            cellId: cell.id,
-            rssBytes,
-            softLimit
-          })
-        }
-      })
-      .catch((error) => {
-        if (cell.state !== 'stopping') {
-          console.warn('[RunCodeRuntime] Failed to inspect utility process RSS.', error)
-        }
-      })
+    const signal = cell.runtimeAbortController.signal
+    if (signal.aborted || cell.rssInspection) return
+    const inspection = this.trackOperation(
+      Promise.resolve()
+        .then(async () => {
+          signal.throwIfAborted()
+          const rssBytes = await cell.host.getRssBytes(signal)
+          if (signal.aborted || rssBytes === null) return
+          if (!Number.isFinite(rssBytes) || rssBytes < 0)
+            throw new Error('Invalid Code Mode RSS sample')
+          cell.startupRssBytes ??= rssBytes
+          const softLimit = Math.max(
+            RSS_SOFT_MIN_BYTES,
+            cell.startupRssBytes + RSS_SOFT_DELTA_BYTES
+          )
+          if (rssBytes > RSS_HARD_BYTES) {
+            this.failAndCleanup(cell, new Error('Code cell exceeded the 512 MiB RSS limit.'))
+          } else if (rssBytes > softLimit) {
+            console.warn('[RunCodeRuntime] Code cell exceeded the RSS soft ceiling.', {
+              cellId: cell.id,
+              rssBytes,
+              softLimit
+            })
+          }
+        })
+        .catch((error) => {
+          if (!signal.aborted)
+            console.warn('[RunCodeRuntime] Failed to inspect utility process RSS.', error)
+        })
+    ).finally(() => {
+      if (cell.rssInspection === inspection) cell.rssInspection = null
+    })
+    cell.rssInspection = inspection
   }
 
-  private async spawnReadyHost(signal?: AbortSignal): Promise<CodeModeUtilityProcess> {
-    signal?.throwIfAborted()
-    const spawning = this.managerOptions.spawnHost
-      ? this.managerOptions.spawnHost()
-      : this.spawnDefaultHost()
-    let host: CodeModeUtilityProcess
-    try {
-      host = await awaitWithAbort(spawning, signal)
-    } catch (error) {
-      void spawning.then((abandonedHost) => abandonedHost.kill()).catch(() => undefined)
-      throw error
+  private async spawnReadyHost(signal: AbortSignal): Promise<CodeModeHost> {
+    signal.throwIfAborted()
+    const host = await this.managerOptions.spawnHost(signal)
+    if (signal.aborted) {
+      host.kill()
+      signal.throwIfAborted()
     }
-    return await new Promise<CodeModeUtilityProcess>((resolve, reject) => {
+    return await new Promise<CodeModeHost>((resolve, reject) => {
       let settled = false
       const settle = (callback: () => void) => {
         if (settled) return
@@ -1108,9 +1179,12 @@ export class RunCodeRuntimeManager {
       const onExit = (code: number) =>
         settle(() => reject(new Error(`Code mode utility exited before ready: ${code}`)))
       const onError = (type: string, location: string) =>
-        settle(() =>
+        settle(() => {
+          try {
+            host.kill()
+          } catch {}
           reject(new Error(`Code mode utility failed before ready: ${type} at ${location}`))
-        )
+        })
       const onAbort = () =>
         settle(() => {
           try {
@@ -1132,41 +1206,6 @@ export class RunCodeRuntimeManager {
       signal?.addEventListener('abort', onAbort, { once: true })
       if (signal?.aborted) onAbort()
     })
-  }
-
-  private async spawnDefaultHost(): Promise<CodeModeUtilityProcess> {
-    const { app, utilityProcess } = await import('electron')
-    const modulePath = this.resolveUtilityHostEntryPoint(app.getAppPath())
-    const env: Record<string, string> = {
-      DEEPCHAT_CODE_MODE_HOST: '1'
-    }
-    for (const name of ['LANG', 'LC_ALL', 'TMPDIR', 'TEMP', 'TMP', 'SystemRoot']) {
-      const value = process.env[name]
-      if (value) env[name] = value
-    }
-    return utilityProcess.fork(modulePath, ['--deepchat-code-mode-host'], {
-      serviceName: 'DeepChat Code Mode Cell',
-      stdio: 'ignore',
-      env,
-      execArgv: ['--max-old-space-size=64'],
-      allowLoadingUnsignedLibraries: false
-    }) as CodeModeUtilityProcess
-  }
-
-  private resolveUtilityHostEntryPoint(appPath?: string): string {
-    const modulePath = fileURLToPath(import.meta.url)
-    const candidates = [
-      ...(appPath
-        ? [
-            path.join(appPath, 'out/main/codeModeUtilityHost.js'),
-            path.join(appPath, 'codeModeUtilityHost.js')
-          ]
-        : []),
-      path.resolve(path.dirname(modulePath), 'codeModeUtilityHost.js'),
-      path.resolve(path.dirname(modulePath), '../../codeModeUtilityHost.js'),
-      path.resolve(process.cwd(), 'out/main/codeModeUtilityHost.js')
-    ]
-    return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0]
   }
 
   private async waitForExit(cell: ActiveCell, timeoutMs: number): Promise<void> {

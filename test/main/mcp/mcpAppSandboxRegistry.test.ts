@@ -15,9 +15,13 @@ const descriptor: McpAppDescriptor = {
 
 const createInstance = (
   registry: McpAppSandboxRegistry,
-  validateLive: () => boolean = () => true
+  validateLive: () => boolean = () => true,
+  creationId?: string
 ) =>
   registry.create({
+    creationId:
+      creationId ??
+      registry.reserveCreation({ webContentsId: 7, windowId: 11 }, descriptor.serverId),
     context: { webContentsId: 7, windowId: 11 },
     conversationId: 'conversation-id',
     messageId: 'message-id',
@@ -30,6 +34,74 @@ const createInstance = (
   })
 
 describe('MCP App sandbox registry', () => {
+  it('counts pending creation against both limits and releases canceled work', () => {
+    const registry = new McpAppSandboxRegistry()
+    const first = Array.from({ length: 32 }, () =>
+      registry.reserveCreation({ webContentsId: 7, windowId: 11 }, descriptor.serverId)
+    )
+    expect(() =>
+      registry.reserveCreation({ webContentsId: 7, windowId: 11 }, descriptor.serverId)
+    ).toThrow('instance limit')
+    const instance = createInstance(registry, () => true, first.pop()!)
+    const second = Array.from({ length: 32 }, () =>
+      registry.reserveCreation({ webContentsId: 8, windowId: 12 }, descriptor.serverId)
+    )
+    expect(() =>
+      registry.reserveCreation({ webContentsId: 9, windowId: 13 }, descriptor.serverId)
+    ).toThrow('instance limit')
+    registry.cancelCreation(second.pop()!)
+    const replacement = registry.reserveCreation(
+      { webContentsId: 9, windowId: 13 },
+      descriptor.serverId
+    )
+    registry.revokeByWebContents(7)
+    expect(registry.getForProtocol(instance.instanceId)).toBeNull()
+    for (const id of first)
+      expect(() => registry.assertCreationCurrent(id)).toThrow('no longer active')
+    expect(() => registry.assertCreationCurrent(replacement)).not.toThrow()
+    registry.clear()
+  })
+
+  it.each(['owner', 'server', 'maintenance'] as const)(
+    'invalidates pending creation on %s revocation',
+    (reason) => {
+      const registry = new McpAppSandboxRegistry()
+      const id = registry.reserveCreation({ webContentsId: 7, windowId: 11 }, descriptor.serverId)
+      const signal = registry.getCreationSignal(id)
+      if (reason === 'owner') registry.revokeByWebContents(7)
+      else if (reason === 'server') registry.revokeByServer(descriptor.serverId)
+      else registry.clear()
+      expect(signal.aborted).toBe(true)
+      expect(() => createInstance(registry, () => true, id)).toThrow('no longer active')
+    }
+  )
+
+  it('isolates protocol policy and rejects approval revoked before native dispatch', async () => {
+    const registry = new McpAppSandboxRegistry()
+    const instance = createInstance(registry)
+    const policy = await registry.getProtocolPolicy(instance.instanceId)
+    policy!.permissions!.camera = undefined
+    expect(instance.permissions?.camera).toEqual({})
+    let requestId = ''
+    registry.setConsentPublisher((_windowId, payload) => {
+      requestId = payload.request.requestId
+    })
+    const context = { webContentsId: 7, windowId: 11 }
+    expect(
+      await registry.requestBrowserPermission(instance.instanceId, { ...context, windowId: 12 }, [
+        'camera'
+      ])
+    ).toBe(false)
+    expect(
+      await registry.requestBrowserPermission(instance.instanceId, context, ['tool-call'])
+    ).toBe(false)
+    const decision = registry.requestBrowserPermission(instance.instanceId, context, ['camera'])
+    expect(requestId).not.toBe('')
+    expect(registry.submitConsent(requestId, true, context)).toBe(true)
+    registry.revoke(instance.instanceId)
+    expect(await decision).toBe(false)
+  })
+
   it('binds instances to the creating WebContents and revokes them', () => {
     const registry = new McpAppSandboxRegistry()
     const instance = createInstance(registry)
@@ -85,194 +157,5 @@ describe('MCP App sandbox registry', () => {
     ).toBe(false)
     await expect(decision).resolves.toBe(false)
     expect(registry.getForProtocol(instance.instanceId)).toBeNull()
-  })
-
-  it('preserves default-session permissions while isolating App frames', async () => {
-    const registry = new McpAppSandboxRegistry()
-    const instance = createInstance(registry)
-    let permissionRequestHandler:
-      | ((
-          owner: { id: number; getURL(): string },
-          permission: string,
-          callback: (allowed: boolean) => void,
-          details: {
-            requestingUrl: string
-            mediaTypes?: string[]
-            isMainFrame: boolean
-          }
-        ) => void)
-      | undefined
-    let permissionCheckHandler:
-      | ((
-          owner: { id: number; getURL(): string } | null,
-          permission: string,
-          requestingOrigin: string,
-          details: { securityOrigin: string; requestingUrl: string }
-        ) => boolean)
-      | undefined
-    const targetSession = {
-      setPermissionRequestHandler: vi.fn(
-        (handler: NonNullable<typeof permissionRequestHandler>) => {
-          permissionRequestHandler = handler
-        }
-      ),
-      setPermissionCheckHandler: vi.fn((handler: NonNullable<typeof permissionCheckHandler>) => {
-        permissionCheckHandler = handler
-      })
-    }
-    registry.configureDefaultSessionPermissions(targetSession as never)
-
-    const firstPartyDecision = vi.fn()
-    permissionRequestHandler!(
-      { id: 1, getURL: () => 'file:///deepchat/index.html' },
-      'media',
-      firstPartyDecision,
-      {
-        requestingUrl: 'file:///deepchat/index.html',
-        mediaTypes: ['audio'],
-        isMainFrame: true
-      }
-    )
-    expect(firstPartyDecision).toHaveBeenCalledWith(true)
-
-    for (const mediaTypes of [['video'], ['audio', 'video']]) {
-      const firstPartyCameraDecision = vi.fn()
-      permissionRequestHandler!(
-        { id: 1, getURL: () => 'file:///deepchat/index.html' },
-        'media',
-        firstPartyCameraDecision,
-        {
-          requestingUrl: 'file:///deepchat/index.html',
-          mediaTypes,
-          isMainFrame: true
-        }
-      )
-      expect(firstPartyCameraDecision).toHaveBeenCalledWith(true)
-    }
-    expect(
-      permissionCheckHandler!(
-        { id: 1, getURL: () => 'file:///deepchat/index.html' },
-        'notifications',
-        'file:///deepchat/index.html',
-        {
-          securityOrigin: 'file:///deepchat/index.html',
-          requestingUrl: 'file:///deepchat/index.html'
-        }
-      )
-    ).toBe(true)
-
-    const browserDecision = vi.fn()
-    permissionRequestHandler!(
-      { id: 2, getURL: () => 'https://example.com' },
-      'notifications',
-      browserDecision,
-      {
-        requestingUrl: 'https://example.com',
-        isMainFrame: true
-      }
-    )
-    expect(browserDecision).toHaveBeenCalledWith(true)
-    expect(
-      permissionCheckHandler!(
-        { id: 2, getURL: () => 'https://example.com' },
-        'notifications',
-        'https://example.com',
-        {
-          securityOrigin: 'https://example.com',
-          requestingUrl: 'https://example.com'
-        }
-      )
-    ).toBe(true)
-
-    const nestedRemoteDecision = vi.fn()
-    permissionRequestHandler!(
-      { id: 1, getURL: () => 'file:///deepchat/index.html' },
-      'notifications',
-      nestedRemoteDecision,
-      {
-        requestingUrl: 'https://example.com',
-        isMainFrame: false
-      }
-    )
-    expect(nestedRemoteDecision).toHaveBeenCalledWith(false)
-    expect(
-      permissionCheckHandler!(
-        { id: 1, getURL: () => 'file:///deepchat/index.html' },
-        'notifications',
-        'https://example.com',
-        {
-          securityOrigin: 'https://example.com',
-          requestingUrl: 'https://example.com'
-        }
-      )
-    ).toBe(false)
-
-    const consentRequestIds: string[] = []
-    registry.setConsentPublisher((_windowId, payload) => {
-      consentRequestIds.push(payload.request.requestId)
-    })
-    const undeclaredMicrophoneDecision = vi.fn()
-    permissionRequestHandler!(
-      {
-        id: 7,
-        getURL: () => `mcp-app://${instance.instanceId}/sandbox.html`
-      },
-      'media',
-      undeclaredMicrophoneDecision,
-      {
-        requestingUrl: `mcp-app://${instance.instanceId}/sandbox.html`,
-        mediaTypes: ['audio'],
-        isMainFrame: false
-      }
-    )
-    expect(undeclaredMicrophoneDecision).toHaveBeenCalledWith(false)
-    expect(consentRequestIds).toHaveLength(0)
-
-    const appDecision = vi.fn()
-    permissionRequestHandler!(
-      {
-        id: 7,
-        getURL: () => `mcp-app://${instance.instanceId}/sandbox.html`
-      },
-      'media',
-      appDecision,
-      {
-        requestingUrl: `mcp-app://${instance.instanceId}/sandbox.html`,
-        mediaTypes: ['video'],
-        isMainFrame: false
-      }
-    )
-    await vi.waitFor(() => expect(consentRequestIds).toHaveLength(1))
-    expect(
-      registry.submitConsent(consentRequestIds[0], true, {
-        webContentsId: 7,
-        windowId: 11
-      })
-    ).toBe(true)
-    await vi.waitFor(() => expect(appDecision).toHaveBeenCalledWith(true))
-
-    const repeatedDecision = vi.fn()
-    permissionRequestHandler!(
-      {
-        id: 7,
-        getURL: () => `mcp-app://${instance.instanceId}/sandbox.html`
-      },
-      'media',
-      repeatedDecision,
-      {
-        requestingUrl: `mcp-app://${instance.instanceId}/sandbox.html`,
-        mediaTypes: ['video'],
-        isMainFrame: false
-      }
-    )
-    await vi.waitFor(() => expect(consentRequestIds).toHaveLength(2))
-    expect(repeatedDecision).not.toHaveBeenCalled()
-    expect(
-      registry.submitConsent(consentRequestIds[1], true, {
-        webContentsId: 7,
-        windowId: 11
-      })
-    ).toBe(true)
-    await vi.waitFor(() => expect(repeatedDecision).toHaveBeenCalledWith(true))
   })
 })

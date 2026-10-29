@@ -1,4 +1,3 @@
-import ElectronStore from 'electron-store'
 import { nanoid } from 'nanoid'
 import type { AcpAgentConfig } from '@shared/types/acp'
 import type {
@@ -10,7 +9,7 @@ import type {
   AcpLegacyBuiltinAgentId,
   AcpManualAgent
 } from '@shared/types/acp'
-import { McpSettings } from '@/mcp/settings'
+import type { McpSettings } from '@/mcp/settings'
 import { ACP_LEGACY_AGENT_ID_ALIASES, resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { StoreLike } from '@/config/storeLike'
 import type { AgentDatabase } from '@/agent/data/database'
@@ -166,23 +165,27 @@ const getActiveLegacyProfile = (agent: AcpBuiltinAgent): AcpAgentProfile | null 
   )
 }
 
+export function createAcpCatalogDefaults(): InternalStore {
+  return {
+    enabled: false,
+    version: ACP_STORE_VERSION,
+    registryStates: {},
+    manualAgents: [],
+    installStates: {},
+    sharedMcpSelections: []
+  }
+}
+
 export class AcpCatalogSettings {
   private store: StoreLike<InternalStore & Record<string, unknown>>
-  private readonly mcpSettings: McpSettings
+  private readonly mcpSettings: Pick<McpSettings, 'getMcpServers'>
 
-  constructor(options: { mcpSettings: McpSettings }) {
+  constructor(options: {
+    mcpSettings: Pick<McpSettings, 'getMcpServers'>
+    store: StoreLike<InternalStore & Record<string, unknown>>
+  }) {
     this.mcpSettings = options.mcpSettings
-    this.store = new ElectronStore<InternalStore>({
-      name: 'acp_agents',
-      defaults: {
-        enabled: false,
-        version: ACP_STORE_VERSION,
-        registryStates: {},
-        manualAgents: [],
-        installStates: {},
-        sharedMcpSelections: []
-      }
-    })
+    this.store = options.store
 
     this.ensureStoreInitialized()
   }
@@ -195,10 +198,9 @@ export class AcpCatalogSettings {
   }
 
   connectDatabase(database: AgentDatabase): void {
-    this.store = new AcpDbStore(
-      this.store as StoreLike<Record<string, unknown>>,
-      () => database.catalogSettingsTable
-    ) as StoreLike<InternalStore & Record<string, unknown>>
+    this.store = new AcpDbStore(this.store.store, () => database.catalogSettingsTable) as StoreLike<
+      InternalStore & Record<string, unknown>
+    >
   }
 
   getGlobalEnabled(): boolean {
@@ -242,36 +244,6 @@ export class AcpCatalogSettings {
     return state ? clone(state) : null
   }
 
-  setAgentEnabled(agentId: string, enabled: boolean): void {
-    const resolvedId = resolveAcpAgentAlias(agentId)
-    const manualAgents = this.getManualAgents()
-    const manualIndex = manualAgents.findIndex((agent) => agent.id === resolvedId)
-    if (manualIndex !== -1) {
-      manualAgents[manualIndex].enabled = enabled
-      this.store.set('manualAgents', manualAgents)
-      return
-    }
-
-    const states = this.getRegistryStates()
-    states[resolvedId] = normalizeRegistryState(resolvedId, states[resolvedId], { enabled })
-    states[resolvedId].enabled = enabled
-    states[resolvedId].updatedAt = Date.now()
-    this.store.set('registryStates', states)
-  }
-
-  setAgentEnvOverride(agentId: string, env: Record<string, string>): void {
-    const resolvedId = resolveAcpAgentAlias(agentId)
-    const states = this.getRegistryStates()
-    states[resolvedId] = normalizeRegistryState(resolvedId, states[resolvedId])
-    states[resolvedId].envOverride = normalizeEnv(env)
-    states[resolvedId].updatedAt = Date.now()
-    this.store.set('registryStates', states)
-  }
-
-  getAgentEnvOverride(agentId: string): Record<string, string> | undefined {
-    return this.getRegistryStates()[resolveAcpAgentAlias(agentId)]?.envOverride
-  }
-
   getManualAgents(): AcpManualAgent[] {
     const raw = this.store.get('manualAgents')
     if (!Array.isArray(raw)) {
@@ -295,78 +267,9 @@ export class AcpCatalogSettings {
     this.store.set('sharedMcpSelections', validated)
   }
 
-  addManualAgent(agent: Omit<AcpManualAgent, 'id' | 'source'> & { id?: string }): AcpManualAgent {
-    const normalized = normalizeManualAgent(
-      {
-        ...agent,
-        id: agent.id ?? nanoid(8)
-      },
-      { enabled: agent.enabled }
-    )
-
-    if (!normalized) {
-      throw new Error('Invalid ACP manual agent payload')
-    }
-
-    const manualAgents = this.getManualAgents()
-    const next = manualAgents.filter((item) => item.id !== normalized.id)
-    next.push(normalized)
-    this.store.set('manualAgents', next)
-    return normalized
-  }
-
-  updateManualAgent(
-    agentId: string,
-    updates: Partial<Omit<AcpManualAgent, 'id' | 'source'>>
-  ): AcpManualAgent | null {
-    const manualAgents = this.getManualAgents()
-    const index = manualAgents.findIndex((agent) => agent.id === agentId)
-    if (index === -1) {
-      return null
-    }
-
-    const normalized = normalizeManualAgent(
-      {
-        ...manualAgents[index],
-        ...updates,
-        id: agentId
-      },
-      { enabled: updates.enabled ?? manualAgents[index].enabled }
-    )
-
-    if (!normalized) {
-      return null
-    }
-
-    manualAgents[index] = normalized
-    this.store.set('manualAgents', manualAgents)
-    return normalized
-  }
-
-  removeManualAgent(agentId: string): boolean {
-    const manualAgents = this.getManualAgents()
-    const next = manualAgents.filter((agent) => agent.id !== agentId)
-    if (next.length === manualAgents.length) {
-      return false
-    }
-    this.store.set('manualAgents', next)
-    return true
-  }
-
   getInstallState(agentId: string): AcpAgentInstallState | null {
     const installStates = this.getInstallStates()
     return installStates[resolveAcpAgentAlias(agentId)] ?? null
-  }
-
-  setInstallState(agentId: string, state: AcpAgentInstallState | null): void {
-    const resolvedId = resolveAcpAgentAlias(agentId)
-    const installStates = this.getInstallStates()
-    if (!state) {
-      delete installStates[resolvedId]
-    } else {
-      installStates[resolvedId] = state
-    }
-    this.store.set('installStates', installStates)
   }
 
   getInstallStates(): Record<string, AcpAgentInstallState> {

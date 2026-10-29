@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import { shell } from 'electron'
+import { readAuthResponse } from '../responseBody'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { XaiGrokAuthStatus } from '@shared/types/xai-grok'
 import {
@@ -37,6 +37,7 @@ type DeviceCodeResponse = {
 }
 
 type PendingDeviceFlow = {
+  generation: number
   cancelled: boolean
   abortController: AbortController
   userCode: string
@@ -136,220 +137,274 @@ export class XaiGrokAuth {
   private pendingDeviceFlow: PendingDeviceFlow | null = null
   private refreshPromise: Promise<XaiGrokTokenSet> | null = null
   private lastError: string | null = null
+  private generation = 0
+  private stopped = false
+  private loginPending = false
+  private publication = 0
+  private readonly requests = new Set<AbortController>()
   private cachedDiscovery: DiscoveryEndpoints | null = null
+  private pendingLoginController: AbortController | null = null
 
   constructor(
-    store = new XaiGrokCredentialStore(),
-    private readonly publishEvent: DeepchatEventPublisher
+    store: XaiGrokCredentialStore,
+    private readonly publishEvent: DeepchatEventPublisher,
+    private readonly openExternal: (url: string) => Promise<void>
   ) {
     this.store = store
   }
 
-  getStatus(): XaiGrokAuthStatus {
-    if (isXaiGrokOAuthDisabled()) {
-      return this.withStorage({
-        state: 'disabled',
-        authenticated: false
-      })
-    }
-
-    if (this.pendingDeviceFlow && !this.pendingDeviceFlow.cancelled) {
-      return this.withStorage({
-        state: 'pending-device',
-        authenticated: false,
-        userCode: this.pendingDeviceFlow.userCode,
-        verificationUri: this.pendingDeviceFlow.verificationUri,
-        verificationUriComplete: this.pendingDeviceFlow.verificationUriComplete,
-        ...(this.lastError ? { error: this.lastError } : {})
-      })
-    }
-
-    const tokens = this.store.load()
-    if (tokens) {
-      return this.statusFromTokens(tokens)
-    }
-
-    const statusError = this.store.getLoadError() ?? this.lastError
-    return this.withStorage({
-      state: statusError ? 'error' : 'signed-out',
-      authenticated: false,
-      ...(statusError ? { error: statusError } : {})
-    })
+  private assertGeneration(generation: number): void {
+    if (this.stopped || generation !== this.generation)
+      throw new DOMException('xAI Grok authentication operation interrupted', 'AbortError')
   }
 
-  isAuthenticated(): boolean {
-    return this.getStatus().authenticated
+  captureOperation(): () => void {
+    const generation = this.generation
+    this.assertGeneration(generation)
+    return () => this.assertGeneration(generation)
   }
 
-  /**
-   * Returns a non-expired cached access token without network I/O.
-   * Prefer ensureAccessToken() when a network refresh is acceptable.
-   */
-  peekAccessToken(): string | null {
-    if (XAI_GROK_ACCESS_TOKEN_ENV) {
-      return XAI_GROK_ACCESS_TOKEN_ENV
-    }
-
-    const tokens = this.store.load()
-    if (!tokens) {
-      return null
-    }
-
-    if (tokens.expiresAt > Date.now() + XAI_GROK_TOKEN_REFRESH_SKEW_MS) {
-      return tokens.accessToken
-    }
-
-    // Still return near-expiry tokens for sync header paths; ensureAccessToken
-    // will refresh on the next async entry point. Never return an expired token,
-    // so API-key fallback remains available if refresh fails.
-    return tokens.expiresAt > Date.now() ? tokens.accessToken : null
+  private invalidate(): void {
+    this.generation++
+    this.refreshPromise = null
+    for (const request of this.requests) request.abort()
   }
 
-  async startDeviceLogin(): Promise<XaiGrokAuthStatus> {
-    this.assertEnabled()
-    this.cancelLogin()
-    this.lastError = null
-
-    const abortController = new AbortController()
-
-    try {
-      const discovery = await this.fetchDiscovery(abortController.signal)
-      const deviceCode = await this.requestDeviceCode(
-        discovery.deviceAuthorizationEndpoint,
-        abortController.signal
-      )
-
-      const flow: PendingDeviceFlow = {
-        cancelled: false,
-        abortController,
-        userCode: deviceCode.userCode,
-        verificationUri: deviceCode.verificationUri,
-        verificationUriComplete: deviceCode.verificationUriComplete
-      }
-      this.pendingDeviceFlow = flow
-
-      const browserUrl = deviceCode.verificationUriComplete || deviceCode.verificationUri
-      try {
-        await shell.openExternal(browserUrl)
-      } catch (error) {
-        logger.warn('[xAI Grok OAuth] Failed to open browser:', sanitizeError(error))
-      }
-
-      flow.flowPromise = this.completeDeviceLogin(flow, discovery, deviceCode)
-      this.publishStatusChanged()
-      return this.getStatus()
-    } catch (error) {
-      this.lastError = sanitizeError(error)
-      this.pendingDeviceFlow = null
-      this.publishStatusChanged()
-      return this.getStatus()
-    }
+  stop(): void {
+    this.stopped = true
+    this.invalidate()
+    this.cancelPendingFlow()
+    this.store.stop()
   }
 
-  cancelLogin(): XaiGrokAuthStatus {
+  private cancelPendingFlow(): void {
+    this.loginPending = false
+    this.pendingLoginController?.abort()
+    this.pendingLoginController = null
     if (this.pendingDeviceFlow) {
       this.pendingDeviceFlow.cancelled = true
       this.pendingDeviceFlow.abortController.abort()
       this.pendingDeviceFlow = null
     }
-    this.publishStatusChanged()
-    return this.getStatus()
+  }
+
+  async getStatus(): Promise<XaiGrokAuthStatus> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const generation = this.generation
+      const check = this.captureOperation()
+      try {
+        const storage = await this.store.getStorageState()
+        check()
+        let status: Omit<XaiGrokAuthStatus, 'storage'>
+        if (isXaiGrokOAuthDisabled()) status = { state: 'disabled', authenticated: false }
+        else if (this.pendingDeviceFlow && !this.pendingDeviceFlow.cancelled)
+          status = {
+            state: 'pending-device',
+            authenticated: false,
+            userCode: this.pendingDeviceFlow.userCode,
+            verificationUri: this.pendingDeviceFlow.verificationUri,
+            verificationUriComplete: this.pendingDeviceFlow.verificationUriComplete,
+            ...(this.lastError ? { error: this.lastError } : {})
+          }
+        else {
+          const tokens = await this.store.load()
+          check()
+          if (tokens)
+            status = {
+              state: 'authenticated',
+              authenticated: true,
+              accountId: maskAccountId(tokens.accountId),
+              accountLabel: tokens.accountLabel,
+
+              expiresAt: tokens.expiresAt
+            }
+          else {
+            const error = this.store.getLoadError() ?? this.lastError
+            status = {
+              state: error ? 'error' : 'signed-out',
+              authenticated: false,
+              ...(error ? { error } : {})
+            }
+          }
+        }
+        check()
+        return { ...status, storage }
+      } catch (error) {
+        if (attempt === 0 && !this.stopped && generation !== this.generation) continue
+        throw error
+      }
+    }
+    throw new DOMException('Provider auth status changed during read', 'AbortError')
+  }
+
+  async cancelLogin(): Promise<XaiGrokAuthStatus> {
+    if (this.loginPending) {
+      this.invalidate()
+      this.cancelPendingFlow()
+    }
+    const check = this.captureOperation()
+    try {
+      await this.publishStatusChanged(check)
+      return await this.getStatus()
+    } finally {
+      check()
+    }
+  }
+
+  async isAuthenticated(): Promise<boolean> {
+    const check = this.captureOperation()
+    try {
+      return (await this.getStatus()).authenticated
+    } finally {
+      check()
+    }
+  }
+
+  async startDeviceLogin(): Promise<XaiGrokAuthStatus> {
+    this.assertEnabled()
+    this.invalidate()
+    this.cancelPendingFlow()
+    this.loginPending = true
+    this.lastError = null
+    const initialGeneration = this.generation
+    const controller = new AbortController()
+    this.pendingLoginController = controller
+    let flow: PendingDeviceFlow | null = null
+    const check = () => this.assertGeneration(flow?.generation ?? initialGeneration)
+    try {
+      const discovery = await this.fetchDiscovery(check, controller.signal)
+      check()
+      const deviceCode = await this.requestDeviceCode(
+        discovery.deviceAuthorizationEndpoint,
+        check,
+        controller.signal
+      )
+      check()
+      flow = {
+        generation: this.generation,
+        cancelled: false,
+        abortController: controller,
+        userCode: deviceCode.userCode,
+        verificationUri: deviceCode.verificationUri,
+        verificationUriComplete: deviceCode.verificationUriComplete
+      }
+      this.pendingDeviceFlow = flow
+      try {
+        await this.openExternal(deviceCode.verificationUriComplete || deviceCode.verificationUri)
+      } catch (error) {
+        check()
+        logger.warn('[xAI Grok OAuth] Failed to open browser:', sanitizeError(error))
+      }
+      check()
+      flow.flowPromise = this.completeDeviceLogin(flow, discovery, deviceCode)
+      await this.publishStatusChanged(check)
+      return await this.getStatus()
+    } catch (error) {
+      controller.abort()
+      check()
+      if (this.pendingLoginController === controller) this.cancelPendingFlow()
+      this.lastError = sanitizeError(error)
+      await this.publishStatusChanged(check)
+      return await this.getStatus()
+    } finally {
+      check()
+    }
   }
 
   async logout(): Promise<XaiGrokAuthStatus> {
-    const tokens = this.store.load()
-    this.cancelLogin()
-    this.store.clear()
-    this.lastError = null
-
-    if (tokens?.refreshToken || tokens?.accessToken) {
-      try {
-        const discovery = await this.fetchDiscovery()
-        if (discovery.revocationEndpoint) {
-          await this.postForm(
-            discovery.revocationEndpoint,
-            {
-              token: tokens.refreshToken || tokens.accessToken,
-              client_id: XAI_GROK_OAUTH_CLIENT_ID
-            },
-            false
-          )
+    this.invalidate()
+    this.cancelPendingFlow()
+    const check = this.captureOperation()
+    try {
+      const tokens = await this.store.load()
+      check()
+      await this.store.clear()
+      check()
+      this.lastError = null
+      const token = tokens?.refreshToken || tokens?.accessToken
+      if (token) {
+        try {
+          const discovery = await this.fetchDiscovery(check)
+          check()
+          if (discovery.revocationEndpoint)
+            await this.postForm(
+              discovery.revocationEndpoint,
+              {
+                token,
+                client_id: XAI_GROK_OAUTH_CLIENT_ID
+              },
+              check,
+              false
+            )
+        } catch (error) {
+          check()
+          logger.warn('[xAI Grok OAuth] Token revoke failed:', sanitizeError(error))
         }
-      } catch (error) {
-        logger.warn('[xAI Grok OAuth] Token revoke failed:', sanitizeError(error))
       }
+      check()
+      await this.publishStatusChanged(check)
+      return await this.getStatus()
+    } finally {
+      check()
     }
-
-    this.publishStatusChanged()
-    return this.getStatus()
   }
 
   async ensureAccessToken(): Promise<string | null> {
-    if (isXaiGrokOAuthDisabled()) {
-      return null
-    }
-
-    if (XAI_GROK_ACCESS_TOKEN_ENV) {
-      return XAI_GROK_ACCESS_TOKEN_ENV
-    }
-
-    const tokens = this.store.load()
-    if (!tokens) {
-      return null
-    }
-
+    const check = this.captureOperation()
     try {
-      const current =
-        tokens.expiresAt > Date.now() + XAI_GROK_TOKEN_REFRESH_SKEW_MS
-          ? tokens
-          : await this.refreshAccessToken(tokens)
-      return current.accessToken
-    } catch (error) {
-      this.lastError = sanitizeError(error)
-      this.publishStatusChanged()
-      throw error
+      if (isXaiGrokOAuthDisabled()) return null
+      if (XAI_GROK_ACCESS_TOKEN_ENV) return XAI_GROK_ACCESS_TOKEN_ENV
+      const tokens = await this.store.load()
+      check()
+      if (!tokens) return null
+      try {
+        const current =
+          tokens.expiresAt > Date.now() + XAI_GROK_TOKEN_REFRESH_SKEW_MS
+            ? tokens
+            : await this.refreshAccessToken(tokens, check)
+        check()
+        return current.accessToken
+      } catch (error) {
+        check()
+        this.lastError = sanitizeError(error)
+        await this.publishStatusChanged(check)
+        throw error
+      }
+    } finally {
+      check()
     }
   }
 
   async getAccessToken(): Promise<string> {
-    const token = await this.ensureAccessToken()
-    if (!token) {
-      throw new Error(this.store.getLoadError() ?? 'xAI Grok OAuth sign-in is required')
+    const check = this.captureOperation()
+    try {
+      const token = await this.ensureAccessToken()
+      check()
+      if (!token) throw new Error(this.store.getLoadError() ?? 'xAI Grok OAuth sign-in is required')
+      return token
+    } finally {
+      check()
     }
-    return token
   }
 
   async forceRefreshAccessToken(): Promise<string> {
-    this.assertEnabled()
-    const tokens = this.store.load()
-    if (!tokens?.refreshToken) {
-      throw new Error(this.store.getLoadError() ?? 'xAI Grok OAuth refresh token is unavailable')
+    const check = this.captureOperation()
+    try {
+      this.assertEnabled()
+      const tokens = await this.store.load()
+      check()
+      if (!tokens?.refreshToken)
+        throw new Error(this.store.getLoadError() ?? 'xAI Grok OAuth refresh token is unavailable')
+      const refreshed = await this.refreshAccessToken(tokens, check, true)
+      check()
+      return refreshed.accessToken
+    } finally {
+      check()
     }
-    const refreshed = await this.refreshAccessToken(tokens, true)
-    return refreshed.accessToken
-  }
-
-  private withStorage(status: Omit<XaiGrokAuthStatus, 'storage'>): XaiGrokAuthStatus {
-    return {
-      ...status,
-      storage: this.store.getStorageState()
-    }
-  }
-
-  private statusFromTokens(tokens: XaiGrokTokenSet): XaiGrokAuthStatus {
-    return this.withStorage({
-      state: 'authenticated',
-      authenticated: true,
-      accountId: maskAccountId(tokens.accountId),
-      accountLabel: tokens.accountLabel,
-      expiresAt: tokens.expiresAt
-    })
   }
 
   private assertEnabled(): void {
-    if (isXaiGrokOAuthDisabled()) {
-      throw new Error('xAI Grok OAuth is disabled by environment')
-    }
+    if (isXaiGrokOAuthDisabled()) throw new Error('xAI Grok OAuth is disabled by environment')
   }
 
   private async completeDeviceLogin(
@@ -357,36 +412,106 @@ export class XaiGrokAuth {
     discovery: DiscoveryEndpoints,
     deviceCode: DeviceCodeResponse
   ): Promise<void> {
+    const check = () => this.assertGeneration(flow.generation)
     try {
+      check()
       const tokens = await this.pollDeviceCodeToken(
         discovery.tokenEndpoint,
         deviceCode,
+        check,
         flow.abortController.signal
       )
-      if (flow.cancelled || this.pendingDeviceFlow !== flow) {
-        return
-      }
-
+      if (flow.cancelled || this.pendingDeviceFlow !== flow) return
+      check()
       const tokenSet = this.parseTokenResponse(tokens, undefined, {
         tokenEndpoint: discovery.tokenEndpoint,
         deviceAuthorizationEndpoint: discovery.deviceAuthorizationEndpoint
       })
-      this.store.save(tokenSet)
+      this.invalidate()
+      flow.generation = this.generation
+      await this.store.save(tokenSet)
+      check()
       this.lastError = null
       this.pendingDeviceFlow = null
-      this.publishStatusChanged()
+      this.pendingLoginController = null
+      this.loginPending = false
+      await this.publishStatusChanged(check)
     } catch (error) {
-      if (flow.cancelled || this.pendingDeviceFlow !== flow) {
+      if (
+        this.stopped ||
+        flow.cancelled ||
+        this.pendingDeviceFlow !== flow ||
+        flow.generation !== this.generation
+      )
         return
-      }
-
       this.lastError = sanitizeError(error)
       this.pendingDeviceFlow = null
-      this.publishStatusChanged()
+      this.pendingLoginController = null
+      this.loginPending = false
+      try {
+        await this.publishStatusChanged(check)
+      } catch (publishError) {
+        if (!this.stopped && flow.generation === this.generation)
+          logger.warn(
+            '[xAI Grok OAuth] Failed to publish auth status:',
+            sanitizeError(publishError)
+          )
+      }
     }
   }
 
-  private async fetchDiscovery(signal?: AbortSignal): Promise<DiscoveryEndpoints> {
+  private async refreshAccessToken(
+    tokens: XaiGrokTokenSet,
+    check: () => void,
+    force = false
+  ): Promise<XaiGrokTokenSet> {
+    check()
+    if (!force && tokens.expiresAt > Date.now() + XAI_GROK_TOKEN_REFRESH_SKEW_MS) return tokens
+    if (this.refreshPromise) return this.refreshPromise
+    const pending = this.refreshAccessTokenOnce(tokens, check).finally(() => {
+      if (this.refreshPromise === pending) this.refreshPromise = null
+    })
+    this.refreshPromise = pending
+    return pending
+  }
+
+  private async refreshAccessTokenOnce(
+    tokens: XaiGrokTokenSet,
+    check: () => void
+  ): Promise<XaiGrokTokenSet> {
+    check()
+    if (!tokens.refreshToken) throw new Error('xAI Grok OAuth refresh token is unavailable')
+    let tokenEndpoint = tokens.tokenEndpoint
+    if (!tokenEndpoint || !isTrustedXaiOAuthEndpoint(tokenEndpoint))
+      tokenEndpoint = (await this.fetchDiscovery(check)).tokenEndpoint
+    check()
+    const payload = await this.postForm(
+      tokenEndpoint,
+      {
+        grant_type: 'refresh_token',
+        client_id: XAI_GROK_OAUTH_CLIENT_ID,
+        refresh_token: tokens.refreshToken
+      },
+      check
+    )
+    check()
+    const refreshed = this.parseTokenResponse(payload, tokens, {
+      tokenEndpoint,
+      deviceAuthorizationEndpoint: tokens.deviceAuthorizationEndpoint
+    })
+    await this.store.save(refreshed)
+    check()
+    this.lastError = null
+    await this.publishStatusChanged(check)
+    check()
+    return refreshed
+  }
+
+  private async fetchDiscovery(
+    check: () => void,
+    signal?: AbortSignal
+  ): Promise<DiscoveryEndpoints> {
+    check()
     if (this.cachedDiscovery) {
       return this.cachedDiscovery
     }
@@ -403,11 +528,13 @@ export class XaiGrokAuth {
       signal
     )
 
+    check()
     if (!response.ok) {
       throw new Error(`xAI OAuth discovery failed: ${await readErrorBody(response)}`)
     }
 
     const payload = (await response.json()) as TokenResponse
+    check()
     const deviceAuthorizationEndpoint = toStringValue(payload.device_authorization_endpoint)
     const tokenEndpoint = toStringValue(payload.token_endpoint)
     if (!deviceAuthorizationEndpoint || !tokenEndpoint) {
@@ -435,8 +562,10 @@ export class XaiGrokAuth {
 
   private async requestDeviceCode(
     deviceAuthorizationEndpoint: string,
+    check: () => void,
     signal?: AbortSignal
   ): Promise<DeviceCodeResponse> {
+    check()
     const response = await this.fetchWithTimeout(
       requireTrustedEndpoint(deviceAuthorizationEndpoint, 'device authorization endpoint'),
       {
@@ -454,11 +583,13 @@ export class XaiGrokAuth {
       signal
     )
 
+    check()
     if (!response.ok) {
       throw new Error(`xAI device code request failed: ${await readErrorBody(response)}`)
     }
 
     const payload = (await response.json()) as TokenResponse
+    check()
     const deviceCode = toStringValue(payload.device_code)
     const userCode = toStringValue(payload.user_code)
     const verificationUri = toStringValue(payload.verification_uri)
@@ -490,12 +621,15 @@ export class XaiGrokAuth {
   private async pollDeviceCodeToken(
     tokenEndpoint: string,
     deviceCode: DeviceCodeResponse,
+    check: () => void,
     signal?: AbortSignal
   ): Promise<TokenResponse> {
+    check()
     const deadlineMs = Date.now() + deviceCode.expiresInMs
     let intervalMs = deviceCode.intervalMs
 
     while (Date.now() < deadlineMs) {
+      check()
       if (signal?.aborted) {
         throw new Error('xAI Grok OAuth login cancelled')
       }
@@ -525,6 +659,7 @@ export class XaiGrokAuth {
         payload = {}
       }
 
+      check()
       if (response.ok) {
         return payload
       }
@@ -555,50 +690,6 @@ export class XaiGrokAuth {
     }
 
     throw new Error('xAI device authorization timed out')
-  }
-
-  private async refreshAccessToken(
-    currentTokens: XaiGrokTokenSet,
-    force = false
-  ): Promise<XaiGrokTokenSet> {
-    if (!force && currentTokens.expiresAt > Date.now() + XAI_GROK_TOKEN_REFRESH_SKEW_MS) {
-      return currentTokens
-    }
-
-    if (this.refreshPromise) {
-      return this.refreshPromise
-    }
-
-    this.refreshPromise = this.refreshAccessTokenOnce(currentTokens).finally(() => {
-      this.refreshPromise = null
-    })
-    return this.refreshPromise
-  }
-
-  private async refreshAccessTokenOnce(currentTokens: XaiGrokTokenSet): Promise<XaiGrokTokenSet> {
-    if (!currentTokens.refreshToken) {
-      throw new Error('xAI Grok OAuth refresh token is unavailable')
-    }
-
-    let tokenEndpoint = currentTokens.tokenEndpoint
-    if (!tokenEndpoint || !isTrustedXaiOAuthEndpoint(tokenEndpoint)) {
-      tokenEndpoint = (await this.fetchDiscovery()).tokenEndpoint
-    }
-
-    const payload = await this.postForm(tokenEndpoint, {
-      grant_type: 'refresh_token',
-      client_id: XAI_GROK_OAUTH_CLIENT_ID,
-      refresh_token: currentTokens.refreshToken
-    })
-
-    const refreshed = this.parseTokenResponse(payload, currentTokens, {
-      tokenEndpoint,
-      deviceAuthorizationEndpoint: currentTokens.deviceAuthorizationEndpoint
-    })
-    this.store.save(refreshed)
-    this.lastError = null
-    this.publishStatusChanged()
-    return refreshed
   }
 
   private parseTokenResponse(
@@ -642,8 +733,10 @@ export class XaiGrokAuth {
   private async postForm(
     url: string,
     params: Record<string, string | undefined>,
+    check: () => void,
     requireOk = true
   ): Promise<TokenResponse> {
+    check()
     const response = await this.fetchWithTimeout(url, {
       method: 'POST',
       headers: {
@@ -653,53 +746,16 @@ export class XaiGrokAuth {
       },
       body: toFormBody(params)
     })
-
+    check()
     if (!response.ok) {
-      if (!requireOk) {
-        return {}
-      }
-      throw new Error(await readErrorBody(response))
+      if (!requireOk) return {}
+      const error = await readErrorBody(response)
+      check()
+      throw new Error(error)
     }
-
-    return (await response.json()) as TokenResponse
-  }
-
-  private async fetchWithTimeout(
-    url: string,
-    init: RequestInit,
-    externalSignal?: AbortSignal
-  ): Promise<Response> {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), XAI_GROK_AUTH_REQUEST_TIMEOUT_MS)
-    const onExternalAbort = () => controller.abort(externalSignal?.reason)
-
-    if (externalSignal) {
-      if (externalSignal.aborted) {
-        controller.abort(externalSignal.reason)
-      } else {
-        externalSignal.addEventListener('abort', onExternalAbort, { once: true })
-      }
-    }
-
-    try {
-      return await fetch(url, {
-        ...init,
-        signal: controller.signal
-      })
-    } catch (error) {
-      if (controller.signal.aborted) {
-        if (externalSignal?.aborted) {
-          throw new Error('xAI Grok OAuth login cancelled')
-        }
-        throw new Error(
-          `xAI Grok OAuth request timed out after ${XAI_GROK_AUTH_REQUEST_TIMEOUT_MS}ms`
-        )
-      }
-      throw error
-    } finally {
-      clearTimeout(timeout)
-      externalSignal?.removeEventListener('abort', onExternalAbort)
-    }
+    const payload = (await response.json()) as TokenResponse
+    check()
+    return payload
   }
 
   private async sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -726,17 +782,59 @@ export class XaiGrokAuth {
     })
   }
 
-  private publishStatusChanged(): void {
-    this.publishEvent('oauth.xaiGrok.statusChanged', {
-      status: this.getStatus(),
-      version: Date.now()
-    })
+  private async fetchWithTimeout(
+    url: string,
+    init: RequestInit,
+    externalSignal?: AbortSignal
+  ): Promise<Response> {
+    const check = this.captureOperation()
+    if (this.requests.size >= 32) throw new Error('xAI Grok auth request limit exceeded')
+    const controller = new AbortController()
+    this.requests.add(controller)
+    const timer = setTimeout(() => controller.abort(), XAI_GROK_AUTH_REQUEST_TIMEOUT_MS)
+    const abort = () => controller.abort(externalSignal?.reason)
+    if (externalSignal?.aborted) abort()
+    else externalSignal?.addEventListener('abort', abort, { once: true })
+    try {
+      controller.signal.throwIfAborted()
+      const response = await fetch(url, { ...init, signal: controller.signal })
+      check()
+      const result = await readAuthResponse(response, controller.signal)
+      check()
+      return result
+    } catch (error) {
+      check()
+      if (controller.signal.aborted) {
+        if (externalSignal?.aborted)
+          throw new DOMException('xAI Grok OAuth login cancelled', 'AbortError')
+        throw new Error(
+          `xAI Grok auth request timed out after ${XAI_GROK_AUTH_REQUEST_TIMEOUT_MS}ms`
+        )
+      }
+      throw error
+    } finally {
+      clearTimeout(timer)
+      externalSignal?.removeEventListener('abort', abort)
+      this.requests.delete(controller)
+    }
+  }
+
+  private async publishStatusChanged(check: () => void): Promise<void> {
+    check()
+    const publication = ++this.publication
+    const status = await this.getStatus()
+    check()
+    if (publication !== this.publication) return
+    this.publishEvent('oauth.xaiGrok.statusChanged', { status, version: Date.now() })
   }
 }
-
-export function initializeGlobalXaiGrokAuth(publishEvent: DeepchatEventPublisher): XaiGrokAuth {
+export function initializeGlobalXaiGrokAuth(
+  publishEvent: DeepchatEventPublisher,
+  store: XaiGrokCredentialStore,
+  openExternal: (url: string) => Promise<void>
+): XaiGrokAuth {
   if (!globalXaiGrokAuth) {
-    globalXaiGrokAuth = new XaiGrokAuth(undefined, publishEvent)
+    globalXaiGrokAuth = new XaiGrokAuth(store, publishEvent, openExternal)
   }
   return globalXaiGrokAuth
 }
@@ -749,6 +847,7 @@ export function getGlobalXaiGrokAuth(): XaiGrokAuth {
 }
 
 export function resetGlobalXaiGrokAuthForTests(): void {
+  globalXaiGrokAuth?.stop()
   globalXaiGrokAuth = null
 }
 

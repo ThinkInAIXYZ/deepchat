@@ -44,6 +44,7 @@ export class KnowledgeService implements KnowledgeServicePort {
    * 知识库存储目录
    */
   private readonly storageDir
+  private readonly extensionDirectory: string
 
   private readonly configPort: KnowledgeServiceDeps['config']
 
@@ -76,6 +77,7 @@ export class KnowledgeService implements KnowledgeServicePort {
     this.embeddingPort = deps.embeddings
     this.events = deps.events
     this.storageDir = path.join(deps.storageRoot, 'KnowledgeBase')
+    this.extensionDirectory = deps.extensionDirectory
     this.taskQueue = new KnowledgeTaskQueue()
     this.knowledgeBases = new Map()
     this.knowledgeBaseInitializations = new Map()
@@ -303,12 +305,12 @@ export class KnowledgeService implements KnowledgeServicePort {
   ): Promise<KnowledgeDatabase> => {
     const dbPath = path.join(this.storageDir, id)
     if (fs.existsSync(dbPath)) {
-      const db = new KnowledgeDatabase(dbPath)
+      const db = new KnowledgeDatabase(dbPath, this.extensionDirectory)
       await db.open()
       return db
     }
     // 如果数据库不存在，则初始化
-    const db = new KnowledgeDatabase(dbPath)
+    const db = new KnowledgeDatabase(dbPath, this.extensionDirectory)
     await db.initialize(dimensions, {
       metric: getMetric(normalized)
     })

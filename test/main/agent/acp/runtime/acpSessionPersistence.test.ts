@@ -1,6 +1,5 @@
 import * as path from 'path'
 import * as fs from 'fs'
-import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import type { AcpSessionEntity } from '@shared/types/acp'
@@ -12,12 +11,6 @@ const createProjectDatabase = () => ({
     syncPath: vi.fn()
   }
 })
-
-vi.mock('electron', () => ({
-  app: {
-    getPath: vi.fn(() => '/home/tester')
-  }
-}))
 
 describe('AcpSessionPersistence remote session sync', () => {
   beforeEach(() => {
@@ -42,10 +35,18 @@ describe('AcpSessionPersistence remote session sync', () => {
       database as never,
       database as never,
       projectDatabase as never,
+      '/home/tester',
       notifyEnvironmentProjectionChanged
     )
 
-    await persistence.saveSessionData('conversation-1', 'agent-1', 'remote-1' as never, null, 'idle', null)
+    await persistence.saveSessionData(
+      'conversation-1',
+      'agent-1',
+      'remote-1' as never,
+      null,
+      'idle',
+      null
+    )
 
     expect(projectDatabase.newEnvironmentsTable.syncPath).toHaveBeenCalledWith('/work/project')
     expect(notifyEnvironmentProjectionChanged).toHaveBeenCalledTimes(1)
@@ -54,19 +55,17 @@ describe('AcpSessionPersistence remote session sync', () => {
   it('falls back from missing persisted workdirs to the default workdir', () => {
     const homeDir = process.cwd()
     const missingDir = path.join(homeDir, 'missing-workdir-for-acp-test')
-    vi.mocked(app.getPath).mockReturnValue(homeDir)
 
     const database = {} as MainDatabase
     const persistence = new AcpSessionPersistence(
       database as never,
       database as never,
-      createProjectDatabase() as never
+      createProjectDatabase() as never,
+      homeDir
     )
 
     expect(persistence.isWorkdirUsable(missingDir)).toBe(false)
     expect(persistence.resolveWorkdir(missingDir)).toBe(homeDir)
-
-    vi.mocked(app.getPath).mockReturnValue('/home/tester')
   })
 
   it('imports remote sessions once and updates the existing link on later syncs', async () => {
@@ -112,7 +111,8 @@ describe('AcpSessionPersistence remote session sync', () => {
     const persistence = new AcpSessionPersistence(
       sqlitePresenter as never,
       sqlitePresenter as never,
-      createProjectDatabase() as never
+      createProjectDatabase() as never,
+      '/home/tester'
     )
     const input = {
       agentId: 'agent-1',
@@ -226,7 +226,8 @@ describe('AcpSessionPersistence remote session sync', () => {
     const persistence = new AcpSessionPersistence(
       sqlitePresenter as never,
       sqlitePresenter as never,
-      createProjectDatabase() as never
+      createProjectDatabase() as never,
+      '/home/tester'
     )
     const input = {
       agentId: 'agent-1',
@@ -296,7 +297,8 @@ describe('AcpSessionPersistence remote session sync', () => {
     const persistence = new AcpSessionPersistence(
       sqlitePresenter as never,
       sqlitePresenter as never,
-      createProjectDatabase() as never
+      createProjectDatabase() as never,
+      '/home/tester'
     )
 
     const result = await persistence.syncRemoteSessions({
@@ -348,7 +350,8 @@ describe('AcpSessionPersistence remote session sync', () => {
     const persistence = new AcpSessionPersistence(
       sqlitePresenter as never,
       sqlitePresenter as never,
-      createProjectDatabase() as never
+      createProjectDatabase() as never,
+      '/home/tester'
     )
 
     await expect(
@@ -435,7 +438,8 @@ describe('AcpSessionPersistence remote session sync', () => {
     const persistence = new AcpSessionPersistence(
       sqlitePresenter as never,
       sqlitePresenter as never,
-      createProjectDatabase() as never
+      createProjectDatabase() as never,
+      '/home/tester'
     )
 
     const firstMerge = persistence.mergeMetadata('conv-1', 'agent-1', { first: true })
@@ -455,7 +459,6 @@ describe('AcpSessionPersistence remote session sync', () => {
   it('keeps remote cwd metadata while using a local fallback for missing imported workdirs', async () => {
     const fallbackDir = process.cwd()
     const remoteMissingDir = path.join(fallbackDir, 'remote-missing')
-    vi.mocked(app.getPath).mockReturnValue(fallbackDir)
 
     const sqlitePresenter = {
       getAcpSessionByAgentAndSessionId: vi.fn(async () => null),
@@ -465,45 +468,42 @@ describe('AcpSessionPersistence remote session sync', () => {
     const persistence = new AcpSessionPersistence(
       sqlitePresenter as never,
       sqlitePresenter as never,
-      createProjectDatabase() as never
+      createProjectDatabase() as never,
+      fallbackDir
     )
 
-    try {
-      await persistence.syncRemoteSessions({
-        agentId: 'agent-1',
-        agentName: 'Agent One',
-        providerId: 'acp',
-        workdir: remoteMissingDir,
-        sessions: [
-          {
-            sessionId: 'remote-1',
-            cwd: remoteMissingDir,
-            title: 'Remote title'
-          }
-        ]
-      })
+    await persistence.syncRemoteSessions({
+      agentId: 'agent-1',
+      agentName: 'Agent One',
+      providerId: 'acp',
+      workdir: remoteMissingDir,
+      sessions: [
+        {
+          sessionId: 'remote-1',
+          cwd: remoteMissingDir,
+          title: 'Remote title'
+        }
+      ]
+    })
 
-      expect(sqlitePresenter.createConversation).toHaveBeenCalledWith(
-        'Remote title',
-        expect.objectContaining({
-          agentWorkspacePath: fallbackDir,
-          acpWorkdirMap: { 'agent-1': fallbackDir }
-        })
-      )
-      expect(sqlitePresenter.upsertAcpSession).toHaveBeenCalledWith(
-        'conv-imported',
-        'agent-1',
-        expect.objectContaining({
-          workdir: fallbackDir,
-          metadata: expect.objectContaining({
-            remoteSession: expect.objectContaining({
-              cwd: remoteMissingDir
-            })
+    expect(sqlitePresenter.createConversation).toHaveBeenCalledWith(
+      'Remote title',
+      expect.objectContaining({
+        agentWorkspacePath: fallbackDir,
+        acpWorkdirMap: { 'agent-1': fallbackDir }
+      })
+    )
+    expect(sqlitePresenter.upsertAcpSession).toHaveBeenCalledWith(
+      'conv-imported',
+      'agent-1',
+      expect.objectContaining({
+        workdir: fallbackDir,
+        metadata: expect.objectContaining({
+          remoteSession: expect.objectContaining({
+            cwd: remoteMissingDir
           })
         })
-      )
-    } finally {
-      vi.mocked(app.getPath).mockReturnValue('/home/tester')
-    }
+      })
+    )
   })
 })

@@ -24,9 +24,6 @@ describe('session boundary composition', () => {
     expect(compositionSource).toMatch(
       /new LegacyChatImportService\([^)]*memoryDatabase,\s*sessionData\.tapeStore/
     )
-    expect(compositionSource).toMatch(
-      /sessionData\.tapeStore,\s*undefined,\s*\(\) => projectService\.notifyEnvironmentProjectionChanged\(\)/
-    )
     expect(compositionSource).toContain(
       'legacyChatImportService.repairImportedLegacySessionSkills(conversationId)'
     )
@@ -184,7 +181,24 @@ describe('session boundary composition', () => {
     )
     expect(destroySource).toContain("'yoBrowserPresenter.shutdown'")
     expect(destroySource).toContain("'tabPresenter.destroy'")
-    expect(destroySource).toContain("'backgroundExecSessionManager.shutdown'")
+    const backgroundDrain = destroySource.indexOf('await backgroundExec.shutdown()')
+    expect(backgroundDrain).toBeGreaterThan(destroyStepIndex('sessionRuntimes.suspend'))
+    expect(backgroundDrain).toBeLessThan(destroyStepIndex('skillService.destroy'))
+    expect(backgroundDrain).toBeLessThan(destroyStepIndex('mainDatabase.close'))
+    const codeDrain = destroySource.indexOf('await toolService.shutdownCodeRuntime()')
+    expect(codeDrain).toBeGreaterThan(backgroundDrain)
+    expect(codeDrain).toBeLessThan(destroyStepIndex('skillService.destroy'))
+    expect(codeDrain).toBeLessThan(destroyStepIndex('mainDatabase.close'))
+    expect(compositionSource).toContain('backgroundExec.stop()')
+    const shutdownSource = compositionSource.slice(
+      compositionSource.indexOf('const shutdownCoordinator =')
+    )
+    expect(shutdownSource.indexOf('deepChatAgentHarness.abortGenerations()')).toBeLessThan(
+      shutdownSource.indexOf('backgroundExec.stop()')
+    )
+    expect(shutdownSource.indexOf('toolService.stopCodeRuntime()')).toBeGreaterThan(
+      shutdownSource.indexOf('deepChatAgentHarness.abortGenerations()')
+    )
     expect(destroyStepIndex('windowPresenter.destroyWindows')).toBeLessThan(
       destroyStepIndex('mainDatabase.close')
     )

@@ -1,4 +1,3 @@
-import { shell } from 'electron'
 import type {
   OAuthClientInformationContext,
   OAuthClientMetadata,
@@ -13,6 +12,8 @@ import { normalizeMcpOAuthIssuer, type McpOAuthCredentialStore } from './oauthCr
 
 export type DeepChatMcpOAuthProviderOptions = {
   store: McpOAuthCredentialStore
+  openExternal(url: string): Promise<void>
+  assertActive(): void
   binding: McpCredentialBinding
   credentialKey(binding: McpCredentialBinding): string
   initialCredentialKey?: string
@@ -40,6 +41,12 @@ export class DeepChatMcpOAuthProvider implements OAuthClientProvider {
   private readonly interactive: boolean
   private activeBinding: McpCredentialBinding
   private activeCredentialKey: string
+  private operations: Promise<void> = Promise.resolve()
+  private pending = 0
+  private pendingNormal = 0
+  private callbackValidation: { issuer?: string; issParameterSupported: boolean } = {
+    issParameterSupported: false
+  }
 
   constructor(private readonly options: DeepChatMcpOAuthProviderOptions) {
     this.store = options.store
@@ -74,158 +81,189 @@ export class DeepChatMcpOAuthProvider implements OAuthClientProvider {
 
   clientInformation(
     context?: OAuthClientInformationContext
-  ): StoredOAuthClientInformation | undefined {
-    return this.loadForContext(context)?.clientInformation
+  ): Promise<StoredOAuthClientInformation | undefined> {
+    return this.perform(async () => (await this.loadForContext(context))?.clientInformation)
   }
 
   saveClientInformation(
     clientInformation: StoredOAuthClientInformation,
     context?: OAuthClientInformationContext
-  ): void {
-    this.activateContext(context)
-    this.moveActiveEntry({
-      ...this.activeBinding,
-      clientId: clientInformation.client_id
-    })
-    this.store.saveEntry(this.activeCredentialKey, {
-      clientInformation,
-      binding: this.activeBinding
-    })
-  }
-
-  tokens(context?: OAuthClientInformationContext): StoredOAuthTokens | undefined {
-    return this.loadForContext(context)?.tokens
-  }
-
-  saveTokens(tokens: StoredOAuthTokens, context?: OAuthClientInformationContext): void {
-    this.activateContext(context)
-    this.store.saveEntry(this.activeCredentialKey, {
-      tokens,
-      binding: this.activeBinding
+  ): Promise<void> {
+    return this.perform(async () => {
+      await this.activateContext(context)
+      await this.moveActiveEntry({ ...this.activeBinding, clientId: clientInformation.client_id })
+      this.options.assertActive()
+      await this.store.saveEntry(this.activeCredentialKey, {
+        clientInformation,
+        binding: this.activeBinding
+      })
     })
   }
 
-  async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
-    if (!this.interactive) {
-      throw new Error('MCP OAuth authentication is required')
+  tokens(context?: OAuthClientInformationContext): Promise<StoredOAuthTokens | undefined> {
+    return this.perform(async () => (await this.loadForContext(context))?.tokens)
+  }
+
+  saveTokens(tokens: StoredOAuthTokens, context?: OAuthClientInformationContext): Promise<void> {
+    return this.perform(async () => {
+      await this.activateContext(context)
+      this.options.assertActive()
+      await this.store.saveEntry(this.activeCredentialKey, { tokens, binding: this.activeBinding })
+    })
+  }
+
+  redirectToAuthorization(authorizationUrl: URL): Promise<void> {
+    return this.perform(async () => {
+      if (!this.interactive) throw new Error('MCP OAuth authentication is required')
+      if (
+        authorizationUrl.protocol !== 'https:' &&
+        !(authorizationUrl.protocol === 'http:' && isLoopbackHost(authorizationUrl.hostname))
+      )
+        throw new Error('MCP OAuth authorization URL must use HTTPS or loopback HTTP')
+      await this.options.openExternal(authorizationUrl.toString())
+    })
+  }
+
+  saveCodeVerifier(codeVerifier: string): Promise<void> {
+    return this.perform(async () => {
+      this.options.assertActive()
+      await this.store.saveEntry(this.activeCredentialKey, {
+        codeVerifier,
+        binding: this.activeBinding
+      })
+    })
+  }
+
+  codeVerifier(): Promise<string> {
+    return this.perform(async () => {
+      const verifier = (await this.store.load(this.activeCredentialKey))?.codeVerifier
+      if (!verifier) throw new Error('MCP OAuth code verifier is unavailable')
+      return verifier
+    })
+  }
+
+  invalidateCredentials(
+    scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'
+  ): Promise<void> {
+    return this.perform(async () => {
+      await this.store.clearEntryScope(this.activeCredentialKey, scope)
+    }, true)
+  }
+
+  saveDiscoveryState(state: OAuthDiscoveryState): Promise<void> {
+    return this.perform(async () => {
+      await this.moveActiveEntry({
+        ...this.activeBinding,
+        authorizationServerIssuer: discoveryIssuer(state),
+        protectedResourceUrl: discoveryResource(state, this.activeBinding.protectedResourceUrl)
+      })
+      this.options.assertActive()
+      await this.store.saveEntry(this.activeCredentialKey, {
+        discoveryState: state,
+        binding: this.activeBinding
+      })
+      this.options.assertActive()
+      this.rememberCallbackValidation(state)
+    })
+  }
+
+  discoveryState(): Promise<OAuthDiscoveryState | undefined> {
+    return this.perform(async () => {
+      const state = (await this.store.load(this.activeCredentialKey))?.discoveryState
+      this.options.assertActive()
+      this.rememberCallbackValidation(state)
+      return state
+    })
+  }
+
+  getCallbackValidation(): { issuer?: string; issParameterSupported: boolean } {
+    this.options.assertActive()
+    return { ...this.callbackValidation }
+  }
+
+  private rememberCallbackValidation(state?: OAuthDiscoveryState): void {
+    this.callbackValidation = {
+      issuer: state?.authorizationServerMetadata?.issuer || state?.authorizationServerUrl,
+      issParameterSupported:
+        state?.authorizationServerMetadata?.authorization_response_iss_parameter_supported === true
     }
-    if (
-      authorizationUrl.protocol !== 'https:' &&
-      !(authorizationUrl.protocol === 'http:' && isLoopbackHost(authorizationUrl.hostname))
-    ) {
-      throw new Error('MCP OAuth authorization URL must use HTTPS or loopback HTTP')
-    }
-
-    await shell.openExternal(authorizationUrl.toString())
-  }
-
-  saveCodeVerifier(codeVerifier: string): void {
-    this.store.saveEntry(this.activeCredentialKey, {
-      codeVerifier,
-      binding: this.activeBinding
-    })
-  }
-
-  codeVerifier(): string {
-    const codeVerifier = this.store.load(this.activeCredentialKey)?.codeVerifier
-    if (!codeVerifier) {
-      throw new Error('MCP OAuth code verifier is unavailable')
-    }
-    return codeVerifier
-  }
-
-  invalidateCredentials(scope: 'all' | 'client' | 'tokens' | 'verifier' | 'discovery'): void {
-    this.store.clearEntryScope(this.activeCredentialKey, scope)
-  }
-
-  saveDiscoveryState(state: OAuthDiscoveryState): void {
-    const nextBinding: McpCredentialBinding = {
-      ...this.activeBinding,
-      authorizationServerIssuer: discoveryIssuer(state),
-      protectedResourceUrl: discoveryResource(state, this.activeBinding.protectedResourceUrl)
-    }
-    this.moveActiveEntry(nextBinding)
-    this.store.saveEntry(this.activeCredentialKey, {
-      discoveryState: state,
-      binding: this.activeBinding
-    })
-  }
-
-  discoveryState(): OAuthDiscoveryState | undefined {
-    return this.store.load(this.activeCredentialKey)?.discoveryState
   }
 
   getBinding(): McpCredentialBinding {
+    this.options.assertActive()
     return { ...this.activeBinding }
   }
 
-  rebind(binding: McpCredentialBinding): void {
-    this.moveActiveEntry(binding)
+  rebind(binding: McpCredentialBinding): Promise<void> {
+    return this.perform(() => this.moveActiveEntry(binding))
   }
 
-  private loadForContext(context?: OAuthClientInformationContext) {
-    if (!context) {
-      return this.store.load(this.activeCredentialKey) || undefined
-    }
+  private async perform<T>(operation: () => Promise<T>, control = false): Promise<T> {
+    this.options.assertActive()
+    if (this.pending >= 32 || (!control && this.pendingNormal >= 24))
+      return Promise.reject(new Error('MCP OAuth provider operation queue is full'))
+    this.pending++
+    if (!control) this.pendingNormal++
+    const result = this.operations.then(async () => {
+      this.options.assertActive()
+      const value = await operation()
+      this.options.assertActive()
+      return value
+    })
+    this.operations = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result.finally(() => {
+      this.pending--
+      if (!control) this.pendingNormal--
+      this.options.assertActive()
+    })
+  }
 
+  private async loadForContext(context?: OAuthClientInformationContext) {
+    if (!context)
+      return this.store.load(this.activeCredentialKey).then((value) => value || undefined)
     const contextIssuer = normalizeMcpOAuthIssuer(context.issuer)
-    const contextualBinding = {
-      ...this.activeBinding,
-      authorizationServerIssuer: contextIssuer
-    }
-    const contextualKey = this.options.credentialKey(contextualBinding)
-    const contextual = this.store.load(contextualKey)
+    const binding = { ...this.activeBinding, authorizationServerIssuer: contextIssuer }
+    const key = this.options.credentialKey(binding)
+    const contextual = await this.store.load(key)
+    this.options.assertActive()
     if (contextual) {
-      this.activeBinding = contextualBinding
-      this.activeCredentialKey = contextualKey
+      this.activeBinding = binding
+      this.activeCredentialKey = key
       return contextual
     }
-
-    const active = this.store.load(this.activeCredentialKey)
-    const storedIssuer =
+    const active = await this.store.load(this.activeCredentialKey)
+    this.options.assertActive()
+    const issuer =
       active?.binding?.authorizationServerIssuer ||
       active?.discoveryState?.authorizationServerMetadata?.issuer ||
       active?.discoveryState?.authorizationServerUrl ||
       active?.tokens?.issuer ||
       active?.clientInformation?.issuer
-    if (active && storedIssuer && normalizeMcpOAuthIssuer(storedIssuer) === contextIssuer) {
-      this.moveActiveEntry(contextualBinding)
-      return this.store.load(this.activeCredentialKey) || undefined
+    if (active && issuer && normalizeMcpOAuthIssuer(issuer) === contextIssuer) {
+      await this.moveActiveEntry(binding)
+      return (await this.store.load(this.activeCredentialKey)) || undefined
     }
-
     return undefined
   }
 
-  private activateContext(context?: OAuthClientInformationContext): void {
-    if (!context) {
-      return
-    }
-    const contextIssuer = normalizeMcpOAuthIssuer(context.issuer)
-    if (this.activeBinding.authorizationServerIssuer === contextIssuer) {
-      return
-    }
-    this.moveActiveEntry({
-      ...this.activeBinding,
-      authorizationServerIssuer: contextIssuer
-    })
+  private async activateContext(context?: OAuthClientInformationContext): Promise<void> {
+    this.options.assertActive()
+    if (!context) return
+    const issuer = normalizeMcpOAuthIssuer(context.issuer)
+    if (this.activeBinding.authorizationServerIssuer !== issuer)
+      await this.moveActiveEntry({ ...this.activeBinding, authorizationServerIssuer: issuer })
   }
 
-  private moveActiveEntry(nextBinding: McpCredentialBinding): void {
-    const nextKey = this.options.credentialKey(nextBinding)
-    if (nextKey === this.activeCredentialKey) {
-      this.activeBinding = nextBinding
-      return
-    }
-
-    const current = this.store.load(this.activeCredentialKey)
-    if (current) {
-      this.store.saveEntry(nextKey, {
-        ...current,
-        binding: nextBinding
-      })
-      this.store.clearEntry(this.activeCredentialKey)
-    }
-    this.activeBinding = nextBinding
-    this.activeCredentialKey = nextKey
+  private async moveActiveEntry(binding: McpCredentialBinding): Promise<void> {
+    this.options.assertActive()
+    const key = this.options.credentialKey(binding)
+    if (key !== this.activeCredentialKey)
+      await this.store.moveInteractiveEntry(this.activeCredentialKey, key, binding)
+    this.options.assertActive()
+    this.activeBinding = binding
+    this.activeCredentialKey = key
   }
 }

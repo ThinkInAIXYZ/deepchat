@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '@shared/types/provider'
@@ -137,7 +138,11 @@ describe('AiSdkProvider kimi-for-coding', () => {
       ]
     })
 
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     const models = await provider.fetchModels()
 
     expect(mockGetProvider).toHaveBeenCalledWith('kimi-for-coding')
@@ -154,7 +159,11 @@ describe('AiSdkProvider kimi-for-coding', () => {
   })
 
   it('verifies Kimi For Coding with a small generate-text request', async () => {
-    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
+    const provider = new AiSdkProvider(
+      createProvider(),
+      createProviderSettings(),
+      providerTestEnvironment
+    )
     ;(provider as any).isInitialized = true
 
     await expect(provider.check()).resolves.toEqual({

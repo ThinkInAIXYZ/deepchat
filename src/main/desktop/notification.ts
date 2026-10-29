@@ -1,7 +1,7 @@
 import { BrowserWindow, nativeImage, Notification, NotificationConstructorOptions } from 'electron'
 import icon from '../../../resources/icon.png?asset'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
-import type { DesktopSettings } from './settings'
+import type { DesktopConfigurationProjection } from './configurationProjection'
 
 const notificationMessages = import.meta.glob<{ generationComplete: string }>(
   '../../renderer/src/i18n/*/chat.json',
@@ -12,7 +12,10 @@ export class NotificationService {
   private notifications = new Map<string, Notification>()
 
   constructor(
-    private readonly settings: Pick<DesktopSettings, 'getNotificationsEnabled' | 'getLanguage'>,
+    private readonly settings: Pick<
+      DesktopConfigurationProjection,
+      'getNotificationsEnabled' | 'getLanguage'
+    >,
     private readonly publishEvent: DeepchatEventPublisher
   ) {}
 

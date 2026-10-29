@@ -1,4 +1,3 @@
-import { app, shell } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import type { DeviceServicePort } from '@shared/types/device'
@@ -14,20 +13,29 @@ import type { SettingsStore } from '@/config/settingsStore'
 
 const PROJECT_SNAPSHOT_VERSION_SETTINGS_KEY = 'projectSnapshotVersion'
 
+export type ProjectHost = Pick<DeviceServicePort, 'selectDirectory'> & {
+  readonly tempDirectory: string
+  readonly userDataDirectory: string
+  readonly appDataDirectory: string
+  readonly documentsDirectory: string | null
+  readonly homeDirectory: string | null
+  openPath(path: string): Promise<string>
+}
+
 export class ProjectService {
   private sqlitePresenter: ProjectDatabase
   private sessionDatabase: SessionDatabase
-  private deviceService: DeviceServicePort
   private settings: SettingsStore
   private readonly tempRoot: string
   private readonly userDataWorkspacesRoot: string
   private readonly appDataRoot: string
+  private readonly defaultWorkspaceCandidates: string[]
   private snapshotVersion: number
 
   constructor(
     sqlitePresenter: ProjectDatabase,
     sessionDatabase: SessionDatabase,
-    deviceService: DeviceServicePort,
+    private readonly host: ProjectHost,
     settings: SettingsStore,
     private readonly publishDefaultProjectPathChanged: (
       path: string | null,
@@ -41,11 +49,21 @@ export class ProjectService {
   ) {
     this.sqlitePresenter = sqlitePresenter
     this.sessionDatabase = sessionDatabase
-    this.deviceService = deviceService
     this.settings = settings
-    this.tempRoot = path.resolve(app.getPath('temp'))
-    this.userDataWorkspacesRoot = path.resolve(path.join(app.getPath('userData'), 'workspaces'))
-    this.appDataRoot = path.resolve(app.getPath('appData'))
+    const resolveDirectory = (directory: string): string => {
+      if (!path.isAbsolute(directory)) {
+        throw new Error('Project host directories must be absolute')
+      }
+      return path.resolve(directory)
+    }
+    this.tempRoot = resolveDirectory(host.tempDirectory)
+    this.userDataWorkspacesRoot = path.join(resolveDirectory(host.userDataDirectory), 'workspaces')
+    this.appDataRoot = resolveDirectory(host.appDataDirectory)
+    this.defaultWorkspaceCandidates = this.normalizeUniqueEnvironmentPaths(
+      [host.documentsDirectory, host.homeDirectory, this.userDataWorkspacesRoot]
+        .filter((directory): directory is string => directory !== null)
+        .map((directory) => path.join(resolveDirectory(directory), 'DeepChat'))
+    )
     this.snapshotVersion = this.readSnapshotVersion()
   }
 
@@ -226,7 +244,7 @@ export class ProjectService {
       return
     }
 
-    const errorMessage = await shell.openPath(normalizedPath)
+    const errorMessage = await this.host.openPath(normalizedPath)
     if (errorMessage) {
       throw new Error(errorMessage)
     }
@@ -243,7 +261,7 @@ export class ProjectService {
   }
 
   async selectDirectory(): Promise<{ path: string | null; version: number }> {
-    const result = await this.deviceService.selectDirectory()
+    const result = await this.host.selectDirectory()
     if (result.canceled || result.filePaths.length === 0) {
       return { path: null, version: this.snapshotVersion }
     }
@@ -263,7 +281,7 @@ export class ProjectService {
   }
 
   async ensureDefaultWorkspace(): Promise<string | null> {
-    const candidates = this.getDefaultWorkspaceCandidates()
+    const candidates = this.defaultWorkspaceCandidates
     const currentDefault = this.getDefaultProjectPath()
     const currentDefaultIsBuiltin = Boolean(
       currentDefault && this.isDefaultWorkspaceCandidate(currentDefault, candidates)
@@ -303,7 +321,7 @@ export class ProjectService {
 
   getDefaultChatWorkspacePath(): string | null {
     const projectPath = this.getDefaultProjectPath()
-    let candidates = this.getDefaultWorkspaceCandidates()
+    let candidates = this.defaultWorkspaceCandidates
     if (projectPath && this.isDefaultWorkspaceCandidate(projectPath, candidates)) {
       candidates = [projectPath]
     }
@@ -319,7 +337,7 @@ export class ProjectService {
   }
 
   ensureChatWorkspace(): { path: string; version: number } {
-    const candidates = this.getDefaultWorkspaceCandidates()
+    const candidates = this.defaultWorkspaceCandidates
     const currentDefault = this.getDefaultProjectPath()
     const currentDefaultIsBuiltin = Boolean(
       currentDefault && this.isDefaultWorkspaceCandidate(currentDefault, candidates)
@@ -444,28 +462,6 @@ export class ProjectService {
     }
 
     return normalizedPaths
-  }
-
-  private getDefaultWorkspaceCandidates(): string[] {
-    const candidates: string[] = []
-    const addCandidate = (basePath: string) => {
-      candidates.push(path.resolve(path.join(basePath, 'DeepChat')))
-    }
-
-    try {
-      addCandidate(app.getPath('documents'))
-    } catch (error) {
-      console.warn('[ProjectService] Failed to resolve Documents path:', error)
-    }
-
-    try {
-      addCandidate(app.getPath('home'))
-    } catch (error) {
-      console.warn('[ProjectService] Failed to resolve Home path:', error)
-    }
-
-    candidates.push(path.resolve(path.join(this.userDataWorkspacesRoot, 'DeepChat')))
-    return this.normalizeUniqueEnvironmentPaths(candidates)
   }
 
   private isDefaultWorkspaceCandidate(workspacePath: string, candidates: string[]): boolean {

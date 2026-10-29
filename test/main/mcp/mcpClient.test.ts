@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { McpClient } from '../../../src/main/mcp/mcpClient'
-import { ToolchainService } from '../../../src/main/toolchains/service'
+import { McpClient, type McpClientRuntime } from '../../../src/main/mcp/mcpClient'
 import { ToolchainResolutionError } from '../../../src/main/toolchains/errors'
 import path from 'path'
 import fs from 'fs'
@@ -22,18 +21,6 @@ const childProcessRegistryMock = vi.hoisted(() => ({
 
 vi.mock('@/agent/shared/process/childProcessRegistry', () => ({
   childProcessRegistry: childProcessRegistryMock
-}))
-
-// Mock electron modules
-vi.mock('electron', () => ({
-  app: {
-    getPath: vi.fn((pathType: string) => {
-      if (pathType === 'home') return '/mock/home'
-      return '/mock/app'
-    }),
-    getAppPath: vi.fn(() => '/mock/app'),
-    getVersion: vi.fn(() => '1.0.0')
-  }
 }))
 
 // Mock fs module
@@ -63,6 +50,10 @@ const mockGenerateCompletionStandalone = presenterMocks.generateCompletionStanda
 const mockGetProviderModels = presenterMocks.getProviderModels
 const mockGetCustomModels = presenterMocks.getCustomModels
 
+let toolchains: McpClientRuntime['toolchains']
+let homeDirectory = '/mock/home'
+let appVersion = '1.0.0'
+
 function createMcpClient(
   serverName: string,
   serverConfig: Record<string, unknown>,
@@ -80,6 +71,9 @@ function createMcpClient(
     mcpOAuthManager,
     inMemoryServerFactory,
     {
+      homeDirectory,
+      appVersion,
+      toolchains,
       resolveMcpBindings,
       sampling: {
         handleSamplingRequest: mockHandleSamplingRequest,
@@ -192,7 +186,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
     vi.clearAllMocks()
     mockFsExistsSync.mockReset()
     mockFsExistsSync.mockReturnValue(false)
-    vi.spyOn(ToolchainService, 'getInstance').mockReturnValue({
+    toolchains = {
       rewriteCommand: (command: string, args: string[]) => ({ command, args }),
       resolvedBinDirs: () => [],
       prependResolvedToEnv: (env: Record<string, string>) => env,
@@ -203,7 +197,9 @@ describe('McpClient Runtime Command Processing Tests', () => {
           `${kind} toolchain is not configured`
         )
       }
-    } as never)
+    } as never
+    homeDirectory = '/mock/home'
+    appVersion = '1.0.0'
 
     mockHandleSamplingRequest.mockReset()
     mockCancelSamplingRequest.mockReset()
@@ -239,7 +235,6 @@ describe('McpClient Runtime Command Processing Tests', () => {
   })
 
   afterEach(() => {
-    ToolchainService.resetForTests()
     vi.unstubAllEnvs()
     vi.clearAllMocks()
   })
@@ -308,12 +303,12 @@ describe('McpClient Runtime Command Processing Tests', () => {
         process.platform === 'win32'
           ? path.join(uvRuntimePath, 'uvx.exe')
           : path.join(uvRuntimePath, 'uvx')
-      vi.spyOn(ToolchainService, 'getInstance').mockReturnValue({
+      toolchains = {
         rewriteCommand: () => ({ command: expectedUvxPath, args: ['osm-mcp-server'] }),
         resolvedBinDirs: () => [],
         prependResolvedToEnv: (env: Record<string, string>) => env,
         resolve: () => ({ rootDir: uvRuntimePath })
-      } as never)
+      } as never
 
       const client = createMcpClient('osm-mcp-server', {
         type: 'stdio',
@@ -411,15 +406,37 @@ describe('McpClient Runtime Command Processing Tests', () => {
   })
 
   describe('Runtime Path Detection', () => {
+    it('uses the supplied home and application identity without a native default', async () => {
+      homeDirectory = '/owned/runtime/home'
+      appVersion = '9.8.7'
+      const client = createMcpClient('host-inputs', {
+        type: 'http',
+        baseUrl: 'http://127.0.0.1:12345/mcp'
+      })
+
+      expect(client.expandPath('~/server.cjs')).toBe('/owned/runtime/home/server.cjs')
+      await client.connect()
+      expect(Client).toHaveBeenCalledWith(
+        { name: 'DeepChat', version: '9.8.7' },
+        expect.any(Object)
+      )
+      await client.disconnect()
+
+      homeDirectory = 'relative/home'
+      expect(() => createMcpClient('invalid', { type: 'stdio' })).toThrow(
+        'MCP home directory must be absolute'
+      )
+    })
+
     it('should expose resolved toolchain roots from the service', () => {
-      vi.spyOn(ToolchainService, 'getInstance').mockReturnValue({
+      toolchains = {
         rewriteCommand: (command: string, args: string[]) => ({ command, args }),
         resolvedBinDirs: () => [],
         prependResolvedToEnv: (env: Record<string, string>) => env,
         resolve: (kind: 'node' | 'uv') => ({
           rootDir: kind === 'uv' ? '/runtime/uv' : '/runtime/node'
         })
-      } as never)
+      } as never
 
       const client = createMcpClient('test', { type: 'stdio' })
 
@@ -433,6 +450,40 @@ describe('McpClient Runtime Command Processing Tests', () => {
       expect((client as any).nodeRuntimePath).toBeNull()
       expect((client as any).uvRuntimePath).toBeNull()
     })
+  })
+
+  it('cancels an owned resource read while an uncooperative SDK result is pending', async () => {
+    let release!: (value: { contents: unknown[] }) => void
+    const sdk = {
+      ...createSdkToolClient([], 'modern'),
+      readResource: vi.fn(
+        () =>
+          new Promise<{ contents: unknown[] }>((resolve) => {
+            release = resolve
+          })
+      )
+    }
+    vi.mocked(Client).mockImplementationOnce(function Client() {
+      return sdk as never
+    })
+    const client = createMcpClient('resource-owner', {
+      type: 'http',
+      baseUrl: 'http://127.0.0.1:12345/mcp'
+    })
+    await client.connect()
+    const controller = new AbortController()
+    const reading = client.readResourceContents('ui://fixture/index.html', controller.signal)
+    const rejected = expect(reading).rejects.toThrow('Resource owner closed')
+    await vi.waitFor(() => expect(sdk.readResource).toHaveBeenCalled())
+    expect(sdk.readResource).toHaveBeenCalledWith(
+      { uri: 'ui://fixture/index.html' },
+      { signal: controller.signal }
+    )
+    controller.abort(new Error('Resource owner closed'))
+    await rejected
+    release({ contents: [{ uri: 'ui://fixture/index.html', text: 'late' }] })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    await client.disconnect()
   })
 
   describe('Environment Variable Processing', () => {
@@ -473,7 +524,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
           null,
           undefined,
           undefined,
-          () => ({ TOKEN: value })
+          async () => ({ TOKEN: value })
         )
         await expect(client.connect()).rejects.toThrow(/header/i)
       }
@@ -489,14 +540,51 @@ describe('McpClient Runtime Command Processing Tests', () => {
         environmentVariables: ['DEEPCHAT_TEST_HOST_SECRET'],
         env: { TOKEN: '${DEEPCHAT_TEST_HOST_SECRET}' }
       }
-      const client = createMcpClient('reviewed', config, null, null, undefined, undefined, () => ({
-        DEEPCHAT_TEST_HOST_SECRET: 'explicit-secret'
-      }))
+      const client = createMcpClient(
+        'reviewed',
+        config,
+        null,
+        null,
+        undefined,
+        undefined,
+        async () => ({
+          DEEPCHAT_TEST_HOST_SECRET: 'explicit-secret'
+        })
+      )
       await client.connect()
       expect(vi.mocked(StdioClientTransport).mock.calls.at(-1)?.[0]?.env?.TOKEN).toBe(
         'explicit-secret'
       )
       expect(config.env.TOKEN).toBe('${DEEPCHAT_TEST_HOST_SECRET}')
+    })
+
+    it('does not create a transport when cancelled during credential resolution', async () => {
+      const bindings = Promise.withResolvers<Record<string, string>>()
+      const client = createMcpClient(
+        'reviewed',
+        {
+          ownerPluginId: 'user.reviewed',
+          type: 'stdio',
+          command: 'node',
+          args: ['server.js'],
+          environmentVariables: ['TOKEN'],
+          env: { TOKEN: '${TOKEN}' }
+        },
+        null,
+        null,
+        undefined,
+        undefined,
+        () => bindings.promise
+      )
+      const completion = expect(client.connect({ waitForConnection: true })).rejects.toThrow(
+        'cancelled'
+      )
+      await client.disconnect()
+      bindings.resolve({ TOKEN: 'private-key' })
+      await completion
+      expect(StdioClientTransport).not.toHaveBeenCalled()
+      expect(client.getLifecycleStatus()).toBe('stopped')
+      expect(client.isActive()).toBe(false)
     })
 
     it('should set npm registry environment variables', () => {
@@ -603,12 +691,12 @@ describe('McpClient Runtime Command Processing Tests', () => {
         }
         return env
       })
-      vi.spyOn(ToolchainService, 'getInstance').mockReturnValue({
+      toolchains = {
         rewriteCommand: (command: string, args: string[]) => ({ command, args }),
         resolvedBinDirs: () => [toolchainBin],
         prependResolvedToEnv,
         resolve: () => ({ rootDir: '/managed/node', binDir: toolchainBin })
-      } as never)
+      } as never
 
       const client = createMcpClient('test', {
         type: 'stdio',

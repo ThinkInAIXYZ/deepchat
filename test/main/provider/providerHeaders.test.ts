@@ -7,10 +7,24 @@ import {
 } from '@shared/providerCustomHeaders'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 import {
+  buildDefaultProviderHeaders,
   buildProviderTraceHeaders,
   fetchWithProviderHeaders,
   MASKED_PROVIDER_CUSTOM_HEADER_VALUE
 } from '@/provider/providerHeaders'
+
+describe('provider application metadata', () => {
+  it('uses the supplied application version and keeps header snapshots independent', () => {
+    const headers = buildDefaultProviderHeaders('1.2.3')
+    expect(headers).toEqual({
+      'HTTP-Referer': 'https://deepchatai.cn',
+      'X-Title': 'DeepChat',
+      'User-Agent': 'DeepChat/1.2.3'
+    })
+    headers['X-Title'] = 'Changed'
+    expect(buildDefaultProviderHeaders('2.0.0')['X-Title']).toBe('DeepChat')
+  })
+})
 
 const createProvider = (customHeaders?: ProviderCustomHeaders): LLM_PROVIDER => ({
   id: 'gateway',
@@ -322,15 +336,17 @@ describe('fetchWithProviderHeaders', () => {
         controller.close()
       }
     })
-    const request = new Request('https://gateway.example.com/v1/chat/completions', {
+    const requestInit: RequestInit & { duplex: 'half' } = {
       method: 'POST',
       body,
       duplex: 'half'
-    })
+    }
+    const request = new Request('https://gateway.example.com/v1/chat/completions', requestInit)
 
     await fetchWithProviderHeaders(provider, request, undefined, fetchImpl)
 
-    expect(fetchImpl.mock.calls[1]?.[1]?.duplex).toBe('half')
+    const redirected = fetchImpl.mock.calls[1]?.[1] as RequestInit & { duplex?: string }
+    expect(redirected.duplex).toBe('half')
   })
 
   it('strips custom and credential headers on cross-origin redirects', async () => {

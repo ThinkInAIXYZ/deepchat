@@ -1,3 +1,4 @@
+import { providerTestEnvironment } from '../../helpers/providerEnvironment'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
@@ -93,6 +94,8 @@ const createProviderSettings = (): ProviderSettingsPort =>
 
 const createProviderInstance = (providerSettings = createProviderSettings()) =>
   new ApimartProvider(createProvider(), providerSettings, {
+    allowInsecureTls: providerTestEnvironment.allowInsecureTls,
+    defaultHeaders: providerTestEnvironment.defaultHeaders,
     getLanguage: vi.fn().mockReturnValue('en-US')
   })
 
@@ -149,7 +152,11 @@ describe('ApimartProvider', () => {
 
     const manager = new ProviderInstanceManager({
       providerSettings: createProviderSettings(),
-      locale: { getLanguage: () => 'en-US' },
+      locale: {
+        allowInsecureTls: providerTestEnvironment.allowInsecureTls,
+        defaultHeaders: providerTestEnvironment.defaultHeaders,
+        getLanguage: () => 'en-US'
+      },
       agentSettings: {
         getAcpEnabled: vi.fn().mockReturnValue(false),
         getAcpAgents: vi.fn().mockReturnValue([])

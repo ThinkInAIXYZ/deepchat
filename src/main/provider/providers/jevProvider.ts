@@ -12,7 +12,7 @@ import type {
   ProviderStreamOptions
 } from '@shared/types/provider'
 import { BaseLLMProvider, type ProviderGenerateTextOptions } from '../baseProvider'
-import type { ProviderLocalePort } from '../ports'
+import type { ProviderEnvironmentPort } from '../ports'
 import { createProviderHttpErrorFromResponse, ProviderHttpError } from '../providerFailure'
 
 /**
@@ -164,7 +164,7 @@ export class JevProvider extends BaseLLMProvider {
   constructor(
     provider: LLM_PROVIDER,
     providerSettings: ProviderSettingsPort,
-    locale: ProviderLocalePort
+    locale: ProviderEnvironmentPort
   ) {
     super(provider, providerSettings, locale)
     this.init()

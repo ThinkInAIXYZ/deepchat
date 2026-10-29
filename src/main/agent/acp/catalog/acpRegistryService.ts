@@ -1,6 +1,5 @@
 import fs from 'fs'
 import path from 'path'
-import { app, net } from 'electron'
 import type { AcpRegistryAgent } from '@shared/types/acp'
 import type {
   AcpRegistryBinaryDistribution,
@@ -11,9 +10,6 @@ import { SVGSanitizer } from '@/lib/svgSanitizer'
 import {
   ACP_REGISTRY_CACHE_TTL_MS,
   ACP_REGISTRY_ICON_CACHE_DIRNAME,
-  ACP_REGISTRY_ICON_RESOURCE_DIR,
-  ACP_REGISTRY_RESOURCE_DIR,
-  ACP_REGISTRY_RESOURCE_PATH,
   ACP_REGISTRY_URL,
   getAcpRegistryIconFileName,
   isAcpRegistryIconUrl
@@ -31,7 +27,10 @@ type RegistryManifest = {
   agents: AcpRegistryAgent[]
 }
 
-type AcpRegistryServiceOptions = {
+export type AcpRegistryServiceOptions = {
+  userDataDirectory: string
+  builtInDirectory: string
+  fetchIcon: (url: string, signal: AbortSignal) => Promise<string>
   isPrivacyModeEnabled?: () => boolean
 }
 
@@ -218,11 +217,15 @@ export class AcpRegistryService {
   private readonly iconMarkupCache = new Map<string, Promise<string | null>>()
   private readonly isPrivacyModeEnabled: () => boolean
   private manifest: RegistryManifest | null = null
+  private readonly stopController = new AbortController()
+  private refreshPromise: Promise<void> | null = null
 
-  constructor(options: AcpRegistryServiceOptions = {}) {
+  constructor(private readonly options: AcpRegistryServiceOptions) {
+    if (!path.isAbsolute(options.userDataDirectory) || !path.isAbsolute(options.builtInDirectory)) {
+      throw new Error('ACP registry directories must be absolute')
+    }
     this.isPrivacyModeEnabled = options.isPrivacyModeEnabled ?? (() => false)
-    const userDataPath = app.getPath('userData')
-    this.cacheDir = path.join(userDataPath, 'acp-registry')
+    this.cacheDir = path.join(options.userDataDirectory, 'acp-registry')
     this.cacheFilePath = path.join(this.cacheDir, 'registry.json')
     this.metaFilePath = path.join(this.cacheDir, 'meta.json')
     this.iconCacheDir = path.join(this.cacheDir, ACP_REGISTRY_ICON_CACHE_DIRNAME)
@@ -235,18 +238,25 @@ export class AcpRegistryService {
     }
   }
 
-  async initialize(): Promise<void> {
+  initialize(): void {
+    if (this.stopController.signal.aborted) return
     this.manifest = this.loadFromBuiltIn() ?? this.loadFromCache()
     const cached = this.loadFromCache()
     if (cached) {
       this.manifest = cached
     }
+  }
 
-    if (this.isAutomaticRefreshBlocked()) {
-      return
-    }
+  stop(): void {
+    this.stopController.abort()
+  }
 
-    await this.refreshIfNeeded(false, { automatic: true })
+  get isStopped(): boolean {
+    return this.stopController.signal.aborted
+  }
+
+  async drain(): Promise<void> {
+    await Promise.allSettled([this.refreshPromise])
   }
 
   listAgents(): AcpRegistryAgent[] {
@@ -258,8 +268,11 @@ export class AcpRegistryService {
     return agent ? clone(agent) : null
   }
 
-  async refresh(force = false): Promise<AcpRegistryAgent[]> {
-    await this.refreshIfNeeded(force)
+  async refresh(
+    force = false,
+    options: { automatic?: boolean; signal?: AbortSignal } = {}
+  ): Promise<AcpRegistryAgent[]> {
+    await this.refreshIfNeeded(force, options)
     return this.listAgents()
   }
 
@@ -269,6 +282,8 @@ export class AcpRegistryService {
     if (!normalizedAgentId) {
       return null
     }
+
+    if (this.stopController.signal.aborted) return null
 
     if (normalizedIconUrl && !isAcpRegistryIconUrl(normalizedIconUrl)) {
       return null
@@ -284,13 +299,15 @@ export class AcpRegistryService {
       this.iconMarkupCache.set(normalizedAgentId, pending)
     }
 
-    return await pending
+    const markup = await pending
+    return this.stopController.signal.aborted ? null : markup
   }
 
   private getManifest(): RegistryManifest {
     if (this.manifest) {
       return this.manifest
     }
+    this.stopController.signal.throwIfAborted()
 
     this.manifest = this.loadFromCache() ?? this.loadFromBuiltIn()
     if (!this.manifest) {
@@ -331,21 +348,13 @@ export class AcpRegistryService {
   }
 
   private loadFromBuiltIn(): RegistryManifest | null {
-    for (const candidate of this.getBuiltInManifestCandidatePaths()) {
-      try {
-        if (!fs.existsSync(candidate)) {
-          continue
-        }
-        const parsed = JSON.parse(fs.readFileSync(candidate, 'utf-8'))
-        const normalized = normalizeManifest(parsed)
-        if (normalized) {
-          return normalized
-        }
-      } catch (error) {
-        console.warn('[ACP Registry] Failed to load built-in snapshot:', candidate, error)
-      }
+    const file = path.join(this.options.builtInDirectory, 'registry.json')
+    try {
+      if (!fs.existsSync(file)) return null
+      return normalizeManifest(JSON.parse(fs.readFileSync(file, 'utf-8')))
+    } catch (error) {
+      console.warn('[ACP Registry] Failed to load built-in snapshot:', file, error)
     }
-
     return null
   }
 
@@ -353,11 +362,16 @@ export class AcpRegistryService {
     force: boolean,
     options: {
       automatic?: boolean
+      signal?: AbortSignal
     } = {}
   ): Promise<void> {
+    this.stopController.signal.throwIfAborted()
+    options.signal?.throwIfAborted()
     if (options.automatic && this.isAutomaticRefreshBlocked()) {
       return
     }
+
+    if (this.refreshPromise) return this.refreshPromise
 
     const meta = this.readMeta()
     const now = Date.now()
@@ -367,7 +381,10 @@ export class AcpRegistryService {
       return
     }
 
-    await this.fetchAndCache(meta)
+    this.refreshPromise = this.fetchAndCache(meta, options.signal).finally(() => {
+      this.refreshPromise = null
+    })
+    await this.refreshPromise
   }
 
   private isAutomaticRefreshBlocked(): boolean {
@@ -378,15 +395,28 @@ export class AcpRegistryService {
     }
   }
 
-  private async fetchAndCache(previousMeta: RegistryCacheMeta | null): Promise<void> {
+  private async fetchAndCache(
+    previousMeta: RegistryCacheMeta | null,
+    callerSignal?: AbortSignal
+  ): Promise<void> {
     const now = Date.now()
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 15000)
+    const signal = AbortSignal.any([
+      this.stopController.signal,
+      controller.signal,
+      ...(callerSignal ? [callerSignal] : [])
+    ])
+    const assertCurrent = () => {
+      this.stopController.signal.throwIfAborted()
+      callerSignal?.throwIfAborted()
+    }
 
     try {
       const response = await fetch(ACP_REGISTRY_URL, {
-        signal: controller.signal
+        signal
       })
+      assertCurrent()
 
       if (!response.ok) {
         if (previousMeta) {
@@ -396,6 +426,7 @@ export class AcpRegistryService {
       }
 
       const text = await response.text()
+      assertCurrent()
       if (!text || text.length > 5 * 1024 * 1024) {
         if (previousMeta) {
           this.writeMeta({ ...previousMeta, lastAttemptedAt: now })
@@ -411,15 +442,17 @@ export class AcpRegistryService {
         return
       }
 
+      try {
+        await this.syncIconCache(normalized, signal)
+      } catch (error) {
+        assertCurrent()
+        console.warn('[ACP Registry] Failed to sync icon cache after manifest refresh:', error)
+      }
+      assertCurrent()
+
       const tmpPath = `${this.cacheFilePath}.tmp`
       fs.writeFileSync(tmpPath, JSON.stringify(normalized, null, 2), 'utf-8')
       fs.renameSync(tmpPath, this.cacheFilePath)
-
-      try {
-        await this.syncIconCache(normalized)
-      } catch (error) {
-        console.warn('[ACP Registry] Failed to sync icon cache after manifest refresh:', error)
-      }
 
       this.writeMeta({
         version: normalized.version,
@@ -430,6 +463,7 @@ export class AcpRegistryService {
 
       this.manifest = normalized
     } catch (error) {
+      assertCurrent()
       if (previousMeta) {
         this.writeMeta({ ...previousMeta, lastAttemptedAt: now })
       }
@@ -437,26 +471,6 @@ export class AcpRegistryService {
     } finally {
       clearTimeout(timeout)
     }
-  }
-
-  private getBuiltInResourceRoots(): string[] {
-    return [
-      path.join(app.getAppPath(), ...ACP_REGISTRY_RESOURCE_DIR),
-      path.join(process.cwd(), ...ACP_REGISTRY_RESOURCE_DIR)
-    ]
-  }
-
-  private getBuiltInManifestCandidatePaths(): string[] {
-    return this.getBuiltInResourceRoots().map((root) =>
-      path.join(root, path.basename(ACP_REGISTRY_RESOURCE_PATH.at(-1)!))
-    )
-  }
-
-  private getBuiltInIconCandidatePaths(agentId: string): string[] {
-    const filename = getAcpRegistryIconFileName(agentId)
-    return this.getBuiltInResourceRoots().map((root) =>
-      path.join(root, path.basename(ACP_REGISTRY_ICON_RESOURCE_DIR.at(-1)!), filename)
-    )
   }
 
   private getCachedIconPath(agentId: string): string {
@@ -469,13 +483,12 @@ export class AcpRegistryService {
       return cachedPath
     }
 
-    for (const candidate of this.getBuiltInIconCandidatePaths(agentId)) {
-      if (fs.existsSync(candidate)) {
-        return candidate
-      }
-    }
-
-    return null
+    const builtInPath = path.join(
+      this.options.builtInDirectory,
+      ACP_REGISTRY_ICON_CACHE_DIRNAME,
+      getAcpRegistryIconFileName(agentId)
+    )
+    return fs.existsSync(builtInPath) ? builtInPath : null
   }
 
   private async loadIconMarkupFromDisk(agentId: string): Promise<string | null> {
@@ -497,7 +510,8 @@ export class AcpRegistryService {
     }
   }
 
-  private async syncIconCache(manifest: RegistryManifest): Promise<void> {
+  private async syncIconCache(manifest: RegistryManifest, signal: AbortSignal): Promise<void> {
+    signal.throwIfAborted()
     fs.mkdirSync(this.iconCacheDir, { recursive: true })
 
     const cacheableAgents = manifest.agents.filter(
@@ -505,12 +519,13 @@ export class AcpRegistryService {
     )
     const expectedAgentIds = new Set(cacheableAgents.map((agent) => agent.id))
 
-    await Promise.allSettled(cacheableAgents.map((agent) => this.syncAgentIcon(agent)))
+    await Promise.allSettled(cacheableAgents.map((agent) => this.syncAgentIcon(agent, signal)))
+    signal.throwIfAborted()
     this.pruneStaleIconCache(expectedAgentIds)
     this.iconMarkupCache.clear()
   }
 
-  private async syncAgentIcon(agent: AcpRegistryAgent): Promise<void> {
+  private async syncAgentIcon(agent: AcpRegistryAgent, refreshSignal: AbortSignal): Promise<void> {
     const iconUrl = agent.icon?.trim()
     if (!iconUrl || !isAcpRegistryIconUrl(iconUrl)) {
       return
@@ -518,17 +533,11 @@ export class AcpRegistryService {
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 10000)
+    const signal = AbortSignal.any([refreshSignal, controller.signal])
 
     try {
-      const response = await net.fetch(iconUrl, {
-        signal: controller.signal
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch icon: ${response.status} ${response.statusText}`)
-      }
-
-      const text = await response.text()
+      const text = await this.options.fetchIcon(iconUrl, signal)
+      signal.throwIfAborted()
       const sanitized = this.svgSanitizer.sanitize(text)
       if (!sanitized) {
         throw new Error(`Failed to sanitize icon for agent ${agent.id}`)

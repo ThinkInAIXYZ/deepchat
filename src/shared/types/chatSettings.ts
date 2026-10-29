@@ -1,4 +1,14 @@
-import type { RequestedLocale } from '../locales'
+import { z } from 'zod'
+import { REQUESTED_LOCALES, type RequestedLocale } from '../locales'
+
+export const ChatSettingMutationSchema = z.discriminatedUnion('id', [
+  z.strictObject({ id: z.literal('copyWithCotEnabled'), value: z.boolean() }),
+  z.strictObject({ id: z.literal('fontSizeLevel'), value: z.number().int().min(0).max(4) }),
+  z.strictObject({ id: z.literal('language'), value: z.enum(REQUESTED_LOCALES) }),
+  z.strictObject({ id: z.literal('theme'), value: z.enum(['dark', 'light', 'system']) })
+])
+
+export type ChatSettingMutation = z.infer<typeof ChatSettingMutationSchema>
 
 export type ChatLanguage = RequestedLocale
 

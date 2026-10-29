@@ -53,6 +53,8 @@ export function createSessionDataFromDatabase(
   })
   const transcript = new SessionTranscript(database, tapeStore, tapeStore, tapeStore)
   const pendingInputStore = new SessionPendingInputStore(database)
+  const settings = new SessionSettingsStore(database, tapeStore)
+  const pendingInputs = new SessionPendingInputs(pendingInputStore, transcript, events)
   const ensureTape = (sessionId: string) =>
     sessionTape.ensureSessionTapeReady(sessionId, transcript)
   const toTapeAnchor = (row: DeepChatTapeEntryRow) => ({
@@ -119,7 +121,7 @@ export function createSessionDataFromDatabase(
 
   return {
     database,
-    settings: new SessionSettingsStore(database, tapeStore),
+    settings,
     transcript,
     tape,
     tapeStore,
@@ -127,7 +129,14 @@ export function createSessionDataFromDatabase(
       tape.getTapeInfo(sessionId)
     ),
     programmaticExecutionJournal,
-    pendingInputs: new SessionPendingInputs(pendingInputStore, transcript, events)
+    pendingInputs,
+    clearTranscript(sessionId: string): void {
+      database.getDatabase().transaction(() => {
+        pendingInputs.deleteBySession(sessionId)
+        transcript.deleteBySession(sessionId)
+        settings.resetTape(sessionId)
+      })()
+    }
   }
 }
 

@@ -4,15 +4,33 @@ import { pathToFileURL } from 'node:url'
 import type { PluginSettingsWindowPort } from '@/plugin'
 
 export class PluginSettingsWindow implements PluginSettingsWindowPort {
-  private readonly windows = new Map<string, BrowserWindow>()
+  private readonly windows = new Map<
+    string,
+    {
+      window: BrowserWindow
+      webContentsId: number
+      closing: boolean
+      closed: Promise<void>
+      loading: Promise<void>
+      finishClose: () => void
+    }
+  >()
   private readonly pluginIdByWebContentsId = new Map<number, string>()
+  private accepting = true
 
   async open(input: { pluginId: string; title: string; entry: string }): Promise<void> {
+    if (!this.accepting) throw new Error('Plugin settings windows are closed')
     const existing = this.windows.get(input.pluginId)
-    if (existing && !existing.isDestroyed()) {
-      existing.show()
-      existing.focus()
-      return
+    if (existing) {
+      if (existing.closing) {
+        await existing.closed
+        return this.open(input)
+      }
+      if (!existing.window.isDestroyed()) {
+        existing.window.show()
+        existing.window.focus()
+        return existing.loading
+      }
     }
 
     const settingsWindow = new BrowserWindow({
@@ -32,7 +50,19 @@ export class PluginSettingsWindow implements PluginSettingsWindowPort {
 
     const webContentsId = settingsWindow.webContents.id
     const entryPath = pathToFileURL(input.entry).pathname
-    this.windows.set(input.pluginId, settingsWindow)
+    let finishClose!: () => void
+    const closed = new Promise<void>((resolve) => {
+      finishClose = resolve
+    })
+    const record = {
+      window: settingsWindow,
+      webContentsId,
+      closing: false,
+      closed,
+      loading: Promise.resolve(),
+      finishClose
+    }
+    this.windows.set(input.pluginId, record)
     this.pluginIdByWebContentsId.set(webContentsId, input.pluginId)
     settingsWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
     settingsWindow.webContents.on('will-navigate', (event, url) => {
@@ -42,39 +72,60 @@ export class PluginSettingsWindow implements PluginSettingsWindowPort {
       }
     })
     settingsWindow.on('ready-to-show', () => {
-      if (!settingsWindow.isDestroyed()) {
+      if (!record.closing && !settingsWindow.isDestroyed()) {
         settingsWindow.show()
       }
     })
+    settingsWindow.on('close', () => {
+      record.closing = true
+    })
     settingsWindow.on('closed', () => {
       this.pluginIdByWebContentsId.delete(webContentsId)
-      if (this.windows.get(input.pluginId) === settingsWindow) {
+      if (this.windows.get(input.pluginId) === record) {
         this.windows.delete(input.pluginId)
       }
+      finishClose()
     })
+    settingsWindow.webContents.on('will-prevent-unload', (event) => event.preventDefault())
 
-    await settingsWindow.loadFile(input.entry, {
-      query: {
-        pluginId: input.pluginId
+    record.loading = (async () => {
+      try {
+        await settingsWindow.loadFile(input.entry, {
+          query: { pluginId: input.pluginId }
+        })
+      } catch (error) {
+        if (record.closing || settingsWindow.isDestroyed()) {
+          await closed
+          return
+        }
+        await this.close(input.pluginId)
+        throw error
       }
-    })
+    })()
+    await record.loading
   }
 
   getPluginIdForWebContents(webContentsId: number): string | null {
     return this.pluginIdByWebContentsId.get(webContentsId) ?? null
   }
 
-  close(pluginId: string): void {
-    const settingsWindow = this.windows.get(pluginId)
-    if (settingsWindow && !settingsWindow.isDestroyed()) {
-      settingsWindow.close()
+  async close(pluginId: string): Promise<void> {
+    const record = this.windows.get(pluginId)
+    if (!record) return
+    if (!record.closing) {
+      record.closing = true
+      if (!record.window.isDestroyed()) record.window.destroy()
+      else {
+        this.pluginIdByWebContentsId.delete(record.webContentsId)
+        this.windows.delete(pluginId)
+        record.finishClose()
+      }
     }
-    this.windows.delete(pluginId)
+    await record.closed
   }
 
-  closeAll(): void {
-    for (const pluginId of Array.from(this.windows.keys())) {
-      this.close(pluginId)
-    }
+  async closeAll(): Promise<void> {
+    this.accepting = false
+    await Promise.all(Array.from(this.windows.keys(), (pluginId) => this.close(pluginId)))
   }
 }

@@ -2,6 +2,7 @@ import type { FileServicePort } from '@shared/types/file'
 import type { ProviderRuntimePort } from '@shared/types/provider'
 import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
+import type { ApplyChatSettingSuccess, ChatSettingMutation } from '@shared/types/chatSettings'
 import type {
   DeepChatSubagentMeta,
   DeepChatSubagentCapability,
@@ -44,6 +45,7 @@ import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJob
 import type { z } from 'zod'
 import type { LiveDelegationConsentReceipt } from '@/orchestration/liveDelegationConsent'
 import type { ReadSessionInput } from '@shared/sessionReferences'
+import type { BackgroundExecPort } from '@/agent/shared/process/backgroundExecSessionManager'
 
 export type AgentToolCronJobUpsertInput = z.input<typeof cronJobsUpsertInputSchema>
 
@@ -233,20 +235,16 @@ export type AgentProviderToolPort = Pick<
 >
 
 export interface AgentDesktopToolPort {
+  readonly tempDirectory: string
+  readonly profileTempDirectory: string
+  readImageSize(filePath: string, signal?: AbortSignal): Promise<{ width: number; height: number }>
   createSettingsWindow(): Promise<number | null>
   sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean
   sendSettingsNavigation(windowId: number, navigation: SettingsNavigationPayload): boolean
 }
 
 export interface AgentDisplaySettingsPort {
-  getCopyWithCotEnabled(): boolean
-  setCopyWithCotEnabled(enabled: boolean): void
-  getRequestedLanguage(): string
-  setLanguage(language: string): void
-  getTheme(): 'system' | 'light' | 'dark'
-  setTheme(theme: 'system' | 'light' | 'dark'): void
-  getFontSizeLevel(): number
-  setFontSizeLevel(level: number): void
+  applyDisplayChange(change: ChatSettingMutation): Promise<ApplyChatSettingSuccess>
 }
 
 export interface AgentToolPermissionPort {
@@ -263,6 +261,7 @@ export interface AgentToolPermissionPort {
 }
 
 export interface AgentToolDependencies {
+  backgroundExec: BackgroundExecPort
   sessions: AgentToolSessionPort
   tape: AgentTapeToolPort
   memory: AgentMemoryToolPort

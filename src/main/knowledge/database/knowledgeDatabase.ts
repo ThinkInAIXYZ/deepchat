@@ -15,12 +15,6 @@ import type {
 import type { KnowledgeDatabasePort } from '../ports'
 
 import { nanoid } from 'nanoid'
-import { app } from 'electron'
-
-const runtimeBasePath = path
-  .join(app.getAppPath(), 'runtime')
-  .replace('app.asar', 'app.asar.unpacked')
-const extensionDir = path.join(runtimeBasePath, 'duckdb', 'extensions')
 const extensionSuffix = '.duckdb_extension'
 
 // 数据库版本常量
@@ -72,7 +66,12 @@ export class KnowledgeDatabase implements KnowledgeDatabasePort {
   private readonly chunkTable = 'chunk'
   private readonly metadataTable = 'metadata'
 
-  constructor(dbPath: string) {
+  constructor(
+    dbPath: string,
+    private readonly extensionDirectory: string
+  ) {
+    if (!path.isAbsolute(extensionDirectory))
+      throw new Error('Knowledge extension directory must be absolute')
     this.dbPath = dbPath
   }
 
@@ -673,7 +672,7 @@ export class KnowledgeDatabase implements KnowledgeDatabasePort {
     const conn = await ins.connect()
 
     // load vss
-    const extensionPath = path.join(extensionDir, `vss${extensionSuffix}`)
+    const extensionPath = path.join(this.extensionDirectory, `vss${extensionSuffix}`)
     if (fs.existsSync(extensionPath)) {
       const escapedPath = extensionPath.replace(/\\/g, '\\\\')
       logger.info(`[DuckDB] LOAD VSS extension from ${escapedPath}`)
@@ -699,7 +698,7 @@ export class KnowledgeDatabase implements KnowledgeDatabasePort {
     name: string,
     afterRun?: () => Promise<void>
   ): Promise<void> {
-    const extensionPath = path.join(extensionDir, `${name}${extensionSuffix}`)
+    const extensionPath = path.join(this.extensionDirectory, `${name}${extensionSuffix}`)
     if (fs.existsSync(extensionPath)) {
       const escapedPath = extensionPath.replace(/\\/g, '\\\\')
       logger.info(`[DuckDB] LOAD ${name} extension from ${escapedPath}`)

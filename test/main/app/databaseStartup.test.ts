@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DatabaseSecurityService } from '@/app/databaseSecurity'
+import type { SplashWindow } from '@/app/splashWindow'
 
 const mocks = vi.hoisted(() => ({
   appQuit: vi.fn(),
@@ -58,14 +60,18 @@ describe('initializeMainDatabaseWithRecovery', () => {
     return {
       security: {
         getDatabasePath: () => '/tmp/deepchat-test/app_db/agent.db',
-        resolveStartupPassword: vi.fn(async () => overrides?.password),
+        resolveStartupPassword: vi.fn<DatabaseSecurityService['resolveStartupPassword']>(
+          async () => overrides?.password
+        ),
         validatePassword: vi.fn(),
         persistRecoveredEncryptionMetadata: vi.fn(),
         clearEncryptionMetadata: vi.fn()
       },
       splash: {
-        requestDatabaseUnlock: vi.fn(),
-        requestDatabaseRecovery: vi.fn(async () => recovery.shift() ?? null)
+        requestDatabaseUnlock: vi.fn<SplashWindow['requestDatabaseUnlock']>(),
+        requestDatabaseRecovery: vi.fn<SplashWindow['requestDatabaseRecovery']>(
+          async () => recovery.shift() ?? null
+        )
       }
     }
   }
@@ -80,6 +86,22 @@ describe('initializeMainDatabaseWithRecovery', () => {
     await expect(initializeMainDatabaseWithRecovery(ports as never)).resolves.toBe(database)
     expect(ports.splash.requestDatabaseRecovery).not.toHaveBeenCalled()
     expect(mocks.quarantine).not.toHaveBeenCalled()
+  })
+
+  it('quits from the desktop unlock adapter when unlock is canceled', async () => {
+    const { initializeMainDatabaseWithRecovery } = await import('@/app/databaseStartup')
+    const ports = createPorts()
+    ports.splash.requestDatabaseUnlock.mockResolvedValue(null)
+    ports.security.resolveStartupPassword.mockImplementation(async (unlock) => {
+      const password = await unlock({ reason: 'manual-required', safeStorageAvailable: true })
+      if (password === null) throw new Error('Database unlock canceled')
+      return password
+    })
+    await expect(initializeMainDatabaseWithRecovery(ports as never)).rejects.toThrow(
+      'Database unlock canceled'
+    )
+    expect(mocks.appQuit).toHaveBeenCalledTimes(1)
+    expect(mocks.initialize).not.toHaveBeenCalled()
   })
 
   it('quarantines a damaged database only after the user chooses start empty', async () => {

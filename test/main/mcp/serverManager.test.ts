@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import axios from 'axios'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 const semanticNotificationsMock = vi.hoisted(() => ({
@@ -21,12 +22,6 @@ const clientMocks = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('@/platform/proxy', () => ({
-  proxyConfig: {
-    getProxyUrl: vi.fn(() => '')
-  }
-}))
-
 vi.mock('@/mcp/mcpClient', () => ({
   McpClient: vi.fn().mockImplementation(function McpClient(_name, serverConfig) {
     return {
@@ -42,6 +37,7 @@ vi.mock('@/mcp/mcpClient', () => ({
   McpConnectionCancelledError: clientMocks.McpConnectionCancelledError
 }))
 
+import type { McpOAuthManager } from '@/mcp/mcpOAuthManager'
 import { ServerManager } from '@/mcp/serverManager'
 import { McpClient, McpConnectionCancelledError } from '@/mcp/mcpClient'
 
@@ -74,17 +70,62 @@ describe('ServerManager notifications and plugin isolation', () => {
     }
   }
 
-  function createManager(providerSettings: ReturnType<typeof createProviderSettings>) {
+  function createManager(
+    providerSettings: ReturnType<typeof createProviderSettings>,
+    oauth?: McpOAuthManager,
+    getProxyUrl: () => Promise<string | null> = async () => null
+  ) {
     return new ServerManager(
       providerSettings as never,
-      { isEnabled: () => false },
+      { isEnabled: () => false, setEnabled: async () => undefined },
       vi.fn() as never,
       {} as never,
       vi.fn(),
       semanticNotificationsMock,
-      publishDeepchatEventMock
+      publishDeepchatEventMock,
+      getProxyUrl,
+      oauth
     )
   }
+
+  it('awaits the current native proxy before each registry batch', async () => {
+    const settings = {
+      ...createProviderSettings({}),
+      getCustomNpmRegistry: () => null,
+      setNpmRegistryCache: vi.fn()
+    }
+    const proxy = Promise.withResolvers<string | null>()
+    const getProxyUrl = vi.fn<() => Promise<string | null>>()
+    getProxyUrl.mockReturnValueOnce(proxy.promise).mockResolvedValue(null)
+    const manager = createManager(settings, undefined, getProxyUrl)
+    const get = vi.spyOn(axios, 'get').mockResolvedValue({ status: 200 })
+    try {
+      const pending = manager.testNpmRegistrySpeed(false)
+      expect(get).not.toHaveBeenCalled()
+      proxy.resolve('http://fixture:credential@127.0.0.1:4567')
+      await pending
+      expect(get).toHaveBeenCalledTimes(3)
+      for (const [, options] of get.mock.calls) {
+        expect(options?.proxy).toEqual({
+          host: '127.0.0.1',
+          port: 4567,
+          auth: { username: 'fixture', password: 'credential' }
+        })
+      }
+      get.mockClear()
+      await manager.testNpmRegistrySpeed(false)
+      expect(get).toHaveBeenCalledTimes(3)
+      for (const [, options] of get.mock.calls) expect(options?.proxy).toBeUndefined()
+      get.mockClear()
+      settings.setNpmRegistryCache.mockClear()
+      getProxyUrl.mockRejectedValueOnce(new Error('Native proxy unavailable'))
+      await expect(manager.testNpmRegistrySpeed(false)).rejects.toThrow('Native proxy unavailable')
+      expect(get).not.toHaveBeenCalled()
+      expect(settings.setNpmRegistryCache).not.toHaveBeenCalled()
+    } finally {
+      get.mockRestore()
+    }
+  })
 
   it('suppresses semantic connection occurrences for plugin-owned MCP servers', async () => {
     const providerSettings = createProviderSettings({
@@ -519,4 +560,62 @@ describe('ServerManager notifications and plugin isolation', () => {
     expect(vi.mocked(McpClient).mock.calls[0][1]).toMatchObject({ command: 'plugin-command' })
     expect(vi.mocked(McpClient).mock.calls[1][1]).toMatchObject({ command: 'regular-command' })
   })
+
+  it.each(['startup', 'background'] as const)(
+    'awaits OAuth classification for %s connection failures',
+    async (phase) => {
+      const providerSettings = createProviderSettings({
+        regular: {
+          type: 'http',
+          baseUrl: 'https://mcp.example/mcp',
+          command: '',
+          args: [],
+          env: {}
+        }
+      })
+      let classify!: (handled: boolean) => void
+      let entered!: () => void
+      const classifying = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      const handleConnectionError = vi.fn(() => {
+        entered()
+        return new Promise<boolean>((resolve) => {
+          classify = resolve
+        })
+      })
+      const manager = createManager(providerSettings, {
+        handleConnectionError
+      } as unknown as McpOAuthManager)
+      const error = new Error('connect failed')
+      let rejectBackground!: (error: Error) => void
+      if (phase === 'background') {
+        clientMocks.getConnectionCompletion.mockReturnValue(
+          new Promise<void>((_resolve, reject) => {
+            rejectBackground = reject
+          })
+        )
+        clientMocks.connect.mockResolvedValueOnce('soft-timeout-released')
+      } else clientMocks.connect.mockRejectedValueOnce(error)
+      const started = manager.startServer('regular')
+      const result =
+        phase === 'startup'
+          ? expect(started).rejects.toBe(error)
+          : expect(started).resolves.toBe('soft-timeout-released')
+      if (phase === 'background') {
+        await result
+        rejectBackground(error)
+      }
+      await classifying
+      expect(semanticNotificationsMock.occur).not.toHaveBeenCalled()
+      classify(false)
+      await result
+      await vi.waitFor(() =>
+        expect(semanticNotificationsMock.occur).toHaveBeenCalledWith({
+          code: 'mcp.connectionFailed',
+          serverName: 'regular'
+        })
+      )
+    }
+  )
 })

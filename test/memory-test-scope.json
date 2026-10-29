@@ -53,9 +53,13 @@
     "test/main/app/memoryProviderBindings.test.ts",
     "test/main/tool/agentTools/agentMemoryTools.test.ts",
     "test/main/routes/memoryDto.test.ts",
-    "test/main/scripts/memoryTestScope.test.ts"
+    "test/main/scripts/memoryTestScope.test.ts",
+    "test/main/performance/memory/timing.test.ts"
   ],
   "native": [
+    "test/main/app/databaseSecurityNative.test.ts",
+    "test/main/harness/memoryVectorOwner.test.ts",
+    "test/main/harness/memoryVectorRuntime.test.ts",
     "test/main/sync/replicaNative.test.ts",
     "test/main/memory/agentMemoryAuditRetention.test.ts",
     "test/main/memory/agentMemoryDirectiveTable.test.ts",
@@ -75,6 +79,7 @@
   ],
   "eval": ["test/main/memory/memoryRetrieval.eval.test.ts"],
   "perf": [
+    "test/main/performance/memory/vectorTransportScale.perf.ts",
     "test/main/performance/memory/clearScale.perf.ts",
     "test/main/performance/memory/maintenanceScale.perf.ts",
     "test/main/performance/memory/messageHistoryTraceScale.perf.ts",

@@ -11,14 +11,6 @@ import { cacheImage, type CacheImageOptions } from '@/platform/imageCache'
 const execAsync = promisify(exec)
 
 export class DeviceService implements DeviceServicePort {
-  static getDefaultHeaders(): Record<string, string> {
-    const version = app.getVersion()
-    return {
-      'HTTP-Referer': 'https://deepchatai.cn',
-      'X-Title': 'DeepChat',
-      'User-Agent': `DeepChat/${version}`
-    }
-  }
   async getAppVersion(): Promise<string> {
     return app.getVersion()
   }

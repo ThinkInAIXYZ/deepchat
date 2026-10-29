@@ -23,11 +23,7 @@ const validRecord = {
 describe('RendererPerformanceLogService', () => {
   it('does not create a diagnostics file when local logging is disabled', async () => {
     const fs = createFs()
-    const service = new RendererPerformanceLogService(
-      { get: vi.fn(() => false) } as never,
-      () => '/user-data',
-      fs
-    )
+    const service = new RendererPerformanceLogService(() => false, '/user-data', fs)
 
     await expect(service.record(validRecord)).resolves.toBe(false)
     expect(fs.appendFile).not.toHaveBeenCalled()
@@ -36,8 +32,8 @@ describe('RendererPerformanceLogService', () => {
   it('persists a sanitized, timestamped NDJSON record', async () => {
     const fs = createFs()
     const service = new RendererPerformanceLogService(
-      { get: vi.fn(() => true) } as never,
-      () => '/user-data',
+      () => true,
+      '/user-data',
       fs,
       () => 1234
     )
@@ -54,11 +50,7 @@ describe('RendererPerformanceLogService', () => {
 
   it('rejects unknown fields before they reach the local log', async () => {
     const fs = createFs()
-    const service = new RendererPerformanceLogService(
-      { get: vi.fn(() => true) } as never,
-      () => '/user-data',
-      fs
-    )
+    const service = new RendererPerformanceLogService(() => true, '/user-data', fs)
 
     await expect(
       service.record({ ...validRecord, sessionId: 'sensitive-session-id' })
@@ -83,8 +75,8 @@ describe('RendererPerformanceLogService', () => {
         writeOrder.push('second')
       })
     const service = new RendererPerformanceLogService(
-      { get: vi.fn(() => true) } as never,
-      () => '/user-data',
+      () => true,
+      '/user-data',
       createFs({ appendFile })
     )
 
@@ -99,11 +91,7 @@ describe('RendererPerformanceLogService', () => {
 
   it('rotates the bounded record file and retains only one previous generation', async () => {
     const fs = createFs({ stat: vi.fn().mockResolvedValue({ size: 10 * 1024 * 1024 }) })
-    const service = new RendererPerformanceLogService(
-      { get: vi.fn(() => true) } as never,
-      () => '/user-data',
-      fs
-    )
+    const service = new RendererPerformanceLogService(() => true, '/user-data', fs)
 
     await expect(service.record(validRecord)).resolves.toBe(true)
 
@@ -117,8 +105,8 @@ describe('RendererPerformanceLogService', () => {
   it('contains write failures without rejecting the renderer route', async () => {
     const onWriteError = vi.fn()
     const service = new RendererPerformanceLogService(
-      { get: vi.fn(() => true) } as never,
-      () => '/user-data',
+      () => true,
+      '/user-data',
       createFs({ appendFile: vi.fn().mockRejectedValue(new Error('disk unavailable')) }),
       Date.now,
       onWriteError

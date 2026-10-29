@@ -1,0 +1,66 @@
+diff --git a/dist/index.js b/dist/index.js
+index fa70e9b9a5d6c3510c19eea248ec9d5b8a6edbeb..44184aec6ee6548824f53b8e45cb778636d9933f 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1509,6 +1509,15 @@ import {
+   WORKFLOW_DESERIALIZE as WORKFLOW_DESERIALIZE3
+ } from "@ai-sdk/provider-utils";
+ import { z as z7 } from "zod/v4";
++// Validate and clone dense vectors without per-component parsing payloads.
++const finiteEmbeddingArraySchema = z7.custom((value) => {
++  if (!Array.isArray(value)) return false;
++  for (let index = 0; index < value.length; index++) {
++    if (!Number.isFinite(value[index])) return false;
++  }
++  return true;
++}).transform((value) => value.slice());
++
+ 
+ // src/embedding/openai-compatible-embedding-model-options.ts
+ import { z as z6 } from "zod/v4";
+@@ -1637,7 +1646,7 @@ var OpenAICompatibleEmbeddingModel = class _OpenAICompatibleEmbeddingModel {
+   }
+ };
+ var openaiTextEmbeddingResponseSchema = z7.object({
+-  data: z7.array(z7.object({ embedding: z7.array(z7.number()) })),
++  data: z7.array(z7.object({ embedding: finiteEmbeddingArraySchema })),
+   usage: z7.object({ prompt_tokens: z7.number() }).nullish(),
+   providerMetadata: z7.record(z7.string(), z7.record(z7.string(), z7.any())).optional()
+ });
+diff --git a/src/embedding/openai-compatible-embedding-model.ts b/src/embedding/openai-compatible-embedding-model.ts
+index 3c628ad3af95222416cd67797deeea4773dc82bb..67049886a54d3fc494ff1dabe05e7f5f8ad93cfd 100644
+--- a/src/embedding/openai-compatible-embedding-model.ts
++++ b/src/embedding/openai-compatible-embedding-model.ts
+@@ -15,6 +15,7 @@ import {
+   type FetchFunction,
+ } from '@ai-sdk/provider-utils';
+ import { z } from 'zod/v4';
++
+ import {
+   openaiCompatibleEmbeddingModelOptions,
+   type OpenAICompatibleEmbeddingModelId,
+@@ -25,6 +26,15 @@ import {
+ } from '../openai-compatible-error';
+ import { warnIfDeprecatedProviderOptionsKey } from '../utils/to-camel-case';
+ 
++// Validate and clone dense vectors without per-component parsing payloads.
++const finiteEmbeddingArraySchema = z.custom<number[]>((value) => {
++  if (!Array.isArray(value)) return false;
++  for (let index = 0; index < value.length; index++) {
++    if (!Number.isFinite(value[index])) return false;
++  }
++  return true;
++}).transform((value) => value.slice());
++
+ type OpenAICompatibleEmbeddingConfig = {
+   /**
+    * Override the maximum number of embeddings per call.
+@@ -184,7 +194,7 @@ export class OpenAICompatibleEmbeddingModel implements EmbeddingModelV4 {
+ // minimal version of the schema, focussed on what is needed for the implementation
+ // this approach limits breakages when the API changes and increases efficiency
+ const openaiTextEmbeddingResponseSchema = z.object({
+-  data: z.array(z.object({ embedding: z.array(z.number()) })),
++  data: z.array(z.object({ embedding: finiteEmbeddingArraySchema })),
+   usage: z.object({ prompt_tokens: z.number() }).nullish(),
+   providerMetadata: z
+     .record(z.string(), z.record(z.string(), z.any()))

@@ -17,6 +17,8 @@ import {
 import { arch, homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { performance } from 'node:perf_hooks'
+import { measureResources } from '../helpers/resources'
 import {
   GUIDED_ONBOARDING_REQUIRED_STEP_IDS,
   GUIDED_ONBOARDING_STEP_IDS,
@@ -90,8 +92,11 @@ export type ElectronAppInstance = {
 }
 
 type ElectronFixtures = {
+  privacyModeEnabled: boolean
   app: ElectronAppInstance
-  launchApp: () => Promise<ElectronAppInstance>
+  launchApp: (options?: {
+    prepareUserData?: (userDataDir: string) => void
+  }) => Promise<ElectronAppInstance>
 }
 
 const resolvePackagedExecutable = (): string => {
@@ -180,7 +185,7 @@ const readMainProcessLogs = (): string => {
   return files.map((filePath) => `== ${filePath} ==\n${readTextFileTail(filePath)}`).join('\n\n')
 }
 
-const seedE2eUserDataDir = (userDataDir: string): void => {
+const seedE2eUserDataDir = (userDataDir: string, privacyModeEnabled: boolean): void => {
   mkdirSync(userDataDir, { recursive: true })
 
   const appSettingsPath = join(userDataDir, 'app-settings.json')
@@ -196,6 +201,8 @@ const seedE2eUserDataDir = (userDataDir: string): void => {
       {
         init_complete: true,
         loggingEnabled: true,
+        privacyModeEnabled,
+        skillsPath: join(userDataDir, 'skills'),
         guidedOnboardingState: {
           version: GUIDED_ONBOARDING_VERSION,
           status: 'completed',
@@ -243,7 +250,8 @@ const ensureLaunchTargetExists = (): void => {
 }
 
 export const test = base.extend<ElectronFixtures>({
-  launchApp: async ({}, use, testInfo) => {
+  privacyModeEnabled: [false, { option: true }],
+  launchApp: async ({ privacyModeEnabled }, use, testInfo) => {
     ensureLaunchTargetExists()
 
     const consoleLogs: string[] = []
@@ -255,7 +263,7 @@ export const test = base.extend<ElectronFixtures>({
     const userDataDir =
       originalE2eUserDataDir ?? mkdtempSync(join(tmpdir(), 'deepchat-e2e-user-data-'))
     const ownsUserDataDir = !originalE2eUserDataDir
-    seedE2eUserDataDir(userDataDir)
+    seedE2eUserDataDir(userDataDir, privacyModeEnabled)
     process.env.DEEPCHAT_E2E_USER_DATA_DIR = userDataDir
 
     const attachPageListeners = (page: Page, label: string) => {
@@ -274,11 +282,18 @@ export const test = base.extend<ElectronFixtures>({
       })
     }
 
-    const launchApp = async (): Promise<ElectronAppInstance> => {
+    const launchApp: ElectronFixtures['launchApp'] = async (options) => {
+      if (options?.prepareUserData) {
+        if (!ownsUserDataDir || launchCount !== 0) {
+          throw new Error('Profile preparation requires an owned profile before its first launch')
+        }
+        options.prepareUserData(userDataDir)
+      }
       launchCount += 1
       const currentLaunch = launchCount
       const packaged = process.env.DEEPCHAT_E2E_APP_MODE === 'packaged'
 
+      const startedAt = performance.now()
       const electronApp = await electron.launch({
         ...(packaged
           ? {
@@ -295,8 +310,10 @@ export const test = base.extend<ElectronFixtures>({
         },
         timeout: 120_000
       })
+      const appProcess = electronApp.process()
 
       let closeOutcomePromise: Promise<'graceful' | 'forced'> | undefined
+      let resources: Awaited<ReturnType<typeof measureResources>>
       const app: ElectronAppInstance = {
         electronApp,
         page: undefined as unknown as Page,
@@ -308,6 +325,16 @@ export const test = base.extend<ElectronFixtures>({
           if (closeOutcomePromise) return closeOutcomePromise
           launchedApps.delete(app)
           closeOutcomePromise = (async () => {
+            let measurementFailure: unknown
+            try {
+              await resources?.finish(testInfo, currentLaunch)
+            } catch (error) {
+              measurementFailure = error
+            }
+            if (appProcess.exitCode === 0) {
+              if (measurementFailure) throw measurementFailure
+              return 'graceful'
+            }
             const closePromise = electronApp.close()
             const closedGracefully = await Promise.race([
               closePromise.then(
@@ -317,9 +344,13 @@ export const test = base.extend<ElectronFixtures>({
               delay(APP_CLOSE_TIMEOUT_MS).then(() => false)
             ])
 
-            if (closedGracefully) return 'graceful'
-            electronApp.process().kill('SIGKILL')
+            if (closedGracefully) {
+              if (measurementFailure) throw measurementFailure
+              return 'graceful'
+            }
+            appProcess.kill('SIGKILL')
             await Promise.race([closePromise.catch(() => undefined), delay(1_000)])
+            if (measurementFailure) throw measurementFailure
             return 'forced'
           })()
           return closeOutcomePromise
@@ -333,10 +364,12 @@ export const test = base.extend<ElectronFixtures>({
       })
 
       try {
+        resources = await measureResources(electronApp, startedAt)
         const page = await waitForMainAppWindow(electronApp)
         attachPageListeners(page, `main-${currentLaunch}`)
         await page.waitForLoadState('domcontentloaded')
         app.page = page
+        await resources?.ready(page)
         return app
       } catch (error) {
         await app.close()
@@ -348,8 +381,13 @@ export const test = base.extend<ElectronFixtures>({
       await use(launchApp)
     } finally {
       const pendingApps = [...launchedApps].reverse()
+      let closeFailure: unknown
       for (const app of pendingApps) {
-        await app.close()
+        try {
+          await app.close()
+        } catch (error) {
+          closeFailure ??= error
+        }
       }
 
       await attachDiagnostics(testInfo, consoleLogs, pageErrors)
@@ -363,6 +401,7 @@ export const test = base.extend<ElectronFixtures>({
       if (ownsUserDataDir) {
         rmSync(userDataDir, { recursive: true, force: true })
       }
+      if (closeFailure) throw closeFailure
     }
   },
 

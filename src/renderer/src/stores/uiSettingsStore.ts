@@ -114,7 +114,7 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
     }
 
     const result = await settingsClient.update(changes)
-    applySettingsValues(result.values)
+    applySettingsValues(settingsClient.acceptSnapshot(result))
   }
 
   const loadSettings = async () => {
@@ -125,7 +125,7 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
 
     const nextLoadPromise = (async () => {
       const snapshot = await settingsClient.getSnapshot()
-      applySettingsValues(snapshot)
+      applySettingsValues(settingsClient.acceptSnapshot(snapshot))
     })()
 
     settingsLoadPromise = nextLoadPromise
@@ -328,8 +328,6 @@ export const useUiSettingsStore = defineStore('uiSettings', () => {
         value: nextValue
       }
     ])
-
-    launchAtLoginEnabled.value = nextValue
   }
 
   const setLoggingEnabled = async (enabled: boolean) => {

@@ -32,6 +32,7 @@ export type RouteDispatcher = {
 
 export interface MainKernelAppDatabaseMaintenancePort {
   assertRouteAllowed(routeName: string): void
+  runRequest<T>(routeName: string, run: () => Promise<T>): Promise<T>
 }
 
 export function createRouteDispatcher(deps: {
@@ -193,8 +194,9 @@ async function runTrackedRouteTask<T>(
     visibleId: trackedTask.visibleId,
     dedupeKey: trackedTask.dedupeKey,
     runId: coordinator.getRunId(trackedTask.target),
-    run: async () => {
-      return await action()
+    run: async ({ signal }) => {
+      signal.throwIfAborted()
+      return await dispatcher.appDatabaseMaintenance.runRequest(routeName, action)
     }
   })
 }
@@ -205,16 +207,20 @@ export async function dispatchDeepchatRoute(
   rawInput: unknown,
   context: RouteContext
 ): Promise<unknown> {
-  dispatcher.appDatabaseMaintenance.assertRouteAllowed(routeName)
   if (!hasDeepchatRouteContract(routeName)) {
     throw new Error(`Unknown deepchat route: ${routeName}`)
   }
 
   const registeredRoute = dispatcher.routeRegistry.get(routeName)
   if (registeredRoute) {
-    return await runTrackedRouteTask(dispatcher, routeName, context, async () => {
-      return await registeredRoute(rawInput, context)
-    })
+    return await dispatcher.appDatabaseMaintenance.runRequest(routeName, () =>
+      runTrackedRouteTask(
+        dispatcher,
+        routeName,
+        context,
+        async () => await registeredRoute(rawInput, context)
+      )
+    )
   }
 
   throw new Error(`Unhandled deepchat route: ${routeName}`)

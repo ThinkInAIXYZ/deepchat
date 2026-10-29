@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AgentInvocationAdmission } from '@/agent/invocationAdmission'
+import { AgentInvocationAdmission } from '../../../src/harness/admission'
 import { TOOL_EXECUTION } from '@shared/types/mcp'
 import {
   LIVE_DELEGATION_MAX_ACTIVE_PER_PARENT,

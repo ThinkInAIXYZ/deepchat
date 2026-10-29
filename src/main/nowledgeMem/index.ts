@@ -67,7 +67,10 @@ export class NowledgeMemConnections {
 
   constructor(
     private readonly settings: SettingsStore,
-    private readonly secrets: Pick<SecretStore, 'get' | 'wrap' | 'setWrapped' | 'restoreWrapped'>,
+    private readonly secrets: Pick<
+      SecretStore,
+      'get' | 'wrap' | 'setWrapped' | 'restoreWrapped' | 'captureOperation'
+    >,
     private readonly mcpSettings: Pick<McpSettings, 'getMcpServers'>
   ) {}
 
@@ -92,8 +95,8 @@ export class NowledgeMemConnections {
     }
   }
 
-  private key(connection: StoredConnection): string {
-    const key = connection.credentialId ? this.secrets.get(connection.credentialId) : ''
+  private async key(connection: StoredConnection): Promise<string> {
+    const key = connection.credentialId ? await this.secrets.get(connection.credentialId) : ''
     if (connection.credentialId && !key)
       throw new Error('The saved credential is unavailable; enter it again')
     return key
@@ -172,13 +175,16 @@ export class NowledgeMemConnections {
     return result
   }
 
-  getExportConfig(): NowledgeMemConfig {
+  async getExportConfig(): Promise<NowledgeMemConfig> {
+    const check = this.secrets.captureOperation()
     const state = this.read()
     const connection = state.connection
     if (!connection) throw new Error('Verify a connection in the Nowledge Mem plugin')
+    const apiKey = await this.key(connection)
+    check()
     return {
       baseUrl: connection.apiBaseUrl,
-      apiKey: this.key(connection),
+      apiKey,
       timeout: connection.timeout
     }
   }
@@ -194,6 +200,7 @@ export class NowledgeMemConnections {
 
   clear(): void {
     if (this.busy) throw new Error('A connection update is in progress')
+    this.secrets.captureOperation()
     for (const key of Object.keys(this.settings.store)) {
       if (isNowledgeMachineLocalSetting(key)) this.settings.delete(key)
     }
@@ -209,7 +216,8 @@ export class NowledgeMemConnections {
     }
   }
 
-  getMcpBindings(config: Partial<MCPServerConfig>): Record<string, string> {
+  async getMcpBindings(config: Partial<MCPServerConfig>): Promise<Record<string, string>> {
+    const check = this.secrets.captureOperation()
     if (config.ownerPluginId !== NOWLEDGE_PLUGIN_ID) return {}
     const connection = this.read().connection
     if (
@@ -217,13 +225,16 @@ export class NowledgeMemConnections {
       config.baseUrl === connection.mcpUrl &&
       config.sourceId === NOWLEDGE_PLUGIN_ID
     ) {
-      return { [KEY_VARIABLE]: this.key(connection) }
+      const apiKey = await this.key(connection)
+      check()
+      return { [KEY_VARIABLE]: apiKey }
     }
     throw new Error('The Nowledge MCP destination no longer matches its saved connection')
   }
 
   async save(rawInput: unknown): Promise<NowledgePluginState> {
     const input = NowledgeConnectionInputSchema.parse(rawInput)
+    const check = this.secrets.captureOperation()
     if (this.busy) throw new Error('A connection update is in progress')
     this.busy = true
     try {
@@ -254,7 +265,8 @@ export class NowledgeMemConnections {
       // Reuse only credentials bound to these exact destinations, never ambient nmem settings.
       const suppliedKey = apiKey
       const savedCredential = state.credentials?.[this.credentialId(endpoints)]
-      apiKey ||= savedCredential ? this.secrets.get(savedCredential) : ''
+      apiKey ||= savedCredential ? await this.secrets.get(savedCredential) : ''
+      check()
       try {
         await this.verify(endpoints, apiKey, input.timeout)
       } catch (error) {
@@ -269,10 +281,11 @@ export class NowledgeMemConnections {
         endpoints = resolveMemEndpoints({ ...input, apiBaseUrl: `${endpoints.baseUrl}/remote-api` })
         if (!suppliedKey) {
           const resolvedCredential = state.credentials?.[this.credentialId(endpoints)]
-          apiKey = resolvedCredential ? this.secrets.get(resolvedCredential) : ''
+          apiKey = resolvedCredential ? await this.secrets.get(resolvedCredential) : ''
           if (!apiKey && savedCredential)
             throw new Error('Enter a credential for the resolved API and MCP destinations')
         }
+        check()
         await this.verify(endpoints, apiKey, input.timeout)
       }
       if (
@@ -285,14 +298,16 @@ export class NowledgeMemConnections {
       const destinationKey = this.credentialId(endpoints)
       const previousCredentialId = state.credentials?.[destinationKey]
       const reuse = Boolean(
-        previousCredentialId && this.secrets.get(previousCredentialId) === apiKey
+        previousCredentialId && (await this.secrets.get(previousCredentialId)) === apiKey
       )
       const credentialId = apiKey
         ? reuse
           ? previousCredentialId
           : `${destinationKey}.${randomUUID()}`
         : undefined
-      if (credentialId && !reuse) this.secrets.setWrapped(credentialId, this.secrets.wrap(apiKey))
+      const wrapped = credentialId && !reuse ? await this.secrets.wrap(apiKey) : undefined
+      check()
+      if (credentialId && wrapped !== undefined) this.secrets.setWrapped(credentialId, wrapped)
       const connection: StoredConnection = {
         ...endpoints,
         timeout: input.timeout,
@@ -357,13 +372,16 @@ export class NowledgeMemConnections {
     apiKey: string,
     timeout: number
   ): Promise<void> {
+    const check = this.secrets.captureOperation()
     await this.readJson(`${endpoints.apiBaseUrl}/health`, apiKey, timeout, 'Health check')
+    check()
     await this.readJson(
       `${endpoints.apiBaseUrl}/memories?limit=1`,
       apiKey,
       timeout,
       'REST authentication'
     )
+    check()
     const client = new Client({ name: 'DeepChat', version: '1.0.0' })
     const deadline = AbortSignal.timeout(timeout)
     const transport = new StreamableHTTPClientTransport(new URL(endpoints.mcpUrl), {
@@ -377,7 +395,9 @@ export class NowledgeMemConnections {
     })
     try {
       await client.connect(transport, { timeout, signal: deadline })
+      check()
       const catalog = await client.listTools({}, { timeout, signal: deadline })
+      check()
       const name = ['read_context_bundle', 'read_working_memory'].find((candidate) =>
         catalog.tools.some((tool) => tool.name === candidate)
       )
@@ -387,6 +407,7 @@ export class NowledgeMemConnections {
         undefined,
         { timeout, signal: deadline }
       )
+      check()
       if (result.isError) throw new Error('Context tool failed')
     } catch {
       throw new Error(

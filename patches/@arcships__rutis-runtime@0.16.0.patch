@@ -1,0 +1,33 @@
+diff --git a/src/values.mjs b/src/values.mjs
+index 4a1a5f56cba813067f410cb76c0eac4822626578..f6bc86e10033daa1cfb3f87ab3a28c2671da46b4 100644
+--- a/src/values.mjs
++++ b/src/values.mjs
+@@ -130,8 +130,6 @@ export function instantText(date) {
+ 
+ // ── Base64 (RFC 4648 §4, padded) ─────────────────────────────────────
+ 
+-const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+-
+ // The bytes of a Uint8Array, ArrayBuffer or DataView (a Buffer is a
+ // Uint8Array); undefined for anything else.
+ export function bytesOf(value) {
+@@ -148,12 +146,13 @@ export function base64Encode(bytes) {
+ // The bytes of padded base64 text. Only the canonical text is taken: no
+ // whitespace, padding only at the end, unused bits zero.
+ export function base64Decode(text) {
+-  const padding = text.endsWith('==') ? 2 : text.endsWith('=') ? 1 : 0
+-  const valid = text.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(text)
+-    // The bits of the last character before the padding that no byte uses.
+-    && (padding === 0 || (ALPHABET.indexOf(text[text.length - padding - 1]) & (padding === 2 ? 15 : 3)) === 0)
+-  if (!valid) throw new ValueError(`invalid bytes (${text.length} characters): expected base64 (RFC 4648 §4) with padding`)
+-  return new Uint8Array(Buffer.from(text, 'base64'))
++  const bytes = text.length % 4 === 0 ? Buffer.from(text, 'base64') : undefined
++  if (!bytes || bytes.toString('base64') !== text) throw new ValueError(`invalid bytes (${text.length} characters): expected base64 (RFC 4648 §4) with padding`)
++  // Pooled/partial buffers must not expose bytes outside the decoded value.
++  if (bytes.byteLength > 0 && bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength)
++    return new Uint8Array(bytes.buffer)
++  return new Uint8Array(bytes)
++
+ }
+ 
+ // ── What crosses as a tagged value ───────────────────────────────────

@@ -47,6 +47,7 @@ import {
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
 export function createSkillRoutes(deps: {
+  tempDirectory: string
   skillService: SkillServicePort
   skillSyncService: SkillSyncServicePort
   skillSettings: SkillSettingsPort
@@ -56,6 +57,7 @@ export function createSkillRoutes(deps: {
 }): DeepchatRouteMap {
   const { skillService, skillSyncService } = deps
   const agentSkillImportService = new AgentSkillImportService({
+    tempDirectory: deps.tempDirectory,
     skills: skillService,
     external: skillSyncService
   })

@@ -3,10 +3,6 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const state = vi.hoisted(() => ({
-  getPath: vi.fn(),
-  getAppPath: vi.fn()
-}))
 const DEFAULT_PROVIDER_DB_URL =
   'https://raw.githubusercontent.com/ThinkInAIXYZ/PublicProviderConf/refs/heads/dev/dist/all.json'
 
@@ -19,21 +15,21 @@ vi.mock('fs', async () => {
   }
 })
 
-vi.mock('electron', () => ({
-  app: {
-    getPath: state.getPath,
-    getAppPath: state.getAppPath
-  }
-}))
-
 describe('ProviderDbLoader', () => {
   let tempRoot: string
   let appRoot: string
   let userDataRoot: string
 
-  const importLoader = async () => {
+  const importLoaderFactory = async () => {
     const mod = await import('../../../src/main/provider/providerDbLoader')
-    return mod.ProviderDbLoader
+    return () => {
+      const loader = new mod.ProviderDbLoader()
+      loader.configure({
+        userDataDirectory: userDataRoot,
+        builtInCatalogPath: path.join(appRoot, 'resources', 'model-db', 'providers.json')
+      })
+      return loader
+    }
   }
 
   const getCacheDir = () => path.join(userDataRoot, 'provider-db')
@@ -88,11 +84,6 @@ describe('ProviderDbLoader', () => {
     fs.mkdirSync(appRoot, { recursive: true })
     fs.mkdirSync(userDataRoot, { recursive: true })
 
-    state.getPath.mockImplementation((name: string) => {
-      if (name === 'userData') return userDataRoot
-      return userDataRoot
-    })
-    state.getAppPath.mockReturnValue(appRoot)
     vi.unstubAllGlobals()
     delete process.env.PROVIDER_DB_TTL_HOURS
     delete process.env.PROVIDER_DB_URL
@@ -106,14 +97,123 @@ describe('ProviderDbLoader', () => {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   })
 
-  it('resolves DEEPCHAT_E2E_USER_DATA_DIR as provider-db base directory', async () => {
+  it('keeps imports inert until explicit profile bootstrap and rejects profile replacement', async () => {
+    const { ProviderDbLoader } = await import('../../../src/main/provider/providerDbLoader')
+    const loader = new ProviderDbLoader()
+    expect(loader.getDb()).toBeNull()
+    expect(fs.existsSync(getCacheDir())).toBe(false)
+    await expect(loader.refreshIfNeeded(true)).rejects.toThrow('paths are required')
+    loader.configure({
+      userDataDirectory: userDataRoot,
+      builtInCatalogPath: path.join(appRoot, 'resources', 'model-db', 'providers.json')
+    })
+    expect(() =>
+      loader.configure({
+        userDataDirectory: path.join(tempRoot, 'another-profile'),
+        builtInCatalogPath: path.join(appRoot, 'resources', 'model-db', 'providers.json')
+      })
+    ).toThrow('another profile')
+  })
+
+  it('drains a stopped refresh without accepting late response headers', async () => {
+    writeBuiltInDb(createAggregate(['builtin']))
+    let release!: (response: Response) => void
+    let signal: AbortSignal | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url, options) => {
+        signal = options.signal
+        return new Promise<Response>((resolve) => {
+          release = resolve
+        })
+      })
+    )
+    const createLoader = await importLoaderFactory()
+    const loader = createLoader()
+    expect(loader.getProvider('builtin')).toBeDefined()
+    const changed = vi.fn()
+    loader.subscribeCatalogChanges(changed)
+    const refresh = loader.refreshIfNeeded(true)
+    loader.stop()
+    let drained = false
+    const drain = loader.drain().then(() => {
+      drained = true
+    })
+    await Promise.resolve()
+    expect(signal?.aborted).toBe(true)
+    expect(drained).toBe(false)
+    release(new Response(JSON.stringify(createAggregate(['late']))))
+    expect((await refresh).status).toBe('skipped')
+    await drain
+    expect(changed).not.toHaveBeenCalled()
+    expect(loader.getProvider('late')).toBeUndefined()
+    expect(fs.existsSync(getCacheFile())).toBe(false)
+    expect(fs.existsSync(getMetaFile())).toBe(false)
+    expect((await loader.refreshIfNeeded(true)).status).toBe('skipped')
+    expect(fetch).toHaveBeenCalledOnce()
+  })
+
+  it.each(['shutdown', 'task cancellation'] as const)(
+    'rejects a late body after %s without changing existing cache or metadata',
+    async (reason) => {
+      writeCachedDb(createAggregate(['cached']))
+      const meta = { sourceUrl: DEFAULT_PROVIDER_DB_URL, lastUpdated: 1, ttlHours: 4 }
+      writeMeta(meta)
+      const originalMeta = fs.readFileSync(getMetaFile(), 'utf8')
+      let bodyStarted!: () => void
+      const started = new Promise<void>((resolve) => {
+        bodyStarted = resolve
+      })
+      let release!: (value: string) => void
+      const body = new Promise<string>((resolve) => {
+        release = resolve
+      })
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({
+          ok: true,
+          status: 200,
+          headers: new Headers({ etag: 'late' }),
+          body: null,
+          text: () => {
+            bodyStarted()
+            return body
+          }
+        }))
+      )
+      const createLoader = await importLoaderFactory()
+      const loader = createLoader()
+      const owner = new AbortController()
+      const refresh = loader.refreshIfNeeded(true, { signal: owner.signal })
+      await started
+      if (reason === 'shutdown') loader.stop()
+      else owner.abort()
+      release(JSON.stringify(createAggregate(['late'])))
+      expect((await refresh).status).toBe('skipped')
+      await loader.drain()
+      expect(JSON.parse(fs.readFileSync(getCacheFile(), 'utf8'))).toEqual(
+        createAggregate(['cached'])
+      )
+      expect(fs.readFileSync(getMetaFile(), 'utf8')).toBe(originalMeta)
+      if (reason === 'task cancellation') {
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(async () => new Response(JSON.stringify(createAggregate(['fresh']))))
+        )
+        expect((await loader.refreshIfNeeded(true)).status).toBe('updated')
+        expect(loader.getProvider('fresh')).toBeDefined()
+      }
+    }
+  )
+
+  it('uses the explicit profile instead of the ambient E2E directory', async () => {
     const oldDir = process.env.DEEPCHAT_E2E_USER_DATA_DIR
     const e2eUserDataRoot = path.join(tempRoot, 'e2e-user-data')
     process.env.DEEPCHAT_E2E_USER_DATA_DIR = e2eUserDataRoot
-    const ProviderDbLoader = await importLoader()
-    new ProviderDbLoader()
-    expect(fs.existsSync(path.join(e2eUserDataRoot, 'provider-db'))).toBe(true)
-    expect(fs.existsSync(getCacheDir())).toBe(false)
+    const createLoader = await importLoaderFactory()
+    createLoader()
+    expect(fs.existsSync(path.join(e2eUserDataRoot, 'provider-db'))).toBe(false)
+    expect(fs.existsSync(getCacheDir())).toBe(true)
     if (oldDir === undefined) {
       delete process.env.DEEPCHAT_E2E_USER_DATA_DIR
     } else {
@@ -121,7 +221,7 @@ describe('ProviderDbLoader', () => {
     }
   })
 
-  it('initializes from cache and still triggers a startup refresh when cache is fresh', async () => {
+  it('loads cache without detaching work and permits an explicit automatic startup refresh', async () => {
     writeBuiltInDb(createAggregate(['builtin']))
     writeCachedDb(createAggregate(['openai']))
     const now = Date.now()
@@ -142,14 +242,16 @@ describe('ProviderDbLoader', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const ProviderDbLoader = await importLoader()
-    const loader = new ProviderDbLoader()
+    const createLoader = await importLoaderFactory()
+    const loader = createLoader()
     const catalogChanged = vi.fn()
     loader.subscribeCatalogChanges(catalogChanged)
 
     await loader.initialize()
 
     expect(loader.getDb()?.providers).toHaveProperty('openai')
+    expect(fetchMock).not.toHaveBeenCalled()
+    await loader.refreshIfNeeded(true, { automatic: true })
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(catalogChanged).toHaveBeenCalledWith({
       reason: 'loaded',
@@ -164,13 +266,14 @@ describe('ProviderDbLoader', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
-    const ProviderDbLoader = await importLoader()
-    const loader = new ProviderDbLoader()
+    const createLoader = await importLoaderFactory()
+    const loader = createLoader()
     loader.setPrivacyModeResolver(() => true)
 
     await loader.initialize()
 
     expect(loader.getDb()?.providers).toHaveProperty('openai')
+    await loader.refreshIfNeeded(true, { automatic: true })
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -187,8 +290,8 @@ describe('ProviderDbLoader', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
-    const ProviderDbLoader = await importLoader()
-    const loader = new ProviderDbLoader()
+    const createLoader = await importLoaderFactory()
+    const loader = createLoader()
 
     const result = await loader.refreshIfNeeded(false)
 
@@ -233,8 +336,8 @@ describe('ProviderDbLoader', () => {
         )
         .mockResolvedValueOnce(new Response(null, { status: 304 }))
       vi.stubGlobal('fetch', fetchMock)
-      const ProviderDbLoader = await importLoader()
-      const loader = new ProviderDbLoader()
+      const createLoader = await importLoaderFactory()
+      const loader = createLoader()
       expect((await loader.refreshIfNeeded()).status).toBe('updated')
       expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('If-None-Match')
       expect(
@@ -243,8 +346,7 @@ describe('ProviderDbLoader', () => {
       expect((await loader.refreshIfNeeded(true)).status).toBe('not-modified')
       expect(fetchMock.mock.calls[1][1].headers['If-None-Match']).toBe('"same"')
       expect(
-        new ProviderDbLoader().getModel('zhipuai', 'glm-5.3')?.extra_capabilities?.reasoning
-          ?.effort_options
+        createLoader().getModel('zhipuai', 'glm-5.3')?.extra_capabilities?.reasoning?.effort_options
       ).toEqual(['low', 'high', 'max'])
     }
   )
@@ -269,8 +371,8 @@ describe('ProviderDbLoader', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const ProviderDbLoader = await importLoader()
-    const loader = new ProviderDbLoader()
+    const createLoader = await importLoaderFactory()
+    const loader = createLoader()
 
     const result = await loader.refreshIfNeeded(true)
 
@@ -301,8 +403,8 @@ describe('ProviderDbLoader', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const ProviderDbLoader = await importLoader()
-    const loader = new ProviderDbLoader()
+    const createLoader = await importLoaderFactory()
+    const loader = createLoader()
     const catalogChanged = vi.fn()
     loader.subscribeCatalogChanges(catalogChanged)
 
@@ -332,8 +434,8 @@ describe('ProviderDbLoader', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const ProviderDbLoader = await importLoader()
-    const loader = new ProviderDbLoader()
+    const createLoader = await importLoaderFactory()
+    const loader = createLoader()
 
     await loader.refreshIfNeeded(true)
 
@@ -354,8 +456,8 @@ describe('ProviderDbLoader', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const ProviderDbLoader = await importLoader()
-    const loader = new ProviderDbLoader()
+    const createLoader = await importLoaderFactory()
+    const loader = createLoader()
     loader.setPrivacyModeResolver(() => true)
 
     const result = await loader.refreshIfNeeded(true)
@@ -378,8 +480,8 @@ describe('ProviderDbLoader', () => {
 
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
 
-    const ProviderDbLoader = await importLoader()
-    const loader = new ProviderDbLoader()
+    const createLoader = await importLoaderFactory()
+    const loader = createLoader()
 
     const result = await loader.refreshIfNeeded(true)
 

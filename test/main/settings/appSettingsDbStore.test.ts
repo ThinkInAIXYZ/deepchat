@@ -96,7 +96,7 @@ describe('settings DB-backed stores', () => {
     expect(store.has('mcpServers')).toBe(true)
   })
 
-  it('reads migrated ACP fields from sqlite and keeps agent-owned legacy fields', () => {
+  it('reads ACP settings from sqlite and an isolated read-only legacy snapshot', () => {
     const legacy = createLegacyStore({
       enabled: true,
       sharedMcpSelections: ['legacy-server'],
@@ -106,13 +106,23 @@ describe('settings DB-backed stores', () => {
       agentSettings: { enabled: false, version: '4' },
       agentSelections: ['sqlite-server']
     })
-    const store = new AcpDbStore(legacy, () => tables)
+    const store = new AcpDbStore(legacy.store, () => tables)
+    legacy.set('manualAgents', [{ id: 'replaced-agent' }])
 
     expect(store.store.enabled).toBe(false)
     expect(store.store.sharedMcpSelections).toEqual(['sqlite-server'])
     expect(store.store.manualAgents).toEqual([{ id: 'legacy-agent' }])
     expect(store.get('enabled', false)).toBe(false)
     expect(store.get('sharedMcpSelections', [])).toEqual(['sqlite-server'])
+    const manualAgents = store.store.manualAgents as Array<{ id: string }>
+    manualAgents[0].id = 'mutated-agent'
+    expect(store.get('manualAgents')).toEqual([{ id: 'legacy-agent' }])
+    expect(() => store.set('manualAgents', [])).toThrow('Legacy ACP settings are read-only')
+    expect(() => store.delete('manualAgents')).toThrow('Legacy ACP settings are read-only')
+    expect(() => store.set({ enabled: true, manualAgents: [] })).toThrow(
+      'Legacy ACP settings are read-only'
+    )
+    expect(store.get('enabled')).toBe(false)
   })
 
   it('keeps provider keys opaque in the app settings store', () => {
@@ -181,6 +191,9 @@ function createAppSettingsTable(
     getMcpSetting: vi.fn((key: string) => mcpSettings[key]),
     listAgentSettings: vi.fn(() => agentSettings),
     getAgentSetting: vi.fn((key: string) => agentSettings[key]),
+    setAgentSetting: vi.fn((key: string, value: unknown) => {
+      agentSettings[key] = value
+    }),
     getAgentMcpSelections: vi.fn(() => overrides.agentSelections ?? []),
     listAppSettings: vi.fn(() => appSettings),
     getAppSetting: vi.fn((key: string) => appSettings[key])

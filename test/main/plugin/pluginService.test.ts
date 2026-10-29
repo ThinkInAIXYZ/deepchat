@@ -1,3 +1,4 @@
+import { createPluginToolPolicies } from '../../helpers/pluginToolPolicies'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -7,8 +8,8 @@ import { app, BrowserWindow, shell } from 'electron'
 import { zipSync } from 'fflate'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron-store', () => ({
-  default: class MockElectronStore {
+vi.mock('conf', () => ({
+  default: class MockConf {
     private data: Record<string, unknown>
 
     constructor(options?: { defaults?: Record<string, unknown> }) {
@@ -104,12 +105,21 @@ const createPluginService = async (
     registerPluginSkill: vi.fn().mockResolvedValue(undefined),
     unregisterPluginSkillsByOwner: vi.fn().mockResolvedValue(undefined)
   }
+  const toolPolicies = createPluginToolPolicies()
   const presenter = new PluginService({
+    workingDirectory: process.cwd(),
+    profileDirectory: app.getPath('userData'),
+    homeDirectory: app.getPath('home'),
+    appVersion: app.getVersion(),
+    openExternal: (url: string) => shell.openExternal(url),
+    openPath: (filePath: string) => shell.openPath(filePath),
+    hookEnvironment: () => ({}),
+    toolPolicies,
     platform,
     arch: options.arch,
     appPath: options.appPath ?? process.cwd(),
-    isPackaged: options.isPackaged,
-    resourcesPath: options.resourcesPath,
+    isPackaged: options.isPackaged ?? false,
+    resourcesPath: options.resourcesPath ? path.resolve(options.resourcesPath) : '',
     nowledgeMem: options.nowledgeMem,
     mcpSettings,
     mcpService,
@@ -119,6 +129,7 @@ const createPluginService = async (
   } as any)
   return Object.assign(presenter, {
     __mocks: {
+      toolPolicies,
       mcpServers,
       mcpSettings,
       mcpService,
@@ -1132,11 +1143,12 @@ describe('PluginService', () => {
     await writeFile(workspaceManifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
 
     const presenter = await createPluginService('darwin', fixture.appPath)
-    const { getPluginToolPolicy } = await import('@/plugin/toolPolicyStore')
 
     const enabled = await presenter.enablePlugin(fixture.pluginId)
     expect(enabled.ok).toBe(true)
-    expect(getPluginToolPolicy('fixture-tools', 'fixture_tool')).toBe('ask')
+    expect(presenter.__mocks.toolPolicies.resolve('fixture-tools', 'fixture_tool').decision).toBe(
+      'ask'
+    )
 
     const rejectedManifest = {
       ...manifest,
@@ -1159,7 +1171,9 @@ describe('PluginService', () => {
     expect((presenter as any).store.get('resources')).toEqual([])
     expect((presenter as any).store.get('runtimes')).toEqual([])
     expect(servers['fixture-tools']).toBeUndefined()
-    expect(getPluginToolPolicy('fixture-tools', 'fixture_tool')).toBeNull()
+    expect(
+      presenter.__mocks.toolPolicies.resolve('fixture-tools', 'fixture_tool').decision
+    ).toBeNull()
   })
 
   it('loads official packages only from resources roots in packaged mode', async () => {
@@ -1607,8 +1621,6 @@ describe('PluginService', () => {
 
   it('preserves an explicit legacy CUA disable in installation intent before cleanup', async () => {
     const presenter = await createPluginService('darwin')
-    const { getPluginToolPolicy, registerPluginToolPolicy } =
-      await import('@/plugin/toolPolicyStore')
     const now = Date.now()
     ;(presenter as any).store.set('installations', [
       {
@@ -1632,7 +1644,7 @@ describe('PluginService', () => {
       sourceId: 'com.deepchat.plugins.cua',
       ownerPluginId: 'com.deepchat.plugins.cua'
     }
-    registerPluginToolPolicy({
+    presenter.__mocks.toolPolicies.register({
       pluginId: 'com.deepchat.plugins.cua',
       serverId: 'cua-driver',
       tools: { click: 'ask' },
@@ -1646,7 +1658,7 @@ describe('PluginService', () => {
       enabled: false
     })
     expect(presenter.__mocks.mcpSettings.removeMcpServer).toHaveBeenCalledWith('cua-driver')
-    expect(getPluginToolPolicy('cua-driver', 'click')).toBeNull()
+    expect(presenter.__mocks.toolPolicies.resolve('cua-driver', 'click').decision).toBeNull()
   })
 
   it('does not reinterpret the supervised CUA record as a legacy disable signal', async () => {
@@ -1705,7 +1717,7 @@ describe('PluginService', () => {
     const activatePluginImplementation = (presenter as any).activatePlugin.bind(presenter)
     const activatePlugin = vi
       .spyOn(presenter as any, 'activatePlugin')
-      .mockImplementation(async (pluginId: string) => {
+      .mockImplementation(async (pluginId) => {
         if (pluginId === 'com.deepchat.plugins.cua') {
           return
         }

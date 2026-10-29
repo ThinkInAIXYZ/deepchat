@@ -1,26 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
-const getLocaleMock = vi.hoisted(() => vi.fn(() => 'en-US'))
-
-vi.mock('electron', () => ({
-  app: {
-    getLocale: getLocaleMock,
-    getLoginItemSettings: vi.fn(() => ({ openAtLogin: false })),
-    setLoginItemSettings: vi.fn()
-  }
-}))
-
 import { DesktopSettings } from '@/desktop/settings'
 
 describe('DesktopSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getLocaleMock.mockReturnValue('en-US')
+    host.systemLocale = 'en-US'
   })
 
-  const effects = {
-    refreshLanguage: vi.fn(),
+  const host = {
+    systemLocale: 'en-US',
+    readTheme: vi.fn(async () => ({ theme: 'system' as const, isDark: false })),
+    applyTheme: vi.fn(async () => false),
+    readLaunchAtLogin: vi.fn(async () => false),
+    setLaunchAtLogin: vi.fn(async () => false),
+    applyContentProtection: vi.fn(async () => undefined),
+    applyFloatingButtonEnabled: vi.fn(async () => undefined),
+    refreshLanguage: vi.fn(async () => undefined),
     refreshTheme: vi.fn(async () => undefined)
   }
 
@@ -28,8 +25,9 @@ describe('DesktopSettings', () => {
     const settings = { set: vi.fn() }
     const desktopSettings = new DesktopSettings(
       settings as never,
-      effects,
-      publishDeepchatEventMock
+      host,
+      publishDeepchatEventMock,
+      vi.fn()
     )
 
     desktopSettings.setFontSizeLevel(4)
@@ -49,8 +47,9 @@ describe('DesktopSettings', () => {
     }
     const desktopSettings = new DesktopSettings(
       settings as never,
-      effects,
-      publishDeepchatEventMock
+      host,
+      publishDeepchatEventMock,
+      vi.fn()
     )
 
     expect(desktopSettings.getCopyWithCotEnabled()).toBe(true)
@@ -70,11 +69,12 @@ describe('DesktopSettings', () => {
       get: vi.fn(() => 'system'),
       set: vi.fn()
     }
-    getLocaleMock.mockReturnValue('zh-Hant-HK')
+    host.systemLocale = 'zh-Hant-HK'
     const desktopSettings = new DesktopSettings(
       settings as never,
-      effects,
-      publishDeepchatEventMock
+      host,
+      publishDeepchatEventMock,
+      vi.fn()
     )
 
     expect(desktopSettings.getLanguage()).toBe('zh-HK')
@@ -84,18 +84,19 @@ describe('DesktopSettings', () => {
     expect(desktopSettings.getLanguage()).toBe('fr-FR')
   })
 
-  it('publishes a normalized locale and direction once when changing language', () => {
+  it('publishes a normalized locale and direction once when changing language', async () => {
     const settings = {
       get: vi.fn(() => 'fa-IR'),
       set: vi.fn()
     }
     const desktopSettings = new DesktopSettings(
       settings as never,
-      effects,
-      publishDeepchatEventMock
+      host,
+      publishDeepchatEventMock,
+      vi.fn()
     )
 
-    desktopSettings.setLanguage('fa')
+    await desktopSettings.setLanguage('fa')
 
     expect(settings.set).toHaveBeenCalledWith('language', 'fa-IR')
     expect(publishDeepchatEventMock).toHaveBeenCalledWith('config.language.changed', {

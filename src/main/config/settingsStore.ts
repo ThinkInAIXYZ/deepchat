@@ -1,46 +1,8 @@
+import Conf from 'conf'
+import path from 'node:path'
 import type { SettingsDatabase } from '@/settings/data/database'
 import { AppSettingsDbBackedStore } from '@/settings/appSettingsDbStore'
 import type { StoreLike } from '@/config/storeLike'
-import ElectronStore from 'electron-store'
-import path from 'node:path'
-import { app } from 'electron'
-
-export function createSettingsStore(): SettingsStore {
-  const userDataPath = app.getPath('userData')
-  return new SettingsStore(
-    new ElectronStore<Record<string, unknown>>({
-      name: 'app-settings',
-      defaults: {
-        language: 'system',
-        providers: [],
-        closeToQuit: false,
-        proxyMode: 'system',
-        customProxyUrl: '',
-        searchPreviewEnabled: true,
-        contentProtectionEnabled: false,
-        privacyModeEnabled: false,
-        syncEnabled: false,
-        syncFolderPath: path.join(userDataPath, 'sync'),
-        lastSyncTime: 0,
-        copyWithCotEnabled: true,
-        autoCompactionEnabled: true,
-        autoCompactionTriggerThreshold: 80,
-        autoCompactionRetainRecentPairs: 2,
-        loggingEnabled: false,
-        floatingButtonEnabled: false,
-        fontFamily: '',
-        codeFontFamily: '',
-        default_system_prompt: '',
-        skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
-        enableSkills: true,
-        skillDraftSuggestionsEnabled: false,
-        appVersion: app.getVersion(),
-        hooksNotifications: { hooks: [] },
-        agentCommandShell: { preference: 'auto' }
-      }
-    }) as unknown as StoreLike<Record<string, unknown>>
-  )
-}
 
 export class SettingsStore implements StoreLike<Record<string, unknown>> {
   private activeStore: StoreLike<Record<string, unknown>>
@@ -101,4 +63,50 @@ export class SettingsStore implements StoreLike<Record<string, unknown>> {
   deleteLegacy(key: string): void {
     this.legacyStore.delete(key)
   }
+}
+
+export function createSettingsStore(options: {
+  userDataDirectory: string
+  homeDirectory: string
+  currentAppVersion: string
+}): SettingsStore {
+  for (const directory of [options.userDataDirectory, options.homeDirectory]) {
+    if (!path.isAbsolute(directory)) throw new Error('Settings directories must be absolute')
+  }
+  const userDataPath = options.userDataDirectory
+  return new SettingsStore(
+    new Conf<Record<string, unknown>>({
+      configName: 'app-settings',
+      cwd: userDataPath,
+      projectVersion: options.currentAppVersion,
+      defaults: {
+        language: 'system',
+        providers: [],
+        closeToQuit: false,
+        proxyMode: 'system',
+        customProxyUrl: '',
+        searchPreviewEnabled: true,
+        contentProtectionEnabled: false,
+        privacyModeEnabled: false,
+        syncEnabled: false,
+        syncFolderPath: path.join(userDataPath, 'sync'),
+        lastSyncTime: 0,
+        copyWithCotEnabled: true,
+        autoCompactionEnabled: true,
+        autoCompactionTriggerThreshold: 80,
+        autoCompactionRetainRecentPairs: 2,
+        loggingEnabled: false,
+        floatingButtonEnabled: false,
+        fontFamily: '',
+        codeFontFamily: '',
+        default_system_prompt: '',
+        skillsPath: path.join(options.homeDirectory, '.deepchat', 'skills'),
+        enableSkills: true,
+        skillDraftSuggestionsEnabled: false,
+        appVersion: options.currentAppVersion,
+        hooksNotifications: { hooks: [] },
+        agentCommandShell: { preference: 'auto' }
+      }
+    }) as unknown as StoreLike<Record<string, unknown>>
+  )
 }

@@ -4,10 +4,14 @@ import type { StoreLike } from '@/config/storeLike'
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
 export class AcpDbStore implements StoreLike<Record<string, unknown>> {
+  private readonly legacySnapshot: Record<string, unknown>
+
   constructor(
-    private readonly legacyStore: StoreLike<Record<string, unknown>>,
+    legacySnapshot: Record<string, unknown>,
     private readonly getSettingsTable: () => AgentCatalogSettingsTable
-  ) {}
+  ) {
+    this.legacySnapshot = clone(legacySnapshot)
+  }
 
   private get settingsTable(): AgentCatalogSettingsTable {
     return this.getSettingsTable()
@@ -32,12 +36,19 @@ export class AcpDbStore implements StoreLike<Record<string, unknown>> {
       const value = this.settingsTable.getAgentSetting<TValue>(key)
       return value === undefined ? defaultValue : value
     }
-    const legacyValue = this.legacyStore.get<TValue>(key)
+    const legacyValue = this.legacySnapshot[key] as TValue | undefined
     return legacyValue === undefined ? defaultValue : clone(legacyValue)
   }
 
   set(keyOrValues: string | Record<string, unknown>, value?: unknown): void {
     if (typeof keyOrValues !== 'string') {
+      if (
+        Object.keys(keyOrValues).some(
+          (key) => key !== 'enabled' && key !== 'version' && key !== 'sharedMcpSelections'
+        )
+      ) {
+        throw new Error('Legacy ACP settings are read-only after database attachment')
+      }
       for (const [key, nextValue] of Object.entries(keyOrValues)) this.set(key, nextValue)
       return
     }
@@ -51,7 +62,7 @@ export class AcpDbStore implements StoreLike<Record<string, unknown>> {
       this.settingsTable.setAgentSetting(keyOrValues, value)
       return
     }
-    this.legacyStore.set(keyOrValues, value)
+    throw new Error('Legacy ACP settings are read-only after database attachment')
   }
 
   delete(key: string): void {
@@ -63,11 +74,11 @@ export class AcpDbStore implements StoreLike<Record<string, unknown>> {
       this.settingsTable.deleteAgentSetting(key)
       return
     }
-    this.legacyStore.delete(key)
+    throw new Error('Legacy ACP settings are read-only after database attachment')
   }
 
   private getLegacyStoreSnapshot(): Record<string, unknown> {
-    const snapshot = { ...this.legacyStore.store }
+    const snapshot = clone(this.legacySnapshot)
     delete snapshot.enabled
     delete snapshot.version
     delete snapshot.sharedMcpSelections

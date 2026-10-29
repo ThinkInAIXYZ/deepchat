@@ -1,6 +1,7 @@
-import { BrowserWindow } from 'electron'
 import { randomBytes } from 'node:crypto'
 import * as http from 'node:http'
+import { setTimeout as delay } from 'node:timers/promises'
+import { finished } from 'node:stream/promises'
 import logger from '@shared/logger'
 import type {
   ChannelSettingsMap,
@@ -57,7 +58,7 @@ import {
 import type { ChannelAdapterConfig } from './runtime/types'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { REMOTE_CONTROL_ERROR_MESSAGES } from '@shared/contracts/remoteControlErrors'
-import type { RemoteServiceDeps } from './ports'
+import type { RemoteAuthWindowEvent, RemoteServiceDeps } from './ports'
 import { RemoteBindingStore } from './binding/store'
 import { RemoteConversationRunner } from './conversation/runner'
 import { TelegramClient } from './channels/telegram/telegramClient'
@@ -75,7 +76,6 @@ import {
   fetchFeishuOAuthUserInfo,
   pollFeishuPersonalAgentRegistration,
   readFeishuRegistrationString,
-  resolveFeishuAuthDomains,
   startFeishuPersonalAgentRegistration
 } from './channels/feishu/feishuAuth'
 import { WeixinIlinkClient } from './channels/weixinIlink/weixinIlinkClient'
@@ -129,7 +129,9 @@ type FeishuAuthSessionState = {
   authUrl: string
   expiresAt: number
   server: http.Server | null
-  window: BrowserWindow | null
+  startup: Promise<void> | null
+  cleanup: Promise<void> | null
+  callbacks: Set<Promise<void>>
   cleanupTimer: NodeJS.Timeout | null
   abortController: AbortController
   resolve: (result: FeishuAuthResult) => void
@@ -220,8 +222,11 @@ export class RemoteService {
   private runtimeOperation: Promise<void> = Promise.resolve()
   private readonly feishuAuthSessions = new Map<string, FeishuAuthSessionState>()
   private readonly feishuInstallSessions = new Map<string, FeishuInstallSessionState>()
-  private weixinIlinkLoginWindow: BrowserWindow | null = null
-  private weixinIlinkLoginWindowUrl: string | null = null
+  private weixinIlinkLoginWindowId: string | null = null
+  private authController = new AbortController()
+  private readonly authTasks = new Set<Promise<unknown>>()
+  private stopping: Promise<void> | null = null
+  private readonly weixinLoginSessions = new Set<string>()
   private readonly weixinIlinkLoginWaits = new Map<string, Promise<WeixinIlinkLoginResult>>()
   private readonly deliveryErrorNotifiedAt = new Map<RemoteChannel, number>()
   private readonly deliveryErrorNotificationInFlight = new Set<RemoteChannel>()
@@ -236,6 +241,12 @@ export class RemoteService {
   }
 
   async initialize(): Promise<void> {
+    await this.stopping
+    if (this.authController.signal.aborted) {
+      if (this.authTasks.size) throw new Error('Remote authorization is still draining')
+      this.authController = new AbortController()
+    }
+    this.stopping = null
     await this.enqueueRuntimeOperation(async () => {
       await Promise.all([
         this.rebuildTelegramRuntime(),
@@ -248,17 +259,48 @@ export class RemoteService {
   }
 
   async destroy(): Promise<void> {
-    await this.enqueueRuntimeOperation(async () => {
-      await this.channelManager.unregisterAll()
-    })
-    for (const sessionKey of Array.from(this.feishuAuthSessions.keys())) {
-      await this.cancelFeishuAuth(sessionKey)
+    if (this.stopping) return await this.stopping
+    this.authController.abort()
+    this.stopping = this.stopRuntime()
+    await this.stopping
+  }
+
+  private async stopRuntime(): Promise<void> {
+    for (const session of this.feishuAuthSessions.values()) {
+      this.completeFeishuAuthSession(
+        session,
+        createFeishuAuthResult({
+          authorized: false,
+          messageKey: 'settings.remote.feishu.authCancelled'
+        })
+      )
     }
-    for (const sessionKey of Array.from(this.feishuInstallSessions.keys())) {
-      await this.cancelFeishuInstall(sessionKey)
+    for (const session of this.feishuInstallSessions.values()) {
+      this.completeFeishuInstallSession(
+        session,
+        createFeishuInstallResult({
+          installed: false,
+          messageKey: 'settings.remote.feishu.installCancelled'
+        })
+      )
     }
-    this.weixinIlinkLoginWaits.clear()
-    this.closeWeixinIlinkLoginWindow()
+    try {
+      await this.enqueueRuntimeOperation(async () => {
+        await this.channelManager.unregisterAll()
+      })
+    } finally {
+      const closed = await Promise.allSettled([
+        ...Array.from(this.feishuAuthSessions.keys(), (key) => this.cancelFeishuAuth(key)),
+        ...Array.from(this.feishuInstallSessions.keys(), (key) => this.cancelFeishuInstall(key)),
+        this.closeWeixinIlinkLoginWindow()
+      ])
+      while (this.authTasks.size) await Promise.allSettled(Array.from(this.authTasks))
+      for (const sessionKey of this.weixinLoginSessions) WeixinIlinkClient.cancelLogin(sessionKey)
+      this.weixinLoginSessions.clear()
+      this.weixinIlinkLoginWaits.clear()
+      const failure = closed.find((result) => result.status === 'rejected')
+      if (failure?.status === 'rejected') throw failure.reason
+    }
   }
 
   buildTelegramSettingsSnapshot(): TelegramRemoteSettings {
@@ -666,10 +708,22 @@ export class RemoteService {
   }
 
   async startFeishuAuth(input: FeishuAuthStartInput = {}): Promise<FeishuAuthSession> {
+    const signal = this.authController.signal
+    signal.throwIfAborted()
+    return await this.retainAuthTask(
+      this.enqueueRuntimeOperation(() => this.beginFeishuAuth(input, signal))
+    )
+  }
+
+  private async beginFeishuAuth(
+    input: FeishuAuthStartInput,
+    signal: AbortSignal
+  ): Promise<FeishuAuthSession> {
     this.pruneExpiredFeishuAuthSessions()
     for (const existingSessionKey of Array.from(this.feishuAuthSessions.keys())) {
       await this.cancelFeishuAuth(existingSessionKey)
     }
+    signal.throwIfAborted()
 
     const currentConfig = this.bindingStore.getFeishuConfig()
     const brand = input.brand === 'lark' ? 'lark' : currentConfig.brand
@@ -709,7 +763,9 @@ export class RemoteService {
       authUrl,
       expiresAt,
       server: null,
-      window: null,
+      startup: null,
+      cleanup: null,
+      callbacks: new Set(),
       cleanupTimer: null,
       abortController: new AbortController(),
       resolve: resolveResult,
@@ -720,21 +776,40 @@ export class RemoteService {
     this.feishuAuthSessions.set(sessionKey, session)
 
     try {
-      session.server = await this.startFeishuAuthCallbackServer(session)
-      session.cleanupTimer = setTimeout(() => {
-        this.completeFeishuAuthSession(
-          session,
-          createFeishuAuthResult({
-            authorized: false,
-            messageKey: 'settings.remote.feishu.authTimeout'
-          })
-        )
-        this.feishuAuthSessions.delete(session.sessionKey)
-      }, FEISHU_AUTH_SESSION_TTL_MS)
-      this.openFeishuAuthWindow(session)
+      session.startup = (async () => {
+        session.server = await this.startFeishuAuthCallbackServer(session)
+        if (session.completed || signal.aborted) return
+        session.cleanupTimer = setTimeout(() => {
+          this.completeFeishuAuthSession(
+            session,
+            createFeishuAuthResult({
+              authorized: false,
+              messageKey: 'settings.remote.feishu.authTimeout'
+            })
+          )
+          this.feishuAuthSessions.delete(session.sessionKey)
+        }, FEISHU_AUTH_SESSION_TTL_MS)
+        await this.deps.authWindows.open({
+          id: `feishu:${session.sessionKey}`,
+          kind: 'feishu',
+          url: session.authUrl,
+          brand: session.brand,
+          redirectUri: session.redirectUri
+        })
+      })()
+      await session.startup
+      signal.throwIfAborted()
+      if (session.completed) throw new Error('Feishu authorization was cancelled')
     } catch (error) {
       this.feishuAuthSessions.delete(sessionKey)
-      this.cleanupFeishuAuthSession(session)
+      this.completeFeishuAuthSession(
+        session,
+        createFeishuAuthResult({
+          authorized: false,
+          messageKey: 'settings.remote.feishu.authFailed'
+        })
+      )
+      await this.cleanupFeishuAuthSession(session)
       throw error
     }
 
@@ -802,9 +877,22 @@ export class RemoteService {
       })
     )
     this.feishuAuthSessions.delete(session.sessionKey)
+    await this.cleanupFeishuAuthSession(session)
   }
 
   async startFeishuInstall(input: FeishuInstallStartInput = {}): Promise<FeishuInstallSession> {
+    const signal = this.authController.signal
+    signal.throwIfAborted()
+    return await this.retainAuthTask(
+      this.enqueueRuntimeOperation(() => this.beginFeishuInstall(input, signal))
+    )
+  }
+
+  private async beginFeishuInstall(
+    input: FeishuInstallStartInput,
+    signal: AbortSignal
+  ): Promise<FeishuInstallSession> {
+    signal.throwIfAborted()
     this.pruneExpiredFeishuInstallSessions()
     for (const existingSessionKey of Array.from(this.feishuInstallSessions.keys())) {
       await this.cancelFeishuInstall(existingSessionKey)
@@ -813,7 +901,10 @@ export class RemoteService {
     const requestedBrand =
       input.brand === 'lark' ? 'lark' : this.bindingStore.getFeishuConfig().brand
     const abortController = new AbortController()
-    const registration = await startFeishuPersonalAgentRegistration(abortController.signal)
+    const registration = await startFeishuPersonalAgentRegistration(
+      AbortSignal.any([signal, abortController.signal])
+    )
+    signal.throwIfAborted()
     const sessionKey = randomBytes(16).toString('hex')
     const expiresAt = Date.now() + registration.expireInSec * 1000
     const intervalMs = Math.max(registration.intervalSec * 1000, 3_000)
@@ -882,7 +973,7 @@ export class RemoteService {
 
     if (!session.polling) {
       session.polling = true
-      void this.pollFeishuInstallUntilComplete(session)
+      void this.retainAuthTask(this.pollFeishuInstallUntilComplete(session)).catch(() => undefined)
     }
     const timeoutMs = Math.min(
       input.timeoutMs ?? FEISHU_INSTALL_DEFAULT_WAIT_TIMEOUT_MS,
@@ -1125,10 +1216,26 @@ export class RemoteService {
   }
 
   async startWeixinIlinkLogin(input?: { force?: boolean }): Promise<WeixinIlinkLoginSession> {
+    const signal = this.authController.signal
+    signal.throwIfAborted()
+    return await this.retainAuthTask(
+      this.enqueueRuntimeOperation(() => this.beginWeixinIlinkLogin(input, signal))
+    )
+  }
+
+  private async beginWeixinIlinkLogin(
+    input: { force?: boolean } | undefined,
+    signal: AbortSignal
+  ): Promise<WeixinIlinkLoginSession> {
+    signal.throwIfAborted()
     const result = await WeixinIlinkClient.startLogin({
-      force: input?.force
+      force: input?.force,
+      signal
     })
-    this.openWeixinIlinkLoginWindow(result.loginUrl)
+    this.weixinLoginSessions.add(result.sessionKey)
+    if (signal.aborted) WeixinIlinkClient.cancelLogin(result.sessionKey)
+    signal.throwIfAborted()
+    await this.openWeixinIlinkLoginWindow(result.sessionKey, result.loginUrl, signal)
     return {
       sessionKey: result.sessionKey,
       loginUrl: result.loginUrl,
@@ -1141,6 +1248,8 @@ export class RemoteService {
     sessionKey: string
     timeoutMs?: number
   }): Promise<WeixinIlinkLoginResult> {
+    const signal = this.authController.signal
+    signal.throwIfAborted()
     const sessionKey = input.sessionKey.trim()
     if (!sessionKey) {
       return {
@@ -1156,11 +1265,15 @@ export class RemoteService {
     }
 
     const waitPromise = (async () => {
+      const windowId = this.weixinIlinkLoginWindowId
       const result = await WeixinIlinkClient.waitForLogin({
         ...input,
-        sessionKey
+        sessionKey,
+        signal
       })
-      this.closeWeixinIlinkLoginWindow()
+      signal.throwIfAborted()
+      if (windowId === this.weixinIlinkLoginWindowId) await this.closeWeixinIlinkLoginWindow()
+      signal.throwIfAborted()
       if (!result.connected || !result.accountId || !result.ownerUserId || !result.botToken) {
         return {
           connected: false,
@@ -1195,12 +1308,14 @@ export class RemoteService {
         messageKey: result.messageKey
       }
     })().finally(() => {
+      this.weixinLoginSessions.delete(sessionKey)
       if (this.weixinIlinkLoginWaits.get(sessionKey) === waitPromise) {
         this.weixinIlinkLoginWaits.delete(sessionKey)
       }
     })
 
     this.weixinIlinkLoginWaits.set(sessionKey, waitPromise)
+    this.retainAuthTask(waitPromise)
     return await waitPromise
   }
 
@@ -2048,7 +2163,7 @@ export class RemoteService {
         const error = readFeishuRegistrationString(data, 'error')
         if (error) {
           if (error === 'authorization_pending' || error === 'slow_down') {
-            await this.delayFeishuInstallPoll(session.intervalMs)
+            await this.delayFeishuInstallPoll(session.intervalMs, session.abortController.signal)
             continue
           }
 
@@ -2137,7 +2252,7 @@ export class RemoteService {
         return
       }
 
-      await this.delayFeishuInstallPoll(session.intervalMs)
+      await this.delayFeishuInstallPoll(session.intervalMs, session.abortController.signal)
     }
 
     if (!session.completed) {
@@ -2151,8 +2266,12 @@ export class RemoteService {
     }
   }
 
-  private delayFeishuInstallPoll(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
+  private async delayFeishuInstallPoll(ms: number, signal: AbortSignal): Promise<void> {
+    try {
+      await delay(ms, undefined, { signal })
+    } catch (error) {
+      if (!signal.aborted) throw error
+    }
   }
 
   private completeFeishuInstallSession(
@@ -2221,8 +2340,22 @@ export class RemoteService {
     }
 
     const server = http.createServer((request, response) => {
-      void this.handleFeishuAuthCallback(session, request, response)
+      const pending = (async () => {
+        try {
+          await this.handleFeishuAuthCallback(session, request, response)
+        } finally {
+          if (!response.writableEnded) response.end()
+          await finished(response, { cleanup: true }).catch(() => undefined)
+        }
+      })()
+      session.callbacks.add(pending)
+      const remove = () => session.callbacks.delete(pending)
+      void pending.then(remove, remove)
+      void this.retainAuthTask(pending).catch(() => {
+        if (!response.writableEnded) response.end()
+      })
     })
+    session.server = server
 
     await new Promise<void>((resolve, reject) => {
       server.once('error', reject)
@@ -2383,11 +2516,17 @@ export class RemoteService {
     }
 
     session.completed = true
-    this.cleanupFeishuAuthSession(session)
-    session.resolve(result)
+    void this.cleanupFeishuAuthSession(session).then(
+      () => session.resolve(result),
+      (error) => {
+        logger.warn('[RemoteService] Failed to close Feishu authorization.', { error })
+        session.resolve(result)
+      }
+    )
   }
 
-  private cleanupFeishuAuthSession(session: FeishuAuthSessionState): void {
+  private cleanupFeishuAuthSession(session: FeishuAuthSessionState): Promise<void> {
+    if (session.cleanup) return session.cleanup
     if (session.cleanupTimer) {
       clearTimeout(session.cleanupTimer)
       session.cleanupTimer = null
@@ -2397,15 +2536,33 @@ export class RemoteService {
       session.abortController.abort()
     }
 
-    if (session.server) {
-      session.server.close()
-      session.server = null
-    }
-
-    if (session.window && !session.window.isDestroyed()) {
-      session.window.close()
-    }
-    session.window = null
+    session.cleanup = this.retainAuthTask(
+      (async () => {
+        await session.startup?.catch(() => undefined)
+        const server = session.server
+        session.server = null
+        const closed = server
+          ? new Promise<void>((resolve, reject) => {
+              server.close((error) => {
+                if (error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING')
+                  reject(error)
+                else resolve()
+              })
+            })
+          : Promise.resolve()
+        const callbacks = (async () => {
+          while (session.callbacks.size) await Promise.allSettled(Array.from(session.callbacks))
+          // Partial HTTP headers are not active callbacks and must not retain the loopback server.
+          server?.closeAllConnections()
+        })()
+        await Promise.all([
+          closed,
+          callbacks,
+          this.deps.authWindows.close(`feishu:${session.sessionKey}`)
+        ])
+      })()
+    )
+    return session.cleanup
   }
 
   private pruneExpiredFeishuAuthSessions(): void {
@@ -2426,140 +2583,54 @@ export class RemoteService {
     }
   }
 
-  private isAllowedFeishuAuthNavigation(
-    url: string,
-    brand: 'feishu' | 'lark',
-    redirectUri: string
-  ): boolean {
-    try {
-      const parsed = new URL(url)
-      const redirect = new URL(redirectUri)
-      const domains = resolveFeishuAuthDomains(brand)
-      const accountsHost = new URL(domains.accountsBaseUrl).host
-      const openHost = new URL(domains.openBaseUrl).host
-      const isAuthHost =
-        parsed.protocol === 'https:' && (parsed.host === accountsHost || parsed.host === openHost)
-      const isRedirectHost =
-        parsed.protocol === redirect.protocol &&
-        parsed.host === redirect.host &&
-        parsed.pathname === redirect.pathname
-      return isAuthHost || isRedirectHost
-    } catch {
-      return false
+  handleAuthWindowEvent(event: RemoteAuthWindowEvent): void {
+    if (event.id.startsWith('feishu:')) {
+      const session = this.feishuAuthSessions.get(event.id.slice('feishu:'.length))
+      if (!session || session.completed) return
+      this.completeFeishuAuthSession(
+        session,
+        createFeishuAuthResult({
+          authorized: false,
+          messageKey:
+            event.type === 'closed'
+              ? 'settings.remote.feishu.authCancelled'
+              : 'settings.remote.feishu.authFailed'
+        })
+      )
+    } else if (event.id === this.weixinIlinkLoginWindowId && event.type === 'closed') {
+      this.weixinIlinkLoginWindowId = null
     }
   }
 
-  private openFeishuAuthWindow(session: FeishuAuthSessionState): void {
-    const parentWindow = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
-    const loginWindow = new BrowserWindow({
-      width: 480,
-      height: 760,
-      minWidth: 420,
-      minHeight: 680,
-      autoHideMenuBar: true,
-      title: 'Feishu / Lark Authorization',
-      ...(parentWindow ? { parent: parentWindow } : {}),
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        webSecurity: true
-      }
-    })
-
-    loginWindow.webContents.on('will-navigate', (event, url) => {
-      if (!this.isAllowedFeishuAuthNavigation(url, session.brand, session.redirectUri)) {
-        event.preventDefault()
-      }
-    })
-    loginWindow.webContents.setWindowOpenHandler(({ url }) => {
-      if (this.isAllowedFeishuAuthNavigation(url, session.brand, session.redirectUri)) {
-        void loginWindow.loadURL(url)
-      }
-      return { action: 'deny' }
-    })
-    loginWindow.on('closed', () => {
-      if (session.window === loginWindow && !session.completed) {
-        this.completeFeishuAuthSession(
-          session,
-          createFeishuAuthResult({
-            authorized: false,
-            messageKey: 'settings.remote.feishu.authCancelled'
-          })
-        )
-      }
-      if (session.window === loginWindow) {
-        session.window = null
-      }
-    })
-
-    void loginWindow.loadURL(session.authUrl)
-    loginWindow.show()
-    loginWindow.focus()
-    session.window = loginWindow
+  private async openWeixinIlinkLoginWindow(
+    sessionKey: string,
+    loginUrl: string | null | undefined,
+    signal: AbortSignal
+  ): Promise<void> {
+    const url = loginUrl?.trim()
+    if (!url) return
+    const id = `weixin-ilink:${sessionKey}`
+    if (this.weixinIlinkLoginWindowId !== id) await this.closeWeixinIlinkLoginWindow()
+    this.weixinIlinkLoginWindowId = id
+    await this.deps.authWindows.open({ id, kind: 'weixin-ilink', url })
+    if (signal.aborted || this.weixinIlinkLoginWindowId !== id) {
+      await this.deps.authWindows.close(id)
+      signal.throwIfAborted()
+      throw new Error('Weixin authorization was superseded')
+    }
   }
 
-  private openWeixinIlinkLoginWindow(loginUrl: string | null | undefined): void {
-    const normalizedLoginUrl = loginUrl?.trim()
-    if (!normalizedLoginUrl) {
-      return
-    }
-
-    if (
-      this.weixinIlinkLoginWindow &&
-      !this.weixinIlinkLoginWindow.isDestroyed() &&
-      this.weixinIlinkLoginWindowUrl === normalizedLoginUrl
-    ) {
-      this.weixinIlinkLoginWindow.show()
-      this.weixinIlinkLoginWindow.focus()
-      return
-    }
-
-    this.closeWeixinIlinkLoginWindow()
-
-    const parentWindow = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
-    const loginWindow = new BrowserWindow({
-      width: 420,
-      height: 760,
-      minWidth: 380,
-      minHeight: 680,
-      autoHideMenuBar: true,
-      title: 'WeChat iLink Login',
-      ...(parentWindow ? { parent: parentWindow } : {}),
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        webSecurity: true
-      }
-    })
-
-    loginWindow.webContents.setWindowOpenHandler(({ url }) => {
-      void loginWindow.loadURL(url)
-      return { action: 'deny' }
-    })
-    loginWindow.on('closed', () => {
-      if (this.weixinIlinkLoginWindow === loginWindow) {
-        this.weixinIlinkLoginWindow = null
-        this.weixinIlinkLoginWindowUrl = null
-      }
-    })
-
-    void loginWindow.loadURL(normalizedLoginUrl)
-    loginWindow.show()
-    loginWindow.focus()
-    this.weixinIlinkLoginWindow = loginWindow
-    this.weixinIlinkLoginWindowUrl = normalizedLoginUrl
+  private async closeWeixinIlinkLoginWindow(): Promise<void> {
+    const id = this.weixinIlinkLoginWindowId
+    this.weixinIlinkLoginWindowId = null
+    if (id) await this.deps.authWindows.close(id)
   }
 
-  private closeWeixinIlinkLoginWindow(): void {
-    if (!this.weixinIlinkLoginWindow || this.weixinIlinkLoginWindow.isDestroyed()) {
-      this.weixinIlinkLoginWindow = null
-      this.weixinIlinkLoginWindowUrl = null
-      return
-    }
-
-    this.weixinIlinkLoginWindow.close()
-    this.weixinIlinkLoginWindow = null
-    this.weixinIlinkLoginWindowUrl = null
+  private retainAuthTask<T>(pending: Promise<T>): Promise<T> {
+    this.authTasks.add(pending)
+    const remove = () => this.authTasks.delete(pending)
+    void pending.then(remove, remove)
+    return pending
   }
 
   private notifyChannelDeliveryError(
@@ -2605,6 +2676,7 @@ export class RemoteService {
   private createConversationRunner(channel: RemoteChannel): RemoteConversationRunner {
     return new RemoteConversationRunner(
       {
+        profileDirectory: this.deps.profileDirectory,
         catalog: this.deps.catalog,
         workspace: this.deps.workspace,
         lifecycle: this.deps.lifecycle,

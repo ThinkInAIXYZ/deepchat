@@ -10,12 +10,11 @@ import type {
   KeyStatus,
   LLM_EMBEDDING_ATTRS
 } from '@shared/types/provider'
-import { DeviceService } from '../device'
 import { jsonrepair } from 'jsonrepair'
 import logger from '@shared/logger'
 import { resolveRequestTraceContext, type ProviderRequestTracePayload } from './requestTrace'
 import { normalizeToolInputSchema } from './aiSdk/toolMapper'
-import type { ProviderLocalePort } from './ports'
+import type { ProviderEnvironmentPort } from './ports'
 import { buildProviderTraceHeaders, fetchWithProviderHeaders } from './providerHeaders'
 
 export const AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR = 'audio-transcription-not-supported'
@@ -50,23 +49,20 @@ export abstract class BaseLLMProvider {
   protected customModels: MODEL_META[] = []
   protected isInitialized: boolean = false
   protected providerSettings: ProviderSettingsPort
-  private readonly locale: ProviderLocalePort
+  protected readonly environment: ProviderEnvironmentPort
   private modelFetchPromise: Promise<MODEL_META[]> | null = null
 
-  protected defaultHeaders: Record<string, string> = {
-    'HTTP-Referer': 'https://deepchatai.cn',
-    'X-Title': 'DeepChat'
-  }
+  protected defaultHeaders: Record<string, string>
 
   constructor(
     provider: LLM_PROVIDER,
     providerSettings: ProviderSettingsPort,
-    locale: ProviderLocalePort
+    locale: ProviderEnvironmentPort
   ) {
     this.provider = provider
     this.providerSettings = providerSettings
-    this.locale = locale
-    this.defaultHeaders = DeviceService.getDefaultHeaders()
+    this.environment = locale
+    this.defaultHeaders = { ...locale.defaultHeaders }
 
     // Initialize models and customModels from cached config data
     this.loadCachedModels()
@@ -423,7 +419,7 @@ export abstract class BaseLLMProvider {
    * @returns 格式化的提示词
    */
   protected getFunctionCallWrapPrompt(tools: MCPToolDefinition[]): string {
-    const locale = this.locale.getLanguage() || 'zh-CN'
+    const locale = this.environment.getLanguage() || 'zh-CN'
 
     return `你具备调用外部工具的能力来协助解决用户的问题
 ====

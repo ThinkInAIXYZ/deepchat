@@ -43,6 +43,22 @@ function createRun(
 }
 
 describe('DeepChatAgentRuntime', () => {
+  it('aborts hydrated generations and deferred work without evicting or hydrating sessions', () => {
+    const runtime = new DeepChatAgentRuntime()
+    const sessionId = toAppSessionId('running')
+    const instance = runtime.getOrHydrate(sessionId)
+    const controller = new AbortController()
+    const run = createRun(sessionId, 'run', 'message', controller)
+    instance.registerActiveGeneration(run)
+    const deferred = instance.registerDeferredToolAbortController('tool')
+    runtime.abortGenerations()
+    expect(controller.signal.aborted).toBe(true)
+    expect(deferred.signal.aborted).toBe(true)
+    expect(runtime.getHydrated(sessionId)).toBe(instance)
+    expect(instance.getActiveGeneration()).toBe(run)
+    expect(runtime.getHydrated(toAppSessionId('missing'))).toBeUndefined()
+  })
+
   it('hydrates one stable instance per app session', () => {
     const runtime = new DeepChatAgentRuntime()
     const sessionId = toAppSessionId('session')

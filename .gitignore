@@ -28,3 +28,6 @@ test-results/
 
 # tsc incremental build info
 *.tsbuildinfo
+
+# Rust harness build artifacts
+crates/deepchat-harness/target/

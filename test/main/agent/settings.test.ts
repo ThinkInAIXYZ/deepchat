@@ -4,6 +4,7 @@ import { AgentLifecycleGate } from '@/agent/lifecycleGate'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
 import type { CreateDeepChatAgentInput } from '@shared/types/agent-interface'
+import type { AcpAgentInstallState } from '@shared/types/acp'
 
 const createModelSelection = (providerId: string, modelId: string) => ({ providerId, modelId })
 
@@ -18,6 +19,68 @@ const createDeferred = <T>() => {
 }
 
 describe('AgentSettings ACP availability', () => {
+  it.each(['registry', 'provider'])(
+    'drains the pending %s operation and fences database/events after registry stop',
+    async (phase) => {
+      const entered = createDeferred<void>()
+      const previous = [{ id: 'agent-1', name: 'Agent', version: '1' }]
+      const updated = [{ ...previous[0], version: '2' }]
+      const pending = createDeferred<typeof updated>()
+      const syncRegistryAgentsToRepository = vi.fn()
+      const notifyAcpAgentsChanged = vi.fn()
+      const listAcpRegistryAgents = vi.fn(async () => updated)
+      const registry = {
+        isStopped: false,
+        listAgents: () => previous,
+        refresh: vi.fn(async () => {
+          if (phase === 'registry') {
+            entered.resolve()
+            return pending.promise
+          }
+          return updated
+        }),
+        stop: () => {
+          registry.isStopped = true
+        },
+        drain: vi.fn(async () => undefined)
+      }
+      const settings = Object.assign(Object.create(AgentSettings.prototype), {
+        registry,
+        launchSpecs: {
+          stop: vi.fn(),
+          cancelPendingInstallations: vi.fn(),
+          drain: vi.fn(async () => undefined)
+        },
+        provider: {
+          refreshAcpProviderAgents: vi.fn(async () => {
+            entered.resolve()
+            await pending.promise
+          })
+        },
+        syncRegistryAgentsToRepository,
+        listAcpRegistryAgents,
+        notifyAcpAgentsChanged
+      }) as AgentSettings
+      const rejected = expect(settings.refreshAcpRegistry(true)).rejects.toMatchObject({
+        name: 'AbortError'
+      })
+      await entered.promise
+      const writes = syncRegistryAgentsToRepository.mock.calls.length
+      settings.stop()
+      let drained = false
+      const drain = settings.drain().then(() => {
+        drained = true
+      })
+      await Promise.resolve()
+      expect(drained).toBe(false)
+      pending.resolve(updated)
+      await Promise.all([rejected, drain])
+      expect(syncRegistryAgentsToRepository).toHaveBeenCalledTimes(writes)
+      expect(listAcpRegistryAgents).not.toHaveBeenCalled()
+      expect(notifyAcpAgentsChanged).not.toHaveBeenCalled()
+    }
+  )
+
   it('restores the previous state when disabling cannot stop active runtimes', async () => {
     const runtimeError = new Error('runtime busy')
     const setGlobalEnabled = vi.fn().mockReturnValue(true)
@@ -110,6 +173,260 @@ describe('AgentSettings ACP registry uninstall', () => {
     )
     expect(uninstallRegistryAgent).not.toHaveBeenCalled()
     expect(clearRegistryAcpAgentInstallation).not.toHaveBeenCalled()
+  })
+})
+
+describe('AgentSettings ACP installation ownership', () => {
+  const createOwner = () => {
+    const agent = { id: 'owned-agent', name: 'Owned agent', version: '1', distribution: {} }
+    const previous: AcpAgentInstallState = {
+      status: 'installed',
+      version: '1',
+      distributionType: 'binary',
+      installDir: '/managed/agent',
+      installedAt: 1,
+      lastCheckedAt: 1,
+      error: null
+    }
+    let state: AcpAgentInstallState | null = structuredClone(previous)
+    let allowed = true
+    const registry = {
+      isStopped: false,
+      getAgent: () => agent,
+      stop: () => {
+        registry.isStopped = true
+      },
+      drain: async () => undefined
+    }
+    const launchSpecs = {
+      selectRegistryDistribution: () => ({ type: 'binary' }),
+      ensureRegistryAgentInstalled: vi.fn(async () => structuredClone(previous)),
+      cancelPendingInstallations: vi.fn(),
+      stop: vi.fn(),
+      drain: async () => undefined
+    }
+    const provider = {
+      refreshAcpProviderAgents: vi.fn(async () => undefined),
+      clearAcpProviderModelStatus: vi.fn()
+    }
+    const repository = {
+      getAgentInstallState: () => (state === null ? null : structuredClone(state)),
+      setAgentInstallState: vi.fn((_id: string, value: AcpAgentInstallState | null) => {
+        state = structuredClone(value)
+        return true
+      }),
+      setAgentEnabled: vi.fn(),
+      hasAgentSessions: () => false,
+      clearRegistryAcpAgentInstallation: vi.fn((_id: string, value: AcpAgentInstallState) => {
+        state = value
+        return true
+      })
+    }
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      registry,
+      repository,
+      provider,
+      launchSpecs,
+      assertAcpOperationAllowed: () => {
+        if (!allowed) throw new Error('maintenance')
+      },
+      getRegistryAgentOrThrow: () => structuredClone(agent),
+      notifyAcpAgentsChanged: vi.fn()
+    }) as AgentSettings
+    return {
+      settings,
+      registry,
+      repository,
+      provider,
+      launchSpecs,
+      agent,
+      previous,
+      readState: () => state,
+      setAllowed: (value: boolean) => {
+        allowed = value
+      }
+    }
+  }
+
+  it.each(['installer', 'provider'])(
+    'drains a canceled %s continuation and restores acknowledged state',
+    async (phase) => {
+      const owner = createOwner()
+      const entered = createDeferred<void>()
+      const release = createDeferred<void>()
+      if (phase === 'installer') {
+        owner.launchSpecs.ensureRegistryAgentInstalled.mockImplementation(async () => {
+          entered.resolve()
+          await release.promise
+          return { ...owner.previous, installedAt: 2 }
+        })
+      } else {
+        owner.provider.refreshAcpProviderAgents.mockImplementation(async () => {
+          entered.resolve()
+          await release.promise
+        })
+      }
+      const rejected = expect(owner.settings.repairAcpAgent(owner.agent.id)).rejects.toMatchObject({
+        name: 'AbortError'
+      })
+      await entered.promise
+      expect(owner.readState()?.status).toBe('installing')
+      owner.settings.stop()
+      let drained = false
+      const drain = owner.settings.drain().then(() => {
+        drained = true
+      })
+      await Promise.resolve()
+      expect(drained).toBe(false)
+      release.resolve()
+      await Promise.all([rejected, drain])
+      expect(owner.readState()).toEqual(owner.previous)
+      await expect(owner.settings.ensureAcpAgentInstalled(owner.agent.id)).rejects.toMatchObject({
+        name: 'AbortError'
+      })
+      expect(owner.readState()).toEqual(owner.previous)
+    }
+  )
+
+  it('coalesces installation and recovers after maintenance without publishing late state', async () => {
+    const owner = createOwner()
+    const entered = createDeferred<void>()
+    const release = createDeferred<void>()
+    owner.launchSpecs.ensureRegistryAgentInstalled.mockImplementation(async () => {
+      entered.resolve()
+      await release.promise
+      return { ...owner.previous, installedAt: 2 }
+    })
+    const first = expect(
+      owner.settings.ensureAcpAgentInstalled(owner.agent.id)
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    const second = expect(
+      owner.settings.ensureAcpAgentInstalled(owner.agent.id)
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    await entered.promise
+    expect(owner.launchSpecs.ensureRegistryAgentInstalled).toHaveBeenCalledOnce()
+    owner.setAllowed(false)
+    const drain = owner.settings.cancelAndDrainAcpWork()
+    release.resolve()
+    await Promise.all([first, second, drain])
+    expect(owner.readState()).toEqual(owner.previous)
+    await expect(owner.settings.ensureAcpAgentInstalled(owner.agent.id)).rejects.toThrow(
+      'maintenance'
+    )
+    owner.setAllowed(true)
+    await expect(owner.settings.ensureAcpAgentInstalled(owner.agent.id)).resolves.toMatchObject({
+      status: 'installed',
+      installedAt: 2
+    })
+    await owner.settings.drain()
+  })
+
+  it('holds uninstall admission while canceled installation continuations are settling', async () => {
+    const owner = createOwner()
+    const entered = createDeferred<void>()
+    const release = createDeferred<void>()
+    owner.launchSpecs.ensureRegistryAgentInstalled.mockImplementation(async () => {
+      entered.resolve()
+      await release.promise
+      return owner.previous
+    })
+    Object.assign(owner.launchSpecs, { uninstallRegistryAgent: vi.fn(async () => undefined) })
+    const canceled = expect(
+      owner.settings.ensureAcpAgentInstalled(owner.agent.id)
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    await entered.promise
+    const uninstall = owner.settings.uninstallAcpRegistryAgent(owner.agent.id)
+    await expect(owner.settings.ensureAcpAgentInstalled(owner.agent.id)).rejects.toThrow(
+      'uninstall is in progress'
+    )
+    let drained = false
+    const drain = owner.settings.drain().then(() => {
+      drained = true
+    })
+    expect(drained).toBe(false)
+    release.resolve()
+    await Promise.all([canceled, uninstall, drain])
+    expect(owner.readState()?.status).toBe('not_installed')
+  })
+
+  it('acknowledges enable promptly while retaining background install and process ownership', async () => {
+    const owner = createOwner()
+    const entered = createDeferred<void>()
+    const installed = createDeferred<void>()
+    const refreshed = createDeferred<void>()
+    owner.launchSpecs.ensureRegistryAgentInstalled.mockImplementation(async () => {
+      entered.resolve()
+      await installed.promise
+      return owner.previous
+    })
+    owner.provider.refreshAcpProviderAgents.mockImplementation(async () => {
+      await refreshed.promise
+    })
+    await owner.settings.setAcpAgentEnabled(owner.agent.id, true)
+    await entered.promise
+    owner.settings.stop()
+    let drained = false
+    const drain = owner.settings.drain().then(() => {
+      drained = true
+    })
+    installed.resolve()
+    await Promise.resolve()
+    expect(drained).toBe(false)
+    refreshed.resolve()
+    await drain
+    expect(owner.readState()).toEqual(owner.previous)
+  })
+
+  it('rejects an obsolete descriptor without acknowledging its installation result', async () => {
+    const owner = createOwner()
+    const entered = createDeferred<void>()
+    const release = createDeferred<void>()
+    owner.launchSpecs.ensureRegistryAgentInstalled.mockImplementation(async () => {
+      entered.resolve()
+      await release.promise
+      return { ...owner.previous, installedAt: 2 }
+    })
+    const rejected = expect(
+      owner.settings.ensureAcpAgentInstalled(owner.agent.id)
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    await entered.promise
+    owner.agent.version = '2'
+    release.resolve()
+    await rejected
+    expect(owner.readState()).toEqual(owner.previous)
+    await owner.settings.drain()
+  })
+
+  it('fences the repository continuation of implicit binary launch preparation', async () => {
+    const owner = createOwner()
+    const entered = createDeferred<void>()
+    const release = createDeferred<void>()
+    Object.assign(owner.repository, { getManualAcpAgent: () => null })
+    Object.assign(owner.launchSpecs, {
+      resolveRegistryLaunchSpec: async () => {
+        entered.resolve()
+        await release.promise
+        return {
+          agentId: owner.agent.id,
+          source: 'registry',
+          distributionType: 'binary',
+          command: '/managed/agent/binary',
+          args: [],
+          env: {},
+          installDir: '/managed/agent'
+        }
+      }
+    })
+    const rejected = expect(
+      owner.settings.resolveAcpLaunchSpec(owner.agent.id)
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    await entered.promise
+    owner.settings.stop()
+    const drain = owner.settings.drain()
+    release.resolve()
+    await Promise.all([rejected, drain])
+    expect(owner.repository.setAgentInstallState).not.toHaveBeenCalled()
+    expect(owner.readState()).toEqual(owner.previous)
   })
 })
 
@@ -713,6 +1030,8 @@ describe('AgentSettings ACP notifications', () => {
   it('publishes catalog, model, and session changes before refreshing processes', async () => {
     const sequence: string[] = []
     const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      registry: { isStopped: false },
+      assertAcpOperationAllowed: () => undefined,
       provider: {
         clearAcpProviderModelStatus: vi.fn(() => sequence.push('cache-clear')),
         refreshAcpProviderAgents: vi.fn(async () => sequence.push('process-refresh'))
@@ -773,6 +1092,7 @@ describe('AgentSettings ACP notifications', () => {
     const refreshed = [{ ...previous[0], description: 'After' }, previous[1]]
     const refreshAcpProviderAgents = vi.fn(async () => undefined)
     const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      launchSpecs: { cancelPendingInstallations: vi.fn() },
       registry: {
         listAgents: vi.fn(() => previous),
         refresh: vi.fn(async () => refreshed)
