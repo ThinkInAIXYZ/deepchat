@@ -175,11 +175,20 @@ describe('native renderer document boundary', () => {
     vi.mocked(BrowserWindow.fromWebContents).mockReturnValue({ id: 7 } as Electron.BrowserWindow)
     registerDeepchatRoutes(ipcMain, dispatch, authorize)
     const input = { caller: { kind: 'internal', component: 'migration' } }
-    await expect(invoke(eventFor(), 'config.getLanguage', input)).resolves.toEqual({
+    const event = eventFor()
+    await expect(invoke(event, 'config.getLanguage', input)).resolves.toEqual({
       language: 'en-US'
     })
-    expect(dispatch).toHaveBeenCalledExactlyOnceWith('config.getLanguage', input, {
-      caller: { kind: 'renderer', webContentsId: 42, windowId: 7 }
-    })
+    expect(dispatch).toHaveBeenCalledExactlyOnceWith(
+      'config.getLanguage',
+      input,
+      { caller: { kind: 'renderer', webContentsId: 42, windowId: 7 } },
+      expect.any(Function)
+    )
+    const assertCallerActive = dispatch.mock.calls[0][3] as () => void
+    expect(assertCallerActive).not.toThrow()
+    vi.spyOn(event.sender, 'getURL').mockReturnValue('file:///tmp/preview.html')
+    expect(assertCallerActive).toThrow('Native IPC requires the current app document')
+    vi.restoreAllMocks()
   })
 })

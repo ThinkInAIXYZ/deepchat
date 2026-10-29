@@ -9,12 +9,14 @@ import { CoreHelperEventsSchema, type CoreHelperEvent } from '@shared/harness/he
 import { CoreBrowserEventSchema, type CoreBrowserEvent } from '@shared/harness/browser'
 import { CoreDesktopEventSchema, type CoreDesktopEvent } from '@shared/harness/desktop'
 import type { HarnessRuntime } from './runtime'
+import type { RouteContext } from '@/routes/routeRegistry'
 import type { CoreProfileHost } from '@/app/profileStartup'
 import type { DatabaseSecurityCryptoPort } from '@/app/databaseSecurity'
 import { DATABASE_STARTUP_FAILURE_KINDS } from '@shared/contracts/databaseSecurity'
 import { CorePayloadStore } from '../../harness/core/payload'
 import {
-  CORE_CALLS,
+  CORE_ORDINARY_CALLS,
+  CORE_ROUTE_QUEUED,
   CORE_CONTROL_CALLS,
   CORE_NATIVE_CALLS,
   CORE_NATIVE_QUEUED,
@@ -22,6 +24,8 @@ import {
   isCoreNativeDrain,
   CoreStatusSchema,
   CoreKernelBootstrapSchema,
+  CoreRouteInvocationSchema,
+  isCoreControlRoute,
   type CoreKernelBootstrap,
   type CoreStatus,
   type CoreMethod,
@@ -116,6 +120,17 @@ export class CoreRuntimeConnection {
   private nextId = 0
   private failure: Error | undefined
   private ordinary = 0
+  private routeControl = 0
+  private readonly routeQueues: Array<
+    Array<{
+      snapshot: Uint8Array
+      assertCallerActive(): void
+      resolve(value: unknown): void
+      reject(error: Error): void
+    }>
+  > = [[], []]
+  private routeQueued = 0
+  private routeQueuedBytes = 0
   private control = 0
   private statusPending = false
   private themeObservationPending = false
@@ -185,6 +200,74 @@ export class CoreRuntimeConnection {
     return CoreStatusSchema.parse(
       await this.request('assembleKernel', CoreKernelBootstrapSchema.parse(input))
     )
+  }
+
+  async startKernel(): Promise<CoreStatus> {
+    const status = CoreStatusSchema.parse(await this.request('startKernel', undefined))
+    if (status.phase !== 'running' || !status.businessReady)
+      throw new Error('Core Kernel did not acknowledge business readiness')
+    return status
+  }
+
+  async invokeRoute(
+    routeName: string,
+    input: unknown,
+    context: RouteContext,
+    assertCallerActive: () => void
+  ): Promise<unknown> {
+    assertCallerActive()
+    if (this.failure || this.stopped || this.stopPromise)
+      throw this.failure ?? new Error('Core is stopping')
+    const snapshot = serialize(CoreRouteInvocationSchema.parse({ routeName, input, context }))
+    if (snapshot.length > CORE_VALUE_BYTES) throw new Error('Core route queue exceeded')
+    const control = isCoreControlRoute(routeName)
+    // Only unsent work may yield capacity to cancellation or a human answer.
+    while (
+      control &&
+      this.routeQueues[0].length &&
+      (this.routeQueued >= CORE_ROUTE_QUEUED ||
+        this.routeQueuedBytes + snapshot.length > CORE_VALUE_BYTES)
+    ) {
+      const displaced = this.routeQueues[0].pop()!
+      this.routeQueued--
+      this.routeQueuedBytes -= displaced.snapshot.length
+      displaced.reject(new Error('Core route queue yielded to a control request'))
+    }
+    if (
+      this.routeQueued >= CORE_ROUTE_QUEUED ||
+      this.routeQueuedBytes + snapshot.length > CORE_VALUE_BYTES
+    )
+      throw new Error('Core route queue exceeded')
+    return await new Promise((resolve, reject) => {
+      this.routeQueues[control ? 1 : 0].push({ snapshot, assertCallerActive, resolve, reject })
+      this.routeQueued++
+      this.routeQueuedBytes += snapshot.length
+      this.pumpRoutes()
+    })
+  }
+
+  private pumpRoutes(): void {
+    if (this.failure || this.stopped || this.stopPromise) return
+    for (const lane of [1, 0]) {
+      const queue = this.routeQueues[lane]
+      while (queue.length && (lane ? this.routeControl < 1 : this.ordinary < CORE_ORDINARY_CALLS)) {
+        const request = queue.shift()!
+        this.routeQueued--
+        this.routeQueuedBytes -= request.snapshot.length
+        void this.request(
+          lane ? 'invokeControlRoute' : 'invokeRoute',
+          deserialize(request.snapshot),
+          request.assertCallerActive
+        ).then(request.resolve, request.reject)
+      }
+    }
+  }
+
+  private rejectQueuedRoutes(error: Error): void {
+    for (const queue of this.routeQueues)
+      for (const request of queue.splice(0)) request.reject(error)
+    this.routeQueued = 0
+    this.routeQueuedBytes = 0
   }
 
   async deliverDesktopEvent(event: CoreDesktopEvent): Promise<void> {
@@ -263,6 +346,7 @@ export class CoreRuntimeConnection {
 
   stop(): Promise<CoreStatus> {
     if (this.stopPromise) return this.stopPromise
+    this.rejectQueuedRoutes(new Error('Core is stopping'))
     const stopped = (async () => {
       const status = CoreStatusSchema.parse(await this.request('stop', undefined))
       if (status.phase !== 'stopped') throw new Error('Core did not acknowledge profile closure')
@@ -280,17 +364,24 @@ export class CoreRuntimeConnection {
   async closeAfterHostExit(): Promise<void> {
     await this.runtime.stop()
     this.stopped = true
+    this.rejectQueuedRoutes(new Error('Core generation is stopped'))
+    this.rejectPending(new Error('Core stopped before the operation outcome was received'))
     await Promise.allSettled(this.nativeCalls)
     await this.payloads.close()
     await rm(this.payloads.config.directory, { recursive: true, force: true })
   }
 
-  private async request(method: CoreMethod, args: unknown): Promise<unknown> {
+  private async request(
+    method: CoreMethod,
+    args: unknown,
+    assertCallerActive?: () => void
+  ): Promise<unknown> {
     if ((this.failure && method !== 'stop') || this.stopped)
       throw this.failure ?? new Error('Core generation is stopped')
     const control = method === 'status' || method === 'stop'
     const observation = method === 'observeSystemTheme'
     const nativeEvent = method === 'nativeEvents'
+    const routeControl = method === 'invokeControlRoute'
     if (!control && !nativeEvent && this.stopPromise) throw new Error('Core is stopping')
     if (method === 'status' && this.statusPending) throw new Error('Core status request is pending')
     if (observation && this.themeObservationPending)
@@ -300,19 +391,27 @@ export class CoreRuntimeConnection {
     if (
       !observation &&
       !nativeEvent &&
-      (control ? this.control >= CORE_CONTROL_CALLS : this.ordinary >= CORE_CALLS)
+      (control
+        ? this.control >= CORE_CONTROL_CALLS
+        : routeControl
+          ? this.routeControl >= 1
+          : this.ordinary >= CORE_ORDINARY_CALLS)
     )
       throw new Error('Core request limit exceeded')
     if (nativeEvent) this.nativeEventsPending = true
     else if (observation) this.themeObservationPending = true
     else if (control) this.control++
+    else if (routeControl) this.routeControl++
     else this.ordinary++
     if (method === 'status') this.statusPending = true
     let ref: CorePayload | undefined
     try {
+      assertCallerActive?.()
       ref = await this.payloads.encode(args)
+      assertCallerActive?.()
       if ((this.failure && method !== 'stop') || this.stopped)
         throw this.failure ?? new Error('Core generation is stopped')
+      if (!control && !nativeEvent && this.stopPromise) throw new Error('Core is stopping')
       const id = ++this.nextId
       return await new Promise((resolve, reject) => {
         this.pending.set(id, { method, resolve, reject })
@@ -326,9 +425,15 @@ export class CoreRuntimeConnection {
       if (nativeEvent) this.nativeEventsPending = false
       else if (observation) this.themeObservationPending = false
       else if (control) this.control--
+      else if (routeControl) this.routeControl--
       else this.ordinary--
       if (method === 'status') this.statusPending = false
-      if (ref && !this.failure) await this.payloads.release(ref)
+      if (ref && !this.failure)
+        await this.payloads.release(ref).catch((error: unknown) => {
+          this.fail(error instanceof Error ? error : new Error('Core payload retirement failed'))
+          throw error
+        })
+      this.pumpRoutes()
     }
   }
 
@@ -432,6 +537,7 @@ export class CoreRuntimeConnection {
       this.ready.reject(error)
     }
     this.rejectPending(this.failure)
+    this.rejectQueuedRoutes(this.failure)
   }
 
   private rejectPending(error: Error): void {

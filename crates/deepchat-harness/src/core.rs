@@ -518,6 +518,7 @@ impl Plugin for Gateway {
             #[derive(Clone, Copy)]
             enum Lane {
                 Ordinary,
+                RouteControl,
                 Control,
                 Observation,
                 NativeEvents,
@@ -526,7 +527,7 @@ impl Plugin for Gateway {
                 Box<dyn Future<Output = (u64, Lane, bool, std::result::Result<Json, Json>)> + Send>,
             >;
             let mut calls = FuturesUnordered::<Call>::new();
-            let mut active = [0usize; 4];
+            let mut active = [0usize; 5];
             let mut last_id = 0;
             loop {
                 tokio::select! {
@@ -544,15 +545,16 @@ impl Plugin for Gateway {
                                 "status" | "stop" => Lane::Control,
                                 "observeSystemTheme" => Lane::Observation,
                                 "nativeEvents" => Lane::NativeEvents,
-                                "openProfile" | "configure" | "assembleKernel" => Lane::Ordinary,
+                                "invokeControlRoute" => Lane::RouteControl,
+                                "openProfile" | "configure" | "assembleKernel" | "startKernel" | "invokeRoute" => Lane::Ordinary,
                                 _ => return Err(CordisError::ServiceNotFound("Invalid Core operation".into())),
                             };
-                            if id == 0 || id > 9_007_199_254_740_991 || id <= last_id || active[lane as usize] >= [4, 2, 1, 1][lane as usize] {
+                            if id == 0 || id > 9_007_199_254_740_991 || id <= last_id || active[lane as usize] >= [3, 1, 2, 1, 1][lane as usize] {
                                 return Err(CordisError::ServiceNotFound("Invalid Core operation or quota".into()));
                             }
                             last_id = id;
                             let stopping = method == "stop";
-                            let value = service.invoke(&method, Value::List(if matches!(lane, Lane::Control | Lane::Observation) { vec![] } else { vec![args.into()] }));
+                            let value = service.invoke(&method, Value::List(if matches!(lane, Lane::Control | Lane::Observation) || method == "startKernel" { vec![] } else { vec![args.into()] }));
                             active[lane as usize] += 1;
                             calls.push(Box::pin(async move { (id, lane, stopping, match value { Ok(value) => invoke(value).await, Err(error) => Err(bridge_error(error)) }) }));
                         },

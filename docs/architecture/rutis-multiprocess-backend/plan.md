@@ -2880,9 +2880,10 @@ adaptation before route cutover; this private link is not an Everywhere or CLI a
 Stop awaits real initialization, Native effects and profile closure. Observation deadlines leave
 missing outcomes unknown and do not free a call slot, retire the owner or permit replacement.
 Failed primary close retains ownership. Core death retires its generation without automatically
-adopting another one, and stale Core frames do not terminate admission. The child reports
-`businessReady: false`: the default application still owns its profile and business routes in Main,
-does not start this lazy Core worker, and has not transferred its writer or shutdown authority.
+adopting another one, and stale Core frames do not terminate admission. Cold profile/Kernel assembly
+reports `businessReady: false`; acknowledged SDK Kernel activation reports readiness. The default
+application still owns its profile and business routes in Main, does not start this lazy Core worker,
+and has not transferred its writer or shutdown authority.
 
 Acceptance passes **39 distinct checks across seven affected files** and **five Rust checks**.
 Seven new durable checks in two files cover encrypted carrier fidelity/tampering/quotas, a standalone
@@ -3054,9 +3055,9 @@ refreshes remain separate. Evidence and source/artifact hashes are under
 `.deepchat/rutis-g5-core-control-acceptance/`. Default process placement is unchanged, so no
 performance/resource capture is selected and no speed claim is made.
 
-G5 remains active and unpublished. The actual worker still opens profile/configuration and
-private service transports; it does not yet invoke the complete Kernel. Native callback/event
-transport, descendant/proxy authority, complete public route and lifecycle/maintenance adoption,
+G5 remains active and unpublished. The actual worker supports profile/configuration, cohesive
+Kernel activation and bounded business ingress. Complete production Native callback/event
+binding, descendant/proxy authority, default public route and lifecycle/maintenance adoption,
 default writer handoff and supported signed/native package acceptance remain required. All
 remaining goals keep their scope and dependency order.
 
@@ -3065,7 +3066,8 @@ remaining goals keep their scope and dependency order.
 Agent settings navigation now awaits the typed Native delivery receipt, returning `open_failed`
 on a negative or failed receipt. The unused generic window-channel capability is removed from
 the Agent port and its callers. The actual Core worker accepts one coalesced system-theme
-observation independently of its four ordinary calls and two status/stop slots. It queries Native
+observation independently of its four work slots and two status/stop slots. One work slot is reserved
+for audited business control routes. It queries Native
 state through the existing configuration capability and uses the same configuration/event queue.
 Notifications during an active observation trigger a fresh query after its acknowledgement;
 stop fences new observations and drains accepted Native effects before releasing profile ownership.
@@ -3170,7 +3172,8 @@ an accepted Native effect settles, then proves real stop and reopen. Native SQLi
 Immutable `f511c078b` and the candidate each pass the same **six application cases** across three
 files: manual/timed Scheduler work and persistence, background execution and held-start shutdown,
 and Code Mode execution and held-ready shutdown. This is default-application regression evidence;
-the complete Kernel is not yet invoked through these ports. Main's helper factory and attested
+SDK Kernel activation separately exercises the helper link with in-process Native owners. Main's
+complete production helper factory and attested
 Exec-recovery binding remain required at that adoption point.
 
 Normal build, Node/web and affected-test types, format/check, lint, i18n, Rust fmt and Clippy pass.
@@ -3226,6 +3229,8 @@ descendant/proxy authority, full acceptance and native/signed packages remain re
       standalone dependency closure; verify persistence and physical retirement before writer release.
 - [x] Mount the owner-local route and maintenance controller. Reuse it in the default Main
       application; remove its inline route/maintenance construction and SDK placeholder errors.
+- [x] Activate the actual SDK Kernel and route business requests through its local controller,
+      with bounded queues, reserved control, Native caller revalidation and startup/shutdown fencing.
 - [ ] Adopt public ingress, shared writer and lifecycle in the default Core process before G5
       publication.
 
@@ -3261,7 +3266,7 @@ checkout, configuration events through its general event hub, persisted settings
 writer ownership while Native retirement is held. Two desktop contracts cover reordered aborts,
 released cancellation identities, shared renderer subscriptions and physical closure. The private
 assembly phase keeps `businessReady: false`. Its local dispatcher and snapshot-import controller
-are mounted; default cross-process public ingress and full startup activation remain required.
+are mounted; default cross-process ingress/startup adoption remains required.
 
 The standalone build preserves Node package entry semantics, platform binaries, PDF assets and
 dependency-specific versions. Its Skill scan entry runs successfully from a separate copied module
@@ -3305,6 +3310,51 @@ responses. Native pause/resume acknowledgement failures cannot leave ordinary re
 The accepted baseline evidence remains available;
 no unchanged baseline or performance matrix is repeated. G5 stays active and unpublished until
 complete default adoption, Native retirement/descendant/proxy authority and required packages pass.
+
+### Core business ingress and activation
+
+The private SDK link dispatches existing renderer route contracts to the Kernel's local registry.
+It rejects CLI/internal identity injection, desktop-owned routes and incorrect control-lane use.
+CLI and internal calls retain their business owner's existing local authorization. Main's Native
+IPC entry supplies a revalidation closure for its original sender/document; the Core connection
+uses it at admission and after carrier preparation before sending. The closure stays in Main.
+Queued requests from a retired document fail without reaching the business owner.
+
+The four existing work slots contain three ordinary slots and one audited cancellation/human-answer
+slot. Status and stop retain their separate reserved slots. Waiting requests share a 64-entry,
+64-MiB snapshot budget, and control pressure can reject unsent ordinary work explicitly. No accepted
+operation is displaced or replayed. Startup accounting queries Native window roles only for its
+tracked routes; approval and cancellation do not wait on unrelated window queries. Carrier limits
+remain unchanged, and a legal 3-MiB request/result round trip retains the complete value.
+
+`startKernel` activates migrations/Skills, Scheduler, Memory maintenance, local CLI/artifacts,
+Sync and the existing deferred/background work. Optional service failures retain their existing
+reporting behavior. Only completed activation reports `running`/`businessReady: true`; business
+ingress rejects cold or stopping owners. Stop fences new work and drains activation, all accepted
+route continuations and actual Native effects before releasing the shared profile lock.
+
+Actual SDK verification uses a harness copied outside the checkout, native SQLite, and the existing
+FileWatcher/Scheduler algorithms supplied as in-process Native fixtures. It exercises real Core
+business handlers, full queue pressure, approval progress, stale-caller rejection, immutable queued
+input, large data fidelity and persistence/reopen. One additional durable case holds an accepted
+Native effect during activation, confirms status/stop progress and writer exclusion, then verifies
+retirement without late CLI startup. These fixtures do not prove OS helper launch, external native
+presentation, default Core adoption or the headless CLI horizon.
+
+Validation passes **164 TypeScript checks across 12 files**, **six Rust checks**, Rust fmt/locked
+Clippy, normal build, Node/web/affected-test types, format/check, lint and i18n. The existing Remote
+unsafe-finally warning remains. Seven application cases across three files pass: first-message
+Workspace/Browser behavior, five maintenance/shutdown scenarios and CLI security approval with
+reopen. Accepted baseline evidence remains available. One durable activation-race case is added;
+existing SDK routing and Native sender cases cover the remaining contracts. No new test file or
+temporary application API is introduced. Evidence is
+`.deepchat/rutis-g5-kernel-assembly-acceptance/`; completed media/profiles/bundles are pruned and the
+one needed immutable baseline remains.
+
+The default application still constructs its writer and runtime in Main. G5 remains active and
+unpublished until complete production Native binding, default writer/routes/lifecycle handoff,
+old-path removal, whole-goal acceptance and native/signed packages pass. No performance recapture
+or speed claim accompanies this private ingress/startup work.
 
 ## G6. Extract the complete Memory capability
 

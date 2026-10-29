@@ -35,17 +35,17 @@ describe('database requests scheduled as startup work', () => {
   it('rechecks admission after an awaited native window query', async () => {
     const gate = new DatabaseRequestGate(() => undefined)
     const authority = Promise.withResolvers<boolean>()
-    const handler = vi.fn(async () => ({ language: 'en-US' }))
+    const handler = vi.fn(async () => ({ models: [] }))
     const dispatcher = createRouteDispatcher({
       appDatabaseMaintenance: gate,
-      routeMaps: [createRouteMap([['config.getLanguage', handler]])],
+      routeMaps: [createRouteMap([['models.getProviderCatalog', handler]])],
       isSettingsWindow: () => authority.promise,
       startupWorkloadCoordinator: new StartupWorkloadCoordinator()
     })
     const pending = dispatchDeepchatRoute(
       dispatcher,
-      'config.getLanguage',
-      {},
+      'models.getProviderCatalog',
+      { providerId: 'fixture' },
       createRendererRouteContext(42, 99)
     )
     const rejected = expect(pending).rejects.toThrow('maintenance is maintenance')

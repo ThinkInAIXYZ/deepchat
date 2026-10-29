@@ -88,6 +88,7 @@ export async function createCoreKernel(options: {
   if (options.isStopping()) throw new Error('Core Kernel startup is stopping')
   const { native, bootstrap, profile, settings } = options
   let stopping: Promise<void> | undefined
+  let starting: Promise<void> | undefined
   let stoppingRequested = false
   let runtime: Runtime | undefined
   let data: ReturnType<typeof createCoreData> | undefined
@@ -195,6 +196,7 @@ export async function createCoreKernel(options: {
         await step('background-exec', () => owner.backgroundExec.shutdown())
         await step('code-mode', () => owner.toolService.shutdownCodeRuntime())
         await step('runtime-initialization', () => owner.drainInitialization(step))
+        await step('activation', async () => await starting?.catch(() => undefined))
         await step('plugins', () => owner.pluginService.shutdown())
         mcpApps.clear()
         await step('mcp', () => owner.mcpService.shutdown())
@@ -368,6 +370,58 @@ export async function createCoreKernel(options: {
       publishEvent
     })
     providers.agentSettings.start()
+    const start = (): Promise<void> => {
+      if (starting) return starting
+      const owner = runtime!
+      const assertActive = () => {
+        if (isStopping()) throw new Error('Core Kernel startup was stopped')
+      }
+      starting = (async () => {
+        assertActive()
+        await owner.initializeStartup()
+        assertActive()
+        owner.cronJobs.start()
+        owner.memoryService.startBackgroundMaintenance()
+        await native.configurationHost.resume()
+        assertActive()
+        await settings.appSettingsService.observeSystemTheme()
+        assertActive()
+        try {
+          await artifactSpool.initialize()
+          assertActive()
+          await owner.cliServer.start()
+        } catch (error) {
+          native.reportStartupFailure('cli_control', 'unknown')
+          logger.error('[CLI] Failed to start local control server', error)
+        }
+        assertActive()
+        try {
+          await owner.syncHostService.startIfEnabled()
+        } catch (error) {
+          native.reportStartupFailure('sync_host', 'unknown')
+          logger.error('[SyncHost] Failed to start host mode', error)
+        }
+        assertActive()
+        try {
+          await owner.automaticSync.start()
+        } catch (error) {
+          logger.error('[SyncReplica] Failed to start automatic sync', error)
+        }
+        assertActive()
+        if (owner.cliServer.getStatus().running) {
+          try {
+            await owner.cliLauncherService.ensureInstalled()
+          } catch (error) {
+            native.reportStartupFailure('cli_launcher', 'unknown')
+            logger.warn('[CLI] Failed to install or refresh the command launcher', error)
+          }
+        }
+        assertActive()
+        owner.startStartupTasks()
+        owner.scheduleBackgroundWork()
+      })()
+      return starting
+    }
     return {
       data,
       providers,
@@ -382,6 +436,7 @@ export async function createCoreKernel(options: {
       artifactSpool,
       mcpApps,
       publishEvent,
+      start,
       stop
     }
   } catch (error) {

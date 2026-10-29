@@ -2,11 +2,14 @@ import { z } from 'zod'
 import { CoreHelperEventsSchema, isCoreHelperDrain } from './helpers'
 import { CoreBrowserEventSchema, isCoreBrowserDrain } from './browser'
 import { CoreDesktopEventSchema, isCoreDesktopDrain } from './desktop'
+import { hasDeepchatRouteContract, type DeepchatRouteName } from '../contracts/routes'
 
 export const CORE_INLINE_BYTES = 16 * 1024
 export const CORE_VALUE_BYTES = 64 * 1024 * 1024
 export const CORE_CARRIER_FILES = 4
 export const CORE_CALLS = 4
+export const CORE_ORDINARY_CALLS = CORE_CALLS - 1
+export const CORE_ROUTE_QUEUED = 64
 export const CORE_CONTROL_CALLS = 2
 export const CORE_NATIVE_CALLS = 16
 export const CORE_NATIVE_QUEUED = 64
@@ -70,6 +73,9 @@ export type CorePayload = z.infer<typeof CorePayloadSchema>
 export const CoreMethodSchema = z.enum([
   'openProfile',
   'assembleKernel',
+  'startKernel',
+  'invokeRoute',
+  'invokeControlRoute',
   'configure',
   'observeSystemTheme',
   'nativeEvents',
@@ -90,13 +96,60 @@ export const CoreStatusSchema = z
       'profile-open',
       'assembling',
       'kernel-assembled',
+      'starting',
+      'running',
       'stopping',
       'stopped'
     ]),
-    businessReady: z.literal(false)
+    businessReady: z.boolean()
   })
   .strict()
 export type CoreStatus = z.infer<typeof CoreStatusSchema>
+
+const callerId = z.number().int().positive().safe()
+export const CoreRouteInvocationSchema = z
+  .object({
+    routeName: z.string().max(256).refine(hasDeepchatRouteContract),
+    input: z.unknown(),
+    context: z
+      .object({
+        caller: z
+          .object({
+            kind: z.literal('renderer'),
+            webContentsId: callerId,
+            windowId: callerId.nullable()
+          })
+          .strict()
+      })
+      .strict()
+  })
+  .strict()
+
+const controlRoutes = new Set<string>([
+  'approvals.resolve',
+  'chat.cancelSubmission',
+  'chat.stopStream',
+  'chat.respondToolInteraction',
+  'chat.dismissToolInteraction',
+  'runs.cancel',
+  'oauth.openaiCodex.cancelLogin',
+  'oauth.xaiGrok.cancelLogin',
+  'acpAuth.cancel',
+  'acp.elicitation.respond',
+  'mcp.submitSamplingDecision',
+  'mcp.cancelSamplingRequest',
+  'mcp.submitElicitationDecision',
+  'mcp.cancelElicitationRequest',
+  'mcp.apps.submitConsent',
+  'remoteControl.cancelFeishuAuth',
+  'remoteControl.cancelFeishuInstall',
+  'syncPeer.cancel',
+  'toolchains.cancelInstall'
+] satisfies DeepchatRouteName[])
+
+export function isCoreControlRoute(routeName: string): boolean {
+  return controlRoutes.has(routeName)
+}
 
 const directory = z.string().min(1).max(32768)
 export const CoreKernelBootstrapSchema = z

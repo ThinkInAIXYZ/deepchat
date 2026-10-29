@@ -58,6 +58,19 @@ type StartupTrackedRouteTask = {
   dedupeKey?: string
 }
 
+const startupTrackedRoutes = new Set<string>([
+  providersListSummariesRoute.name,
+  modelsGetProviderCatalogRoute.name,
+  providersListOllamaModelsRoute.name,
+  providersListOllamaRunningModelsRoute.name,
+  sessionsListLightweightRoute.name,
+  skillsListMetadataRoute.name,
+  mcpGetServersRoute.name,
+  mcpGetEnabledRoute.name,
+  mcpGetClientsRoute.name,
+  mcpGetNpmRegistryStatusRoute.name
+])
+
 async function isSettingsWindowContext(
   dispatcher: RouteDispatcher,
   context: RouteContext
@@ -73,6 +86,7 @@ async function resolveTrackedRouteTask(
   routeName: string,
   context: RouteContext
 ): Promise<StartupTrackedRouteTask | null> {
+  if (!startupTrackedRoutes.has(routeName)) return null
   const isSettings = await isSettingsWindowContext(dispatcher, context)
 
   if (routeName === providersListSummariesRoute.name && isSettings) {

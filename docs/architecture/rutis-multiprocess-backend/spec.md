@@ -1384,8 +1384,23 @@ capability leases from that generation. Keep Session IDs, Run IDs, message IDs, 
 incarnations as their existing separate identities.
 
 The initial private Core bootstrap link uses the existing 64-KiB control frames and a separate
-one-shot Core generation. It admits at most four ordinary calls and reserves two additional call
-slots for status/stop and one coalesced system-theme observation. The observation queries Native
+one-shot Core generation. Its four work slots reserve one for audited cancellation and human
+interaction routes; up to three ordinary calls run concurrently. Main snapshots queued renderer
+requests with a combined limit of 64 entries and 64 MiB, and drains the two lanes independently.
+Under queue pressure, an incoming control request can reject unsent ordinary work with an explicit
+non-admission outcome; accepted work is never displaced or replayed. Main rechecks the original
+Native sender/document when accepting queued work and immediately before sending it, including
+after an asynchronous carrier write. This local authorization closure is never serialized.
+The authenticated Native IPC entry constructs renderer identity; the private link rejects CLI or
+internal identities, which remain local to the Core CLI/runtime owners. Core revalidates route
+input and lane selection against the owner-local registry. Public business dispatch requires
+acknowledged Kernel startup, including migrations and service activation. Cold assembly does not
+grant business readiness. Two additional call slots remain reserved for status/stop and one for a
+coalesced system-theme observation. Untracked business routes do not query Native window roles;
+ordinary presentation queries cannot delay cancellation or approval solely for startup accounting.
+Terminal stop fences queued work and drains accepted route continuations, Native effects and
+startup activation before releasing profile ownership.
+The observation queries Native
 theme state, serializes with configuration and repeats once for a notification received during
 an active observation; it does not carry a caller-supplied color or retry an unknown outcome.
 Up to sixteen reverse Native calls are tracked independently. Native replies
@@ -1713,8 +1728,8 @@ behavior. The four Agent fence semantics and deterministic pending-input feedbac
 | Gate                | Required evidence                                                                                                                     | Current evidence                                                                                                  |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | Runtime launch      | Rust host loads a compiled plugin through the upstream runner using packaged Electron, exchanges async calls, cancels, and shuts down | Actual app admission E2E and isolated artifact-closure checks passed; signed/packaged launcher validation pending |
-| Platform extraction | OAuth, crypto, MCP Apps, helper launch, and desktop snapshots work through narrow ports without backend Electron-main imports         | Dependency locations identified; extraction pending                                                               |
-| Storage ownership   | One mutation authority, preserved transactions, scheduler claims, encryption, backup/rekey/import and maintenance recovery            | Shared database and secondary scheduler writer identified; migration pending                                      |
+| Platform extraction | OAuth, crypto, MCP Apps, helper launch, and desktop snapshots work through narrow ports without backend Electron-main imports         | Typed ports and SDK Kernel startup/routes verified; complete production Native binding pending                     |
+| Storage ownership   | One mutation authority, preserved transactions, scheduler claims, encryption, backup/rekey/import and maintenance recovery            | Core SDK profile/writer fencing and local commands verified; default writer/lifecycle adoption pending              |
 | Failure behavior    | Core/host loss, lost replies, stale callbacks, full queues, and shutdown cannot create duplicate execution or two profile owners      | Admission runtime-loss regression passes with no replacement owner; whole-core/storage fault validation pending   |
 | Responsiveness      | Repeated baseline/spike measurements show improvement beyond baseline variance under the same backend-heavy workload                  | G2 paired baselines recorded; admission has a measured resource cost and no demonstrated speed improvement          |
 | Distribution        | Offline, signed/packaged launch and cleanup work on every supported target                                                            | Local macOS arm64 builds and copied closure validated; signed release targets pending                             |

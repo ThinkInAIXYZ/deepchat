@@ -20,6 +20,7 @@ import {
 import { definePlugin } from '@arcships/rutis'
 import { z } from 'zod'
 import { initializeCoreProfile } from '@/app/profileStartup'
+import { dispatchDeepchatRoute } from '@/routes'
 import type { CoreProfileHost } from '@/app/profileStartup'
 import type { DatabaseSecurityCryptoPort } from '@/app/databaseSecurity'
 import { CorePayloadStore } from '../core/payload'
@@ -27,6 +28,8 @@ import {
   CoreCarrierConfigSchema,
   CoreNativeEventSchema,
   CoreKernelBootstrapSchema,
+  CoreRouteInvocationSchema,
+  isCoreControlRoute,
   type CoreCarrierConfig,
   type CoreNativeMethod,
   type CorePayload,
@@ -52,6 +55,9 @@ export default definePlugin<CoreCarrierConfig>({
       identity: 'async',
       openProfile: 'async',
       assembleKernel: 'async',
+      startKernel: 'async',
+      invokeRoute: 'async',
+      invokeControlRoute: 'async',
       configure: 'async',
       observeSystemTheme: 'async',
       nativeEvents: 'async',
@@ -76,6 +82,7 @@ export default definePlugin<CoreCarrierConfig>({
     let profilePaths: z.infer<typeof profileBootstrap> | undefined
     let kernel: Awaited<ReturnType<typeof createCoreKernel>> | undefined
     let assembling: Promise<CorePayload> | undefined
+    let starting: Promise<CorePayload> | undefined
     let kernelAttempted = false
     let kernelPublish: ((name: DeepchatEventName, payload: unknown) => void) | undefined
     const admission = await createCoreAdmission(native, config.generation, {
@@ -90,6 +97,7 @@ export default definePlugin<CoreCarrierConfig>({
     let configuration: ReturnType<typeof createCoreSettings> | undefined
     let configurationTail: Promise<void> = Promise.resolve()
     let configurationEvents: DeepchatEventEnvelope[] | undefined
+    const routeCalls = new Set<Promise<CorePayload>>()
     let settingsVersion = 0
     const isStopping = () =>
       phase === 'stopping' || phase === 'stopped' || Boolean(kernel?.stopping)
@@ -98,8 +106,8 @@ export default definePlugin<CoreCarrierConfig>({
       pid: process.pid,
       node: process.versions.node,
       modules: process.versions.modules,
-      phase: kernel?.stopping && phase === 'kernel-assembled' ? 'stopping' : phase,
-      businessReady: false
+      phase: phase !== 'stopped' && kernel?.stopping ? 'stopping' : phase,
+      businessReady: phase === 'running' && !isStopping()
     })
     const nativeCalls = new CoreNativeCalls(
       store,
@@ -165,10 +173,18 @@ export default definePlugin<CoreCarrierConfig>({
     const runConfiguration = async (
       execute: (owner: NonNullable<typeof configuration>['appSettingsService']) => Promise<unknown>
     ): Promise<CorePayload> => {
-      if (isStopping() || !['profile-open', 'kernel-assembled'].includes(phase) || !configuration)
+      if (
+        isStopping() ||
+        !['profile-open', 'kernel-assembled', 'starting', 'running'].includes(phase) ||
+        !configuration
+      )
         throw new Error('Core configuration is unavailable')
       const operation = configurationTail.then(async () => {
-        if (isStopping() || !['profile-open', 'kernel-assembled'].includes(phase) || !configuration)
+        if (
+          isStopping() ||
+          !['profile-open', 'kernel-assembled', 'starting', 'running'].includes(phase) ||
+          !configuration
+        )
           throw new Error('Core configuration is unavailable')
         const events: DeepchatEventEnvelope[] = []
         configurationEvents = events
@@ -187,6 +203,29 @@ export default definePlugin<CoreCarrierConfig>({
       )
       return await operation
     }
+    const invokeRoute = (ref: CorePayload, control: boolean): Promise<CorePayload> => {
+      const operation = (async () => {
+        const input = CoreRouteInvocationSchema.parse(await store.decode(ref))
+        if (isCoreControlRoute(input.routeName) !== control)
+          throw new Error('Invalid Core route lane')
+        if (isStopping() || phase !== 'running' || !kernel)
+          throw new Error('Core business routes are unavailable')
+        return await store.encode(
+          await dispatchDeepchatRoute(
+            kernel.controller.routeDispatcher,
+            input.routeName,
+            input.input,
+            input.context
+          )
+        )
+      })()
+      routeCalls.add(operation)
+      void operation.then(
+        () => routeCalls.delete(operation),
+        () => routeCalls.delete(operation)
+      )
+      return operation
+    }
     const stop = (): Promise<void> => {
       if (stopping) return stopping
       phase = 'stopping'
@@ -203,6 +242,7 @@ export default definePlugin<CoreCarrierConfig>({
           }
         }
         await retire(async () => await kernel?.stop())
+        await retire(async () => await starting?.catch(() => undefined))
         await retire(() => browser.close())
         await retire(() => helpers.close())
         await retire(() => desktop.close())
@@ -212,6 +252,7 @@ export default definePlugin<CoreCarrierConfig>({
         await retire(() => memory.retire())
         await retire(() => admission.close())
         await retire(() => nativeCalls.drain())
+        await Promise.allSettled(routeCalls)
         if (kernelAttempted && !kernel)
           errors.push(new Error('Partial Core Kernel requires physical retirement'))
         if (errors.length) throw new AggregateError(errors, 'Core did not retire')
@@ -311,7 +352,10 @@ export default definePlugin<CoreCarrierConfig>({
               },
               nextVersion: () => ++settingsVersion,
               assertActive: () => {
-                if (isStopping() || !['profile-open', 'kernel-assembled'].includes(phase))
+                if (
+                  isStopping() ||
+                  !['profile-open', 'kernel-assembled', 'starting', 'running'].includes(phase)
+                )
                   throw new Error('Core configuration is unavailable')
               }
             })
@@ -404,7 +448,7 @@ export default definePlugin<CoreCarrierConfig>({
       async configure(ref: CorePayload): Promise<CorePayload> {
         return await runConfiguration(async (owner) => {
           const command = CoreConfigurationCommandSchema.parse(await store.decode(ref))
-          if (!['profile-open', 'kernel-assembled'].includes(phase))
+          if (!['profile-open', 'kernel-assembled', 'starting', 'running'].includes(phase))
             throw new Error('Core configuration is unavailable')
           switch (command.operation) {
             case 'read':
@@ -417,6 +461,29 @@ export default definePlugin<CoreCarrierConfig>({
               return await owner.initializeDesktop()
           }
         })
+      },
+      async startKernel(): Promise<CorePayload> {
+        if (starting || phase !== 'kernel-assembled' || !kernel)
+          throw new Error('Core Kernel cannot start')
+        phase = 'starting'
+        starting = (async () => {
+          try {
+            await kernel.start()
+            if (isStopping()) throw new Error('Core Kernel startup was stopped')
+            phase = 'running'
+            return await store.encode(status())
+          } catch (error) {
+            void stop().catch(() => {})
+            throw error
+          }
+        })()
+        return await starting
+      },
+      async invokeRoute(ref: CorePayload): Promise<CorePayload> {
+        return await invokeRoute(ref, false)
+      },
+      async invokeControlRoute(ref: CorePayload): Promise<CorePayload> {
+        return await invokeRoute(ref, true)
       },
       async observeSystemTheme() {
         return await runConfiguration(async (owner) => await owner.observeSystemTheme())
