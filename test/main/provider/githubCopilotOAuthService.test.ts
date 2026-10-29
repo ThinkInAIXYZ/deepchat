@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { OAuthService } from '@/provider/auth'
+import { OAuthService } from '../../../src/harness/core/oauth'
 import type { GitHubCopilotSignInTarget } from '@shared/types/oauth'
 
 const mocks = vi.hoisted(() => ({
@@ -7,16 +7,6 @@ const mocks = vi.hoisted(() => ({
   startLogin: vi.fn(),
   exchangeCodeForToken: vi.fn(),
   stop: vi.fn()
-}))
-vi.mock('@/provider/auth/githubCopilotDeviceFlow', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/provider/auth/githubCopilotDeviceFlow')>()),
-  getGlobalGitHubCopilotDeviceFlow: () => ({ startDeviceFlow: mocks.startDeviceFlow })
-}))
-vi.mock('@/provider/auth/githubCopilotOAuth', () => ({
-  createGitHubCopilotOAuth: () => ({
-    startLogin: mocks.startLogin,
-    exchangeCodeForToken: mocks.exchangeCodeForToken
-  })
 }))
 
 const accepted = () => Response.json({ token: 'copilot-session', expires_at: 2_000_000_000 })
@@ -51,7 +41,13 @@ const setup = () => {
     logoutXaiGrok: vi.fn(signedOut),
     stop: mocks.stop
   }
-  const service = new OAuthService(owner, accounts)
+  const service = new OAuthService(owner, accounts, {
+    device: async () => await mocks.startDeviceFlow(),
+    browser: async () => {
+      const code = await mocks.startLogin()
+      return await mocks.exchangeCodeForToken(code)
+    }
+  })
   return { target, owner, service, accounts }
 }
 

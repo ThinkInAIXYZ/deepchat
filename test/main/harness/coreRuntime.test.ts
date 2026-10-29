@@ -96,6 +96,22 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       publishEvent
     })
     const kernelNative: CoreKernelNative = {
+      configurationHost: {
+        pause: async () => {},
+        resume: async () => {},
+        stopWrites: async () => {},
+        drainWrites: async () => {},
+        startWrites: async () => {}
+      },
+      isSettingsWindow: async () => false,
+      isMainWindowContext: async () => false,
+      rendererPerformance: { record: async () => false },
+      splash: { showDebugScenario: unexpected, closeDebugScenario: async () => false },
+      images: { saveImage: unexpected, copyImage: unexpected },
+      pickToolchainPath: unexpected,
+      hasTrustedRenderer: async () => false,
+      applyProxy: async () => false,
+      copilotAuthorization: { browser: unexpected, device: unexpected },
       workspaceDesktop: {
         revealFile: unexpected,
         openFile: unexpected,
@@ -131,8 +147,13 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
         createSettingsWindow: async () => null,
         sendSettingsNavigation: async () => false
       },
-      pluginSettingsWindow: { open: unexpected, close: async () => {}, closeAll: async () => {} },
-      remoteAuthWindows: { open: unexpected, close: async () => {} },
+      pluginSettingsWindow: {
+        open: unexpected,
+        close: async () => {},
+        closeAll: async () => {},
+        getPluginIdForWebContents: async () => null
+      },
+      remoteAuthWindows: { open: unexpected, close: async () => {}, closeAll: async () => {} },
       openRemoteSession: unexpected,
       showNotification: unexpected,
       mcpPreview: undefined,

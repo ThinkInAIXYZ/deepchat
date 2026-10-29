@@ -18,6 +18,8 @@ import { createCoreData } from './data'
 import { createCoreProviders } from './providers'
 import { createCoreRuntime } from './runtime'
 import type { createCoreSettings } from './settings'
+import { createCoreMaintenance, type CoreMaintenanceNative } from './maintenance'
+import { createCoreController, type CoreControllerNative } from './controller'
 
 type RuntimeOptions = Parameters<typeof createCoreRuntime>[0]
 type ProviderOptions = Parameters<typeof createCoreProviders>[0]
@@ -49,19 +51,21 @@ export type CoreKernelNative = Pick<
   | 'mcpReadinessChanged'
   | 'reportStartupFailure'
   | 'onSessionInactive'
-> & {
-  renderer: TypedEventHubOptions['renderer']
-  onRendererDestroyed: ProviderOptions['onRendererDestroyed']
-  sendToRenderer: ProviderOptions['sendToRenderer']
-  destroySessionBrowser: RuntimeOptions['execution']['destroySessionBrowser']
-  observeDelegation: RuntimeOptions['execution']['observeDelegation']
-  runJournalObserver: RuntimeOptions['runJournalObserver']
-  notifySessionCompletion(session: { id: string; title: string }): Promise<void>
-  providerCrypto: ProviderOptions['crypto']
-  fetchRegistryIcon: ProviderOptions['fetchRegistryIcon']
-  mcpAppDesktop: RuntimeOptions['mcpApps']['desktop']
-  publishMcpConsent: Parameters<McpAppSandboxRegistry['setConsentPublisher']>[0]
-}
+> &
+  CoreMaintenanceNative &
+  CoreControllerNative & {
+    renderer: TypedEventHubOptions['renderer']
+    onRendererDestroyed: ProviderOptions['onRendererDestroyed']
+    sendToRenderer: ProviderOptions['sendToRenderer']
+    destroySessionBrowser: RuntimeOptions['execution']['destroySessionBrowser']
+    observeDelegation: RuntimeOptions['execution']['observeDelegation']
+    runJournalObserver: RuntimeOptions['runJournalObserver']
+    notifySessionCompletion(session: { id: string; title: string }): Promise<void>
+    providerCrypto: ProviderOptions['crypto']
+    fetchRegistryIcon: ProviderOptions['fetchRegistryIcon']
+    mcpAppDesktop: RuntimeOptions['mcpApps']['desktop']
+    publishMcpConsent: Parameters<McpAppSandboxRegistry['setConsentPublisher']>[0]
+  }
 
 export async function createCoreKernel(options: {
   profile: Awaited<ReturnType<typeof initializeCoreProfile>>
@@ -77,7 +81,6 @@ export async function createCoreKernel(options: {
   >
   admission: RuntimeOptions['agentInvocationAdmission']
   vectors: RuntimeOptions['memoryVectorStores']
-  controls: Pick<RuntimeOptions, 'importSnapshot' | 'resolveRouteDispatcher'>
   bindEventPublisher(publish: (name: DeepchatEventName, payload: unknown) => void): void
   isStopping(): boolean
   allowInsecureTls: boolean
@@ -89,6 +92,8 @@ export async function createCoreKernel(options: {
   let runtime: Runtime | undefined
   let data: ReturnType<typeof createCoreData> | undefined
   let providers: ReturnType<typeof createCoreProviders> | undefined
+  let maintenance: ReturnType<typeof createCoreMaintenance> | undefined
+  let controller: ReturnType<typeof createCoreController> | undefined
   let constructionIncomplete = false
   const isStopping = () => stoppingRequested || options.isStopping()
   const databaseRequests = new DatabaseRequestGate(() => {
@@ -153,7 +158,10 @@ export async function createCoreKernel(options: {
       await step('agent-settings-stop', () => providers?.agentSettings.stop())
       await step('provider-catalog', () => providerDbLoader.drain())
       await step('agent-settings', async () => await providers?.agentSettings.drain())
-      await step('accounts', async () => await providers?.accounts.stop())
+      await step('accounts', async () => {
+        if (controller) await controller.oauthService.stop()
+        else await providers?.accounts.stop()
+      })
       await step('acp-auth', async () => await providers?.acpAuthService.shutdown())
       if (runtime) {
         const owner = runtime
@@ -293,7 +301,11 @@ export async function createCoreKernel(options: {
     runtime = await createCoreRuntime({
       ...native,
       ...options.helpers,
-      ...options.controls,
+      importSnapshot: async (filePath, mode) => {
+        if (!maintenance) throw new Error('Core runtime is starting')
+        return await maintenance.run({ kind: 'import-backup-file', filePath, mode })
+      },
+      resolveRouteDispatcher: () => controller?.routeDispatcher,
       profile,
       data,
       providers,
@@ -329,11 +341,42 @@ export async function createCoreKernel(options: {
     })
     constructionIncomplete = false
     if (isStopping()) throw new Error('Core Kernel startup was stopped')
+    maintenance = createCoreMaintenance({
+      profile,
+      data,
+      providers,
+      runtime,
+      settings,
+      databaseRequests,
+      startupWorkloadCoordinator,
+      native,
+      isStopping,
+      stopForCleanup: stop
+    })
+    controller = createCoreController({
+      profile,
+      data,
+      providers,
+      runtime,
+      settings,
+      bootstrap,
+      databaseRequests,
+      startupWorkloadCoordinator,
+      artifactSpool,
+      maintenance,
+      native,
+      publishEvent
+    })
     providers.agentSettings.start()
     return {
       data,
       providers,
       runtime,
+      controller,
+      maintenance,
+      get stopping() {
+        return stoppingRequested
+      },
       databaseRequests,
       typedEventHub,
       artifactSpool,

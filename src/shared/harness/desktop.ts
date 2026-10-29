@@ -7,6 +7,12 @@ import {
   mcpAppConsentRequestEvent
 } from '../contracts/events'
 import { semanticNotificationIntentSchema } from '../notifications/semanticNotification'
+import { SPLASH_DEBUG_MODES } from '../contracts/splash'
+import {
+  RendererPerformanceRecordSchema,
+  fileSaveImageRoute,
+  fileCopyImageRoute
+} from '../contracts/routes'
 
 const text = z.string()
 const empty = z.tuple([])
@@ -34,6 +40,31 @@ const preview = z
   .strict()
 
 export const CoreDesktopArguments = {
+  'configurationHost.pause': empty,
+  'configurationHost.resume': empty,
+  'configurationHost.stopWrites': empty,
+  'configurationHost.drainWrites': empty,
+  'configurationHost.startWrites': empty,
+  isSettingsWindow: z.tuple([z.number().int().positive().nullable()]),
+  isMainWindowContext: z.tuple([
+    z
+      .object({
+        kind: z.literal('renderer'),
+        webContentsId: z.number().int().positive(),
+        windowId: z.number().int().positive().nullable()
+      })
+      .strict()
+  ]),
+  'rendererPerformance.record': z.tuple([RendererPerformanceRecordSchema]),
+  'splash.showDebugScenario': z.tuple([z.enum(SPLASH_DEBUG_MODES)]),
+  'splash.closeDebugScenario': empty,
+  'images.saveImage': z.tuple([fileSaveImageRoute.input]),
+  'images.copyImage': z.tuple([fileCopyImageRoute.input]),
+  pickToolchainPath: empty,
+  hasTrustedRenderer: empty,
+  applyProxy: z.tuple([z.enum(['system', 'none', 'custom']), text, z.boolean()]),
+  'copilotAuthorization.browser': z.tuple([text.optional()]),
+  'copilotAuthorization.device': z.tuple([text.optional()]),
   'workspaceDesktop.revealFile': z.tuple([text]),
   'workspaceDesktop.openFile': z.tuple([text]),
   'workspaceDesktop.listFileOpenApps': z.tuple([text]),
@@ -94,6 +125,7 @@ export const CoreDesktopArguments = {
   ]),
   'pluginSettingsWindow.close': z.tuple([text]),
   'pluginSettingsWindow.closeAll': empty,
+  'pluginSettingsWindow.getPluginIdForWebContents': z.tuple([z.number().int().positive()]),
   'remoteAuthWindows.open': z.tuple([
     z.discriminatedUnion('kind', [
       z
@@ -109,6 +141,7 @@ export const CoreDesktopArguments = {
     ])
   ]),
   'remoteAuthWindows.close': z.tuple([text]),
+  'remoteAuthWindows.closeAll': empty,
   openRemoteSession: z.tuple([text]),
   showNotification: z.tuple([
     z.object({ id: text, title: text, body: text, silent: z.boolean().optional() }).strict()
@@ -179,6 +212,10 @@ export const CoreDesktopCapabilitiesSchema = z
   .strict()
 
 const retirement = new Set<CoreDesktopMethod>([
+  'configurationHost.pause',
+  'configurationHost.stopWrites',
+  'configurationHost.drainWrites',
+  'remoteAuthWindows.closeAll',
   'approvalPresentation.close',
   'dialog.handleDialogResponse',
   'dialog.handleDialogError',

@@ -91,13 +91,14 @@ export default definePlugin<CoreCarrierConfig>({
     let configurationTail: Promise<void> = Promise.resolve()
     let configurationEvents: DeepchatEventEnvelope[] | undefined
     let settingsVersion = 0
-    const isStopping = () => phase === 'stopping' || phase === 'stopped'
+    const isStopping = () =>
+      phase === 'stopping' || phase === 'stopped' || Boolean(kernel?.stopping)
     const status = (): CoreStatus => ({
       generation: config.generation,
       pid: process.pid,
       node: process.versions.node,
       modules: process.versions.modules,
-      phase,
+      phase: kernel?.stopping && phase === 'kernel-assembled' ? 'stopping' : phase,
       businessReady: false
     })
     const nativeCalls = new CoreNativeCalls(
@@ -164,10 +165,10 @@ export default definePlugin<CoreCarrierConfig>({
     const runConfiguration = async (
       execute: (owner: NonNullable<typeof configuration>['appSettingsService']) => Promise<unknown>
     ): Promise<CorePayload> => {
-      if (!['profile-open', 'kernel-assembled'].includes(phase) || !configuration)
+      if (isStopping() || !['profile-open', 'kernel-assembled'].includes(phase) || !configuration)
         throw new Error('Core configuration is unavailable')
       const operation = configurationTail.then(async () => {
-        if (!['profile-open', 'kernel-assembled'].includes(phase) || !configuration)
+        if (isStopping() || !['profile-open', 'kernel-assembled'].includes(phase) || !configuration)
           throw new Error('Core configuration is unavailable')
         const events: DeepchatEventEnvelope[] = []
         configurationEvents = events
@@ -310,7 +311,7 @@ export default definePlugin<CoreCarrierConfig>({
               },
               nextVersion: () => ++settingsVersion,
               assertActive: () => {
-                if (!['profile-open', 'kernel-assembled'].includes(phase))
+                if (isStopping() || !['profile-open', 'kernel-assembled'].includes(phase))
                   throw new Error('Core configuration is unavailable')
               }
             })
@@ -384,15 +385,6 @@ export default definePlugin<CoreCarrierConfig>({
               },
               admission,
               vectors: ownerVectors,
-              // shortcut: Public dispatch stays unavailable until G5 mounts its local controller.
-              controls: {
-                importSnapshot: async () => {
-                  throw new Error('Core controller is not mounted')
-                },
-                resolveRouteDispatcher: () => {
-                  throw new Error('Core controller is not mounted')
-                }
-              },
               bindEventPublisher: (publish) => {
                 kernelPublish = publish
               },

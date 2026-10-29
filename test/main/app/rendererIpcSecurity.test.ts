@@ -122,6 +122,17 @@ describe('native renderer document boundary', () => {
     Object.defineProperty(event.sender, 'id', { value: 43 })
     expect(() => authorize(event, 'plugins.get')).toThrow('Native IPC')
     expect(() => authorize(eventFor('https://example.com/'), 'plugins.get')).toThrow('Native IPC')
+    const lookup = vi.fn()
+    const invalidRegistry = createRendererIpcAuthorizer({
+      rendererDirectoryUrl,
+      pluginSettingsWindow: { getPluginIdForWebContents: lookup }
+    })
+    for (const invalid of [Promise.resolve(null), {}, undefined, 42]) {
+      lookup.mockReturnValue(invalid)
+      expect(() => invalidRegistry(eventFor('file:///tmp/foreign.html'), 'plugins.get')).toThrow(
+        'Native IPC'
+      )
+    }
   })
 
   it('authorizes before route dispatch or any clipboard side effect', async () => {

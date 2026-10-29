@@ -155,7 +155,9 @@ export class CoreDesktopNative {
     args: unknown[],
     signal: AbortSignal
   ): Promise<unknown> {
-    if (method === 'fetchRegistryIcon' || method === 'agentDesktop.readImageSize') args.push(signal)
+    if (method.startsWith('copilotAuthorization.')) args[1] = signal
+    else if (method === 'fetchRegistryIcon' || method === 'agentDesktop.readImageSize')
+      args.push(signal)
     if (method === 'cacheImage') args[1] = { ...(args[1] as object | undefined), signal }
     const parts = method.split('.')
     let owner: object = this.native

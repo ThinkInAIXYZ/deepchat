@@ -1,6 +1,5 @@
 import type { IpcMainInvokeEvent } from 'electron'
 import { createAppDocumentMatcher } from '@shared/rendererDocument'
-import type { PluginSettingsWindowPort } from '@/plugin'
 
 export type AuthorizeRendererIpc = (event: IpcMainInvokeEvent, routeName?: string) => void
 
@@ -14,7 +13,7 @@ const PLUGIN_SETTINGS_ROUTES = new Set([
 export function createRendererIpcAuthorizer(options: {
   rendererDirectoryUrl: string
   developmentServerUrl?: string
-  pluginSettingsWindow: Pick<PluginSettingsWindowPort, 'getPluginIdForWebContents'>
+  pluginSettingsWindow: { getPluginIdForWebContents(webContentsId: number): string | null }
 }): AuthorizeRendererIpc {
   const matchDocument = createAppDocumentMatcher(
     options.rendererDirectoryUrl,
@@ -39,7 +38,7 @@ export function createRendererIpcAuthorizer(options: {
     }
     if (
       senderFrame.url.startsWith('file:') &&
-      options.pluginSettingsWindow.getPluginIdForWebContents(sender.id) !== null &&
+      typeof options.pluginSettingsWindow.getPluginIdForWebContents(sender.id) === 'string' &&
       routeName !== undefined &&
       PLUGIN_SETTINGS_ROUTES.has(routeName)
     ) {

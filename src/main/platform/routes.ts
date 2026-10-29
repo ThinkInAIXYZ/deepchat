@@ -8,8 +8,8 @@ import type { ProxySettings, ProxySettingMode } from './proxySettings'
 
 export function createPlatformRoutes(deps: {
   proxySettings: ProxySettings
-  applyProxyMode(mode: ProxySettingMode): void
-  applyCustomProxyUrl(url: string): void
+  applyProxyMode(mode: ProxySettingMode): void | Promise<void>
+  applyCustomProxyUrl(url: string): void | Promise<void>
 }): ReadonlyMap<DeepchatRouteName, (rawInput: unknown) => Promise<unknown>> {
   const read = () => ({
     mode: deps.proxySettings.getMode(),
@@ -28,7 +28,7 @@ export function createPlatformRoutes(deps: {
       async (rawInput: unknown) => {
         const input = configSetProxyModeRoute.input.parse(rawInput)
         deps.proxySettings.setMode(input.mode)
-        deps.applyProxyMode(input.mode)
+        await deps.applyProxyMode(input.mode)
         return configSetProxyModeRoute.output.parse(read())
       }
     ],
@@ -37,7 +37,7 @@ export function createPlatformRoutes(deps: {
       async (rawInput: unknown) => {
         const input = configSetCustomProxyUrlRoute.input.parse(rawInput)
         deps.proxySettings.setCustomUrl(input.url)
-        deps.applyCustomProxyUrl(input.url)
+        await deps.applyCustomProxyUrl(input.url)
         return configSetCustomProxyUrlRoute.output.parse(read())
       }
     ]

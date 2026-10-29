@@ -84,7 +84,7 @@ export interface PluginSettingsWindowPort {
   open(input: { pluginId: string; title: string; entry: string }): Promise<void>
   close(pluginId: string): Promise<void>
   closeAll(): Promise<void>
-  getPluginIdForWebContents(webContentsId: number): string | null
+  getPluginIdForWebContents(webContentsId: number): string | null | Promise<string | null>
 }
 
 type PluginServiceDeps = {

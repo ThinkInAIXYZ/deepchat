@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
+import { z } from 'zod'
 import { deserialize, serialize } from 'node:v8'
 import logger from '@shared/logger'
 import {
@@ -75,7 +76,9 @@ export class CoreNativeDesktop {
       target[parts.at(-1)!] = (...args: unknown[]) => {
         let signal: AbortSignal | undefined
         if (
-          (method === 'fetchRegistryIcon' || method === 'agentDesktop.readImageSize') &&
+          (method === 'fetchRegistryIcon' ||
+            method === 'agentDesktop.readImageSize' ||
+            method.startsWith('copilotAuthorization.')) &&
           args.length > 1
         )
           signal = args.pop() as AbortSignal | undefined
@@ -197,6 +200,14 @@ export class CoreNativeDesktop {
       try {
         const result = await this.invoke({ operation: 'call', id, method, args })
         signal?.throwIfAborted()
+        if (
+          ['isSettingsWindow', 'isMainWindowContext', 'hasTrustedRenderer', 'applyProxy'].includes(
+            method
+          )
+        )
+          return z.boolean().parse(result)
+        if (method === 'pluginSettingsWindow.getPluginIdForWebContents')
+          return z.string().nullable().parse(result)
         return result
       } catch (error) {
         signal?.throwIfAborted()

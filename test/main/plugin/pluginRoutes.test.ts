@@ -22,7 +22,7 @@ function setup(ownerPluginId: string | null) {
     open: async () => {},
     close: async () => {},
     closeAll: async () => {},
-    getPluginIdForWebContents: () => ownerPluginId
+    getPluginIdForWebContents: async () => ownerPluginId
   }
   const routes = createPluginRoutes(pluginService as unknown as PluginServicePort, settingsWindow)
   return { pluginService, routes }

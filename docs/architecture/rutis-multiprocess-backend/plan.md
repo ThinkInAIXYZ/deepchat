@@ -2450,7 +2450,7 @@ core; its synchronous local transactions and integrity callbacks do not become r
       The published batch's required and six-platform CI barriers pass at `356143755`.
 - [x] Supply OCR's native cache-key provider explicitly from Main; preserve encrypted cache
       persistence, unavailable-key fallback and the same cache clear/relaunch application behavior.
-- [x] Supply Codex/Grok auth owner commands to Main's OAuth facade. Keep their controllers,
+- [x] Supply Codex/Grok auth owner commands to the OAuth facade. Keep their controllers,
       credential queues and synchronous storage observations with Provider consumers; Main must
       not initialize those owners or receive writable credential-store instances at G5 handoff.
 - [x] Supply provider-existence results and committed MCP startup readiness to the native
@@ -3224,8 +3224,10 @@ descendant/proxy authority, full acceptance and native/signed packages remain re
       Keep native presentation/helper ports explicit and maintenance/route controls owner-local.
 - [x] Invoke this root in the actual SDK worker with the fixed Native desktop transport and
       standalone dependency closure; verify persistence and physical retirement before writer release.
-- [ ] Mount the owner-local route and maintenance controller. Adopt public routes, shared writer
-      and lifecycle before G5 publication.
+- [x] Mount the owner-local route and maintenance controller. Reuse it in the default Main
+      application; remove its inline route/maintenance construction and SDK placeholder errors.
+- [ ] Adopt public ingress, shared writer and lifecycle in the default Core process before G5
+      publication.
 
 `createCoreKernel` owns the cohesive business graph and its terminal drain. The same settings
 version source feeds configuration events; renderer-session ownership retains its `null` meaning.
@@ -3258,18 +3260,51 @@ Affected service checks retain **150 tests across four files**. The actual SDK a
 checkout, configuration events through its general event hub, persisted settings and exclusive
 writer ownership while Native retirement is held. Two desktop contracts cover reordered aborts,
 released cancellation identities, shared renderer subscriptions and physical closure. The private
-assembly phase keeps `businessReady: false`; public dispatch and snapshot import require the
-pending owner-local controller.
+assembly phase keeps `businessReady: false`. Its local dispatcher and snapshot-import controller
+are mounted; default cross-process public ingress and full startup activation remain required.
 
 The standalone build preserves Node package entry semantics, platform binaries, PDF assets and
 dependency-specific versions. Its Skill scan entry runs successfully from a separate copied module
 closure. Renderer client, Model store and Chat status-bar coverage passes **177 checks across three
 files**, including one durable catalog-event regression. The existing MCP runtime application case
-also passes. SDK assembly uses empty Native presentation, leaves public dispatch unmounted and
-does not activate full startup; these checks do not prove default adoption or headless CLI execution.
+also passes. SDK assembly uses empty Native presentation and does not activate full startup or
+default cross-process public ingress; these checks do not prove default adoption or headless CLI execution.
 Evidence is `.deepchat/rutis-g5-kernel-assembly-acceptance/`. Complete default adoption,
 helper/descendant and proxy authority, and native/signed packaging remain required. G5 is active
 and unpublished; G6-G12 retain their full scope.
+
+### Owner-local routes and database maintenance
+
+The Kernel constructs one route dispatcher from its own data, settings, Provider and runtime
+owners. The default application uses the same factory for its business routes and adds only its
+native desktop/device/update/notification maps. Its inline business-route and maintenance bodies
+are removed. Sync snapshot import now enters the local maintenance controller directly; no shared
+database operation or mutable service callback is proxied through Main.
+
+Maintenance retains admission fencing, backup exclusion, configuration/secret stop and drain,
+session/ingestion shutdown, database checkpoint/import/rekey/repair, reopen and ordered service
+recovery. Recreated delegation state stays at the execution owner's getter. Kernel stopping also
+fences the SDK configuration ingress rather than leaving a writable configuration service alive.
+
+Copilot credential-target selection, access validation and acknowledged commitment use the Core
+OAuth facade. Native authorization presentation/token acquisition remains a typed Main capability;
+its existing physical window cancellation is an explicit remaining requirement before default
+Core adoption. Plugin-window ownership checks await their Native query, while Main sender
+authorization retains a synchronous registry and rejects promise/object results. Proxy mutations
+await Native application; actual HTTP/PAC/custom/auth behavior still needs cutover acceptance.
+
+Existing affected verification passes **65 Main checks across five files**, **26 SDK/Native
+checks across seven files** and **13 request-gate checks**. The default application passes seven
+real scenarios: encrypted legacy
+unlock/rekey/disable, Provider credential compatibility/logout, incremental/overwrite restore,
+concurrent-maintenance rejection, delayed Native credential drain and both pending-work shutdown
+cases. Two durable cases fence an uncertain Native pause until failed-owner cleanup settles and
+wait for both session backends even when one cleanup fails;
+existing fixtures exercise asynchronous plugin ownership and reject malformed Native ownership
+responses. Native pause/resume acknowledgement failures cannot leave ordinary requests admitted.
+The accepted baseline evidence remains available;
+no unchanged baseline or performance matrix is repeated. G5 stays active and unpublished until
+complete default adoption, Native retirement/descendant/proxy authority and required packages pass.
 
 ## G6. Extract the complete Memory capability
 

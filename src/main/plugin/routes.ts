@@ -18,11 +18,16 @@ export function createPluginRoutes(
   pluginService: PluginServicePort,
   settingsWindow: PluginSettingsWindowPort
 ): DeepchatRouteMap {
-  const assertPluginSettingsCallerOwns = (context: RouteContext, pluginId: string): void => {
+  const assertPluginSettingsCallerOwns = async (
+    context: RouteContext,
+    pluginId: string
+  ): Promise<void> => {
     if (context.caller.kind !== 'renderer') {
       return
     }
-    const ownerPluginId = settingsWindow.getPluginIdForWebContents(context.caller.webContentsId)
+    const ownerPluginId = await settingsWindow.getPluginIdForWebContents(
+      context.caller.webContentsId
+    )
     if (ownerPluginId != null && ownerPluginId !== pluginId) {
       throw new Error(
         `Plugin settings window for "${ownerPluginId}" cannot control plugin "${pluginId}"`
@@ -95,7 +100,7 @@ export function createPluginRoutes(
       pluginsGetRoute.name,
       async (rawInput, context) => {
         const input = pluginsGetRoute.input.parse(rawInput)
-        assertPluginSettingsCallerOwns(context, input.pluginId)
+        await assertPluginSettingsCallerOwns(context, input.pluginId)
         return pluginsGetRoute.output.parse({
           plugin: await pluginService.getPlugin(input.pluginId)
         })
@@ -105,7 +110,7 @@ export function createPluginRoutes(
       pluginsEnableRoute.name,
       async (rawInput, context) => {
         const input = pluginsEnableRoute.input.parse(rawInput)
-        assertPluginSettingsCallerOwns(context, input.pluginId)
+        await assertPluginSettingsCallerOwns(context, input.pluginId)
         return pluginsEnableRoute.output.parse({
           result: await pluginService.enablePlugin(input.pluginId)
         })
@@ -115,7 +120,7 @@ export function createPluginRoutes(
       pluginsDisableRoute.name,
       async (rawInput, context) => {
         const input = pluginsDisableRoute.input.parse(rawInput)
-        assertPluginSettingsCallerOwns(context, input.pluginId)
+        await assertPluginSettingsCallerOwns(context, input.pluginId)
         return pluginsDisableRoute.output.parse({
           result: await pluginService.disablePlugin(input.pluginId)
         })
@@ -125,7 +130,7 @@ export function createPluginRoutes(
       pluginsInvokeActionRoute.name,
       async (rawInput, context) => {
         const input = pluginsInvokeActionRoute.input.parse(rawInput)
-        assertPluginSettingsCallerOwns(context, input.pluginId)
+        await assertPluginSettingsCallerOwns(context, input.pluginId)
         return pluginsInvokeActionRoute.output.parse({
           result: await pluginService.invokeAction(input.pluginId, input.actionId, input.payload)
         })

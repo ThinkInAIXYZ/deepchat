@@ -3,7 +3,13 @@ import { describe, expect, it, vi } from 'vitest'
 
 async function readComposition(): Promise<string> {
   const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-  return ['src/main/app/composition.ts', 'src/harness/core/data.ts', 'src/harness/core/runtime.ts']
+  return [
+    'src/main/app/composition.ts',
+    'src/harness/core/data.ts',
+    'src/harness/core/runtime.ts',
+    'src/harness/core/controller.ts',
+    'src/harness/core/maintenance.ts'
+  ]
     .map((file) => readFileSync(path.resolve(process.cwd(), file), 'utf8'))
     .join('\n')
 }

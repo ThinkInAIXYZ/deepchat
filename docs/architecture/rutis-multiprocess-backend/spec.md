@@ -1293,15 +1293,15 @@ and scopes are not authorization. This migration introduces no arbitrary third-p
 loading or untrusted peer access. Existing `.dcplugin` and portable user-plugin behavior retain
 their reviewed package, consent, ownership, and execution contracts.
 
-Provider OAuth presentation stays in Main while ProviderRuntime owns configuration observations
-and credential commitment. The private sign-in target contains only Provider ID, public client ID
-and an opaque configuration identity. Main receives no saved API key, full Provider configuration
-or settings-file mutation capability. It validates the new token with GitHub and awaits the Core
-credential command before acknowledging success.
+Provider OAuth presentation stays in Main while the Core facade owns sign-in target selection,
+access validation and acknowledged credential commitment. The private target retains Provider ID,
+public client ID and opaque configuration identity at its owner. Native authorization receives only
+the public client ID and cancellation scope; it receives no Provider settings mutation capability.
+The acquired credential returns to Core for validation and the generation-checked Provider command.
 
 Codex/Grok login controllers, callback/refresh state and credential queues stay with their Provider
-consumers. Main's OAuth facade receives asynchronous status/login/callback/cancel/logout commands;
-it does not initialize those business owners or receive their complete writable credential stores.
+consumers. The Core OAuth facade uses their asynchronous status/login/callback/cancel/logout
+commands without introducing another controller or writable credential store in Main.
 Keep synchronous load-error/revision observations inside each controller's existing authority.
 Native browser opening and crypto remain explicit host capabilities, with the existing public
 auth status schemas and stop/drain behavior.
@@ -1441,14 +1441,23 @@ version source, and an ordinary renderer session's `null` CLI ownership must rem
 unknown/deleted ownership.
 
 The SDK worker assembles this root through a private lifecycle request while business readiness
-remains false until its local route and maintenance controller is mounted. Native desktop methods
-come from a fixed capability table with validated arguments and event payloads. Abort signals stay
+remains false until complete default ingress, startup and owner activation are acknowledged. Its
+route dispatcher and import/rekey/repair controller use the same local data/Provider/runtime owners;
+Main adds native route maps and supplies presentation effects without database-maintenance RPC.
+Native desktop methods come from a fixed capability table with validated arguments and event
+payloads. Abort signals stay
 local to each process; cancellation identifies the accepted effect and waits for actual settlement.
 Completed cancellation identities are released after their original call settles. Renderer watches
 share one Native subscription per renderer and retain registration and unsubscription receipts.
 Native closure fences new effects and acknowledges physical retirement before profile release.
 The standalone harness includes its Node module closure, platform native packages and separately
 bundled Skill scan worker; it must not rely on the development checkout's node_modules.
+
+Plugin route ownership queries await a typed Native result. Main's sender authorizer reads its
+synchronous native window registry and accepts only a concrete owner identity; promise/object
+results cannot establish renderer authority. Copilot credential-target selection, access validation
+and commitment stay in Core. Native browser/device authorization returns its acquired credential,
+and physical cancellation/closure must be acknowledged before default Core adoption.
 
 Accepted login-shell initialization belongs to runtime shutdown. Concurrent reads share its
 process, stopping fences late environment/state refresh and timeout waits for actual process/stdio

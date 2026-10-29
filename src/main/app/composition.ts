@@ -1,15 +1,17 @@
+import { createCoreController } from '../../harness/core/controller'
+import type { OAuthService } from '../../harness/core/oauth'
+import { createCoreMaintenance } from '../../harness/core/maintenance'
 import { createCoreSettings } from '../../harness/core/settings'
 import { createCoreRuntime } from '../../harness/core/runtime'
 import { spawnFileWatcherHost } from './fileWatcherHost'
 import { listFileOpenApps, openFileWithApp } from '../workspace/openInApp'
 import { createCoreProviders } from '../../harness/core/providers'
 import { createCoreData } from '../../harness/core/data'
-import { createLivePort } from '../../harness/core/execution'
+
 import { SyncReplicaStore } from '@/sync/replica/store'
 
 import { AutomaticSync } from '@/sync/replica/automatic'
 import { SyncPeerService } from '../sync/peer'
-import { createSyncPeerRoutes } from '../sync/peer/routes'
 
 import logger from '@shared/logger'
 import {
@@ -25,13 +27,12 @@ import {
   type MainLogShutdownReason,
   type SafeLogError
 } from '@/logging/mainLogEvents'
-import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
+
 import {
   approvalClosedEvent,
   approvalRequestedEvent,
   settingsChangedEvent,
-  sessionsTapeInspectorHeadChangedEvent,
-  sessionsUpdatedEvent
+  sessionsTapeInspectorHeadChangedEvent
 } from '@shared/contracts/events'
 import path from 'path'
 import { pathToFileURL } from 'node:url'
@@ -53,11 +54,11 @@ import { optimizer } from '@electron-toolkit/utils'
 import { WindowPresenter } from '../desktop/window'
 import { PluginSettingsWindow } from '../desktop/pluginSettingsWindow'
 import { ShortcutPresenter } from '../desktop/shortcut'
-import type { FileServicePort } from '@shared/types/file'
+
 import type { WorkspaceServicePort } from '@shared/types/workspace'
 import type { SkillMetadataSnapshotPort, SkillServicePort } from '@shared/types/skill'
 import type { SkillSyncServicePort } from '@shared/types/skillSync'
-import type { IConversationExporter } from '../exporter/interface'
+
 import type {
   IShortcutPresenter,
   IWindowPresenter,
@@ -65,7 +66,7 @@ import type {
 } from '@shared/types/desktop'
 import type { DialogServicePort } from '@shared/types/dialog'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
-import type { ProviderRuntime } from '../provider'
+
 import {
   RutisAgentInvocationAdmission,
   DEFAULT_AGENT_INVOCATION_CAPACITY,
@@ -73,9 +74,9 @@ import {
 } from '@/agent/invocationAdmission'
 import { HarnessRuntime } from '../harness/runtime'
 import { RutisMemoryVectorStores } from '../harness/memory-vector'
-import { ProviderImportService } from '../provider/providerImportService'
+
 import type { ProviderDatabase } from '../provider/data/database'
-import { createProviderRoutes } from '../provider/routes'
+
 import type { ProviderSettings } from '../provider/settings'
 import type { SettingsStore } from '../config/settingsStore'
 import type { SecretStore } from '../config/secretStore'
@@ -85,21 +86,13 @@ import { proxyConfig, ProxyMode } from '../platform/proxy'
 import { DeviceService } from '../device'
 import { UpgradeService } from '../upgrade'
 
-import { createToolchainRoutes } from '@/toolchains/routes'
 import { OcrRuntimeService } from '@/ocr/ocrRuntimeService'
 import { SafeStorageOcrCacheKeyProvider } from '@/ocr/ocrCacheKeyProvider'
-import { createOcrRoutes } from '@/ocr/routes'
+
 import { McpService } from '../mcp'
 
 import { credentialCrypto, secureCredentialCrypto } from './credentialCrypto'
-import {
-  ImportMode,
-  SyncService,
-  type SyncImportDatabasePort,
-  type SyncImportResult
-} from '../sync'
-import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
-import type { DatabaseRepairReport } from '@shared/types/databaseSchema'
+
 import { DatabaseRequestGate } from './databaseRequestGate'
 
 import { DeeplinkService } from '../deeplink'
@@ -119,7 +112,7 @@ import { DesktopImageActions } from '../desktop/imageActions'
 import { TabPresenter } from '../desktop/tab'
 import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import { TrayPresenter } from '../desktop/tray'
-import { OAuthService } from '../provider/auth'
+import { createGitHubCopilotAuthorization } from '../provider/auth'
 import { FloatingButtonPresenter } from '../desktop/floatingButton'
 import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
 import { ComputerUsePreviewPresenter } from '@/desktop/computerUse/ComputerUsePreviewPresenter'
@@ -132,38 +125,25 @@ import type { McpSettings } from '@/mcp/settings'
 import type { McpAppSandboxRegistry, McpAppDesktopPort } from '@/mcp/apps/sandboxRegistry'
 import type { AcpCatalogSettings } from '@/agent/acp/catalog/settings'
 import { ToolService } from '../tool'
-import { createToolRoutes } from '../tool/routes'
-import { createSkillRoutes } from '../skill/routes'
-import { createMcpRoutes } from '../mcp/routes'
-import { createRemoteRoutes } from '../remote/routes'
-import { createSchedulerRoutes } from '../scheduler/routes'
-import { createMemoryRoutes } from '../memory/routes'
-import { createDesktopRoutes } from '../desktop/routes'
-import { createFileRoutes } from '../file/routes'
-import { createKnowledgeRoutes } from '../knowledge/routes'
 
-import { createWorkspaceRoutes } from '../workspace/routes'
+import { createDesktopRoutes } from '../desktop/routes'
+
 import { createDeviceRoutes } from '../device/routes'
-import { createOnboardingRoutes } from '../onboarding/routes'
+
 import { createUpgradeRoutes } from '../upgrade/routes'
-import { createSyncRoutes } from '../sync/routes'
+
 import { SyncHostService } from '../sync/host'
-import { createSyncHostRoutes } from '../sync/host/routes'
-import { createPlatformRoutes } from '../platform/routes'
-import { createHookRoutes } from '../hook/routes'
-import { createAppSettingsRoutes } from './settingsRoutes'
+
 import { AppSettingsService } from './settingsService'
-import { createAppRoutes } from './routes'
+
 import { registerClipboardIpc } from './clipboardIpc'
 import { createRendererIpcAuthorizer } from './rendererIpcSecurity'
-import { ApprovalBroker, createApprovalRoutes } from '@/approval'
+import { ApprovalBroker } from '@/approval'
 import {
   CommandPermissionService,
   FilePermissionService,
   SettingsPermissionService
 } from '../tool/permission'
-
-import { createExporterRoutes } from '../exporter/routes'
 
 import { HookService } from '../hook'
 
@@ -171,16 +151,15 @@ import { SchedulerService } from '../scheduler'
 
 import { spawnSchedulerHost } from './schedulerHost'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+
 import type { SessionQuery } from '@/session/query'
-import type { SessionAssignment } from '@/session/assignment'
-import type { SessionTurn } from '@/session/turn'
+
 import type { SessionLifecycle } from '@/session/lifecycle'
 import type { DeepChatAgentHarness } from '@/agent/deepchat/harness'
 import type { RunJournalObservation } from '@/agent/deepchat/runtime/types'
-import type { AcpAgentRuntime } from '@/agent/acp/instance'
+
 import { isAcpRegistryIconUrl } from '@/agent/acp/catalog/acpRegistryConstants'
-import { createAcpRoutes } from '@/agent/acp/routes'
+
 import type {
   MemoryIngestionDrainOutcome,
   MemoryIngestionObserver
@@ -188,53 +167,25 @@ import type {
 import { type MemoryServicePort } from '../memory'
 import { ProjectService } from '../project'
 import type { SettingsDatabase } from '@/settings/data/database'
-import { createOrchestrationRoutes } from '@/orchestration/routes'
-import {
-  type LiveDelegationService,
-  type LiveDelegationLifecycleObservation
-} from '@/orchestration/liveDelegationService'
-import { createProjectRoutes } from '../project/routes'
+
+import { type LiveDelegationLifecycleObservation } from '@/orchestration/liveDelegationService'
 
 import type { RemoteServiceLike } from '../remote/ports'
 import { type PluginServicePort } from '../plugin'
 import type { PluginToolPolicyStore } from '@/plugin/toolPolicyStore'
-import { createPluginRoutes } from '../plugin/routes'
 
 import type { AgentDatabase } from '@/agent/data/database'
 import type { MainDatabase } from '../data/mainDatabase'
-import {
-  DatabaseSecurityService,
-  type DatabaseSecurityMigrationDatabasePort
-} from './databaseSecurity'
+import { DatabaseSecurityService } from './databaseSecurity'
 
-import type { AcpProviderAdminPort } from '../provider/ports'
-import type { SessionPermissionPort, SessionUiPort } from '../session/contracts'
+import type { SessionUiPort } from '../session/contracts'
 import { StartupWorkloadCoordinator } from '../app/startupWorkloadCoordinator'
-import type { LegacyChatImportService } from './startupMigrations/legacyChatImportService'
-import type { UsageStatsService } from '../session/usageStatsService'
-import type { SessionHistorySearch } from '@/session/sessionHistorySearch'
-import type { SessionTranslation } from '@/session/sessionTranslation'
-import { createSessionRoutes } from '@/session/routes'
-import { createAgentRoutes } from '@/agent/routes'
-import { createPromptRoutes } from '@/agent/promptRoutes'
 
-import type { AgentSessionExportService } from '../exporter/agentSessionExporter'
-
-import { createRouteDispatcher, dispatchDeepchatRoute, type RouteDispatcher } from '@/routes'
+import { dispatchDeepchatRoute, type RouteDispatcher } from '@/routes'
 import { registerDeepchatRoutes } from './routeIpc'
-import { createNodeScheduler } from '@/routes/scheduler'
+
 import { coordinateApplicationDataReset } from './applicationDataReset'
-import {
-  AgentCliTokenAuthority,
-  ArtifactSpool,
-  type CliComputeService,
-  CliSkillService,
-  createArtifactRoutes,
-  createCliComputeRoutes,
-  createCliMcpAdminRoutes,
-  createCliProviderModelAdminRoutes,
-  createCliRoutes
-} from '@/cli'
+import { AgentCliTokenAuthority, ArtifactSpool } from '@/cli'
 
 import { spawnBackgroundExecHost } from './backgroundExecHost'
 import { spawnCodeModeHost } from './codeModeHost'
@@ -249,25 +200,6 @@ import {
   TimeoutNotificationScheduler,
   systemNotificationClock
 } from '@shared/notifications'
-
-type ApplicationDatabaseMaintenancePort = SyncImportDatabasePort &
-  DatabaseSecurityMigrationDatabasePort
-
-type DatabaseImportCommand =
-  | { kind: 'import-backup-file'; filePath: string; mode: 'increment' | 'overwrite' }
-  | { kind: 'import-backup'; fileName: string; mode: 'increment' | 'overwrite' }
-
-type DatabaseEncryptionCommand =
-  | { kind: 'enable-encryption'; password: string }
-  | { kind: 'change-password'; currentPassword: string; newPassword: string }
-  | { kind: 'disable-encryption'; currentPassword: string }
-
-type DatabaseRepairCommand = { kind: 'repair-schema' }
-type DatabaseMaintenanceCommand =
-  | DatabaseImportCommand
-  | DatabaseEncryptionCommand
-  | DatabaseRepairCommand
-type DatabaseMaintenanceResult = SyncImportResult | DatabaseSecurityStatus | DatabaseRepairReport
 
 export interface MainProcessControl {
   resolveWorkspacePreviewRequest(url: string): Promise<string | null>
@@ -475,15 +407,11 @@ export async function createMainProcessControl(dependencies: {
   const mainDatabase = dependencies.database
   let windowPresenter: IWindowPresenter
   let providerSettings: ProviderSettings
-  let acpProviderAdminPort: AcpProviderAdminPort
-  let exporter: IConversationExporter
   let deviceService: DeviceService
   let upgradeService: UpgradeService
   let shortcutPresenter: IShortcutPresenter
-  let fileService: FileServicePort
   let ocrRuntimeService: OcrRuntimeService
   let mcpService: McpService
-  let syncService: SyncService
   let syncPeerService: SyncPeerService
   let syncHostService: SyncHostService
   let syncReplica: SyncReplicaStore | undefined
@@ -507,11 +435,7 @@ export async function createMainProcessControl(dependencies: {
   let skillSyncService: SkillSyncServicePort
   let sessionQuery: SessionQuery
   let desktopSessionBinding: DesktopSessionBinding
-  let sessionAssignment: SessionAssignment
-  let sessionTurn: SessionTurn
   let sessionLifecycle: SessionLifecycle
-  let sessionPermissionPort: SessionPermissionPort
-  let acpAgentRuntime: AcpAgentRuntime
   let memoryService: MemoryServicePort
   let memoryIngestionObserver: MemoryIngestionObserver
   let projectService: ProjectService
@@ -523,16 +447,8 @@ export async function createMainProcessControl(dependencies: {
   let filePermissionService: FilePermissionService
   let settingsPermissionService: SettingsPermissionService
   let approvalBroker: ApprovalBroker
-  let legacyChatImportService: LegacyChatImportService
-  let usageStatsService: UsageStatsService
   let appSessionService: AppSessionService
-  let sessionHistorySearch: SessionHistorySearch
-  let agentSessionExportService: AgentSessionExportService
-  let sessionTranslation: SessionTranslation
-  let liveDelegationService: LiveDelegationService
   let routeDispatcher: RouteDispatcher | undefined
-  let cliComputeService: CliComputeService
-  let cliSkillService: CliSkillService
   let appLifecycleState: 'starting' | 'running' | 'stopping' | 'stopped' = 'starting'
   const databaseRequests = new DatabaseRequestGate(() => {
     if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped')
@@ -686,15 +602,7 @@ export async function createMainProcessControl(dependencies: {
   providerSettings = coreData.providerSettings
   appSessionService = coreData.appSessionService
   resolveSessionRunId = coreData.resolveSessionRunId
-  legacyChatImportService = coreData.legacyChatImportService
-  usageStatsService = coreData.usageStatsService
-  const {
-    memoryDatabase,
-    sessionData,
-    tapeInspectorHeadWatcher,
-    settingsDatabase,
-    promptSettings
-  } = coreData
+  const { tapeInspectorHeadWatcher, settingsDatabase } = coreData
   const desktopConfigurationHost = new DesktopConfigurationHost(
     app.getPath('userData'),
     setMainLoggingEnabled,
@@ -740,8 +648,7 @@ export async function createMainProcessControl(dependencies: {
         throw new Error(`App database maintenance is ${databaseRequests.state}`)
     }
   })
-  const { desktopSettings, skillSettings, commandShellService, recordSettingsActivity } =
-    coreSettings
+  const { desktopSettings, skillSettings } = coreSettings
   appSettingsService = coreSettings.appSettingsService
 
   const coreProviders = createCoreProviders({
@@ -819,24 +726,6 @@ export async function createMainProcessControl(dependencies: {
     acpAuthService,
     unsubscribeProviderDbCatalog
   } = coreProviders
-  cliComputeService = coreProviders.cliComputeService
-  oauthService = new OAuthService(
-    {
-      getGitHubCopilotSignInTarget: async (providerId) => {
-        if (databaseRequests.state !== 'running')
-          throw new Error(`App database maintenance is ${databaseRequests.state}`)
-        return await providerRuntime.getGitHubCopilotSignInTarget(providerId)
-      },
-      commitGitHubCopilotCredential: async (target, apiKey) => {
-        if (databaseRequests.state !== 'running')
-          throw new Error(`App database maintenance is ${databaseRequests.state}`)
-        await providerRuntime.commitGitHubCopilotCredential(target, apiKey)
-      },
-      invalidateGitHubCopilotSignIns: () => providerRuntime.invalidateGitHubCopilotSignIns()
-    },
-    coreProviders.accounts
-  )
-  acpProviderAdminPort = providerRuntime
   deviceService = new DeviceService()
   const rendererPerformanceLogService = new RendererPerformanceLogService(
     () => nativeSettings.getLoggingEnabled(),
@@ -1144,8 +1033,7 @@ export async function createMainProcessControl(dependencies: {
       if (failure) reportNativeMainError(failure.message, failure.error)
     }
   })
-  const { toolchainService, cliServer, cliLauncherService, cliAuditLog, cliMutationGuard } =
-    coreRuntime
+  const { cliServer, cliLauncherService, cliAuditLog, cliMutationGuard } = coreRuntime
   commandPermissionService = coreRuntime.commandPermissionService
   filePermissionService = coreRuntime.filePermissionService
   settingsPermissionService = coreRuntime.settingsPermissionService
@@ -1154,18 +1042,9 @@ export async function createMainProcessControl(dependencies: {
   handleApprovalRendererUnavailable = (webContentsId) => {
     cliMutationGuard.cancelRenderer(webContentsId)
   }
-  const {
-    syncSettings,
-    knowledgeSettings,
-    replicaEndpoint,
-    backgroundExec,
-    fileWatcherService,
-    ensureSkillServicesInitialized
-  } = coreRuntime
+  const { replicaEndpoint, backgroundExec, fileWatcherService, ensureSkillServicesInitialized } =
+    coreRuntime
   projectService = coreRuntime.projectService
-  exporter = coreRuntime.exporter
-  fileService = coreRuntime.fileService
-  syncService = coreRuntime.syncService
   syncPeerService = coreRuntime.syncPeerService
   syncReplica = coreRuntime.syncReplica
   automaticSync = coreRuntime.automaticSync
@@ -1175,30 +1054,19 @@ export async function createMainProcessControl(dependencies: {
   workspaceService = coreRuntime.workspaceService
   skillService = coreRuntime.skillService
   skillSyncService = coreRuntime.skillSyncService
-  cliSkillService = coreRuntime.cliSkillService
   toolService = coreRuntime.toolService
   pluginService = coreRuntime.pluginService
   hookService = coreRuntime.hookService
   memoryService = coreRuntime.memoryService
   remoteService = coreRuntime.remoteService
   cronJobs = coreRuntime.cronJobs
-  sessionPermissionPort = coreRuntime.sessionPermissionPort
   const coreExecution = coreRuntime.execution
-  const cliRunService = coreExecution.cliRunService
   agentSettings.start()
   deepChatAgentHarness = coreExecution.deepChatAgentHarness
   memoryIngestionObserver = coreExecution.memoryIngestionObserver
-  acpAgentRuntime = coreExecution.acpAgentRuntime
   sessionQuery = coreExecution.sessionQuery
   desktopSessionBinding = coreExecution.desktopSessionBinding
-  sessionAssignment = coreExecution.sessionAssignment
-  sessionTurn = coreExecution.sessionTurn
   sessionLifecycle = coreExecution.sessionLifecycle
-  sessionHistorySearch = coreExecution.sessionHistorySearch
-  agentSessionExportService = coreExecution.agentSessionExportService
-  sessionTranslation = coreExecution.sessionTranslation
-  liveDelegationService = coreExecution.liveDelegationService
-  const { createLiveDelegationService, orchestrationCapabilityResolver } = coreExecution
   resolveBoundRendererIds = (sessionId) =>
     desktopSessionBinding.getWebContentsIdsForSession(sessionId)
   tabPresenter = new TabPresenter(windowPresenter, desktopSessionBinding, () =>
@@ -1267,7 +1135,9 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('cliAuditLog.close', () => cliAuditLog.close())
     await runDestroyStep('artifactSpool.close', () => artifactSpool.close())
     await runDestroyStep('providerCatalog.unsubscribe', () => unsubscribeProviderDbCatalog())
-    await runDestroyStep('liveDelegationService.stop', () => liveDelegationService.stop())
+    await runDestroyStep('liveDelegationService.stop', () =>
+      coreExecution.liveDelegationService.stop()
+    )
     await runDestroyStep('agentInvocationAdmission.close', () => agentInvocationAdmission.close())
     await runDestroyStep('agentInvocationAdmission.flushObservations', () =>
       agentInvocationAdmission.flushObservations()
@@ -1383,58 +1253,30 @@ export async function createMainProcessControl(dependencies: {
     }
   }
 
-  function registerRoutes(): void {
-    const providerQueryScheduler = createNodeScheduler()
-    const providerRoutes = createProviderRoutes({
-      providerSettings,
-      providerRuntime,
-      acpProviderAdminPort,
-      providerImportService: new ProviderImportService({
-        getProviders: () => providerSettings.getProviders(),
-        getDefaultProviders: () => providerSettings.getDefaultProviders(),
-        addCustomModel: (providerId, model) => providerSettings.addCustomModel(providerId, model),
-        updateProvidersBatch: (batchUpdate) => providerRuntime.updateProvidersBatch(batchUpdate)
-      }),
-      oauthService,
-      scheduler: providerQueryScheduler,
-      recordSettingsActivity: (input) => settingsDatabase.recordSettingsActivity(input)
-    })
-    const toolRoutes = createToolRoutes(toolService)
-    const pluginRoutes = createPluginRoutes(pluginService, pluginSettingsWindow)
-    const skillRoutes = createSkillRoutes({
-      tempDirectory: app.getPath('temp'),
-      skillService,
-      skillSyncService,
-      skillSettings,
-      ensureInitialized: ensureSkillServicesInitialized,
-      assertSessionActiveSkillsMutable: async (conversationId) => {
-        const state = await deepChatAgentHarness.getSessionState(conversationId)
-        if (state?.status === 'generating') {
-          throw new Error('Cannot change Session Skills while the session is generating.')
-        }
+  const maintenance = createCoreMaintenance({
+    profile: dependencies,
+    data: coreData,
+    providers: coreProviders,
+    settings: coreSettings,
+    runtime: coreRuntime,
+    databaseRequests,
+    startupWorkloadCoordinator,
+    native: {
+      configurationHost: {
+        pause: async () => desktopConfigurationHost.pause(),
+        resume: async () => desktopConfigurationHost.resume(),
+        stopWrites: async () => nativeSettings.stopWrites(),
+        drainWrites: async () => await nativeSettings.drainWrites(),
+        startWrites: async () => nativeSettings.startWrites()
       },
-      recordSettingsActivity: (input) => settingsDatabase.recordSettingsActivity(input)
-    })
-    const mcpRoutes = createMcpRoutes({
-      mcpService,
-      mcpAppHost: (() => {
-        if (!mcpService.appHost) {
-          throw new Error('MCP Apps host is not configured')
-        }
-        return mcpService.appHost
-      })(),
-      isSettingsWindow: async (windowId) =>
-        windowId != null && windowPresenter.getSettingsWindowId() === windowId,
-      recordSettingsActivity: (input) => settingsDatabase.recordSettingsActivity(input)
-    })
-    const remoteRoutes = createRemoteRoutes(remoteService)
-    const schedulerRoutes = createSchedulerRoutes(cronJobs)
-    const memoryRoutes = createMemoryRoutes({
-      memoryService,
-      getAgentType: (agentId) => agentSettings.getAgentType(agentId),
-      getTapeInspection: () => sessionData.tapeStore,
-      getAuditEntries: () => memoryDatabase.agentMemoryAuditTable
-    })
+      remoteAuthWindows
+    },
+    isStopping: () => appLifecycleState === 'stopping' || appLifecycleState === 'stopped',
+    stopForCleanup
+  })
+  const { run: runDatabaseMaintenance, suspendSessionRuntimes } = maintenance
+
+  function registerRoutes(): void {
     const desktopRoutes = createDesktopRoutes({
       ownsDraftSession: (sessionId, webContentsId) =>
         sessionLifecycle.ownsDraftSession(sessionId, webContentsId),
@@ -1453,156 +1295,15 @@ export async function createMainProcessControl(dependencies: {
         })
       }
     })
-    const fileRoutes = createFileRoutes(fileService, desktopImageActions)
-    const ocrRoutes = createOcrRoutes({ runtime: ocrRuntimeService })
-    const toolchainRoutes = createToolchainRoutes({
-      service: toolchainService,
-      pickPath: () => deviceService.selectFiles({ multiple: false })
-    })
-    const knowledgeRoutes = createKnowledgeRoutes({
-      service: knowledgeService,
-      settings: knowledgeSettings,
-      applyConfigChange: async () => {
-        mcpService.handleConfigChanged()
-        await knowledgeService.syncConfigChanges()
-      },
-      recordActivity: (input) => {
-        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
-          console.warn('[SettingsActivity] Failed to record settings activity:', error)
-        })
-      }
-    })
-    const workspaceRoutes = createWorkspaceRoutes(workspaceService)
-    const orchestrationRoutes = createOrchestrationRoutes({
-      resolveCapability: (target) =>
-        'sessionId' in target
-          ? orchestrationCapabilityResolver.resolveSession(target.sessionId)
-          : orchestrationCapabilityResolver.resolveDraft(target.agentId),
-      getPolicy: (sessionId) => sessionAssignment.getOrchestrationPolicy(sessionId),
-      setPolicy: (sessionId, policy) =>
-        sessionAssignment.updateOrchestrationPolicy(sessionId, policy),
-      liveDelegations: createLivePort(() => liveDelegationService)
-    })
-    const projectRoutes = createProjectRoutes({
-      projectService,
-      publishEnvironmentsChanged: (action, environmentPath, version) => {
-        publishDeepchatEvent(projectEnvironmentsChangedEvent.name, {
-          action,
-          path: environmentPath,
-          version
-        })
-      }
-    })
-    const sessionRoutes = createSessionRoutes({
-      lifecycle: sessionLifecycle,
-      projection: sessionQuery,
-      desktop: desktopSessionBinding,
-      turn: sessionTurn,
-      assignment: sessionAssignment,
-      permission: sessionPermissionPort,
-      agentSettings,
-      scheduler: createNodeScheduler(),
-      historySearch: sessionHistorySearch,
-      exportService: agentSessionExportService,
-      translation: sessionTranslation,
-      usageStats: usageStatsService,
-      tapeInspectorHeadWatcher,
-      sessionReferences: sessionData.sessionReferences
-    })
-    const agentRoutes = createAgentRoutes({
-      agentSettings,
-      recordActivity: (input) => {
-        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
-          console.warn('[SettingsActivity] Failed to record settings activity:', error)
-        })
-      },
-      reconcileScheduler: async () => {
-        await cronJobs.reconcileScheduler('agent-change')
-      }
-    })
-    const promptRoutes = createPromptRoutes({
-      settings: promptSettings,
-      recordActivity: (input) => {
-        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
-          console.warn('[SettingsActivity] Failed to record settings activity:', error)
-        })
-      }
-    })
-    const acpRoutes = createAcpRoutes({
-      auth: acpAuthService,
-      owner: acpRuntimeOwner,
-      runtime: acpAgentRuntime,
-      isMainWindowContext: async (caller) =>
-        windowPresenter.mainWindow?.webContents.id === caller.webContentsId,
-      importHistory: async (sessionId) => {
-        const localId = toAppSessionId(sessionId)
-        const instance = acpAgentRuntime.getHydrated(localId)
-        if (!instance) throw new Error('ACP session is not initialized')
-        await instance.runIdleOperation(async () => {
-          const session = acpRuntimeOwner.getOrCreate().sessionController.getSession(localId)
-          const snapshot =
-            session &&
-            (await acpRuntimeOwner
-              .getOrCreate()
-              .sessionController.getExtensions(localId, session.agentId))
-          if (!session || !snapshot?.history) throw new Error('Read ACP history before importing')
-          sessionData.transcript.importAcpHistory(
-            sessionId,
-            session.agentId,
-            session.sessionId,
-            snapshot.history
-          )
-          publishDeepchatEvent('sessions.messages.changed', {
-            sessionId,
-            messages: sessionData.transcript.getMessages(sessionId),
-            version: Date.now()
-          })
-          publishDeepchatEvent('sessions.updated', { sessionIds: [sessionId], reason: 'updated' })
-        })
-      }
-    })
     const deviceRoutes = createDeviceRoutes({
       device: deviceService,
       restartApplication,
       resetDataByType: (resetType) => resetApplicationData(resetType)
     })
-    const onboardingRoutes = createOnboardingRoutes(dependencies.settingsStore)
     const upgradeRoutes = createUpgradeRoutes({
       upgrade: upgradeService,
       settings: appSettingsService
     })
-    const exporterRoutes = createExporterRoutes(exporter)
-    const syncRoutes = createSyncRoutes({
-      sync: syncService,
-      settings: syncSettings,
-      importFromSync: (backupFileName, importMode) =>
-        runDatabaseMaintenance({
-          kind: 'import-backup',
-          fileName: backupFileName,
-          mode: importMode ?? ImportMode.INCREMENT
-        }),
-      pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode),
-      recordActivity: (input) => {
-        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
-          console.warn('[SettingsActivity] Failed to record settings activity:', error)
-        })
-      }
-    })
-    const syncHostRoutes = createSyncHostRoutes({ host: syncHostService })
-    const platformRoutes = createPlatformRoutes({
-      proxySettings: dependencies.proxySettings,
-      applyProxyMode: (mode) => {
-        proxyConfig.setProxyMode(mode as ProxyMode)
-        void proxyConfig.resolveProxy().then((resolved) => {
-          if (resolved) (providerRuntime as ProviderRuntime).handleProxyResolved()
-        })
-      },
-      applyCustomProxyUrl: (url) => {
-        proxyConfig.setCustomProxyUrl(url)
-        if (proxyConfig.getProxyMode() === ProxyMode.CUSTOM) void proxyConfig.resolveProxy()
-      }
-    })
-    const hookRoutes = createHookRoutes({ service: hookService })
     const notificationRoutes = createNotificationRoutes({
       rendererReady: async (webContentsId) => {
         const ready = await semanticNotificationTargets.markRendererReady(webContentsId)
@@ -1614,128 +1315,46 @@ export async function createMainProcessControl(dependencies: {
       acknowledgePresentation: (episodeId, webContentsId) =>
         semanticNotificationRouter.acknowledgePresentation(episodeId, { webContentsId })
     })
-    const appSettingsRoutes = createAppSettingsRoutes({
-      settings: dependencies.settingsStore,
-      appSettings: appSettingsService,
-      commandShell: commandShellService,
-      publishEvent: publishDeepchatEvent,
-      recordActivity: recordSettingsActivity,
-      listActivities: (limit) => settingsDatabase.listSettingsActivity(limit)
-    })
-    const appRoutes = createAppRoutes({
-      isPackaged: app.isPackaged,
-      logging: { openFolder: () => appSettingsService.openLoggingFolder() },
-      rendererPerformance: rendererPerformanceLogService,
-      isMainWindowContext: async (caller) =>
-        windowPresenter.mainWindow?.webContents.id === caller.webContentsId,
-      agentSettings,
-      projects: projectService,
-      databaseSecurity: databaseSecurityService,
-      database: {
-        getDatabase: () => mainDatabase.getDatabase(),
-        repairSchema: () => runDatabaseMaintenance({ kind: 'repair-schema' })
+    const controller = createCoreController({
+      profile: dependencies,
+      data: coreData,
+      providers: coreProviders,
+      settings: coreSettings,
+      runtime: coreRuntime,
+      bootstrap: {
+        temporaryDirectory: app.getPath('temp'),
+        isPackaged: app.isPackaged,
+        appVersion: app.getVersion()
       },
-      startupSession: sessionQuery,
-      desktopSession: desktopSessionBinding,
-      startup: startupWorkloadCoordinator,
-      ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),
-      enableDatabaseEncryption: (password) =>
-        runDatabaseMaintenance({ kind: 'enable-encryption', password }),
-      changeDatabasePassword: (currentPassword, newPassword) =>
-        runDatabaseMaintenance({ kind: 'change-password', currentPassword, newPassword }),
-      disableDatabaseEncryption: (currentPassword) =>
-        runDatabaseMaintenance({ kind: 'disable-encryption', currentPassword }),
-      recordActivity: (input) => {
-        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
-          console.warn('[SettingsActivity] Failed to record settings activity:', error)
-        })
+      databaseRequests,
+      startupWorkloadCoordinator,
+      artifactSpool,
+      maintenance,
+      nativeRouteMaps: [desktopRoutes, deviceRoutes, upgradeRoutes, notificationRoutes],
+      native: {
+        isSettingsWindow: async (id) => id != null && windowPresenter.getSettingsWindowId() === id,
+        isMainWindowContext: async (caller) =>
+          windowPresenter.mainWindow?.webContents.id === caller.webContentsId,
+        rendererPerformance: rendererPerformanceLogService,
+        splash: dependencies.splash,
+        pluginSettingsWindow,
+        images: desktopImageActions,
+        pickToolchainPath: () => deviceService.selectFiles({ multiple: false }),
+        hasTrustedRenderer: async () =>
+          (await semanticNotificationTargets.getExistingTargets()).some(
+            (target) => target.kind === 'main'
+          ),
+        applyProxy: async (mode, url, resolve) => {
+          proxyConfig.setCustomProxyUrl(url)
+          proxyConfig.setProxyMode(mode as ProxyMode)
+          return resolve ? await proxyConfig.resolveProxy() : false
+        },
+        copilotAuthorization: createGitHubCopilotAuthorization()
       },
-      publishSessionsUpdated: (sessionIds) => {
-        publishDeepchatEvent(sessionsUpdatedEvent.name, { sessionIds, reason: 'created' })
-      },
-      splash: dependencies.splash
+      publishEvent: publishDeepchatEvent
     })
-    const cliRoutes = createCliRoutes({
-      appVersion: app.getVersion(),
-      getStatus: () => cliServer.getStatus(),
-      hasTrustedRenderer: async () =>
-        (await semanticNotificationTargets.getExistingTargets()).some(
-          (target) => target.kind === 'main'
-        )
-    })
-    const approvalRoutes = createApprovalRoutes({
-      resolve: (input, caller) => cliMutationGuard.resolve(input, caller)
-    })
-    const artifactRoutes = createArtifactRoutes(artifactSpool)
-    const cliComputeRoutes = createCliComputeRoutes(cliComputeService)
-    const cliProviderModelAdminRoutes = createCliProviderModelAdminRoutes({
-      providerSettings,
-      providerRuntime,
-      scheduler: providerQueryScheduler,
-      recordSettingsActivity: (input) => {
-        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
-          console.warn('[SettingsActivity] Failed to record CLI provider activity:', error)
-        })
-      }
-    })
-    const cliSkillRoutes = cliSkillService.createRoutes()
-    const cliMcpAdminRoutes = createCliMcpAdminRoutes({
-      mcp: mcpService,
-      recordSettingsActivity: (input) => {
-        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
-          console.warn('[SettingsActivity] Failed to record CLI MCP activity:', error)
-        })
-      },
-      log: logger
-    })
-    const cliRunRoutes = cliRunService.createRoutes()
-    routeDispatcher = createRouteDispatcher({
-      appDatabaseMaintenance: databaseRequests,
-      routeMaps: [
-        providerRoutes,
-        toolRoutes,
-        pluginRoutes,
-        skillRoutes,
-        mcpRoutes,
-        remoteRoutes,
-        schedulerRoutes,
-        memoryRoutes,
-        desktopRoutes,
-        fileRoutes,
-        ocrRoutes,
-        toolchainRoutes,
-        knowledgeRoutes,
-        workspaceRoutes,
-        orchestrationRoutes,
-        projectRoutes,
-        sessionRoutes,
-        agentRoutes,
-        promptRoutes,
-        acpRoutes,
-        deviceRoutes,
-        onboardingRoutes,
-        upgradeRoutes,
-        exporterRoutes,
-        syncRoutes,
-        syncHostRoutes,
-        createSyncPeerRoutes(syncPeerService),
-        platformRoutes,
-        hookRoutes,
-        notificationRoutes,
-        appSettingsRoutes,
-        appRoutes,
-        approvalRoutes,
-        cliRoutes,
-        artifactRoutes,
-        cliComputeRoutes,
-        cliProviderModelAdminRoutes,
-        cliSkillRoutes,
-        cliMcpAdminRoutes,
-        cliRunRoutes
-      ],
-      isSettingsWindow: async (windowId) => windowPresenter.getSettingsWindowId() === windowId,
-      startupWorkloadCoordinator
-    })
+    routeDispatcher = controller.routeDispatcher
+    oauthService = controller.oauthService
     const authorizeRendererIpc = createRendererIpcAuthorizer({
       rendererDirectoryUrl: pathToFileURL(path.join(__dirname, '../renderer/')).href,
       developmentServerUrl: app.isPackaged ? undefined : process.env.ELECTRON_RENDERER_URL,
@@ -1857,229 +1476,6 @@ export async function createMainProcessControl(dependencies: {
 
   function stopForCleanup(): Promise<void> {
     return shutdownCoordinator.cleanup()
-  }
-
-  function runDatabaseMaintenance(command: DatabaseImportCommand): Promise<SyncImportResult>
-  function runDatabaseMaintenance(
-    command: DatabaseEncryptionCommand
-  ): Promise<DatabaseSecurityStatus>
-  function runDatabaseMaintenance(command: DatabaseRepairCommand): Promise<DatabaseRepairReport>
-  async function runDatabaseMaintenance(
-    command: DatabaseMaintenanceCommand
-  ): Promise<DatabaseMaintenanceResult> {
-    if (['stopping', 'stopped'].includes(appLifecycleState)) {
-      throw new Error(`App lifecycle is ${appLifecycleState}`)
-    }
-    const maintenanceState = databaseRequests.state
-    if (maintenanceState !== 'running') {
-      throw new Error(`App database maintenance is ${maintenanceState}`)
-    }
-    if (syncService.isBackupInProgress()) throw new Error('sync.tunnel.error.busy')
-    try {
-      return await databaseRequests.runMaintenance(() => performDatabaseMaintenance(command))
-    } catch (error) {
-      if (
-        databaseRequests.state === 'failed' &&
-        !['stopping', 'stopped'].includes(appLifecycleState)
-      )
-        await stopForCleanup()
-      throw error
-    }
-  }
-
-  async function performDatabaseMaintenance(
-    command: DatabaseMaintenanceCommand
-  ): Promise<DatabaseMaintenanceResult> {
-    desktopConfigurationHost.pause()
-    try {
-      await providerRuntime.invalidateGitHubCopilotSignIns()
-      await startupWorkloadCoordinator.cancelAndDrainTarget('main')
-      await agentSettings.cancelAndDrainAcpWork()
-      if (['stopping', 'stopped'].includes(appLifecycleState)) {
-        throw new Error(`App lifecycle is ${appLifecycleState}`)
-      }
-    } catch (error) {
-      if (databaseRequests.state === 'maintenance') {
-        databaseRequests.resume()
-        desktopConfigurationHost.resume()
-        agentSettings.notifyAgentCatalogChanged()
-      }
-      throw error
-    }
-
-    let operationResult: DatabaseMaintenanceResult | undefined
-    let operationError: unknown
-    try {
-      nativeSettings.stopWrites()
-      await appSettingsService.stop()
-      await nativeSettings.drainWrites()
-      dependencies.secretStore.pause()
-      replicaEndpoint.stop()
-      await automaticSync?.pause()
-      memoryService.stopBackgroundMaintenance()
-      await liveDelegationService.stop()
-      await cronJobs.stop()
-      await remoteService.destroy()
-      await remoteAuthWindows.closeAll()
-      await hookService.stop()
-      await pluginService.contextHooks?.stop()
-      const drain = await memoryIngestionObserver.drainAndFence()
-      if (drain.timedOut) {
-        throw new Error(
-          `Memory ingestion did not drain for sessions: ${drain.pendingSessions.join(', ')}`
-        )
-      }
-      const pendingMaintenanceAgents = await memoryService.drainBackgroundMaintenance()
-      if (pendingMaintenanceAgents.length > 0) {
-        throw new Error(
-          `Memory maintenance did not drain for agents: ${pendingMaintenanceAgents.join(', ')}`
-        )
-      }
-      await suspendSessionRuntimes()
-      await databaseRequests.drain()
-      if (['stopping', 'stopped'].includes(appLifecycleState)) {
-        throw new Error(`App lifecycle is ${appLifecycleState}`)
-      }
-      const database: ApplicationDatabaseMaintenancePort = {
-        getDatabasePath: () => mainDatabase.getDatabasePath(),
-        checkpointAndClose: () => {
-          const database = mainDatabase.getDatabase()
-          if (database.open) {
-            database.pragma('wal_checkpoint(TRUNCATE)')
-          }
-          mainDatabase.close()
-        },
-        close: () => mainDatabase.close(),
-        reopen: () => reopenApplicationDatabase(),
-        reopenWithPassword: (password) => {
-          mainDatabase.reopenWithPassword(password)
-        },
-        isOpen: () => mainDatabase.getDatabase().open,
-        importLegacyChatDb: (sourceDbPath, mode) =>
-          legacyChatImportService.importFromSourceDb(sourceDbPath, mode)
-      }
-      switch (command.kind) {
-        case 'import-backup-file':
-          operationResult = await syncService.importBackupFile(
-            command.filePath,
-            command.mode,
-            database
-          )
-          break
-        case 'import-backup':
-          operationResult = await syncService.importFromSync(
-            command.fileName,
-            command.mode,
-            database
-          )
-          break
-        case 'enable-encryption':
-          operationResult = await databaseSecurityService.enableEncryption({
-            password: command.password,
-            database,
-            providerSettings
-          })
-          break
-        case 'change-password':
-          operationResult = await databaseSecurityService.changePassword({
-            currentPassword: command.currentPassword,
-            newPassword: command.newPassword,
-            database,
-            providerSettings
-          })
-          break
-        case 'disable-encryption':
-          operationResult = await databaseSecurityService.disableEncryption({
-            currentPassword: command.currentPassword,
-            database,
-            providerSettings
-          })
-          break
-        case 'repair-schema':
-          operationResult = await mainDatabase.repairSchema()
-          break
-        default:
-          throw new Error('Unsupported database maintenance command')
-      }
-    } catch (error) {
-      operationError = error
-    }
-
-    try {
-      if (['stopping', 'stopped'].includes(appLifecycleState)) {
-        throw new Error(`App lifecycle is ${appLifecycleState}`)
-      }
-      if (!mainDatabase.getDatabase().open) {
-        reopenApplicationDatabase()
-      }
-      deepChatAgentHarness.reconcileAfterDatabaseReopen()
-      dependencies.secretStore.resume()
-      memoryIngestionObserver.resumeIngestion()
-      memoryService.startBackgroundMaintenance()
-      pluginService.contextHooks?.start()
-      hookService.start()
-      cronJobs.start()
-      await remoteService.initialize()
-      if (['stopping', 'stopped'].includes(appLifecycleState)) {
-        await remoteService.destroy()
-        await remoteAuthWindows.closeAll()
-        throw new Error(`App lifecycle is ${appLifecycleState}`)
-      }
-      liveDelegationService = createLiveDelegationService()
-      liveDelegationService.start()
-      const startupRunId = startupWorkloadCoordinator.createRun('main')
-      coreRuntime.scheduleBackgroundWork(startupRunId)
-      appSettingsService.start()
-      databaseRequests.resume()
-      await appSettingsService.publishSnapshot()
-      await appSettingsService.observeSystemTheme()
-      nativeSettings.startWrites()
-      agentSettings.notifyAgentCatalogChanged()
-      syncReplica?.wake()
-      await automaticSync?.start()
-      desktopConfigurationHost.resume()
-    } catch (error) {
-      if (!['stopping', 'stopped'].includes(appLifecycleState)) databaseRequests.fail()
-      throw error
-    }
-
-    if (operationError) throw operationError
-    if (operationResult === undefined) throw new Error('Database maintenance returned no result')
-    return operationResult
-  }
-
-  function reopenApplicationDatabase(): void {
-    mainDatabase.reopen()
-  }
-
-  async function suspendSessionRuntimes(): Promise<void> {
-    const results = await Promise.allSettled(
-      appSessionService.list({ includeSubagents: true }).map(async (session) => {
-        const sessionId = toAppSessionId(session.id)
-        await Promise.all([
-          deepChatAgentHarness.cleanupSession(sessionId),
-          acpAgentRuntime.cleanupSession(sessionId)
-        ])
-      })
-    )
-    const failure = results.find(
-      (result): result is PromiseRejectedResult => result.status === 'rejected'
-    )
-    if (failure) throw failure.reason
-  }
-
-  async function pullLatestBackupFromCloud(
-    importMode: 'increment' | 'overwrite' = ImportMode.INCREMENT
-  ) {
-    const download = await syncService.downloadLatestBackupFromCloud()
-    if (!download.success || !download.fileName) return download
-    const backupFileName = download.fileName
-    const result = await runDatabaseMaintenance({
-      kind: 'import-backup',
-      fileName: backupFileName,
-      mode: importMode
-    })
-    return { ...result, fileName: backupFileName }
   }
 
   async function resetApplicationData(

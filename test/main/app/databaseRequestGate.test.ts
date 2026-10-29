@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DatabaseRequestGate } from '@/app/databaseRequestGate'
+import { createCoreMaintenance } from '../../../src/harness/core/maintenance'
 
 const deferred = <T>() => {
   let resolve!: (value: T) => void
@@ -14,6 +15,77 @@ const deferred = <T>() => {
 afterEach(() => vi.useRealTimers())
 
 describe('database request ownership', () => {
+  it('waits for both session backends when one cleanup fails', async () => {
+    const active = Promise.withResolvers<void>()
+    const failure = new Error('DeepChat backend cleanup failed')
+    const owner = createCoreMaintenance({
+      profile: {},
+      providers: {},
+      settings: {},
+      data: { appSessionService: { list: () => [{ id: 'session-1' }] } },
+      runtime: {
+        execution: {
+          deepChatAgentHarness: {
+            cleanupSession: async () => {
+              throw failure
+            }
+          },
+          acpAgentRuntime: { cleanupSession: async () => await active.promise }
+        }
+      }
+    } as unknown as Parameters<typeof createCoreMaintenance>[0])
+    let settled = false
+    const rejected = expect(
+      owner.suspendSessionRuntimes().finally(() => {
+        settled = true
+      })
+    ).rejects.toBe(failure)
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(settled).toBe(false)
+    active.resolve()
+    await rejected
+  })
+
+  it('fences an uncertain Native pause and waits for failed-owner cleanup', async () => {
+    const gate = new DatabaseRequestGate(() => undefined)
+    const failure = new Error('Native pause outcome is unknown')
+    const cleanup = Promise.withResolvers<void>()
+    const entered = Promise.withResolvers<void>()
+    const owner = createCoreMaintenance({
+      profile: {},
+      data: {},
+      providers: {},
+      settings: {},
+      runtime: { execution: {}, syncService: { isBackupInProgress: () => false } },
+      databaseRequests: gate,
+      startupWorkloadCoordinator: {},
+      native: {
+        configurationHost: {
+          pause: async () => {
+            throw failure
+          }
+        }
+      },
+      isStopping: () => false,
+      stopForCleanup: async () => {
+        entered.resolve()
+        await cleanup.promise
+      }
+    } as unknown as Parameters<typeof createCoreMaintenance>[0])
+    let settled = false
+    const rejected = expect(
+      owner.run({ kind: 'repair-schema' }).finally(() => {
+        settled = true
+      })
+    ).rejects.toBe(failure)
+    await entered.promise
+    expect(gate.state).toBe('failed')
+    expect(settled).toBe(false)
+    await expect(gate.runRequest('sessions.list', async () => [])).rejects.toThrow('failed')
+    cleanup.resolve()
+    await rejected
+  })
+
   it('drains an admitted request while rejecting new ordinary work', async () => {
     const gate = new DatabaseRequestGate(() => undefined)
     const result = deferred<string>()

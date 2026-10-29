@@ -74,8 +74,10 @@ it('owns renderer subscriptions until registration and waits for physical Native
   const failed = vi.fn()
   const release = Promise.withResolvers<void>()
   const registration = Promise.withResolvers<void>()
+  let pluginOwner: unknown = 'plugin-a'
   const native = new CoreDesktopNative(
     {
+      pluginSettingsWindow: { getPluginIdForWebContents: async () => pluginOwner },
       onRendererDestroyed: (id, listener) => {
         callbacks.set(id, listener)
         return () => {
@@ -83,7 +85,7 @@ it('owns renderer subscriptions until registration and waits for physical Native
           disposed()
         }
       }
-    } as CoreKernelNative,
+    } as unknown as CoreKernelNative,
     async (event) => core.accept(event),
     async () => await release.promise,
     failed
@@ -97,6 +99,9 @@ it('owns renderer subscriptions until registration and waits for physical Native
     failed
   )
   const ports = await core.createPorts({ temporaryDirectory: '/tmp', profileDirectory: '/profile' })
+  expect(await ports.pluginSettingsWindow.getPluginIdForWebContents(7)).toBe('plugin-a')
+  pluginOwner = { id: 'invalid Native owner' }
+  await expect(ports.pluginSettingsWindow.getPluginIdForWebContents(7)).rejects.toThrow()
   const first = vi.fn()
   const second = vi.fn()
   const stopFirst = ports.onRendererDestroyed(7, first)
