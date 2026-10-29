@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DiscordClient } from '@/remote/channels/discord/discordClient'
 import { QQBotClient } from '@/remote/channels/qqbot/qqbotClient'
+import { WeixinIlinkClient } from '@/remote/channels/weixinIlink/weixinIlinkClient'
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -23,6 +24,40 @@ describe('remote channel request timeouts', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+  })
+
+  it('cancels an actual Weixin login poll and retires its QR session', async () => {
+    const controller = new AbortController()
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ qrcode: 'qr', qrcode_img_content: 'https://liteapp.weixin.qq.com/login' })
+    )
+    const session = await WeixinIlinkClient.startLogin({
+      sessionKey: 'cancel-poll',
+      signal: controller.signal
+    })
+    const entered = Promise.withResolvers<void>()
+    fetchMock.mockImplementationOnce(
+      (_url, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal!.addEventListener('abort', () => reject(init.signal!.reason), { once: true })
+          entered.resolve()
+        })
+    )
+    const waiting = WeixinIlinkClient.waitForLogin({
+      sessionKey: session.sessionKey,
+      signal: controller.signal
+    })
+    const rejected = expect(waiting).rejects.toThrow()
+    await entered.promise
+    controller.abort()
+    await rejected
+    await expect(
+      WeixinIlinkClient.waitForLogin({ sessionKey: session.sessionKey })
+    ).resolves.toMatchObject({
+      connected: false,
+      messageKey: 'settings.remote.weixinIlink.loginSessionExpired'
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('arms a timeout on Discord API requests without swallowing the caller signal', async () => {

@@ -2257,9 +2257,9 @@ default composition before starting G5.
 
 | Owner/call chain | Current boundary | Required work before claiming the selected cutover |
 | --- | --- | --- |
-| RemoteConversationRunner | Session/catalog/turn/projection ports are async; image cache and generated-asset roots still call app.getPath | Supply explicit roots and preserve file/workspace authorization |
+| RemoteConversationRunner | Session/catalog/turn/projection and workspace-default queries are async; Main supplies the absolute profile root | Preserve file/workspace authorization and the existing cache/generated-asset paths at G5 handoff |
 | ChannelAdapter and five built-in factories | Base adapter calls Electron net.fetch; subclasses receive it through inheritance | Explicit approved binary-fetch capability, preserved native proxy and declared/actual 20 MiB bounds, cancellation/drain and a legal large-payload carrier |
-| RemoteService Feishu/Weixin login | Business sessions hold BrowserWindow objects and own native navigation handlers | Main window resource owner, data-only operation identity/events, preserved navigation/web security and actual cancellation/close/server settlement |
+| RemoteService Feishu/Weixin login | Main owns windows behind operation-ID commands/events; Core drains startup/polls/callback servers and fences late results | Bridge this private port with authenticated G5 ownership and preserve actual cancellation/close/server settlement |
 | Provider OAuthService/Copilot windows | Main owns browser/clipboard/external effects but also calls Provider settings synchronously | Keep presentation native; use authorized owner queries and acknowledged credential/configuration settlement at G5 |
 | Window/Tray/Notification/Shortcut/Floating | Configuration readers use a private committed projection; floating bounds use acknowledged owner mutations; Agent/catalogue queries are already async | Preserve the projection and existing async owner queries at G5 handoff |
 | Upgrade settings and renderer diagnostics | Core receives the explicit application version; Main reads projected channel/privacy/logging flags | Preserve normalization under the configuration owner and Main's native updater/diagnostic lifetime at G5 |
@@ -2269,7 +2269,8 @@ ArtifactSpool. Ordinary control frames cannot carry a maximum-sized base64 body.
 artifact/staging machinery without borrowing CLI human/Agent ownership for channel requests.
 Native window extraction must retain the auth session and callback-server lifetime, not just move
 the BrowserWindow constructor. The RFC records these carrier/authority/lifecycle requirements.
-These are remaining contracts, not completed implementations or a reason to reduce G5–G12 scope.
+The selected login-window implementation is recorded below; the attachment carrier remains
+required. Neither selection reduces G5–G12 scope.
 
 Native configuration consumers use resolved language, notifications, close-to-quit, content
 protection, shortcut mappings, floating enablement/bounds, logging, privacy and update channel.
@@ -2324,9 +2325,49 @@ integration must recheck graceful maintenance/shutdown rather than classify it a
 
 The published `ae0be4fef` passes required run `40668735420`/barrier `122752954520` and all six package
 targets in `40668735436`/barrier `122759825407`. The native projection belongs to the remaining G4
-completion batch and is not independently published. Remote attachment/auth-window capabilities,
+completion batch and is not independently published. Remote attachment capabilities,
 Provider OAuth configuration settlement and the final inventory
 remain required. G4 stays active; G5–G12 retain their full scope.
+
+### Remote native authentication and profile roots
+
+RemoteService no longer imports Electron or retains BrowserWindow objects. Main owns Feishu and
+Weixin login windows through the required `RemoteAuthWindowPort`: plain operation-ID open/close
+commands and closed/error events. Core retains authorization state, nonce, expiry, HTTP callback
+server and credential/pairing commitment. Window creation retains the existing dimensions,
+brand/redirect navigation restrictions, popup denial and isolated web preferences. A native close
+request cannot be retained by a page's beforeunload handler. Closing a loading window preserves
+the cancellation outcome; navigation failures from an active window still reach the owner.
+
+Authorization starts reuse the existing runtime-operation queue. Stop is idempotent, closes
+admission before cancellation, marks current Feishu sessions terminal and awaits actual startup,
+registration, polling and callback settlement. Initialization waits for that physical stop before
+opening another lifetime. Late native startup is compensated by its known operation ID. Feishu
+cleanup awaits response completion and callback work before closing partial-header connections
+and releasing the loopback server. Weixin HTTP requests and poll sleeps carry owner cancellation;
+canceled QR sessions retire and late confirmed results cannot recreate accounts or write secrets.
+Main's final native-window close remains separate from Core's credential authority.
+
+RemoteConversationRunner receives Main's explicit absolute profile directory for the existing
+image-cache and fallback generated-asset locations. Its workspace default is queried asynchronously.
+File/path authorization, workspace requirements, image promotion/deduplication and generated
+filenames remain unchanged. The runner and Weixin SDK graphs compile/import in ordinary Node with
+Electron/electron-store/font-list forbidden (10/1 modules). This is module portability evidence;
+RemoteService's inherited ChannelAdapter still imports Electron net and is not a headless service.
+
+Validation passes 305 checks across 36 files, app and selected test/E2E types, normal build, format,
+lint and i18n. The same six application cases pass on immutable `e2c97edac` and the candidate:
+five maintenance/rekey/credential/shutdown cases and native Remote authorization. Actual windows
+preserve disabled Node access, invalid nonce rejection, user-close cancellation and physical
+closure. Weixin credentials survive graceful profile relaunch with the channel disabled. The
+fixture intercepts only vendor HTTP and native loadURL destinations with disposable data; no real
+account or external authorization is used. Evidence and artifact hashes are retained in
+`.deepchat/rutis-g4-remote-native-acceptance/`. No resource capture or performance claim is added.
+
+This work belongs to the unpublished G4 completion batch. ChannelAdapter's bounded attachment
+fetch and legal large-payload carrier, Provider OAuth configuration settlement and the final
+writer/reader/native inventory remain required before G5. Existing floating Agent/catalogue queries
+already use async owner methods and need no extra synchronous-getter replacement. G4 remains active.
 
 ## G5. Move the cohesive Harness and shared core into the TS backend
 

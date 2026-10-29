@@ -1,5 +1,6 @@
 import { createCipheriv, createHash, randomBytes, randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
+import { setTimeout as delay } from 'node:timers/promises'
 
 type WeixinIlinkQrCodeResponse = {
   qrcode?: string
@@ -247,18 +248,21 @@ const normalizeHttpError = async (response: Response): Promise<string> => {
 
 const withTimeout = async <T>(
   timeoutMs: number | undefined,
-  operation: (signal?: AbortSignal) => Promise<T>
+  operation: (signal?: AbortSignal) => Promise<T>,
+  parentSignal?: AbortSignal
 ): Promise<T> => {
   const normalizedTimeoutMs =
     typeof timeoutMs === 'number' && Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 0
   if (!normalizedTimeoutMs) {
-    return await operation()
+    return await operation(parentSignal)
   }
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), normalizedTimeoutMs)
   try {
-    return await operation(controller.signal)
+    return await operation(
+      parentSignal ? AbortSignal.any([parentSignal, controller.signal]) : controller.signal
+    )
   } finally {
     clearTimeout(timer)
   }
@@ -267,20 +271,25 @@ const withTimeout = async <T>(
 const fetchGetJson = async <T>(
   baseUrl: string,
   endpoint: string,
-  timeoutMs?: number
+  timeoutMs?: number,
+  parentSignal?: AbortSignal
 ): Promise<T> => {
-  return await withTimeout(timeoutMs, async (signal) => {
-    const response = await fetch(new URL(endpoint, ensureTrailingSlash(baseUrl)).toString(), {
-      method: 'GET',
-      ...(signal ? { signal } : {})
-    })
+  return await withTimeout(
+    timeoutMs,
+    async (signal) => {
+      const response = await fetch(new URL(endpoint, ensureTrailingSlash(baseUrl)).toString(), {
+        method: 'GET',
+        ...(signal ? { signal } : {})
+      })
 
-    if (!response.ok) {
-      throw new WeixinIlinkApiError(await normalizeHttpError(response), response.status)
-    }
+      if (!response.ok) {
+        throw new WeixinIlinkApiError(await normalizeHttpError(response), response.status)
+      }
 
-    return (await response.json()) as T
-  })
+      return (await response.json()) as T
+    },
+    parentSignal
+  )
 }
 
 const fetchPostJson = async <T>(params: {
@@ -334,7 +343,9 @@ export class WeixinIlinkClient {
   static async startLogin(input?: {
     sessionKey?: string
     force?: boolean
+    signal?: AbortSignal
   }): Promise<WeixinIlinkStartLoginResult> {
+    input?.signal?.throwIfAborted()
     const sessionKey = input?.sessionKey?.trim() || randomUUID()
     purgeExpiredLogins()
 
@@ -350,8 +361,10 @@ export class WeixinIlinkClient {
     const response = await fetchGetJson<WeixinIlinkQrCodeResponse>(
       WEIXIN_ILINK_FIXED_BASE_URL,
       `ilink/bot/get_bot_qrcode?bot_type=${encodeURIComponent(WEIXIN_ILINK_DEFAULT_BOT_TYPE)}`,
-      WEIXIN_ILINK_REQUEST_TIMEOUT_MS
+      WEIXIN_ILINK_REQUEST_TIMEOUT_MS,
+      input?.signal
     )
+    input?.signal?.throwIfAborted()
     const qrcode = response.qrcode?.trim() || ''
     const loginUrl = response.qrcode_img_content?.trim() || ''
     if (!qrcode || !loginUrl) {
@@ -376,7 +389,25 @@ export class WeixinIlinkClient {
   static async waitForLogin(input: {
     sessionKey: string
     timeoutMs?: number
+    signal?: AbortSignal
   }): Promise<WeixinIlinkWaitLoginResult> {
+    try {
+      return await this.pollForLogin(input)
+    } finally {
+      if (input.signal?.aborted) activeLogins.delete(input.sessionKey)
+    }
+  }
+
+  static cancelLogin(sessionKey: string): void {
+    activeLogins.delete(sessionKey)
+  }
+
+  private static async pollForLogin(input: {
+    sessionKey: string
+    timeoutMs?: number
+    signal?: AbortSignal
+  }): Promise<WeixinIlinkWaitLoginResult> {
+    input.signal?.throwIfAborted()
     purgeExpiredLogins()
     const login = activeLogins.get(input.sessionKey)
     if (!login || !isFreshLogin(login)) {
@@ -394,14 +425,17 @@ export class WeixinIlinkClient {
     const deadline = Date.now() + timeoutMs
 
     while (Date.now() < deadline) {
+      input.signal?.throwIfAborted()
       let response: WeixinIlinkQrStatusResponse
       try {
         response = await fetchGetJson<WeixinIlinkQrStatusResponse>(
           login.currentBaseUrl,
           `ilink/bot/get_qrcode_status?qrcode=${encodeURIComponent(login.qrcode)}`,
-          WEIXIN_ILINK_QR_POLL_TIMEOUT_MS
+          WEIXIN_ILINK_QR_POLL_TIMEOUT_MS,
+          input.signal
         )
       } catch (error) {
+        input.signal?.throwIfAborted()
         if (error instanceof Error && error.name === 'AbortError') {
           response = {
             status: 'wait'
@@ -411,6 +445,7 @@ export class WeixinIlinkClient {
         }
       }
 
+      input.signal?.throwIfAborted()
       switch (response.status) {
         case 'wait':
         case 'scaned':
@@ -453,7 +488,7 @@ export class WeixinIlinkClient {
           break
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1_000))
+      await delay(1_000, undefined, { signal: input.signal })
     }
 
     activeLogins.delete(input.sessionKey)

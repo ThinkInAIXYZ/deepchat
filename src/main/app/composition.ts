@@ -123,6 +123,7 @@ import {
 import { DesktopSettings } from '../desktop/settings'
 import { DesktopConfigurationHost } from '../desktop/configurationHost'
 import { DesktopConfigurationProjection } from '../desktop/configurationProjection'
+import { DesktopRemoteAuthWindows } from '../desktop/remoteAuthWindows'
 import { DesktopImageActions } from '../desktop/imageActions'
 import { FontSettings } from '../desktop/fontSettings'
 import { TabPresenter } from '../desktop/tab'
@@ -2850,7 +2851,12 @@ export async function createMainProcessControl(dependencies: {
       }
     })
   liveDelegationService = createLiveDelegationService()
+  const remoteAuthWindows = new DesktopRemoteAuthWindows((event) =>
+    remoteService.handleAuthWindowEvent(event)
+  )
   remoteService = new RemoteService({
+    profileDirectory: app.getPath('userData'),
+    authWindows: remoteAuthWindows,
     settings: dependencies.settingsStore,
     catalog: {
       getAgentType: (agentId) => agentSettings.getAgentType(agentId),
@@ -2882,7 +2888,7 @@ export async function createMainProcessControl(dependencies: {
       }
     },
     workspace: {
-      getDefaultProjectPath: () => projectService.getDefaultProjectPath(),
+      getDefaultProjectPath: async () => projectService.getDefaultProjectPath(),
       prepareFile: (filePath, type) => fileService.prepareFile(filePath, type)
     },
     lifecycle: sessionLifecycle,
@@ -3263,6 +3269,7 @@ export async function createMainProcessControl(dependencies: {
     })
     await runDestroyStep('cronJobs.destroy', () => cronJobs.destroy())
     await runDestroyStep('remoteService.destroy', () => remoteService.destroy())
+    await runDestroyStep('remoteAuthWindows.closeAll', () => remoteAuthWindows.closeAll())
     await hookService.stop()
     await runDestroyStep('sessionRuntimes.suspend', () => suspendSessionRuntimes())
     await backgroundExec.shutdown()
@@ -4028,6 +4035,7 @@ export async function createMainProcessControl(dependencies: {
       await liveDelegationService.stop()
       await cronJobs.stop()
       await remoteService.destroy()
+      await remoteAuthWindows.closeAll()
       await hookService.stop()
       const drain = await memoryIngestionObserver.drainAndFence()
       if (drain.timedOut) {
@@ -4127,6 +4135,7 @@ export async function createMainProcessControl(dependencies: {
       await remoteService.initialize()
       if (['stopping', 'stopped'].includes(appLifecycleState)) {
         await remoteService.destroy()
+        await remoteAuthWindows.closeAll()
         throw new Error(`App lifecycle is ${appLifecycleState}`)
       }
       liveDelegationService = createLiveDelegationService()

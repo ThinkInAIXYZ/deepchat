@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { BrowserWindow } from 'electron'
 import * as http from 'node:http'
 import * as net from 'node:net'
 import type { TelegramPollerStatusSnapshot } from '@/remote/types'
@@ -148,9 +147,13 @@ const createProviderSettings = () => {
   ])
 
   return {
-    get: vi.fn((key: string) => store.get(key)),
-    set: vi.fn((key: string, value: unknown) => {
-      store.set(key, value)
+    get<T = unknown>(key: string, fallback?: T): T | undefined {
+      const value = store.get(key)
+      return value === undefined ? fallback : (value as T)
+    },
+    set: vi.fn((key: string | Record<string, unknown>, value?: unknown) => {
+      if (typeof key === 'string') store.set(key, value)
+      else for (const [name, entry] of Object.entries(key)) store.set(name, entry)
     }),
     getAgentType: vi.fn(async (agentId: string) => (agentId === 'acp-agent' ? 'acp' : 'deepchat')),
     listAgents: vi.fn().mockResolvedValue([
@@ -183,7 +186,7 @@ const createCatalog = (
 })
 
 const createWorkspace = (): RemoteWorkspacePort => ({
-  getDefaultProjectPath: vi.fn(() => null),
+  getDefaultProjectPath: vi.fn(async () => null),
   prepareFile: vi.fn(async () => {
     throw new Error('unused')
   })
@@ -195,8 +198,12 @@ const createNotifications = (): RemoteNotificationPort & {
   showNotification: vi.fn().mockResolvedValue('remote-delivery-error:feishu')
 })
 
+const authWindows = { open: vi.fn(async () => {}), close: vi.fn(async () => {}) }
+
 const createRemoteService = (settings: TestSettings, overrides: Partial<RemoteServiceDeps> = {}) =>
   new RemoteService({
+    profileDirectory: '/mock/path',
+    authWindows,
     settings,
     catalog: createCatalog(settings),
     workspace: createWorkspace(),
@@ -209,14 +216,117 @@ describe('RemoteService', () => {
     pollerInstances.length = 0
     telegramClientInstances.length = 0
     pollerStartImplementation = async () => {}
-    Object.assign(BrowserWindow, {
-      getFocusedWindow: vi.fn(() => null),
-      getAllWindows: vi.fn(() => [])
-    })
+    authWindows.open.mockClear()
+    authWindows.close.mockClear()
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('drains and compensates a Feishu window that opens after authorization is stopped', async () => {
+    const settings = createProviderSettings()
+    const port = await getFreeLoopbackPort()
+    const entered = Promise.withResolvers<void>()
+    const opening = Promise.withResolvers<void>()
+    const windows = {
+      open: vi.fn(async () => {
+        entered.resolve()
+        await opening.promise
+      }),
+      close: vi.fn(async () => {})
+    }
+    const service = createRemoteService(settings, { authWindows: windows })
+    const starting = service.startFeishuAuth({
+      appId: 'test-app',
+      appSecret: 'test-secret',
+      redirectUri: `http://127.0.0.1:${port}/callback`
+    })
+    const rejected = expect(starting).rejects.toThrow()
+    await entered.promise
+    const socket = net.connect(port, '127.0.0.1')
+    const socketClosed = new Promise<void>((resolve) => socket.once('close', () => resolve()))
+    socket.on('error', () => {})
+    await new Promise<void>((resolve) => socket.once('connect', resolve))
+    socket.write('GET /callback HTTP/1.1\r\n')
+    let stopped = false
+    const stopping = service.destroy().then(() => {
+      stopped = true
+    })
+    await Promise.resolve()
+    expect(stopped).toBe(false)
+    opening.resolve()
+    await Promise.all([stopping, rejected, socketClosed])
+    expect(windows.close).toHaveBeenCalledWith(expect.stringMatching(/^feishu:/))
+    const server = net.createServer()
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(port, '127.0.0.1', resolve)
+    })
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await expect(service.startFeishuAuth()).rejects.toThrow()
+  })
+
+  it('fences a confirmed Weixin login whose request ignores cancellation until after stop', async () => {
+    const settings = createProviderSettings()
+    const entered = Promise.withResolvers<void>()
+    const result =
+      Promise.withResolvers<Awaited<ReturnType<typeof WeixinIlinkClient.waitForLogin>>>()
+    vi.spyOn(WeixinIlinkClient, 'waitForLogin').mockImplementation(async () => {
+      entered.resolve()
+      return await result.promise
+    })
+    const service = createRemoteService(settings)
+    const waiting = service.waitForWeixinIlinkLogin({ sessionKey: 'late-login' })
+    const rejected = expect(waiting).rejects.toThrow()
+    await entered.promise
+    let stopped = false
+    const stopping = service.destroy().then(() => {
+      stopped = true
+    })
+    await Promise.resolve()
+    expect(stopped).toBe(false)
+    result.resolve({
+      connected: true,
+      accountId: 'late-account',
+      ownerUserId: 'late-owner',
+      botToken: 'secret'
+    })
+    await Promise.all([stopping, rejected])
+    expect(service.buildWeixinIlinkSettingsSnapshot().accounts).toEqual([])
+  })
+
+  it('drains a late Feishu registration start without publishing a new auth session', async () => {
+    const entered = Promise.withResolvers<void>()
+    const response = Promise.withResolvers<Response>()
+    let requestSignal: AbortSignal | undefined
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      requestSignal = init?.signal ?? undefined
+      entered.resolve()
+      return await response.promise
+    })
+    const service = createRemoteService(createProviderSettings())
+    const starting = service.startFeishuInstall()
+    const rejected = expect(starting).rejects.toThrow()
+    await entered.promise
+    let stopped = false
+    const stopping = service.destroy().then(() => {
+      stopped = true
+    })
+    await Promise.resolve()
+    expect(requestSignal?.aborted).toBe(true)
+    expect(stopped).toBe(false)
+    response.resolve(
+      Response.json({
+        device_code: 'late-device',
+        verification_uri_complete: 'https://open.feishu.cn/install',
+        user_code: 'LATE',
+        expires_in: 300,
+        interval: 1
+      })
+    )
+    await Promise.all([stopping, rejected])
+    await expect(service.startFeishuInstall()).rejects.toThrow()
   })
 
   it('notifies once for a Feishu delivery failure and throttles later failures', async () => {
@@ -308,11 +418,8 @@ describe('RemoteService', () => {
 
   it('reports starting while the poller startup is still in flight', async () => {
     const providerSettings = createProviderSettings()
-    let resolveStart: (() => void) | null = null
-    pollerStartImplementation = () =>
-      new Promise<void>((resolve) => {
-        resolveStart = resolve
-      })
+    const starting = Promise.withResolvers<void>()
+    pollerStartImplementation = () => starting.promise
 
     const presenter = createRemoteService(providerSettings)
 
@@ -326,7 +433,7 @@ describe('RemoteService', () => {
       )
     })
 
-    resolveStart?.()
+    starting.resolve()
     await initializePromise
   })
 
@@ -704,14 +811,12 @@ describe('RemoteService', () => {
     const callbackPromise = requestUrl(`${redirectUri}?code=auth-code&state=${state}`)
     await tokenRequestStarted
 
-    await presenter.cancelFeishuAuth(session.sessionKey)
-    await expect(waitPromise).resolves.toEqual(
-      expect.objectContaining({
-        authorized: false,
-        openId: null,
-        messageKey: 'settings.remote.feishu.authCancelled'
-      })
-    )
+    let cancelled = false
+    const cancelling = presenter.cancelFeishuAuth(session.sessionKey).then(() => {
+      cancelled = true
+    })
+    await Promise.resolve()
+    expect(cancelled).toBe(false)
 
     resolveToken(
       new Response(
@@ -725,6 +830,12 @@ describe('RemoteService', () => {
       )
     )
     await callbackPromise
+    await cancelling
+    await expect(waitPromise).resolves.toMatchObject({
+      authorized: false,
+      openId: null,
+      messageKey: 'settings.remote.feishu.authCancelled'
+    })
 
     await expect(presenter.getChannelPairingSnapshot('feishu')).resolves.toEqual(
       expect.objectContaining({
@@ -936,7 +1047,8 @@ describe('RemoteService', () => {
     const saved = await presenter.saveTelegramSettings({
       botToken: 'test-bot-token',
       remoteEnabled: true,
-      defaultAgentId: 'deepchat-alt'
+      defaultAgentId: 'deepchat-alt',
+      defaultWorkdir: ''
     })
 
     expect(saved.defaultAgentId).toBe('deepchat')
@@ -1027,7 +1139,8 @@ describe('RemoteService', () => {
     const saved = await presenter.saveTelegramSettings({
       botToken: 'test-bot-token',
       remoteEnabled: true,
-      defaultAgentId: 'claude-code-acp'
+      defaultAgentId: 'claude-code-acp',
+      defaultWorkdir: ''
     })
 
     expect(saved.defaultAgentId).toBe('deepchat')
@@ -1241,9 +1354,12 @@ describe('RemoteService', () => {
       messageKey: 'settings.remote.weixinIlink.loginWindowOpened',
       message: undefined
     })
-    expect(BrowserWindow).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(BrowserWindow).mock.results[0]?.value.loadURL).toHaveBeenCalledWith(
-      'https://liteapp.weixin.qq.com/mock-login'
+    expect(authWindows.open).toHaveBeenCalledTimes(1)
+    expect(authWindows.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'weixin-ilink',
+        url: 'https://liteapp.weixin.qq.com/mock-login'
+      })
     )
 
     await expect(

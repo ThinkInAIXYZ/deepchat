@@ -1159,8 +1159,26 @@ Feishu's brand/redirect navigation rules, popup denial and isolated secure web p
 Register an operation before awaiting native startup, fence late opens/close events by generation
 and operation identity, compensate a late native open after cancellation, and drain callback-server
 and window cleanup before owner teardown. Native events cannot synchronously re-enter a pending
-business command. These remaining boundaries must be implemented and exercised; native module
-loading alone does not complete Remote's cutover.
+business command. Native module loading alone does not complete Remote's cutover.
+
+The selected desktop login adapter owns Feishu/Weixin BrowserWindows behind asynchronous
+operation-ID open/close commands and closed/error events. Authorization starts reuse Remote's
+existing serialized runtime queue. Stop closes admission, aborts owner signals, fences late
+registration/login results and waits for actual startup, polling, callback and native-close work;
+initialization waits for that stop before admitting a new owner lifetime. A late native open is
+closed by its original operation identity. No BrowserWindow, Response or app secret crosses this
+port. Main also closes any retained native windows during teardown.
+
+Feishu retains its loopback server, nonce, TTL, token/user exchange and pairing commitment in Core.
+Cleanup waits for active callbacks and response completion, then closes partial-header connections
+and acknowledges server release. User window close remains cancellation even when destruction
+rejects navigation before the native closed event; a load failure in an active window remains an
+error. Native navigation and popup rules and isolated web preferences remain explicit. Weixin
+login polling carries owner cancellation through HTTP timeouts and poll sleeps, retires canceled
+QR sessions and cannot commit credentials after stop. Profile image/generated-asset paths are
+derived from Main's explicit absolute profile directory; the workspace default is queried through
+an asynchronous owner port. ChannelAdapter's inherited native attachment fetch remains a separate
+required extraction with the legal large-payload carrier described above.
 
 ACP registry ownership includes its manifest, icon cache and acknowledged repository/Provider
 updates. Main supplies absolute profile/built-in directories and an asynchronous icon-text

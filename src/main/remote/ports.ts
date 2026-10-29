@@ -56,7 +56,7 @@ export interface RemoteCatalogPort {
 }
 
 export interface RemoteWorkspacePort {
-  getDefaultProjectPath(): string | null
+  getDefaultProjectPath(): Promise<string | null>
   prepareFile(filePath: string, type?: string): Promise<MessageFile>
 }
 
@@ -73,7 +73,20 @@ export interface RemoteNotificationPort {
   }): Promise<string | undefined>
 }
 
+export type RemoteAuthWindowInput =
+  | { id: string; kind: 'feishu'; url: string; brand: 'feishu' | 'lark'; redirectUri: string }
+  | { id: string; kind: 'weixin-ilink'; url: string }
+
+export type RemoteAuthWindowEvent = { id: string; type: 'closed' | 'error' }
+
+export interface RemoteAuthWindowPort {
+  open(input: RemoteAuthWindowInput): Promise<void>
+  close(id: string): Promise<void>
+}
+
 export interface RemoteServiceDeps {
+  profileDirectory: string
+  authWindows: RemoteAuthWindowPort
   settings: Pick<SettingsStore, 'get' | 'set'>
   catalog: RemoteCatalogPort
   workspace: RemoteWorkspacePort
@@ -91,6 +104,7 @@ export interface RemoteRuntimeLifecycle {
 }
 
 export interface RemoteServiceLike extends RemoteServicePort, RemoteRuntimeLifecycle {
+  handleAuthWindowEvent(event: RemoteAuthWindowEvent): void
   deliverCronJobResult(input: {
     job: CronJob
     run: CronJobRun
