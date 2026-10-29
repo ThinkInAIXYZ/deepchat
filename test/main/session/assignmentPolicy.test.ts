@@ -38,7 +38,8 @@ function createHarness() {
   const config = {
     getDefaultModel: vi.fn(() => ({ providerId: 'openai', modelId: 'gpt-4' })),
     getDefaultProjectPath: vi.fn(() => '/global-project'),
-    resolveDeepChatAgentConfig: vi.fn(async (agentId: string) => configs.get(agentId) ?? null)
+    resolveDeepChatAgentConfig: vi.fn(async (agentId: string) => configs.get(agentId) ?? null),
+    isModelAvailable: vi.fn(() => true)
   }
   return { policy: new SessionAssignmentPolicy(catalog, config), catalog, config, configs }
 }
@@ -217,7 +218,7 @@ describe('SessionAssignmentPolicy', () => {
     })
   })
 
-  it('leaves cross-agent subagent skills for target catalog validation', async () => {
+  it('uses the target model and prompt while intersecting cross-agent authority', async () => {
     const { policy, configs } = createHarness()
     configs.set('reviewer', {
       defaultModelPreset: { providerId: 'anthropic', modelId: 'claude-review' },
@@ -243,16 +244,83 @@ describe('SessionAssignmentPolicy', () => {
     ).resolves.toEqual({
       agentId: 'reviewer',
       targetAgentId: 'reviewer',
-      providerId: 'openai',
-      modelId: 'gpt-4',
+      providerId: 'anthropic',
+      modelId: 'claude-review',
       permissionMode: 'default',
       generationSettings: {
-        systemPrompt: 'Reviewer prompt',
-        temperature: 0.4
+        systemPrompt: 'Reviewer prompt'
       },
       disabledAgentTools: ['exec', 'read', 'write'],
       activeSkills: ['skill-a', 'skill-b', 'skill-c'],
       toolModeOverride: null
+    })
+  })
+
+  it('inherits the parent model and overrides when the target has no default model', async () => {
+    const { policy, configs } = createHarness()
+    configs.set('reviewer', { systemPrompt: 'Reviewer prompt' })
+
+    await expect(
+      policy.resolveSubagentAssignment({
+        agentId: 'reviewer',
+        parentAgentId: 'deepchat',
+        projectDir: '/repo',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: { systemPrompt: 'Parent prompt', temperature: 0.4 }
+      })
+    ).resolves.toMatchObject({
+      providerId: 'openai',
+      modelId: 'gpt-4',
+      generationSettings: { systemPrompt: 'Reviewer prompt', temperature: 0.4 }
+    })
+  })
+
+  it.each([
+    { providerId: 'anthropic', modelId: 'unavailable' },
+    { providerId: '', modelId: 'claude-review' },
+    { providerId: 'anthropic', modelId: '' }
+  ])('rejects an unavailable target model without falling back: %j', async (defaultModelPreset) => {
+    const { policy, configs, config } = createHarness()
+    configs.set('reviewer', { defaultModelPreset })
+    config.isModelAvailable.mockReturnValue(false)
+
+    await expect(
+      policy.resolveSubagentAssignment({
+        agentId: 'reviewer',
+        parentAgentId: 'deepchat',
+        projectDir: '/repo',
+        providerId: 'openai',
+        modelId: 'gpt-4'
+      })
+    ).rejects.toThrow('Subagent reviewer default model is unavailable.')
+  })
+
+  it('preserves frozen execution settings while applying the current target permission policy', async () => {
+    const { policy, configs, config } = createHarness()
+    configs.set('reviewer', {
+      defaultModelPreset: { providerId: 'anthropic', modelId: 'changed-model' },
+      systemPrompt: 'Changed prompt',
+      permissionMode: 'default'
+    })
+    config.isModelAvailable.mockReturnValue(false)
+
+    await expect(
+      policy.resolveSubagentAssignment({
+        agentId: 'reviewer',
+        parentAgentId: 'deepchat',
+        projectDir: '/repo',
+        providerId: 'openai',
+        modelId: 'frozen-model',
+        permissionMode: 'full_access',
+        generationSettings: { systemPrompt: 'Frozen prompt', temperature: 0.4 },
+        preserveExecutionConfig: true
+      })
+    ).resolves.toMatchObject({
+      providerId: 'openai',
+      modelId: 'frozen-model',
+      generationSettings: { systemPrompt: 'Frozen prompt', temperature: 0.4 },
+      permissionMode: 'default'
     })
   })
 

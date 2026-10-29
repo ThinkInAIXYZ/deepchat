@@ -60,7 +60,11 @@ export const createSessionFixture = (input: {
       resolveDeepChatAgentConfig: async (agentId) => {
         if (typeof input.providerSettings.resolveDeepChatAgentConfig !== 'function') return null
         return await input.providerSettings.resolveDeepChatAgentConfig(agentId)
-      }
+      },
+      isModelAvailable: (providerId, modelId) =>
+        input.providerSettings.getProviderById(providerId)?.enable === true &&
+        input.providerSettings.isKnownModel(providerId, modelId) &&
+        input.providerSettings.getModelStatus(providerId, modelId)
     }
   )
   const deletion = new SessionDeletion({

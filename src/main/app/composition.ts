@@ -175,6 +175,7 @@ import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { SessionQuery } from '@/session/query'
 import { SessionAssignmentPolicy } from '@/session/assignmentPolicy'
+import { sanitizeGenerationSettings } from '@/agent/deepchat/runtime/generationSettings'
 import { SessionAssignment } from '@/session/assignment'
 import { SessionDeletion } from '@/session/deletion'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'
@@ -2268,7 +2269,11 @@ export async function createMainProcessControl(dependencies: {
       getDefaultModel: () => agentSettings.getDefaultModel(),
       getDefaultProjectPath: () => projectService.getDefaultProjectPath(),
       resolveDeepChatAgentConfig: async (agentId) =>
-        await agentSettings.resolveDeepChatAgentConfig(agentId)
+        await agentSettings.resolveDeepChatAgentConfig(agentId),
+      isModelAvailable: (providerId, modelId) =>
+        providerSettings.getProviderById(providerId)?.enable === true &&
+        providerSettings.isKnownModel(providerId, modelId) &&
+        providerSettings.getModelStatus(providerId, modelId)
     }
   )
   const clearNewAgentSessionSkills = skillService.clearNewAgentSessionSkills
@@ -2501,6 +2506,24 @@ export async function createMainProcessControl(dependencies: {
       sessions: {
         ...agentToolDependencies.sessions,
         ...agentToolDependencies.subagents,
+        resolveSubagentExecutionSnapshot: async (input) => {
+          const assignment = await sessionAssignmentPolicy.resolveSubagentAssignment(input)
+          const isAcp = agentManager.resolveBackend(assignment.agentId).descriptor.kind === 'acp'
+          return {
+            providerId: assignment.providerId,
+            modelId: assignment.modelId,
+            toolModeOverride: assignment.toolModeOverride,
+            generationSettings: isAcp
+              ? null
+              : await sanitizeGenerationSettings(
+                  providerSettings,
+                  promptSettings,
+                  assignment.providerId,
+                  assignment.modelId,
+                  assignment.generationSettings ?? {}
+                )
+          }
+        },
         findDelegationChild: async (parentSessionId, delegationId) => {
           const matches = appSessionService
             .list({ includeSubagents: true, parentSessionId })

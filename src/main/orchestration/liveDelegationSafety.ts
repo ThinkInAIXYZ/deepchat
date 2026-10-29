@@ -115,7 +115,8 @@ export class LiveDelegationSafetyCoordinator implements LiveDelegationSafetyPort
       permissionMode: input.parentPermissionMode,
       generationSettings: child.generationSettings ?? undefined,
       disabledAgentTools: child.disabledAgentTools,
-      activeSkills: child.activeSkills
+      activeSkills: child.activeSkills,
+      preserveExecutionConfig: true
     })
     if (assignment.agentId !== child.agentId) {
       throw new Error(`Subagent target changed for child Session ${child.sessionId}.`)

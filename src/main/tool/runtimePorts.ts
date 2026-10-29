@@ -94,6 +94,7 @@ export interface CreateSubagentSessionInput {
   disabledAgentTools?: string[]
   activeSkills?: string[]
   liveDelegationContext?: LiveDelegationSubagentContext
+  preserveExecutionConfig?: boolean
 }
 
 export interface AgentToolSessionPort {
