@@ -6,6 +6,7 @@ export const CORE_CARRIER_FILES = 4
 export const CORE_CALLS = 4
 export const CORE_CONTROL_CALLS = 2
 export const CORE_NATIVE_CALLS = 16
+export const CORE_NATIVE_QUEUED = 64
 
 export const CoreNativeMethodSchema = z.enum([
   'crypto.available',
@@ -17,7 +18,8 @@ export const CoreNativeMethodSchema = z.enum([
   'profile.unlock',
   'profile.recovery',
   'profile.quit',
-  'configuration'
+  'configuration',
+  'helpers'
 ])
 export type CoreNativeMethod = z.infer<typeof CoreNativeMethodSchema>
 
@@ -50,6 +52,7 @@ export const CoreMethodSchema = z.enum([
   'openProfile',
   'configure',
   'observeSystemTheme',
+  'nativeEvents',
   'status',
   'stop'
 ])

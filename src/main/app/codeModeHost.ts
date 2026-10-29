@@ -18,7 +18,12 @@ export async function spawnCodeModeHost(entry: string, signal: AbortSignal): Pro
     allowLoadingUnsignedLibraries: false
   })
   if (signal.aborted) {
-    host.kill()
+    const closed = new Promise<void>((resolve) => host.once('exit', () => resolve()))
+    try {
+      host.kill()
+    } finally {
+      await closed
+    }
     signal.throwIfAborted()
   }
   const events: NodeJS.EventEmitter = host

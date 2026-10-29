@@ -4,6 +4,11 @@ import {
 } from '@shared/harness/configuration'
 import { rm } from 'node:fs/promises'
 import { z } from 'zod'
+import {
+  CoreHelperEventsSchema,
+  isCoreHelperDrain,
+  type CoreHelperEvent
+} from '@shared/harness/helpers'
 import type { HarnessRuntime } from './runtime'
 import type { CoreProfileHost } from '@/app/profileStartup'
 import type { DatabaseSecurityCryptoPort } from '@/app/databaseSecurity'
@@ -110,6 +115,7 @@ export class CoreRuntimeConnection {
   private control = 0
   private statusPending = false
   private themeObservationPending = false
+  private nativeEventsPending = false
   private themeObservation: Promise<void> | undefined
   private themeObservationDirty = false
   private stopped = false
@@ -168,6 +174,22 @@ export class CoreRuntimeConnection {
     return await this.request('configure', CoreConfigurationCommandSchema.parse(command))
   }
 
+  async deliverNativeEvents(events: CoreHelperEvent[]): Promise<void> {
+    try {
+      await this.request('nativeEvents', CoreHelperEventsSchema.parse(events))
+    } catch (error) {
+      this.invalidateNative(
+        error instanceof Error ? error : new Error('Core Native event delivery failed')
+      )
+      throw error
+    }
+  }
+
+  invalidateNative(error: Error): void {
+    if (!this.failure) this.fail(error)
+    void this.stop().catch(() => {})
+  }
+
   observeSystemTheme(): Promise<void> {
     if (this.stopPromise || this.stopped || this.failure)
       return Promise.reject(this.failure ?? new Error('Core is stopping'))
@@ -218,26 +240,32 @@ export class CoreRuntimeConnection {
   }
 
   private async request(method: CoreMethod, args: unknown): Promise<unknown> {
-    if (this.failure || this.stopped) throw this.failure ?? new Error('Core generation is stopped')
+    if ((this.failure && method !== 'stop') || this.stopped)
+      throw this.failure ?? new Error('Core generation is stopped')
     const control = method === 'status' || method === 'stop'
     const observation = method === 'observeSystemTheme'
-    if (!control && this.stopPromise) throw new Error('Core is stopping')
+    const nativeEvent = method === 'nativeEvents'
+    if (!control && !nativeEvent && this.stopPromise) throw new Error('Core is stopping')
     if (method === 'status' && this.statusPending) throw new Error('Core status request is pending')
     if (observation && this.themeObservationPending)
       throw new Error('Core theme observation is pending')
+    if (nativeEvent && this.nativeEventsPending)
+      throw new Error('Core Native event delivery is pending')
     if (
       !observation &&
+      !nativeEvent &&
       (control ? this.control >= CORE_CONTROL_CALLS : this.ordinary >= CORE_CALLS)
     )
       throw new Error('Core request limit exceeded')
-    if (observation) this.themeObservationPending = true
+    if (nativeEvent) this.nativeEventsPending = true
+    else if (observation) this.themeObservationPending = true
     else if (control) this.control++
     else this.ordinary++
     if (method === 'status') this.statusPending = true
     let ref: CorePayload | undefined
     try {
       ref = await this.payloads.encode(args)
-      if (this.failure || this.stopped)
+      if ((this.failure && method !== 'stop') || this.stopped)
         throw this.failure ?? new Error('Core generation is stopped')
       const id = ++this.nextId
       return await new Promise((resolve, reject) => {
@@ -249,7 +277,8 @@ export class CoreRuntimeConnection {
         }
       })
     } finally {
-      if (observation) this.themeObservationPending = false
+      if (nativeEvent) this.nativeEventsPending = false
+      else if (observation) this.themeObservationPending = false
       else if (control) this.control--
       else this.ordinary--
       if (method === 'status') this.statusPending = false
@@ -278,7 +307,6 @@ export class CoreRuntimeConnection {
     }
     if (frame.type === 'coreNativeCall') {
       if (
-        this.failure ||
         this.stopped ||
         frame.generation !== this.payloads.config.generation ||
         frame.id < this.nextNativeId ||
@@ -301,6 +329,7 @@ export class CoreRuntimeConnection {
     }
     const request = this.pending.get(frame.id)
     if (!request) {
+      if (this.failure) return
       this.fail(new Error('Unknown Core reply'))
       return
     }
@@ -319,15 +348,20 @@ export class CoreRuntimeConnection {
   private async runNative(frame: Extract<CoreFrame, { type: 'coreNativeCall' }>): Promise<void> {
     try {
       const args = await this.payloads.decode(frame.args)
-      if (this.failure || this.stopped) return
-      if (this.stopPromise) throw new Error('Core Native admission is stopping')
+      if (this.stopped) return
+      const drain = frame.method === 'helpers' && isCoreHelperDrain(args)
+      if ((this.failure || this.stopPromise) && !drain)
+        throw new Error('Core Native admission is stopping')
       const result = await this.native(frame.method, args)
-      if (this.failure) return
+      if (this.failure && !drain) {
+        const error = new Error('Core Native outcome belongs to a retired generation')
+        error.name = 'CoreNativeOperationOutcomeUnknownError'
+        throw error
+      }
       const value = await this.payloads.encode(result)
-      if (!this.failure)
-        this.send({ type: 'coreNativeReply', id: frame.id, generation: frame.generation, value })
+      this.send({ type: 'coreNativeReply', id: frame.id, generation: frame.generation, value })
     } catch (error) {
-      if (!this.failure) {
+      if (!this.stopped) {
         try {
           this.send({
             type: 'coreNativeReply',
@@ -347,10 +381,11 @@ export class CoreRuntimeConnection {
   }
 
   private fail(error: Error): void {
-    if (this.failure) return
-    this.failure = error
-    this.ready.reject(error)
-    this.rejectPending(error)
+    if (!this.failure) {
+      this.failure = error
+      this.ready.reject(error)
+    }
+    this.rejectPending(this.failure)
   }
 
   private rejectPending(error: Error): void {

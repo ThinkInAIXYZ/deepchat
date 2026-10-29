@@ -332,6 +332,53 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
   )
 
   it(
+    'fences an unknown helper event through its reserved lane while ordinary work is saturated',
+    { timeout: 30_000 },
+    async () => {
+      const entered = Promise.withResolvers<void>()
+      const receipt = Promise.withResolvers<void>()
+      const f = await fixture({
+        refreshTheme: async () => {
+          entered.resolve()
+          await receipt.promise
+        }
+      })
+      await f.connection.openProfile(f.options)
+      const observation = Promise.allSettled([f.connection.observeSystemTheme()])
+      await entered.promise
+      const pending = Promise.allSettled(
+        Array.from({ length: 4 }, () =>
+          f.connection.configure({ operation: 'read', input: { keys: ['fontFamily'] } })
+        )
+      )
+      try {
+        await expect(
+          f.connection.deliverNativeEvents([
+            {
+              id: randomUUID(),
+              sequence: 1,
+              pid: null,
+              event: { type: 'message', message: Buffer.alloc(32 * 1024) }
+            }
+          ])
+        ).rejects.toThrow('Unknown or out-of-order Native helper event')
+        await expect(f.connection.status()).rejects.toThrow()
+        await expect(
+          initializeCoreProfile({ ...f.options, host: f.host, crypto: f.crypto })
+        ).rejects.toMatchObject({ name: 'CoreProfileOwnershipUnavailableError' })
+      } finally {
+        receipt.resolve()
+        await observation
+        await pending
+        await expect(f.connection.stop()).resolves.toMatchObject({ phase: 'stopped' })
+        await f.connection.closeAfterHostExit()
+      }
+      const reopened = await initializeCoreProfile({ ...f.options, host: f.host, crypto: f.crypto })
+      reopened.closeProfile()
+    }
+  )
+
+  it(
     'keeps an unacknowledged stop unknown until actual retirement',
     { timeout: 30_000 },
     async () => {

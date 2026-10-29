@@ -1395,6 +1395,25 @@ Status has a 5-second observation deadline and stop has a 30-second observation 
 does not retire the operation, release its slot or authorize another owner. Status and stop each
 have a reserved slot. Profile unlock/recovery may await human input without a timing budget.
 
+Native helper callbacks use one additional reserved Core call, independent of ordinary work and
+theme observations. Ordered batches carry at most 32 generation-bound helper events over the
+existing carrier transport. The five fixed kinds are background execution, Code Mode, Scheduler
+and content/Git watching. Main retains approved launchers and owned-host RSS sampling. Launch
+selects a fixed helper kind, not an executable entry; RSS addresses an opaque owned helper instead
+of an arbitrary PID. Existing helper messages retain their data/authorization contracts. Track startup before
+dispatch, compensate canceled/late startup and await actual process retirement. Queued commands
+and events have count/byte bounds; overflow fences the generation without uncertain replay.
+An open reply acknowledges admission. A separate opened/failed event settles the original host
+capability; cancellation after admission can retire a launcher that has not returned yet. Exec
+retirement also requires profile-scoped attested descendant recovery supplied by Main. Keep an
+exited helper in the Native owner until this recovery settles, including unexpected helper loss.
+Logical transport failure still admits retirement and settles already accepted Native effects;
+ordinary caller outcomes remain fenced and are never replayed.
+The existing sixteen reverse Native calls reserve two slots for retirement commands. Ordinary
+work queues at fourteen calls, with at most 64 waiting requests and 64 MiB of queued values.
+Coalesce helper termination identities into batches of 32, so many cancellations cannot consume
+all control slots. Stop rejects queued ordinary work and waits for accepted Native calls to settle.
+
 Bootstrap values use Node V8 serialization, preserving `undefined`, dates and binary values. Values
 up to 16 KiB stay inline in control frames. Larger values use authenticated AES-256-GCM carriers in
 a generation-private 0700 temporary directory, with 0600 exclusive files, unpredictable identities,

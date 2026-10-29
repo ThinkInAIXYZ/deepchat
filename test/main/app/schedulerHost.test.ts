@@ -111,7 +111,7 @@ describe('Scheduler native launch', () => {
       if (event === 'exit') host.emit('exit', 1)
       else host.emit('error', 'crash', 'startup')
       await rejected
-      expect(host.kill).toHaveBeenCalledTimes(1)
+      expect(host.kill).toHaveBeenCalledTimes(event === 'exit' ? 0 : 1)
       for (const name of ['spawn', 'exit', 'error']) expect(host.listenerCount(name)).toBe(0)
       host.emit('spawn')
     }

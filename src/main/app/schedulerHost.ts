@@ -33,12 +33,20 @@ export async function spawnSchedulerHost(signal: AbortSignal): Promise<Scheduler
       signal.removeEventListener('abort', onAbort)
       callback()
     }
-    const fail = (error: Error) =>
+    const fail = (error: unknown, exited = false) =>
       settle(() => {
-        try {
-          host.kill()
-        } catch {}
-        reject(error)
+        if (exited) {
+          reject(error)
+          return
+        }
+        const closed = new Promise<void>((resolve) => host.once('exit', () => resolve()))
+        void (async () => {
+          try {
+            host.kill()
+          } finally {
+            await closed
+          }
+        })().then(() => reject(error), reject)
       })
     const onSpawn = () =>
       settle(() =>
@@ -64,7 +72,7 @@ export async function spawnSchedulerHost(signal: AbortSignal): Promise<Scheduler
         })
       )
     const onExit = (code: number) =>
-      fail(new Error(`Cron scheduler utility exited before spawn: ${code}`))
+      fail(new Error(`Cron scheduler utility exited before spawn: ${code}`), true)
     const onError = (type: string, location: string) =>
       fail(new Error(`Scheduler utility process error: ${type} at ${location}`))
     const onAbort = () => fail(new Error('Scheduler utility spawn canceled.'))

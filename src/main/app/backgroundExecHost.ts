@@ -24,12 +24,20 @@ export async function spawnBackgroundExecHost(
       signal.removeEventListener('abort', onAbort)
       callback()
     }
-    const fail = (error: unknown) =>
+    const fail = (error: unknown, exited = false) =>
       settle(() => {
-        try {
-          host.kill()
-        } catch {}
-        reject(error)
+        if (exited) {
+          reject(error)
+          return
+        }
+        const closed = new Promise<void>((resolve) => host.once('exit', () => resolve()))
+        void (async () => {
+          try {
+            host.kill()
+          } finally {
+            await closed
+          }
+        })().then(() => reject(error), reject)
       })
     const onSpawn = () =>
       settle(() =>
@@ -55,7 +63,7 @@ export async function spawnBackgroundExecHost(
         })
       )
     const onExit = (code: number) =>
-      fail(new Error(`Background exec helper exited before spawn: ${code}`))
+      fail(new Error(`Background exec helper exited before spawn: ${code}`), true)
     const onError = (type: string, location: string) =>
       fail(new Error(`Background exec helper error: ${type} at ${location}`))
     const onAbort = () => fail(signal.reason)

@@ -337,6 +337,7 @@ impl HostDispatch for Native {
                 | "profile.recovery"
                 | "profile.quit"
                 | "configuration"
+                | "helpers"
         ) {
             return Err(BridgeError::Value("Unknown Core Native capability".into()));
         }
@@ -512,36 +513,46 @@ impl Plugin for Gateway {
                 .unwrap()
                 .take()
                 .ok_or_else(|| CordisError::ServiceNotFound("Core generation ended".into()))?;
+            #[derive(Clone, Copy)]
+            enum Lane {
+                Ordinary,
+                Control,
+                Observation,
+                NativeEvents,
+            }
             type Call = Pin<
-                Box<
-                    dyn Future<Output = (u64, bool, bool, bool, std::result::Result<Json, Json>)>
-                        + Send,
-                >,
+                Box<dyn Future<Output = (u64, Lane, bool, std::result::Result<Json, Json>)> + Send>,
             >;
             let mut calls = FuturesUnordered::<Call>::new();
-            let (mut ordinary, mut control, mut observations, mut last_id) = (0, 0, 0, 0);
+            let mut active = [0usize; 4];
+            let mut last_id = 0;
             loop {
                 tokio::select! {
                     biased;
                     _ = ctx.cancelled() => break,
-                    Some((id, is_control, observation, stopping, result)) = calls.next(), if !calls.is_empty() => {
-                        if observation { observations -= 1; } else if is_control { control -= 1; } else { ordinary -= 1; }
+                    Some((id, lane, stopping, result)) = calls.next(), if !calls.is_empty() => {
+                        active[lane as usize] -= 1;
                         if stopping && result.is_ok() { self.native.retire().await; }
                         let frame = match result { Ok(value) => json!({"type":"coreReply","id":id,"value":value}), Err(error) => json!({"type":"coreReply","id":id,"error":error}) };
                         if self.outgoing.send(frame).await.is_err() { break; }
                     },
                     request = incoming.recv() => match request {
                         Some(Request::CoreCall { id, method, args }) => {
-                            let is_control = matches!(method.as_str(), "status" | "stop");
-                            let observation = method == "observeSystemTheme";
-                            if id == 0 || id > 9_007_199_254_740_991 || id <= last_id || !matches!(method.as_str(), "openProfile" | "configure" | "observeSystemTheme" | "status" | "stop") || if observation { observations >= 1 } else if is_control { control >= 2 } else { ordinary >= 4 } {
+                            let lane = match method.as_str() {
+                                "status" | "stop" => Lane::Control,
+                                "observeSystemTheme" => Lane::Observation,
+                                "nativeEvents" => Lane::NativeEvents,
+                                "openProfile" | "configure" => Lane::Ordinary,
+                                _ => return Err(CordisError::ServiceNotFound("Invalid Core operation".into())),
+                            };
+                            if id == 0 || id > 9_007_199_254_740_991 || id <= last_id || active[lane as usize] >= [4, 2, 1, 1][lane as usize] {
                                 return Err(CordisError::ServiceNotFound("Invalid Core operation or quota".into()));
                             }
                             last_id = id;
                             let stopping = method == "stop";
-                            let value = service.invoke(&method, Value::List(if is_control || observation { vec![] } else { vec![args.into()] }));
-                            if observation { observations += 1; } else if is_control { control += 1; } else { ordinary += 1; }
-                            calls.push(Box::pin(async move { (id, is_control, observation, stopping, match value { Ok(value) => invoke(value).await, Err(error) => Err(bridge_error(error)) }) }));
+                            let value = service.invoke(&method, Value::List(if matches!(lane, Lane::Control | Lane::Observation) { vec![] } else { vec![args.into()] }));
+                            active[lane as usize] += 1;
+                            calls.push(Box::pin(async move { (id, lane, stopping, match value { Ok(value) => invoke(value).await, Err(error) => Err(bridge_error(error)) }) }));
                         },
                         None => break,
                         _ => return Err(CordisError::ServiceNotFound("Invalid Core request".into())),

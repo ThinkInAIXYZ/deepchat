@@ -3133,6 +3133,51 @@ compact receipts, raw outcomes and the one needed baseline remain. G5 is active 
 actual SDK Kernel assembly, callback/event transport, default routes/writer/lifecycle adoption and
 native package acceptance remain required before publication. G6-G12 retain their full scope.
 
+### Native helper command and event transport
+
+- [x] Implement fixed helper commands, Core proxies, a Native owner and the reserved event lane
+      in the Core link. Retain Main launch/RSS ownership and existing helper protocols;
+      preserve cancellation, callback ordering and actual process retirement with bounded queues.
+- [ ] Use these ports in actual SDK Kernel assembly and validate lifecycle, saturated ordinary
+      calls, payload bounds and matching application behavior. Full G5 writer/routes/lifecycle
+      adoption remains required; transport tests and constructors do not establish completion.
+
+The actual Core worker owns its helper proxy and event endpoint. Main's helper owner accepts only
+five approved kinds, validated protocol messages and owned-host RSS requests. Startup admission is
+separate from the opened/failed event. Cancellation can retire pending startup; an uncancelable
+late host is compensated. Native helper retirement awaits actual exit and the required Main
+attested Exec-descendant recovery capability. Unexpected Exec exit remains owned until recovery
+settles. Main must bind that capability to the same profile during complete Kernel adoption.
+
+Native calls retain their sixteen-call bound with two retirement slots; ordinary work has a
+64-request/64-MiB waiting bound. Queued values are snapshots and stop rejects queued ordinary work.
+Helper commands/events have bounded queues, data snapshots and ordered batches; concurrent kills
+coalesce into groups of at most 32. Unknown identities, malformed events, overflow and uncertain
+delivery fence the generation. Retirement remains possible after logical failure, and accepted
+Native effects receive their terminal outcome after actual settlement. No automatic replay occurs.
+
+Background execution, Scheduler and Code Mode native startup adapters now wait for actual exit
+before rejecting canceled/failed startup. Their matching existing tests require this receipt;
+an already exited process needs no repeated kill. Existing launch flags, Code Mode's restricted
+environment/heap/library policy and Main-owned RSS sampling are preserved.
+
+Acceptance passes **169 distinct TypeScript checks across 15 affected files** and all six locked
+Rust checks. Eight durable additions cover helper protocols and ownership, batched retirement,
+late startup and descendant recovery, held RSS, queue bounds, Native-call admission and the actual
+SDK event lane under saturated ordinary calls. The SDK fault case retains profile ownership until
+an accepted Native effect settles, then proves real stop and reopen. Native SQLite is required.
+
+Immutable `f511c078b` and the candidate each pass the same **six application cases** across three
+files: manual/timed Scheduler work and persistence, background execution and held-start shutdown,
+and Code Mode execution and held-ready shutdown. This is default-application regression evidence;
+the complete Kernel is not yet invoked through these ports. Main's helper factory and attested
+Exec-recovery binding remain required at that adoption point.
+
+Normal build, Node/web and affected-test types, format/check, lint, i18n, Rust fmt and Clippy pass.
+Evidence is `.deepchat/rutis-g5-native-helper-acceptance/`; no performance capture or claim is made.
+No new build/profile copies are retained. G5 stays active and unpublished until complete Kernel,
+writer, public-route and lifecycle adoption with old-path removal and native/package acceptance.
+
 ## G6. Extract the complete Memory capability
 
 - [ ] Move the existing facade and internal retrieval/extraction/reflection/persona/directive/

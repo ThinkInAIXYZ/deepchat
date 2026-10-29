@@ -94,10 +94,18 @@ describe('Code Mode native capability', () => {
       owner.abort()
       return native
     })
-    await expect(spawnCodeModeHost(entry, owner.signal)).rejects.toMatchObject({
+    let settled = false
+    const spawning = spawnCodeModeHost(entry, owner.signal).finally(() => {
+      settled = true
+    })
+    const rejected = expect(spawning).rejects.toMatchObject({
       name: 'AbortError'
     })
     expect(native.kill).toHaveBeenCalledOnce()
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    native.emit('exit', 0)
+    await rejected
   })
 
   it('returns only the owned helper RSS in bytes and respects canceled reads', async () => {

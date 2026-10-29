@@ -1,4 +1,6 @@
 import { createCoreAdmission, type CoreAdmissionService } from '../core/admission'
+import { CoreNativeHelpers } from '../core/helpers'
+import { CoreNativeCalls } from '../core/native'
 import { createCoreSettings } from '../core/settings'
 import { CoreMemoryRuntime, type CoreMemoryService } from '../core/memory'
 import { RutisMemoryVectorStores } from '@/harness/memory-vector'
@@ -15,7 +17,6 @@ import type { CoreProfileHost } from '@/app/profileStartup'
 import type { DatabaseSecurityCryptoPort } from '@/app/databaseSecurity'
 import { CorePayloadStore } from '../core/payload'
 import {
-  CORE_NATIVE_CALLS,
   CoreCarrierConfigSchema,
   type CoreCarrierConfig,
   type CoreNativeMethod,
@@ -43,6 +44,7 @@ export default definePlugin<CoreCarrierConfig>({
       openProfile: 'async',
       configure: 'async',
       observeSystemTheme: 'async',
+      nativeEvents: 'async',
       status: 'async',
       stop: 'async'
     }
@@ -69,7 +71,6 @@ export default definePlugin<CoreCarrierConfig>({
     let phase: CoreStatus['phase'] = 'idle'
     let opening: Promise<CorePayload> | undefined
     let stopping: Promise<void> | undefined
-    let nativeCalls = 0
     let ownsProfile = false
     let configuration: ReturnType<typeof createCoreSettings> | undefined
     let configurationTail: Promise<void> = Promise.resolve()
@@ -84,19 +85,18 @@ export default definePlugin<CoreCarrierConfig>({
       phase,
       businessReady: false
     })
-    const callNative = async (method: CoreNativeMethod, args: unknown[]): Promise<unknown> => {
-      if (isStopping() || ctx.signal.aborted) throw new Error('Core is stopping')
-      if (nativeCalls >= CORE_NATIVE_CALLS) throw new Error('Core Native call limit exceeded')
-      nativeCalls++
-      let ref: CorePayload | undefined
-      try {
-        ref = await store.encode(args)
-        return await store.decode(await native.invoke(config.generation, method, ref))
-      } finally {
-        nativeCalls--
-        if (ref) await store.release(ref)
+    const nativeCalls = new CoreNativeCalls(
+      store,
+      async (method, ref) => await native.invoke(config.generation, method, ref),
+      () => isStopping() || ctx.signal.aborted
+    )
+    const callNative = (method: CoreNativeMethod, args: unknown[]) => nativeCalls.call(method, args)
+    const helpers = new CoreNativeHelpers(
+      async (command) => await callNative('helpers', [command]),
+      () => {
+        void stop().catch(() => {})
       }
-    }
+    )
     const host: CoreProfileHost = {
       setLoggingEnabled: async (enabled) => {
         await callNative('profile.logging', [enabled])
@@ -164,11 +164,13 @@ export default definePlugin<CoreCarrierConfig>({
       stopping = (async () => {
         // An in-flight Native effect must settle before profile startup can retire its lock.
         await opening?.catch(() => undefined)
+        await helpers.close()
         await configurationTail
         await configuration?.appSettingsService.stop()
         await vectorStores?.dispose()
         await memory.retire()
         await admission.close()
+        await nativeCalls.drain()
         profile?.closeProfile()
         if (ownsProfile) throw new Error('Core profile ownership did not retire')
         profile = undefined
@@ -301,6 +303,10 @@ export default definePlugin<CoreCarrierConfig>({
       },
       async observeSystemTheme() {
         return await runConfiguration(async (owner) => await owner.observeSystemTheme())
+      },
+      async nativeEvents(ref: CorePayload): Promise<CorePayload> {
+        helpers.accept(await store.decode(ref))
+        return await store.encode(undefined)
       },
       async status() {
         return await store.encode(status())
