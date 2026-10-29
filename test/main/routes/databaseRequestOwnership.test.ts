@@ -18,7 +18,7 @@ function createRuntime(handler: () => Promise<unknown>) {
   const dispatcher = createRouteDispatcher({
     appDatabaseMaintenance: gate,
     routeMaps: [createRouteMap([['models.getProviderCatalog', handler]])],
-    settingsWindow: { getSettingsWindowId: () => 99 },
+    isSettingsWindow: async (windowId) => windowId === 99,
     startupWorkloadCoordinator: coordinator
   })
   const dispatch = () =>
@@ -32,6 +32,33 @@ function createRuntime(handler: () => Promise<unknown>) {
 }
 
 describe('database requests scheduled as startup work', () => {
+  it('rechecks admission after an awaited native window query', async () => {
+    const gate = new DatabaseRequestGate(() => undefined)
+    const authority = Promise.withResolvers<boolean>()
+    const handler = vi.fn(async () => ({ language: 'en-US' }))
+    const dispatcher = createRouteDispatcher({
+      appDatabaseMaintenance: gate,
+      routeMaps: [createRouteMap([['config.getLanguage', handler]])],
+      isSettingsWindow: () => authority.promise,
+      startupWorkloadCoordinator: new StartupWorkloadCoordinator()
+    })
+    const pending = dispatchDeepchatRoute(
+      dispatcher,
+      'config.getLanguage',
+      {},
+      createRendererRouteContext(42, 99)
+    )
+    const rejected = expect(pending).rejects.toThrow('maintenance is maintenance')
+    gate.beginMaintenance()
+    const drain = gate.drain()
+    expect(handler).not.toHaveBeenCalled()
+    authority.resolve(false)
+    await rejected
+    await drain
+    expect(handler).not.toHaveBeenCalled()
+    gate.resume()
+  })
+
   it('rechecks admission before queued work actually executes', async () => {
     const handler = vi.fn(async () => ({ models: [] }))
     const { gate, coordinator, dispatch } = createRuntime(handler)

@@ -81,13 +81,13 @@ const assertAppRouteInput = (rawInput: unknown): void => {
 export function createMcpRoutes(deps: {
   mcpService: McpServicePort
   mcpAppHost: McpAppHostPort
-  isSettingsWindow(windowId: number | null): boolean
+  isSettingsWindow(windowId: number | null): Promise<boolean>
   recordSettingsActivity(input: SettingsActivityInput): Promise<unknown>
 }): DeepchatRouteMap {
   const { mcpService } = deps
-  const appContext = (context: RouteContext) => {
+  const appContext = async (context: RouteContext) => {
     const caller = requireRendererCaller(context)
-    if (caller.windowId === null || deps.isSettingsWindow(caller.windowId)) {
+    if (caller.windowId === null || (await deps.isSettingsWindow(caller.windowId))) {
       throw new Error('MCP Apps are restricted to conversation windows')
     }
     return {
@@ -95,9 +95,9 @@ export function createMcpRoutes(deps: {
       windowId: caller.windowId
     }
   }
-  const assertSettingsWindow = (context: RouteContext): void => {
+  const assertSettingsWindow = async (context: RouteContext): Promise<void> => {
     const caller = requireRendererCaller(context)
-    if (!deps.isSettingsWindow(caller.windowId)) {
+    if (!(await deps.isSettingsWindow(caller.windowId))) {
       throw new Error('MCP credential changes are restricted to the settings window')
     }
   }
@@ -310,7 +310,7 @@ export function createMcpRoutes(deps: {
     [
       mcpStartServerAuthRoute.name,
       async (rawInput, context) => {
-        assertSettingsWindow(context)
+        await assertSettingsWindow(context)
         const input = mcpStartServerAuthRoute.input.parse(rawInput)
         return mcpStartServerAuthRoute.output.parse({
           status: await mcpService.startMcpServerAuth(input.serverId)
@@ -320,7 +320,7 @@ export function createMcpRoutes(deps: {
     [
       mcpCompleteServerAuthFromCallbackUrlRoute.name,
       async (rawInput, context) => {
-        assertSettingsWindow(context)
+        await assertSettingsWindow(context)
         const input = mcpCompleteServerAuthFromCallbackUrlRoute.input.parse(rawInput)
         return mcpCompleteServerAuthFromCallbackUrlRoute.output.parse({
           status: await mcpService.completeMcpServerAuthFromCallbackUrl(
@@ -333,7 +333,7 @@ export function createMcpRoutes(deps: {
     [
       mcpLogoutServerAuthRoute.name,
       async (rawInput, context) => {
-        assertSettingsWindow(context)
+        await assertSettingsWindow(context)
         const input = mcpLogoutServerAuthRoute.input.parse(rawInput)
         return mcpLogoutServerAuthRoute.output.parse({
           status: await mcpService.logoutMcpServerAuth(input.serverId)
@@ -343,7 +343,7 @@ export function createMcpRoutes(deps: {
     [
       mcpCredentialsGetStatusRoute.name,
       async (rawInput, context) => {
-        assertSettingsWindow(context)
+        await assertSettingsWindow(context)
         const input = mcpCredentialsGetStatusRoute.input.parse(rawInput)
         return mcpCredentialsGetStatusRoute.output.parse({
           credentials: await mcpService.getMcpCredentialStatus(input.serverId)
@@ -353,7 +353,7 @@ export function createMcpRoutes(deps: {
     [
       mcpCredentialsSetRoute.name,
       async (rawInput, context) => {
-        assertSettingsWindow(context)
+        await assertSettingsWindow(context)
         const input = mcpCredentialsSetRoute.input.parse(rawInput)
         return mcpCredentialsSetRoute.output.parse({
           status: await mcpService.setMcpCredential(input.binding, input.credential)
@@ -363,7 +363,7 @@ export function createMcpRoutes(deps: {
     [
       mcpCredentialsRemoveRoute.name,
       async (rawInput, context) => {
-        assertSettingsWindow(context)
+        await assertSettingsWindow(context)
         const input = mcpCredentialsRemoveRoute.input.parse(rawInput)
         return mcpCredentialsRemoveRoute.output.parse({
           status: await mcpService.removeMcpCredential(input.binding, input.kind)
@@ -373,7 +373,7 @@ export function createMcpRoutes(deps: {
     [
       mcpEnterpriseProfilesListRoute.name,
       async (rawInput, context) => {
-        assertSettingsWindow(context)
+        await assertSettingsWindow(context)
         mcpEnterpriseProfilesListRoute.input.parse(rawInput)
         return mcpEnterpriseProfilesListRoute.output.parse({
           profiles: await mcpService.listMcpEnterpriseProfiles()
@@ -383,7 +383,7 @@ export function createMcpRoutes(deps: {
     [
       mcpEnterpriseProfilesSaveRoute.name,
       async (rawInput, context) => {
-        assertSettingsWindow(context)
+        await assertSettingsWindow(context)
         const input = mcpEnterpriseProfilesSaveRoute.input.parse(rawInput)
         return mcpEnterpriseProfilesSaveRoute.output.parse({
           profile: await mcpService.saveMcpEnterpriseProfile(input.profile)
@@ -393,7 +393,7 @@ export function createMcpRoutes(deps: {
     [
       mcpEnterpriseProfilesRemoveRoute.name,
       async (rawInput, context) => {
-        assertSettingsWindow(context)
+        await assertSettingsWindow(context)
         const input = mcpEnterpriseProfilesRemoveRoute.input.parse(rawInput)
         await mcpService.removeMcpEnterpriseProfile(input.profileId)
         return mcpEnterpriseProfilesRemoveRoute.output.parse({ removed: true })
@@ -402,7 +402,7 @@ export function createMcpRoutes(deps: {
     [
       mcpEnterpriseProfilesSetClientSecretRoute.name,
       async (rawInput, context) => {
-        assertSettingsWindow(context)
+        await assertSettingsWindow(context)
         const input = mcpEnterpriseProfilesSetClientSecretRoute.input.parse(rawInput)
         return mcpEnterpriseProfilesSetClientSecretRoute.output.parse({
           status: await mcpService.setMcpEnterpriseProfileClientSecret(
@@ -415,7 +415,7 @@ export function createMcpRoutes(deps: {
     [
       mcpEnterpriseProfilesGetStatusRoute.name,
       async (rawInput, context) => {
-        assertSettingsWindow(context)
+        await assertSettingsWindow(context)
         const input = mcpEnterpriseProfilesGetStatusRoute.input.parse(rawInput)
         return mcpEnterpriseProfilesGetStatusRoute.output.parse({
           status: await mcpService.getMcpEnterpriseProfileStatus(input.profileId)
@@ -425,7 +425,7 @@ export function createMcpRoutes(deps: {
     [
       mcpEnterpriseProfilesStartAuthRoute.name,
       async (rawInput, context) => {
-        assertSettingsWindow(context)
+        await assertSettingsWindow(context)
         const input = mcpEnterpriseProfilesStartAuthRoute.input.parse(rawInput)
         return mcpEnterpriseProfilesStartAuthRoute.output.parse({
           status: await mcpService.startMcpEnterpriseProfileAuth(input.profileId)
@@ -435,7 +435,7 @@ export function createMcpRoutes(deps: {
     [
       mcpEnterpriseProfilesCompleteAuthRoute.name,
       async (rawInput, context) => {
-        assertSettingsWindow(context)
+        await assertSettingsWindow(context)
         const input = mcpEnterpriseProfilesCompleteAuthRoute.input.parse(rawInput)
         return mcpEnterpriseProfilesCompleteAuthRoute.output.parse({
           status: await mcpService.completeMcpEnterpriseProfileAuthFromCallbackUrl(
@@ -448,7 +448,7 @@ export function createMcpRoutes(deps: {
     [
       mcpEnterpriseProfilesLogoutRoute.name,
       async (rawInput, context) => {
-        assertSettingsWindow(context)
+        await assertSettingsWindow(context)
         const input = mcpEnterpriseProfilesLogoutRoute.input.parse(rawInput)
         return mcpEnterpriseProfilesLogoutRoute.output.parse({
           status: await mcpService.logoutMcpEnterpriseProfile(input.profileId)
@@ -476,7 +476,7 @@ export function createMcpRoutes(deps: {
     [
       mcpSubmitSamplingDecisionRoute.name,
       async (rawInput, context) => {
-        appContext(context)
+        await appContext(context)
         const input = mcpSubmitSamplingDecisionRoute.input.parse(rawInput)
         await mcpService.submitSamplingDecision(input.decision)
         return mcpSubmitSamplingDecisionRoute.output.parse({ submitted: true })
@@ -485,7 +485,7 @@ export function createMcpRoutes(deps: {
     [
       mcpCancelSamplingRequestRoute.name,
       async (rawInput, context) => {
-        appContext(context)
+        await appContext(context)
         const input = mcpCancelSamplingRequestRoute.input.parse(rawInput)
         await mcpService.cancelSamplingRequest(input.requestId, input.reason)
         return mcpCancelSamplingRequestRoute.output.parse({ cancelled: true })
@@ -494,7 +494,7 @@ export function createMcpRoutes(deps: {
     [
       mcpSubmitElicitationDecisionRoute.name,
       async (rawInput, context) => {
-        appContext(context)
+        await appContext(context)
         const input = mcpSubmitElicitationDecisionRoute.input.parse(rawInput)
         await mcpService.submitElicitationDecision(input.decision)
         return mcpSubmitElicitationDecisionRoute.output.parse({ submitted: true })
@@ -503,7 +503,7 @@ export function createMcpRoutes(deps: {
     [
       mcpCancelElicitationRequestRoute.name,
       async (rawInput, context) => {
-        appContext(context)
+        await appContext(context)
         const input = mcpCancelElicitationRequestRoute.input.parse(rawInput)
         await mcpService.cancelElicitationRequest(input.requestId, input.reason)
         return mcpCancelElicitationRequestRoute.output.parse({ cancelled: true })
@@ -515,7 +515,7 @@ export function createMcpRoutes(deps: {
         assertAppRouteInput(rawInput)
         const input = mcpAppsPrepareViewRoute.input.parse(rawInput)
         return mcpAppsPrepareViewRoute.output.parse({
-          view: await deps.mcpAppHost.prepareView(input, appContext(context))
+          view: await deps.mcpAppHost.prepareView(input, await appContext(context))
         })
       }
     ],
@@ -524,7 +524,7 @@ export function createMcpRoutes(deps: {
       async (rawInput, context) => {
         assertAppRouteInput(rawInput)
         const input = mcpAppsReleaseViewRoute.input.parse(rawInput)
-        await deps.mcpAppHost.releaseView(input.instanceId, appContext(context))
+        await deps.mcpAppHost.releaseView(input.instanceId, await appContext(context))
         return mcpAppsReleaseViewRoute.output.parse({ released: true })
       }
     ],
@@ -538,7 +538,7 @@ export function createMcpRoutes(deps: {
             input.instanceId,
             input.name,
             input.arguments,
-            appContext(context)
+            await appContext(context)
           )
         })
       }
@@ -549,7 +549,7 @@ export function createMcpRoutes(deps: {
         assertAppRouteInput(rawInput)
         const input = mcpAppsListToolsRoute.input.parse(rawInput)
         return mcpAppsListToolsRoute.output.parse(
-          await deps.mcpAppHost.listTools(input.instanceId, input.cursor, appContext(context))
+          await deps.mcpAppHost.listTools(input.instanceId, input.cursor, await appContext(context))
         )
       }
     ],
@@ -559,7 +559,7 @@ export function createMcpRoutes(deps: {
         assertAppRouteInput(rawInput)
         const input = mcpAppsReadResourceRoute.input.parse(rawInput)
         return mcpAppsReadResourceRoute.output.parse(
-          await deps.mcpAppHost.readResource(input.instanceId, input.uri, appContext(context))
+          await deps.mcpAppHost.readResource(input.instanceId, input.uri, await appContext(context))
         )
       }
     ],
@@ -569,7 +569,11 @@ export function createMcpRoutes(deps: {
         assertAppRouteInput(rawInput)
         const input = mcpAppsListResourcesRoute.input.parse(rawInput)
         return mcpAppsListResourcesRoute.output.parse(
-          await deps.mcpAppHost.listResources(input.instanceId, input.cursor, appContext(context))
+          await deps.mcpAppHost.listResources(
+            input.instanceId,
+            input.cursor,
+            await appContext(context)
+          )
         )
       }
     ],
@@ -582,7 +586,7 @@ export function createMcpRoutes(deps: {
           await deps.mcpAppHost.listResourceTemplates(
             input.instanceId,
             input.cursor,
-            appContext(context)
+            await appContext(context)
           )
         )
       }
@@ -593,7 +597,11 @@ export function createMcpRoutes(deps: {
         assertAppRouteInput(rawInput)
         const input = mcpAppsListPromptsRoute.input.parse(rawInput)
         return mcpAppsListPromptsRoute.output.parse(
-          await deps.mcpAppHost.listPrompts(input.instanceId, input.cursor, appContext(context))
+          await deps.mcpAppHost.listPrompts(
+            input.instanceId,
+            input.cursor,
+            await appContext(context)
+          )
         )
       }
     ],
@@ -603,7 +611,11 @@ export function createMcpRoutes(deps: {
         assertAppRouteInput(rawInput)
         const input = mcpAppsOpenLinkRoute.input.parse(rawInput)
         return mcpAppsOpenLinkRoute.output.parse({
-          opened: await deps.mcpAppHost.openLink(input.instanceId, input.url, appContext(context))
+          opened: await deps.mcpAppHost.openLink(
+            input.instanceId,
+            input.url,
+            await appContext(context)
+          )
         })
       }
     ],
@@ -616,7 +628,7 @@ export function createMcpRoutes(deps: {
           approved: await deps.mcpAppHost.authorizeMessage(
             input.instanceId,
             input.text,
-            appContext(context)
+            await appContext(context)
           )
         })
       }
@@ -633,7 +645,7 @@ export function createMcpRoutes(deps: {
               content: input.content,
               structuredContent: input.structuredContent
             },
-            appContext(context)
+            await appContext(context)
           )
         )
       }
@@ -643,7 +655,7 @@ export function createMcpRoutes(deps: {
       async (rawInput, context) => {
         assertAppRouteInput(rawInput)
         const input = mcpAppsRetryToolAccessRoute.input.parse(rawInput)
-        await deps.mcpAppHost.retryToolAccess(input.instanceId, appContext(context))
+        await deps.mcpAppHost.retryToolAccess(input.instanceId, await appContext(context))
         return mcpAppsRetryToolAccessRoute.output.parse({ retried: true })
       }
     ],
@@ -652,7 +664,11 @@ export function createMcpRoutes(deps: {
       async (rawInput, context) => {
         assertAppRouteInput(rawInput)
         const input = mcpAppsSubmitConsentRoute.input.parse(rawInput)
-        await deps.mcpAppHost.submitConsent(input.requestId, input.approved, appContext(context))
+        await deps.mcpAppHost.submitConsent(
+          input.requestId,
+          input.approved,
+          await appContext(context)
+        )
         return mcpAppsSubmitConsentRoute.output.parse({ submitted: true })
       }
     ],

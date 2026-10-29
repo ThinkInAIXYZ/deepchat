@@ -28,7 +28,7 @@ export function createAcpRoutes(dependencies: {
   auth: AcpAuthService
   owner: AcpRuntimeOwner
   runtime: AcpAgentRuntime
-  isMainWindowContext(caller: RendererRouteCaller): boolean
+  isMainWindowContext(caller: RendererRouteCaller): Promise<boolean>
   importHistory(sessionId: string): Promise<void>
 }) {
   const controller = () => dependencies.owner.getOrCreate().sessionController
@@ -108,7 +108,7 @@ export function createAcpRoutes(dependencies: {
     [
       acpElicitationListRoute.name,
       async (_input, context) => {
-        if (!dependencies.isMainWindowContext(requireRendererCaller(context)))
+        if (!(await dependencies.isMainWindowContext(requireRendererCaller(context))))
           throw new Error('ACP elicitation requires the main window')
         const bridge = dependencies.owner.peek()?.processManager.elicitation
         return acpElicitationListRoute.output.parse({
@@ -120,7 +120,7 @@ export function createAcpRoutes(dependencies: {
     [
       acpElicitationRespondRoute.name,
       async (rawInput, context) => {
-        if (!dependencies.isMainWindowContext(requireRendererCaller(context)))
+        if (!(await dependencies.isMainWindowContext(requireRendererCaller(context))))
           throw new Error('ACP elicitation requires the main window')
         const input = acpElicitationRespondRoute.input.parse(rawInput)
         return {

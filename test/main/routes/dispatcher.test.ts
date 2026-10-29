@@ -1632,7 +1632,7 @@ function createRuntime() {
   const mcpRoutes = createMcpRoutes({
     mcpService,
     mcpAppHost: {} as any,
-    isSettingsWindow: () => true,
+    isSettingsWindow: async () => true,
     recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
   })
   const remoteRoutes = createRemoteRoutes(remoteService)
@@ -1785,7 +1785,7 @@ function createRuntime() {
   }
   const acpRoutes = createAcpRoutes({
     auth: acpAuth as never,
-    isMainWindowContext: (caller) => caller.webContentsId === 42,
+    isMainWindowContext: async (caller) => caller.webContentsId === 42,
     owner: { peek: () => undefined } as never
   })
   const deviceRoutes = createDeviceRoutes({
@@ -1837,6 +1837,7 @@ function createRuntime() {
     listActivities: (limit) => sqlitePresenter.listSettingsActivity(limit)
   })
   const appRoutes = createAppRoutes({
+    isPackaged: false,
     logging: loggingService as never,
     agentSettings: providerSettings,
     projects: projectPresenter as never,
@@ -1891,7 +1892,7 @@ function createRuntime() {
           appSettingsRoutes,
           appRoutes
         ],
-        settingsWindow: windowPresenter,
+        isSettingsWindow: async (windowId) => windowPresenter.getSettingsWindowId() === windowId,
         startupWorkloadCoordinator: startupWorkloadCoordinator as any
       })
       Object.defineProperties(runtime, {

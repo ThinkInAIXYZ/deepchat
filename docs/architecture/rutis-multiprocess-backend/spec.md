@@ -709,6 +709,14 @@ Logging and unlock/recovery/quit effects acknowledge their native completion. Fa
 its acquired database before releasing the operation. Main retains no writable startup shadow when
 the backend opens its files.
 
+Keep public route execution independent of Electron IPC registration. Main authenticates the
+current renderer document before invoking the business dispatcher and derives caller identity from
+the native sender; input fields cannot replace that context. Only plain route input/output and
+caller values cross this boundary. Native window-role checks are awaited queries, not synchronous
+window objects or cached permission grants. After an awaited startup classification, recheck
+database admission before dispatch so maintenance or shutdown can retire pending work. Debug app
+routes require explicit packaged-build identity in addition to the development-build guard.
+
 Acquire the profile's `.core-owner.lock` SQLite exclusive transaction before constructing settings
 or starting crypto/recovery. This independent, data-free handle remains owned while the primary
 database closes/reopens for maintenance. Do not infer release from a pending reply, a PID file or

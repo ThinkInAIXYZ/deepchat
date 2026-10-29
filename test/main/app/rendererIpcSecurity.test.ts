@@ -1,10 +1,16 @@
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
-import { clipboard, nativeImage, type IpcMain, type IpcMainInvokeEvent } from 'electron'
+import {
+  BrowserWindow,
+  clipboard,
+  nativeImage,
+  type IpcMain,
+  type IpcMainInvokeEvent
+} from 'electron'
 import { createRendererIpcAuthorizer } from '@/app/rendererIpcSecurity'
 import { registerClipboardIpc } from '@/app/clipboardIpc'
-import { registerDeepchatRoutes, type RouteDispatcher } from '@/routes'
+import { registerDeepchatRoutes } from '@/app/routeIpc'
 import { CLIPBOARD_IPC_CHANNELS } from '@shared/clipboardChannels'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 
@@ -77,10 +83,10 @@ describe('native renderer document boundary', () => {
 
   it('rejects a same-origin child, missing frame, destroyed sender, and stale document', () => {
     const child = eventFor()
-    child.senderFrame = { url: appUrl } as IpcMainInvokeEvent['senderFrame']
+    Object.defineProperty(child, 'senderFrame', { value: { url: appUrl } })
     expect(() => authorize(child)).toThrow('top-level')
     const missing = eventFor()
-    missing.senderFrame = null
+    Object.defineProperty(missing, 'senderFrame', { value: null })
     expect(() => authorize(missing)).toThrow('top-level')
     const destroyed = eventFor()
     destroyed.sender.isDestroyed = () => true
@@ -132,13 +138,7 @@ describe('native renderer document boundary', () => {
       vi.spyOn(clipboard, 'readText'),
       vi.spyOn(nativeImage, 'createFromDataURL')
     ]
-    registerDeepchatRoutes(
-      ipcMain,
-      {
-        appDatabaseMaintenance: { assertRouteAllowed: dispatch }
-      } as unknown as RouteDispatcher,
-      authorize
-    )
+    registerDeepchatRoutes(ipcMain, dispatch, authorize)
     registerClipboardIpc(ipcMain, authorize)
     const untrusted = eventFor('file:///tmp/preview.html')
     await expect(
@@ -150,5 +150,25 @@ describe('native renderer document boundary', () => {
     expect(dispatch).not.toHaveBeenCalled()
     for (const spy of clipboardSpies) expect(spy).not.toHaveBeenCalled()
     vi.restoreAllMocks()
+  })
+
+  it('derives the forwarded caller from the authorized native sender', async () => {
+    let invoke: (...args: unknown[]) => unknown = () => undefined
+    const ipcMain = {
+      removeHandler: vi.fn(),
+      handle: (_channel: string, handler: typeof invoke) => {
+        invoke = handler
+      }
+    } as unknown as IpcMain
+    const dispatch = vi.fn().mockResolvedValue({ language: 'en-US' })
+    vi.mocked(BrowserWindow.fromWebContents).mockReturnValue({ id: 7 } as Electron.BrowserWindow)
+    registerDeepchatRoutes(ipcMain, dispatch, authorize)
+    const input = { caller: { kind: 'internal', component: 'migration' } }
+    await expect(invoke(eventFor(), 'config.getLanguage', input)).resolves.toEqual({
+      language: 'en-US'
+    })
+    expect(dispatch).toHaveBeenCalledExactlyOnceWith('config.getLanguage', input, {
+      caller: { kind: 'renderer', webContentsId: 42, windowId: 7 }
+    })
   })
 })

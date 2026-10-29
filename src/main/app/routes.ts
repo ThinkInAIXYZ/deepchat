@@ -1,4 +1,3 @@
-import { app } from 'electron'
 import type { DatabaseRepairReport } from '@shared/types/databaseSchema'
 import type { AgentSettingsPort } from '@/agent/settings'
 import {
@@ -35,9 +34,10 @@ import type { RendererPerformanceLogService } from './rendererPerformanceLogServ
 import type { SplashWindow } from './splashWindow'
 
 export function createAppRoutes(deps: {
+  isPackaged: boolean
   logging: Pick<LoggingService, 'openFolder'>
   rendererPerformance: Pick<RendererPerformanceLogService, 'record'>
-  isMainWindowContext(caller: RendererRouteCaller): boolean
+  isMainWindowContext(caller: RendererRouteCaller): Promise<boolean>
   agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'getAcpEnabled'>
   projects: Pick<ProjectService, 'getDefaultProjectPath'>
   databaseSecurity: Pick<DatabaseSecurityService, 'getStatus'>
@@ -142,7 +142,7 @@ export function createAppRoutes(deps: {
       async (rawInput, context) => {
         const record = performanceRecordRendererRoute.input.parse(rawInput)
         const caller = requireRendererCaller(context)
-        if (!deps.isMainWindowContext(caller)) {
+        if (!(await deps.isMainWindowContext(caller))) {
           return performanceRecordRendererRoute.output.parse({ accepted: false })
         }
         const accepted = await deps.rendererPerformance.record(record)
@@ -204,7 +204,7 @@ export function createAppRoutes(deps: {
       debugShowSplashScenarioRoute.name,
       async (rawInput) => {
         const input = debugShowSplashScenarioRoute.input.parse(rawInput)
-        if (!import.meta.env.DEV || app.isPackaged) {
+        if (!import.meta.env.DEV || deps.isPackaged) {
           return debugShowSplashScenarioRoute.output.parse({ shown: false })
         }
         await deps.splash.showDebugScenario(input.mode)
@@ -215,7 +215,7 @@ export function createAppRoutes(deps: {
       debugCloseSplashScenarioRoute.name,
       async (rawInput) => {
         debugCloseSplashScenarioRoute.input.parse(rawInput)
-        if (!import.meta.env.DEV || app.isPackaged) {
+        if (!import.meta.env.DEV || deps.isPackaged) {
           return debugCloseSplashScenarioRoute.output.parse({ closed: false })
         }
         return debugCloseSplashScenarioRoute.output.parse({
@@ -227,7 +227,7 @@ export function createAppRoutes(deps: {
       debugCreateMockChatSessionRoute.name,
       async (rawInput) => {
         debugCreateMockChatSessionRoute.input.parse(rawInput)
-        if (!import.meta.env.DEV || app.isPackaged) {
+        if (!import.meta.env.DEV || deps.isPackaged) {
           return debugCreateMockChatSessionRoute.output.parse({
             created: false,
             sessionId: null,

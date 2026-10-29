@@ -1,6 +1,3 @@
-import { BrowserWindow, type IpcMain, type IpcMainInvokeEvent } from 'electron'
-import type { IWindowPresenter } from '@shared/types/desktop'
-import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import {
   hasDeepchatRouteContract,
   mcpGetClientsRoute,
@@ -14,19 +11,13 @@ import {
   sessionsListLightweightRoute,
   skillsListMetadataRoute
 } from '@shared/contracts/routes'
-import {
-  createRendererRouteContext,
-  createRouteRegistry,
-  type DeepchatRouteMap,
-  type RouteContext
-} from './routeRegistry'
+import { createRouteRegistry, type DeepchatRouteMap, type RouteContext } from './routeRegistry'
 import type { StartupWorkloadCoordinator } from '@/app/startupWorkloadCoordinator'
-import type { AuthorizeRendererIpc } from '@/app/rendererIpcSecurity'
 
 export type RouteDispatcher = {
   appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort
   routeRegistry: DeepchatRouteMap
-  settingsWindow: Pick<IWindowPresenter, 'getSettingsWindowId'>
+  isSettingsWindow(windowId: number): Promise<boolean>
   startupWorkloadCoordinator: StartupWorkloadCoordinator
 }
 
@@ -38,13 +29,13 @@ export interface MainKernelAppDatabaseMaintenancePort {
 export function createRouteDispatcher(deps: {
   appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort
   routeMaps: readonly DeepchatRouteMap[]
-  settingsWindow: Pick<IWindowPresenter, 'getSettingsWindowId'>
+  isSettingsWindow(windowId: number): Promise<boolean>
   startupWorkloadCoordinator: StartupWorkloadCoordinator
 }): RouteDispatcher {
   return {
     appDatabaseMaintenance: deps.appDatabaseMaintenance,
     routeRegistry: createRouteRegistry(deps.routeMaps),
-    settingsWindow: deps.settingsWindow,
+    isSettingsWindow: deps.isSettingsWindow,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator
   }
 }
@@ -67,19 +58,22 @@ type StartupTrackedRouteTask = {
   dedupeKey?: string
 }
 
-function isSettingsWindowContext(dispatcher: RouteDispatcher, context: RouteContext): boolean {
+async function isSettingsWindowContext(
+  dispatcher: RouteDispatcher,
+  context: RouteContext
+): Promise<boolean> {
   if (context.caller.kind !== 'renderer' || context.caller.windowId == null) {
     return false
   }
-  return dispatcher.settingsWindow.getSettingsWindowId() === context.caller.windowId
+  return await dispatcher.isSettingsWindow(context.caller.windowId)
 }
 
-function resolveTrackedRouteTask(
+async function resolveTrackedRouteTask(
   dispatcher: RouteDispatcher,
   routeName: string,
   context: RouteContext
-): StartupTrackedRouteTask | null {
-  const isSettings = isSettingsWindowContext(dispatcher, context)
+): Promise<StartupTrackedRouteTask | null> {
+  const isSettings = await isSettingsWindowContext(dispatcher, context)
 
   if (routeName === providersListSummariesRoute.name && isSettings) {
     return {
@@ -180,7 +174,8 @@ async function runTrackedRouteTask<T>(
   action: () => Promise<T>
 ): Promise<T> {
   const coordinator = dispatcher.startupWorkloadCoordinator
-  const trackedTask = resolveTrackedRouteTask(dispatcher, routeName, context)
+  const trackedTask = await resolveTrackedRouteTask(dispatcher, routeName, context)
+  dispatcher.appDatabaseMaintenance.assertRouteAllowed(routeName)
   if (!trackedTask) {
     return await action()
   }
@@ -224,27 +219,4 @@ export async function dispatchDeepchatRoute(
   }
 
   throw new Error(`Unhandled deepchat route: ${routeName}`)
-}
-
-export function registerDeepchatRoutes(
-  ipcMain: IpcMain,
-  dispatcher: RouteDispatcher,
-  authorize: AuthorizeRendererIpc
-): void {
-  ipcMain.removeHandler(DEEPCHAT_ROUTE_INVOKE_CHANNEL)
-  ipcMain.handle(
-    DEEPCHAT_ROUTE_INVOKE_CHANNEL,
-    async (event: IpcMainInvokeEvent, routeName: string, rawInput: unknown) => {
-      authorize(event, routeName)
-      return await dispatchDeepchatRoute(
-        dispatcher,
-        routeName,
-        rawInput,
-        createRendererRouteContext(
-          event.sender.id,
-          BrowserWindow.fromWebContents(event.sender)?.id ?? null
-        )
-      )
-    }
-  )
 }

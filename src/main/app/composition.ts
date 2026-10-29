@@ -302,12 +302,8 @@ import { createPromptRoutes } from '@/agent/promptRoutes'
 import { createSkillExecutionAuthorityTapePort } from '@/tape/application/capabilityAdapters'
 import { AgentSessionExportService } from '../exporter/agentSessionExporter'
 import { createInMemoryServerFactory } from '../mcp/inMemoryServers/builder'
-import {
-  createRouteDispatcher,
-  dispatchDeepchatRoute,
-  registerDeepchatRoutes,
-  type RouteDispatcher
-} from '@/routes'
+import { createRouteDispatcher, dispatchDeepchatRoute, type RouteDispatcher } from '@/routes'
+import { registerDeepchatRoutes } from './routeIpc'
 import { createNodeScheduler } from '@/routes/scheduler'
 import { coordinateApplicationDataReset } from './applicationDataReset'
 import {
@@ -3486,7 +3482,7 @@ export async function createMainProcessControl(dependencies: {
         }
         return mcpService.appHost
       })(),
-      isSettingsWindow: (windowId) =>
+      isSettingsWindow: async (windowId) =>
         windowId != null && windowPresenter.getSettingsWindowId() === windowId,
       recordSettingsActivity: (input) => settingsDatabase.recordSettingsActivity(input)
     })
@@ -3595,7 +3591,7 @@ export async function createMainProcessControl(dependencies: {
       auth: acpAuthService,
       owner: acpRuntimeOwner,
       runtime: acpAgentRuntime,
-      isMainWindowContext: (caller) =>
+      isMainWindowContext: async (caller) =>
         windowPresenter.mainWindow?.webContents.id === caller.webContentsId,
       importHistory: async (sessionId) => {
         const localId = toAppSessionId(sessionId)
@@ -3686,9 +3682,10 @@ export async function createMainProcessControl(dependencies: {
       listActivities: (limit) => settingsDatabase.listSettingsActivity(limit)
     })
     const appRoutes = createAppRoutes({
+      isPackaged: app.isPackaged,
       logging: { openFolder: () => appSettingsService.openLoggingFolder() },
       rendererPerformance: rendererPerformanceLogService,
-      isMainWindowContext: (caller) =>
+      isMainWindowContext: async (caller) =>
         windowPresenter.mainWindow?.webContents.id === caller.webContentsId,
       agentSettings,
       projects: projectService,
@@ -3795,7 +3792,7 @@ export async function createMainProcessControl(dependencies: {
         cliMcpAdminRoutes,
         cliRunRoutes
       ],
-      settingsWindow: windowPresenter,
+      isSettingsWindow: async (windowId) => windowPresenter.getSettingsWindowId() === windowId,
       startupWorkloadCoordinator
     })
     const authorizeRendererIpc = createRendererIpcAuthorizer({
@@ -3803,7 +3800,12 @@ export async function createMainProcessControl(dependencies: {
       developmentServerUrl: app.isPackaged ? undefined : process.env.ELECTRON_RENDERER_URL,
       pluginSettingsWindow
     })
-    registerDeepchatRoutes(ipcMain, routeDispatcher, authorizeRendererIpc)
+    const dispatcher = routeDispatcher
+    registerDeepchatRoutes(
+      ipcMain,
+      (routeName, input, context) => dispatchDeepchatRoute(dispatcher, routeName, input, context),
+      authorizeRendererIpc
+    )
     registerClipboardIpc(ipcMain, authorizeRendererIpc)
   }
 

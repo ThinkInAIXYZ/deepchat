@@ -48,7 +48,7 @@ rerun CI or unchanged benchmarks to obtain a passing timing sample.
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
 | G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
 | G4 Store commands and desktop ports | Complete, `356143755` | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
-| G5 Cohesive TS Harness backend | In progress: profile/bootstrap composition | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
+| G5 Cohesive TS Harness backend | In progress: profile ownership and route boundary | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
 | G7 Rust control owner | Planned | G2, G5 | Admission and cohesive run/interaction settlement preserve all fences |
 | G8 Rust batch computations | Conditional | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go |
@@ -2710,6 +2710,31 @@ format/check including Markdown, lint and i18n pass. Evidence and hashes are in
 `.deepchat/rutis-g5-profile-ownership-acceptance/`. This preparation adds no runtime/process or
 performance claim; full Rutis composition, authenticated ports and writer/route/lifecycle cutover
 are still required before G5 publication.
+
+### Route execution and native ingress
+
+The default application registers renderer IPC through `app/routeIpc.ts`. It authenticates the
+native document before invoking the business dispatcher and builds caller identity from the native
+sender. The dispatcher and app/ACP/MCP business route factories have no Electron runtime dependency.
+App debug routes receive explicit packaged-build identity. Public routes, preload contracts and
+structured values are unchanged; no JSON conversion or caller-supplied authority is introduced.
+
+Main-window/settings-window checks are acknowledged async queries. MCP authentication, credential
+changes and app access await them before effects. Startup classification also awaits its query and
+rechecks database admission before executing or scheduling work, preserving maintenance/shutdown
+fences while a native answer is pending. Native registration consumes an invoke function, not the
+business registry or database objects.
+
+All **133 checks across six affected files pass**, including delayed allow/deny, trusted caller
+derivation and maintenance during a pending native query. Selected test types, app types, full
+build, format/check including Markdown, lint and i18n pass. A real profile plus app-route dispatch
+runs under ordinary Node with native SQLite and
+Electron imports forbidden: 225 source files plus its one probe entry. This proves that route
+boundary, not the complete Core process or a headless Session Host. The immutable `11eb02a87`
+baseline and candidate each pass the same five app cases for native IPC, ACP questions, MCP
+credentials, MCP Apps and persistent settings. Evidence and artifact/source hashes are recorded in
+`.deepchat/rutis-g5-route-owner-acceptance/`. Main still owns the business composition and writer;
+the full Rutis cutover remains required before publication. No performance recapture is selected.
 
 ## G6. Extract the complete Memory capability
 

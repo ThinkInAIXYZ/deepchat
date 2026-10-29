@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createRendererRouteContext } from '@/routes/routeRegistry'
-import { app } from 'electron'
 import {
   debugCloseSplashScenarioRoute,
   debugShowSplashScenarioRoute,
@@ -20,9 +19,10 @@ const validRecord = {
 
 function createRoutes(overrides: Partial<Parameters<typeof createAppRoutes>[0]> = {}) {
   return createAppRoutes({
+    isPackaged: false,
     logging: { openFolder: vi.fn() },
     rendererPerformance: { record: vi.fn().mockResolvedValue(true) },
-    isMainWindowContext: vi.fn(() => true),
+    isMainWindowContext: vi.fn(async () => true),
     agentSettings: {
       listAgents: vi.fn(),
       getAcpEnabled: vi.fn()
@@ -57,24 +57,18 @@ describe('app debug splash routes', () => {
       showDebugScenario: vi.fn(),
       closeDebugScenario: vi.fn()
     }
-    const isPackaged = vi.spyOn(app, 'isPackaged', 'get').mockReturnValue(true)
+    const routes = createRoutes({ splash, isPackaged: true })
+    const show = routes.get(debugShowSplashScenarioRoute.name)
+    const close = routes.get(debugCloseSplashScenarioRoute.name)
 
-    try {
-      const routes = createRoutes({ splash })
-      const show = routes.get(debugShowSplashScenarioRoute.name)
-      const close = routes.get(debugCloseSplashScenarioRoute.name)
-
-      await expect(show?.({ mode: 'unlock' }, createRendererRouteContext(1, 1))).resolves.toEqual({
-        shown: false
-      })
-      await expect(close?.({}, createRendererRouteContext(1, 1))).resolves.toEqual({
-        closed: false
-      })
-      expect(splash.showDebugScenario).not.toHaveBeenCalled()
-      expect(splash.closeDebugScenario).not.toHaveBeenCalled()
-    } finally {
-      isPackaged.mockRestore()
-    }
+    await expect(show?.({ mode: 'unlock' }, createRendererRouteContext(1, 1))).resolves.toEqual({
+      shown: false
+    })
+    await expect(close?.({}, createRendererRouteContext(1, 1))).resolves.toEqual({
+      closed: false
+    })
+    expect(splash.showDebugScenario).not.toHaveBeenCalled()
+    expect(splash.closeDebugScenario).not.toHaveBeenCalled()
   })
 
   it('validates mode input and delegates allowed Splash previews', async () => {
@@ -112,7 +106,7 @@ describe('app performance diagnostics route', () => {
     const rendererPerformance = { record: vi.fn().mockResolvedValue(true) }
     const routes = createRoutes({
       rendererPerformance,
-      isMainWindowContext: vi.fn(() => false)
+      isMainWindowContext: vi.fn(async () => false)
     })
     const handler = routes.get(performanceRecordRendererRoute.name)
 
