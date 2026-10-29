@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DatabaseSecurityService } from '@/app/databaseSecurity'
-import type { SplashWindow } from '@/app/splashWindow'
+import type { DatabaseStartupPresentation } from '@/app/databaseStartup'
 
 const mocks = vi.hoisted(() => ({
   appQuit: vi.fn(),
@@ -9,12 +9,6 @@ const mocks = vi.hoisted(() => ({
   quarantine: vi.fn(),
   initialize: vi.fn(),
   DatabaseInitializer: vi.fn()
-}))
-
-vi.mock('electron', () => ({
-  app: {
-    quit: mocks.appQuit
-  }
 }))
 
 vi.mock('@/data/databaseStartupRecovery', async (importOriginal) => {
@@ -68,8 +62,9 @@ describe('initializeMainDatabaseWithRecovery', () => {
         clearEncryptionMetadata: vi.fn()
       },
       splash: {
-        requestDatabaseUnlock: vi.fn<SplashWindow['requestDatabaseUnlock']>(),
-        requestDatabaseRecovery: vi.fn<SplashWindow['requestDatabaseRecovery']>(
+        quit: mocks.appQuit,
+        requestDatabaseUnlock: vi.fn<DatabaseStartupPresentation['requestDatabaseUnlock']>(),
+        requestDatabaseRecovery: vi.fn<DatabaseStartupPresentation['requestDatabaseRecovery']>(
           async () => recovery.shift() ?? null
         )
       }
@@ -97,10 +92,17 @@ describe('initializeMainDatabaseWithRecovery', () => {
       if (password === null) throw new Error('Database unlock canceled')
       return password
     })
-    await expect(initializeMainDatabaseWithRecovery(ports as never)).rejects.toThrow(
-      'Database unlock canceled'
-    )
-    expect(mocks.appQuit).toHaveBeenCalledTimes(1)
+    const quit = Promise.withResolvers<void>()
+    mocks.appQuit.mockReturnValue(quit.promise)
+    let settled = false
+    const request = initializeMainDatabaseWithRecovery(ports as never).catch((error) => {
+      settled = true
+      return error
+    })
+    await vi.waitFor(() => expect(mocks.appQuit).toHaveBeenCalledTimes(1))
+    expect(settled).toBe(false)
+    quit.resolve()
+    await expect(request).resolves.toMatchObject({ message: 'Database unlock canceled' })
     expect(mocks.initialize).not.toHaveBeenCalled()
   })
 

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_MAIN_LOG_DURATION_MS } from '../../../src/main/logging/mainLogEvents'
+import type { DatabaseInitializationObservation } from '@/app/databaseInitializer'
 
 const startupSchemaCatalog = [
   {
@@ -34,7 +35,9 @@ async function createInitializerWithMocks(input: {
   isDestructiveDatabaseError?: ReturnType<typeof vi.fn>
   classifySchemaError?: ReturnType<typeof vi.fn>
   getStartupSchemaCatalog?: ReturnType<typeof vi.fn>
-  observe?: ReturnType<typeof vi.fn>
+  observe?: ReturnType<
+    typeof vi.fn<(observation: DatabaseInitializationObservation) => void | Promise<void>>
+  >
   now?: () => number
 }) {
   const repairSQLiteDatabaseFile = input.repairSQLiteDatabaseFile ?? vi.fn()
@@ -43,13 +46,10 @@ async function createInitializerWithMocks(input: {
   const classifySchemaError = input.classifySchemaError ?? vi.fn().mockReturnValue(null)
   const getStartupSchemaCatalog =
     input.getStartupSchemaCatalog ?? vi.fn().mockReturnValue(startupSchemaCatalog)
-  const observe = input.observe ?? vi.fn()
+  const observe =
+    input.observe ??
+    vi.fn<(observation: DatabaseInitializationObservation) => void | Promise<void>>()
 
-  vi.doMock('electron', () => ({
-    app: {
-      getPath: vi.fn().mockReturnValue('C:/Users/test/AppData/Roaming/DeepChat')
-    }
-  }))
   vi.doMock('@/data/mainDatabase', () => ({
     MainDatabase: input.MainDatabase,
     repairSQLiteDatabaseFile,

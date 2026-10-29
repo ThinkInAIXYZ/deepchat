@@ -1,7 +1,11 @@
 import logger from '@shared/logger'
-import { app } from 'electron'
 import type { MainDatabase } from '@/data/mainDatabase'
-import type { DatabaseStartupFailureKind } from '@shared/contracts/databaseSecurity'
+import type {
+  DatabaseStartupFailureKind,
+  DatabaseUnlockReason,
+  DatabaseRecoveryRequestPayload,
+  DatabaseRecoveryChoice
+} from '@shared/contracts/databaseSecurity'
 import {
   allocateQuarantineDirectory,
   classifyDatabaseStartupFailure,
@@ -11,11 +15,21 @@ import {
 } from '@/data/databaseStartupRecovery'
 import { DatabaseInitializer, type DatabaseInitializationObservation } from './databaseInitializer'
 import type { DatabaseSecurityService } from './databaseSecurity'
-import type { SplashWindow } from './splashWindow'
+
+export interface DatabaseStartupPresentation {
+  requestDatabaseUnlock(payload: {
+    reason: DatabaseUnlockReason
+    safeStorageAvailable: boolean
+  }): Promise<string | null>
+  requestDatabaseRecovery(
+    payload: Omit<DatabaseRecoveryRequestPayload, 'requestId'>
+  ): Promise<DatabaseRecoveryChoice | null>
+  quit(): Promise<void>
+}
 
 export async function initializeMainDatabaseWithRecovery(input: {
   security: DatabaseSecurityService
-  splash: SplashWindow
+  splash: DatabaseStartupPresentation
   observe?: (observation: DatabaseInitializationObservation) => void | Promise<void>
 }): Promise<MainDatabase> {
   const dbPath = input.security.getDatabasePath()
@@ -44,7 +58,7 @@ export async function initializeMainDatabaseWithRecovery(input: {
       try {
         password = await input.security.resolveStartupPassword(async (request) => {
           const value = await input.splash.requestDatabaseUnlock(request)
-          if (value === null) app.quit()
+          if (value === null) await input.splash.quit()
           return value
         })
         passwordResolved = true
@@ -66,7 +80,7 @@ export async function initializeMainDatabaseWithRecovery(input: {
       })
 
       if (!choice) {
-        app.quit()
+        await input.splash.quit()
         throw new Error('Database recovery canceled')
       }
 

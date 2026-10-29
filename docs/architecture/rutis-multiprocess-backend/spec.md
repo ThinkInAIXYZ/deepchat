@@ -702,9 +702,12 @@ open a database connection:
 The current DeviceService reset implementation can remove shared files after the exclusive
 shutdown-action claim. G5 must bind that claim to actual backend and independent-resource teardown
 before deletion or relaunch; an RPC timeout or lost reply is not proof that writers have stopped.
-Main's native database initializer and legacy migration construction are bootstrap entrypoints,
-not normal backend readers. Move schema/repair/import work with the Store authority and remove
-Main's writable startup shadow when the backend opens its files.
+Profile startup belongs to Core: construct settings, encryption metadata, the shared database and
+its attached adapters in one owner, with schema/repair and legacy migration before normal admission.
+Supply absolute profile/home roots, the application version and private crypto/presentation ports.
+Logging and unlock/recovery/quit effects acknowledge their native completion. Failed startup closes
+its acquired database before releasing the operation. Main retains no writable startup shadow when
+the backend opens its files.
 
 The boundary follows existing business operations, rather than these connection wrappers:
 

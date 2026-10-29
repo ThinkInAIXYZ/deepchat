@@ -10,7 +10,7 @@ There is no retained implementation switch or local fallback.
 
 Current scope: staged implementation in
 [Draft PR #2465](https://github.com/ThinkInAIXYZ/deepchat/pull/2465), targeting `dev`. Admission is
-committed as `ffcd98770` and the roadmap as `f35adff34`. G3 is complete at `7ee99619b`; G4 is active.
+committed as `ffcd98770` and the roadmap as `f35adff34`. G4 is complete at `356143755`; G5 is active.
 Later goals start only after their dependencies and the preceding selected goal pass validation.
 
 Use this file as the only tracker. [The RFC](spec.md) defines capability ownership, Memory
@@ -47,8 +47,8 @@ rerun CI or unchanged benchmarks to obtain a passing timing sample.
 | G1 Whole-capability roadmap | Complete; documentation only | G0 and source research | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence |
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
 | G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
-| G4 Store commands and desktop ports | Local implementation, ownership inventory and batch validation complete; publication CI pending | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
-| G5 Cohesive TS Harness backend | Planned | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
+| G4 Store commands and desktop ports | Complete, `356143755` | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
+| G5 Cohesive TS Harness backend | In progress: profile/bootstrap composition | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
 | G7 Rust control owner | Planned | G2, G5 | Admission and cohesive run/interaction settlement preserve all fences |
 | G8 Rust batch computations | Conditional | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go |
@@ -2425,7 +2425,7 @@ Evidence and verified hashes are in `.deepchat/rutis-g4-provider-oauth-acceptanc
 
 ### Plugin business owner and native presentation
 
-G4 remains active for the final writer/reader/Native inventory. The selected plugin boundary keeps
+The final G4 writer/reader/Native inventory includes the plugin boundary. It keeps
 installation/consent, user-plugin activation, context Hooks and MCP supervision with the cohesive
 core; its synchronous local transactions and integrity callbacks do not become row-level RPCs.
 
@@ -2438,7 +2438,7 @@ core; its synchronous local transactions and integrity callbacks do not become r
 - [x] Verify default composition, portable import, relevant regressions and the same real-app
       plugin scenarios against immutable artifacts.
 - [x] Finish the final writer/reader/native inventory and local completed-batch validation.
-      The published batch's required and six-platform CI barriers remain mandatory before G5.
+      The published batch's required and six-platform CI barriers pass at `356143755`.
 - [x] Supply OCR's native cache-key provider explicitly from Main; preserve encrypted cache
       persistence, unavailable-key fallback and the same cache clear/relaunch application behavior.
 - [x] Supply Codex/Grok auth owner commands to Main's OAuth facade. Keep their controllers,
@@ -2532,8 +2532,8 @@ Codex/Grok auth owners and credential queues are constructed alongside Provider 
 OAuthService receives acknowledged account commands. Native deep-link actions use provider-existence
 and MCP startup observations in place of complete business-owner dependencies. MCP registry selection
 awaits the native resolved-proxy capability. Local complete-batch inventory and validation pass;
-G4 remains active until its published head's required and six platform package CI barriers pass.
-G5 has not started.
+G4's published-head required and six platform package CI barriers pass. G5's Core profile and
+bootstrap composition is in progress.
 
 ### Provider account owner commands
 
@@ -2624,11 +2624,47 @@ format/check including Markdown, lint and i18n pass. Source hashes, artifact has
 are in `.deepchat/rutis-g4-final-inventory/`; focused proxy receipts are in
 `.deepchat/rutis-g4-proxy-port-acceptance/`.
 
-Publish this completed batch once to the existing Draft PR. G4 remains active while its own
-exact-head required checks, all six platform packages and both barriers are pending. Do not start
-G5 or merge the PR before those checks pass. Shared-CI timing reports do not trigger reruns.
+The complete batch is published at `356143755`. All 14 exact-head checks pass: required run
+`40819020114` with `pr-required` barrier `123268789463`, and package run `40819020203` with all
+six platform jobs and `package-required` barrier `123273186534`. The PR remains draft against
+`dev` and is not merged. CI receipts are in the final inventory's `published-ci.json`. No timing
+rerun was needed. G4 is complete; shared/configuration authority still moves physically in G5.
 
 ## G5. Move the cohesive Harness and shared core into the TS backend
+
+Execution order: collect settings/security/database migration and recovery into the native-free
+profile composition, then move the business composition with its existing owner-local repositories.
+Connect that actual composition through the approved Rutis Core generation, replace Main's writer
+and route/lifecycle wiring, then validate the complete cutover before publication. Main supplies
+crypto, unlock/recovery presentation and native effects; it must retain no writable shadow.
+Local bootstrap refactoring is preparation inside this goal, not a completed backend extraction.
+Keep the full completion conditions below. Do not publish a partial G5 or add a fallback switch.
+
+### Profile startup composition
+
+The default desktop startup calls `initializeCoreProfile` for settings, private credential access,
+encryption metadata, database recovery, attached adapters, legacy migration and tool-policy storage.
+These constructors have no Electron dependency. Main supplies absolute roots/version, crypto,
+logging, progress, unlock/recovery presentation and an acknowledged quit command. The database
+initializer requires its explicit path. Legacy readers use the same pinned Conf engine with the
+existing names, defaults, profile directory and application version. Migration still finishes before
+adapters attach; an initialization failure closes its acquired database at the startup owner.
+
+All **80 selected checks across seven files pass**, including delayed native quit acknowledgement,
+schema recovery, migration, file settings and database security. Changed-test types and app types
+pass. The actual profile/database graph constructs under the Electron Node ABI with native imports
+blocked at build and load; persistence/reopen and database close after a failed legacy migration
+pass. This is constructor/runtime compatibility, not a headless or exclusive-writer handoff.
+
+Immutable `356143755` and the candidate pass the same four application cases: encryption/rekey,
+legacy Provider model data, MCP/ACP settings and mixed legacy/database settings across relaunch.
+The candidate additionally passes plugin install/Hooks/windows, credential persistence, all five
+maintenance/shutdown cases, MCP child lifetime and OS deep links: **15 cases across nine files**.
+Those additional cases retain their accepted `356143755` evidence; no new 15-case baseline is
+claimed. Build, format/check, lint and i18n pass. Evidence and hashes are in
+`.deepchat/rutis-g5-profile-bootstrap-acceptance/`. No process or transport change needs a resource
+recapture at this preparation step. Main still invokes the local entry and holds its objects until
+the complete Rutis Core composition and actual writer/route/lifecycle cutover below.
 
 - [ ] Move the actual Harness composition and its Run/loop/interaction/pending-input feedback
       cluster together. Keep Provider streaming and prompt/tool integration local initially.

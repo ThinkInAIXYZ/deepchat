@@ -13,21 +13,21 @@ import { migrateConfigStorage } from '@/config/migration'
 import { RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID } from '@/provider/providerModelFacts'
 import { USER_MODEL_CONFIG_MIGRATION_ID } from '@/provider/userModelConfig'
 
-const electronStores = vi.hoisted(() => new Map<string, Record<string, unknown>>())
+const legacyStores = vi.hoisted(() => new Map<string, Record<string, unknown>>())
 
-vi.mock('electron-store', () => ({
-  default: class MockElectronStore {
+vi.mock('conf', () => ({
+  default: class MockConf {
     private readonly key: string
 
-    constructor(options: { name: string; cwd?: string; defaults?: Record<string, unknown> }) {
-      this.key = `${options.cwd ?? ''}/${options.name}`
-      if (!electronStores.has(this.key)) {
-        electronStores.set(this.key, { ...(options.defaults ?? {}) })
+    constructor(options: { configName: string; cwd?: string; defaults?: Record<string, unknown> }) {
+      this.key = `${options.cwd ?? ''}/${options.configName}`
+      if (!legacyStores.has(this.key)) {
+        legacyStores.set(this.key, { ...(options.defaults ?? {}) })
       }
     }
 
     get store(): Record<string, unknown> {
-      return electronStores.get(this.key)!
+      return legacyStores.get(this.key)!
     }
 
     get(key: string, defaultValue?: unknown): unknown {
@@ -41,7 +41,7 @@ vi.mock('electron-store', () => ({
 }))
 
 describe('config storage migration', () => {
-  beforeEach(() => electronStores.clear())
+  beforeEach(() => legacyStores.clear())
 
   it('moves legacy storage before modules connect to sqlite', () => {
     const legacyStore = createStore({
@@ -53,11 +53,11 @@ describe('config storage migration', () => {
       hooksNotifications: { enabled: true }
     })
     const settings = new SettingsStore(legacyStore)
-    electronStores.set('/user-data/provider_models/models_openai', {
+    legacyStores.set('/user-data/provider_models/models_openai', {
       models: [{ id: 'gpt-4', providerId: 'openai' }],
       custom_models: [{ id: 'custom', providerId: 'openai' }]
     })
-    electronStores.set('/model-config', {
+    legacyStores.set('/user-data/model-config', {
       __meta__: { userConfigKeys: 'malformed' },
       'openai_-_gpt-4': {
         id: 'gpt-4',
@@ -66,9 +66,9 @@ describe('config storage migration', () => {
         config: { isUserDefined: true }
       }
     })
-    electronStores.set('/custom_prompts', { prompts: [{ id: 'custom' }] })
-    electronStores.set('/system_prompts', { prompts: [{ id: 'system' }] })
-    electronStores.set('/knowledge-configs', { knowledgeConfigs: [{ id: 'knowledge' }] })
+    legacyStores.set('/user-data/custom_prompts', { prompts: [{ id: 'custom' }] })
+    legacyStores.set('/user-data/system_prompts', { prompts: [{ id: 'system' }] })
+    legacyStores.set('/user-data/knowledge-configs', { knowledgeConfigs: [{ id: 'knowledge' }] })
     const tables = createAppSettingsTable()
     const providerTables = createProviderSettingsTable()
     const mcpTables = createMcpSettingsTable()
@@ -129,9 +129,9 @@ describe('config storage migration', () => {
     expect(agentTables.deleteAgentSetting).toHaveBeenCalledWith('sqlite-mainline-normalization-v1')
     expect(legacyStore.get('hooksNotifications')).toBeUndefined()
     expect(legacyStore.get('appVersion')).toBe('1.0.0')
-    expect(electronStores.get('/custom_prompts')?.prompts).toEqual([])
-    expect(electronStores.get('/system_prompts')?.prompts).toEqual([])
-    expect(electronStores.get('/knowledge-configs')?.knowledgeConfigs).toEqual([])
+    expect(legacyStores.get('/user-data/custom_prompts')?.prompts).toEqual([])
+    expect(legacyStores.get('/user-data/system_prompts')?.prompts).toEqual([])
+    expect(legacyStores.get('/user-data/knowledge-configs')?.knowledgeConfigs).toEqual([])
   })
 })
 

@@ -1,8 +1,6 @@
 import logger from '@shared/logger'
 import type { DatabaseSchemaDiagnosis, DatabaseSchemaIssue } from '@shared/types/databaseSchema'
 import type { DatabaseRepairReason } from '@shared/notifications'
-import { app } from 'electron'
-import path from 'path'
 import {
   isDestructiveDatabaseError,
   repairSQLiteDatabaseFile,
@@ -16,7 +14,7 @@ import { elapsedMonotonicMs, readMonotonicNow, type MonotonicClock } from '@/lib
 
 type DatabaseInitializerOptions = {
   password?: string
-  dbPath?: string
+  dbPath: string
   observe?: (observation: DatabaseInitializationObservation) => void | Promise<void>
   now?: MonotonicClock
 }
@@ -65,13 +63,11 @@ export class DatabaseInitializer implements IDatabaseInitializer {
   private readonly observe: (observation: DatabaseInitializationObservation) => void | Promise<void>
   private readonly now?: MonotonicClock
 
-  constructor(options?: DatabaseInitializerOptions) {
-    // Initialize database path
-    const dbDir = path.join(app.getPath('userData'), 'app_db')
-    this.dbPath = options?.dbPath ?? path.join(dbDir, 'agent.db')
-    this.password = options?.password
-    this.observe = options?.observe ?? (() => undefined)
-    this.now = options?.now
+  constructor(options: DatabaseInitializerOptions) {
+    this.dbPath = options.dbPath
+    this.password = options.password
+    this.observe = options.observe ?? (() => undefined)
+    this.now = options.now
   }
 
   /**

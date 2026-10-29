@@ -76,35 +76,35 @@ describe('session boundary composition', () => {
 
   it('finishes config migration before connecting module settings', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const mainProcessSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/mainProcess.ts'),
+    const profileSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/profileStartup.ts'),
       'utf8'
     )
 
-    const migration = mainProcessSource.indexOf('migrateConfigStorage({')
-    const settingsConnection = mainProcessSource.indexOf('settingsStore.attachDatabase(')
-    const mcpConnection = mainProcessSource.indexOf('mcpSettings.connectDatabase(')
-    const providerCreation = mainProcessSource.indexOf('previousAppVersion:')
+    const migration = profileSource.indexOf('migrateConfigStorage({')
+    const settingsConnection = profileSource.indexOf('settingsStore.attachDatabase(')
+    const mcpConnection = profileSource.indexOf('mcpSettings.connectDatabase(')
+    const providerCreation = profileSource.indexOf('previousAppVersion:')
 
     expect(migration).toBeGreaterThanOrEqual(0)
     expect(migration).toBeLessThan(settingsConnection)
     expect(settingsConnection).toBeLessThan(mcpConnection)
     expect(mcpConnection).toBeLessThan(providerCreation)
-    expect(mainProcessSource).not.toContain('providerSettings.attachDatabase(')
+    expect(profileSource).not.toContain('providerSettings.attachDatabase(')
   })
 
   it('applies the persisted logging gate before database initialization can fail', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const mainProcessSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/mainProcess.ts'),
+    const profileSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/profileStartup.ts'),
       'utf8'
     )
-    const loggingGate = mainProcessSource.indexOf('setMainLoggingEnabled(')
-    const databaseInitialization = mainProcessSource.indexOf('initializeMainDatabaseWithRecovery(')
+    const loggingGate = profileSource.indexOf('.setLoggingEnabled(')
+    const databaseInitialization = profileSource.indexOf('initializeMainDatabaseWithRecovery(')
 
     expect(loggingGate).toBeGreaterThanOrEqual(0)
     expect(loggingGate).toBeLessThan(databaseInitialization)
-    expect(mainProcessSource.match(/setMainLoggingEnabled\(/g)).toHaveLength(1)
+    expect(profileSource.match(/\.setLoggingEnabled\(/g)).toHaveLength(1)
   })
 
   it('has no late Provider runtime connection or ready fallback', async () => {
