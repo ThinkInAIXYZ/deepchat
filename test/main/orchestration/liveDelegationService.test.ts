@@ -7,7 +7,8 @@ import {
   LiveDelegationDetailSchema,
   type LiveDelegationDetail
 } from '@shared/orchestration/liveDelegation'
-import type { ConversationSessionInfo } from '@/tool/runtimePorts'
+import type { ConversationSessionInfo, CreateSubagentSessionInput } from '@/tool/runtimePorts'
+import type { SubagentAssignmentInput } from '@/session/contracts'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import { SessionDeletionGate } from '@/session/deletionGate'
 import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
@@ -1100,6 +1101,68 @@ describeIfSqlite('LiveDelegationService', () => {
     harness.publishAnswer(childId, 'Frozen settings were used.', 200)
     harness.publish({ sessionId: childId, kind: 'status', updatedAt: 201, status: 'idle' })
     await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('idle'))
+  })
+
+  it('applies target default changes only to new delegations, including admission waiting', async () => {
+    let defaults = {
+      providerId: 'anthropic',
+      modelId: 'review-model-a',
+      generationSettings: { systemPrompt: 'Reviewer prompt A', temperature: 0.2 },
+      toolModeOverride: null
+    }
+    harness.sessions.resolveSubagentExecutionSnapshot.mockImplementation(async () =>
+      structuredClone(defaults)
+    )
+    const firstBlocker = await admission.acquire({ ownerId: 'other-session-1' })
+    const secondBlocker = await admission.acquire({ ownerId: 'other-session-2' })
+    const spawned = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Use the configured reviewer',
+      prompt: 'Review this change.'
+    })
+    defaults = {
+      ...defaults,
+      modelId: 'review-model-b',
+      generationSettings: { systemPrompt: 'Reviewer prompt B', temperature: 0.6 }
+    }
+    firstBlocker.release()
+    secondBlocker.release()
+
+    await vi.waitFor(() => expect(harness.sessions.sendConversationMessage).toHaveBeenCalledOnce())
+    const childId = repository.require(spawned.delegation.id).childSessionId!
+    const child = await harness.sessions.resolveConversationSessionInfo(childId)
+    expect(child).toMatchObject({
+      providerId: 'anthropic',
+      modelId: 'review-model-a',
+      generationSettings: { systemPrompt: 'Reviewer prompt A', temperature: 0.2 }
+    })
+    harness.publishAnswer(childId, 'First review complete.', 200)
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 201, status: 'idle' })
+    await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('idle'))
+
+    await service.followUp('parent', spawned.delegation.id, 'Check the remaining files.')
+    await vi.waitFor(() =>
+      expect(harness.sessions.sendConversationMessage).toHaveBeenCalledTimes(2)
+    )
+    expect(child).toMatchObject({ modelId: 'review-model-a' })
+    harness.publishAnswer(childId, 'Follow-up review complete.', 300)
+    harness.publish({ sessionId: childId, kind: 'status', updatedAt: 301, status: 'idle' })
+    await vi.waitFor(() => expect(repository.require(spawned.delegation.id).status).toBe('idle'))
+
+    const next = await service.spawn('parent', {
+      slotId: 'reviewer',
+      title: 'Start another review',
+      prompt: 'Review another change.'
+    })
+    await vi.waitFor(() =>
+      expect(harness.sessions.sendConversationMessage).toHaveBeenCalledTimes(3)
+    )
+    const nextChildId = repository.require(next.delegation.id).childSessionId!
+    expect(await harness.sessions.resolveConversationSessionInfo(nextChildId)).toMatchObject({
+      providerId: 'anthropic',
+      modelId: 'review-model-b',
+      generationSettings: { systemPrompt: 'Reviewer prompt B', temperature: 0.6 }
+    })
   })
 
   it('restores the child execution snapshot before a queued follow-up starts', async () => {
@@ -2858,16 +2921,26 @@ function createSessionHarness(db: InstanceType<typeof DatabaseCtor>) {
   }
 
   const sessions = {
+    resolveSubagentExecutionSnapshot: vi.fn(async (input: SubagentAssignmentInput) => ({
+      providerId: input.providerId,
+      modelId: input.modelId,
+      generationSettings: input.generationSettings
+        ? structuredClone(input.generationSettings)
+        : null,
+      toolModeOverride: input.toolModeOverride ?? null
+    })),
     resolveConversationWorkdir: vi.fn().mockResolvedValue('/repo'),
     resolveConversationSessionInfo: vi.fn(async (sessionId: string) =>
       sessionId === 'parent' ? parent : (children.get(sessionId) ?? null)
     ),
-    createSubagentSession: vi.fn(
-      async (input: { liveDelegationContext?: { delegationId: string } }) => {
-        const delegationId = input.liveDelegationContext?.delegationId ?? 'missing'
-        return addChild(`child-${delegationId}`, delegationId, 'idle')
-      }
-    ),
+    createSubagentSession: vi.fn(async (input: CreateSubagentSessionInput) => {
+      const delegationId = input.liveDelegationContext?.delegationId ?? 'missing'
+      const child = addChild(`child-${delegationId}`, delegationId, 'idle')
+      child.providerId = input.providerId
+      child.modelId = input.modelId
+      child.generationSettings = input.generationSettings ?? null
+      return child
+    }),
     linkSubagentTape: vi.fn(async (input: { childSessionId: string; outcome: string }) => ({
       linkEntry: { sessionId: 'parent', entryId: 10 },
       childSessionId: input.childSessionId,

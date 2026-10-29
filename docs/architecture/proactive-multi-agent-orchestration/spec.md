@@ -202,7 +202,13 @@ Host enforcement, not prompt wording, owns delegation consent.
 
 Generation settings and safety state have different lifetimes:
 
-- model and generation settings are frozen when each child turn starts;
+- self-target children inherit the parent Session model and generation settings;
+- cross-agent DeepChat children use the target Agent's default model when configured, otherwise
+  they inherit the parent model. An unavailable configured model fails instead of falling back;
+- switching to a different target model uses that model's generation defaults and the target
+  Agent's system prompt, without copying parent reasoning or token/context overrides;
+- initial model and generation settings are resolved before admission waiting. Agent default
+  changes affect new delegations; follow-up turns retain the existing child Session configuration;
 - permission mode, workdir identity, Session deletion, and capability revocation are checked
   continuously and take effect for active work;
 - the host revalidates safety before authorization, immediately before tool dispatch, and before a
