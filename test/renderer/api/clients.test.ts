@@ -29,6 +29,50 @@ import { createToolClient } from '../../../src/renderer/api/ToolClient'
 import { createWindowClient } from '../../../src/renderer/api/WindowClient'
 
 describe('renderer api clients', () => {
+  it('invalidates cached model catalogs before forwarding remote model changes', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000)
+    try {
+      const bridge = createBridge()
+      const catalog = {
+        providerModels: [],
+        customModels: [{ id: 'first' }],
+        dbProviderModels: [],
+        modelStatusMap: {}
+      }
+      vi.mocked(bridge.invoke).mockImplementation(
+        async () =>
+          ({
+            catalog: { ...catalog, customModels: [...catalog.customModels] }
+          }) as never
+      )
+      const client = createModelClient(bridge)
+      const models = () => client.getCustomModels('custom')
+      const listener = async () => {
+        expect((await models()).map((model) => model.id)).toEqual(
+          catalog.customModels.map((model) => model.id)
+        )
+      }
+      client.onModelsChanged(listener)
+      client.onModelStatusChanged(listener)
+      client.onModelBatchStatusChanged(listener)
+      await models()
+      await models()
+      expect(bridge.invoke).toHaveBeenCalledOnce()
+      const events = [
+        { providerId: 'custom', reason: 'custom-models', version: 1 },
+        { providerId: 'custom', modelId: 'second', enabled: true, version: 2 },
+        { providerId: 'custom', updates: [{ modelId: 'second', enabled: true }], version: 3 }
+      ]
+      for (const [index, payload] of events.entries()) {
+        catalog.customModels.push({ id: `added-${index}` })
+        await vi.mocked(bridge.on).mock.calls[index][1](payload as never)
+        expect(bridge.invoke).toHaveBeenCalledTimes(index + 2)
+      }
+    } finally {
+      now.mockRestore()
+    }
+  })
+
   it('serializes reactive session group cursors and directory filters for IPC', async () => {
     const bridge = createBridge()
     const cursor = reactive({ id: 'session-5', updatedAt: 123 })

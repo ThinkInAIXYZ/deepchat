@@ -28,7 +28,9 @@ export async function selectAgent(page: Page, agentId = 'deepchat'): Promise<voi
     })
   }
 
-  await expect(page.getByTestId('chat-input-editor')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId('new-thread-page').getByTestId('chat-input-editor')).toBeVisible({
+    timeout: 30_000
+  })
 }
 
 export async function createNewChat(page: Page): Promise<void> {
@@ -41,7 +43,9 @@ export async function createNewChat(page: Page): Promise<void> {
     await collapsedButton.click()
   }
 
-  await expect(page.getByTestId('chat-input-editor')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId('new-thread-page').getByTestId('chat-input-editor')).toBeVisible({
+    timeout: 30_000
+  })
 }
 
 export async function selectModel(page: Page, modelId: string, providerId?: string): Promise<void> {

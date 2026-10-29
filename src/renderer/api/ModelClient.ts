@@ -296,7 +296,10 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
       version: number
     }) => void
   ) {
-    return bridge.on(modelsChangedEvent.name, listener)
+    return bridge.on(modelsChangedEvent.name, (payload) => {
+      clearProviderCatalogCache(payload.providerId)
+      return listener(payload)
+    })
   }
 
   function onModelStatusChanged(
@@ -307,7 +310,10 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
       version: number
     }) => void
   ) {
-    return bridge.on(modelsStatusChangedEvent.name, listener)
+    return bridge.on(modelsStatusChangedEvent.name, (payload) => {
+      clearProviderCatalogCache(payload.providerId)
+      return listener(payload)
+    })
   }
 
   function onModelBatchStatusChanged(
@@ -317,7 +323,10 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
       version: number
     }) => void
   ) {
-    return bridge.on(modelBatchStatusChangedEvent.name, listener)
+    return bridge.on(modelBatchStatusChangedEvent.name, (payload) => {
+      clearProviderCatalogCache(payload.providerId)
+      return listener(payload)
+    })
   }
 
   function onModelConfigChanged(
