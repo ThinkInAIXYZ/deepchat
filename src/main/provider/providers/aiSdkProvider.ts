@@ -9,6 +9,7 @@ import {
   resolveNewApiEndpointTypeFromRoute,
   type NewApiEndpointType
 } from '@shared/model'
+import { isJevJudgmentModelId } from '@shared/jevProtocol'
 import { isTtsModelConfig, isTtsModelId } from '@shared/ttsSettings'
 import { isVideoGenerationModelConfig } from '@shared/videoGenerationSettings'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -210,6 +211,26 @@ function toLiteLLMProviderGroup(value: unknown): string {
 
 function toPositiveFiniteNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
+}
+
+// Id fragments that mark a catalog entry as clearly not a chat model, for public catalogs that
+// carry no capability field (embedding, rerank, image, audio, speech).
+const NON_CHAT_MODEL_ID_PATTERNS = [
+  'embed',
+  'rerank',
+  'image',
+  'flux-',
+  'audio',
+  'speech',
+  'tts',
+  'whisper',
+  '-asr',
+  'transcri'
+]
+
+function isNonChatCatalogModelId(modelId: string): boolean {
+  const lower = modelId.toLowerCase()
+  return NON_CHAT_MODEL_ID_PATTERNS.some((pattern) => lower.includes(pattern))
 }
 
 function toErrorMessage(error: unknown, fallback: string): string {
@@ -1786,6 +1807,8 @@ export class AiSdkProvider extends BaseLLMProvider {
         return this.fetchRuncrateModels()
       case 'cloudgpu':
         return this.fetchCloudgpuModels()
+      case 'obscurify':
+        return this.fetchObscurifyModels()
       case 'bedrock':
         return this.fetchBedrockModels()
       case 'new-api':
@@ -2188,23 +2211,10 @@ export class AiSdkProvider extends BaseLLMProvider {
    */
   private async fetchCloudgpuModels(): Promise<MODEL_META[]> {
     const records = await this.fetchOpenAIModelRecords({ timeout: this.getModelFetchTimeout() })
-    const nonChatPatterns = [
-      'embed',
-      'rerank',
-      'image',
-      'flux-',
-      'audio',
-      'speech',
-      'tts',
-      'whisper',
-      '-asr',
-      'transcri'
-    ]
     const models: MODEL_META[] = []
     for (const model of records) {
       const modelId = typeof model.id === 'string' ? model.id.trim() : ''
-      const lower = modelId.toLowerCase()
-      if (!modelId || nonChatPatterns.some((pattern) => lower.includes(pattern))) {
+      if (!modelId || isNonChatCatalogModelId(modelId)) {
         continue
       }
       models.push({
@@ -2217,6 +2227,40 @@ export class AiSdkProvider extends BaseLLMProvider {
         ...(typeof model.owned_by === 'string' && model.owned_by.trim()
           ? { ownedBy: model.owned_by.trim() }
           : {})
+      })
+    }
+    return models
+  }
+
+  /**
+   * Obscurify.ai's public catalog answers without a key and publishes each model's context length
+   * and whether it accepts tools. It also lists models that are not chat models: decision models
+   * (flagged `decisions: true`, which include the Jev judgment models) and an image model. Those are
+   * left out so they cannot be picked in chat.
+   */
+  private async fetchObscurifyModels(): Promise<MODEL_META[]> {
+    const records = await this.fetchOpenAIModelRecords({ timeout: this.getModelFetchTimeout() })
+    const models: MODEL_META[] = []
+    for (const model of records) {
+      const modelId = typeof model.id === 'string' ? model.id.trim() : ''
+      if (
+        !modelId ||
+        model.decisions === true ||
+        isJevJudgmentModelId(modelId) ||
+        isNonChatCatalogModelId(modelId)
+      ) {
+        continue
+      }
+      const contextLength = toPositiveFiniteNumber(model.context_length)
+      models.push({
+        id: modelId,
+        name: modelId,
+        group: 'default',
+        providerId: this.provider.id,
+        isCustom: false,
+        type: ModelType.Chat,
+        ...(contextLength !== undefined ? { contextLength } : {}),
+        ...(typeof model.tools === 'boolean' ? { functionCall: model.tools } : {})
       })
     }
     return models
