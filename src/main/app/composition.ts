@@ -1,14 +1,16 @@
+import { createCoreRuntime } from '../../harness/core/runtime'
+import { WorkspaceService } from '../workspace'
+import { FileWatcherService } from '../platform/fileWatcher'
 import { createCoreProviders } from '../../harness/core/providers'
 import { createCoreData } from '../../harness/core/data'
-import { createCoreExecution, createLivePort } from '../../harness/core/execution'
+import { createLivePort } from '../../harness/core/execution'
 import { randomUUID } from 'node:crypto'
 import { SyncReplicaStore } from '@/sync/replica/store'
-import { SyncReplicaEndpoint } from '@/sync/replica/endpoint'
+
 import { AutomaticSync } from '@/sync/replica/automatic'
 import { SyncPeerService } from '../sync/peer'
 import { createSyncPeerRoutes } from '../sync/peer/routes'
-import { NowledgeMemConnections } from '@/nowledgeMem'
-import { NOWLEDGE_PLUGIN_ID } from '@shared/types/nowledgeMemPlugin'
+
 import logger from '@shared/logger'
 import {
   mainLogger,
@@ -86,9 +88,9 @@ import { proxyConfig, ProxyMode } from '../platform/proxy'
 import { DeviceService } from '../device'
 import { UpgradeService } from '../upgrade'
 import { UpdateSettings } from '../upgrade/settings'
-import { FileService } from '../file'
+
 import { getShellEnvironment } from '@/agent/shared/process/shellEnvHelper'
-import { mergeDetectionEnv, noteNodeDemandFromMcp, ToolchainService } from '@/toolchains'
+import { mergeDetectionEnv, ToolchainService } from '@/toolchains'
 import { ToolchainResolutionError } from '@/toolchains/errors'
 import { createToolchainRoutes } from '@/toolchains/routes'
 import { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
@@ -97,7 +99,7 @@ import { SafeStorageOcrCacheKeyProvider } from '@/ocr/ocrCacheKeyProvider'
 import { OcrSettings } from '@/ocr/ocrSettings'
 import { createOcrRoutes } from '@/ocr/routes'
 import { McpService } from '../mcp'
-import { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
+
 import { credentialCrypto, secureCredentialCrypto } from './credentialCrypto'
 import {
   ImportMode,
@@ -108,7 +110,7 @@ import {
 import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
 import type { DatabaseRepairReport } from '@shared/types/databaseSchema'
 import { DatabaseRequestGate } from './databaseRequestGate'
-import { SyncSettings } from '../sync/settings'
+
 import { DeeplinkService } from '../deeplink'
 import { createDeeplinkActions } from '../deeplink/actions'
 import { NotificationService } from '../desktop/notification'
@@ -133,9 +135,7 @@ import { FloatingButtonPresenter } from '../desktop/floatingButton'
 import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
 import { ComputerUsePreviewPresenter } from '@/desktop/computerUse/ComputerUsePreviewPresenter'
 import { AgentPreviewCoordinator } from '@/desktop/preview/AgentPreviewCoordinator'
-import { KnowledgeService } from '../knowledge'
-import { WorkspaceService } from '../workspace'
-import { FileWatcherService } from '../platform/fileWatcher'
+
 import { LoggingService } from './logging'
 import { RendererPerformanceLogService } from './rendererPerformanceLogService'
 import type { PrivacySettings } from './privacy'
@@ -153,8 +153,7 @@ import { createMemoryRoutes } from '../memory/routes'
 import { createDesktopRoutes } from '../desktop/routes'
 import { createFileRoutes } from '../file/routes'
 import { createKnowledgeRoutes } from '../knowledge/routes'
-import { KnowledgeSettings } from '@/knowledge/settings'
-import { emitAgentCatalogChanged } from '@/app/agentEvents'
+
 import { createWorkspaceRoutes } from '../workspace/routes'
 import { createDeviceRoutes } from '../device/routes'
 import { createOnboardingRoutes } from '../onboarding/routes'
@@ -177,19 +176,15 @@ import {
   SettingsPermissionService,
   ToolPermissionBroker
 } from '../tool/permission'
-import type { AgentToolDependencies } from '../tool/runtimePorts'
 
-import { ConversationExporterService } from '../exporter'
 import { createExporterRoutes } from '../exporter/routes'
-import { SkillService } from '../skill'
-import type { SkillSessionStatePort } from '../skill'
+
 import { SkillSettings } from '../skill/settings'
-import { SkillSyncService } from '../skill/sync'
-import { SkillExecutionAuthorityResolver } from '../skill/skillExecutionAuthority'
+
 import { HookService } from '../hook'
-import { HookSettings } from '../hook/config'
-import { SchedulerService, createCronJobRunSessionStarter } from '../scheduler'
-import { SchedulerProcessManager } from '@/scheduler/schedulerProcessManager'
+
+import { SchedulerService } from '../scheduler'
+
 import { spawnSchedulerHost } from './schedulerHost'
 import {
   TOOL_SURFACE_PRODUCTION_ROLLOUT_POLICY_V1,
@@ -210,7 +205,7 @@ import type {
   MemoryIngestionDrainOutcome,
   MemoryIngestionObserver
 } from '@/agent/deepchat/memory/memoryIngestionObserver'
-import { MemoryService, type MemoryServicePort } from '../memory'
+import { type MemoryServicePort } from '../memory'
 import { ProjectService } from '../project'
 import type { SettingsDatabase } from '@/settings/data/database'
 import { createOrchestrationRoutes } from '@/orchestration/routes'
@@ -220,13 +215,12 @@ import {
 } from '@/orchestration/liveDelegationService'
 import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
 import { createProjectRoutes } from '../project/routes'
-import { RemoteService } from '../remote'
+
 import type { RemoteServiceLike } from '../remote/ports'
-import { PluginService, type PluginServicePort } from '../plugin'
+import { type PluginServicePort } from '../plugin'
 import type { PluginToolPolicyStore } from '@/plugin/toolPolicyStore'
 import { createPluginRoutes } from '../plugin/routes'
-import { PluginRuntimeSupervisor } from '../plugin/runtimeSupervisor'
-import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
+
 import type { AgentDatabase } from '@/agent/data/database'
 import { AgentTraceSettings } from '../agent/traceSettings'
 import type { MainDatabase } from '../data/mainDatabase'
@@ -234,18 +228,8 @@ import {
   DatabaseSecurityService,
   type DatabaseSecurityMigrationDatabasePort
 } from './databaseSecurity'
-import {
-  normalizeDeepChatSubagentSlots,
-  resolveDeepChatSubagentCapability
-} from '@shared/lib/deepchatSubagents'
-import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
-import { composeSubagentAuthority } from '@/session/subagentAuthority'
-import type {
-  AcpAsLlmProviderPermissionPort,
-  AcpAsLlmProviderSessionControlPort,
-  AcpProviderAdminPort,
-  ProviderCatalogPort
-} from '../provider/ports'
+
+import type { AcpProviderAdminPort } from '../provider/ports'
 import type { SessionPermissionPort, SessionUiPort } from '../session/contracts'
 import {
   isStartupWorkloadCancellation,
@@ -261,9 +245,9 @@ import type { SessionTranslation } from '@/session/sessionTranslation'
 import { createSessionRoutes } from '@/session/routes'
 import { createAgentRoutes } from '@/agent/routes'
 import { createPromptRoutes } from '@/agent/promptRoutes'
-import { createSkillExecutionAuthorityTapePort } from '@/tape/application/capabilityAdapters'
+
 import type { AgentSessionExportService } from '../exporter/agentSessionExporter'
-import { createInMemoryServerFactory } from '../mcp/inMemoryServers/builder'
+
 import { createRouteDispatcher, dispatchDeepchatRoute, type RouteDispatcher } from '@/routes'
 import { registerDeepchatRoutes } from './routeIpc'
 import { createNodeScheduler } from '@/routes/scheduler'
@@ -293,7 +277,7 @@ import {
 } from '@/cli'
 import { CliRequestError } from '@/cli/errors'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
-import { BackgroundExecService } from '@/agent/shared/process/backgroundExecSessionManager'
+
 import { spawnBackgroundExecHost } from './backgroundExecHost'
 import { spawnCodeModeHost } from './codeModeHost'
 import {
@@ -304,8 +288,7 @@ import {
 import { activateAppOnMac } from '@/lib/activateApp'
 import { TypedEventHub } from '@/events/typedEventHub'
 import { SessionEventRouter } from '@/events/sessionEventRouter'
-import { createMemoryProviderBindings } from './memoryProviderBindings'
-import { createSessionPermissionPort } from './sessionPermissionAdapter'
+
 import { MainShutdownCoordinator, type MainShutdownActionClaim } from './mainShutdownCoordinator'
 import { elapsedMonotonicMs, readMonotonicNow } from '@/lib/monotonicTime'
 import {
@@ -597,8 +580,6 @@ export async function createMainProcessControl(dependencies: {
   let agentSessionExportService: AgentSessionExportService
   let sessionTranslation: SessionTranslation
   let liveDelegationService: LiveDelegationService
-  let acpAsLlmProviderSessionControl: AcpAsLlmProviderSessionControlPort
-  let acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
   let routeDispatcher: RouteDispatcher | undefined
   let cliComputeService: CliComputeService
   let cliAudioTranscriptionService: CliAudioTranscriptionService
@@ -616,9 +597,6 @@ export async function createMainProcessControl(dependencies: {
   let nativeSettings: DesktopConfigurationProjection
   let appSettingsService: AppSettingsService
   let shutdownStepFailures = 0
-  let pluginInitializationPromise: Promise<void> | null = null
-  let skillInitializationPromise: Promise<void> | null = null
-  let skillSyncScanPromise: Promise<void> | null = null
 
   windowPresenter = new WindowPresenter(
     {
@@ -858,16 +836,8 @@ export async function createMainProcessControl(dependencies: {
     memoryDatabase,
     sessionData,
     tapeInspectorHeadWatcher,
-    liveDelegationRepository,
-    sessionRuntimeEvents,
-    projectDatabase,
     agentDatabase,
     settingsDatabase,
-    providerDatabase,
-    schedulerDatabase,
-    agentRepository,
-    agentLifecycle,
-    sessionDeletionGate,
     promptSettings
   } = coreData
   const programmaticToolParents = new ProgrammaticToolParentRegistry({
@@ -1038,7 +1008,6 @@ export async function createMainProcessControl(dependencies: {
   const {
     providerRuntime,
     agentSettings,
-    acpSessionPersistence,
     acpRuntimeOwner,
     acpAuthService,
     unsubscribeProviderDbCatalog,
@@ -1064,8 +1033,6 @@ export async function createMainProcessControl(dependencies: {
     coreProviders.accounts
   )
   acpProviderAdminPort = providerRuntime
-  acpAsLlmProviderSessionControl = providerRuntime
-  acpAsLlmProviderPermission = providerRuntime
   const commandPermissionHandler = new CommandPermissionService()
   const resolveCliDirectory = () =>
     resolveBundledCliDirectory({
@@ -1162,44 +1129,6 @@ export async function createMainProcessControl(dependencies: {
       return null
     }
   }
-  projectService = new ProjectService(
-    projectDatabase,
-    sessionData.database,
-    {
-      tempDirectory: app.getPath('temp'),
-      userDataDirectory: app.getPath('userData'),
-      appDataDirectory: app.getPath('appData'),
-      documentsDirectory: resolveProjectDirectory('documents'),
-      homeDirectory: resolveProjectDirectory('home'),
-      selectDirectory: () => deviceService.selectDirectory(),
-      openPath: (directory) => shell.openPath(directory)
-    },
-    dependencies.settingsStore,
-    (projectPath, version) =>
-      publishDeepchatEvent('config.defaultProjectPath.changed', {
-        path: projectPath,
-        version
-      }),
-    (action, environmentPath, version) =>
-      publishDeepchatEvent(projectEnvironmentsChangedEvent.name, {
-        action,
-        path: environmentPath,
-        version
-      })
-  )
-  const nowledgeMemConnections = new NowledgeMemConnections(
-    dependencies.settingsStore,
-    dependencies.secretStore,
-    dependencies.mcpSettings
-  )
-  dependencies.mcpSettings.setPluginBindingResolver(NOWLEDGE_PLUGIN_ID, (config) =>
-    nowledgeMemConnections.getMcpBindings(config)
-  )
-  exporter = new ConversationExporterService({
-    nowledgeMemConnections,
-    sqlitePresenter: sessionData.database,
-    settings: dependencies.settingsStore
-  })
   const updateSettings = new UpdateSettings(
     dependencies.settingsStore,
     dependencies.currentAppVersion
@@ -1215,7 +1144,6 @@ export async function createMainProcessControl(dependencies: {
         error: { category: observation.errorCategory }
       })
   )
-  fileService = new FileService(dependencies.settingsStore, app.getPath('userData'))
   const desktopImageActions = new DesktopImageActions(app.getPath('userData'))
   ocrSettings = new OcrSettings(dependencies.settingsStore, publishDeepchatEvent)
   const recordSettingsActivity = (input: SettingsActivityInput) => {
@@ -1320,217 +1248,6 @@ export async function createMainProcessControl(dependencies: {
       }
     }
   })
-  const syncSettings = new SyncSettings(
-    dependencies.settingsStore,
-    dependencies.secretStore,
-    publishDeepchatEvent,
-    app.getPath('home')
-  )
-  const hookSettings = new HookSettings(dependencies.settingsStore)
-  const knowledgeSettings = new KnowledgeSettings(
-    dependencies.settingsStore,
-    dependencies.mcpSettings
-  )
-  syncService = new SyncService(
-    syncSettings,
-    mainDatabase,
-    settingsDatabase,
-    providerDatabase,
-    publishDeepchatEvent,
-    {
-      profileDirectory: app.getPath('userData'),
-      temporaryDirectory: app.getPath('temp'),
-      openPath: (directory) => shell.openPath(directory)
-    }
-  )
-  const syncTokenStorage = {
-    protectToken: async (token: string) => {
-      if (
-        process.platform === 'linux' &&
-        safeStorage.getSelectedStorageBackend() === 'basic_text'
-      ) {
-        throw new Error('sync.error.safeStorageUnavailable')
-      }
-      return await dependencies.secretStore.wrap(token)
-    },
-    revealToken: (wrapped: string) => dependencies.secretStore.unwrap(wrapped)
-  }
-  syncPeerService = new SyncPeerService({
-    directory: path.join(app.getPath('userData'), 'sync-peer'),
-    replicaId: () => syncReplica!.replicaId,
-    ...syncTokenStorage,
-    isLocalDatabaseEncrypted: () => Boolean(mainDatabase.getDatabasePassword()),
-    importSnapshot: (filePath, mode) => {
-      if (databaseRequests.state !== 'running') throw new Error('sync.tunnel.error.busy')
-      return runDatabaseMaintenance({ kind: 'import-backup-file', filePath, mode })
-    }
-  })
-  const syncAppliedSessions = new Set<string>()
-  const hasPendingSyncSession = (id: string): boolean =>
-    Boolean(
-      mainDatabase
-        .getDatabase()
-        .prepare(
-          "SELECT 1 FROM deepchat_pending_inputs WHERE session_id=? AND state != 'consumed' LIMIT 1"
-        )
-        .get(id)
-    )
-  syncReplica = new SyncReplicaStore({
-    database: () => mainDatabase.getDatabase(),
-    directory: path.join(app.getPath('userData'), 'sync-replica'),
-    canApply: (kind, id) =>
-      databaseRequests.state === 'running' &&
-      (kind === 'session'
-        ? !syncActiveSessions.has(id) &&
-          !hasPendingSyncSession(id) &&
-          (syncAppliedSessions.has(id) || !sessionDeletionGate.hasActiveOperations(id))
-        : syncActiveSessions.size === 0 &&
-          !sessionDeletionGate.hasActiveOperationsOutside(syncAppliedSessions)),
-    guard: async (units, operation) => {
-      const ids = [
-        ...new Set(units.filter((unit) => unit.kind === 'session').map((unit) => unit.id))
-      ].sort()
-      const apply = async (index: number): Promise<ReturnType<typeof operation>> => {
-        if (index === ids.length) return operation()
-        const id = ids[index]
-        if (
-          syncActiveSessions.has(id) ||
-          hasPendingSyncSession(id) ||
-          sessionDeletionGate.hasActiveOperations(id)
-        )
-          return false
-        return sessionDeletionGate.runWithSessionDeletion(id, async () => {
-          if (syncActiveSessions.has(id)) return false
-          await deepChatAgentHarness.cleanupSession(id)
-          await acpAgentRuntime.cleanupSession(toAppSessionId(id))
-          syncAppliedSessions.add(id)
-          try {
-            return await apply(index + 1)
-          } finally {
-            syncAppliedSessions.delete(id)
-          }
-        })
-      }
-      return apply(0)
-    },
-    applied: (kind, id, deleted) => {
-      if (kind === 'session')
-        publishDeepchatEvent('sessions.updated', {
-          sessionIds: [id],
-          reason: deleted ? 'deleted' : 'synced'
-        })
-      if (kind === 'provider') {
-        providerSettings.invalidateSyncCaches()
-        providerRuntime.handleProviderAtomicUpdate({
-          operation: 'remove',
-          providerId: id,
-          requiresRebuild: true
-        })
-        const provider = providerSettings.getProviderById(id)
-        if (provider)
-          providerRuntime.handleProviderAtomicUpdate({
-            operation: 'add',
-            providerId: id,
-            provider,
-            requiresRebuild: false
-          })
-        publishDeepchatEvent('providers.changed', {
-          reason: 'providers',
-          providerIds: [id],
-          version: Date.now()
-        })
-        publishDeepchatEvent('models.changed', {
-          reason: 'runtime-refresh',
-          providerId: id,
-          version: Date.now()
-        })
-      }
-      if (kind === 'setting' && id === 'customPrompts') promptSettings.invalidateSyncCache()
-      if (kind === 'setting') {
-        const key = (
-          [
-            'autoCompactionEnabled',
-            'autoCompactionTriggerThreshold',
-            'autoCompactionRetainRecentPairs',
-            'copyWithCotEnabled'
-          ] as const
-        ).find((value) => value === id)
-        if (key) {
-          const values = {
-            autoCompactionEnabled: agentDefaults.getAutoCompactionEnabled(),
-            autoCompactionTriggerThreshold: agentDefaults.getAutoCompactionTriggerThreshold(),
-            autoCompactionRetainRecentPairs: agentDefaults.getAutoCompactionRetainRecentPairs(),
-            copyWithCotEnabled: desktopSettings.getCopyWithCotEnabled()
-          }
-          publishDeepchatEvent('settings.changed', {
-            changedKeys: [key],
-            version: Date.now(),
-            values: { [key]: values[key] }
-          })
-        }
-      }
-      const refresh = async () => {
-        if (kind === 'agent')
-          await emitAgentCatalogChanged(agentSettings, publishDeepchatEvent, [id])
-        if (kind === 'mcp') {
-          mcpService.handleConfigChanged()
-          publishDeepchatEvent('mcp.config.changed', {
-            mcpServers: await dependencies.mcpSettings.getMcpServers(),
-            mcpEnabled: await dependencies.mcpSettings.getMcpEnabled(),
-            version: Date.now()
-          })
-          deepChatAgentHarness.refreshToolRegistry()
-        }
-        if (kind === 'setting' && id === 'customPrompts')
-          publishDeepchatEvent('config.customPrompts.changed', {
-            prompts: await promptSettings.getCustomPrompts(),
-            version: Date.now()
-          })
-        if (kind === 'setting' && (id === 'systemPrompts' || id === 'default_system_prompt'))
-          await promptSettings.publishSystemPromptState()
-      }
-      void refresh().catch((error) =>
-        logger.warn('[Sync] Could not refresh imported settings', error)
-      )
-      publishDeepchatEvent('sync.device.changed', { version: Date.now() })
-    }
-  })
-  const replicaEndpoint = new SyncReplicaEndpoint({
-    store: syncReplica,
-    directory: path.join(app.getPath('userData'), 'sync-host'),
-    hostId: () => syncHostService.getHostId(),
-    available: () =>
-      databaseRequests.state === 'running' &&
-      !syncService.isBackupInProgress() &&
-      !mainDatabase.getDatabasePassword()
-  })
-  automaticSync = new AutomaticSync({
-    store: syncReplica,
-    directory: path.join(app.getPath('userData'), 'sync-peer'),
-    connection: () => syncPeerService.connection(),
-    available: () =>
-      databaseRequests.state === 'running' &&
-      !syncService.isBackupInProgress() &&
-      !mainDatabase.getDatabasePassword(),
-    isEncrypted: () => Boolean(mainDatabase.getDatabasePassword()),
-    changed: () => publishDeepchatEvent('sync.device.changed', { version: Date.now() })
-  })
-  syncPeerService.automatic = automaticSync
-  syncHostService = new SyncHostService({
-    changed: () => publishDeepchatEvent('sync.device.changed', { version: Date.now() }),
-    replica: replicaEndpoint,
-    resolveCloudflared: () => toolchainService.resolve('cloudflared').cloudflared,
-    ...syncTokenStorage,
-
-    createBackup: () => {
-      if (databaseRequests.state !== 'running') throw new Error('sync.tunnel.error.busy')
-      return syncService.createHostBackup()
-    },
-    getFolderPath: () => syncSettings.getFolderPath(),
-    getUserDataPath: () => app.getPath('userData'),
-    getAppVersion: () => app.getVersion(),
-    logger
-  })
   notificationService = new NotificationService(nativeSettings, publishDeepchatEvent)
   trayPresenter = new TrayPresenter(nativeSettings, windowPresenter)
   dialogService = new DialogService(publishDeepchatEvent)
@@ -1545,101 +1262,6 @@ export async function createMainProcessControl(dependencies: {
     agentPreviewCoordinator
   )
 
-  // Define the storage root for built-in knowledge databases.
-  const dbDir = path.join(app.getPath('userData'), 'app_db')
-  knowledgeService = new KnowledgeService({
-    config: knowledgeSettings,
-    storageRoot: dbDir,
-    extensionDirectory: path.join(
-      app.getAppPath().replace('app.asar', 'app.asar.unpacked'),
-      'runtime',
-      'duckdb',
-      'extensions'
-    ),
-    files: fileService,
-    dialog: dialogService,
-    embeddings: providerRuntime,
-    events: {
-      publishFileUpdated: (file) =>
-        publishDeepchatEvent('knowledge.file.updated', { ...file, version: Date.now() }),
-      publishFileProgress: (fileId, progress) =>
-        publishDeepchatEvent('knowledge.file.progress', {
-          fileId,
-          ...progress,
-          version: Date.now()
-        })
-    }
-  })
-  const pluginRuntimeSupervisor = new PluginRuntimeSupervisor()
-  mcpService = new McpService(
-    providerSettings,
-    agentSettings,
-    promptSettings,
-    dependencies.mcpSettings,
-    dependencies.privacySettings,
-    createInMemoryServerFactory({
-      sqlitePresenter: sessionData.database,
-      sessions: appSessionService,
-      transcript: sessionData.transcript,
-      settings: sessionData.settings,
-      locale: desktopSettings,
-      promptSettings,
-      knowledgeSettings,
-      knowledgeService: knowledgeService
-    }),
-    providerRuntime,
-    () => deepChatAgentHarness.refreshToolRegistry(),
-    semanticNotifications,
-    publishDeepchatEvent,
-    dependencies.pluginToolPolicies,
-    {
-      homeDirectory: app.getPath('home'),
-      appVersion: app.getVersion(),
-      toolchains: toolchainService,
-      getProxyUrl: async () => proxyConfig.getProxyUrl()
-    },
-    {
-      store: new McpOAuthCredentialStore({
-        filePath: path.join(app.getPath('userData'), 'mcp-oauth', 'credentials.json'),
-        crypto: secureCredentialCrypto
-      }),
-      openExternal: (url) => shell.openExternal(url)
-    },
-    (data, options) => deviceService.cacheImage(data, options),
-    pluginRuntimeSupervisor,
-    computerUsePreviewPresenter,
-    {
-      registry: dependencies.mcpAppSandboxRegistry,
-      desktop: dependencies.mcpAppDesktop,
-      permissionBroker: toolPermissionBroker,
-      getPermissionMode: async (conversationId) =>
-        sessionData.settings.get(conversationId)?.permission_mode ?? 'default',
-      validateSource: (input) => {
-        const message = sessionData.database.deepchatMessagesTable.get(input.messageId)
-        return Boolean(
-          message?.session_id === input.conversationId &&
-          sessionData.database.deepchatAssistantBlocksTable.matchesMcpAppSource(
-            input.messageId,
-            input.blockId,
-            input.descriptor,
-            input.toolInput
-          )
-        )
-      },
-      persistModelContext: (messageId, blockId, descriptor, toolInput, context) =>
-        sessionData.database.deepchatAssistantBlocksTable.updateMcpAppModelContext(
-          messageId,
-          blockId,
-          descriptor,
-          toolInput,
-          context
-        )
-    },
-    () => reportMainStartupComponentFailure(dependencies.startupRunId, 'mcp', 'unknown')
-  )
-  await noteNodeDemandFromMcp(dependencies.mcpSettings, toolchainService).catch((error) => {
-    logger.warn('[ToolchainService] Failed to note MCP Node demand', error)
-  })
   const deeplinkActions = createDeeplinkActions({
     window: windowPresenter,
     hasProvider: async (providerId) => {
@@ -1656,78 +1278,10 @@ export async function createMainProcessControl(dependencies: {
   )
 
   // Initialize generic Workspace presenter (for all Agent modes)
-  workspaceService = new WorkspaceService(fileService, fileWatcherService, {
-    publishInvalidated: (event) => publishDeepchatEvent('workspace.invalidated', event),
-    publishWatchStatusChanged: (event) =>
-      publishDeepchatEvent('workspace.watch.status.changed', event)
-  })
-
-  const skillSessionStatePort: SkillSessionStatePort = {
-    hasNewSession: async (conversationId) => Boolean(await sessionQuery.getSession(conversationId)),
-    getPersistedNewSessionSkills: (conversationId) =>
-      sessionData.database.newSessionsTable.getActiveSkills(conversationId),
-    setPersistedNewSessionSkills: (conversationId, skills) => {
-      sessionData.database.newSessionsTable.updateActiveSkills(conversationId, skills)
-      projectDatabase.newEnvironmentsTable.syncForSession(conversationId)
-      projectService.notifyEnvironmentProjectionChanged()
-    },
-    repairImportedLegacySessionSkills: async (conversationId) => {
-      return await legacyChatImportService.repairImportedLegacySessionSkills(conversationId)
-    }
-  }
-  skillService = new SkillService(
-    skillSettings,
-    skillSessionStatePort,
-    fileWatcherService,
-    publishDeepchatEvent,
-    {
-      homeDirectory: app.getPath('home'),
-      tempDirectory: app.getPath('temp'),
-      userDataDirectory: app.getPath('userData'),
-      builtinSkillsDirectories: app.isPackaged
-        ? [
-            path.join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'skills'),
-            path.join(process.resourcesPath, 'resources', 'skills'),
-            path.join(process.resourcesPath, 'skills')
-          ]
-        : [path.join(app.getAppPath(), 'resources', 'skills')],
-      openSkillsDirectory: async (directory) => {
-        await shell.openPath(directory)
-      }
-    },
-    {
-      isDeepChatAgent: async (agentId) =>
-        (await agentSettings.getAgent(agentId))?.type === 'deepchat',
-      listDeepChatAgents: async () =>
-        (await agentSettings.listAgents())
-          .filter((agent) => agent.type === 'deepchat')
-          .map((agent) => ({
-            id: agent.id,
-            enabledSkillNames: agent.config?.enabledSkillNames,
-            protected: agent.protected
-          })),
-      getSessionAgentId: async (sessionId) =>
-        (await sessionQuery.getSession(sessionId))?.agentId ?? null,
-      getSessionProjectDir: async (sessionId) =>
-        (await sessionQuery.getSession(sessionId))?.projectDir ?? null,
-      listSessions: async () =>
-        (await sessionQuery.listSessions({ includeSubagents: true })).map((session) => ({
-          id: session.id,
-          agentId: session.agentId
-        }))
-    }
+  const pluginSettingsWindow = new PluginSettingsWindow()
+  const remoteAuthWindows = new DesktopRemoteAuthWindows((event) =>
+    remoteService.handleAuthWindowEvent(event)
   )
-  cliSkillService = new CliSkillService({
-    skills: skillService,
-    agentExists: async (agentId) => (await agentSettings.getAgent(agentId))?.type === 'deepchat',
-    recordSettingsActivity: (input) => {
-      void settingsDatabase.recordSettingsActivity(input).catch((error) => {
-        logger.warn('[SettingsActivity] Failed to record CLI Skill activity:', error)
-      })
-    },
-    log: logger
-  })
-
   const admissionDiagnostics = {
     observationsEnabled: () => mainLogger.isOutputEnabled(),
     observe: (
@@ -1766,223 +1320,83 @@ export async function createMainProcessControl(dependencies: {
     diagnostics: admissionDiagnostics
   })
   console.info('[Harness] Rutis admission ready', agentInvocationAdmission.identity)
-  const resolveConversationExecutionAuthorityNow = (conversationId: string) => {
-    const session = appSessionService.get(conversationId)
-    if (!session) return null
-    const resolveAgentConfig = (agentId: string) => {
-      const config = agentRepository.resolveDeepChatAgentConfig(agentId)
-      return {
-        ...config,
-        disabledAgentTools: Array.isArray(config.disabledAgentTools)
-          ? config.disabledAgentTools
-          : [...DEFAULT_DISABLED_AGENT_TOOLS]
-      }
+  // Initialize agent memory layer (opt-in per agent; vectors stored separately from knowledge base)
+  const memoryDbDir = path.join(app.getPath('userData'), 'app_db', 'AgentMemory')
+  const memoryVectorStores = new RutisMemoryVectorStores(harnessRuntime, {
+    memoryDbDir,
+    host: {
+      appPath: app.getAppPath(),
+      userDataPath: app.getPath('userData'),
+      isPackaged: app.isPackaged
     }
-    const agentType = agentRepository.getAgentType(session.agentId)
-    const agentConfig = resolveAgentConfig(session.agentId)
-    const persistedDisabledAgentTools = appSessionService.getDisabledAgentTools(session.id)
-    let authority = composeSubagentAuthority({
-      disabledAgentTools: persistedDisabledAgentTools,
-      enabledMcpServerIds: agentConfig.enabledMcpServerIds
-    })
-    if (session.sessionKind === 'subagent') {
-      const parentSessionId = session.parentSessionId?.trim()
-      const parent = parentSessionId ? appSessionService.get(parentSessionId) : null
-      if (!parent || parent.sessionKind !== 'regular') {
-        throw new Error(`Subagent Session ${session.id} has no resolvable parent tool policy.`)
+  })
+  const sessionUiPort: SessionUiPort = {
+    refreshSessionUi: () => {
+      try {
+        void floatingButtonPresenter.refreshWidgetState()
+      } catch (error) {
+        console.warn('[Main] Failed to refresh floating widget state:', error)
       }
-      authority = composeSubagentAuthority(
-        { disabledAgentTools: persistedDisabledAgentTools },
-        { disabledAgentTools: appSessionService.getDisabledAgentTools(parent.id) },
-        resolveAgentConfig(parent.agentId),
-        agentConfig
-      )
-    }
-    return {
-      sessionId: session.id,
-      agentId: session.agentId,
-      projectDir: session.projectDir ?? null,
-      sessionKind: session.sessionKind,
-      disabledAgentTools: authority.disabledAgentTools,
-      enabledMcpServerIds: authority.enabledMcpServerIds,
-      subagentCapability: resolveDeepChatSubagentCapability({
-        agentType,
-        sessionKind: session.sessionKind,
-        agentPolicyEnabled: agentConfig.subagentEnabled === true,
-        slots: normalizeDeepChatSubagentSlots(agentConfig.subagents)
-      })
     }
   }
-  const backgroundExec = new BackgroundExecService((signal) =>
-    spawnBackgroundExecHost(
-      path.join(app.getAppPath(), 'out/main/backgroundExecUtilityHost.js'),
-      signal
-    )
-  )
-  const agentToolDependencies: AgentToolDependencies = {
-    backgroundExec,
-    readSession: (callerSessionId, input) =>
-      sessionData.sessionReferences.read(callerSessionId, input),
-    agentInvocationAdmission,
-    sessions: {
-      resolveConversationWorkdir: async (conversationId) => {
-        try {
-          const session = await sessionQuery.getSession(conversationId)
-          const normalized = session?.projectDir?.trim()
-          if (normalized) {
-            return normalized
-          }
-        } catch (error) {
-          console.warn('[Main] Failed to resolve new session workdir:', {
-            conversationId,
-            error
-          })
-        }
-
-        return null
-      },
-      resolveConversationExecutionAuthorityNow,
-      resolveConversationExecutionAuthority: async (conversationId) =>
-        resolveConversationExecutionAuthorityNow(conversationId),
-      resolveConversationSessionInfo: async (conversationId) => {
-        const session = await sessionQuery.getSession(conversationId)
-        if (!session) {
-          return null
-        }
-
-        const agent = await agentSettings.getAgent(session.agentId)
-        const agentType = await agentSettings.getAgentType(session.agentId)
-        const permissionMode = await sessionAssignment.getPermissionMode(session.id)
-        const generationSettings = await sessionAssignment.getSessionGenerationSettings(session.id)
-        const disabledAgentTools = await sessionAssignment.getSessionDisabledAgentTools(session.id)
-        const activeSkills = await skillService.getActiveSkills(session.id)
-        const agentConfig = await agentSettings.resolveDeepChatAgentConfig(session.agentId)
-        const availableSubagentSlots = normalizeDeepChatSubagentSlots(agentConfig.subagents)
-        const subagentCapability = resolveDeepChatSubagentCapability({
-          agentType,
-          sessionKind: session.sessionKind,
-          agentPolicyEnabled: agentConfig.subagentEnabled === true,
-          slots: availableSubagentSlots
-        })
-
-        return {
-          sessionId: session.id,
-          agentId: session.agentId,
-          agentName: agent?.name?.trim() || session.agentId,
-          agentType,
-          providerId: session.providerId,
-          modelId: session.modelId,
-          projectDir: session.projectDir ?? null,
-          permissionMode,
-          orchestrationPolicy: session.orchestrationPolicy,
-          toolModeOverride: session.toolModeOverride ?? null,
-          generationSettings,
-          disabledAgentTools,
-          activeSkills,
-          sessionKind: session.sessionKind,
-          parentSessionId: session.parentSessionId ?? null,
-          subagentMeta: session.subagentMeta ?? null,
-          subagentCapability,
-          status: session.status
-        }
-      }
+  const coreRuntime = await createCoreRuntime({
+    profile: dependencies,
+    data: coreData,
+    providers: coreProviders,
+    bootstrap: {
+      profileDirectory: app.getPath('userData'),
+      homeDirectory: app.getPath('home'),
+      temporaryDirectory: app.getPath('temp'),
+      appDataDirectory: app.getPath('appData'),
+      documentsDirectory: resolveProjectDirectory('documents'),
+      projectHomeDirectory: resolveProjectDirectory('home'),
+      appPath: app.getAppPath(),
+      appVersion: app.getVersion(),
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+      workingDirectory: process.cwd(),
+      builtinSkillsDirectories: app.isPackaged
+        ? [
+            path.join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'skills'),
+            path.join(process.resourcesPath, 'resources', 'skills'),
+            path.join(process.resourcesPath, 'skills')
+          ]
+        : [path.join(app.getAppPath(), 'resources', 'skills')]
     },
-    tape: {
-      searchTape: async (conversationId, query, options) => {
-        return await sessionQuery.searchTape(conversationId, query, options)
-      },
-      getTapeContext: async (conversationId, entryIds, options) => {
-        return await sessionQuery.getTapeContext(conversationId, entryIds, options)
-      }
+    settings: { desktopSettings, appSettingsService, skillSettings, traceSettings },
+    toolchains: toolchainService,
+    fileWatcherService,
+    permissions: {
+      agentCliTokenAuthority,
+      commandPermissionService,
+      filePermissionService,
+      settingsPermissionService,
+      toolPermissionBroker
     },
-    memory: {
-      isMemoryEnabled: (agentId) => memoryService.isEnabled(agentId),
-      rememberMemory: async (agentId, input, sourceSession, model, beforeMutation) =>
-        memoryService.rememberMemory(
-          {
-            kind: input.kind,
-            category: input.category,
-            content: input.content,
-            importance: input.importance
-          },
-          { agentId, sourceSession },
-          model,
-          beforeMutation
-        ),
-      recallMemory: async (agentId, query, scopeContext) => {
-        const items = await memoryService.recall(agentId, query, undefined, scopeContext)
-        return items.map((item) => ({
-          id: item.id,
-          kind: item.kind,
-          content: item.content
-        }))
-      },
-      forgetMemory: async (agentId, memoryId, beforeMutation) =>
-        await memoryService.forgetMemory(agentId, memoryId, beforeMutation)
+    commandPermissionHandler,
+    commandEnvironment: agentCliCommandAccess,
+    liveDelegationConsent,
+    databaseRequests,
+    syncActiveSessions,
+    importSnapshot: (filePath, mode) =>
+      runDatabaseMaintenance({ kind: 'import-backup-file', filePath, mode }),
+    assertSyncTokenStorageAvailable: () => {
+      if (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')
+        throw new Error('sync.error.safeStorageUnavailable')
     },
-    cronJobs: {
-      listCronJobs: async () => await cronJobs.list(),
-      upsertCronJob: async (input, beforeMutation) =>
-        (await cronJobs.upsert(input, beforeMutation)).job,
-      deleteCronJob: async (id, beforeMutation) => {
-        await cronJobs.delete(id, beforeMutation)
-      },
-      toggleCronJob: async (id, enabled, beforeMutation) =>
-        (await cronJobs.toggle(id, enabled, beforeMutation)).job,
-      runCronJobNow: async (id, beforeMutation) => (await cronJobs.runNow(id, beforeMutation)).run,
-      listCronJobRuns: async (jobId, limit) => cronJobs.listRuns(jobId, limit),
-      previewCronSchedule: async (input) => cronJobs.previewSchedule(input)
+    semanticNotifications,
+    dialog: dialogService,
+    secureCrypto: secureCredentialCrypto,
+    getProxyUrl: async () => proxyConfig.getProxyUrl(),
+    whenProxyReady: async () => {
+      await proxyConfig.whenReady()
     },
-    subagents: {
-      createSubagentSession: async (input) => {
-        const created = await sessionLifecycle.createSubagentSession(input)
-        return await agentToolDependencies.sessions.resolveConversationSessionInfo(created.id)
-      },
-      linkSubagentTape: async (input) => await sessionAssignment.linkSubagentTape(input),
-      sendConversationMessage: async (conversationId, content) => {
-        await sessionTurn.sendMessage(conversationId, content)
-      },
-      cancelConversation: async (conversationId) => {
-        await sessionTurn.cancelGeneration(conversationId)
-      },
-      subscribeSessionRuntimeUpdates: (listener) => sessionRuntimeEvents.subscribe(listener)
-    },
-    liveDelegation: createLivePort(() => liveDelegationService),
-    skills: skillService,
-    skillExecutionAuthority: new SkillExecutionAuthorityResolver({
-      tape: createSkillExecutionAuthorityTapePort(sessionData.tapeStore),
-      environments: skillService
-    }),
-    browser: yoBrowserPresenter.toolHandler,
-    files: {
-      getMimeType: (filePath) => fileService.getMimeType(filePath),
-      prepareFileCompletely: (absPath, typeInfo, contentType) =>
-        fileService.prepareFileCompletely(absPath, typeInfo, contentType)
-    },
-    provider: {
-      executeWithRateLimit: (providerId, options) =>
-        providerRuntime.executeWithRateLimit(providerId, options),
-      generateCompletionStandalone: (
-        providerId,
-        messages,
-        modelId,
-        temperature,
-        maxTokens,
-        options
-      ) =>
-        providerRuntime.generateCompletionStandalone(
-          providerId,
-          messages,
-          modelId,
-          temperature,
-          maxTokens,
-          options
-        ),
-      generateImageStandalone: (providerId, prompt, modelId, imageOptions, options) =>
-        providerRuntime.generateImageStandalone(providerId, prompt, modelId, imageOptions, options)
-    },
+    openExternal: (url) => shell.openExternal(url),
+    openPath: (filePath) => shell.openPath(filePath),
+    selectDirectory: () => deviceService.selectDirectory(),
     cacheImage: (data, options) => deviceService.cacheImage(data, options),
-    desktop: {
+    browser: yoBrowserPresenter.toolHandler,
+    agentDesktop: {
       tempDirectory: app.getPath('temp'),
       profileTempDirectory: path.join(app.getPath('userData'), 'temp'),
       readImageSize: async (filePath, signal) => {
@@ -1997,238 +1411,100 @@ export async function createMainProcessControl(dependencies: {
       sendSettingsNavigation: (windowId, navigation) =>
         windowPresenter.sendSettingsNavigation(windowId, navigation)
     },
-    permissions: {
-      getApprovedFilePaths: (conversationId, requiredPermission, provisionalLeaseId) =>
-        filePermissionService.getApprovedPaths(
-          conversationId,
-          requiredPermission,
-          provisionalLeaseId
-        ),
-      consumeSettingsApproval: (conversationId, toolName, provisionalLeaseId) =>
-        settingsPermissionService.consumeApproval(conversationId, toolName, provisionalLeaseId)
-    }
-  }
-
-  // Initialize the merged MCP and built-in Tool service.
-  toolService = new ToolService({
-    pluginToolPolicies: dependencies.pluginToolPolicies,
+    pluginSettingsWindow,
+    remoteAuthWindows,
+    openRemoteSession: (sessionId) => openRemoteSession(sessionId),
+    showNotification: (options) => notificationService.showNotification(options),
+    mcpPreview: computerUsePreviewPresenter,
+    mcpApps: { registry: dependencies.mcpAppSandboxRegistry, desktop: dependencies.mcpAppDesktop },
+    spawnBackgroundExecHost: (signal) =>
+      spawnBackgroundExecHost(
+        path.join(app.getAppPath(), 'out/main/backgroundExecUtilityHost.js'),
+        signal
+      ),
     spawnCodeModeHost: (signal) =>
       spawnCodeModeHost(path.join(app.getAppPath(), 'out/main/codeModeUtilityHost.js'), signal),
-    mcpService: mcpService,
-    providerSettings: providerSettings,
-    settings: dependencies.settingsStore,
-    agentSettings,
-    skillSettings,
-    desktopSettings: appSettingsService,
-    commandPermissionHandler,
-    commandEnvironment: agentCliCommandAccess,
-    permissionBroker: toolPermissionBroker,
-    liveDelegationConsent,
-    agentTools: agentToolDependencies,
-    effectObserver: {
-      beforeToolAuthorization: async (observation, signal) => {
-        const permissionMode = await liveDelegationService.beforeToolAuthorization(
-          observation,
-          signal
-        )
-        return permissionMode ? { permissionMode } : null
-      },
-      beforeToolExecution: async (observation, signal) => {
-        await liveDelegationService.beforeToolExecution(observation, signal)
-      }
-    }
-  })
-
-  // Plugin activation is a shared startup barrier for Skill migration and MCP startup.
-  const pluginSettingsWindow = new PluginSettingsWindow()
-  pluginService = new PluginService({
-    workingDirectory: process.cwd(),
-    profileDirectory: app.getPath('userData'),
-    homeDirectory: app.getPath('home'),
-    appPath: app.getAppPath(),
-    appVersion: app.getVersion(),
-    isPackaged: app.isPackaged,
-    resourcesPath: process.resourcesPath,
-    openExternal: (url) => shell.openExternal(url),
-    openPath: (filePath) => shell.openPath(filePath),
-    hookEnvironment: () =>
-      toolchainService.prependResolvedToEnv(
-        createMinimalProcessEnvironment(process.env, process.platform)
-      ),
-    toolPolicies: dependencies.pluginToolPolicies,
-    nowledgeMem: nowledgeMemConnections,
-    exportNowledgeSession: (input) => agentSessionExportService.submitToNowledgeMem(input),
-    contextTape: sessionData.tapeStore,
-    mcpSettings: dependencies.mcpSettings,
-    mcpService: mcpService,
-    skillService: skillService,
-    settingsWindow: pluginSettingsWindow,
-    runtimeSupervisor: pluginRuntimeSupervisor
-  })
-
-  // Initialize Skill Sync service
-  skillSyncService = new SkillSyncService(skillService, skillSettings, publishDeepchatEvent)
-
-  hookService = new HookService(
-    hookSettings,
-    { getSession: (sessionId) => sessionQuery.getSession(sessionId) },
-    app.getVersion()
-  )
-  const providerCatalogPort: ProviderCatalogPort = {
-    getProviderModels: (providerId) => providerSettings.getProviderModels(providerId),
-    getCustomModels: (providerId) => providerSettings.getCustomModels(providerId),
-    getAgentType: async (agentId) => await agentSettings.getAgentType(agentId)
-  }
-  const sessionUiPort: SessionUiPort = {
-    refreshSessionUi: () => {
-      try {
-        void floatingButtonPresenter.refreshWidgetState()
-      } catch (error) {
-        console.warn('[Main] Failed to refresh floating widget state:', error)
-      }
-    }
-  }
-  sessionPermissionPort = createSessionPermissionPort({
-    agentCliTokenAuthority,
-    commandPermissionService,
-    filePermissionService,
-    settingsPermissionService,
-    toolPermissionBroker
-  })
-  // Initialize agent memory layer (opt-in per agent; vectors stored separately from knowledge base)
-  const memoryDbDir = path.join(dbDir, 'AgentMemory')
-  const memoryVectorStores = new RutisMemoryVectorStores(harnessRuntime, {
-    memoryDbDir,
-    host: {
-      appPath: app.getAppPath(),
-      userDataPath: app.getPath('userData'),
-      isPackaged: app.isPackaged
-    }
-  })
-  memoryService = new MemoryService({
-    repository: createLivePort(() => memoryDatabase.agentMemoryTable),
-    directiveRepository: createLivePort(() => memoryDatabase.agentMemoryDirectiveTable),
-    auditRepository: createLivePort(() => memoryDatabase.agentMemoryAuditTable),
-    resolveAgentConfig: (agentId) => agentRepository.resolveDeepChatAgentConfig(agentId),
-    resolveAgentDefaultModel: (agentId) => {
-      const config = agentRepository.resolveDeepChatAgentConfig(agentId)
-      const model = config.assistantModel ?? config.defaultModelPreset
-      return model?.providerId && model?.modelId
-        ? { providerId: model.providerId, modelId: model.modelId }
-        : null
-    },
-    // Management memory APIs only read/write real DeepChat agents.
-    isManagedAgent: (agentId) => agentRepository.getDeepChatAgentConfig(agentId) !== null,
-    listManagedAgentConfigs: () => agentRepository.listResolvedDeepChatAgentConfigs(),
-    listManagedMemoryAgentIds: () =>
-      agentRepository
-        .listAgents({ agentType: 'deepchat', enabled: true })
-        .map((agent) => agent.id)
-        .filter(
-          (agentId) => agentRepository.resolveDeepChatAgentConfig(agentId).memoryEnabled === true
-        ),
-    ...createMemoryProviderBindings(providerRuntime),
-    createVectorStore: (agentId, embedding, dimensions) =>
-      memoryVectorStores.createVectorStore(agentId, embedding, dimensions),
-    resetVectorStore: (agentId) => memoryVectorStores.resetVectorStore(agentId),
-    markVectorStoreQuarantined: (agentId) => memoryVectorStores.markVectorStoreQuarantined(agentId),
-    onMemoryChanged: (agentId, reason, context) =>
-      publishDeepchatEvent('memory.updated', {
-        agentId,
-        reason,
-        version: Date.now(),
-        ...(typeof context?.memoryId === 'string' ? { memoryId: context.memoryId } : {}),
-        ...(typeof context?.directiveId === 'string' ? { directiveId: context.directiveId } : {}),
-        ...(typeof context?.sessionId === 'string' ? { sessionId: context.sessionId } : {}),
-        ...(context?.createdIds?.length ? { createdIds: context.createdIds } : {})
-      })
-  })
-  agentSettings.start()
-
-  const coreExecution = createCoreExecution({
-    harness: {
-      providerRuntime,
-      providerSettings,
-      agentSettings,
-      database: sessionData.database,
-      sessionData,
-      toolService,
-      hookObserver: hookService,
-      pluginContext: pluginService.contextHooks,
-      onSessionCompleted: (sessionId) => {
-        const session = appSessionService.get(sessionId)
-        if (session?.sessionKind !== 'regular' || resolveSessionRunId(sessionId) !== null) return
-        void notificationService.showSessionCompletion(session).catch((error) => {
-          logger.warn('[Notification] Failed to notify session completion', { sessionId, error })
-        })
-      },
-      publishEvent: publishDeepchatEvent,
-      publishSessionUpdate: (update) => {
-        sessionRuntimeEvents.publish(update)
-        if (update.kind === 'status') {
-          if (update.status === 'generating') syncActiveSessions.add(update.sessionId)
-          else {
-            syncActiveSessions.delete(update.sessionId)
-            syncReplica?.wake()
-          }
-        }
-        if (update.kind === 'status' && (update.status === 'idle' || update.status === 'error')) {
-          void yoBrowserPresenter.releaseInactivePreview(update.sessionId).catch((error) => {
-            logger.warn('[YoBrowser] Failed to release inactive preview', {
-              sessionId: update.sessionId,
-              error
-            })
-          })
-        }
-      },
-      providerCatalogPort,
-      sessionPermissionPort,
-      acpAsLlmProviderPermission: acpAsLlmProviderPermission,
-      sessionUiPort,
-      memoryPort: memoryService,
-      getMemoryIngestionProjection: () => memoryDatabase.ingestionProjectionTable,
-      cacheImage: (data, options) => deviceService.cacheImage(data, options),
-      runJournalObserver: emitRunJournalObservation,
-      skillService: skillService,
-      skillSettings,
-      traceSettings,
-      commandShell: commandShellService,
-      promptSettings,
-      attachmentRouter,
-      toolSurfaceRunMode: toolSurfaceRollout,
-      agentCliTokenAuthority,
-      programmaticToolParents
-    },
-    agentRepository,
-    appSessionService,
-    acpRuntimeOwner,
-    acpSessionPersistence,
-    acpAsLlmProviderSessionControl,
-    agentLifecycle,
-    sessionDeletionGate,
-    projectDatabase,
-    projectService,
-    agentToolDependencies,
+    spawnSchedulerHost,
     agentInvocationAdmission,
-    liveDelegationRepository,
-    liveDelegationConsent,
-    nowledgeMemConnections,
-    databaseRequests,
-    typedEventHub,
-    resolveSessionRunId,
-    onRendererDestroyed: (webContentsId, callback) => {
-      const target = electronWebContents.fromId(webContentsId)
-      if (!target || target.isDestroyed()) {
-        queueMicrotask(callback)
-        return () => {}
-      }
-      target.once('destroyed', callback)
-      return () => target.removeListener('destroyed', callback)
+    memoryVectorStores,
+    execution: {
+      typedEventHub,
+      resolveSessionRunId,
+      onRendererDestroyed: (webContentsId, callback) => {
+        const target = electronWebContents.fromId(webContentsId)
+        if (!target || target.isDestroyed()) {
+          queueMicrotask(callback)
+          return () => {}
+        }
+        target.once('destroyed', callback)
+        return () => target.removeListener('destroyed', callback)
+      },
+      destroySessionBrowser: (sessionId) => yoBrowserPresenter.destroySessionBrowser(sessionId),
+      observeDelegation: emitLiveDelegationObservation,
+      observationsEnabled: () => mainLogger.isOutputEnabled()
     },
-    destroySessionBrowser: (sessionId) => yoBrowserPresenter.destroySessionBrowser(sessionId),
-    observeDelegation: emitLiveDelegationObservation,
-    observationsEnabled: () => mainLogger.isOutputEnabled()
+    onSessionCompleted: (sessionId) => {
+      const session = appSessionService.get(sessionId)
+      if (session?.sessionKind !== 'regular' || resolveSessionRunId(sessionId) !== null) return
+      void notificationService.showSessionCompletion(session).catch((error) => {
+        logger.warn('[Notification] Failed to notify session completion', { sessionId, error })
+      })
+    },
+    onSessionInactive: (sessionId) => {
+      void yoBrowserPresenter.releaseInactivePreview(sessionId).catch((error) => {
+        logger.warn('[YoBrowser] Failed to release inactive preview', { sessionId, error })
+      })
+    },
+    runJournalObserver: emitRunJournalObservation,
+    toolSurfaceRollout,
+    agentCliTokenAuthority,
+    programmaticToolParents,
+    attachmentRouter,
+    sessionUiPort,
+    publishEvent: publishDeepchatEvent,
+    isStopping: () => appLifecycleState === 'stopping' || appLifecycleState === 'stopped',
+    mcpReadinessChanged: (ready) => deeplinkService.observeMcpReadiness(ready),
+    reportStartupFailure: (component, category) =>
+      reportMainStartupComponentFailure(dependencies.startupRunId, component, category)
   })
+  const {
+    syncSettings,
+    knowledgeSettings,
+    replicaEndpoint,
+    backgroundExec,
+    initializeSkills,
+    ensureSkillServicesInitialized,
+    initializeSkillSyncScan,
+    initializeMcp,
+    initializeRemoteControl
+  } = coreRuntime
+  projectService = coreRuntime.projectService
+  exporter = coreRuntime.exporter
+  fileService = coreRuntime.fileService
+  syncService = coreRuntime.syncService
+  syncPeerService = coreRuntime.syncPeerService
+  syncReplica = coreRuntime.syncReplica
+  automaticSync = coreRuntime.automaticSync
+  syncHostService = coreRuntime.syncHostService
+  knowledgeService = coreRuntime.knowledgeService
+  mcpService = coreRuntime.mcpService
+  workspaceService = new WorkspaceService(fileService, fileWatcherService, {
+    publishInvalidated: (event) => publishDeepchatEvent('workspace.invalidated', event),
+    publishWatchStatusChanged: (event) =>
+      publishDeepchatEvent('workspace.watch.status.changed', event)
+  })
+  skillService = coreRuntime.skillService
+  skillSyncService = coreRuntime.skillSyncService
+  cliSkillService = coreRuntime.cliSkillService
+  toolService = coreRuntime.toolService
+  pluginService = coreRuntime.pluginService
+  hookService = coreRuntime.hookService
+  memoryService = coreRuntime.memoryService
+  remoteService = coreRuntime.remoteService
+  cronJobs = coreRuntime.cronJobs
+  sessionPermissionPort = coreRuntime.sessionPermissionPort
+  const coreExecution = coreRuntime.execution
+  agentSettings.start()
   deepChatAgentHarness = coreExecution.deepChatAgentHarness
   memoryIngestionObserver = coreExecution.memoryIngestionObserver
   acpAgentRuntime = coreExecution.acpAgentRuntime
@@ -2257,74 +1533,6 @@ export async function createMainProcessControl(dependencies: {
     windowPresenter as WindowPresenter,
     tabPresenter
   )
-  const remoteAuthWindows = new DesktopRemoteAuthWindows((event) =>
-    remoteService.handleAuthWindowEvent(event)
-  )
-  remoteService = new RemoteService({
-    profileDirectory: app.getPath('userData'),
-    authWindows: remoteAuthWindows,
-    settings: dependencies.settingsStore,
-    catalog: {
-      getAgentType: (agentId) => agentSettings.getAgentType(agentId),
-      listAgents: async () =>
-        (await agentSettings.listAgents())
-          .filter((agent) => agent.enabled !== false)
-          .map((agent) => ({
-            agentId: agent.id,
-            agentName: agent.name || agent.id,
-            agentType: agent.type,
-            source: agent.source
-          })),
-      listModelProviders: async () => {
-        const enabledProviders = providerSettings.getEnabledProviders()
-        const enabledModelGroups = await providerSettings.getAllEnabledModels()
-        const providerNameById = new Map(
-          enabledProviders.map((provider) => [provider.id, provider.name])
-        )
-        return enabledModelGroups
-          .filter((group) => providerNameById.has(group.providerId) && group.models.length > 0)
-          .map((group) => ({
-            providerId: group.providerId,
-            providerName: providerNameById.get(group.providerId) ?? group.providerId,
-            models: group.models.map((model) => ({
-              modelId: model.id,
-              modelName: model.name || model.id
-            }))
-          }))
-      }
-    },
-    workspace: {
-      getDefaultProjectPath: async () => projectService.getDefaultProjectPath(),
-      prepareFile: (filePath, type) => fileService.prepareFile(filePath, type)
-    },
-    lifecycle: sessionLifecycle,
-    turn: {
-      sendMessage: (...args) => sessionTurn.sendMessage(...args),
-      respondToolInteraction: (...args) => sessionTurn.respondToolInteraction(...args),
-      cancelGeneration: (sessionId) => sessionTurn.cancelGeneration(sessionId)
-    },
-    assignment: sessionAssignment,
-    projection: sessionQuery,
-    desktop: {
-      openSession: (sessionId) => openRemoteSession(sessionId)
-    },
-    notifications: {
-      showNotification: (options) => notificationService.showNotification(options)
-    }
-  })
-  cronJobs = new SchedulerService({
-    createSchedulerManager: (deps) =>
-      new SchedulerProcessManager({ ...deps, spawnHost: spawnSchedulerHost }),
-    database: schedulerDatabase,
-    agentSettings,
-    sessionEvents: sessionRuntimeEvents,
-    runSessionStarter: createCronJobRunSessionStarter({
-      lifecycle: sessionLifecycle,
-      turn: sessionTurn,
-      agentCatalog: agentSettings
-    }),
-    remoteDeliveryPort: remoteService
-  })
   const onSystemResume = () => {
     if (appLifecycleState !== 'running' || databaseRequests.state !== 'running') return
     void cronJobs.handleSystemResume().catch((error) => {
@@ -2477,118 +1685,6 @@ export async function createMainProcessControl(dependencies: {
     }
   }
 
-  async function initializeSkills(): Promise<void> {
-    if (!skillSettings.isEnabled()) {
-      logger.info('SkillService disabled by config')
-      return
-    }
-    await ensureSkillServicesInitialized()
-  }
-
-  async function ensureSkillServicesInitialized(): Promise<void> {
-    if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped') {
-      throw new Error(`Cannot initialize Skill services while app is ${appLifecycleState}`)
-    }
-    if (!skillInitializationPromise) {
-      const initialization = (async () => {
-        await initializePlugins()
-        await skillService.initialize()
-        logger.info('SkillService initialized')
-        await skillSyncService.initialize()
-      })()
-      skillInitializationPromise = initialization
-      void initialization.catch(() => {
-        if (skillInitializationPromise === initialization) {
-          skillInitializationPromise = null
-        }
-      })
-    }
-    await skillInitializationPromise
-  }
-
-  async function initializePlugins(): Promise<void> {
-    if (!pluginInitializationPromise) {
-      const initialization = pluginService.initialize()
-      pluginInitializationPromise = initialization
-      void initialization.catch(() => {
-        if (pluginInitializationPromise === initialization) {
-          pluginInitializationPromise = null
-        }
-      })
-    }
-    try {
-      await pluginInitializationPromise
-    } catch (error) {
-      reportMainStartupComponentFailure(dependencies.startupRunId, 'plugin_host', 'unknown')
-      console.error('[PluginHost] Failed to initialize plugins:', error)
-    }
-  }
-
-  async function initializeSkillSyncScan(signal?: AbortSignal): Promise<void> {
-    if (signal?.aborted || appLifecycleState === 'stopping' || appLifecycleState === 'stopped') {
-      return
-    }
-    if (!skillSyncScanPromise) {
-      const scan = (async () => {
-        try {
-          if (!skillSettings.isEnabled() || signal?.aborted) return
-          await ensureSkillServicesInitialized()
-          if (signal?.aborted) return
-          await skillSyncService.scanAndDetectNewDiscoveries()
-          logger.info('SkillSyncService background scan completed')
-        } catch (error) {
-          reportMainStartupComponentFailure(dependencies.startupRunId, 'skill_sync', 'unknown')
-          console.error('Failed to run SkillSyncService background scan:', error)
-        }
-      })()
-      skillSyncScanPromise = scan
-      void scan.finally(() => {
-        if (skillSyncScanPromise === scan) {
-          skillSyncScanPromise = null
-        }
-      })
-    }
-    await skillSyncScanPromise
-  }
-
-  async function initializeMcp() {
-    await initializePlugins()
-
-    try {
-      await proxyConfig.whenReady()
-      await mcpService.initialize()
-    } catch (error) {
-      reportMainStartupComponentFailure(dependencies.startupRunId, 'mcp', 'unknown')
-      console.error('Failed to initialize McpService:', error)
-      return
-    }
-    try {
-      await pluginRuntimeSupervisor.reconcileAll()
-    } catch (error) {
-      reportMainStartupComponentFailure(dependencies.startupRunId, 'plugin_runtime', 'unknown')
-      console.error('[PluginHost] Failed to reconcile eager plugin runtimes:', error)
-    }
-
-    try {
-      deepChatAgentHarness.refreshToolRegistry()
-      deeplinkService.observeMcpReadiness(
-        !['stopping', 'stopped'].includes(appLifecycleState) && databaseRequests.state === 'running'
-      )
-    } catch (error) {
-      reportMainStartupComponentFailure(dependencies.startupRunId, 'mcp_integration', 'unknown')
-      console.error('Failed to finish MCP startup integration:', error)
-    }
-  }
-
-  async function initializeRemoteControl() {
-    try {
-      await remoteService.initialize()
-    } catch (error) {
-      reportMainStartupComponentFailure(dependencies.startupRunId, 'remote_runtime', 'unknown')
-      console.error('RemoteService.initialize failed:', error)
-    }
-  }
-
   async function initializeIdleProviderWarmup(taskContext: StartupWorkloadTaskContext) {
     taskContext.signal.throwIfAborted()
     const [registryRefresh, catalogRefresh] = await Promise.allSettled([
@@ -2683,24 +1779,7 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('sessionRuntimes.suspend', () => suspendSessionRuntimes())
     await backgroundExec.shutdown()
     await toolService.shutdownCodeRuntime()
-    const pendingSkillInitialization = skillInitializationPromise
-    if (pendingSkillInitialization) {
-      await runDestroyStep('skillInitialization.drain', async () => {
-        await pendingSkillInitialization
-      })
-    }
-    const pendingPluginInitialization = pluginInitializationPromise
-    if (pendingPluginInitialization) {
-      await runDestroyStep('pluginInitialization.drain', async () => {
-        await pendingPluginInitialization
-      })
-    }
-    const pendingSkillSyncScan = skillSyncScanPromise
-    if (pendingSkillSyncScan) {
-      await runDestroyStep('skillSyncScan.drain', async () => {
-        await pendingSkillSyncScan
-      })
-    }
+    await coreRuntime.drainInitialization(runDestroyStep)
     await runDestroyStep('pluginService.shutdown', () => pluginService.shutdown())
     await runDestroyStep('mcpApps.clear', () => dependencies.mcpAppSandboxRegistry.clear())
     await runDestroyStep('mcpService.shutdown', () => mcpService.shutdown())

@@ -2820,6 +2820,44 @@ and all content before their dependency sections remain byte-identical. Core com
 runs in Main. Remaining business owners, private Rutis transport, the shared writer and process
 lifecycle must cut over before G5 publication; no new performance capture is selected here.
 
+### Cohesive Core runtime composition
+
+The default application constructs Project, file preparation, Sync/replica, Knowledge, MCP,
+Skills, Tool, Plugin, Hooks, Memory, execution, Remote and Scheduler through
+`src/harness/core/runtime.ts`. The runtime owns the shared Plugin/Skill initialization barriers,
+Skill scan and their initialization drain. Tool callbacks resolve the current delegation instance
+after database maintenance. Existing transactions, live table getters and shutdown ordering remain.
+
+Main owns the Rust supervisor and injects admission/vector clients. Core composition does not
+start a second Rust host. Workspace preview grants/protocols, open-application detection and the
+native watcher host remain in Main; Skills receives the existing watcher interface. Browser,
+renderer, crypto, helper spawning, proxy readiness and native notification effects remain explicit
+dependencies. These local dependency objects are not a Core RPC contract. Main still owns the
+profile writer, public ingress and application shutdown authority.
+
+The affected existing suites pass **540 distinct checks across 18 files**, including 29 Provider
+catalog checks for the normal generated refresh. No repository test is added. The existing
+composition checks share one source reader and follow the actual owners. The actual profile,
+Provider and runtime graph constructs under ordinary Node with native SQLite and a live Rust
+supervisor: **907 source files**, with Electron/electron-store/font-list/electron-toolkit imports
+forbidden. The injected native watcher/desktop effects are not invoked. The Skill scan worker's
+actual built module-path artifact is recorded separately and is not executed by this constructor
+probe. This is not a complete headless CLI run or a relocated Core process.
+
+The first application batch passes 16 of 19 cases across 12 files; two native-close observations
+and one prematurely closed startup fail. Business teardown reports completion in 0.1–0.3 seconds
+where those failed-close logs are available. The final candidate and immutable `f511c078b` each
+pass the same four targeted workspace, plugin-window and maintenance/close cases across three
+files, with unchanged assertions and deadlines. The initial failures remain recorded without a
+causal or performance claim; the other first-batch cases are not relabeled as a fresh final-build
+comparison. Full G5 acceptance must cover actual native close/reopen after the process cutover.
+
+App types, normal full build, format/check, lint and i18n pass. The generated Provider catalog
+refresh is retained separately. Evidence, source and artifact hashes are in
+`.deepchat/rutis-g5-runtime-composition-acceptance/`. No performance/resource capture is repeated.
+G5 remains active: remaining configuration/CLI/startup composition, private Rutis transport,
+shared-writer transfer and Core/Native lifecycle cutover are required before publication.
+
 ## G6. Extract the complete Memory capability
 
 - [ ] Move the existing facade and internal retrieval/extraction/reflection/persona/directive/

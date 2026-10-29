@@ -1,23 +1,23 @@
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
+async function readComposition(): Promise<string> {
+  const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+  return ['src/main/app/composition.ts', 'src/harness/core/data.ts', 'src/harness/core/runtime.ts']
+    .map((file) => readFileSync(path.resolve(process.cwd(), file), 'utf8'))
+    .join('\n')
+}
+
 describe('session boundary composition', () => {
   it('does not load NativeKit from the application startup workload', async () => {
-    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
-      'utf8'
-    )
+    const compositionSource = await readComposition()
 
     expect(compositionSource).not.toContain('main:yo-browser')
     expect(compositionSource).not.toContain('yoBrowserPresenter.initialize()')
   })
 
   it('reuses one default LegacyChatImportService across startup and skill repair', async () => {
-    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = ['src/main/app/composition.ts', 'src/harness/core/data.ts']
-      .map((file) => readFileSync(path.resolve(process.cwd(), file), 'utf8'))
-      .join('\n')
+    const compositionSource = await readComposition()
 
     expect(compositionSource.match(/new LegacyChatImportService\(/g)).toHaveLength(1)
     expect(compositionSource).toMatch(
@@ -30,11 +30,7 @@ describe('session boundary composition', () => {
   })
 
   it('notifies the project snapshot owner after skill persistence refreshes environments', async () => {
-    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
-      'utf8'
-    )
+    const compositionSource = await readComposition()
 
     expect(compositionSource).toContain(
       'projectDatabase.newEnvironmentsTable.syncForSession(conversationId)\n      projectService.notifyEnvironmentProjectionChanged()'
@@ -42,11 +38,7 @@ describe('session boundary composition', () => {
   })
 
   it('keeps hooks notifications on one instance that owns every configuration write', async () => {
-    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
-      'utf8'
-    )
+    const compositionSource = await readComposition()
 
     expect(compositionSource.match(/new HookService\(/g)).toHaveLength(1)
     expect(compositionSource).toContain(
@@ -57,11 +49,7 @@ describe('session boundary composition', () => {
   })
 
   it('constructs Scheduler once after Remote with complete execution dependencies', async () => {
-    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
-      'utf8'
-    )
+    const compositionSource = await readComposition()
 
     expect(compositionSource.match(/new SchedulerService\(/g)).toHaveLength(1)
     expect(compositionSource.indexOf('new RemoteService(')).toBeLessThan(
@@ -108,10 +96,7 @@ describe('session boundary composition', () => {
 
   it('has no late Provider runtime connection or ready fallback', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
-      'utf8'
-    )
+    const compositionSource = await readComposition()
     const providerSettingsSource = readFileSync(
       path.resolve(process.cwd(), 'src/main/provider/settings.ts'),
       'utf8'
@@ -124,10 +109,7 @@ describe('session boundary composition', () => {
 
   it('owns one idempotent shutdown path and rejects routes after shutdown starts', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
-      'utf8'
-    )
+    const compositionSource = await readComposition()
     const shutdownSource = readFileSync(
       path.resolve(process.cwd(), 'src/main/app/mainShutdownCoordinator.ts'),
       'utf8'
@@ -141,11 +123,7 @@ describe('session boundary composition', () => {
   })
 
   it('stops entry points and sessions before owned infrastructure', async () => {
-    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
-      'utf8'
-    )
+    const compositionSource = await readComposition()
     const destroyStart = compositionSource.indexOf('async function destroy(): Promise<void>')
     const destroyEnd = compositionSource.indexOf('async function runDestroyStep', destroyStart)
     expect(destroyStart).toBeGreaterThanOrEqual(0)
@@ -171,15 +149,10 @@ describe('session boundary composition', () => {
     expect(destroyStepIndex('agentInvocationAdmission.flushObservations')).toBeLessThan(
       destroyStepIndex('cronJobs.destroy')
     )
-    expect(destroyStepIndex('sessionRuntimes.suspend')).toBeLessThan(
-      destroyStepIndex('skillInitialization.drain')
-    )
-    expect(destroyStepIndex('skillInitialization.drain')).toBeLessThan(
-      destroyStepIndex('pluginService.shutdown')
-    )
-    expect(destroyStepIndex('skillSyncScan.drain')).toBeLessThan(
-      destroyStepIndex('skillSyncService.destroy')
-    )
+    const initializationDrain = destroySource.indexOf('await coreRuntime.drainInitialization(')
+    expect(initializationDrain).toBeGreaterThan(destroyStepIndex('sessionRuntimes.suspend'))
+    expect(initializationDrain).toBeLessThan(destroyStepIndex('pluginService.shutdown'))
+    expect(initializationDrain).toBeLessThan(destroyStepIndex('skillSyncService.destroy'))
     expect(destroySource).toContain("'yoBrowserPresenter.shutdown'")
     expect(destroySource).toContain("'tabPresenter.destroy'")
     const backgroundDrain = destroySource.indexOf('await backgroundExec.shutdown()')
@@ -204,21 +177,13 @@ describe('session boundary composition', () => {
   })
 
   it('does not detach startup workload tasks without an observation owner', async () => {
-    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
-      'utf8'
-    )
+    const compositionSource = await readComposition()
 
     expect(compositionSource).not.toContain('void startupWorkloadCoordinator.scheduleTask(')
   })
 
   it('finishes migrations and Skill initialization before the initial window', async () => {
-    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
-      'utf8'
-    )
+    const compositionSource = await readComposition()
     const startupStart = compositionSource.lastIndexOf('dependencies.bindControl(control)')
     const startupSource = compositionSource.slice(startupStart)
 
@@ -240,11 +205,7 @@ describe('session boundary composition', () => {
   })
 
   it('does not let app activation create a chat window during startup migration', async () => {
-    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
-      'utf8'
-    )
+    const compositionSource = await readComposition()
     const activateStart = compositionSource.indexOf("app.on('activate'")
     const activateEnd = compositionSource.indexOf("app.on('did-resign-active'", activateStart)
     const activateSource = compositionSource.slice(activateStart, activateEnd)
@@ -254,11 +215,7 @@ describe('session boundary composition', () => {
   })
 
   it('registers Plugin contributions before Skill migration through one startup barrier', async () => {
-    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
-      'utf8'
-    )
+    const compositionSource = await readComposition()
     const skillsStart = compositionSource.indexOf('async function initializeSkills()')
     const pluginsStart = compositionSource.indexOf('async function initializePlugins()')
     const syncStart = compositionSource.indexOf('async function initializeSkillSyncScan()')
@@ -290,10 +247,7 @@ describe('session boundary composition', () => {
       path.resolve(process.cwd(), 'src/main/device/routes.ts'),
       'utf8'
     )
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
-      'utf8'
-    )
+    const compositionSource = await readComposition()
     const restartStart = compositionSource.indexOf('async function restartApplication()')
     const restartEnd = compositionSource.indexOf('\n  }', restartStart)
     expect(restartStart).toBeGreaterThanOrEqual(0)
