@@ -133,6 +133,8 @@ import { TrayPresenter } from '../desktop/tray'
 import { OAuthService } from '../provider/auth'
 import { OpenAICodexCredentialStore } from '../provider/auth/openaiCodex/credentialStore'
 import { XaiGrokCredentialStore } from '../provider/auth/xaiGrok/credentialStore'
+import { initializeGlobalOpenAICodexAuth } from '../provider/auth/openaiCodex'
+import { initializeGlobalXaiGrokAuth } from '../provider/auth/xaiGrok'
 import { FloatingButtonPresenter } from '../desktop/floatingButton'
 import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
 import { ComputerUsePreviewPresenter } from '@/desktop/computerUse/ComputerUsePreviewPresenter'
@@ -1126,6 +1128,22 @@ export async function createMainProcessControl(dependencies: {
     () => projectService.notifyEnvironmentProjectionChanged()
   )
   let providerRuntime!: ProviderRuntime
+  const codexAuth = initializeGlobalOpenAICodexAuth(
+    publishDeepchatEvent,
+    new OpenAICodexCredentialStore({
+      filePath: path.join(app.getPath('userData'), 'openai-codex-auth', 'credentials.json'),
+      crypto: credentialCrypto
+    }),
+    (url) => shell.openExternal(url)
+  )
+  const grokAuth = initializeGlobalXaiGrokAuth(
+    publishDeepchatEvent,
+    new XaiGrokCredentialStore({
+      filePath: path.join(app.getPath('userData'), 'xai-grok-auth', 'credentials.json'),
+      crypto: credentialCrypto
+    }),
+    (url) => shell.openExternal(url)
+  )
   oauthService = new OAuthService(
     {
       getGitHubCopilotSignInTarget: async (providerId) => {
@@ -1140,17 +1158,21 @@ export async function createMainProcessControl(dependencies: {
       },
       invalidateGitHubCopilotSignIns: () => providerRuntime.invalidateGitHubCopilotSignIns()
     },
-    publishDeepchatEvent,
     {
-      codexStore: new OpenAICodexCredentialStore({
-        filePath: path.join(app.getPath('userData'), 'openai-codex-auth', 'credentials.json'),
-        crypto: credentialCrypto
-      }),
-      grokStore: new XaiGrokCredentialStore({
-        filePath: path.join(app.getPath('userData'), 'xai-grok-auth', 'credentials.json'),
-        crypto: credentialCrypto
-      }),
-      openExternal: (url) => shell.openExternal(url)
+      getOpenAICodexStatus: () => codexAuth.getStatus(),
+      startOpenAICodexBrowserLogin: () => codexAuth.startBrowserLogin(),
+      completeOpenAICodexBrowserLoginFromUrl: (url) =>
+        codexAuth.completeBrowserLoginFromCallbackUrl(url),
+      cancelOpenAICodexLogin: () => codexAuth.cancelLogin(),
+      logoutOpenAICodex: () => codexAuth.logout(),
+      getXaiGrokStatus: () => grokAuth.getStatus(),
+      startXaiGrokDeviceLogin: () => grokAuth.startDeviceLogin(),
+      cancelXaiGrokLogin: () => grokAuth.cancelLogin(),
+      logoutXaiGrok: () => grokAuth.logout(),
+      stop: async () => {
+        codexAuth.stop()
+        grokAuth.stop()
+      }
     }
   )
   const acpRegistry = new AcpRegistryService({

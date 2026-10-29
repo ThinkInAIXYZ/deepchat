@@ -1,16 +1,14 @@
-import type { OpenAICodexCredentialStore } from './openaiCodex/credentialStore'
-import type { XaiGrokCredentialStore } from './xaiGrok/credentialStore'
 import logger from '@shared/logger'
 import { createGitHubCopilotOAuth } from './githubCopilotOAuth'
 import { getGlobalGitHubCopilotDeviceFlow } from './githubCopilotDeviceFlow'
 import { getGitHubCopilotToken } from './githubCopilotToken'
-import { getGlobalOpenAICodexAuth, initializeGlobalOpenAICodexAuth } from './openaiCodex'
-import { getGlobalXaiGrokAuth, initializeGlobalXaiGrokAuth } from './xaiGrok'
 import type { OpenAICodexAuthStatus } from '@shared/types/openai-codex'
 import type { XaiGrokAuthStatus } from '@shared/types/xai-grok'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
-
-import type { GitHubCopilotCredentialOwner, OAuthServicePort } from '@shared/types/oauth'
+import type {
+  GitHubCopilotCredentialOwner,
+  OAuthServicePort,
+  ProviderAccountAuthPort
+} from '@shared/types/oauth'
 
 export class OAuthService implements OAuthServicePort {
   private stopped = false
@@ -18,27 +16,13 @@ export class OAuthService implements OAuthServicePort {
 
   constructor(
     private readonly providerAuth: GitHubCopilotCredentialOwner,
-    publishEvent: DeepchatEventPublisher,
-    capabilities: {
-      codexStore: OpenAICodexCredentialStore
-      grokStore: XaiGrokCredentialStore
-      openExternal(url: string): Promise<void>
-    }
-  ) {
-    initializeGlobalOpenAICodexAuth(
-      publishEvent,
-      capabilities.codexStore,
-      capabilities.openExternal
-    )
-    initializeGlobalXaiGrokAuth(publishEvent, capabilities.grokStore, capabilities.openExternal)
-  }
+    private readonly accounts: ProviderAccountAuthPort
+  ) {}
 
   async stop(): Promise<void> {
     this.stopped = true
     this.copilotController.abort()
-    getGlobalOpenAICodexAuth().stop()
-    getGlobalXaiGrokAuth().stop()
-    await this.providerAuth.invalidateGitHubCopilotSignIns()
+    await Promise.all([this.accounts.stop(), this.providerAuth.invalidateGitHubCopilotSignIns()])
   }
 
   /**
@@ -67,41 +51,41 @@ export class OAuthService implements OAuthServicePort {
   }
 
   async getOpenAICodexStatus(): Promise<OpenAICodexAuthStatus> {
-    return getGlobalOpenAICodexAuth().getStatus()
+    return this.accounts.getOpenAICodexStatus()
   }
 
   async startOpenAICodexBrowserLogin(): Promise<OpenAICodexAuthStatus> {
-    return getGlobalOpenAICodexAuth().startBrowserLogin()
+    return this.accounts.startOpenAICodexBrowserLogin()
   }
 
   async completeOpenAICodexBrowserLoginFromUrl(
     callbackUrl: string
   ): Promise<OpenAICodexAuthStatus> {
-    return getGlobalOpenAICodexAuth().completeBrowserLoginFromCallbackUrl(callbackUrl)
+    return this.accounts.completeOpenAICodexBrowserLoginFromUrl(callbackUrl)
   }
 
   async cancelOpenAICodexLogin(): Promise<OpenAICodexAuthStatus> {
-    return getGlobalOpenAICodexAuth().cancelLogin()
+    return this.accounts.cancelOpenAICodexLogin()
   }
 
   async logoutOpenAICodex(): Promise<OpenAICodexAuthStatus> {
-    return getGlobalOpenAICodexAuth().logout()
+    return this.accounts.logoutOpenAICodex()
   }
 
   async getXaiGrokStatus(): Promise<XaiGrokAuthStatus> {
-    return getGlobalXaiGrokAuth().getStatus()
+    return this.accounts.getXaiGrokStatus()
   }
 
   async startXaiGrokDeviceLogin(): Promise<XaiGrokAuthStatus> {
-    return getGlobalXaiGrokAuth().startDeviceLogin()
+    return this.accounts.startXaiGrokDeviceLogin()
   }
 
   async cancelXaiGrokLogin(): Promise<XaiGrokAuthStatus> {
-    return getGlobalXaiGrokAuth().cancelLogin()
+    return this.accounts.cancelXaiGrokLogin()
   }
 
   async logoutXaiGrok(): Promise<XaiGrokAuthStatus> {
-    return getGlobalXaiGrokAuth().logout()
+    return this.accounts.logoutXaiGrok()
   }
 
   /**

@@ -26,3 +26,10 @@ export interface OAuthServicePort {
   cancelXaiGrokLogin(): Promise<XaiGrokAuthStatus>
   logoutXaiGrok(): Promise<XaiGrokAuthStatus>
 }
+
+export type ProviderAccountAuthPort = Omit<
+  OAuthServicePort,
+  'startGitHubCopilotLogin' | 'startGitHubCopilotDeviceFlowLogin'
+> & {
+  stop(): Promise<void>
+}

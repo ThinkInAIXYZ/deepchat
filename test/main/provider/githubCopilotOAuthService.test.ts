@@ -18,14 +18,6 @@ vi.mock('@/provider/auth/githubCopilotOAuth', () => ({
     exchangeCodeForToken: mocks.exchangeCodeForToken
   })
 }))
-vi.mock('@/provider/auth/openaiCodex', () => ({
-  initializeGlobalOpenAICodexAuth: vi.fn(),
-  getGlobalOpenAICodexAuth: () => ({ stop: mocks.stop })
-}))
-vi.mock('@/provider/auth/xaiGrok', () => ({
-  initializeGlobalXaiGrokAuth: vi.fn(),
-  getGlobalXaiGrokAuth: () => ({ stop: mocks.stop })
-}))
 
 const accepted = () => Response.json({ token: 'copilot-session', expires_at: 2_000_000_000 })
 const setup = () => {
@@ -42,12 +34,25 @@ const setup = () => {
   mocks.startDeviceFlow.mockResolvedValue('new-oauth-token')
   mocks.startLogin.mockResolvedValue('auth-code')
   mocks.exchangeCodeForToken.mockResolvedValue('new-oauth-token')
-  const service = new OAuthService(owner, vi.fn(), {
-    codexStore: {} as never,
-    grokStore: {} as never,
-    openExternal: vi.fn(async () => {})
+  const signedOut = async () => ({
+    state: 'signed-out' as const,
+    authenticated: false,
+    storage: 'none' as const
   })
-  return { target, owner, service }
+  const accounts = {
+    getOpenAICodexStatus: vi.fn(signedOut),
+    startOpenAICodexBrowserLogin: vi.fn(signedOut),
+    completeOpenAICodexBrowserLoginFromUrl: vi.fn(async (_url: string) => signedOut()),
+    cancelOpenAICodexLogin: vi.fn(signedOut),
+    logoutOpenAICodex: vi.fn(signedOut),
+    getXaiGrokStatus: vi.fn(signedOut),
+    startXaiGrokDeviceLogin: vi.fn(signedOut),
+    cancelXaiGrokLogin: vi.fn(signedOut),
+    logoutXaiGrok: vi.fn(signedOut),
+    stop: mocks.stop
+  }
+  const service = new OAuthService(owner, accounts)
+  return { target, owner, service, accounts }
 }
 
 describe('GitHub Copilot login owner commands', () => {
@@ -55,6 +60,32 @@ describe('GitHub Copilot login owner commands', () => {
     vi.unstubAllGlobals()
     vi.resetAllMocks()
   })
+
+  it.each([false, true])(
+    'awaits account stop and revokes Copilot targets when owner fails=%s',
+    async (fails) => {
+      const { owner, service, accounts } = setup()
+      const stopped = Promise.withResolvers<void>()
+      accounts.stop.mockReturnValue(stopped.promise)
+      let acknowledged = false
+      const stopping = service.stop().then(() => {
+        acknowledged = true
+      })
+      const result = fails
+        ? expect(stopping).rejects.toThrow('Account stop failed')
+        : expect(stopping).resolves.toBeUndefined()
+      await Promise.resolve()
+      expect(acknowledged).toBe(false)
+      expect(owner.invalidateGitHubCopilotSignIns).toHaveBeenCalledOnce()
+      if (fails) stopped.reject(new Error('Account stop failed'))
+      else stopped.resolve()
+      await result
+      await expect(service.startGitHubCopilotDeviceFlowLogin('github-copilot')).rejects.toThrow(
+        'stopped'
+      )
+      expect(mocks.startDeviceFlow).not.toHaveBeenCalled()
+    }
+  )
 
   for (const method of ['startGitHubCopilotDeviceFlowLogin', 'startGitHubCopilotLogin'] as const) {
     it(`${method} validates Copilot access before submitting the owner mutation`, async () => {

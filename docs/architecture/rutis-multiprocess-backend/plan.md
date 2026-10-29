@@ -2440,9 +2440,12 @@ core; its synchronous local transactions and integrity callbacks do not become r
 - [ ] Finish the final writer/reader/native inventory and completed-batch validation before G5.
 - [x] Supply OCR's native cache-key provider explicitly from Main; preserve encrypted cache
       persistence, unavailable-key fallback and the same cache clear/relaunch application behavior.
-- [ ] Supply Codex/Grok auth owner commands to Main's OAuth facade. Keep their controllers,
+- [x] Supply Codex/Grok auth owner commands to Main's OAuth facade. Keep their controllers,
       credential queues and synchronous storage observations with Provider consumers; Main must
       not initialize those owners or receive writable credential-store instances at G5 handoff.
+- [ ] Supply provider-existence results and committed MCP startup readiness to the native
+      deep-link adapter; preserve latest-pending installation and sender/preview behavior without
+      passing complete Provider settings or the MCP business owner into native actions.
 
 Native SDK presentation remains Main-owned. These contracts do not move the cohesive backend or
 authorize an additional settings writer. Publish the complete G4 batch after final validation.
@@ -2521,12 +2524,43 @@ native crypto and key persistence, protocols, updater and OAuth presentation. Wo
 file/Git/preview owner has no shared database or settings import. Source graphs/classifications and
 connection/configuration call sites are in `.deepchat/rutis-g4-final-inventory/`.
 
-This is source-boundary evidence, not a composed backend or exclusive writer handoff. Main's
-OAuthService still constructs the Node Codex/Grok auth owners from complete credential stores;
-the next selected boundary supplies their acknowledged auth commands while retaining each whole
-controller and credential queue with Provider consumers. G4 stays active until this boundary and
-the final complete-batch inventory/validation are done, then the batch's own required and six
-platform package CI barriers pass. G5 has not started.
+This is source-boundary evidence, not a composed backend or exclusive writer handoff. The Node
+Codex/Grok auth owners and credential queues are constructed alongside Provider consumers; Main's
+OAuthService receives acknowledged account commands. Native deep-link actions still require
+provider-existence and MCP startup observations in place of complete business-owner dependencies.
+G4 stays active until that boundary and final complete-batch inventory/validation are done, then
+the batch's own required and six platform package CI barriers pass. G5 has not started.
+
+### Provider account owner commands
+
+Main's OAuthService requires ProviderAccountAuthPort: the existing nine public Codex/Grok account
+operations and a private asynchronous stop command. Core composition initializes each existing
+controller with its one credential store, publisher and native browser-opening capability. The
+same global controller continues to serve Provider token/refresh consumers. Native presentation
+receives status/login/callback/cancel/logout/stop commands, with no credential-store access or
+business-controller initialization. GitHub's native SDK presentation and credential-owner commands
+retain their existing behavior.
+
+Stop first fences native Copilot work, submits account retirement and target invalidation, then
+awaits their acknowledgements. A failed account stop cannot skip target invalidation. The account
+receipt preserves the existing controller and credential generation fences; it does not redefine
+callback-server or network closure. Credential commits remain synchronous after their owner-side
+validation, with no await inside the file commit; backend teardown retains lifetime ownership.
+
+Validation passes **116 checks across ten files**, including delayed/failed account-stop receipts,
+Codex/Grok controller/credential/provider adapters and composition checks. Ordinary Node imports
+and runs the actual two owners/stores: status, private persistence, cancel, stop fencing and reopen
+preserve the file and expose no access token in public status. Their combined graph has **11
+source modules**; Main's facade graph has **six**, with no Codex/Grok owner/store module. The probe
+uses the existing unavailable-crypto file policy; real native wrapping and encrypted-file parity
+are covered by the application fixture.
+
+Immutable `c585dacf5` and the candidate pass the same two application cases: legacy file/native
+credential status, cancel, durable logout/relaunch and Copilot commitment/stale-configuration
+handling. The integrated candidate passes **17 cases across eleven files**, retaining the prior
+plugin/maintenance/MCP/desktop/font/file/image/Remote/OCR cases. App and changed-test types, normal
+full build, format/check, lint and i18n pass. No process/resource or performance comparison is
+selected. Evidence and artifact hashes are in `.deepchat/rutis-g4-account-auth-acceptance/`.
 
 ## G5. Move the cohesive Harness and shared core into the TS backend
 
