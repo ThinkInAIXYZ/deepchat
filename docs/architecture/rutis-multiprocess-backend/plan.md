@@ -3214,6 +3214,45 @@ No performance capture or gain claim is made. G5 remains active and unpublished:
 assembly, remaining Native callbacks, the default writer/public routes/lifecycle/maintenance,
 descendant/proxy authority, full acceptance and native/signed packages remain required.
 
+### Cohesive Kernel root
+
+- [x] Compose the existing data, Provider and runtime factories with one event hub, session event
+      router, CLI token authority/artifact owner, startup coordinator and MCP Apps registry.
+      Keep native presentation/helper ports explicit and maintenance/route controls owner-local.
+- [ ] Invoke this root in the actual SDK worker with the complete Native transport and local
+      controller. Adopt its public routes, shared writer and lifecycle before G5 publication.
+
+`createCoreKernel` owns the cohesive business graph and its terminal drain. The same settings
+version source feeds configuration events; renderer-session ownership retains its `null` meaning.
+Shutdown fences request admission before draining startup, services, helpers, Memory ingestion,
+Providers and outstanding requests. Failure of a partially constructed owner requires physical
+retirement; it cannot prove writer release. The profile owner still releases its lock only after
+the caller has also drained the Native bridge and shared admission/Memory resources.
+
+A native-free Node probe blocks Electron imports across **932 source files**. It runs real startup
+migrations/Skill initialization, a CLI listener, detached-session creation/query/event delivery,
+exclusive-writer rejection, terminal drain and persistent profile reopen using native SQLite and
+the actual Rust supervisor. Native presentation is a controlled empty fixture, Skill watch launch
+is unavailable, and no full route dispatcher is installed. This is composed-root evidence, not
+successful SDK/default Kernel adoption, native-helper acceptance or headless CLI execution.
+
+The probe exposed a real late write: login-shell PATH refresh recreated `toolchains/state.json`
+after profile teardown. The runtime now fences that callback when stopping and drains its accepted
+refresh. Concurrent environment reads share one shell; a timed-out shell is hard-stopped and its
+promise settles only after actual process/stdio closure. Failed or invalidated results do not
+replace the current cache. This keeps the existing timeout and platform fallback behavior.
+
+The Sync token-storage guard now acknowledges an asynchronous Native check before wrapping a
+token. Optional Computer Use preview eligibility can also await Native state while the completed
+tool response remains independent; capture rechecks live policy and cancellation after the wait
+and catalog validation. One existing preview test covers delayed eligibility and revocation;
+one durable shell test covers shared startup and actual retirement after timeout.
+
+Affected service checks pass **150 tests across four files**. Evidence is
+`.deepchat/rutis-g5-kernel-assembly-acceptance/`. The actual SDK caller and Native bindings remain
+required. The earlier first-message model-picker failure remains unresolved; G5 is active and
+unpublished, and G6-G12 retain their full scope.
+
 ## G6. Extract the complete Memory capability
 
 - [ ] Move the existing facade and internal retrieval/extraction/reflection/persona/directive/

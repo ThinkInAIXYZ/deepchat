@@ -109,7 +109,7 @@ export type ComputerUsePreviewCall = {
 }
 
 export type ComputerUsePreviewObserver = {
-  shouldCaptureAfterClick?(call: ComputerUsePreviewCall): boolean
+  shouldCaptureAfterClick?(call: ComputerUsePreviewCall): boolean | Promise<boolean>
   started(call: ComputerUsePreviewCall): void
   completed(call: ComputerUsePreviewCall, result: MCPToolResponse): void
   failed(call: ComputerUsePreviewCall, error: unknown): void
@@ -1144,7 +1144,7 @@ export class ToolManager {
           version: Date.now()
         })
 
-        this.scheduleComputerUsePreviewAfterClick({
+        void this.scheduleComputerUsePreviewAfterClick({
           client: targetClient,
           toolCall,
           toolName: originalName,
@@ -1152,6 +1152,8 @@ export class ToolManager {
           runId: access?.runId,
           response,
           signal: access?.signal
+        }).catch((error) => {
+          logger.warn('[ToolManager] Computer Use preview scheduling failed', { error })
         })
       }
       if (dispatchCommitted && access?.registerOutcomeProjection) {
@@ -1322,7 +1324,7 @@ export class ToolManager {
     }
   }
 
-  private scheduleComputerUsePreviewAfterClick(input: {
+  private async scheduleComputerUsePreviewAfterClick(input: {
     client: McpClient
     toolCall: MCPToolCall
     toolName: string
@@ -1330,7 +1332,7 @@ export class ToolManager {
     runId?: string
     response: MCPToolResponse
     signal?: AbortSignal
-  }): void {
+  }): Promise<void> {
     if (
       input.toolName !== 'click' ||
       input.response.isError === true ||
@@ -1349,14 +1351,18 @@ export class ToolManager {
 
     let shouldCapture = false
     try {
-      shouldCapture = this.computerUsePreviewObserver.shouldCaptureAfterClick(clickCall)
+      shouldCapture = await this.computerUsePreviewObserver.shouldCaptureAfterClick(clickCall)
     } catch (error) {
       logger.warn('[ToolManager] Computer Use preview eligibility check failed', {
         toolCallId: clickCall.toolCallId,
         error: error instanceof Error ? error.message : String(error)
       })
     }
-    if (!shouldCapture) {
+    if (
+      !shouldCapture ||
+      input.signal?.aborted ||
+      this.toolPolicies.resolve(input.client.serverName, 'get_window_state').decision !== 'allow'
+    ) {
       return
     }
 
@@ -1390,6 +1396,9 @@ export class ToolManager {
         this.getCatalogTool(client.serverName, 'get_window_state'),
         signal
       )
+      signal?.throwIfAborted()
+      if (this.toolPolicies.resolve(client.serverName, 'get_window_state').decision !== 'allow')
+        throw new Error('Computer Use preview read is no longer allowed')
       const result = signal
         ? await client.callTool('get_window_state', call.args, { signal })
         : await client.callTool('get_window_state', call.args)

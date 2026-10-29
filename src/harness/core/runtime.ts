@@ -175,7 +175,7 @@ export async function createCoreRuntime(options: {
   databaseRequests: DatabaseRequestGate
   syncActiveSessions: Set<string>
   importSnapshot: NonNullable<ConstructorParameters<typeof SyncPeerService>[0]['importSnapshot']>
-  assertSyncTokenStorageAvailable(): void
+  assertSyncTokenStorageAvailable(): void | Promise<void>
   semanticNotifications: SemanticNotificationPublisher
   dialog: DialogServicePort
   secureCrypto: CredentialCryptoPort
@@ -337,17 +337,19 @@ export async function createCoreRuntime(options: {
       })
     }
   })
-  if (process.platform !== 'win32') {
-    void getShellEnvironment()
-      .then((shellEnv) => {
-        toolchainService.updateDetectionEnv(
-          mergeDetectionEnv(shellEnv, toolchainHomeDir, process.platform)
-        )
-      })
-      .catch((error) => {
-        logger.warn('[ToolchainService] Failed to refresh login-shell PATH', error)
-      })
-  }
+  const shellEnvironmentRefresh =
+    process.platform !== 'win32'
+      ? getShellEnvironment()
+          .then((shellEnv) => {
+            if (options.isStopping()) return
+            toolchainService.updateDetectionEnv(
+              mergeDetectionEnv(shellEnv, toolchainHomeDir, process.platform)
+            )
+          })
+          .catch((error) => {
+            logger.warn('[ToolchainService] Failed to refresh login-shell PATH', error)
+          })
+      : Promise.resolve()
   const ocrRuntimeService = new OcrRuntimeService({
     cacheKeyProvider: options.ocrCacheKeyProvider,
     appPath: bootstrap.appPath,
@@ -478,7 +480,7 @@ export async function createCoreRuntime(options: {
   )
   const syncTokenStorage = {
     protectToken: async (token: string) => {
-      options.assertSyncTokenStorageAvailable()
+      await options.assertSyncTokenStorageAvailable()
       return await dependencies.secretStore.wrap(token)
     },
     revealToken: (wrapped: string) => dependencies.secretStore.unwrap(wrapped)
@@ -1397,6 +1399,7 @@ export async function createCoreRuntime(options: {
   async function drainInitialization(
     runDestroyStep: (name: string, step: () => Promise<void>) => Promise<void>
   ): Promise<void> {
+    await runDestroyStep('shellEnvironment.drain', async () => await shellEnvironmentRefresh)
     const pendingSkillInitialization = skillInitializationPromise
     if (pendingSkillInitialization) {
       await runDestroyStep('skillInitialization.drain', async () => {

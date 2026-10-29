@@ -6,6 +6,7 @@ import { ToolManager, type ComputerUsePreviewObserver } from '@/mcp/toolManager'
 import { McpPreDispatchError } from '@/mcp/errors'
 import { validateAndCloneMcpTool } from '@/mcp/schemaValidation'
 import type { PluginRuntimeStartReason } from '@/plugin/runtimeSupervisor'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 const toolPolicies = createPluginToolPolicies()
 
 const TOOL_POLICY_PLUGIN_ID = 'com.deepchat.plugins.permission-test'
@@ -45,7 +46,7 @@ describe('ToolManager', () => {
 
   function createClient(
     serverName: string,
-    tools = [
+    tools: unknown[] = [
       {
         name: 'echo',
         description: 'Echo tool',
@@ -120,7 +121,7 @@ describe('ToolManager', () => {
       }>
       ensureRunning?: (serverName: string, reason: PluginRuntimeStartReason) => Promise<void>
       unavailableServers?: Set<string>
-      publishEvent?: ReturnType<typeof vi.fn>
+      publishEvent?: DeepchatEventPublisher
     } = {},
     computerUsePreviewObserver?: ComputerUsePreviewObserver,
     resolveCachedImageDataUrl?: (source: string, signal?: AbortSignal) => Promise<string>
@@ -2402,7 +2403,7 @@ describe('ToolManager', () => {
     expect(observer.failed).not.toHaveBeenCalled()
   })
 
-  it('refreshes PiP after a trusted click without exposing or awaiting the private snapshot', async () => {
+  it('refreshes PiP after a trusted click without awaiting Native eligibility or the snapshot', async () => {
     let snapshotPolicy: 'allow' | 'ask' = 'allow'
     vi.spyOn(toolPolicies, 'resolve').mockImplementation((_serverId, toolName) => ({
       managed: toolName === 'get_window_state',
@@ -2452,8 +2453,11 @@ describe('ToolManager', () => {
       return privateSnapshots[privateSnapshotIndex++].promise
     })
     const publishEvent = vi.fn()
+    const eligibility = deferred<boolean>()
     const observer = {
-      shouldCaptureAfterClick: vi.fn(() => true),
+      shouldCaptureAfterClick: vi
+        .fn((): boolean | Promise<boolean> => true)
+        .mockImplementationOnce(() => eligibility.promise),
       started: vi.fn(),
       completed: vi.fn(),
       failed: vi.fn()
@@ -2520,6 +2524,8 @@ describe('ToolManager', () => {
         toolDefinition: expect.objectContaining({ name: 'click' })
       })
     )
+    expect(client.callTool).toHaveBeenCalledTimes(1)
+    eligibility.resolve(true)
     await vi.waitFor(() => expect(client.callTool).toHaveBeenCalledTimes(2))
     expect(client.callTool).toHaveBeenNthCalledWith(2, 'get_window_state', {
       pid: 12,
@@ -2623,6 +2629,28 @@ describe('ToolManager', () => {
     expect(guardedResult.content).toContain('## CUA action result')
     expect(client.callTool).toHaveBeenCalledTimes(5)
     expect(observer.shouldCaptureAfterClick).toHaveBeenCalledTimes(2)
+    expect(observer.started).toHaveBeenCalledTimes(2)
+
+    snapshotPolicy = 'allow'
+    const delayedEligibility = deferred<boolean>()
+    observer.shouldCaptureAfterClick.mockImplementationOnce(() => delayedEligibility.promise)
+    await manager.callTool(
+      {
+        id: 'cua-click-4',
+        type: 'function',
+        function: {
+          name: 'click',
+          arguments: '{"pid":12,"window_id":34,"x":50,"y":60}'
+        },
+        conversationId: 'session-1'
+      },
+      { runId: 'run-1' }
+    )
+    snapshotPolicy = 'ask'
+    delayedEligibility.resolve(true)
+    await Promise.resolve()
+    expect(client.callTool).toHaveBeenCalledTimes(6)
+    expect(observer.shouldCaptureAfterClick).toHaveBeenCalledTimes(3)
     expect(observer.started).toHaveBeenCalledTimes(2)
   })
 

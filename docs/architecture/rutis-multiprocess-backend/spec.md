@@ -1430,6 +1430,19 @@ dispatch, followed by fresh cancellation and target-lifetime checks. Helper and 
 share a serialized, count/byte-bounded queue with value snapshots, rather than competing for the
 single reserved slot. Business authorization denial does not retire the event transport.
 
+The cohesive Kernel root owns the event hub/session router, startup work, CLI token/artifact
+authority and MCP Apps registry with its data, Provider and runtime composition. Profile closure
+follows its terminal drain, Native-effect retirement and shared admission/Memory retirement.
+Partial construction is not a successful close receipt. Configuration events share the owner's
+version source, and an ordinary renderer session's `null` CLI ownership must remain distinct from
+unknown/deleted ownership.
+
+Accepted login-shell initialization belongs to runtime shutdown. Concurrent reads share its
+process, stopping fences late environment/state refresh and timeout waits for actual process/stdio
+closure. An asynchronous Native storage-availability check must settle before Sync token wrapping.
+Optional Computer Use preview eligibility may await Native state without holding the completed
+tool response; validate current policy and cancellation again before its private snapshot dispatch.
+
 Bootstrap values use Node V8 serialization, preserving `undefined`, dates and binary values. Values
 up to 16 KiB stay inline in control frames. Larger values use authenticated AES-256-GCM carriers in
 a generation-private 0700 temporary directory, with 0600 exclusive files, unpredictable identities,

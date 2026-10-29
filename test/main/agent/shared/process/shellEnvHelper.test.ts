@@ -27,6 +27,7 @@ import {
 class MockStream extends EventEmitter {}
 
 class MockChild extends EventEmitter {
+  pid: number | undefined = 41001
   stdout = new MockStream()
   stderr = new MockStream()
   kill = vi.fn(() => true)
@@ -59,6 +60,7 @@ describe('shellEnvHelper', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
     clearShellEnvironmentCache()
     process.env = { ...originalEnv }
@@ -75,7 +77,7 @@ describe('shellEnvHelper', () => {
     process.env.SHELL = '/bin/zsh'
     process.env.PATH = '/usr/bin:/bin'
 
-    vi.mocked(spawn).mockImplementation((shell, args) => {
+    vi.mocked(spawn).mockImplementation((_shell, args) => {
       const child = new MockChild()
       const command = String(args?.[3] ?? '')
       const { start, end } = getMarkers(command)
@@ -92,6 +94,7 @@ describe('shellEnvHelper', () => {
           ].join('\n')
         )
         child.emit('exit', 0, null)
+        child.emit('close', 0, null)
       })
 
       return child as never
@@ -121,6 +124,7 @@ describe('shellEnvHelper', () => {
     vi.mocked(spawn)
       .mockImplementationOnce(() => {
         const child = new MockChild()
+        child.pid = undefined
         queueMicrotask(() => {
           child.emit('error', new Error('boom'))
         })
@@ -139,6 +143,7 @@ describe('shellEnvHelper', () => {
             )
           )
           child.emit('exit', 0, null)
+          child.emit('close', 0, null)
         })
 
         return child as never
@@ -231,6 +236,7 @@ describe('shellEnvHelper', () => {
       queueMicrotask(() => {
         child.stdout.emit('data', [start, 'PATH=/fallback/bin', end].join('\n'))
         child.emit('exit', 0, null)
+        child.emit('close', 0, null)
       })
 
       expect(shell).toBe('/bin/sh')
@@ -267,5 +273,30 @@ describe('shellEnvHelper', () => {
         'C:\\Users\\tester\\.cargo\\bin'
       ])
     )
+  })
+
+  it('shares one shell and waits for physical close after a timeout', async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(process, 'platform', { configurable: true, value: 'darwin' })
+    process.env.SHELL = '/bin/zsh'
+    process.env.PATH = '/usr/bin:/bin'
+    const child = new MockChild()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    let completed = 0
+    const reads = [getShellEnvironment(), getShellEnvironment()].map(async (read) => {
+      const value = await read
+      completed++
+      return value
+    })
+    expect(spawn).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(8000)
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+    expect(completed).toBe(0)
+    child.emit('exit', null, 'SIGKILL')
+    await Promise.resolve()
+    expect(completed).toBe(0)
+    child.emit('close', null, 'SIGKILL')
+    for (const value of await Promise.all(reads)) expect(value.PATH).toContain('/usr/bin')
+    expect(completed).toBe(2)
   })
 })

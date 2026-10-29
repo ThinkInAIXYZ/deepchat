@@ -33,6 +33,7 @@ const POSIX_SHELL_FALLBACKS: Partial<Record<NodeJS.Platform, string[]>> = {
 const DEFAULT_POSIX_SHELL_FALLBACKS = ['/bin/sh', '/usr/bin/sh']
 
 let cachedShellEnv: Record<string, string> | null = null
+let loadingShellEnv: Promise<Record<string, string>> | null = null
 
 const TIMEOUT_MS = 8000
 
@@ -369,10 +370,11 @@ export async function resolveShellBootstrapEnv(): Promise<Record<string, string>
     let stdout = ''
     let stderr = ''
     let timeoutId: NodeJS.Timeout | null = null
+    let terminationError: Error | undefined
 
     timeoutId = setTimeout(() => {
-      child.kill()
-      reject(new Error(`Shell environment command timed out after ${TIMEOUT_MS}ms`))
+      terminationError = new Error(`Shell environment command timed out after ${TIMEOUT_MS}ms`)
+      child.kill('SIGKILL')
     }, TIMEOUT_MS)
 
     child.stdout?.on('data', (data: Buffer | string) => {
@@ -384,15 +386,20 @@ export async function resolveShellBootstrapEnv(): Promise<Record<string, string>
     })
 
     child.on('error', (error) => {
+      terminationError ??= error
+      if (!child.pid) {
+        if (timeoutId) clearTimeout(timeoutId)
+        reject(error)
+      }
+    })
+
+    child.on('close', (code, signal) => {
       if (timeoutId) {
         clearTimeout(timeoutId)
       }
-      reject(error)
-    })
-
-    child.on('exit', (code, signal) => {
-      if (timeoutId) {
-        clearTimeout(timeoutId)
+      if (terminationError) {
+        reject(terminationError)
+        return
       }
 
       if (code !== 0 && signal === null) {
@@ -438,32 +445,41 @@ export async function getShellEnvironment(): Promise<Record<string, string>> {
     logger.info('[ACP] Using cached shell environment variables')
     return cachedShellEnv
   }
+  if (loadingShellEnv) return await loadingShellEnv
 
   logger.info('[ACP] Fetching shell environment variables (this may take a moment)...')
 
-  try {
-    const shellEnv = await resolveShellBootstrapEnv()
-    const normalizedEnv = normalizeShellEnvironment(shellEnv)
+  const operation: Promise<Record<string, string>> = resolveShellBootstrapEnv()
+    .then((shellEnv) => {
+      const normalizedEnv = normalizeShellEnvironment(shellEnv)
 
-    cachedShellEnv = normalizedEnv
+      if (loadingShellEnv === operation) cachedShellEnv = normalizedEnv
 
-    logger.info('[ACP] Shell environment variables fetched and cached:', {
-      pathLength: normalizedEnv.PATH?.length || normalizedEnv.Path?.length || 0,
-      hasNvm: !!normalizedEnv.NVM_DIR,
-      hasFnm: !!normalizedEnv.FNM_DIR,
-      hasVolta: !!normalizedEnv.VOLTA_HOME,
-      hasN: !!normalizedEnv.N_PREFIX,
-      envVarCount: Object.keys(normalizedEnv).length
+      logger.info('[ACP] Shell environment variables fetched:', {
+        pathLength: normalizedEnv.PATH?.length || normalizedEnv.Path?.length || 0,
+        hasNvm: !!normalizedEnv.NVM_DIR,
+        hasFnm: !!normalizedEnv.FNM_DIR,
+        hasVolta: !!normalizedEnv.VOLTA_HOME,
+        hasN: !!normalizedEnv.N_PREFIX,
+        envVarCount: Object.keys(normalizedEnv).length
+      })
+
+      return normalizedEnv
     })
-
-    return normalizedEnv
-  } catch (error) {
-    console.warn('[ACP] Failed to get shell environment variables:', error)
-    return normalizeShellEnvironment(toStringEnvEntries(process.env), process.env)
+    .catch((error) => {
+      console.warn('[ACP] Failed to get shell environment variables:', error)
+      return normalizeShellEnvironment(toStringEnvEntries(process.env), process.env)
+    })
+  loadingShellEnv = operation
+  try {
+    return await operation
+  } finally {
+    if (loadingShellEnv === operation) loadingShellEnv = null
   }
 }
 
 export function clearShellEnvironmentCache(): void {
   cachedShellEnv = null
+  loadingShellEnv = null
   logger.info('[ACP] Shell environment cache cleared')
 }
