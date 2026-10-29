@@ -1581,6 +1581,113 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     )
   })
 
+  it.each([
+    [{}, 'explicit'],
+    [{ subagentEnabled: true, defaultOrchestrationPolicy: 'proactive' }, 'proactive'],
+    [{ subagentEnabled: false, defaultOrchestrationPolicy: 'proactive' }, 'explicit']
+  ])('initializes new-session collaboration from Agent config %j', async (config, policy) => {
+    const { draftStore, wrapper } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat',
+      resolvedAgentConfig: config
+    })
+    expect(draftStore.orchestrationPolicy).toBe(policy)
+    wrapper.unmount()
+  })
+
+  it('uses each selected Agent default and submits the session override', async () => {
+    const { draftStore, agentStore, wrapper, modelStore, sessionStore, mountPage } = await setup({
+      selectedAgentId: 'writer-a',
+      selectedAgentType: 'deepchat',
+      resolveDeepChatAgentConfig: async (id) => ({
+        subagentEnabled: true,
+        defaultOrchestrationPolicy: id === 'writer-a' ? 'proactive' : 'explicit'
+      })
+    })
+    Object.assign(agentStore, {
+      agents: [
+        { id: 'writer-a', type: 'deepchat', name: 'A' },
+        { id: 'writer-b', type: 'deepchat', name: 'B' }
+      ]
+    })
+    expect(draftStore.orchestrationPolicy).toBe('proactive')
+    agentStore.selectedAgentId = 'writer-b'
+    await flushPromises()
+    expect(draftStore.orchestrationPolicy).toBe('explicit')
+    agentStore.selectedAgentId = 'writer-a'
+    await flushPromises()
+    expect(draftStore.orchestrationPolicy).toBe('proactive')
+
+    draftStore.orchestrationPolicy = 'explicit'
+    modelStore.enabledModels = [{ providerId: 'openai', models: [{ id: 'gpt-4', name: 'GPT-4' }] }]
+    ;(wrapper.vm as any).message = 'hello'
+    await (wrapper.vm as any).onSubmit()
+    await flushPromises()
+    expect(sessionStore.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({ agentId: 'writer-a', orchestrationPolicy: 'explicit' })
+    )
+    wrapper.unmount()
+    const nextPage = mountPage()
+    await flushPromises()
+    expect(draftStore.orchestrationPolicy).toBe('proactive')
+    nextPage.unmount()
+  })
+
+  it('preserves a manual policy change while Agent defaults are loading', async () => {
+    let resolveConfig!: (config: Record<string, unknown>) => void
+    const { draftStore, wrapper } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat',
+      resolveDeepChatAgentConfig: () =>
+        new Promise((resolve) => {
+          resolveConfig = resolve
+        })
+    })
+    draftStore.orchestrationPolicy = 'proactive'
+    draftStore.orchestrationPolicy = 'explicit'
+    resolveConfig({ subagentEnabled: true, defaultOrchestrationPolicy: 'proactive' })
+    await flushPromises()
+    expect(draftStore.orchestrationPolicy).toBe('explicit')
+    wrapper.unmount()
+  })
+
+  it('ignores a previous Agent default after switching to ACP', async () => {
+    let resolveConfig!: (config: Record<string, unknown>) => void
+    const { agentStore, draftStore, wrapper } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat',
+      resolveDeepChatAgentConfig: () =>
+        new Promise((resolve) => {
+          resolveConfig = resolve
+        })
+    })
+    Object.assign(agentStore, {
+      selectedAgentId: 'acp-agent',
+      selectedAgent: { id: 'acp-agent', type: 'acp', name: 'ACP', enabled: true }
+    })
+    await flushPromises()
+    resolveConfig({ subagentEnabled: true, defaultOrchestrationPolicy: 'proactive' })
+    await flushPromises()
+    expect(draftStore.orchestrationPolicy).toBe('explicit')
+    wrapper.unmount()
+  })
+
+  it('ignores Agent defaults after leaving the new-session page', async () => {
+    let resolveConfig!: (config: Record<string, unknown>) => void
+    const { draftStore, wrapper } = await setup({
+      selectedAgentId: 'deepchat',
+      selectedAgentType: 'deepchat',
+      resolveDeepChatAgentConfig: () =>
+        new Promise((resolve) => {
+          resolveConfig = resolve
+        })
+    })
+    wrapper.unmount()
+    resolveConfig({ subagentEnabled: true, defaultOrchestrationPolicy: 'proactive' })
+    await flushPromises()
+    expect(draftStore.orchestrationPolicy).toBe('explicit')
+  })
+
   it('preserves the manually selected directory when switching Agents', async () => {
     const { projectStore, agentStore, draftStore } = await setup({
       defaultProjectPath: '/workspaces/global',

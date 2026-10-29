@@ -23,6 +23,7 @@ import {
   AGENT_OUTPUT_LIMIT_MIN_CHARS
 } from '../lib/agentOutputLimits'
 import { ToolModeSchema } from '../toolMode'
+import { OrchestrationPolicySchema } from '../orchestration/policy'
 import { ProviderCustomHeadersSchema } from '../providerCustomHeaders'
 import { MediaSettingsCapabilitiesSchema } from '../types/model-capabilities'
 
@@ -680,6 +681,7 @@ export const DeepChatAgentConfigSchema = z.looseObject({
   enabledSkillNames: z.array(z.string()).nullable().optional(),
   enabledMcpServerIds: z.array(z.string()).nullable().optional(),
   subagentEnabled: z.boolean().optional(),
+  defaultOrchestrationPolicy: OrchestrationPolicySchema.optional(),
   defaultProjectPath: z.string().nullable().optional(),
   readFileAutoTruncateChars: z
     .number()
