@@ -93,16 +93,19 @@ describeIfNativeSqlite('Core profile ownership', () => {
 
   it('retains ownership when primary database close fails', async () => {
     const { options } = fixture()
-    const profile = await open(options)
+    const ownership: boolean[] = []
+    const profile = await open({ ...options, onOwnershipChanged: (owned) => ownership.push(owned) })
     const close = vi.spyOn(profile.database, 'close').mockImplementationOnce(() => {
       throw new Error('Database close failed')
     })
     expect(() => profile.closeProfile()).toThrow('Database close failed')
+    expect(ownership).toEqual([true])
     await expect(initializeCoreProfile(options)).rejects.toMatchObject({
       name: 'CoreProfileOwnershipUnavailableError'
     })
     close.mockRestore()
     profile.closeProfile()
+    expect(ownership).toEqual([true, false])
     await open(options)
   })
 

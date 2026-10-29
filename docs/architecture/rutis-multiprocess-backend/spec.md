@@ -1347,6 +1347,27 @@ request ID. A core generation change invalidates outstanding requests, subscript
 capability leases from that generation. Keep Session IDs, Run IDs, message IDs, and Tape
 incarnations as their existing separate identities.
 
+The initial private Core bootstrap link uses the existing 64-KiB control frames and a separate
+one-shot Core generation. It admits at most four ordinary calls and reserves two additional call
+slots for status/stop; up to sixteen reverse Native calls are tracked independently. Native replies
+are settled independently of Core request execution, so profile startup can await a Native effect
+while stop/status remain callable. A dropped reply does not release a profile or a Native write.
+Status has a 5-second observation deadline and stop has a 30-second observation deadline; expiry
+does not retire the operation, release its slot or authorize another owner. Status and stop each
+have a reserved slot. Profile unlock/recovery may await human input without a timing budget.
+
+Bootstrap values use Node V8 serialization, preserving `undefined`, dates and binary values. Values
+up to 16 KiB stay inline in control frames. Larger values use authenticated AES-256-GCM carriers in
+a generation-private 0700 temporary directory, with 0600 exclusive files, unpredictable identities,
+direction/operation binding, a 64-MiB value limit and at most four retained files per sender. The
+ephemeral key crosses only the private control link and is never written to disk or command-line
+arguments. Carriers are first-party local IPC resources, not CLI artifact grants or renderer paths.
+This bootstrap limit does not lower public route limits: legal larger history/tool results require
+service-specific paging or transfer adaptation before public route cutover. It is not an Everywhere
+network protocol. Core reports profile ownership separately from business readiness; opening the
+profile alone cannot admit renderer/CLI business work. Stop must await actual initialization and
+profile close. A timed-out or lost stop reply cannot authorize replacement of a live owner.
+
 Frames and queues have finite byte/count budgets checked before allocation and parsing. Establish
 production values from the route payload inventory and benchmark. Oversized legal results must
 use existing paging/artifact capabilities or an explicitly bounded transfer contract; never

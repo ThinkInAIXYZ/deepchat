@@ -43,6 +43,7 @@ export async function initializeCoreProfile(options: {
   currentAppVersion: string
   crypto: DatabaseSecurityCryptoPort
   host: CoreProfileHost
+  onOwnershipChanged?: (owned: boolean) => void
   observe?: (observation: DatabaseInitializationObservation) => void | Promise<void>
 }) {
   if (!path.isAbsolute(options.userDataDirectory) || !path.isAbsolute(options.homeDirectory)) {
@@ -75,8 +76,10 @@ export async function initializeCoreProfile(options: {
     secretStore?.pause()
     database?.close()
     if (ownership.open) ownership.close()
+    options.onOwnershipChanged?.(false)
   }
   try {
+    options.onOwnershipChanged?.(true)
     const { userDataDirectory, homeDirectory, currentAppVersion } = options
     const settingsStore = createSettingsStore({
       userDataDirectory,

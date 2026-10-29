@@ -1,5 +1,4 @@
 use super::*;
-use rutis_loader::Loader;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 const MAX_MEMORY_CALLS: usize = 32;
@@ -166,8 +165,7 @@ pub struct Bootstrap {
     runtime: Mutex<Option<LocalRuntime>>,
     incoming: Mutex<Option<mpsc::Receiver<Request>>>,
     outgoing: Output,
-    loader: Loader,
-    admission: Vec<Patch>,
+    layers: Arc<layers::Layers>,
     plugin: url::Url,
 }
 
@@ -176,8 +174,7 @@ impl Bootstrap {
         runtime: LocalRuntime,
         incoming: mpsc::Receiver<Request>,
         outgoing: Output,
-        loader: Loader,
-        admission: Vec<Patch>,
+        layers: Arc<layers::Layers>,
         mut plugin: url::Url,
     ) -> Self {
         plugin = plugin.join("memory-vector.mjs").expect("Local plugin URL");
@@ -185,8 +182,7 @@ impl Bootstrap {
             runtime: Mutex::new(Some(runtime)),
             incoming: Mutex::new(Some(incoming)),
             outgoing,
-            loader,
-            admission,
+            layers,
             plugin,
         }
     }
@@ -235,11 +231,7 @@ impl Plugin for Bootstrap {
                 "id": "memory-vector", "name": format!("memory:{}", self.plugin), "config": config
             }] }]))
             .map_err(|e| CordisError::ServiceNotFound(e.to_string()))?;
-            let layers = vec![
-                Layer::new("harness", self.admission.clone()),
-                Layer::new("memory", memory),
-            ];
-            if let Err(error) = self.loader.reconcile(layers, None).await {
+            if let Err(error) = self.layers.set("memory", memory).await {
                 processes.kill();
                 processes.ended().await;
                 let _ = self.outgoing.send(json!({ "type": "memoryStopped", "message": "Memory vector plugin failed to load" })).await;

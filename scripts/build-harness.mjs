@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
 import { cp, mkdir, readFile, copyFile, chmod } from 'node:fs/promises'
-import { createRequire } from 'node:module'
+import { builtinModules, createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { build } from 'vite'
@@ -42,6 +42,8 @@ export async function buildHarness({ platform = process.platform, arch = process
     root: repositoryRoot,
     publicDir: false,
     resolve: {
+      conditions: ['node'],
+      mainFields: ['module', 'main'],
       alias: {
         '@': path.join(repositoryRoot, 'src', 'main'),
         '@shared': path.join(repositoryRoot, 'src', 'shared')
@@ -55,6 +57,7 @@ export async function buildHarness({ platform = process.platform, arch = process
       lib: {
         entry: {
           admission: path.join(repositoryRoot, 'src', 'harness', 'plugins', 'admission.ts'),
+          core: path.join(repositoryRoot, 'src', 'harness', 'plugins', 'core.ts'),
           'memory-vector': path.join(
             repositoryRoot,
             'src',
@@ -66,7 +69,15 @@ export async function buildHarness({ platform = process.platform, arch = process
         formats: ['es'],
         fileName: (_, name) => `${name}.mjs`
       },
-      rollupOptions: { external: [/^node:/, '@duckdb/node-api', '@duckdb/node-bindings'] }
+      rollupOptions: {
+        external: [
+          ...builtinModules,
+          /^node:/,
+          'better-sqlite3-multiple-ciphers',
+          '@duckdb/node-api',
+          '@duckdb/node-bindings'
+        ]
+      }
     }
   })
   const extension = platform === 'win32' ? '.exe' : ''
@@ -76,6 +87,21 @@ export async function buildHarness({ platform = process.platform, arch = process
     binary
   )
   await chmod(binary, 0o755)
+  const sqlite = path.dirname(require.resolve('better-sqlite3-multiple-ciphers/package.json'))
+  const sqliteOutput = path.join(output, 'node_modules', 'better-sqlite3-multiple-ciphers')
+  await mkdir(path.join(sqliteOutput, 'prebuilds'), { recursive: true })
+  await copyFile(path.join(sqlite, 'package.json'), path.join(sqliteOutput, 'package.json'))
+  await cp(path.join(sqlite, 'lib'), path.join(sqliteOutput, 'lib'), { recursive: true })
+  await copyFile(
+    path.join(sqlite, 'prebuilds', `${platform}-${arch}.node`),
+    path.join(sqliteOutput, 'prebuilds', `${platform}-${arch}.node`)
+  )
+  if (platform === 'linux') {
+    await copyFile(
+      path.join(sqlite, 'prebuilds', `linuxmusl-${arch}.node`),
+      path.join(sqliteOutput, 'prebuilds', `linuxmusl-${arch}.node`)
+    )
+  }
   const runtimePackage = require.resolve('@arcships/rutis-runtime/package.json')
   const runtimeRoot = path.dirname(runtimePackage)
   const runtimeOutput = path.join(output, 'node_modules', '@arcships', 'rutis-runtime')

@@ -27,6 +27,8 @@ use tokio::{
     time::{sleep, timeout},
 };
 
+mod core;
+mod layers;
 mod memory;
 mod transport;
 use transport::Output;
@@ -77,6 +79,20 @@ enum Request {
         command: Json,
         #[serde(skip)]
         data: Option<Vec<u8>>,
+    },
+    CoreStart {
+        config: Json,
+    },
+    CoreCall {
+        id: u64,
+        method: String,
+        args: Json,
+    },
+    CoreNativeReply {
+        id: u64,
+        generation: String,
+        value: Option<Json>,
+        error: Option<Json>,
     },
 }
 
@@ -257,7 +273,12 @@ fn decode_request(mut bytes: Vec<u8>, vector: bool, binary: bool) -> Result<Requ
     Ok(request)
 }
 
-fn read_requests(sender: mpsc::Sender<Request>, memory: mpsc::Sender<Request>) -> Result<()> {
+fn read_requests(
+    sender: mpsc::Sender<Request>,
+    memory: mpsc::Sender<Request>,
+    core: mpsc::Sender<Request>,
+    native: Arc<core::Native>,
+) -> Result<()> {
     let mut input = std::io::stdin().lock();
     loop {
         let mut header = [0_u8; 4];
@@ -279,6 +300,20 @@ fn read_requests(sender: mpsc::Sender<Request>, memory: mpsc::Sender<Request>) -
         input.read_exact(&mut bytes)?;
         let request = decode_request(bytes, vector, binary)?;
         match request {
+            Request::CoreNativeReply {
+                id,
+                generation,
+                value,
+                error,
+            } => native.complete(id, &generation, value, error),
+            Request::CoreStart { .. } | Request::CoreCall { .. } => {
+                if matches!(
+                    core.try_send(request),
+                    Err(mpsc::error::TrySendError::Full(_))
+                ) {
+                    return Err("Core request queue exceeded".into());
+                }
+            }
             Request::Call { .. } => {
                 if sender.blocking_send(request).is_err() {
                     return Ok(());
@@ -306,6 +341,8 @@ async fn mount(
     args: &[std::ffi::OsString],
     incoming: mpsc::Receiver<Request>,
     memory_incoming: mpsc::Receiver<Request>,
+    core_incoming: mpsc::Receiver<Request>,
+    native: Arc<core::Native>,
     outgoing: Output,
 ) -> Result<RuntimeHandle> {
     let electron = PathBuf::from(&args[0]).canonicalize()?;
@@ -336,28 +373,40 @@ async fn mount(
     let memory_runtime = LocalRuntime::launcher(
         "memory",
         launcher
+            .clone()
             .arg("--max-semi-space-size=8")
             .arg(runtime.join("src/runner.mjs")),
+        runtime.join("package.json"),
+    );
+    let core_runtime = LocalRuntime::launcher(
+        "core",
+        launcher.arg(runtime.join("src/runner.mjs")),
         runtime.join("package.json"),
     );
     let catalog = ServiceCatalog::new();
     let memory_rows =
         Arc::new(RuntimeResolver::modules(memory_runtime.handle()).with_catalog(&catalog));
     let rows = Arc::new(RuntimeResolver::node(handle.clone()).with_catalog(&catalog));
+    let core_rows =
+        Arc::new(RuntimeResolver::modules(core_runtime.handle()).with_catalog(&catalog));
     root.plugin(admission_runtime);
     let loader = LoaderPlugin::new(
         Chain::new()
             .with_shared(rows.clone())
-            .with_shared(memory_rows.clone()),
+            .with_shared(memory_rows.clone())
+            .with_shared(core_rows.clone()),
         LoaderOptions {
             catalog,
             ..LoaderOptions::default()
         },
     );
     let loader_handle = loader.handle();
+    let layers = Arc::new(layers::Layers::new(loader_handle));
+    root.provide_as::<dyn HostDispatch>(host_key("deepchatCoreNative"), native.clone())?;
     root.plugin(loader).await?;
     root.plugin(RuntimeRowsPlugin::new(rows));
     root.plugin(RuntimeRowsPlugin::new(memory_rows));
+    root.plugin(RuntimeRowsPlugin::new(core_rows));
     root.plugin(AdmissionGateway {
         injects: [host_key("harnessAdmission")],
         incoming: Mutex::new(Some(incoming)),
@@ -367,15 +416,20 @@ async fn mount(
     let patches: Vec<Patch> = serde_json::from_value(json!([{ "insert": [{
         "id": "admission", "name": plugin_url.as_str(), "config": { "capacity": capacity, "maxPending": max_pending }
     }] }]))?;
-    loader_handle
-        .reconcile(vec![Layer::new("harness", patches.clone())], None)
-        .await?;
+    layers.set("harness", patches).await?;
+    root.plugin(core::Bootstrap::new(
+        core_runtime,
+        core_incoming,
+        outgoing.clone(),
+        layers.clone(),
+        plugin_url.clone(),
+        native,
+    ));
     root.plugin(memory::Bootstrap::new(
         memory_runtime,
         memory_incoming,
         outgoing,
-        loader_handle,
-        patches,
+        layers,
         plugin_url,
     ));
     Ok(handle)
@@ -392,15 +446,23 @@ async fn main() -> Result<()> {
     let root = Ctx::root()?;
     let (requests, incoming) = mpsc::channel(64);
     let (memory_requests, memory_incoming) = mpsc::channel(32);
+    let (core_requests, core_incoming) = mpsc::channel(8);
     let (outgoing, responses) = Output::channel();
+    let native = Arc::new(core::Native::new(outgoing.clone()));
+    let reader_native = native.clone();
     let (reader_end, mut reader) = oneshot::channel();
     // A detached blocking reader cannot hold Tokio shutdown open after runtime loss.
     std::thread::spawn(move || {
-        let _ = reader_end.send(read_requests(requests, memory_requests));
+        let _ = reader_end.send(read_requests(
+            requests,
+            memory_requests,
+            core_requests,
+            reader_native,
+        ));
     });
     let mut writer = tokio::spawn(transport::write_responses(responses));
     let result = async {
-        let runtime = timeout(Duration::from_secs(15), mount(&root, &args, incoming, memory_incoming, outgoing)).await??;
+        let runtime = timeout(Duration::from_secs(15), mount(&root, &args, incoming, memory_incoming, core_incoming, native, outgoing)).await??;
         tokio::select! {
             result = &mut reader => result?,
             result = &mut writer => { result??; Err("Harness output closed".into()) },

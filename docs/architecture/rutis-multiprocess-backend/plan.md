@@ -53,7 +53,7 @@ regression gates to them. Do not rerun CI or unchanged benchmarks to obtain a pa
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
 | G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
 | G4 Store commands and desktop ports | Complete, `356143755` | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
-| G5 Cohesive TS Harness backend | In progress: Core business composition | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
+| G5 Cohesive TS Harness backend | In progress: private Core bootstrap | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
 | G7 Rust control owner | Planned | G2, G5 | Admission and cohesive run/interaction settlement preserve all fences |
 | G8 Rust batch computations | Conditional | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go |
@@ -2855,8 +2855,48 @@ comparison. Full G5 acceptance must cover actual native close/reopen after the p
 App types, normal full build, format/check, lint and i18n pass. The generated Provider catalog
 refresh is retained separately. Evidence, source and artifact hashes are in
 `.deepchat/rutis-g5-runtime-composition-acceptance/`. No performance/resource capture is repeated.
-G5 remains active: remaining configuration/CLI/startup composition, private Rutis transport,
+G5 remains active: remaining configuration/CLI/startup composition, business transport,
 shared-writer transfer and Core/Native lifecycle cutover are required before publication.
+
+### Private Core profile bootstrap
+
+The Rust host can lazily mount a separate first-party Core Node worker through Rutis. Its private
+bootstrap opens the actual profile and SQLite connection under the existing exclusive
+ownership lease. Crypto and unlock/recovery presentation call Main through nine allowlisted Native
+operations, bound to the actual Rutis caller and Core generation. Memory and Core reconcile through
+one serialized layer owner so neither mount replaces admission or the other capability.
+
+Control frames retain the 64-KiB limit. Four ordinary calls, one status slot, one stop slot and
+sixteen Native calls have independent bounds; bulk Memory and admission acquisition reserve pipe
+capacity for Core control and Native replies. V8 serialization preserves existing Node values.
+Values above 16 KiB use authenticated generation-private encrypted carriers, bounded to 64 MiB
+and four retained files per sender. Larger legal public results still need paging or transfer
+adaptation before route cutover; this private link is not an Everywhere or CLI artifact protocol.
+
+Stop awaits real initialization, Native effects and profile closure. Observation deadlines leave
+missing outcomes unknown and do not free a call slot, retire the owner or permit replacement.
+Failed primary close retains ownership. Core death retires its generation without automatically
+adopting another one, and stale Core frames do not terminate admission. The child reports
+`businessReady: false`: the default application still owns its profile and business routes in Main,
+does not start this lazy Core worker, and has not transferred its writer or shutdown authority.
+
+Acceptance passes **39 distinct checks across seven affected files** and **five Rust checks**.
+Seven new durable checks in two files cover encrypted carrier fidelity/tampering/quotas, a standalone
+artifact's actual child-held SQLite lease, simultaneous Memory/admission, pending Native startup,
+lost stop replies, physical Core death, stale calls and no replacement. The existing failed-close
+check also verifies the authoritative ownership receipt. The artifact resolves Node conditions and
+ships its target native SQLite binding; no browser shim, new dependency or nested supervisor is
+introduced.
+
+Immutable `f511c078b` and the candidate each pass the same three application cases: streaming chat,
+delegation admission and Memory eviction/model-change/worker-loss. This is a scoped default-path
+regression comparison against the retained ancestor artifact, not a full Core business cutover.
+App and changed-test types, normal build, format, i18n, lint and locked Rust format/clippy pass.
+The existing Remote unsafe-finally warning remains. Normal generated Provider output is retained
+separately. Evidence and source/artifact hashes are in
+`.deepchat/rutis-g5-core-transport-acceptance/`. No performance/resource sampling is repeated and no
+speed or memory saving is claimed. G5 stays active and unpublished until the actual default
+composition, Native effects, public routes, writer and lifecycle handoff pass their acceptance.
 
 ## G6. Extract the complete Memory capability
 

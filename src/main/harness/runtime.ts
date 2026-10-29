@@ -1,6 +1,12 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import path from 'node:path'
 import { z } from 'zod'
+import {
+  CoreFrameSchema,
+  type CoreFrame,
+  type CoreRequest,
+  type CoreCarrierConfig
+} from '@shared/harness/core'
 import { AdmissionObservationSchema } from '@shared/harness/admission'
 import type { AgentInvocationAdmissionObservation } from '@shared/harness/admission'
 import {
@@ -27,6 +33,7 @@ const memoryIdentitySchema = z
   })
   .strict()
 const frameSchema = z.union([
+  CoreFrameSchema,
   z
     .object({
       type: z.literal('memoryReady'),
@@ -115,6 +122,7 @@ export class HarnessRuntime {
   private memorySentBytes = 0
   private memoryReceivedBytes = 0
   private memoryPeakPending = 0
+  private core: { message(frame: CoreFrame): void; failed(error: Error): void } | undefined
 
   private constructor(
     directory: string,
@@ -197,6 +205,25 @@ export class HarnessRuntime {
 
   get memoryIdentity() {
     return this.memoryInfo
+  }
+
+  connectCore(
+    config: CoreCarrierConfig,
+    listener: { message(frame: CoreFrame): void; failed(error: Error): void }
+  ): (request: CoreRequest) => void {
+    if (this.core) {
+      const error = new Error('Core generation cannot be adopted twice')
+      error.name = 'CoreGenerationAlreadyAdoptedError'
+      throw error
+    }
+    if (this.failure || this.stopping) throw this.failure ?? new Error('Rutis host is stopping')
+    this.core = listener
+    const send = (request: CoreRequest): void => {
+      if (this.failure || this.stopping) throw this.failure ?? new Error('Rutis host is stopping')
+      this.child.stdin.write(this.packet(request, MAX_FRAME_BYTES, 0))
+    }
+    send({ type: 'coreStart', config })
+    return send
   }
 
   get memoryAvailable(): boolean {
@@ -331,9 +358,14 @@ export class HarnessRuntime {
   ): Buffer {
     const json = Buffer.from(JSON.stringify(value))
     const length = json.length + (data ? 4 + data.byteLength : 0)
+    const request = value as { type?: string; method?: string }
+    const coreData =
+      this.core &&
+      ((vector && reserve > 0) || (request.type === 'call' && request.method === 'acquire'))
+    const reserved = coreData ? Math.max(reserve, MAX_BUFFER_BYTES / 2) : reserve
     if (
       length > maxFrame ||
-      this.child.stdin.writableLength + 4 + length > MAX_BUFFER_BYTES - reserve
+      this.child.stdin.writableLength + 4 + length > MAX_BUFFER_BYTES - reserved
     ) {
       throw new Error('Rutis transport limit exceeded')
     }
@@ -368,7 +400,15 @@ export class HarnessRuntime {
       if (vector !== (frame.type === 'memoryReply')) throw new Error('Invalid frame kind')
       if (frame.type !== 'memoryReply' && length > MAX_FRAME_BYTES)
         throw new Error('Invalid control frame length')
-      if (frame.type === 'memoryReady') {
+      if (
+        frame.type === 'coreReady' ||
+        frame.type === 'coreStopped' ||
+        frame.type === 'coreReply' ||
+        frame.type === 'coreNativeCall'
+      ) {
+        if (!this.core) throw new Error('Unexpected Core response')
+        this.core.message(frame)
+      } else if (frame.type === 'memoryReady') {
         if (
           !this.memoryConfig ||
           frame.runtime.generation !== this.memoryConfig.generation ||
@@ -435,6 +475,7 @@ export class HarnessRuntime {
     this.failure = error
     this.ready.reject(error)
     this.failMemory(error)
+    this.core?.failed(error)
     for (const pending of this.pending.values()) {
       pending.cleanup()
       pending.reject(error)
