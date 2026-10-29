@@ -1,3 +1,4 @@
+import { createCoreData } from '../../harness/core/data'
 import { createCoreExecution, createLivePort } from '../../harness/core/execution'
 import { randomUUID } from 'node:crypto'
 import { SyncReplicaStore } from '@/sync/replica/store'
@@ -73,9 +74,9 @@ import {
 import { HarnessRuntime } from '../harness/runtime'
 import { RutisMemoryVectorStores } from '../harness/memory-vector'
 import { ProviderImportService } from '../provider/providerImportService'
-import { ProviderDatabase } from '../provider/data/database'
+import type { ProviderDatabase } from '../provider/data/database'
 import { createProviderRoutes } from '../provider/routes'
-import { ProviderSettings } from '../provider/settings'
+import type { ProviderSettings } from '../provider/settings'
 import type { SettingsStore } from '../config/settingsStore'
 import type { SecretStore } from '../config/secretStore'
 import { providerDbLoader, type ProviderDbBootstrap } from '../provider/providerDbLoader'
@@ -158,10 +159,7 @@ import { createDesktopRoutes } from '../desktop/routes'
 import { createFileRoutes } from '../file/routes'
 import { createKnowledgeRoutes } from '../knowledge/routes'
 import { KnowledgeSettings } from '@/knowledge/settings'
-import { PromptSettings } from '@/agent/promptSettings'
 import { AgentSettings } from '@/agent/settings'
-import { AgentLifecycleGate } from '@/agent/lifecycleGate'
-import { SessionDeletionGate } from '@/session/deletionGate'
 import { emitAcpAgentModelsChanged, emitAgentCatalogChanged } from '@/app/agentEvents'
 import { emitModelsChanged } from '@/provider/eventPublishers'
 import { createWorkspaceRoutes } from '../workspace/routes'
@@ -204,9 +202,7 @@ import {
   TOOL_SURFACE_PRODUCTION_ROLLOUT_POLICY_V1,
   ToolSurfaceRolloutOwner
 } from '@/agent/deepchat/runtime/toolSurfaceRollout'
-import { AppSessionService } from '@/agent/shared/appSessionService'
-import { createSessionData } from '@/session/data'
-import { MemoryDatabase } from '@/memory/data/database'
+import type { AppSessionService } from '@/agent/shared/appSessionService'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { SessionQuery } from '@/session/query'
 import type { SessionAssignment } from '@/session/assignment'
@@ -226,21 +222,13 @@ import type {
 } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import { MemoryService, type MemoryServicePort } from '../memory'
 import { ProjectService } from '../project'
-import { ProjectDatabase } from '@/project/data/database'
-import { SettingsDatabase } from '@/settings/data/database'
-import { SchedulerDatabase } from '@/scheduler/data/database'
-import { AppDatabase } from '@/app/data/database'
+import type { SettingsDatabase } from '@/settings/data/database'
 import { createOrchestrationRoutes } from '@/orchestration/routes'
-import { LiveDelegationDatabase } from '@/orchestration/data/database'
-import { LiveDelegationRepository } from '@/orchestration/liveDelegationRepository'
 import {
   type LiveDelegationService,
   type LiveDelegationLifecycleObservation
 } from '@/orchestration/liveDelegationService'
 import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
-import { TaskContractService } from '@/tape/application/taskContractService'
-import { TaskEvaluationService } from '@/tape/application/taskEvaluationService'
-import { TapeInspectorHeadWatcher } from '@/tape/application/traceInspectorHeadWatcher'
 import { createProjectRoutes } from '../project/routes'
 import { RemoteService } from '../remote'
 import type { RemoteServiceLike } from '../remote/ports'
@@ -249,8 +237,7 @@ import type { PluginToolPolicyStore } from '@/plugin/toolPolicyStore'
 import { createPluginRoutes } from '../plugin/routes'
 import { PluginRuntimeSupervisor } from '../plugin/runtimeSupervisor'
 import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
-import { AgentRepository } from '../agent/repository'
-import { AgentDatabase } from '@/agent/data/database'
+import type { AgentDatabase } from '@/agent/data/database'
 import { DeepChatDefaults } from '../agent/deepchat/defaults'
 import { CommandShellService } from '@/agent/shared/process/commandShellService'
 import { AgentTraceSettings } from '../agent/traceSettings'
@@ -278,8 +265,8 @@ import {
   StartupWorkloadCoordinator
 } from '../app/startupWorkloadCoordinator'
 import type { StartupWorkloadTaskContext } from '../app/startupWorkloadCoordinator'
-import { LegacyChatImportService } from './startupMigrations/legacyChatImportService'
-import { UsageStatsService } from '../session/usageStatsService'
+import type { LegacyChatImportService } from './startupMigrations/legacyChatImportService'
+import type { UsageStatsService } from '../session/usageStatsService'
 import type { SessionDataMigrationSQLitePort } from './startupMigrations/sessionDataMigrations'
 import type { SessionHistorySearch } from '@/session/sessionHistorySearch'
 import type { SessionTranslation } from '@/session/sessionTranslation'
@@ -328,7 +315,6 @@ import {
   runMainlineNormalizationMigration
 } from './startupMigrations/sessionDataMigrations'
 import { activateAppOnMac } from '@/lib/activateApp'
-import { SessionRuntimeEvents } from '@/session/runtimeEvents'
 import { TypedEventHub } from '@/events/typedEventHub'
 import { SessionEventRouter } from '@/events/sessionEventRouter'
 import { createMemoryProviderBindings } from './memoryProviderBindings'
@@ -844,43 +830,27 @@ export async function createMainProcessControl(dependencies: {
   const unsubscribeStartupWorkload = startupWorkloadCoordinator.subscribe((payload) => {
     publishDeepchatEvent('startup.workload.changed', payload)
   })
-  providerSettings = new ProviderSettings(
-    dependencies.settingsStore,
-    dependencies.privacySettings,
-    dependencies.providerDatabase,
-    publishDeepchatEvent,
-    dependencies.currentAppVersion,
-    dependencies.providerCatalogBootstrap,
-    dependencies.previousAppVersion
-  )
-
-  const memoryDatabase = new MemoryDatabase(mainDatabase)
-  const sessionData = createSessionData(
-    mainDatabase,
-    () => memoryDatabase.ingestionProjectionTable,
-    {
-      publishPendingInputsChanged: (sessionId) =>
-        publishDeepchatEvent('sessions.pendingInputs.changed', {
-          sessionId,
-          version: Date.now()
-        }),
-      publishMessagesChanged: (sessionId, messages) =>
-        publishDeepchatEvent('sessions.messages.changed', {
-          sessionId,
-          messages,
-          version: Date.now()
-        })
-    }
-  )
-  const tapeInspectorHeadWatcher = new TapeInspectorHeadWatcher({
-    readHead: (sessionId) => sessionData.tapeStore.getTapeInspectorHead(sessionId),
-    emit: (webContentsId, pulse) => {
+  const coreData = createCoreData({
+    profile: {
+      database: mainDatabase,
+      settingsStore: dependencies.settingsStore,
+      privacySettings: dependencies.privacySettings,
+      providerDatabase: dependencies.providerDatabase,
+      agentDatabase: dependencies.agentDatabase,
+      settingsDatabase: dependencies.settingsDatabase,
+      currentAppVersion: dependencies.currentAppVersion,
+      previousAppVersion: dependencies.previousAppVersion
+    },
+    profileDirectory: app.getPath('userData'),
+    providerCatalogBootstrap: dependencies.providerCatalogBootstrap,
+    publishEvent: publishDeepchatEvent,
+    emitTapeHead: (webContentsId, pulse) => {
       typedEventHub.publish(sessionsTapeInspectorHeadChangedEvent.name, pulse, {
         kind: 'renderer',
         webContentsId
       })
     },
-    watchRendererDestroyed: (webContentsId, listener) => {
+    onRendererDestroyed: (webContentsId, listener) => {
       const target = electronWebContents.fromId(webContentsId)
       if (!target || target.isDestroyed()) {
         queueMicrotask(listener)
@@ -889,13 +859,30 @@ export async function createMainProcessControl(dependencies: {
       target.once('destroyed', listener)
       return () => target.removeListener('destroyed', listener)
     },
-    onError: (error, sessionId) => {
-      logger.warn('[TapeInspectorHeadWatcher] Failed to read committed head', {
-        sessionId,
-        error
-      })
-    }
+    projectEnvironmentChanged: () => projectService.notifyEnvironmentProjectionChanged()
   })
+  providerSettings = coreData.providerSettings
+  appSessionService = coreData.appSessionService
+  resolveSessionRunId = coreData.resolveSessionRunId
+  sessionDataMigrationSQLite = coreData.sessionDataMigrationSQLite
+  legacyChatImportService = coreData.legacyChatImportService
+  usageStatsService = coreData.usageStatsService
+  const {
+    memoryDatabase,
+    sessionData,
+    tapeInspectorHeadWatcher,
+    liveDelegationRepository,
+    sessionRuntimeEvents,
+    projectDatabase,
+    agentDatabase,
+    settingsDatabase,
+    providerDatabase,
+    schedulerDatabase,
+    agentRepository,
+    agentLifecycle,
+    sessionDeletionGate,
+    promptSettings
+  } = coreData
   const programmaticToolParents = new ProgrammaticToolParentRegistry({
     tokenAuthority: agentCliTokenAuthority,
     executionJournal: sessionData.programmaticExecutionJournal
@@ -951,99 +938,6 @@ export async function createMainProcessControl(dependencies: {
       toolPermissionBroker.cancel(requestId, sessionId)
     }
   })
-  const taskContractService = new TaskContractService(
-    () => sessionData.database.deepchatContractStore
-  )
-  const taskEvaluationService = new TaskEvaluationService(
-    () => sessionData.database.deepchatContractStore
-  )
-  const liveDelegationRepository = new LiveDelegationRepository(
-    new LiveDelegationDatabase(mainDatabase),
-    taskContractService,
-    taskEvaluationService
-  )
-  const sessionRuntimeEvents = new SessionRuntimeEvents()
-  const projectDatabase = new ProjectDatabase(mainDatabase)
-  const agentDatabase = dependencies.agentDatabase
-  const settingsDatabase = dependencies.settingsDatabase
-  const providerDatabase = dependencies.providerDatabase
-  const schedulerDatabase = new SchedulerDatabase(mainDatabase)
-  const appDatabase = new AppDatabase(mainDatabase)
-  const agentRepository = new AgentRepository(agentDatabase, sessionData.database, memoryDatabase)
-  const agentLifecycle = new AgentLifecycleGate()
-  const sessionDeletionGate = new SessionDeletionGate()
-  const promptSettings = new PromptSettings(dependencies.settingsStore, {
-    publishCustomPromptsChanged: (prompts) =>
-      publishDeepchatEvent('config.customPrompts.changed', {
-        prompts,
-        version: Date.now()
-      }),
-    publishSystemPromptsChanged: (state) =>
-      publishDeepchatEvent('config.systemPrompts.changed', {
-        ...state,
-        version: Date.now()
-      })
-  })
-  appSessionService = new AppSessionService(projectDatabase, sessionData.database, () =>
-    projectService.notifyEnvironmentProjectionChanged()
-  )
-  resolveSessionRunId = (sessionId) => {
-    const visited = new Set<string>()
-    let currentSessionId: string | null = sessionId
-    while (currentSessionId && visited.size < 32 && !visited.has(currentSessionId)) {
-      visited.add(currentSessionId)
-      const session = appSessionService.get(currentSessionId)
-      if (!session) return undefined
-      if (session.metadata?.source === 'cli_run') return session.id
-      currentSessionId = session.parentSessionId ?? null
-    }
-    return currentSessionId ? undefined : null
-  }
-  sessionDataMigrationSQLite = {
-    get appSettingsTable() {
-      return settingsDatabase.appSettingsTable
-    },
-    getDatabase: () => sessionData.database.getDatabase(),
-    get newSessionsTable() {
-      return sessionData.database.newSessionsTable
-    },
-    get newSessionActiveSkillsTable() {
-      return sessionData.database.newSessionActiveSkillsTable
-    },
-    get newSessionDisabledAgentToolsTable() {
-      return sessionData.database.newSessionDisabledAgentToolsTable
-    },
-    get deepchatSearchDocumentsTable() {
-      return sessionData.database.deepchatSearchDocumentsTable
-    },
-    get deepchatUserMessagesTable() {
-      return sessionData.database.deepchatUserMessagesTable
-    },
-    get deepchatUserMessageFilesTable() {
-      return sessionData.database.deepchatUserMessageFilesTable
-    },
-    get deepchatUserMessageLinksTable() {
-      return sessionData.database.deepchatUserMessageLinksTable
-    },
-    get deepchatAssistantBlocksTable() {
-      return sessionData.database.deepchatAssistantBlocksTable
-    }
-  }
-  legacyChatImportService = new LegacyChatImportService(
-    appDatabase,
-    sessionData.database,
-    projectDatabase,
-    memoryDatabase,
-    sessionData.tapeStore,
-    path.join(app.getPath('userData'), 'app_db', 'chat.db'),
-    () => projectService.notifyEnvironmentProjectionChanged()
-  )
-  usageStatsService = new UsageStatsService(
-    sessionData.database,
-    providerSettings,
-    dependencies.settingsStore,
-    sessionData.tapeStore
-  )
   const desktopConfigurationHost = new DesktopConfigurationHost(
     app.getPath('userData'),
     setMainLoggingEnabled,

@@ -723,6 +723,11 @@ the current delegation lifetime after maintenance. Keep Session/Tape transaction
 resolution inside this graph; database reopen must not leave captured table or service instances.
 Native renderer lifetime/browser effects are supplied ports, not Electron objects in the factory.
 
+Construct the business data facades from the already initialized profile connection. Session/Tape,
+Memory tables, Agent/Project/scheduler data and delegation contracts share that connection; moving
+their composition must not introduce another database opener. Migration adapters keep live table
+getters across maintenance reopen. Renderer polling/delivery remain supplied lifetime/event ports.
+
 Acquire the profile's `.core-owner.lock` SQLite exclusive transaction before constructing settings
 or starting crypto/recovery. This independent, data-free handle remains owned while the primary
 database closes/reopens for maintenance. Do not infer release from a pending reply, a PID file or

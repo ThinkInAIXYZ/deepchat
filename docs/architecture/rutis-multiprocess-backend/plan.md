@@ -2763,6 +2763,32 @@ and both shutdown drains. Evidence, source and runtime hashes are in
 Provider/Tool/Memory/Store owners from the remaining composition. Moving those owners, authenticated
 transport, the shared writer and actual process lifecycle remain required for G5 publication.
 
+### Core data composition
+
+The default application calls `src/harness/core/data.ts` to assemble Provider settings, Session/Tape,
+Memory tables, Agent/Project/scheduler data, delegation contracts, lifecycle gates, prompt settings,
+legacy import and usage statistics. It reuses the initialized profile connection and attached
+adapters. Main's inline constructors are removed. Tape head delivery and renderer lifetime are
+supplied callbacks; business data instances remain local composition dependencies, not an RPC
+schema. Migration table getters and the Session-to-CLI Run resolver keep their existing behavior.
+
+The relevant database, Agent, configuration, prompt, contract, watcher, migration and usage suites
+pass **80 checks across ten files**, with native SQLite required. Existing composition assertions
+follow the actual data owner. The real profile/data graph also constructs under ordinary Node with
+Electron/electron-store/font-list/electron-toolkit imports forbidden: 233 source files plus its
+probe entry. Actual checks preserve profile exclusivity, read/write after primary-database reopen
+and prompt persistence after profile reopen. This constructs the data graph, not a complete
+headless Session Host or a relocated Core process.
+
+Immutable `deb35ba5b` and the candidate pass the same ten application cases covering delegation, encryption/rekey,
+maintenance/shutdown, Provider facts and overrides, MCP/ACP settings and mixed file/database settings.
+Evidence, source and artifact hashes are in `.deepchat/rutis-g5-data-owner-acceptance/`. The shared
+writer still opens in Main; remaining business composition, Rutis transport and process lifecycle
+must cut over before G5 publication. App and changed-test types, normal build, format/check including
+Markdown, lint and i18n pass. The normal generated Provider catalog refresh is retained separately;
+its 44 checks pass and both catalog hashes are recorded with the application artifacts. No
+process/IPC change selects a performance recapture here.
+
 ## G6. Extract the complete Memory capability
 
 - [ ] Move the existing facade and internal retrieval/extraction/reflection/persona/directive/

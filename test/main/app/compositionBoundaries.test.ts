@@ -15,10 +15,9 @@ describe('session boundary composition', () => {
 
   it('reuses one default LegacyChatImportService across startup and skill repair', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
-      'utf8'
-    )
+    const compositionSource = ['src/main/app/composition.ts', 'src/harness/core/data.ts']
+      .map((file) => readFileSync(path.resolve(process.cwd(), file), 'utf8'))
+      .join('\n')
 
     expect(compositionSource.match(/new LegacyChatImportService\(/g)).toHaveLength(1)
     expect(compositionSource).toMatch(
@@ -324,8 +323,8 @@ describe('session boundary composition', () => {
       path.resolve(process.cwd(), 'src/main/tool/runtimePorts.ts'),
       'utf8'
     )
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+    const coreDataSource = readFileSync(
+      path.resolve(process.cwd(), 'src/harness/core/data.ts'),
       'utf8'
     )
 
@@ -334,7 +333,7 @@ describe('session boundary composition', () => {
     expect(schedulerSource).not.toContain("from '@/agent/")
     expect(toolPortSource).toContain("from '@/session/runtimeEvents'")
     expect(toolPortSource).not.toContain('DeepChatInternalSessionUpdate')
-    expect(compositionSource).toContain('const sessionRuntimeEvents = new SessionRuntimeEvents()')
+    expect(coreDataSource).toContain('const sessionRuntimeEvents = new SessionRuntimeEvents()')
   })
 
   it('keeps Remote behind App-owned catalog, workspace, Session, and desktop ports', async () => {
