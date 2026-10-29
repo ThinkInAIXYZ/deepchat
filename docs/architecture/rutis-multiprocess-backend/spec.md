@@ -1380,6 +1380,23 @@ batch of at most 64 validated envelopes. Stop fences queued configuration work a
 commands and Native effects before closing the profile. These administrative commands do not
 establish complete Harness readiness or grant a renderer/CLI caller direct access to the link.
 
+Core obtains admission from the existing Rust/Rutis host over the SDK link, using the same typed
+client and TS quota owner as Main. Main and the one Core generation have independent bounded
+command sequences, while global capacity, per-owner fairness and permit accounting remain shared.
+The host binds the Core caller row/key and generation, allows only existing admission methods and
+reports its actual capacity/queue limits. Core requests stay within 64 KiB and 1,024 in-flight calls;
+acquisition leaves sixteen slots for control work. Overflow retires Core admission authority and
+fences new execution rather than skipping an uncertain command and continuing its sequence.
+The bridge neither starts a second host nor forwards admission through Electron or file carriers.
+
+Core shutdown closes admission before releasing its profile. Physical Core loss closes the shared
+quota, rejects queued work and prevents another grant while already accepted Native work may still
+be settling. Unknown permits stay fenced until supervisor retirement; a live control/status path
+does not authorize replacement. Internal retirement preserves the current observation policy, and
+an explicit observation flag can use the supervisor's observer without a local duplicate callback.
+A transport-error reply from a lost Core is an unknown outcome for a posted mutation, even if it
+arrives before the runtime-loss notification. It must not be treated as a retryable definite failure.
+
 Frames and queues have finite byte/count budgets checked before allocation and parsing. Establish
 production values from the route payload inventory and benchmark. Oversized legal results must
 use existing paging/artifact capabilities or an explicitly bounded transfer contract; never

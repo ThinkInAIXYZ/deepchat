@@ -24,7 +24,8 @@ export default definePlugin<{ capacity: number; maxPending: number }>({
       snapshot: 'async',
       close: 'async',
       flushObservations: 'async',
-      dispatch: 'async'
+      dispatch: 'async',
+      dispatchCore: 'async'
     }
   },
   apply(ctx, config) {
@@ -133,31 +134,30 @@ export default definePlugin<{ capacity: number; maxPending: number }>({
         return true
       },
       snapshot,
-      async close(reason: string, enabled: boolean) {
+      async close(reason: string, enabled = observationsEnabled) {
         observationsEnabled = enabled === true
         admission.close(reason)
         await flushObservations()
       },
       flushObservations
     }
-    let nextRequest = 1
-    const requests = new Map<
-      number,
-      {
-        method: keyof typeof service
-        args: unknown[]
-        resolve: (value: unknown) => void
-        reject: (error: unknown) => void
-      }
-    >()
-    ctx.effect(() => {
-      for (const request of requests.values())
-        request.reject(new Error('Admission generation ended'))
-      requests.clear()
-    })
-    ctx.provide('harnessAdmission', {
-      ...service,
-      dispatch(sequence: number, method: string, args: unknown[]): Promise<unknown> {
+    const createDispatcher = () => {
+      let nextRequest = 1
+      const requests = new Map<
+        number,
+        {
+          method: keyof typeof service
+          args: unknown[]
+          resolve: (value: unknown) => void
+          reject: (error: unknown) => void
+        }
+      >()
+      ctx.effect(() => {
+        for (const request of requests.values())
+          request.reject(new Error('Admission generation ended'))
+        requests.clear()
+      })
+      return (sequence: number, method: string, args: unknown[]): Promise<unknown> => {
         if (
           !Number.isSafeInteger(sequence) ||
           sequence < nextRequest ||
@@ -184,6 +184,18 @@ export default definePlugin<{ capacity: number; maxPending: number }>({
             }
           }
         })
+      }
+    }
+    const dispatch = createDispatcher()
+    let core: { generation: string; dispatch: ReturnType<typeof createDispatcher> } | undefined
+    ctx.provide('harnessAdmission', {
+      ...service,
+      dispatch,
+      dispatchCore(generation: string, sequence: number, method: string, args: unknown[]) {
+        if (!/^[0-9a-f-]{36}$/.test(generation) || (core && core.generation !== generation))
+          throw new Error('Admission Core generation cannot change')
+        core ??= { generation, dispatch: createDispatcher() }
+        return core.dispatch(sequence, method, args)
       }
     })
   }

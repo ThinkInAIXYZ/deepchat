@@ -1,3 +1,4 @@
+import { createCoreAdmission, type CoreAdmissionService } from '../core/admission'
 import { createCoreSettings } from '../core/settings'
 import {
   CoreConfigurationCommandSchema,
@@ -43,11 +44,20 @@ export default definePlugin<CoreCarrierConfig>({
   async apply(ctx, input) {
     const config = CoreCarrierConfigSchema.parse(input)
     const store = new CorePayloadStore(config, 'core')
-    const native = ctx.use<{
-      invoke(generation: string, method: CoreNativeMethod, args: CorePayload): Promise<CorePayload>
-    }>('deepchatCoreNative')
-    let phase: CoreStatus['phase'] = 'idle'
+    const native = ctx.use<
+      CoreAdmissionService & {
+        invoke(
+          generation: string,
+          method: CoreNativeMethod,
+          args: CorePayload
+        ): Promise<CorePayload>
+      }
+    >('deepchatCoreNative')
     let profile: Awaited<ReturnType<typeof initializeCoreProfile>> | undefined
+    const admission = await createCoreAdmission(native, config.generation, {
+      observationsEnabled: () => profile?.settingsStore.get<boolean>('loggingEnabled') ?? false
+    })
+    let phase: CoreStatus['phase'] = 'idle'
     let opening: Promise<CorePayload> | undefined
     let stopping: Promise<void> | undefined
     let nativeCalls = 0
@@ -122,6 +132,7 @@ export default definePlugin<CoreCarrierConfig>({
         await opening?.catch(() => undefined)
         await configurationTail
         await configuration?.appSettingsService.stop()
+        await admission.close()
         profile?.closeProfile()
         if (ownsProfile) throw new Error('Core profile ownership did not retire')
         profile = undefined

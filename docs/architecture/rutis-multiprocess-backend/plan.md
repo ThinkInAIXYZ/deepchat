@@ -53,7 +53,7 @@ regression gates to them. Do not rerun CI or unchanged benchmarks to obtain a pa
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
 | G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
 | G4 Store commands and desktop ports | Complete, `356143755` | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
-| G5 Cohesive TS Harness backend | In progress: Core configuration commands | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
+| G5 Cohesive TS Harness backend | In progress: shared Core admission | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
 | G7 Rust control owner | Planned | G2, G5 | Admission and cohesive run/interaction settlement preserve all fences |
 | G8 Rust batch computations | Conditional | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go |
@@ -2937,6 +2937,44 @@ are in `.deepchat/rutis-g5-configuration-acceptance/`; no performance sampling o
 G5 remains active and unpublished: the default profile writer, public routes and shutdown authority
 still execute in Main. The actual cohesive runtime, CLI/startup/Toolchain composition, Native
 effect/proxy/descendant authority and complete lifecycle handoff must pass before publication.
+
+### Shared Core admission and lost-operation settlement
+
+The actual Core worker obtains admission from the existing Rust/Rutis host through its SDK
+connection. It reuses `RutisAgentInvocationAdmission` with a narrow transport, actual host limits
+and existing lease/cancellation/error behavior. No second host, queue owner, Electron relay or
+payload file carrier is introduced. Main and the one Core generation have separate bounded
+command sequences while sharing the existing TS capacity, owner fairness and permit accounting.
+This is a transport/ownership boundary; it does not implement the planned Rust control owner.
+
+The Rust host authenticates the Core row/key and generation, allows only existing admission
+methods and reserves sixteen of the 1,024 call slots for control work. Overflow fences Core
+authority and new execution rather than continuing across an uncertain sequence. Core closes
+admission before releasing its profile. Core loss closes the global quota and rejects queued work;
+unknown active permits remain fenced until the supervisor retires. The control path remains
+observable, without authorizing replacement or claiming pending Native effects have finished.
+Explicit observation flags support the supervisor's observer without duplicate local callbacks;
+internal retirement retains the current flag. Default desktop process placement is unchanged.
+
+An actual in-flight Core-loss check exposes a transport reply that can precede the runtime-loss
+notification. The Main client now treats that reply as an unknown posted-operation outcome and
+fences the connection. It does not return a generic definite failure that could invite replay.
+
+Acceptance passes **99 distinct checks across six files** and **five Rust checks**. Two durable
+checks and one SDK contract fixture cover the real host/Core link: shared Main/Core capacity,
+independent ordering, cancelled acquisition, generation rejection, diagnostic closure, actual
+Core death while holding a permit and Native effect, queued-work rejection and unknown outcome.
+The fixture is a bounded service contract workload, not a complete Harness execution. Existing
+Core profile/configuration/Memory coexistence, admission and delegation checks remain in use.
+
+Immutable `f511c078b` and the candidate pass the same three application cases for streaming chat,
+delegation admission and Memory eviction/model-change/worker-loss. App and new-test types, normal
+build and final affected artifacts, format/check, i18n, lint and locked Rust format/clippy pass.
+No generated catalogs change. Evidence and source/artifact/resource hashes are in
+`.deepchat/rutis-g5-core-admission-acceptance/`; no performance sampling or speed claim is made.
+G5 remains active and unpublished. The actual cohesive Kernel, Core Memory client, remaining
+CLI/Toolchain/startup composition, public routes, Native effects/proxy/descendant authority and
+default writer/lifecycle transfer still require their full acceptance before publication.
 
 ## G6. Extract the complete Memory capability
 

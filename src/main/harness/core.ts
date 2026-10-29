@@ -272,6 +272,10 @@ export class CoreRuntimeConnection {
       this.fail(new Error('Unknown Core reply'))
       return
     }
+    if ('error' in frame && frame.error.name === 'HarnessTransportError') {
+      this.fail(new Error(frame.error.message))
+      return
+    }
     this.pending.delete(frame.id)
     if ('error' in frame) {
       const error = new Error(frame.error.message)

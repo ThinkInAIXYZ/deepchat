@@ -17,7 +17,7 @@ import {
   type InternalAgentInvocationPermit
 } from '@shared/harness/admission'
 import { StatefulAgentInvocationLease } from '@shared/harness/lease'
-import { HarnessRuntime } from './runtime'
+import type { HarnessRuntime } from './runtime'
 
 export class RutisAgentInvocationAdmission implements AgentInvocationAdmissionPort {
   private closed: AgentInvocationAdmissionClosedError | undefined
@@ -25,14 +25,14 @@ export class RutisAgentInvocationAdmission implements AgentInvocationAdmissionPo
   private readonly releases = new Set<Promise<unknown>>()
 
   private constructor(
-    private readonly runtime: HarnessRuntime,
+    private readonly runtime: Pick<HarnessRuntime, 'identity' | 'request'>,
     private readonly capacity: number,
     private readonly maxPending: number,
     private readonly diagnostics: AgentInvocationAdmissionDiagnosticsOptions
   ) {}
 
   static create(options: {
-    runtime: HarnessRuntime
+    runtime: Pick<HarnessRuntime, 'identity' | 'request'>
     capacity?: number
     maxPending?: number
     diagnostics?: AgentInvocationAdmissionDiagnosticsOptions
@@ -147,9 +147,7 @@ export class RutisAgentInvocationAdmission implements AgentInvocationAdmissionPo
 
   private observationsEnabled(): boolean {
     try {
-      return (
-        this.diagnostics.observe !== undefined && (this.diagnostics.observationsEnabled?.() ?? true)
-      )
+      return this.diagnostics.observationsEnabled?.() ?? this.diagnostics.observe !== undefined
     } catch {
       return false
     }

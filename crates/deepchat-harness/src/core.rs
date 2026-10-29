@@ -10,12 +10,15 @@ struct NativeState {
     caller: Option<String>,
     next: u64,
     active: bool,
+    admission_used: bool,
+    admission_pending: usize,
     pending: HashMap<u64, oneshot::Sender<std::result::Result<Json, Json>>>,
 }
 
 pub struct Native {
     state: Arc<Mutex<NativeState>>,
     outgoing: Output,
+    admission: Mutex<Option<(Arc<dyn HostDispatch>, Json)>>,
 }
 
 impl Native {
@@ -23,6 +26,7 @@ impl Native {
         Self {
             state: Arc::default(),
             outgoing,
+            admission: Mutex::new(None),
         }
     }
 
@@ -39,21 +43,162 @@ impl Native {
         }
     }
 
-    fn retire(&self) {
-        let mut state = self.state.lock().unwrap();
-        state.active = false;
-        for (_, reply) in state.pending.drain() {
-            let _ = reply.send(Err(error("CoreUnavailableError", "Core generation ended")));
+    pub fn bind_admission(&self, service: Arc<dyn HostDispatch>, capacity: u64, max_pending: u64) {
+        *self.admission.lock().unwrap() = Some((
+            service,
+            json!({ "capacity": capacity, "maxPending": max_pending }),
+        ));
+    }
+
+    async fn retire(&self) {
+        let used = {
+            let mut state = self.state.lock().unwrap();
+            state.active = false;
+            for (_, reply) in state.pending.drain() {
+                let _ = reply.send(Err(error("CoreUnavailableError", "Core generation ended")));
+            }
+            std::mem::take(&mut state.admission_used)
+        };
+        if used {
+            let admission = self
+                .admission
+                .lock()
+                .unwrap()
+                .as_ref()
+                .map(|(service, _)| service.clone());
+            if let Some(service) = admission {
+                if let Ok(value) = service.invoke(
+                    "close",
+                    Value::List(vec![json!("Core admission owner retired").into()]),
+                ) {
+                    let _ = settle(value).await;
+                }
+            }
         }
+    }
+
+    fn admission(&self, args: Value) -> rutis_bridge::session::Reply {
+        let row = caller_row()
+            .filter(|row| row.id() == "core")
+            .ok_or_else(|| BridgeError::Value("Core admission caller is not authorized".into()))?;
+        let args = args.json()?;
+        let args = args
+            .as_array()
+            .filter(|args| args.len() == 4)
+            .ok_or_else(|| BridgeError::Value("Invalid Core admission arguments".into()))?;
+        if serde_json::to_vec(args)
+            .map_err(|e| BridgeError::Value(e.to_string()))?
+            .len()
+            > MAX_FRAME
+        {
+            return Err(BridgeError::Value(
+                "Core admission request is oversized".into(),
+            ));
+        }
+        let generation = args[0].as_str().unwrap_or("");
+        let sequence = args[1]
+            .as_u64()
+            .filter(|id| *id <= 9_007_199_254_740_991)
+            .ok_or_else(|| BridgeError::Value("Invalid Core admission sequence".into()))?;
+        let method = args[2].as_str().unwrap_or("");
+        let input = args[3]
+            .as_array()
+            .ok_or_else(|| BridgeError::Value("Invalid Core admission input".into()))?;
+        let (service, limits) = self
+            .admission
+            .lock()
+            .unwrap()
+            .clone()
+            .ok_or_else(|| BridgeError::Value("Admission service is unavailable".into()))?;
+        let parsed = if method == "limits" {
+            if sequence != 0 || !input.is_empty() {
+                return Err(BridgeError::Value(
+                    "Invalid Core admission handshake".into(),
+                ));
+            }
+            None
+        } else {
+            if sequence == 0 {
+                return Err(BridgeError::Value("Invalid Core admission sequence".into()));
+            }
+            Some(
+                serde_json::from_value::<Method>(json!(method))
+                    .map_err(|_| BridgeError::Value("Unsupported Core admission method".into()))?,
+            )
+        };
+        let acquire = matches!(parsed, Some(Method::Acquire));
+        {
+            let mut state = self.state.lock().unwrap();
+            if !state.active
+                || generation != state.generation
+                || state.caller.as_ref().is_some_and(|key| key != row.key())
+            {
+                return Err(BridgeError::Value(
+                    "Core admission generation is unavailable".into(),
+                ));
+            }
+            state.caller = Some(row.key().to_owned());
+            state.admission_used = true;
+            if parsed.is_none() {
+                return Ok(limits.into());
+            }
+            if state.admission_pending >= if acquire { MAX_CALLS - 16 } else { MAX_CALLS } {
+                state.active = false;
+                return Ok(Value::future(async move {
+                    if let Ok(value) = service.invoke(
+                        "close",
+                        Value::List(vec![json!("Core admission transport overflow").into()]),
+                    ) {
+                        let _ = settle(value).await;
+                    }
+                    Err(BridgeError::Value(
+                        "Core admission request limit exceeded; retire the generation".into(),
+                    ))
+                }));
+            }
+            state.admission_pending += 1;
+        }
+        let mut input: Vec<Value> = input.iter().cloned().map(Value::from).collect();
+        let value = if acquire && input.len() != 3 {
+            Err(BridgeError::Value(
+                "Invalid Core acquisition arguments".into(),
+            ))
+        } else {
+            if acquire {
+                input.insert(2, Value::Signal);
+            }
+            service.invoke(
+                "dispatchCore",
+                Value::List(vec![
+                    json!(generation).into(),
+                    json!(sequence).into(),
+                    json!(method).into(),
+                    Value::List(input),
+                ]),
+            )
+        };
+        let state = self.state.clone();
+        Ok(Value::future(async move {
+            let result = match value {
+                Ok(value) => settle(value).await,
+                Err(error) => Err(error),
+            };
+            let mut state = state.lock().unwrap();
+            state.admission_pending = state.admission_pending.saturating_sub(1);
+            result
+        }))
     }
 }
 
 impl HostDispatch for Native {
     fn methods(&self) -> Option<Json> {
-        Some(json!({ "invoke": "async" }))
+        Some(json!({ "invoke": "async", "admission": "async" }))
     }
 
     fn invoke(&self, method: &str, args: Value) -> rutis_bridge::session::Reply {
+        if method == "admission" {
+            return self.admission(args);
+        }
         if method != "invoke" {
             return Err(BridgeError::Value("Unknown Core Native method".into()));
         }
@@ -195,7 +340,7 @@ impl Plugin for Bootstrap {
             let patches: Vec<Patch> = serde_json::from_value(json!([{ "insert": [{ "id": "core", "name": format!("core:{}", self.plugin), "config": config }] }]))
                 .map_err(|e| CordisError::ServiceNotFound(e.to_string()))?;
             if self.layers.set("core", patches).await.is_err() {
-                self.native.retire();
+                self.native.retire().await;
                 processes.kill();
                 processes.ended().await;
                 let _ = self
@@ -205,7 +350,7 @@ impl Plugin for Bootstrap {
                 return Ok(Effect::Done);
             }
             tokio::select! { _ = ctx.cancelled() => {}, _ = runtime_loss(handle) => {} }
-            self.native.retire();
+            self.native.retire().await;
             processes.kill();
             processes.ended().await;
             let _ = self
@@ -265,7 +410,7 @@ impl Plugin for Gateway {
                     _ = ctx.cancelled() => break,
                     Some((id, is_control, stopping, result)) = calls.next(), if !calls.is_empty() => {
                         if is_control { control -= 1; } else { ordinary -= 1; }
-                        if stopping && result.is_ok() { self.native.retire(); }
+                        if stopping && result.is_ok() { self.native.retire().await; }
                         let frame = match result { Ok(value) => json!({"type":"coreReply","id":id,"value":value}), Err(error) => json!({"type":"coreReply","id":id,"error":error}) };
                         if self.outgoing.send(frame).await.is_err() { break; }
                     },

@@ -156,6 +156,9 @@ async fn invoke(value: Value) -> std::result::Result<Json, Json> {
 }
 
 struct AdmissionGateway {
+    native: Arc<core::Native>,
+    capacity: u64,
+    max_pending: u64,
     injects: [TypeKey; 1],
     incoming: Mutex<Option<mpsc::Receiver<Request>>>,
     outgoing: Output,
@@ -174,6 +177,8 @@ impl Plugin for AdmissionGateway {
     ) -> BoxFuture<'a, std::result::Result<Effect, CordisError>> {
         Box::pin(async move {
             let service = ctx.require_as::<dyn HostDispatch>(self.injects[0].clone())?;
+            self.native
+                .bind_admission(service.clone(), self.capacity, self.max_pending);
             ctx.events().on(
                 ctx,
                 &EventKey::<Observation>::of(),
@@ -408,6 +413,9 @@ async fn mount(
     root.plugin(RuntimeRowsPlugin::new(memory_rows));
     root.plugin(RuntimeRowsPlugin::new(core_rows));
     root.plugin(AdmissionGateway {
+        native: native.clone(),
+        capacity,
+        max_pending,
         injects: [host_key("harnessAdmission")],
         incoming: Mutex::new(Some(incoming)),
         outgoing: outgoing.clone(),
