@@ -1,8 +1,10 @@
 import { createServer } from 'node:net'
 import { test, expect } from '../fixtures/electronApp'
 import { waitForAppReady } from '../helpers/wait'
+import { openSettings } from '../helpers/settings'
 
 type AuthFixture = { windows: number[]; restore(): void }
+type TelegramFixture = { replies: string[]; send(text: string): void; restore(): void }
 
 test.use({ privacyModeEnabled: true })
 
@@ -148,5 +150,164 @@ test('remote login windows preserve nonce checks, native close and account relau
     remoteEnabled: false,
     accounts: [{ accountId: 'native-fixture-bot', ownerUserId: 'native-fixture-owner' }]
   })
+  expect(await active.close()).toBe('graceful')
+})
+
+test('remote open activates an existing or newly created chat window @smoke', async ({
+  launchApp
+}) => {
+  const active = await launchApp()
+  await waitForAppReady(active.page)
+  await active.electronApp.evaluate(() => {
+    const originalFetch = globalThis.fetch
+    const messages: string[] = []
+    let flush = () => {}
+    let updateId = 0
+    const fixture: TelegramFixture = {
+      replies: [],
+      send(text) {
+        messages.push(text)
+        flush()
+      },
+      restore() {
+        globalThis.fetch = originalFetch
+      }
+    }
+    globalThis.fetch = async (input, init) => {
+      const prefix = 'https://api.telegram.org/botdisposable-window-fixture/'
+      const url = String(input)
+      if (!url.startsWith(prefix)) return await originalFetch(input, init)
+      const method = url.slice(prefix.length)
+      if (method === 'getMe')
+        return Response.json({ ok: true, result: { id: 1, username: 'deepchat_fixture_bot' } })
+      if (method === 'setMyCommands') return Response.json({ ok: true, result: true })
+      if (method === 'sendMessage') {
+        fixture.replies.push((JSON.parse(String(init?.body)) as { text: string }).text)
+        return Response.json({ ok: true, result: { message_id: fixture.replies.length } })
+      }
+      if (method !== 'getUpdates') throw new Error(`Unexpected Telegram request: ${method}`)
+      return await new Promise<Response>((resolve, reject) => {
+        const signal = init?.signal
+        const abort = () => {
+          signal?.removeEventListener('abort', abort)
+          flush = () => {}
+          reject(signal?.reason)
+        }
+        flush = () => {
+          if (!messages.length) return
+          signal?.removeEventListener('abort', abort)
+          flush = () => {}
+          resolve(
+            Response.json({
+              ok: true,
+              result: messages.splice(0).map((text) => ({
+                update_id: ++updateId,
+                message: {
+                  message_id: updateId,
+                  chat: { id: 4242, type: 'private' },
+                  from: { id: 4242 },
+                  text
+                }
+              }))
+            })
+          )
+        }
+        signal?.addEventListener('abort', abort, { once: true })
+        if (signal?.aborted) abort()
+        else flush()
+      })
+    }
+    ;(globalThis as typeof globalThis & { telegramFixture: TelegramFixture }).telegramFixture =
+      fixture
+  })
+  const settingsPage = await openSettings(active)
+  const settings = {
+    botToken: 'disposable-window-fixture',
+    remoteEnabled: true,
+    defaultAgentId: '',
+    defaultWorkdir: ''
+  }
+  const send = async (text: string, expected: string) => {
+    const previous = await active.electronApp.evaluate((_electron, text) => {
+      const fixture = (globalThis as typeof globalThis & { telegramFixture: TelegramFixture })
+        .telegramFixture
+      const count = fixture.replies.length
+      fixture.send(text)
+      return count
+    }, text)
+    await expect
+      .poll(() =>
+        active.electronApp.evaluate((_electron, previous) => {
+          const fixture = (globalThis as typeof globalThis & { telegramFixture: TelegramFixture })
+            .telegramFixture
+          return fixture.replies.slice(previous).join('\n')
+        }, previous)
+      )
+      .toContain(expected)
+  }
+  try {
+    await settingsPage.evaluate(() =>
+      window.deepchat.invoke('config.updateEntries', {
+        changes: [{ key: 'defaultModel', value: { providerId: 'openai', modelId: 'gpt-4o-mini' } }]
+      })
+    )
+    await settingsPage.evaluate(
+      (settings) =>
+        window.deepchat.invoke('remoteControl.saveChannelSettings', {
+          channel: 'telegram',
+          settings
+        }),
+      settings
+    )
+    const pairing = await settingsPage.evaluate(() =>
+      window.deepchat.invoke('remoteControl.createChannelPairCode', { channel: 'telegram' })
+    )
+    await send(`/pair ${pairing.code}`, 'Pairing complete.')
+    await send('/open', 'No bound session.')
+    await send('/new Remote window fixture', 'Started a new session:')
+    await send('/open', 'Opened on desktop:')
+    const first = await active.page.evaluate(() => window.deepchat.invoke('sessions.getActive', {}))
+    expect(first.session?.title).toBe('Remote window fixture')
+    const nativeWindow = await active.electronApp.browserWindow(active.page)
+    await nativeWindow.evaluate((window) => window.destroy())
+
+    await send('/open', 'Opened on desktop:')
+    await expect
+      .poll(
+        () =>
+          active.electronApp.windows().filter((page) => page.url().includes('/renderer/index.html'))
+            .length
+      )
+      .toBe(1)
+    const page = active.electronApp
+      .windows()
+      .find((page) => page.url().includes('/renderer/index.html'))!
+    await waitForAppReady(page)
+    await expect
+      .poll(async () => {
+        const { session } = await page.evaluate(() =>
+          window.deepchat.invoke('sessions.getActive', {})
+        )
+        return session?.id
+      })
+      .toBe(first.session!.id)
+    expect(
+      (await settingsPage.evaluate(() => window.deepchat.invoke('sessions.getActive', {}))).session
+    ).toBeNull()
+  } finally {
+    await settingsPage.evaluate(
+      (settings) =>
+        window.deepchat.invoke('remoteControl.saveChannelSettings', {
+          channel: 'telegram',
+          settings: { ...settings, remoteEnabled: false }
+        }),
+      settings
+    )
+    await active.electronApp.evaluate(() =>
+      (
+        globalThis as typeof globalThis & { telegramFixture: TelegramFixture }
+      ).telegramFixture.restore()
+    )
+  }
   expect(await active.close()).toBe('graceful')
 })

@@ -450,6 +450,7 @@ export async function createMainProcessControl(dependencies: {
   let appSessionService: AppSessionService
   let routeDispatcher: RouteDispatcher | undefined
   let appLifecycleState: 'starting' | 'running' | 'stopping' | 'stopped' = 'starting'
+  const isStopping = () => appLifecycleState === 'stopping' || appLifecycleState === 'stopped'
   const databaseRequests = new DatabaseRequestGate(() => {
     if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped')
       throw new Error(`App lifecycle is ${appLifecycleState}`)
@@ -976,7 +977,50 @@ export async function createMainProcessControl(dependencies: {
     },
     pluginSettingsWindow,
     remoteAuthWindows,
-    openRemoteSession: (sessionId) => openRemoteSession(sessionId),
+    remoteSessionWindow: {
+      select: async () => {
+        if (isStopping()) return null
+        const chatWindows = windowPresenter
+          .getAllWindows()
+          .filter(
+            (window) =>
+              !window.isDestroyed() &&
+              !window.webContents.isDestroyed() &&
+              tabPresenter.getWindowType(window.id) === 'chat'
+          )
+        const focusedWindow = windowPresenter.getFocusedWindow()
+        const targetWindow =
+          chatWindows.find((window) => window.id === focusedWindow?.id) ?? chatWindows[0]
+        const windowId =
+          targetWindow?.id ?? (await windowPresenter.createAppWindow({ initialRoute: 'chat' }))
+        if (isStopping()) return null
+        const window = windowPresenter.getAllWindows().find((window) => window.id === windowId)
+        if (
+          !window ||
+          window.isDestroyed() ||
+          window.webContents.isDestroyed() ||
+          tabPresenter.getWindowType(window.id) !== 'chat'
+        )
+          return null
+        return { windowId: window.id, webContentsId: window.webContents.id }
+      },
+      present: async (target) => {
+        if (isStopping()) return false
+        const window = windowPresenter
+          .getAllWindows()
+          .find((window) => window.id === target.windowId)
+        if (
+          !window ||
+          window.isDestroyed() ||
+          window.webContents.isDestroyed() ||
+          window.webContents.id !== target.webContentsId ||
+          tabPresenter.getWindowType(window.id) !== 'chat'
+        )
+          return false
+        windowPresenter.show(window.id, true)
+        return true
+      }
+    },
     showNotification: (options) => notificationService.showNotification(options),
     mcpPreview: computerUsePreviewPresenter,
     mcpApps: { registry: dependencies.mcpAppSandboxRegistry, desktop: dependencies.mcpAppDesktop },
@@ -1022,7 +1066,7 @@ export async function createMainProcessControl(dependencies: {
     agentCliTokenAuthority,
     sessionUiPort,
     publishEvent: publishDeepchatEvent,
-    isStopping: () => appLifecycleState === 'stopping' || appLifecycleState === 'stopped',
+    isStopping,
     mcpReadinessChanged: (ready) => deeplinkService.observeMcpReadiness(ready),
     reportStartupFailure: (component, category, failure) => {
       reportMainStartupComponentFailure(
@@ -1271,7 +1315,7 @@ export async function createMainProcessControl(dependencies: {
       },
       remoteAuthWindows
     },
-    isStopping: () => appLifecycleState === 'stopping' || appLifecycleState === 'stopped',
+    isStopping,
     stopForCleanup
   })
   const { run: runDatabaseMaintenance, suspendSessionRuntimes } = maintenance
@@ -1505,33 +1549,6 @@ export async function createMainProcessControl(dependencies: {
     const actionClaim = await stop('restart')
     if (!actionClaim) throw new Error('Application shutdown is already owned')
     await actionClaim.run(() => deviceService.restartApp())
-  }
-
-  async function openRemoteSession(sessionId: string): Promise<boolean> {
-    const chatWindows = windowPresenter
-      .getAllWindows()
-      .filter((window) => tabPresenter.getWindowType(window.id) === 'chat')
-    const focusedWindow = windowPresenter.getFocusedWindow()
-    const targetWindow =
-      focusedWindow && chatWindows.some((window) => window.id === focusedWindow.id)
-        ? focusedWindow
-        : chatWindows[0]
-
-    if (targetWindow) {
-      await desktopSessionBinding.activate(targetWindow.webContents.id, sessionId)
-      windowPresenter.show(targetWindow.id, true)
-      return true
-    }
-
-    const createdWindowId = await windowPresenter.createAppWindow({ initialRoute: 'chat' })
-    const createdWindow = windowPresenter
-      .getAllWindows()
-      .find((window) => window.id === createdWindowId)
-    if (!createdWindow) return false
-
-    await desktopSessionBinding.activate(createdWindow.webContents.id, sessionId)
-    windowPresenter.show(createdWindow.id, true)
-    return true
   }
 
   const control: MainProcessControl = {

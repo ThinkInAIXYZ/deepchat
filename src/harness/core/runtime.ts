@@ -119,7 +119,7 @@ import type { createCoreProviders } from './providers'
 import { createCoreExecution, createLivePort } from './execution'
 import type { CredentialCryptoPort } from '@/config/secretStore'
 import type { ProjectHost } from '@/project'
-import type { RemoteServiceDeps } from '@/remote/ports'
+import type { RemoteServiceDeps, RemoteSessionWindowPort } from '@/remote/ports'
 
 type CoreProfile = Awaited<ReturnType<typeof initializeCoreProfile>>
 type CoreExecution = ReturnType<typeof createCoreExecution>
@@ -189,7 +189,7 @@ export async function createCoreRuntime(options: {
   agentDesktop: AgentToolDependencies['desktop']
   pluginSettingsWindow: ConstructorParameters<typeof PluginService>[0]['settingsWindow']
   remoteAuthWindows: RemoteServiceDeps['authWindows']
-  openRemoteSession: RemoteServiceDeps['desktop']['openSession']
+  remoteSessionWindow: RemoteSessionWindowPort
   showNotification: NonNullable<RemoteServiceDeps['notifications']>['showNotification']
   mcpPreview: ConstructorParameters<typeof McpService>[15]
   mcpApps: Pick<NonNullable<ConstructorParameters<typeof McpService>[16]>, 'registry' | 'desktop'>
@@ -1267,7 +1267,16 @@ export async function createCoreRuntime(options: {
     assignment: sessionAssignment,
     projection: sessionQuery,
     desktop: {
-      openSession: options.openRemoteSession
+      openSession: async (sessionId) => {
+        if (options.isStopping()) return false
+        const target = await options.remoteSessionWindow.select()
+        if (!target || options.isStopping()) return false
+        const binding = coreExecution.desktopSessionBinding
+        await binding.activate(target.webContentsId, sessionId)
+        if (options.isStopping() || binding.getActiveId(target.webContentsId) !== sessionId)
+          return false
+        return await options.remoteSessionWindow.present(target)
+      }
     },
     notifications: {
       showNotification: options.showNotification

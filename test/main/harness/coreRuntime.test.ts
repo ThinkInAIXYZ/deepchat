@@ -167,7 +167,7 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
         getPluginIdForWebContents: async () => null
       },
       remoteAuthWindows: { open: unexpected, close: async () => {}, closeAll: async () => {} },
-      openRemoteSession: unexpected,
+      remoteSessionWindow: { select: unexpected, present: unexpected },
       showNotification: unexpected,
       mcpPreview: undefined,
       sessionUiPort: { refreshSessionUi: async () => {} },

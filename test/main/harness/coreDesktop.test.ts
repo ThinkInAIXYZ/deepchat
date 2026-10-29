@@ -75,9 +75,15 @@ it('owns renderer subscriptions until registration and waits for physical Native
   const release = Promise.withResolvers<void>()
   const registration = Promise.withResolvers<void>()
   let pluginOwner: unknown = 'plugin-a'
+  let remoteTarget: unknown = { windowId: 1, webContentsId: 7 }
+  let presented: unknown = true
   const native = new CoreDesktopNative(
     {
       pluginSettingsWindow: { getPluginIdForWebContents: async () => pluginOwner },
+      remoteSessionWindow: {
+        select: async () => remoteTarget,
+        present: async () => presented
+      },
       onRendererDestroyed: (id, listener) => {
         callbacks.set(id, listener)
         return () => {
@@ -102,6 +108,16 @@ it('owns renderer subscriptions until registration and waits for physical Native
   expect(await ports.pluginSettingsWindow.getPluginIdForWebContents(7)).toBe('plugin-a')
   pluginOwner = { id: 'invalid Native owner' }
   await expect(ports.pluginSettingsWindow.getPluginIdForWebContents(7)).rejects.toThrow()
+  expect(await ports.remoteSessionWindow.select()).toEqual(remoteTarget)
+  expect(await ports.remoteSessionWindow.present({ windowId: 1, webContentsId: 7 })).toBe(true)
+  presented = { shown: true }
+  await expect(
+    ports.remoteSessionWindow.present({ windowId: 1, webContentsId: 7 })
+  ).rejects.toThrow()
+  remoteTarget = null
+  expect(await ports.remoteSessionWindow.select()).toBeNull()
+  remoteTarget = { windowId: 1, webContentsId: '7' }
+  await expect(ports.remoteSessionWindow.select()).rejects.toThrow()
   const first = vi.fn()
   const second = vi.fn()
   const stopFirst = ports.onRendererDestroyed(7, first)

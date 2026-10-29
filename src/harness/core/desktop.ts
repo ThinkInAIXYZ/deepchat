@@ -7,6 +7,7 @@ import {
   CoreDesktopArguments,
   CoreDesktopCapabilitiesSchema,
   CoreDesktopEventSchema,
+  CoreWindowTargetSchema,
   type CoreDesktopCommand,
   type CoreDesktopMethod
 } from '@shared/harness/desktop'
@@ -201,11 +202,17 @@ export class CoreNativeDesktop {
         const result = await this.invoke({ operation: 'call', id, method, args })
         signal?.throwIfAborted()
         if (
-          ['isSettingsWindow', 'isMainWindowContext', 'hasTrustedRenderer', 'applyProxy'].includes(
-            method
-          )
+          [
+            'isSettingsWindow',
+            'isMainWindowContext',
+            'hasTrustedRenderer',
+            'applyProxy',
+            'remoteSessionWindow.present'
+          ].includes(method)
         )
           return z.boolean().parse(result)
+        if (method === 'remoteSessionWindow.select')
+          return CoreWindowTargetSchema.nullable().parse(result)
         if (method === 'pluginSettingsWindow.getPluginIdForWebContents')
           return z.string().nullable().parse(result)
         return result

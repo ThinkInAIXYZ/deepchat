@@ -44,7 +44,7 @@ export type CoreKernelNative = Pick<
   | 'agentDesktop'
   | 'pluginSettingsWindow'
   | 'remoteAuthWindows'
-  | 'openRemoteSession'
+  | 'remoteSessionWindow'
   | 'showNotification'
   | 'mcpPreview'
   | 'sessionUiPort'

@@ -231,7 +231,7 @@ export function createCoreExecution(options: {
     },
     ui: sessionUiPort
   })
-  const desktopSessionBinding = new DesktopSessionBinding(sessionQuery)
+  const desktopSessionBinding = new DesktopSessionBinding(sessionQuery, options.onRendererDestroyed)
   const sessionAssignmentPolicy = new SessionAssignmentPolicy(
     {
       resolveAgent: (agentId) => {

@@ -17,10 +17,10 @@ import {
 const text = z.string()
 const empty = z.tuple([])
 const record = z.record(text, z.unknown())
-const target = z
+export const CoreWindowTargetSchema = z
   .object({ windowId: z.number().int().positive(), webContentsId: z.number().int().positive() })
   .strict()
-const context = target.extend({ windowId: z.number().int().positive().nullable() })
+const context = CoreWindowTargetSchema.extend({ windowId: z.number().int().positive().nullable() })
 const envelope = z
   .object({ name: text.refine(hasDeepchatEventContract), payload: z.unknown() })
   .strict()
@@ -70,8 +70,8 @@ export const CoreDesktopArguments = {
   'workspaceDesktop.listFileOpenApps': z.tuple([text]),
   'workspaceDesktop.openFileWithApp': z.tuple([text, text]),
   'approvalPresentation.getTarget': empty,
-  'approvalPresentation.present': z.tuple([target, approvalRequestedEvent.payload]),
-  'approvalPresentation.close': z.tuple([target, approvalClosedEvent.payload]),
+  'approvalPresentation.present': z.tuple([CoreWindowTargetSchema, approvalRequestedEvent.payload]),
+  'approvalPresentation.close': z.tuple([CoreWindowTargetSchema, approvalClosedEvent.payload]),
   'ocrCacheKeyProvider.loadOrCreateKey': empty,
   initializeFloatingButton: empty,
   assertSyncTokenStorageAvailable: empty,
@@ -142,7 +142,8 @@ export const CoreDesktopArguments = {
   ]),
   'remoteAuthWindows.close': z.tuple([text]),
   'remoteAuthWindows.closeAll': empty,
-  openRemoteSession: z.tuple([text]),
+  'remoteSessionWindow.select': empty,
+  'remoteSessionWindow.present': z.tuple([CoreWindowTargetSchema]),
   showNotification: z.tuple([
     z.object({ id: text, title: text, body: text, silent: z.boolean().optional() }).strict()
   ]),

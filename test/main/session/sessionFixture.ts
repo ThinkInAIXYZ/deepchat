@@ -1,4 +1,3 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
 import type { AgentManager } from '@/agent/manager/agentManager'
 import type {
   SessionStatePort,
@@ -7,9 +6,12 @@ import type {
 } from '@/session/data/contracts'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { SkillServicePort } from '@shared/types/skill'
-import type { MainDatabase } from '@/data/mainDatabase'
 import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
-import type { SessionPermissionPort } from '@/session/contracts'
+import type {
+  SessionAssignmentConfigPort,
+  SessionAssignmentEnvironmentPort,
+  SessionPermissionPort
+} from '@/session/contracts'
 import { SessionAssignmentPolicy } from '@/session/assignmentPolicy'
 import { SessionAssignment } from '@/session/assignment'
 import { SessionDeletion } from '@/session/deletion'
@@ -23,8 +25,11 @@ import { SessionDeletionGate } from '@/session/deletionGate'
 export const createSessionFixture = (input: {
   agentManager: AgentManager
   appSessionService: AppSessionService
-  providerSettings: ProviderSettingsPort
-  sqlitePresenter: MainDatabase
+  providerSettings: Pick<SessionAssignmentConfigPort, 'getDefaultModel'> &
+    Partial<
+      Pick<SessionAssignmentConfigPort, 'getDefaultProjectPath' | 'resolveDeepChatAgentConfig'>
+    >
+  sqlitePresenter: { newEnvironmentsTable: SessionAssignmentEnvironmentPort }
   sharedData: {
     sessionState: SessionStatePort
     transcript: SessionTranscriptReadPort
@@ -44,7 +49,7 @@ export const createSessionFixture = (input: {
   deletion: SessionDeletion
   desktop: DesktopSessionBinding
 } => {
-  const desktop = new DesktopSessionBinding(input.projection)
+  const desktop = new DesktopSessionBinding(input.projection, () => () => {})
   const agentLifecycle = new AgentLifecycleGate()
   const sessionDeletionGate = new SessionDeletionGate()
   const policy = new SessionAssignmentPolicy(
@@ -124,7 +129,10 @@ export const createSessionFixture = (input: {
                 getSnapshot: () => handle.deepchat.getCompactionSnapshot(),
                 compact: () => handle.deepchat.compact()
               },
-              getContextOccupancy: () => handle.deepchat.getContextOccupancy()
+              getContextOccupancy: () => handle.deepchat.getContextOccupancy(),
+              isPendingQueueResumeAvailable: () => handle.deepchat.isPendingQueueResumeAvailable(),
+              resumePendingQueue: () => handle.deepchat.resumePendingQueue(),
+              retryPendingQueueInput: (itemId) => handle.deepchat.retryPendingQueueInput(itemId)
             }
           : { ...base, kind: handle.kind }
       }

@@ -732,6 +732,14 @@ the current delegation lifetime after maintenance. Keep Session/Tape transaction
 resolution inside this graph; database reopen must not leave captured table or service instances.
 Native renderer lifetime/browser effects are supplied ports, not Electron objects in the factory.
 
+Remote session opening uses two Native window operations around owner-local activation. Main
+selects or creates a chat window and returns its window/renderer identities; the Core runtime
+activates the session and then asks Main to validate and present that same target. Main receives
+no session identifier and does not call back into Session business state. Shutdown fences both
+continuations. Renderer destruction removes the Core binding through the existing Native lifetime
+subscription; registration that observes an already destroyed renderer cannot publish activation.
+A late missing-session query cannot clear a newer binding.
+
 Construct the business data facades from the already initialized profile connection. Session/Tape,
 Memory tables, Agent/Project/scheduler data and delegation contracts share that connection; moving
 their composition must not introduce another database opener. Migration adapters keep live table

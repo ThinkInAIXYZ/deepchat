@@ -3407,6 +3407,30 @@ lint and i18n pass, with only the existing Remote warning. Rust is unchanged. Ev
 `.deepchat/rutis-g5-kernel-assembly-acceptance/`; completed heavy artifacts are pruned while compact
 receipts and the one needed baseline remain.
 
+### G5 remote session window boundary
+
+Remote `/open` uses Native selection, Core-owned activation and Native presentation. Main keeps
+the focused-chat/first-chat/create-window behavior, checks shutdown and validates the current
+window/renderer pair before showing it. The former `openRemoteSession(sessionId)` callback is
+removed; no session identifier or business activation crosses into Main's window operations.
+Desktop bindings own the existing renderer-destruction subscription, release it on unbind and
+reject activation when registration observes destruction. A late lookup cannot clear a newer
+session binding. No dependency, process, debug route, performance threshold or UI layout is added.
+
+Validation passes **200 checks across six Main/SDK/session files**, including two new durable
+renderer-lifetime cases in the existing file and extended Native result validation. Session test
+fixtures match the current assignment and pending-queue contracts. One real application case
+passes on both the immutable baseline and current build through public settings, pairing and
+incoming Telegram commands: no-session rejection, existing-window activation, native destruction,
+new-window creation, the same active session, independent settings-window binding and graceful
+shutdown. Telegram HTTP is controlled by the test; no model request or external message is sent.
+Normal build, Node/web/affected-test types, format/check, lint and i18n pass, with the existing
+Remote warning only. Rust is unchanged and no performance matrix is repeated. Compact receipts
+remain in `.deepchat/rutis-g5-kernel-assembly-acceptance/`; finished media are removed and the one
+needed baseline is preserved. The default writer/routes/lifecycle still run in Main. Complete
+Native/helper/Browser binding, descendant/proxy authority, default Core adoption and whole-goal
+fault/native/signed package acceptance remain required; G5 stays active and unpublished.
+
 ## G6. Extract the complete Memory capability
 
 - [ ] Move the existing facade and internal retrieval/extraction/reflection/persona/directive/

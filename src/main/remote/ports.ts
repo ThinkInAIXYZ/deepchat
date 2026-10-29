@@ -64,6 +64,16 @@ export interface RemoteDesktopPort {
   openSession(sessionId: string): Promise<boolean>
 }
 
+export interface RemoteSessionWindowTarget {
+  windowId: number
+  webContentsId: number
+}
+
+export interface RemoteSessionWindowPort {
+  select(): Promise<RemoteSessionWindowTarget | null>
+  present(target: RemoteSessionWindowTarget): Promise<boolean>
+}
+
 export interface RemoteNotificationPort {
   showNotification(options: {
     id: string

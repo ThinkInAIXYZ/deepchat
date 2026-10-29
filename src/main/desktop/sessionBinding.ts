@@ -12,15 +12,35 @@ export interface DesktopSessionProjectionPort {
 
 export class DesktopSessionBinding {
   private readonly bindings = new Map<number, string>()
+  private readonly watches = new Map<number, { dispose(): void }>()
 
-  constructor(private readonly projection: DesktopSessionProjectionPort) {}
+  constructor(
+    private readonly projection: DesktopSessionProjectionPort,
+    private readonly onRendererDestroyed: (
+      webContentsId: number,
+      listener: () => void
+    ) => () => void
+  ) {}
 
   bind(webContentsId: number, sessionId: string): void {
     this.bindings.set(webContentsId, sessionId)
+    if (this.watches.has(webContentsId)) return
+    const watch = { dispose() {} }
+    this.watches.set(webContentsId, watch)
+    try {
+      watch.dispose = this.onRendererDestroyed(webContentsId, () => this.unbind(webContentsId))
+      if (this.watches.get(webContentsId) !== watch) watch.dispose()
+    } catch (error) {
+      this.unbind(webContentsId)
+      throw error
+    }
   }
 
   unbind(webContentsId: number): void {
     this.bindings.delete(webContentsId)
+    const watch = this.watches.get(webContentsId)
+    this.watches.delete(webContentsId)
+    watch?.dispose()
   }
 
   getActiveId(webContentsId: number): string | null {
@@ -35,6 +55,7 @@ export class DesktopSessionBinding {
 
   async activate(webContentsId: number, sessionId: string): Promise<void> {
     this.bind(webContentsId, sessionId)
+    if (this.getActiveId(webContentsId) !== sessionId) return
     this.projection.notify({
       sessionIds: [sessionId],
       reason: 'activated',
@@ -58,6 +79,7 @@ export class DesktopSessionBinding {
     if (!sessionId) return null
 
     const session = await this.projection.getSession(sessionId)
+    if (this.getActiveId(webContentsId) !== sessionId) return null
     if (!session) this.unbind(webContentsId)
     return session
   }
