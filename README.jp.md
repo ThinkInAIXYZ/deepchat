@@ -495,6 +495,10 @@ Mac関連の署名とパッケージングについては、[Mac リリースガ
 
 ### 依存関係のインストール
 
+Use the Node.js and pnpm versions declared in [package.json](./package.json), and install Rust 1.88+
+with Cargo. Development and build commands compile the first-party Rutis host automatically;
+the Rust target must match the requested app architecture.
+
 ```bash
 $ pnpm install
 $ pnpm run installRuntime

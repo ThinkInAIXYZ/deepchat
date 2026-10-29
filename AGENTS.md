@@ -2,8 +2,10 @@
 
 - Prefer the smallest correct change; add no abstraction or dependency without a real need.
 - Preserve unrelated worktree changes; avoid destructive Git unless explicitly requested.
-- Use pnpm only; require Node >=20.19 and pnpm >=10.11.
+- Use pnpm only; match package.json engines: Node >=24.22.1 <25 and pnpm >=10.34.5 <11.
+- Require Rust >=1.88 with Cargo; normal dev/build commands compile the Rutis host automatically.
 - Core code: `src/main`, `src/preload`, `src/renderer`, `src/shared`; stack: Electron/Vue 3/TS.
+- Rutis host: `crates/deepchat-harness`; first-party TS capabilities/composition: `src/harness`.
 - Tests: use Vitest in `test/main`, Vitest with Vue Test Utils in `test/renderer`, and Playwright in
   `test/e2e`; run the smallest relevant suite.
 - Default to implementation-first development: inspect and design, complete the planned code change,

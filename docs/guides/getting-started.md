@@ -2,9 +2,13 @@
 
 ## 环境
 
-- Node.js `>=24.18.0 <25`
+- Node.js `>=24.22.1 <25`
 - pnpm `>=10.34.5 <11`
 - Git
+- Rust `>=1.88` with Cargo, with the target matching the requested app architecture
+
+The dev/build scripts compile `crates/deepchat-harness` through `pnpm run harness:build`.
+`pnpm run installRuntime` installs application toolchains; it does not install the Rust compiler.
 
 ```bash
 pnpm install
@@ -26,6 +30,11 @@ Vue component / Pinia store
 
 main 进程只有一个 composition root：`src/main/app/composition.ts`。它创建模块、注入窄依赖、注册
 route、排定 start/stop，但不向业务代码提供模块查找入口。
+
+First-party Core composition lives in `src/harness/core/`. Main currently invokes these factories
+locally; admission and Memory vector capabilities already run through the Rust/Rutis host. The
+[migration plan](../architecture/rutis-multiprocess-backend/plan.md) tracks the actual process and
+writer cutover. Composition files are not independent plugins or processes.
 
 ```text
 src/main/
