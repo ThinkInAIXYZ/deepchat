@@ -2,8 +2,8 @@
 
 ## Status and decision
 
-Status: G0-G3 complete; Store and desktop boundary extraction in progress (G4).
-Evidence date: 2026-10-27. Baseline implementation: `f35adff34` (admission code `ffcd98770`).
+Status: G0-G4 complete; cohesive Core backend extraction in progress (G5).
+Evidence date: 2026-10-29. Published baseline: `356143755` (admission code `ffcd98770`).
 Implementation reference: Rutis `v0.16.0`, released on 2026-10-24. Crates and npm packages are pinned
 to that version.
 
@@ -21,6 +21,12 @@ The objectives are responsive desktop interaction under backend load, independen
 backend processes, replaceable feature implementations, and access to one authoritative Session
 Host from multiple surfaces. Additional processes and plugin counts are not success criteria.
 No responsiveness or memory improvement is established; cross-device operation remains unimplemented.
+
+Prefer existing capabilities and dependencies. Composition files and factories are internal
+organization, not separate plugins or processes. Split only at a useful ownership or runtime
+boundary and preserve behavior while reducing coupling. Keep durable tests focused on behavior,
+ownership and recovery; use disposable checks for implementation scaffolding. Update developer
+setup and entry-point documentation when their contracts change, preserving sponsor content.
 
 Implementation proceeds through
 [Draft PR #2465](https://github.com/ThinkInAIXYZ/deepchat/pull/2465). The admission migration is
@@ -403,8 +409,11 @@ They still enforce correctness, ownership, bounded work/queues, runtime compatib
 measurements and test timeouts. The explicit test-only `DEEPCHAT_MEMORY_PERF_REPORT_ONLY=1` mode
 changes timing assertions only; it must not suppress a failed test or native operation.
 Timing checks enforce their unchanged budgets by default when explicitly run for controlled
-benchmarking; they are not a mandatory timing gate for each migration slice. Every slice still
-requires relevant correctness/lifecycle tests and matching baseline/migrated application E2E.
+benchmarking; they are not a mandatory timing gate for each migration slice. Batch adjacent
+internal composition changes and their relevant checks. Require matching baseline/migrated
+application E2E for a complete capability cutover or affected public/lifecycle behavior, rather
+than repeating it for each internal file move. Shared runners may enforce deterministic work,
+payload and queue limits; do not add relative wall-clock regression gates to them.
 Select targeted fixed-device resource comparisons when a module materially changes process
 placement, IPC volume, batching or storage access, or when measured performance is its adoption
 objective. Include transport and the whole process tree where those costs change. For a structural

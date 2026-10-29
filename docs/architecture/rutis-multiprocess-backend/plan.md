@@ -26,9 +26,13 @@ Failed checks must be resolved or recorded as a concrete external blocker; they 
 skipped to advance. Keep the PR in draft and do not merge it as part of this execution.
 
 Correctness, persistence, ownership, bounded resources and lifecycle behavior remain blocking.
-Shared-CI wall-clock overruns are reports, not failed checks. Each slice needs relevant tests and
-matching application E2E; a complete performance capture is conditional on material process, IPC,
-batching or storage-path changes, or an explicit performance objective. Ordinary async port
+Shared-CI wall-clock overruns are reports, not failed checks. Batch adjacent internal composition
+changes and their verification within the selected goal. Reuse existing coverage; keep only durable
+behavior, persistence, ownership or recovery tests and remove disposable implementation scaffolding.
+Matching application E2E is required for the complete capability cutover and affected public or
+lifecycle behavior, not each internal file move. Resource measurements are required only for
+material process, IPC, batching or storage-path changes, or an explicit performance objective;
+they do not automatically require a complete capture. Ordinary async port
 extraction does not automatically need another process-tree benchmark. Select affected workloads
 and a bounded measurement/confirmation budget first. Treat noise-level differences as inconclusive,
 keep all samples, and block adoption only on a reproducible material regression rather than an
@@ -36,8 +40,9 @@ isolated timing overrun. A structural change starts with one representative affe
 workload; only an explicit performance adoption decision requires five paired samples. Allow at
 most one predeclared confirmation batch for a suspected regression. If it remains inconclusive,
 record the uncertainty and stop measuring; CI timing noise does not block a structural extraction.
-Further measurement requires changed code, a changed workload or concrete new evidence. Do not
-rerun CI or unchanged benchmarks to obtain a passing timing sample.
+Further measurement requires changed code, a changed workload or concrete new evidence. Shared
+runners may enforce deterministic work, payload and queue limits; do not add relative wall-clock
+regression gates to them. Do not rerun CI or unchanged benchmarks to obtain a passing timing sample.
 
 ## Live goals and dependencies
 
@@ -48,7 +53,7 @@ rerun CI or unchanged benchmarks to obtain a passing timing sample.
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
 | G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
 | G4 Store commands and desktop ports | Complete, `356143755` | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
-| G5 Cohesive TS Harness backend | In progress: Core execution composition | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
+| G5 Cohesive TS Harness backend | In progress: Core business composition | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
 | G7 Rust control owner | Planned | G2, G5 | Admission and cohesive run/interaction settlement preserve all fences |
 | G8 Rust batch computations | Conditional | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go |
@@ -2788,6 +2793,32 @@ must cut over before G5 publication. App and changed-test types, normal build, f
 Markdown, lint and i18n pass. The normal generated Provider catalog refresh is retained separately;
 its 44 checks pass and both catalog hashes are recorded with the application artifacts. No
 process/IPC change selects a performance recapture here.
+
+### Core Provider and ACP composition
+
+The default application calls `src/harness/core/providers.ts` for Codex/Grok controllers and their
+credential stores, Agent settings, ACP catalog/auth/runtime/persistence, Provider execution and
+catalog updates. Adjacent CLI compute/transcription, Agent defaults and command-shell construction
+share this composition. These factories remain parts of one Core capability, not separate plugins.
+Main retains the OAuth facade with current-target Copilot commands and secret-free account
+commands; browser, crypto, icon fetch and renderer lifetime/delivery remain supplied effects.
+
+The existing relevant suites pass **237 checks across 15 files**, without adding repository tests.
+The immutable `de5c2fb63` baseline and candidate pass the same **14 application cases across seven
+files** covering streaming, ACP questions, credential persistence/logout, current/stale Copilot
+targets, ACP registry/install/repair and maintenance/shutdown drains. The actual profile/data/
+Provider/Agent/ACP/account/CLI-service graph also constructs under ordinary Node with Electron,
+electron-store, font-list and electron-toolkit imports forbidden: 431 source files plus one entry.
+It initializes Agent settings, reads account status and retires the owned services; private Native
+effects are not invoked by construction. This does not establish a complete headless Session Host
+or a relocated backend process.
+
+Evidence and hashes are in `.deepchat/rutis-g5-provider-owner-acceptance/`. The normal ACP registry
+refresh is retained separately. App types, normal build, format/check, lint and i18n pass. Developer
+requirements now match package engines and declare Rust/Cargo; the three README sponsor sections
+and all content before their dependency sections remain byte-identical. Core composition still
+runs in Main. Remaining business owners, private Rutis transport, the shared writer and process
+lifecycle must cut over before G5 publication; no new performance capture is selected here.
 
 ## G6. Extract the complete Memory capability
 

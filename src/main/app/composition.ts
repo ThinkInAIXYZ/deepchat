@@ -1,3 +1,4 @@
+import { createCoreProviders } from '../../harness/core/providers'
 import { createCoreData } from '../../harness/core/data'
 import { createCoreExecution, createLivePort } from '../../harness/core/execution'
 import { randomUUID } from 'node:crypto'
@@ -65,7 +66,7 @@ import type {
 } from '@shared/types/desktop'
 import type { DialogServicePort } from '@shared/types/dialog'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
-import { ProviderRuntime } from '../provider'
+import type { ProviderRuntime } from '../provider'
 import {
   RutisAgentInvocationAdmission,
   DEFAULT_AGENT_INVOCATION_CAPACITY,
@@ -80,9 +81,7 @@ import type { ProviderSettings } from '../provider/settings'
 import type { SettingsStore } from '../config/settingsStore'
 import type { SecretStore } from '../config/secretStore'
 import { providerDbLoader, type ProviderDbBootstrap } from '../provider/providerDbLoader'
-import { buildDefaultProviderHeaders } from '../provider/providerHeaders'
 import { isInsecureTlsAllowed } from '../lib/insecureTls'
-import { AcpProvider } from '../provider/providers/acpProvider'
 import { proxyConfig, ProxyMode } from '../platform/proxy'
 import { DeviceService } from '../device'
 import { UpgradeService } from '../upgrade'
@@ -130,10 +129,6 @@ import { TabPresenter } from '../desktop/tab'
 import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import { TrayPresenter } from '../desktop/tray'
 import { OAuthService } from '../provider/auth'
-import { OpenAICodexCredentialStore } from '../provider/auth/openaiCodex/credentialStore'
-import { XaiGrokCredentialStore } from '../provider/auth/xaiGrok/credentialStore'
-import { initializeGlobalOpenAICodexAuth } from '../provider/auth/openaiCodex'
-import { initializeGlobalXaiGrokAuth } from '../provider/auth/xaiGrok'
 import { FloatingButtonPresenter } from '../desktop/floatingButton'
 import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
 import { ComputerUsePreviewPresenter } from '@/desktop/computerUse/ComputerUsePreviewPresenter'
@@ -159,9 +154,7 @@ import { createDesktopRoutes } from '../desktop/routes'
 import { createFileRoutes } from '../file/routes'
 import { createKnowledgeRoutes } from '../knowledge/routes'
 import { KnowledgeSettings } from '@/knowledge/settings'
-import { AgentSettings } from '@/agent/settings'
-import { emitAcpAgentModelsChanged, emitAgentCatalogChanged } from '@/app/agentEvents'
-import { emitModelsChanged } from '@/provider/eventPublishers'
+import { emitAgentCatalogChanged } from '@/app/agentEvents'
 import { createWorkspaceRoutes } from '../workspace/routes'
 import { createDeviceRoutes } from '../device/routes'
 import { createOnboardingRoutes } from '../onboarding/routes'
@@ -211,11 +204,8 @@ import type { SessionLifecycle } from '@/session/lifecycle'
 import type { DeepChatAgentHarness } from '@/agent/deepchat/harness'
 import type { RunJournalObservation } from '@/agent/deepchat/runtime/types'
 import type { AcpAgentRuntime } from '@/agent/acp/instance'
-import { createAcpRuntimeOwner } from '@/agent/acp/createRuntimeOwner'
-import { AcpRegistryService } from '@/agent/acp/catalog/acpRegistryService'
 import { isAcpRegistryIconUrl } from '@/agent/acp/catalog/acpRegistryConstants'
 import { createAcpRoutes } from '@/agent/acp/routes'
-import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import type {
   MemoryIngestionDrainOutcome,
   MemoryIngestionObserver
@@ -238,8 +228,6 @@ import { createPluginRoutes } from '../plugin/routes'
 import { PluginRuntimeSupervisor } from '../plugin/runtimeSupervisor'
 import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
 import type { AgentDatabase } from '@/agent/data/database'
-import { DeepChatDefaults } from '../agent/deepchat/defaults'
-import { CommandShellService } from '@/agent/shared/process/commandShellService'
 import { AgentTraceSettings } from '../agent/traceSettings'
 import type { MainDatabase } from '../data/mainDatabase'
 import {
@@ -284,9 +272,9 @@ import {
   AgentCliCommandAccess,
   AgentCliTokenAuthority,
   ArtifactSpool,
-  CliAudioTranscriptionService,
+  type CliAudioTranscriptionService,
   CliAuditLog,
-  CliComputeService,
+  type CliComputeService,
   CliLauncherService,
   CliMutationGuard,
   CliOcrService,
@@ -305,7 +293,6 @@ import {
 } from '@/cli'
 import { CliRequestError } from '@/cli/errors'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
-import { AcpAuthService } from '@/agent/acp/auth/acpAuthService'
 import { BackgroundExecService } from '@/agent/shared/process/backgroundExecSessionManager'
 import { spawnBackgroundExecHost } from './backgroundExecHost'
 import { spawnCodeModeHost } from './codeModeHost'
@@ -980,35 +967,86 @@ export async function createMainProcessControl(dependencies: {
   const skillSettings = new SkillSettings(dependencies.settingsStore, app.getPath('home'))
   const traceSettings = new AgentTraceSettings(dependencies.settingsStore)
 
-  const acpBootstrap = {
-    appVersion: dependencies.currentAppVersion,
+  const coreProviders = createCoreProviders({
+    profile: {
+      settingsStore: dependencies.settingsStore,
+      privacySettings: dependencies.privacySettings,
+      acpCatalogSettings: dependencies.acpCatalogSettings,
+      mcpSettings: dependencies.mcpSettings,
+      currentAppVersion: dependencies.currentAppVersion
+    },
+    data: coreData,
+    artifactSpool,
+    profileDirectory: app.getPath('userData'),
     homeDirectory: app.getPath('home'),
-    temporaryDirectory: app.getPath('temp')
-  }
-  const acpSessionPersistence = new AcpSessionPersistence(
-    agentDatabase,
-    sessionData.database,
-    projectDatabase,
-    acpBootstrap.homeDirectory,
-    () => projectService.notifyEnvironmentProjectionChanged()
-  )
-  let providerRuntime!: ProviderRuntime
-  const codexAuth = initializeGlobalOpenAICodexAuth(
-    publishDeepchatEvent,
-    new OpenAICodexCredentialStore({
-      filePath: path.join(app.getPath('userData'), 'openai-codex-auth', 'credentials.json'),
-      crypto: credentialCrypto
-    }),
-    (url) => shell.openExternal(url)
-  )
-  const grokAuth = initializeGlobalXaiGrokAuth(
-    publishDeepchatEvent,
-    new XaiGrokCredentialStore({
-      filePath: path.join(app.getPath('userData'), 'xai-grok-auth', 'credentials.json'),
-      crypto: credentialCrypto
-    }),
-    (url) => shell.openExternal(url)
-  )
+    temporaryDirectory: app.getPath('temp'),
+    registryDirectory: path.join(
+      app.isPackaged ? path.join(process.resourcesPath, 'app.asar.unpacked') : app.getAppPath(),
+      'resources',
+      'acp-registry'
+    ),
+    crypto: credentialCrypto,
+    openExternal: (url) => shell.openExternal(url),
+    fetchRegistryIcon: async (url, signal) => {
+      if (!isAcpRegistryIconUrl(url)) throw new Error('Unsupported ACP registry icon URL')
+      signal.throwIfAborted()
+      const response = await net.fetch(url, { signal })
+      if (!response.ok) {
+        throw new Error(`Failed to fetch icon: ${response.status} ${response.statusText}`)
+      }
+      const text = await response.text()
+      signal.throwIfAborted()
+      if (text.length > 1024 * 1024) throw new Error('ACP registry icon exceeds the size limit')
+      return text
+    },
+    sendToRenderer: (webContentsId, name, payload) => {
+      const target = electronWebContents.fromId(webContentsId)
+      if (!target || target.isDestroyed()) return
+      target.send(DEEPCHAT_EVENT_CHANNEL, createDeepchatEventEnvelope(name, payload))
+    },
+    onRendererDestroyed: (webContentsId, callback) => {
+      const target = electronWebContents.fromId(webContentsId)
+      if (!target || target.isDestroyed()) {
+        queueMicrotask(callback)
+        return () => {}
+      }
+      target.once('destroyed', callback)
+      return () => target.removeListener('destroyed', callback)
+    },
+    publishEvent: publishDeepchatEvent,
+    projectEnvironmentChanged: () => projectService.notifyEnvironmentProjectionChanged(),
+    readLanguage: () => desktopSettings.getLanguage(),
+    allowInsecureTls: isInsecureTlsAllowed(),
+    registry: {
+      getNpmRegistry: () => mcpService.getNpmRegistry(),
+      getUvRegistry: () => mcpService.getUvRegistry()
+    },
+    memory: {
+      cleanupDeletedAgentResources: (agentId) =>
+        memoryService.cleanupDeletedAgentResources(agentId),
+      onAgentMemoryMaintenanceConfigChanged: (agentId) =>
+        memoryService.onAgentMemoryMaintenanceConfigChanged(agentId)
+    },
+    cleanupAgentSkills: async (agentId) => {
+      await ensureSkillServicesInitialized()
+      await skillService.cleanupAgentSkills(agentId)
+    },
+    skillSettings,
+    assertAcpInstallAllowed: () =>
+      databaseRequests.assertRouteAllowed('config.ensureAcpAgentInstalled')
+  })
+  const {
+    providerRuntime,
+    agentSettings,
+    acpSessionPersistence,
+    acpRuntimeOwner,
+    acpAuthService,
+    unsubscribeProviderDbCatalog,
+    agentDefaults,
+    commandShellService
+  } = coreProviders
+  cliComputeService = coreProviders.cliComputeService
+  cliAudioTranscriptionService = coreProviders.cliAudioTranscriptionService
   oauthService = new OAuthService(
     {
       getGitHubCopilotSignInTarget: async (providerId) => {
@@ -1023,172 +1061,8 @@ export async function createMainProcessControl(dependencies: {
       },
       invalidateGitHubCopilotSignIns: () => providerRuntime.invalidateGitHubCopilotSignIns()
     },
-    {
-      getOpenAICodexStatus: () => codexAuth.getStatus(),
-      startOpenAICodexBrowserLogin: () => codexAuth.startBrowserLogin(),
-      completeOpenAICodexBrowserLoginFromUrl: (url) =>
-        codexAuth.completeBrowserLoginFromCallbackUrl(url),
-      cancelOpenAICodexLogin: () => codexAuth.cancelLogin(),
-      logoutOpenAICodex: () => codexAuth.logout(),
-      getXaiGrokStatus: () => grokAuth.getStatus(),
-      startXaiGrokDeviceLogin: () => grokAuth.startDeviceLogin(),
-      cancelXaiGrokLogin: () => grokAuth.cancelLogin(),
-      logoutXaiGrok: () => grokAuth.logout(),
-      stop: async () => {
-        codexAuth.stop()
-        grokAuth.stop()
-      }
-    }
+    coreProviders.accounts
   )
-  const acpRegistry = new AcpRegistryService({
-    userDataDirectory: app.getPath('userData'),
-    builtInDirectory: path.join(
-      app.isPackaged ? path.join(process.resourcesPath, 'app.asar.unpacked') : app.getAppPath(),
-      'resources',
-      'acp-registry'
-    ),
-    isPrivacyModeEnabled: () => dependencies.privacySettings.isEnabled(),
-    fetchIcon: async (url, signal) => {
-      if (!isAcpRegistryIconUrl(url)) throw new Error('Unsupported ACP registry icon URL')
-      signal.throwIfAborted()
-      const response = await net.fetch(url, { signal })
-      if (!response.ok) {
-        throw new Error(`Failed to fetch icon: ${response.status} ${response.statusText}`)
-      }
-      const text = await response.text()
-      signal.throwIfAborted()
-      if (text.length > 1024 * 1024) throw new Error('ACP registry icon exceeds the size limit')
-      return text
-    }
-  })
-  const agentSettings = new AgentSettings(
-    dependencies.settingsStore,
-    agentRepository,
-    dependencies.acpCatalogSettings,
-    acpRegistry,
-    app.getPath('userData'),
-    {
-      getModelConfig: (modelId, providerId) => providerSettings.getModelConfig(modelId, providerId),
-      setAcpProviderEnabled: (enabled) => {
-        const provider = providerSettings.getProviderById('acp')
-        if (provider && provider.enable !== enabled) {
-          providerRuntime.updateProviderAtomic('acp', { enable: enabled })
-        }
-      },
-      clearAcpProviderModels: () => providerSettings.setProviderModels('acp', []),
-      clearAcpProviderModelStatus: () => providerSettings.clearProviderModelStatusCache('acp'),
-      refreshAcpProviderAgents: async (agentIds) => {
-        const provider = providerRuntime.getProviderInstance('acp')
-        if (!(provider instanceof AcpProvider)) {
-          throw new Error('ACP provider is not initialized.')
-        }
-        await provider.refreshAgents(agentIds)
-      }
-    },
-    {
-      publishCatalogChanged: (agentIds) =>
-        emitAgentCatalogChanged(agentSettings, publishDeepchatEvent, agentIds),
-      publishAcpModelsChanged: () => {
-        emitModelsChanged(publishDeepchatEvent, 'acp')
-        emitAcpAgentModelsChanged(publishDeepchatEvent)
-      },
-      publishSessionsUpdated: () =>
-        publishDeepchatEvent('sessions.updated', {
-          sessionIds: [],
-          reason: 'list-refreshed'
-        })
-    },
-    (agentId) => memoryService.cleanupDeletedAgentResources(agentId),
-    async (agentId) => {
-      await ensureSkillServicesInitialized()
-      await skillService.cleanupAgentSkills(agentId)
-    },
-    (agentId) => memoryService.onAgentMemoryMaintenanceConfigChanged(agentId),
-    skillSettings,
-    agentLifecycle,
-    () => databaseRequests.assertRouteAllowed('config.ensureAcpAgentInstalled')
-  )
-  const acpRuntimeOwner = createAcpRuntimeOwner({
-    bootstrap: acpBootstrap,
-    providerConfig: providerSettings,
-    agentSettings,
-    mcpSettings: dependencies.mcpSettings,
-    sessionPersistence: acpSessionPersistence,
-    titles: {
-      get: (sessionId) => appSessionService.get(sessionId)?.title,
-      apply: (sessionId, expected, title) => {
-        const session = appSessionService.get(sessionId)
-        if (!session || session.title !== expected) return false
-        appSessionService.update(sessionId, { title })
-        publishDeepchatEvent('sessions.updated', { sessionIds: [sessionId], reason: 'updated' })
-        return true
-      }
-    },
-    publishEvent: publishDeepchatEvent,
-    registry: {
-      getNpmRegistry: () => mcpService.getNpmRegistry(),
-      getUvRegistry: () => mcpService.getUvRegistry()
-    }
-  })
-  const acpAuthService = new AcpAuthService({
-    owner: acpRuntimeOwner,
-    agentSettings,
-    sendToRenderer: (webContentsId, name, payload) => {
-      const target = electronWebContents.fromId(webContentsId)
-      if (!target || target.isDestroyed()) return
-      target.send(DEEPCHAT_EVENT_CHANNEL, createDeepchatEventEnvelope(name, payload))
-    },
-    onRendererDestroyed: (webContentsId, callback) => {
-      const target = electronWebContents.fromId(webContentsId)
-      if (!target || target.isDestroyed()) {
-        queueMicrotask(callback)
-        return () => {}
-      }
-      target.once('destroyed', callback)
-      return () => target.removeListener('destroyed', callback)
-    }
-  })
-  providerRuntime = new ProviderRuntime(
-    providerSettings,
-    {
-      getLanguage: () => desktopSettings.getLanguage(),
-      defaultHeaders: buildDefaultProviderHeaders(dependencies.currentAppVersion),
-      allowInsecureTls: isInsecureTlsAllowed()
-    },
-    agentSettings,
-    dependencies.mcpSettings,
-    acpRuntimeOwner,
-    acpSessionPersistence,
-    publishDeepchatEvent
-  )
-  cliComputeService = new CliComputeService({
-    providerSettings,
-    providerRuntime,
-    artifactSpool,
-    mediaCacheDirectory: path.join(app.getPath('userData'), 'images'),
-    log: logger
-  })
-  cliAudioTranscriptionService = new CliAudioTranscriptionService({
-    providerSettings,
-    providerRuntime,
-    artifactSpool,
-    log: logger
-  })
-  const agentDefaults = new DeepChatDefaults({
-    settings: dependencies.settingsStore,
-    publishSettingChanged: (key, value) =>
-      publishDeepchatEvent('settings.changed', {
-        changedKeys: [key],
-        version: Date.now(),
-        values: { [key]: value }
-      })
-  })
-  const commandShellService = new CommandShellService({ settings: dependencies.settingsStore })
-  const unsubscribeProviderDbCatalog = providerDbLoader.subscribeCatalogChanges((change) => {
-    if (change.reason === 'updated') {
-      providerRuntime.handleProviderDbUpdated()
-    }
-  })
   acpProviderAdminPort = providerRuntime
   acpAsLlmProviderSessionControl = providerRuntime
   acpAsLlmProviderPermission = providerRuntime
