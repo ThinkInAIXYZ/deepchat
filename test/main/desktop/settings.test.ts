@@ -21,7 +21,7 @@ describe('DesktopSettings', () => {
     refreshTheme: vi.fn(async () => undefined)
   }
 
-  it('publishes the font size change after persisting it', () => {
+  it('publishes the font size change after persisting it', async () => {
     const settings = { set: vi.fn() }
     const desktopSettings = new DesktopSettings(
       settings as never,
@@ -30,7 +30,7 @@ describe('DesktopSettings', () => {
       vi.fn()
     )
 
-    desktopSettings.setFontSizeLevel(4)
+    await desktopSettings.setFontSizeLevel(4)
 
     expect(settings.set).toHaveBeenCalledWith('fontSizeLevel', 4)
     expect(publishDeepchatEventMock).toHaveBeenCalledWith('settings.changed', {
@@ -40,7 +40,7 @@ describe('DesktopSettings', () => {
     })
   })
 
-  it('owns copy with reasoning settings', () => {
+  it('owns copy with reasoning settings', async () => {
     const settings = {
       get: vi.fn(() => undefined),
       set: vi.fn()
@@ -54,7 +54,7 @@ describe('DesktopSettings', () => {
 
     expect(desktopSettings.getCopyWithCotEnabled()).toBe(true)
 
-    desktopSettings.setCopyWithCotEnabled(false)
+    await desktopSettings.setCopyWithCotEnabled(false)
 
     expect(settings.set).toHaveBeenCalledWith('copyWithCotEnabled', false)
     expect(publishDeepchatEventMock).toHaveBeenCalledWith('settings.changed', {

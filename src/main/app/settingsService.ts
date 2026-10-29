@@ -44,7 +44,7 @@ export interface AppSettingsServiceDependencies {
   assertActive(): void
   ownerId: string
   updateSettings: UpdateSettings
-  publishNativeSnapshot(snapshot: NativeConfigurationSnapshot): void
+  publishNativeSnapshot(snapshot: NativeConfigurationSnapshot): void | Promise<void>
 }
 
 export class AppSettingsService {
@@ -124,8 +124,8 @@ export class AppSettingsService {
     })
   }
 
-  publishNativeSnapshot(): void {
-    this.deps.publishNativeSnapshot(this.readNativeSnapshot())
+  async publishNativeSnapshot(): Promise<void> {
+    await this.deps.publishNativeSnapshot(this.readNativeSnapshot())
   }
 
   async getFloatingButtonEnabled(): Promise<boolean> {
@@ -155,15 +155,15 @@ export class AppSettingsService {
   }
 
   async setShortcutKeys(shortcuts: ShortcutKeySetting): Promise<ShortcutKeySetting> {
-    return await this.enqueue(() => {
-      this.deps.desktopSettings.setShortcutKeys(shortcuts)
+    return await this.enqueue(async () => {
+      await this.deps.desktopSettings.setShortcutKeys(shortcuts)
       return this.deps.desktopSettings.getShortcutKeys()
     })
   }
 
   async resetShortcutKeys(): Promise<ShortcutKeySetting> {
-    return await this.enqueue(() => {
-      this.deps.desktopSettings.resetShortcutKeys()
+    return await this.enqueue(async () => {
+      await this.deps.desktopSettings.resetShortcutKeys()
       return this.deps.desktopSettings.getShortcutKeys()
     })
   }
@@ -173,9 +173,9 @@ export class AppSettingsService {
   }
 
   async setUpdateChannel(channel: 'stable' | 'beta'): Promise<'stable' | 'beta'> {
-    return await this.enqueue(() => {
+    return await this.enqueue(async () => {
       this.deps.updateSettings.setChannel(channel)
-      this.publishNativeSnapshot()
+      await this.publishNativeSnapshot()
       return this.deps.updateSettings.getChannel()
     })
   }
@@ -290,8 +290,7 @@ export class AppSettingsService {
   private readonly applyChange = (change: SettingsChange): void | Promise<void> => {
     switch (change.key) {
       case 'fontSizeLevel':
-        this.deps.desktopSettings.setFontSizeLevel(change.value)
-        return
+        return this.deps.desktopSettings.setFontSizeLevel(change.value)
       case 'fontFamily':
         this.deps.fonts.setFontFamily(change.value)
         return
@@ -299,8 +298,7 @@ export class AppSettingsService {
         this.deps.fonts.setCodeFontFamily(change.value)
         return
       case 'autoScrollEnabled':
-        this.deps.desktopSettings.setAutoScrollEnabled(change.value)
-        return
+        return this.deps.desktopSettings.setAutoScrollEnabled(change.value)
       case 'autoCompactionEnabled':
         this.deps.agentDefaults.setAutoCompactionEnabled(change.value)
         return
@@ -314,19 +312,16 @@ export class AppSettingsService {
         return this.deps.desktopSettings.setContentProtectionEnabled(change.value)
       case 'privacyModeEnabled':
         this.deps.privacy.setEnabled(change.value)
-        this.publishNativeSnapshot()
-        return
+        return this.publishNativeSnapshot()
       case 'notificationsEnabled':
-        this.deps.desktopSettings.setNotificationsEnabled(change.value)
-        return
+        return this.deps.desktopSettings.setNotificationsEnabled(change.value)
       case 'launchAtLoginEnabled':
         return this.deps.desktopSettings.setLaunchAtLoginEnabled(change.value)
       case 'traceDebugEnabled':
         this.deps.traceSettings.setEnabled(change.value)
         return
       case 'copyWithCotEnabled':
-        this.deps.desktopSettings.setCopyWithCotEnabled(change.value)
-        return
+        return this.deps.desktopSettings.setCopyWithCotEnabled(change.value)
       case 'loggingEnabled':
         return this.deps.logging.setEnabled(change.value)
       case 'ocrAutoExtractForNonVisionModels':
@@ -387,7 +382,7 @@ export class AppSettingsService {
 
   async publishSnapshot(): Promise<void> {
     await this.enqueue(async () => {
-      this.publishNativeSnapshot()
+      await this.publishNativeSnapshot()
       const version = this.deps.nextVersion()
       this.deps.publishEvent('settings.changed', {
         version,
@@ -405,11 +400,11 @@ export class AppSettingsService {
       switch (change.id) {
         case 'copyWithCotEnabled':
           previousValue = settings.getCopyWithCotEnabled()
-          settings.setCopyWithCotEnabled(change.value)
+          await settings.setCopyWithCotEnabled(change.value)
           break
         case 'fontSizeLevel':
           previousValue = settings.getFontSizeLevel()
-          settings.setFontSizeLevel(change.value)
+          await settings.setFontSizeLevel(change.value)
           break
         case 'language':
           previousValue = settings.getRequestedLanguage()

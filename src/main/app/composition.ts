@@ -1,10 +1,10 @@
+import { createCoreSettings } from '../../harness/core/settings'
 import { createCoreRuntime } from '../../harness/core/runtime'
 import { WorkspaceService } from '../workspace'
 import { FileWatcherService } from '../platform/fileWatcher'
 import { createCoreProviders } from '../../harness/core/providers'
 import { createCoreData } from '../../harness/core/data'
 import { createLivePort } from '../../harness/core/execution'
-import { randomUUID } from 'node:crypto'
 import { SyncReplicaStore } from '@/sync/replica/store'
 
 import { AutomaticSync } from '@/sync/replica/automatic'
@@ -87,7 +87,6 @@ import { isInsecureTlsAllowed } from '../lib/insecureTls'
 import { proxyConfig, ProxyMode } from '../platform/proxy'
 import { DeviceService } from '../device'
 import { UpgradeService } from '../upgrade'
-import { UpdateSettings } from '../upgrade/settings'
 
 import { getShellEnvironment } from '@/agent/shared/process/shellEnvHelper'
 import { mergeDetectionEnv, ToolchainService } from '@/toolchains'
@@ -121,12 +120,10 @@ import {
   createNotificationRoutes,
   type SemanticNotificationPublisher
 } from '../notifications'
-import { DesktopSettings } from '../desktop/settings'
 import { DesktopConfigurationHost } from '../desktop/configurationHost'
 import { DesktopConfigurationProjection } from '../desktop/configurationProjection'
 import { DesktopRemoteAuthWindows } from '../desktop/remoteAuthWindows'
 import { DesktopImageActions } from '../desktop/imageActions'
-import { FontSettings } from '../desktop/fontSettings'
 import { TabPresenter } from '../desktop/tab'
 import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import { TrayPresenter } from '../desktop/tray'
@@ -136,7 +133,6 @@ import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
 import { ComputerUsePreviewPresenter } from '@/desktop/computerUse/ComputerUsePreviewPresenter'
 import { AgentPreviewCoordinator } from '@/desktop/preview/AgentPreviewCoordinator'
 
-import { LoggingService } from './logging'
 import { RendererPerformanceLogService } from './rendererPerformanceLogService'
 import type { PrivacySettings } from './privacy'
 import type { ProxySettings } from '@/platform/proxySettings'
@@ -165,7 +161,6 @@ import { createPlatformRoutes } from '../platform/routes'
 import { createHookRoutes } from '../hook/routes'
 import { createAppSettingsRoutes } from './settingsRoutes'
 import { AppSettingsService } from './settingsService'
-import type { SettingsActivityInput } from '@shared/contracts/routes'
 import { createAppRoutes } from './routes'
 import { registerClipboardIpc } from './clipboardIpc'
 import { createRendererIpcAuthorizer } from './rendererIpcSecurity'
@@ -178,8 +173,6 @@ import {
 } from '../tool/permission'
 
 import { createExporterRoutes } from '../exporter/routes'
-
-import { SkillSettings } from '../skill/settings'
 
 import { HookService } from '../hook'
 
@@ -222,7 +215,6 @@ import type { PluginToolPolicyStore } from '@/plugin/toolPolicyStore'
 import { createPluginRoutes } from '../plugin/routes'
 
 import type { AgentDatabase } from '@/agent/data/database'
-import { AgentTraceSettings } from '../agent/traceSettings'
 import type { MainDatabase } from '../data/mainDatabase'
 import {
   DatabaseSecurityService,
@@ -900,9 +892,10 @@ export async function createMainProcessControl(dependencies: {
     setMainLoggingEnabled,
     restartApplication
   )
-  const desktopSettings = new DesktopSettings(
-    dependencies.settingsStore,
-    {
+  const coreSettings = createCoreSettings({
+    profile: dependencies,
+    homeDirectory: app.getPath('home'),
+    desktop: {
       systemLocale: app.getLocale(),
       readTheme: async () => ({
         theme: nativeTheme.themeSource,
@@ -928,14 +921,26 @@ export async function createMainProcessControl(dependencies: {
       },
       applyFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled)
     },
-    publishDeepchatEvent,
-    () => appSettingsService.publishNativeSnapshot()
-  )
-  const fontSettings = new FontSettings(dependencies.settingsStore, publishDeepchatEvent, () =>
-    desktopConfigurationHost.listSystemFonts()
-  )
-  const skillSettings = new SkillSettings(dependencies.settingsStore, app.getPath('home'))
-  const traceSettings = new AgentTraceSettings(dependencies.settingsStore)
+    publishEvent: publishDeepchatEvent,
+    logging: desktopConfigurationHost,
+    enumerateFonts: () => desktopConfigurationHost.listSystemFonts(),
+    publishNativeSnapshot: (snapshot) => nativeSettings.apply(snapshot),
+    nextVersion: nextSettingsVersion,
+    assertActive: () => {
+      databaseRequests.assertRouteAllowed('settings.update')
+      if (databaseRequests.state !== 'running')
+        throw new Error(`App database maintenance is ${databaseRequests.state}`)
+    }
+  })
+  const {
+    desktopSettings,
+    skillSettings,
+    traceSettings,
+    commandShellService,
+    recordSettingsActivity
+  } = coreSettings
+  appSettingsService = coreSettings.appSettingsService
+  ocrSettings = coreSettings.ocrSettings
 
   const coreProviders = createCoreProviders({
     profile: {
@@ -1010,9 +1015,7 @@ export async function createMainProcessControl(dependencies: {
     agentSettings,
     acpRuntimeOwner,
     acpAuthService,
-    unsubscribeProviderDbCatalog,
-    agentDefaults,
-    commandShellService
+    unsubscribeProviderDbCatalog
   } = coreProviders
   cliComputeService = coreProviders.cliComputeService
   cliAudioTranscriptionService = coreProviders.cliAudioTranscriptionService
@@ -1108,12 +1111,6 @@ export async function createMainProcessControl(dependencies: {
   })
   const liveDelegationConsent = new LiveDelegationConsentAuthority()
   deviceService = new DeviceService()
-  const loggingService = new LoggingService(
-    dependencies.settingsStore,
-    desktopConfigurationHost,
-    publishDeepchatEvent,
-    () => appSettingsService.publishNativeSnapshot()
-  )
   const rendererPerformanceLogService = new RendererPerformanceLogService(
     () => nativeSettings.getLoggingEnabled(),
     app.getPath('userData')
@@ -1129,10 +1126,6 @@ export async function createMainProcessControl(dependencies: {
       return null
     }
   }
-  const updateSettings = new UpdateSettings(
-    dependencies.settingsStore,
-    dependencies.currentAppVersion
-  )
   upgradeService = new UpgradeService(
     { getChannel: () => nativeSettings.getChannel() },
     () => nativeSettings.isPrivacyModeEnabled(),
@@ -1145,32 +1138,6 @@ export async function createMainProcessControl(dependencies: {
       })
   )
   const desktopImageActions = new DesktopImageActions(app.getPath('userData'))
-  ocrSettings = new OcrSettings(dependencies.settingsStore, publishDeepchatEvent)
-  const recordSettingsActivity = (input: SettingsActivityInput) => {
-    void settingsDatabase.recordSettingsActivity(input).catch((error) => {
-      console.warn('[SettingsActivity] Failed to record settings activity:', error)
-    })
-  }
-  appSettingsService = new AppSettingsService({
-    ownerId: randomUUID(),
-    updateSettings,
-    publishNativeSnapshot: (snapshot) => nativeSettings.apply(snapshot),
-    agentDefaults,
-    privacy: dependencies.privacySettings,
-    traceSettings,
-    desktopSettings,
-    fonts: fontSettings,
-    logging: loggingService,
-    ocr: ocrSettings,
-    recordActivity: recordSettingsActivity,
-    publishEvent: publishDeepchatEvent,
-    nextVersion: nextSettingsVersion,
-    assertActive: () => {
-      databaseRequests.assertRouteAllowed('settings.update')
-      if (databaseRequests.state !== 'running')
-        throw new Error(`App database maintenance is ${databaseRequests.state}`)
-    }
-  })
   nativeSettings = new DesktopConfigurationProjection(
     appSettingsService.readNativeSnapshot(),
     () => nativeTheme.shouldUseDarkColors,
@@ -1363,7 +1330,7 @@ export async function createMainProcessControl(dependencies: {
           ]
         : [path.join(app.getAppPath(), 'resources', 'skills')]
     },
-    settings: { desktopSettings, appSettingsService, skillSettings, traceSettings },
+    settings: coreSettings,
     toolchains: toolchainService,
     fileWatcherService,
     permissions: {

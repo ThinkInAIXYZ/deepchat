@@ -2,8 +2,6 @@ import logger from '@shared/logger'
 import { CliComputeService } from '@/cli/computeService'
 import { CliAudioTranscriptionService } from '@/cli/audioTranscriptionService'
 import type { ArtifactSpool } from '@/cli/artifactSpool'
-import { DeepChatDefaults } from '@/agent/deepchat/defaults'
-import { CommandShellService } from '@/agent/shared/process/commandShellService'
 import path from 'node:path'
 import type { initializeCoreProfile } from '@/app/profileStartup'
 import type { createCoreData } from './data'
@@ -212,16 +210,6 @@ export function createCoreProviders(options: {
     artifactSpool,
     log: logger
   })
-  const agentDefaults = new DeepChatDefaults({
-    settings: profile.settingsStore,
-    publishSettingChanged: (key, value) =>
-      publishDeepchatEvent('settings.changed', {
-        changedKeys: [key],
-        version: Date.now(),
-        values: { [key]: value }
-      })
-  })
-  const commandShellService = new CommandShellService({ settings: profile.settingsStore })
   const accounts: ProviderAccountAuthPort = {
     getOpenAICodexStatus: () => codexAuth.getStatus(),
     startOpenAICodexBrowserLogin: () => codexAuth.startBrowserLogin(),
@@ -250,8 +238,6 @@ export function createCoreProviders(options: {
     accounts,
     unsubscribeProviderDbCatalog,
     cliComputeService,
-    cliAudioTranscriptionService,
-    agentDefaults,
-    commandShellService
+    cliAudioTranscriptionService
   }
 }

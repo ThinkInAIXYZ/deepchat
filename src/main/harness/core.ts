@@ -1,3 +1,7 @@
+import {
+  CoreConfigurationCommandSchema,
+  type CoreConfigurationCommand
+} from '@shared/harness/configuration'
 import { rm } from 'node:fs/promises'
 import { z } from 'zod'
 import type { HarnessRuntime } from './runtime'
@@ -83,6 +87,8 @@ export function createCoreProfileNative(
       case 'profile.quit':
         z.tuple([]).parse(input)
         return await host.quit()
+      default:
+        throw new Error('Unsupported Native profile capability')
     }
   }
 }
@@ -148,8 +154,13 @@ export class CoreRuntimeConnection {
     userDataDirectory: string
     homeDirectory: string
     currentAppVersion: string
+    systemLocale: string
   }): Promise<CoreStatus> {
     return CoreStatusSchema.parse(await this.request('openProfile', options))
+  }
+
+  async configure(command: CoreConfigurationCommand): Promise<unknown> {
+    return await this.request('configure', CoreConfigurationCommandSchema.parse(command))
   }
 
   async status(): Promise<CoreStatus> {
@@ -184,8 +195,8 @@ export class CoreRuntimeConnection {
 
   private async request(method: CoreMethod, args: unknown): Promise<unknown> {
     if (this.failure || this.stopped) throw this.failure ?? new Error('Core generation is stopped')
-    const control = method !== 'openProfile'
-    if (method === 'openProfile' && this.stopPromise) throw new Error('Core is stopping')
+    const control = method === 'status' || method === 'stop'
+    if (!control && this.stopPromise) throw new Error('Core is stopping')
     if (method === 'status' && this.statusPending) throw new Error('Core status request is pending')
     if (control ? this.control >= CORE_CONTROL_CALLS : this.ordinary >= CORE_CALLS)
       throw new Error('Core request limit exceeded')

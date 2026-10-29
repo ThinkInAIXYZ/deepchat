@@ -1368,6 +1368,18 @@ network protocol. Core reports profile ownership separately from business readin
 profile alone cannot admit renderer/CLI business work. Stop must await actual initialization and
 profile close. A timed-out or lost stop reply cannot authorize replacement of a live owner.
 
+The same private Core owner composes configuration, defaults and command-shell preferences. Its
+configuration commands read/update validated public settings, return the allowlisted Native
+snapshot or initialize desktop presentation. Main supplies a fixed configuration capability for
+theme, locale, login, content protection, floating presentation, logging, font enumeration and
+snapshot/event delivery; it receives no settings store. Settings writes await the Native projection
+receipt before publishing ordinary events or acknowledging success. Failed projection delivery
+does not roll back a committed setting or permit an automatic retry of that mutation. Configuration
+commands serialize within the existing ordinary-call budget, and their events cross as a bounded
+batch of at most 64 validated envelopes. Stop fences queued configuration work and awaits active
+commands and Native effects before closing the profile. These administrative commands do not
+establish complete Harness readiness or grant a renderer/CLI caller direct access to the link.
+
 Frames and queues have finite byte/count budgets checked before allocation and parsing. Establish
 production values from the route payload inventory and benchmark. Oversized legal results must
 use existing paging/artifact capabilities or an explicitly bounded transfer contract; never

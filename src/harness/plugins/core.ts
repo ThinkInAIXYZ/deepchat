@@ -1,3 +1,9 @@
+import { createCoreSettings } from '../core/settings'
+import {
+  CoreConfigurationCommandSchema,
+  type CoreConfigurationNative
+} from '@shared/harness/configuration'
+import { createDeepchatEventEnvelope, type DeepchatEventEnvelope } from '@shared/contracts/events'
 import { definePlugin } from '@arcships/rutis'
 import { z } from 'zod'
 import { initializeCoreProfile } from '@/app/profileStartup'
@@ -17,7 +23,8 @@ const profileBootstrap = z
   .object({
     userDataDirectory: z.string().min(1).max(8192),
     homeDirectory: z.string().min(1).max(8192),
-    currentAppVersion: z.string().min(1).max(64)
+    currentAppVersion: z.string().min(1).max(64),
+    systemLocale: z.string().min(1).max(256)
   })
   .strict()
 
@@ -25,7 +32,13 @@ export default definePlugin<CoreCarrierConfig>({
   name: 'deepchat-core',
   inject: ['deepchatCoreNative'],
   provides: {
-    deepchatCore: { identity: 'async', openProfile: 'async', status: 'async', stop: 'async' }
+    deepchatCore: {
+      identity: 'async',
+      openProfile: 'async',
+      configure: 'async',
+      status: 'async',
+      stop: 'async'
+    }
   },
   async apply(ctx, input) {
     const config = CoreCarrierConfigSchema.parse(input)
@@ -39,6 +52,10 @@ export default definePlugin<CoreCarrierConfig>({
     let stopping: Promise<void> | undefined
     let nativeCalls = 0
     let ownsProfile = false
+    let configuration: ReturnType<typeof createCoreSettings> | undefined
+    let configurationTail: Promise<void> = Promise.resolve()
+    let configurationEvents: DeepchatEventEnvelope[] | undefined
+    let settingsVersion = 0
     const isStopping = () => phase === 'stopping' || phase === 'stopped'
     const status = (): CoreStatus => ({
       generation: config.generation,
@@ -103,6 +120,8 @@ export default definePlugin<CoreCarrierConfig>({
       stopping = (async () => {
         // An in-flight Native effect must settle before profile startup can retire its lock.
         await opening?.catch(() => undefined)
+        await configurationTail
+        await configuration?.appSettingsService.stop()
         profile?.closeProfile()
         if (ownsProfile) throw new Error('Core profile ownership did not retire')
         profile = undefined
@@ -136,6 +155,61 @@ export default definePlugin<CoreCarrierConfig>({
             if (isStopping()) {
               throw new Error('Core profile startup was stopped')
             }
+            const effect = (command: CoreConfigurationNative) =>
+              callNative('configuration', [command])
+            configuration = createCoreSettings({
+              profile,
+              homeDirectory: bootstrap.homeDirectory,
+              ownerId: config.generation,
+              desktop: {
+                systemLocale: bootstrap.systemLocale,
+                readTheme: async () =>
+                  z
+                    .object({ theme: z.enum(['dark', 'light', 'system']), isDark: z.boolean() })
+                    .strict()
+                    .parse(await effect({ operation: 'readTheme' })),
+                applyTheme: async (theme) =>
+                  z.boolean().parse(await effect({ operation: 'applyTheme', theme })),
+                refreshLanguage: async (locale) => {
+                  await effect({ operation: 'refreshLanguage', locale })
+                },
+                refreshTheme: async (isDark) => {
+                  await effect({ operation: 'refreshTheme', isDark })
+                },
+                readLaunchAtLogin: async () =>
+                  z.boolean().parse(await effect({ operation: 'readLaunchAtLogin' })),
+                setLaunchAtLogin: async (enabled) =>
+                  z.boolean().parse(await effect({ operation: 'setLaunchAtLogin', enabled })),
+                applyContentProtection: async (enabled) => {
+                  await effect({ operation: 'applyContentProtection', enabled })
+                },
+                applyFloatingButtonEnabled: async (enabled) => {
+                  await effect({ operation: 'applyFloatingButtonEnabled', enabled })
+                }
+              },
+              logging: {
+                applyLogging: async (enabled) => {
+                  await effect({ operation: 'applyLogging', enabled })
+                },
+                openLoggingFolder: async () => {
+                  await effect({ operation: 'openLoggingFolder' })
+                }
+              },
+              enumerateFonts: async () =>
+                z.array(z.string()).parse(await effect({ operation: 'enumerateFonts' })),
+              publishNativeSnapshot: async (snapshot) => {
+                await effect({ operation: 'snapshot', snapshot })
+              },
+              publishEvent: (name, payload) => {
+                if (!configurationEvents || configurationEvents.length >= 64)
+                  throw new Error('Core configuration event batch is unavailable')
+                configurationEvents.push(createDeepchatEventEnvelope(name, payload))
+              },
+              nextVersion: () => ++settingsVersion,
+              assertActive: () => {
+                if (phase !== 'profile-open') throw new Error('Core configuration is unavailable')
+              }
+            })
             phase = 'profile-open'
             return await store.encode(status())
           } catch (error) {
@@ -150,6 +224,45 @@ export default definePlugin<CoreCarrierConfig>({
           }
         })()
         return await opening
+      },
+      async configure(ref: CorePayload): Promise<CorePayload> {
+        if (phase !== 'profile-open' || !configuration)
+          throw new Error('Core configuration is unavailable')
+        const operation = configurationTail.then(async () => {
+          if (phase !== 'profile-open' || !configuration)
+            throw new Error('Core configuration is unavailable')
+          const command = CoreConfigurationCommandSchema.parse(await store.decode(ref))
+          if (phase !== 'profile-open') throw new Error('Core configuration is unavailable')
+          const events: DeepchatEventEnvelope[] = []
+          configurationEvents = events
+          try {
+            const owner = configuration.appSettingsService
+            const [outcome] = await Promise.allSettled([
+              (async () => {
+                switch (command.operation) {
+                  case 'read':
+                    return await owner.getSnapshot(command.input.keys)
+                  case 'update':
+                    return await owner.update(command.input.changes)
+                  case 'nativeSnapshot':
+                    return owner.readNativeSnapshot()
+                  case 'initialize':
+                    return await owner.initializeDesktop()
+                }
+              })()
+            ])
+            if (events.length) await callNative('configuration', [{ operation: 'events', events }])
+            if (outcome.status === 'rejected') throw outcome.reason
+            return await store.encode(outcome.value)
+          } finally {
+            configurationEvents = undefined
+          }
+        })
+        configurationTail = operation.then(
+          () => undefined,
+          () => undefined
+        )
+        return await operation
       },
       async status() {
         return await store.encode(status())

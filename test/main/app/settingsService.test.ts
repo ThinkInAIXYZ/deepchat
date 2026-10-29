@@ -125,6 +125,27 @@ describe('AppSettingsService', () => {
     expect(stopped).toBe(true)
   })
 
+  it('awaits a Native projection receipt before publishing or releasing ownership', async () => {
+    const { owner, nativeSnapshots, publishEvent, stored } = setup()
+    const receipt = Promise.withResolvers<void>()
+    nativeSnapshots.mockReturnValueOnce(receipt.promise)
+    const writing = owner.update([{ key: 'notificationsEnabled', value: false }])
+    await vi.waitFor(() => expect(nativeSnapshots).toHaveBeenCalledOnce())
+    expect(stored.get('notificationsEnabled')).toBe(false)
+    expect(publishEvent).not.toHaveBeenCalled()
+    let stopped = false
+    const stopping = owner.stop().then(() => {
+      stopped = true
+    })
+    await Promise.resolve()
+    expect(stopped).toBe(false)
+    receipt.resolve()
+    await writing
+    await stopping
+    expect(stopped).toBe(true)
+    expect(publishEvent).toHaveBeenCalledOnce()
+  })
+
   it('publishes allowlisted native state at commit before ordinary settings events', async () => {
     const { owner, nativeSnapshots, publishEvent, stored } = setup()
     stored.set('shortcutKey', { privateToken: 'unexpected-secret' })

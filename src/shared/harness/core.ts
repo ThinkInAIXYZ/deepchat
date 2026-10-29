@@ -16,7 +16,8 @@ export const CoreNativeMethodSchema = z.enum([
   'profile.progress',
   'profile.unlock',
   'profile.recovery',
-  'profile.quit'
+  'profile.quit',
+  'configuration'
 ])
 export type CoreNativeMethod = z.infer<typeof CoreNativeMethodSchema>
 
@@ -45,7 +46,7 @@ export const CorePayloadSchema = z.union([
 ])
 export type CorePayload = z.infer<typeof CorePayloadSchema>
 
-export const CoreMethodSchema = z.enum(['openProfile', 'status', 'stop'])
+export const CoreMethodSchema = z.enum(['openProfile', 'configure', 'status', 'stop'])
 export type CoreMethod = z.infer<typeof CoreMethodSchema>
 
 export const CoreStatusSchema = z

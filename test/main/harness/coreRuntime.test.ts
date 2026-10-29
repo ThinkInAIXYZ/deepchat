@@ -1,3 +1,5 @@
+import { createCoreConfigurationNative } from '@/harness/configuration'
+import type { NativeConfigurationSnapshot } from '@shared/types/nativeConfiguration'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, rmSync, statSync, cpSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -28,6 +30,7 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
     options: {
       available?: () => Promise<boolean>
       detached?: boolean
+      publishSnapshot?: (snapshot: NativeConfigurationSnapshot) => Promise<void>
       transport?: (runtime: HarnessRuntime) => Pick<HarnessRuntime, 'connectCore' | 'stop'>
     } = {}
   ) {
@@ -61,18 +64,53 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       decrypt: unexpected,
       getBackend: async () => undefined
     }
+    const nativeSnapshots: NativeConfigurationSnapshot[] = []
+    const publishEvent = vi.fn()
+    const desktop = {
+      systemLocale: 'en-US',
+      readTheme: async () => ({ theme: 'system' as const, isDark: false }),
+      applyTheme: async () => false,
+      refreshLanguage: async () => {},
+      refreshTheme: async () => {},
+      readLaunchAtLogin: async () => false,
+      setLaunchAtLogin: async (enabled: boolean) => enabled,
+      applyContentProtection: async () => {},
+      applyFloatingButtonEnabled: async () => {}
+    }
+    const profileNative = createCoreProfileNative(crypto, host)
+    const configurationNative = createCoreConfigurationNative({
+      desktop,
+      logging: { applyLogging: async () => {}, openLoggingFolder: async () => {} },
+      enumerateFonts: async () => ['Fixture Sans'],
+      publishNativeSnapshot: async (snapshot) => {
+        if (options.publishSnapshot) await options.publishSnapshot(snapshot)
+        nativeSnapshots.push(snapshot)
+      },
+      publishEvent
+    })
     const connection = await CoreRuntimeConnection.connect({
       runtime: options.transport?.(runtime) ?? runtime,
       temporaryDirectory: directory,
-      native: createCoreProfileNative(crypto, host)
+      native: (method, args) =>
+        method === 'configuration' ? configurationNative(method, args) : profileNative(method, args)
     })
     cleanups.push(() => connection.closeAfterHostExit())
     const profileOptions = {
       userDataDirectory,
       homeDirectory: directory,
-      currentAppVersion: '1.1.4'
+      currentAppVersion: '1.1.4',
+      systemLocale: 'en-US'
     }
-    return { runtime, connection, directory, options: profileOptions, host, crypto }
+    return {
+      runtime,
+      connection,
+      directory,
+      options: profileOptions,
+      host,
+      crypto,
+      nativeSnapshots,
+      publishEvent
+    }
   }
 
   it(
@@ -84,6 +122,37 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       expect(status).toMatchObject({ phase: 'profile-open', businessReady: false })
       expect(status.pid).not.toBe(process.pid)
       expect(f.host.setLoggingEnabled).toHaveBeenCalledOnce()
+      await f.connection.configure({ operation: 'initialize' })
+      await expect(
+        f.connection.configure({
+          operation: 'update',
+          input: {
+            changes: [
+              { key: 'notificationsEnabled', value: false },
+              { key: 'fontSizeLevel', value: 4 }
+            ]
+          }
+        })
+      ).resolves.toMatchObject({ values: { notificationsEnabled: false, fontSizeLevel: 4 } })
+      expect(f.nativeSnapshots.at(-1)).toMatchObject({
+        ownerId: f.connection.payloads.config.generation,
+        notificationsEnabled: false
+      })
+      expect(f.publishEvent).toHaveBeenCalledWith(
+        'settings.changed',
+        expect.objectContaining({
+          changedKeys: ['notificationsEnabled'],
+          values: { notificationsEnabled: false }
+        })
+      )
+      await expect(
+        f.connection.configure({
+          operation: 'read',
+          input: {
+            keys: ['notificationsEnabled', 'fontSizeLevel']
+          }
+        })
+      ).resolves.toMatchObject({ values: { notificationsEnabled: false, fontSizeLevel: 4 } })
       expect(
         statSync(path.join(f.options.userDataDirectory, 'app_db', 'agent.db')).size
       ).toBeGreaterThan(0)
@@ -100,6 +169,8 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       await expect(f.connection.stop()).resolves.toMatchObject({ phase: 'stopped' })
       expect(f.runtime.memoryAvailable).toBe(true)
       const reopened = await initializeCoreProfile({ ...f.options, host: f.host, crypto: f.crypto })
+      expect(reopened.settingsStore.get('notificationsEnabled')).toBe(false)
+      expect(reopened.settingsStore.get('fontSizeLevel')).toBe(4)
       reopened.closeProfile()
     }
   )
@@ -136,6 +207,50 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
         reopened.closeProfile()
       } finally {
         release.resolve(false)
+      }
+    }
+  )
+
+  it(
+    'drains a real Native configuration receipt before retiring the profile',
+    { timeout: 30_000 },
+    async () => {
+      const entered = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<void>()
+      const f = await fixture({
+        publishSnapshot: async () => {
+          entered.resolve()
+          await release.promise
+        }
+      })
+      await f.connection.openProfile(f.options)
+      const writing = f.connection.configure({
+        operation: 'update',
+        input: {
+          changes: [{ key: 'notificationsEnabled', value: false }]
+        }
+      })
+      const settled = Promise.allSettled([writing])
+      try {
+        await entered.promise
+        expect(f.publishEvent).not.toHaveBeenCalled()
+        const stopping = f.connection.stop()
+        await expect.poll(async () => (await f.connection.status()).phase).toBe('stopping')
+        await expect(
+          initializeCoreProfile({ ...f.options, host: f.host, crypto: f.crypto })
+        ).rejects.toMatchObject({ name: 'CoreProfileOwnershipUnavailableError' })
+        release.resolve()
+        await settled
+        await expect(stopping).resolves.toMatchObject({ phase: 'stopped' })
+        const reopened = await initializeCoreProfile({
+          ...f.options,
+          host: f.host,
+          crypto: f.crypto
+        })
+        expect(reopened.settingsStore.get('notificationsEnabled')).toBe(false)
+        reopened.closeProfile()
+      } finally {
+        release.resolve()
       }
     }
   )

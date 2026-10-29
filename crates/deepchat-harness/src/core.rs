@@ -78,6 +78,7 @@ impl HostDispatch for Native {
                 | "profile.unlock"
                 | "profile.recovery"
                 | "profile.quit"
+                | "configuration"
         ) {
             return Err(BridgeError::Value("Unknown Core Native capability".into()));
         }
@@ -271,12 +272,12 @@ impl Plugin for Gateway {
                     request = incoming.recv() => match request {
                         Some(Request::CoreCall { id, method, args }) => {
                             let is_control = matches!(method.as_str(), "status" | "stop");
-                            if id == 0 || id > 9_007_199_254_740_991 || id <= last_id || !matches!(method.as_str(), "openProfile" | "status" | "stop") || if is_control { control >= 2 } else { ordinary >= 4 } {
+                            if id == 0 || id > 9_007_199_254_740_991 || id <= last_id || !matches!(method.as_str(), "openProfile" | "configure" | "status" | "stop") || if is_control { control >= 2 } else { ordinary >= 4 } {
                                 return Err(CordisError::ServiceNotFound("Invalid Core operation or quota".into()));
                             }
                             last_id = id;
                             let stopping = method == "stop";
-                            let value = service.invoke(&method, Value::List(if method == "openProfile" { vec![args.into()] } else { vec![] }));
+                            let value = service.invoke(&method, Value::List(if is_control { vec![] } else { vec![args.into()] }));
                             if is_control { control += 1; } else { ordinary += 1; }
                             calls.push(Box::pin(async move { (id, is_control, stopping, match value { Ok(value) => invoke(value).await, Err(error) => Err(bridge_error(error)) }) }));
                         },

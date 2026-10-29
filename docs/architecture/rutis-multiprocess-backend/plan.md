@@ -53,7 +53,7 @@ regression gates to them. Do not rerun CI or unchanged benchmarks to obtain a pa
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
 | G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
 | G4 Store commands and desktop ports | Complete, `356143755` | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
-| G5 Cohesive TS Harness backend | In progress: private Core bootstrap | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
+| G5 Cohesive TS Harness backend | In progress: Core configuration commands | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
 | G7 Rust control owner | Planned | G2, G5 | Admission and cohesive run/interaction settlement preserve all fences |
 | G8 Rust batch computations | Conditional | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go |
@@ -2897,6 +2897,46 @@ separately. Evidence and source/artifact hashes are in
 `.deepchat/rutis-g5-core-transport-acceptance/`. No performance/resource sampling is repeated and no
 speed or memory saving is claimed. G5 stays active and unpublished until the actual default
 composition, Native effects, public routes, writer and lifecycle handoff pass their acceptance.
+
+### Configuration business and Native projection receipts
+
+The default application and actual Core worker compose settings through
+`src/harness/core/settings.ts`. Configuration owns desktop preferences, fonts, logging, OCR
+preferences, Skill/trace settings, update channel, Agent defaults and command-shell preferences.
+Main's inline constructors are removed. Provider composition no longer owns defaults or the
+command shell; the cohesive runtime receives those existing instances from configuration.
+Native theme/login/window/font/logging effects remain supplied ports with no writable shadow.
+
+The private Core configuration command supports validated settings reads/updates, its allowlisted
+Native snapshot and desktop initialization. Mutations use the actual child-owned profile connection
+and existing settings service. Thirteen fixed Native configuration operations validate their
+inputs; ordinary settings observations cross as a batch of at most 64 existing event envelopes.
+This uses the same Core generation, four-call admission limit and encrypted carrier transport,
+without an additional plugin, process, dependency or generic store/property RPC.
+
+Configuration mutations now await the Native projection receipt before ordinary event publication
+and caller acknowledgement. The owner queue retains that work through stop. A failed receipt
+does not undo a durable write or authorize automatic mutation replay. Core stop fences queued
+commands, drains active configuration and Native effects, then closes the actual profile lease.
+The post-decode lifecycle check also fences work admitted before stop but not yet executed.
+
+Acceptance passes **214 distinct checks across 15 affected files**, including five actual Core
+integration checks and 13 generated ACP registry checks. Two durable checks are added within
+existing files for delayed projection receipts and child-held ownership during shutdown. The
+standalone Core case additionally executes desktop initialization, configuration read/update,
+Native publication and persisted values after profile reopen. Existing public route, configuration,
+logging, fonts/projection, defaults, shell, OCR and composition suites remain in use.
+
+Immutable `f511c078b` and the candidate each pass the same five application cases for revision
+ordering, legacy configuration persistence, desktop appearance/login observations, font/logging
+restart and acknowledged Native projection/floating bounds. This is an ancestor-artifact
+regression comparison; it is not a full Core business cutover. App and changed-test types, normal
+build and refreshed affected artifacts, format/check, i18n, lint and locked Rust format/clippy pass.
+Normal generated ACP output is retained separately. Evidence and source/artifact/resource hashes
+are in `.deepchat/rutis-g5-configuration-acceptance/`; no performance sampling or gain is claimed.
+G5 remains active and unpublished: the default profile writer, public routes and shutdown authority
+still execute in Main. The actual cohesive runtime, CLI/startup/Toolchain composition, Native
+effect/proxy/descendant authority and complete lifecycle handoff must pass before publication.
 
 ## G6. Extract the complete Memory capability
 

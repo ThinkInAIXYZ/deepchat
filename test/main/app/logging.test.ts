@@ -30,7 +30,7 @@ describe('LoggingService', () => {
       const host = { applyLogging: vi.fn(() => pending), openLoggingFolder: vi.fn(async () => {}) }
       const service = new LoggingService(settings as never, host, publish, vi.fn())
       const changed = service.setEnabled(enabled)
-      expect(host.applyLogging).toHaveBeenCalledWith(enabled)
+      await vi.waitFor(() => expect(host.applyLogging).toHaveBeenCalledWith(enabled))
       expect(operations).toEqual(['settings'])
       finish()
       await changed

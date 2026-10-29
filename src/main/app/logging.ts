@@ -11,7 +11,7 @@ export class LoggingService {
     private readonly settings: SettingsStore,
     private readonly host: LoggingHost,
     private readonly publishEvent: DeepchatEventPublisher,
-    private readonly committed: () => void
+    private readonly committed: () => void | Promise<void>
   ) {}
 
   getEnabled(): boolean {
@@ -21,7 +21,7 @@ export class LoggingService {
   async setEnabled(enabled: boolean): Promise<void> {
     const value = Boolean(enabled)
     this.settings.set('loggingEnabled', value)
-    this.committed()
+    await this.committed()
     await this.host.applyLogging(value)
     this.publishEvent('settings.changed', {
       changedKeys: ['loggingEnabled'],

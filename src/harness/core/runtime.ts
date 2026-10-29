@@ -1,3 +1,4 @@
+import type { createCoreSettings } from './settings'
 import { SyncReplicaStore } from '@/sync/replica/store'
 import { SyncReplicaEndpoint } from '@/sync/replica/endpoint'
 import { AutomaticSync } from '@/sync/replica/automatic'
@@ -22,14 +23,12 @@ import { SyncService } from '@/sync'
 import { type DatabaseRequestGate } from '@/app/databaseRequestGate'
 import { SyncSettings } from '@/sync/settings'
 import { type SemanticNotificationPublisher } from '@/notifications'
-import { type DesktopSettings } from '@/desktop/settings'
 import { KnowledgeService } from '@/knowledge'
 import type { IFileWatcherService } from '@/platform/fileWatcher'
 import { ToolService } from '@/tool'
 import { KnowledgeSettings } from '@/knowledge/settings'
 import { emitAgentCatalogChanged } from '@/app/agentEvents'
 import { SyncHostService } from '@/sync/host'
-import { type AppSettingsService } from '@/app/settingsService'
 import type {
   CommandPermissionService,
   FilePermissionService,
@@ -40,7 +39,6 @@ import type { AgentToolDependencies } from '@/tool/runtimePorts'
 import { ConversationExporterService } from '@/exporter'
 import { SkillService } from '@/skill'
 import type { SkillSessionStatePort } from '@/skill'
-import { type SkillSettings } from '@/skill/settings'
 import { SkillSyncService } from '@/skill/sync'
 import { SkillExecutionAuthorityResolver } from '@/skill/skillExecutionAuthority'
 import { HookService } from '@/hook'
@@ -55,7 +53,6 @@ import { RemoteService } from '@/remote'
 import { PluginService } from '@/plugin'
 import { PluginRuntimeSupervisor } from '@/plugin/runtimeSupervisor'
 import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
-import { type AgentTraceSettings } from '@/agent/traceSettings'
 import {
   normalizeDeepChatSubagentSlots,
   resolveDeepChatSubagentCapability
@@ -109,12 +106,15 @@ export async function createCoreRuntime(options: {
     workingDirectory: string
     builtinSkillsDirectories: string[]
   }
-  settings: {
-    desktopSettings: DesktopSettings
-    appSettingsService: AppSettingsService
-    skillSettings: SkillSettings
-    traceSettings: AgentTraceSettings
-  }
+  settings: Pick<
+    ReturnType<typeof createCoreSettings>,
+    | 'desktopSettings'
+    | 'appSettingsService'
+    | 'skillSettings'
+    | 'traceSettings'
+    | 'agentDefaults'
+    | 'commandShellService'
+  >
   toolchains: ToolchainService
   fileWatcherService: IFileWatcherService
   permissions: {
@@ -216,15 +216,16 @@ export async function createCoreRuntime(options: {
     liveDelegationRepository,
     legacyChatImportService
   } = options.data
+  const { providerRuntime, agentSettings, acpRuntimeOwner, acpSessionPersistence } =
+    options.providers
   const {
-    providerRuntime,
-    agentSettings,
-    acpRuntimeOwner,
-    acpSessionPersistence,
-    commandShellService,
-    agentDefaults
-  } = options.providers
-  const { desktopSettings, appSettingsService, skillSettings, traceSettings } = options.settings
+    desktopSettings,
+    appSettingsService,
+    skillSettings,
+    traceSettings,
+    agentDefaults,
+    commandShellService
+  } = options.settings
   const toolchainService = options.toolchains
   const {
     commandPermissionService,
