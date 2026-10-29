@@ -1136,21 +1136,21 @@ rules, cancellation responses and actual-byte saves; nativeImage values never le
 Main's image-cache access is read-only, and a save writes only the native dialog's selected target.
 This split adds no generic filesystem route, replacement image engine or gateway-size increase.
 
-Remote's channel/session policy and binding/configuration authority move together; channel I/O and
-login presentation receive explicit host capabilities. RemoteConversationRunner requires its
-profile image/generated-asset roots rather than discovering them through Electron. Preserve
-Electron net.fetch on desktop so attachment requests retain the configured native proxy behavior;
-a headless host supplies its own approved implementation. ChannelAdapter's existing 20 MiB
-attachment bound applies to both declared and actual bytes. A legal attachment exceeds ordinary
-control-frame budgets, so its host operation needs authorized artifact references or bounded staged
-transfer before G5 wiring. Do not return a Response, stream object or full oversized base64 reply,
-raise the gateway limit, silently lower the public attachment limit or replay a lost download.
+Remote's channel/session policy, channel clients, attachment handling and binding/configuration
+authority move together. RemoteConversationRunner requires its profile image/generated-asset roots
+rather than discovering them through Electron. Actual downloads and decryption remain with the
+co-located clients/Runner using their existing fetch implementations, timeouts and file-preparation
+policies. ChannelAdapter contains lifecycle/events, with no native network dependency or unused
+base64 download API. Preserve the active call chain; do not introduce a per-download host RPC or
+a new global size cap for methods that no consumer calls.
 
-The existing CLI ArtifactSpool supplies useful file/quota/lifetime machinery, but its human/Agent
-caller ownership is not channel authority. Do not fabricate a human CLI caller for a channel
-download or give it access to unrelated CLI artifacts. Bind private transfers to the authenticated
-channel/request and backend generation; reserve capacity before reading, preserve size/MIME/error
-behavior and retain actual download/cleanup ownership across cancellation and disconnect.
+Keep attachment bytes local to this business owner during G5's process move. A later, actual
+cross-host/device transfer must define bounded authenticated artifact/staged operations before
+adoption. Do not return a Response, stream or oversized base64 control frame, enlarge the gateway
+limit, silently truncate legal files or replay a lost download. CLI ArtifactSpool's human/Agent
+principal is not channel authority: never fabricate a human CLI caller or borrow unrelated
+artifacts. Bind any selected transfer to its trusted request/channel/backend lifetime, reserve
+bounded capacity before reading and retain actual cancellation/cleanup ownership.
 
 Main owns Feishu/Weixin native login windows; the Remote owner retains auth/session state, callback
 server, nonce, expiry and credential/configuration commitment. Native capabilities carry plain
@@ -1177,8 +1177,8 @@ error. Native navigation and popup rules and isolated web preferences remain exp
 login polling carries owner cancellation through HTTP timeouts and poll sleeps, retires canceled
 QR sessions and cannot commit credentials after stop. Profile image/generated-asset paths are
 derived from Main's explicit absolute profile directory; the workspace default is queried through
-an asynchronous owner port. ChannelAdapter's inherited native attachment fetch remains a separate
-required extraction with the legal large-payload carrier described above.
+an asynchronous owner port. The complete Remote module can import and initialize in ordinary Node;
+G5 still has to move its actual composition and authenticated host-capability wiring.
 
 ACP registry ownership includes its manifest, icon cache and acknowledged repository/Provider
 updates. Main supplies absolute profile/built-in directories and an asynchronous icon-text

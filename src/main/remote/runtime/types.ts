@@ -2,7 +2,6 @@ import { EventEmitter } from 'node:events'
 import { z } from 'zod'
 import type { RemoteRuntimeState } from '@shared/types/remote'
 
-export const CHANNEL_MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
 export const CHANNEL_PLUGIN_SCHEMA_VERSION = 1
 export const CHANNEL_PLUGIN_API_VERSION = 1
 

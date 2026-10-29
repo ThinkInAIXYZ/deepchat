@@ -1,16 +1,11 @@
-import path from 'node:path'
 import { EventEmitter } from 'node:events'
-import { net } from 'electron'
 import logger from '@shared/logger'
 import {
-  CHANNEL_MAX_FILE_SIZE_BYTES,
   type ChannelAdapterConfig,
   type ChannelLogEntry,
   type ChannelLogLevel,
   type ChannelStatusSnapshot,
-  type FileAttachment,
   type IChannelAdapter,
-  type ImageAttachment,
   type SendMessageOptions
 } from './types'
 
@@ -196,79 +191,4 @@ export abstract class ChannelAdapter extends EventEmitter implements IChannelAda
     this.emit('log', entry)
   }
 
-  protected async downloadImageAsBase64(url: string): Promise<ImageAttachment | null> {
-    const response = await this.fetchBinaryAttachment(url)
-    if (!response) {
-      return null
-    }
-
-    return {
-      data: response.data,
-      media_type: response.mediaType
-    }
-  }
-
-  protected async downloadFileAsBase64(
-    url: string,
-    filename: string
-  ): Promise<FileAttachment | null> {
-    const response = await this.fetchBinaryAttachment(url)
-    if (!response) {
-      return null
-    }
-
-    return {
-      filename: filename.trim() || path.basename(new URL(url).pathname) || 'attachment',
-      data: response.data,
-      media_type: response.mediaType,
-      size: response.size
-    }
-  }
-
-  private async fetchBinaryAttachment(url: string): Promise<{
-    data: string
-    mediaType: string
-    size: number
-  } | null> {
-    const response = await net.fetch(url)
-    if (!response.ok) {
-      this.emitLog('warn', 'Failed to download channel attachment.', {
-        url,
-        status: response.status
-      })
-      return null
-    }
-
-    const contentLength = response.headers.get('content-length')
-    const declaredSize =
-      typeof contentLength === 'string' && contentLength.trim()
-        ? Number.parseInt(contentLength, 10)
-        : Number.NaN
-
-    if (Number.isFinite(declaredSize) && declaredSize > CHANNEL_MAX_FILE_SIZE_BYTES) {
-      this.emitLog('warn', 'Skipped oversized channel attachment.', {
-        url,
-        size: declaredSize,
-        limit: CHANNEL_MAX_FILE_SIZE_BYTES
-      })
-      return null
-    }
-
-    const arrayBuffer = await response.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-    if (buffer.byteLength > CHANNEL_MAX_FILE_SIZE_BYTES) {
-      this.emitLog('warn', 'Skipped oversized channel attachment.', {
-        url,
-        size: buffer.byteLength,
-        limit: CHANNEL_MAX_FILE_SIZE_BYTES
-      })
-      return null
-    }
-
-    return {
-      data: buffer.toString('base64'),
-      mediaType: response.headers.get('content-type')?.trim() || 'application/octet-stream',
-      size: buffer.byteLength
-    }
-  }
 }

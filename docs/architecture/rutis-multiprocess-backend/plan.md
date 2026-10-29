@@ -2258,19 +2258,18 @@ default composition before starting G5.
 | Owner/call chain | Current boundary | Required work before claiming the selected cutover |
 | --- | --- | --- |
 | RemoteConversationRunner | Session/catalog/turn/projection and workspace-default queries are async; Main supplies the absolute profile root | Preserve file/workspace authorization and the existing cache/generated-asset paths at G5 handoff |
-| ChannelAdapter and five built-in factories | Base adapter calls Electron net.fetch; subclasses receive it through inheritance | Explicit approved binary-fetch capability, preserved native proxy and declared/actual 20 MiB bounds, cancellation/drain and a legal large-payload carrier |
+| ChannelAdapter and five built-in factories | Lifecycle/event adapter has no native import; actual downloads remain inside the clients/Runner | Co-locate those business owners at G5; require a carrier only for an actual later host/device transfer |
 | RemoteService Feishu/Weixin login | Main owns windows behind operation-ID commands/events; Core drains startup/polls/callback servers and fences late results | Bridge this private port with authenticated G5 ownership and preserve actual cancellation/close/server settlement |
 | Provider OAuthService/Copilot windows | Main owns browser/clipboard/external effects but also calls Provider settings synchronously | Keep presentation native; use authorized owner queries and acknowledged credential/configuration settlement at G5 |
 | Window/Tray/Notification/Shortcut/Floating | Configuration readers use a private committed projection; floating bounds use acknowledged owner mutations; Agent/catalogue queries are already async | Preserve the projection and existing async owner queries at G5 handoff |
 | Upgrade settings and renderer diagnostics | Core receives the explicit application version; Main reads projected channel/privacy/logging flags | Preserve normalization under the configuration owner and Main's native updater/diagnostic lifetime at G5 |
 
-The attachment audit reads ChannelAdapter's actual 20 MiB contract and the existing CLI
-ArtifactSpool. Ordinary control frames cannot carry a maximum-sized base64 body. Reuse authorized
-artifact/staging machinery without borrowing CLI human/Agent ownership for channel requests.
-Native window extraction must retain the auth session and callback-server lifetime, not just move
-the BrowserWindow constructor. The RFC records these carrier/authority/lifecycle requirements.
-The selected login-window implementation is recorded below; the attachment carrier remains
-required. Neither selection reduces G5–G12 scope.
+Attachment I/O follows the actual clients/Runner call chain and stays local to that business
+owner. The base adapter's uncalled download methods and their unused 20 MiB constant are removed;
+no new size limit, desktop proxy path or native transfer operation is imposed on live downloads.
+Any later selected host/device transfer must retain the RFC's bounded carrier/authority contract.
+Native window extraction retains auth session and callback-server lifetime; its implementation is
+recorded below. These boundaries preserve the full G5–G12 scope.
 
 Native configuration consumers use resolved language, notifications, close-to-quit, content
 protection, shortcut mappings, floating enablement/bounds, logging, privacy and update channel.
@@ -2325,8 +2324,8 @@ integration must recheck graceful maintenance/shutdown rather than classify it a
 
 The published `ae0be4fef` passes required run `40668735420`/barrier `122752954520` and all six package
 targets in `40668735436`/barrier `122759825407`. The native projection belongs to the remaining G4
-completion batch and is not independently published. Remote attachment capabilities,
-Provider OAuth configuration settlement and the final inventory
+completion batch and is not independently published. Provider OAuth configuration settlement
+and the final inventory
 remain required. G4 stays active; G5–G12 retain their full scope.
 
 ### Remote native authentication and profile roots
@@ -2352,8 +2351,8 @@ RemoteConversationRunner receives Main's explicit absolute profile directory for
 image-cache and fallback generated-asset locations. Its workspace default is queried asynchronously.
 File/path authorization, workspace requirements, image promotion/deduplication and generated
 filenames remain unchanged. The runner and Weixin SDK graphs compile/import in ordinary Node with
-Electron/electron-store/font-list forbidden (10/1 modules). This is module portability evidence;
-RemoteService's inherited ChannelAdapter still imports Electron net and is not a headless service.
+Electron/electron-store/font-list forbidden (10/1 modules); the complete Remote closure is verified
+below. This is module portability evidence, not the composed G5 backend or G11 Session Host.
 
 Validation passes 305 checks across 36 files, app and selected test/E2E types, normal build, format,
 lint and i18n. The same six application cases pass on immutable `e2c97edac` and the candidate:
@@ -2364,10 +2363,34 @@ fixture intercepts only vendor HTTP and native loadURL destinations with disposa
 account or external authorization is used. Evidence and artifact hashes are retained in
 `.deepchat/rutis-g4-remote-native-acceptance/`. No resource capture or performance claim is added.
 
-This work belongs to the unpublished G4 completion batch. ChannelAdapter's bounded attachment
-fetch and legal large-payload carrier, Provider OAuth configuration settlement and the final
-writer/reader/native inventory remain required before G5. Existing floating Agent/catalogue queries
+This work belongs to the unpublished G4 completion batch. Provider OAuth configuration settlement
+and the final writer/reader/native inventory remain required before G5. Existing floating Agent/catalogue queries
 already use async owner methods and need no extra synchronous-getter replacement. G4 remains active.
+
+### Remote module closure
+
+ChannelAdapter retains its existing lifecycle, event and send contract. Unused protected image/file
+base64 download methods and their unreferenced 20 MiB constant are removed, eliminating the final
+Electron import under `src/main/remote`. Repository consumers, built-in subclasses, plugin/schema
+entrypoints and tests contain no calls to those helpers. Real attachment download/decryption stays
+inside channel clients and RemoteConversationRunner; no body is sent over a new native/Rutis
+operation. Existing transport/file-preparation policies, URL/base64/encrypted media behavior and
+timeouts remain. There is no new carrier, download implementation, global cap or proxy substitution.
+
+The complete RemoteService graph (54 source modules) bundles and imports in ordinary Node with
+Electron/electron-store/font-list forbidden at build and runtime. The probe constructs the actual
+service with explicit business/native ports, rejects unexpected network/native work, initializes
+all disabled channels, applies a configuration mutation, shuts down, reinitializes and shuts down
+again. This proves this module's portable composition and selected lifecycle, not live vendor
+channels, a moved Store writer, the cohesive Harness or CLI execution.
+
+The existing 305 Remote/native-window/composition checks across 36 files pass, along with app
+typechecks, normal application bundling, format, lint and i18n. The unchanged actual-app Remote
+login workload passes on accepted immutable `119a15949` and the candidate: nonce rejection,
+user-close cancellation, window cleanup, Weixin account persistence and graceful relaunch. Accepted
+baseline evidence from the identical fixture is reused; no unchanged baseline or performance
+capture is repeated. Artifact hashes and evidence are in
+`.deepchat/rutis-g4-remote-closure-acceptance/`.
 
 ## G5. Move the cohesive Harness and shared core into the TS backend
 
