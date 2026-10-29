@@ -207,6 +207,20 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'llmbuzz',
+    name: 'llm.buzz',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.llm.buzz/api/v1',
+    enable: false,
+    websites: {
+      official: 'https://llm.buzz/',
+      apiKey: 'https://app.llm.buzz',
+      docs: 'https://llm.buzz',
+      models: 'https://api.llm.buzz/api/v1/models'
+    }
+  },
+  {
     id: 'apimodels',
     name: 'apimodels.app',
     apiType: 'openai-completions',

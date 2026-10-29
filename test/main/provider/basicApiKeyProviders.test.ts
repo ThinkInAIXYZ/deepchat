@@ -1109,6 +1109,25 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('resolves llm.buzz through authenticated OpenAI-compatible model discovery', () => {
+    expect(
+      resolveAiSdkProviderDefinition(
+        createProvider({
+          id: 'llmbuzz',
+          name: 'llm.buzz',
+          baseUrl: 'https://api.llm.buzz/api/v1'
+        })
+      )
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none'
+    })
+  })
+
   it('resolves API Route through authenticated OpenAI-compatible model discovery', () => {
     expect(
       resolveAiSdkProviderDefinition(
