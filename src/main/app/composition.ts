@@ -1,3 +1,4 @@
+import { createCoreExecution, createLivePort } from '../../harness/core/execution'
 import { randomUUID } from 'node:crypto'
 import { SyncReplicaStore } from '@/sync/replica/store'
 import { SyncReplicaEndpoint } from '@/sync/replica/endpoint'
@@ -27,7 +28,6 @@ import {
   approvalClosedEvent,
   approvalRequestedEvent,
   settingsChangedEvent,
-  liveDelegationChangedEvent,
   sessionsTapeInspectorHeadChangedEvent,
   sessionsUpdatedEvent
 } from '@shared/contracts/events'
@@ -54,8 +54,6 @@ import { ShortcutPresenter } from '../desktop/shortcut'
 import type { FileServicePort } from '@shared/types/file'
 import type { ToolchainKind } from '@shared/types/toolchains'
 import type { WorkspaceServicePort } from '@shared/types/workspace'
-import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import { projectFinalAssistantAnswer } from '@shared/lib/assistantDeliverySegments'
 import type { SkillMetadataSnapshotPort, SkillServicePort } from '@shared/types/skill'
 import type { SkillSyncServicePort } from '@shared/types/skillSync'
 import type { IConversationExporter } from '../exporter/interface'
@@ -128,7 +126,7 @@ import { DesktopRemoteAuthWindows } from '../desktop/remoteAuthWindows'
 import { DesktopImageActions } from '../desktop/imageActions'
 import { FontSettings } from '../desktop/fontSettings'
 import { TabPresenter } from '../desktop/tab'
-import { DesktopSessionBinding } from '@/desktop/sessionBinding'
+import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import { TrayPresenter } from '../desktop/tray'
 import { OAuthService } from '../provider/auth'
 import { OpenAICodexCredentialStore } from '../provider/auth/openaiCodex/credentialStore'
@@ -202,9 +200,6 @@ import { HookSettings } from '../hook/config'
 import { SchedulerService, createCronJobRunSessionStarter } from '../scheduler'
 import { SchedulerProcessManager } from '@/scheduler/schedulerProcessManager'
 import { spawnSchedulerHost } from './schedulerHost'
-import { AgentManager } from '@/agent/manager/agentManager'
-import { createDeepChatAgentBackend } from '@/agent/manager/deepChatAgentBackend'
-import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
 import {
   TOOL_SURFACE_PRODUCTION_ROLLOUT_POLICY_V1,
   ToolSurfaceRolloutOwner
@@ -213,19 +208,13 @@ import { AppSessionService } from '@/agent/shared/appSessionService'
 import { createSessionData } from '@/session/data'
 import { MemoryDatabase } from '@/memory/data/database'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { resolveAssistantModelSelection } from '@/agent/shared/assistantModelSelection'
-import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
-import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
-import { SessionQuery } from '@/session/query'
-import { SessionAssignmentPolicy } from '@/session/assignmentPolicy'
-import { SessionAssignment } from '@/session/assignment'
-import { SessionDeletion } from '@/session/deletion'
-import { SessionTranscriptMutations } from '@/session/transcriptMutations'
-import { SessionTurn } from '@/session/turn'
-import { SessionLifecycle } from '@/session/lifecycle'
-import { createDeepChatAgentHarness, type DeepChatAgentHarness } from '@/agent/deepchat/harness'
+import type { SessionQuery } from '@/session/query'
+import type { SessionAssignment } from '@/session/assignment'
+import type { SessionTurn } from '@/session/turn'
+import type { SessionLifecycle } from '@/session/lifecycle'
+import type { DeepChatAgentHarness } from '@/agent/deepchat/harness'
 import type { RunJournalObservation } from '@/agent/deepchat/runtime/types'
-import { AcpAgentRuntime } from '@/agent/acp/instance'
+import type { AcpAgentRuntime } from '@/agent/acp/instance'
 import { createAcpRuntimeOwner } from '@/agent/acp/createRuntimeOwner'
 import { AcpRegistryService } from '@/agent/acp/catalog/acpRegistryService'
 import { isAcpRegistryIconUrl } from '@/agent/acp/catalog/acpRegistryConstants'
@@ -242,14 +231,12 @@ import { SettingsDatabase } from '@/settings/data/database'
 import { SchedulerDatabase } from '@/scheduler/data/database'
 import { AppDatabase } from '@/app/data/database'
 import { createOrchestrationRoutes } from '@/orchestration/routes'
-import { OrchestrationCapabilityResolver } from '@/orchestration/capability'
 import { LiveDelegationDatabase } from '@/orchestration/data/database'
 import { LiveDelegationRepository } from '@/orchestration/liveDelegationRepository'
 import {
-  LiveDelegationService,
+  type LiveDelegationService,
   type LiveDelegationLifecycleObservation
 } from '@/orchestration/liveDelegationService'
-import { LiveDelegationSafetyCoordinator } from '@/orchestration/liveDelegationSafety'
 import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
 import { TaskContractService } from '@/tape/application/taskContractService'
 import { TaskEvaluationService } from '@/tape/application/taskEvaluationService'
@@ -294,13 +281,13 @@ import type { StartupWorkloadTaskContext } from '../app/startupWorkloadCoordinat
 import { LegacyChatImportService } from './startupMigrations/legacyChatImportService'
 import { UsageStatsService } from '../session/usageStatsService'
 import type { SessionDataMigrationSQLitePort } from './startupMigrations/sessionDataMigrations'
-import { SessionHistorySearch } from '@/session/sessionHistorySearch'
-import { SessionTranslation } from '@/session/sessionTranslation'
+import type { SessionHistorySearch } from '@/session/sessionHistorySearch'
+import type { SessionTranslation } from '@/session/sessionTranslation'
 import { createSessionRoutes } from '@/session/routes'
 import { createAgentRoutes } from '@/agent/routes'
 import { createPromptRoutes } from '@/agent/promptRoutes'
 import { createSkillExecutionAuthorityTapePort } from '@/tape/application/capabilityAdapters'
-import { AgentSessionExportService } from '../exporter/agentSessionExporter'
+import type { AgentSessionExportService } from '../exporter/agentSessionExporter'
 import { createInMemoryServerFactory } from '../mcp/inMemoryServers/builder'
 import { createRouteDispatcher, dispatchDeepchatRoute, type RouteDispatcher } from '@/routes'
 import { registerDeepchatRoutes } from './routeIpc'
@@ -319,7 +306,7 @@ import {
   ProgrammaticToolDispatcher,
   ProgrammaticToolParentRegistry,
   CliRequestPolicy,
-  CliRunService,
+  type CliRunService,
   CliServer,
   CliSkillService,
   createArtifactRoutes,
@@ -547,16 +534,6 @@ function emitLiveDelegationObservation(observation: LiveDelegationLifecycleObser
   }
 }
 
-function createLivePort<T extends object>(resolve: () => T): T {
-  return new Proxy({} as T, {
-    get(_target, property) {
-      const target = resolve()
-      const value = Reflect.get(target, property, target)
-      return typeof value === 'function' ? value.bind(target) : value
-    }
-  })
-}
-
 export async function createMainProcessControl(dependencies: {
   previousAppVersion?: string
   currentAppVersion: string
@@ -622,13 +599,10 @@ export async function createMainProcessControl(dependencies: {
   let skillSyncService: SkillSyncServicePort
   let sessionQuery: SessionQuery
   let desktopSessionBinding: DesktopSessionBinding
-  let sessionAssignmentPolicy: SessionAssignmentPolicy
   let sessionAssignment: SessionAssignment
   let sessionTurn: SessionTurn
   let sessionLifecycle: SessionLifecycle
-  let sessionDeletion: SessionDeletion
   let sessionPermissionPort: SessionPermissionPort
-  let agentManager: AgentManager
   let acpAgentRuntime: AcpAgentRuntime
   let memoryService: MemoryServicePort
   let memoryIngestionObserver: MemoryIngestionObserver
@@ -2403,163 +2377,104 @@ export async function createMainProcessControl(dependencies: {
   })
   agentSettings.start()
 
-  // Initialize new agent architecture presenters
-  deepChatAgentHarness = createDeepChatAgentHarness({
-    providerRuntime,
-    providerSettings,
-    agentSettings,
-    database: sessionData.database,
-    sessionData,
-    toolService,
-    hookObserver: hookService,
-    pluginContext: pluginService.contextHooks,
-    onSessionCompleted: (sessionId) => {
-      const session = appSessionService.get(sessionId)
-      if (session?.sessionKind !== 'regular' || resolveSessionRunId(sessionId) !== null) return
-      void notificationService.showSessionCompletion(session).catch((error) => {
-        logger.warn('[Notification] Failed to notify session completion', { sessionId, error })
-      })
-    },
-    publishEvent: publishDeepchatEvent,
-    publishSessionUpdate: (update) => {
-      sessionRuntimeEvents.publish(update)
-      if (update.kind === 'status') {
-        if (update.status === 'generating') syncActiveSessions.add(update.sessionId)
-        else {
-          syncActiveSessions.delete(update.sessionId)
-          syncReplica?.wake()
-        }
-      }
-      if (update.kind === 'status' && (update.status === 'idle' || update.status === 'error')) {
-        void yoBrowserPresenter.releaseInactivePreview(update.sessionId).catch((error) => {
-          logger.warn('[YoBrowser] Failed to release inactive preview', {
-            sessionId: update.sessionId,
-            error
-          })
-        })
-      }
-    },
-    providerCatalogPort,
-    sessionPermissionPort,
-    acpAsLlmProviderPermission: acpAsLlmProviderPermission,
-    sessionUiPort,
-    memoryPort: memoryService,
-    getMemoryIngestionProjection: () => memoryDatabase.ingestionProjectionTable,
-    cacheImage: (data, options) => deviceService.cacheImage(data, options),
-    runJournalObserver: emitRunJournalObservation,
-    skillService: skillService,
-    skillSettings,
-    traceSettings,
-    commandShell: commandShellService,
-    promptSettings,
-    attachmentRouter,
-    interactionContinuationAdmission: {
-      resume: async (sessionId, signal) =>
-        await liveDelegationService.beforeInteractionContinuation(sessionId, signal),
-      suspend: (sessionId) => liveDelegationService.suspendInteractionContinuation(sessionId)
-    },
-    taskContractContext: {
-      prepare: (sessionId) => liveDelegationService.prepareTaskContractContext(sessionId)
-    },
-    toolSurfaceRunMode: toolSurfaceRollout,
-    agentCliTokenAuthority,
-    programmaticToolParents
-  })
-  const sessionTranscriptMutations = new SessionTranscriptMutations({
-    transcript: sessionData.transcript,
-    runtime: deepChatAgentHarness,
-    clearTranscript: sessionData.clearTranscript
-  })
-  memoryIngestionObserver = deepChatAgentHarness.memoryIngestionObserver
-  acpAgentRuntime = new AcpAgentRuntime(
-    acpRuntimeOwner,
-    (input) => deepChatAgentHarness.createAcpAgentInstanceDependencies(input),
-    sessionData.pendingInputs
-  )
-  agentManager = new AgentManager(agentRepository, appSessionService, {
-    deepchat: createDeepChatAgentBackend({
-      port: deepChatAgentHarness,
-      runtime: deepChatAgentHarness.deepChatRuntime,
-      transcript: sessionData.transcript,
-      tape: sessionData.tape
-    }),
-    acp: createDirectAcpAgentBackend({
-      runtime: acpAgentRuntime,
-      sessionState: deepChatAgentHarness,
-      transcript: sessionData.transcript,
-      tape: sessionData.tape,
-      deleteDurableSession: async (sessionId) => {
-        await acpSessionPersistence.deleteSessions(sessionId)
-      },
-      resolveInput: async (sessionId, descriptor) => {
+  const coreExecution = createCoreExecution({
+    harness: {
+      providerRuntime,
+      providerSettings,
+      agentSettings,
+      database: sessionData.database,
+      sessionData,
+      toolService,
+      hookObserver: hookService,
+      pluginContext: pluginService.contextHooks,
+      onSessionCompleted: (sessionId) => {
         const session = appSessionService.get(sessionId)
-        if (!session || resolveAcpAgentAlias(session.agentId) !== descriptor.id) {
-          throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
+        if (session?.sessionKind !== 'regular' || resolveSessionRunId(sessionId) !== null) return
+        void notificationService.showSessionCompletion(session).catch((error) => {
+          logger.warn('[Notification] Failed to notify session completion', { sessionId, error })
+        })
+      },
+      publishEvent: publishDeepchatEvent,
+      publishSessionUpdate: (update) => {
+        sessionRuntimeEvents.publish(update)
+        if (update.kind === 'status') {
+          if (update.status === 'generating') syncActiveSessions.add(update.sessionId)
+          else {
+            syncActiveSessions.delete(update.sessionId)
+            syncReplica?.wake()
+          }
         }
-        const agent = (await agentSettings.getAcpAgents()).find(
-          (candidate) => candidate.id === descriptor.id && candidate.source === descriptor.source
-        )
-        if (!agent || !agent.command.trim()) {
-          throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
+        if (update.kind === 'status' && (update.status === 'idle' || update.status === 'error')) {
+          void yoBrowserPresenter.releaseInactivePreview(update.sessionId).catch((error) => {
+            logger.warn('[YoBrowser] Failed to release inactive preview', {
+              sessionId: update.sessionId,
+              error
+            })
+          })
         }
-        return {
-          sessionId: toAppSessionId(session.id),
-          descriptor,
-          agent,
-          scope: session.sessionKind === 'subagent' ? 'subagent' : 'regular',
-          workdir: session.projectDir?.trim() ?? ''
-        }
+      },
+      providerCatalogPort,
+      sessionPermissionPort,
+      acpAsLlmProviderPermission: acpAsLlmProviderPermission,
+      sessionUiPort,
+      memoryPort: memoryService,
+      getMemoryIngestionProjection: () => memoryDatabase.ingestionProjectionTable,
+      cacheImage: (data, options) => deviceService.cacheImage(data, options),
+      runJournalObserver: emitRunJournalObservation,
+      skillService: skillService,
+      skillSettings,
+      traceSettings,
+      commandShell: commandShellService,
+      promptSettings,
+      attachmentRouter,
+      toolSurfaceRunMode: toolSurfaceRollout,
+      agentCliTokenAuthority,
+      programmaticToolParents
+    },
+    agentRepository,
+    appSessionService,
+    acpRuntimeOwner,
+    acpSessionPersistence,
+    acpAsLlmProviderSessionControl,
+    agentLifecycle,
+    sessionDeletionGate,
+    projectDatabase,
+    projectService,
+    agentToolDependencies,
+    agentInvocationAdmission,
+    liveDelegationRepository,
+    liveDelegationConsent,
+    nowledgeMemConnections,
+    databaseRequests,
+    typedEventHub,
+    resolveSessionRunId,
+    onRendererDestroyed: (webContentsId, callback) => {
+      const target = electronWebContents.fromId(webContentsId)
+      if (!target || target.isDestroyed()) {
+        queueMicrotask(callback)
+        return () => {}
       }
-    })
+      target.once('destroyed', callback)
+      return () => target.removeListener('destroyed', callback)
+    },
+    destroySessionBrowser: (sessionId) => yoBrowserPresenter.destroySessionBrowser(sessionId),
+    observeDelegation: emitLiveDelegationObservation,
+    observationsEnabled: () => mainLogger.isOutputEnabled()
   })
-  sessionQuery = new SessionQuery({
-    sessions: appSessionService,
-    runtime: {
-      getAgentKind: (agentId) => agentManager.resolveBackend(agentId).kind,
-      snapshot: async (sessionId, options) =>
-        await agentManager.resolveSessionHandle(toAppSessionId(sessionId)).handle.snapshot(options),
-      snapshotIfHydrated: async (sessionId) =>
-        await agentManager.snapshotIfHydrated(toAppSessionId(sessionId)),
-      waitForFirstTurnReady: async (sessionId, options) =>
-        await agentManager
-          .resolveSessionHandle(toAppSessionId(sessionId))
-          .handle.waitForFirstTurnReady(options)
-    },
-    transcript: sessionData.transcript,
-    tape: sessionData.tape,
-    messages: createLivePort(() => sessionData.database.deepchatMessagesTable),
-    searchResults: createLivePort(() => sessionData.database.deepchatMessageSearchResultsTable),
-    traces: createLivePort(() => sessionData.database.deepchatMessageTracesTable),
-    usesAgentTitle: (sessionId) =>
-      !!acpRuntimeOwner.peek()?.sessionController.getSession(toAppSessionId(sessionId))?.extensions
-        ?.sessionTitle,
-    onTitleRenamed: async (sessionId, agentId) => {
-      if (agentManager.resolveBackend(agentId).kind === 'acp')
-        await acpRuntimeOwner
-          .getOrCreate()
-          .sessionController.markTitleManual(toAppSessionId(sessionId), agentId)
-    },
-    titles: providerRuntime,
-    agentConfig: {
-      getAssistantModel: async (agentId) => {
-        const selection = await resolveAssistantModelSelection(
-          {
-            agentManager: agentManager,
-            agentSettings
-          },
-          agentId,
-          '',
-          ''
-        )
-        return selection.providerId && selection.modelId ? selection : null
-      }
-    },
-    events: {
-      publish: (payload) => publishDeepchatEvent('sessions.updated', payload)
-    },
-    ui: sessionUiPort
-  })
-  desktopSessionBinding = new DesktopSessionBinding(sessionQuery)
+  deepChatAgentHarness = coreExecution.deepChatAgentHarness
+  memoryIngestionObserver = coreExecution.memoryIngestionObserver
+  acpAgentRuntime = coreExecution.acpAgentRuntime
+  sessionQuery = coreExecution.sessionQuery
+  desktopSessionBinding = coreExecution.desktopSessionBinding
+  sessionAssignment = coreExecution.sessionAssignment
+  sessionTurn = coreExecution.sessionTurn
+  sessionLifecycle = coreExecution.sessionLifecycle
+  cliRunService = coreExecution.cliRunService
+  sessionHistorySearch = coreExecution.sessionHistorySearch
+  agentSessionExportService = coreExecution.agentSessionExportService
+  sessionTranslation = coreExecution.sessionTranslation
+  liveDelegationService = coreExecution.liveDelegationService
+  const { createLiveDelegationService, orchestrationCapabilityResolver } = coreExecution
   resolveBoundRendererIds = (sessionId) =>
     desktopSessionBinding.getWebContentsIdsForSession(sessionId)
   tabPresenter = new TabPresenter(windowPresenter, desktopSessionBinding, () =>
@@ -2574,331 +2489,6 @@ export async function createMainProcessControl(dependencies: {
     windowPresenter as WindowPresenter,
     tabPresenter
   )
-  sessionAssignmentPolicy = new SessionAssignmentPolicy(
-    {
-      resolveAgent: (agentId) => {
-        const descriptor = agentManager.resolveBackend(agentId).descriptor
-        return { id: descriptor.id, kind: descriptor.kind }
-      }
-    },
-    {
-      getDefaultModel: () => agentSettings.getDefaultModel(),
-      getDefaultProjectPath: () => projectService.getDefaultProjectPath(),
-      resolveDeepChatAgentConfig: async (agentId) =>
-        await agentSettings.resolveDeepChatAgentConfig(agentId)
-    }
-  )
-  const clearNewAgentSessionSkills = skillService.clearNewAgentSessionSkills
-  if (!clearNewAgentSessionSkills) {
-    throw new Error('Skill presenter must provide session skill cleanup.')
-  }
-  sessionDeletion = new SessionDeletion({
-    sessions: appSessionService,
-    gate: sessionDeletionGate,
-    orchestration: {
-      prepareSessionDeletion: async (sessionId) =>
-        await liveDelegationService.prepareSessionDeletion(sessionId)
-    },
-    runtime: {
-      cleanupSessionBackends: async (sessionId) =>
-        await agentManager.cleanupSessionBackends(sessionId),
-      destroySessionBrowser: async (sessionId) =>
-        await yoBrowserPresenter.destroySessionBrowser(sessionId)
-    },
-    state: deepChatAgentHarness,
-    permissions: sessionPermissionPort,
-    skills: {
-      clearNewAgentSessionSkills: async (sessionId) =>
-        await clearNewAgentSessionSkills.call(skillService, sessionId),
-      completeNewAgentSessionSkillsDeletion: (sessionId) =>
-        skillService.completeNewAgentSessionSkillsDeletion(sessionId)
-    }
-  })
-  sessionAssignment = new SessionAssignment({
-    sessions: appSessionService,
-    runtime: {
-      getSessionAgentKind: (sessionId) =>
-        agentManager.resolveSessionBackend(sessionId).descriptor.kind,
-      resolveSession: (sessionId) => agentManager.resolveSessionHandle(sessionId),
-      resolveTransferSource: (sessionId) => agentManager.resolveTransferSource(sessionId),
-      resolveDeepChatTransferTarget: (agentId) =>
-        agentManager.resolveDeepChatTransferTarget(agentId),
-      resolveSubagentFacet: (sessionId) => agentManager.resolveSubagentFacet(sessionId)
-    },
-    policy: sessionAssignmentPolicy,
-    projection: sessionQuery,
-    deletion: sessionDeletion,
-    environment: {
-      syncPath: (projectDir) => {
-        projectDatabase.newEnvironmentsTable.syncPath(projectDir)
-        projectService.notifyEnvironmentProjectionChanged()
-      }
-    },
-    acp: acpAsLlmProviderSessionControl,
-    agentLifecycle
-  })
-  sessionTurn = new SessionTurn({
-    sessions: appSessionService,
-    runtime: {
-      resolveSession: (sessionId) => {
-        const { handle } = agentManager.resolveSessionHandle(sessionId)
-        const turn = {
-          pending: handle.pending,
-          toolInteractions: handle.toolInteractions,
-          send: (input: Parameters<typeof handle.send>[0]) => handle.send(input),
-          cancel: () => handle.cancel(),
-          snapshot: () => handle.snapshot()
-        }
-        return handle.kind === 'deepchat'
-          ? {
-              ...turn,
-              kind: handle.kind,
-              compaction: {
-                getSnapshot: () => handle.deepchat.getCompactionSnapshot(),
-                compact: () => handle.deepchat.compact()
-              },
-              getContextOccupancy: () => handle.deepchat.getContextOccupancy(),
-              isPendingQueueResumeAvailable: () => handle.deepchat.isPendingQueueResumeAvailable(),
-              resumePendingQueue: () => handle.deepchat.resumePendingQueue(),
-              retryPendingQueueInput: (itemId) => handle.deepchat.retryPendingQueueInput(itemId)
-            }
-          : { ...turn, kind: handle.kind }
-      }
-    },
-    transcript: {
-      hasMessages: (sessionId) => sessionData.transcript.hasMessages(sessionId),
-      clearMessages: (sessionId) => sessionTranscriptMutations.clearMessages(sessionId),
-      prepareRetryMessage: (sessionId, messageId) =>
-        sessionTranscriptMutations.prepareRetryMessage(sessionId, messageId),
-      commitRetryMessage: (sessionId, sourceOrderSeq) =>
-        sessionTranscriptMutations.commitRetryMessage(sessionId, sourceOrderSeq),
-      deleteMessage: (sessionId, messageId) =>
-        sessionTranscriptMutations.deleteMessage(sessionId, messageId),
-      editUserMessage: (sessionId, messageId, text, inlineItems) =>
-        sessionTranscriptMutations.editUserMessage(sessionId, messageId, text, inlineItems)
-    },
-    workdir: sessionAssignment,
-    projection: sessionQuery
-  })
-  sessionLifecycle = new SessionLifecycle({
-    onRendererDestroyed: (webContentsId, callback) => {
-      const target = electronWebContents.fromId(webContentsId)
-      if (!target || target.isDestroyed()) {
-        queueMicrotask(callback)
-        return () => {}
-      }
-      target.once('destroyed', callback)
-      return () => target.removeListener('destroyed', callback)
-    },
-    forkAcpSession: async (sourceId, targetId, messageId) => {
-      const message = sessionData.transcript.getMessage(messageId)
-      if (
-        !message ||
-        message.sessionId !== sourceId ||
-        message.role !== 'assistant' ||
-        message.status !== 'sent'
-      )
-        throw new Error('Fork requires a completed ACP assistant message')
-      const metadata = JSON.parse(message.metadata) as { acp?: { turnId?: string } }
-      const blocks = JSON.parse(message.content) as AssistantMessageBlock[]
-      const anchors = blocks.flatMap((block) => {
-        try {
-          const meta = JSON.parse(String(block.extra?.providerOptionsJson ?? '{}'))
-          return typeof meta.acp?.turnId === 'string' ? [meta.acp.turnId] : []
-        } catch {
-          return []
-        }
-      })
-      const turnId = anchors.at(-1) ?? metadata.acp?.turnId
-      if (!turnId) throw new Error('This message has no verified remote turn anchor')
-      const result = await acpAgentRuntime.forkSession(
-        toAppSessionId(sourceId),
-        toAppSessionId(targetId),
-        turnId,
-        messageId
-      )
-      sessionData.transcript.importAcpHistory(
-        targetId,
-        result.agentId,
-        result.remoteSessionId,
-        result.history
-      )
-      await acpRuntimeOwner
-        .getOrCreate()
-        .sessionController.completeFork(toAppSessionId(sourceId), messageId)
-    },
-    sessions: appSessionService,
-    runtime: {
-      resolveSession: (sessionId) => {
-        const { handle } = agentManager.resolveSessionHandle(sessionId)
-        return {
-          kind: handle.kind,
-          initialize: (config) => handle.lifecycle.initialize(config),
-          isInitialized: () => handle.lifecycle.isInitialized(),
-          snapshot: () => handle.snapshot(),
-          getGenerationSettings: () => handle.settings.getGenerationSettings(),
-          setPermissionMode: (mode) => handle.settings.setPermissionMode(mode),
-          close: () => handle.close()
-        }
-      }
-    },
-    transcript: {
-      hasMessages: (sessionId) => sessionData.transcript.hasMessages(sessionId),
-      forkSessionFromMessage: (sourceSessionId, targetSessionId, targetMessageId) =>
-        sessionTranscriptMutations.forkSessionFromMessage(
-          sourceSessionId,
-          targetSessionId,
-          targetMessageId
-        )
-    },
-    skills: {
-      setActiveSkills: async (sessionId, activeSkills) => {
-        await skillService.setActiveSkills(sessionId, activeSkills)
-      }
-    },
-    assignmentPolicy: sessionAssignmentPolicy,
-    workdir: sessionAssignment,
-    initialTurn: sessionTurn,
-    projection: sessionQuery,
-    desktop: desktopSessionBinding,
-    deletion: sessionDeletion,
-    deletionGate: sessionDeletionGate,
-    permissions: sessionPermissionPort,
-    agentLifecycle
-  })
-  cliRunService = new CliRunService({
-    lifecycle: sessionLifecycle,
-    turn: sessionTurn,
-    projection: sessionQuery,
-    sessions: appSessionService,
-    getPendingAssistantMessages: (runId) =>
-      sessionData.transcript.getPendingAssistantMessages(runId),
-    hasWaitingDescendantInteraction: (runId) =>
-      liveDelegationRepository
-        .listActiveTurns()
-        .some(
-          ({ delegation, turn }) =>
-            (turn.status === 'waiting_permission' || turn.status === 'waiting_question') &&
-            resolveSessionRunId(delegation.parentSessionId) === runId
-        ),
-    readSubscriptionSnapshot: (read) => databaseRequests.runRequest('events.subscribe', read),
-    eventHub: typedEventHub,
-    log: logger
-  })
-  sessionHistorySearch = new SessionHistorySearch(sessionData.database, appSessionService)
-  agentSessionExportService = new AgentSessionExportService({
-    nowledgeMemConnections,
-    agentManager: agentManager,
-    appSessionService,
-    transcript: sessionData.transcript,
-    providerSettings: providerSettings
-  })
-  sessionTranslation = new SessionTranslation({
-    agentManager: agentManager,
-    agentSettings,
-    providerRuntime: providerRuntime
-  })
-  const orchestrationCapabilityResolver = new OrchestrationCapabilityResolver({
-    sessions: agentToolDependencies.sessions,
-    agents: agentSettings
-  })
-  const liveDelegationSafety = new LiveDelegationSafetyCoordinator({
-    sessions: agentToolDependencies.sessions,
-    assignmentPolicy: sessionAssignmentPolicy,
-    assignment: sessionAssignment,
-    permissions: sessionPermissionPort,
-    executionSnapshots: deepChatAgentHarness
-  })
-  const createLiveDelegationService = (): LiveDelegationService =>
-    new LiveDelegationService({
-      repository: liveDelegationRepository,
-      admission: agentInvocationAdmission,
-      deletionGate: sessionDeletionGate,
-      safety: liveDelegationSafety,
-      consent: liveDelegationConsent,
-      sessions: {
-        ...agentToolDependencies.sessions,
-        ...agentToolDependencies.subagents,
-        findDelegationChild: async (parentSessionId, delegationId) => {
-          const matches = appSessionService
-            .list({ includeSubagents: true, parentSessionId })
-            .filter(
-              (session) => session.subagentMeta?.liveDelegation?.delegationId === delegationId
-            )
-          if (matches.length > 1) {
-            throw new Error(`Multiple child Sessions share live delegation ${delegationId}.`)
-          }
-          return matches[0]
-            ? await agentToolDependencies.sessions.resolveConversationSessionInfo(matches[0].id)
-            : null
-        },
-        getAssistantResult: async (sessionId, messageId) => {
-          const messages = sessionData.database.deepchatMessagesTable
-          const identity = messageId
-            ? messages.getAssistantIdentity(messageId)
-            : messages.getLatestAssistantIdentity(sessionId)
-          if (!identity || identity.session_id !== sessionId) return null
-
-          const resultRows =
-            sessionData.database.deepchatAssistantBlocksTable.listResultProjectionByMessageId(
-              identity.id
-            )
-          if (resultRows.length > 0) {
-            const answer = projectFinalAssistantAnswer(
-              resultRows.map(
-                (row): AssistantMessageBlock => ({
-                  type: row.block_type,
-                  status: row.status,
-                  timestamp: row.updated_at,
-                  content: row.text_content ?? undefined
-                })
-              )
-            )
-            return answer
-              ? {
-                  messageId: identity.id,
-                  answerMarkdown: answer,
-                  updatedAt: identity.updated_at
-                }
-              : null
-          }
-
-          const legacyMessage = await sessionQuery.getMessage(identity.id)
-          if (!legacyMessage || legacyMessage.sessionId !== sessionId) return null
-          try {
-            const parsed = JSON.parse(legacyMessage.content) as AssistantMessageBlock[] | string
-            const answer = Array.isArray(parsed)
-              ? projectFinalAssistantAnswer(parsed)
-              : typeof parsed === 'string'
-                ? parsed.trim()
-                : ''
-            return answer
-              ? { messageId: identity.id, answerMarkdown: answer, updatedAt: identity.updated_at }
-              : null
-          } catch {
-            const answer = legacyMessage.content.trim()
-            return answer
-              ? { messageId: identity.id, answerMarkdown: answer, updatedAt: identity.updated_at }
-              : null
-          }
-        }
-      },
-      observe: emitLiveDelegationObservation,
-      observationsEnabled: () => mainLogger.isOutputEnabled(),
-      onChanged: (parentSessionId, delegationId) => {
-        sessionQuery.notify({ sessionIds: [parentSessionId], reason: 'updated' })
-        try {
-          publishDeepchatEvent(liveDelegationChangedEvent.name, {
-            schemaVersion: 1,
-            parentSessionId,
-            delegation: liveDelegationService.getSummary(parentSessionId, delegationId)
-          })
-        } catch (error) {
-          logger.warn('[LiveDelegationService] Failed to publish delegation projection', { error })
-        }
-      }
-    })
-  liveDelegationService = createLiveDelegationService()
   const remoteAuthWindows = new DesktopRemoteAuthWindows((event) =>
     remoteService.handleAuthWindowEvent(event)
   )

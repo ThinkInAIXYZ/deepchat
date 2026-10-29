@@ -476,6 +476,7 @@ async function findViolations() {
   const scanRoots = [
     path.join(ROOT, 'src/main/agent'),
     path.join(ROOT, 'src/main/app/composition.ts'),
+    path.join(ROOT, 'src/harness/core'),
     path.join(ROOT, 'src/main/skill'),
     path.join(ROOT, 'src/main/mcp/toolManager.ts'),
     path.join(ROOT, 'src/main/sync/index.ts'),

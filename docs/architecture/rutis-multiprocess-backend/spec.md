@@ -717,6 +717,12 @@ window objects or cached permission grants. After an awaited startup classificat
 database admission before dispatch so maintenance or shutdown can retire pending work. Debug app
 routes require explicit packaged-build identity in addition to the development-build guard.
 
+Compose Harness/ACP execution, Session projection/turn/assignment/deletion, CLI Runs and delegation
+feedback as one owner-local graph. Interaction continuation and task-contract callbacks must resolve
+the current delegation lifetime after maintenance. Keep Session/Tape transactions and live table
+resolution inside this graph; database reopen must not leave captured table or service instances.
+Native renderer lifetime/browser effects are supplied ports, not Electron objects in the factory.
+
 Acquire the profile's `.core-owner.lock` SQLite exclusive transaction before constructing settings
 or starting crypto/recovery. This independent, data-free handle remains owned while the primary
 database closes/reopens for maintenance. Do not infer release from a pending reply, a PID file or

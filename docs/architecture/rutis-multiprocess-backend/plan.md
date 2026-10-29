@@ -48,7 +48,7 @@ rerun CI or unchanged benchmarks to obtain a passing timing sample.
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
 | G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
 | G4 Store commands and desktop ports | Complete, `356143755` | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
-| G5 Cohesive TS Harness backend | In progress: profile ownership and route boundary | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
+| G5 Cohesive TS Harness backend | In progress: Core execution composition | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
 | G7 Rust control owner | Planned | G2, G5 | Admission and cohesive run/interaction settlement preserve all fences |
 | G8 Rust batch computations | Conditional | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go |
@@ -2735,6 +2735,33 @@ baseline and candidate each pass the same five app cases for native IPC, ACP que
 credentials, MCP Apps and persistent settings. Evidence and artifact/source hashes are recorded in
 `.deepchat/rutis-g5-route-owner-acceptance/`. Main still owns the business composition and writer;
 the full Rutis cutover remains required before publication. No performance recapture is selected.
+
+### Core execution composition
+
+The default application calls `src/harness/core/execution.ts` to construct the Harness, ACP Runtime,
+AgentManager, Session projection/turn/assignment/deletion/lifecycle, CLI Runs, export/translation and
+delegation feedback together. Main no longer constructs those owners inline. Native renderer
+lifetime and browser teardown are supplied callbacks; native tabs and the floating presenter stay
+in Main. The existing Harness/Session/Tape ports and synchronous local transactions are preserved.
+
+Interaction continuation, task-contract preparation, deletion safety and delegation summaries share
+the factory's current delegation instance. Maintenance rebuilds it through the same factory and
+updates that instance before resuming work. Live table resolution still follows database reopen.
+The ownership guard also scans this Core directory, with no relaxed ownership rule or baseline.
+
+The affected Session/Harness/CLI/delegation suites pass **653 checks across 12 files**; all nine
+ownership-guard checks pass separately. App types, normal full build, format/check including
+Markdown, lint and i18n pass. The Core execution graph builds and imports under ordinary Node with
+Electron/electron-store/font-list/electron-toolkit imports forbidden: 420
+source files plus the probe entry. This is an import-boundary check; actual factory construction
+and execution use the real application comparison below, not a claimed headless backend.
+
+Immutable `34fad0512` and the candidate pass the same nine application cases: streaming, ACP question continuation,
+delegation queue/cancel/release, manual/timed scheduler settlement, import/repair/credential drains
+and both shutdown drains. Evidence, source and runtime hashes are in
+`.deepchat/rutis-g5-execution-owner-acceptance/`. Core still executes in Main and receives local
+Provider/Tool/Memory/Store owners from the remaining composition. Moving those owners, authenticated
+transport, the shared writer and actual process lifecycle remain required for G5 publication.
 
 ## G6. Extract the complete Memory capability
 
