@@ -1,4 +1,15 @@
-import type { WorkspaceInvalidationEvent, WorkspaceWatchStatusEvent } from '@shared/types/workspace'
+import type {
+  WorkspaceFileOpenApp,
+  WorkspaceInvalidationEvent,
+  WorkspaceWatchStatusEvent
+} from '@shared/types/workspace'
+
+export interface WorkspaceDesktopPort {
+  revealFile(filePath: string): Promise<void>
+  openFile(filePath: string): Promise<string>
+  listFileOpenApps(filePath: string): Promise<WorkspaceFileOpenApp[]>
+  openFileWithApp(filePath: string, appId: string): Promise<void>
+}
 
 export interface WorkspaceFilePort {
   prepareFileCompletely(

@@ -8,7 +8,7 @@ import type {
 } from './watcherTypes'
 
 export class FileWatcherService implements IFileWatcherService {
-  constructor(private readonly pool = new WatcherPool()) {}
+  constructor(private readonly pool: WatcherPool) {}
 
   async watch(
     request: WatchRequest,

@@ -5,7 +5,7 @@ import type {
   WatchBatchListener,
   WatcherEventBatch,
   WatchRequest,
-  WatchStatus,
+  WatcherStatus,
   WatchStatusListener
 } from '../../../../src/main/platform/fileWatcher'
 
@@ -51,8 +51,8 @@ function createPoolWithClients() {
   const git = new FakeWatcherHostClient()
   return {
     pool: new WatcherPool({
-      content: content as never,
-      git: git as never
+      content,
+      git
     }),
     content,
     git
@@ -72,6 +72,22 @@ function createRequest(overrides: Partial<WatchRequest> = {}): WatchRequest {
 }
 
 describe('WatcherPool', () => {
+  it('drains both helper owners before reporting a shutdown failure', async () => {
+    const { pool, content, git } = createPoolWithClients()
+    const closed = Promise.withResolvers<void>()
+    content.shutdown.mockRejectedValueOnce(new Error('content shutdown failed'))
+    git.shutdown.mockReturnValueOnce(closed.promise)
+    let settled = false
+    const result = pool.destroy().finally(() => {
+      settled = true
+    })
+    const rejected = expect(result).rejects.toThrow('content shutdown failed')
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    closed.resolve()
+    await rejected
+  })
+
   it('deduplicates identical requests and keeps the backend alive until the last handle closes', async () => {
     const { pool, content } = createPoolWithClients()
     const firstListener = vi.fn()

@@ -1,7 +1,3 @@
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import type { UtilityProcess } from 'electron'
 import type {
   FileWatcherHostEvent,
   FileWatcherRpcMethod,
@@ -13,6 +9,19 @@ import type {
   WatchStatusListener
 } from './watcherTypes'
 
+export interface FileWatcherHost {
+  postMessage(message: FileWatcherRpcRequest): void
+  onMessage(listener: (message: unknown) => void): void
+  onExit(listener: (code: number) => void): void
+  onError(listener: (type: string, location: string) => void): void
+  terminate(): Promise<void>
+}
+
+export type SpawnFileWatcherHost = (
+  kind: WatcherHostKind,
+  signal: AbortSignal
+) => Promise<FileWatcherHost>
+
 type PendingRequest = {
   resolve(value: unknown): void
   reject(error: Error): void
@@ -23,8 +32,10 @@ const RESTART_DELAY_MS = 800
 const RPC_TIMEOUT_MS = 15000
 
 export class WatcherHostClient {
-  private host: UtilityProcess | null = null
-  private hostReady: Promise<UtilityProcess> | null = null
+  private host: FileWatcherHost | null = null
+  private hostReady: Promise<FileWatcherHost> | null = null
+  private pendingSpawn: AbortController | undefined
+  private stopping: Promise<void> | undefined
   private requestId = 0
   private restartAttempts = 0
   private restartTimer: NodeJS.Timeout | null = null
@@ -34,7 +45,10 @@ export class WatcherHostClient {
   private readonly batchListeners = new Set<WatchBatchListener>()
   private readonly statusListeners = new Set<WatchStatusListener>()
 
-  constructor(private readonly hostKind: WatcherHostKind) {}
+  constructor(
+    private readonly hostKind: WatcherHostKind,
+    private readonly spawnHost: SpawnFileWatcherHost
+  ) {}
 
   onBatch(listener: WatchBatchListener): () => void {
     this.batchListeners.add(listener)
@@ -54,6 +68,7 @@ export class WatcherHostClient {
     this.activeRequests.set(request.id, request)
     try {
       await this.request('watch', [request])
+      if (this.shuttingDown) throw new Error('File watcher is stopped.')
     } catch (error) {
       this.activeRequests.delete(request.id)
       throw error
@@ -68,29 +83,34 @@ export class WatcherHostClient {
     await this.request('unwatch', [watchId]).catch(() => {})
   }
 
-  async shutdown(): Promise<void> {
+  shutdown(): Promise<void> {
+    if (this.stopping) return this.stopping
     this.shuttingDown = true
-
+    this.pendingSpawn?.abort(new Error('File watcher startup canceled by shutdown.'))
     if (this.restartTimer) {
       clearTimeout(this.restartTimer)
       this.restartTimer = null
     }
-
-    try {
-      if (this.host) {
-        await this.request('shutdown', [])
+    this.stopping = (async () => {
+      await this.hostReady?.catch(() => undefined)
+      const host = this.host
+      try {
+        if (host) await this.request('shutdown', [])
+      } finally {
+        await host?.terminate()
+        this.host = null
+        this.activeRequests.clear()
+        this.rejectPendingRequests(new Error('File watcher process shut down.'))
       }
-    } finally {
-      this.host?.kill()
-      this.host = null
-      this.hostReady = null
-      this.activeRequests.clear()
-      this.rejectPendingRequests(new Error('File watcher utility process shut down.'))
-    }
+    })()
+    return this.stopping
   }
 
   private async request<T = void>(method: FileWatcherRpcMethod, args: unknown[]): Promise<T> {
-    const host = await this.ensureHost()
+    if (this.shuttingDown && method !== 'shutdown') throw new Error('File watcher is stopped.')
+    const host = this.host ?? (await this.ensureHost())
+    if (host !== this.host || (this.shuttingDown && method !== 'shutdown'))
+      throw new Error('File watcher generation ended.')
     const id = `watcher_rpc_${this.hostKind}_${++this.requestId}`
 
     return await new Promise<T>((resolve, reject) => {
@@ -127,7 +147,8 @@ export class WatcherHostClient {
     })
   }
 
-  private async ensureHost(): Promise<UtilityProcess> {
+  private async ensureHost(): Promise<FileWatcherHost> {
+    if (this.shuttingDown) throw new Error('File watcher is stopped.')
     if (this.host) {
       return this.host
     }
@@ -136,83 +157,45 @@ export class WatcherHostClient {
       return await this.hostReady
     }
 
-    this.shuttingDown = false
-    this.hostReady = this.startHost()
+    const opening = Promise.resolve().then(() => this.startHost())
+    this.hostReady = opening
     try {
-      return await this.hostReady
+      return await opening
     } finally {
-      this.hostReady = null
+      if (this.hostReady === opening) this.hostReady = null
     }
   }
 
-  private async startHost(): Promise<UtilityProcess> {
-    const { app, utilityProcess } = await import('electron')
-    const modulePath = this.resolveUtilityHostEntryPoint(app.getAppPath())
-    const serviceLabel = this.hostKind === 'git' ? 'Git' : 'Content'
-    const host = utilityProcess.fork(modulePath, ['--deepchat-file-watcher-host'], {
-      serviceName: `DeepChat ${serviceLabel} File Watcher`,
-      stdio: 'ignore',
-      env: {
-        ...process.env,
-        DEEPCHAT_FILE_WATCHER_HOST: '1',
-        DEEPCHAT_FILE_WATCHER_HOST_KIND: this.hostKind
+  private async startHost(): Promise<FileWatcherHost> {
+    if (this.shuttingDown) throw new Error('File watcher is stopped.')
+    const startup = new AbortController()
+    this.pendingSpawn = startup
+    try {
+      const host = await this.spawnHost(this.hostKind, startup.signal)
+      if (this.shuttingDown || startup.signal.aborted) {
+        await host.terminate()
+        throw new Error('File watcher startup was superseded by shutdown.')
       }
-    })
-
-    host.on('message', (message) => this.handleHostMessage(message))
-    host.on('exit', (code) => this.handleHostExit(code))
-    host.on('error', (type, location) => {
-      console.error('[FileWatcherClient] Utility process error:', {
-        hostKind: this.hostKind,
-        type,
-        location
+      this.host = host
+      this.restartAttempts = 0
+      host.onMessage((message) => {
+        if (this.host === host) this.handleHostMessage(message)
       })
-    })
-
-    return await new Promise<UtilityProcess>((resolve, reject) => {
-      let settled = false
-      const settle = (callback: () => void) => {
-        if (settled) {
-          return
-        }
-        settled = true
-        host.off('spawn', onSpawn)
-        host.off('exit', onExit)
-        callback()
-      }
-      const onSpawn = () => {
-        settle(() => {
-          this.host = host
-          this.restartAttempts = 0
-          resolve(host)
-        })
-      }
-      const onExit = (code: number) => {
-        settle(() => {
-          reject(new Error(`File watcher utility process exited before spawn: ${code}`))
-        })
-      }
-
-      host.once('spawn', onSpawn)
-      host.once('exit', onExit)
-    })
-  }
-
-  private resolveUtilityHostEntryPoint(appPath?: string): string {
-    const modulePath = fileURLToPath(import.meta.url)
-    const candidates = [
-      ...(appPath
-        ? [
-            path.join(appPath, 'out/main/fileWatcherUtilityHost.js'),
-            path.join(appPath, 'fileWatcherUtilityHost.js')
-          ]
-        : []),
-      path.resolve(path.dirname(modulePath), 'fileWatcherUtilityHost.js'),
-      path.resolve(path.dirname(modulePath), '../fileWatcherUtilityHost.js'),
-      path.resolve(process.cwd(), 'out/main/fileWatcherUtilityHost.js')
-    ]
-
-    return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0]
+      host.onExit((code) => {
+        if (this.host === host) this.handleHostExit(code)
+      })
+      host.onError((type, location) => {
+        if (this.host === host && !this.shuttingDown)
+          console.error('[FileWatcherClient] Helper process error:', {
+            hostKind: this.hostKind,
+            type,
+            location
+          })
+      })
+      return host
+    } finally {
+      if (this.pendingSpawn === startup) this.pendingSpawn = undefined
+    }
   }
 
   private handleHostMessage(message: unknown): void {
@@ -225,6 +208,7 @@ export class WatcherHostClient {
       this.handleRpcResponse(response)
       return
     }
+    if (this.shuttingDown) return
 
     const hostEvent = message as FileWatcherHostEvent
     if (hostEvent.type === 'file-watcher:event-batch') {
@@ -290,7 +274,7 @@ export class WatcherHostClient {
   }
 
   private scheduleRestart(): void {
-    if (this.restartTimer || this.restartAttempts >= MAX_RESTART_ATTEMPTS) {
+    if (this.shuttingDown || this.restartTimer || this.restartAttempts >= MAX_RESTART_ATTEMPTS) {
       return
     }
 

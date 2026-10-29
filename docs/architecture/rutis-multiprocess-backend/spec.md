@@ -1195,6 +1195,23 @@ coalesces per cell and cannot act after that cell stops. Preserve session-scoped
 retry, capability/journal identities and existing result/yield semantics. No optional native
 fallback, process object, raw metric list or generic PID/launch endpoint crosses the boundary.
 
+File watching keeps its existing content and Git helpers, pooling, fallback modes and restart
+policy. The Core composition owns Workspace and watcher clients; Main supplies an approved
+absolute helper entry and a cancelable command/event/lifecycle capability. The client has no
+Electron import, implicit launcher or path search. Register startup ownership before invoking
+the Native launcher so synchronous shutdown cannot miss it. Terminal shutdown fences new watches and
+restarts, cancels pending startup, ignores retired-host events and waits for actual helper exit.
+A shutdown RPC acknowledgement or kill request alone does not prove process retirement.
+
+Workspace retains path authorization, preview grants, file/Git operations and invalidation
+production with that Core composition. Main supplies acknowledged reveal/open and installed-app
+selection/launch operations; preserve path checks and the installed application allowlist. The
+native preview protocol queries the Workspace owner asynchronously and denies unavailable or
+revoked authorization. Main owns scheme registration and response streams, without a second
+preview registry. Register desktop work before Native dispatch. Stop admission and drain accepted
+desktop effects, revoke root/exact-file
+grants, and recheck authorization after asynchronous file preparation before returning a preview.
+
 AgentToolManager receives absolute system/profile temporary roots and an asynchronous image-size
 operation through its required desktop capability. Main owns app-path discovery and nativeImage;
 only width/height values leave the adapter. Preserve the existing allowed runtime directories,

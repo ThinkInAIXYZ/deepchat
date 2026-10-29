@@ -9,12 +9,28 @@ import path from 'path'
 import fs, { promises as fsp, Stats } from 'fs'
 import { Readable } from 'stream'
 import { is } from '@electron-toolkit/utils'
-import {
-  resolveWorkspacePreviewRequest,
-  WORKSPACE_PREVIEW_PROTOCOL
-} from '@/workspace/workspacePreviewProtocol'
+import { WORKSPACE_PREVIEW_PROTOCOL } from '@shared/types/workspace'
 import { registerMcpAppProtocol } from '@/mcp/apps/sandboxProtocol'
 import type { McpAppSandboxRegistry, McpAppDesktopPort } from '@/mcp/apps/sandboxRegistry'
+
+let workspacePreviewSchemeRegistered = false
+
+export function registerWorkspacePreviewSchemes(): void {
+  if (workspacePreviewSchemeRegistered) return
+  protocol.registerSchemesAsPrivileged([
+    {
+      scheme: WORKSPACE_PREVIEW_PROTOCOL,
+      privileges: {
+        standard: true,
+        secure: true,
+        supportFetchAPI: true,
+        corsEnabled: true,
+        stream: true
+      }
+    }
+  ])
+  workspacePreviewSchemeRegistered = true
+}
 
 const workspacePreviewMimeCache = new Map<string, string>()
 
@@ -147,7 +163,8 @@ const findDeepCdnResourcesDir = async (candidates: string[]): Promise<string> =>
 }
 
 export async function registerProtocols(
-  mcpAppSandboxRegistry: McpAppSandboxRegistry
+  mcpAppSandboxRegistry: McpAppSandboxRegistry,
+  resolveWorkspacePreview: (url: string) => Promise<string | null>
 ): Promise<McpAppDesktopPort> {
   logger.info('registerProtocols: Registering application protocols')
 
@@ -248,7 +265,7 @@ export async function registerProtocols(
   })
 
   protocol.handle(WORKSPACE_PREVIEW_PROTOCOL, async (request) => {
-    const fullPath = resolveWorkspacePreviewRequest(request.url)
+    const fullPath = await resolveWorkspacePreview(request.url).catch(() => null)
     if (!fullPath) {
       return new Response('Forbidden', {
         status: 403,

@@ -71,7 +71,10 @@ export async function startMainProcess(
       profile.proxySettings.getMode(),
       profile.proxySettings.getCustomUrl()
     )
-    const mcpAppDesktop = await registerProtocols(mcpAppSandboxRegistry)
+    const mcpAppDesktop = await registerProtocols(
+      mcpAppSandboxRegistry,
+      async (url) => (await mainProcess?.resolveWorkspacePreviewRequest(url)) ?? null
+    )
 
     mainProcess = await createMainProcessControl({
       ...profile,

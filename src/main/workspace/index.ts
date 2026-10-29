@@ -3,7 +3,6 @@ import fs from 'fs'
 import { execFile } from 'child_process'
 import { fileURLToPath } from 'url'
 import { promisify } from 'util'
-import { shell } from 'electron'
 import {
   createWatcherRequestId,
   type IFileWatcherService,
@@ -12,13 +11,13 @@ import {
   type WatchHandle
 } from '@/platform/fileWatcher'
 import { readDirectoryShallow } from './directoryReader'
-import { listFileOpenApps, openFileWithApp } from './openInApp'
 import { searchWorkspaceFiles } from './workspaceFileSearch'
 import {
   createWorkspacePreviewFileUrl,
   createWorkspacePreviewUrl,
   registerWorkspacePreviewFile,
   registerWorkspacePreviewRoot,
+  resolveWorkspacePreviewRequest,
   unregisterWorkspacePreviewFile,
   unregisterWorkspacePreviewRoot
 } from './workspacePreviewProtocol'
@@ -38,7 +37,7 @@ import type {
   WorkspaceWatchStatusEvent,
   WorkspaceLinkedFileResolution
 } from '@shared/types/workspace'
-import type { WorkspaceEventPublisher, WorkspaceFilePort } from './ports'
+import type { WorkspaceDesktopPort, WorkspaceEventPublisher, WorkspaceFilePort } from './ports'
 
 const execFileAsync = promisify(execFile)
 
@@ -100,7 +99,7 @@ const getInvalidationPriority = (kind: WorkspaceInvalidationKind): number => {
 
 /**
  * Workspace lifecycle contract:
- * - Main process owns workspace invalidation production.
+ * - The Workspace owner produces invalidations.
  * - Content watcher emits `fs`, git metadata watcher emits `git`.
  * - Renderer consumes invalidation events and decides whether to run a full or git-only refresh.
  * - `registerWorkspace` remains a pure security boundary; `watchWorkspace` controls watcher lifetime.
@@ -111,17 +110,22 @@ export class WorkspaceService implements WorkspaceServicePort {
   private readonly fileService: WorkspaceFilePort
   private readonly watcherService: IFileWatcherService
   private readonly watchRuntimes = new Map<string, WorkspaceWatchRuntime>()
+  private readonly desktopWork = new Set<Promise<unknown>>()
+  private stopped = false
+  private closing: Promise<void> | undefined
 
   constructor(
     fileService: WorkspaceFilePort,
     watcherService: IFileWatcherService,
-    private readonly events: WorkspaceEventPublisher
+    private readonly events: WorkspaceEventPublisher,
+    private readonly desktop: WorkspaceDesktopPort
   ) {
     this.fileService = fileService
     this.watcherService = watcherService
   }
 
   async registerWorkspace(workspacePath: string): Promise<void> {
+    if (this.stopped) throw new Error('Workspace is stopped.')
     const normalized = path.resolve(workspacePath)
     this.allowedPaths.add(normalized)
     registerWorkspacePreviewRoot(normalized)
@@ -190,15 +194,40 @@ export class WorkspaceService implements WorkspaceServicePort {
     await this.disposeRuntime(runtime)
   }
 
-  async destroy(): Promise<void> {
-    const runtimes = Array.from(this.watchRuntimes.values())
-    this.watchRuntimes.clear()
-    await Promise.allSettled(runtimes.map((runtime) => this.disposeRuntime(runtime)))
+  destroy(): Promise<void> {
+    if (this.closing) return this.closing
+    this.stopped = true
+    this.closing = (async () => {
+      const runtimes = Array.from(this.watchRuntimes.values())
+      this.watchRuntimes.clear()
+      await Promise.allSettled([
+        ...runtimes.map((runtime) => this.disposeRuntime(runtime)),
+        ...this.desktopWork
+      ])
+      for (const exactPath of this.allowedExactPaths) unregisterWorkspacePreviewFile(exactPath)
+      this.allowedExactPaths.clear()
+      for (const root of this.allowedPaths) unregisterWorkspacePreviewRoot(root)
+      this.allowedPaths.clear()
+    })()
+    return this.closing
+  }
 
-    for (const exactPath of this.allowedExactPaths) {
-      unregisterWorkspacePreviewFile(exactPath)
+  async resolvePreviewRequest(url: string): Promise<string | null> {
+    return this.stopped ? null : resolveWorkspacePreviewRequest(url)
+  }
+
+  private async useDesktop<T>(execute: () => Promise<T>): Promise<T> {
+    if (this.stopped) throw new Error('Workspace is stopped.')
+    const operation = Promise.resolve().then(() => {
+      if (this.stopped) throw new Error('Workspace is stopped.')
+      return execute()
+    })
+    this.desktopWork.add(operation)
+    try {
+      return await operation
+    } finally {
+      this.desktopWork.delete(operation)
     }
-    this.allowedExactPaths.clear()
   }
 
   private async createContentWatcher(workspacePath: string): Promise<WatchHandle> {
@@ -490,6 +519,7 @@ export class WorkspaceService implements WorkspaceServicePort {
    * Uses realpathSync when possible and falls back to resolved paths for deleted files.
    */
   private isPathAllowed(targetPath: string): boolean {
+    if (this.stopped) return false
     const normalizedTarget = this.normalizePathForAccess(targetPath)
     const targetWithSep = normalizedTarget.endsWith(path.sep)
       ? normalizedTarget
@@ -785,7 +815,7 @@ export class WorkspaceService implements WorkspaceServicePort {
     const normalizedPath = path.resolve(filePath)
 
     try {
-      shell.showItemInFolder(normalizedPath)
+      await this.useDesktop(() => this.desktop.revealFile(normalizedPath))
     } catch (error) {
       console.error(`[Workspace] Failed to reveal path: ${normalizedPath}`, error)
     }
@@ -798,7 +828,7 @@ export class WorkspaceService implements WorkspaceServicePort {
     }
 
     const normalizedPath = path.resolve(filePath)
-    const errorMessage = await shell.openPath(normalizedPath)
+    const errorMessage = await this.useDesktop(() => this.desktop.openFile(normalizedPath))
 
     if (errorMessage) {
       throw new Error(errorMessage)
@@ -811,7 +841,7 @@ export class WorkspaceService implements WorkspaceServicePort {
       return []
     }
 
-    return listFileOpenApps(path.resolve(filePath))
+    return await this.useDesktop(() => this.desktop.listFileOpenApps(path.resolve(filePath)))
   }
 
   async openFileWithApp(filePath: string, appId: string): Promise<void> {
@@ -821,7 +851,7 @@ export class WorkspaceService implements WorkspaceServicePort {
     }
 
     const normalizedPath = path.resolve(filePath)
-    await openFileWithApp(normalizedPath, appId)
+    await this.useDesktop(() => this.desktop.openFileWithApp(normalizedPath, appId))
   }
 
   async resolveMarkdownLinkedFile(
@@ -878,6 +908,7 @@ export class WorkspaceService implements WorkspaceServicePort {
         'origin'
       )
       const normalizedPreparedPath = this.normalizePathForAccess(preparedFile.path)
+      if (!this.isPathAllowed(filePath)) return null
       const workspaceRoot = this.getWorkspaceRootForPath(normalizedPreparedPath)
       const kind = this.resolvePreviewKind(preparedFile.mimeType, normalizedPreparedPath)
 

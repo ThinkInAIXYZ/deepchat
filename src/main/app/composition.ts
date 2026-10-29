@@ -1,7 +1,7 @@
 import { createCoreSettings } from '../../harness/core/settings'
 import { createCoreRuntime } from '../../harness/core/runtime'
-import { WorkspaceService } from '../workspace'
-import { FileWatcherService } from '../platform/fileWatcher'
+import { spawnFileWatcherHost } from './fileWatcherHost'
+import { listFileOpenApps, openFileWithApp } from '../workspace/openInApp'
 import { createCoreProviders } from '../../harness/core/providers'
 import { createCoreData } from '../../harness/core/data'
 import { createLivePort } from '../../harness/core/execution'
@@ -270,6 +270,7 @@ type DatabaseMaintenanceCommand =
 type DatabaseMaintenanceResult = SyncImportResult | DatabaseSecurityStatus | DatabaseRepairReport
 
 export interface MainProcessControl {
+  resolveWorkspacePreviewRequest(url: string): Promise<string | null>
   focusPrimaryWindow(): void
   handleDeepLink(url: string): Promise<void>
   clearPermissionCaches(): void
@@ -472,7 +473,6 @@ export async function createMainProcessControl(dependencies: {
   const databaseSecurityService = dependencies.databaseSecurityService
   const startupWorkloadCoordinator = dependencies.startupWorkloadCoordinator
   const mainDatabase = dependencies.database
-  const fileWatcherService = new FileWatcherService()
   let windowPresenter: IWindowPresenter
   let providerSettings: ProviderSettings
   let acpProviderAdminPort: AcpProviderAdminPort
@@ -987,7 +987,18 @@ export async function createMainProcessControl(dependencies: {
         : [path.join(app.getAppPath(), 'resources', 'skills')]
     },
     settings: coreSettings,
-    fileWatcherService,
+    workspaceDesktop: {
+      revealFile: async (filePath) => shell.showItemInFolder(filePath),
+      openFile: (filePath) => shell.openPath(filePath),
+      listFileOpenApps,
+      openFileWithApp
+    },
+    spawnFileWatcherHost: (kind, signal) =>
+      spawnFileWatcherHost(
+        path.join(app.getAppPath(), 'out/main/fileWatcherUtilityHost.js'),
+        kind,
+        signal
+      ),
     artifactSpool,
     resolveRouteDispatcher: () => routeDispatcher,
     startupWorkloadCoordinator,
@@ -1148,6 +1159,7 @@ export async function createMainProcessControl(dependencies: {
     knowledgeSettings,
     replicaEndpoint,
     backgroundExec,
+    fileWatcherService,
     ensureSkillServicesInitialized
   } = coreRuntime
   projectService = coreRuntime.projectService
@@ -1160,11 +1172,7 @@ export async function createMainProcessControl(dependencies: {
   syncHostService = coreRuntime.syncHostService
   knowledgeService = coreRuntime.knowledgeService
   mcpService = coreRuntime.mcpService
-  workspaceService = new WorkspaceService(fileService, fileWatcherService, {
-    publishInvalidated: (event) => publishDeepchatEvent('workspace.invalidated', event),
-    publishWatchStatusChanged: (event) =>
-      publishDeepchatEvent('workspace.watch.status.changed', event)
-  })
+  workspaceService = coreRuntime.workspaceService
   skillService = coreRuntime.skillService
   skillSyncService = coreRuntime.skillSyncService
   cliSkillService = coreRuntime.cliSkillService
@@ -2131,6 +2139,8 @@ export async function createMainProcessControl(dependencies: {
   }
 
   const control: MainProcessControl = {
+    resolveWorkspacePreviewRequest: (url) =>
+      coreRuntime.workspaceService.resolvePreviewRequest(url),
     focusPrimaryWindow: () => {
       const targetWindow = windowPresenter.getAllWindows()[0]
       if (!targetWindow || targetWindow.isDestroyed()) {

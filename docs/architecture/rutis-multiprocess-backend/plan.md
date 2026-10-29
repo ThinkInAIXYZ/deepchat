@@ -3087,6 +3087,52 @@ acceptance copies, disposable profiles and media are pruned; compact evidence an
 immutable baseline remain. G5 stays active and unpublished. The complete Kernel, writer, routes
 and application lifecycle still require default Core adoption and acceptance.
 
+### Workspace watcher ownership
+
+- [x] Compose Workspace and its existing pooled watcher clients in Core, with required typed
+      helper launch supplied by Main; remove implicit Electron startup/path discovery from clients.
+- [x] Fence pending startup, retired events and restart work during terminal shutdown; await actual
+      helper exit. Validate existing workspace/Skill consumers and matching application file/Git
+      events, then prune disposable acceptance artifacts. Default process placement is unchanged;
+      no performance capture or speed claim is selected for this boundary extraction.
+
+The default Main composition obtains Workspace and its pooled watcher clients from the existing
+Core runtime. Main supplies an absolute helper entry and a plain cancelable command/event/lifecycle
+port. Implicit Electron imports and helper path discovery are removed from the client. Canceled
+startup and terminal shutdown await actual process exit; stale-host callbacks cannot mutate a new
+generation. Pool teardown drains both helpers before reporting either failure.
+
+Workspace's four native file-open operations are acknowledged ports. Preview authorization stays
+with the same business owner; scheme registration and response streams stay in Main. The protocol
+queries the owner's asynchronous resolver and denies unavailable authorization. Shutdown fences new
+work, waits for accepted desktop operations and revokes preview roots/exact files. File preparation
+rechecks authorization after its await, preventing a late preview from restoring revoked access.
+
+Acceptance passes **235 checks across 12 affected files**, including eight durable additions for
+helper startup/exit/restart, aggregate shutdown, desktop-effect drain and preview revocation.
+Existing Workspace, installed-app launch, Skill, migration and composition coverage remains in use.
+The obsolete concatenated source-order assertion is reduced to the actual Core startup admission
+barrier. Two fixture types are corrected without weakening their contracts. New-test types, app
+Node/web types, normal build, format/check, lint and i18n pass. The build-generated Provider catalog
+remains separate. Initial failing fixture/guard logs are retained.
+
+Startup and desktop work register ownership before invoking Native effects. Synchronous shutdown
+during fork cannot escape the drain, and queued effects cannot start after stop. The same accepted
+contract selection and five candidate app cases pass after this lifecycle correction; the unchanged
+baseline is reused.
+
+Immutable `f511c078b` and the candidate each pass the same **five application cases**: Workspace
+read/search/Git routes, actual file/Git watcher invalidations with graceful shutdown, HTML module
+preview isolation, preload navigation isolation and unauthorized-document IPC rejection. No new
+application case is added; the watcher case now requires graceful close. A Node import probe
+blocks Electron/native desktop dependencies across 928 source files; it proves module portability,
+not actual complete Kernel execution. Evidence is `.deepchat/rutis-g5-workspace-acceptance/`.
+
+No new plugin, process, dependency or fallback is introduced. Disposable probe bundles are removed;
+compact receipts, raw outcomes and the one needed baseline remain. G5 is active and unpublished:
+actual SDK Kernel assembly, callback/event transport, default routes/writer/lifecycle adoption and
+native package acceptance remain required before publication. G6-G12 retain their full scope.
+
 ## G6. Extract the complete Memory capability
 
 - [ ] Move the existing facade and internal retrieval/extraction/reflection/persona/directive/

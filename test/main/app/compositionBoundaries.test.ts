@@ -182,25 +182,10 @@ describe('session boundary composition', () => {
     expect(compositionSource).not.toContain('void startupWorkloadCoordinator.scheduleTask(')
   })
 
-  it('finishes migrations and Skill initialization before the initial window', async () => {
+  it('awaits Core startup before admitting windows and background work', async () => {
     const compositionSource = await readComposition()
-    const startupStart = compositionSource.lastIndexOf('dependencies.bindControl(control)')
-    const startupSource = compositionSource.slice(startupStart)
-
-    expect(startupSource.indexOf('await runAcpRegistryMigration()')).toBeLessThan(
-      startupSource.indexOf('init(dependencies.startupRunId)')
-    )
-    expect(
-      startupSource.indexOf('await runBuiltinMcpAllowlistCompatibilityMigration(')
-    ).toBeLessThan(startupSource.indexOf('await initializeSkills()'))
-    expect(startupSource.indexOf('await initializeSkills()')).toBeLessThan(
-      startupSource.indexOf("createAppWindow({ initialRoute: 'chat' })")
-    )
-    expect(
-      startupSource.indexOf('await agentSettings.retryPendingDeletedAgentSkillCleanup()')
-    ).toBeLessThan(startupSource.indexOf("createAppWindow({ initialRoute: 'chat' })"))
-    expect(startupSource.indexOf("createAppWindow({ initialRoute: 'chat' })")).toBeLessThan(
-      startupSource.indexOf('init(dependencies.startupRunId)')
+    expect(compositionSource).toMatch(
+      /await coreRuntime\.initializeStartup\(\)[\s\S]*createAppWindow\(\{ initialRoute: 'chat' \}\)[\s\S]*coreRuntime\.startStartupTasks\(\)/
     )
   })
 

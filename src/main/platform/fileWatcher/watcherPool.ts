@@ -1,5 +1,5 @@
 import path from 'path'
-import { WatcherHostClient } from './watcherHostClient'
+import type { WatcherHostClient } from './watcherHostClient'
 import type {
   WatchBatchListener,
   WatcherEvent,
@@ -9,6 +9,11 @@ import type {
   WatcherStatus,
   WatchStatusListener
 } from './watcherTypes'
+
+type WatcherClient = Pick<
+  WatcherHostClient,
+  'watch' | 'unwatch' | 'shutdown' | 'onBatch' | 'onStatus'
+>
 
 type WatcherPoolEntry = {
   key: string
@@ -85,12 +90,12 @@ export class WatcherPool {
   private sequence = 0
   private readonly entriesByKey = new Map<string, WatcherPoolEntry>()
   private readonly entriesByWatchId = new Map<string, WatcherPoolEntry>()
-  private readonly contentClient: WatcherHostClient
-  private readonly gitClient: WatcherHostClient
+  private readonly contentClient: WatcherClient
+  private readonly gitClient: WatcherClient
 
-  constructor(clients?: { content?: WatcherHostClient; git?: WatcherHostClient }) {
-    this.contentClient = clients?.content ?? new WatcherHostClient('content')
-    this.gitClient = clients?.git ?? new WatcherHostClient('git')
+  constructor(clients: { content: WatcherClient; git: WatcherClient }) {
+    this.contentClient = clients.content
+    this.gitClient = clients.git
     this.contentClient.onBatch((batch) => this.handleBatch(batch))
     this.gitClient.onBatch((batch) => this.handleBatch(batch))
     this.contentClient.onStatus((status) => this.handleStatus(status))
@@ -152,7 +157,11 @@ export class WatcherPool {
   async destroy(): Promise<void> {
     this.entriesByKey.clear()
     this.entriesByWatchId.clear()
-    await Promise.all([this.contentClient.shutdown(), this.gitClient.shutdown()])
+    const results = await Promise.allSettled([
+      this.contentClient.shutdown(),
+      this.gitClient.shutdown()
+    ])
+    for (const result of results) if (result.status === 'rejected') throw result.reason
   }
 
   private async unwatch(
@@ -201,7 +210,7 @@ export class WatcherPool {
     }
   }
 
-  private getClient(request: WatchRequest): WatcherHostClient {
+  private getClient(request: WatchRequest): WatcherClient {
     return request.hostKind === 'git' ? this.gitClient : this.contentClient
   }
 

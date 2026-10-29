@@ -1,6 +1,6 @@
 import { app, dialog } from 'electron'
 import { StartupWorkloadCoordinator } from './app/startupWorkloadCoordinator'
-import { registerWorkspacePreviewSchemes } from './workspace/workspacePreviewProtocol'
+import { registerWorkspacePreviewSchemes } from './app/protocols'
 import { registerMcpAppScheme } from './mcp/apps/sandboxProtocol'
 import {
   findDeepLinkArg,

@@ -151,4 +151,5 @@ test('workspace watcher emits file and git invalidations through the typed bridg
       .catch(() => undefined)
     rmSync(workspacePath, { recursive: true, force: true })
   }
+  expect(await app.close()).toBe('graceful')
 })

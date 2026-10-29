@@ -1,9 +1,10 @@
 import { createHash } from 'crypto'
 import fs from 'fs'
 import path from 'path'
-import { protocol } from 'electron'
 
-export const WORKSPACE_PREVIEW_PROTOCOL = 'workspace-preview'
+import { WORKSPACE_PREVIEW_PROTOCOL } from '@shared/types/workspace'
+
+export { WORKSPACE_PREVIEW_PROTOCOL }
 
 /**
  * Bidirectional map for managing path-to-id mappings
@@ -41,8 +42,6 @@ class BidirectionalMap {
 
 const workspaceRegistry = new BidirectionalMap()
 const fileRegistry = new BidirectionalMap()
-
-let schemesRegistered = false
 
 function normalizePathForAccess(targetPath: string): string {
   try {
@@ -99,27 +98,6 @@ function buildPreviewUrl(id: string, ...pathComponents: string[]): string {
     .join('/')
 
   return `${WORKSPACE_PREVIEW_PROTOCOL}://${id}/${encodedPath}`
-}
-
-export function registerWorkspacePreviewSchemes(): void {
-  if (schemesRegistered) {
-    return
-  }
-
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: WORKSPACE_PREVIEW_PROTOCOL,
-      privileges: {
-        standard: true,
-        secure: true,
-        supportFetchAPI: true,
-        corsEnabled: true,
-        stream: true
-      }
-    }
-  ])
-
-  schemesRegistered = true
 }
 
 export function registerWorkspacePreviewRoot(workspacePath: string): void {
@@ -227,5 +205,4 @@ export function resolveWorkspacePreviewRequest(requestUrl: string): string | nul
 export function resetWorkspacePreviewProtocolState(): void {
   workspaceRegistry.clear()
   fileRegistry.clear()
-  schemesRegistered = false
 }

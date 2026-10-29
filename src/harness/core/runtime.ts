@@ -24,7 +24,13 @@ import { type DatabaseRequestGate } from '@/app/databaseRequestGate'
 import { SyncSettings } from '@/sync/settings'
 import { type SemanticNotificationPublisher } from '@/notifications'
 import { KnowledgeService } from '@/knowledge'
-import type { IFileWatcherService } from '@/platform/fileWatcher'
+import { FileWatcherService, WatcherPool } from '@/platform/fileWatcher'
+import {
+  WatcherHostClient,
+  type SpawnFileWatcherHost
+} from '@/platform/fileWatcher/watcherHostClient'
+import { WorkspaceService } from '@/workspace'
+import type { WorkspaceDesktopPort } from '@/workspace/ports'
 import { ToolService } from '@/tool'
 import { KnowledgeSettings } from '@/knowledge/settings'
 import { emitAgentCatalogChanged } from '@/app/agentEvents'
@@ -157,7 +163,8 @@ export async function createCoreRuntime(options: {
     | 'commandShellService'
     | 'ocrSettings'
   >
-  fileWatcherService: IFileWatcherService
+  spawnFileWatcherHost: SpawnFileWatcherHost
+  workspaceDesktop: WorkspaceDesktopPort
   artifactSpool: ArtifactSpool
   approvalPresentation: CliApprovalPresentationPort
   ocrCacheKeyProvider: OcrCacheKeyProvider
@@ -391,7 +398,12 @@ export async function createCoreRuntime(options: {
   let pluginInitializationPromise: Promise<void> | null = null
   let skillInitializationPromise: Promise<void> | null = null
   let skillSyncScanPromise: Promise<void> | null = null
-  const fileWatcherService = options.fileWatcherService
+  const fileWatcherService = new FileWatcherService(
+    new WatcherPool({
+      content: new WatcherHostClient('content', options.spawnFileWatcherHost),
+      git: new WatcherHostClient('git', options.spawnFileWatcherHost)
+    })
+  )
   const projectService = new ProjectService(
     projectDatabase,
     sessionData.database,
@@ -431,6 +443,16 @@ export async function createCoreRuntime(options: {
     settings: dependencies.settingsStore
   })
   const fileService = new FileService(dependencies.settingsStore, bootstrap.profileDirectory)
+  const workspaceService = new WorkspaceService(
+    fileService,
+    fileWatcherService,
+    {
+      publishInvalidated: (event) => publishDeepchatEvent('workspace.invalidated', event),
+      publishWatchStatusChanged: (event) =>
+        publishDeepchatEvent('workspace.watch.status.changed', event)
+    },
+    options.workspaceDesktop
+  )
   const syncSettings = new SyncSettings(
     dependencies.settingsStore,
     dependencies.secretStore,
@@ -1842,6 +1864,8 @@ export async function createCoreRuntime(options: {
     projectService,
     exporter,
     fileService,
+    fileWatcherService,
+    workspaceService,
     syncSettings,
     syncService,
     syncPeerService,

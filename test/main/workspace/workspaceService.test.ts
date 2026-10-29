@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { shell } from 'electron'
+import { listFileOpenApps, openFileWithApp } from '../../../src/main/workspace/openInApp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
 import { createDeepchatEventEnvelope } from '../../../src/shared/contracts/events'
@@ -77,7 +78,7 @@ function normalizeForAccess(value: string): string {
 
 type FakeWatcher = {
   request: WatchRequest
-  close: ReturnType<typeof vi.fn>
+  close: ReturnType<typeof vi.fn<() => Promise<void>>>
   emit(events: WatcherEvent[], mode?: WatchMode): void
   emitStatus(status: Partial<WatcherStatus>): void
 }
@@ -88,7 +89,7 @@ function createFakeWatcherService() {
     watch: vi.fn(async (request, onBatch: WatchBatchListener, onStatus?: WatchStatusListener) => {
       const watcher: FakeWatcher = {
         request,
-        close: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
         emit(events, mode = 'native') {
           onBatch({
             watchId: request.id,
@@ -137,18 +138,28 @@ function createWorkspaceService(
   files: WorkspaceFilePort,
   watcherService: IFileWatcherService = unusedWatcherService
 ): WorkspaceService {
-  return new WorkspaceService(files, watcherService, {
-    publishInvalidated: (event) =>
-      sendToAllWindowsMock(
-        DEEPCHAT_EVENT_CHANNEL,
-        createDeepchatEventEnvelope('workspace.invalidated', event)
-      ),
-    publishWatchStatusChanged: (event) =>
-      sendToAllWindowsMock(
-        DEEPCHAT_EVENT_CHANNEL,
-        createDeepchatEventEnvelope('workspace.watch.status.changed', event)
-      )
-  })
+  return new WorkspaceService(
+    files,
+    watcherService,
+    {
+      publishInvalidated: (event) =>
+        sendToAllWindowsMock(
+          DEEPCHAT_EVENT_CHANNEL,
+          createDeepchatEventEnvelope('workspace.invalidated', event)
+        ),
+      publishWatchStatusChanged: (event) =>
+        sendToAllWindowsMock(
+          DEEPCHAT_EVENT_CHANNEL,
+          createDeepchatEventEnvelope('workspace.watch.status.changed', event)
+        )
+    },
+    {
+      revealFile: async (filePath) => shell.showItemInFolder(filePath),
+      openFile: (filePath) => shell.openPath(filePath),
+      listFileOpenApps,
+      openFileWithApp
+    }
+  )
 }
 
 beforeEach(() => {
@@ -332,6 +343,33 @@ describe('WorkspaceService watchers', () => {
     expect(gitWatcher.close).toHaveBeenCalledTimes(1)
   })
 
+  it('revokes preview access and drains accepted desktop work before shutdown completes', async () => {
+    const filePath = path.join(workspacePath, 'example.html')
+    fs.writeFileSync(filePath, '<p>example</p>')
+    await presenter.registerWorkspace(workspacePath)
+    const url = createWorkspacePreviewUrl(workspacePath, filePath)!
+    expect(await presenter.resolvePreviewRequest(url)).toBe(normalizeForAccess(filePath))
+    const opened = Promise.withResolvers<string>()
+    vi.mocked(shell.openPath).mockReturnValueOnce(opened.promise)
+    const opening = presenter.openFile(filePath)
+    await Promise.resolve()
+    const queued = Promise.allSettled([presenter.openFile(filePath)])
+    let closed = false
+    const closing = presenter.destroy().then(() => {
+      closed = true
+    })
+    await Promise.resolve()
+    expect(closed).toBe(false)
+    expect((await queued)[0].status).toBe('rejected')
+    expect(shell.openPath).toHaveBeenCalledOnce()
+    expect(await presenter.resolvePreviewRequest(url)).toBeNull()
+    await expect(presenter.registerWorkspace(workspacePath)).rejects.toThrow('stopped')
+    opened.resolve('')
+    await opening
+    await closing
+    expect(resolveWorkspacePreviewRequest(url)).toBeNull()
+  })
+
   it('rejects when opening an authorized path returns an error message', async () => {
     const filePath = path.join(workspacePath, 'example.txt')
     fs.writeFileSync(filePath, '')
@@ -352,6 +390,33 @@ describe('WorkspaceService readFilePreview', () => {
 
   afterEach(() => {
     fs.rmSync(workspacePath, { recursive: true, force: true })
+  })
+
+  it('does not restore preview access after revocation during file preparation', async () => {
+    const filePath = path.join(workspacePath, 'late.html')
+    fs.writeFileSync(filePath, '<p>late</p>')
+    const prepared =
+      Promise.withResolvers<Awaited<ReturnType<WorkspaceFilePort['prepareFileCompletely']>>>()
+    const presenter = createWorkspaceService({
+      prepareFileCompletely: async () => await prepared.promise
+    })
+    await presenter.registerWorkspace(workspacePath)
+    const reading = presenter.readFilePreview(filePath)
+    await presenter.unregisterWorkspace(workspacePath)
+    prepared.resolve({
+      path: filePath,
+      name: 'late.html',
+      mimeType: 'text/html',
+      content: '<p>late</p>',
+      metadata: {
+        fileName: 'late.html',
+        fileSize: 11,
+        fileCreated: new Date(),
+        fileModified: new Date()
+      }
+    })
+    await expect(reading).resolves.toBeNull()
+    await presenter.destroy()
   })
 
   it('classifies html, pdf, and svg files with workspace preview URLs', async () => {
