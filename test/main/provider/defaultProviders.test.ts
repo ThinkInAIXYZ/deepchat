@@ -321,6 +321,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes llm.buzz as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'llmbuzz',
+        name: 'llm.buzz',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.llm.buzz/api/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://llm.buzz/',
+          apiKey: 'https://app.llm.buzz',
+          docs: 'https://llm.buzz',
+          models: 'https://api.llm.buzz/api/v1/models',
+          defaultBaseUrl: 'https://api.llm.buzz/api/v1'
+        })
+      })
+    )
+  })
+
   it('includes apimodels.app as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
