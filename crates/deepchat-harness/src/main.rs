@@ -80,6 +80,18 @@ enum Request {
         #[serde(skip)]
         data: Option<Vec<u8>>,
     },
+    #[serde(skip)]
+    CoreMemoryStart {
+        config: Json,
+        reply: memory::Reply,
+    },
+    #[serde(skip)]
+    CoreMemoryCall {
+        id: u64,
+        command: Json,
+        data: Option<Vec<u8>>,
+        reply: memory::Reply,
+    },
     CoreStart {
         config: Json,
     },
@@ -425,6 +437,7 @@ async fn mount(
         "id": "admission", "name": plugin_url.as_str(), "config": { "capacity": capacity, "maxPending": max_pending }
     }] }]))?;
     layers.set("harness", patches).await?;
+    let memory_link = native.memory.clone();
     root.plugin(core::Bootstrap::new(
         core_runtime,
         core_incoming,
@@ -434,6 +447,7 @@ async fn mount(
         native,
     ));
     root.plugin(memory::Bootstrap::new(
+        memory_link,
         memory_runtime,
         memory_incoming,
         outgoing,
@@ -456,7 +470,8 @@ async fn main() -> Result<()> {
     let (memory_requests, memory_incoming) = mpsc::channel(32);
     let (core_requests, core_incoming) = mpsc::channel(8);
     let (outgoing, responses) = Output::channel();
-    let native = Arc::new(core::Native::new(outgoing.clone()));
+    let memory_link = Arc::new(memory::Link::new(memory_requests.clone()));
+    let native = Arc::new(core::Native::new(outgoing.clone(), memory_link.clone()));
     let reader_native = native.clone();
     let (reader_end, mut reader) = oneshot::channel();
     // A detached blocking reader cannot hold Tokio shutdown open after runtime loss.

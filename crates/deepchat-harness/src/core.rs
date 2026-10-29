@@ -19,14 +19,16 @@ pub struct Native {
     state: Arc<Mutex<NativeState>>,
     outgoing: Output,
     admission: Mutex<Option<(Arc<dyn HostDispatch>, Json)>>,
+    pub(super) memory: Arc<memory::Link>,
 }
 
 impl Native {
-    pub fn new(outgoing: Output) -> Self {
+    pub fn new(outgoing: Output, memory: Arc<memory::Link>) -> Self {
         Self {
             state: Arc::default(),
             outgoing,
             admission: Mutex::new(None),
+            memory,
         }
     }
 
@@ -75,6 +77,114 @@ impl Native {
                 }
             }
         }
+        self.memory.retire_core().await;
+    }
+
+    fn memory(&self, args: Value) -> rutis_bridge::session::Reply {
+        let row = caller_row()
+            .filter(|row| row.id() == "core")
+            .ok_or_else(|| BridgeError::Value("Core Memory caller is not authorized".into()))?;
+        let Value::List(mut fields) = args else {
+            return Err(BridgeError::Value("Invalid Core Memory arguments".into()));
+        };
+        if fields.len() != 5 {
+            return Err(BridgeError::Value("Invalid Core Memory arguments".into()));
+        }
+        let data = match fields.pop().unwrap() {
+            Value::Undefined | Value::Data(Json::Null) => None,
+            Value::Bytes(bytes) if bytes.len() <= MAX_MEMORY_CHUNK => Some(bytes),
+            _ => return Err(BridgeError::Value("Invalid Core Memory bytes".into())),
+        };
+        let metadata = Value::List(fields).json()?;
+        let fields = metadata.as_array().unwrap();
+        let generation = fields[0].as_str().unwrap_or("");
+        let id = fields[1]
+            .as_u64()
+            .filter(|id| *id <= 9_007_199_254_740_991)
+            .ok_or_else(|| BridgeError::Value("Invalid Core Memory sequence".into()))?;
+        let method = fields[2].as_str().unwrap_or("");
+        let input = fields[3].clone();
+        let control = method != "call"
+            || matches!(
+                input["method"].as_str(),
+                Some("close" | "abort" | "reset" | "quarantine")
+            );
+        let limit = if control { MAX_FRAME } else { MAX_MEMORY_FRAME };
+        if serde_json::to_vec(&metadata)
+            .map_err(|e| BridgeError::Value(e.to_string()))?
+            .len()
+            + data.as_ref().map_or(0, Vec::len)
+            > limit
+        {
+            return Err(BridgeError::Value(
+                "Core Memory frame limit exceeded".into(),
+            ));
+        }
+        {
+            let mut state = self.state.lock().unwrap();
+            if !state.active
+                || generation != state.generation
+                || state.caller.as_ref().is_some_and(|key| key != row.key())
+            {
+                return Err(BridgeError::Value(
+                    "Core Memory generation is unavailable".into(),
+                ));
+            }
+            state.caller = Some(row.key().to_owned());
+        }
+        let link = self.memory.clone();
+        if method == "retire" && id == 0 && input.is_null() && data.is_none() {
+            return Ok(Value::future(async move {
+                link.retire_core().await;
+                Ok(Json::Null.into())
+            }));
+        }
+        let result = match method {
+            "start" if id == 0 && data.is_none() => link.start(input),
+            "call" if id > 0 => link.call(id, input, data),
+            _ => {
+                return Err(BridgeError::Value(
+                    "Unsupported Core Memory operation".into(),
+                ))
+            }
+        };
+        Ok(Value::future(async move {
+            let outcome = match result {
+                Ok(receiver) => receiver.await.unwrap_or_else(|_| {
+                    Err(error(
+                        "MemoryVectorRuntimeUnavailableError",
+                        "Memory generation ended before its reply",
+                    ))
+                }),
+                Err(error) => Err(error),
+            };
+            let outcome = outcome.and_then(|value| {
+                let frame = json!({ "type": "memoryReply", "id": id, "value": value });
+                if serde_json::to_vec(&frame).map_or(true, |bytes| bytes.len() > limit) {
+                    let failure = error("MemoryVectorProtocolError", "Memory reply limit exceeded");
+                    link.failed(failure.clone());
+                    Err(failure)
+                } else {
+                    Ok(value)
+                }
+            });
+            if id > 0 {
+                link.complete(id);
+            }
+            outcome
+                .map(Value::from)
+                .map_err(|error| BridgeError::Remote {
+                    name: error["name"]
+                        .as_str()
+                        .unwrap_or("MemoryVectorTransportError")
+                        .to_owned(),
+                    message: error["message"]
+                        .as_str()
+                        .unwrap_or("Memory request failed")
+                        .to_owned(),
+                    graph: None,
+                })
+        }))
     }
 
     fn admission(&self, args: Value) -> rutis_bridge::session::Reply {
@@ -192,12 +302,15 @@ impl Native {
 
 impl HostDispatch for Native {
     fn methods(&self) -> Option<Json> {
-        Some(json!({ "invoke": "async", "admission": "async" }))
+        Some(json!({ "invoke": "async", "admission": "async", "memory": "async" }))
     }
 
     fn invoke(&self, method: &str, args: Value) -> rutis_bridge::session::Reply {
         if method == "admission" {
             return self.admission(args);
+        }
+        if method == "memory" {
+            return self.memory(args);
         }
         if method != "invoke" {
             return Err(BridgeError::Value("Unknown Core Native method".into()));

@@ -1,4 +1,6 @@
 use super::*;
+mod link;
+pub use link::{Link, Reply};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 const MAX_MEMORY_CALLS: usize = 32;
@@ -161,7 +163,15 @@ fn stage(
     Ok(Staged::Call(calls))
 }
 
+#[derive(Serialize, Deserialize)]
+struct Stopped(String, String);
+impl Event for Stopped {
+    const NAME: &'static str = "deepchat/memory/stopped";
+    type Value = ();
+}
+
 pub struct Bootstrap {
+    link: Arc<Link>,
     runtime: Mutex<Option<LocalRuntime>>,
     incoming: Mutex<Option<mpsc::Receiver<Request>>>,
     outgoing: Output,
@@ -171,6 +181,7 @@ pub struct Bootstrap {
 
 impl Bootstrap {
     pub fn new(
+        link: Arc<Link>,
         runtime: LocalRuntime,
         incoming: mpsc::Receiver<Request>,
         outgoing: Output,
@@ -179,6 +190,7 @@ impl Bootstrap {
     ) -> Self {
         plugin = plugin.join("memory-vector.mjs").expect("Local plugin URL");
         Self {
+            link,
             runtime: Mutex::new(Some(runtime)),
             incoming: Mutex::new(Some(incoming)),
             outgoing,
@@ -201,10 +213,11 @@ impl Plugin for Bootstrap {
             let mut incoming = self.incoming.lock().unwrap().take().ok_or_else(|| {
                 CordisError::ServiceNotFound("Memory generation cannot restart".into())
             })?;
-            let config = tokio::select! {
+            let (config, initial) = tokio::select! {
                 _ = ctx.cancelled() => return Ok(Effect::Done),
                 request = incoming.recv() => match request {
-                    Some(Request::MemoryStart { config }) => config,
+                    Some(Request::MemoryStart { config }) => (config, None),
+                    Some(Request::CoreMemoryStart { config, reply }) => (config, Some(reply)),
                     _ => return Err(CordisError::ServiceNotFound("Memory handshake required".into())),
                 }
             };
@@ -217,12 +230,32 @@ impl Plugin for Bootstrap {
                 .as_str()
                 .is_some_and(|path| std::path::Path::new(path).is_absolute())
             {
+                let failure = error("MemoryVectorProtocolError", "Invalid memory directory");
+                self.link.failed(failure.clone());
+                if let Some(reply) = initial {
+                    let _ = reply.send(Err(failure));
+                }
                 return Err(CordisError::ServiceNotFound(
                     "Invalid memory directory".into(),
                 ));
             }
+            let core = initial.is_some();
+            if !self.link.bind(config.clone(), core, processes.clone()) {
+                if let Some(reply) = initial {
+                    let _ = reply.send(Err(error(
+                        "MemoryVectorRuntimeUnavailableError",
+                        "Core Memory startup was retired",
+                    )));
+                }
+                return Ok(Effect::Done);
+            }
             ctx.plugin(runtime);
+            let initial = Arc::new(Mutex::new(initial));
             ctx.plugin(Gateway {
+                link: self.link.clone(),
+                initial: initial.clone(),
+                core,
+                config: config.clone(),
                 injects: [host_key("harnessMemoryVector")],
                 incoming: Mutex::new(Some(incoming)),
                 outgoing: self.outgoing.clone(),
@@ -231,11 +264,21 @@ impl Plugin for Bootstrap {
                 "id": "memory-vector", "name": format!("memory:{}", self.plugin), "config": config
             }] }]))
             .map_err(|e| CordisError::ServiceNotFound(e.to_string()))?;
-            if let Err(error) = self.layers.set("memory", memory).await {
+            if let Err(cause) = self.layers.set("memory", memory).await {
                 processes.kill();
                 processes.ended().await;
-                let _ = self.outgoing.send(json!({ "type": "memoryStopped", "message": "Memory vector plugin failed to load" })).await;
-                eprintln!("Memory vector plugin failed: {error}");
+                let failure = error(
+                    "MemoryVectorRuntimeUnavailableError",
+                    "Memory vector plugin failed to load",
+                );
+                self.link.failed(failure.clone());
+                if let Some(reply) = initial.lock().unwrap().take() {
+                    let _ = reply.send(Err(failure));
+                }
+                if !core {
+                    let _ = self.outgoing.send(json!({ "type": "memoryStopped", "message": "Memory vector plugin failed to load" })).await;
+                }
+                eprintln!("Memory vector plugin failed: {cause}");
                 return Ok(Effect::Done);
             }
             tokio::select! {
@@ -243,7 +286,13 @@ impl Plugin for Bootstrap {
                 _ = runtime_loss(handle) => {
                     processes.kill();
                     processes.ended().await;
-                    let _ = self.outgoing.send(json!({ "type": "memoryStopped", "message": "Memory vector runtime stopped; restart DeepChat to restore vector recall" })).await;
+                    self.link.failed(error("MemoryVectorRuntimeUnavailableError", "Memory vector runtime stopped; restart DeepChat to restore vector recall"));
+                    if core {
+                        let generation = config["generation"].as_str().unwrap_or("").to_owned();
+                        let _ = ctx.events().emit(ctx, &EventKey::<Stopped>::of(), Arc::new(Stopped(generation, "Memory vector runtime stopped".into())));
+                    } else {
+                        let _ = self.outgoing.send(json!({ "type": "memoryStopped", "message": "Memory vector runtime stopped; restart DeepChat to restore vector recall" })).await;
+                    }
                 }
             }
             Ok(Effect::Done)
@@ -252,6 +301,10 @@ impl Plugin for Bootstrap {
 }
 
 struct Gateway {
+    link: Arc<Link>,
+    initial: Arc<Mutex<Option<Reply>>>,
+    core: bool,
+    config: Json,
     injects: [TypeKey; 1],
     incoming: Mutex<Option<mpsc::Receiver<Request>>>,
     outgoing: Output,
@@ -270,24 +323,46 @@ impl Plugin for Gateway {
     ) -> BoxFuture<'a, std::result::Result<Effect, CordisError>> {
         Box::pin(async move {
             let service = ctx.require_as::<dyn HostDispatch>(self.injects[0].clone())?;
-            let identity = invoke(
-                service
-                    .invoke("identity", Value::List(vec![]))
-                    .map_err(|e| CordisError::PluginFailed(Box::new(e)))?,
-            )
-            .await
-            .map_err(|e| CordisError::ServiceNotFound(e.to_string()))?;
-            let _ = self
-                .outgoing
-                .send(json!({ "type": "memoryReady", "protocol": 1, "runtime": identity }))
-                .await;
+            let identity = match service.invoke("identity", Value::List(vec![])) {
+                Ok(value) => invoke(value).await,
+                Err(cause) => Err(bridge_error(cause)),
+            };
+            let identity = match identity {
+                Ok(identity) => identity,
+                Err(failure) => {
+                    self.link.failed(failure.clone());
+                    if let Some(reply) = self.initial.lock().unwrap().take() {
+                        let _ = reply.send(Err(failure));
+                    }
+                    return Err(CordisError::ServiceNotFound(
+                        "Memory identity unavailable".into(),
+                    ));
+                }
+            };
+            self.link.ready(identity.clone());
+            if self.core {
+                if let Some(reply) = self.initial.lock().unwrap().take() {
+                    let _ = reply.send(Ok(identity.clone()));
+                }
+            } else {
+                let _ = self
+                    .outgoing
+                    .send(json!({ "type": "memoryReady", "protocol": 1, "runtime": identity }))
+                    .await;
+            }
             let mut incoming = self.incoming.lock().unwrap().take().ok_or_else(|| {
                 CordisError::ServiceNotFound("Memory generation cannot restart".into())
             })?;
             type Call = Pin<
                 Box<
                     dyn Future<
-                            Output = (u64, bool, Option<String>, std::result::Result<Json, Json>),
+                            Output = (
+                                u64,
+                                bool,
+                                Option<String>,
+                                Option<Reply>,
+                                std::result::Result<Json, Json>,
+                            ),
                         > + Send,
                 >,
             >;
@@ -303,16 +378,36 @@ impl Plugin for Gateway {
                 tokio::select! {
                     biased;
                     _ = ctx.cancelled() => break,
-                    Some((id, control, closed, result)) = calls.next(), if !calls.is_empty() => {
+                    Some((id, control, closed, reply, result)) = calls.next(), if !calls.is_empty() => {
                         pending.remove(&id);
                         if result.is_ok() && upload.as_ref().is_some_and(|u: &Upload| u.commit.is_none() && closed.as_ref() == Some(&u.resource)) { upload = None; }
                         if upload.as_ref().is_some_and(|u: &Upload| u.commit == Some(id)) { upload = None; }
-                        let mut reply = response(id, result);
-                        reply["type"] = json!("memoryReply");
-                        if self.outgoing.send_frame(reply, control).await.is_err() { break; }
+                        if let Some(reply) = reply { let _ = reply.send(result); }
+                        else {
+                            let mut frame = response(id, result);
+                            frame["type"] = json!("memoryReply");
+                            if self.outgoing.send_frame(frame, control).await.is_err() { break; }
+                        }
                     }
                     request = incoming.recv() => {
-                        let Some(Request::MemoryCall { id, command, data }) = request else { break; };
+                        let (id, command, data, reply) = match request {
+                            Some(Request::MemoryCall { id, command, data }) if !self.core => (id, command, data, None),
+                            Some(Request::CoreMemoryCall { id, command, data, reply }) if self.core => (id, command, data, Some(reply)),
+                            Some(Request::CoreMemoryStart { config, reply }) => {
+                                let _ = reply.send(if self.core && config == self.config { Ok(identity.clone()) } else { Err(error("MemoryVectorOwnershipUnavailableError", "Memory generation already has an owner")) });
+                                continue;
+                            },
+                            Some(Request::MemoryStart { .. } | Request::MemoryCall { .. }) if self.core => {
+                                let _ = self.outgoing.send(json!({ "type": "memoryStopped", "message": "Memory generation is owned by Core" })).await;
+                                continue;
+                            },
+                            Some(Request::CoreMemoryCall { reply, .. }) => {
+                                let _ = reply.send(Err(error("MemoryVectorOwnershipUnavailableError", "Memory generation is owned by Main")));
+                                continue;
+                            },
+                            None => break,
+                            _ => return Err(CordisError::ServiceNotFound("Invalid Memory request".into()))
+                        };
                         if id != next_request || id > 9_007_199_254_740_991 || pending.len() >= MAX_MEMORY_CALLS {
                             return Err(CordisError::ServiceNotFound("Invalid or excessive memory request".into()));
                         }
@@ -328,9 +423,13 @@ impl Plugin for Gateway {
                         let command = match stage(&mut upload, id, command, data, generation) {
                             Ok(Staged::Call(command)) => command,
                             result => {
-                                let mut reply = response(id, match result { Ok(Staged::Reply(value)) => Ok(value), Err(error) => Err(error), _ => unreachable!() });
-                                reply["type"] = json!("memoryReply");
-                                if self.outgoing.send_frame(reply, control).await.is_err() { break; }
+                                let result = match result { Ok(Staged::Reply(value)) => Ok(value), Err(error) => Err(error), _ => unreachable!() };
+                                if let Some(reply) = reply { let _ = reply.send(result); }
+                                else {
+                                    let mut frame = response(id, result);
+                                    frame["type"] = json!("memoryReply");
+                                    if self.outgoing.send_frame(frame, control).await.is_err() { break; }
+                                }
                                 continue;
                             }
                         };
@@ -353,7 +452,7 @@ impl Plugin for Gateway {
                                     let _ = invoke(value).await;
                                 }
                             }
-                            (id, control, closed, result)
+                            (id, control, closed, reply, result)
                         }));
                     }
                 }

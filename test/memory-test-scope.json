@@ -60,6 +60,7 @@
     "test/main/app/databaseSecurityNative.test.ts",
     "test/main/harness/memoryVectorOwner.test.ts",
     "test/main/harness/memoryVectorRuntime.test.ts",
+    "test/main/harness/coreMemoryRuntime.test.ts",
     "test/main/sync/replicaNative.test.ts",
     "test/main/memory/agentMemoryAuditRetention.test.ts",
     "test/main/memory/agentMemoryDirectiveTable.test.ts",

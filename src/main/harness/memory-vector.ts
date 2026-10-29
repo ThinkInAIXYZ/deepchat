@@ -42,7 +42,7 @@ export class RutisMemoryVectorStores implements MemoryVectorStoreFactoryPort {
   private stopped = false
 
   constructor(
-    readonly runtime: HarnessRuntime,
+    readonly runtime: Pick<HarnessRuntime, 'startMemory' | 'requestMemory' | 'memoryAvailable'>,
     config: Omit<MemoryVectorConfig, 'generation'>
   ) {
     this.config = { ...config, generation: randomUUID() }

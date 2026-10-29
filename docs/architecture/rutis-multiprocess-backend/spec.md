@@ -1397,6 +1397,22 @@ an explicit observation flag can use the supervisor's observer without a local d
 A transport-error reply from a lost Core is an unknown outcome for a posted mutation, even if it
 arrives before the runtime-loss notification. It must not be treated as a retryable definite failure.
 
+Core's lazy vector client uses the same Memory bootstrap and native worker through its SDK link.
+The Rust host authenticates the Core row/key and generation and admits one Memory owner per host
+generation: Main or Core. Another owner cannot start a second worker or take over the directory.
+Core requests keep the existing 32 pending slots, eight reserved control slots, 64-KiB control and
+256-KiB data bounds, staged 16-MiB uploads and 8-MiB native parts. Binary chunks use SDK byte values;
+metadata must omit absent fields because SDK `undefined` becomes JSON null. This removes the Main
+relay and file-carrier hop without claiming zero-copy transport or changing public payload limits.
+Core-owned readiness and replies return on that SDK link; actual native death marks the client
+unavailable through the host event bus. There is no automatic replay, replacement or restart.
+
+Core shutdown drains its vector stores and asks the host to retire Memory before closing admission
+and releasing the profile. Retirement fences late startup and waits for accepted startup settlement
+and actual child exit; an observation timeout cannot release ownership. Physical Core loss also
+retires its Memory worker. A Main-owned generation survives Core retirement. Default business
+composition remains in Main until the complete G5 writer, route and lifecycle cutover is accepted.
+
 Frames and queues have finite byte/count budgets checked before allocation and parsing. Establish
 production values from the route payload inventory and benchmark. Oversized legal results must
 use existing paging/artifact capabilities or an explicitly bounded transfer contract; never

@@ -99,7 +99,9 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       userDataDirectory,
       homeDirectory: directory,
       currentAppVersion: '1.1.4',
-      systemLocale: 'en-US'
+      systemLocale: 'en-US',
+      appPath: path.resolve('.'),
+      isPackaged: false
     }
     return {
       runtime,

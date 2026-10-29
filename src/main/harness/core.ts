@@ -155,6 +155,8 @@ export class CoreRuntimeConnection {
     homeDirectory: string
     currentAppVersion: string
     systemLocale: string
+    appPath: string
+    isPackaged: boolean
   }): Promise<CoreStatus> {
     return CoreStatusSchema.parse(await this.request('openProfile', options))
   }

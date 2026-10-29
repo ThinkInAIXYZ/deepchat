@@ -53,7 +53,7 @@ regression gates to them. Do not rerun CI or unchanged benchmarks to obtain a pa
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
 | G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
 | G4 Store commands and desktop ports | Complete, `356143755` | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
-| G5 Cohesive TS Harness backend | In progress: shared Core admission | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
+| G5 Cohesive TS Harness backend | In progress: Core Memory transport | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
 | G7 Rust control owner | Planned | G2, G5 | Admission and cohesive run/interaction settlement preserve all fences |
 | G8 Rust batch computations | Conditional | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go |
@@ -2972,9 +2972,46 @@ delegation admission and Memory eviction/model-change/worker-loss. App and new-t
 build and final affected artifacts, format/check, i18n, lint and locked Rust format/clippy pass.
 No generated catalogs change. Evidence and source/artifact/resource hashes are in
 `.deepchat/rutis-g5-core-admission-acceptance/`; no performance sampling or speed claim is made.
-G5 remains active and unpublished. The actual cohesive Kernel, Core Memory client, remaining
+G5 remains active and unpublished. The actual cohesive Kernel, remaining
 CLI/Toolchain/startup composition, public routes, Native effects/proxy/descendant authority and
 default writer/lifecycle transfer still require their full acceptance before publication.
+
+### Core Memory transport and native ownership
+
+The private Core worker composes a lazy `RutisMemoryVectorStores` client using the same Rust
+bootstrap, bounded upload gateway and native Memory worker as Main. Core calls the existing host
+directly through authenticated SDK methods; vectors use SDK bytes and do not traverse Main or
+encrypted payload carriers. This is not a zero-copy claim or the complete G6 Memory extraction.
+Main or Core may own one Memory generation. A second owner is rejected, and Core retirement
+preserves a Main-owned worker. Existing request, control, upload and native-part limits remain.
+
+Core drains stores and asks Rust to fence startup and confirm native child exit before releasing
+its profile. Accepted startup remains owned until settlement; expiry cannot authorize takeover.
+The host also retires Core-owned Memory after physical Core loss. Native loss makes the Core
+client unavailable without replay or restart while leaving the Rust control path responsive.
+Bootstrap includes explicit application/package paths, with no Electron import in the Core port.
+Absent binary metadata fields are omitted before SDK encoding because `undefined` crosses as null.
+
+Acceptance passes **33 distinct checks across six files** and **six Rust checks**. Four durable
+SDK/native cases and one fixture cover shared ownership in both directions, lazy worker reuse,
+packed upload/list/delete fidelity, confirmed stop before native database reopen, physical Core
+loss and physical Memory loss. One Rust contract covers startup retirement and late-start fencing.
+Existing profile/configuration/admission and native vector regressions remain in use. Initial
+fixture validation failures and the actual absent-field transport failure are retained in logs;
+the final checks pass without increasing timeouts or weakening production limits.
+
+The final application passes the Memory eviction/model-change/worker-loss case. Its scenario is
+byte-identical to immutable `f511c078b`, whose verified matching baseline and artifact hashes are
+reused from the admission acceptance receipt. Main output is byte-identical to `9eea00f56`; the
+affected Rust/Core artifacts are rebuilt. No unchanged baseline or performance matrix is repeated.
+App and new-test types, normal build, format/check, lint, i18n, Memory test scope and locked Rust
+format/clippy pass. Normal generated Provider output is retained separately. Evidence and hashes
+are in `.deepchat/rutis-g5-core-memory-acceptance/`.
+
+Default Kernel, public routes, business writer and application lifecycle still execute in Main.
+Full Core runtime/startup/CLI/Toolchain composition, Native proxy/descendant/effect authority,
+stalled-startup shutdown and signed/all-platform lifecycle need acceptance before G5 publication.
+G5 remains active and unpublished; G6-G12 retain their scope and dependency order.
 
 ## G6. Extract the complete Memory capability
 

@@ -1,5 +1,8 @@
 import { createCoreAdmission, type CoreAdmissionService } from '../core/admission'
 import { createCoreSettings } from '../core/settings'
+import { CoreMemoryRuntime, type CoreMemoryService } from '../core/memory'
+import { RutisMemoryVectorStores } from '@/harness/memory-vector'
+import path from 'node:path'
 import {
   CoreConfigurationCommandSchema,
   type CoreConfigurationNative
@@ -25,7 +28,9 @@ const profileBootstrap = z
     userDataDirectory: z.string().min(1).max(8192),
     homeDirectory: z.string().min(1).max(8192),
     currentAppVersion: z.string().min(1).max(64),
-    systemLocale: z.string().min(1).max(256)
+    systemLocale: z.string().min(1).max(256),
+    appPath: z.string().min(1).max(32768),
+    isPackaged: z.boolean()
   })
   .strict()
 
@@ -45,18 +50,21 @@ export default definePlugin<CoreCarrierConfig>({
     const config = CoreCarrierConfigSchema.parse(input)
     const store = new CorePayloadStore(config, 'core')
     const native = ctx.use<
-      CoreAdmissionService & {
-        invoke(
-          generation: string,
-          method: CoreNativeMethod,
-          args: CorePayload
-        ): Promise<CorePayload>
-      }
+      CoreAdmissionService &
+        CoreMemoryService & {
+          invoke(
+            generation: string,
+            method: CoreNativeMethod,
+            args: CorePayload
+          ): Promise<CorePayload>
+        }
     >('deepchatCoreNative')
     let profile: Awaited<ReturnType<typeof initializeCoreProfile>> | undefined
     const admission = await createCoreAdmission(native, config.generation, {
       observationsEnabled: () => profile?.settingsStore.get<boolean>('loggingEnabled') ?? false
     })
+    const memory = new CoreMemoryRuntime(ctx, native, config.generation)
+    let vectorStores: RutisMemoryVectorStores | undefined
     let phase: CoreStatus['phase'] = 'idle'
     let opening: Promise<CorePayload> | undefined
     let stopping: Promise<void> | undefined
@@ -132,6 +140,8 @@ export default definePlugin<CoreCarrierConfig>({
         await opening?.catch(() => undefined)
         await configurationTail
         await configuration?.appSettingsService.stop()
+        await vectorStores?.dispose()
+        await memory.retire()
         await admission.close()
         profile?.closeProfile()
         if (ownsProfile) throw new Error('Core profile ownership did not retire')
@@ -166,6 +176,15 @@ export default definePlugin<CoreCarrierConfig>({
             if (isStopping()) {
               throw new Error('Core profile startup was stopped')
             }
+            if (!path.isAbsolute(bootstrap.appPath)) throw new Error('Invalid Core app path')
+            vectorStores = new RutisMemoryVectorStores(memory, {
+              memoryDbDir: path.join(bootstrap.userDataDirectory, 'app_db', 'AgentMemory'),
+              host: {
+                appPath: bootstrap.appPath,
+                userDataPath: bootstrap.userDataDirectory,
+                isPackaged: bootstrap.isPackaged
+              }
+            })
             const effect = (command: CoreConfigurationNative) =>
               callNative('configuration', [command])
             configuration = createCoreSettings({
@@ -225,6 +244,8 @@ export default definePlugin<CoreCarrierConfig>({
             return await store.encode(status())
           } catch (error) {
             if (!stopping) {
+              await vectorStores?.dispose()
+              await memory.retire()
               profile?.closeProfile()
               if (!ownsProfile) {
                 profile = undefined
