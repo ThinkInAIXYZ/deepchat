@@ -105,7 +105,7 @@ export async function startMainProcess(
       await mainProcess.stopForCleanup()
     } else {
       await providerDbLoader.drain()
-      profile?.database.close()
+      profile?.closeProfile()
     }
     throw error
   }

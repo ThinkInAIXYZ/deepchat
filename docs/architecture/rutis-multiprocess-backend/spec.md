@@ -709,6 +709,14 @@ Logging and unlock/recovery/quit effects acknowledge their native completion. Fa
 its acquired database before releasing the operation. Main retains no writable startup shadow when
 the backend opens its files.
 
+Acquire the profile's `.core-owner.lock` SQLite exclusive transaction before constructing settings
+or starting crypto/recovery. This independent, data-free handle remains owned while the primary
+database closes/reopens for maintenance. Do not infer release from a pending reply, a PID file or
+a timeout, and do not unlink a live lock. Process exit releases the OS lock; a later initializer
+must acquire it before touching profile state. The existing named backup/import files exclude it.
+Retire credential/security operations, drain accepted work and close the primary database before
+releasing ownership. Primary-close failure retains the lease and rejects the terminal action.
+
 The boundary follows existing business operations, rather than these connection wrappers:
 
 | Existing owner and source | Work that stays indivisible inside the backend | Data crossing the boundary |

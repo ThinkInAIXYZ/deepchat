@@ -21,7 +21,7 @@ if (Database) {
 export function nativeSqliteDescribeIf(
   dependenciesAvailable = true,
   dependencyUnavailableReason = 'native SQLite test dependency is unavailable'
-): typeof describe {
+): typeof describe | typeof describe.skip {
   if (nativeSqliteAvailable && dependenciesAvailable) return describe
   if (!requireNativeSqlite) return describe.skip
   const reason = nativeSqliteAvailable ? dependencyUnavailableReason : nativeSqliteUnavailableReason
@@ -36,7 +36,7 @@ export function nativeSqliteDescribeIf(
 export function nativeSqliteItIf(
   dependenciesAvailable = true,
   dependencyUnavailableReason = 'native SQLite test dependency is unavailable'
-): typeof it {
+): typeof it | typeof it.skip {
   if (nativeSqliteAvailable && dependenciesAvailable) return it
   if (!requireNativeSqlite) return it.skip
   const reason = nativeSqliteAvailable ? dependencyUnavailableReason : nativeSqliteUnavailableReason

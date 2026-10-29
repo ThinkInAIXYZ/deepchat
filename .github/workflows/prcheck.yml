@@ -172,11 +172,12 @@ jobs:
       - name: Smoke native SQLite
         run: node scripts/smoke-memory-native-sqlite.js
 
-      - name: Validate native Tape storage
+      - name: Validate native Store ownership and Tape
         env:
           DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
         run: >-
           pnpm exec vitest --config vitest.config.ts --run
+          test/main/app/profileStartupNative.test.ts
           test/main/tape/compactionUsage.test.ts
           test/main/tape/skillMaterialization.test.ts
           test/main/tape/executionJournal.test.ts

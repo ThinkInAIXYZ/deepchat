@@ -152,6 +152,8 @@ describe('session boundary composition', () => {
     expect(destroyStart).toBeGreaterThanOrEqual(0)
     expect(destroyEnd).toBeGreaterThan(destroyStart)
     const destroySource = compositionSource.slice(destroyStart, destroyEnd)
+    const profileClose = destroySource.indexOf('dependencies.closeProfile()')
+    expect(profileClose).toBeGreaterThanOrEqual(0)
     const destroyStepIndex = (step: string): number => {
       const index = destroySource.indexOf(`'${step}'`)
       expect(index, `Missing destroy step: ${step}`).toBeGreaterThanOrEqual(0)
@@ -184,11 +186,11 @@ describe('session boundary composition', () => {
     const backgroundDrain = destroySource.indexOf('await backgroundExec.shutdown()')
     expect(backgroundDrain).toBeGreaterThan(destroyStepIndex('sessionRuntimes.suspend'))
     expect(backgroundDrain).toBeLessThan(destroyStepIndex('skillService.destroy'))
-    expect(backgroundDrain).toBeLessThan(destroyStepIndex('mainDatabase.close'))
+    expect(backgroundDrain).toBeLessThan(profileClose)
     const codeDrain = destroySource.indexOf('await toolService.shutdownCodeRuntime()')
     expect(codeDrain).toBeGreaterThan(backgroundDrain)
     expect(codeDrain).toBeLessThan(destroyStepIndex('skillService.destroy'))
-    expect(codeDrain).toBeLessThan(destroyStepIndex('mainDatabase.close'))
+    expect(codeDrain).toBeLessThan(profileClose)
     expect(compositionSource).toContain('backgroundExec.stop()')
     const shutdownSource = compositionSource.slice(
       compositionSource.indexOf('const shutdownCoordinator =')
@@ -199,9 +201,7 @@ describe('session boundary composition', () => {
     expect(shutdownSource.indexOf('toolService.stopCodeRuntime()')).toBeGreaterThan(
       shutdownSource.indexOf('deepChatAgentHarness.abortGenerations()')
     )
-    expect(destroyStepIndex('windowPresenter.destroyWindows')).toBeLessThan(
-      destroyStepIndex('mainDatabase.close')
-    )
+    expect(destroyStepIndex('windowPresenter.destroyWindows')).toBeLessThan(profileClose)
   })
 
   it('does not detach startup workload tasks without an observation owner', async () => {

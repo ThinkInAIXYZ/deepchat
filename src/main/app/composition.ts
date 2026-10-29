@@ -575,6 +575,7 @@ export async function createMainProcessControl(dependencies: {
   mcpAppDesktop: McpAppDesktopPort
   acpCatalogSettings: AcpCatalogSettings
   database: MainDatabase
+  closeProfile(): void
   settingsDatabase: SettingsDatabase
   providerDatabase: ProviderDatabase
   agentDatabase: AgentDatabase
@@ -3414,7 +3415,7 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('providerRuntime.shutdown', () => providerRuntime.shutdown())
     await runDestroyStep('acpRuntime.shutdown', () => acpRuntimeOwner.shutdown())
     await databaseRequests.drainForShutdown()
-    await runDestroyStep('mainDatabase.close', () => mainDatabase.close())
+    dependencies.closeProfile()
     await runDestroyStep('shortcutPresenter.destroy', () => shortcutPresenter.destroy())
     await runDestroyStep('notificationService.clearAllNotifications', () =>
       notificationService.clearAllNotifications()

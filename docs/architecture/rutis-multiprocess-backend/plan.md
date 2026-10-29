@@ -2682,6 +2682,35 @@ the complete Rutis Core composition and actual writer/route/lifecycle cutover be
 Completion: one backend owns active/durable business state, Electron main remains responsive under
 the agreed workload, and ownership loss cannot create two profile owners or duplicate execution.
 
+### Profile ownership and retirement
+
+The default profile entry acquires `.core-owner.lock` through an independent SQLite exclusive
+transaction before any settings/crypto/recovery work. A pending startup and primary-database
+maintenance retain that handle. Competing initialization fails before configuration or native
+effects. No PID file, timeout takeover or live-lock deletion is used. The lock is outside `app_db`
+and the named Sync backup/import entries, so maintenance never transfers its authority.
+
+`closeProfile` retires security/credential generations, closes the primary database and then
+releases ownership. A primary-close failure keeps the lock. Actual final teardown calls this
+critical barrier directly after request drain; it cannot be swallowed as best-effort cleanup.
+Startup failure uses the same close path. Main's failed-start cleanup also closes the whole owner.
+
+All **95 checks across nine affected files pass under ordinary Node with native SQLite required**.
+Five durable native cases cover pending startup, unchanged losing-owner configuration, maintenance
+close/reopen, failed close, failed initialization, delayed credentials and real process death before
+reacquisition. CI includes this native file in its required Store/Tape command. The native test
+selector's return type includes Vitest's skip API; runtime selection and strict failure behavior
+remain unchanged. Selected test types and the 82-file Memory type gate pass.
+
+The real profile/SQLite probe also runs under ordinary Node with Electron imports forbidden,
+preserving persistence/reopen and failure cleanup. The candidate passes the same eight application
+cases already accepted on immutable `83e799258`: encryption, all five maintenance/shutdown cases,
+MCP child lifetime and file/database settings across relaunch. App types, normal build,
+format/check including Markdown, lint and i18n pass. Evidence and hashes are in
+`.deepchat/rutis-g5-profile-ownership-acceptance/`. This preparation adds no runtime/process or
+performance claim; full Rutis composition, authenticated ports and writer/route/lifecycle cutover
+are still required before G5 publication.
+
 ## G6. Extract the complete Memory capability
 
 - [ ] Move the existing facade and internal retrieval/extraction/reflection/persona/directive/

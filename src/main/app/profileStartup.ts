@@ -1,4 +1,6 @@
 import Conf from 'conf'
+import Database from 'better-sqlite3-multiple-ciphers'
+import fs from 'node:fs'
 import path from 'node:path'
 import { createSettingsStore } from '@/config/settingsStore'
 import type { StoreLike } from '@/config/storeLike'
@@ -43,7 +45,37 @@ export async function initializeCoreProfile(options: {
   host: CoreProfileHost
   observe?: (observation: DatabaseInitializationObservation) => void | Promise<void>
 }) {
+  if (!path.isAbsolute(options.userDataDirectory) || !path.isAbsolute(options.homeDirectory)) {
+    throw new Error('Profile directories must be absolute')
+  }
+  fs.mkdirSync(options.userDataDirectory, { recursive: true })
+  const ownership = new Database(path.join(options.userDataDirectory, '.core-owner.lock'), {
+    timeout: 0
+  })
+  try {
+    ownership.exec('BEGIN EXCLUSIVE')
+  } catch (error) {
+    ownership.close()
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error.code === 'SQLITE_BUSY' || error.code === 'SQLITE_LOCKED')
+    ) {
+      const unavailable = new Error('Core profile already has an owner')
+      unavailable.name = 'CoreProfileOwnershipUnavailableError'
+      throw unavailable
+    }
+    throw error
+  }
   let database: MainDatabase | undefined
+  let secretStore: SecretStore | undefined
+  let databaseSecurityService: DatabaseSecurityService | undefined
+  const closeProfile = () => {
+    databaseSecurityService?.stop()
+    secretStore?.pause()
+    database?.close()
+    if (ownership.open) ownership.close()
+  }
   try {
     const { userDataDirectory, homeDirectory, currentAppVersion } = options
     const settingsStore = createSettingsStore({
@@ -52,7 +84,7 @@ export async function initializeCoreProfile(options: {
       currentAppVersion
     })
     await options.host.setLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
-    const secretStore = new SecretStore(settingsStore, options.crypto)
+    secretStore = new SecretStore(settingsStore, options.crypto)
     const privacySettings = new PrivacySettings(settingsStore)
     const proxySettings = new ProxySettings(settingsStore)
     const mcpSettings = new McpSettings(
@@ -73,7 +105,7 @@ export async function initializeCoreProfile(options: {
         defaults: createAcpCatalogDefaults()
       }) as unknown as StoreLike<ReturnType<typeof createAcpCatalogDefaults>>
     })
-    const databaseSecurityService = new DatabaseSecurityService({
+    databaseSecurityService = new DatabaseSecurityService({
       dbPath: path.join(userDataDirectory, 'app_db', 'agent.db'),
       metadata: new Conf<{ metadata: DatabaseSecurityMetadata }>({
         configName: 'database-security',
@@ -120,6 +152,7 @@ export async function initializeCoreProfile(options: {
     acpCatalogSettings.connectDatabase(agentDatabase)
     if (migration.appVersionChanged) mcpSettings.onUpgrade(migration.previousAppVersion)
     return {
+      closeProfile,
       currentAppVersion,
       previousAppVersion: migration.previousAppVersion,
       settingsStore,
@@ -143,7 +176,7 @@ export async function initializeCoreProfile(options: {
       )
     }
   } catch (error) {
-    database?.close()
+    closeProfile()
     throw error
   }
 }
