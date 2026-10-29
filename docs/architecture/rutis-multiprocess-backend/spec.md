@@ -857,9 +857,22 @@ resolution. Preserve VSS loading/fallback, schema/migrations, task recovery and 
 files; these files are not Memory's G3 vector stores. These boundaries add no alternate database
 engine, implicit native fallback, separate supervisor or second profile owner.
 
-Plugin install/consent state retains its separate desktop file owners. Tool policies follow the
-business permission owner below; consumers use authoritative policy data rather than native Store
-imports or independently writable snapshots.
+Plugin installation, consent, user-plugin activation, context Hooks and MCP supervision stay with
+their business owners in the cohesive core. Hook history and execution share Tape authority;
+registration and tool authorization share the same supervisor. Their synchronous internal reads,
+update leases and integrity callbacks are local operations, not candidate row-level RPCs.
+The plugin owner uses the existing Conf format, defaults and independent `plugin-settings.json`
+file with explicit profile/home/application/resource/working directories and application version. It is
+the only writer of installation and launch-safety metadata; do not merge it with tool policies or
+leave a writable Main shadow at G5 handoff. Supply the resolved command environment locally.
+
+Main owns plugin settings windows and shell presentation through required asynchronous capabilities.
+The core awaits native effects; closing a settings window acknowledges its actual closure, and
+the renderer-to-plugin ownership lookup remains private to Main. Preserve package validation,
+integrity/quarantine, user consent, credential scoping, rollback and uncertain-hook recovery.
+Maintenance and shutdown reject new context-hook work, abort and drain accepted work before Tape
+teardown; resumption cannot overtake that drain. This preparation does not establish G5 process
+ownership or grant third-party Rutis access.
 
 Plugin tool policies have one explicit business owner with a required local persistence adapter.
 Main constructs the existing `plugin-tool-policies` file after the effective profile is selected;

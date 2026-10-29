@@ -507,8 +507,8 @@ removing the scheduler connection alone does not complete G4.
 | Schema catalog | `schemaCatalog.ts` opens an in-memory database for schema inspection | Keep this temporary local connection internal to the Store owner |
 | OCR artifacts | `ocrArtifactStore.ts` owns a separate encrypted derived-cache database | Preserve its explicit independent file owner; this is not a second writer of the shared application file |
 | Vector stores | The G3 Memory worker and Knowledge's existing DuckDB owner use separate files | Preserve their existing resource authorities and maintenance fences |
-| Configuration | Main constructs legacy app/MCP/ACP settings; runtime settings use database adapters; Provider model stores are required; attached ACP retains only an isolated legacy snapshot | Use acknowledged mutations and versioned read snapshots, with explicit bootstrap and machine-local file ownership; remove remaining native runtime defaults before G5 |
-| Credentials and desktop state | Main supplies async crypto/unlock; DatabaseSecurity, SecretStore, Sync, MCP and Codex/Grok own explicit private persistence; remaining native/window/plugin settings still require extraction | Keep authorized crypto/native operations separate from persistence; retain existing plugin consent and settings ownership |
+| Configuration | Bootstrap constructs legacy app/MCP/ACP settings; runtime settings use database adapters; Provider model stores are required; attached ACP retains only an isolated legacy snapshot | Use acknowledged mutations and versioned read snapshots; hand off the complete legacy-file authority with the cohesive configuration owner at G5 |
+| Credentials and desktop state | Main supplies async crypto/unlock; DatabaseSecurity, SecretStore, Sync, MCP and Codex/Grok own explicit private persistence; native configuration readers use a committed projection; the plugin owner uses its independent Conf file | Keep authorized crypto/native operations separate from persistence; preserve consent, one complete file writer and the final handoff inventory |
 
 ### Ordered implementation slices
 
@@ -2263,6 +2263,7 @@ default composition before starting G5.
 | Provider OAuthService/Copilot windows | Main owns presentation and validates new tokens; Core issues secret-free targets and atomically commits against current configuration | Preserve the private owner commands, maintenance invalidation and authenticated G5 caller grants |
 | Window/Tray/Notification/Shortcut/Floating | Configuration readers use a private committed projection; floating bounds use acknowledged owner mutations; Agent/catalogue queries are already async | Preserve the projection and existing async owner queries at G5 handoff |
 | Upgrade settings and renderer diagnostics | Core receives the explicit application version; Main reads projected channel/privacy/logging flags | Preserve normalization under the configuration owner and Main's native updater/diagnostic lifetime at G5 |
+| Plugin installation, context Hooks and MCP supervision | One portable business owner keeps installation/safety persistence, Tape Hooks and synchronous supervisor decisions local; Main supplies async shell/window effects | Transfer this owner and its independent Conf file with the cohesive backend; preserve physical drain and private native caller grants |
 
 Attachment I/O follows the actual clients/Runner call chain and stays local to that business
 owner. The base adapter's uncalled download methods and their unused 20 MiB constant are removed;
@@ -2275,9 +2276,10 @@ Native configuration consumers use resolved language, notifications, close-to-qu
 protection, shortcut mappings, floating enablement/bounds, logging, privacy and update channel.
 The private committed projection covers bounds writes and separate shortcut events explicitly,
 including asynchronous error/drain handling for floating persistence. Update-channel normalization
-belongs to the configuration owner. Plugin installation/safety metadata uses Main's independent plugin-settings
-file; tool-policy authority uses the separate plugin-tool-policies owner already inventoried above.
-Do not merge those files or retain a second policy writer during handoff.
+belongs to the configuration owner. Plugin installation/safety metadata has an independent
+plugin-settings file owner; tool-policy authority uses the separate plugin-tool-policies owner
+already inventoried above. Keep activation, context Hooks/Tape and MCP supervision co-located with
+their business consumers. Do not merge those files or retain a second writer during handoff.
 
 ### Native configuration projection
 
@@ -2421,11 +2423,64 @@ passes all five existing maintenance/rekey/credential/shutdown cases. Their acce
 remains available from the preceding integration. No resource capture or speed claim is added.
 Evidence and verified hashes are in `.deepchat/rutis-g4-provider-oauth-acceptance/`.
 
-G4 remains active for the final writer/reader/Native inventory. Main's retained plugin integration
-still consumes synchronous MCP readiness/error observations; classify those actual consumers and
-use the existing owner status/capability boundaries before claiming G5 readiness. Native SDK
-presentation remains Main-owned; this checkpoint does not move the cohesive backend or authorize
-an additional settings writer.
+### Plugin business owner and native presentation
+
+G4 remains active for the final writer/reader/Native inventory. The selected plugin boundary keeps
+installation/consent, user-plugin activation, context Hooks and MCP supervision with the cohesive
+core; its synchronous local transactions and integrity callbacks do not become row-level RPCs.
+
+- [x] Replace implicit Electron paths/version and plugin-settings construction with explicit roots
+      and the same Conf file format/defaults, retaining one installation/safety writer.
+- [x] Require asynchronous native shell/settings-window capabilities and await actual native
+      closure while retaining renderer ownership checks in Main.
+- [x] Drain accepted context-hook work before maintenance/shutdown can release Tape; preserve
+      active-run/update exclusion, cancellation, uncertain outcomes and restart behavior.
+- [x] Verify default composition, portable import, relevant regressions and the same real-app
+      plugin scenarios against immutable artifacts.
+- [ ] Finish the final writer/reader/native inventory and completed-batch validation before G5.
+
+Native SDK presentation remains Main-owned. These contracts do not move the cohesive backend or
+authorize an additional settings writer. Publish the complete G4 batch after final validation.
+
+PluginService requires absolute profile, home, working and application directories, resource
+location, application version, the resolved command environment and native shell/window effects.
+It uses Conf directly with the existing plugin-settings name/defaults/version; no file migration,
+second installation/safety writer, generic persistence RPC or dependency is introduced. Runtime
+supervision, tool-policy decisions, user-plugin update exclusion and Hook integrity callbacks
+remain local to their business consumers. Main keeps the renderer ownership lookup.
+
+Settings-window close destroys the owned window, waits for the actual closed event and retains
+sender ownership until then; a page's beforeunload handler cannot veto disable or shutdown.
+Failed loading drains its window before propagating; cancellation during loading settles cleanly.
+A pending reopen cannot outlive close-all. Context Hooks reject new work on stop, cancel the
+captured lifetime and drain the accepted queue, including actual child closure even when process
+termination fails. A 30-second drain deadline rejects without releasing ownership; restart stays
+blocked until the queue settles. Main directly awaits this stop before database maintenance or
+shutdown can release Tape and resumes only after reconciliation. Existing invocation budgets and
+uncertain-result/retry rules remain.
+
+Validation passes **372 distinct checks across 16 affected files**: 231 plugin/native-window/
+composition checks and 141 MCP/Tool/compaction consumer checks. The held-verification test
+also passes all 26 checks in its file with a fake-clock drain deadline; unchanged tests are not
+counted twice. Changed-test types, app node/web types, normal full build, format/check, lint and
+i18n pass. Lint retains the preceding Remote finally warning.
+
+The full PluginService graph imports in ordinary Node with Electron, electron-store and font-list
+forbidden at bundle and runtime resolution: **18 source modules**. The actual owner initializes,
+installs/enables a private user plugin, executes its Hook into Tape, stops/resumes, and reconstructs
+from the same legacy-shaped Conf file. Enabled intent, unknown metadata and unrelated launch
+evidence survive reconstruction. This verifies the portable owner, not a moved backend or headless
+Session Host.
+
+Immutable `d456426f7` and the candidate pass the same two application plugin cases: ZIP review,
+disabled installation, MCP activation/tools/disable/uninstall, reviewed context reaching actual
+Provider requests and host-owned credential rotation. The final candidate passes **eight app
+cases**, adding actual official settings windows with beforeunload handlers, disable, isolated
+renderer globals, persisted disabled intent, graceful relaunch and window cleanup at shutdown,
+plus all five existing maintenance/credential/shutdown cases. The five cases' accepted baseline
+is retained. No performance suite or resource recapture is selected and no speed gain is claimed.
+Evidence and verified hashes are in `.deepchat/rutis-g4-plugin-owner-acceptance/`. This work stays
+local with the remaining G4 completion batch; G5 and later goals remain pending.
 
 ## G5. Move the cohesive Harness and shared core into the TS backend
 

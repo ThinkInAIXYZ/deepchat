@@ -20,8 +20,8 @@ function setup(ownerPluginId: string | null) {
   }
   const settingsWindow: PluginSettingsWindowPort = {
     open: async () => {},
-    close: () => {},
-    closeAll: () => {},
+    close: async () => {},
+    closeAll: async () => {},
     getPluginIdForWebContents: () => ownerPluginId
   }
   const routes = createPluginRoutes(pluginService as unknown as PluginServicePort, settingsWindow)

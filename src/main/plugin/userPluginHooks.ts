@@ -52,8 +52,38 @@ export class UserPluginHooks implements PluginContextPort {
   private queue: Promise<void> = Promise.resolve()
   private activeRuns = new Map<string, number>()
   private updating = false
+  private accepting = true
+  private controller = new AbortController()
+  private draining?: Promise<void>
+
+  start(): void {
+    if (this.draining) throw new Error('Plugin hook work must drain before restarting')
+    if (this.accepting) return
+    this.controller = new AbortController()
+    this.accepting = true
+  }
+
+  async stop(): Promise<void> {
+    this.accepting = false
+    this.controller.abort()
+    const drain = (this.draining ??= this.queue)
+    void drain.then(() => {
+      if (this.draining === drain) this.draining = undefined
+    })
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error('Plugin hook work did not drain before shutdown')),
+        30_000
+      )
+      void drain.then(() => {
+        clearTimeout(timeout)
+        resolve()
+      })
+    })
+  }
 
   beginRun(sessionId: string): void {
+    if (!this.accepting) throw new Error('Plugin hook owner is stopped')
     if (this.updating) throw new Error('A plugin update is being applied; retry after it completes')
     this.activeRuns.set(sessionId, (this.activeRuns.get(sessionId) ?? 0) + 1)
   }
@@ -65,6 +95,7 @@ export class UserPluginHooks implements PluginContextPort {
   }
 
   beginUpdate(): () => void {
+    if (!this.accepting) throw new Error('Plugin hook owner is stopped')
     if (this.updating || this.activeRuns.size)
       throw new Error('Finish or stop active DeepChat turns before updating a plugin')
     this.updating = true
@@ -150,15 +181,19 @@ export class UserPluginHooks implements PluginContextPort {
   }
 
   async accept(input: PluginContextInput): Promise<void> {
+    if (!this.accepting) throw new Error('Plugin hook owner is stopped')
     if (!this.hasHooks()) return
+    const lifetime = this.controller.signal
     const incarnationId = this.tape.getTapeIncarnationId(input.sessionId)
     const operation = this.queue.then(async () => {
+      if (lifetime.aborted) return
       if (this.tape.getTapeIncarnationId(input.sessionId) !== incarnationId) return
       const deadline = AbortSignal.timeout(10000)
-      const signal = input.signal ? AbortSignal.any([deadline, input.signal]) : deadline
+      const signal = AbortSignal.any([deadline, lifetime, ...(input.signal ? [input.signal] : [])])
       const promptHash = createHash('sha256').update(input.prompt).digest('hex')
       const history = this.history(input.sessionId)
       for (const owner of this.owners.values()) {
+        if (lifetime.aborted) return
         const previous = [...history.values()].filter(
           (item) => item.pluginId === owner.pluginId && item.digest === owner.digest
         )
@@ -390,6 +425,7 @@ export class UserPluginHooks implements PluginContextPort {
   }
 
   async retry(pluginId: string, invocationId: string): Promise<void> {
+    if (!this.accepting) throw new Error('Plugin hook owner is stopped')
     const invocation = [...this.sessions.keys()]
       .map((sessionId) => this.history(sessionId).get(invocationId))
       .find(Boolean)
@@ -409,7 +445,9 @@ export class UserPluginHooks implements PluginContextPort {
     const incarnationId = this.tape.getTapeIncarnationId(sessionId)
     const expectedInput = JSON.stringify(invocation.input)
     const expectedStatus = invocation.status
+    const lifetime = this.controller.signal
     const operation = this.queue.then(() => {
+      lifetime.throwIfAborted()
       if (this.tape.getTapeIncarnationId(sessionId) !== incarnationId)
         throw new Error('Hook retry is unavailable after the session was cleared')
       const current = this.history(sessionId).get(invocationId)
@@ -431,7 +469,7 @@ export class UserPluginHooks implements PluginContextPort {
         current.event,
         `${current.boundaryId}:retry:${randomUUID()}`,
         current.event === 'SessionStart' ? current.boundaryId.split(':')[0] : undefined,
-        AbortSignal.timeout(10000),
+        AbortSignal.any([AbortSignal.timeout(10000), lifetime]),
         current.hookId
       )
     })
@@ -469,6 +507,7 @@ async function runContextHook(
         DEEPCHAT_PLUGIN_ID: owner.pluginId
       }
     })
+    const closed = new Promise<void>((resolve) => child.once('close', () => resolve()))
     const out: Buffer[] = []
     let outBytes = 0
     let errBytes = 0
@@ -485,7 +524,10 @@ async function runContextHook(
           /* The group already exited. */
         }
       }
-      if (error) void terminateProcessTree(child, { graceMs: 100 }).finally(() => reject(error))
+      if (error)
+        void Promise.allSettled([terminateProcessTree(child, { graceMs: 100 }), closed]).then(() =>
+          reject(error)
+        )
       else resolve(Buffer.concat(out).toString('utf8'))
     }
     const abort = () => finish(new Error('Hook cancelled'))

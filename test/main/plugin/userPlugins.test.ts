@@ -219,6 +219,65 @@ describe('portable plugin package contract', () => {
 })
 
 describe('reviewed context hook execution', () => {
+  it('keeps Tape owned after a drain deadline and fences queued work before resuming', async () => {
+    const root = directory()
+    write(
+      root,
+      'hook.cjs',
+      `console.log(JSON.stringify({hookSpecificOutput:{hookEventName:'UserPromptSubmit',additionalContext:'ready'}}))`
+    )
+    const history = tape()
+    const host = new UserPluginHooks(history)
+    let release!: () => void
+    let entered!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const admitted = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    host.register({
+      pluginId: 'user.drain',
+      digest: 'a'.repeat(64),
+      root,
+      data: root,
+      hooks: [commandHook('UserPromptSubmit')],
+      verify: async () => {
+        entered()
+        await gate
+      }
+    })
+    const input = { sessionId: 's', messageId: 'first', prompt: 'First', model: 'test', cwd: root }
+    const active = host.accept(input)
+    await admitted
+    const queued = host.accept({ ...input, messageId: 'queued' })
+    vi.useFakeTimers()
+    const stopping = host.stop()
+    const timedOut = expect(stopping).rejects.toThrow('did not drain')
+    try {
+      expect(() => host.start()).toThrow('must drain')
+      expect(() => host.beginRun('s')).toThrow('stopped')
+      await expect(host.accept(input)).rejects.toThrow('stopped')
+      await expect(host.retry('user.drain', 'unknown')).rejects.toThrow('stopped')
+      await vi.advanceTimersByTimeAsync(30_000)
+      await timedOut
+      expect(() => host.start()).toThrow('must drain')
+      release()
+      await Promise.all([active, queued])
+      vi.useRealTimers()
+      expect(host.diagnostics('user.drain').map((entry) => entry.status)).toEqual(['failed'])
+      const rows = history.rows.length
+      host.start()
+      await host.accept({ ...input, messageId: 'resumed' })
+      expect(history.rows.length).toBeGreaterThan(rows)
+      expect(host.getContext('s', 'resumed').map((entry) => entry.content)).toEqual(['ready'])
+    } finally {
+      release()
+      vi.useRealTimers()
+      await host.stop()
+    }
+  })
+
   it('reuses only the matching prompt and restarts hooks after the Tape is cleared', async () => {
     const root = fixture()
     write(

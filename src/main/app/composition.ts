@@ -258,6 +258,7 @@ import { PluginService, type PluginServicePort } from '../plugin'
 import type { PluginToolPolicyStore } from '@/plugin/toolPolicyStore'
 import { createPluginRoutes } from '../plugin/routes'
 import { PluginRuntimeSupervisor } from '../plugin/runtimeSupervisor'
+import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
 import { AgentRepository } from '../agent/repository'
 import { AgentDatabase } from '@/agent/data/database'
 import { DeepChatDefaults } from '../agent/deepchat/defaults'
@@ -2273,6 +2274,19 @@ export async function createMainProcessControl(dependencies: {
   // Plugin activation is a shared startup barrier for Skill migration and MCP startup.
   const pluginSettingsWindow = new PluginSettingsWindow()
   pluginService = new PluginService({
+    workingDirectory: process.cwd(),
+    profileDirectory: app.getPath('userData'),
+    homeDirectory: app.getPath('home'),
+    appPath: app.getAppPath(),
+    appVersion: app.getVersion(),
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    openExternal: (url) => shell.openExternal(url),
+    openPath: (filePath) => shell.openPath(filePath),
+    hookEnvironment: () =>
+      toolchainService.prependResolvedToEnv(
+        createMinimalProcessEnvironment(process.env, process.platform)
+      ),
     toolPolicies: dependencies.pluginToolPolicies,
     nowledgeMem: nowledgeMemConnections,
     exportNowledgeSession: (input) => agentSessionExportService.submitToNowledgeMem(input),
@@ -3279,6 +3293,7 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('remoteService.destroy', () => remoteService.destroy())
     await runDestroyStep('remoteAuthWindows.closeAll', () => remoteAuthWindows.closeAll())
     await hookService.stop()
+    await pluginService.contextHooks?.stop()
     await runDestroyStep('sessionRuntimes.suspend', () => suspendSessionRuntimes())
     await backgroundExec.shutdown()
     await toolService.shutdownCodeRuntime()
@@ -4046,6 +4061,7 @@ export async function createMainProcessControl(dependencies: {
       await remoteService.destroy()
       await remoteAuthWindows.closeAll()
       await hookService.stop()
+      await pluginService.contextHooks?.stop()
       const drain = await memoryIngestionObserver.drainAndFence()
       if (drain.timedOut) {
         throw new Error(
@@ -4139,6 +4155,7 @@ export async function createMainProcessControl(dependencies: {
       dependencies.secretStore.resume()
       memoryIngestionObserver.resumeIngestion()
       memoryService.startBackgroundMaintenance()
+      pluginService.contextHooks?.start()
       hookService.start()
       cronJobs.start()
       await remoteService.initialize()

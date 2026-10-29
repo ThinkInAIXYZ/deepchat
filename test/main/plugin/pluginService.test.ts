@@ -8,8 +8,8 @@ import { app, BrowserWindow, shell } from 'electron'
 import { zipSync } from 'fflate'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('electron-store', () => ({
-  default: class MockElectronStore {
+vi.mock('conf', () => ({
+  default: class MockConf {
     private data: Record<string, unknown>
 
     constructor(options?: { defaults?: Record<string, unknown> }) {
@@ -107,12 +107,19 @@ const createPluginService = async (
   }
   const toolPolicies = createPluginToolPolicies()
   const presenter = new PluginService({
+    workingDirectory: process.cwd(),
+    profileDirectory: app.getPath('userData'),
+    homeDirectory: app.getPath('home'),
+    appVersion: app.getVersion(),
+    openExternal: (url: string) => shell.openExternal(url),
+    openPath: (filePath: string) => shell.openPath(filePath),
+    hookEnvironment: () => ({}),
     toolPolicies,
     platform,
     arch: options.arch,
     appPath: options.appPath ?? process.cwd(),
-    isPackaged: options.isPackaged,
-    resourcesPath: options.resourcesPath,
+    isPackaged: options.isPackaged ?? false,
+    resourcesPath: options.resourcesPath ? path.resolve(options.resourcesPath) : '',
     nowledgeMem: options.nowledgeMem,
     mcpSettings,
     mcpService,
@@ -1710,7 +1717,7 @@ describe('PluginService', () => {
     const activatePluginImplementation = (presenter as any).activatePlugin.bind(presenter)
     const activatePlugin = vi
       .spyOn(presenter as any, 'activatePlugin')
-      .mockImplementation(async (pluginId: string) => {
+      .mockImplementation(async (pluginId) => {
         if (pluginId === 'com.deepchat.plugins.cua') {
           return
         }

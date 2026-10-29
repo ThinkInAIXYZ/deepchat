@@ -5,8 +5,6 @@ import {
   NOWLEDGE_MCP_SERVER_ID
 } from '@shared/types/nowledgeMemPlugin'
 import { normalizeMemUrl, type NowledgeMemConnections } from '@/nowledgeMem'
-import { ToolchainService } from '@/toolchains'
-import { createMinimalProcessEnvironment } from '@/mcp/processEnvironment'
 import { UserPlugins, type UserPluginRecord } from './userPlugins'
 import { UserPluginHooks } from './userPluginHooks'
 import type {
@@ -20,13 +18,12 @@ import type {
   UserPluginInstallInput,
   PreparedUserPlugin
 } from '@shared/types/userPlugin'
-import { app, shell } from 'electron'
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import ElectronStore from 'electron-store'
+import Conf from 'conf'
 import { unzipSync } from 'fflate'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { McpServicePort, MCPServerConfig } from '@shared/types/mcp'
@@ -85,8 +82,8 @@ type SkillContributionPort = Pick<
 
 export interface PluginSettingsWindowPort {
   open(input: { pluginId: string; title: string; entry: string }): Promise<void>
-  close(pluginId: string): void
-  closeAll(): void
+  close(pluginId: string): Promise<void>
+  closeAll(): Promise<void>
   getPluginIdForWebContents(webContentsId: number): string | null
 }
 
@@ -112,12 +109,19 @@ type PluginServiceDeps = {
     | 'retryRuntime'
   >
   skillService: SkillContributionPort
-  settingsWindow: PluginSettingsWindowPort
+  settingsWindow: Pick<PluginSettingsWindowPort, 'open' | 'close' | 'closeAll'>
+  openExternal(url: string): Promise<void>
+  openPath(filePath: string): Promise<string>
+  hookEnvironment(): Record<string, string>
+  profileDirectory: string
+  homeDirectory: string
+  workingDirectory: string
+  appVersion: string
   platform?: NodeJS.Platform
   arch?: NodeJS.Architecture
-  appPath?: string
-  isPackaged?: boolean
-  resourcesPath?: string
+  appPath: string
+  isPackaged: boolean
+  resourcesPath: string
 }
 
 type ResolvedOfficialPlugin = {
@@ -174,25 +178,20 @@ export class PluginService implements PluginServicePort {
   private readonly mcpSettings: McpSettings
   private readonly mcpService: PluginServiceDeps['mcpService']
   private readonly skillService: SkillContributionPort
-  private readonly settingsWindow: PluginSettingsWindowPort
+  private readonly settingsWindow: PluginServiceDeps['settingsWindow']
+  private readonly openExternal: PluginServiceDeps['openExternal']
+  private readonly openPath: PluginServiceDeps['openPath']
+  private readonly profileDirectory: string
+  private readonly homeDirectory: string
+  private readonly workingDirectory: string
+  private readonly appVersion: string
   private readonly runtimeSupervisor: PluginServiceDeps['runtimeSupervisor']
   private readonly platform: NodeJS.Platform
   private readonly arch: NodeJS.Architecture
   private readonly appPath: string
   private readonly isPackaged: boolean
   private readonly resourcesPath: string
-  private readonly store = new ElectronStore<PluginStoreShape>({
-    name: 'plugin-settings',
-    defaults: {
-      userInstallations: [],
-      userPluginPending: null,
-      installations: [],
-      resources: [],
-      runtimes: [],
-      migrations: {},
-      runtimeSentinels: {}
-    }
-  })
+  private readonly store: Conf<PluginStoreShape>
   private readonly runtimeSafetyStore: PluginRuntimeSafetyStore = {
     read: (key) => this.getRuntimeSentinelMap()[key],
     write: (key, sentinel) => {
@@ -215,6 +214,34 @@ export class PluginService implements PluginServicePort {
   private readonly activationErrors = new Map<string, string>()
 
   constructor(deps: PluginServiceDeps) {
+    for (const directory of [
+      deps.profileDirectory,
+      deps.homeDirectory,
+      deps.appPath,
+      deps.workingDirectory
+    ]) {
+      if (!path.isAbsolute(directory)) throw new Error('Plugin directories must be absolute')
+    }
+    if (deps.resourcesPath && !path.isAbsolute(deps.resourcesPath))
+      throw new Error('Plugin resources directory must be absolute')
+    this.profileDirectory = deps.profileDirectory
+    this.homeDirectory = deps.homeDirectory
+    this.workingDirectory = deps.workingDirectory
+    this.appVersion = deps.appVersion
+    this.store = new Conf<PluginStoreShape>({
+      configName: 'plugin-settings',
+      cwd: this.profileDirectory,
+      projectVersion: this.appVersion,
+      defaults: {
+        userInstallations: [],
+        userPluginPending: null,
+        installations: [],
+        resources: [],
+        runtimes: [],
+        migrations: {},
+        runtimeSentinels: {}
+      }
+    })
     this.toolPolicies = deps.toolPolicies
     this.mcpSettings = deps.mcpSettings
     this.mcpService = deps.mcpService
@@ -222,19 +249,17 @@ export class PluginService implements PluginServicePort {
     this.nowledgeMem = deps.nowledgeMem
     this.exportNowledgeSession = deps.exportNowledgeSession
     this.settingsWindow = deps.settingsWindow
+    this.openExternal = deps.openExternal
+    this.openPath = deps.openPath
     this.runtimeSupervisor = deps.runtimeSupervisor
     this.platform = deps.platform ?? process.platform
     this.arch = deps.arch ?? process.arch
-    this.appPath = deps.appPath ?? app.getAppPath()
-    this.isPackaged = deps.isPackaged ?? app.isPackaged
-    this.resourcesPath = deps.resourcesPath ?? process.resourcesPath ?? ''
+    this.appPath = deps.appPath
+    this.isPackaged = deps.isPackaged
+    this.resourcesPath = deps.resourcesPath
     this.runtimeSupervisor.attachSafetyStore(this.runtimeSafetyStore)
     if (deps.contextTape) {
-      this.contextHooks = new UserPluginHooks(deps.contextTape, () =>
-        ToolchainService.getInstance().prependResolvedToEnv(
-          createMinimalProcessEnvironment(process.env, process.platform)
-        )
-      )
+      this.contextHooks = new UserPluginHooks(deps.contextTape, deps.hookEnvironment)
       this.userPlugins = new UserPlugins({
         root: this.getPluginInstallRoot(),
         hooks: this.contextHooks,
@@ -359,13 +384,14 @@ export class PluginService implements PluginServicePort {
   }
 
   async shutdown(): Promise<void> {
+    await this.contextHooks?.stop()
     this.userPlugins?.shutdown()
     const pluginIds = new Set(this.getInstallations().map((installation) => installation.pluginId))
     for (const pluginId of pluginIds) {
       this.toolPolicies.unregister(pluginId)
     }
 
-    this.settingsWindow.closeAll()
+    await this.settingsWindow.closeAll()
   }
 
   async listPlugins(): Promise<PluginListItem[]> {
@@ -524,7 +550,7 @@ export class PluginService implements PluginServicePort {
           await this.openRuntimeGuide(pluginId)
           return { ok: true }
         case 'runtime.openProject':
-          await shell.openExternal('https://github.com/trycua/cua')
+          await this.openExternal('https://github.com/trycua/cua')
           return { ok: true }
         case 'runtime.uninstallHelper':
           return {
@@ -655,7 +681,7 @@ export class PluginService implements PluginServicePort {
 
     await this.skillService.unregisterPluginSkillsByOwner(pluginId)
     this.toolPolicies.unregister(pluginId)
-    this.settingsWindow.close(pluginId)
+    await this.settingsWindow.close(pluginId)
     this.removeResourceRecordsByOwner(pluginId)
     if (runtimeStopError) {
       throw runtimeStopError
@@ -1332,7 +1358,7 @@ export class PluginService implements PluginServicePort {
         permissions.accessibility === 'granted'
           ? MACOS_SCREEN_CAPTURE_SETTINGS
           : MACOS_ACCESSIBILITY_SETTINGS
-      await shell.openExternal(settingsUrl)
+      await this.openExternal(settingsUrl)
       return
     }
 
@@ -1340,7 +1366,7 @@ export class PluginService implements PluginServicePort {
       try {
         const runtime = await this.refreshRuntime(pluginId)
         if (runtime.helperAppPath) {
-          const openError = await shell.openPath(runtime.helperAppPath)
+          const openError = await this.openPath(runtime.helperAppPath)
           if (!openError) {
             return
           }
@@ -1369,7 +1395,7 @@ export class PluginService implements PluginServicePort {
       }
       throw new Error(`Plugin ${pluginId} does not declare a runtime guide URL`)
     }
-    await shell.openExternal(guideUrl)
+    await this.openExternal(guideUrl)
   }
 
   private async loadOfficialPlugins(): Promise<void> {
@@ -1433,7 +1459,7 @@ export class PluginService implements PluginServicePort {
     const sourceRoots = this.isPackaged
       ? [this.getPluginInstallRoot()]
       : [
-          path.join(process.cwd(), 'plugins'),
+          path.join(this.workingDirectory, 'plugins'),
           path.join(this.appPath, 'plugins'),
           this.getPluginInstallRoot()
         ]
@@ -1482,7 +1508,7 @@ export class PluginService implements PluginServicePort {
     const packageRoots = this.isPackaged
       ? resourceRoots
       : [
-          path.join(process.cwd(), 'build', 'bundled-plugins'),
+          path.join(this.workingDirectory, 'build', 'bundled-plugins'),
           path.join(this.appPath, 'build', 'bundled-plugins'),
           path.join(this.appPath, 'plugins'),
           ...resourceRoots
@@ -1969,7 +1995,7 @@ export class PluginService implements PluginServicePort {
   }
 
   private getPluginInstallRoot(): string {
-    return path.join(app.getPath('userData'), PLUGIN_INSTALL_DIRECTORY)
+    return path.join(this.profileDirectory, PLUGIN_INSTALL_DIRECTORY)
   }
 
   private getInstalledPluginRoot(pluginId: string): string {
@@ -2266,7 +2292,7 @@ export class PluginService implements PluginServicePort {
       return candidate.slice('PATH:'.length)
     }
     if (candidate.startsWith('~/')) {
-      return path.join(app.getPath('home'), candidate.slice(2))
+      return path.join(this.homeDirectory, candidate.slice(2))
     }
     return candidate
   }
@@ -2341,7 +2367,7 @@ export class PluginService implements PluginServicePort {
   private hydrateManifestPlaceholders(manifest: DeepChatPluginManifest): DeepChatPluginManifest {
     return JSON.parse(
       JSON.stringify(manifest)
-        .replaceAll('${app.version}', app.getVersion())
+        .replaceAll('${app.version}', this.appVersion)
         .replaceAll('${arch}', this.arch)
         .replaceAll('${target.platform}', this.platform)
         .replaceAll(
@@ -2352,7 +2378,7 @@ export class PluginService implements PluginServicePort {
   }
 
   private getReleaseTag(): string {
-    const version = app.getVersion()
+    const version = this.appVersion
     return version.startsWith('v') ? version : `v${version}`
   }
 
