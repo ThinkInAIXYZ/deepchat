@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { CoreHelperEventsSchema, isCoreHelperDrain } from './helpers'
 import { CoreBrowserEventSchema, isCoreBrowserDrain } from './browser'
+import { CoreDesktopEventSchema, isCoreDesktopDrain } from './desktop'
 
 export const CORE_INLINE_BYTES = 16 * 1024
 export const CORE_VALUE_BYTES = 64 * 1024 * 1024
@@ -22,16 +23,22 @@ export const CoreNativeMethodSchema = z.enum([
   'profile.quit',
   'configuration',
   'helpers',
-  'browser'
+  'browser',
+  'desktop'
 ])
 export type CoreNativeMethod = z.infer<typeof CoreNativeMethodSchema>
 
-export const CoreNativeEventSchema = z.union([CoreHelperEventsSchema, CoreBrowserEventSchema])
+export const CoreNativeEventSchema = z.union([
+  CoreHelperEventsSchema,
+  CoreBrowserEventSchema,
+  CoreDesktopEventSchema
+])
 
 export function isCoreNativeDrain(method: CoreNativeMethod, args: unknown): boolean {
   return (
     (method === 'helpers' && isCoreHelperDrain(args)) ||
-    (method === 'browser' && isCoreBrowserDrain(args))
+    (method === 'browser' && isCoreBrowserDrain(args)) ||
+    (method === 'desktop' && isCoreDesktopDrain(args))
   )
 }
 
@@ -62,6 +69,7 @@ export type CorePayload = z.infer<typeof CorePayloadSchema>
 
 export const CoreMethodSchema = z.enum([
   'openProfile',
+  'assembleKernel',
   'configure',
   'observeSystemTheme',
   'nativeEvents',
@@ -76,11 +84,35 @@ export const CoreStatusSchema = z
     pid: z.number().int().positive(),
     node: z.string().max(64),
     modules: z.string().max(32),
-    phase: z.enum(['idle', 'opening', 'profile-open', 'stopping', 'stopped']),
+    phase: z.enum([
+      'idle',
+      'opening',
+      'profile-open',
+      'assembling',
+      'kernel-assembled',
+      'stopping',
+      'stopped'
+    ]),
     businessReady: z.literal(false)
   })
   .strict()
 export type CoreStatus = z.infer<typeof CoreStatusSchema>
+
+const directory = z.string().min(1).max(32768)
+export const CoreKernelBootstrapSchema = z
+  .object({
+    temporaryDirectory: directory,
+    appDataDirectory: directory,
+    documentsDirectory: directory.nullable(),
+    projectHomeDirectory: directory.nullable(),
+    resourcesPath: directory,
+    workingDirectory: directory,
+    builtinSkillsDirectories: z.array(directory).max(64),
+    providerCatalogPath: directory,
+    allowInsecureTls: z.boolean()
+  })
+  .strict()
+export type CoreKernelBootstrap = z.infer<typeof CoreKernelBootstrapSchema>
 
 const error = z.object({ name: z.string().max(256), message: z.string().max(8192) }).strict()
 export const CoreFrameSchema = z.union([

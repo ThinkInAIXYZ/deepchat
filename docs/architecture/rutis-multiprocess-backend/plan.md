@@ -3204,14 +3204,17 @@ regressions require native SQLite. All six Rust checks, normal build, types, for
 i18n, Rust fmt and Clippy pass. Existing Browser fixtures now match their actual callback types.
 
 Immutable `f511c078b` and the candidate pass the same actual Browser typed-route load/status/destroy
-scenario. The separately selected first-message Workspace/Browser case fails on both artifacts
-before sending: its second custom model (`fixture-model`) is absent from the model picker. This
-is an unresolved baseline failure, not accepted first-message or complete-Kernel evidence; retain
-the compact failure context and investigate before whole-G5 acceptance. No deadline or retry is
-added. Evidence is `.deepchat/rutis-g5-browser-acceptance/`.
+scenario. The first-message baseline failure is a stale client catalog: Main returns both enabled
+custom models, but model facts reach consumers without invalidating the 200-ms catalog cache.
+The client now invalidates affected catalogs before forwarding catalog/status facts. The candidate
+passes the full existing first-message case: both model/icon selections, message completion,
+Workspace content and retained native Browser identity/page state. New-chat helpers scope their
+input assertion to the new-thread page, excluding retained inactive session editors. No deadline
+or automatic retry is added. Baseline failure evidence is `.deepchat/rutis-g5-browser-acceptance/`;
+diagnosis and passing candidate evidence are `.deepchat/rutis-g5-kernel-assembly-acceptance/`.
 
 No performance capture or gain claim is made. G5 remains active and unpublished: complete Kernel
-assembly, remaining Native callbacks, the default writer/public routes/lifecycle/maintenance,
+default adoption, remaining Native callbacks, the writer/public routes/lifecycle/maintenance,
 descendant/proxy authority, full acceptance and native/signed packages remain required.
 
 ### Cohesive Kernel root
@@ -3219,8 +3222,10 @@ descendant/proxy authority, full acceptance and native/signed packages remain re
 - [x] Compose the existing data, Provider and runtime factories with one event hub, session event
       router, CLI token authority/artifact owner, startup coordinator and MCP Apps registry.
       Keep native presentation/helper ports explicit and maintenance/route controls owner-local.
-- [ ] Invoke this root in the actual SDK worker with the complete Native transport and local
-      controller. Adopt its public routes, shared writer and lifecycle before G5 publication.
+- [x] Invoke this root in the actual SDK worker with the fixed Native desktop transport and
+      standalone dependency closure; verify persistence and physical retirement before writer release.
+- [ ] Mount the owner-local route and maintenance controller. Adopt public routes, shared writer
+      and lifecycle before G5 publication.
 
 `createCoreKernel` owns the cohesive business graph and its terminal drain. The same settings
 version source feeds configuration events; renderer-session ownership retains its `null` meaning.
@@ -3248,10 +3253,23 @@ tool response remains independent; capture rechecks live policy and cancellation
 and catalog validation. One existing preview test covers delayed eligibility and revocation;
 one durable shell test covers shared startup and actual retirement after timeout.
 
-Affected service checks pass **150 tests across four files**. Evidence is
-`.deepchat/rutis-g5-kernel-assembly-acceptance/`. The actual SDK caller and Native bindings remain
-required. The earlier first-message model-picker failure remains unresolved; G5 is active and
-unpublished, and G6-G12 retain their full scope.
+Affected service checks retain **150 tests across four files**. The actual SDK acceptance passes
+**26 checks across seven files**, including Kernel assembly from a harness copied outside the
+checkout, configuration events through its general event hub, persisted settings and exclusive
+writer ownership while Native retirement is held. Two desktop contracts cover reordered aborts,
+released cancellation identities, shared renderer subscriptions and physical closure. The private
+assembly phase keeps `businessReady: false`; public dispatch and snapshot import require the
+pending owner-local controller.
+
+The standalone build preserves Node package entry semantics, platform binaries, PDF assets and
+dependency-specific versions. Its Skill scan entry runs successfully from a separate copied module
+closure. Renderer client, Model store and Chat status-bar coverage passes **177 checks across three
+files**, including one durable catalog-event regression. The existing MCP runtime application case
+also passes. SDK assembly uses empty Native presentation, leaves public dispatch unmounted and
+does not activate full startup; these checks do not prove default adoption or headless CLI execution.
+Evidence is `.deepchat/rutis-g5-kernel-assembly-acceptance/`. Complete default adoption,
+helper/descendant and proxy authority, and native/signed packaging remain required. G5 is active
+and unpublished; G6-G12 retain their full scope.
 
 ## G6. Extract the complete Memory capability
 

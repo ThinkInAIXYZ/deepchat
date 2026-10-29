@@ -10,6 +10,8 @@ import { describeIfNativeSqlite } from '../nativeSqliteHarness'
 import { HarnessRuntime } from '@/harness/runtime'
 import { CoreRuntimeConnection, createCoreProfileNative } from '@/harness/core'
 import { initializeCoreProfile } from '@/app/profileStartup'
+import { CoreDesktopNative } from '@/harness/desktop'
+import type { CoreKernelNative } from '../../../src/harness/core/kernel'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -34,6 +36,7 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       refreshTheme?: (isDark: boolean) => Promise<void>
       readTheme?: () => Promise<{ theme: 'dark' | 'light' | 'system'; isDark: boolean }>
       transport?: (runtime: HarnessRuntime) => Pick<HarnessRuntime, 'connectCore' | 'stop'>
+      retireDesktop?: () => Promise<void>
     } = {}
   ) {
     const directory = mkdtempSync(path.join(tmpdir(), 'rutis-core-test-'))
@@ -50,7 +53,7 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       observe() {}
     })
     cleanups.push(() => runtime.stop())
-    const unexpected = async (): Promise<string> => {
+    const unexpected = async (): Promise<never> => {
       throw new Error('Unexpected Native operation')
     }
     const host = {
@@ -92,11 +95,83 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       },
       publishEvent
     })
-    const connection = await CoreRuntimeConnection.connect({
+    const kernelNative: CoreKernelNative = {
+      workspaceDesktop: {
+        revealFile: unexpected,
+        openFile: unexpected,
+        listFileOpenApps: unexpected,
+        openFileWithApp: unexpected
+      },
+      approvalPresentation: {
+        getTarget: async () => null,
+        present: unexpected,
+        close: async () => {}
+      },
+      ocrCacheKeyProvider: { loadOrCreateKey: unexpected },
+      initializeFloatingButton: async () => {},
+      assertSyncTokenStorageAvailable: unexpected,
+      semanticNotifications: { occur() {}, recover() {} },
+      dialog: {
+        showDialog: unexpected,
+        handleDialogResponse: unexpected,
+        handleDialogError: unexpected
+      },
+      secureCrypto: crypto,
+      providerCrypto: crypto,
+      getProxyUrl: async () => null,
+      whenProxyReady: async () => {},
+      openExternal: unexpected,
+      openPath: unexpected,
+      selectDirectory: unexpected,
+      cacheImage: unexpected,
+      agentDesktop: {
+        tempDirectory: directory,
+        profileTempDirectory: path.join(userDataDirectory, 'temp'),
+        readImageSize: unexpected,
+        createSettingsWindow: async () => null,
+        sendSettingsNavigation: async () => false
+      },
+      pluginSettingsWindow: { open: unexpected, close: async () => {}, closeAll: async () => {} },
+      remoteAuthWindows: { open: unexpected, close: async () => {} },
+      openRemoteSession: unexpected,
+      showNotification: unexpected,
+      mcpPreview: undefined,
+      sessionUiPort: { refreshSessionUi: async () => {} },
+      mcpReadinessChanged() {},
+      reportStartupFailure() {},
+      onSessionInactive() {},
+      renderer: {
+        broadcast: (envelope) => publishEvent(envelope.name, envelope.payload),
+        send: (_id, envelope) => publishEvent(envelope.name, envelope.payload)
+      },
+      onRendererDestroyed: () => () => {},
+      sendToRenderer: (_id, name, payload) => publishEvent(name, payload),
+      destroySessionBrowser: async () => {},
+      observeDelegation() {},
+      runJournalObserver: undefined,
+      notifySessionCompletion: unexpected,
+      fetchRegistryIcon: unexpected,
+      mcpAppDesktop: { observeOwner: unexpected, openExternal: unexpected },
+      publishMcpConsent() {}
+    }
+    let connection: CoreRuntimeConnection
+    const nativeDesktop = new CoreDesktopNative(
+      kernelNative,
+      async (event) => await connection.deliverDesktopEvent(event),
+      options.retireDesktop ?? (async () => {}),
+      (error) => {
+        throw error
+      }
+    )
+    connection = await CoreRuntimeConnection.connect({
       runtime: options.transport?.(runtime) ?? runtime,
       temporaryDirectory: directory,
       native: (method, args) =>
-        method === 'configuration' ? configurationNative(method, args) : profileNative(method, args)
+        method === 'desktop'
+          ? nativeDesktop.invoke(args)
+          : method === 'configuration'
+            ? configurationNative(method, args)
+            : profileNative(method, args)
     })
     cleanups.push(() => connection.closeAfterHostExit())
     const profileOptions = {
@@ -118,6 +193,72 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       publishEvent
     }
   }
+
+  it(
+    'assembles the actual SDK Kernel and retains its writer through Native retirement',
+    { timeout: 30_000 },
+    async () => {
+      const entered = Promise.withResolvers<void>()
+      const retired = Promise.withResolvers<void>()
+      const f = await fixture({
+        detached: true,
+        retireDesktop: async () => {
+          entered.resolve()
+          await retired.promise
+        }
+      })
+      try {
+        await f.connection.openProfile(f.options)
+        await f.connection.configure({ operation: 'initialize' })
+        const status = await f.connection.assembleKernel({
+          temporaryDirectory: f.directory,
+          appDataDirectory: f.directory,
+          documentsDirectory: null,
+          projectHomeDirectory: null,
+          resourcesPath: path.resolve('resources'),
+          workingDirectory: f.directory,
+          builtinSkillsDirectories: [],
+          providerCatalogPath: path.resolve('resources/model-db/providers.json'),
+          allowInsecureTls: false
+        })
+        expect(status).toMatchObject({ phase: 'kernel-assembled', businessReady: false })
+        expect(status.pid).not.toBe(process.pid)
+        f.publishEvent.mockClear()
+        await f.connection.configure({
+          operation: 'update',
+          input: {
+            changes: [{ key: 'notificationsEnabled', value: false }]
+          }
+        })
+        await vi.waitFor(() =>
+          expect(f.publishEvent).toHaveBeenCalledWith(
+            'settings.changed',
+            expect.objectContaining({ values: { notificationsEnabled: false } })
+          )
+        )
+        const stopping = f.connection.stop()
+        const observed = stopping.then(
+          () => 'stopped',
+          () => 'failed'
+        )
+        await entered.promise
+        await expect(
+          initializeCoreProfile({ ...f.options, host: f.host, crypto: f.crypto })
+        ).rejects.toMatchObject({ name: 'CoreProfileOwnershipUnavailableError' })
+        retired.resolve()
+        expect(await observed).toBe('stopped')
+        const reopened = await initializeCoreProfile({
+          ...f.options,
+          host: f.host,
+          crypto: f.crypto
+        })
+        expect(reopened.settingsStore.get('notificationsEnabled')).toBe(false)
+        reopened.closeProfile()
+      } finally {
+        retired.resolve()
+      }
+    }
+  )
 
   it(
     'holds the actual writer in Core while Memory and admission remain mounted',

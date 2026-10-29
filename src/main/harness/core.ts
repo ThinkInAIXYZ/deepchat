@@ -7,6 +7,7 @@ import { deserialize, serialize } from 'node:v8'
 import { z } from 'zod'
 import { CoreHelperEventsSchema, type CoreHelperEvent } from '@shared/harness/helpers'
 import { CoreBrowserEventSchema, type CoreBrowserEvent } from '@shared/harness/browser'
+import { CoreDesktopEventSchema, type CoreDesktopEvent } from '@shared/harness/desktop'
 import type { HarnessRuntime } from './runtime'
 import type { CoreProfileHost } from '@/app/profileStartup'
 import type { DatabaseSecurityCryptoPort } from '@/app/databaseSecurity'
@@ -20,6 +21,8 @@ import {
   CORE_VALUE_BYTES,
   isCoreNativeDrain,
   CoreStatusSchema,
+  CoreKernelBootstrapSchema,
+  type CoreKernelBootstrap,
   type CoreStatus,
   type CoreMethod,
   type CoreFrame,
@@ -176,6 +179,16 @@ export class CoreRuntimeConnection {
 
   async configure(command: CoreConfigurationCommand): Promise<unknown> {
     return await this.request('configure', CoreConfigurationCommandSchema.parse(command))
+  }
+
+  async assembleKernel(input: CoreKernelBootstrap): Promise<CoreStatus> {
+    return CoreStatusSchema.parse(
+      await this.request('assembleKernel', CoreKernelBootstrapSchema.parse(input))
+    )
+  }
+
+  async deliverDesktopEvent(event: CoreDesktopEvent): Promise<void> {
+    await this.deliverNative(CoreDesktopEventSchema.parse(event))
   }
 
   async deliverNativeEvents(events: CoreHelperEvent[]): Promise<void> {

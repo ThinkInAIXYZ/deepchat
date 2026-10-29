@@ -1,6 +1,8 @@
 import { createCoreAdmission, type CoreAdmissionService } from '../core/admission'
 import { CoreNativeHelpers } from '../core/helpers'
 import { CoreNativeBrowser } from '../core/browser'
+import { CoreNativeDesktop } from '../core/desktop'
+import { createCoreKernel } from '../core/kernel'
 import { CoreNativeCalls } from '../core/native'
 import { createCoreSettings } from '../core/settings'
 import { CoreMemoryRuntime, type CoreMemoryService } from '../core/memory'
@@ -10,7 +12,11 @@ import {
   CoreConfigurationCommandSchema,
   type CoreConfigurationNative
 } from '@shared/harness/configuration'
-import { createDeepchatEventEnvelope, type DeepchatEventEnvelope } from '@shared/contracts/events'
+import {
+  createDeepchatEventEnvelope,
+  type DeepchatEventEnvelope,
+  type DeepchatEventName
+} from '@shared/contracts/events'
 import { definePlugin } from '@arcships/rutis'
 import { z } from 'zod'
 import { initializeCoreProfile } from '@/app/profileStartup'
@@ -20,6 +26,7 @@ import { CorePayloadStore } from '../core/payload'
 import {
   CoreCarrierConfigSchema,
   CoreNativeEventSchema,
+  CoreKernelBootstrapSchema,
   type CoreCarrierConfig,
   type CoreNativeMethod,
   type CorePayload,
@@ -44,6 +51,7 @@ export default definePlugin<CoreCarrierConfig>({
     deepchatCore: {
       identity: 'async',
       openProfile: 'async',
+      assembleKernel: 'async',
       configure: 'async',
       observeSystemTheme: 'async',
       nativeEvents: 'async',
@@ -65,6 +73,11 @@ export default definePlugin<CoreCarrierConfig>({
         }
     >('deepchatCoreNative')
     let profile: Awaited<ReturnType<typeof initializeCoreProfile>> | undefined
+    let profilePaths: z.infer<typeof profileBootstrap> | undefined
+    let kernel: Awaited<ReturnType<typeof createCoreKernel>> | undefined
+    let assembling: Promise<CorePayload> | undefined
+    let kernelAttempted = false
+    let kernelPublish: ((name: DeepchatEventName, payload: unknown) => void) | undefined
     const admission = await createCoreAdmission(native, config.generation, {
       observationsEnabled: () => profile?.settingsStore.get<boolean>('loggingEnabled') ?? false
     })
@@ -101,6 +114,13 @@ export default definePlugin<CoreCarrierConfig>({
     )
     const browser = new CoreNativeBrowser(
       async (command) => await callNative('browser', [command]),
+      () => {
+        void stop().catch(() => {})
+      }
+    )
+    const desktop = new CoreNativeDesktop(
+      async (command) => await callNative('desktop', [command]),
+      (event) => kernel?.runtime.remoteService.handleAuthWindowEvent(event),
       () => {
         void stop().catch(() => {})
       }
@@ -144,10 +164,10 @@ export default definePlugin<CoreCarrierConfig>({
     const runConfiguration = async (
       execute: (owner: NonNullable<typeof configuration>['appSettingsService']) => Promise<unknown>
     ): Promise<CorePayload> => {
-      if (phase !== 'profile-open' || !configuration)
+      if (!['profile-open', 'kernel-assembled'].includes(phase) || !configuration)
         throw new Error('Core configuration is unavailable')
       const operation = configurationTail.then(async () => {
-        if (phase !== 'profile-open' || !configuration)
+        if (!['profile-open', 'kernel-assembled'].includes(phase) || !configuration)
           throw new Error('Core configuration is unavailable')
         const events: DeepchatEventEnvelope[] = []
         configurationEvents = events
@@ -172,14 +192,28 @@ export default definePlugin<CoreCarrierConfig>({
       stopping = (async () => {
         // An in-flight Native effect must settle before profile startup can retire its lock.
         await opening?.catch(() => undefined)
-        await browser.close()
-        await helpers.close()
-        await configurationTail
-        await configuration?.appSettingsService.stop()
-        await vectorStores?.dispose()
-        await memory.retire()
-        await admission.close()
-        await nativeCalls.drain()
+        await assembling?.catch(() => undefined)
+        const errors: unknown[] = []
+        const retire = async (action: () => unknown | Promise<unknown>) => {
+          try {
+            await action()
+          } catch (error) {
+            errors.push(error)
+          }
+        }
+        await retire(async () => await kernel?.stop())
+        await retire(() => browser.close())
+        await retire(() => helpers.close())
+        await retire(() => desktop.close())
+        await retire(() => configurationTail)
+        await retire(async () => await configuration?.appSettingsService.stop())
+        await retire(async () => await vectorStores?.dispose())
+        await retire(() => memory.retire())
+        await retire(() => admission.close())
+        await retire(() => nativeCalls.drain())
+        if (kernelAttempted && !kernel)
+          errors.push(new Error('Partial Core Kernel requires physical retirement'))
+        if (errors.length) throw new AggregateError(errors, 'Core did not retire')
         profile?.closeProfile()
         if (ownsProfile) throw new Error('Core profile ownership did not retire')
         profile = undefined
@@ -202,6 +236,7 @@ export default definePlugin<CoreCarrierConfig>({
         opening = (async () => {
           try {
             const bootstrap = profileBootstrap.parse(await store.decode(ref))
+            profilePaths = bootstrap
             profile = await initializeCoreProfile({
               ...bootstrap,
               host,
@@ -268,13 +303,15 @@ export default definePlugin<CoreCarrierConfig>({
                 await effect({ operation: 'snapshot', snapshot })
               },
               publishEvent: (name, payload) => {
+                if (kernelPublish) return kernelPublish(name, payload)
                 if (!configurationEvents || configurationEvents.length >= 64)
                   throw new Error('Core configuration event batch is unavailable')
                 configurationEvents.push(createDeepchatEventEnvelope(name, payload))
               },
               nextVersion: () => ++settingsVersion,
               assertActive: () => {
-                if (phase !== 'profile-open') throw new Error('Core configuration is unavailable')
+                if (!['profile-open', 'kernel-assembled'].includes(phase))
+                  throw new Error('Core configuration is unavailable')
               }
             })
             phase = 'profile-open'
@@ -294,10 +331,89 @@ export default definePlugin<CoreCarrierConfig>({
         })()
         return await opening
       },
+      async assembleKernel(ref: CorePayload): Promise<CorePayload> {
+        if (
+          assembling ||
+          phase !== 'profile-open' ||
+          !profile ||
+          !configuration ||
+          !vectorStores ||
+          !profilePaths
+        )
+          throw new Error('Core Kernel is unavailable')
+        const ownerProfile = profile
+        const ownerSettings = configuration
+        const ownerVectors = vectorStores
+        const paths = profilePaths
+        phase = 'assembling'
+        assembling = (async () => {
+          try {
+            const input = CoreKernelBootstrapSchema.parse(await store.decode(ref))
+            for (const value of Object.values(input).flat())
+              if (typeof value === 'string' && !path.isAbsolute(value))
+                throw new Error('Invalid Core Kernel path')
+            const nativePorts = await desktop.createPorts({
+              temporaryDirectory: input.temporaryDirectory,
+              profileDirectory: paths.userDataDirectory
+            })
+            if (isStopping()) throw new Error('Core Kernel startup was stopped')
+            kernelAttempted = true
+            kernel = await createCoreKernel({
+              profile: ownerProfile,
+              settings: ownerSettings,
+              bootstrap: {
+                ...input,
+                profileDirectory: paths.userDataDirectory,
+                homeDirectory: paths.homeDirectory,
+                appPath: paths.appPath,
+                appVersion: paths.currentAppVersion,
+                isPackaged: paths.isPackaged
+              },
+              providerCatalogBootstrap: {
+                userDataDirectory: paths.userDataDirectory,
+                builtInCatalogPath: input.providerCatalogPath
+              },
+              nextSettingsVersion: () => ++settingsVersion,
+              native: nativePorts,
+              browser,
+              helpers: {
+                spawnBackgroundExecHost: helpers.spawnBackgroundExecHost.bind(helpers),
+                spawnCodeModeHost: helpers.spawnCodeModeHost.bind(helpers),
+                spawnSchedulerHost: helpers.spawnSchedulerHost.bind(helpers),
+                spawnFileWatcherHost: helpers.spawnFileWatcherHost
+              },
+              admission,
+              vectors: ownerVectors,
+              // shortcut: Public dispatch stays unavailable until G5 mounts its local controller.
+              controls: {
+                importSnapshot: async () => {
+                  throw new Error('Core controller is not mounted')
+                },
+                resolveRouteDispatcher: () => {
+                  throw new Error('Core controller is not mounted')
+                }
+              },
+              bindEventPublisher: (publish) => {
+                kernelPublish = publish
+              },
+              isStopping,
+              allowInsecureTls: input.allowInsecureTls
+            })
+            if (isStopping()) throw new Error('Core Kernel startup was stopped')
+            phase = 'kernel-assembled'
+            return await store.encode(status())
+          } catch (error) {
+            if (!isStopping()) phase = kernelAttempted ? 'stopping' : 'profile-open'
+            throw error
+          }
+        })()
+        return await assembling
+      },
       async configure(ref: CorePayload): Promise<CorePayload> {
         return await runConfiguration(async (owner) => {
           const command = CoreConfigurationCommandSchema.parse(await store.decode(ref))
-          if (phase !== 'profile-open') throw new Error('Core configuration is unavailable')
+          if (!['profile-open', 'kernel-assembled'].includes(phase))
+            throw new Error('Core configuration is unavailable')
           switch (command.operation) {
             case 'read':
               return await owner.getSnapshot(command.input.keys)
@@ -317,6 +433,10 @@ export default definePlugin<CoreCarrierConfig>({
         const event = CoreNativeEventSchema.parse(await store.decode(ref))
         if (Array.isArray(event)) {
           helpers.accept(event)
+          return await store.encode(undefined)
+        }
+        if (event.type.startsWith('desktop.')) {
+          desktop.accept(event)
           return await store.encode(undefined)
         }
         return await store.encode(await browser.accept(event))

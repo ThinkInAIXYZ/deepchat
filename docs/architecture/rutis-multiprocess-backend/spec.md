@@ -1430,12 +1430,25 @@ dispatch, followed by fresh cancellation and target-lifetime checks. Helper and 
 share a serialized, count/byte-bounded queue with value snapshots, rather than competing for the
 single reserved slot. Business authorization denial does not retire the event transport.
 
+Client projections invalidate the affected model catalog cache before forwarding catalog or status
+facts to consumers. A fact-triggered refresh cannot reuse a snapshot captured before that fact.
+
 The cohesive Kernel root owns the event hub/session router, startup work, CLI token/artifact
 authority and MCP Apps registry with its data, Provider and runtime composition. Profile closure
 follows its terminal drain, Native-effect retirement and shared admission/Memory retirement.
 Partial construction is not a successful close receipt. Configuration events share the owner's
 version source, and an ordinary renderer session's `null` CLI ownership must remain distinct from
 unknown/deleted ownership.
+
+The SDK worker assembles this root through a private lifecycle request while business readiness
+remains false until its local route and maintenance controller is mounted. Native desktop methods
+come from a fixed capability table with validated arguments and event payloads. Abort signals stay
+local to each process; cancellation identifies the accepted effect and waits for actual settlement.
+Completed cancellation identities are released after their original call settles. Renderer watches
+share one Native subscription per renderer and retain registration and unsubscription receipts.
+Native closure fences new effects and acknowledges physical retirement before profile release.
+The standalone harness includes its Node module closure, platform native packages and separately
+bundled Skill scan worker; it must not rely on the development checkout's node_modules.
 
 Accepted login-shell initialization belongs to runtime shutdown. Concurrent reads share its
 process, stopping fences late environment/state refresh and timeout waits for actual process/stdio

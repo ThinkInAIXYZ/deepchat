@@ -339,6 +339,7 @@ impl HostDispatch for Native {
                 | "configuration"
                 | "helpers"
                 | "browser"
+                | "desktop"
         ) {
             return Err(BridgeError::Value("Unknown Core Native capability".into()));
         }
@@ -543,7 +544,7 @@ impl Plugin for Gateway {
                                 "status" | "stop" => Lane::Control,
                                 "observeSystemTheme" => Lane::Observation,
                                 "nativeEvents" => Lane::NativeEvents,
-                                "openProfile" | "configure" => Lane::Ordinary,
+                                "openProfile" | "configure" | "assembleKernel" => Lane::Ordinary,
                                 _ => return Err(CordisError::ServiceNotFound("Invalid Core operation".into())),
                             };
                             if id == 0 || id > 9_007_199_254_740_991 || id <= last_id || active[lane as usize] >= [4, 2, 1, 1][lane as usize] {
