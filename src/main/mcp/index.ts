@@ -175,7 +175,7 @@ export class McpService implements McpServicePort {
     private readonly publishEvent: DeepchatEventPublisher,
     toolPolicies: Pick<PluginToolPolicyStore, 'resolve' | 'deniedTools'>,
     runtime: Pick<McpClientRuntime, 'homeDirectory' | 'appVersion' | 'toolchains'> & {
-      getProxyUrl(): string | null
+      getProxyUrl(): Promise<string | null>
     },
     oauth: { store: McpOAuthCredentialStore; openExternal(url: string): Promise<void> },
     cacheImage?: (data: string, options?: CacheImageOptions) => Promise<string>,

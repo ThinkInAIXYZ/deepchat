@@ -1857,7 +1857,7 @@ export async function createMainProcessControl(dependencies: {
       homeDirectory: app.getPath('home'),
       appVersion: app.getVersion(),
       toolchains: toolchainService,
-      getProxyUrl: () => proxyConfig.getProxyUrl()
+      getProxyUrl: async () => proxyConfig.getProxyUrl()
     },
     {
       store: new McpOAuthCredentialStore({

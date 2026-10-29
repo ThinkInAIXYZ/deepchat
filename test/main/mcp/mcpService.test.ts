@@ -135,7 +135,7 @@ const createMcpService = (
           throw new Error('Toolchain is not configured')
         }
       },
-      getProxyUrl: () => null
+      getProxyUrl: async () => null
     },
     {
       store: new McpOAuthCredentialStore({

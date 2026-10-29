@@ -73,7 +73,7 @@ describe('ServerManager notifications and plugin isolation', () => {
   function createManager(
     providerSettings: ReturnType<typeof createProviderSettings>,
     oauth?: McpOAuthManager,
-    getProxyUrl: () => string | null = () => null
+    getProxyUrl: () => Promise<string | null> = async () => null
   ) {
     return new ServerManager(
       providerSettings as never,
@@ -88,17 +88,22 @@ describe('ServerManager notifications and plugin isolation', () => {
     )
   }
 
-  it('uses the current supplied proxy for each registry probe', async () => {
+  it('awaits the current native proxy before each registry batch', async () => {
     const settings = {
       ...createProviderSettings({}),
       getCustomNpmRegistry: () => null,
       setNpmRegistryCache: vi.fn()
     }
-    let proxyUrl: string | null = 'http://fixture:credential@127.0.0.1:4567'
-    const manager = createManager(settings, undefined, () => proxyUrl)
+    const proxy = Promise.withResolvers<string | null>()
+    const getProxyUrl = vi.fn<() => Promise<string | null>>()
+    getProxyUrl.mockReturnValueOnce(proxy.promise).mockResolvedValue(null)
+    const manager = createManager(settings, undefined, getProxyUrl)
     const get = vi.spyOn(axios, 'get').mockResolvedValue({ status: 200 })
     try {
-      await manager.testNpmRegistrySpeed(false)
+      const pending = manager.testNpmRegistrySpeed(false)
+      expect(get).not.toHaveBeenCalled()
+      proxy.resolve('http://fixture:credential@127.0.0.1:4567')
+      await pending
       expect(get).toHaveBeenCalledTimes(3)
       for (const [, options] of get.mock.calls) {
         expect(options?.proxy).toEqual({
@@ -108,10 +113,15 @@ describe('ServerManager notifications and plugin isolation', () => {
         })
       }
       get.mockClear()
-      proxyUrl = null
       await manager.testNpmRegistrySpeed(false)
       expect(get).toHaveBeenCalledTimes(3)
       for (const [, options] of get.mock.calls) expect(options?.proxy).toBeUndefined()
+      get.mockClear()
+      settings.setNpmRegistryCache.mockClear()
+      getProxyUrl.mockRejectedValueOnce(new Error('Native proxy unavailable'))
+      await expect(manager.testNpmRegistrySpeed(false)).rejects.toThrow('Native proxy unavailable')
+      expect(get).not.toHaveBeenCalled()
+      expect(settings.setNpmRegistryCache).not.toHaveBeenCalled()
     } finally {
       get.mockRestore()
     }

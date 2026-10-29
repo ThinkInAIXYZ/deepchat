@@ -51,7 +51,7 @@ export class ServerManager {
     onRegistryChanged: () => void,
     private readonly semanticNotifications: SemanticNotificationPublisher,
     private readonly publishEvent: DeepchatEventPublisher,
-    private readonly getProxyUrl: () => string | null,
+    private readonly getProxyUrl: () => Promise<string | null>,
     mcpOAuthManager?: McpOAuthManager
   ) {
     this.mcpSettings = mcpSettings
@@ -133,7 +133,7 @@ export class ServerManager {
     const testPackage = 'tiny-runtime-injector'
 
     // Get proxy configuration
-    const proxyUrl = this.getProxyUrl()
+    const proxyUrl = await this.getProxyUrl()
     const proxyOptions = (() => {
       if (!proxyUrl) return {}
       const u = new URL(proxyUrl)

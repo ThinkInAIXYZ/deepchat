@@ -687,6 +687,25 @@ unreadable-key recovery, helper lifetime and cache clear/close behavior. G5 tran
 key operation only to the approved core generation; key material never enters public status,
 logs, loader configuration or command arguments.
 
+The profile handoff also covers file writers and synchronous configuration readers that do not
+open a database connection:
+
+| File or state family | Authority and G5 handoff |
+| --- | --- |
+| `app-settings.json`, `mcp-settings.json`, `acp_agents.json` and legacy Provider model/config files | Move the complete configuration authority and its attached adapters together. Main's existing bootstrap/migration stores must stop writing before backend admission; preserve legacy snapshots and formats without a second whole-file writer. |
+| `plugin-settings.json`, installed plugin configuration and `plugin-tool-policies.json` | Keep installation/consent, activation, Hooks/Tape and synchronous tool-policy decisions with their one business owner. Main receives native presentation commands only. |
+| `database-security.json`, wrapped Sync/Provider secrets and Codex/Grok/MCP OAuth credential files | Persistence, generation checks and queues follow their existing owners. Main supplies private crypto/unlock/browser effects, never writable stores or general secret snapshots. |
+| OCR wrapped key, OCR derived database, Memory vector files and Knowledge files | Keep the native wrapped-key owner distinct from each encrypted/cache/vector resource owner. Transfer their actual lifetimes and maintenance fences; the shared-database handoff cannot imply these files have drained. |
+| Provider/ACP catalogs, Skills metadata, toolchains, file/Remote/OCR caches and artifact spool | Preserve their explicit roots, existing cache writers and helper/resource lifetimes. Move business caches with their consumers; device file/image/browser operations retain narrow host capabilities. |
+| Native windows, browser profiles, downloads, updater, logging and OS state | Main/device owners retain native effects and renderer identity checks. Business configuration reads use committed projections or async queries; native state is not a shared Store replica. |
+
+The current DeviceService reset implementation can remove shared files after the exclusive
+shutdown-action claim. G5 must bind that claim to actual backend and independent-resource teardown
+before deletion or relaunch; an RPC timeout or lost reply is not proof that writers have stopped.
+Main's native database initializer and legacy migration construction are bootstrap entrypoints,
+not normal backend readers. Move schema/repair/import work with the Store authority and remove
+Main's writable startup shadow when the backend opens its files.
+
 The boundary follows existing business operations, rather than these connection wrappers:
 
 | Existing owner and source | Work that stays indivisible inside the backend | Data crossing the boundary |
@@ -1084,8 +1103,9 @@ This preparation does not relocate ACP execution or its native PTY binding to an
 
 MCP client execution receives an absolute home directory, application version and the existing
 toolchain owner explicitly from composition. Preserve command rewriting, live toolchain selection,
-PATH precedence, environment binding isolation and process cleanup. Registry probes read the current
-proxy URL through the host capability without importing the native proxy module. Neither the client
+PATH precedence, environment binding isolation and process cleanup. Each registry probe batch awaits
+the current resolved proxy URL through the host capability, preserving system/custom proxy and
+authentication behavior without importing the native proxy module. Neither the client
 nor its server manager may construct a native dependency or locate a process-global toolchain.
 This boundary does not relocate MCP execution or its AppHost presentation owner.
 

@@ -47,7 +47,7 @@ rerun CI or unchanged benchmarks to obtain a passing timing sample.
 | G1 Whole-capability roadmap | Complete; documentation only | G0 and source research | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence |
 | G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
 | G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
-| G4 Store commands and desktop ports | Store, settings and selected desktop-port slices locally validated; remaining contracts in progress | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
+| G4 Store commands and desktop ports | Local implementation, ownership inventory and batch validation complete; publication CI pending | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
 | G5 Cohesive TS Harness backend | Planned | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
 | G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
 | G7 Rust control owner | Planned | G2, G5 | Admission and cohesive run/interaction settlement preserve all fences |
@@ -2189,19 +2189,19 @@ and npm registry timeout are retained with the retry evidence. Latest required/p
 both barriers pass. The storage checkpoint requires its own exact-head CI; the documentation-only
 native-boundary audit reuses the accepted runtime artifacts without another build or E2E capture.
 
-- [ ] Complete the writer, synchronous-reader and desktop-consumer inventory.
+- [x] Complete the writer, synchronous-reader and desktop-consumer inventory.
   - [x] Enumerate SQLite/DuckDB construction and wrapper entrypoints, inherited shared facades,
         staged/import/snapshot connections and independent derived-cache/vector owners.
   - [x] Map Session/Tape/pending-input, Memory, Agent deletion, delegation, Scheduler, Project
         and Sync transactions to indivisible business operation groups.
-  - [ ] Classify remaining synchronous configuration consumers and desktop effects, including
+  - [x] Classify remaining synchronous configuration consumers and desktop effects, including
         mixed database/file settings, plugin trust state and native image/runtime inputs.
-- [ ] Replace cross-boundary closures/row APIs with bounded transactional business commands for
+- [x] Replace cross-boundary closures/row APIs with bounded transactional business commands for
       Session/Tape/Memory/config and scheduler claims. Preserve atomic head observations and CAS;
       leave exactly one writer authority throughout each cutover.
-- [ ] Define versioned read snapshots and acknowledged mutations for desktop consumers. Extract
+- [x] Define versioned read snapshots and acknowledged mutations for desktop consumers. Extract
       crypto/unlock, OAuth, helper launch, native UI and power events behind narrow async ports.
-- [ ] Preserve route sender validation, permissions, secret handling and cancellation identity.
+- [x] Preserve route sender validation, permissions, secret handling and cancellation identity.
       Compare real operations and maintenance, remove only replaced dependencies and validate
       directly affected storage/host contracts.
 
@@ -2228,16 +2228,16 @@ projection and Tape head in one SQL statement; replacing it with independent rem
 guarantee. Existing local transaction closures can move with this cohesive backend without new
 row-level RPCs.
 
-Configuration remains incomplete: `AppSettingsDbBackedStore` mixes sensitive/portable database
-keys with machine-local legacy-file keys. Its `store` getter merges both. Main's desktop/settings
-and general config routes still have synchronous access, and plugin trust/install state retains
-separate native stores. A full merged Store snapshot is not an acceptable public backend payload.
-Keep allowlisted public snapshots and secret boundaries. One writer must own the entire legacy
-file: different-key writes still race because the pinned Conf adapter serializes the whole object
-before atomic replacement. G5 therefore hands the profile file to the configuration owner after
-exclusive bootstrap; Main then uses snapshots/acknowledged mutations, including for UI keys.
-The RFC maps remaining consumer families and desktop-only effects. Complete their concrete ports
-before G5. This audit is source evidence, not new runtime wiring or backend acceptance.
+`AppSettingsDbBackedStore` mixes sensitive/portable database keys with machine-local legacy-file
+keys; its merged `store` getter remains owner-local. Native consumers use the committed private
+allowlist and acknowledged mutations, while general config routes execute beside their settings
+authority. Plugin installation/safety and tool-policy persistence retain separate complete file
+owners. A full merged Store snapshot is not a public backend payload. Different-key writes still
+race because the pinned Conf adapter serializes the whole object before atomic replacement.
+G5 hands the complete profile-file authority to the configuration owner after exclusive bootstrap;
+Main keeps snapshots/commands, including for UI keys. The RFC's final profile-file inventory also
+covers native key files, credentials, caches, bootstrap migration and offline reset. This inventory
+does not claim the actual G5 writer handoff or a composed headless backend.
 Constructor inventories and source-search evidence are in
 `.deepchat/rutis-g4-code-mode-acceptance/`.
 
@@ -2437,7 +2437,8 @@ core; its synchronous local transactions and integrity callbacks do not become r
       active-run/update exclusion, cancellation, uncertain outcomes and restart behavior.
 - [x] Verify default composition, portable import, relevant regressions and the same real-app
       plugin scenarios against immutable artifacts.
-- [ ] Finish the final writer/reader/native inventory and completed-batch validation before G5.
+- [x] Finish the final writer/reader/native inventory and local completed-batch validation.
+      The published batch's required and six-platform CI barriers remain mandatory before G5.
 - [x] Supply OCR's native cache-key provider explicitly from Main; preserve encrypted cache
       persistence, unavailable-key fallback and the same cache clear/relaunch application behavior.
 - [x] Supply Codex/Grok auth owner commands to Main's OAuth facade. Keep their controllers,
@@ -2446,7 +2447,7 @@ core; its synchronous local transactions and integrity callbacks do not become r
 - [x] Supply provider-existence results and committed MCP startup readiness to the native
       deep-link adapter; preserve latest-pending installation and sender/preview behavior without
       passing complete Provider settings or the MCP business owner into native actions.
-- [ ] Await the native resolved-proxy capability before the existing MCP registry probe; preserve
+- [x] Await the native resolved-proxy capability before the existing MCP registry probe; preserve
       proxy authentication, live selection, failure propagation and the three-registry batch.
 
 Native SDK presentation remains Main-owned. These contracts do not move the cohesive backend or
@@ -2517,7 +2518,7 @@ and the OCR cache. Each selected owner's immutable baseline evidence remains ava
 performance/resource recapture or speed claim is selected. OCR-specific evidence and hashes are
 in `.deepchat/rutis-g4-ocr-key-acceptance/`.
 
-The source inventory currently checks **52 entries and 796 unique transitive inputs** without
+The source inventory checks **83 entries and 831 unique transitive inputs** without
 Electron, electron-store, font-list or electron-toolkit runtime imports. Skill Sync's modulePath
 reference is recorded separately and its actual worker source is checked as an additional entry;
 the audit does not substitute a placeholder for runtime/package validation. All 63 direct native
@@ -2530,9 +2531,9 @@ This is source-boundary evidence, not a composed backend or exclusive writer han
 Codex/Grok auth owners and credential queues are constructed alongside Provider consumers; Main's
 OAuthService receives acknowledged account commands. Native deep-link actions use provider-existence
 and MCP startup observations in place of complete business-owner dependencies. MCP registry selection
-still requires an asynchronous resolved-proxy capability. G4 stays active until that boundary and
-final complete-batch inventory/validation are done, then
-the batch's own required and six platform package CI barriers pass. G5 has not started.
+awaits the native resolved-proxy capability. Local complete-batch inventory and validation pass;
+G4 remains active until its published head's required and six platform package CI barriers pass.
+G5 has not started.
 
 ### Provider account owner commands
 
@@ -2587,8 +2588,45 @@ OS fixture observes the window opened by the link, preserving its provider navig
 
 App and changed-test types, normal build, format/check, lint and i18n pass. Evidence and verified
 hashes are in `.deepchat/rutis-g4-deeplink-owner-acceptance/`. No performance/resource capture or
-process change is selected. The native resolved-proxy read and final inventory remain before G4
-publication; the shared writer and Harness have not moved.
+process change is selected. The shared writer and Harness have not moved.
+
+### Resolved proxy and final G4 batch
+
+Each existing three-registry probe batch awaits Main's current resolved proxy URL. Keep the native
+system/custom resolution, authentication, cache/custom-registry short circuits and network failure
+behavior. A failed host query propagates before any HTTP probe or registry-cache mutation. There
+is no new proxy resolver, process, transport, cache or configuration writer. The focused MCP/native
+proxy/composition suite passes **86 checks across four files**; the delayed-reply regression also
+covers authenticated proxy options, a later direct selection and rejected host observation.
+
+The final inventory covers all **34 direct SettingsStore consumers**: 31 owner-local Core
+configuration/command modules and three explicit bootstrap/composition entrypoints. Those Core
+constructors are included in the **83-entry, 831-input** source audit rather than inferred from
+type-only consumers. All 63 direct native-import files retain explicit Main/device roles. The RFC
+records physical file owners as well as connections, including complete settings files, plugin
+safety/policy, credentials, native wrapped keys, derived caches, bootstrap migration and offline
+data reset. This establishes G4's handoff inventory, not actual G5 process or writer ownership.
+
+Final regression protection passes **807 distinct checks across 68 files**: 781 checks in 67 files
+under Electron with native SQLite required, plus 26 child-script Hook checks under ordinary Node.
+The Hook fixture uses process.execPath as its Node command; its seven failures under Electron are
+retained in the initial log. Running that file with its intended Node runtime passes all 26 checks
+without changing production code, test deadlines or assertions. Normal generated Provider catalog
+checks contribute 44 of the 807 checks and the generated refresh remains a separate commit.
+
+The final default application passes **19 cases across 13 files**, covering plugin installation,
+Hooks and native windows, account/Copilot authorization, maintenance and credential drains, MCP
+child lifetime, desktop/font/file/image effects, configuration projection, Remote authorization,
+OCR key/cache relaunch and OS deep links. Each owner retains its matching immutable application
+comparison; the MCP proxy boundary reuses the verified b16d31799 baseline runtime case. No fresh
+19-case baseline or performance result is claimed. App/changed-test types, normal full build,
+format/check including Markdown, lint and i18n pass. Source hashes, artifact hashes and receipts
+are in `.deepchat/rutis-g4-final-inventory/`; focused proxy receipts are in
+`.deepchat/rutis-g4-proxy-port-acceptance/`.
+
+Publish this completed batch once to the existing Draft PR. G4 remains active while its own
+exact-head required checks, all six platform packages and both barriers are pending. Do not start
+G5 or merge the PR before those checks pass. Shared-CI timing reports do not trigger reruns.
 
 ## G5. Move the cohesive Harness and shared core into the TS backend
 
