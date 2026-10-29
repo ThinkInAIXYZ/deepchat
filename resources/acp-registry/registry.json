@@ -249,7 +249,7 @@
     {
       "id": "codex-acp",
       "name": "Codex",
-      "version": "2.4.0",
+      "version": "2.5.0",
       "description": "ACP adapter for OpenAI's coding assistant",
       "repository": "https://github.com/agentclientprotocol/codex-acp",
       "authors": [
@@ -261,7 +261,7 @@
       "license_url": "https://github.com/agentclientprotocol/codex-acp/blob/main/LICENSE",
       "distribution": {
         "npx": {
-          "package": "@agentclientprotocol/codex-acp@2.4.0"
+          "package": "@agentclientprotocol/codex-acp@2.5.0"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/codex-acp.svg"
@@ -797,7 +797,7 @@
     {
       "id": "harn",
       "name": "Harn",
-      "version": "0.10.180",
+      "version": "0.10.181",
       "description": "Harn runs .harn agent pipelines as a native ACP coding agent over stdio.",
       "repository": "https://github.com/burin-labs/harn",
       "website": "https://harnlang.com",
@@ -809,49 +809,49 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.180/harn-aarch64-apple-darwin.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.181/harn-aarch64-apple-darwin.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "54f7f21189b4d5f52add969e9cb09aedf91a57379b472f45331118bb639f34ac"
+            "sha256": "acf3ba2dd2e2a38f83ce8ad3a6bf35a27d5907479d928303927fa12e5a96d395"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.180/harn-x86_64-apple-darwin.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.181/harn-x86_64-apple-darwin.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "4947c9c3f1840f2cdd158f425547c0d891902d7988f82e30565b1244587dd6a5"
+            "sha256": "755ba8cea5932d1535b0928356c3c8371eca3bc6a71fc1424bbcc050e7e5f22e"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.180/harn-aarch64-unknown-linux-gnu.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.181/harn-aarch64-unknown-linux-gnu.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "13b552530eb689b602bc82b6e75f8bf1f8466e99c0285353ed64d1312ceb3e49"
+            "sha256": "6a919def15324924391ec5251afcc609253d49e2bee70eedc943abbd73ed2918"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.180/harn-x86_64-unknown-linux-gnu.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.181/harn-x86_64-unknown-linux-gnu.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "084ddf93a0f6a9dba909267db5c55c82266f9aecab924fe004b19c5274868b77"
+            "sha256": "f14ffbc85d1414619d762a2f96a3d03f656d0abd4594acda050c440efa5846d3"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.180/harn-x86_64-pc-windows-msvc.zip",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.181/harn-x86_64-pc-windows-msvc.zip",
             "cmd": "harn.exe",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "8ab68f926cbabe79c9124aa6180267d41851ff2b0af62850211f421fc3f6fb8d"
+            "sha256": "2c40a0a070d16c1ed9edd95a23f27770b492c0eb47fdd80254ada1460552b7d5"
           }
         }
       },
@@ -984,7 +984,7 @@
     {
       "id": "kimchi",
       "name": "Kimchi",
-      "version": "1.22.5",
+      "version": "1.24.2",
       "description": "Coding agent powered by multi-model orchestration",
       "repository": "https://github.com/getkimchi/kimchi",
       "website": "https://kimchi.dev",
@@ -996,8 +996,8 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.22.5/kimchi_darwin_arm64.tar.gz",
-            "sha256": "330a44bca0eb9cd537d8e7499b08af6a1313bfe350788e5985c5642e3373afaa",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.24.2/kimchi_darwin_arm64.tar.gz",
+            "sha256": "fba4afa140058f3d723cb48f8170bae9bb043af5bfbe6f9fc5ba49cb8a671398",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1005,8 +1005,8 @@
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.22.5/kimchi_darwin_amd64.tar.gz",
-            "sha256": "8e8a6da321ec37bd305642f7b94b18683e49a23ea7db02532f74f559aced8016",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.24.2/kimchi_darwin_amd64.tar.gz",
+            "sha256": "d3c85fcd62df08c696d278e40b386f0720332a64b767f90b7371a74a0e32f3bc",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1014,8 +1014,8 @@
             ]
           },
           "linux-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.22.5/kimchi_linux_arm64.tar.gz",
-            "sha256": "f5b0970b3e356cfb50f39a23718b275c87f0d665a569e39c294890dd9f662395",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.24.2/kimchi_linux_arm64.tar.gz",
+            "sha256": "b90a11865d852960b1d45a4c24d4dedf4c8a3bc67e847ba35ff113d7a417281c",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1023,8 +1023,8 @@
             ]
           },
           "linux-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.22.5/kimchi_linux_amd64.tar.gz",
-            "sha256": "0df8211090135639593bde5692ce68e69edeb00d178e98852edbd70f7e89c06f",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.24.2/kimchi_linux_amd64.tar.gz",
+            "sha256": "3b20a1a80dc042291a593944b8f2ff8e3eb5afa4e1ad1810c98cc8321b9fbaa3",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1032,8 +1032,8 @@
             ]
           },
           "windows-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.22.5/kimchi_windows_amd64.zip",
-            "sha256": "0dda53493308709a246810fa00cdc86723c518ade4d6a18a44ef36ab19401172",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.24.2/kimchi_windows_amd64.zip",
+            "sha256": "d8ebb79e07d3f256dc16437f62281e8ba9f85b90210bf4cb2909b29ca0bbadfc",
             "cmd": "./bin/kimchi.exe",
             "args": [
               "--mode",
