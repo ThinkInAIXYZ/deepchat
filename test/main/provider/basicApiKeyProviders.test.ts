@@ -1900,7 +1900,7 @@ describe('basic API-key provider registrations', () => {
     )
   })
 
-  it('reads context length and tool support from the Obscurify.ai catalog', async () => {
+  it('reads chat models with context length and tool support from the Obscurify.ai catalog', async () => {
     const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'obscurify')!
     const fetchMock = vi.fn().mockResolvedValue(
       Response.json({
@@ -1909,6 +1909,10 @@ describe('basic API-key provider registrations', () => {
           { id: 'moonshotai/kimi-k2-0905', context_length: 262144, tools: true },
           { id: 'vendor/plain-model', context_length: 0, tools: false },
           { id: 'vendor/no-metadata' },
+          { id: 'google/gemini-2.5-flash-image', context_length: 32768, tools: false },
+          { id: 'typesafe/jev-1.14', decisions: true, tools: false },
+          { id: 'typesafe/jev-latest', tools: false },
+          { id: 'vendor/decider-small', decisions: true, tools: false },
           { id: '  ' },
           { id: 7 }
         ]
