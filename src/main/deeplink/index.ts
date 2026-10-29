@@ -56,6 +56,7 @@ class ProviderDeeplinkError extends Error {
 export class DeeplinkService {
   private startupUrl: string | null = null
   private pendingMcpInstallUrl: string | null = null
+  private mcpReady = false
 
   constructor(
     private readonly desktop: DeeplinkDesktopPort,
@@ -92,8 +93,9 @@ export class DeeplinkService {
     this.startupUrl = null
   }
 
-  processPendingMcpInstall(): void {
-    if (!this.pendingMcpInstallUrl) {
+  observeMcpReadiness(ready: boolean): void {
+    this.mcpReady = ready
+    if (!ready || !this.pendingMcpInstallUrl) {
       return
     }
 
@@ -101,8 +103,9 @@ export class DeeplinkService {
       'Processing pending MCP install URL:',
       this.redactDeepLinkUrlForLog(this.pendingMcpInstallUrl)
     )
-    void this.handleDeepLink(this.pendingMcpInstallUrl)
+    const pendingUrl = this.pendingMcpInstallUrl
     this.pendingMcpInstallUrl = null
+    void this.handleDeepLink(pendingUrl)
   }
 
   async handleDeepLink(url: string): Promise<void> {
@@ -122,7 +125,7 @@ export class DeeplinkService {
 
       logger.info('Parsed deeplink - command:', command, 'subCommand:', subCommand)
 
-      if (command === 'mcp' && subCommand === 'install' && !this.mcpInstall.isReady()) {
+      if (command === 'mcp' && subCommand === 'install' && !this.mcpReady) {
         logger.info('MCP not ready yet, saving MCP install URL for later')
         this.pendingMcpInstallUrl = url
         return
@@ -363,7 +366,7 @@ export class DeeplinkService {
 
     let preview: ProviderInstallPreview
     try {
-      preview = this.parseProviderInstallParams(params)
+      preview = await this.parseProviderInstallParams(params)
     } catch (error) {
       const isExpectedRejection = error instanceof ProviderDeeplinkError
       const reason = isExpectedRejection ? error.reason : ('invalid-payload' as const)
@@ -387,7 +390,9 @@ export class DeeplinkService {
     }
   }
 
-  private parseProviderInstallParams(params: URLSearchParams): ProviderInstallPreview {
+  private async parseProviderInstallParams(
+    params: URLSearchParams
+  ): Promise<ProviderInstallPreview> {
     const version = params.get('v')
     if (version !== PROVIDER_INSTALL_VERSION) {
       throw new ProviderDeeplinkError(
@@ -417,7 +422,7 @@ export class DeeplinkService {
         )
       }
 
-      if (!this.providerInstall.hasProvider(id)) {
+      if (!(await this.providerInstall.hasProvider(id))) {
         throw new ProviderDeeplinkError('provider-not-found', `Unknown provider id: ${id}`)
       }
 

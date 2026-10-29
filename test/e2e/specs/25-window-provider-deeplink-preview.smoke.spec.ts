@@ -8,7 +8,7 @@ test('settings consumes pending provider install preview without applying it @sm
   await waitForAppReady(app.page)
 
   const preview = {
-    kind: 'custom',
+    kind: 'custom' as const,
     name: 'DeepChat E2E Provider Preview',
     type: 'openai-compatible',
     baseUrl: 'https://e2e-provider.example.com/v1',

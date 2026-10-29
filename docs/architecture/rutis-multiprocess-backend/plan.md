@@ -2443,9 +2443,11 @@ core; its synchronous local transactions and integrity callbacks do not become r
 - [x] Supply Codex/Grok auth owner commands to Main's OAuth facade. Keep their controllers,
       credential queues and synchronous storage observations with Provider consumers; Main must
       not initialize those owners or receive writable credential-store instances at G5 handoff.
-- [ ] Supply provider-existence results and committed MCP startup readiness to the native
+- [x] Supply provider-existence results and committed MCP startup readiness to the native
       deep-link adapter; preserve latest-pending installation and sender/preview behavior without
       passing complete Provider settings or the MCP business owner into native actions.
+- [ ] Await the native resolved-proxy capability before the existing MCP registry probe; preserve
+      proxy authentication, live selection, failure propagation and the three-registry batch.
 
 Native SDK presentation remains Main-owned. These contracts do not move the cohesive backend or
 authorize an additional settings writer. Publish the complete G4 batch after final validation.
@@ -2526,9 +2528,10 @@ connection/configuration call sites are in `.deepchat/rutis-g4-final-inventory/`
 
 This is source-boundary evidence, not a composed backend or exclusive writer handoff. The Node
 Codex/Grok auth owners and credential queues are constructed alongside Provider consumers; Main's
-OAuthService receives acknowledged account commands. Native deep-link actions still require
-provider-existence and MCP startup observations in place of complete business-owner dependencies.
-G4 stays active until that boundary and final complete-batch inventory/validation are done, then
+OAuthService receives acknowledged account commands. Native deep-link actions use provider-existence
+and MCP startup observations in place of complete business-owner dependencies. MCP registry selection
+still requires an asynchronous resolved-proxy capability. G4 stays active until that boundary and
+final complete-batch inventory/validation are done, then
 the batch's own required and six platform package CI barriers pass. G5 has not started.
 
 ### Provider account owner commands
@@ -2561,6 +2564,31 @@ handling. The integrated candidate passes **17 cases across eleven files**, reta
 plugin/maintenance/MCP/desktop/font/file/image/Remote/OCR cases. App and changed-test types, normal
 full build, format/check, lint and i18n pass. No process/resource or performance comparison is
 selected. Evidence and artifact hashes are in `.deepchat/rutis-g4-account-auth-acceptance/`.
+
+### Native deep-link observations
+
+Native actions require only an asynchronous provider-existence result. Core performs that lookup
+under running-database admission and returns a boolean; Provider settings and saved credentials
+stay at their business owner. Provider preview validation awaits this result before opening
+settings. Incoming credentials remain preview data until the existing user confirmation.
+
+MCP preview deferral observes successful Core startup in Main. The native adapter starts unready,
+retains the latest pending URL, and consumes it once when readiness is observed. Repeated positive
+observations do not replay it. Shutdown clears readiness, and a completed startup cannot publish
+a positive observation after stopping or maintenance admission closes. This UI observation grants
+no configuration or execution authority. Native actions receive no MCP business-service object.
+
+All **38 selected checks across two files pass**, including delayed negative provider lookup,
+latest-pending behavior and composition. Matching application cases pass on immutable `7009bb955`
+and the candidate: pending-preview replay and an actual OS open-url event for an existing Provider,
+with settings presentation and saved credentials preserved. The candidate additionally passes MCP
+child lifecycle and all five maintenance/shutdown cases: **eight cases across four files**. The
+OS fixture observes the window opened by the link, preserving its provider navigation.
+
+App and changed-test types, normal build, format/check, lint and i18n pass. Evidence and verified
+hashes are in `.deepchat/rutis-g4-deeplink-owner-acceptance/`. No performance/resource capture or
+process change is selected. The native resolved-proxy read and final inventory remain before G4
+publication; the shared writer and Harness have not moved.
 
 ## G5. Move the cohesive Harness and shared core into the TS backend
 

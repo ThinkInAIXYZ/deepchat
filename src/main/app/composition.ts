@@ -1903,8 +1903,11 @@ export async function createMainProcessControl(dependencies: {
   })
   const deeplinkActions = createDeeplinkActions({
     window: windowPresenter,
-    config: providerSettings,
-    mcp: mcpService,
+    hasProvider: async (providerId) => {
+      if (databaseRequests.state !== 'running')
+        throw new Error(`App database maintenance is ${databaseRequests.state}`)
+      return Boolean(providerSettings.getProviderById(providerId))
+    },
     notifications: semanticNotifications
   })
   deeplinkService = new DeeplinkService(
@@ -3213,7 +3216,9 @@ export async function createMainProcessControl(dependencies: {
 
     try {
       deepChatAgentHarness.refreshToolRegistry()
-      deeplinkService.processPendingMcpInstall()
+      deeplinkService.observeMcpReadiness(
+        !['stopping', 'stopped'].includes(appLifecycleState) && databaseRequests.state === 'running'
+      )
     } catch (error) {
       reportMainStartupComponentFailure(dependencies.startupRunId, 'mcp_integration', 'unknown')
       console.error('Failed to finish MCP startup integration:', error)
@@ -3971,6 +3976,7 @@ export async function createMainProcessControl(dependencies: {
       shutdownStepFailures = 0
       appLifecycleState = 'stopping'
       desktopConfigurationHost.close()
+      deeplinkService.observeMcpReadiness(false)
       databaseRequests.beginShutdown()
       providerDbLoader.stop()
       agentSettings.stop()

@@ -1,6 +1,4 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
 import { BrowserWindow } from 'electron'
-import type { McpServicePort } from '@shared/types/mcp'
 import type { IWindowPresenter } from '@shared/types/desktop'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import type { ProviderDeeplinkFailureReason } from '@shared/notifications'
@@ -17,8 +15,7 @@ import type {
 
 type DeeplinkActionsDeps = {
   window: IWindowPresenter
-  config: Pick<ProviderSettingsPort, 'getProviderById'>
-  mcp: Pick<McpServicePort, 'isReady'>
+  hasProvider(providerId: string): Promise<boolean>
   notifications: SemanticNotificationPublisher
 }
 
@@ -72,14 +69,7 @@ class DesktopActions implements DeeplinkDesktopPort {
 }
 
 class McpInstallActions implements DeeplinkMcpInstallPort {
-  constructor(
-    private readonly windowPresenter: IWindowPresenter,
-    private readonly mcpService: Pick<McpServicePort, 'isReady'>
-  ) {}
-
-  isReady(): boolean {
-    return this.mcpService.isReady()
-  }
+  constructor(private readonly windowPresenter: IWindowPresenter) {}
 
   async requestInstall(mcpConfig: string): Promise<boolean> {
     const targetWindow = await resolveChatWindow(this.windowPresenter)
@@ -94,12 +84,12 @@ class McpInstallActions implements DeeplinkMcpInstallPort {
 class ProviderInstallActions implements DeeplinkProviderInstallPort {
   constructor(
     private readonly windowPresenter: IWindowPresenter,
-    private readonly providerSettings: Pick<ProviderSettingsPort, 'getProviderById'>,
+    private readonly providerExists: DeeplinkActionsDeps['hasProvider'],
     private readonly notifications: SemanticNotificationPublisher
   ) {}
 
-  hasProvider(providerId: string): boolean {
-    return Boolean(this.providerSettings.getProviderById(providerId))
+  hasProvider(providerId: string): Promise<boolean> {
+    return this.providerExists(providerId)
   }
 
   async requestInstall(preview: ProviderInstallPreview): Promise<boolean> {
@@ -129,6 +119,6 @@ class ProviderInstallActions implements DeeplinkProviderInstallPort {
 
 export const createDeeplinkActions = (deps: DeeplinkActionsDeps) => ({
   desktop: new DesktopActions(deps.window),
-  mcp: new McpInstallActions(deps.window, deps.mcp),
-  provider: new ProviderInstallActions(deps.window, deps.config, deps.notifications)
+  mcp: new McpInstallActions(deps.window),
+  provider: new ProviderInstallActions(deps.window, deps.hasProvider, deps.notifications)
 })

@@ -14,12 +14,11 @@ export interface DeeplinkDesktopPort {
 }
 
 export interface DeeplinkMcpInstallPort {
-  isReady(): boolean
   requestInstall(mcpConfig: string): Promise<boolean>
 }
 
 export interface DeeplinkProviderInstallPort {
-  hasProvider(providerId: string): boolean
+  hasProvider(providerId: string): Promise<boolean>
   requestInstall(preview: ProviderInstallPreview): Promise<boolean>
   reportFailure(reason: ProviderDeeplinkFailureReason): void
 }

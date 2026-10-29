@@ -1230,6 +1230,13 @@ Keep synchronous load-error/revision observations inside each controller's exist
 Native browser opening and crypto remain explicit host capabilities, with the existing public
 auth status schemas and stop/drain behavior.
 
+Native deep-link actions receive an asynchronous provider-existence query instead of Provider
+settings. Validation finishes before the settings preview opens; saved Provider credentials stay
+at the business owner. MCP installation deferral uses Main's observation of acknowledged Core
+startup, with latest-pending semantics. Reset this observation when stopping, and reject a late
+startup acknowledgement after shutdown or maintenance admission closes. Readiness observation is
+presentation state; actual MCP configuration and execution authority remain in Core.
+
 Core compares and commits in one command without an await between reading current configuration
 and writing. The identity covers Provider ID, protocol, current credential and normalized client
 ID using a private per-runtime key. It rejects targets from another runtime, stale concurrent
