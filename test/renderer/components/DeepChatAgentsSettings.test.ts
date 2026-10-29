@@ -2131,6 +2131,51 @@ describe('DeepChatAgentsSettings', () => {
     expect(payload.config).not.toHaveProperty('assistantModel')
   })
 
+  it('saves the new-session collaboration default without changing other Agent settings', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      config: {}
+    }
+    const { wrapper, configService } = await mountSettings({ agents: [existingAgent] })
+    const toggle = wrapper.get('#deepchat-agent-default-proactive')
+    const save = wrapper.get('[data-testid="deepchat-agent-save-button"]')
+    expect(toggle.attributes('data-model-value')).toBe('false')
+    expect(save.attributes('disabled')).toBeDefined()
+
+    await toggle.trigger('click')
+    expect(save.attributes('disabled')).toBeUndefined()
+    await save.trigger('click')
+    await flushPromises()
+    expect(configService.updateDeepChatAgent).toHaveBeenCalledWith(
+      'deepchat',
+      expect.objectContaining({ config: { defaultOrchestrationPolicy: 'proactive' } })
+    )
+  })
+
+  it('disables the collaboration default without clearing the saved preference', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      config: { subagentEnabled: false, defaultOrchestrationPolicy: 'proactive' }
+    }
+    const { wrapper } = await mountSettings({ agents: [existingAgent] })
+    const toggle = wrapper.get('#deepchat-agent-default-proactive')
+    expect(toggle.attributes('disabled')).toBeDefined()
+    expect(toggle.attributes('data-model-value')).toBe('true')
+    expect(wrapper.text()).toContain('chat.orchestration.proactive.reasons.subagents_disabled')
+
+    await wrapper.get('[aria-label="settings.deepchatAgents.subagentsEnabled"]').trigger('click')
+    expect(toggle.attributes('disabled')).toBeUndefined()
+    expect(toggle.attributes('data-model-value')).toBe('true')
+  })
+
   it('restores default Subagent slots when enabling an empty legacy policy', async () => {
     const existingAgent = {
       id: 'deepchat',

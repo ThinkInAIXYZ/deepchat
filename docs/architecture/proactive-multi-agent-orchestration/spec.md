@@ -33,7 +33,7 @@ runtime type. Internal state continues to describe stable behavior as `explicit 
 
 ## Product Contract
 
-DeepChat exposes one user-facing proactive-collaboration control. It changes delegation policy,
+The composer exposes one Session-level proactive-collaboration control. It changes delegation policy,
 not model depth or generation settings.
 
 - `explicit`: starting new child model work requires current user confirmation. Read-only control
@@ -295,6 +295,12 @@ communicated through the branch icon, accent, tooltip, and accessible pressed st
 
 The popover contains independent reasoning and proactive-collaboration sections. Reasoning controls
 are gated by model capability, not by orchestration capability or DeepChat executor ownership.
+
+Each DeepChat Agent may set `defaultOrchestrationPolicy` for new Sessions. The settings switch is
+available only while Subagents are enabled; disabling Subagents retains the preference but initializes
+new drafts to `explicit`. An unset preference also initializes to `explicit`. The draft can override
+the default before creation, and subsequent Agent-default changes never rewrite existing Sessions.
+Late configuration responses must not overwrite manual draft policy changes or another Agent's draft.
 
 The Agent activity surface and inline cards project the same revision-aware live-delegation state.
 They show title, role, status, bounded preview, child navigation, interruption, and interaction

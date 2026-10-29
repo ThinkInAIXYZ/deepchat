@@ -673,6 +673,7 @@ export interface DeepChatAgentConfig {
   enabledSkillNames?: string[] | null
   enabledMcpServerIds?: string[] | null
   subagentEnabled?: boolean
+  defaultOrchestrationPolicy?: OrchestrationPolicy
   subagents?: DeepChatSubagentSlot[]
   autoCompactionEnabled?: boolean
   autoCompactionTriggerThreshold?: number

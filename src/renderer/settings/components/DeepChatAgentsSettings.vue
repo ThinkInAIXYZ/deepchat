@@ -503,6 +503,40 @@
             />
           </div>
 
+          <div class="flex items-center justify-between gap-3 border-y border-border py-4">
+            <div class="space-y-1">
+              <label
+                for="deepchat-agent-default-proactive"
+                class="text-sm font-medium"
+                :class="{ 'text-muted-foreground': !form.subagentEnabled }"
+              >
+                {{ t('settings.deepchatAgents.defaultProactiveCollaboration') }}
+              </label>
+              <p
+                id="deepchat-agent-default-proactive-description"
+                class="text-xs text-muted-foreground"
+              >
+                {{
+                  form.subagentEnabled
+                    ? t('settings.deepchatAgents.defaultProactiveCollaborationDescription')
+                    : t('chat.orchestration.proactive.reasons.subagents_disabled')
+                }}
+              </p>
+              <p id="deepchat-agent-default-proactive-scope" class="text-xs text-muted-foreground">
+                {{ t('settings.deepchatAgents.defaultProactiveCollaborationScope') }}
+              </p>
+            </div>
+            <Switch
+              id="deepchat-agent-default-proactive"
+              :model-value="form.defaultOrchestrationPolicy === 'proactive'"
+              :disabled="!form.subagentEnabled"
+              aria-describedby="deepchat-agent-default-proactive-description deepchat-agent-default-proactive-scope"
+              @update:model-value="
+                form.defaultOrchestrationPolicy = $event ? 'proactive' : 'explicit'
+              "
+            />
+          </div>
+
           <div class="space-y-3">
             <div
               v-for="(slot, index) in form.subagents"
@@ -924,6 +958,10 @@ import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { ModelType } from '@shared/model'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import {
+  normalizeOrchestrationPolicy,
+  type OrchestrationPolicy
+} from '@shared/orchestration/policy'
+import {
   normalizeToolModeOverride,
   ToolModeSchema,
   type ToolMode,
@@ -1005,6 +1043,7 @@ type FormState = {
   permissionMode: PermissionMode
   defaultToolMode: ToolModeOverride
   subagentEnabled: boolean
+  defaultOrchestrationPolicy: OrchestrationPolicy
   subagents: EditableSubagentSlot[]
   disabledAgentTools: string[]
   autoCompactionEnabled: boolean
@@ -1036,6 +1075,7 @@ const CONFIG_DIFF_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
   'permissionMode',
   'defaultToolMode',
   'subagentEnabled',
+  'defaultOrchestrationPolicy',
   'subagents',
   'disabledAgentTools',
   'autoCompactionEnabled',
@@ -1124,6 +1164,7 @@ const form = reactive<FormState>({
   permissionMode: 'full_access',
   defaultToolMode: null,
   subagentEnabled: true,
+  defaultOrchestrationPolicy: 'explicit',
   subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
   disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
   autoCompactionEnabled: uiSettingsStore.autoCompactionEnabled,
@@ -1416,6 +1457,7 @@ const emptyForm = (): FormState => ({
   permissionMode: 'full_access',
   defaultToolMode: null,
   subagentEnabled: true,
+  defaultOrchestrationPolicy: 'explicit',
   subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
   disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
   autoCompactionEnabled: uiSettingsStore.autoCompactionEnabled,
@@ -1494,6 +1536,7 @@ const buildEditableConfig = (state: FormState): DeepChatAgentConfig => {
     permissionMode: state.permissionMode,
     defaultToolMode: state.defaultToolMode,
     subagentEnabled: state.subagentEnabled,
+    defaultOrchestrationPolicy: state.defaultOrchestrationPolicy,
     subagents: normalizeDeepChatSubagentSlots(state.subagents),
     disabledAgentTools: [...state.disabledAgentTools].sort(),
     autoCompactionEnabled: state.autoCompactionEnabled,
@@ -1629,6 +1672,7 @@ const fromAgent = (agent?: Agent | null): FormState => {
     permissionMode: config.permissionMode === 'default' ? 'default' : 'full_access',
     defaultToolMode: normalizeToolModeOverride(config.defaultToolMode),
     subagentEnabled: config.subagentEnabled ?? true,
+    defaultOrchestrationPolicy: normalizeOrchestrationPolicy(config.defaultOrchestrationPolicy),
     subagents: normalizeDeepChatSubagentSlots(
       config.subagents ?? createDefaultDeepChatSubagentSlots()
     ),
