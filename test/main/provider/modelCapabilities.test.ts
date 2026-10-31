@@ -606,3 +606,103 @@ describe('ModelCapabilities reasoning portraits', () => {
     ).toBe('minimal')
   })
 })
+
+describe('ModelCapabilities dominant catalog match', () => {
+  const dominantDb = () =>
+    sanitizeAggregate({
+      providers: {
+        llmgateway: {
+          id: 'llmgateway',
+          models: [
+            {
+              id: 'shared-model',
+              temperature: true,
+              tool_call: true,
+              limit: { context: 1000000, output: 384000 }
+            }
+          ]
+        },
+        above: {
+          id: 'above',
+          models: [
+            {
+              id: 'shared-model',
+              temperature: true,
+              tool_call: true,
+              limit: { context: 1000000, output: 384000 }
+            }
+          ]
+        },
+        wally: {
+          id: 'wally',
+          models: [
+            {
+              id: 'shared-model',
+              temperature: false,
+              tool_call: true,
+              limit: { context: 1048576, output: 65536 }
+            }
+          ]
+        }
+      }
+    })
+
+  it('picks the majority capability profile and its modal limits', () => {
+    state.mockDb = dominantDb()
+    const match = new ModelCapabilities().findDominantCapabilityModelMatch('shared-model')
+
+    expect(match).toMatchObject({ providerId: 'above', modelId: 'shared-model' })
+    expect(match?.model).toMatchObject({
+      temperature: true,
+      limit: { context: 1000000, output: 384000 }
+    })
+  })
+
+  it('resolves a prefixed id through the unqualified lookup key', () => {
+    state.mockDb = dominantDb()
+    expect(
+      new ModelCapabilities().findDominantCapabilityModelMatch('auto/shared-model')
+    ).toMatchObject({ providerId: 'above', modelId: 'shared-model' })
+  })
+
+  it('prefers the canonical vendor entry when capabilities and limits tie', () => {
+    state.mockDb = sanitizeAggregate({
+      providers: {
+        llmgateway: {
+          id: 'llmgateway',
+          models: [
+            { id: 'vendor-model', tool_call: true, limit: { context: 200000, output: 32000 } }
+          ]
+        },
+        openai: {
+          id: 'openai',
+          models: [
+            { id: 'vendor-model', tool_call: true, limit: { context: 200000, output: 32000 } }
+          ]
+        }
+      }
+    })
+
+    expect(new ModelCapabilities().findDominantCapabilityModelMatch('vendor-model')).toMatchObject({
+      providerId: 'openai',
+      modelId: 'vendor-model'
+    })
+  })
+
+  it('refuses profiles that split evenly between providers', () => {
+    state.mockDb = sanitizeAggregate({
+      providers: {
+        llmgateway: {
+          id: 'llmgateway',
+          models: [{ id: 'split-model', reasoning: { supported: true } }]
+        },
+        mirror: {
+          id: 'mirror',
+          models: [{ id: 'split-model', reasoning: { supported: false } }]
+        }
+      }
+    })
+
+    expect(new ModelCapabilities().findDominantCapabilityModelMatch('split-model')).toBeUndefined()
+  })
+})

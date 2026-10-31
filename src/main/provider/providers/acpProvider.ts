@@ -54,6 +54,7 @@ import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { extractProviderFailureMetadata } from '../providerFailure'
+import type { ProviderCatalogWriterPort } from '../catalog/providerCatalogService'
 
 type EventQueue = {
   push: (event: LLMCoreStreamEvent | null) => void
@@ -160,7 +161,8 @@ export class AcpProvider extends BaseLLMProvider {
     locale: ProviderLocalePort,
     agentSettings: Pick<AgentSettingsPort, 'getAcpEnabled' | 'getAcpAgents'>,
     runtimeOwner: AcpRuntimeOwner,
-    private readonly publishEvent: DeepchatEventPublisher
+    private readonly publishEvent: DeepchatEventPublisher,
+    private readonly catalogWriter?: ProviderCatalogWriterPort
   ) {
     super(provider, providerSettings, locale)
     this.agentSettings = agentSettings
@@ -179,7 +181,6 @@ export class AcpProvider extends BaseLLMProvider {
       const acpEnabled = await this.agentSettings.getAcpEnabled()
       if (!acpEnabled) {
         logger.info('[ACP] fetchProviderModels: ACP is disabled, returning empty models')
-        this.providerSettings.setProviderModels(this.provider.id, [])
         return []
       }
       const agents = await this.agentSettings.getAcpAgents()
@@ -215,11 +216,21 @@ export class AcpProvider extends BaseLLMProvider {
       logger.info(
         `[ACP] fetchProviderModels: returning ${models.length} models, all with providerId="${this.provider.id}"`
       )
-      this.providerSettings.setProviderModels(this.provider.id, models)
       return models
     } catch (error) {
       console.error('[ACP] fetchProviderModels: Failed to load ACP agents:', error)
-      return []
+      throw error
+    }
+  }
+
+  /** Publish the ACP agent catalog through the single catalog writer. */
+  private async syncCatalogFromAgents(): Promise<void> {
+    try {
+      const models = await this.fetchCatalog()
+      this.catalogWriter?.replaceFromSource(this.provider.id, models, 'acp')
+    } catch (error) {
+      // Keep the last-known-good catalog; agent mutations only clear status, not models.
+      console.warn('[ACP] Failed to sync agent catalog:', error)
     }
   }
 
@@ -243,11 +254,7 @@ export class AcpProvider extends BaseLLMProvider {
 
     try {
       this.isInitialized = true
-      await this.fetchModels()
-      await this.autoEnableModelsIfNeeded()
-      // Send MODEL_LIST_CHANGED event to notify renderer to refresh model list
-      logger.info(`[ACP] init: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`)
-      this.providerSettings.notifyModelsChanged(this.provider.id)
+      await this.syncCatalogFromAgents()
       console.info('Provider initialized successfully:', this.provider.name)
     } catch (error) {
       console.warn('Provider initialization failed:', this.provider.name, error)
@@ -262,12 +269,7 @@ export class AcpProvider extends BaseLLMProvider {
     const acpEnabled = await this.agentSettings.getAcpEnabled()
     if (acpEnabled && this.provider.enable) {
       logger.info('[ACP] handleEnableStateChange: ACP enabled, triggering model fetch')
-      await this.fetchModels()
-      // Send MODEL_LIST_CHANGED event to notify renderer to refresh model list
-      logger.info(
-        `[ACP] handleEnableStateChange: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
-      )
-      this.providerSettings.notifyModelsChanged(this.provider.id)
+      await this.syncCatalogFromAgents()
     }
   }
 

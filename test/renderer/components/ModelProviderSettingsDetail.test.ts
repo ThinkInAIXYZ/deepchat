@@ -77,8 +77,38 @@ async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_
     allProviderModels: [],
     customModels: [],
     refreshProviderModels: vi.fn().mockResolvedValue(true),
+    refreshProviderCatalog: vi.fn().mockResolvedValue(true),
     updateModelStatus: vi.fn().mockResolvedValue(true),
     disableAllModels: vi.fn().mockResolvedValue(undefined)
+  }
+
+  const catalogSnapshot = {
+    providerId: provider.id,
+    revision: 1,
+    status: 'fresh',
+    fetchedAt: 1_700_000_000_000,
+    source: 'remote',
+    lastErrorCode: null,
+    models: []
+  }
+  const providerCatalogClient = {
+    getCatalog: vi.fn().mockResolvedValue(catalogSnapshot),
+    listCatalogs: vi.fn().mockResolvedValue([catalogSnapshot]),
+    refreshCatalog: vi.fn().mockResolvedValue({
+      result: {
+        providerId: provider.id,
+        status: 'not-modified',
+        revision: 1,
+        fetchedAt: catalogSnapshot.fetchedAt,
+        added: [],
+        removed: [],
+        updated: [],
+        errorCode: null
+      },
+      catalog: catalogSnapshot
+    }),
+    ensureFresh: vi.fn().mockResolvedValue(false),
+    onCatalogChanged: vi.fn(() => () => {})
   }
 
   vi.doMock('vue-i18n', () => ({
@@ -104,6 +134,9 @@ async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_
     useModelCheckStore: () => ({
       openDialog: vi.fn()
     })
+  }))
+  vi.doMock('../../../src/renderer/api/ProviderCatalogClient', () => ({
+    createProviderCatalogClient: () => providerCatalogClient
   }))
   vi.doMock('../../../src/renderer/settings/components/ProviderApiConfig.vue', () => ({
     default: providerApiConfigStub
@@ -162,7 +195,9 @@ async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_
     wrapper,
     providerStore,
     modelStore,
-    notifyRendererMock
+    providerCatalogClient,
+    notifyRendererMock,
+    catalogSnapshot
   }
 }
 
@@ -204,7 +239,7 @@ describe('ModelProviderSettingsDetail', () => {
     expect(providerStore.updateProviderConfig).toHaveBeenCalledWith('openai', {
       openaiAuthMode: 'chatgpt'
     })
-    expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('openai')
+    expect(modelStore.refreshProviderCatalog).toHaveBeenCalledWith('openai', 'config')
   })
 
   it('saves a replacement even when the fixed probe model would reject it', async () => {
@@ -289,34 +324,138 @@ describe('ModelProviderSettingsDetail', () => {
     expect(vm.modelToDisable).toEqual(model)
   })
 
-  it.each(['false', 'rejection', 'success'])('reports refresh outcome: %s', async (outcome) => {
-    const { wrapper, modelStore, notifyRendererMock } = await setup()
-    if (outcome === 'rejection') {
-      modelStore.refreshProviderModels.mockRejectedValueOnce(new Error('secret upstream error'))
-    } else {
-      modelStore.refreshProviderModels.mockResolvedValueOnce(outcome === 'success')
+  it.each(['failed', 'ipc-rejection', 'model-store-rejection', 'success'])(
+    'reports refresh outcome: %s',
+    async (outcome) => {
+      const { wrapper, modelStore, providerCatalogClient, notifyRendererMock } = await setup()
+      if (outcome === 'ipc-rejection') {
+        providerCatalogClient.refreshCatalog.mockRejectedValueOnce(
+          new Error('secret upstream error')
+        )
+      } else if (outcome === 'failed') {
+        providerCatalogClient.refreshCatalog.mockResolvedValueOnce({
+          result: {
+            providerId: 'anthropic',
+            status: 'failed',
+            revision: 1,
+            fetchedAt: null,
+            added: [],
+            removed: [],
+            updated: [],
+            errorCode: 'auth'
+          },
+          catalog: {
+            providerId: 'anthropic',
+            revision: 1,
+            status: 'error',
+            fetchedAt: null,
+            source: 'remote',
+            lastErrorCode: 'auth',
+            models: []
+          }
+        })
+      }
+      if (outcome === 'model-store-rejection') {
+        modelStore.refreshProviderModels.mockRejectedValueOnce(new Error('secret upstream error'))
+      }
+      const vm = wrapper.vm as unknown as {
+        handleRefreshModels: () => Promise<void>
+        isRefreshingModels: boolean
+        isModelListLoading: boolean
+      }
+
+      await vm.handleRefreshModels()
+
+      expect(providerCatalogClient.refreshCatalog).toHaveBeenCalledWith('anthropic', 'user')
+      expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('anthropic', false)
+      expect(vm.isRefreshingModels).toBe(false)
+      expect(vm.isModelListLoading).toBe(false)
+      if (outcome === 'success') {
+        expect(notifyRendererMock).not.toHaveBeenCalled()
+      } else {
+        expect(notifyRendererMock).toHaveBeenCalledExactlyOnceWith({
+          kind: 'error',
+          code: 'settings.provider.modelRefreshFailed',
+          title: 'settings.provider.toast.refreshModelsFailedTitle',
+          description: 'settings.provider.toast.refreshModelsFailedDescription'
+        })
+      }
     }
-    const vm = wrapper.vm as unknown as {
-      handleRefreshModels: () => Promise<void>
-      isRefreshingModels: boolean
-      isModelListLoading: boolean
-    }
+  )
+
+  it('updates the last sync time when the background catalog changes', async () => {
+    const { wrapper, providerCatalogClient, catalogSnapshot } = await setup()
+    const listener = providerCatalogClient.onCatalogChanged.mock.calls[0][0]
+
+    const initialText = wrapper.get('[data-testid="provider-catalog-last-synced"]').text()
+    providerCatalogClient.getCatalog.mockResolvedValueOnce({
+      ...catalogSnapshot,
+      fetchedAt: catalogSnapshot.fetchedAt + 86_400_000
+    })
+
+    listener({
+      providerId: 'anthropic',
+      revision: 2,
+      status: 'fresh',
+      reason: 'stale',
+      changed: true,
+      errorCode: null,
+      version: Date.now()
+    })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="provider-catalog-last-synced"]').text()).not.toBe(initialText)
+  })
+
+  it('keeps the newer catalog state when an older revision response arrives late', async () => {
+    const { wrapper, providerCatalogClient, catalogSnapshot } = await setup()
+    const listener = providerCatalogClient.onCatalogChanged.mock.calls[0][0]
+    const initialText = wrapper.get('[data-testid="provider-catalog-last-synced"]').text()
+    providerCatalogClient.getCatalog.mockResolvedValueOnce({
+      ...catalogSnapshot,
+      revision: 0,
+      fetchedAt: catalogSnapshot.fetchedAt + 86_400_000
+    })
+
+    listener({
+      providerId: 'anthropic',
+      revision: 1,
+      status: 'fresh',
+      reason: 'stale',
+      changed: true,
+      errorCode: null,
+      version: Date.now()
+    })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="provider-catalog-last-synced"]').text()).toBe(initialText)
+  })
+
+  it('keeps the newer catalog state when an older manual refresh result arrives', async () => {
+    const { wrapper, providerCatalogClient, catalogSnapshot } = await setup()
+    const vm = wrapper.vm as unknown as { handleRefreshModels: () => Promise<void> }
+    const initialText = wrapper.get('[data-testid="provider-catalog-last-synced"]').text()
+    providerCatalogClient.refreshCatalog.mockResolvedValueOnce({
+      result: {
+        providerId: 'anthropic',
+        status: 'ok',
+        revision: 0,
+        fetchedAt: catalogSnapshot.fetchedAt,
+        added: [],
+        removed: [],
+        updated: [],
+        errorCode: null
+      },
+      catalog: {
+        ...catalogSnapshot,
+        revision: 0,
+        fetchedAt: catalogSnapshot.fetchedAt + 86_400_000
+      }
+    })
 
     await vm.handleRefreshModels()
 
-    expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('anthropic', true)
-    expect(vm.isRefreshingModels).toBe(false)
-    expect(vm.isModelListLoading).toBe(false)
-    if (outcome === 'success') {
-      expect(notifyRendererMock).not.toHaveBeenCalled()
-    } else {
-      expect(notifyRendererMock).toHaveBeenCalledExactlyOnceWith({
-        kind: 'error',
-        code: 'settings.provider.modelRefreshFailed',
-        title: 'settings.provider.toast.refreshModelsFailedTitle',
-        description: 'settings.provider.toast.refreshModelsFailedDescription'
-      })
-    }
+    expect(wrapper.get('[data-testid="provider-catalog-last-synced"]').text()).toBe(initialText)
   })
 
   it('renders Vertex credentials in the connection section', async () => {

@@ -232,7 +232,14 @@ const availableModels = computed(() => {
   return [...models.values()].filter((model) => !model.type || model.type === ModelType.Chat)
 })
 
-const hasEnabledModels = computed(() => availableModels.value.some((model) => model.enabled))
+// Only enabled catalog models justify the enabled-only filter. A single enabled custom model
+// must not hide the provider's whole catalog, which is not enabled yet on first setup.
+const hasEnabledModels = computed(
+  () =>
+    modelStore.allProviderModels
+      .find((provider) => provider.providerId === props.providerId)
+      ?.models.some((model) => model.enabled) ?? false
+)
 
 // With no enabled models the enabled-only filter would leave nothing to pick, so show all.
 const visibleModels = computed(() => {

@@ -23,7 +23,10 @@ const defaultProviderModels = [
   { id: 'embed', name: 'Embedding', type: ModelType.Embedding }
 ]
 
-async function setup(providerModels: object[] = defaultProviderModels) {
+async function setup(
+  providerModels: object[] = defaultProviderModels,
+  customModels: object[] = [{ id: 'custom', name: 'Custom', type: ModelType.Chat }]
+) {
   vi.resetModules()
   const checkProvider = vi.fn().mockResolvedValue({ isOk: true, errorMsg: null })
   vi.doMock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -31,9 +34,7 @@ async function setup(providerModels: object[] = defaultProviderModels) {
   vi.doMock('@/stores/modelStore', () => ({
     useModelStore: () => ({
       allProviderModels: [{ providerId: 'p1', models: providerModels }],
-      customModels: [
-        { providerId: 'p1', models: [{ id: 'custom', name: 'Custom', type: ModelType.Chat }] }
-      ]
+      customModels: [{ providerId: 'p1', models: customModels }]
     })
   }))
   vi.doMock('@shadcn/components/ui/dialog', () =>
@@ -126,5 +127,18 @@ describe('text model checks', () => {
     expect(optionIds()).toEqual(['gpt-4o-mini'])
     await wrapper.get('[data-testid="model-check-search"]').setValue('deepseek-chat')
     expect(optionIds()).toEqual(['deepseek-chat'])
+  })
+
+  it('keeps catalog models visible when only a custom model is enabled', async () => {
+    const { wrapper, optionIds } = await setup(
+      [
+        { id: 'gpt-4o', name: 'GPT-4o', type: ModelType.Chat },
+        { id: 'gpt-4o-mini', name: 'GPT-4o mini', type: ModelType.Chat }
+      ],
+      [{ id: 'custom', name: 'Custom', type: ModelType.Chat, enabled: true }]
+    )
+
+    expect(optionIds()).toEqual(['gpt-4o', 'gpt-4o-mini', 'custom'])
+    expect(wrapper.find('[data-testid="model-check-enabled-only"]').exists()).toBe(false)
   })
 })

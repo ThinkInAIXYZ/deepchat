@@ -86,6 +86,7 @@ import { providersOllamaPullProgressEvent } from './events/misc.providers.events
 import { projectEnvironmentsChangedEvent } from './events/project.events'
 import {
   providersAcpDebugEvent,
+  providersCatalogChangedEvent,
   providersChangedEvent,
   providersRateLimitConfigUpdatedEvent,
   providersRateLimitRequestExecutedEvent,
@@ -244,6 +245,7 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [configSystemPromptsChangedEvent.name]: configSystemPromptsChangedEvent,
   [configCustomPromptsChangedEvent.name]: configCustomPromptsChangedEvent,
   [providersChangedEvent.name]: providersChangedEvent,
+  [providersCatalogChangedEvent.name]: providersCatalogChangedEvent,
   [oauthOpenAICodexStatusChangedEvent.name]: oauthOpenAICodexStatusChangedEvent,
   [oauthXaiGrokStatusChangedEvent.name]: oauthXaiGrokStatusChangedEvent,
   [projectEnvironmentsChangedEvent.name]: projectEnvironmentsChangedEvent,

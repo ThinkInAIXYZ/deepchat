@@ -240,6 +240,6 @@ describe('OpenAI Codex provider registration', () => {
     expect(luna).not.toHaveProperty('reasoning')
     expect(luna).not.toHaveProperty('contextLength')
     expect(luna).not.toHaveProperty('maxTokens')
-    expect(providerSettings.setProviderModels).toHaveBeenCalledWith('openai-codex', models)
+    expect(providerSettings.setProviderModels).not.toHaveBeenCalled()
   })
 })

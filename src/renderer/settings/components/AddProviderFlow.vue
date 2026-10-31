@@ -415,6 +415,9 @@ const connectAndLoad = async () => {
     await providerStore.commitValidatedDraft(draft)
     let selectedCount = 0
     try {
+      // Committing starts the catalog refresh in the background; wait for that catalog before
+      // recommending models, otherwise the first setup would see an empty snapshot.
+      await modelStore.refreshProviderCatalog(draft.id, 'config')
       selectedCount = await modelStore.applyInitialModelRecommendations(draft.id)
     } catch (error) {
       // The provider is already persisted and available; a recommendation

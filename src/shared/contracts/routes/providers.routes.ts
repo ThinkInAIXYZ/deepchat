@@ -10,6 +10,8 @@ import {
   LlmProviderSummarySchema,
   ModelScopeMcpSyncResultSchema,
   OllamaModelSchema,
+  ProviderCatalogRefreshResultSchema,
+  ProviderCatalogSnapshotSchema,
   ProviderRateLimitStatusSchema
 } from '../domainSchemas'
 import { PROVIDER_IMPORT_CUSTOM_API_TYPES, PROVIDER_IMPORT_SOURCE_IDS } from '../../providerImport'
@@ -394,6 +396,50 @@ export const providersRefreshModelsRoute = defineRouteContract({
   }),
   output: z.object({
     refreshed: z.boolean()
+  })
+})
+
+export const providersCatalogGetRoute = defineRouteContract({
+  name: 'providers.catalog.get',
+  input: z.object({
+    providerId: EntityIdSchema
+  }),
+  output: z.object({
+    catalog: ProviderCatalogSnapshotSchema
+  })
+})
+
+export const providersCatalogListRoute = defineRouteContract({
+  name: 'providers.catalog.list',
+  input: z
+    .object({
+      providerIds: z.array(EntityIdSchema).optional()
+    })
+    .default({}),
+  output: z.object({
+    catalogs: z.array(ProviderCatalogSnapshotSchema)
+  })
+})
+
+export const providersCatalogRefreshRoute = defineRouteContract({
+  name: 'providers.catalog.refresh',
+  input: z.object({
+    providerId: EntityIdSchema,
+    reason: z.enum(['user', 'config']).optional()
+  }),
+  output: z.object({
+    result: ProviderCatalogRefreshResultSchema,
+    catalog: ProviderCatalogSnapshotSchema
+  })
+})
+
+export const providersCatalogEnsureFreshRoute = defineRouteContract({
+  name: 'providers.catalog.ensureFresh',
+  input: z.object({
+    providerId: EntityIdSchema
+  }),
+  output: z.object({
+    scheduled: z.boolean()
   })
 })
 

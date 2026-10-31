@@ -39,20 +39,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
   protected async init() {
     if (this.provider.enable) {
-      try {
-        this.isInitialized = true
-
-        await this.fetchModels()
-        await this.autoEnableModelsIfNeeded()
-        logger.info(`[GitHub Copilot] Initialized successfully`)
-      } catch (error) {
-        console.warn(`[GitHub Copilot] Initialization failed:`, error)
-        try {
-          await this.fetchModels()
-        } catch (modelError) {
-          console.warn(`[GitHub Copilot] Failed to fetch models:`, modelError)
-        }
-      }
+      this.isInitialized = true
     }
   }
 

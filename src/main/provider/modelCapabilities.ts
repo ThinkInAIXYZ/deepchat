@@ -124,6 +124,47 @@ const getProviderCapabilityModelLookupKeys = (value: string | undefined): string
   return lookupKeys
 }
 
+const DOMINANT_CAPABILITY_MIN_COVERAGE = 2 / 3
+
+// Vendor entries win ties when a model id is sold by many providers.
+const CANONICAL_CAPABILITY_PROVIDER_IDS = [
+  'openai',
+  'anthropic',
+  'google',
+  'deepseek',
+  'xai',
+  'moonshot',
+  'zhipuai',
+  'minimax',
+  'alibaba-cn',
+  'mistral',
+  'cohere',
+  'stepfun',
+  'meta',
+  'perplexity',
+  'nvidia',
+  'amazon-bedrock',
+  'doubao'
+] as const
+
+const toCapabilitySignature = (model: ProviderModel): string =>
+  JSON.stringify({
+    type: model.type ?? 'chat',
+    toolCall: model.tool_call === true,
+    temperature: model.temperature === true,
+    reasoning: model.reasoning?.supported === true,
+    reasoningDefault: model.reasoning?.default === true,
+    input: [...(model.modalities?.input ?? [])].sort(),
+    output: [...(model.modalities?.output ?? [])].sort(),
+    search: model.search?.supported === true
+  })
+
+const toLimitPairKey = (model: ProviderModel): string =>
+  JSON.stringify([model.limit?.context ?? null, model.limit?.output ?? null])
+
+const parseLimitPairKey = (value: string): [number | null, number | null] =>
+  JSON.parse(value) as [number | null, number | null]
+
 const matchesModelFamily = (modelId: string, families: string[]): boolean =>
   families.some(
     (family) =>
@@ -753,6 +794,98 @@ export class ModelCapabilities {
     }
 
     return undefined
+  }
+
+  /**
+   * Resolves a model id shared by several catalog providers only when one capability profile
+   * covers most of them. The representative entry carries the majority limit pair so limits and
+   * capabilities stay internally consistent; ids with genuinely conflicting capabilities return
+   * undefined and keep the caller's fallback.
+   */
+  findDominantCapabilityModelMatch(modelId: string): CapabilityModelMatch | undefined {
+    for (const lookupKey of getProviderCapabilityModelLookupKeys(modelId)) {
+      const entries = this.globalModelLookupIndex.get(lookupKey)
+      if (!entries || entries.length === 0) {
+        continue
+      }
+
+      const signatureGroups = new Map<string, IndexedProviderModel[]>()
+      for (const entry of entries) {
+        const signature = toCapabilitySignature(entry.model)
+        const group = signatureGroups.get(signature)
+        if (group) {
+          group.push(entry)
+        } else {
+          signatureGroups.set(signature, [entry])
+        }
+      }
+
+      const dominantGroup = [...signatureGroups.values()].sort(
+        (left, right) => right.length - left.length
+      )[0]
+      if (dominantGroup.length / entries.length < DOMINANT_CAPABILITY_MIN_COVERAGE) {
+        continue
+      }
+
+      const limitGroups = new Map<string, IndexedProviderModel[]>()
+      for (const entry of dominantGroup) {
+        const limitKey = toLimitPairKey(entry.model)
+        const group = limitGroups.get(limitKey)
+        if (group) {
+          group.push(entry)
+        } else {
+          limitGroups.set(limitKey, [entry])
+        }
+      }
+
+      const representativeGroup = [...limitGroups.entries()].sort((left, right) => {
+        if (right[1].length !== left[1].length) {
+          return right[1].length - left[1].length
+        }
+        const leftLimits = parseLimitPairKey(left[0])
+        const rightLimits = parseLimitPairKey(right[0])
+        return (
+          (rightLimits[0] ?? -1) - (leftLimits[0] ?? -1) ||
+          (rightLimits[1] ?? -1) - (leftLimits[1] ?? -1)
+        )
+      })[0][1]
+
+      const selected = this.selectRepresentativeCatalogEntry(representativeGroup)
+      return selected
+        ? {
+            providerId: selected.providerId,
+            modelId: selected.modelId,
+            model: selected.model
+          }
+        : undefined
+    }
+
+    return undefined
+  }
+
+  private selectRepresentativeCatalogEntry(
+    entries: IndexedProviderModel[]
+  ): IndexedProviderModel | undefined {
+    const vendorRank = new Map<string, number>(
+      CANONICAL_CAPABILITY_PROVIDER_IDS.map((providerId, index) => [providerId, index])
+    )
+    const unresolvedRank = CANONICAL_CAPABILITY_PROVIDER_IDS.length
+    return [...entries].sort((left, right) => {
+      const leftPrefixedRank = left.isUnprefixed ? 0 : 1
+      const rightPrefixedRank = right.isUnprefixed ? 0 : 1
+      if (leftPrefixedRank !== rightPrefixedRank) {
+        return leftPrefixedRank - rightPrefixedRank
+      }
+
+      const leftRank = vendorRank.get(left.providerId) ?? unresolvedRank
+      const rightRank = vendorRank.get(right.providerId) ?? unresolvedRank
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank
+      }
+
+      const providerCompare = left.providerId.localeCompare(right.providerId)
+      return providerCompare !== 0 ? providerCompare : left.modelId.localeCompare(right.modelId)
+    })[0]
   }
 
   findCapabilityModelMatch(
