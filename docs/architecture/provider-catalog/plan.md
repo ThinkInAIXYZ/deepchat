@@ -39,17 +39,17 @@ renderer still uses the legacy model store for the rest of the page.
 
 ## Phase 3: Renderer projection
 
-- [ ] Replace `refreshStandardModels`/`refreshCustomModels` merging and the empty-catalog
+- [x] Replace `refreshStandardModels`/`refreshCustomModels` merging and the empty-catalog
   discovery gate with catalog snapshot reads.
-- [ ] Derive `allProviderModels`, `enabledModels`, and `customModels` from snapshots while keeping
+- [x] Derive `allProviderModels`, `enabledModels`, and `customModels` from snapshots while keeping
   the store's public shape for existing consumers.
-- [ ] Initialize from one catalog list call and request stale revalidation for enabled providers.
-- [ ] Listen to `providers.catalog.changed` for catalog updates; keep status/config listeners.
-- [ ] Remove renderer `getDbProviderModels`, per-model effective-config lookups, and the
+- [x] Initialize from one catalog list call and request stale revalidation for enabled providers.
+- [x] Listen to `providers.catalog.changed` for catalog updates; keep status/config listeners.
+- [x] Remove renderer `getDbProviderModels`, per-model effective-config lookups, and the
   discovery/rerun state machine from the standard path.
-- [ ] Keep the ACP special path until Phase 4; include Ollama installed models through the
+- [x] Keep the ACP special path until Phase 4; include Ollama installed models through the
   catalog source.
-- [ ] Update renderer store tests and run chat/model-chooser component tests.
+- [x] Update renderer store tests and run chat/model-chooser component tests.
 
 Completion condition: standard providers and Ollama render from main snapshots; no renderer code
 decides whether to contact the upstream catalog.
