@@ -4,22 +4,22 @@ Specification: [spec.md](./spec.md)
 
 ## Phase 1: Main-process catalog core
 
-- [ ] Add shared catalog types and zod contracts: snapshot, status, source, refresh reason,
+- [x] Add shared catalog types and zod contracts: snapshot, status, source, refresh reason,
   refresh result, error code, `providers.catalog.get/list/refresh/ensureFresh`, and
   `providers.catalog.changed`.
-- [ ] Add `provider_catalog_state` to the settings schema (migration version 26) with revision,
+- [x] Add `provider_catalog_state` to the settings schema (migration version 26) with revision,
   fetched time, source, last reason, sanitized error code/time, and no sync triggers.
-- [ ] Add raw provider/custom model and catalog-state accessors to `ProviderSettings`; keep
+- [x] Add raw provider/custom model and catalog-state accessors to `ProviderSettings`; keep
   effective resolution in the existing resolver.
-- [ ] Implement the pure catalog projection: provider-db identities + raw provider facts +
+- [x] Implement the pure catalog projection: provider-db identities + raw provider facts +
   custom definitions -> one `resolveEffectiveModels` call -> `RENDERER_MODEL_META[]` with status.
-- [ ] Implement `ProviderCatalogService`: snapshot read, list, ensure-fresh, refresh dedupe,
+- [x] Implement `ProviderCatalogService`: snapshot read, list, ensure-fresh, refresh dedupe,
   diffing, state transitions, sanitized errors, last-known-good behavior, revision events.
-- [ ] Add pure `fetchCatalog` and `reloadModelsFromSettings` to the base provider; keep current
+- [x] Add pure `fetchCatalog` and `reloadModelsFromSettings` to the base provider; keep current
   persistence and legacy routes untouched.
-- [ ] Wire the service in `ProviderRuntime`, register routes, register the typed event, and keep
+- [x] Wire the service in `ProviderRuntime`, register routes, register the typed event, and keep
   legacy `models.changed` emissions.
-- [ ] Add main tests: projection precedence, refresh success/diff, failure preservation,
+- [x] Add main tests: projection precedence, refresh success/diff, failure preservation,
   dedupe, status derivation, revision monotonicity.
 
 Completion condition: routes return correct snapshots and a mocked upstream refresh updates rows;

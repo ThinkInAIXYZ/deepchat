@@ -316,6 +316,20 @@ export abstract class BaseLLMProvider {
   }
 
   /**
+   * Fetch the provider's current catalog without persisting it. Catalog persistence is owned by
+   * the main-process catalog service.
+   */
+  public async fetchCatalog(): Promise<MODEL_META[]> {
+    return await this.fetchProviderModels()
+  }
+
+  /** Reload the in-memory read-through cache after the catalog service persists new rows. */
+  public reloadModelsFromSettings(): void {
+    this.loadCachedModels()
+    this.modelFetchPromise = null
+  }
+
+  /**
    * 强制刷新模型数据
    * 忽略缓存，重新从网络获取最新的模型列表
    * @returns 模型列表

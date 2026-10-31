@@ -17,6 +17,34 @@ export const providersChangedEvent = defineEventContract({
   })
 })
 
+export const providersCatalogChangedEvent = defineEventContract({
+  name: 'providers.catalog.changed',
+  payload: z.object({
+    providerId: z.string().min(1),
+    revision: z.number().int().nonnegative(),
+    status: z.enum(['unknown', 'fresh', 'stale', 'refreshing', 'error']),
+    reason: z.enum(['user', 'stale', 'config', 'provider-db', 'sync', 'external-write', 'acp']),
+    changed: z.boolean(),
+    added: z.array(z.string()).optional(),
+    removed: z.array(z.string()).optional(),
+    updated: z.array(z.string()).optional(),
+    errorCode: z
+      .enum([
+        'auth',
+        'forbidden',
+        'not-found',
+        'timeout',
+        'network',
+        'http',
+        'invalid-response',
+        'unknown'
+      ])
+      .nullable()
+      .optional(),
+    version: TimestampMsSchema
+  })
+})
+
 const ProviderRateLimitConfigSchema = z.object({
   enabled: z.boolean(),
   qpsLimit: z.number()

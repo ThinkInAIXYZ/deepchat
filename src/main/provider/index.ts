@@ -61,6 +61,12 @@ import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import { AcpProvider } from './providers/acpProvider'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type {
+  ProviderCatalogRefreshReason,
+  ProviderCatalogRefreshResult,
+  ProviderCatalogSnapshot
+} from '@shared/types/providerCatalog'
+import { ProviderCatalogService } from './catalog/providerCatalogService'
 
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -141,6 +147,7 @@ export class ProviderRuntime
   }
   private readonly rateLimitManager: RateLimitManager
   private readonly providerInstanceManager: ProviderInstanceManager
+  private readonly providerCatalogService: ProviderCatalogService
   private readonly modelManager: ModelManager
   private readonly ollamaManager: OllamaManager
   private readonly embeddingManager: EmbeddingManager
@@ -177,6 +184,15 @@ export class ProviderRuntime
         this.currentProviderId = providerId
       },
       acpRuntimeOwner: this.acpRuntimeOwner,
+      publishEvent: this.publishEvent
+    })
+    this.providerCatalogService = new ProviderCatalogService({
+      settings: providerSettings,
+      source: {
+        fetchCatalog: (providerId) => this.getProviderInstance(providerId).fetchCatalog(),
+        reloadModels: (providerId) =>
+          this.getExistingProviderInstance(providerId)?.reloadModelsFromSettings()
+      },
       publishEvent: this.publishEvent
     })
     this.modelManager = new ModelManager({
@@ -267,7 +283,26 @@ export class ProviderRuntime
   }
 
   handleProviderDbUpdated(): void {
-    this.refreshEnabledProviderDbBackedModelsInBackground('provider-db-updated')
+    this.providerCatalogService.onProviderDbUpdated()
+  }
+
+  getProviderCatalog(providerId: string): ProviderCatalogSnapshot {
+    return this.providerCatalogService.getSnapshot(providerId)
+  }
+
+  listProviderCatalogs(providerIds?: string[]): ProviderCatalogSnapshot[] {
+    return this.providerCatalogService.listSnapshots(providerIds)
+  }
+
+  refreshProviderCatalog(
+    providerId: string,
+    reason: ProviderCatalogRefreshReason = 'user'
+  ): Promise<ProviderCatalogRefreshResult> {
+    return this.providerCatalogService.refresh(providerId, reason)
+  }
+
+  ensureProviderCatalogFresh(providerId: string): boolean {
+    return this.providerCatalogService.ensureFresh(providerId)
   }
 
   getProviders(): LLM_PROVIDER[] {
@@ -1003,18 +1038,6 @@ export class ProviderRuntime
     }
   }
 
-  private getEnabledProviderIdsUsingProviderDb(): string[] {
-    return this.providerInstanceManager
-      .getProviders()
-      .filter(
-        (provider) =>
-          provider.enable &&
-          isProviderDbBackedProvider(provider.id) &&
-          provider.id !== 'openai-codex'
-      )
-      .map((provider) => provider.id)
-  }
-
   private async syncProviderDbBeforeRefresh(providerId: string): Promise<void> {
     if (!isProviderDbBackedProvider(providerId)) {
       return
@@ -1043,17 +1066,6 @@ export class ProviderRuntime
 
     this.modelRefreshPromises.set(providerId, refreshPromise)
     return refreshPromise
-  }
-
-  private refreshEnabledProviderDbBackedModelsInBackground(reason: string): void {
-    for (const providerId of this.getEnabledProviderIdsUsingProviderDb()) {
-      void this.enqueueProviderModelRefresh(providerId).catch((error) => {
-        console.warn(
-          `[ProviderRuntime] Failed to refresh models for provider ${providerId} during ${reason}:`,
-          error
-        )
-      })
-    }
   }
 
   async refreshModels(providerId: string): Promise<void> {
