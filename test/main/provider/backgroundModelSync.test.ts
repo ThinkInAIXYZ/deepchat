@@ -78,6 +78,34 @@ const createProviderSettings = (provider = createProvider()) => {
   const customModels: Record<string, MODEL_META[]> = {}
   const catalogStates = new Map<string, ProviderCatalogState>()
 
+  const setProviderCatalogState = vi.fn(
+    (
+      providerId: string,
+      patch: ProviderCatalogStatePatch,
+      options: { bumpRevision?: boolean } = {}
+    ) => {
+      const existing = catalogStates.get(providerId)
+      const next: ProviderCatalogState = {
+        providerId,
+        revision: (existing?.revision ?? 0) + (options.bumpRevision ? 1 : 0),
+        fetchedAt: patch.fetchedAt !== undefined ? patch.fetchedAt : (existing?.fetchedAt ?? null),
+        source: patch.source !== undefined ? patch.source : (existing?.source ?? null),
+        lastRefreshReason:
+          patch.lastRefreshReason !== undefined
+            ? patch.lastRefreshReason
+            : (existing?.lastRefreshReason ?? null),
+        lastErrorCode:
+          patch.lastErrorCode !== undefined
+            ? patch.lastErrorCode
+            : (existing?.lastErrorCode ?? null),
+        lastErrorAt:
+          patch.lastErrorAt !== undefined ? patch.lastErrorAt : (existing?.lastErrorAt ?? null)
+      }
+      catalogStates.set(providerId, next)
+      return next
+    }
+  )
+
   return {
     getProviders: vi.fn().mockReturnValue([provider]),
     getProviderById: vi.fn().mockReturnValue(provider),
@@ -91,32 +119,18 @@ const createProviderSettings = (provider = createProvider()) => {
       Object.fromEntries(modelIds.map((modelId) => [modelId, false]))
     ),
     getProviderCatalogState: vi.fn((providerId: string) => catalogStates.get(providerId)),
-    setProviderCatalogState: vi.fn(
+    setProviderCatalogState,
+    applyProviderCatalogUpdate: vi.fn(
       (
         providerId: string,
+        models: MODEL_META[] | null,
         patch: ProviderCatalogStatePatch,
         options: { bumpRevision?: boolean } = {}
       ) => {
-        const existing = catalogStates.get(providerId)
-        const next: ProviderCatalogState = {
-          providerId,
-          revision: (existing?.revision ?? 0) + (options.bumpRevision ? 1 : 0),
-          fetchedAt:
-            patch.fetchedAt !== undefined ? patch.fetchedAt : (existing?.fetchedAt ?? null),
-          source: patch.source !== undefined ? patch.source : (existing?.source ?? null),
-          lastRefreshReason:
-            patch.lastRefreshReason !== undefined
-              ? patch.lastRefreshReason
-              : (existing?.lastRefreshReason ?? null),
-          lastErrorCode:
-            patch.lastErrorCode !== undefined
-              ? patch.lastErrorCode
-              : (existing?.lastErrorCode ?? null),
-          lastErrorAt:
-            patch.lastErrorAt !== undefined ? patch.lastErrorAt : (existing?.lastErrorAt ?? null)
+        if (models) {
+          providerModels[providerId] = models
         }
-        catalogStates.set(providerId, next)
-        return next
+        return setProviderCatalogState(providerId, patch, options)
       }
     ),
     deleteProviderCatalogState: vi.fn((providerId: string) => catalogStates.delete(providerId)),

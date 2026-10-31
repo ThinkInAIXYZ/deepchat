@@ -131,6 +131,8 @@ providerId, revision, status, reason, changed, added?, removed?, updated?, error
 
 `revision` is monotonic per provider and guards against out-of-order IPC responses across
 windows. `changed: false` status events update freshness without refetching the model list.
+A configuration change invalidates any refresh still running on the previous provider instance:
+its result or error is discarded, and the `config` refresh for the rebuilt instance takes over.
 The legacy `models.changed` event remains during migration for capability, chat-mode, and Ollama
 consumers.
 
@@ -142,8 +144,8 @@ consumers.
    suppresses it.
 3. A failed refresh never deletes last-known-good models.
 4. Derived provider-db, fallback, or user values are never persisted as provider facts.
-5. One refresh performs one source-row replacement and emits one catalog change event, not one
-   event per model.
+5. One refresh replaces source rows and records its catalog state in one transaction, and emits
+   one catalog change event, not one event per model.
 6. Custom model definitions remain intact across upstream refreshes and take precedence over
    upstream facts for the same provider and model ID, without duplicate rows.
 7. The renderer never merges catalog sources or chooses freshness policy.

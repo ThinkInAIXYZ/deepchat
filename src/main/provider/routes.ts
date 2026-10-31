@@ -470,17 +470,19 @@ export function createProviderRoutes(deps: {
         const result = await providerRuntime.refreshProviderCatalog(input.providerId, input.reason)
         const catalog = providerRuntime.getProviderCatalog(input.providerId)
         const provider = providerSettings.getProviderById(input.providerId)
-        recordActivity({
-          category: 'provider',
-          action: 'refreshed',
-          targetType: 'provider',
-          targetId: input.providerId,
-          targetLabel: provider?.name ?? input.providerId,
-          routeName: 'settings-provider',
-          routeParams: { providerId: input.providerId },
-          summaryKey: 'settings.controlCenter.activity.providerModelsRefreshed',
-          summaryParams: { name: provider?.name ?? input.providerId }
-        })
+        if (result.status !== 'failed') {
+          recordActivity({
+            category: 'provider',
+            action: 'refreshed',
+            targetType: 'provider',
+            targetId: input.providerId,
+            targetLabel: provider?.name ?? input.providerId,
+            routeName: 'settings-provider',
+            routeParams: { providerId: input.providerId },
+            summaryKey: 'settings.controlCenter.activity.providerModelsRefreshed',
+            summaryParams: { name: provider?.name ?? input.providerId }
+          })
+        }
         return providersCatalogRefreshRoute.output.parse({ result, catalog })
       }
     ],

@@ -67,9 +67,19 @@ const createHarness = (options: {
           modelIds.map((modelId) => [modelId, options.modelStatus?.[modelId] ?? false])
         ) as Record<string, boolean>
     ),
-    setProviderModels: vi.fn((providerId: string, models: MODEL_META[]) => {
-      providerModels[providerId] = structuredClone(models)
-    }),
+    applyProviderCatalogUpdate: vi.fn(
+      (
+        providerId: string,
+        models: MODEL_META[] | null,
+        patch: ProviderCatalogStatePatch,
+        stateOptions: CatalogStateOptions = {}
+      ) => {
+        if (models) {
+          providerModels[providerId] = structuredClone(models)
+        }
+        return setProviderCatalogState(providerId, patch, stateOptions)
+      }
+    ),
     getProviderCatalogState: vi.fn((providerId: string) => catalogStates.get(providerId)),
     setProviderCatalogState,
     deleteProviderCatalogState: vi.fn((providerId: string) => {
@@ -220,7 +230,7 @@ describe('ProviderCatalogService', () => {
     const result = await harness.service.refresh('new-api', 'user')
 
     expect(result).toMatchObject({ status: 'not-modified', revision: 0, added: [] })
-    expect(harness.settings.setProviderModels).not.toHaveBeenCalled()
+    expect(vi.mocked(harness.settings.applyProviderCatalogUpdate).mock.calls[0][1]).toBeNull()
     expect(harness.settings.notifyModelsChanged).not.toHaveBeenCalled()
     expect(harness.publishEvent).toHaveBeenCalledWith(
       'providers.catalog.changed',
@@ -246,7 +256,7 @@ describe('ProviderCatalogService', () => {
     const result = await harness.service.refresh('new-api', 'user')
 
     expect(result).toMatchObject({ status: 'not-modified', revision: 0, updated: [] })
-    expect(harness.settings.setProviderModels).not.toHaveBeenCalled()
+    expect(vi.mocked(harness.settings.applyProviderCatalogUpdate).mock.calls[0][1]).toBeNull()
   })
 
   it('does not report an update for optional facts stored as undefined', async () => {
@@ -266,7 +276,7 @@ describe('ProviderCatalogService', () => {
     const result = await harness.service.refresh('mistral', 'user')
 
     expect(result).toMatchObject({ status: 'not-modified', revision: 0, updated: [] })
-    expect(harness.settings.setProviderModels).not.toHaveBeenCalled()
+    expect(vi.mocked(harness.settings.applyProviderCatalogUpdate).mock.calls[0][1]).toBeNull()
   })
 
   it('lists existing providers and skips ids that no longer exist', () => {
@@ -286,6 +296,45 @@ describe('ProviderCatalogService', () => {
     expect(() => harness.service.getSnapshot('removed-provider')).toThrow('not found')
   })
 
+  it('discards a catalog fetched by a refresh that started before a configuration change', async () => {
+    const harness = createHarness({
+      providers: [provider('new-api')],
+      providerModels: { 'new-api': [model('old-model')] }
+    })
+    let resolveStale: (models: MODEL_META[]) => void = () => undefined
+    vi.mocked(harness.source.fetchCatalog)
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveStale = resolve)))
+      .mockResolvedValueOnce([model('new-model')])
+
+    const staleRefresh = harness.service.refresh('new-api', 'user')
+    harness.service.onProviderConfigChanged('new-api')
+    resolveStale([model('stale-model')])
+
+    await expect(staleRefresh).resolves.toMatchObject({ status: 'not-modified', added: [] })
+    await vi.waitFor(() =>
+      expect(harness.providerModels['new-api'].map((item) => item.id)).toEqual(['new-model'])
+    )
+  })
+
+  it('discards an error from a refresh that started before a configuration change', async () => {
+    const harness = createHarness({ providers: [provider('new-api')] })
+    let rejectStale: (error: Error) => void = () => undefined
+    vi.mocked(harness.source.fetchCatalog)
+      .mockImplementationOnce(() => new Promise((_, reject) => (rejectStale = reject)))
+      .mockResolvedValueOnce([model('new-model')])
+
+    const staleRefresh = harness.service.refresh('new-api', 'user')
+    harness.service.onProviderConfigChanged('new-api')
+    rejectStale(Object.assign(new Error('old endpoint rejected the request'), { status: 401 }))
+
+    await expect(staleRefresh).resolves.toMatchObject({
+      status: 'not-modified',
+      errorCode: null
+    })
+    await vi.waitFor(() => expect(harness.service.getSnapshot('new-api').status).toBe('fresh'))
+    expect(harness.service.getSnapshot('new-api').lastErrorCode).toBeNull()
+  })
+
   it('keeps the last known catalog and records a sanitized error when refresh fails', async () => {
     const harness = createHarness({
       providers: [provider('new-api')],
@@ -299,7 +348,7 @@ describe('ProviderCatalogService', () => {
 
     expect(result).toMatchObject({ status: 'failed', errorCode: 'auth', added: [], removed: [] })
     expect(harness.providerModels['new-api'].map((item) => item.id)).toEqual(['last-known'])
-    expect(harness.settings.setProviderModels).not.toHaveBeenCalled()
+    expect(harness.settings.applyProviderCatalogUpdate).not.toHaveBeenCalled()
     expect(harness.publishEvent).toHaveBeenCalledWith(
       'providers.catalog.changed',
       expect.objectContaining({ status: 'error', changed: false, errorCode: 'auth' })

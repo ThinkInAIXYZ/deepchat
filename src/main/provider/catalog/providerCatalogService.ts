@@ -28,7 +28,7 @@ export type ProviderCatalogSettingsPort = Pick<
   | 'getDbProviderModels'
   | 'resolveEffectiveModels'
   | 'getBatchModelStatus'
-  | 'setProviderModels'
+  | 'applyProviderCatalogUpdate'
   | 'getProviderCatalogState'
   | 'setProviderCatalogState'
   | 'deleteProviderCatalogState'
@@ -188,7 +188,11 @@ const classifyCatalogError = (error: unknown): ProviderCatalogErrorCode => {
 }
 
 export class ProviderCatalogService {
-  private readonly inFlight = new Map<string, Promise<ProviderCatalogRefreshResult>>()
+  private readonly inFlight = new Map<
+    string,
+    { generation: number; promise: Promise<ProviderCatalogRefreshResult> }
+  >()
+  private readonly generations = new Map<string, number>()
   private readonly now: () => number
 
   constructor(private readonly deps: ProviderCatalogServiceDeps) {
@@ -242,16 +246,19 @@ export class ProviderCatalogService {
     providerId: string,
     reason: ProviderCatalogRefreshReason = 'user'
   ): Promise<ProviderCatalogRefreshResult> {
-    const existing = this.inFlight.get(providerId)
-    if (existing) return existing
     this.requireProvider(providerId)
+    const generation = this.generationFor(providerId)
+    const existing = this.inFlight.get(providerId)
+    if (existing?.generation === generation) return existing.promise
 
-    const refreshPromise = this.performRefresh(providerId, reason).finally(() => {
-      if (this.inFlight.get(providerId) === refreshPromise) {
+    // A configuration change invalidates the instance that owns an older in-flight fetch; start
+    // a refresh for the new instance instead of joining a promise that answers with stale facts.
+    const refreshPromise = this.performRefresh(providerId, reason, generation).finally(() => {
+      if (this.inFlight.get(providerId)?.promise === refreshPromise) {
         this.inFlight.delete(providerId)
       }
     })
-    this.inFlight.set(providerId, refreshPromise)
+    this.inFlight.set(providerId, { generation, promise: refreshPromise })
     return refreshPromise
   }
 
@@ -270,11 +277,9 @@ export class ProviderCatalogService {
     )
     const changed = diff.added.length + diff.removed.length + diff.updated.length > 0
 
-    if (changed) {
-      this.deps.settings.setProviderModels(providerId, normalized)
-    }
-    const state = this.deps.settings.setProviderCatalogState(
+    const state = this.deps.settings.applyProviderCatalogUpdate(
       providerId,
+      changed ? normalized : null,
       {
         fetchedAt: this.now(),
         source,
@@ -316,6 +321,7 @@ export class ProviderCatalogService {
   }
 
   forgetCatalog(providerId: string): void {
+    this.invalidateGeneration(providerId)
     this.deps.settings.deleteProviderCatalogState(providerId)
   }
 
@@ -351,6 +357,9 @@ export class ProviderCatalogService {
     const provider = this.deps.settings.getProviderById(providerId)
     if (!provider) return
     const source = catalogSourceForProvider(provider)
+    // The configuration change rebuilt the provider instance. A fetch started by the previous
+    // instance must not persist its catalog; a refresh for the new generation takes over.
+    this.invalidateGeneration(providerId)
 
     if (provider.enable) {
       void this.refresh(providerId, 'config').catch((error) => {
@@ -374,7 +383,8 @@ export class ProviderCatalogService {
 
   private async performRefresh(
     providerId: string,
-    reason: ProviderCatalogRefreshReason
+    reason: ProviderCatalogRefreshReason,
+    generation: number
   ): Promise<ProviderCatalogRefreshResult> {
     const provider = this.requireProvider(providerId)
     const source = catalogSourceForProvider(provider)
@@ -411,6 +421,9 @@ export class ProviderCatalogService {
       // Snapshot before fetching: some sources (ACP) persist while fetching.
       const previousModels = this.deps.settings.getRawProviderModels(providerId)
       const fetched = await this.deps.source.fetchCatalog(providerId)
+      if (this.generationFor(providerId) !== generation) {
+        return this.discardedRefreshResult(providerId)
+      }
       if (!this.deps.settings.getProviderById(providerId)) {
         throw new Error(`Provider ${providerId} was removed during refresh`)
       }
@@ -418,12 +431,10 @@ export class ProviderCatalogService {
       const normalized = normalizeFetchedModels(fetched, providerId)
       const diff = diffCatalogModels(previousModels, normalized, providerId)
       const changed = diff.added.length + diff.removed.length + diff.updated.length > 0
-      if (changed) {
-        this.deps.settings.setProviderModels(providerId, normalized)
-      }
 
-      const state = this.deps.settings.setProviderCatalogState(
+      const state = this.deps.settings.applyProviderCatalogUpdate(
         providerId,
+        changed ? normalized : null,
         {
           fetchedAt: this.now(),
           source,
@@ -455,6 +466,9 @@ export class ProviderCatalogService {
         errorCode: null
       }
     } catch (error) {
+      if (this.generationFor(providerId) !== generation) {
+        return this.discardedRefreshResult(providerId)
+      }
       const errorCode = classifyCatalogError(error)
       if (!this.deps.settings.getProviderById(providerId)) {
         // The provider (and its state row) was deleted mid-refresh; do not resurrect either.
@@ -525,6 +539,28 @@ export class ProviderCatalogService {
       source,
       lastErrorCode: state?.lastErrorCode ?? null,
       models
+    }
+  }
+
+  private generationFor(providerId: string): number {
+    return this.generations.get(providerId) ?? 0
+  }
+
+  private invalidateGeneration(providerId: string): void {
+    this.generations.set(providerId, this.generationFor(providerId) + 1)
+  }
+
+  private discardedRefreshResult(providerId: string): ProviderCatalogRefreshResult {
+    const state = this.deps.settings.getProviderCatalogState(providerId)
+    return {
+      providerId,
+      status: 'not-modified',
+      revision: state?.revision ?? 0,
+      fetchedAt: state?.fetchedAt ?? null,
+      added: [],
+      removed: [],
+      updated: [],
+      errorCode: null
     }
   }
 

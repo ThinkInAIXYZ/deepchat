@@ -31,8 +31,11 @@ const filesCalling = (sourceRoot: string, needle: string): string[] => {
 describe('provider catalog architecture guard', () => {
   it('persists provider catalogs only through the catalog service and its settings layer', () => {
     expect(filesCalling('src/main', 'setProviderModels(')).toEqual([
-      'src/main/provider/catalog/providerCatalogService.ts',
       'src/main/provider/providerModelHelper.ts',
+      'src/main/provider/settings.ts'
+    ])
+    expect(filesCalling('src/main', 'applyProviderCatalogUpdate(')).toEqual([
+      'src/main/provider/catalog/providerCatalogService.ts',
       'src/main/provider/settings.ts'
     ])
   })

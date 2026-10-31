@@ -265,6 +265,12 @@ export interface ProviderSettingsPort {
     patch: ProviderCatalogStatePatch,
     options?: { bumpRevision?: boolean }
   ): ProviderCatalogState
+  applyProviderCatalogUpdate(
+    providerId: string,
+    models: MODEL_META[] | null,
+    patch: ProviderCatalogStatePatch,
+    options?: { bumpRevision?: boolean }
+  ): ProviderCatalogState
   deleteProviderCatalogState(providerId: string): void
   getProviderModelRouteMetadata(
     providerId: string,
@@ -1249,6 +1255,24 @@ export class ProviderSettings implements ProviderSettingsPort {
     options?: { bumpRevision?: boolean }
   ): ProviderCatalogState {
     return this.database.settingsTable.setProviderCatalogState(providerId, patch, options)
+  }
+
+  /**
+   * Persists learned catalog facts and their operational state in one commit. A crash can never
+   * leave model rows newer than the `fetched_at`/`revision` that describes them.
+   */
+  applyProviderCatalogUpdate(
+    providerId: string,
+    models: MODEL_META[] | null,
+    patch: ProviderCatalogStatePatch,
+    options?: { bumpRevision?: boolean }
+  ): ProviderCatalogState {
+    return this.database.settingsTable.runInTransaction(() => {
+      if (models) {
+        this.setProviderModels(providerId, models)
+      }
+      return this.setProviderCatalogState(providerId, patch, options)
+    })
   }
 
   deleteProviderCatalogState(providerId: string): void {

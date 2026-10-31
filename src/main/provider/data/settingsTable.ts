@@ -96,6 +96,11 @@ export class ProviderSettingsTable extends BaseTable {
     this.db.exec(this.getCreateTableSQL())
   }
 
+  /** Runs several table writes as one commit; nested table transactions become savepoints. */
+  runInTransaction<T>(operation: () => T): T {
+    return this.db.transaction(operation)()
+  }
+
   getCreateTableSQL(): string {
     return `
       CREATE TABLE IF NOT EXISTS providers (
