@@ -431,6 +431,33 @@ describe('ModelProviderSettingsDetail', () => {
     expect(wrapper.get('[data-testid="provider-catalog-last-synced"]').text()).toBe(initialText)
   })
 
+  it('keeps the newer catalog state when an older manual refresh result arrives', async () => {
+    const { wrapper, providerCatalogClient, catalogSnapshot } = await setup()
+    const vm = wrapper.vm as unknown as { handleRefreshModels: () => Promise<void> }
+    const initialText = wrapper.get('[data-testid="provider-catalog-last-synced"]').text()
+    providerCatalogClient.refreshCatalog.mockResolvedValueOnce({
+      result: {
+        providerId: 'anthropic',
+        status: 'ok',
+        revision: 0,
+        fetchedAt: catalogSnapshot.fetchedAt,
+        added: [],
+        removed: [],
+        updated: [],
+        errorCode: null
+      },
+      catalog: {
+        ...catalogSnapshot,
+        revision: 0,
+        fetchedAt: catalogSnapshot.fetchedAt + 86_400_000
+      }
+    })
+
+    await vm.handleRefreshModels()
+
+    expect(wrapper.get('[data-testid="provider-catalog-last-synced"]').text()).toBe(initialText)
+  })
+
   it('renders Vertex credentials in the connection section', async () => {
     const { wrapper } = await setup({
       provider: createProvider({ id: 'vertex', apiType: 'vertex' })

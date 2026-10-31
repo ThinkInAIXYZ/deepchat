@@ -470,7 +470,7 @@ export function createProviderRoutes(deps: {
         const result = await providerRuntime.refreshProviderCatalog(input.providerId, input.reason)
         const catalog = providerRuntime.getProviderCatalog(input.providerId)
         const provider = providerSettings.getProviderById(input.providerId)
-        if (result.status !== 'failed') {
+        if (result.status !== 'failed' && result.status !== 'superseded') {
           recordActivity({
             category: 'provider',
             action: 'refreshed',

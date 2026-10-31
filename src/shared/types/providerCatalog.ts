@@ -57,9 +57,11 @@ export type ProviderCatalogSnapshot = {
   models: RENDERER_MODEL_META[]
 }
 
+export type ProviderCatalogRefreshStatus = 'ok' | 'not-modified' | 'failed' | 'superseded'
+
 export type ProviderCatalogRefreshResult = {
   providerId: string
-  status: 'ok' | 'not-modified' | 'failed'
+  status: ProviderCatalogRefreshStatus
   revision: number
   fetchedAt: number | null
   added: string[]

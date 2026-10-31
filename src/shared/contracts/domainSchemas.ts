@@ -639,7 +639,7 @@ export const ProviderCatalogSnapshotSchema = z.object({
 
 export const ProviderCatalogRefreshResultSchema = z.object({
   providerId: EntityIdSchema,
-  status: z.enum(['ok', 'not-modified', 'failed']),
+  status: z.enum(['ok', 'not-modified', 'failed', 'superseded']),
   revision: RevisionSchema,
   fetchedAt: TimestampMsSchema.nullable(),
   added: z.array(z.string()),

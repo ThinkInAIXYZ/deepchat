@@ -633,7 +633,7 @@ const handleRefreshModels = async () => {
       props.provider.id,
       'user'
     )
-    catalogSnapshot.value = catalog
+    applyCatalogState(catalog)
     refreshed = result.status !== 'failed'
   } catch {
     // Do not expose upstream errors, which can contain connection credentials.

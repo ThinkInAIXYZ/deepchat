@@ -310,7 +310,7 @@ describe('ProviderCatalogService', () => {
     harness.service.onProviderConfigChanged('new-api')
     resolveStale([model('stale-model')])
 
-    await expect(staleRefresh).resolves.toMatchObject({ status: 'not-modified', added: [] })
+    await expect(staleRefresh).resolves.toMatchObject({ status: 'superseded', added: [] })
     await vi.waitFor(() =>
       expect(harness.providerModels['new-api'].map((item) => item.id)).toEqual(['new-model'])
     )
@@ -328,7 +328,7 @@ describe('ProviderCatalogService', () => {
     rejectStale(Object.assign(new Error('old endpoint rejected the request'), { status: 401 }))
 
     await expect(staleRefresh).resolves.toMatchObject({
-      status: 'not-modified',
+      status: 'superseded',
       errorCode: null
     })
     await vi.waitFor(() => expect(harness.service.getSnapshot('new-api').status).toBe('fresh'))

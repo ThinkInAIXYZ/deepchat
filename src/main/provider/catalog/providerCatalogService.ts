@@ -554,7 +554,7 @@ export class ProviderCatalogService {
     const state = this.deps.settings.getProviderCatalogState(providerId)
     return {
       providerId,
-      status: 'not-modified',
+      status: 'superseded',
       revision: state?.revision ?? 0,
       fetchedAt: state?.fetchedAt ?? null,
       added: [],
