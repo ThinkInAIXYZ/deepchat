@@ -18,6 +18,7 @@ import type { ProviderLocalePort } from '../ports'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type { ProviderCatalogWriterPort } from '../catalog/providerCatalogService'
 
 interface ProviderInstanceManagerOptions {
   providerSettings: ProviderSettingsPort
@@ -29,6 +30,7 @@ interface ProviderInstanceManagerOptions {
   setCurrentProviderId: (providerId: string | null) => void
   acpRuntimeOwner: AcpRuntimeOwner
   publishEvent: DeepchatEventPublisher
+  catalogWriter?: ProviderCatalogWriterPort
 }
 
 export class ProviderInstanceManager {
@@ -359,7 +361,8 @@ export class ProviderInstanceManager {
           this.options.locale,
           this.options.agentSettings,
           this.options.acpRuntimeOwner,
-          this.options.publishEvent
+          this.options.publishEvent,
+          this.options.catalogWriter
         )
       }
 

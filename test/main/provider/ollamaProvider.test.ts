@@ -248,7 +248,7 @@ describe('OllamaProvider.fetchModels', () => {
       true
     )
     expect(providerSettings.ensureModelStatus).toHaveBeenCalledWith('ollama', 'qwen3:8b', true)
-    expect(providerSettings.setProviderModels).toHaveBeenCalledWith('ollama', models)
+    expect(providerSettings.setProviderModels).not.toHaveBeenCalled()
   })
 
   it('does not promote catalog fallback capabilities into provider facts', async () => {

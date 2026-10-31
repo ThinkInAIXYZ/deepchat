@@ -205,61 +205,11 @@ export abstract class BaseLLMProvider {
   }
 
   /**
-   * Initialize the provider
-   * Including fetching model list, configuring proxy, etc.
+   * Initialize the provider. Catalog discovery is owned by the provider catalog service, so
+   * initialization only marks the instance usable; it never talks to the upstream catalog.
    */
   protected async init() {
-    // Disabled drafts still support explicit requests. Only background catalog
-    // loading and automatic model enablement depend on the persisted enable flag.
     this.isInitialized = true
-    if (this.provider.enable) {
-      try {
-        this.fetchModels()
-          .then(() => {
-            return this.autoEnableModelsIfNeeded()
-          })
-          .then(() => {
-            logger.info('Provider initialized successfully:', this.provider.name)
-          })
-          .catch((error) => {
-            // Handle errors from fetchModels() and autoEnableModelsIfNeeded()
-            logger.warn('Provider initialization failed:', this.provider.name, error)
-          })
-        // Check if we need to automatically enable all models
-      } catch (error) {
-        logger.warn('Provider initialization failed:', this.provider.name, error)
-      }
-    }
-  }
-
-  /**
-   * Check and automatically enable models
-   * If no models are enabled, automatically enable all models
-   */
-  protected async autoEnableModelsIfNeeded() {
-    if (!this.models || this.models.length === 0) return
-    const providerId = this.provider.id
-
-    // Check if there are custom models (use cached customModels)
-    if (this.customModels && this.customModels.length > 0) return
-
-    // Check if any model's status has been manually modified
-    const hasManuallyModifiedModels = this.models.some((model) =>
-      this.providerSettings.getModelStatus(providerId, model.id)
-    )
-    if (hasManuallyModifiedModels) return
-
-    // 检查是否有任何已启用的模型
-    const hasEnabledModels = this.models.some((model) =>
-      this.providerSettings.getModelStatus(providerId, model.id)
-    )
-
-    // 不再自动启用模型，让用户手动选择启用需要的模型
-    if (!hasEnabledModels) {
-      logger.info(
-        `Provider ${this.provider.name} models loaded, please manually enable the models you need`
-      )
-    }
   }
 
   /**
@@ -311,7 +261,6 @@ export abstract class BaseLLMProvider {
       return model
     })
     this.models = validatedModels
-    this.providerSettings.setProviderModels(this.provider.id, validatedModels)
     return structuredClone(validatedModels)
   }
 
@@ -327,23 +276,6 @@ export abstract class BaseLLMProvider {
   public reloadModelsFromSettings(): void {
     this.loadCachedModels()
     this.modelFetchPromise = null
-  }
-
-  /**
-   * 强制刷新模型数据
-   * 忽略缓存，重新从网络获取最新的模型列表
-   * @returns 模型列表
-   */
-  public async refreshModels(): Promise<void> {
-    logger.info(
-      `[Provider] refreshModels: force refreshing models for provider "${this.provider.id}" (${this.provider.name})`
-    )
-    await this.fetchModels({ suppressErrors: false })
-    await this.autoEnableModelsIfNeeded()
-    logger.info(
-      `[Provider] refreshModels: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
-    )
-    this.providerSettings.notifyModelsChanged(this.provider.id)
   }
 
   /**

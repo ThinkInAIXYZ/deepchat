@@ -662,12 +662,12 @@ export function createProviderRoutes(deps: {
       async (rawInput, context) => {
         requireRendererCaller(context)
         const input = modelsSaveCustomRoute.input.parse(rawInput)
-        return modelsSaveCustomRoute.output.parse({
-          model: providerSettings.saveCustomModel({
-            ...input,
-            model: input.model as MODEL_META
-          })
+        const savedModel = providerSettings.saveCustomModel({
+          ...input,
+          model: input.model as MODEL_META
         })
+        providerRuntime.notifyProviderCatalogExternalWrite(input.providerId)
+        return modelsSaveCustomRoute.output.parse({ model: savedModel })
       }
     ],
     [
@@ -706,6 +706,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         const input = modelsSetConfigRoute.input.parse(rawInput)
         providerSettings.setModelConfig(input.modelId, input.providerId, input.config)
+        providerRuntime.notifyProviderCatalogExternalWrite(input.providerId, 'config')
         return modelsSetConfigRoute.output.parse({
           config: providerSettings.getModelConfig(input.modelId, input.providerId)
         })
@@ -716,6 +717,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         const input = modelsResetConfigRoute.input.parse(rawInput)
         providerSettings.resetModelConfig(input.modelId, input.providerId)
+        providerRuntime.notifyProviderCatalogExternalWrite(input.providerId, 'config')
         return modelsResetConfigRoute.output.parse({ reset: true })
       }
     ],

@@ -244,15 +244,8 @@ describe('BaseLLMProvider tool XML conversion', () => {
     expect(fetchModels).toHaveBeenCalledTimes(2)
   })
 
-  it('does not suppress provider model persistence failures', async () => {
-    const persistenceError = new Error('model persistence failed')
-    const failingProviderSettings = {
-      ...providerSettings,
-      setProviderModels: vi.fn(() => {
-        throw persistenceError
-      })
-    } as unknown as ProviderSettingsPort
-    const provider = new TestProvider(failingProviderSettings, async () => [
+  it('does not persist discovered models from the provider base class', async () => {
+    const provider = new TestProvider(providerSettings, async () => [
       {
         id: 'model-1',
         name: 'Model 1',
@@ -261,7 +254,8 @@ describe('BaseLLMProvider tool XML conversion', () => {
       } as MODEL_META
     ])
 
-    await expect(provider.fetchModels()).rejects.toThrow('model persistence failed')
+    await expect(provider.fetchModels()).resolves.toHaveLength(1)
+    expect(providerSettings.setProviderModels).not.toHaveBeenCalled()
   })
 
   it('starts fresh discovery after a config change while keeping new queries shared', async () => {
@@ -304,10 +298,6 @@ describe('BaseLLMProvider tool XML conversion', () => {
 
     await expect(first).resolves.toEqual([])
     expect(provider.getModels()).toEqual(models)
-    expect(providerSettings.setProviderModels).toHaveBeenCalledExactlyOnceWith(
-      'test-provider',
-      models
-    )
   })
 
   it('isolates discovered models from callers and the provider cache', async () => {

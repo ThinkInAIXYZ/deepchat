@@ -41,6 +41,15 @@ export interface ProviderCatalogSourcePort {
   reloadModels(providerId: string): void
 }
 
+/** The only supported way for a provider to publish a catalog it owns (ACP agents). */
+export interface ProviderCatalogWriterPort {
+  replaceFromSource(
+    providerId: string,
+    models: MODEL_META[],
+    reason?: ProviderCatalogRefreshReason
+  ): ProviderCatalogRefreshResult
+}
+
 export interface ProviderCatalogServiceDeps {
   settings: ProviderCatalogSettingsPort
   source: ProviderCatalogSourcePort
@@ -310,6 +319,15 @@ export class ProviderCatalogService {
     this.deps.source.reloadModels(providerId)
     this.deps.settings.notifyModelsChanged(providerId)
     this.publishChanged(providerId, state, source, reason, true, undefined, null)
+  }
+
+  forgetCatalog(providerId: string): void {
+    this.deps.settings.deleteProviderCatalogState(providerId)
+  }
+
+  /** A sync/import wrote provider or model rows outside the catalog service. */
+  invalidateFromSync(providerId: string): void {
+    this.onExternalCatalogWrite(providerId, 'sync')
   }
 
   onProviderDbUpdated(): void {

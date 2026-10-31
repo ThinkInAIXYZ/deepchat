@@ -151,6 +151,6 @@ describe('AiSdkProvider gemini', () => {
       createProviderSettings()
     )
 
-    await expect(provider.refreshModels()).rejects.toThrow('API key not valid')
+    await expect(provider.fetchCatalog()).rejects.toThrow('API key not valid')
   })
 })

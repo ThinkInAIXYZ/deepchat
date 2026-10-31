@@ -254,6 +254,6 @@ describe('AiSdkProvider anthropic', () => {
       createProviderSettings()
     )
 
-    await expect(provider.refreshModels()).rejects.toThrow('Invalid API key')
+    await expect(provider.fetchCatalog()).rejects.toThrow('Invalid API key')
   })
 })

@@ -56,18 +56,18 @@ decides whether to contact the upstream catalog.
 
 ## Phase 4: Single writer and cleanup
 
-- [ ] Make provider `fetchCatalog` the only fetch adapter; remove persistence from `fetchModels`
+- [x] Make provider `fetchCatalog` the only fetch adapter; remove persistence from `fetchModels`
   and from draft validation.
-- [ ] Delegate `providers.refreshModels` and the provider-db background refresh to the catalog
+- [x] Delegate `providers.refreshModels` and the provider-db background refresh to the catalog
   service.
-- [ ] Route ACP catalog writes through `replaceFromSource`; route synced provider/model changes
+- [x] Route ACP catalog writes through `replaceFromSource`; route synced provider/model changes
   through `invalidateFromSync`.
-- [ ] Invalidate provider config-driven catalogs on base URL, API key, or protocol changes.
-- [ ] Remove obsolete discovery helpers, unused routes, and legacy refresh state; keep
+- [x] Invalidate provider config-driven catalogs on base URL, API key, or protocol changes.
+- [x] Remove obsolete discovery helpers, unused routes, and legacy refresh state; keep
   `models.changed` only for non-catalog consumers.
-- [ ] Add an architecture guard proving `setProviderModels` is only called by the catalog service
+- [x] Add an architecture guard proving `setProviderModels` is only called by the catalog service
   and the settings persistence layer.
-- [ ] Update `ARCHITECTURE.md` or the retained feature documentation if the catalog ownership is
+- [x] Update `ARCHITECTURE.md` or the retained feature documentation if the catalog ownership is
   referenced there.
 
 Completion condition: one writer, one merge, one explicit refresh contract; no hidden catalog
