@@ -228,6 +228,64 @@ describe('ProviderCatalogService', () => {
     )
   })
 
+  it('does not report an update when fetched models omit their group', async () => {
+    const existing = model('gpt-6.1-sol', { providerId: 'new-api' })
+    const harness = createHarness({
+      providers: [provider('new-api')],
+      providerModels: { 'new-api': [existing] }
+    })
+    vi.mocked(harness.source.fetchCatalog).mockResolvedValue([
+      {
+        id: 'gpt-6.1-sol',
+        name: 'gpt-6.1-sol',
+        providerId: 'new-api',
+        isCustom: false
+      } as MODEL_META
+    ])
+
+    const result = await harness.service.refresh('new-api', 'user')
+
+    expect(result).toMatchObject({ status: 'not-modified', revision: 0, updated: [] })
+    expect(harness.settings.setProviderModels).not.toHaveBeenCalled()
+  })
+
+  it('does not report an update for optional facts stored as undefined', async () => {
+    const existing = model('mistral-large', { providerId: 'mistral' })
+    const harness = createHarness({
+      providers: [provider('mistral')],
+      providerModels: { mistral: [existing] }
+    })
+    vi.mocked(harness.source.fetchCatalog).mockResolvedValue([
+      {
+        ...existing,
+        description: undefined,
+        ownedBy: undefined
+      } as MODEL_META
+    ])
+
+    const result = await harness.service.refresh('mistral', 'user')
+
+    expect(result).toMatchObject({ status: 'not-modified', revision: 0, updated: [] })
+    expect(harness.settings.setProviderModels).not.toHaveBeenCalled()
+  })
+
+  it('lists existing providers and skips ids that no longer exist', () => {
+    const harness = createHarness({
+      providers: [provider('new-api'), provider('mistral')]
+    })
+
+    expect(harness.service.listSnapshots().map((snapshot) => snapshot.providerId)).toEqual([
+      'new-api',
+      'mistral'
+    ])
+    expect(
+      harness.service
+        .listSnapshots(['mistral', 'removed-provider'])
+        .map((snapshot) => snapshot.providerId)
+    ).toEqual(['mistral'])
+    expect(() => harness.service.getSnapshot('removed-provider')).toThrow('not found')
+  })
+
   it('keeps the last known catalog and records a sanitized error when refresh fails', async () => {
     const harness = createHarness({
       providers: [provider('new-api')],

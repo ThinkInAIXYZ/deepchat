@@ -63,13 +63,18 @@ type CatalogDiff = {
   updated: string[]
 }
 
+/**
+ * Stable JSON for catalog comparison. Mirrors what `provider_models` can round-trip: a property
+ * whose value is `undefined` is not persisted, so it must not make equal models look different.
+ */
 const stableStringify = (value: unknown): string => {
   if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(',')}]`
+    return `[${value.map((item) => (item === undefined ? 'null' : stableStringify(item))).join(',')}]`
   }
   if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>
     return `{${Object.keys(record)
+      .filter((key) => record[key] !== undefined)
       .sort()
       .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
       .join(',')}}`
@@ -111,7 +116,15 @@ const normalizeFetchedModels = (models: MODEL_META[], providerId: string): MODEL
   for (const model of models) {
     if (!model || typeof model.id !== 'string' || model.id.trim().length === 0) continue
     const id = model.id.trim()
-    const normalized: MODEL_META = { ...model, id, providerId, isCustom: model.isCustom ?? false }
+    const normalized: MODEL_META = {
+      ...model,
+      id,
+      providerId,
+      // `provider_models` stores an empty group as `default`; canonicalize here so a model that
+      // omits its group never looks changed on the next refresh.
+      group: model.group || 'default',
+      isCustom: model.isCustom ?? false
+    }
     byId.set(id, stripDerivedProviderModelFields(normalized, providerId))
   }
   return Array.from(byId.values())
@@ -183,37 +196,18 @@ export class ProviderCatalogService {
   }
 
   getSnapshot(providerId: string): ProviderCatalogSnapshot {
-    const provider = this.requireProvider(providerId)
-    const source = catalogSourceForProvider(provider)
-    const state = this.deps.settings.getProviderCatalogState(providerId)
-    const status = this.deriveStatus(state, source, this.inFlight.has(providerId))
-    const catalogModels = includesCatalogModels(source)
-      ? this.deps.settings.getDbProviderModels(providerId)
-      : []
-
-    const models = buildProviderCatalogModels({
-      providerId,
-      catalogModels,
-      providerModels: this.deps.settings.getRawProviderModels(providerId),
-      customModels: this.deps.settings.getRawCustomModels(providerId),
-      resolveEffectiveModels: (input, id) => this.deps.settings.resolveEffectiveModels(input, id),
-      modelStatus: (modelIds) => this.deps.settings.getBatchModelStatus(providerId, modelIds)
-    })
-
-    return {
-      providerId,
-      revision: state?.revision ?? 0,
-      status,
-      fetchedAt: state?.fetchedAt ?? null,
-      source,
-      lastErrorCode: state?.lastErrorCode ?? null,
-      models
-    }
+    return this.buildSnapshot(this.requireProvider(providerId))
   }
 
   listSnapshots(providerIds?: string[]): ProviderCatalogSnapshot[] {
-    const ids = providerIds ?? this.deps.settings.getProviders().map((provider) => provider.id)
-    return ids.map((providerId) => this.getSnapshot(providerId))
+    // A stale renderer may still name a provider that was removed in the main process; a batch
+    // read returns the providers that still exist instead of failing for all of them.
+    const providers = providerIds
+      ? providerIds
+          .map((providerId) => this.deps.settings.getProviderById(providerId))
+          .filter((provider): provider is LLM_PROVIDER => provider !== undefined)
+      : this.deps.settings.getProviders()
+    return providers.map((provider) => this.buildSnapshot(provider))
   }
 
   ensureFresh(providerId: string): boolean {
@@ -502,6 +496,35 @@ export class ProviderCatalogService {
         updated: [],
         errorCode
       }
+    }
+  }
+
+  private buildSnapshot(provider: LLM_PROVIDER): ProviderCatalogSnapshot {
+    const providerId = provider.id
+    const source = catalogSourceForProvider(provider)
+    const state = this.deps.settings.getProviderCatalogState(providerId)
+    const status = this.deriveStatus(state, source, this.inFlight.has(providerId))
+    const catalogModels = includesCatalogModels(source)
+      ? this.deps.settings.getDbProviderModels(providerId)
+      : []
+
+    const models = buildProviderCatalogModels({
+      providerId,
+      catalogModels,
+      providerModels: this.deps.settings.getRawProviderModels(providerId),
+      customModels: this.deps.settings.getRawCustomModels(providerId),
+      resolveEffectiveModels: (input, id) => this.deps.settings.resolveEffectiveModels(input, id),
+      modelStatus: (modelIds) => this.deps.settings.getBatchModelStatus(providerId, modelIds)
+    })
+
+    return {
+      providerId,
+      revision: state?.revision ?? 0,
+      status,
+      fetchedAt: state?.fetchedAt ?? null,
+      source,
+      lastErrorCode: state?.lastErrorCode ?? null,
+      models
     }
   }
 

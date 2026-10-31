@@ -118,7 +118,8 @@ elapsed. Reads remain pure; callers explicitly request revalidation.
 Typed routes:
 
 - `providers.catalog.get` -> one snapshot;
-- `providers.catalog.list` -> snapshots for the requested or all providers;
+- `providers.catalog.list` -> snapshots for the requested or all providers; IDs that no longer
+  exist are skipped so one stale caller cannot fail the batch;
 - `providers.catalog.refresh` -> refresh result and fresh snapshot;
 - `providers.catalog.ensureFresh` -> whether a background refresh was scheduled.
 
