@@ -82,16 +82,15 @@ fetch remains in provider initialization.
 - [x] Remove temporary probes; keep only durable regression coverage.
 - [x] Do not push. Leave the branch and validation evidence for the user.
 
-Validation evidence (2026-10-31, HEAD `6987d1287`):
+Validation evidence (2026-10-31):
 
 - `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`: pass.
 - `pnpm run test:main`: 678 files, 9902 tests passed (4 skipped).
-- `pnpm run test:renderer`: 288 files, 2749 tests passed.
-- `test/e2e/specs/42-provider-connection-save.smoke.spec.ts`: the new
-  "refresh discovers models added to the upstream catalog" regression plus "custom providers can
-  be saved without a probe" and "provider-specific fields and save errors remain visible" pass.
-- "connection saving does not depend on the fixed probe model" fails in its model-check step on
-  this branch **and unchanged on `dev`** (`e946167dd`): the dialog defaults to the enabled-only
-  filter, the provider catalog has no explicitly enabled provider models, and the enabled custom
-  fixture model makes that filter suppress every provider model. This is a pre-existing dev
-  failure, not a catalog regression; it is intentionally left out of this branch.
+- `pnpm run test:renderer`: 288 files, 2750 tests passed.
+- `test/e2e/specs/42-provider-connection-save.smoke.spec.ts`: all 4 smoke tests pass,
+  including the new "refresh discovers models added to the upstream catalog" regression.
+- The model-check dialog previously hid the whole provider catalog when only a custom model was
+  enabled: its enabled-only filter was gated on any enabled model. `5e23e9ff9` gates the filter
+  on enabled catalog models only and adds a regression test in
+  `test/renderer/components/ModelCheckDialog.test.ts`; the renderer suite then reports 2750
+  passing tests.
