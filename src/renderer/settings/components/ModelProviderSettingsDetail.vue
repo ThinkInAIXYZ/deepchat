@@ -108,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
@@ -183,6 +183,26 @@ const catalogLastSyncedAt = computed(() =>
     ? new Date(catalogSnapshot.value.fetchedAt).toLocaleString()
     : null
 )
+
+const refreshCatalogSnapshot = async (providerId: string) => {
+  try {
+    const snapshot = await providerCatalogClient.getCatalog(providerId)
+    if (props.provider.id === providerId) {
+      catalogSnapshot.value = snapshot
+    }
+  } catch (error) {
+    if (import.meta.env.DEV) console.debug('Failed to refresh catalog state:', error)
+  }
+}
+
+// Background revalidation updates the snapshot outside this page's refresh button.
+const unsubscribeCatalogChanged = providerCatalogClient.onCatalogChanged((payload) => {
+  if (payload.providerId !== props.provider.id || payload.status === 'refreshing') {
+    return
+  }
+  void refreshCatalogSnapshot(payload.providerId)
+})
+onBeforeUnmount(unsubscribeCatalogChanged)
 const isProviderStatusUpdating = ref(false)
 const isAuthModeUpdating = ref(false)
 const hasInitializedModelList = ref(false)

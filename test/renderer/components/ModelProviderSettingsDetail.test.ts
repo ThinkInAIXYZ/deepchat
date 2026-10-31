@@ -107,7 +107,7 @@ async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_
       catalog: catalogSnapshot
     }),
     ensureFresh: vi.fn().mockResolvedValue(false),
-    onCatalogChanged: vi.fn()
+    onCatalogChanged: vi.fn(() => () => {})
   }
 
   vi.doMock('vue-i18n', () => ({
@@ -195,7 +195,8 @@ async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_
     providerStore,
     modelStore,
     providerCatalogClient,
-    notifyRendererMock
+    notifyRendererMock,
+    catalogSnapshot
   }
 }
 
@@ -380,6 +381,30 @@ describe('ModelProviderSettingsDetail', () => {
       }
     }
   )
+
+  it('updates the last sync time when the background catalog changes', async () => {
+    const { wrapper, providerCatalogClient, catalogSnapshot } = await setup()
+    const listener = providerCatalogClient.onCatalogChanged.mock.calls[0][0]
+
+    const initialText = wrapper.get('[data-testid="provider-catalog-last-synced"]').text()
+    providerCatalogClient.getCatalog.mockResolvedValueOnce({
+      ...catalogSnapshot,
+      fetchedAt: catalogSnapshot.fetchedAt + 86_400_000
+    })
+
+    listener({
+      providerId: 'anthropic',
+      revision: 2,
+      status: 'fresh',
+      reason: 'stale',
+      changed: true,
+      errorCode: null,
+      version: Date.now()
+    })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="provider-catalog-last-synced"]').text()).not.toBe(initialText)
+  })
 
   it('renders Vertex credentials in the connection section', async () => {
     const { wrapper } = await setup({
