@@ -75,9 +75,23 @@ fetch remains in provider initialization.
 
 ## Whole-change review and validation
 
-- [ ] Review the complete diff for source-of-truth violations, duplicated merges, secret leakage
+- [x] Review the complete diff for source-of-truth violations, duplicated merges, secret leakage
   in errors/logs, and behavior changes to CLI/agent paths.
-- [ ] Run `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`.
-- [ ] Run targeted main and renderer suites plus the provider catalog smoke spec.
-- [ ] Remove temporary probes; keep only durable regression coverage.
-- [ ] Do not push. Leave the branch and validation evidence for the user.
+- [x] Run `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`.
+- [x] Run targeted main and renderer suites plus the provider catalog smoke spec.
+- [x] Remove temporary probes; keep only durable regression coverage.
+- [x] Do not push. Leave the branch and validation evidence for the user.
+
+Validation evidence (2026-10-31, HEAD `6987d1287`):
+
+- `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`: pass.
+- `pnpm run test:main`: 678 files, 9902 tests passed (4 skipped).
+- `pnpm run test:renderer`: 288 files, 2749 tests passed.
+- `test/e2e/specs/42-provider-connection-save.smoke.spec.ts`: the new
+  "refresh discovers models added to the upstream catalog" regression plus "custom providers can
+  be saved without a probe" and "provider-specific fields and save errors remain visible" pass.
+- "connection saving does not depend on the fixed probe model" fails in its model-check step on
+  this branch **and unchanged on `dev`** (`e946167dd`): the dialog defaults to the enabled-only
+  filter, the provider catalog has no explicitly enabled provider models, and the enabled custom
+  fixture model makes that filter suppress every provider model. This is a pre-existing dev
+  failure, not a catalog regression; it is intentionally left out of this branch.
