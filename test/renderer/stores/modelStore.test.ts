@@ -232,6 +232,42 @@ describe('modelStore.refreshProviderModels', () => {
     expect(store.allProviderModels.value[0].models.map((model) => model.id)).toEqual(['gpt-5'])
   })
 
+  it('ignores a snapshot older than the applied catalog revision', async () => {
+    const deferred = createDeferred<ProviderCatalogSnapshot>()
+    const { store, catalogClient } = await setupStore()
+    catalogClient.getCatalog
+      .mockResolvedValueOnce(catalogSnapshot('openai', [catalogModel('gpt-6')], { revision: 2 }))
+      .mockImplementationOnce(() => deferred.promise)
+
+    await store.refreshProviderModels('openai', false)
+    const staleRead = store.refreshProviderModels('openai', false)
+    deferred.resolve(catalogSnapshot('openai', [catalogModel('gpt-5')], { revision: 1 }))
+    await staleRead
+
+    expect(store.allProviderModels.value[0].models.map((model) => model.id)).toEqual(['gpt-6'])
+  })
+
+  it('awaits an explicit catalog refresh before reading the result', async () => {
+    const { store, catalogClient } = await setupStore()
+    catalogClient.refreshCatalog.mockResolvedValue({
+      result: {
+        providerId: 'openai',
+        status: 'ok',
+        revision: 1,
+        fetchedAt: 1_000,
+        added: ['gpt-6'],
+        removed: [],
+        updated: [],
+        errorCode: null
+      },
+      catalog: catalogSnapshot('openai', [catalogModel('gpt-6')])
+    })
+
+    expect(await store.refreshProviderCatalog('openai', 'config')).toBe(true)
+    expect(catalogClient.refreshCatalog).toHaveBeenCalledWith('openai', 'config')
+    expect(store.allProviderModels.value[0].models.map((model) => model.id)).toEqual(['gpt-6'])
+  })
+
   it('uses the ACP agent path instead of the catalog snapshot', async () => {
     const { store, agentModelStore, catalogClient } = await setupStore()
 
@@ -368,6 +404,28 @@ describe('modelStore listeners', () => {
     catalogChangedListener?.({ providerId: 'openai' })
     await vi.waitFor(() => expect(store.allProviderModels.value[0]?.models[0]?.id).toBe('gpt-5'))
     expect(catalogClient.getCatalog).toHaveBeenCalledWith('openai')
+  })
+
+  it('rereads the catalog after an older in-flight read settles', async () => {
+    let catalogChangedListener: ((payload: { providerId: string }) => void) | undefined
+    const deferred = createDeferred<ProviderCatalogSnapshot>()
+    const { store, catalogClient } = await setupStore()
+    catalogClient.onCatalogChanged.mockImplementation((listener) => {
+      catalogChangedListener = listener
+      return vi.fn()
+    })
+    catalogClient.getCatalog
+      .mockImplementationOnce(() => deferred.promise)
+      .mockResolvedValueOnce(catalogSnapshot('openai', [catalogModel('gpt-6')], { revision: 2 }))
+
+    store.setupModelListeners()
+    const initialRead = store.refreshProviderModels('openai', false)
+    catalogChangedListener?.({ providerId: 'openai' })
+    expect(catalogClient.getCatalog).toHaveBeenCalledTimes(1)
+
+    deferred.resolve(catalogSnapshot('openai', [catalogModel('gpt-5')], { revision: 1 }))
+    await initialRead
+    await vi.waitFor(() => expect(store.allProviderModels.value[0]?.models[0]?.id).toBe('gpt-6'))
   })
 
   it('keeps models.changed for non-catalog writers and ignores provider-db reasons', async () => {
@@ -541,6 +599,22 @@ describe('modelStore.applyInitialModelRecommendations', () => {
 
     await store.applyInitialModelRecommendations('openai')
 
+    expect(modelClient.updateModelStatus).not.toHaveBeenCalled()
+  })
+
+  it('treats an enabled custom model as an existing selection', async () => {
+    const { store, modelClient } = await setupStore({
+      catalogs: {
+        openai: [
+          ...createProviderModels(),
+          catalogModel('my-custom', { isCustom: true, enabled: true })
+        ]
+      }
+    })
+
+    const applied = await store.applyInitialModelRecommendations('openai')
+
+    expect(applied).toBe(0)
     expect(modelClient.updateModelStatus).not.toHaveBeenCalled()
   })
 })

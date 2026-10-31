@@ -77,6 +77,7 @@ async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_
     allProviderModels: [],
     customModels: [],
     refreshProviderModels: vi.fn().mockResolvedValue(true),
+    refreshProviderCatalog: vi.fn().mockResolvedValue(true),
     updateModelStatus: vi.fn().mockResolvedValue(true),
     disableAllModels: vi.fn().mockResolvedValue(undefined)
   }
@@ -238,7 +239,7 @@ describe('ModelProviderSettingsDetail', () => {
     expect(providerStore.updateProviderConfig).toHaveBeenCalledWith('openai', {
       openaiAuthMode: 'chatgpt'
     })
-    expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('openai')
+    expect(modelStore.refreshProviderCatalog).toHaveBeenCalledWith('openai', 'config')
   })
 
   it('saves a replacement even when the fixed probe model would reject it', async () => {
@@ -404,6 +405,30 @@ describe('ModelProviderSettingsDetail', () => {
     await flushPromises()
 
     expect(wrapper.get('[data-testid="provider-catalog-last-synced"]').text()).not.toBe(initialText)
+  })
+
+  it('keeps the newer catalog state when an older revision response arrives late', async () => {
+    const { wrapper, providerCatalogClient, catalogSnapshot } = await setup()
+    const listener = providerCatalogClient.onCatalogChanged.mock.calls[0][0]
+    const initialText = wrapper.get('[data-testid="provider-catalog-last-synced"]').text()
+    providerCatalogClient.getCatalog.mockResolvedValueOnce({
+      ...catalogSnapshot,
+      revision: 0,
+      fetchedAt: catalogSnapshot.fetchedAt + 86_400_000
+    })
+
+    listener({
+      providerId: 'anthropic',
+      revision: 1,
+      status: 'fresh',
+      reason: 'stale',
+      changed: true,
+      errorCode: null,
+      version: Date.now()
+    })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="provider-catalog-last-synced"]').text()).toBe(initialText)
   })
 
   it('renders Vertex credentials in the connection section', async () => {

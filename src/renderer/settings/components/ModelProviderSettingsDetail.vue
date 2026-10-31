@@ -184,12 +184,20 @@ const catalogLastSyncedAt = computed(() =>
     : null
 )
 
+const applyCatalogState = (snapshot: ProviderCatalogSnapshot) => {
+  if (snapshot.providerId !== props.provider.id) {
+    return
+  }
+  const current = catalogSnapshot.value
+  if (current?.providerId === snapshot.providerId && snapshot.revision < current.revision) {
+    return
+  }
+  catalogSnapshot.value = snapshot
+}
+
 const refreshCatalogSnapshot = async (providerId: string) => {
   try {
-    const snapshot = await providerCatalogClient.getCatalog(providerId)
-    if (props.provider.id === providerId) {
-      catalogSnapshot.value = snapshot
-    }
+    applyCatalogState(await providerCatalogClient.getCatalog(providerId))
   } catch (error) {
     if (import.meta.env.DEV) console.debug('Failed to refresh catalog state:', error)
   }
@@ -295,7 +303,7 @@ const validateApiKey = async () => {
       checkResult.value = true
       showCheckModelDialog.value = true
       // 验证成功后刷新当前provider的模型列表
-      await modelStore.refreshProviderModels(props.provider.id)
+      await modelStore.refreshProviderCatalog(props.provider.id, 'user')
       // 首次配置成功且用户尚未勾选任何模型时，应用确定性的初始推荐
       await modelStore.applyInitialModelRecommendations(props.provider.id)
       return true
@@ -341,7 +349,7 @@ const initProviderSettings = async () => {
   await providerStore.ensureDefaultProvidersReady()
 
   try {
-    catalogSnapshot.value = await providerCatalogClient.getCatalog(props.provider.id)
+    applyCatalogState(await providerCatalogClient.getCatalog(props.provider.id))
   } catch (error) {
     catalogSnapshot.value = null
     if (import.meta.env.DEV) console.debug('Failed to read provider catalog state:', error)
@@ -430,7 +438,7 @@ const handleAuthModeChange = async (mode: 'api-key' | 'chatgpt') => {
   isAuthModeUpdating.value = true
   try {
     await providerStore.updateProviderConfig(props.provider.id, { openaiAuthMode: mode })
-    const refreshed = await modelStore.refreshProviderModels(props.provider.id)
+    const refreshed = await modelStore.refreshProviderCatalog(props.provider.id, 'config')
     if (!refreshed) {
       throw new Error('Failed to refresh models after changing the OpenAI authentication mode')
     }

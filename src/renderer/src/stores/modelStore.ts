@@ -38,6 +38,7 @@ export const useModelStore = defineStore('model', () => {
 
   let removeModelListeners: (() => void) | null = null
   const inFlightRefreshes = new Map<string, Promise<boolean>>()
+  const appliedCatalogRevisions = new Map<string, number>()
   const pendingModelStatusEchoes = new Map<string, boolean>()
   const providerModelsReadyAt = new Map<string, number>()
   const activeProviderIds = computed(
@@ -116,6 +117,7 @@ export const useModelStore = defineStore('model', () => {
     allProviderModels.value = removeProviderGroups(allProviderModels.value, providerId)
     customModels.value = removeProviderGroups(customModels.value, providerId)
     enabledModels.value = removeProviderGroups(enabledModels.value, providerId)
+    appliedCatalogRevisions.delete(providerId)
     clearProviderModelsReady(providerId)
 
     for (const statusKey of Array.from(pendingModelStatusEchoes.keys())) {
@@ -183,6 +185,14 @@ export const useModelStore = defineStore('model', () => {
   }
 
   const applyCatalogSnapshot = (snapshot: ProviderCatalogSnapshot) => {
+    // Responses can cross in IPC and renderer windows; a snapshot older than the applied revision
+    // must not overwrite the newer catalog, whose content is already materialized.
+    const appliedRevision = appliedCatalogRevisions.get(snapshot.providerId)
+    if (appliedRevision !== undefined && snapshot.revision < appliedRevision) {
+      return
+    }
+    appliedCatalogRevisions.set(snapshot.providerId, snapshot.revision)
+
     const providerModels = snapshot.models.filter((model) => !model.isCustom)
     const customModelList = snapshot.models.filter((model) => model.isCustom)
     updateAllProviderState(snapshot.providerId, providerModels)
@@ -379,6 +389,30 @@ export const useModelStore = defineStore('model', () => {
 
   const refreshCustomModels = (providerId: string): Promise<boolean> =>
     refreshProviderModels(providerId, false)
+
+  /**
+   * Explicit refresh for setup flows that must read the result immediately. Background paths keep
+   * using `refreshProviderModels(discover)`, which only schedules stale-while-revalidate work.
+   */
+  const refreshProviderCatalog = async (
+    providerId: string,
+    reason: 'user' | 'config' = 'user'
+  ): Promise<boolean> => {
+    if (providerId === 'acp') {
+      return refreshProviderModels(providerId, false)
+    }
+
+    ensureModelRuntime()
+    try {
+      const { result, catalog } = await catalogClient.refreshCatalog(providerId, reason)
+      applyCatalogSnapshot(catalog)
+      return result.status !== 'failed'
+    } catch (error) {
+      console.error(`刷新模型列表失败: ${providerId}`, error)
+      clearProviderModelsReady(providerId)
+      return false
+    }
+  }
 
   const _refreshAllModelsInternal = async (): Promise<boolean> => {
     await providerStore.ensureInitialized()
@@ -879,6 +913,15 @@ export const useModelStore = defineStore('model', () => {
     listenersRegistered.value = true
 
     const unsubscribeCatalogChanged = catalogClient.onCatalogChanged(({ providerId }) => {
+      const pendingRefresh = inFlightRefreshes.get(providerId)
+      if (pendingRefresh) {
+        // A read that began before this event may apply an older snapshot; reread once it settles.
+        void pendingRefresh.then(
+          () => refreshProviderModels(providerId, false),
+          () => refreshProviderModels(providerId, false)
+        )
+        return
+      }
       void refreshProviderModels(providerId, false)
     })
 
@@ -947,6 +990,7 @@ export const useModelStore = defineStore('model', () => {
     initializationError.value = null
     initializationPromise.value = null
     inFlightRefreshes.clear()
+    appliedCatalogRevisions.clear()
     pendingModelStatusEchoes.clear()
     clearProviderModelsReady()
   }
@@ -1003,7 +1047,11 @@ export const useModelStore = defineStore('model', () => {
     await ensureProviderModelsReady(providerId)
     const models =
       allProviderModels.value.find((entry) => entry.providerId === providerId)?.models ?? []
-    if (models.length === 0 || models.some((model) => model.enabled)) {
+    const providerCustomModels =
+      customModels.value.find((entry) => entry.providerId === providerId)?.models ?? []
+    const hasEnabledModel =
+      models.some((model) => model.enabled) || providerCustomModels.some((model) => model.enabled)
+    if (models.length === 0 || hasEnabledModel) {
       return 0
     }
     const recommended = models
@@ -1011,10 +1059,8 @@ export const useModelStore = defineStore('model', () => {
       .slice(0, 3)
     let appliedCount = 0
     for (const model of recommended) {
-      await updateModelStatus(providerId, model.id, true)
-      // updateModelStatus swallows IPC failures and rolls back the local state,
-      // so only count models whose activation actually landed.
-      if (getLocalModelEnabledState(providerId, model.id) === true) {
+      // updateModelStatus rolls back and returns false when the IPC write fails.
+      if (await updateModelStatus(providerId, model.id, true)) {
         appliedCount += 1
       }
     }
@@ -1038,6 +1084,7 @@ export const useModelStore = defineStore('model', () => {
     getProviderModelsQuery,
     refreshCustomModels,
     refreshProviderModels,
+    refreshProviderCatalog,
     ensureProviderModelsReady,
     applyInitialModelRecommendations,
     refreshAllModels,
