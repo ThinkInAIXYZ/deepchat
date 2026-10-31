@@ -130,7 +130,9 @@ providerId, revision, status, reason, changed, added?, removed?, updated?, error
 ```
 
 `revision` is monotonic per provider and guards against out-of-order IPC responses across
-windows. `changed: false` status events update freshness without refetching the model list.
+windows. It advances on every persisted state change, including metadata-only updates and
+failures, so equal revisions mean identical state. `changed: false` status events update freshness
+without refetching the model list.
 A configuration change invalidates any refresh still running on the previous provider instance:
 its result or error is discarded, and the `config` refresh for the rebuilt instance takes over.
 The legacy `models.changed` event remains during migration for capability, chat-mode, and Ollama

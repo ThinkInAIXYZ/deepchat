@@ -63,6 +63,15 @@ type CatalogDiff = {
   updated: string[]
 }
 
+type InFlightRefresh = {
+  generation: number
+  reason: ProviderCatalogRefreshReason
+  promise: Promise<ProviderCatalogRefreshResult>
+}
+
+const syncsProviderDb = (reason: ProviderCatalogRefreshReason): boolean =>
+  reason === 'user' || reason === 'config'
+
 /**
  * Stable JSON for catalog comparison. Mirrors what `provider_models` can round-trip: a property
  * whose value is `undefined` is not persisted, so it must not make equal models look different.
@@ -188,10 +197,7 @@ const classifyCatalogError = (error: unknown): ProviderCatalogErrorCode => {
 }
 
 export class ProviderCatalogService {
-  private readonly inFlight = new Map<
-    string,
-    { generation: number; promise: Promise<ProviderCatalogRefreshResult> }
-  >()
+  private readonly inFlight = new Map<string, InFlightRefresh>()
   private readonly generations = new Map<string, number>()
   private readonly now: () => number
 
@@ -249,7 +255,24 @@ export class ProviderCatalogService {
     this.requireProvider(providerId)
     const generation = this.generationFor(providerId)
     const existing = this.inFlight.get(providerId)
-    if (existing?.generation === generation) return existing.promise
+    if (existing?.generation === generation) {
+      if (!syncsProviderDb(reason) || syncsProviderDb(existing.reason)) {
+        return existing.promise
+      }
+
+      // A background revalidation skips the provider DB sync. An explicit request must not join
+      // it, so it runs after the background fetch settles instead of reusing stale DB facts.
+      const explicitPromise = existing.promise
+        .catch(() => undefined)
+        .then(() => {
+          if (this.inFlight.get(providerId)?.promise === explicitPromise) {
+            this.inFlight.delete(providerId)
+          }
+          return this.refresh(providerId, reason)
+        })
+      this.inFlight.set(providerId, { generation, reason, promise: explicitPromise })
+      return explicitPromise
+    }
 
     // A configuration change invalidates the instance that owns an older in-flight fetch; start
     // a refresh for the new instance instead of joining a promise that answers with stale facts.
@@ -258,7 +281,7 @@ export class ProviderCatalogService {
         this.inFlight.delete(providerId)
       }
     })
-    this.inFlight.set(providerId, { generation, promise: refreshPromise })
+    this.inFlight.set(providerId, { generation, reason, promise: refreshPromise })
     return refreshPromise
   }
 
@@ -287,7 +310,7 @@ export class ProviderCatalogService {
         lastErrorCode: null,
         lastErrorAt: null
       },
-      { bumpRevision: changed }
+      { bumpRevision: true }
     )
     this.deps.source.reloadModels(providerId)
     if (changed) this.deps.settings.notifyModelsChanged(providerId)
@@ -371,13 +394,17 @@ export class ProviderCatalogService {
       return
     }
 
-    const state = this.deps.settings.setProviderCatalogState(providerId, {
-      fetchedAt: null,
-      source,
-      lastRefreshReason: 'config',
-      lastErrorCode: null,
-      lastErrorAt: null
-    })
+    const state = this.deps.settings.setProviderCatalogState(
+      providerId,
+      {
+        fetchedAt: null,
+        source,
+        lastRefreshReason: 'config',
+        lastErrorCode: null,
+        lastErrorAt: null
+      },
+      { bumpRevision: true }
+    )
     this.publishChanged(providerId, state, source, 'config', false, undefined, null)
   }
 
@@ -442,7 +469,9 @@ export class ProviderCatalogService {
           lastErrorCode: null,
           lastErrorAt: null
         },
-        { bumpRevision: changed }
+        // Revision versions the whole persisted snapshot, including fetchedAt; equal revisions
+        // must mean identical state so the renderer can reject older IPC responses.
+        { bumpRevision: true }
       )
       this.deps.source.reloadModels(providerId)
       if (changed) this.deps.settings.notifyModelsChanged(providerId)
@@ -492,7 +521,7 @@ export class ProviderCatalogService {
           lastErrorCode: errorCode,
           lastErrorAt: this.now()
         },
-        { bumpRevision: false }
+        { bumpRevision: true }
       )
       this.publishChanged(providerId, state, source, reason, false, undefined, errorCode, 'error')
       logger.warn(

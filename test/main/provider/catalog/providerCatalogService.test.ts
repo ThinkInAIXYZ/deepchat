@@ -229,12 +229,12 @@ describe('ProviderCatalogService', () => {
 
     const result = await harness.service.refresh('new-api', 'user')
 
-    expect(result).toMatchObject({ status: 'not-modified', revision: 0, added: [] })
+    expect(result).toMatchObject({ status: 'not-modified', revision: 1, added: [] })
     expect(vi.mocked(harness.settings.applyProviderCatalogUpdate).mock.calls[0][1]).toBeNull()
     expect(harness.settings.notifyModelsChanged).not.toHaveBeenCalled()
     expect(harness.publishEvent).toHaveBeenCalledWith(
       'providers.catalog.changed',
-      expect.objectContaining({ changed: false, status: 'fresh', errorCode: null })
+      expect.objectContaining({ changed: false, revision: 1, status: 'fresh', errorCode: null })
     )
   })
 
@@ -255,7 +255,7 @@ describe('ProviderCatalogService', () => {
 
     const result = await harness.service.refresh('new-api', 'user')
 
-    expect(result).toMatchObject({ status: 'not-modified', revision: 0, updated: [] })
+    expect(result).toMatchObject({ status: 'not-modified', revision: 1, updated: [] })
     expect(vi.mocked(harness.settings.applyProviderCatalogUpdate).mock.calls[0][1]).toBeNull()
   })
 
@@ -275,7 +275,7 @@ describe('ProviderCatalogService', () => {
 
     const result = await harness.service.refresh('mistral', 'user')
 
-    expect(result).toMatchObject({ status: 'not-modified', revision: 0, updated: [] })
+    expect(result).toMatchObject({ status: 'not-modified', revision: 1, updated: [] })
     expect(vi.mocked(harness.settings.applyProviderCatalogUpdate).mock.calls[0][1]).toBeNull()
   })
 
@@ -346,7 +346,13 @@ describe('ProviderCatalogService', () => {
 
     const result = await harness.service.refresh('new-api', 'user')
 
-    expect(result).toMatchObject({ status: 'failed', errorCode: 'auth', added: [], removed: [] })
+    expect(result).toMatchObject({
+      status: 'failed',
+      revision: 1,
+      errorCode: 'auth',
+      added: [],
+      removed: []
+    })
     expect(harness.providerModels['new-api'].map((item) => item.id)).toEqual(['last-known'])
     expect(harness.settings.applyProviderCatalogUpdate).not.toHaveBeenCalled()
     expect(harness.publishEvent).toHaveBeenCalledWith(
@@ -418,6 +424,23 @@ describe('ProviderCatalogService', () => {
     })
     expect(disabled.service.ensureFresh('new-api')).toBe(false)
     expect(disabled.source.fetchCatalog).not.toHaveBeenCalled()
+  })
+
+  it('runs a user refresh after a background revalidation and syncs the provider DB', async () => {
+    const harness = createHarness({ providers: [provider('mistral')] })
+    let resolveBackground: (models: MODEL_META[]) => void = () => undefined
+    vi.mocked(harness.source.fetchCatalog)
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveBackground = resolve)))
+      .mockResolvedValueOnce([model('mistral-large', { providerId: 'mistral' })])
+
+    expect(harness.service.ensureFresh('mistral')).toBe(true)
+    const userRefresh = harness.service.refresh('mistral', 'user')
+    resolveBackground([model('mistral-small', { providerId: 'mistral' })])
+
+    await expect(userRefresh).resolves.toMatchObject({ status: 'ok' })
+    expect(harness.source.fetchCatalog).toHaveBeenCalledTimes(2)
+    expect(harness.refreshProviderDb).toHaveBeenCalledExactlyOnceWith(true)
+    expect(harness.providerModels.mistral.map((item) => item.id)).toEqual(['mistral-large'])
   })
 
   it('never auto-refreshes ACP catalogs', () => {

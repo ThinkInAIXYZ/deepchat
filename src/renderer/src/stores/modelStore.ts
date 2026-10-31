@@ -406,6 +406,7 @@ export const useModelStore = defineStore('model', () => {
     try {
       const { result, catalog } = await catalogClient.refreshCatalog(providerId, reason)
       applyCatalogSnapshot(catalog)
+      // `superseded` means a newer generation refresh is taking over; it is not a failure.
       return result.status !== 'failed'
     } catch (error) {
       console.error(`刷新模型列表失败: ${providerId}`, error)

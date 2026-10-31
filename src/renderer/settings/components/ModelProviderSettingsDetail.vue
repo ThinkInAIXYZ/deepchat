@@ -634,6 +634,7 @@ const handleRefreshModels = async () => {
       'user'
     )
     applyCatalogState(catalog)
+    // `superseded` means a newer refresh took over; the catalog is not in an error state.
     refreshed = result.status !== 'failed'
   } catch {
     // Do not expose upstream errors, which can contain connection credentials.
