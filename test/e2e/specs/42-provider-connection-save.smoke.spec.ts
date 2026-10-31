@@ -294,6 +294,62 @@ test('custom providers can be saved without a probe @smoke', async ({ app }, tes
   }
 })
 
+test('refresh discovers models added to the upstream catalog @smoke', async ({ app }, testInfo) => {
+  let catalogIds = ['fixture-alpha']
+  const server = createServer((request, response) => {
+    if (!request.url?.endsWith('/v1/models')) {
+      response.writeHead(404).end()
+      return
+    }
+    response.writeHead(200, { 'Content-Type': 'application/json' })
+    response.end(
+      JSON.stringify({
+        object: 'list',
+        data: catalogIds.map((id) => ({ id, object: 'model', owned_by: 'fixture' }))
+      })
+    )
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const { port } = server.address() as { port: number }
+  const baseUrl = `http://127.0.0.1:${port}`
+  try {
+    await waitForAppReady(app.page)
+    await app.page.evaluate(async (url) => {
+      await window.deepchat.invoke('providers.update', {
+        providerId: 'new-api',
+        updates: { apiKey: 'catalog-fixture-key', baseUrl: url, enable: true }
+      })
+    }, baseUrl)
+
+    const page = await openSettings(app)
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await openSettingsTab(page, 'settings-tab-model-providers')
+    await selectProvider(page, 'new-api')
+
+    const modelSection = page.getByTestId('provider-models-section')
+    await page.getByTestId('provider-models-refresh-button').click()
+    await expect(
+      modelSection.getByTestId('provider-model-toggle-new-api-fixture-alpha')
+    ).toBeVisible()
+    const lastSynced = page.getByTestId('provider-catalog-last-synced')
+    await expect(lastSynced).toBeVisible()
+    await lastSynced.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: testInfo.outputPath('catalog-first-refresh.png') })
+
+    // The reported defect: after one cached discovery, later upstream additions never appeared.
+    catalogIds = ['fixture-alpha', 'fixture-beta']
+    await page.getByTestId('provider-models-refresh-button').click()
+    await modelSection.getByRole('textbox').fill('fixture-beta')
+    const betaToggle = modelSection.getByTestId('provider-model-toggle-new-api-fixture-beta')
+    await expect(betaToggle).toBeVisible()
+    await betaToggle.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: testInfo.outputPath('catalog-second-refresh.png') })
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('provider-specific fields and save errors remain visible @smoke', async ({
   app
 }, testInfo) => {

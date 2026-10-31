@@ -81,6 +81,35 @@ async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_
     disableAllModels: vi.fn().mockResolvedValue(undefined)
   }
 
+  const catalogSnapshot = {
+    providerId: provider.id,
+    revision: 1,
+    status: 'fresh',
+    fetchedAt: 1_700_000_000_000,
+    source: 'remote',
+    lastErrorCode: null,
+    models: []
+  }
+  const providerCatalogClient = {
+    getCatalog: vi.fn().mockResolvedValue(catalogSnapshot),
+    listCatalogs: vi.fn().mockResolvedValue([catalogSnapshot]),
+    refreshCatalog: vi.fn().mockResolvedValue({
+      result: {
+        providerId: provider.id,
+        status: 'not-modified',
+        revision: 1,
+        fetchedAt: catalogSnapshot.fetchedAt,
+        added: [],
+        removed: [],
+        updated: [],
+        errorCode: null
+      },
+      catalog: catalogSnapshot
+    }),
+    ensureFresh: vi.fn().mockResolvedValue(false),
+    onCatalogChanged: vi.fn()
+  }
+
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
       t: (key: string) => key
@@ -104,6 +133,9 @@ async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_
     useModelCheckStore: () => ({
       openDialog: vi.fn()
     })
+  }))
+  vi.doMock('../../../src/renderer/api/ProviderCatalogClient', () => ({
+    createProviderCatalogClient: () => providerCatalogClient
   }))
   vi.doMock('../../../src/renderer/settings/components/ProviderApiConfig.vue', () => ({
     default: providerApiConfigStub
@@ -162,6 +194,7 @@ async function setup(options?: { provider?: LLM_PROVIDER; updatedProvider?: LLM_
     wrapper,
     providerStore,
     modelStore,
+    providerCatalogClient,
     notifyRendererMock
   }
 }
@@ -289,35 +322,64 @@ describe('ModelProviderSettingsDetail', () => {
     expect(vm.modelToDisable).toEqual(model)
   })
 
-  it.each(['false', 'rejection', 'success'])('reports refresh outcome: %s', async (outcome) => {
-    const { wrapper, modelStore, notifyRendererMock } = await setup()
-    if (outcome === 'rejection') {
-      modelStore.refreshProviderModels.mockRejectedValueOnce(new Error('secret upstream error'))
-    } else {
-      modelStore.refreshProviderModels.mockResolvedValueOnce(outcome === 'success')
-    }
-    const vm = wrapper.vm as unknown as {
-      handleRefreshModels: () => Promise<void>
-      isRefreshingModels: boolean
-      isModelListLoading: boolean
-    }
+  it.each(['failed', 'ipc-rejection', 'model-store-rejection', 'success'])(
+    'reports refresh outcome: %s',
+    async (outcome) => {
+      const { wrapper, modelStore, providerCatalogClient, notifyRendererMock } = await setup()
+      if (outcome === 'ipc-rejection') {
+        providerCatalogClient.refreshCatalog.mockRejectedValueOnce(
+          new Error('secret upstream error')
+        )
+      } else if (outcome === 'failed') {
+        providerCatalogClient.refreshCatalog.mockResolvedValueOnce({
+          result: {
+            providerId: 'anthropic',
+            status: 'failed',
+            revision: 1,
+            fetchedAt: null,
+            added: [],
+            removed: [],
+            updated: [],
+            errorCode: 'auth'
+          },
+          catalog: {
+            providerId: 'anthropic',
+            revision: 1,
+            status: 'error',
+            fetchedAt: null,
+            source: 'remote',
+            lastErrorCode: 'auth',
+            models: []
+          }
+        })
+      }
+      if (outcome === 'model-store-rejection') {
+        modelStore.refreshProviderModels.mockRejectedValueOnce(new Error('secret upstream error'))
+      }
+      const vm = wrapper.vm as unknown as {
+        handleRefreshModels: () => Promise<void>
+        isRefreshingModels: boolean
+        isModelListLoading: boolean
+      }
 
-    await vm.handleRefreshModels()
+      await vm.handleRefreshModels()
 
-    expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('anthropic', true)
-    expect(vm.isRefreshingModels).toBe(false)
-    expect(vm.isModelListLoading).toBe(false)
-    if (outcome === 'success') {
-      expect(notifyRendererMock).not.toHaveBeenCalled()
-    } else {
-      expect(notifyRendererMock).toHaveBeenCalledExactlyOnceWith({
-        kind: 'error',
-        code: 'settings.provider.modelRefreshFailed',
-        title: 'settings.provider.toast.refreshModelsFailedTitle',
-        description: 'settings.provider.toast.refreshModelsFailedDescription'
-      })
+      expect(providerCatalogClient.refreshCatalog).toHaveBeenCalledWith('anthropic', 'user')
+      expect(modelStore.refreshProviderModels).toHaveBeenCalledWith('anthropic', false)
+      expect(vm.isRefreshingModels).toBe(false)
+      expect(vm.isModelListLoading).toBe(false)
+      if (outcome === 'success') {
+        expect(notifyRendererMock).not.toHaveBeenCalled()
+      } else {
+        expect(notifyRendererMock).toHaveBeenCalledExactlyOnceWith({
+          kind: 'error',
+          code: 'settings.provider.modelRefreshFailed',
+          title: 'settings.provider.toast.refreshModelsFailedTitle',
+          description: 'settings.provider.toast.refreshModelsFailedDescription'
+        })
+      }
     }
-  })
+  )
 
   it('renders Vertex credentials in the connection section', async () => {
     const { wrapper } = await setup({

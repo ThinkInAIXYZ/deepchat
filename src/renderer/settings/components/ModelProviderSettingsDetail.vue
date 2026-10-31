@@ -51,6 +51,13 @@
       >
         {{ t('settings.provider.refreshModelsWithMetadataHint') }}
       </p>
+      <p
+        v-if="catalogLastSyncedAt"
+        data-testid="provider-catalog-last-synced"
+        class="mt-2 text-xs leading-5 text-muted-foreground"
+      >
+        {{ t('settings.data.lastSyncTime') }}: {{ catalogLastSyncedAt }}
+      </p>
     </template>
 
     <template #advanced>
@@ -126,6 +133,8 @@ import {
 } from '@shared/providerCustomHeaders'
 import ProviderCustomHeadersEditor from './ProviderCustomHeadersEditor.vue'
 import { isProviderReadyForOnboarding } from './providerOnboardingReadiness'
+import { createProviderCatalogClient } from '../../api/ProviderCatalogClient'
+import type { ProviderCatalogSnapshot } from '@shared/types/providerCatalog'
 
 interface ProviderWebsites {
   official: string
@@ -157,6 +166,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
+const providerCatalogClient = createProviderCatalogClient()
 const uiSettingsStore = useUiSettingsStore()
 const azureApiVersion = ref('')
 const geminiSafetyLevels = reactive<Record<string, number>>({})
@@ -167,6 +177,12 @@ const providerModels = ref<RENDERER_MODEL_META[]>([])
 const customModels = ref<RENDERER_MODEL_META[]>([])
 const isModelListLoading = ref(true)
 const isRefreshingModels = ref(false)
+const catalogSnapshot = ref<ProviderCatalogSnapshot | null>(null)
+const catalogLastSyncedAt = computed(() =>
+  catalogSnapshot.value?.fetchedAt
+    ? new Date(catalogSnapshot.value.fetchedAt).toLocaleString()
+    : null
+)
 const isProviderStatusUpdating = ref(false)
 const isAuthModeUpdating = ref(false)
 const hasInitializedModelList = ref(false)
@@ -303,6 +319,13 @@ const initProviderSettings = async () => {
   if (import.meta.env.DEV) console.debug('initData for provider:', props.provider.id)
 
   await providerStore.ensureDefaultProvidersReady()
+
+  try {
+    catalogSnapshot.value = await providerCatalogClient.getCatalog(props.provider.id)
+  } catch (error) {
+    catalogSnapshot.value = null
+    if (import.meta.env.DEV) console.debug('Failed to read provider catalog state:', error)
+  }
 
   // Fetch Azure API Version if applicable
   if (props.provider.id === 'azure-openai') {
@@ -578,10 +601,21 @@ const handleRefreshModels = async () => {
 
   let refreshed = false
   try {
-    refreshed = await modelStore.refreshProviderModels(props.provider.id, true)
+    const { result, catalog } = await providerCatalogClient.refreshCatalog(
+      props.provider.id,
+      'user'
+    )
+    catalogSnapshot.value = catalog
+    refreshed = result.status !== 'failed'
   } catch {
     // Do not expose upstream errors, which can contain connection credentials.
   } finally {
+    try {
+      // The catalog refresh owns upstream discovery; the store re-reads the persisted projection.
+      await modelStore.refreshProviderModels(props.provider.id, false)
+    } catch {
+      refreshed = false
+    }
     isRefreshingModels.value = false
     isModelListLoading.value = false
   }

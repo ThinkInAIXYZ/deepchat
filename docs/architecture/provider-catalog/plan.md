@@ -27,11 +27,11 @@ no renderer behavior changes yet.
 
 ## Phase 2: Settings refresh uses the catalog service
 
-- [ ] Add a renderer provider-catalog client for the new routes and event.
-- [ ] Change the provider settings refresh button to `catalog.refresh(user)`, then refresh the
+- [x] Add a renderer provider-catalog client for the new routes and event.
+- [x] Change the provider settings refresh button to `catalog.refresh(user)`, then refresh the
   existing model-store projection; show the existing success/failure notifications.
-- [ ] Show last successful sync time from the snapshot; on error, keep the existing failure copy.
-- [ ] Extend the provider smoke spec with a two-catalog mock server: first refresh returns catalog
+- [x] Show last successful sync time from the snapshot; on error, keep the existing failure copy.
+- [x] Extend the provider smoke spec with a two-catalog mock server: first refresh returns catalog
   A, second refresh returns catalog B, and the new model becomes visible.
 
 Completion condition: the reported stale-catalog defect is fixed through the new service; the
