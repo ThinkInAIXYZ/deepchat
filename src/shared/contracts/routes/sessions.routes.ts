@@ -36,6 +36,7 @@ import {
 } from '@shared/types/execution-journal-audit'
 import {
   AttachmentFallbackPolicySchema,
+  AgentBootstrapItemSchema,
   AttachmentPreparationSummarySchema,
   SessionListItemSchema,
   SessionPageCursorSchema,
@@ -58,6 +59,38 @@ import {
   defineRouteContract
 } from '../common'
 import type { RouteContract } from '../common'
+
+export const sessionsGetWidgetSnapshotRoute = defineRouteContract({
+  name: 'sessions.getWidgetSnapshot',
+  input: z.object({}),
+  output: z.object({
+    snapshot: z.object({
+      expanded: z.boolean(),
+      activeCount: z.number().int().nonnegative(),
+      sessions: z.array(
+        z.object({
+          id: EntityIdSchema,
+          title: z.string(),
+          status: z.enum(['in_progress', 'done', 'error']),
+          updatedAt: z.number().finite(),
+          agent: AgentBootstrapItemSchema.pick({
+            id: true,
+            name: true,
+            type: true,
+            icon: true,
+            avatar: true
+          })
+        })
+      )
+    })
+  })
+})
+
+export const sessionsOpenDesktopRoute = defineRouteContract({
+  name: 'sessions.openDesktop',
+  input: z.object({ sessionId: EntityIdSchema }),
+  output: z.object({ opened: z.boolean() })
+})
 import { AcpConfigStateSchema, UsageDashboardDataSchema } from '../domainSchemas'
 import { PROGRAMMATIC_TOOL_BATCH_MAX_STEPS } from './tools.routes'
 import { AcpAuthChallengeSchema } from './acp-auth.routes'

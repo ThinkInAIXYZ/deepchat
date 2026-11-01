@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DatabaseRequestGate } from '@/app/databaseRequestGate'
 import { createCoreMaintenance } from '../../../src/harness/core/maintenance'
+import { SecretStore } from '@/config/secretStore'
+
+const createSecrets = () =>
+  new SecretStore({} as never, {
+    isAvailable: async () => true,
+    encrypt: async (value) => value,
+    decrypt: async (value) => value
+  })
 
 const deferred = <T>() => {
   let resolve!: (value: T) => void
@@ -48,15 +56,21 @@ describe('database request ownership', () => {
 
   it('fences an uncertain Native pause and waits for failed-owner cleanup', async () => {
     const gate = new DatabaseRequestGate(() => undefined)
+    const secrets = createSecrets()
+    const previousCredential = secrets.captureOperation()
     const failure = new Error('Native pause outcome is unknown')
     const cleanup = Promise.withResolvers<void>()
     const entered = Promise.withResolvers<void>()
     const owner = createCoreMaintenance({
-      profile: {},
+      profile: { secretStore: secrets },
       data: {},
       providers: {},
       settings: {},
-      runtime: { execution: {}, syncService: { isBackupInProgress: () => false } },
+      runtime: {
+        execution: {},
+        mcpApps: { clear: vi.fn() },
+        syncService: { isBackupInProgress: () => false }
+      },
       databaseRequests: gate,
       startupWorkloadCoordinator: {},
       native: {
@@ -80,11 +94,78 @@ describe('database request ownership', () => {
     ).rejects.toBe(failure)
     await entered.promise
     expect(gate.state).toBe('failed')
+    expect(previousCredential).toThrow('interrupted')
+    expect(() => secrets.captureOperation()).toThrow('interrupted')
     expect(settled).toBe(false)
     await expect(gate.runRequest('sessions.list', async () => [])).rejects.toThrow('failed')
     cleanup.resolve()
     await rejected
   })
+
+  it.each([false, true])(
+    'keeps credentials fenced until preparation recovery acknowledges (stopping=%s)',
+    async (stopping) => {
+      const gate = new DatabaseRequestGate(() => undefined)
+      const secrets = createSecrets()
+      const previousCredential = secrets.captureOperation()
+      const failure = new Error('Maintenance preparation was canceled')
+      const resuming = Promise.withResolvers<void>()
+      const released = Promise.withResolvers<void>()
+      let stopped = false
+      const owner = createCoreMaintenance({
+        profile: { secretStore: secrets },
+        data: {},
+        providers: {
+          providerRuntime: {
+            invalidateGitHubCopilotSignIns: async () => {
+              throw failure
+            }
+          },
+          agentSettings: { notifyAgentCatalogChanged: vi.fn() }
+        },
+        settings: {},
+        runtime: {
+          execution: {},
+          mcpApps: { clear() {} },
+          syncService: { isBackupInProgress: () => false }
+        },
+        databaseRequests: gate,
+        startupWorkloadCoordinator: {},
+        native: {
+          configurationHost: {
+            pause: async () => {},
+            resume: async () => {
+              resuming.resolve()
+              await released.promise
+            }
+          }
+        },
+        isStopping: () => stopped,
+        stopForCleanup: vi.fn()
+      } as unknown as Parameters<typeof createCoreMaintenance>[0])
+      const maintenance = owner.run({ kind: 'repair-schema' })
+      const rejected = stopping
+        ? expect(maintenance).rejects.toBeInstanceOf(AggregateError)
+        : expect(maintenance).rejects.toBe(failure)
+      await resuming.promise
+      try {
+        expect(gate.state).toBe('maintenance')
+        expect(previousCredential).toThrow('interrupted')
+        expect(() => secrets.captureOperation()).toThrow('interrupted')
+        if (stopping) {
+          stopped = true
+          gate.beginShutdown()
+        }
+      } finally {
+        released.resolve()
+      }
+      await rejected
+      expect(gate.state).toBe(stopping ? 'stopping' : 'running')
+      expect(previousCredential).toThrow('interrupted')
+      if (stopping) expect(() => secrets.captureOperation()).toThrow('interrupted')
+      else expect(() => secrets.captureOperation()).not.toThrow()
+    }
+  )
 
   it('drains an admitted request while rejecting new ordinary work', async () => {
     const gate = new DatabaseRequestGate(() => undefined)

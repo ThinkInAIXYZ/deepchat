@@ -1,7 +1,8 @@
 # DeepChat 当前架构概览
 
-本文档描述 `2026-07-16` 的 main 进程实际结构。旧的全局 `Presenter`、
-`LifecycleManager`、全局 `EventBus` 和业务模块查找入口已经删除。
+The default desktop runs its cohesive business Kernel and profile writer in a first-party Rutis
+Core SDK worker. Electron Main owns Native presentation and authenticated ingress. The old global
+`Presenter`, `LifecycleManager`, global `EventBus` and business service lookup entry are removed.
 
 ## 总体结构
 
@@ -9,14 +10,18 @@
 flowchart TD
     Renderer["Renderer"] --> Preload["Preload bridge"]
     Preload --> Contracts["shared typed routes / events"]
-    Contracts --> RouteMaps["各模块 route map"]
+    Contracts --> Native["Main: Native routes and sender checks"]
+    Native --> Host["Rust/Rutis host"]
+    Host --> Core["TS Core Kernel and profile writer"]
+    Core --> RouteMaps["各模块 route map"]
     RouteMaps --> Modules["负责该行为的模块"]
 
-    App["App composition"] --> Platform["Platform / Settings / Data"]
+    App["Core composition"] --> Platform["Platform / Settings / Data"]
+    Core --> App
     App --> Capabilities["Provider / Tool / MCP / Skill / Plugin / Memory / Knowledge / Workspace"]
     App --> Agent["Agent: DeepChat / ACP"]
     App --> Session["Session"]
-    App --> Entries["Desktop / Remote / Scheduler / Deeplink"]
+    App --> Entries["Session entry services / Remote / Scheduler"]
 
     Entries --> Session
     Session --> Agent
@@ -24,30 +29,40 @@ flowchart TD
     Capabilities --> Platform
 ```
 
-`src/main/app/composition.ts` 是唯一的组合入口。它创建模块、传入明确依赖、注册 route、
-排定启动与停止顺序，但不导出模块列表，也不提供按名称查找模块的方法。
+`src/main/app/composition.ts` connects the default host/Core generation, Native adapters and fixed
+Native routes. `src/harness/plugins/core.ts` owns the SDK plugin lifecycle;
+`src/harness/core/kernel.ts` composes business modules and the shared profile. Neither root exports
+a module registry or allows name-based service lookup. There is no Main writer fallback.
 
 依赖方向是：
 
 ```text
-App composition
-  -> Desktop / Remote / Scheduler / Deeplink
+Main Native adapters <-> Rust/Rutis <-> Core Kernel
+  -> Session entry services / Remote / Scheduler
   -> Session
   -> Agent runtime
   -> Provider / Tool / MCP / Skill / Plugin / Memory / Knowledge / Workspace
   -> Platform / Settings / Data
 ```
 
-下层模块不能反向读取 App、Desktop、Remote 或 Scheduler。需要通知 renderer 时，App 在创建模块时
-传入有类型的发送函数。
+Business modules receive typed dependencies rather than reading either composition root.
+Renderer publication and platform operations cross acknowledged Native ports; helper and Browser
+retirement must finish before releasing profile ownership.
 
 ## 生命周期
 
 ### App
 
-`src/main/appMain.ts` 负责 Electron 进程入口、single-instance、deeplink 缓存和退出请求。
-`src/main/app/mainProcess.ts` 负责数据库解锁、连接、迁移和启动失败清理。
-`src/main/app/composition.ts` 负责创建、连接、启动和停止业务模块。
+`src/main/appMain.ts` owns the Electron entry, single-instance/deeplink handling and quit requests.
+`src/main/app/mainProcess.ts` owns splash presentation and startup cancellation.
+`src/main/app/composition.ts` starts the default Core and supplies Native capabilities.
+Core invokes `src/main/app/profileStartup.ts` for exclusive profile ownership, unlock/recovery,
+database/config migration and the shared writer, then assembles and starts its Kernel.
+
+Quit cancels pending/future startup database prompts before awaiting startup completion. Intentional
+startup cancellation releases the profile without a startup-failure dialog. Normal retirement
+fences admission, drains business work and Native effects, then closes the profile and host. Core
+loss retires the desktop generation and exits with failure; reopening requires application restart.
 
 `startMainProcess()` 只返回 `MainProcessControl`。它只能聚焦主窗口、处理 deeplink、清理权限、
 确认退出、查询主窗口和停止 main 进程，不能读取业务模块。
@@ -78,24 +93,29 @@ request sequence 和临时输出状态。Session 拥有长期数据，Agent runt
 
 ## 模块职责
 
-| 模块 | 位置 | 负责内容 |
-| --- | --- | --- |
-| App | `src/main/app/` | 进程启动、退出、维护状态、组合依赖 |
-| Desktop | `src/main/desktop/` | window、tab、tray、shortcut、floating、browser、renderer binding |
-| Session | `src/main/session/` | Session 生命周期、Turn、查询、长期数据和删除规则 |
-| Agent | `src/main/agent/` | Agent catalog、backend 选择、DeepChat/ACP instance 和执行 |
-| Provider | `src/main/provider/` | Provider/model 配置、实例、请求和认证 |
-| Tool | `src/main/tool/` | Tool catalog、执行、权限和本地 Agent tools |
-| MCP | `src/main/mcp/` | MCP 配置、server/client 生命周期和 MCP 调用 |
-| Skill | `src/main/skill/` | Skill 文件、扫描、同步、选择和贡献 |
-| Plugin | `src/main/plugin/` | Plugin package、安装状态和能力登记 |
-| Memory | `src/main/memory/` | 长期记忆、检索、写入、索引和后台维护 |
-| Knowledge | `src/main/knowledge/` | 内置知识库、切片、索引和检索 |
-| Workspace / File | `src/main/workspace/`、`src/main/file/` | Workspace 授权、文件树、搜索、转换和临时文件 |
-| Remote | `src/main/remote/` | channel runtime、endpoint binding、远程命令和结果发送 |
-| Scheduler | `src/main/scheduler/` | Cron job、run、delivery 和 detached Session |
-| Settings | `src/main/settings/`、各模块 `settings.ts` | 底层设置存储和各模块自己的配置解释 |
-| Data | `src/main/data/`、各模块 `data/` | SQLite 连接、schema，以及各模块自己的 table 访问 |
+| 模块             | 位置                                       | 负责内容                                                         |
+| ---------------- | ------------------------------------------ | ---------------------------------------------------------------- |
+| App              | `src/main/app/`                            | 进程启动、退出、维护状态、组合依赖                               |
+| Desktop          | `src/main/desktop/`                        | window、tab、tray、shortcut、floating、browser、renderer binding |
+| Session          | `src/main/session/`                        | Session 生命周期、Turn、查询、长期数据和删除规则                 |
+| Agent            | `src/main/agent/`                          | Agent catalog、backend 选择、DeepChat/ACP instance 和执行        |
+| Provider         | `src/main/provider/`                       | Provider/model 配置、实例、请求和认证                            |
+| Tool             | `src/main/tool/`                           | Tool catalog、执行、权限和本地 Agent tools                       |
+| MCP              | `src/main/mcp/`                            | MCP 配置、server/client 生命周期和 MCP 调用                      |
+| Skill            | `src/main/skill/`                          | Skill 文件、扫描、同步、选择和贡献                               |
+| Plugin           | `src/main/plugin/`                         | Plugin package、安装状态和能力登记                               |
+| Memory           | `src/main/memory/`                         | 长期记忆、检索、写入、索引和后台维护                             |
+| Knowledge        | `src/main/knowledge/`                      | 内置知识库、切片、索引和检索                                     |
+| Workspace / File | `src/main/workspace/`、`src/main/file/`    | Workspace 授权、文件树、搜索、转换和临时文件                     |
+| Remote           | `src/main/remote/`                         | channel runtime、endpoint binding、远程命令和结果发送            |
+| Scheduler        | `src/main/scheduler/`                      | Cron job、run、delivery 和 detached Session                      |
+| Settings         | `src/main/settings/`、各模块 `settings.ts` | 底层设置存储和各模块自己的配置解释                               |
+| Data             | `src/main/data/`、各模块 `data/`           | SQLite 连接、schema，以及各模块自己的 table 访问                 |
+
+These paths organize source code, not runtime placement. Portable business modules remain under
+`src/main/` while their default owners are composed in Core. Electron-only effects stay in Main;
+individual factory files do not each imply a plugin or process. The [Rutis plan](./architecture/rutis-multiprocess-backend/plan.md)
+tracks full Memory extraction, conditional Rust work and the unimplemented headless/device horizons.
 
 Desktop 内仍有 `WindowPresenter`、`TabPresenter` 等历史类名。它们只是 Desktop 模块内部的具体实现，
 不是全局入口，也不能被业务模块用来查找其他能力。

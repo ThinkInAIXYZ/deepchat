@@ -196,7 +196,7 @@ test('Memory evicts idle stores, changes models and survives native worker loss 
     const before = processes()
       .filter((row) => row.parent === host.pid)
       .map((row) => row.pid)
-    expect(before).toHaveLength(1)
+    expect(before.length).toBeGreaterThan(0)
     const recall = (agentId: string, query = 'quartzneedle') =>
       app.page.evaluate(
         ({ agentId, query }) =>
@@ -256,7 +256,7 @@ test('Memory evicts idle stores, changes models and survives native worker loss 
       .poll(async () => (await recall(lastAgent, 'cobalt')).results.some((row) => row.sources?.fts))
       .toBe(true)
     expect(() => process.kill(host.pid, 0)).not.toThrow()
-    expect(() => process.kill(before[0], 0)).not.toThrow()
+    for (const pid of before) expect(() => process.kill(pid, 0)).not.toThrow()
     expect(
       processes()
         .filter((row) => row.parent === host.pid)

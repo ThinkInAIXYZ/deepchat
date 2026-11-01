@@ -65,7 +65,7 @@ const isMainAppWindow = async (page: Page): Promise<boolean> => {
   return title === 'DeepChat' && !url.includes('/renderer/')
 }
 
-const waitForMainAppWindow = async (electronApp: ElectronApplication): Promise<Page> => {
+export const waitForMainAppWindow = async (electronApp: ElectronApplication): Promise<Page> => {
   const deadline = Date.now() + 60_000
 
   while (Date.now() < deadline) {
@@ -99,7 +99,7 @@ type ElectronFixtures = {
   }) => Promise<ElectronAppInstance>
 }
 
-const resolvePackagedExecutable = (): string => {
+export const resolvePackagedExecutable = (): string => {
   if (process.env.DEEPCHAT_E2E_EXECUTABLE_PATH) {
     return resolve(process.env.DEEPCHAT_E2E_EXECUTABLE_PATH)
   }

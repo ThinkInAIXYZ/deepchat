@@ -25,6 +25,11 @@ export type McpAppDesktopPort = {
   openExternal(url: string, context: McpAppRouteContext): Promise<void>
 }
 
+export type McpAppSandboxPort = Pick<
+  McpAppSandboxRegistry,
+  'getProtocolPolicy' | 'requestBrowserPermission'
+>
+
 export type McpAppSandboxInstance = {
   instanceId: string
   webContentsId: number
@@ -79,6 +84,8 @@ const hasDeclaredPermission = (
 }
 
 export class McpAppSandboxRegistry {
+  private closed = false
+  private readonly owners = new Map<number, () => void>()
   private readonly instances = new Map<string, McpAppSandboxInstance>()
   private readonly liveValidators = new Map<string, () => boolean>()
   private readonly pendingConsents = new Map<string, PendingConsent>()
@@ -88,11 +95,19 @@ export class McpAppSandboxRegistry {
   >()
   private publishConsent?: ConsentPublisher
 
+  constructor(
+    private readonly onRendererDestroyed: (
+      webContentsId: number,
+      listener: () => void
+    ) => () => void
+  ) {}
+
   setConsentPublisher(publisher: ConsentPublisher): void {
     this.publishConsent = publisher
   }
 
   reserveCreation(context: McpAppRouteContext, serverId: string): string {
+    if (this.closed) throw new Error('MCP App sandbox registry is closed')
     this.pruneExpired()
     const owned =
       Array.from(this.instances.values()).filter(
@@ -108,6 +123,21 @@ export class McpAppSandboxRegistry {
       throw new Error('MCP App sandbox instance limit reached')
     const id = randomUUID()
     this.creations.set(id, { context: { ...context }, serverId, controller: new AbortController() })
+    try {
+      if (!this.owners.has(context.webContentsId)) {
+        let destroyed = false
+        const unsubscribe = this.onRendererDestroyed(context.webContentsId, () => {
+          destroyed = true
+          this.revokeByWebContents(context.webContentsId)
+        })
+        if (destroyed) unsubscribe()
+        else this.owners.set(context.webContentsId, unsubscribe)
+      }
+      this.assertCreationCurrent(id)
+    } catch (error) {
+      this.cancelCreation(id)
+      throw error
+    }
     return id
   }
 
@@ -121,6 +151,7 @@ export class McpAppSandboxRegistry {
     const creation = this.creations.get(creationId)
     this.creations.delete(creationId)
     creation?.controller.abort(new Error('MCP App view creation is no longer active'))
+    if (creation) this.releaseUnusedOwner(creation.context.webContentsId)
   }
 
   getCreationSignal(creationId: string): AbortSignal {
@@ -266,6 +297,7 @@ export class McpAppSandboxRegistry {
         this.deletePendingConsent(pending.requestId)
       }
     }
+    this.releaseUnusedOwner(instance.webContentsId)
   }
 
   revokeByWebContents(webContentsId: number): void {
@@ -295,6 +327,11 @@ export class McpAppSandboxRegistry {
     for (const instanceId of this.instances.keys()) {
       this.revoke(instanceId)
     }
+  }
+
+  close(): void {
+    this.closed = true
+    this.clear()
   }
 
   async requestConsent(
@@ -413,5 +450,18 @@ export class McpAppSandboxRegistry {
     }
     clearTimeout(pending.timeout)
     this.pendingConsents.delete(requestId)
+  }
+
+  private releaseUnusedOwner(webContentsId: number): void {
+    if (
+      Array.from(this.creations.values()).some(
+        (item) => item.context.webContentsId === webContentsId
+      ) ||
+      Array.from(this.instances.values()).some((item) => item.webContentsId === webContentsId)
+    )
+      return
+    const unsubscribe = this.owners.get(webContentsId)
+    this.owners.delete(webContentsId)
+    unsubscribe?.()
   }
 }

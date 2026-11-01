@@ -1,6 +1,8 @@
-import { test, expect, type Page } from '../fixtures/electronApp'
+import { test, expect } from '../fixtures/electronApp'
 import { waitForAppReady } from '../helpers/wait'
-import type { ElectronApplication } from '@playwright/test'
+import type { ElectronApplication, Page } from '@playwright/test'
+
+test.use({ privacyModeEnabled: true })
 
 const isFloatingWindow = async (page: Page): Promise<boolean> => {
   const url = page.url()
@@ -51,6 +53,7 @@ const waitForFloatingWindow = async (
 }
 
 test('floating window IPC boundary uses scoped preload API @smoke', async ({ app }) => {
+  expect(app.ownsUserDataDir).toBe(true)
   await waitForAppReady(app.page)
   const mainWindow = await app.electronApp.browserWindow(app.page)
   expect(await mainWindow.evaluate((window) => window.isVisible())).toBe(true)
@@ -59,8 +62,19 @@ test('floating window IPC boundary uses scoped preload API @smoke', async ({ app
   const original = await app.page.evaluate(async () => {
     return await window.deepchat.invoke('config.getFloatingButton', {})
   })
+  let sessionId: string | undefined
 
   try {
+    sessionId = await app.page.evaluate(async () => {
+      await window.deepchat.invoke('config.setFloatingButton', { enabled: false })
+      const { session } = await window.deepchat.invoke('sessions.create', {
+        agentId: 'deepchat',
+        providerId: 'openai',
+        modelId: 'gpt-4o-mini',
+        message: ''
+      })
+      return session.id
+    })
     await app.page.evaluate(async () => {
       await window.deepchat.invoke('config.setFloatingButton', { enabled: true })
     })
@@ -141,7 +155,38 @@ test('floating window IPC boundary uses scoped preload API @smoke', async ({ app
       sessions: expect.any(Array)
     })
     expect(boundary.updateCount).toBe(0)
+
+    await expect
+      .poll(() =>
+        floatingPage.evaluate(async () => {
+          const snapshot = await window.floatingButtonAPI.getSnapshot()
+          return snapshot.sessions.map((session) => session.id)
+        })
+      )
+      .toContain(sessionId)
+    await floatingPage.evaluate((sessionId) => {
+      window.floatingButtonAPI.setExpanded(true)
+      window.floatingButtonAPI.openSession(sessionId)
+    }, sessionId)
+    await expect
+      .poll(() =>
+        app.page.evaluate(async () => {
+          const { session } = await window.deepchat.invoke('sessions.getActive', {})
+          return session?.id
+        })
+      )
+      .toBe(sessionId)
+    await expect
+      .poll(() =>
+        floatingPage.evaluate(async () => (await window.floatingButtonAPI.getSnapshot()).expanded)
+      )
+      .toBe(false)
   } finally {
+    if (sessionId) {
+      await app.page.evaluate(async (sessionId) => {
+        await window.deepchat.invoke('sessions.delete', { sessionId })
+      }, sessionId)
+    }
     await app.page
       .evaluate(async (enabled) => {
         await window.deepchat.invoke('config.setFloatingButton', { enabled })

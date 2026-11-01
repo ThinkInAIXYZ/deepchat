@@ -64,6 +64,7 @@ export function createCoreMaintenance(options: {
     | 'hookService'
     | 'pluginService'
     | 'syncReplica'
+    | 'mcpApps'
     | 'scheduleBackgroundWork'
   >
   databaseRequests: DatabaseRequestGate
@@ -127,6 +128,8 @@ export function createCoreMaintenance(options: {
   async function performDatabaseMaintenance(
     command: DatabaseMaintenanceCommand
   ): Promise<DatabaseMaintenanceResult> {
+    profile.secretStore.pause()
+    runtime.mcpApps.clear()
     try {
       await native.configurationHost.pause()
     } catch (error) {
@@ -142,11 +145,15 @@ export function createCoreMaintenance(options: {
       }
     } catch (error) {
       if (databaseRequests.state === 'maintenance') {
-        databaseRequests.resume()
         try {
           await native.configurationHost.resume()
+          if (options.isStopping() || databaseRequests.state !== 'maintenance') {
+            throw new Error('App database owner is stopping')
+          }
+          profile.secretStore.resume()
+          databaseRequests.resume()
         } catch (resumeError) {
-          databaseRequests.fail()
+          if (!options.isStopping()) databaseRequests.fail()
           throw new AggregateError([error, resumeError], 'Native configuration did not resume')
         }
         agentSettings.notifyAgentCatalogChanged()
@@ -160,7 +167,6 @@ export function createCoreMaintenance(options: {
       await native.configurationHost.stopWrites()
       await appSettingsService.stop()
       await native.configurationHost.drainWrites()
-      profile.secretStore.pause()
       replicaEndpoint.stop()
       await automaticSync?.pause()
       memoryService.stopBackgroundMaintenance()

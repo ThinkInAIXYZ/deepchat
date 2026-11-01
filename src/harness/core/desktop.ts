@@ -8,12 +8,15 @@ import {
   CoreDesktopCapabilitiesSchema,
   CoreDesktopEventSchema,
   CoreWindowTargetSchema,
+  CoreProxySnapshotSchema,
   type CoreDesktopCommand,
   type CoreDesktopMethod
 } from '@shared/harness/desktop'
 import type { CoreKernelNative } from './kernel'
-import { CORE_VALUE_BYTES, CORE_NATIVE_QUEUED } from '@shared/harness/core'
+import { CORE_VALUE_BYTES, CORE_PRESENTATION_QUEUED } from '@shared/harness/core'
 import type { RemoteAuthWindowEvent } from '@/remote/ports'
+import { computerUseSetPreviewModeRoute } from '@shared/contracts/routes'
+import { startupWorkloadChangedEvent, liveDelegationChangedEvent } from '@shared/contracts/events'
 
 type Watch = {
   id: string
@@ -39,6 +42,15 @@ export class CoreNativeDesktop {
   private eventTail: Promise<void> = Promise.resolve()
   private eventCount = 0
   private eventBytes = 0
+  private readonly snapshots = new Map<
+    string,
+    {
+      snapshot: unknown[]
+      bytes: number
+      operation: Promise<unknown>
+      version?: { revision: number; updatedAt: number }
+    }
+  >()
   private failure: Error | undefined
   private retired = false
   private used = false
@@ -92,10 +104,8 @@ export class CoreNativeDesktop {
         }
         if (event) {
           const delivery = this.enqueue(method, args)
-          void delivery.catch((error) =>
-            logger.warn('[Core] Native presentation failed', { method, error })
-          )
-          return delivery
+          // Renderer updates must not retain one Promise waiter per coalesced publication.
+          return method.startsWith('renderer.') ? undefined : delivery
         }
         return this.call(method, args, signal)
       }
@@ -207,12 +217,17 @@ export class CoreNativeDesktop {
             'isMainWindowContext',
             'hasTrustedRenderer',
             'applyProxy',
-            'remoteSessionWindow.present'
+            'remoteSessionWindow.present',
+            'sessionPresentation.focusBrowser',
+            'sessionPresentation.dismissComputerUsePreview'
           ].includes(method)
         )
           return z.boolean().parse(result)
+        if (method === 'sessionPresentation.setComputerUsePreview')
+          return computerUseSetPreviewModeRoute.output.parse(result)
         if (method === 'remoteSessionWindow.select')
           return CoreWindowTargetSchema.nullable().parse(result)
+        if (method === 'getProxySnapshot') return CoreProxySnapshotSchema.parse(result)
         if (method === 'pluginSettingsWindow.getPluginIdForWebContents')
           return z.string().nullable().parse(result)
         return result
@@ -235,25 +250,67 @@ export class CoreNativeDesktop {
 
   private enqueue(method: CoreDesktopMethod, args: unknown[]): Promise<unknown> {
     const encoded = serialize(args)
+    let snapshotKey: string | undefined
+    let version: { revision: number; updatedAt: number } | undefined
+    if (method === 'renderer.broadcast') {
+      const [event] = CoreDesktopArguments['renderer.broadcast'].parse(args)
+      if (event.name === startupWorkloadChangedEvent.name)
+        snapshotKey = JSON.stringify([
+          event.name,
+          startupWorkloadChangedEvent.payload.parse(event.payload).target
+        ])
+      else if (event.name === liveDelegationChangedEvent.name) {
+        const payload = liveDelegationChangedEvent.payload.parse(event.payload)
+        snapshotKey = JSON.stringify([event.name, payload.parentSessionId, payload.delegation.id])
+        version = { revision: payload.delegation.revision, updatedAt: payload.delegation.updatedAt }
+      }
+    }
+    const previous = snapshotKey ? this.snapshots.get(snapshotKey) : undefined
+    if (previous) {
+      if (
+        version &&
+        previous.version &&
+        (previous.version.revision > version.revision ||
+          (previous.version.revision === version.revision &&
+            previous.version.updatedAt > version.updatedAt))
+      )
+        return previous.operation
+      if (this.eventBytes - previous.bytes + encoded.length > CORE_VALUE_BYTES)
+        throw this.fail(new Error('Core presentation queue exceeded'))
+      this.eventBytes += encoded.length - previous.bytes
+      previous.snapshot = deserialize(encoded)
+      previous.bytes = encoded.length
+      previous.version = version
+      return previous.operation
+    }
     if (
-      this.eventCount >= CORE_NATIVE_QUEUED ||
+      this.eventCount >= CORE_PRESENTATION_QUEUED ||
       this.eventBytes + encoded.length > CORE_VALUE_BYTES
     )
-      return Promise.reject(this.fail(new Error('Core presentation queue exceeded')))
-    const snapshot: unknown[] = deserialize(encoded)
+      throw this.fail(new Error('Core presentation queue exceeded'))
+    const entry = {
+      snapshot: deserialize(encoded) as unknown[],
+      bytes: encoded.length,
+      version,
+      operation: Promise.resolve<unknown>(undefined)
+    }
     this.eventCount++
     this.eventBytes += encoded.length
     const operation = this.eventTail.then(async () => {
+      if (snapshotKey && this.snapshots.get(snapshotKey) === entry)
+        this.snapshots.delete(snapshotKey)
       try {
-        return await this.call(method, snapshot)
+        return await this.call(method, entry.snapshot)
       } finally {
         this.eventCount--
-        this.eventBytes -= encoded.length
+        this.eventBytes -= entry.bytes
       }
     })
+    entry.operation = operation
+    if (snapshotKey) this.snapshots.set(snapshotKey, entry)
     this.eventTail = operation.then(
       () => {},
-      () => {}
+      (error) => logger.warn('[Core] Native presentation failed', { method, error })
     )
     return operation
   }

@@ -22,6 +22,7 @@ import {
 } from '@/lib/textsplitters'
 import { isBuiltinKnowledgeSupported } from './support'
 import type { KnowledgeEventPublisher, KnowledgeServiceDeps } from './ports'
+import type { DialogRequestParams } from '@shared/types/dialog'
 
 function diffKnowledgeConfigs(
   previous: BuiltinKnowledgeConfig[],
@@ -52,7 +53,6 @@ export class KnowledgeService implements KnowledgeServicePort {
    * File presenter for validation operations
    */
   private readonly filePort: KnowledgeServiceDeps['files']
-  private readonly dialogPort: KnowledgeServiceDeps['dialog']
   private readonly embeddingPort: KnowledgeServiceDeps['embeddings']
   private readonly events: KnowledgeEventPublisher
 
@@ -73,7 +73,6 @@ export class KnowledgeService implements KnowledgeServicePort {
     logger.info('[RAG] Initializing Built-in Knowledge Service')
     this.configPort = deps.config
     this.filePort = deps.files
-    this.dialogPort = deps.dialog
     this.embeddingPort = deps.embeddings
     this.events = deps.events
     this.storageDir = path.join(deps.storageRoot, 'KnowledgeBase')
@@ -369,15 +368,9 @@ export class KnowledgeService implements KnowledgeServicePort {
     this.knowledgeBaseInitializations.clear()
   }
 
-  /**
-   * @returns return true if user confirmed to destroy knowledge, otherwise false
-   */
-  async confirmShutdown(): Promise<boolean> {
-    const status = this.taskQueue.getStatus()
-    if (status.totalTasks === 0) {
-      return true
-    }
-    const choice = await this.dialogPort.showDialog({
+  getShutdownConfirmation(): DialogRequestParams | null {
+    if (this.taskQueue.getStatus().totalTasks === 0) return null
+    return {
       title: 'settings.knowledgeBase.dialog.beforequit.title',
       description: 'settings.knowledgeBase.dialog.beforequit.description',
       icon: DIALOG_WARN,
@@ -387,8 +380,7 @@ export class KnowledgeService implements KnowledgeServicePort {
       ],
       timeout: 10000,
       i18n: true
-    })
-    return choice === 'confirm'
+    }
   }
 
   async destroy(): Promise<void> {

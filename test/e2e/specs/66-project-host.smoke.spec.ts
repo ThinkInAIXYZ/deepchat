@@ -5,6 +5,54 @@ import { waitForAppReady } from '../helpers/wait'
 
 test.use({ privacyModeEnabled: true })
 
+test('native pickers retire queued requests and close with their app generation @smoke', async ({
+  launchApp
+}) => {
+  test.skip(process.platform !== 'darwin', 'Exercises actual macOS native sheet retirement.')
+  for (const kind of ['directory', 'image'] as const) {
+    const active = await launchApp()
+    await waitForAppReady(active.page)
+    await active.electronApp.evaluate(({ dialog }, kind) => {
+      const state = { opened: 0, settled: 0 }
+      Reflect.set(globalThis, '__nativePickerFixture', state)
+      const method = kind === 'directory' ? 'showOpenDialog' : 'showSaveDialog'
+      const original = dialog[method]
+      Reflect.set(dialog, method, (...args: unknown[]) => {
+        state.opened++
+        return Reflect.apply(original, dialog, args).finally(() => {
+          state.settled++
+        })
+      })
+    }, kind)
+    const pending = active.page
+      .evaluate(async (kind) => {
+        if (kind === 'directory')
+          await Promise.all([
+            window.deepchat.invoke('project.selectDirectory', {}),
+            window.deepchat.invoke('project.selectDirectory', {})
+          ])
+        else
+          await window.deepchat.invoke('file.saveImage', {
+            source: 'data:image/png;base64,aW1hZ2U='
+          })
+      }, kind)
+      .catch(() => undefined)
+    await expect
+      .poll(() =>
+        active.electronApp.evaluate(() => {
+          const state = Reflect.get(globalThis, '__nativePickerFixture') as {
+            opened: number
+            settled: number
+          }
+          return state.opened > 0 && state.settled === 0
+        })
+      )
+      .toBe(true)
+    expect(await active.close()).toBe('graceful')
+    await pending
+  }
+})
+
 test('project host preserves workspace, native operations and durable versions @smoke', async ({
   launchApp
 }) => {
@@ -26,12 +74,11 @@ test('project host preserves workspace, native operations and durable versions @
   expect((await snapshot()).defaultProjectPath).toBe(initialWorkspace)
 
   const managedWorkspace = join(profile, 'workspaces', 'DeepChat')
-  expect(existsSync(managedWorkspace)).toBe(false)
   await active.page.evaluate(
     (path) => window.deepchat.invoke('config.setDefaultProjectPath', { path }),
     managedWorkspace
   )
-  expect((await snapshot()).defaultChatWorkspacePath).toBeNull()
+  // Other live renderer/bootstrap callers may prepare this directory first.
   const prepared = await active.page.evaluate(() =>
     window.deepchat.invoke('project.ensureChatWorkspace', {})
   )

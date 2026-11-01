@@ -1,3 +1,5 @@
+import type { DialogRequestParams } from './dialog'
+
 export type KnowledgeFileMetadata = {
   size: number
   totalChunks: number
@@ -105,7 +107,7 @@ export interface KnowledgeServicePort {
   getTaskQueueStatus(): Promise<KnowledgeTaskQueueStatus>
   pauseAllRunningTasks(id: string): Promise<void>
   resumeAllPausedTasks(id: string): Promise<void>
-  confirmShutdown(): Promise<boolean>
+  getShutdownConfirmation(): DialogRequestParams | null
   destroy(): Promise<void>
   getSupportedLanguages(): Promise<string[]>
   getSeparatorsForLanguage(language: string): Promise<string[]>

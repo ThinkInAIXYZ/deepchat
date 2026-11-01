@@ -7,6 +7,8 @@ const { appRelaunchMock, appExitMock } = vi.hoisted(() => ({
   appExitMock: vi.fn()
 }))
 
+const selectDialog = async () => ({ canceled: true, filePaths: [] })
+
 vi.mock('electron', () => ({
   app: {
     getVersion: vi.fn(() => '0.2.3'),
@@ -38,7 +40,7 @@ describe('DeviceService', () => {
   describe('restartAppWithDelay', () => {
     it('relaunches the process after data reset', async () => {
       vi.useFakeTimers()
-      const presenter = new DeviceService()
+      const presenter = new DeviceService(selectDialog)
 
       const restartPromise = (
         presenter as unknown as { restartAppWithDelay: () => Promise<void> }
@@ -55,7 +57,7 @@ describe('DeviceService', () => {
     it('only removes data after the App owner has stopped runtime resources', async () => {
       vi.useFakeTimers()
       vi.spyOn(fs, 'existsSync').mockReturnValue(false)
-      const presenter = new DeviceService()
+      const presenter = new DeviceService(selectDialog)
 
       const resetPromise = presenter.resetDataByType('all')
       await vi.advanceTimersByTimeAsync(1000)
@@ -72,7 +74,7 @@ describe('DeviceService', () => {
       appRelaunchMock.mockImplementationOnce(() => {
         throw failure
       })
-      const presenter = new DeviceService()
+      const presenter = new DeviceService(selectDialog)
 
       const resetPromise = presenter.resetDataByType('all')
       const rejection = expect(resetPromise).rejects.toBe(failure)

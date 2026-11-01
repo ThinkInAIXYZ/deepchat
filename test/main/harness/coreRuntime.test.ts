@@ -6,12 +6,15 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
+import { createServer, type ServerResponse } from 'node:http'
+import { connect, type Socket, type AddressInfo } from 'node:net'
 import { afterEach, expect, it, vi } from 'vitest'
 import { describeIfNativeSqlite } from '../nativeSqliteHarness'
 import { HarnessRuntime } from '@/harness/runtime'
 import { CoreRuntimeConnection, createCoreProfileNative } from '@/harness/core'
 import { initializeCoreProfile } from '@/app/profileStartup'
 import { CoreDesktopNative } from '@/harness/desktop'
+import { CoreBrowserNative } from '@/harness/browser'
 import type { CoreKernelNative } from '../../../src/harness/core/kernel'
 import { createRendererRouteContext, type RouteContext } from '@/routes/routeRegistry'
 import { CORE_ORDINARY_CALLS, CORE_ROUTE_QUEUED } from '@shared/harness/core'
@@ -29,6 +32,8 @@ vi.unmock('path')
 vi.unmock('node:path')
 vi.unmock('child_process')
 vi.unmock('node:child_process')
+vi.unmock('node:http')
+vi.unmock('node:net')
 
 describeIfNativeSqlite('Rutis Core profile ownership', () => {
   const cleanups: Array<() => void | Promise<void>> = []
@@ -47,9 +52,16 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       readTheme?: () => Promise<{ theme: 'dark' | 'light' | 'system'; isDark: boolean }>
       transport?: (runtime: HarnessRuntime) => Pick<HarnessRuntime, 'connectCore' | 'stop'>
       retireDesktop?: () => Promise<void>
+      retireBrowser?: () => Promise<void>
       isSettingsWindow?: (windowId: number | null) => Promise<boolean>
       resumeConfiguration?: () => Promise<void>
       assertCallerActive?: (context: RouteContext) => void
+      sessionPresentation?: CoreKernelNative['sessionPresentation']
+      sessionWindow?: CoreKernelNative['remoteSessionWindow']
+      applyProxy?: CoreKernelNative['applyProxy']
+      getProxySnapshot?: CoreKernelNative['getProxySnapshot']
+      onFailure?: (error: Error) => void
+      onRendererDestroyed?: CoreKernelNative['onRendererDestroyed']
     } = {}
   ) {
     const directory = mkdtempSync(path.join(tmpdir(), 'rutis-core-test-'))
@@ -123,8 +135,13 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       images: { saveImage: unexpected, copyImage: unexpected },
       pickToolchainPath: unexpected,
       hasTrustedRenderer: async () => false,
-      applyProxy: async () => false,
+      applyProxy: options.applyProxy ?? (async () => false),
       copilotAuthorization: { browser: unexpected, device: unexpected },
+      sessionPresentation: options.sessionPresentation ?? {
+        focusBrowser: unexpected,
+        setComputerUsePreview: unexpected,
+        dismissComputerUsePreview: unexpected
+      },
       workspaceDesktop: {
         revealFile: unexpected,
         openFile: unexpected,
@@ -140,15 +157,10 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       initializeFloatingButton: async () => {},
       assertSyncTokenStorageAvailable: unexpected,
       semanticNotifications: { occur() {}, recover() {} },
-      dialog: {
-        showDialog: unexpected,
-        handleDialogResponse: unexpected,
-        handleDialogError: unexpected
-      },
       secureCrypto: crypto,
       providerCrypto: crypto,
-      getProxyUrl: async () => null,
-      whenProxyReady: async () => {},
+      getProxySnapshot:
+        options.getProxySnapshot ?? (async () => ({ version: 0, proxyUrl: null, noProxy: '' })),
       openExternal: unexpected,
       openPath: unexpected,
       selectDirectory: unexpected,
@@ -167,7 +179,7 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
         getPluginIdForWebContents: async () => null
       },
       remoteAuthWindows: { open: unexpected, close: async () => {}, closeAll: async () => {} },
-      remoteSessionWindow: { select: unexpected, present: unexpected },
+      remoteSessionWindow: options.sessionWindow ?? { select: unexpected, present: unexpected },
       showNotification: unexpected,
       mcpPreview: undefined,
       sessionUiPort: { refreshSessionUi: async () => {} },
@@ -178,7 +190,7 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
         broadcast: (envelope) => publishEvent(envelope.name, envelope.payload),
         send: (_id, envelope) => publishEvent(envelope.name, envelope.payload)
       },
-      onRendererDestroyed: () => () => {},
+      onRendererDestroyed: options.onRendererDestroyed ?? (() => () => {}),
       sendToRenderer: (_id, name, payload) => publishEvent(name, payload),
       destroySessionBrowser: async () => {},
       observeDelegation() {},
@@ -194,7 +206,6 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       {
         exec: unexpected,
         code: unexpected,
-        retireExec: unexpected,
         watcher: async () => {
           const events = new EventEmitter()
           const owner = new FileWatcherHost({
@@ -280,7 +291,19 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
         throw error
       }
     )
+    const nativeBrowser = new CoreBrowserNative(
+      {
+        getToolDefinitions: () => [],
+        callTool: async () => {
+          throw new Error('Unexpected Agent Browser call')
+        }
+      },
+      async (event) => await connection.deliverBrowserEvent(event),
+      options.retireBrowser ?? (async () => {}),
+      (error) => connection.invalidateNative(error)
+    )
     connection = await CoreRuntimeConnection.connect({
+      onFailure: options.onFailure,
       runtime: options.transport?.(runtime) ?? runtime,
       temporaryDirectory: directory,
       native: (method, args) =>
@@ -288,13 +311,16 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
           ? nativeDesktop.invoke(args)
           : method === 'helpers'
             ? nativeHelpers.invoke(args)
-            : method === 'configuration'
-              ? configurationNative(method, args)
-              : profileNative(method, args)
+            : method === 'browser'
+              ? nativeBrowser.invoke(args)
+              : method === 'configuration'
+                ? configurationNative(method, args)
+                : profileNative(method, args)
     })
     cleanups.push(async () => {
       await connection.closeAfterHostExit()
       await nativeHelpers.close().catch(() => {})
+      await nativeBrowser.close().catch(() => {})
     })
     const profileOptions = {
       userDataDirectory,
@@ -343,8 +369,20 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       let holdQueries = false
       let settingsQueries = 0
       let queuedCallerActive = true
+      const focusBrowser = vi.fn(async () => true)
+      const setComputerUsePreview = vi.fn<
+        CoreKernelNative['sessionPresentation']['setComputerUsePreview']
+      >(async (_id, mode) => ({
+        updated: true,
+        surface: mode === 'stopped' ? 'none' : 'renderer-canvas'
+      }))
+      const dismissComputerUsePreview = vi.fn(async () => true)
+      const selectSessionWindow = vi.fn(async () => ({ windowId: 99, webContentsId: 77 }))
+      const presentSessionWindow = vi.fn(async () => true)
       const f = await fixture({
         detached: true,
+        sessionWindow: { select: selectSessionWindow, present: presentSessionWindow },
+        sessionPresentation: { focusBrowser, setComputerUsePreview, dismissComputerUsePreview },
         assertCallerActive: (context) => {
           if (
             context.caller.kind === 'renderer' &&
@@ -374,10 +412,42 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
         await expect(
           f.invokeRoute('settings.getSnapshot', {}, createRendererRouteContext(42, 99))
         ).rejects.toThrow('Core business routes are unavailable')
+        await expect(f.connection.mcpAppSandbox.getProtocolPolicy('missing')).rejects.toThrow(
+          'Core MCP App protocol is unavailable'
+        )
+        await expect(f.connection.host.hasProvider('missing')).rejects.toThrow(
+          'Core host queries are unavailable'
+        )
+        await expect(f.connection.host.getShutdownConfirmation()).rejects.toThrow(
+          'Core host control is unavailable'
+        )
         await expect(f.connection.startKernel()).resolves.toMatchObject({
           phase: 'running',
           businessReady: true
         })
+        f.publishEvent.mockClear()
+        await f.connection.host.observeSettingsWindow('opened')
+        await vi.waitFor(() =>
+          expect(f.publishEvent).toHaveBeenCalledWith(
+            'startup.workload.changed',
+            expect.objectContaining({ target: 'settings' })
+          )
+        )
+        await f.connection.host.observeSettingsWindow('ready')
+        await f.connection.host.systemResume()
+        await f.connection.host.observeSettingsWindow('closed')
+        await expect(f.connection.mcpAppSandbox.getProtocolPolicy('missing')).resolves.toBeNull()
+        await expect(f.connection.host.hasProvider('missing')).resolves.toBe(false)
+        await expect(
+          f.connection.host.resolveWorkspacePreviewRequest('workspace-preview://missing/index.html')
+        ).resolves.toBeNull()
+        await expect(
+          f.connection.mcpAppSandbox.requestBrowserPermission(
+            'missing',
+            { webContentsId: 42, windowId: 99 },
+            ['camera']
+          )
+        ).resolves.toBe(false)
         f.publishEvent.mockClear()
         await f.invokeRoute(
           'settings.update',
@@ -393,6 +463,76 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
           )
         )
         const caller = createRendererRouteContext(42, 99)
+        await expect(
+          f.invokeRoute('config.setLanguage', { language: 'zh-CN' }, caller)
+        ).resolves.toMatchObject({ requestedLanguage: 'zh-CN', locale: 'zh-CN' })
+        await expect(f.invokeRoute('config.getLanguage', {}, caller)).resolves.toMatchObject({
+          locale: 'zh-CN'
+        })
+        await f.invokeRoute('config.setTheme', { theme: 'dark' }, caller)
+        await expect(f.invokeRoute('config.getTheme', {}, caller)).resolves.toMatchObject({
+          theme: 'dark'
+        })
+        await expect(
+          f.invokeRoute('config.setUpdateChannel', { channel: 'beta' }, caller)
+        ).resolves.toEqual({ channel: 'beta' })
+        await expect(f.invokeRoute('config.getUpdateChannel', {}, caller)).resolves.toEqual({
+          channel: 'beta'
+        })
+        const { sessionId } = (await f.invokeRoute(
+          'sessions.createDraft',
+          { agentId: 'deepchat', projectDir: null },
+          caller
+        )) as { sessionId: string }
+        await expect(f.invokeRoute('browser.focusContent', { sessionId }, caller)).resolves.toEqual(
+          { focused: true }
+        )
+        expect(focusBrowser).toHaveBeenCalledWith(sessionId, caller.caller)
+        await expect(
+          f.invokeRoute('browser.focusContent', { sessionId }, createRendererRouteContext(43, 99))
+        ).resolves.toEqual({ focused: false })
+        expect(focusBrowser).toHaveBeenCalledOnce()
+        await f.invokeRoute('sessions.activate', { sessionId }, caller)
+        await expect(
+          f.invokeRoute('computerUse.setPreviewMode', { sessionId, mode: 'eligible' }, caller)
+        ).resolves.toEqual({ updated: true, surface: 'renderer-canvas' })
+        await expect(
+          f.invokeRoute('computerUse.dismissPreview', { sessionId, runId: 'run-1' }, caller)
+        ).resolves.toEqual({ dismissed: true })
+        expect(dismissComputerUsePreview).toHaveBeenCalledWith(sessionId, 'run-1', caller.caller)
+        await f.invokeRoute('sessions.deactivate', {}, caller)
+        await expect(
+          f.invokeRoute('computerUse.setPreviewMode', { sessionId, mode: 'eligible' }, caller)
+        ).resolves.toEqual({ updated: false, surface: 'none' })
+        await expect(
+          f.invokeRoute('computerUse.setPreviewMode', { sessionId, mode: 'stopped' }, caller)
+        ).resolves.toEqual({ updated: true, surface: 'none' })
+        expect(setComputerUsePreview).toHaveBeenCalledTimes(2)
+        const created = (await f.invokeRoute(
+          'sessions.create',
+          {
+            agentId: 'deepchat',
+            providerId: 'openai',
+            modelId: 'gpt-4o-mini',
+            message: ''
+          },
+          caller
+        )) as { session: { id: string } }
+        const widget = (await f.invokeRoute('sessions.getWidgetSnapshot', {}, caller)) as {
+          snapshot: { sessions: { id: string }[] }
+        }
+        expect(widget.snapshot.sessions.map((session) => session.id)).toEqual([created.session.id])
+        await expect(
+          f.invokeRoute('sessions.openDesktop', { sessionId: 'missing' }, caller)
+        ).resolves.toEqual({ opened: false })
+        expect(selectSessionWindow).not.toHaveBeenCalled()
+        await expect(
+          f.invokeRoute('sessions.openDesktop', { sessionId: created.session.id }, caller)
+        ).resolves.toEqual({ opened: true })
+        expect(presentSessionWindow).toHaveBeenCalledWith({ windowId: 99, webContentsId: 77 })
+        await expect(
+          f.invokeRoute('sessions.getActive', {}, createRendererRouteContext(77, 99))
+        ).resolves.toMatchObject({ session: { id: created.session.id } })
         await expect(
           f.invokeRoute(
             'settings.getSnapshot',
@@ -411,6 +551,8 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
         )
         const ordinaryOutcomes = Promise.allSettled(ordinary)
         await queriesEntered.promise
+        await expect(f.connection.host.getShutdownConfirmation()).resolves.toBeNull()
+        await expect(f.connection.host.clearPermissionCaches()).resolves.toBeUndefined()
         const prompt = 'x'.repeat(3 * 1024 * 1024)
         const input = { changes: [{ key: 'default_system_prompt', value: prompt }] }
         const queued = [
@@ -420,7 +562,8 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
             { changes: [{ key: 'default_system_prompt', value: 'retired caller' }] },
             createRendererRouteContext(43, 100)
           ),
-          ...Array.from({ length: CORE_ROUTE_QUEUED - 2 }, () =>
+          f.connection.mcpAppSandbox.getProtocolPolicy('missing'),
+          ...Array.from({ length: CORE_ROUTE_QUEUED - 3 }, () =>
             f.invokeRoute('config.getEntries', { keys: ['init_complete'] }, caller)
           )
         ]
@@ -442,6 +585,7 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
         queriesReleased.resolve()
         expect((await ordinaryOutcomes).every((result) => result.status === 'fulfilled')).toBe(true)
         const outcomes = await queuedOutcomes
+        expect(outcomes[2]).toEqual({ status: 'fulfilled', value: null })
         expect(outcomes.filter((result) => result.status === 'rejected')).toHaveLength(2)
         expect(outcomes[1]).toMatchObject({
           status: 'rejected',
@@ -502,6 +646,14 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
           phase: 'starting',
           businessReady: false
         })
+        const queued = Promise.allSettled([
+          f.invokeRoute('providers.list', {}, createRendererRouteContext(42, 99))
+        ])
+        await f.connection.beginShutdown()
+        expect((await queued)[0]).toMatchObject({
+          status: 'rejected',
+          reason: { message: 'Core is stopping' }
+        })
         const stopping = f.connection.stop()
         await expect.poll(async () => (await f.connection.status()).phase).toBe('stopping')
         await expect(
@@ -520,6 +672,147 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       } finally {
         released.resolve()
       }
+    }
+  )
+
+  it(
+    'applies proxy changes to SDK HTTP and retires current and draining connections',
+    { timeout: 30_000 },
+    async () => {
+      const sockets = new Set<Socket>()
+      const servers: ReturnType<typeof createServer>[] = []
+      cleanups.push(async () => {
+        for (const socket of sockets) socket.destroy()
+        await Promise.all(
+          servers.map((server) => new Promise<void>((resolve) => server.close(() => resolve())))
+        )
+      })
+      let hold: ((response: ServerResponse) => void) | undefined
+      const respond = (response: ServerResponse) => {
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ data: [{ id: 'core-http-model', object: 'model' }] }))
+      }
+      const target = createServer((_request, response) =>
+        hold ? hold(response) : respond(response)
+      )
+      const listen = async (server: ReturnType<typeof createServer>) => {
+        servers.push(server)
+        server.on('connection', (socket) => {
+          sockets.add(socket)
+          socket.once('close', () => sockets.delete(socket))
+        })
+        await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+        return (server.address() as AddressInfo).port
+      }
+      const targetPort = await listen(target)
+      const authorizations: Array<{ proxy: number; value: string | undefined }> = []
+      const proxyUrl = async (proxy: number) => {
+        const server = createServer((request, response) => {
+          authorizations.push({ proxy, value: request.headers['proxy-authorization'] })
+          if (hold) hold(response)
+          else respond(response)
+        })
+        server.on('connect', (request, client, head) => {
+          authorizations.push({ proxy, value: request.headers['proxy-authorization'] })
+          const upstream = connect(targetPort, '127.0.0.1', () => {
+            client.write('HTTP/1.1 200 Connection Established\r\n\r\n')
+            upstream.write(head)
+            upstream.pipe(client)
+            client.pipe(upstream)
+          })
+          client.on('error', () => upstream.destroy())
+          upstream.on('error', () => client.destroy())
+          client.once('close', () => upstream.destroy())
+        })
+        return `http://user%40example:pass%3Aword@127.0.0.1:${await listen(server)}`
+      }
+      const primary = await proxyUrl(1)
+      const secondary = await proxyUrl(2)
+      let snapshot = { version: 0, proxyUrl: null as string | null, noProxy: '' }
+      const f = await fixture({
+        getProxySnapshot: async () => snapshot,
+        applyProxy: async (mode, url, resolve) => {
+          if (resolve)
+            snapshot = {
+              version: snapshot.version + 1,
+              proxyUrl: mode === 'custom' ? url : null,
+              noProxy: 'localhost,127.0.0.1'
+            }
+          return mode === 'system'
+        }
+      })
+      await f.connection.openProfile(f.options)
+      await f.connection.configure({ operation: 'initialize' })
+      await f.assembleKernel()
+      await f.connection.startKernel()
+      const route = (name: string, input: unknown) =>
+        f.invokeRoute(name, input, createRendererRouteContext(42, 99))
+      const refresh = (providerId: string) => route('providers.refreshModels', { providerId })
+      for (const [id, host] of [
+        ['proxied', 'provider.invalid'],
+        ['bypassed', '127.0.0.1']
+      ]) {
+        await route('providers.add', {
+          provider: {
+            id,
+            name: id,
+            apiType: 'openai',
+            apiKey: 'fixture-key',
+            baseUrl: `http://${host}:${targetPort}/v1`,
+            enable: false,
+            custom: true
+          }
+        })
+      }
+      await route('config.setCustomProxyUrl', { url: primary })
+      await route('config.setProxyMode', { mode: 'custom' })
+      await expect(refresh('proxied')).resolves.toEqual({ refreshed: true })
+      expect(authorizations).toContainEqual({
+        proxy: 1,
+        value: `Basic ${Buffer.from('user@example:pass:word').toString('base64')}`
+      })
+      const proxyRequests = authorizations.length
+      await expect(refresh('bypassed')).resolves.toEqual({ refreshed: true })
+      expect(authorizations).toHaveLength(proxyRequests)
+
+      const entered = Promise.withResolvers<void>()
+      const responses: ServerResponse[] = []
+      hold = (response) => {
+        responses.push(response)
+        entered.resolve()
+      }
+      const pending = refresh('proxied')
+      await entered.promise
+      await route('config.setCustomProxyUrl', { url: secondary })
+      hold = undefined
+      responses.forEach(respond)
+      await expect(pending).resolves.toEqual({ refreshed: true })
+      await expect(refresh('proxied')).resolves.toEqual({ refreshed: true })
+      expect(authorizations.some((entry) => entry.proxy === 2)).toBe(true)
+      await route('config.setProxyMode', { mode: 'none' })
+      const beforeDirect = authorizations.length
+      await expect(refresh('bypassed')).resolves.toEqual({ refreshed: true })
+      expect(authorizations).toHaveLength(beforeDirect)
+
+      await route('config.setProxyMode', { mode: 'custom' })
+      responses.length = 0
+      hold = (response) => {
+        responses.push(response)
+      }
+      const retiredRequest = refresh('proxied').catch((error: unknown) => error)
+      await vi.waitFor(() => expect(responses).toHaveLength(1))
+      await route('config.setCustomProxyUrl', { url: primary })
+      const currentRequest = refresh('bypassed').catch((error: unknown) => error)
+      await vi.waitFor(() => expect(responses).toHaveLength(2))
+      const closed = responses.map(
+        (response) => new Promise<void>((resolve) => response.once('close', resolve))
+      )
+      await expect(f.connection.stop()).resolves.toMatchObject({ phase: 'stopped' })
+      await Promise.all(closed)
+      expect(await retiredRequest).toBeInstanceOf(Error)
+      expect(await currentRequest).toBeInstanceOf(Error)
+      const reopened = await initializeCoreProfile({ ...f.options, host: f.host, crypto: f.crypto })
+      reopened.closeProfile()
     }
   )
 
@@ -548,6 +841,9 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
         ownerId: f.connection.payloads.config.generation,
         notificationsEnabled: false
       })
+      const bounds = { x: 20, y: 40, dockSide: 'left' as const }
+      await f.connection.configure({ operation: 'floatingBounds', bounds })
+      expect(f.nativeSnapshots.at(-1)?.floatingButtonBounds).toEqual(bounds)
       expect(f.publishEvent).toHaveBeenCalledWith(
         'settings.changed',
         expect.objectContaining({
@@ -581,6 +877,7 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
       const reopened = await initializeCoreProfile({ ...f.options, host: f.host, crypto: f.crypto })
       expect(reopened.settingsStore.get('notificationsEnabled')).toBe(false)
       expect(reopened.settingsStore.get('fontSizeLevel')).toBe(4)
+      expect(reopened.settingsStore.get('floatingButtonBounds')).toEqual(bounds)
       reopened.closeProfile()
     }
   )
@@ -617,6 +914,41 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
         reopened.closeProfile()
       } finally {
         release.resolve(false)
+      }
+    }
+  )
+
+  it(
+    'keeps the profile until the Browser owner retires without Agent Browser calls',
+    { timeout: 30_000 },
+    async () => {
+      const entered = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<void>()
+      const f = await fixture({
+        retireBrowser: async () => {
+          entered.resolve()
+          await release.promise
+        }
+      })
+      try {
+        await f.connection.openProfile(f.options)
+        await f.connection.configure({ operation: 'initialize' })
+        await f.assembleKernel()
+        const stopping = f.connection.stop()
+        await entered.promise
+        await expect(
+          initializeCoreProfile({ ...f.options, host: f.host, crypto: f.crypto })
+        ).rejects.toMatchObject({ name: 'CoreProfileOwnershipUnavailableError' })
+        release.resolve()
+        await expect(stopping).resolves.toMatchObject({ phase: 'stopped' })
+        const reopened = await initializeCoreProfile({
+          ...f.options,
+          host: f.host,
+          crypto: f.crypto
+        })
+        reopened.closeProfile()
+      } finally {
+        release.resolve()
       }
     }
   )
@@ -765,7 +1097,7 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
               event: { type: 'message', message: Buffer.alloc(32 * 1024) }
             }
           ])
-        ).rejects.toThrow('Unknown or out-of-order Native helper event')
+        ).rejects.toThrow(/Unknown or out-of-order Native helper event|Core helpers owner failed/)
         await expect(f.connection.status()).rejects.toThrow()
         await expect(
           initializeCoreProfile({ ...f.options, host: f.host, crypto: f.crypto })
@@ -828,11 +1160,69 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
   )
 
   it(
+    'reports an internal Core failure before physical Native retirement releases the writer',
+    { timeout: 30_000 },
+    async () => {
+      const failure = Promise.withResolvers<Error>()
+      const closing = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<void>()
+      const onFailure = vi.fn((error: Error) => failure.resolve(error))
+      const f = await fixture({
+        onFailure,
+        onRendererDestroyed: () => {
+          throw new Error('Native renderer registration was refused')
+        },
+        retireDesktop: async () => {
+          closing.resolve()
+          await release.promise
+        }
+      })
+      await f.connection.openProfile(f.options)
+      await f.connection.configure({ operation: 'initialize' })
+      await f.assembleKernel()
+      await f.connection.startKernel()
+      const mutation = Promise.allSettled([
+        f.invokeRoute(
+          'sessions.create',
+          {
+            agentId: 'deepchat',
+            providerId: 'openai',
+            modelId: 'gpt-4o-mini',
+            message: ''
+          },
+          createRendererRouteContext(42, 99)
+        )
+      ])
+      try {
+        await expect(failure.promise).resolves.toMatchObject({
+          name: 'CoreOwnerFailureError',
+          message: 'Core desktop owner failed'
+        })
+        await closing.promise
+        expect(onFailure).toHaveBeenCalledOnce()
+        await expect(f.connection.beginShutdown()).resolves.toBeUndefined()
+        await expect(
+          initializeCoreProfile({ ...f.options, host: f.host, crypto: f.crypto })
+        ).rejects.toMatchObject({ name: 'CoreProfileOwnershipUnavailableError' })
+      } finally {
+        release.resolve()
+        await mutation
+        await f.connection.stop().catch(() => {})
+        await f.connection.closeAfterHostExit()
+      }
+      const reopened = await initializeCoreProfile({ ...f.options, host: f.host, crypto: f.crypto })
+      reopened.closeProfile()
+    }
+  )
+
+  it(
     'releases a crashed Core owner without silently adopting a replacement',
     { timeout: 30_000 },
     async () => {
       let send!: ReturnType<HarnessRuntime['connectCore']>
+      const onFailure = vi.fn()
       const f = await fixture({
+        onFailure,
         transport: (runtime) => ({
           stop: () => runtime.stop(),
           connectCore: (config, listener) => {
@@ -876,6 +1266,7 @@ describeIfNativeSqlite('Rutis Core profile ownership', () => {
           native: createCoreProfileNative(f.crypto, f.host)
         })
       ).rejects.toMatchObject({ name: 'CoreGenerationAlreadyAdoptedError' })
+      expect(onFailure).toHaveBeenCalledOnce()
       send({
         type: 'coreCall',
         id: 999,

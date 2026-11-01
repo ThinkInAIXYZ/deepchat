@@ -1,6 +1,10 @@
 import logger from '@shared/logger'
 import { session } from 'electron'
-import { Agent, EnvHttpProxyAgent, setGlobalDispatcher } from 'undici'
+import { setGlobalDispatcher } from 'undici'
+import { applyProxyEnvironment, createGlobalFetchDispatcher } from './fetchDispatcher'
+import type { CoreProxySnapshot } from '@shared/harness/desktop'
+export { FETCH_DISPATCHER_TIMEOUTS, createGlobalFetchDispatcher } from './fetchDispatcher'
+type Dispatcher = ReturnType<typeof createGlobalFetchDispatcher>
 
 // 先简单处理，用系统代理
 export enum ProxyMode {
@@ -12,33 +16,9 @@ export const NO_PROXY =
   'localhost, 127.0.0.1, ::1, 192.168.*.*, 10.*.*.*, *.local, host.docker.internal'
 // const NO_PROXY = ''
 
-// undici's default Agent uses headersTimeout 300s. 0 disables it so slow first-token
-// providers (local Ollama) are bounded by the model timeout instead.
-export const FETCH_DISPATCHER_TIMEOUTS = {
-  headersTimeout: 0,
-  bodyTimeout: 0
-} as const
-
-export function createGlobalFetchDispatcher(proxy?: {
-  httpProxy: string
-  httpsProxy: string
-  noProxy: string
-}): Agent | EnvHttpProxyAgent {
-  if (proxy) {
-    return new EnvHttpProxyAgent({
-      httpProxy: proxy.httpProxy,
-      httpsProxy: proxy.httpsProxy,
-      noProxy: proxy.noProxy,
-      ...FETCH_DISPATCHER_TIMEOUTS
-    })
-  }
-  return new Agent(FETCH_DISPATCHER_TIMEOUTS)
-}
-
 // Merge app defaults with the process inherited no_proxy snapshot, not live env.
 // resolve can write NO_PROXY then later clear it; live env would lose the original.
 function mergeNoProxy(defaultNoProxy: string, inheritedNoProxy: string): string {
-  logger.info('systemNoProxy', inheritedNoProxy)
   if (!inheritedNoProxy) {
     return defaultNoProxy
   }
@@ -53,14 +33,53 @@ function mergeNoProxy(defaultNoProxy: string, inheritedNoProxy: string): string 
 }
 
 export class ProxyConfig {
+  private version = 0
+  private noProxy = ''
   private proxyUrl: string | null = null
   private mode: ProxyMode = ProxyMode.SYSTEM
   private customProxyUrl: string = ''
   private resolutionPromise: Promise<boolean> = Promise.resolve(true)
-  private dispatcherInstalled = false
+  private dispatcher: Dispatcher | undefined
+  private readonly retiring = new Map<Dispatcher, Promise<void>>()
+  private closing: Promise<void> | undefined
+  private failure: Error | undefined
   private readonly inheritedNoProxy = process.env.no_proxy || process.env.NO_PROXY || ''
 
-  resolveProxy(): Promise<boolean> {
+  constructor(
+    private readonly failed: (error: Error) => void = (error) =>
+      logger.warn('[Proxy] HTTP dispatcher retirement failed', error)
+  ) {}
+
+  private assertActive(): void {
+    if (this.failure) throw this.failure
+    if (this.closing) throw new Error('Native HTTP is stopping')
+  }
+
+  private replaceDispatcher(next: Dispatcher): void {
+    this.assertActive()
+    const previous = this.dispatcher
+    setGlobalDispatcher(next)
+    this.dispatcher = next
+    if (previous) {
+      const retirement = previous
+        .close()
+        .catch(async () => await previous.destroy())
+        .then(() => {
+          this.retiring.delete(previous)
+        })
+      this.retiring.set(previous, retirement)
+      void retirement.catch((error) => {
+        this.failure =
+          error instanceof Error
+            ? error
+            : new Error('Native HTTP retirement failed', { cause: error })
+        if (!this.closing) this.failed(this.failure)
+      })
+    }
+  }
+
+  async resolveProxy(): Promise<boolean> {
+    this.assertActive()
     const mode = this.mode
     const customProxyUrl = this.customProxyUrl
     const resolution = this.resolutionPromise.then(
@@ -72,19 +91,23 @@ export class ProxyConfig {
   }
 
   private ensureTimeoutDispatcher(): void {
-    if (this.dispatcherInstalled) {
+    this.assertActive()
+    if (this.dispatcher) {
       return
     }
-    setGlobalDispatcher(createGlobalFetchDispatcher())
-    this.dispatcherInstalled = true
+    this.replaceDispatcher(createGlobalFetchDispatcher())
   }
 
-  whenReady(): Promise<boolean> {
-    return this.resolutionPromise
+  async whenReady(): Promise<boolean> {
+    this.assertActive()
+    const result = await this.resolutionPromise
+    this.assertActive()
+    return result
   }
 
   private async resolveProxyNow(mode: ProxyMode, customProxyUrl: string): Promise<boolean> {
     try {
+      this.assertActive()
       this.ensureTimeoutDispatcher()
       // 根据不同的代理模式设置
       if (mode === ProxyMode.NONE) {
@@ -92,22 +115,22 @@ export class ProxyConfig {
         logger.info('clear proxy')
         return false
       } else if (mode === ProxyMode.CUSTOM && customProxyUrl) {
-        logger.info('proxy url', customProxyUrl)
         await this.setCustomProxy(customProxyUrl)
         return false
       }
 
       // 系统代理模式
       await session.defaultSession.setProxy({ mode: 'system' })
+      this.assertActive()
       const proxyString = await session.defaultSession.resolveProxy('https://www.google.com')
+      this.assertActive()
       const [protocol, address] = proxyString.split(';')[0].split(' ')
-      logger.info('proxy url', protocol, address)
       const resolvedProxyUrl =
         protocol === 'PROXY' && address?.trim() ? `http://${address.trim()}` : null
 
       if (resolvedProxyUrl) {
         const mergedNoProxy = mergeNoProxy(NO_PROXY, this.inheritedNoProxy)
-        setGlobalDispatcher(
+        this.replaceDispatcher(
           createGlobalFetchDispatcher({
             httpProxy: resolvedProxyUrl,
             httpsProxy: resolvedProxyUrl,
@@ -116,12 +139,15 @@ export class ProxyConfig {
         )
         this.commitResolvedProxy(resolvedProxyUrl, mergedNoProxy)
       } else {
-        setGlobalDispatcher(createGlobalFetchDispatcher())
+        this.replaceDispatcher(createGlobalFetchDispatcher())
         this.proxyUrl = null
-        this.clearProxyEnv()
+        this.noProxy = ''
+        this.version++
+        applyProxyEnvironment(null, '')
       }
       return true
     } catch (error) {
+      if (this.closing || this.failure) throw error
       console.error('Failed to resolve proxy:', error)
       // Leave the last good dispatcher in place. Recreating it here leaks the
       // previous pool and can drop a working proxy after a later resolve fails.
@@ -129,40 +155,28 @@ export class ProxyConfig {
     }
   }
 
-  private clearProxyEnv(): void {
-    delete process.env.http_proxy
-    delete process.env.https_proxy
-    delete process.env.HTTP_PROXY
-    delete process.env.HTTPS_PROXY
-    delete process.env.GRPC_PROXY
-    delete process.env.grpc_proxy
-    delete process.env.no_proxy
-    delete process.env.NO_PROXY
-  }
-
   private async clearProxy(): Promise<void> {
     await session.defaultSession.setProxy({ mode: 'direct' })
+    this.assertActive()
+    this.replaceDispatcher(createGlobalFetchDispatcher())
     this.proxyUrl = null
-    this.clearProxyEnv()
-    setGlobalDispatcher(createGlobalFetchDispatcher())
+    this.noProxy = ''
+    this.version++
+    applyProxyEnvironment(null, '')
   }
 
   private commitResolvedProxy(proxyUrl: string, mergedNoProxy: string): void {
     this.proxyUrl = proxyUrl
-    process.env.http_proxy = proxyUrl
-    process.env.https_proxy = proxyUrl
-    process.env.HTTP_PROXY = proxyUrl
-    process.env.HTTPS_PROXY = proxyUrl
-    process.env.GRPC_PROXY = proxyUrl
-    process.env.grpc_proxy = proxyUrl
-    process.env.no_proxy = mergedNoProxy
-    process.env.NO_PROXY = mergedNoProxy
+    this.noProxy = mergedNoProxy
+    this.version++
+    applyProxyEnvironment(proxyUrl, mergedNoProxy)
   }
 
   private async setCustomProxy(proxyUrl: string): Promise<void> {
     await session.defaultSession.setProxy({ proxyRules: proxyUrl })
+    this.assertActive()
     const mergedNoProxy = mergeNoProxy(NO_PROXY, this.inheritedNoProxy)
-    setGlobalDispatcher(
+    this.replaceDispatcher(
       createGlobalFetchDispatcher({
         httpProxy: proxyUrl,
         httpsProxy: proxyUrl,
@@ -198,8 +212,8 @@ export class ProxyConfig {
       }
 
       return true
-    } catch (error) {
-      console.error('Invalid proxy URL:', error)
+    } catch {
+      console.error('Invalid proxy URL')
       return false
     }
   }
@@ -208,11 +222,17 @@ export class ProxyConfig {
     return this.proxyUrl
   }
 
+  async getProxySnapshot(): Promise<CoreProxySnapshot> {
+    await this.whenReady()
+    return { version: this.version, proxyUrl: this.proxyUrl, noProxy: this.noProxy }
+  }
+
   getProxyMode(): ProxyMode {
     return this.mode
   }
 
   setProxyMode(mode: ProxyMode): void {
+    this.assertActive()
     this.mode = mode
   }
 
@@ -221,16 +241,18 @@ export class ProxyConfig {
   }
 
   setCustomProxyUrl(url: string): void {
+    this.assertActive()
     // 只设置有效的URL，否则保留原有值
     if (this.isValidProxyUrl(url) || url.trim() === '') {
       this.customProxyUrl = url
     } else {
-      console.warn('Invalid proxy URL format:', url)
+      console.warn('Invalid proxy URL format')
     }
   }
 
   // 从配置初始化代理设置
   initFromConfig(mode: string, customUrl: string): void {
+    this.assertActive()
     this.mode =
       mode === ProxyMode.NONE
         ? ProxyMode.NONE
@@ -247,7 +269,31 @@ export class ProxyConfig {
       }
     }
     this.ensureTimeoutDispatcher()
-    void this.resolveProxy()
+    void this.resolveProxy().catch((error) => {
+      if (!this.closing && !this.failure) this.failed(error)
+    })
+  }
+
+  close(): Promise<void> {
+    if (this.closing) return this.closing
+    const dispatchers = [...this.retiring.keys(), ...(this.dispatcher ? [this.dispatcher] : [])]
+    const retirements = [...this.retiring.values()]
+    const resolution = this.resolutionPromise.catch(() => {})
+    this.closing = Promise.resolve().then(async () => {
+      const results = await Promise.allSettled([
+        ...dispatchers.map(
+          async (dispatcher) => await dispatcher.destroy(new Error('Native HTTP is stopping'))
+        ),
+        ...retirements
+      ])
+      await resolution
+      const errors = results.flatMap((result) =>
+        result.status === 'rejected' ? [result.reason] : []
+      )
+      if (errors.length) throw new AggregateError(errors, 'Native HTTP did not retire')
+      this.retiring.clear()
+      this.dispatcher = undefined
+    })
+    return this.closing
   }
 }
-export const proxyConfig = new ProxyConfig()

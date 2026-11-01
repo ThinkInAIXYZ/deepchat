@@ -1,5 +1,5 @@
 import { app, dialog } from 'electron'
-import { StartupWorkloadCoordinator } from './app/startupWorkloadCoordinator'
+import { randomUUID } from 'node:crypto'
 import { registerWorkspacePreviewSchemes } from './app/protocols'
 import { registerMcpAppScheme } from './mcp/apps/sandboxProtocol'
 import {
@@ -48,6 +48,8 @@ export function startApp(): void {
   registerMcpAppScheme()
 
   let mainProcess: MainProcessControl | undefined
+  let startupCompletion: Promise<void> | undefined
+  const startupController = new AbortController()
   let allowQuit = false
   let shutdownPromise: Promise<void> | undefined
   let shutdownReason: MainLogShutdownReason = 'app_quit'
@@ -130,8 +132,7 @@ export function startApp(): void {
     })
   }
 
-  const startupWorkloadCoordinator = new StartupWorkloadCoordinator()
-  const mainStartupRunId = startupWorkloadCoordinator.createRun('main')
+  const mainStartupRunId = randomUUID()
   const startupStartedAt = readMonotonicNow()
   mainLogger.emit('app.startup.started', {
     startupRunId: mainStartupRunId,
@@ -148,9 +149,10 @@ export function startApp(): void {
       throw new Error('Cannot install update while application shutdown is already in progress')
     }
 
-    activeMainProcess.clearPermissionCaches()
     let actionClaim: MainShutdownActionClaim | undefined
     shutdownPromise = (async () => {
+      await startupCompletion
+      await activeMainProcess.clearPermissionCaches()
       actionClaim = await activeMainProcess.stop('update_install')
       if (!actionClaim) {
         throw new Error('Application shutdown is already owned by another action')
@@ -169,13 +171,13 @@ export function startApp(): void {
     }
   }
 
-  app.whenReady().then(async () => {
+  startupCompletion = app.whenReady().then(async () => {
     ensureRegularAppOnMac()
     try {
       mainProcess = await startMainProcess(
-        startupWorkloadCoordinator,
         mainStartupRunId,
-        requestUpdateInstall
+        requestUpdateInstall,
+        startupController.signal
       )
       const durationMs = elapsedMonotonicMs(startupStartedAt)
       mainLogger.emit('app.startup.terminal', {
@@ -184,7 +186,8 @@ export function startApp(): void {
         ...(durationMs === undefined ? {} : { durationMs })
       })
     } catch (error) {
-      reportNativeMainError('main: Application startup failed:', error)
+      if (!startupController.signal.aborted)
+        reportNativeMainError('main: Application startup failed:', error)
       const durationMs = elapsedMonotonicMs(startupStartedAt)
       mainLogger.emit('app.startup.terminal', {
         startupRunId: mainStartupRunId,
@@ -192,27 +195,30 @@ export function startApp(): void {
         ...(durationMs === undefined ? {} : { durationMs }),
         error: classifyMainLogError(error)
       })
-      dialog.showErrorBox(
-        'Application startup failed',
-        error instanceof Error ? error.message : String(error)
-      )
+      if (!startupController.signal.aborted)
+        dialog.showErrorBox(
+          'Application startup failed',
+          error instanceof Error ? error.message : String(error)
+        )
       allowQuit = true
       app.quit()
     }
   })
 
   app.on('before-quit', (event) => {
-    mainProcess?.clearPermissionCaches()
     if (allowQuit) {
       return
     }
 
     event.preventDefault()
+    if (!mainProcess) startupController.abort()
     if (shutdownPromise) {
       return
     }
 
     shutdownPromise = (async () => {
+      // The main window can be ready while the splash transition is still pending.
+      await startupCompletion
       const activeMainProcess = mainProcess
       if (!activeMainProcess) {
         allowQuit = true
@@ -220,6 +226,7 @@ export function startApp(): void {
         return
       }
 
+      await activeMainProcess.clearPermissionCaches()
       const confirmed = await activeMainProcess.confirmShutdown()
       if (!confirmed) {
         activeMainProcess.cancelShutdown()
@@ -256,12 +263,18 @@ export function startApp(): void {
         shutdownPromise = undefined
         shutdownReason = 'app_quit'
       }
-    })()
+    })().catch((error) => {
+      reportNativeMainError('main: Application shutdown preflight failed:', error)
+      shutdownPromise = undefined
+      shutdownReason = 'app_quit'
+    })
   })
 
   // Handle window-all-closed event
   app.on('window-all-closed', () => {
-    mainProcess?.clearPermissionCaches()
+    void mainProcess?.clearPermissionCaches().catch((error) => {
+      reportNativeMainError('main: Failed to clear permission caches:', error)
+    })
     if (!mainProcess) return
 
     if (!mainProcess.hasMainWindows()) {

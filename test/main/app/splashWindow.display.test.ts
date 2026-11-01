@@ -158,7 +158,7 @@ describe('SplashWindow display gating', () => {
     mockIpcMain.on.mockClear()
     splashLoadMocks.loadURL = undefined
     splashLoadMocks.loadFile = undefined
-    delete process.env.ELECTRON_RENDERER_URL
+    vi.stubEnv('ELECTRON_RENDERER_URL', undefined)
   })
 
   afterEach(async () => {
@@ -169,8 +169,31 @@ describe('SplashWindow display gating', () => {
       manager = null
     }
     vi.useRealTimers()
+    vi.unstubAllEnvs()
     createdWindows.length = 0
   })
+
+  it.each(['unlock', 'recovery'] as const)(
+    'cancels pending and future database %s requests during startup quit',
+    async (kind) => {
+      const { SplashWindow } = await import('../../../src/main/app/splashWindow')
+      manager = new SplashWindow()
+      const request = () =>
+        kind === 'unlock'
+          ? manager!.requestDatabaseUnlock({
+              reason: 'manual-required',
+              safeStorageAvailable: true
+            })
+          : manager!.requestDatabaseRecovery({
+              kind: 'true-corruption',
+              preservedPath: '/tmp/agent.db.corrupt'
+            })
+      const pending = request()
+      manager.cancelDatabaseStartup()
+      await expect(pending).resolves.toBeNull()
+      await expect(request()).resolves.toBeNull()
+    }
+  )
 
   it('creates a transparent splash window canvas', async () => {
     const { SplashWindow } = await import('../../../src/main/app/splashWindow')
@@ -407,7 +430,7 @@ describe('SplashWindow display gating', () => {
   })
 
   it('falls back to an inline splash renderer when the dev page is unavailable', async () => {
-    process.env.ELECTRON_RENDERER_URL = 'http://localhost:5173'
+    vi.stubEnv('ELECTRON_RENDERER_URL', 'http://localhost:5173')
     splashLoadMocks.loadURL = vi.fn(async (url: string) => {
       if (url.startsWith('data:text/html')) {
         return
@@ -535,7 +558,7 @@ describe('SplashWindow display gating', () => {
   })
 
   it('stops splash renderer fallback quietly after the hidden splash is suppressed', async () => {
-    process.env.ELECTRON_RENDERER_URL = 'http://localhost:5173'
+    vi.stubEnv('ELECTRON_RENDERER_URL', 'http://localhost:5173')
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     splashLoadMocks.loadURL = vi.fn(async () => {

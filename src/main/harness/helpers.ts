@@ -25,8 +25,6 @@ type Factories = {
   code(signal: AbortSignal): Promise<CodeModeHost>
   scheduler(signal: AbortSignal): Promise<SchedulerHost>
   watcher: SpawnFileWatcherHost
-  // Resolve only after the profile-scoped descendants of this owned PID are attested and retired.
-  retireExec(ownerPid: number | undefined): Promise<void>
 }
 
 type Host = {
@@ -48,7 +46,6 @@ type Helper = {
   exitReceipt?: Promise<void>
   startReceipt?: Promise<void>
   startupFailed: boolean
-  ownerPid?: number
   retired?: Promise<void>
   dead: boolean
   termination?: Promise<void>
@@ -99,7 +96,6 @@ export class CoreHelperNative {
             helper.controller.signal.throwIfAborted()
             helper.host = await this.spawn(helper.kind, helper.controller.signal)
             const host = helper.host
-            helper.ownerPid = host.pid()
             host.onMessage((message) => {
               if (!helper.dead)
                 void this.enqueue(helper, { type: 'message', message }).catch(() => {})
@@ -221,11 +217,11 @@ export class CoreHelperNative {
   private stopHost(helper: Helper): Promise<void> {
     helper.retired ??= (async () => {
       try {
-        if (!helper.dead) await helper.host!.stop()
-      } catch {}
-      // Exit and attested descendant cleanup remain authoritative if callback delivery fails.
+        if (!helper.dead || helper.kind === 'exec') await helper.host!.stop()
+      } catch (error) {
+        if (helper.kind === 'exec') throw error
+      }
       await helper.exited.promise
-      if (helper.kind === 'exec') await this.factories.retireExec(helper.ownerPid)
       await helper.exitReceipt?.catch(() => {})
     })()
     return helper.retired

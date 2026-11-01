@@ -143,7 +143,7 @@ const createHarness = (registryOverride?: McpAppSandboxRegistry) => {
 
 describe('MCP App host', () => {
   it('does not publish a view after its owner closes during resource loading', async () => {
-    const registry = new McpAppSandboxRegistry()
+    const registry = new McpAppSandboxRegistry(() => () => {})
     const { host, client } = createHarness(registry)
     let release!: (resources: unknown[]) => void
     client.readResourceContents.mockReturnValueOnce(
@@ -175,7 +175,7 @@ describe('MCP App host', () => {
   })
 
   it('fences a delayed desktop observation when maintenance clears creation', async () => {
-    const registry = new McpAppSandboxRegistry()
+    const registry = new McpAppSandboxRegistry(() => () => {})
     const { host, desktop, client } = createHarness(registry)
     let release!: () => void
     desktop.observeOwner.mockReturnValueOnce(

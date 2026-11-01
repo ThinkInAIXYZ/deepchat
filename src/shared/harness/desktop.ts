@@ -11,16 +11,26 @@ import { SPLASH_DEBUG_MODES } from '../contracts/splash'
 import {
   RendererPerformanceRecordSchema,
   fileSaveImageRoute,
-  fileCopyImageRoute
+  fileCopyImageRoute,
+  computerUseSetPreviewModeRoute
 } from '../contracts/routes'
 
 const text = z.string()
 const empty = z.tuple([])
 const record = z.record(text, z.unknown())
+export const CoreProxySnapshotSchema = z
+  .object({
+    version: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    proxyUrl: text.nullable(),
+    noProxy: text
+  })
+  .strict()
+export type CoreProxySnapshot = z.infer<typeof CoreProxySnapshotSchema>
 export const CoreWindowTargetSchema = z
   .object({ windowId: z.number().int().positive(), webContentsId: z.number().int().positive() })
   .strict()
 const context = CoreWindowTargetSchema.extend({ windowId: z.number().int().positive().nullable() })
+const rendererCaller = context.extend({ kind: z.literal('renderer') })
 const envelope = z
   .object({ name: text.refine(hasDeepchatEventContract), payload: z.unknown() })
   .strict()
@@ -46,15 +56,14 @@ export const CoreDesktopArguments = {
   'configurationHost.drainWrites': empty,
   'configurationHost.startWrites': empty,
   isSettingsWindow: z.tuple([z.number().int().positive().nullable()]),
-  isMainWindowContext: z.tuple([
-    z
-      .object({
-        kind: z.literal('renderer'),
-        webContentsId: z.number().int().positive(),
-        windowId: z.number().int().positive().nullable()
-      })
-      .strict()
+  isMainWindowContext: z.tuple([rendererCaller]),
+  'sessionPresentation.focusBrowser': z.tuple([text, rendererCaller]),
+  'sessionPresentation.setComputerUsePreview': z.tuple([
+    text,
+    computerUseSetPreviewModeRoute.input.shape.mode,
+    rendererCaller
   ]),
+  'sessionPresentation.dismissComputerUsePreview': z.tuple([text, text, rendererCaller]),
   'rendererPerformance.record': z.tuple([RendererPerformanceRecordSchema]),
   'splash.showDebugScenario': z.tuple([z.enum(SPLASH_DEBUG_MODES)]),
   'splash.closeDebugScenario': empty,
@@ -77,30 +86,13 @@ export const CoreDesktopArguments = {
   assertSyncTokenStorageAvailable: empty,
   'semanticNotifications.occur': z.tuple([semanticNotificationIntentSchema]),
   'semanticNotifications.recover': z.tuple([semanticNotificationIntentSchema]),
-  'dialog.showDialog': z.tuple([
-    z
-      .object({
-        title: text,
-        description: text.optional(),
-        i18n: z.boolean().optional(),
-        icon: z.object({ icon: text, class: text }).strict().optional(),
-        buttons: z
-          .array(z.object({ key: text, label: text, default: z.boolean().optional() }).strict())
-          .optional(),
-        timeout: z.number().finite().optional()
-      })
-      .strict()
-  ]),
-  'dialog.handleDialogResponse': z.tuple([z.object({ id: text, button: text }).strict()]),
-  'dialog.handleDialogError': z.tuple([text]),
   'secureCrypto.isAvailable': empty,
   'secureCrypto.encrypt': z.tuple([text]),
   'secureCrypto.decrypt': z.tuple([text]),
   'providerCrypto.isAvailable': empty,
   'providerCrypto.encrypt': z.tuple([text]),
   'providerCrypto.decrypt': z.tuple([text]),
-  getProxyUrl: empty,
-  whenProxyReady: empty,
+  getProxySnapshot: empty,
   openExternal: z.tuple([text]),
   openPath: z.tuple([text]),
   selectDirectory: empty,
@@ -218,8 +210,6 @@ const retirement = new Set<CoreDesktopMethod>([
   'configurationHost.drainWrites',
   'remoteAuthWindows.closeAll',
   'approvalPresentation.close',
-  'dialog.handleDialogResponse',
-  'dialog.handleDialogError',
   'pluginSettingsWindow.close',
   'pluginSettingsWindow.closeAll',
   'remoteAuthWindows.close',

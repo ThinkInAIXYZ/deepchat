@@ -1,7 +1,15 @@
-import type { IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, webContents, type IpcMainInvokeEvent } from 'electron'
 import { createAppDocumentMatcher } from '@shared/rendererDocument'
+import type { RendererRouteCaller } from '@/routes/routeRegistry'
 
 export type AuthorizeRendererIpc = (event: IpcMainInvokeEvent, routeName?: string) => void
+
+export function isRendererWindowCurrent(caller: RendererRouteCaller): boolean {
+  const contents = webContents.fromId(caller.webContentsId)
+  if (!contents || contents.isDestroyed()) return false
+  const window = BrowserWindow.fromWebContents(contents)
+  return (window?.id ?? null) === caller.windowId && (!window || !window.isDestroyed())
+}
 
 const PLUGIN_SETTINGS_ROUTES = new Set([
   'plugins.get',

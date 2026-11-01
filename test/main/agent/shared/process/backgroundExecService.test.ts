@@ -22,7 +22,7 @@ const deferred = <T>() => {
 function helper() {
   const host = Object.assign(new EventEmitter(), {
     pid: 123,
-    kill: vi.fn(),
+    kill: vi.fn(async () => {}),
     postMessage: vi.fn<(request: BackgroundExecRpcRequest) => void>(),
     onMessage(listener: (message: unknown) => void) {
       host.on('message', listener)
@@ -66,6 +66,33 @@ const ownedTree = {
 }
 
 describe('Background execution ownership', () => {
+  it('captures command overrides and environment deletion across a reused helper', async () => {
+    const host = helper()
+    const owner = new BackgroundExecService(async () => host)
+    vi.stubEnv('DEEPCHAT_COMMAND_ENV', 'core-value')
+    try {
+      await owner.start('a', 'first', '/workspace', {
+        ...options,
+        env: { DEEPCHAT_COMMAND_OVERRIDE: 'command-value' }
+      })
+      delete process.env.DEEPCHAT_COMMAND_ENV
+      await owner.start('b', 'second', '/workspace', options)
+      const starts = host.postMessage.mock.calls
+        .map(([request]) => request)
+        .filter((request) => request.method === 'start')
+      expect((starts[0].args[3] as { env: Record<string, string> }).env).toMatchObject({
+        DEEPCHAT_COMMAND_ENV: 'core-value',
+        DEEPCHAT_COMMAND_OVERRIDE: 'command-value'
+      })
+      expect((starts[1].args[3] as { env: Record<string, string> }).env).not.toHaveProperty(
+        'DEEPCHAT_COMMAND_ENV'
+      )
+    } finally {
+      vi.unstubAllEnvs()
+      await owner.shutdown()
+    }
+  })
+
   it('shares pending helper startup and rejects terminal restart', async () => {
     const ready = deferred<ReturnType<typeof helper>>()
     const spawn = vi.fn(() => ready.promise)
@@ -73,10 +100,20 @@ describe('Background execution ownership', () => {
     const first = owner.start('a', 'first', '/workspace', options)
     const second = owner.start('b', 'second', '/workspace', options)
     await vi.waitFor(() => expect(spawn).toHaveBeenCalledOnce())
-    ready.resolve(helper())
+    const host = helper()
+    ready.resolve(host)
     const sessions = await Promise.all([first, second])
     expect(sessions[0].sessionId).not.toBe(sessions[1].sessionId)
-    await owner.shutdown()
+    const retirement = deferred<void>()
+    host.kill.mockImplementationOnce(() => retirement.promise)
+    let stopped = false
+    const stopping = owner.shutdown().then(() => {
+      stopped = true
+    })
+    await vi.waitFor(() => expect(host.kill).toHaveBeenCalledOnce())
+    expect(stopped).toBe(false)
+    retirement.resolve()
+    await stopping
     await expect(owner.start('c', 'late', '/workspace', options)).rejects.toMatchObject({
       name: 'AbortError'
     })
@@ -147,8 +184,14 @@ describe('Background execution ownership', () => {
     const spawn = vi.fn().mockResolvedValueOnce(old).mockResolvedValueOnce(current)
     const owner = new BackgroundExecService(spawn)
     await owner.start('a', 'first', '/workspace', options)
+    const retirement = deferred<void>()
+    old.kill.mockImplementationOnce(() => retirement.promise)
     old.emit('exit', 1)
-    const next = await owner.start('a', 'second', '/workspace', options)
+    const opening = owner.start('a', 'second', '/workspace', options)
+    await Promise.resolve()
+    expect(spawn).toHaveBeenCalledOnce()
+    retirement.resolve()
+    const next = await opening
     old.emit('exit', 2)
     old.emit('message', {
       type: 'background-exec:response',

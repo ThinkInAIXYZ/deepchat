@@ -1664,24 +1664,11 @@ function createRuntime() {
     assertActive: () => {}
   })
   const desktopRoutes = createDesktopRoutes({
-    ownsDraftSession: sessionLifecyclePort.ownsDraftSession,
     windowPresenter,
     shortcutPresenter,
     browserPresenter: yoBrowserPresenter,
-    computerUsePreviewPresenter,
-    desktopSessionBinding,
     tabPresenter,
-    dialogService: dialogService as unknown as DialogServicePort,
-    settings: appSettingsService,
-    appearance: {
-      getLanguage: () => appSettingsService.getLanguage(),
-      setLanguage: (language) => appSettingsService.setLanguage(language),
-      getTheme: () => appSettingsService.getTheme(),
-      setTheme: (theme) => appSettingsService.setTheme(theme)
-    },
-    recordActivity: (input) => {
-      void sqlitePresenter.recordSettingsActivity(input)
-    }
+    dialogService: dialogService as unknown as DialogServicePort
   })
   const fileRoutes = createFileRoutes(fileService, {
     saveImage: vi.fn().mockResolvedValue({ canceled: true }),
@@ -1723,6 +1710,15 @@ function createRuntime() {
     lifecycle: sessionLifecyclePort,
     projection: sessionProjectionPort,
     desktop: desktopSessionBinding,
+    openDesktopSession: vi.fn(async () => true),
+    presentation: {
+      focusBrowser: async (sessionId, caller) =>
+        yoBrowserPresenter.focusSessionBrowser(sessionId, caller.windowId!),
+      setComputerUsePreview: async (sessionId, mode, caller) =>
+        await computerUsePreviewPresenter.setPreviewMode(sessionId, mode, caller.windowId!),
+      dismissComputerUsePreview: async (sessionId, runId) =>
+        computerUsePreviewPresenter.dismissPreview(sessionId, runId)
+    },
     turn: sessionTurnPort,
     assignment: sessionAssignmentPort,
     permission: sessionPermissionPort,
@@ -1799,8 +1795,7 @@ function createRuntime() {
   })
   const exporterRoutes = createExporterRoutes(exporter)
   const upgradeRoutes = createUpgradeRoutes({
-    upgrade: {} as never,
-    settings: appSettingsService
+    upgrade: {} as never
   })
   const syncRoutes = createSyncRoutes({
     sync: syncService,

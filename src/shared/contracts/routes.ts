@@ -486,6 +486,8 @@ import {
 } from './routes/runs.routes'
 import {
   sessionsActivateRoute,
+  sessionsGetWidgetSnapshotRoute,
+  sessionsOpenDesktopRoute,
   sessionsSearchReferenceCandidatesRoute,
   sessionsResolveReferenceRoute,
   sessionsClearMessagesRoute,
@@ -1013,6 +1015,8 @@ const DEEPCHAT_ROUTE_CATALOG_PART_4 = {
   [sessionsRestoreRoute.name]: sessionsRestoreRoute,
   [sessionsListMessagesPageRoute.name]: sessionsListMessagesPageRoute,
   [sessionsListRoute.name]: sessionsListRoute,
+  [sessionsGetWidgetSnapshotRoute.name]: sessionsGetWidgetSnapshotRoute,
+  [sessionsOpenDesktopRoute.name]: sessionsOpenDesktopRoute,
   [sessionsListLightweightRoute.name]: sessionsListLightweightRoute,
   [sessionsGetLightweightByIdsRoute.name]: sessionsGetLightweightByIdsRoute,
   [sessionsActivateRoute.name]: sessionsActivateRoute,

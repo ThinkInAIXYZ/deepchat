@@ -20,7 +20,6 @@ import {
   type YoBrowserActivityRect,
   type YoBrowserStatus
 } from '@shared/types/browser'
-import type { DownloadInfo } from '@shared/types/browser'
 import type { IWindowPresenter, IYoBrowserPresenter } from '@shared/types/desktop'
 import {
   AgentPreviewCoordinator,
@@ -30,7 +29,7 @@ import {
 import { BrowserTab as BrowserPage } from './BrowserTab'
 import { BrowserProfileImportService } from './BrowserProfileImportService'
 import { CDPManager } from './CDPManager'
-import { DownloadManager } from './DownloadManager'
+import { closeWebContents } from '../closeWebContents'
 import { ScreenshotManager } from './ScreenshotManager'
 import {
   clearYoBrowserSessionData,
@@ -75,6 +74,7 @@ type SessionBrowserState = {
   previewBurstUntil: number
   targetDispatchObserved: boolean
   createdEventPublished: boolean
+  closing?: Promise<void>
 }
 
 type HostWindowListeners = {
@@ -98,12 +98,12 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   private readonly hostWindowListeners = new Map<number, HostWindowListeners>()
   private readonly cdpManager = new CDPManager()
   private readonly screenshotManager = new ScreenshotManager(this.cdpManager)
-  private readonly downloadManager = new DownloadManager()
   private readonly profileImportService = new BrowserProfileImportService(
     getYoBrowserSession,
     getYoBrowserUnpartitionedCookies
   )
   private browserDataMutationActive = false
+  private closing: Promise<void> | undefined
   private readonly windowPresenter: IWindowPresenter
   private readonly previewCoordinator: AgentPreviewCoordinator
   private readonly unregisterPreviewHandler: () => void
@@ -156,6 +156,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       if (activitySource !== 'agent' && state.previewHost) {
         await this.releasePreviewHost(state)
       }
+      if (this.closing || state.closing) throw new Error('Native browser is stopping')
       const projectDispatch = () => {
         state.targetDispatchObserved = true
         const publishCreated = () => {
@@ -273,6 +274,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
     this.previewCoordinator.hide(this.nativeTargetRef(state))
     await this.releasePreviewHost(state)
+    if (this.closing || state.closing) return false
 
     this.detachOtherSessionBrowsers(hostWindowId, sessionId)
 
@@ -457,28 +459,19 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     this.previewCoordinator.releaseClaim({ source: 'browser', sessionId, runId })
   }
 
-  async destroySessionBrowser(sessionId: string): Promise<void> {
+  destroySessionBrowser(sessionId: string): Promise<void> {
     const state = this.sessionBrowsers.get(sessionId)
-    if (!state) {
-      return
-    }
-
-    this.previewCoordinator.releaseClaim(this.nativeTargetRef(state))
-    await this.releasePreviewHost(state)
-    await this.detachSessionBrowser(sessionId)
-    state.page.destroy()
-    state.overlay.destroy()
-    this.sessionBrowsers.delete(sessionId)
-
-    if (!state.view.webContents.isDestroyed()) {
-      try {
-        state.view.webContents.close()
-      } catch {
-        // Ignore view shutdown failures.
-      }
-    }
-
-    this.emitWindowClosed(sessionId)
+    if (!state) return Promise.resolve()
+    if (state.closing) return state.closing
+    state.closing = Promise.resolve().then(async () => {
+      this.previewCoordinator.releaseClaim(this.nativeTargetRef(state))
+      await this.releasePreviewHost(state)
+      await this.detachSessionBrowser(sessionId)
+      state.page.destroy()
+      await closeWebContents(state.view.webContents)
+      this.handleDestroyedContents(state)
+    })
+    return state.closing
   }
 
   async goBack(sessionId: string): Promise<void> {
@@ -602,14 +595,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     return await state.page.sendCdpCommand(method, params, beforeDispatch, projectDispatch, signal)
   }
 
-  async startDownload(url: string, savePath?: string): Promise<DownloadInfo> {
-    const state = this.findPreferredSessionState()
-    if (!state || state.page.contents.isDestroyed()) {
-      throw new Error('No active session browser available')
-    }
-    return await this.downloadManager.downloadFile(url, savePath, state.page.contents)
-  }
-
   async clearSandboxData(): Promise<void> {
     await this.runBrowserDataMutation(async () => {
       await clearYoBrowserSessionData()
@@ -641,16 +626,26 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     })
   }
 
-  async shutdown(): Promise<void> {
-    for (const sessionId of Array.from(this.sessionBrowsers.keys())) {
-      await this.destroySessionBrowser(sessionId)
-    }
-    this.unregisterPreviewHandler()
+  shutdown(): Promise<void> {
+    if (this.closing) return this.closing
+    this.closing = Promise.resolve().then(async () => {
+      const results = await Promise.allSettled(
+        [...this.sessionBrowsers.keys()].map((sessionId) => this.destroySessionBrowser(sessionId))
+      )
+      this.unregisterPreviewHandler()
+      const errors = results.flatMap((result) =>
+        result.status === 'rejected' ? [result.reason] : []
+      )
+      if (errors.length) throw new AggregateError(errors, 'Native browser pages did not retire')
+    })
+    return this.closing
   }
 
   private ensureSessionBrowserState(sessionId: string): SessionBrowserState {
+    if (this.closing) throw new Error('Native browser is stopping')
     const existing = this.sessionBrowsers.get(sessionId)
     if (existing) {
+      if (existing.closing) throw new Error('Native browser is stopping')
       return existing
     }
 
@@ -724,6 +719,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   private async runBrowserDataMutation<T>(mutation: () => Promise<T>): Promise<T> {
+    if (this.closing) throw new Error('Native browser is stopping')
     if (this.browserDataMutationActive) {
       throw new Error('browser_data_mutation_in_progress')
     }
@@ -840,13 +836,13 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     )
 
     contents.on('destroyed', () => {
-      this.handleDestroyedContents(sessionId)
+      this.handleDestroyedContents(state)
     })
   }
 
-  private handleDestroyedContents(sessionId: string): void {
-    const state = this.sessionBrowsers.get(sessionId)
-    if (!state) {
+  private handleDestroyedContents(state: SessionBrowserState): void {
+    const { sessionId } = state
+    if (this.sessionBrowsers.get(sessionId) !== state) {
       return
     }
 
@@ -985,20 +981,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       }
     }
     return null
-  }
-
-  private findPreferredSessionState(): SessionBrowserState | null {
-    const states = [...this.sessionBrowsers.values()]
-    if (states.length === 0) {
-      return null
-    }
-
-    const visibleState = states.find((state) => state.visible)
-    if (visibleState) {
-      return visibleState
-    }
-
-    return states.sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null
   }
 
   private resolveHostWindowId(preferredWindowId?: number): number | null {
@@ -1505,6 +1487,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   private ensurePreviewHost(state: SessionBrowserState): boolean {
+    if (this.closing || state.closing) return false
     if (state.previewHost && !state.previewHost.isDestroyed()) {
       return true
     }

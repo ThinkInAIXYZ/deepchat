@@ -11,6 +11,12 @@ import { cacheImage, type CacheImageOptions } from '@/platform/imageCache'
 const execAsync = promisify(exec)
 
 export class DeviceService implements DeviceServicePort {
+  constructor(
+    private readonly showOpenDialog: (
+      options: Electron.OpenDialogOptions
+    ) => Promise<Electron.OpenDialogReturnValue>
+  ) {}
+
   async getAppVersion(): Promise<string> {
     return app.getVersion()
   }
@@ -304,7 +310,7 @@ export class DeviceService implements DeviceServicePort {
    * @returns 返回所选目录的路径，如果用户取消则返回null
    */
   async selectDirectory(): Promise<{ canceled: boolean; filePaths: string[] }> {
-    return dialog.showOpenDialog({
+    return this.showOpenDialog({
       properties: ['openDirectory', 'createDirectory']
     })
   }
@@ -322,7 +328,7 @@ export class DeviceService implements DeviceServicePort {
     if (options?.multiple) {
       properties.push('multiSelections')
     }
-    return dialog.showOpenDialog({
+    return this.showOpenDialog({
       properties,
       filters: options?.filters
     })

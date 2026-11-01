@@ -1,4 +1,15 @@
 import {
+  configGetUpdateChannelRoute,
+  configSetUpdateChannelRoute,
+  configGetLanguageRoute,
+  configSetLanguageRoute,
+  configGetThemeRoute,
+  configSetThemeRoute,
+  configGetFloatingButtonRoute,
+  configSetFloatingButtonRoute,
+  configGetShortcutKeysRoute,
+  configSetShortcutKeysRoute,
+  configResetShortcutKeysRoute,
   configGetEntriesRoute,
   configUpdateEntriesRoute,
   settingsActivityListRoute,
@@ -22,7 +33,23 @@ import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
 export function createAppSettingsRoutes(deps: {
   settings: Pick<SettingsStore, 'get' | 'set'>
-  appSettings: Pick<AppSettingsService, 'getSnapshot' | 'update' | 'listSystemFonts'>
+  appSettings: Pick<
+    AppSettingsService,
+    | 'getSnapshot'
+    | 'update'
+    | 'listSystemFonts'
+    | 'getLanguage'
+    | 'setLanguage'
+    | 'getTheme'
+    | 'setTheme'
+    | 'getFloatingButtonEnabled'
+    | 'setFloatingButtonEnabled'
+    | 'getShortcutKeys'
+    | 'setShortcutKeys'
+    | 'resetShortcutKeys'
+    | 'getUpdateChannel'
+    | 'setUpdateChannel'
+  >
   commandShell: Pick<CommandShellService, 'getConfig' | 'setConfig' | 'checkGitBash'>
   publishEvent: DeepchatEventPublisher
   recordActivity(input: SettingsActivityInput): void
@@ -54,6 +81,109 @@ export function createAppSettingsRoutes(deps: {
     return values
   }
   return createRouteMap([
+    [
+      configGetUpdateChannelRoute.name,
+      async (rawInput) => {
+        configGetUpdateChannelRoute.input.parse(rawInput)
+        return configGetUpdateChannelRoute.output.parse({
+          channel: await deps.appSettings.getUpdateChannel()
+        })
+      }
+    ],
+    [
+      configSetUpdateChannelRoute.name,
+      async (rawInput) => {
+        const input = configSetUpdateChannelRoute.input.parse(rawInput)
+        return configSetUpdateChannelRoute.output.parse({
+          channel: await deps.appSettings.setUpdateChannel(input.channel)
+        })
+      }
+    ],
+    [
+      configGetLanguageRoute.name,
+      async (rawInput) => {
+        configGetLanguageRoute.input.parse(rawInput)
+        return configGetLanguageRoute.output.parse(await deps.appSettings.getLanguage())
+      }
+    ],
+    [
+      configSetLanguageRoute.name,
+      async (rawInput) => {
+        const input = configSetLanguageRoute.input.parse(rawInput)
+        return configSetLanguageRoute.output.parse(
+          await deps.appSettings.setLanguage(input.language)
+        )
+      }
+    ],
+    [
+      configGetThemeRoute.name,
+      async (rawInput) => {
+        configGetThemeRoute.input.parse(rawInput)
+        return configGetThemeRoute.output.parse(await deps.appSettings.getTheme())
+      }
+    ],
+    [
+      configSetThemeRoute.name,
+      async (rawInput) => {
+        const input = configSetThemeRoute.input.parse(rawInput)
+        return configSetThemeRoute.output.parse(await deps.appSettings.setTheme(input.theme))
+      }
+    ],
+    [
+      configGetFloatingButtonRoute.name,
+      async (rawInput) => {
+        configGetFloatingButtonRoute.input.parse(rawInput)
+        return configGetFloatingButtonRoute.output.parse({
+          enabled: await deps.appSettings.getFloatingButtonEnabled()
+        })
+      }
+    ],
+    [
+      configSetFloatingButtonRoute.name,
+      async (rawInput) => {
+        const input = configSetFloatingButtonRoute.input.parse(rawInput)
+        return configSetFloatingButtonRoute.output.parse({
+          enabled: await deps.appSettings.setFloatingButtonEnabled(input.enabled)
+        })
+      }
+    ],
+    [
+      configGetShortcutKeysRoute.name,
+      async (rawInput) => {
+        configGetShortcutKeysRoute.input.parse(rawInput)
+        return configGetShortcutKeysRoute.output.parse({
+          shortcuts: await deps.appSettings.getShortcutKeys()
+        })
+      }
+    ],
+    [
+      configSetShortcutKeysRoute.name,
+      async (rawInput) => {
+        const input = configSetShortcutKeysRoute.input.parse(rawInput)
+        return configSetShortcutKeysRoute.output.parse({
+          shortcuts: await deps.appSettings.setShortcutKeys(input.shortcuts)
+        })
+      }
+    ],
+    [
+      configResetShortcutKeysRoute.name,
+      async (rawInput) => {
+        configResetShortcutKeysRoute.input.parse(rawInput)
+        const shortcuts = await deps.appSettings.resetShortcutKeys()
+        deps.recordActivity({
+          category: 'shortcut',
+          action: 'reset',
+          targetType: 'shortcut',
+          targetLabel: 'Shortcuts',
+          routeName: 'settings-shortcut',
+          summaryKey: 'settings.controlCenter.activity.settingUpdated',
+          summaryParams: { key: 'shortcuts' }
+        })
+        return configResetShortcutKeysRoute.output.parse({
+          shortcuts
+        })
+      }
+    ],
     [
       configGetEntriesRoute.name,
       async (rawInput) => {

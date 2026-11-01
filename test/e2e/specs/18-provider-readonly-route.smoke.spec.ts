@@ -14,7 +14,7 @@ test('provider settings read-only routes expose provider and model snapshots @sm
   })
 
   if ((await settingsPage.locator('[data-provider-id]').count()) === 0) {
-    await settingsPage.getByTestId('disabled-providers-toggle').click()
+    await settingsPage.getByTestId('provider-browse-all').click()
   }
 
   await expect

@@ -53,7 +53,8 @@ export class CoreNativeHelpers {
   ) {}
 
   async spawnBackgroundExecHost(signal: AbortSignal): Promise<BackgroundExecHost> {
-    return this.channel(await this.open('exec', signal))
+    const helper = await this.open('exec', signal)
+    return { ...this.channel(helper), kill: () => this.terminate(helper) }
   }
 
   async spawnSchedulerHost(signal: AbortSignal): Promise<SchedulerHost> {

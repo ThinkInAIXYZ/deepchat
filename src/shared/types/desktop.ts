@@ -6,7 +6,6 @@ import type {
   BrowserPageInfo,
   BrowserPreviewMode,
   BrowserPreviewModeResult,
-  DownloadInfo,
   ScreenshotOptions,
   YoBrowserStatus
 } from './browser'
@@ -143,7 +142,6 @@ export interface IYoBrowserPresenter {
   }>
   captureScreenshot(sessionId: string, options?: ScreenshotOptions): Promise<string>
   getBrowserPage(sessionId: string): Promise<BrowserPageInfo | null>
-  startDownload(url: string, savePath?: string): Promise<DownloadInfo>
   clearSandboxData(): Promise<void>
   scanImportSources(): Promise<BrowserImportScanResult>
   previewImport(profileId: string): Promise<BrowserImportPreview>

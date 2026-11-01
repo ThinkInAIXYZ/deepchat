@@ -10,6 +10,7 @@ import { CoreBrowserEventSchema, type CoreBrowserEvent } from '@shared/harness/b
 import { CoreDesktopEventSchema, type CoreDesktopEvent } from '@shared/harness/desktop'
 import type { HarnessRuntime } from './runtime'
 import type { RouteContext } from '@/routes/routeRegistry'
+import type { McpAppSandboxPort } from '@/mcp/apps/sandboxRegistry'
 import type { CoreProfileHost } from '@/app/profileStartup'
 import type { DatabaseSecurityCryptoPort } from '@/app/databaseSecurity'
 import { DATABASE_STARTUP_FAILURE_KINDS } from '@shared/contracts/databaseSecurity'
@@ -25,6 +26,13 @@ import {
   CoreStatusSchema,
   CoreKernelBootstrapSchema,
   CoreRouteInvocationSchema,
+  CoreMcpAppProtocolCommandSchema,
+  CoreMcpAppProtocolPolicySchema,
+  CoreHostQuerySchema,
+  CoreHostEventSchema,
+  CoreShutdownConfirmationSchema,
+  CoreProfileObservationSchema,
+  CoreFailureComponentSchema,
   isCoreControlRoute,
   type CoreKernelBootstrap,
   type CoreStatus,
@@ -39,7 +47,8 @@ type NativeHandler = (method: CoreNativeMethod, args: unknown) => Promise<unknow
 
 export function createCoreProfileNative(
   crypto: DatabaseSecurityCryptoPort,
-  host: CoreProfileHost
+  host: CoreProfileHost,
+  observe?: (observation: z.infer<typeof CoreProfileObservationSchema>) => void
 ): NativeHandler {
   return async (method, input) => {
     switch (method) {
@@ -100,6 +109,11 @@ export function createCoreProfileNative(
       case 'profile.quit':
         z.tuple([]).parse(input)
         return await host.quit()
+      case 'profile.observation': {
+        const [observation] = z.tuple([CoreProfileObservationSchema]).parse(input)
+        observe?.(observation)
+        return undefined
+      }
       default:
         throw new Error('Unsupported Native profile capability')
     }
@@ -123,6 +137,7 @@ export class CoreRuntimeConnection {
   private routeControl = 0
   private readonly routeQueues: Array<
     Array<{
+      method: 'invokeRoute' | 'invokeControlRoute' | 'mcpAppProtocol' | 'hostQuery'
       snapshot: Uint8Array
       assertCallerActive(): void
       resolve(value: unknown): void
@@ -142,20 +157,28 @@ export class CoreRuntimeConnection {
   private themeObservationDirty = false
   private stopped = false
   private stopPromise: Promise<CoreStatus> | undefined
+  private activating = false
 
   private constructor(
     private readonly runtime: Pick<HarnessRuntime, 'connectCore' | 'stop'>,
     readonly payloads: CorePayloadStore,
-    private readonly native: NativeHandler
+    private readonly native: NativeHandler,
+    private readonly onFailure?: (error: Error) => void
   ) {}
 
   static async connect(options: {
     runtime: Pick<HarnessRuntime, 'connectCore' | 'stop'>
     temporaryDirectory: string
     native: NativeHandler
+    onFailure?(error: Error): void
   }): Promise<CoreRuntimeConnection> {
     const payloads = await CorePayloadStore.create(options.temporaryDirectory)
-    const connection = new CoreRuntimeConnection(options.runtime, payloads, options.native)
+    const connection = new CoreRuntimeConnection(
+      options.runtime,
+      payloads,
+      options.native,
+      options.onFailure
+    )
     try {
       connection.send = options.runtime.connectCore(payloads.config, {
         message: (frame) => connection.receive(frame),
@@ -203,10 +226,78 @@ export class CoreRuntimeConnection {
   }
 
   async startKernel(): Promise<CoreStatus> {
-    const status = CoreStatusSchema.parse(await this.request('startKernel', undefined))
-    if (status.phase !== 'running' || !status.businessReady)
-      throw new Error('Core Kernel did not acknowledge business readiness')
-    return status
+    if (this.activating) throw new Error('Core Kernel activation is pending')
+    this.activating = true
+    try {
+      const status = CoreStatusSchema.parse(await this.request('startKernel', undefined))
+      if (status.phase !== 'running' || !status.businessReady)
+        throw new Error('Core Kernel did not acknowledge business readiness')
+      this.activating = false
+      this.pumpRoutes()
+      return status
+    } catch (error) {
+      this.activating = false
+      this.rejectQueuedRoutes(error instanceof Error ? error : new Error('Core activation failed'))
+      throw error
+    }
+  }
+
+  readonly mcpAppSandbox: McpAppSandboxPort = {
+    getProtocolPolicy: async (instanceId) =>
+      CoreMcpAppProtocolPolicySchema.parse(
+        await this.enqueueBusinessCall(
+          'mcpAppProtocol',
+          CoreMcpAppProtocolCommandSchema.parse({ operation: 'policy', instanceId })
+        )
+      ),
+    requestBrowserPermission: async (instanceId, context, kinds) =>
+      z.boolean().parse(
+        await this.enqueueBusinessCall(
+          'mcpAppProtocol',
+          CoreMcpAppProtocolCommandSchema.parse({
+            operation: 'permission',
+            instanceId,
+            context,
+            kinds
+          })
+        )
+      )
+  }
+
+  readonly host = {
+    observeSettingsWindow: async (action: 'opened' | 'closed' | 'ready'): Promise<void> => {
+      await this.deliverNative(CoreHostEventSchema.parse({ type: 'host.settingsWindow', action }))
+    },
+    systemResume: async (): Promise<void> => {
+      await this.deliverNative(CoreHostEventSchema.parse({ type: 'host.systemResume' }))
+    },
+    resolveWorkspacePreviewRequest: async (url: string): Promise<string | null> =>
+      z
+        .string()
+        .nullable()
+        .parse(
+          await this.enqueueBusinessCall(
+            'hostQuery',
+            CoreHostQuerySchema.parse({ operation: 'workspacePreview', url })
+          )
+        ),
+    hasProvider: async (providerId: string): Promise<boolean> =>
+      z
+        .boolean()
+        .parse(
+          await this.enqueueBusinessCall(
+            'hostQuery',
+            CoreHostQuerySchema.parse({ operation: 'hasProvider', providerId })
+          )
+        ),
+    getShutdownConfirmation: async () => {
+      return CoreShutdownConfirmationSchema.parse(
+        await this.deliverNative(CoreHostEventSchema.parse({ type: 'host.shutdownConfirmation' }))
+      )
+    },
+    clearPermissionCaches: async (): Promise<void> => {
+      await this.deliverNative(CoreHostEventSchema.parse({ type: 'host.clearPermissions' }))
+    }
   }
 
   async invokeRoute(
@@ -216,11 +307,24 @@ export class CoreRuntimeConnection {
     assertCallerActive: () => void
   ): Promise<unknown> {
     assertCallerActive()
+    return await this.enqueueBusinessCall(
+      isCoreControlRoute(routeName) ? 'invokeControlRoute' : 'invokeRoute',
+      CoreRouteInvocationSchema.parse({ routeName, input, context }),
+      assertCallerActive
+    )
+  }
+
+  private async enqueueBusinessCall(
+    method: 'invokeRoute' | 'invokeControlRoute' | 'mcpAppProtocol' | 'hostQuery',
+    input: unknown,
+    assertCallerActive: () => void = () => {}
+  ): Promise<unknown> {
+    assertCallerActive()
     if (this.failure || this.stopped || this.stopPromise)
       throw this.failure ?? new Error('Core is stopping')
-    const snapshot = serialize(CoreRouteInvocationSchema.parse({ routeName, input, context }))
+    const snapshot = serialize(input)
     if (snapshot.length > CORE_VALUE_BYTES) throw new Error('Core route queue exceeded')
-    const control = isCoreControlRoute(routeName)
+    const control = method === 'invokeControlRoute'
     // Only unsent work may yield capacity to cancellation or a human answer.
     while (
       control &&
@@ -239,7 +343,13 @@ export class CoreRuntimeConnection {
     )
       throw new Error('Core route queue exceeded')
     return await new Promise((resolve, reject) => {
-      this.routeQueues[control ? 1 : 0].push({ snapshot, assertCallerActive, resolve, reject })
+      this.routeQueues[control ? 1 : 0].push({
+        method,
+        snapshot,
+        assertCallerActive,
+        resolve,
+        reject
+      })
       this.routeQueued++
       this.routeQueuedBytes += snapshot.length
       this.pumpRoutes()
@@ -247,7 +357,7 @@ export class CoreRuntimeConnection {
   }
 
   private pumpRoutes(): void {
-    if (this.failure || this.stopped || this.stopPromise) return
+    if (this.failure || this.stopped || this.stopPromise || this.activating) return
     for (const lane of [1, 0]) {
       const queue = this.routeQueues[lane]
       while (queue.length && (lane ? this.routeControl < 1 : this.ordinary < CORE_ORDINARY_CALLS)) {
@@ -255,7 +365,7 @@ export class CoreRuntimeConnection {
         this.routeQueued--
         this.routeQueuedBytes -= request.snapshot.length
         void this.request(
-          lane ? 'invokeControlRoute' : 'invokeRoute',
+          request.method,
           deserialize(request.snapshot),
           request.assertCallerActive
         ).then(request.resolve, request.reject)
@@ -307,9 +417,10 @@ export class CoreRuntimeConnection {
       )
       return await operation
     } catch (error) {
-      this.invalidateNative(
-        error instanceof Error ? error : new Error('Core Native event delivery failed')
-      )
+      if (!CoreHostEventSchema.safeParse(event).success)
+        this.invalidateNative(
+          error instanceof Error ? error : new Error('Core Native event delivery failed')
+        )
       throw error
     }
   }
@@ -344,6 +455,13 @@ export class CoreRuntimeConnection {
     )
   }
 
+  async beginShutdown(): Promise<void> {
+    this.rejectQueuedRoutes(new Error('Core is stopping'))
+    const status = CoreStatusSchema.parse(await this.request('beginShutdown', undefined))
+    if (status.phase !== 'stopping' && status.phase !== 'stopped')
+      throw new Error('Core did not acknowledge its shutdown fence')
+  }
+
   stop(): Promise<CoreStatus> {
     if (this.stopPromise) return this.stopPromise
     this.rejectQueuedRoutes(new Error('Core is stopping'))
@@ -376,9 +494,10 @@ export class CoreRuntimeConnection {
     args: unknown,
     assertCallerActive?: () => void
   ): Promise<unknown> {
-    if ((this.failure && method !== 'stop') || this.stopped)
+    const retirement = method === 'stop' || method === 'beginShutdown' || method === 'nativeEvents'
+    if ((this.failure && !retirement) || this.stopped)
       throw this.failure ?? new Error('Core generation is stopped')
-    const control = method === 'status' || method === 'stop'
+    const control = method === 'status' || method === 'stop' || method === 'beginShutdown'
     const observation = method === 'observeSystemTheme'
     const nativeEvent = method === 'nativeEvents'
     const routeControl = method === 'invokeControlRoute'
@@ -409,7 +528,7 @@ export class CoreRuntimeConnection {
       assertCallerActive?.()
       ref = await this.payloads.encode(args)
       assertCallerActive?.()
-      if ((this.failure && method !== 'stop') || this.stopped)
+      if ((this.failure && !retirement) || this.stopped)
         throw this.failure ?? new Error('Core generation is stopped')
       if (!control && !nativeEvent && this.stopPromise) throw new Error('Core is stopping')
       const id = ++this.nextId
@@ -503,7 +622,13 @@ export class CoreRuntimeConnection {
       const drain = isCoreNativeDrain(frame.method, args)
       if ((this.failure || this.stopPromise) && !drain)
         throw new Error('Core Native admission is stopping')
-      const result = await this.native(frame.method, args)
+      let result: unknown
+      if (frame.method === 'core.failure') {
+        const [component] = z.tuple([CoreFailureComponentSchema]).parse(args)
+        const failure = new Error(`Core ${component} owner failed`)
+        failure.name = 'CoreOwnerFailureError'
+        this.invalidateNative(failure)
+      } else result = await this.native(frame.method, args)
       if (this.failure && !drain) {
         const error = new Error('Core Native outcome belongs to a retired generation')
         error.name = 'CoreNativeOperationOutcomeUnknownError'
@@ -532,9 +657,11 @@ export class CoreRuntimeConnection {
   }
 
   private fail(error: Error): void {
+    if (this.stopped) return
     if (!this.failure) {
       this.failure = error
       this.ready.reject(error)
+      this.onFailure?.(error)
     }
     this.rejectPending(this.failure)
     this.rejectQueuedRoutes(this.failure)

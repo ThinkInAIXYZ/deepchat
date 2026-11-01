@@ -17,11 +17,15 @@ const crossed = <T>(value: T): T => deserialize(serialize(value))
 function nativeHost(earlyReady = false) {
   const events = new EventEmitter()
   const closed = Promise.withResolvers<void>()
-  events.once('exit', () => closed.resolve())
+  let exited = false
+  events.once('exit', () => {
+    exited = true
+    closed.resolve()
+  })
   const host = {
     pid: 41001,
     postMessage: vi.fn<(message: unknown) => void>(),
-    kill: vi.fn<() => void>(),
+    kill: vi.fn(async () => {}),
     onMessage: (listener) => {
       events.on('message', listener)
     },
@@ -45,7 +49,7 @@ function nativeHost(earlyReady = false) {
     },
     getRssBytes: rss
   }
-  return { host, code, events, rss, closed }
+  return { host, code, events, rss, closed, isExited: () => exited }
 }
 
 function fixture(
@@ -60,10 +64,16 @@ function fixture(
   let core: CoreNativeHelpers
   const main = new CoreHelperNative(
     {
-      exec: async () => native.host,
+      exec: async () => ({
+        ...native.host,
+        kill: async () => {
+          if (!native.isExited()) await native.host.kill()
+          await native.closed.promise
+          await retireExec(native.host.pid)
+        }
+      }),
       code: async () => native.code,
       scheduler: async () => native.host,
-      retireExec,
       watcher: async () => ({
         ...native.host,
         terminate: async () => {
@@ -125,10 +135,9 @@ describe('Core Native helper transport', () => {
         exec: unexpected,
         scheduler: unexpected,
         watcher: unexpected,
-        retireExec: unexpected,
         code: async () => {
           const native = nativeHost()
-          native.host.kill.mockImplementation(() => {
+          native.host.kill.mockImplementation(async () => {
             queueMicrotask(() => native.events.emit('exit', 0))
           })
           physical.push(native)
@@ -232,14 +241,13 @@ describe('Core Native helper transport', () => {
     const f = fixture()
     const opened = Promise.withResolvers<BackgroundExecHost>()
     const descendants = Promise.withResolvers<void>()
-    const retireExec = vi.fn(async () => await descendants.promise)
+    const retireExec = vi.fn(async (_ownerPid: number | undefined) => await descendants.promise)
     let core: CoreNativeHelpers
     const main = new CoreHelperNative(
       {
         exec: async () => await opened.promise,
         code: async () => f.code,
         scheduler: async () => f.host,
-        retireExec,
         watcher: async () => {
           throw new Error('Unexpected watcher')
         }
@@ -257,7 +265,14 @@ describe('Core Native helper transport', () => {
     const spawning = Promise.allSettled([core.spawnBackgroundExecHost(owner.signal)])
     await Promise.resolve()
     owner.abort()
-    opened.resolve(f.host)
+    opened.resolve({
+      ...f.host,
+      kill: async () => {
+        if (!f.isExited()) await f.host.kill()
+        await f.closed.promise
+        await retireExec(f.host.pid)
+      }
+    })
     await vi.waitFor(() => expect(f.host.kill).toHaveBeenCalledOnce())
     let retired = false
     const closing = core.close().then(() => {

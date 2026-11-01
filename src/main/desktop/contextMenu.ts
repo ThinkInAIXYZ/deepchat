@@ -1,5 +1,6 @@
 import logger from '@shared/logger'
-import { BrowserWindow, Menu, MenuItemConstructorOptions, WebContents, dialog, net } from 'electron'
+import { BrowserWindow, Menu, MenuItemConstructorOptions, WebContents, net } from 'electron'
+import type { DialogService } from './dialog'
 import path from 'path'
 import sharp from 'sharp'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
@@ -7,6 +8,7 @@ import type { DeepchatEventPublisher } from '@shared/contracts/events'
 interface ContextMenuOptions {
   webContents: WebContents
   publishEvent: DeepchatEventPublisher
+  showSaveDialog: DialogService['showSaveDialog']
   shouldShowMenu?: (event: Electron.Event, params: Electron.ContextMenuParams) => boolean
   labels?: Record<string, string>
   prepend?: (
@@ -119,7 +121,10 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
             }
 
             // 打开保存对话框
-            const { canceled, filePath } = await dialog.showSaveDialog({
+            const parent = BrowserWindow.fromWebContents(options.webContents)
+            if (!parent || parent.isDestroyed())
+              throw new Error('Native dialog owner is unavailable')
+            const { canceled, filePath } = await options.showSaveDialog(parent, {
               defaultPath: fileName,
               filters: [
                 { name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },

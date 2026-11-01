@@ -3,7 +3,7 @@
 ## Status and decision
 
 Status: G0-G4 complete; cohesive Core backend extraction in progress (G5).
-Evidence date: 2026-10-29. Published baseline: `356143755` (admission code `ffcd98770`).
+Evidence date: 2026-10-31. Published baseline: `356143755` (admission code `ffcd98770`).
 Implementation reference: Rutis `v0.16.0`, released on 2026-10-24. Crates and npm packages are pinned
 to that version.
 
@@ -126,21 +126,21 @@ host routing task would defeat the responsiveness objective.
 The following are ownership groups, not a required plugin count or a new directory structure.
 Names describe proposed capabilities; only admission is currently connected through Rutis.
 
-| Capability | Current owners and entry points | Proposed service and authority | Initial placement and Rust direction |
-| --- | --- | --- | --- |
-| Runtime and admission | `src/main/harness/{runtime,admission}.ts`, `src/harness/plugins/admission.ts`, `crates/deepchat-harness` | Required-service readiness, generation lifetime, bounded admission and permits | Rust host plus existing TS admission plugin; a Rust queue is a structural migration until measured otherwise |
-| Run control and interaction | `RunLifecycleCoordinator`, `PendingInputAdmissionCoordinator`, `PendingInputPump`, `InteractionCoordinator`, `InteractionParkingRegistry`, `ProviderPermissionCoordinator` in `src/main/agent/deepchat` | One owner for run transitions, four fences, queued-input dispositions, cancellation and approval settlement | Keep cohesive with the TS Harness first; later one Rust control owner, using atomic transition commands rather than RPC per coordinator |
-| Agent execution and context | `DeepChatLoopRunner`, `DeepChatLoopEngine`, `TurnCoordinator`, context/input/compaction coordinators, prompt assembly and `src/main/agent/deepchat/runtime/contextBuilder.ts` | Execute a turn from an admitted input; assemble bounded context; stream ordered results | TS core with Provider streaming nearby; profile JSON, projection, token estimation and pruning before selecting a batched Rust operation |
-| Session, Store and Tape | Session lifecycle/settings/identity, transcript mutation and message projection; `src/main/tape`; shared database composition | Durable commands, Tape/projection consistency, recovery and configuration snapshots; exactly one authority for each mutation | Move existing SQLite-backed owners together into TS core; Rust storage is a separate later compatibility project |
-| Memory | `src/main/memory/index.ts`, `core/injectionPort.ts`, `ports.ts`; Harness `memory/memoryRuntimeCoordinator.ts` | Recall/injection, extraction, approved directives, management and maintenance; Harness retains turn scheduling and fences | One first-class TS Memory capability, with an optional vector resource boundary; selectively Rust after profiling |
-| Knowledge and RAG | `src/main/knowledge/{index,knowledgeBase,taskQueue}.ts`, `database/knowledgeDatabase.ts` | Document/chunk indexing, retrieval, durable file/task status and knowledge-store lifetime | TS capability with its own schema, VSS and file contracts; later evaluate native-worker placement alongside document jobs |
-| Provider | `src/main/provider/providerService.ts`, `aiSdk/runtime.ts`, model/embedding/rate-limit managers and `src/main/app/memoryProviderBindings.ts` | Model resolution, request execution, embedding, streaming and request admission | TS ecosystem adapters; credential/OAuth operations through host ports; no per-token cross-language calls |
-| Tool execution, MCP and ACP | Tool resolver/deferred executor/output guard in Harness; `src/main/tool`, `src/main/mcp`, `src/main/agent/acp` | Existing permission checks, operation identities, result/artifact bounds, protocol connections and subprocess leases | TS protocol adapters; Rust may own generic process resources later; MCP Apps and ACP terminals retain explicit desktop capability ports |
-| Skills and hooks | `src/main/skill/{index,skillExecutionService}.ts`, discovery/sync workers, `src/main/hook`; Harness skill materialization and hook sink | Discover contributions, resolve trusted context, observe lifecycle, execute approved operations and remove registrations on unload | TS contribution plugins where independently useful; keep pure prompt helpers internal and preserve uncertain hook outcome recovery |
-| Jobs and process resources | `src/main/scheduler`, `src/main/agent/shared/process`, `src/main/tool/codeMode`, file-watch owners | Schedule calculation, durable run claims, bounded jobs, process-tree cancellation and cleanup | Reuse existing utility processes; Rust supervision/timers are candidates only when an old process or lifecycle owner can actually be removed |
-| Documents, OCR and local search | `src/main/ocr`, `src/main/platform/fileSearch/fffSearchService.ts`, attachment capability routing | Bounded extraction/search operations and artifact references, with cache and resource ownership | Reuse existing native engines/helpers; optional isolated job plugin; Rust wrappers alone do not accelerate native work |
-| Remote channels and device capabilities | `src/main/remote/runtime/manager.ts`, channel runtimes, existing sync and local control plane | Channel lifecycle and authorized Session ingress; separately scoped device operations and durable sync | TS integration plugins; isolate noisy channels when justified; remote Rutis links do not grant application or filesystem authority |
-| Desktop and observability | `src/main/app`, route/preload boundaries, platform adapters and structured logging | Native windows, unlock/crypto/OAuth, authenticated caller creation; bounded content-free diagnostics | Electron adapters remain desktop-owned; diagnostics accompany each capability instead of becoming a new central business owner |
+| Capability                              | Current owners and entry points                                                                                                                                                                         | Proposed service and authority                                                                                                     | Initial placement and Rust direction                                                                                                         |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime and admission                   | `src/main/harness/{runtime,admission}.ts`, `src/harness/plugins/admission.ts`, `crates/deepchat-harness`                                                                                                | Required-service readiness, generation lifetime, bounded admission and permits                                                     | Rust host plus existing TS admission plugin; a Rust queue is a structural migration until measured otherwise                                 |
+| Run control and interaction             | `RunLifecycleCoordinator`, `PendingInputAdmissionCoordinator`, `PendingInputPump`, `InteractionCoordinator`, `InteractionParkingRegistry`, `ProviderPermissionCoordinator` in `src/main/agent/deepchat` | One owner for run transitions, four fences, queued-input dispositions, cancellation and approval settlement                        | Keep cohesive with the TS Harness first; later one Rust control owner, using atomic transition commands rather than RPC per coordinator      |
+| Agent execution and context             | `DeepChatLoopRunner`, `DeepChatLoopEngine`, `TurnCoordinator`, context/input/compaction coordinators, prompt assembly and `src/main/agent/deepchat/runtime/contextBuilder.ts`                           | Execute a turn from an admitted input; assemble bounded context; stream ordered results                                            | TS core with Provider streaming nearby; profile JSON, projection, token estimation and pruning before selecting a batched Rust operation     |
+| Session, Store and Tape                 | Session lifecycle/settings/identity, transcript mutation and message projection; `src/main/tape`; shared database composition                                                                           | Durable commands, Tape/projection consistency, recovery and configuration snapshots; exactly one authority for each mutation       | Move existing SQLite-backed owners together into TS core; Rust storage is a separate later compatibility project                             |
+| Memory                                  | `src/main/memory/index.ts`, `core/injectionPort.ts`, `ports.ts`; Harness `memory/memoryRuntimeCoordinator.ts`                                                                                           | Recall/injection, extraction, approved directives, management and maintenance; Harness retains turn scheduling and fences          | One first-class TS Memory capability, with an optional vector resource boundary; selectively Rust after profiling                            |
+| Knowledge and RAG                       | `src/main/knowledge/{index,knowledgeBase,taskQueue}.ts`, `database/knowledgeDatabase.ts`                                                                                                                | Document/chunk indexing, retrieval, durable file/task status and knowledge-store lifetime                                          | TS capability with its own schema, VSS and file contracts; later evaluate native-worker placement alongside document jobs                    |
+| Provider                                | `src/main/provider/providerService.ts`, `aiSdk/runtime.ts`, model/embedding/rate-limit managers and `src/main/app/memoryProviderBindings.ts`                                                            | Model resolution, request execution, embedding, streaming and request admission                                                    | TS ecosystem adapters; credential/OAuth operations through host ports; no per-token cross-language calls                                     |
+| Tool execution, MCP and ACP             | Tool resolver/deferred executor/output guard in Harness; `src/main/tool`, `src/main/mcp`, `src/main/agent/acp`                                                                                          | Existing permission checks, operation identities, result/artifact bounds, protocol connections and subprocess leases               | TS protocol adapters; Rust may own generic process resources later; MCP Apps and ACP terminals retain explicit desktop capability ports      |
+| Skills and hooks                        | `src/main/skill/{index,skillExecutionService}.ts`, discovery/sync workers, `src/main/hook`; Harness skill materialization and hook sink                                                                 | Discover contributions, resolve trusted context, observe lifecycle, execute approved operations and remove registrations on unload | TS contribution plugins where independently useful; keep pure prompt helpers internal and preserve uncertain hook outcome recovery           |
+| Jobs and process resources              | `src/main/scheduler`, `src/main/agent/shared/process`, `src/main/tool/codeMode`, file-watch owners                                                                                                      | Schedule calculation, durable run claims, bounded jobs, process-tree cancellation and cleanup                                      | Reuse existing utility processes; Rust supervision/timers are candidates only when an old process or lifecycle owner can actually be removed |
+| Documents, OCR and local search         | `src/main/ocr`, `src/main/platform/fileSearch/fffSearchService.ts`, attachment capability routing                                                                                                       | Bounded extraction/search operations and artifact references, with cache and resource ownership                                    | Reuse existing native engines/helpers; optional isolated job plugin; Rust wrappers alone do not accelerate native work                       |
+| Remote channels and device capabilities | `src/main/remote/runtime/manager.ts`, channel runtimes, existing sync and local control plane                                                                                                           | Channel lifecycle and authorized Session ingress; separately scoped device operations and durable sync                             | TS integration plugins; isolate noisy channels when justified; remote Rutis links do not grant application or filesystem authority           |
+| Desktop and observability               | `src/main/app`, route/preload boundaries, platform adapters and structured logging                                                                                                                      | Native windows, unlock/crypto/OAuth, authenticated caller creation; bounded content-free diagnostics                               | Electron adapters remain desktop-owned; diagnostics accompany each capability instead of becoming a new central business owner               |
 
 The Harness root is
 [`createDeepChatAgentHarness.ts`](../../../src/main/agent/deepchat/harness/createDeepChatAgentHarness.ts).
@@ -195,14 +195,14 @@ reopen or automatic worker replacement is not established recovery behavior.
 
 The full capability needs the following contracts before its real wiring can move:
 
-| Boundary | Existing coupling | Required extraction rule |
-| --- | --- | --- |
-| Durable facts and mutations | `MemoryDatabase` uses the same main database as Sessions, Tape, settings and Providers; repository methods are synchronous | Keep a single storage authority. Introduce coarse business commands for atomic Memory writes/CAS/tombstones/lineage/audit, or move the repositories with Store. No generic SQL gateway or row-by-row remote repository facade |
-| Configuration and execution | `isEnabled`, budgets, directive contribution, execution-token capture/validation and access observation include synchronous operations | Use versioned policy snapshots only for reads that tolerate them; authoritative admission and writes validate execution epochs. Invalidate stale work on Agent delete, config change, clear and shutdown; no synchronous IPC |
-| Tape ingestion | `MemoryRuntimeCoordinator` owns scheduling, Tape anchors, persisted Session cursors and late-work fences | Keep scheduling with Harness. Preserve the atomic observation of Tape/projection heads and acknowledge owned extraction before advancing its cursor; do not replace one database observation with independently timed RPC reads |
-| Providers | Embedding, extraction, reflection and persona use current model resolution, queues and cancellation | Use the existing Provider execution port; preserve request admission, execution identity, deadlines and cancellation. A lost reply cannot automatically replay a durable write or provider side effect |
-| Recall and prompt trust | Vector/FTS candidates require authoritative scope, temporal and tombstone checks; approved directives use a distinct lane | Revalidate recalled rows at the owner before injection. Facts, persona and working memory remain untrusted content; approved directive policy must survive plugin replacement |
-| Management and maintenance | Routes, memory tools, backup/rekey/clear/delete, vector rebuild and background maintenance share service lifetimes | Retarget every caller, including management UI and tools. Quiesce and fence work before destructive maintenance, drain native/provider jobs and preserve failure/rollback behavior |
+| Boundary                    | Existing coupling                                                                                                                      | Required extraction rule                                                                                                                                                                                                        |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Durable facts and mutations | `MemoryDatabase` uses the same main database as Sessions, Tape, settings and Providers; repository methods are synchronous             | Keep a single storage authority. Introduce coarse business commands for atomic Memory writes/CAS/tombstones/lineage/audit, or move the repositories with Store. No generic SQL gateway or row-by-row remote repository facade   |
+| Configuration and execution | `isEnabled`, budgets, directive contribution, execution-token capture/validation and access observation include synchronous operations | Use versioned policy snapshots only for reads that tolerate them; authoritative admission and writes validate execution epochs. Invalidate stale work on Agent delete, config change, clear and shutdown; no synchronous IPC    |
+| Tape ingestion              | `MemoryRuntimeCoordinator` owns scheduling, Tape anchors, persisted Session cursors and late-work fences                               | Keep scheduling with Harness. Preserve the atomic observation of Tape/projection heads and acknowledge owned extraction before advancing its cursor; do not replace one database observation with independently timed RPC reads |
+| Providers                   | Embedding, extraction, reflection and persona use current model resolution, queues and cancellation                                    | Use the existing Provider execution port; preserve request admission, execution identity, deadlines and cancellation. A lost reply cannot automatically replay a durable write or provider side effect                          |
+| Recall and prompt trust     | Vector/FTS candidates require authoritative scope, temporal and tombstone checks; approved directives use a distinct lane              | Revalidate recalled rows at the owner before injection. Facts, persona and working memory remain untrusted content; approved directive policy must survive plugin replacement                                                   |
+| Management and maintenance  | Routes, memory tools, backup/rekey/clear/delete, vector rebuild and background maintenance share service lifetimes                     | Retarget every caller, including management UI and tools. Quiesce and fence work before destructive maintenance, drain native/provider jobs and preserve failure/rollback behavior                                              |
 
 [`MemoryRuntimeCoordinator`](../../../src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts)
 must remain an explicit Harness collaborator rather than disappearing inside a generic plugin
@@ -347,17 +347,17 @@ The ranking distinguishes architectural value from a performance hypothesis. No 
 observed speed or memory improvement. Existing native engines stay in place unless their actual
 algorithm, binding or resource policy is the measured limitation.
 
-| Candidate | Priority and proposed language | Possible benefit to verify | Constraint or rejection condition |
-| --- | --- | --- | --- |
-| Admission and coherent Run control | High structural priority; Rust after TS core boundaries | Headless control authority, compact state/leases, explicit cancellation and fewer JS ownership objects | Queue work is small. Porting it does not remove V8 while TS adapters remain; preserve all fences and settlement semantics |
-| Tape effective-view/replay and context projection | First CPU-oriented Rust candidate if profiles confirm cost | Fewer repeated JSON parses, large-history allocations/sorts and GC pauses; batch projection near data | Preserve UTF-8 binary ordering, retractions/replacements, provenance and canonical hashes. Reject full-history IPC copies or per-helper RPC that erase the gain |
-| Tool result scanning/pruning and local document preprocessing | Conditional Rust batch operations | Bound large text/JSON traversal and materialization away from the control loop | Existing limits and artifact semantics remain; reuse sharp/OCR/search native work and do not reimplement it based only on language preference |
-| Process trees, watchers, timers and scheduler calculation | Conditional Rust resource owner | Remove an existing Node utility host, consolidate idle runtime overhead and improve cancellation ownership | Preserve schedule claims/misfires, shell environment, OS process identities and power events. Reject an extra supervisor around the same live owner |
-| Memory vector binding/resource manager | TS first; Rust only for measured allocation/engine integration cost | Reduce JS boxing/copies or eliminate a dedicated Node host once its last TS task moves | Native DuckDB memory remains. Account for IPC buffers and all handles; independent recovery requires a proven file-owner transition |
-| Memory ranking, budgeting and pure normalization | Low/conditional Rust priority | Lower allocation/CPU only if a measured stage is significant under bounded workloads | Recall candidates already capped at 800. Preserve selection quality, mixed-language estimates and budget policy; reject noise-level gains |
-| Shared Store/Tape persistence | Later Rust decision | Potentially remove JS storage objects/runtime overhead and make durable commands available headlessly | Encryption, migration, SQLite extensions/collation, transaction/recovery and maintenance parity are prerequisites; a new driver is not a free substitution |
-| Provider SDKs, MCP/ACP adapters, Skills/hooks, extraction/reflection orchestration and remote channels | Keep TS by default | Mature protocol ecosystem and cheaper integration changes | Mostly I/O or model time. Rust is justified by a proven adapter bottleneck or removal of a runtime, not by a general rewrite objective |
-| SQLite, DuckDB, native search, sharp and OCR engines | Reuse existing native implementations | Resource lifetime, batch sizes and data movement may improve without rewriting engines | Do not count engine time as JavaScript time or claim a native-to-Rust wrapper migration changes its core performance |
+| Candidate                                                                                              | Priority and proposed language                                      | Possible benefit to verify                                                                                 | Constraint or rejection condition                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Admission and coherent Run control                                                                     | High structural priority; Rust after TS core boundaries             | Headless control authority, compact state/leases, explicit cancellation and fewer JS ownership objects     | Queue work is small. Porting it does not remove V8 while TS adapters remain; preserve all fences and settlement semantics                                       |
+| Tape effective-view/replay and context projection                                                      | First CPU-oriented Rust candidate if profiles confirm cost          | Fewer repeated JSON parses, large-history allocations/sorts and GC pauses; batch projection near data      | Preserve UTF-8 binary ordering, retractions/replacements, provenance and canonical hashes. Reject full-history IPC copies or per-helper RPC that erase the gain |
+| Tool result scanning/pruning and local document preprocessing                                          | Conditional Rust batch operations                                   | Bound large text/JSON traversal and materialization away from the control loop                             | Existing limits and artifact semantics remain; reuse sharp/OCR/search native work and do not reimplement it based only on language preference                   |
+| Process trees, watchers, timers and scheduler calculation                                              | Conditional Rust resource owner                                     | Remove an existing Node utility host, consolidate idle runtime overhead and improve cancellation ownership | Preserve schedule claims/misfires, shell environment, OS process identities and power events. Reject an extra supervisor around the same live owner             |
+| Memory vector binding/resource manager                                                                 | TS first; Rust only for measured allocation/engine integration cost | Reduce JS boxing/copies or eliminate a dedicated Node host once its last TS task moves                     | Native DuckDB memory remains. Account for IPC buffers and all handles; independent recovery requires a proven file-owner transition                             |
+| Memory ranking, budgeting and pure normalization                                                       | Low/conditional Rust priority                                       | Lower allocation/CPU only if a measured stage is significant under bounded workloads                       | Recall candidates already capped at 800. Preserve selection quality, mixed-language estimates and budget policy; reject noise-level gains                       |
+| Shared Store/Tape persistence                                                                          | Later Rust decision                                                 | Potentially remove JS storage objects/runtime overhead and make durable commands available headlessly      | Encryption, migration, SQLite extensions/collation, transaction/recovery and maintenance parity are prerequisites; a new driver is not a free substitution      |
+| Provider SDKs, MCP/ACP adapters, Skills/hooks, extraction/reflection orchestration and remote channels | Keep TS by default                                                  | Mature protocol ecosystem and cheaper integration changes                                                  | Mostly I/O or model time. Rust is justified by a proven adapter bottleneck or removal of a runtime, not by a general rewrite objective                          |
+| SQLite, DuckDB, native search, sharp and OCR engines                                                   | Reuse existing native implementations                               | Resource lifetime, batch sizes and data movement may improve without rewriting engines                     | Do not count engine time as JavaScript time or claim a native-to-Rust wrapper migration changes its core performance                                            |
 
 Inspect the current Tape folds in
 [`effectiveView.ts`](../../../src/main/tape/domain/effectiveView.ts) and
@@ -377,13 +377,13 @@ ordinary correctness E2E or every structural extraction. Use a deterministic loc
 fixture for local CPU/memory comparisons, then separately validate real-provider behavior.
 Do not benchmark against a live user database.
 
-| Workload | Evidence required |
-| --- | --- |
-| Idle, cold startup and shutdown | All process identities, readiness time, CPU wakeups, aggregate memory, artifact size and bounded child cleanup |
+| Workload                        | Evidence required                                                                                                                                                                 |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Idle, cold startup and shutdown | All process identities, readiness time, CPU wakeups, aggregate memory, artifact size and bounded child cleanup                                                                    |
 | Streaming/delegation under load | Single and concurrent Sessions, existing 6-active/2-queued delegation case, interrupt/approval/pending input, renderer input-to-paint and main event-loop p95/p99, stream latency |
-| Context/Tape scale | Fixed small/large histories and payload sizes; fold/build timings, CPU, allocation/GC, materialized bytes, transfer bytes and canonical output parity |
-| Memory recall and maintenance | Fixed row counts/dimensions, cold/warm native queries, FTS degradation, reindex/clear and more than 8 Agents to exercise store eviction; quality, leases and queues must converge |
-| Lifecycle failures | Lost replies, queue saturation, plugin/runtime death, stale callbacks, poisoned native handles, maintenance and shutdown; no duplicate writer, replay or leaked descendants |
+| Context/Tape scale              | Fixed small/large histories and payload sizes; fold/build timings, CPU, allocation/GC, materialized bytes, transfer bytes and canonical output parity                             |
+| Memory recall and maintenance   | Fixed row counts/dimensions, cold/warm native queries, FTS degradation, reindex/clear and more than 8 Agents to exercise store eviction; quality, leases and queues must converge |
+| Lifecycle failures              | Lost replies, queue saturation, plugin/runtime death, stale callbacks, poisoned native handles, maintenance and shutdown; no duplicate writer, replay or leaked descendants       |
 
 Reuse [Memory metrics](../memory-quality-gates-and-observability/metrics.md) and the existing
 `test/main/performance/memory` workloads before adding another telemetry framework. Separate
@@ -526,7 +526,7 @@ client is the initial mobile access path; it does not promise the desktop's nati
 | Public routing                   | [`routeRegistry.ts`](../../../src/main/routes/routeRegistry.ts) has caller identity and output projection; shared contracts define route schemas                            | Preserve the existing renderer/CLI surface while adapting backend-owned handlers                                                          |
 | Agent ownership                  | [`Harness boundaries`](../deepchat-agent-harness-boundaries/spec.md) define instance/run/operation/message fences and synchronous queue settlement                          | Framework generations do not replace these business identities or ordering requirements                                                   |
 | Existing child processes         | Scheduler, Code Mode, background execution, file watching, OCR, MCP, and ACP already use processes; Skill discovery also uses workers                                       | Reuse their launch, cancellation, and recovery contracts; avoid duplicate supervisors                                                     |
-| Scheduler writes                 | [`repository.ts`](../../../src/main/scheduler/repository.ts) owns atomic due-job claims; the utility host receives bounded scan replies without a database connection       | Move this repository with the shared Store; keep the timer helper outside the writer authority                                             |
+| Scheduler writes                 | [`repository.ts`](../../../src/main/scheduler/repository.ts) owns atomic due-job claims; the utility host receives bounded scan replies without a database connection       | Move this repository with the shared Store; keep the timer helper outside the writer authority                                            |
 | Runtime deployment               | [`Managed Toolchains`](../managed-toolchains/spec.md) makes official Node optional; [`build-cli.mjs`](../../../scripts/build-cli.mjs) already uses Electron's Node mode     | The core backend must start offline without downloading or selecting a user Node installation                                             |
 
 The existing [`renderer API core`](../../../src/renderer/api/core.ts) resolves `window.deepchat`,
@@ -673,20 +673,20 @@ opened without a read-only option. Do not use that intent as evidence that Main 
 
 The current connection inventory is:
 
-| Source under `src/` | Connection and file role | G5 ownership requirement |
-| --- | --- | --- |
-| `main/data/databaseConnection.ts`, `main/data/mainDatabase.ts` | Normal shared SQLite writer, reopen and the common writable-capable connection factory; file-repair helper also opens through that factory | Move factory, normal writer, schema and repair with the Store owner; Main receives no connection or password-bearing reopen callback |
-| `main/app/mainProcess.ts`, `main/app/composition.ts` and domain `data/database.ts` facades | Settings, Provider, MCP and Agent attach to the same startup database; Session, Memory, Project, delegation, Scheduler and app facades reuse it | Move these facades and synchronous repositories together; constructing a new facade must not open a second shared writer |
-| `main/app/databaseSecurity.ts` | Password validation, source copy, encrypted staged file and target verification open writable-capable handles | Execute inside the Store maintenance owner; native wrapping and unlock presentation remain explicit Main capabilities |
-| `main/sync/dataImporter.ts`, `main/sync/configImportService.ts`, `main/sync/index.ts` | Incremental import opens source and target paths; configuration import opens the target; overwrite replaces the closed active file; backup cleanup mutates a private copied file | Keep target opening/replacement and all temporary connections in the exclusive maintenance operation; do not leave Main with a path-based target opener |
-| `main/data/backupReadLock.ts`, `main/sync/index.ts` | Backup snapshots pin the active file through a connection opened by the writable-capable factory; the active owner drains/checkpoints WAL; fallback ships the matching WAL | Keep snapshot lifetime, checkpoint and file copy with the Store owner; a backup receipt cannot release the actual copy lifetime |
-| `main/provider/providerImportService.ts`, `main/app/startupMigrations/legacyChatImportService.ts` | Provider and legacy chat source files are explicitly read-only; legacy import writes through the shared Session facade | Preserve read-only sources; run shared-target mutations at the Store owner, including bootstrap import before ordinary admission |
-| `main/desktop/browser/BrowserProfileImportService.ts` | Read-only browser cookie source and staged snapshot; writes a private backup snapshot, not the application database | Keep native browser/keychain consent and temporary-file cleanup in the desktop owner; never treat this as a shared-writer exemption |
-| `main/data/schemaCatalog.ts` | Temporary `:memory:` SQLite schema inspection | Keep internal to schema/repair work; no profile writer is created |
-| `main/ocr/ocrArtifactStore.ts`, `main/ocr/ocrRuntimeService.ts` | Separate encrypted `ocr/ocr-cache.db`, optional memory fallback and native cache-key provider | Retain the OCR cache owner and explicit crypto/resource lifetime; this file is not the shared application writer |
-| `harness/memory-vector.ts`, `main/memory/infra/memoryVectorStore.ts` | G3 worker owns the vector-directory lock database and per-Agent writable DuckDB files | Preserve worker ownership, leases, quarantine and generation fences; Main must not reopen those files |
-| `main/memory/infra/legacyV1Reader.ts` | Temporary in-memory DuckDB attaches the legacy vector file with `READ_ONLY` | Keep migration source reads under the existing vector owner and abandonment fence |
-| `main/knowledge/database/knowledgeDatabase.ts`, `main/knowledge/index.ts` | Knowledge has independent writable DuckDB files plus temporary extension inspection | Preserve its existing file and initialization owner; G3 did not migrate Knowledge and G5 cannot claim otherwise |
+| Source under `src/`                                                                               | Connection and file role                                                                                                                                                         | G5 ownership requirement                                                                                                                                |
+| ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `main/data/databaseConnection.ts`, `main/data/mainDatabase.ts`                                    | Normal shared SQLite writer, reopen and the common writable-capable connection factory; file-repair helper also opens through that factory                                       | Move factory, normal writer, schema and repair with the Store owner; Main receives no connection or password-bearing reopen callback                    |
+| `main/app/mainProcess.ts`, `main/app/composition.ts` and domain `data/database.ts` facades        | Settings, Provider, MCP and Agent attach to the same startup database; Session, Memory, Project, delegation, Scheduler and app facades reuse it                                  | Move these facades and synchronous repositories together; constructing a new facade must not open a second shared writer                                |
+| `main/app/databaseSecurity.ts`                                                                    | Password validation, source copy, encrypted staged file and target verification open writable-capable handles                                                                    | Execute inside the Store maintenance owner; native wrapping and unlock presentation remain explicit Main capabilities                                   |
+| `main/sync/dataImporter.ts`, `main/sync/configImportService.ts`, `main/sync/index.ts`             | Incremental import opens source and target paths; configuration import opens the target; overwrite replaces the closed active file; backup cleanup mutates a private copied file | Keep target opening/replacement and all temporary connections in the exclusive maintenance operation; do not leave Main with a path-based target opener |
+| `main/data/backupReadLock.ts`, `main/sync/index.ts`                                               | Backup snapshots pin the active file through a connection opened by the writable-capable factory; the active owner drains/checkpoints WAL; fallback ships the matching WAL       | Keep snapshot lifetime, checkpoint and file copy with the Store owner; a backup receipt cannot release the actual copy lifetime                         |
+| `main/provider/providerImportService.ts`, `main/app/startupMigrations/legacyChatImportService.ts` | Provider and legacy chat source files are explicitly read-only; legacy import writes through the shared Session facade                                                           | Preserve read-only sources; run shared-target mutations at the Store owner, including bootstrap import before ordinary admission                        |
+| `main/desktop/browser/BrowserProfileImportService.ts`                                             | Read-only browser cookie source and staged snapshot; writes a private backup snapshot, not the application database                                                              | Keep native browser/keychain consent and temporary-file cleanup in the desktop owner; never treat this as a shared-writer exemption                     |
+| `main/data/schemaCatalog.ts`                                                                      | Temporary `:memory:` SQLite schema inspection                                                                                                                                    | Keep internal to schema/repair work; no profile writer is created                                                                                       |
+| `main/ocr/ocrArtifactStore.ts`, `main/ocr/ocrRuntimeService.ts`                                   | Separate encrypted `ocr/ocr-cache.db`, optional memory fallback and native cache-key provider                                                                                    | Retain the OCR cache owner and explicit crypto/resource lifetime; this file is not the shared application writer                                        |
+| `harness/memory-vector.ts`, `main/memory/infra/memoryVectorStore.ts`                              | G3 worker owns the vector-directory lock database and per-Agent writable DuckDB files                                                                                            | Preserve worker ownership, leases, quarantine and generation fences; Main must not reopen those files                                                   |
+| `main/memory/infra/legacyV1Reader.ts`                                                             | Temporary in-memory DuckDB attaches the legacy vector file with `READ_ONLY`                                                                                                      | Keep migration source reads under the existing vector owner and abandonment fence                                                                       |
+| `main/knowledge/database/knowledgeDatabase.ts`, `main/knowledge/index.ts`                         | Knowledge has independent writable DuckDB files plus temporary extension inspection                                                                                              | Preserve its existing file and initialization owner; G3 did not migrate Knowledge and G5 cannot claim otherwise                                         |
 
 OCR runtime composition requires its asynchronous cache-key provider. Main supplies the existing
 safeStorage provider for the fixed `ocr/cache-key.json` path; the runtime does not construct or
@@ -699,14 +699,14 @@ logs, loader configuration or command arguments.
 The profile handoff also covers file writers and synchronous configuration readers that do not
 open a database connection:
 
-| File or state family | Authority and G5 handoff |
-| --- | --- |
+| File or state family                                                                               | Authority and G5 handoff                                                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `app-settings.json`, `mcp-settings.json`, `acp_agents.json` and legacy Provider model/config files | Move the complete configuration authority and its attached adapters together. Main's existing bootstrap/migration stores must stop writing before backend admission; preserve legacy snapshots and formats without a second whole-file writer. |
-| `plugin-settings.json`, installed plugin configuration and `plugin-tool-policies.json` | Keep installation/consent, activation, Hooks/Tape and synchronous tool-policy decisions with their one business owner. Main receives native presentation commands only. |
-| `database-security.json`, wrapped Sync/Provider secrets and Codex/Grok/MCP OAuth credential files | Persistence, generation checks and queues follow their existing owners. Main supplies private crypto/unlock/browser effects, never writable stores or general secret snapshots. |
-| OCR wrapped key, OCR derived database, Memory vector files and Knowledge files | Keep the native wrapped-key owner distinct from each encrypted/cache/vector resource owner. Transfer their actual lifetimes and maintenance fences; the shared-database handoff cannot imply these files have drained. |
-| Provider/ACP catalogs, Skills metadata, toolchains, file/Remote/OCR caches and artifact spool | Preserve their explicit roots, existing cache writers and helper/resource lifetimes. Move business caches with their consumers; device file/image/browser operations retain narrow host capabilities. |
-| Native windows, browser profiles, downloads, updater, logging and OS state | Main/device owners retain native effects and renderer identity checks. Business configuration reads use committed projections or async queries; native state is not a shared Store replica. |
+| `plugin-settings.json`, installed plugin configuration and `plugin-tool-policies.json`             | Keep installation/consent, activation, Hooks/Tape and synchronous tool-policy decisions with their one business owner. Main receives native presentation commands only.                                                                        |
+| `database-security.json`, wrapped Sync/Provider secrets and Codex/Grok/MCP OAuth credential files  | Persistence, generation checks and queues follow their existing owners. Main supplies private crypto/unlock/browser effects, never writable stores or general secret snapshots.                                                                |
+| OCR wrapped key, OCR derived database, Memory vector files and Knowledge files                     | Keep the native wrapped-key owner distinct from each encrypted/cache/vector resource owner. Transfer their actual lifetimes and maintenance fences; the shared-database handoff cannot imply these files have drained.                         |
+| Provider/ACP catalogs, Skills metadata, toolchains, file/Remote/OCR caches and artifact spool      | Preserve their explicit roots, existing cache writers and helper/resource lifetimes. Move business caches with their consumers; device file/image/browser operations retain narrow host capabilities.                                          |
+| Native windows, browser profiles, downloads, updater, logging and OS state                         | Main/device owners retain native effects and renderer identity checks. Business configuration reads use committed projections or async queries; native state is not a shared Store replica.                                                    |
 
 The current DeviceService reset implementation can remove shared files after the exclusive
 shutdown-action claim. G5 must bind that claim to actual backend and independent-resource teardown
@@ -740,6 +740,21 @@ continuations. Renderer destruction removes the Core binding through the existin
 subscription; registration that observes an already destroyed renderer cannot publish activation.
 A late missing-session query cannot clear a newer binding.
 
+The Core settings route map owns language, theme, shortcut, floating-widget and update-channel
+configuration. Native desktop and upgrade route maps retain no settings writer or Session binding.
+Browser focus and Computer Use preview admission resolve active/draft ownership in the Core
+Session route map. Three fixed Native presentation methods receive the authenticated renderer
+context, recheck the actual current window/renderer pair and return validated results. Tab teardown
+does not mutate Core bindings; the existing renderer-destruction subscription owns that lifetime.
+
+The floating widget reads a typed Session snapshot and opens sessions through the Core dispatcher;
+the existing ACP registry icon query uses the same boundary. Core owns regular-session projection,
+ordering and activation. Main owns native geometry, appearance and expanded state, authenticates
+the exact floating window's top-level document and exposes only its scoped preload API. Snapshot
+reads coalesce within that window lifetime; retired replies cannot update or show a replacement
+window. Native initialization acknowledges window creation and appearance without awaiting a Core
+query, so Core startup cannot deadlock. Display waits for the initial refresh.
+
 Construct the business data facades from the already initialized profile connection. Session/Tape,
 Memory tables, Agent/Project/scheduler data and delegation contracts share that connection; moving
 their composition must not introduce another database opener. Migration adapters keep live table
@@ -755,17 +770,17 @@ releasing ownership. Primary-close failure retains the lease and rejects the ter
 
 The boundary follows existing business operations, rather than these connection wrappers:
 
-| Existing owner and source | Work that stays indivisible inside the backend | Data crossing the boundary |
-| --- | --- | --- |
-| `SessionTranscript`, `SessionSettingsStore`, `SessionTape` and `main/session/data/index.ts` | Message facts, transcript projection/head changes, retry truncation and clear/reset; existing Tape bootstrap reads can also write | Existing bounded Session/Tape commands and projections with session/incarnation identity; no remote projection-head read followed by a separate mutation |
-| `SessionPendingInputs`, `SessionPendingInputStore` and runtime pending-input coordinators | Claim/consume/release receipts, accepted user facts and steer-message settlement under the existing transaction/runtime authority | Input/claim identities and acknowledged outcomes; `runInTransaction` closures remain local |
-| `DeepChatMemoryIngestionProjectionTable` and Memory tables | `readCurrentRange` observes Tape and projection heads in one SQL statement; claim/tombstone checks, revisions and ingestion progress retain their existing owner-side consistency | Bounded current-range observations and existing Memory operations, with stale/current results; never split head checks from their rows |
-| `AgentRepository`, `DeepChatAgentRepository` | Agent deletion checks protected/session state, retires Memory claims/directives, clears audit and deletes the Agent in one transaction | Agent identity and deletion receipt; namespace-retirement callbacks remain in the same owner |
-| `LiveDelegationRepository` and its service/runtime | Capacity observation, contract identity, turn/event writes, effect intent and terminal settlement/CAS | Existing authorized delegation commands and correlated outcomes; mutation callbacks and capacity reads do not become independent RPCs |
-| `CronJobsRepository` | Due-run insertion and schedule advancement, run claims and job/run/delivery deletion | Existing bounded Scheduler commands and snapshot; the 100-job scan and owner-side committed dispatch remain unchanged |
-| `ProjectService` | Environment removal clears Session project assignments and updates project/preferences/projection together; directory selection commits project activation after native selection | Selected path and acknowledged versioned Project snapshot; native dialogs/open-path operations remain desktop capabilities |
-| `SyncReplicaStore` and composition guards | Authorization/session-deletion guard, conflict checks, trigger suppression, imported rows, tombstones and peer cursor advancement | Validated bounded sync batch and result; authenticated transport establishes authority, not a caller-supplied callback |
-| Settings, Provider, MCP and ACP database adapters | Configuration identity/CAS and acknowledged mutations remain with their business owners | Explicit public snapshots and mutations; no raw Store, table, row getter or database handle |
+| Existing owner and source                                                                   | Work that stays indivisible inside the backend                                                                                                                                    | Data crossing the boundary                                                                                                                               |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SessionTranscript`, `SessionSettingsStore`, `SessionTape` and `main/session/data/index.ts` | Message facts, transcript projection/head changes, retry truncation and clear/reset; existing Tape bootstrap reads can also write                                                 | Existing bounded Session/Tape commands and projections with session/incarnation identity; no remote projection-head read followed by a separate mutation |
+| `SessionPendingInputs`, `SessionPendingInputStore` and runtime pending-input coordinators   | Claim/consume/release receipts, accepted user facts and steer-message settlement under the existing transaction/runtime authority                                                 | Input/claim identities and acknowledged outcomes; `runInTransaction` closures remain local                                                               |
+| `DeepChatMemoryIngestionProjectionTable` and Memory tables                                  | `readCurrentRange` observes Tape and projection heads in one SQL statement; claim/tombstone checks, revisions and ingestion progress retain their existing owner-side consistency | Bounded current-range observations and existing Memory operations, with stale/current results; never split head checks from their rows                   |
+| `AgentRepository`, `DeepChatAgentRepository`                                                | Agent deletion checks protected/session state, retires Memory claims/directives, clears audit and deletes the Agent in one transaction                                            | Agent identity and deletion receipt; namespace-retirement callbacks remain in the same owner                                                             |
+| `LiveDelegationRepository` and its service/runtime                                          | Capacity observation, contract identity, turn/event writes, effect intent and terminal settlement/CAS                                                                             | Existing authorized delegation commands and correlated outcomes; mutation callbacks and capacity reads do not become independent RPCs                    |
+| `CronJobsRepository`                                                                        | Due-run insertion and schedule advancement, run claims and job/run/delivery deletion                                                                                              | Existing bounded Scheduler commands and snapshot; the 100-job scan and owner-side committed dispatch remain unchanged                                    |
+| `ProjectService`                                                                            | Environment removal clears Session project assignments and updates project/preferences/projection together; directory selection commits project activation after native selection | Selected path and acknowledged versioned Project snapshot; native dialogs/open-path operations remain desktop capabilities                               |
+| `SyncReplicaStore` and composition guards                                                   | Authorization/session-deletion guard, conflict checks, trigger suppression, imported rows, tombstones and peer cursor advancement                                                 | Validated bounded sync batch and result; authenticated transport establishes authority, not a caller-supplied callback                                   |
+| Settings, Provider, MCP and ACP database adapters                                           | Configuration identity/CAS and acknowledged mutations remain with their business owners                                                                                           | Explicit public snapshots and mutations; no raw Store, table, row getter or database handle                                                              |
 
 Project bootstrap receives absolute system/profile directories and nullable Documents/Home paths
 from Main. Capture these roots before serving snapshots; do not await native directory discovery
@@ -1156,16 +1171,55 @@ authentication behavior without importing the native proxy module. Neither the c
 nor its server manager may construct a native dependency or locate a process-global toolchain.
 This boundary does not relocate MCP execution or its AppHost presentation owner.
 
-MCP App instances, pending creation and consent decisions use one native-free registry beside
-their source and tool authorization owners. Count pending creation against the existing total and
-per-owner instance limits. Revocation by window, server or maintenance invalidates pending creation
-before it can publish a late view. Main supplies required asynchronous owner observation and link
-opening. The creation owner aborts pending observation and metadata waits on revocation, including
-SDK resource requests, while the server owner retains its shared connection. Main retains
-protocol responses and native session permission handlers. Native handlers use
-bounded policy and browser-permission business operations, validate the current native owner and
-deny uncertain or revoked work. Preserve saved-source/configuration fences, separate sandbox
-origin/CSP, explicit per-request consent and the absence of standing browser grants.
+Core runtime constructs one native-free MCP App registry beside source and tool authorization
+owners. Count pending creation against the existing total and per-owner limits. The registry owns
+renderer-destruction subscriptions from reservation until its final creation/view retires; an
+already destroyed owner cannot publish a reservation. Window/server revocation cancels pending
+creation and consent. Maintenance clears them before database drain; terminal close also fences
+new reservations. Aborted observation and metadata waits retire without closing the server owner's
+shared connection.
+
+Main retains Native owner validation, link opening, protocol responses and session permission
+handlers. It receives only asynchronous policy and browser-permission operations, never the
+registry or its mutation methods. The fixed private Core protocol validates bounded commands and
+results and shares the existing ordinary-call slots and immutable queue with public business
+routes. Owner destruction uses the existing reserved Native event lane; cancellation, human answers
+and status/stop retain their capacity. Accepted protocol calls join the business drain before
+writer release. Native handlers recheck the current owner and deny uncertain or revoked work.
+Preserve saved-source/configuration fences, separate sandbox origin/CSP, explicit per-request
+consent and the absence of standing browser grants.
+
+Desktop host queries resolve Workspace preview authorization and Provider existence through the
+Core owner and its database request gate. Permission-cache clearing and shutdown-confirmation data
+use fixed private commands on the existing reserved Native event lane, so ordinary call saturation
+cannot prevent quit preparation. The confirmation operation returns data without waiting for a
+dialog; Main owns presentation and the user's response. Knowledge has no dialog dependency or
+shutdown presentation method. Accepted private operations join the business drain, and a business
+denial does not masquerade as Native transport failure. Quit/update preparation awaits permission
+retirement; the update request records its shutdown promise before that await. Kernel retirement
+also clears permissions before stopping the local CLI server.
+
+Only Main owns interactive message dialogs. Core has no dialog invocation or response capability;
+its shutdown-confirmation result remains strictly validated data. Main retirement rejects pending
+confirmations and refuses late requests before closing windows. Core loss while a CLI approval is
+unanswered must close the application generation without approving or replaying the mutation.
+
+The same Main dialog owner accepts at most 16 native file-picker requests, reusing the Native call
+budget. Requests retain their selected parent and enter one FIFO; only one physical picker opens
+at a time. Directory/file selection, image saving and context-menu saving use this owner. A stopped
+owner or destroyed parent cannot open a queued picker. Main stops accepting dialogs, obtains the
+Core shutdown fence, and awaits the native callbacks before releasing their ownership. On macOS,
+the active sheet ends before its parent is destroyed; queued requests retire without opening.
+Other platforms retire the parent before awaiting native completion. Do not replace a physical
+completion receipt with a synthetic canceled result or extend shutdown deadlines.
+
+File-route image save/copy uses the existing Main-owned DesktopImageActions lifetime. Main
+shutdown aborts pending HTTP
+headers/body and cache reads before waiting for ordinary Core calls. A retired image owner cannot
+open a save picker, decode/write the clipboard or start a file write after an awaited read or
+picker result. A target-file write already in progress completes before its Native receipt retires;
+never cancel it midway. Existing accepted Native calls and business drains still precede writer
+release. Do not serialize an AbortSignal across the Core protocol or create another request owner.
 
 ACP installation owns explicit install/repair, enable-triggered preinstallation, uninstall and
 binary launch preparation, including their repository and Provider continuations. Identical work
@@ -1428,8 +1482,91 @@ dispatch, compensate canceled/late startup and await actual process retirement. 
 and events have count/byte bounds; overflow fences the generation without uncertain replay.
 An open reply acknowledges admission. A separate opened/failed event settles the original host
 capability; cancellation after admission can retire a launcher that has not returned yet. Exec
-retirement also requires profile-scoped attested descendant recovery supplied by Main. Keep an
-exited helper in the Native owner until this recovery settles, including unexpected helper loss.
+retirement uses the owned Native host's asynchronous kill receipt, covering physical helper exit
+and profile-scoped attestation/recovery of its registered command roots. Keep an exited helper in
+the Native owner until this recovery settles, including unexpected helper loss. The execution
+service waits for that receipt before shutdown or replacement startup. Owner-scoped registry
+reads reject unreadable/corrupted records; age does not authorize discarding live owned records.
+Native hosts replay a recorded exit to late subscribers, and register retirement before a
+synchronous exit callback can reenter it.
+Exec startup awaits durable identity registration before acknowledging a live command. Failed
+registration retires the owned command and rejects startup; already exited commands retain their
+normal output/completion behavior. Failed retirement rejects command removal and shutdown instead
+of treating local output finalization as physical exit. Shutdown rejects subsequent starts,
+including starts whose identity observation was still pending.
+Legacy POSIX termination keeps the acquired process-group target after the root closes, waits
+for group exit and physical stdio closure, and escalates the same group if members survive TERM.
+It never falls back to the old root PID after acquiring a group. Unknown liveness is not an exit
+receipt. Exec finalization, package cleanup and registry removal wait for this single termination
+receipt; root exit/close and inherited-stdio watchdogs cannot bypass it. Failed tree retirement
+remains failed when a late root close arrives. This does not authorize later signaling after the
+group has been released, or prove containment of descendants that leave that group.
+On macOS, the existing Rust artifact also provides a bounded read-only process-identity command
+before starting Tokio or Rutis. Main supplies its absolute packaged/development artifact path to
+owned workers. Records backed by a live owned child use the boot-session UUID and XNU process unique ID, which survives
+exec; executable UUID and pidversion are deliberately excluded. Native identity loss refuses
+recovery without downgrading the recorded identity to timestamps. Legacy records and platforms
+retain conservative start-time/argv attestation; an argv mismatch alone never clears ownership.
+Registration revalidates the owned child after asynchronous inspection and before persisting its
+native identity; a reaped child cannot attest a subsequently reused PID. PID-only launch callers
+retain legacy attestation until they provide an actual child lifetime.
+The XNU identity flavor is defined in Apple's private header and requires native/signed platform
+verification. This introduces no resident inspector, alternate supervisor or renderer-facing API.
+New macOS Exec roots first enter the same Rust artifact's execution gate before Tokio/Rutis
+startup. A dedicated inherited descriptor carries one bounded length-prefixed environment grant
+only after durable native identity registration. Command arguments are passed without a shell;
+user environment overrides are withheld from the gate and applied after the grant. EOF, malformed
+or incomplete grants execute no user command. The gate closes its control descriptor and execs
+the requested program at the same registered PID. Caller stdin and output streams remain separate.
+Core resolves command overrides against its environment into a complete launch snapshot before
+Native dispatch. The reusable utility uses this snapshot as the command environment; it must not
+reintroduce deleted variables or utility-only controls from its own older environment. The Rust
+gate replaces its bootstrap environment only after admission, preserving shell/PATH preparation,
+per-command overrides, independent stdin and same-PID exec.
+Stop/timeout during registration cannot release the gate. Startup failure compensates through the
+same owned termination receipt, and the pending environment is released after startup settles.
+This closes the selected user-code admission window on macOS; observable pre-registration
+retirement also requires the utility/owner receipts below. Other platforms remain unverified.
+Different owner recoveries serialize without sharing results. Lost ancestry and complete
+fd/environment/proxy retirement still require proof before G5 acceptance; registered-root recovery
+alone does not establish that contract.
+Native macOS termination passes its retained or recorded birth identity to the existing Rust artifact. Rust
+captures a bounded group snapshot while revalidating its root and sends signals through
+`proc_signal_with_audittoken`, whose kernel lookup checks the captured process version. TERM and
+force target only those captured identities; neither phase falls back to numeric PID/group
+signaling. Unsupported APIs, uncertain inspection, concurrent exec or surviving/new group
+members refuse retirement and retain the registry record. A signal request is not an exit
+receipt: termination waits for every captured birth and the group to disappear. Incomplete
+captured ancestry and unobservable descendants remain outside this proof.
+The system's [audit-token lookup](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_proc.c)
+and [signal dispatch](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/proc_info.c)
+define the native identity checks; availability still requires supported signed-platform acceptance.
+Successful registration returns its observed identity to the existing session owner. Admitted
+native commands retain that identity for explicit stop, timeout and shutdown, which use the same
+Rust group recovery as helper-loss recovery. A native recovery receipt also waits for the actual
+owned child's stdio close before releasing registry or package ownership. Gate admission requires
+a native identity; unavailable identity cannot select legacy signaling for an admitted command.
+Native root exit joins that same retirement before publishing completed status or watchdog cleanup. When the
+root has exited, Rust requires every surviving group member's captured parent-birth chain to
+reach the registered root birth. Missing ancestry refuses signaling and retains ownership.
+Retirement also takes bounded same-user process snapshots and follows captured parent-birth
+chains outside the original process group. UID alone never authorizes a signal. Captured births
+remain authoritative across the TERM and force phases; each phase takes a fresh snapshot so
+known descendants born during retirement cannot disappear behind a dead intermediate parent.
+Final success requires no reachable captured descendant and disappearance of the original group.
+Unknown inspection or snapshot overflow refuses retirement. This does not prove containment of
+unobservable processes, privilege changes or ancestry lost before capture.
+Main captures the Exec utility's native birth before exposing its command channel. Retirement
+waits for actual utility exit, then uses that birth to retire observable descendants before command
+record recovery can acknowledge closure. The utility need not lead a process group; this owner
+scope never observes or signals a numerically matching process group. Missing native identity
+refuses readiness, and a failed descendant receipt refuses retirement. Utility-side cancellation
+before native identity closes the ungranted control descriptor and waits for actual child/stdio
+closure without numeric PID/group signaling. Helper-loss recovery uses the owner birth for
+observable pre-registration launches without creating another registry or supervisor.
+Native records survive root loss, same-boot root PID reuse and age-based expiration. A valid
+identity from another boot can be cleared without signaling a current numeric PID. Missing
+ancestry and privilege changes remain separate requirements.
 Logical transport failure still admits retirement and settles already accepted Native effects;
 ordinary caller outcomes remain fenced and are never replayed.
 The existing sixteen reverse Native calls reserve two slots for retirement commands. Ordinary
@@ -1447,8 +1584,18 @@ live Browser objects or arbitrary native method names cross the link.
 Register Browser ownership before admission, retain cancellation across a late admission reply and
 compensate failed admission. Cancellation and close use the reserved Native retirement capacity.
 Main must provide a physical retirement receipt covering Browser closure and native effects that
-outlived a canceled client wait; releasing a waiting promise alone is insufficient. Synchronous
-dispatch commits retain their current timing; asynchronous commits are acknowledged before target
+outlived a canceled client wait; releasing a waiting promise alone is insufficient.
+Kernel shutdown retires Main's Browser owner even when no Agent Browser tool was called: public
+desktop routes can own pages independently. Profile-only SDK operations do not acquire this desktop
+owner. Main fences new page/preview allocation during retirement, joins each page's existing close
+receipt and waits for actual WebContents destruction without a before-unload veto. A failed close
+retains failed ownership and prevents profile release; a late event cannot clear a replacement page.
+Main's cookie reader owns its temporary WebContents for one operation and awaits destruction even
+if debugger detachment fails. Application windows and floating UI retain their Main application
+owners. A floating-window registration in `TabPresenter` is a borrowed lookup for capture/context,
+not another view owner or Core resource. The unused browser download service has no typed route or
+Agent-tool consumer; browser-origin downloads retain their Chromium/Main application ownership.
+Synchronous dispatch commits retain their current timing; asynchronous commits are acknowledged before target
 dispatch, followed by fresh cancellation and target-lifetime checks. Helper and Browser events
 share a serialized, count/byte-bounded queue with value snapshots, rather than competing for the
 single reserved slot. Business authorization denial does not retire the event transport.
@@ -1463,17 +1610,52 @@ Partial construction is not a successful close receipt. Configuration events sha
 version source, and an ordinary renderer session's `null` CLI ownership must remain distinct from
 unknown/deleted ownership.
 
-The SDK worker assembles this root through a private lifecycle request while business readiness
-remains false until its startup and owner activation are acknowledged. Default application
-handoff requires separate acceptance. Its
+Native proxy resolution publishes a revisioned effective URL and merged `no_proxy` snapshot.
+Main owns current and gracefully draining proxy dispatchers until physical retirement. Stopping
+fences queued/late proxy resolutions, aborts both current and draining transport, and joins accepted
+Electron resolution without allowing late dispatcher/environment changes. The Native desktop
+retirement receipt includes this HTTP owner before profile release. Client references survive
+Undici Agent graceful close until completion, so forced retirement can still address active clients.
+Start Main transport retirement before awaiting Core shutdown: a Native request that ignores caller
+cancellation must not prevent shutdown from reaching the desktop retirement receipt. OAuth acceptance
+must exercise Core-owned validation through real certificate-verified HTTPS, with a disposable local
+trust root rather than Main-only fetch interception. These receipts cover global fetch transports;
+Chromium session networking and independently owned descriptors require their own lifetime evidence.
+The SDK Kernel installs its own Undici dispatcher and proxy environment before Provider/runtime
+construction, and acknowledges setting changes only after applying that snapshot. Older revisions
+cannot replace newer state. Preserve the existing system resolver's single probe and first HTTP
+proxy result; this is not per-destination PAC evaluation. Custom URL credentials and inherited
+bypass rules remain effective, and failed resolution preserves the last committed snapshot.
+Equal effective policies reuse the current pool. Replaced pools drain accepted requests while new
+requests use the new policy. Kernel stop destroys current and draining pools, and awaits their
+retirement before writer release. This ownership covers the global fetch dispatcher; separately
+owned library/native transports keep their existing cancellation and retirement contracts.
+
+The default application opens its profile and assembles this root in the SDK worker through
+private lifecycle requests. Business readiness remains false until startup and owner activation
+are acknowledged. Default handoff requires real application and Native acceptance. Its
 route dispatcher and import/rekey/repair controller use the same local data/Provider/runtime owners;
-Main adds native route maps and supplies presentation effects without database-maintenance RPC.
+Main dispatches its fixed Native route maps locally and supplies presentation effects without
+database-maintenance RPC. Business routes cross bounded Core ingress with the original sender
+guard. Native settings-window lifecycle and system-resume events reach the same Core startup and
+scheduler owners; the Native configuration projection writes only through exact typed commands.
+Startup-tracked routes retain a distinct work identity for each request. Shared progress labels
+and resource lanes cannot merge business results across arguments or caller identities. Unsent full Native startup-progress snapshots may supersede the previous snapshot for the same
+target. Full delegation projections may supersede an older queued revision for the same parent/
+delegation identity; canonical business/CLI events retain their history. Presentation holds at
+most 256 entries and 64 MiB, with one delivery receipt per accepted entry. Renderer publishers
+retain no waiter per superseded snapshot. The 64-entry business ingress queue and existing Native
+callback/control capacities remain unchanged. Each
+accepted request executes its own authorization and handler under the maintenance/lifetime gate.
 Native desktop methods come from a fixed capability table with validated arguments and event
 payloads. Abort signals stay
 local to each process; cancellation identifies the accepted effect and waits for actual settlement.
 Completed cancellation identities are released after their original call settles. Renderer watches
 share one Native subscription per renderer and retain registration and unsubscription receipts.
-Native closure fences new effects and acknowledges physical retirement before profile release.
+Native closure fences new effects and acknowledges physical retirement before profile release. An explicit Core
+shutdown fence pauses credential/security mutations and execution before Main closes windows;
+final profile release still waits for accepted Native effects. Activation queues public business
+requests under the existing bounds until readiness is acknowledged.
 The standalone harness includes its Node module closure, platform native packages and separately
 bundled Skill scan worker; it must not rely on the development checkout's node_modules.
 
@@ -1557,7 +1739,14 @@ Core shutdown drains its vector stores and asks the host to retire Memory before
 and releasing the profile. Retirement fences late startup and waits for accepted startup settlement
 and actual child exit; an observation timeout cannot release ownership. Physical Core loss also
 retires its Memory worker. A Main-owned generation survives Core retirement. Default business
-composition remains in Main until the complete G5 writer, route and lifecycle cutover is accepted.
+composition uses Core; Main must not create a shadow writer or replay an unknown operation. A Core
+connection loss or an internal helper/Browser/desktop/HTTP owner failure retires the Native owners
+and ends that application generation. Internal failure uses a single component-only Native
+notification through reserved capacity. Shutdown fences and bounded lifecycle event delivery
+remain available after failure; business requests do not. Expected host exit after acknowledged
+retirement must not be classified as a new failure. A terminal reset or
+restart action requires acknowledged Core and physical Native retirement. The complete G5 writer,
+route and lifecycle cutover still requires application, fault and signed-package acceptance.
 
 Frames and queues have finite byte/count budgets checked before allocation and parsing. Establish
 production values from the route payload inventory and benchmark. Oversized legal results must
@@ -1696,22 +1885,30 @@ settings update. A runtime's process is a shared failure domain for the plugins 
 
 ### Failure and restart
 
-On core loss, main remains alive, revokes old-generation capability leases, and marks business
-operations unavailable. Pending transport calls fail with a distinction between unavailable and
-unknown mutation outcome. Never automatically retry a side-effecting request because its reply
+On Core loss, Main fences old-generation calls and retires the desktop generation's Native
+resources before exiting with failure. The default desktop does not automatically replace the
+Core or leave a partially available window running. Pending transport calls distinguish unavailable
+from unknown mutation outcomes. Never automatically retry a side-effecting request because its reply
 was lost. Existing durable mutation identities and recovery records decide whether work committed.
 
 Before restarting, establish that the previous database owner and its owned descendants have
 terminated. An unresponsive but live core is not a safe reason to create a second owner. Reuse
 existing child-process identity checks and bounded termination. If ownership cannot be established,
-remain unavailable with a diagnostic instead of opening the profile concurrently.
+refuse replacement with a diagnostic instead of opening the profile concurrently.
 
-Only the designated supervisor applies bounded restart/backoff to each child. A recovered core
+Only the designated supervisor may apply bounded restart/backoff to a child whose contract permits
+independent replacement; the default desktop Core requires application restart. A recovered Core
 uses existing Tape, pending-input, interaction, plugin-hook, and delegation recovery contracts.
 Uncertain hook/tool outcomes and held historical queue items are not automatically executed again.
 Do not promise uninterrupted generation across a process crash.
 
 ### Shutdown and database maintenance
+
+Native quit cancels pending and future startup unlock/recovery requests before awaiting startup
+completion and resolving its shutdown owner, including the splash-close transition. Intentional
+startup cancellation releases the profile without a startup-failure dialog. Update-install preflight
+also waits for startup before retiring Core. An interactive window must not permit startup timing
+to bypass the Core shutdown owner.
 
 Close new admission before cancelling or draining active work. Complete business settlement while
 its storage is available, release owned tasks/connections, checkpoint/close the database, and then
@@ -1722,6 +1919,11 @@ Database maintenance uses the same ownership boundary: quiesce all writers and r
 drain/fence Memory and Runs, perform the operation in the backend, reopen/reconcile, refresh
 snapshots, and restore admission only after readiness. Preserve current rollback and failed-state
 behavior. The four Agent fence semantics and deterministic pending-input feedback loop remain.
+
+Fence credential operations before awaiting Native configuration pause or Provider/ACP preparation.
+Preparation recovery reopens credentials and admission only after Native resume acknowledges;
+concurrent shutdown keeps the old generation fenced. An uncertain pause fails the owner rather than
+restoring writes against an unacknowledged Native state.
 
 ## Deployment and compatibility
 
@@ -1747,14 +1949,14 @@ behavior. The four Agent fence semantics and deterministic pending-input feedbac
 
 ## Feasibility gates and acceptance
 
-| Gate                | Required evidence                                                                                                                     | Current evidence                                                                                                  |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Runtime launch      | Rust host loads a compiled plugin through the upstream runner using packaged Electron, exchanges async calls, cancels, and shuts down | Actual app admission E2E and isolated artifact-closure checks passed; signed/packaged launcher validation pending |
-| Platform extraction | OAuth, crypto, MCP Apps, helper launch, and desktop snapshots work through narrow ports without backend Electron-main imports         | Typed ports and SDK Kernel startup/routes verified; complete production Native binding pending                     |
-| Storage ownership   | One mutation authority, preserved transactions, scheduler claims, encryption, backup/rekey/import and maintenance recovery            | Core SDK profile/writer fencing and local commands verified; default writer/lifecycle adoption pending              |
-| Failure behavior    | Core/host loss, lost replies, stale callbacks, full queues, and shutdown cannot create duplicate execution or two profile owners      | Admission runtime-loss regression passes with no replacement owner; whole-core/storage fault validation pending   |
-| Responsiveness      | Repeated baseline/spike measurements show improvement beyond baseline variance under the same backend-heavy workload                  | G2 paired baselines recorded; admission has a measured resource cost and no demonstrated speed improvement          |
-| Distribution        | Offline, signed/packaged launch and cleanup work on every supported target                                                            | Local macOS arm64 builds and copied closure validated; signed release targets pending                             |
+| Gate                | Required evidence                                                                                                                     | Current evidence                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Runtime launch      | Rust host loads a compiled plugin through the upstream runner using packaged Electron, exchanges async calls, cancels, and shuts down | Default packaged SDK Kernel verified on macOS arm64; six-target CI acceptance pending                                        |
+| Platform extraction | OAuth, crypto, MCP Apps, helper launch, and desktop snapshots work through narrow ports without backend Electron-main imports         | Default Native bindings and acknowledged local lifetimes verified; supported-platform behavior remains pending               |
+| Storage ownership   | One mutation authority, preserved transactions, scheduler claims, encryption, backup/rekey/import and maintenance recovery            | Default profile/writer/routes/lifecycle run in Core; local exclusivity, maintenance and recovery checks pass                 |
+| Failure behavior    | Core/host loss, lost replies, stale callbacks, full queues, and shutdown cannot create duplicate execution or two profile owners      | Default Core loss fences the generation; local shutdown/helper/Browser faults verified; whole-goal acceptance pending        |
+| Responsiveness      | Repeated baseline/spike measurements show improvement beyond baseline variance under the same backend-heavy workload                  | Fixed-Mac paired capture records lower Main footprint and higher total footprint; sustained input latency remains unverified |
+| Distribution        | Offline, signed/packaged launch and cleanup work on every supported target                                                            | Local unsigned macOS arm64 Core package verified; offline and signed release targets pending                                 |
 
 Everywhere delivery has additional gates beyond desktop separation:
 

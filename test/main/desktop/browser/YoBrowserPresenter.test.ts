@@ -247,12 +247,6 @@ describe('YoBrowserPresenter', () => {
       }
     }))
 
-    vi.doMock('@/desktop/browser/DownloadManager', () => ({
-      DownloadManager: class {
-        downloadFile = vi.fn()
-      }
-    }))
-
     vi.doMock('@/desktop/browser/yoBrowserSession', () => ({
       getYoBrowserSession: () => ({}),
       getYoBrowserUnpartitionedCookies: vi.fn(async () => []),
@@ -1416,5 +1410,39 @@ describe('YoBrowserPresenter', () => {
 
     await presenter.destroySessionBrowser('session-a')
     expect(overlayDestroyMock).toHaveBeenCalled()
+  })
+
+  it('awaits physical page closure and retains failed retirement', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    for (const session of ['held', 'failed']) {
+      const loading = presenter.loadUrl(session, 'https://example.com')
+      getSessionWebContents(session)!.emitDomReady()
+      await loading
+    }
+    const held = getSessionWebContents('held')!
+    const failed = getSessionWebContents('failed')!
+    held.close.mockImplementation(() => {})
+    failed.close.mockImplementation(() => {
+      throw new Error('Native close refused')
+    })
+    let settled = false
+    const stopping = presenter.shutdown()
+    const rejected = expect(stopping).rejects.toThrow('Native browser pages did not retire')
+    void stopping.finally(() => (settled = true)).catch(() => {})
+    expect(presenter.shutdown()).toBe(stopping)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(held.close).toHaveBeenCalledWith({ waitForBeforeUnload: false })
+    expect(settled).toBe(false)
+    await expect(presenter.loadUrl('late', 'https://example.com')).rejects.toThrow('stopping')
+    expect(getSessionWebContents('late')).toBeNull()
+    held.destroyed = true
+    held.emit('destroyed')
+    await rejected
+    expect(await presenter.getBrowserStatus('held')).toMatchObject({ initialized: false })
+    expect(await presenter.getBrowserStatus('failed')).toMatchObject({ initialized: true })
+    expect(presenter.shutdown()).toBe(stopping)
+    failed.destroyed = true
+    failed.emit('destroyed')
   })
 })

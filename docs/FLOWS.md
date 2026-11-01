@@ -1,7 +1,8 @@
 # DeepChat 当前核心流程
 
-本文档描述 `2026-07-16` 的实际流程。旧 `Presenter`、通用 lifecycle hook 和全局 `EventBus`
-不再属于当前流程。
+These flows use the default Rust/Rutis Core owner. Business state, configuration and the shared
+writer live in Core; Native presentation and authenticated renderer ingress remain in Main.
+The old `Presenter`, generic lifecycle hooks and global `EventBus` are removed.
 
 ## 1. main 进程启动
 
@@ -9,27 +10,33 @@
 sequenceDiagram
     participant Entry as appMain.ts
     participant Main as app/mainProcess.ts
-    participant DB as Database
     participant App as app/composition.ts
-    participant Desktop as Desktop
+    participant Host as Rust/Rutis
+    participant Core as Core SDK Kernel
+    participant DB as Profile / Database
 
     Entry->>Entry: single-instance / deeplink cache
-    Entry->>Main: startMainProcess()
-    Main->>Main: create splash and settings stores
-    Main->>DB: unlock, open, migrate
-    Main->>Main: migrate config storage and register protocols
+    Entry->>Main: startMainProcess(startup signal)
+    Main->>Main: create splash and register protocols
     Main->>App: createMainProcessControl(dependencies)
-    App->>App: create modules and connect narrow dependencies
-    App->>App: register module route maps
-    App->>Desktop: create first main window
-    App->>App: start shortcut, tray, Scheduler and Memory maintenance
-    App->>App: schedule deferred/background work
+    App->>Host: connect default Core generation
+    Host->>Core: load first-party SDK plugin
+    Core->>DB: acquire exclusive profile ownership
+    Core->>Main: Native crypto and unlock/recovery presentation
+    Core->>DB: open and migrate
+    Core->>Core: compose Kernel and business route maps
+    Core->>Core: finish startup migrations and activate
+    Core-->>App: business readiness acknowledged
+    App->>App: create main window, shortcuts and tray
     App-->>Main: MainProcessControl
     Main->>Main: close splash
 ```
 
-首个窗口之前必须完成数据库、配置迁移、route 注册和 ACP registry migration。Skill 扫描、MCP、
-Remote、Provider warmup、legacy import 和统计回填在窗口可用后调度。
+Database/config migration, required startup migrations and business route registration precede
+business readiness. Core owns deferred/background work and its readiness/drain coordinator.
+Quit during startup cancels pending/future unlock or recovery requests, then waits for profile
+retirement. Startup cancellation does not display a failure dialog. Other business flows below run
+in Core and use typed Main ports when they require Native effects.
 
 ## 2. 创建 Session 并发送消息
 
@@ -221,10 +228,11 @@ shutdown 会先停止接受新 run，再等待或取消已接收 run。
 
 ## 10. Sync 和导入
 
-本地备份、数据库导入和 S3-compatible cloud sync 由 `src/main/sync/` 发起，并统一包在 App database
-maintenance 中。Cloud flow 为：读取 SyncSettings 中的 endpoint/bucket/path/credential，生成或读取加密
-数据库备份，上传/下载对象，校验完成后再替换本地数据。Secret 只保存在 main process 的 secret store，
-renderer 只接收脱敏状态。
+Core invokes `src/main/sync/` for local backups, database import and S3-compatible cloud sync under
+database maintenance. Cloud sync reads endpoint/bucket/path/credentials, creates or reads the
+encrypted backup, transfers and validates it before replacing local data. Core owns durable
+credential access; Main supplies Native encryption. Maintenance and shutdown fence credential
+generations, and the renderer receives only redacted state.
 
 导入成功后重新打开数据库，各模块通过稳定 database owner 读取新 table；长期运行对象不能继续缓存
 旧连接产生的 table。任何 close/import/reopen 失败都会让 App 进入 failed 并停止，不执行半恢复。

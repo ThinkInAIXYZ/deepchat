@@ -20,14 +20,26 @@ The CI subset runs launch, Settings navigation, and Skill sync, using the same p
 Skill sync asserts that scanning does not fall back from the bundled Worker. The Windows ARM64
 workflow also runs this spec against the packaged executable to cover loading from `app.asar`.
 
+All six native package jobs also launch the packaged app for default Core startup, Core owner
+failure/profile reopen, quit during pending database unlock and acknowledged settings persistence.
+They reuse four cases from the launch and settings snapshot specs with isolated profiles, no retries
+and resource measurement disabled. Linux uses
+Xvfb with the existing packaged launcher. These checks do not require distribution signing or
+verify Native keyboard focus.
+
 ## Commands
 
-Use Node >=20.19 and pnpm >=10.11. Build before running:
+Use Node >=24.22.1 <25, pnpm >=10.34.5 <11, and Rust >=1.88 with Cargo. Build before running:
 
 ```bash
 pnpm run build
 pnpm run e2e:smoke
 ```
+
+Native keyboard-focus checks require an interactive, unlocked desktop. A locked macOS session
+can still answer renderer/CDP requests while `BrowserWindow.isFocused()` remains false. The
+browser spec waits for actual Native window focus before checking keyboard-entry admission;
+renderer readiness or the application's last focused-window identity is insufficient.
 
 Run the smaller CI subset:
 

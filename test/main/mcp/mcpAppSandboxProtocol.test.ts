@@ -61,7 +61,7 @@ const createInstance = (
 
 describe('MCP App sandbox policy', () => {
   it('settles a native permission callback once when its disposed caller throws', async () => {
-    const registry = new McpAppSandboxRegistry()
+    const registry = new McpAppSandboxRegistry(() => () => {})
     const instance = createInstance(registry)
     const setRequest = vi.fn()
     configureMcpAppSessionPermissions(registry, {
@@ -88,7 +88,10 @@ describe('MCP App sandbox policy', () => {
   it('revokes pending creation and views on native owner destruction', async () => {
     const owner = Object.assign(new EventEmitter(), { id: 7, isDestroyed: vi.fn(() => false) })
     native.fromId.mockReturnValue(owner)
-    const registry = new McpAppSandboxRegistry()
+    const registry = new McpAppSandboxRegistry((_id, listener) => {
+      owner.once('destroyed', listener)
+      return () => owner.removeListener('destroyed', listener)
+    })
     const desktop = registerMcpAppProtocol(registry)
     const context = { webContentsId: 7, windowId: 11 }
     const creationId = registry.reserveCreation(context, descriptor.serverId)
@@ -111,7 +114,7 @@ describe('MCP App sandbox policy', () => {
   })
 
   it('refuses a delayed protocol policy after the native owner is gone', async () => {
-    const registry = new McpAppSandboxRegistry()
+    const registry = new McpAppSandboxRegistry(() => () => {})
     registerMcpAppProtocol(registry)
     const handler = native.handle.mock.calls.at(-1)![1]
     let release!: (policy: Awaited<ReturnType<typeof registry.getProtocolPolicy>>) => void
@@ -180,7 +183,7 @@ describe('MCP App sandbox policy', () => {
     )
   })
   it('preserves default-session permissions while isolating App frames', async () => {
-    const registry = new McpAppSandboxRegistry()
+    const registry = new McpAppSandboxRegistry(() => () => {})
     const instance = createInstance(registry)
     let permissionRequestHandler:
       | ((

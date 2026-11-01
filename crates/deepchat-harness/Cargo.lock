@@ -96,6 +96,7 @@ name = "deepchat-harness"
 version = "0.1.0"
 dependencies = [
  "futures-util",
+ "libc",
  "rutis",
  "rutis-bridge",
  "rutis-loader",

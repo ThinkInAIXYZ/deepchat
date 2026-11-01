@@ -1,8 +1,10 @@
 import { z } from 'zod'
 import { CoreHelperEventsSchema, isCoreHelperDrain } from './helpers'
 import { CoreBrowserEventSchema, isCoreBrowserDrain } from './browser'
-import { CoreDesktopEventSchema, isCoreDesktopDrain } from './desktop'
+import { CoreDesktopEventSchema, CoreWindowTargetSchema, isCoreDesktopDrain } from './desktop'
+import { McpAppCspSchema, McpAppPermissionsSchema } from '../contracts/routes/mcp.routes'
 import { hasDeepchatRouteContract, type DeepchatRouteName } from '../contracts/routes'
+import { databaseRepairReasonSchema } from '../notifications/semanticNotification'
 
 export const CORE_INLINE_BYTES = 16 * 1024
 export const CORE_VALUE_BYTES = 64 * 1024 * 1024
@@ -13,6 +15,7 @@ export const CORE_ROUTE_QUEUED = 64
 export const CORE_CONTROL_CALLS = 2
 export const CORE_NATIVE_CALLS = 16
 export const CORE_NATIVE_QUEUED = 64
+export const CORE_PRESENTATION_QUEUED = 256
 
 export const CoreNativeMethodSchema = z.enum([
   'crypto.available',
@@ -24,6 +27,8 @@ export const CoreNativeMethodSchema = z.enum([
   'profile.unlock',
   'profile.recovery',
   'profile.quit',
+  'profile.observation',
+  'core.failure',
   'configuration',
   'helpers',
   'browser',
@@ -31,14 +36,64 @@ export const CoreNativeMethodSchema = z.enum([
 ])
 export type CoreNativeMethod = z.infer<typeof CoreNativeMethodSchema>
 
+export const CoreFailureComponentSchema = z.enum(['helpers', 'browser', 'desktop', 'http'])
+
+const profileObservation = z.object({
+  durationMs: z.number().finite().nonnegative().optional(),
+  repairAttempted: z.boolean(),
+  schemaDiagnosis: z.enum(['completed', 'unavailable', 'not_completed']),
+  repairableIssueCount: z.number().int().nonnegative(),
+  manualIssueCount: z.number().int().nonnegative()
+})
+export const CoreProfileObservationSchema = z.discriminatedUnion('outcome', [
+  profileObservation.extend({ outcome: z.literal('completed') }).strict(),
+  profileObservation
+    .extend({
+      outcome: z.literal('failed'),
+      error: z.union([
+        z.object({ category: z.enum(['integrity', 'persistence']) }).strict(),
+        z.object({ category: z.literal('schema'), reason: databaseRepairReasonSchema }).strict()
+      ])
+    })
+    .strict()
+])
+
+export const CoreHostEventSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('host.clearPermissions') }).strict(),
+  z.object({ type: z.literal('host.shutdownConfirmation') }).strict(),
+  z.object({ type: z.literal('host.systemResume') }).strict(),
+  z
+    .object({
+      type: z.literal('host.settingsWindow'),
+      action: z.enum(['opened', 'closed', 'ready'])
+    })
+    .strict()
+])
+export const CoreShutdownConfirmationSchema = z
+  .object({
+    title: z.string(),
+    description: z.string().optional(),
+    i18n: z.boolean().optional(),
+    icon: z.object({ icon: z.string(), class: z.string() }).strict().optional(),
+    buttons: z
+      .array(
+        z.object({ key: z.string(), label: z.string(), default: z.boolean().optional() }).strict()
+      )
+      .optional(),
+    timeout: z.number().finite().optional()
+  })
+  .strict()
+  .nullable()
 export const CoreNativeEventSchema = z.union([
   CoreHelperEventsSchema,
   CoreBrowserEventSchema,
-  CoreDesktopEventSchema
+  CoreDesktopEventSchema,
+  CoreHostEventSchema
 ])
 
 export function isCoreNativeDrain(method: CoreNativeMethod, args: unknown): boolean {
   return (
+    (method === 'core.failure' && z.tuple([CoreFailureComponentSchema]).safeParse(args).success) ||
     (method === 'helpers' && isCoreHelperDrain(args)) ||
     (method === 'browser' && isCoreBrowserDrain(args)) ||
     (method === 'desktop' && isCoreDesktopDrain(args))
@@ -76,13 +131,48 @@ export const CoreMethodSchema = z.enum([
   'startKernel',
   'invokeRoute',
   'invokeControlRoute',
+  'mcpAppProtocol',
+  'hostQuery',
   'configure',
   'observeSystemTheme',
   'nativeEvents',
   'status',
+  'beginShutdown',
   'stop'
 ])
 export type CoreMethod = z.infer<typeof CoreMethodSchema>
+
+export const CoreHostQuerySchema = z.discriminatedUnion('operation', [
+  z.object({ operation: z.literal('workspacePreview'), url: z.string().max(32768) }).strict(),
+  z.object({ operation: z.literal('hasProvider'), providerId: z.string().min(1).max(256) }).strict()
+])
+
+const mcpAppContext = CoreWindowTargetSchema.extend({
+  windowId: z.number().int().positive().nullable()
+})
+const mcpAppInstanceId = z.string().min(1).max(128)
+export const CoreMcpAppProtocolCommandSchema = z.discriminatedUnion('operation', [
+  z.object({ operation: z.literal('policy'), instanceId: mcpAppInstanceId }).strict(),
+  z
+    .object({
+      operation: z.literal('permission'),
+      instanceId: mcpAppInstanceId,
+      context: mcpAppContext,
+      kinds: z
+        .array(z.enum(['camera', 'microphone', 'geolocation', 'clipboard-write']))
+        .min(1)
+        .max(4)
+    })
+    .strict()
+])
+export const CoreMcpAppProtocolPolicySchema = z
+  .object({
+    context: mcpAppContext,
+    csp: McpAppCspSchema.optional(),
+    permissions: McpAppPermissionsSchema.optional()
+  })
+  .strict()
+  .nullable()
 
 export const CoreStatusSchema = z
   .object({

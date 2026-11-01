@@ -25,7 +25,6 @@ export class CoreNativeBrowser implements AgentBrowserToolPort {
   private readonly pending = new Set<Promise<unknown>>()
   private closing: Promise<void> | undefined
   private failure: Error | undefined
-  private used = false
 
   constructor(
     private readonly invoke: (command: CoreBrowserCommand) => Promise<unknown>,
@@ -73,7 +72,7 @@ export class CoreNativeBrowser implements AgentBrowserToolPort {
   close(): Promise<void> {
     if (this.closing) return this.closing
     this.closing = (async () => {
-      if (this.used) await this.invoke({ operation: 'close' })
+      await this.invoke({ operation: 'close' })
       for (const call of this.calls.values())
         call.outcome.reject(new Error('Native browser has stopped'))
       await Promise.allSettled(this.pending)
@@ -103,7 +102,6 @@ export class CoreNativeBrowser implements AgentBrowserToolPort {
     }
     void call.outcome.promise.catch(() => {})
     this.calls.set(id, call)
-    this.used = true
     let admitted = false
     let cancellation: Promise<unknown> | undefined
     const abort = () => {

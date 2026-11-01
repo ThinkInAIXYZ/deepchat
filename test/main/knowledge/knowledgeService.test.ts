@@ -5,6 +5,8 @@ import { KnowledgeDatabase } from '../../../src/main/knowledge/database/knowledg
 import { KnowledgeBase } from '../../../src/main/knowledge/knowledgeBase'
 import fs from 'fs'
 
+const queueStatus = vi.hoisted(() => vi.fn(() => ({ totalTasks: 0 })))
+
 // Mock all external dependencies
 vi.mock('electron', () => ({
   app: {
@@ -61,7 +63,7 @@ vi.mock('../../../src/main/knowledge/knowledgeBase', () => ({
 vi.mock('../../../src/main/knowledge/taskQueue', () => ({
   KnowledgeTaskQueue: vi.fn().mockImplementation(function KnowledgeTaskQueue() {
     return {
-      getStatus: vi.fn().mockReturnValue({ totalTasks: 0 })
+      getStatus: queueStatus
     }
   })
 }))
@@ -89,10 +91,6 @@ const mockProviderSettings = {
 const mockFileService = {
   validateFileForKnowledgeBase: vi.fn(),
   getSupportedExtensions: vi.fn()
-} as any
-
-const mockDialogPresenter = {
-  showDialog: vi.fn()
 } as any
 
 const mockProviderRuntime = {
@@ -123,6 +121,7 @@ describe('KnowledgeService Validation Methods', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    queueStatus.mockReturnValue({ totalTasks: 0 })
     ;(
       KnowledgeDatabase as unknown as {
         mockImplementation: (factory: () => unknown) => void
@@ -159,10 +158,21 @@ describe('KnowledgeService Validation Methods', () => {
       storageRoot: mockDbDir,
       extensionDirectory: '/mock/runtime/duckdb/extensions',
       files: mockFileService,
-      dialog: mockDialogPresenter,
       embeddings: mockProviderRuntime,
       events: mockEvents
     })
+  })
+
+  it('returns shutdown confirmation data before Native presentation', async () => {
+    expect(knowledgeService.getShutdownConfirmation()).toBeNull()
+    queueStatus.mockReturnValue({ totalTasks: 1 })
+    const request = knowledgeService.getShutdownConfirmation()
+    expect(request).toMatchObject({
+      title: 'settings.knowledgeBase.dialog.beforequit.title',
+      timeout: 10000,
+      i18n: true
+    })
+    expect(request?.buttons?.map((button) => button.key)).toEqual(['cancel', 'confirm'])
   })
 
   describe('validateFile', () => {

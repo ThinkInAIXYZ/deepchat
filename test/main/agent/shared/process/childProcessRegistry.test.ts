@@ -45,7 +45,7 @@ describe('ChildProcessRegistry', () => {
   let rootDir: string
   let alivePids: Set<number>
   let observations: Map<number, ObservedProcessIdentity>
-  let terminate: ReturnType<typeof vi.fn>
+  let terminate: ReturnType<typeof vi.fn<(pid: number) => Promise<boolean>>>
   let registry: ChildProcessRegistry
 
   const writeRecord = (subsystem: string, record: ChildProcessLaunchRecord) => {
@@ -65,7 +65,7 @@ describe('ChildProcessRegistry', () => {
     rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'child-process-registry-'))
     alivePids = new Set()
     observations = new Map()
-    terminate = vi.fn().mockResolvedValue(true)
+    terminate = vi.fn<(pid: number) => Promise<boolean>>().mockResolvedValue(true)
     registry = new ChildProcessRegistry({
       rootDir,
       now: () => 1_060_000,
@@ -82,13 +82,14 @@ describe('ChildProcessRegistry', () => {
 
   it('persists the observed process start time independently of the write time', async () => {
     observations.set(4321, { alive: true, startedAtMs: 998_000 })
-    await registry.record({
+    const recorded = await registry.record({
       subsystem: 'background-exec',
       recordId: 'bg_session/1',
       pid: 4321,
       commandLine: ['/bin/zsh', '-c', 'npm run dev'],
       cwd: '/tmp/work'
     })
+    expect(recorded).toEqual({ alive: true, startedAtMs: 998_000 })
 
     const records = registry.list('background-exec')
     expect(records).toHaveLength(1)
@@ -101,6 +102,24 @@ describe('ChildProcessRegistry', () => {
       recordedAt: 1_060_000,
       startedAtMs: 998_000
     })
+  })
+
+  it('reports registration failure for unavailable storage or process identity', async () => {
+    const entry = {
+      subsystem: 'background-exec' as const,
+      recordId: 'unregistered-command',
+      pid: 4321,
+      commandLine: ['command']
+    }
+    observations.set(entry.pid, { alive: true })
+    expect(await registry.record(entry)).toBe('failed')
+    expect(registry.list(entry.subsystem)).toMatchObject([{ pid: entry.pid }])
+    observations.set(entry.pid, { alive: false })
+    expect(await registry.record(entry)).toBe('exited')
+    expect(registry.list(entry.subsystem)).toEqual([])
+    fs.rmSync(rootDir, { recursive: true })
+    fs.writeFileSync(rootDir, 'not a directory')
+    expect(await registry.record(entry)).toBe('failed')
   })
 
   it('clears records and tolerates missing files', () => {
@@ -165,7 +184,7 @@ describe('ChildProcessRegistry', () => {
     expect(recordFileCount('background-exec')).toBe(1)
   })
 
-  it('refuses to kill a reused pid whose command line does not match', async () => {
+  it('retains uncertain legacy ownership when argv changes without a different birth time', async () => {
     const record = makeRecord()
     writeRecord('background-exec', record)
     alivePids.add(record.pid)
@@ -179,7 +198,60 @@ describe('ChildProcessRegistry', () => {
 
     expect(result.refused).toEqual(['bg_test'])
     expect(terminate).not.toHaveBeenCalled()
-    // The recorded process is demonstrably gone; the stale record is dropped.
+    expect(recordFileCount('background-exec')).toBe(1)
+  })
+
+  it('recovers a native identity across exec but refuses reused or unobservable identities', async () => {
+    const identity = 'darwin:11111111-1111-4111-8111-111111111111:12345'
+    const record = makeRecord({ nativeIdentity: identity, startedAtMs: undefined })
+    alivePids.add(record.pid)
+    const nextBoot = identity.replace(
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222'
+    )
+    for (const observedIdentity of [undefined, `${identity}6`, nextBoot, identity]) {
+      writeRecord('background-exec', record)
+      observations.set(record.pid, {
+        alive: true,
+        nativeIdentity: observedIdentity,
+        commandLine: '/different/executable'
+      })
+      const result = await registry.reapStale('background-exec', { ownerPid: record.ownerPid })
+      if (observedIdentity === identity) {
+        expect(result.reaped).toEqual([record.recordId])
+        expect(terminate).toHaveBeenCalledExactlyOnceWith(record.pid)
+      } else if (observedIdentity === nextBoot) {
+        expect(result.cleared).toEqual([record.recordId])
+        expect(terminate).not.toHaveBeenCalled()
+        expect(recordFileCount('background-exec')).toBe(0)
+      } else {
+        expect(result.refused).toEqual([record.recordId])
+        expect(terminate).not.toHaveBeenCalled()
+        expect(recordFileCount('background-exec')).toBe(1)
+      }
+    }
+  })
+
+  it('retains native ownership after root loss until group retirement succeeds', async () => {
+    const record = makeRecord({
+      nativeIdentity: 'darwin:11111111-1111-4111-8111-111111111111:12345',
+      startedAtMs: undefined,
+      recordedAt: -14 * 24 * 60 * 60 * 1000
+    })
+    writeRecord('background-exec', record)
+    terminate.mockResolvedValueOnce(false)
+    const failed = await registry.reapStale('background-exec')
+    expect(failed.refused).toEqual([record.recordId])
+    expect(failed.cleared).toEqual([])
+    expect(recordFileCount('background-exec')).toBe(1)
+    const refused = await registry.reapStale('background-exec', {
+      ownerPid: record.ownerPid,
+      attester: () => false
+    })
+    expect(refused.refused).toEqual([record.recordId])
+    expect(terminate).toHaveBeenCalledTimes(1)
+    const retired = await registry.reapStale('background-exec', { ownerPid: record.ownerPid })
+    expect(retired.reaped).toEqual([record.recordId])
     expect(recordFileCount('background-exec')).toBe(0)
   })
 
@@ -228,7 +300,7 @@ describe('ChildProcessRegistry', () => {
     expect(recordFileCount('background-exec')).toBe(1)
   })
 
-  it.each(['clear', 'replace'] as const)(
+  it.each(['clear', 'replace', 'exit'] as const)(
     'does not restore an old record when observation completes after %s',
     async (action) => {
       let resolveObservation!: (identity: ObservedProcessIdentity) => void
@@ -248,18 +320,27 @@ describe('ChildProcessRegistry', () => {
         pid: 4321,
         commandLine: ['node']
       }
-      const pending = delayedRegistry.record(entry)
+      const child = { pid: entry.pid, exitCode: null as number | null, signalCode: null }
+      const pending = delayedRegistry.record(entry, child)
       if (action === 'clear') {
         delayedRegistry.clear(entry.subsystem, entry.recordId)
-      } else {
+      } else if (action === 'replace') {
         await delayedRegistry.record({ ...entry, pid: 4322 })
+      } else {
+        child.exitCode = 0
       }
       resolveObservation({ alive: true, startedAtMs: 998_000 })
       await pending
 
       const records = delayedRegistry.list('mcp-stdio')
       if (action === 'clear') expect(records).toEqual([])
-      else expect(records).toMatchObject([{ pid: 4322, startedAtMs: 999_000 }])
+      else if (action === 'replace')
+        expect(records).toMatchObject([{ pid: 4322, startedAtMs: 999_000 }])
+      else {
+        expect(records).toHaveLength(1)
+        expect(records[0].startedAtMs).toBeUndefined()
+        expect(records[0].nativeIdentity).toBeUndefined()
+      }
     }
   )
 
@@ -407,12 +488,60 @@ describe('ChildProcessRegistry', () => {
     expect(terminate).toHaveBeenCalledOnce()
   })
 
+  it('serializes scoped retirement without sharing owners or expiring live records', async () => {
+    const entered = Promise.withResolvers<void>()
+    const released = Promise.withResolvers<void>()
+    for (const [pid, ownerPid] of [
+      [4321, 1001],
+      [4322, 1002],
+      [4323, 1003]
+    ]) {
+      writeRecord('background-exec', makeRecord({ pid, ownerPid, recordId: `job-${pid}` }))
+      alivePids.add(pid)
+      observations.set(pid, {
+        alive: true,
+        startedAtMs: 998_000,
+        commandLine: '/bin/zsh -c npm run dev'
+      })
+    }
+    terminate.mockImplementationOnce(async () => {
+      entered.resolve()
+      await released.promise
+      return true
+    })
+    const first = registry.reapStale('background-exec', { ownerPid: 1001, maxRecordAgeMs: 1 })
+    const second = registry.reapStale('background-exec', { ownerPid: 1002, maxRecordAgeMs: 1 })
+    try {
+      await entered.promise
+      expect(terminate).toHaveBeenCalledExactlyOnceWith(4321)
+    } finally {
+      released.resolve()
+    }
+    expect((await first).reaped).toEqual(['job-4321'])
+    expect((await second).reaped).toEqual(['job-4322'])
+    expect(terminate.mock.calls.map(([pid]) => pid)).toEqual([4321, 4322])
+    expect(registry.list('background-exec', 1003).map((record) => record.pid)).toEqual([4323])
+  })
+
+  it('refuses an owned retirement receipt when records cannot be read', async () => {
+    const directory = path.join(rootDir, 'background-exec')
+    fs.mkdirSync(directory)
+    const corrupted = path.join(directory, 'corrupt.json')
+    fs.writeFileSync(corrupted, '{')
+    await expect(registry.reapStale('background-exec', { ownerPid: 1001 })).rejects.toThrow()
+    expect(fs.existsSync(corrupted)).toBe(true)
+    expect(terminate).not.toHaveBeenCalled()
+  })
+
   it('resolves the default root from DEEPCHAT_USER_DATA_DIR at first use', async () => {
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'registry-userdata-'))
     const previous = process.env.DEEPCHAT_USER_DATA_DIR
     process.env.DEEPCHAT_USER_DATA_DIR = userDataDir
     try {
-      const defaultRegistry = new ChildProcessRegistry({ log: () => {} })
+      const defaultRegistry = new ChildProcessRegistry({
+        observe: async () => ({ alive: true, startedAtMs: Date.now() - 1000 }),
+        log: () => {}
+      })
       await defaultRegistry.record({
         subsystem: 'mcp-stdio',
         recordId: 'srv',

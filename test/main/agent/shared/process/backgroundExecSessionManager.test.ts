@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events'
+import { EventEmitter, once } from 'events'
 import type { ChildProcess } from 'child_process'
 import { spawn } from 'child_process'
 import fs from 'fs'
@@ -39,7 +39,8 @@ vi.mock('@/skill/skillExecutionPackageTree', () => ({
   cleanupOwnedSkillExecutionPackageTree: mockCleanupPackageTree
 }))
 
-vi.mock('@/agent/shared/process/processTree', () => ({
+vi.mock('@/agent/shared/process/processTree', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/agent/shared/process/processTree')>()),
   terminateProcessTree: mockTerminateProcessTree
 }))
 
@@ -51,6 +52,7 @@ import {
   BackgroundExecSessionManager,
   BackgroundExecService
 } from '@/agent/shared/process/backgroundExecSessionManager'
+import type { ObservedProcessIdentity } from '@/agent/shared/process/childProcessRegistry'
 import {
   CMD_COMMAND_SHELL,
   POSIX_COMMAND_SHELL,
@@ -71,6 +73,9 @@ class MockChildProcess extends EventEmitter {
     destroyed: false
   }
   pid = 321
+  spawnargs: string[] = []
+  exitCode: number | null = null
+  signalCode: NodeJS.Signals | null = null
   unref = vi.fn()
 }
 
@@ -85,7 +90,7 @@ class MockUtilityProcess extends EventEmitter {
     this.on('error', listener)
   }
   postMessage = vi.fn()
-  kill = vi.fn()
+  kill = vi.fn(async () => {})
 }
 
 function mockStats(kind: 'file' | 'directory'): fs.Stats {
@@ -125,11 +130,12 @@ describe('BackgroundExecSessionManager', () => {
   beforeEach(() => {
     manager = new BackgroundExecSessionManager()
     clearInterval((manager as never).cleanupIntervalId)
+    vi.mocked(spawn).mockReset()
     mockSpawnHost.mockReset()
     mockAssertPackageTree.mockResolvedValue(undefined)
     mockCleanupPackageTree.mockResolvedValue(undefined)
     mockTerminateProcessTree.mockResolvedValue(true)
-    registryMock.record.mockReset()
+    registryMock.record.mockReset().mockResolvedValue({ alive: true })
     registryMock.clear.mockReset()
     vi.spyOn(fs, 'existsSync').mockReturnValue(true)
     vi.spyOn(fs, 'statSync').mockImplementation((candidate) =>
@@ -247,6 +253,8 @@ describe('BackgroundExecSessionManager', () => {
   it('terminates a background process when its output byte limit is exceeded', async () => {
     const child = new MockChildProcess()
     vi.mocked(spawn).mockReturnValue(child as never)
+    const nativeIdentity = 'darwin:00000000-0000-0000-0000-000000000000:42'
+    registryMock.record.mockResolvedValueOnce({ alive: true, nativeIdentity })
     mockTerminateProcessTree.mockImplementationOnce(async () => {
       child.emit('close', 0, null)
       return true
@@ -260,7 +268,12 @@ describe('BackgroundExecSessionManager', () => {
 
     child.stdout.emit('data', Buffer.from('12345678'))
     child.stdout.emit('data', Buffer.from('discarded'))
-    await vi.waitFor(() => expect(mockTerminateProcessTree).toHaveBeenCalledOnce())
+    await vi.waitFor(() =>
+      expect(mockTerminateProcessTree).toHaveBeenCalledExactlyOnceWith(child, {
+        graceMs: 2000,
+        nativeIdentity
+      })
+    )
 
     const result = await manager.getCompletionResult('conv-1', started.sessionId, 500)
     expect(result.status).toBe('killed')
@@ -346,14 +359,200 @@ describe('BackgroundExecSessionManager', () => {
       timeout: 0
     })
 
-    expect(registryMock.record).toHaveBeenCalledWith({
-      subsystem: 'background-exec',
-      recordId: started.sessionId,
-      pid: child.pid,
-      commandLine: expect.arrayContaining([PLATFORM_COMMAND_SHELL.executable]),
-      cwd: expect.stringMatching(/[\\/]workspace$/)
+    expect(registryMock.record).toHaveBeenCalledWith(
+      {
+        subsystem: 'background-exec',
+        recordId: started.sessionId,
+        pid: child.pid,
+        commandLine: expect.arrayContaining([PLATFORM_COMMAND_SHELL.executable]),
+        cwd: expect.stringMatching(/[\\/]workspace$/)
+      },
+      child
+    )
+  })
+
+  it('waits for registration and refuses an unregistered live command until retirement', async () => {
+    const child = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValue(child as never)
+    const registration = Promise.withResolvers<ObservedProcessIdentity | 'exited' | 'failed'>()
+    registryMock.record.mockReturnValueOnce(registration.promise)
+    const retirement = Promise.withResolvers<boolean>()
+    mockTerminateProcessTree.mockReturnValueOnce(retirement.promise)
+    const descriptor = ownedPackageTree()
+    const starting = manager.start('conv-1', 'echo test', '/workspace', {
+      commandShell: PLATFORM_COMMAND_SHELL,
+      timeout: 0,
+      ownedSkillExecutionPackageTree: descriptor
+    })
+    const settled = vi.fn()
+    void starting.then(settled, settled)
+    await vi.waitFor(() => expect(registryMock.record).toHaveBeenCalledOnce())
+    expect(settled).not.toHaveBeenCalled()
+    registration.resolve('failed')
+    await vi.waitFor(() => expect(mockTerminateProcessTree).toHaveBeenCalledOnce())
+    expect(settled).not.toHaveBeenCalled()
+    expect(mockCleanupPackageTree).not.toHaveBeenCalled()
+    child.signalCode = 'SIGTERM'
+    child.emit('close', null, 'SIGTERM')
+    expect(registryMock.clear).not.toHaveBeenCalled()
+    expect(mockCleanupPackageTree).not.toHaveBeenCalled()
+    expect(settled).not.toHaveBeenCalled()
+    retirement.resolve(false)
+    await expect(starting).rejects.toThrow('did not retire')
+    await expect(manager.shutdown()).rejects.toThrow('did not retire')
+    expect(mockCleanupPackageTree).not.toHaveBeenCalled()
+    child.signalCode = 'SIGKILL'
+    child.emit('close', null, 'SIGKILL')
+    await expect(manager.shutdown()).rejects.toThrow('did not retire')
+    await expect(
+      manager.start('conv-1', 'echo test', '/workspace', {
+        commandShell: PLATFORM_COMMAND_SHELL,
+        timeout: 0
+      })
+    ).rejects.toThrow('stopping')
+  })
+
+  it('cleans a rejected launch but preserves commands that close before registration', async () => {
+    const actual = await vi.importActual<typeof import('child_process')>('child_process')
+    const processTree = await vi.importActual<typeof import('@/agent/shared/process/processTree')>(
+      '@/agent/shared/process/processTree'
+    )
+    vi.mocked(spawn).mockImplementation(actual.spawn)
+    mockTerminateProcessTree.mockImplementationOnce(processTree.terminateProcessTree)
+    let child: ChildProcess | undefined
+    registryMock.record.mockImplementationOnce(async () => {
+      child = vi.mocked(spawn).mock.results[0].value as ChildProcess
+      expect(child.pid).toBeGreaterThan(0)
+      return 'failed'
+    })
+    try {
+      await expect(
+        manager.start('conv-1', 'owned command', process.cwd(), {
+          commandShell: PLATFORM_COMMAND_SHELL,
+          timeout: 0,
+          directInvocation: {
+            executable: process.execPath,
+            args: ['-e', 'setInterval(() => {}, 1000)']
+          }
+        })
+      ).rejects.toThrow('could not be registered')
+      expect(child?.exitCode !== null || child?.signalCode !== null).toBe(true)
+      expect(() => process.kill(child!.pid!, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }))
+    } finally {
+      if (child?.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+    }
+    expect(manager.list('conv-1')).toEqual([])
+
+    const quick = new MockChildProcess()
+    vi.mocked(spawn).mockReturnValueOnce(quick as never)
+    registryMock.record.mockImplementationOnce(async () => {
+      setImmediate(() => {
+        quick.exitCode = 0
+        quick.stdout.emit('data', 'quick command')
+        quick.emit('close', 0, null)
+      })
+      return 'exited'
+    })
+    const started = await manager.start('conv-1', 'echo test', '/workspace', {
+      commandShell: PLATFORM_COMMAND_SHELL,
+      timeout: 0
+    })
+    await expect(manager.getCompletionResult('conv-1', started.sessionId)).resolves.toMatchObject({
+      status: 'done',
+      output: 'quick command',
+      exitCode: 0
     })
   })
+
+  it.skipIf(process.platform !== 'darwin')(
+    'gates real exec and environment until registration and retires on EOF or oversized grants',
+    async () => {
+      const actual = await vi.importActual<typeof import('child_process')>('child_process')
+      const originalExecutable = process.env.DEEPCHAT_HARNESS_EXECUTABLE
+      const originalNativeValue = process.env.DEEPCHAT_NATIVE_ENV_ONLY
+      process.env.DEEPCHAT_HARNESS_EXECUTABLE = `${process.cwd()}/out/harness/deepchat-harness-${process.platform}-${process.arch}`
+      process.env.DEEPCHAT_NATIVE_ENV_ONLY = 'bootstrap-only'
+      vi.mocked(spawn).mockImplementation(actual.spawn)
+      try {
+        for (const action of ['release', 'eof', 'oversize']) {
+          const registration = Promise.withResolvers<
+            ObservedProcessIdentity | 'exited' | 'failed'
+          >()
+          registryMock.record.mockClear().mockReturnValueOnce(registration.promise)
+          vi.mocked(spawn).mockClear()
+          const starting = manager.start('conv-1', 'owned gated command', process.cwd(), {
+            commandShell: PLATFORM_COMMAND_SHELL,
+            timeout: 0,
+            env: { DEEPCHAT_GATE_VALUE: 'released-environment' },
+            directInvocation: {
+              executable: process.execPath,
+              args: [
+                '-e',
+                `let input = ''; process.stdin.on('data', (data) => { input += data }); process.stdin.on('end', () => { process.stdout.write(JSON.stringify({ pid: process.pid, env: process.env.DEEPCHAT_GATE_VALUE, inherited: process.env.DEEPCHAT_NATIVE_ENV_ONLY ?? null, input }), () => process.exit(0)) })`
+              ]
+            }
+          })
+          void starting.catch(() => {})
+          let child: ChildProcess | undefined
+          try {
+            await vi.waitFor(() => expect(registryMock.record).toHaveBeenCalledOnce())
+            child = vi.mocked(spawn).mock.results[0].value as ChildProcess
+            const gate = child.stdio[3]!
+            expect(vi.mocked(spawn).mock.calls[0][2]?.env?.DEEPCHAT_GATE_VALUE).toBeUndefined()
+            child.stdin!.write('preserved input')
+            if (action === 'release') {
+              registration.resolve({
+                alive: true,
+                nativeIdentity: 'darwin:00000000-0000-0000-0000-000000000000:42'
+              })
+              const started = await starting
+              await vi.waitFor(() => expect(gate.closed).toBe(true))
+              expect(child.exitCode).toBeNull()
+              child.stdin!.end()
+              const completed = await manager.getCompletionResult('conv-1', started.sessionId)
+              expect(JSON.parse(completed.output)).toEqual({
+                pid: child.pid,
+                env: 'released-environment',
+                inherited: null,
+                input: 'preserved input'
+              })
+              await manager.remove('conv-1', started.sessionId)
+            } else {
+              const closed = once(child, 'close', { signal: AbortSignal.timeout(2000) })
+              if (action === 'eof') {
+                mockTerminateProcessTree.mockClear()
+                await manager.kill('conv-1', manager.list('conv-1')[0].sessionId)
+                expect(mockTerminateProcessTree).not.toHaveBeenCalled()
+              } else if ('write' in gate) {
+                const header = Buffer.alloc(4)
+                header.writeUInt32BE(2 * 1024 * 1024 + 1)
+                gate.write(header)
+              }
+              await closed
+              registration.resolve('exited')
+              await expect(starting).rejects.toThrow('launch stopped')
+              expect(manager.list('conv-1')).toEqual([])
+            }
+          } finally {
+            const closed =
+              child && child.exitCode === null && child.signalCode === null
+                ? once(child, 'close')
+                : Promise.resolve()
+            child?.stdin?.end()
+            child?.stdio[3]?.destroy()
+            registration.resolve('exited')
+            await starting.catch(() => {})
+            await closed
+          }
+        }
+      } finally {
+        if (originalExecutable === undefined) delete process.env.DEEPCHAT_HARNESS_EXECUTABLE
+        else process.env.DEEPCHAT_HARNESS_EXECUTABLE = originalExecutable
+        if (originalNativeValue === undefined) delete process.env.DEEPCHAT_NATIVE_ENV_ONLY
+        else process.env.DEEPCHAT_NATIVE_ENV_ONLY = originalNativeValue
+      }
+    }
+  )
 
   it('clears the registry record when the session process closes', async () => {
     const child = new MockChildProcess()
@@ -409,6 +608,58 @@ describe('BackgroundExecSessionManager', () => {
     })
   })
 
+  it('keeps native completion and ownership behind the physical group receipt', async () => {
+    const descriptor = ownedPackageTree()
+    for (const retired of [true, false]) {
+      const child = new MockChildProcess()
+      vi.mocked(spawn).mockReturnValueOnce(child as never)
+      registryMock.record.mockResolvedValueOnce({
+        alive: true,
+        nativeIdentity: 'darwin:00000000-0000-0000-0000-000000000000:42'
+      })
+      const physical = Promise.withResolvers<boolean>()
+      mockTerminateProcessTree.mockReturnValueOnce(physical.promise)
+      const started = await manager.start('conv-1', 'echo complete', '/workspace', {
+        commandShell: PLATFORM_COMMAND_SHELL,
+        timeout: 0,
+        ownedSkillExecutionPackageTree: descriptor
+      })
+      const cleared = registryMock.clear.mock.calls.length
+      const cleaned = mockCleanupPackageTree.mock.calls.length
+      child.stdout.emit('data', 'complete')
+      child.exitCode = 0
+      child.emit('exit', 0, null)
+      child.emit('close', 0, null)
+      const completion = manager.getCompletionResult('conv-1', started.sessionId)
+      const settled = vi.fn()
+      void completion.then(settled, settled)
+      await Promise.resolve()
+      expect(settled).not.toHaveBeenCalled()
+      expect(
+        manager.list('conv-1').find((item) => item.sessionId === started.sessionId)?.status
+      ).toBe('running')
+      expect(registryMock.clear).toHaveBeenCalledTimes(cleared)
+      expect(mockCleanupPackageTree).toHaveBeenCalledTimes(cleaned)
+      physical.resolve(retired)
+      if (retired) {
+        await expect(completion).resolves.toMatchObject({
+          status: 'done',
+          exitCode: 0,
+          output: 'complete'
+        })
+        expect(registryMock.clear).toHaveBeenCalledTimes(cleared + 1)
+        expect(mockCleanupPackageTree).toHaveBeenCalledTimes(cleaned + 1)
+      } else {
+        await expect(completion).rejects.toThrow('did not retire')
+        child.emit('close', 0, null)
+        await expect(manager.poll('conv-1', started.sessionId)).rejects.toThrow('did not retire')
+        expect(registryMock.clear).toHaveBeenCalledTimes(cleared)
+        expect(mockCleanupPackageTree).toHaveBeenCalledTimes(cleaned)
+        await expect(manager.shutdown()).rejects.toThrow('did not retire')
+      }
+    }
+  })
+
   it('clears the close watchdog when another path finalizes the session', async () => {
     vi.useFakeTimers()
     const child = new MockChildProcess()
@@ -422,7 +673,7 @@ describe('BackgroundExecSessionManager', () => {
     child.emit('exit', 0, null)
     expect(vi.getTimerCount()).toBe(1)
 
-    await manager.kill('conv-1', started.sessionId)
+    await expect(manager.kill('conv-1', started.sessionId)).rejects.toThrow('did not retire')
 
     expect(vi.getTimerCount()).toBe(0)
   })
@@ -544,7 +795,7 @@ describe('BackgroundExecSessionManager', () => {
     setSession(session)
     mockTerminateProcessTree.mockResolvedValueOnce(false)
 
-    await manager.kill('conv-1', 'bg_123')
+    await expect(manager.kill('conv-1', 'bg_123')).rejects.toThrow('did not retire')
 
     expect(mockCleanupPackageTree).not.toHaveBeenCalled()
     expect(session.ownedSkillExecutionPackageTree).toBeUndefined()
@@ -554,7 +805,7 @@ describe('BackgroundExecSessionManager', () => {
     expect(session.child.unref).toHaveBeenCalledOnce()
   })
 
-  it('merges the prepared env on top of process env when starting a session', async () => {
+  it('uses the granted environment without inheriting utility variables', async () => {
     const child = new MockChildProcess()
     vi.mocked(spawn).mockReturnValue(child as never)
     process.env.BASELINE_FLAG = 'baseline'
@@ -579,12 +830,12 @@ describe('BackgroundExecSessionManager', () => {
         expect.objectContaining({
           cwd: expect.stringMatching(/[\\/]workspace$/),
           env: expect.objectContaining({
-            BASELINE_FLAG: 'baseline',
             PATH: '/prepared/bin:/usr/local/bin',
             CUSTOM_FLAG: '1'
           })
         })
       )
+      expect(vi.mocked(spawn).mock.calls[0][2]?.env?.BASELINE_FLAG).toBeUndefined()
     } finally {
       delete process.env.BASELINE_FLAG
     }

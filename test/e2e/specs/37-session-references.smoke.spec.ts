@@ -14,7 +14,7 @@ import { waitForAppReady } from '../helpers/wait'
 
 test('session references survive drafts and retrieve evidence without injecting history @smoke', async ({
   app
-}) => {
+}, testInfo) => {
   let sourceId = ''
   let sawReader = false
   let referenceRequest = ''
@@ -201,7 +201,7 @@ test('session references survive drafts and retrieve evidence without injecting 
     await editor.fill('@Launch')
     const candidate = app.page.getByRole('option', { name: /Launch research/ })
     await expect(candidate).toBeVisible()
-    const artifacts = resolve('.amp/in/artifacts')
+    const artifacts = testInfo.outputPath('composer-artifacts')
     mkdirSync(artifacts, { recursive: true })
     await app.page.screenshot({ path: resolve(artifacts, 'composer-experience-candidates.png') })
     await candidate.click()
@@ -223,6 +223,8 @@ test('session references survive drafts and retrieve evidence without injecting 
     await chip.getByRole('button', { name: /Delete|删除/ }).focus()
     await app.page.keyboard.press('Space')
     await expect(chip).toHaveCount(0)
+    const sidebarToggle = app.page.getByTestId('window-sidebar-toggle')
+    if ((await sidebarToggle.getAttribute('aria-expanded')) === 'false') await sidebarToggle.click()
     const sourceRow = app.page
       .locator(`[data-testid="sidebar-session-item"][data-session-id="${sourceId}"]`)
       .first()
@@ -387,6 +389,18 @@ test('session references survive drafts and retrieve evidence without injecting 
     ).toHaveCount(0)
 
     // Restore the legacy inline representation without changing its backing uploaded material.
+    await expect
+      .poll(async () => {
+        const messageId = await sentAttachment.getAttribute('data-message-id')
+        return app.page.evaluate(
+          async ({ sessionId, messageId }) => {
+            const { messages } = await window.deepchat.invoke('sessions.restore', { sessionId })
+            return messages.some((message) => message.id === messageId)
+          },
+          { sessionId: workspaceSessionId, messageId }
+        )
+      })
+      .toBe(true)
     const attachmentMessageId = await sentAttachment.getAttribute('data-message-id')
     await app.page.evaluate(
       async ({ sessionId, messageId }) => {

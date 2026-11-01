@@ -12,7 +12,6 @@ import { StartupWorkloadCoordinator } from '@/app/startupWorkloadCoordinator'
 import { AgentCliTokenAuthority, ArtifactSpool } from '@/cli'
 import { TypedEventHub, type TypedEventHubOptions } from '@/events/typedEventHub'
 import { SessionEventRouter } from '@/events/sessionEventRouter'
-import { McpAppSandboxRegistry } from '@/mcp/apps/sandboxRegistry'
 import { providerDbLoader, type ProviderDbBootstrap } from '@/provider/providerDbLoader'
 import { createCoreData } from './data'
 import { createCoreProviders } from './providers'
@@ -20,6 +19,8 @@ import { createCoreRuntime } from './runtime'
 import type { createCoreSettings } from './settings'
 import { createCoreMaintenance, type CoreMaintenanceNative } from './maintenance'
 import { createCoreController, type CoreControllerNative } from './controller'
+import { CoreHttp } from './network'
+import type { CoreProxySnapshot } from '@shared/harness/desktop'
 
 type RuntimeOptions = Parameters<typeof createCoreRuntime>[0]
 type ProviderOptions = Parameters<typeof createCoreProviders>[0]
@@ -33,10 +34,7 @@ export type CoreKernelNative = Pick<
   | 'initializeFloatingButton'
   | 'assertSyncTokenStorageAvailable'
   | 'semanticNotifications'
-  | 'dialog'
   | 'secureCrypto'
-  | 'getProxyUrl'
-  | 'whenProxyReady'
   | 'openExternal'
   | 'openPath'
   | 'selectDirectory'
@@ -64,7 +62,8 @@ export type CoreKernelNative = Pick<
     providerCrypto: ProviderOptions['crypto']
     fetchRegistryIcon: ProviderOptions['fetchRegistryIcon']
     mcpAppDesktop: RuntimeOptions['mcpApps']['desktop']
-    publishMcpConsent: Parameters<McpAppSandboxRegistry['setConsentPublisher']>[0]
+    publishMcpConsent: RuntimeOptions['mcpApps']['publishConsent']
+    getProxySnapshot(): Promise<CoreProxySnapshot>
   }
 
 export async function createCoreKernel(options: {
@@ -84,11 +83,13 @@ export async function createCoreKernel(options: {
   bindEventPublisher(publish: (name: DeepchatEventName, payload: unknown) => void): void
   isStopping(): boolean
   allowInsecureTls: boolean
+  onFailure(): void
 }) {
   if (options.isStopping()) throw new Error('Core Kernel startup is stopping')
   const { native, bootstrap, profile, settings } = options
   let stopping: Promise<void> | undefined
   let starting: Promise<void> | undefined
+  let systemResume: Promise<void> | undefined
   let stoppingRequested = false
   let runtime: Runtime | undefined
   let data: ReturnType<typeof createCoreData> | undefined
@@ -136,12 +137,33 @@ export async function createCoreKernel(options: {
     consumeAgentBytes: (token, bytes) => agentCliTokenAuthority.consumeBytes(token, bytes),
     log: logger
   })
-  const mcpApps = new McpAppSandboxRegistry()
-  mcpApps.setConsentPublisher(native.publishMcpConsent)
+  const http = new CoreHttp((error) => {
+    logger.error('[Core] HTTP transport retirement failed', error)
+    options.onFailure()
+  })
+  const refreshProxy = async () => {
+    http.apply(await native.getProxySnapshot())
+    return http.getProxyUrl()
+  }
+  const applyProxy: CoreKernelNative['applyProxy'] = async (...args) => {
+    const resolved = await native.applyProxy(...args)
+    await refreshProxy()
+    return resolved
+  }
   const stop = (): Promise<void> => {
     if (stopping) return stopping
     stoppingRequested = true
     databaseRequests.beginShutdown()
+    profile.databaseSecurityService.stop()
+    profile.secretStore.pause()
+    providers?.agentSettings.stop()
+    runtime?.execution.deepChatAgentHarness.abortGenerations()
+    runtime?.backgroundExec.stop()
+    runtime?.toolService.stopCodeRuntime()
+    startupWorkloadCoordinator.cancelTarget('settings')
+    runtime?.mcpApps.close()
+    const httpRetirement = http.close()
+    void httpRetirement.catch(() => {})
     providerDbLoader.stop()
     stopping = (async () => {
       const errors: unknown[] = []
@@ -153,9 +175,13 @@ export async function createCoreKernel(options: {
           logger.warn('[Core] Kernel retirement failed', { name, error })
         }
       }
+      await step('permissions', async () => await runtime?.host.clearPermissionCaches())
       await step('settings', () => settings.appSettingsService.stop())
       agentCliTokenAuthority.clear()
       await step('startup', () => startupWorkloadCoordinator.cancelAndDrainTarget('main'))
+      await step('settings-startup', () =>
+        startupWorkloadCoordinator.cancelAndDrainTarget('settings')
+      )
       await step('agent-settings-stop', () => providers?.agentSettings.stop())
       await step('provider-catalog', () => providerDbLoader.drain())
       await step('agent-settings', async () => await providers?.agentSettings.drain())
@@ -198,7 +224,6 @@ export async function createCoreKernel(options: {
         await step('runtime-initialization', () => owner.drainInitialization(step))
         await step('activation', async () => await starting?.catch(() => undefined))
         await step('plugins', () => owner.pluginService.shutdown())
-        mcpApps.clear()
         await step('mcp', () => owner.mcpService.shutdown())
         await step('workspace', () => owner.workspaceService.destroy())
         await step('skill-sync', () => owner.skillSyncService.destroy())
@@ -234,6 +259,7 @@ export async function createCoreKernel(options: {
       await step('providers', async () => await providers?.providerRuntime.shutdown())
       await step('acp', async () => await providers?.acpRuntimeOwner.shutdown())
       await step('requests', () => databaseRequests.drainForShutdown())
+      await step('http', () => httpRetirement)
       if (constructionIncomplete)
         errors.push(new Error('Partial Core construction requires physical retirement'))
       if (errors.length) throw new AggregateError(errors, 'Core Kernel did not retire')
@@ -242,6 +268,8 @@ export async function createCoreKernel(options: {
   }
   try {
     constructionIncomplete = true
+    await applyProxy(profile.proxySettings.getMode(), profile.proxySettings.getCustomUrl(), true)
+    if (isStopping()) throw new Error('Core Kernel startup was stopped')
     data = createCoreData({
       profile,
       profileDirectory: bootstrap.profileDirectory,
@@ -319,7 +347,11 @@ export async function createCoreKernel(options: {
       startupRunId,
       databaseRequests,
       syncActiveSessions,
-      mcpApps: { registry: mcpApps, desktop: native.mcpAppDesktop },
+      mcpApps: { publishConsent: native.publishMcpConsent, desktop: native.mcpAppDesktop },
+      getProxyUrl: refreshProxy,
+      whenProxyReady: async () => {
+        await refreshProxy()
+      },
       agentInvocationAdmission: options.admission,
       memoryVectorStores: options.vectors,
       execution: {
@@ -366,7 +398,7 @@ export async function createCoreKernel(options: {
       startupWorkloadCoordinator,
       artifactSpool,
       maintenance,
-      native,
+      native: { ...native, applyProxy },
       publishEvent
     })
     providers.agentSettings.start()
@@ -434,8 +466,23 @@ export async function createCoreKernel(options: {
       databaseRequests,
       typedEventHub,
       artifactSpool,
-      mcpApps,
+      mcpApps: runtime.mcpApps,
       publishEvent,
+      observeSystemResume: () => {
+        if (isStopping() || databaseRequests.state !== 'running' || systemResume) return
+        // The Native event lane must remain free for scheduler/helper replies.
+        systemResume = databaseRequests
+          .runRequest('system.resume', () => runtime!.cronJobs.handleSystemResume())
+          .catch((error) => logger.warn('[Core] System resume failed', error))
+          .finally(() => {
+            systemResume = undefined
+          })
+      },
+      observeSettingsWindow: (action: 'opened' | 'closed' | 'ready') => {
+        if (action === 'opened') startupWorkloadCoordinator.createRun('settings')
+        else if (action === 'closed') startupWorkloadCoordinator.cancelTarget('settings')
+        else startupWorkloadCoordinator.replayTarget('settings')
+      },
       start,
       stop
     }

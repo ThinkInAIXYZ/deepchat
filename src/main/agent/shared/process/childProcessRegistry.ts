@@ -1,4 +1,4 @@
-import { spawn } from 'child_process'
+import { spawn, type ChildProcess } from 'child_process'
 import { createHash } from 'crypto'
 import fs from 'fs'
 import os from 'os'
@@ -20,12 +20,14 @@ export interface ChildProcessLaunchRecord {
   cwd?: string
   recordedAt: number
   startedAtMs?: number
+  nativeIdentity?: string
 }
 
 export interface ObservedProcessIdentity {
   alive: boolean
   commandLine?: string
   startedAtMs?: number
+  nativeIdentity?: string
 }
 
 export type ChildProcessAttester = (
@@ -41,6 +43,7 @@ export interface ReapStaleChildProcessesResult {
 }
 
 export interface ReapStaleChildProcessesOptions {
+  ownerPid?: number
   attester?: ChildProcessAttester
   excludeRecordIds?: ReadonlySet<string>
   maxRecordAgeMs?: number
@@ -50,7 +53,7 @@ export interface ChildProcessRegistryOptions {
   rootDir?: string
   now?: () => number
   isAlive?: (pid: number) => boolean
-  observe?: (pid: number) => Promise<ObservedProcessIdentity>
+  observe?: (pid: number, record?: ChildProcessLaunchRecord) => Promise<ObservedProcessIdentity>
   terminate?: (pid: number) => Promise<boolean>
   log?: (message: string, ...args: unknown[]) => void
 }
@@ -155,9 +158,30 @@ async function observeWindows(pid: number): Promise<ObservedProcessIdentity> {
   }
 }
 
-async function defaultObserve(pid: number): Promise<ObservedProcessIdentity> {
+function isNativeIdentity(value: unknown): value is string {
+  return typeof value === 'string' && /^darwin:[\dA-Fa-f-]{36}:[1-9]\d{0,19}$/.test(value)
+}
+
+export async function observeProcessIdentity(
+  pid: number,
+  record?: ChildProcessLaunchRecord
+): Promise<ObservedProcessIdentity> {
   if (!defaultIsAlive(pid)) {
     return { alive: false }
+  }
+  const executable = process.env.DEEPCHAT_HARNESS_EXECUTABLE
+  if (process.platform === 'darwin' && executable && (!record || record.nativeIdentity)) {
+    const result = await runAndCapture(executable, ['--process-identity', String(pid)])
+    if (result.code === 0) {
+      try {
+        const value = JSON.parse(result.stdout)
+        if (value.pid === pid && isNativeIdentity(value.nativeIdentity))
+          return { alive: true, nativeIdentity: value.nativeIdentity }
+      } catch {
+        // Missing native identity cannot authorize releasing an execution gate.
+      }
+    }
+    return { alive: defaultIsAlive(pid) }
   }
   return process.platform === 'win32' ? await observeWindows(pid) : await observePosix(pid)
 }
@@ -169,6 +193,7 @@ export function defaultChildProcessAttester(
   if (!observed.alive) {
     return false
   }
+  if (record.nativeIdentity !== undefined) return record.nativeIdentity === observed.nativeIdentity
   if (
     !Number.isFinite(record.startedAtMs) ||
     !Number.isFinite(observed.startedAtMs) ||
@@ -197,6 +222,7 @@ function isLaunchRecord(value: unknown): value is ChildProcessLaunchRecord {
     Number.isSafeInteger(record.ownerPid) &&
     Array.isArray(record.commandLine) &&
     record.commandLine.every((segment) => typeof segment === 'string') &&
+    (record.nativeIdentity === undefined || isNativeIdentity(record.nativeIdentity)) &&
     Number.isFinite(record.recordedAt)
   )
 }
@@ -212,10 +238,10 @@ export class ChildProcessRegistry {
   private resolvedRootDir?: string
   private readonly now: () => number
   private readonly isAlive: (pid: number) => boolean
-  private readonly observe: (pid: number) => Promise<ObservedProcessIdentity>
-  private readonly terminate: (pid: number) => Promise<boolean>
+  private readonly observe: NonNullable<ChildProcessRegistryOptions['observe']>
+  private readonly terminate: (record: ChildProcessLaunchRecord) => Promise<boolean>
   private readonly log: (message: string, ...args: unknown[]) => void
-  private readonly reapedSubsystems = new Set<string>()
+  private readonly onceReaps = new Map<string, Promise<ReapStaleChildProcessesResult> | null>()
   private readonly inflightReaps = new Map<string, Promise<ReapStaleChildProcessesResult>>()
   private readonly pendingRecords = new Map<string, ChildProcessLaunchRecord>()
 
@@ -223,22 +249,33 @@ export class ChildProcessRegistry {
     this.configuredRootDir = options.rootDir
     this.now = options.now ?? Date.now
     this.isAlive = options.isAlive ?? defaultIsAlive
-    this.observe = options.observe ?? defaultObserve
-    this.terminate =
-      options.terminate ?? ((pid: number) => terminateProcessTreeByPid(pid, { graceMs: 2000 }))
+    this.observe = options.observe ?? observeProcessIdentity
+    this.terminate = (record) =>
+      options.terminate
+        ? options.terminate(record.pid)
+        : terminateProcessTreeByPid(record.pid, {
+            graceMs: 2000,
+            nativeIdentity: record.nativeIdentity
+          })
     this.log = options.log ?? ((message, ...args) => console.warn(message, ...args))
   }
 
-  async record(entry: {
-    subsystem: ChildProcessSubsystem
-    recordId: string
-    pid: number
-    commandLine: string[]
-    cwd?: string
-  }): Promise<void> {
+  async record(
+    entry: {
+      subsystem: ChildProcessSubsystem
+      recordId: string
+      pid: number
+      commandLine: string[]
+      cwd?: string
+    },
+    child?: Readonly<Pick<ChildProcess, 'pid' | 'exitCode' | 'signalCode'>>
+  ): Promise<ObservedProcessIdentity | 'exited' | 'failed'> {
     if (!Number.isSafeInteger(entry.pid) || entry.pid <= 0 || !entry.recordId) {
-      return
+      return 'failed'
     }
+    const isCurrentChild = () =>
+      !child || (child.pid === entry.pid && child.exitCode === null && child.signalCode === null)
+    if (!isCurrentChild()) return 'failed'
     const key = `${entry.subsystem}:${entry.recordId}`
     let record: ChildProcessLaunchRecord | undefined
     try {
@@ -254,20 +291,32 @@ export class ChildProcessRegistry {
       }
       this.pendingRecords.set(key, record)
       this.writeRecord(record)
-      const observed = await this.observe(entry.pid)
+      // PID-only callers retain legacy attestation; native identity needs a live owned child.
+      const observed = await this.observe(entry.pid, child ? undefined : record)
+      // A reaped child may have released its PID while inspection was pending.
+      if (!isCurrentChild()) return 'failed'
+      if (this.pendingRecords.get(key) === record && !observed.alive) {
+        this.clear(entry.subsystem, entry.recordId)
+        return 'exited'
+      }
       // An exit or a newer launch may have cleared/replaced this record while ps ran.
       if (
         this.pendingRecords.get(key) === record &&
         observed.alive &&
-        typeof observed.startedAtMs === 'number' &&
-        Number.isFinite(observed.startedAtMs) &&
-        observed.startedAtMs <= record.recordedAt
+        (isNativeIdentity(observed.nativeIdentity) ||
+          (typeof observed.startedAtMs === 'number' &&
+            Number.isFinite(observed.startedAtMs) &&
+            observed.startedAtMs <= record.recordedAt))
       ) {
         record.startedAtMs = observed.startedAtMs
+        record.nativeIdentity = observed.nativeIdentity
         this.writeRecord(record)
+        return observed
       }
+      return 'failed'
     } catch (error) {
       this.log(`[ChildProcessRegistry] Failed to record launch ${entry.recordId}:`, error)
+      return 'failed'
     } finally {
       if (this.pendingRecords.get(key) === record) this.pendingRecords.delete(key)
     }
@@ -287,12 +336,15 @@ export class ChildProcessRegistry {
     }
   }
 
-  list(subsystem: ChildProcessSubsystem): ChildProcessLaunchRecord[] {
+  list(subsystem: ChildProcessSubsystem, ownerPid?: number): ChildProcessLaunchRecord[] {
+    if (ownerPid !== undefined && (!Number.isSafeInteger(ownerPid) || ownerPid <= 0))
+      throw new Error('Invalid child process owner PID')
     const subsystemDir = path.join(this.rootDir, subsystem)
     let entries: fs.Dirent[]
     try {
       entries = fs.readdirSync(subsystemDir, { withFileTypes: true })
-    } catch {
+    } catch (error) {
+      if (ownerPid !== undefined && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
       return []
     }
 
@@ -305,11 +357,18 @@ export class ChildProcessRegistry {
       try {
         const parsed: unknown = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
         if (isLaunchRecord(parsed)) {
+          if (ownerPid !== undefined) {
+            if (parsed.subsystem !== subsystem || parsed.version !== RECORD_VERSION)
+              throw new Error('Invalid owned child process record')
+            if (parsed.ownerPid !== ownerPid) continue
+          }
           records.push(parsed)
         } else {
+          if (ownerPid !== undefined) throw new Error('Invalid owned child process record')
           fs.unlinkSync(filePath)
         }
-      } catch {
+      } catch (error) {
+        if (ownerPid !== undefined) throw error
         try {
           fs.unlinkSync(filePath)
         } catch {
@@ -324,12 +383,16 @@ export class ChildProcessRegistry {
     subsystem: ChildProcessSubsystem,
     options: ReapStaleChildProcessesOptions = {}
   ): Promise<ReapStaleChildProcessesResult> {
-    const inflight = this.inflightReaps.get(subsystem)
-    if (inflight) {
-      return await inflight
+    const previous = this.inflightReaps.get(subsystem)
+    const snapshot = {
+      ...options,
+      excludeRecordIds: options.excludeRecordIds ? new Set(options.excludeRecordIds) : undefined
     }
-    const reapPromise = this.reapStaleRecords(subsystem, options).finally(() => {
-      this.inflightReaps.delete(subsystem)
+    const reapPromise = (async () => {
+      if (previous) await previous.catch(() => undefined)
+      return await this.reapStaleRecords(subsystem, snapshot)
+    })().finally(() => {
+      if (this.inflightReaps.get(subsystem) === reapPromise) this.inflightReaps.delete(subsystem)
     })
     this.inflightReaps.set(subsystem, reapPromise)
     return await reapPromise
@@ -337,15 +400,14 @@ export class ChildProcessRegistry {
 
   async reapStaleOnce(
     subsystem: ChildProcessSubsystem,
-    options: ReapStaleChildProcessesOptions = {}
+    options: Omit<ReapStaleChildProcessesOptions, 'ownerPid'> = {}
   ): Promise<ReapStaleChildProcessesResult | null> {
-    const inflight = this.inflightReaps.get(subsystem)
-    if (inflight) return await inflight
-    if (this.reapedSubsystems.has(subsystem)) {
-      return null
-    }
-    this.reapedSubsystems.add(subsystem)
-    return await this.reapStale(subsystem, options)
+    if (this.onceReaps.has(subsystem)) return await (this.onceReaps.get(subsystem) ?? null)
+    const recovery = this.reapStale(subsystem, options).finally(() => {
+      this.onceReaps.set(subsystem, null)
+    })
+    this.onceReaps.set(subsystem, recovery)
+    return await recovery
   }
 
   private async reapStaleRecords(
@@ -361,12 +423,16 @@ export class ChildProcessRegistry {
     const attester = options.attester ?? defaultChildProcessAttester
     const maxRecordAgeMs = options.maxRecordAgeMs ?? DEFAULT_MAX_RECORD_AGE_MS
 
-    for (const record of this.list(subsystem)) {
+    for (const record of this.list(subsystem, options.ownerPid)) {
       if (options.excludeRecordIds?.has(record.recordId)) {
         result.skipped.push(record.recordId)
         continue
       }
-      if (this.now() - record.recordedAt > maxRecordAgeMs) {
+      if (
+        options.ownerPid === undefined &&
+        record.nativeIdentity === undefined &&
+        this.now() - record.recordedAt > maxRecordAgeMs
+      ) {
         this.clear(subsystem, record.recordId)
         result.cleared.push(record.recordId)
         continue
@@ -375,7 +441,7 @@ export class ChildProcessRegistry {
         result.refused.push(record.recordId)
         continue
       }
-      if (!this.isAlive(record.pid)) {
+      if (!this.isAlive(record.pid) && record.nativeIdentity === undefined) {
         this.clear(subsystem, record.recordId)
         result.cleared.push(record.recordId)
         continue
@@ -385,20 +451,40 @@ export class ChildProcessRegistry {
         continue
       }
 
-      const observed = await this.observe(record.pid)
-      if (!observed.alive) {
+      const observed = await this.observe(record.pid, record)
+      if (
+        record.nativeIdentity !== undefined &&
+        isNativeIdentity(observed.nativeIdentity) &&
+        record.nativeIdentity.slice(0, 43).toLowerCase() !==
+          observed.nativeIdentity.slice(0, 43).toLowerCase()
+      ) {
+        this.clear(subsystem, record.recordId)
+        result.cleared.push(record.recordId)
+        continue
+      }
+      const nativeRootGone = !observed.alive && record.nativeIdentity !== undefined
+      if (!observed.alive && !nativeRootGone) {
         this.clear(subsystem, record.recordId)
         result.cleared.push(record.recordId)
         continue
       }
 
       let attested = false
-      if (!Number.isFinite(record.startedAtMs) || !Number.isFinite(observed.startedAtMs)) {
+      if (
+        !nativeRootGone &&
+        (record.nativeIdentity !== undefined
+          ? !isNativeIdentity(observed.nativeIdentity)
+          : !Number.isFinite(record.startedAtMs) || !Number.isFinite(observed.startedAtMs))
+      ) {
         result.refused.push(record.recordId)
         continue
       }
       try {
-        attested = record.startedAtMs === observed.startedAtMs && attester(record, observed)
+        attested = nativeRootGone
+          ? options.attester === undefined || attester(record, observed)
+          : (record.nativeIdentity !== undefined
+              ? record.nativeIdentity === observed.nativeIdentity
+              : record.startedAtMs === observed.startedAtMs) && attester(record, observed)
       } catch (error) {
         this.log(`[ChildProcessRegistry] Attester failed for ${record.recordId}:`, error)
       }
@@ -408,15 +494,14 @@ export class ChildProcessRegistry {
         this.log(
           `[ChildProcessRegistry] Refusing unattested cleanup of pid ${record.pid} (${record.recordId})`
         )
-        if (observed.commandLine !== undefined && observed.startedAtMs !== undefined) {
-          // Identity was fully checked and did not match: the recorded process
-          // is gone and the pid now belongs to an unrelated process.
+        // A reused native root PID cannot prove that its escaped descendants have retired.
+        if (record.nativeIdentity === undefined && record.startedAtMs !== observed.startedAtMs) {
           this.clear(subsystem, record.recordId)
         }
         continue
       }
 
-      const terminated = await this.terminate(record.pid).catch((error) => {
+      const terminated = await this.terminate(record).catch((error) => {
         this.log(`[ChildProcessRegistry] Failed to terminate pid ${record.pid}:`, error)
         return false
       })

@@ -5,10 +5,11 @@ import {
   BrowserWindow,
   clipboard,
   nativeImage,
+  webContents,
   type IpcMain,
   type IpcMainInvokeEvent
 } from 'electron'
-import { createRendererIpcAuthorizer } from '@/app/rendererIpcSecurity'
+import { createRendererIpcAuthorizer, isRendererWindowCurrent } from '@/app/rendererIpcSecurity'
 import { registerClipboardIpc } from '@/app/clipboardIpc'
 import { registerDeepchatRoutes } from '@/app/routeIpc'
 import { CLIPBOARD_IPC_CHANNELS } from '@shared/clipboardChannels'
@@ -16,6 +17,7 @@ import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 
 vi.mock('electron', () => ({
   BrowserWindow: { fromWebContents: vi.fn() },
+  webContents: { fromId: vi.fn() },
   clipboard: { writeText: vi.fn(), writeImage: vi.fn(), readText: vi.fn() },
   nativeImage: { createFromDataURL: vi.fn() }
 }))
@@ -43,6 +45,25 @@ const authorize = createRendererIpcAuthorizer({
 })
 
 describe('native renderer document boundary', () => {
+  it('revalidates the current native renderer and window before presentation', () => {
+    const contents = { isDestroyed: () => false }
+    const window = { id: 7, isDestroyed: () => false }
+    vi.mocked(webContents.fromId).mockReturnValue(contents as never)
+    vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(window as never)
+    const caller = { kind: 'renderer', webContentsId: 42, windowId: 7 } as const
+    expect(isRendererWindowCurrent(caller)).toBe(true)
+    expect(isRendererWindowCurrent({ ...caller, windowId: 8 })).toBe(false)
+    expect(isRendererWindowCurrent({ ...caller, windowId: null })).toBe(false)
+    window.isDestroyed = () => true
+    expect(isRendererWindowCurrent(caller)).toBe(false)
+    vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(null)
+    expect(isRendererWindowCurrent({ ...caller, windowId: null })).toBe(true)
+    contents.isDestroyed = () => true
+    expect(isRendererWindowCurrent({ ...caller, windowId: null })).toBe(false)
+    vi.mocked(webContents.fromId).mockReturnValue(undefined)
+    expect(isRendererWindowCurrent(caller)).toBe(false)
+  })
+
   it.each([
     appUrl,
     `${appUrl}?window=2#/chat`,
@@ -67,6 +88,8 @@ describe('native renderer document boundary', () => {
     'http://user@localhost:5173/index.html',
     `${appUrl}/preview.html`,
     new URL('preview.html', rendererDirectoryUrl).href,
+    new URL('floating/index.html', rendererDirectoryUrl).href,
+    'http://localhost:5173/floating/',
     'file:///tmp/index.html',
     'not a URL'
   ])('rejects unrelated documents despite the app preload: %s', (url) => {

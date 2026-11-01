@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import {
   hasDeepchatRouteContract,
   mcpGetClientsRoute,
@@ -55,7 +56,6 @@ type StartupTrackedRouteTask = {
   resource: 'cpu' | 'io'
   labelKey: string
   id: string
-  dedupeKey?: string
 }
 
 const startupTrackedRoutes = new Set<string>([
@@ -96,8 +96,7 @@ async function resolveTrackedRouteTask(
       phase: 'interactive',
       resource: 'io',
       labelKey: 'startup.settings.providers.summary',
-      id: 'settings.providers.summary:route',
-      dedupeKey: 'settings.providers.summary:route'
+      id: 'settings.providers.summary:route'
     }
   }
 
@@ -145,8 +144,7 @@ async function resolveTrackedRouteTask(
       phase: 'interactive',
       resource: 'io',
       labelKey: 'startup.main.session.firstPage',
-      id: 'main.session.firstPage:route',
-      dedupeKey: 'main.session.firstPage:route'
+      id: 'main.session.firstPage:route'
     }
   }
 
@@ -201,7 +199,8 @@ async function runTrackedRouteTask<T>(
     resource: trackedTask.resource,
     labelKey: trackedTask.labelKey,
     visibleId: trackedTask.visibleId,
-    dedupeKey: trackedTask.dedupeKey,
+    // Startup progress must not share results across route arguments or callers.
+    dedupeKey: randomUUID(),
     runId: coordinator.getRunId(trackedTask.target),
     run: async ({ signal }) => {
       signal.throwIfAborted()

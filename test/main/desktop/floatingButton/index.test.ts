@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FLOATING_BUTTON_EVENTS } from '../../../../src/main/events'
 import { getCollapsedWidgetSize, getExpandedWidgetSize } from '@/desktop/floatingButton/layout'
 import type { SessionWithState } from '../../../../src/shared/types/agent-interface'
+import { buildFloatingWidgetSnapshot } from '@/session/widgetSnapshot'
+import type { FloatingWidgetSnapshot } from '@shared/types/floating-widget'
 
 const {
   electronState,
@@ -79,7 +81,7 @@ const {
 
   return {
     electronState: {
-      frame: {},
+      frame: { url: 'http://localhost:5173/floating/' },
       workArea,
       eventHandlers,
       invokeHandlers,
@@ -148,14 +150,18 @@ vi.mock('@/desktop/floatingButton/FloatingButtonWindow', () => ({
     public setDockSide = vi.fn((dockSide: 'left' | 'right') => {
       floatingWindowState.dockSide = dockSide
     })
-    public getWindow = vi.fn(() => ({
+    private window = {
+      id: 3,
       isDestroyed: () => false,
       webContents: {
         id: 1,
         mainFrame: electronState.frame,
+        isDestroyed: () => false,
+        getURL: () => electronState.frame.url,
         send: webContentsSendMock
       }
-    }))
+    }
+    public getWindow = vi.fn(() => this.window)
 
     constructor() {
       floatingWindowState.instance = this as unknown as typeof floatingWindowState.instance
@@ -163,7 +169,7 @@ vi.mock('@/desktop/floatingButton/FloatingButtonWindow', () => ({
   }
 }))
 
-import { FloatingButtonPresenter } from '@/desktop/floatingButton'
+import { FloatingButtonPresenter, type FloatingWidgetBusinessPort } from '@/desktop/floatingButton'
 
 describe('FloatingButtonPresenter drag layout sync', () => {
   let floatingPresenter: FloatingButtonPresenter | null = null
@@ -185,13 +191,20 @@ describe('FloatingButtonPresenter drag layout sync', () => {
 
   const createFloatingPresenter = (
     providerSettings = createProviderSettings(),
-    settings = createDesktopSettings()
+    settings = createDesktopSettings(),
+    business: FloatingWidgetBusinessPort = {
+      getSnapshot: async () =>
+        buildFloatingWidgetSnapshot(
+          await getSessionListMock(),
+          await providerSettings.listAgents(),
+          false
+        ),
+      getRegistryIconMarkup: async () => '',
+      openSession: async () => true
+    }
   ) =>
     new FloatingButtonPresenter(
-      providerSettings,
       settings,
-      { listSessions: getSessionListMock } as any,
-      { activate: vi.fn() } as any,
       {
         mainWindow: null,
         windows: new Map(),
@@ -200,7 +213,8 @@ describe('FloatingButtonPresenter drag layout sync', () => {
         createAppWindow: vi.fn(async () => null),
         show: vi.fn()
       } as any,
-      { getWindowType: vi.fn(() => 'chat') } as any
+      { getWindowType: vi.fn(() => 'chat') } as any,
+      business
     )
 
   const emitEvent = async (channel: string, payload?: unknown) => {
@@ -209,10 +223,14 @@ describe('FloatingButtonPresenter drag layout sync', () => {
       throw new Error(`Missing IPC handler for ${channel}`)
     }
 
-    return await handler({ sender: { id: 1 }, senderFrame: electronState.frame }, payload)
+    return await handler(
+      { sender: { id: 1, isDestroyed: () => false }, senderFrame: electronState.frame },
+      payload
+    )
   }
 
   beforeEach(() => {
+    vi.stubEnv('ELECTRON_RENDERER_URL', 'http://localhost:5173')
     vi.useFakeTimers()
     electronState.reset()
     floatingWindowState.reset()
@@ -228,6 +246,44 @@ describe('FloatingButtonPresenter drag layout sync', () => {
     floatingPresenter = null
     await vi.runOnlyPendingTimersAsync()
     vi.useRealTimers()
+    vi.unstubAllEnvs()
+  })
+
+  it('acknowledges Native startup before a Core read and ignores a retired window reply', async () => {
+    const held = Promise.withResolvers<FloatingWidgetSnapshot>()
+    const fresh: FloatingWidgetSnapshot = { expanded: false, activeCount: 2, sessions: [] }
+    const business = {
+      getSnapshot: vi
+        .fn()
+        .mockImplementationOnce(() => held.promise)
+        .mockResolvedValue(fresh),
+      getRegistryIconMarkup: vi.fn(async () => ''),
+      openSession: vi.fn(async () => true)
+    }
+    floatingPresenter = createFloatingPresenter(undefined, undefined, business)
+    await floatingPresenter.initialize()
+    const retired = floatingWindowState.instance!
+    expect(retired.show).not.toHaveBeenCalled()
+    const oldRead = floatingPresenter.refreshWidgetState()
+    floatingPresenter.destroy()
+    await floatingPresenter.enable()
+    await floatingPresenter.refreshWidgetState()
+    expect(floatingWindowState.instance?.show).toHaveBeenCalledOnce()
+    held.resolve({ expanded: false, activeCount: 7, sessions: [] })
+    await oldRead
+    expect(retired.show).not.toHaveBeenCalled()
+    const snapshot = await electronState.invokeHandlers.get(
+      FLOATING_BUTTON_EVENTS.SNAPSHOT_REQUEST
+    )!({ sender: { id: 1, isDestroyed: () => false }, senderFrame: electronState.frame })
+    expect(snapshot).toEqual(fresh)
+    const before = business.getSnapshot.mock.calls.length
+    await expect(
+      electronState.invokeHandlers.get(FLOATING_BUTTON_EVENTS.SNAPSHOT_REQUEST)!({
+        sender: { id: 2, isDestroyed: () => false },
+        senderFrame: electronState.frame
+      })
+    ).rejects.toThrow('caller retired')
+    expect(business.getSnapshot).toHaveBeenCalledTimes(before)
   })
 
   it('applies acknowledged host appearance without reentering the pending core command', async () => {
@@ -251,6 +307,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
   it('keeps the collapsed size stable when dragging interrupts collapse animation', async () => {
     floatingPresenter = createFloatingPresenter()
     await floatingPresenter.initialize()
+    await floatingPresenter.refreshWidgetState()
 
     expect(floatingWindowState.bounds).toMatchObject({
       x:
@@ -412,6 +469,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
   it('reveals the collapsed widget on hover and peeks it again on mouse leave', async () => {
     floatingPresenter = createFloatingPresenter()
     await floatingPresenter.initialize()
+    await floatingPresenter.refreshWidgetState()
 
     expect(floatingWindowState.bounds.x).toBe(
       electronState.workArea.x + electronState.workArea.width - getCollapsedWidgetSize(0).width / 2

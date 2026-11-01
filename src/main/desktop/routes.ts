@@ -5,14 +5,11 @@ import type {
   IShortcutPresenter,
   ITabPresenter,
   IWindowPresenter,
-  IComputerUsePreviewPresenter,
   IYoBrowserPresenter
 } from '@shared/types/desktop'
 import type { DialogServicePort } from '@shared/types/dialog'
-import type { AppSettingsService } from '@/app/settingsService'
 import {
   browserAttachCurrentWindowRoute,
-  browserFocusContentRoute,
   browserApplyImportRoute,
   browserClearSandboxDataRoute,
   browserDismissPreviewRoute,
@@ -27,17 +24,6 @@ import {
   browserScanImportSourcesRoute,
   browserSetPreviewModeRoute,
   browserUpdateCurrentWindowBoundsRoute,
-  computerUseDismissPreviewRoute,
-  computerUseSetPreviewModeRoute,
-  configGetFloatingButtonRoute,
-  configGetLanguageRoute,
-  configGetShortcutKeysRoute,
-  configGetThemeRoute,
-  configResetShortcutKeysRoute,
-  configSetFloatingButtonRoute,
-  configSetLanguageRoute,
-  configSetShortcutKeysRoute,
-  configSetThemeRoute,
   dialogErrorRoute,
   dialogRespondRoute,
   shortcutDestroyRoute,
@@ -59,8 +45,7 @@ import {
   windowRequeuePendingSettingsProviderInstallRoute,
   windowResumeGuidedOnboardingRoute,
   windowStartGuidedOnboardingRoute,
-  windowToggleMaximizeCurrentRoute,
-  type SettingsActivityInput
+  windowToggleMaximizeCurrentRoute
 } from '@shared/contracts/routes'
 import { DEV_EVENTS } from '../events'
 import {
@@ -69,36 +54,15 @@ import {
   type DeepchatRouteMap,
   type RouteContext
 } from '@/routes/routeRegistry'
-import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
 
 export function createDesktopRoutes(deps: {
-  ownsDraftSession(sessionId: string, webContentsId: number): boolean
   windowPresenter: IWindowPresenter
   shortcutPresenter: IShortcutPresenter
   browserPresenter: IYoBrowserPresenter
-  computerUsePreviewPresenter: IComputerUsePreviewPresenter
-  desktopSessionBinding: Pick<DesktopSessionBinding, 'getActiveId'>
   tabPresenter: ITabPresenter
   dialogService: DialogServicePort
-  settings: Pick<
-    AppSettingsService,
-    | 'getFloatingButtonEnabled'
-    | 'setFloatingButtonEnabled'
-    | 'getShortcutKeys'
-    | 'setShortcutKeys'
-    | 'resetShortcutKeys'
-  >
-  appearance: Pick<AppSettingsService, 'getLanguage' | 'setLanguage' | 'getTheme' | 'setTheme'>
-  recordActivity(input: SettingsActivityInput): void
 }): DeepchatRouteMap {
-  const {
-    windowPresenter,
-    shortcutPresenter,
-    browserPresenter,
-    computerUsePreviewPresenter,
-    tabPresenter,
-    dialogService
-  } = deps
+  const { windowPresenter, shortcutPresenter, browserPresenter, tabPresenter, dialogService } = deps
   const readWindowState = (context: RouteContext) => {
     const caller = requireRendererCaller(context)
     const window = caller.windowId == null ? null : BrowserWindow.fromId(caller.windowId)
@@ -115,91 +79,6 @@ export function createDesktopRoutes(deps: {
     await browserPresenter.getBrowserStatus(sessionId)
 
   return createRouteMap([
-    [
-      configGetLanguageRoute.name,
-      async (rawInput) => {
-        configGetLanguageRoute.input.parse(rawInput)
-        return configGetLanguageRoute.output.parse(await deps.appearance.getLanguage())
-      }
-    ],
-    [
-      configSetLanguageRoute.name,
-      async (rawInput) => {
-        const input = configSetLanguageRoute.input.parse(rawInput)
-        return configSetLanguageRoute.output.parse(
-          await deps.appearance.setLanguage(input.language)
-        )
-      }
-    ],
-    [
-      configGetThemeRoute.name,
-      async (rawInput) => {
-        configGetThemeRoute.input.parse(rawInput)
-        return configGetThemeRoute.output.parse(await deps.appearance.getTheme())
-      }
-    ],
-    [
-      configSetThemeRoute.name,
-      async (rawInput) => {
-        const input = configSetThemeRoute.input.parse(rawInput)
-        return configSetThemeRoute.output.parse(await deps.appearance.setTheme(input.theme))
-      }
-    ],
-    [
-      configGetFloatingButtonRoute.name,
-      async (rawInput) => {
-        configGetFloatingButtonRoute.input.parse(rawInput)
-        return configGetFloatingButtonRoute.output.parse({
-          enabled: await deps.settings.getFloatingButtonEnabled()
-        })
-      }
-    ],
-    [
-      configSetFloatingButtonRoute.name,
-      async (rawInput) => {
-        const input = configSetFloatingButtonRoute.input.parse(rawInput)
-        return configSetFloatingButtonRoute.output.parse({
-          enabled: await deps.settings.setFloatingButtonEnabled(input.enabled)
-        })
-      }
-    ],
-    [
-      configGetShortcutKeysRoute.name,
-      async (rawInput) => {
-        configGetShortcutKeysRoute.input.parse(rawInput)
-        return configGetShortcutKeysRoute.output.parse({
-          shortcuts: await deps.settings.getShortcutKeys()
-        })
-      }
-    ],
-    [
-      configSetShortcutKeysRoute.name,
-      async (rawInput) => {
-        const input = configSetShortcutKeysRoute.input.parse(rawInput)
-        return configSetShortcutKeysRoute.output.parse({
-          shortcuts: await deps.settings.setShortcutKeys(input.shortcuts)
-        })
-      }
-    ],
-    [
-      configResetShortcutKeysRoute.name,
-      async (rawInput) => {
-        configResetShortcutKeysRoute.input.parse(rawInput)
-        const shortcuts = await deps.settings.resetShortcutKeys()
-        deps.recordActivity({
-          category: 'shortcut',
-          action: 'reset',
-          targetType: 'shortcut',
-          targetLabel: 'Shortcuts',
-          routeName: 'settings-shortcut',
-          summaryKey: 'settings.controlCenter.activity.settingUpdated',
-          summaryParams: { key: 'shortcuts' }
-        })
-        return configResetShortcutKeysRoute.output.parse({
-          shortcuts
-        })
-      }
-    ],
     [
       shortcutRegisterRoute.name,
       async (rawInput) => {
@@ -394,22 +273,6 @@ export function createDesktopRoutes(deps: {
       }
     ],
     [
-      browserFocusContentRoute.name,
-      async (rawInput, context) => {
-        const input = browserFocusContentRoute.input.parse(rawInput)
-        const caller = requireRendererCaller(context)
-        const active =
-          deps.desktopSessionBinding.getActiveId(caller.webContentsId) === input.sessionId ||
-          deps.ownsDraftSession(input.sessionId, caller.webContentsId)
-        return browserFocusContentRoute.output.parse({
-          focused:
-            caller.windowId != null &&
-            active &&
-            browserPresenter.focusSessionBrowser(input.sessionId, caller.windowId)
-        })
-      }
-    ],
-    [
       browserAttachCurrentWindowRoute.name,
       async (rawInput, context) => {
         const input = browserAttachCurrentWindowRoute.input.parse(rawInput)
@@ -468,43 +331,6 @@ export function createDesktopRoutes(deps: {
         const input = browserDismissPreviewRoute.input.parse(rawInput)
         return browserDismissPreviewRoute.output.parse({
           dismissed: browserPresenter.dismissPreview(input.sessionId, input.runId)
-        })
-      }
-    ],
-    [
-      computerUseSetPreviewModeRoute.name,
-      async (rawInput, context) => {
-        const input = computerUseSetPreviewModeRoute.input.parse(rawInput)
-        const caller = requireRendererCaller(context)
-        if (
-          caller.windowId == null ||
-          (input.mode !== 'stopped' &&
-            deps.desktopSessionBinding.getActiveId(caller.webContentsId) !== input.sessionId)
-        ) {
-          return computerUseSetPreviewModeRoute.output.parse({
-            updated: false,
-            surface: 'none'
-          })
-        }
-        return computerUseSetPreviewModeRoute.output.parse(
-          await computerUsePreviewPresenter.setPreviewMode(
-            input.sessionId,
-            input.mode,
-            caller.windowId
-          )
-        )
-      }
-    ],
-    [
-      computerUseDismissPreviewRoute.name,
-      async (rawInput, context) => {
-        const input = computerUseDismissPreviewRoute.input.parse(rawInput)
-        const caller = requireRendererCaller(context)
-        const active =
-          deps.desktopSessionBinding.getActiveId(caller.webContentsId) === input.sessionId
-        return computerUseDismissPreviewRoute.output.parse({
-          dismissed:
-            active && computerUsePreviewPresenter.dismissPreview(input.sessionId, input.runId)
         })
       }
     ],

@@ -5,7 +5,6 @@ import type { initializeCoreProfile } from '@/app/profileStartup'
 import type { DatabaseRequestGate } from '@/app/databaseRequestGate'
 import type { StartupWorkloadCoordinator } from '@/app/startupWorkloadCoordinator'
 import { createRouteDispatcher } from '@/routes'
-import type { DeepchatRouteMap } from '@/routes/routeRegistry'
 import { createNodeScheduler } from '@/routes/scheduler'
 import { createProviderRoutes } from '@/provider/routes'
 import { ProviderImportService } from '@/provider/providerImportService'
@@ -63,6 +62,7 @@ export type CoreControllerNative = Pick<
   hasTrustedRenderer: Parameters<typeof createCliRoutes>[0]['hasTrustedRenderer']
   applyProxy(mode: ProxySettingMode, url: string, resolve: boolean): Promise<boolean>
   copilotAuthorization: GitHubCopilotAuthorizationPort
+  sessionPresentation: Parameters<typeof createSessionRoutes>[0]['presentation']
 }
 
 export function createCoreController(options: {
@@ -80,7 +80,6 @@ export function createCoreController(options: {
   artifactSpool: ArtifactSpool
   maintenance: ReturnType<typeof createCoreMaintenance>
   native: CoreControllerNative
-  nativeRouteMaps?: readonly DeepchatRouteMap[]
   publishEvent(name: DeepchatEventName, payload: unknown): void
 }) {
   const {
@@ -267,6 +266,8 @@ export function createCoreController(options: {
     lifecycle: sessionLifecycle,
     projection: sessionQuery,
     desktop: desktopSessionBinding,
+    openDesktopSession: runtime.openDesktopSession,
+    presentation: native.sessionPresentation,
     turn: sessionTurn,
     assignment: sessionAssignment,
     permission: sessionPermissionPort,
@@ -438,7 +439,6 @@ export function createCoreController(options: {
   const routeDispatcher = createRouteDispatcher({
     appDatabaseMaintenance: databaseRequests,
     routeMaps: [
-      ...(options.nativeRouteMaps ?? []),
       providerRoutes,
       toolRoutes,
       pluginRoutes,

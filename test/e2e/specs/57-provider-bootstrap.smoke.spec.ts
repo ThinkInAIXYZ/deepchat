@@ -1,4 +1,5 @@
-import { createServer } from 'node:http'
+import { createServer, type ServerResponse } from 'node:http'
+import { startHttpsFixture } from '../helpers/httpsFixture'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test, expect } from '../fixtures/electronApp'
@@ -76,88 +77,48 @@ test('Provider catalog and request metadata are ready from bootstrap @smoke', as
 test('shutdown cancels and drains catalog refresh without accepting a late response @smoke', async ({
   launchApp
 }) => {
-  const active = await launchApp()
-  expect(active.ownsUserDataDir).toBe(true)
-  const appProcess = active.electronApp.process()
-  await waitForAppReady(active.page)
-  const files = ['providers.json', 'meta.json'].map((name) =>
-    join(active.userDataDir, 'provider-db', name)
-  )
-  const readCache = () =>
-    files.map((file) => (existsSync(file) ? readFileSync(file, 'utf8') : null))
-  const original = readCache()
-  await active.electronApp.evaluate(() => {
-    const originalFetch = globalThis.fetch
-    const fixture = {
-      entered: false,
-      signal: undefined as AbortSignal | undefined,
-      release: () => {}
-    }
-    globalThis.fetch = async (input, init) => {
-      if (input.toString().includes('/PublicProviderConf/')) {
-        fixture.entered = true
-        fixture.signal = init?.signal ?? undefined
-        return new Promise<Response>((resolve) => {
-          fixture.release = () => {
-            globalThis.fetch = originalFetch
-            resolve(
-              new Response(
-                JSON.stringify({
-                  providers: { late: { id: 'late', name: 'Late', models: [{ id: 'late-model' }] } }
-                })
-              )
-            )
-          }
-        })
-      }
-      return originalFetch(input, init)
-    }
-    Object.assign(globalThis, { __providerCatalogFixture: fixture })
+  const responses: ServerResponse[] = []
+  const https = await startHttpsFixture(['raw.githubusercontent.com'], (request, response) => {
+    if (request.url?.includes('/PublicProviderConf/')) responses.push(response)
+    else response.writeHead(404).end()
   })
-  const refresh = active.page
-    .evaluate(() => window.deepchat.invoke('config.refreshProviderDb', { force: true }))
-    .catch(() => null)
-  const release = () =>
-    active.electronApp.evaluate(() => {
-      const fixture = globalThis as unknown as { __providerCatalogFixture: { release(): void } }
-      fixture.__providerCatalogFixture.release()
-    })
+  let active: Awaited<ReturnType<typeof launchApp>> | undefined
+  let refresh: Promise<unknown> | undefined
   try {
-    await expect
-      .poll(() =>
-        active.electronApp.evaluate(
-          () =>
-            (globalThis as unknown as { __providerCatalogFixture: { entered: boolean } })
-              .__providerCatalogFixture.entered
-        )
-      )
-      .toBe(true)
-    await active.electronApp.evaluate(({ app }) => {
-      setImmediate(() => app.quit())
-    })
-    await expect
-      .poll(() =>
-        active.electronApp.evaluate(
-          () =>
-            (globalThis as unknown as { __providerCatalogFixture: { signal?: AbortSignal } })
-              .__providerCatalogFixture.signal?.aborted
-        )
-      )
-      .toBe(true)
-    expect(appProcess.exitCode).toBeNull()
-    await release()
-    await expect.poll(() => appProcess.exitCode).toBe(0)
+    active = await launchApp()
+    expect(active.ownsUserDataDir).toBe(true)
+    await waitForAppReady(active.page)
+    await active.page.evaluate(async (url) => {
+      await window.deepchat.invoke('config.setCustomProxyUrl', { url })
+      await window.deepchat.invoke('config.setProxyMode', { mode: 'custom' })
+    }, https.proxyUrl)
+    const profile = active.userDataDir
+    const files = ['providers.json', 'meta.json'].map((name) => join(profile, 'provider-db', name))
+    const readCache = () =>
+      files.map((file) => (existsSync(file) ? readFileSync(file, 'utf8') : null))
+    const original = readCache()
+    refresh = active.page
+      .evaluate(() => window.deepchat.invoke('config.refreshProviderDb', { force: true }))
+      .catch(() => null)
+    await expect.poll(() => responses.length).toBe(1)
+    expect(responses[0].destroyed).toBe(false)
+    expect(await active.close()).toBe('graceful')
+    await refresh
+    await expect.poll(() => responses[0].destroyed).toBe(true)
+    expect(readCache()).toEqual(original)
+    active = await launchApp()
+    await waitForAppReady(active.page)
+    const { catalog } = await active.page.evaluate(() =>
+      window.deepchat.invoke('models.getProviderCatalog', { providerId: 'openai' })
+    )
+    expect(catalog.dbProviderModels.length).toBeGreaterThan(0)
+    expect(await active.close()).toBe('graceful')
   } finally {
-    await release().catch(() => undefined)
+    try {
+      await active?.close()
+      await refresh
+    } finally {
+      await https.close()
+    }
   }
-  await refresh
-  expect(await active.close()).toBe('graceful')
-  expect(readCache()).toEqual(original)
-  const reopened = await launchApp()
-  await waitForAppReady(reopened.page)
-  const { catalog } = await reopened.page.evaluate(() =>
-    window.deepchat.invoke('models.getProviderCatalog', { providerId: 'openai' })
-  )
-  expect(catalog.dbProviderModels.length).toBeGreaterThan(0)
-  expect(await reopened.close()).toBe('graceful')
 })

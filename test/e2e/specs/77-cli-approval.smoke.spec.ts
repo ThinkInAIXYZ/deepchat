@@ -5,6 +5,7 @@ import { LocalControlRpcResponseSchema } from '../../../src/shared/contracts/loc
 import { settingsGetSnapshotRoute } from '../../../src/shared/contracts/routes/settings.routes'
 import { test, expect } from '../fixtures/electronApp'
 import { waitForAppReady } from '../helpers/wait'
+import { openSettings } from '../helpers/settings'
 
 const execute = promisify(execFile)
 test.use({ privacyModeEnabled: true })
@@ -45,15 +46,8 @@ test('CLI security changes require renderer approval and persist across reopen @
   await expect.poll(async () => await invoke('system', 'version')).toMatchObject({ ok: true })
   const initial = await readLogging()
   expect(typeof initial).toBe('boolean')
-  const change = () => {
-    const pending = invoke(
-      'settings',
-      'set',
-      '--key',
-      'loggingEnabled',
-      '--value',
-      String(!initial)
-    )
+  const change = (value = !initial) => {
+    const pending = invoke('settings', 'set', '--key', 'loggingEnabled', '--value', String(value))
     void pending.catch(() => undefined)
     return pending
   }
@@ -69,6 +63,42 @@ test('CLI security changes require renderer approval and persist across reopen @
   await expect(approved).resolves.toMatchObject({ ok: true })
   expect(await readLogging()).toBe(!initial)
   expect(await active.close()).toBe('graceful')
+
+  active = await launchApp()
+  await waitForAppReady(active.page)
+  await expect.poll(async () => await invoke('system', 'version')).toMatchObject({ ok: true })
+  expect(await readLogging()).toBe(!initial)
+
+  const settings = await openSettings(active)
+  const interrupted = change(initial).then(
+    (result) => result.ok,
+    () => false
+  )
+  const approval = active.page.getByRole('dialog').filter({ hasText: 'settings.updatePublic' })
+  await expect(approval).toBeVisible()
+  const appProcess = active.electronApp.process()
+  await active.electronApp.evaluate(({ webContents }, url) => {
+    const target = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+    if (!target) throw new Error('Owned settings renderer is missing')
+    const original = webContents.fromId
+    webContents.fromId = (id) => {
+      if (id === target.id) throw new Error('Native renderer registration was refused')
+      return original.call(webContents, id)
+    }
+  }, settings.url())
+  const creation = settings
+    .evaluate(() =>
+      window.deepchat.invoke('sessions.create', {
+        agentId: 'deepchat',
+        providerId: 'openai',
+        modelId: 'gpt-4o-mini',
+        message: ''
+      })
+    )
+    .catch(() => undefined)
+  await expect.poll(() => appProcess.exitCode).toBe(1)
+  await creation
+  expect(await interrupted).toBe(false)
 
   active = await launchApp()
   await waitForAppReady(active.page)

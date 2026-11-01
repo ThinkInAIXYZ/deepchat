@@ -84,17 +84,6 @@ export interface ScreenshotOptions {
   }
 }
 
-export interface DownloadInfo {
-  id: string
-  url: string
-  filePath?: string
-  mimeType?: string
-  receivedBytes: number
-  totalBytes: number
-  status: 'pending' | 'in-progress' | 'completed' | 'failed'
-  error?: string
-}
-
 export type YoBrowserActivityKind = 'navigation' | 'vision' | 'pointer' | 'scroll' | 'keyboard'
 
 export type YoBrowserActivityAction =

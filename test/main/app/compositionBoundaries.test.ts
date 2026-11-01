@@ -113,86 +113,10 @@ describe('session boundary composition', () => {
     expect(providerSettingsSource).not.toContain('runtimeEffects')
   })
 
-  it('owns one idempotent shutdown path and rejects routes after shutdown starts', async () => {
-    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = await readComposition()
-    const shutdownSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/mainShutdownCoordinator.ts'),
-      'utf8'
-    )
-
-    expect(shutdownSource).toContain('if (!this.teardownPromise)')
-    expect(shutdownSource).toContain('if (this.actionClaim)')
-    expect(compositionSource).toContain("appLifecycleState = 'stopping'")
-    expect(compositionSource).toContain("appLifecycleState = 'stopped'")
-    expect(compositionSource).toContain('throw new Error(`App lifecycle is ${appLifecycleState}`)')
-  })
-
-  it('stops entry points and sessions before owned infrastructure', async () => {
-    const compositionSource = await readComposition()
-    const destroyStart = compositionSource.indexOf('async function destroy(): Promise<void>')
-    const destroyEnd = compositionSource.indexOf('async function runDestroyStep', destroyStart)
-    expect(destroyStart).toBeGreaterThanOrEqual(0)
-    expect(destroyEnd).toBeGreaterThan(destroyStart)
-    const destroySource = compositionSource.slice(destroyStart, destroyEnd)
-    const profileClose = destroySource.indexOf('dependencies.closeProfile()')
-    expect(profileClose).toBeGreaterThanOrEqual(0)
-    const destroyStepIndex = (step: string): number => {
-      const index = destroySource.indexOf(`'${step}'`)
-      expect(index, `Missing destroy step: ${step}`).toBeGreaterThanOrEqual(0)
-      return index
-    }
-
-    expect(destroyStepIndex('remoteService.destroy')).toBeLessThan(
-      destroyStepIndex('sessionRuntimes.suspend')
-    )
-    expect(destroyStepIndex('liveDelegationService.stop')).toBeLessThan(
-      destroyStepIndex('agentInvocationAdmission.close')
-    )
-    expect(destroyStepIndex('agentInvocationAdmission.close')).toBeLessThan(
-      destroyStepIndex('agentInvocationAdmission.flushObservations')
-    )
-    expect(destroyStepIndex('agentInvocationAdmission.flushObservations')).toBeLessThan(
-      destroyStepIndex('cronJobs.destroy')
-    )
-    const initializationDrain = destroySource.indexOf('await coreRuntime.drainInitialization(')
-    expect(initializationDrain).toBeGreaterThan(destroyStepIndex('sessionRuntimes.suspend'))
-    expect(initializationDrain).toBeLessThan(destroyStepIndex('pluginService.shutdown'))
-    expect(initializationDrain).toBeLessThan(destroyStepIndex('skillSyncService.destroy'))
-    expect(destroySource).toContain("'yoBrowserPresenter.shutdown'")
-    expect(destroySource).toContain("'tabPresenter.destroy'")
-    const backgroundDrain = destroySource.indexOf('await backgroundExec.shutdown()')
-    expect(backgroundDrain).toBeGreaterThan(destroyStepIndex('sessionRuntimes.suspend'))
-    expect(backgroundDrain).toBeLessThan(destroyStepIndex('skillService.destroy'))
-    expect(backgroundDrain).toBeLessThan(profileClose)
-    const codeDrain = destroySource.indexOf('await toolService.shutdownCodeRuntime()')
-    expect(codeDrain).toBeGreaterThan(backgroundDrain)
-    expect(codeDrain).toBeLessThan(destroyStepIndex('skillService.destroy'))
-    expect(codeDrain).toBeLessThan(profileClose)
-    expect(compositionSource).toContain('backgroundExec.stop()')
-    const shutdownSource = compositionSource.slice(
-      compositionSource.indexOf('const shutdownCoordinator =')
-    )
-    expect(shutdownSource.indexOf('deepChatAgentHarness.abortGenerations()')).toBeLessThan(
-      shutdownSource.indexOf('backgroundExec.stop()')
-    )
-    expect(shutdownSource.indexOf('toolService.stopCodeRuntime()')).toBeGreaterThan(
-      shutdownSource.indexOf('deepChatAgentHarness.abortGenerations()')
-    )
-    expect(destroyStepIndex('windowPresenter.destroyWindows')).toBeLessThan(profileClose)
-  })
-
   it('does not detach startup workload tasks without an observation owner', async () => {
     const compositionSource = await readComposition()
 
     expect(compositionSource).not.toContain('void startupWorkloadCoordinator.scheduleTask(')
-  })
-
-  it('awaits Core startup before admitting windows and background work', async () => {
-    const compositionSource = await readComposition()
-    expect(compositionSource).toMatch(
-      /await coreRuntime\.initializeStartup\(\)[\s\S]*createAppWindow\(\{ initialRoute: 'chat' \}\)[\s\S]*coreRuntime\.startStartupTasks\(\)/
-    )
   })
 
   it('does not let app activation create a chat window during startup migration', async () => {

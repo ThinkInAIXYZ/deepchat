@@ -336,6 +336,8 @@ impl HostDispatch for Native {
                 | "profile.unlock"
                 | "profile.recovery"
                 | "profile.quit"
+                | "profile.observation"
+                | "core.failure"
                 | "configuration"
                 | "helpers"
                 | "browser"
@@ -542,11 +544,11 @@ impl Plugin for Gateway {
                     request = incoming.recv() => match request {
                         Some(Request::CoreCall { id, method, args }) => {
                             let lane = match method.as_str() {
-                                "status" | "stop" => Lane::Control,
+                                "status" | "stop" | "beginShutdown" => Lane::Control,
                                 "observeSystemTheme" => Lane::Observation,
                                 "nativeEvents" => Lane::NativeEvents,
                                 "invokeControlRoute" => Lane::RouteControl,
-                                "openProfile" | "configure" | "assembleKernel" | "startKernel" | "invokeRoute" => Lane::Ordinary,
+                                "openProfile" | "configure" | "assembleKernel" | "startKernel" | "invokeRoute" | "mcpAppProtocol" | "hostQuery" => Lane::Ordinary,
                                 _ => return Err(CordisError::ServiceNotFound("Invalid Core operation".into())),
                             };
                             if id == 0 || id > 9_007_199_254_740_991 || id <= last_id || active[lane as usize] >= [3, 1, 2, 1, 1][lane as usize] {

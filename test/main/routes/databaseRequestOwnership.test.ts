@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { DatabaseRequestGate } from '@/app/databaseRequestGate'
 import { StartupWorkloadCoordinator } from '@/app/startupWorkloadCoordinator'
 import { createRouteDispatcher, dispatchDeepchatRoute } from '@/routes'
-import { createRendererRouteContext, createRouteMap } from '@/routes/routeRegistry'
+import {
+  createRendererRouteContext,
+  createRouteMap,
+  type DeepchatRouteHandler
+} from '@/routes/routeRegistry'
 
 const deferred = <T>() => {
   let resolve!: (value: T) => void
@@ -12,7 +16,7 @@ const deferred = <T>() => {
   return { promise, resolve }
 }
 
-function createRuntime(handler: () => Promise<unknown>) {
+function createRuntime(handler: DeepchatRouteHandler) {
   const gate = new DatabaseRequestGate(() => undefined)
   const coordinator = new StartupWorkloadCoordinator()
   const dispatcher = createRouteDispatcher({
@@ -21,17 +25,45 @@ function createRuntime(handler: () => Promise<unknown>) {
     isSettingsWindow: async (windowId) => windowId === 99,
     startupWorkloadCoordinator: coordinator
   })
-  const dispatch = () =>
+  const dispatch = (providerId = 'fixture', webContentsId = 42) =>
     dispatchDeepchatRoute(
       dispatcher,
       'models.getProviderCatalog',
-      { providerId: 'fixture' },
-      createRendererRouteContext(42, 99)
+      { providerId },
+      createRendererRouteContext(webContentsId, 99)
     )
   return { gate, coordinator, dispatch }
 }
 
 describe('database requests scheduled as startup work', () => {
+  it('keeps concurrent route arguments and callers independent', async () => {
+    const release = deferred<void>()
+    const handler = vi.fn<DeepchatRouteHandler>(async (input, context) => {
+      await release.promise
+      return { input, caller: context.caller }
+    })
+    const { dispatch } = createRuntime(handler)
+    const requests = [dispatch('alpha'), dispatch('beta'), dispatch('alpha', 43)]
+    try {
+      await vi.waitFor(() => expect(handler).toHaveBeenCalledTimes(2))
+    } finally {
+      release.resolve()
+    }
+    await expect(Promise.all(requests)).resolves.toEqual(
+      (
+        [
+          ['alpha', 42],
+          ['beta', 42],
+          ['alpha', 43]
+        ] as const
+      ).map(([providerId, webContentsId]) => ({
+        input: { providerId },
+        caller: createRendererRouteContext(webContentsId, 99).caller
+      }))
+    )
+    expect(handler).toHaveBeenCalledTimes(3)
+  })
+
   it('rechecks admission after an awaited native window query', async () => {
     const gate = new DatabaseRequestGate(() => undefined)
     const authority = Promise.withResolvers<boolean>()

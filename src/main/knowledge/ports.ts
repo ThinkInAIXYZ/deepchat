@@ -83,17 +83,6 @@ export interface KnowledgeEmbeddingPort {
   ): Promise<number[][]>
 }
 
-export interface KnowledgeDialogPort {
-  showDialog(request: {
-    title: string
-    description?: string
-    i18n?: boolean
-    icon?: { icon: string; class: string }
-    buttons?: Array<{ key: string; label: string; default?: boolean }>
-    timeout?: number
-  }): Promise<string>
-}
-
 export interface KnowledgeEventPublisher {
   publishFileUpdated(file: KnowledgeFileMessage): void
   publishFileProgress(
@@ -107,7 +96,6 @@ export type KnowledgeServiceDeps = {
   storageRoot: string
   extensionDirectory: string
   files: KnowledgeFilePort
-  dialog: KnowledgeDialogPort
   embeddings: KnowledgeEmbeddingPort
   events: KnowledgeEventPublisher
 }

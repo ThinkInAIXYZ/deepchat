@@ -2,17 +2,12 @@ import { protocol, session, webContents, BrowserWindow, shell, type Session } fr
 import type { McpAppConsentKind, McpAppCsp, McpAppPermissions } from '@shared/types/mcp'
 import {
   MCP_APP_SCHEME,
-  type McpAppSandboxRegistry,
+  type McpAppSandboxPort,
   type McpAppRouteContext,
   type McpAppDesktopPort
 } from './sandboxRegistry'
 
 let schemeRegistered = false
-
-type McpAppSandboxPort = Pick<
-  McpAppSandboxRegistry,
-  'getProtocolPolicy' | 'requestBrowserPermission' | 'revokeByWebContents'
->
 
 const normalizeCspSource = (source: string): string | null => {
   const valid = Array.from(source).every((character) => {
@@ -206,7 +201,6 @@ export function registerMcpAppScheme(): void {
 }
 
 export function registerMcpAppProtocol(registry: McpAppSandboxPort): McpAppDesktopPort {
-  const observedOwners = new Set<number>()
   protocol.handle(MCP_APP_SCHEME, async (request) => {
     let instanceId = ''
     try {
@@ -222,7 +216,7 @@ export function registerMcpAppProtocol(registry: McpAppSandboxPort): McpAppDeskt
       })
     }
 
-    let policy: Awaited<ReturnType<McpAppSandboxRegistry['getProtocolPolicy']>> = null
+    let policy: Awaited<ReturnType<McpAppSandboxPort['getProtocolPolicy']>> = null
     try {
       policy = await registry.getProtocolPolicy(instanceId)
       if (policy) requireNativeOwner(policy.context)
@@ -252,14 +246,7 @@ export function registerMcpAppProtocol(registry: McpAppSandboxPort): McpAppDeskt
   configureMcpAppSessionPermissions(registry)
   return {
     observeOwner: async (context) => {
-      const owner = requireNativeOwner(context)
-      if (!observedOwners.has(owner.id)) {
-        observedOwners.add(owner.id)
-        owner.once('destroyed', () => {
-          registry.revokeByWebContents(context.webContentsId)
-          observedOwners.delete(context.webContentsId)
-        })
-      }
+      requireNativeOwner(context)
     },
     openExternal: async (url, context) => {
       requireNativeOwner(context)

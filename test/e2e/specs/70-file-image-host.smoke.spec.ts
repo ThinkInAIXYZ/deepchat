@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import sharp from 'sharp'
 import { test, expect } from '../fixtures/electronApp'
 import { waitForAppReady } from '../helpers/wait'
+import { openSettings } from '../helpers/settings'
 
 type ImageActionFixture = {
   target?: string
@@ -13,6 +14,95 @@ type ImageActionFixture = {
 }
 
 test.use({ privacyModeEnabled: true })
+
+test('held native image downloads retire on quit and Core loss @smoke', async ({ launchApp }) => {
+  const started = new Set<string>()
+  const closed = new Set<string>()
+  const server = createServer((request, response) => {
+    const route = request.url ?? ''
+    started.add(route)
+    response.once('close', () => closed.add(route))
+    if (route.endsWith('/body.png')) {
+      response.writeHead(200, { 'content-type': 'image/png' })
+      response.write(Buffer.from('partial image body'))
+    }
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Image fixture did not listen')
+  let active: Awaited<ReturnType<typeof launchApp>> | undefined
+  try {
+    for (const mode of ['quit', 'failure'] as const) {
+      active = await launchApp()
+      expect(active.ownsUserDataDir).toBe(true)
+      await waitForAppReady(active.page)
+      const appProcess = active.electronApp.process()
+      const settings = mode === 'failure' ? await openSettings(active) : undefined
+      const routes = [`/${mode}/headers.png`, `/${mode}/body.png`]
+      if (mode === 'quit') routes.push(`/${mode}/headers-2.png`)
+      const pending = active.page
+        .evaluate(
+          async (urls) => {
+            await Promise.allSettled(
+              urls.map((source, index) =>
+                index === 0
+                  ? window.deepchat.invoke('file.saveImage', { source })
+                  : window.deepchat.invoke('file.copyImage', { source })
+              )
+            )
+          },
+          routes.map((route) => `http://127.0.0.1:${address.port}${route}`)
+        )
+        .catch(() => undefined)
+      await expect.poll(() => routes.every((route) => started.has(route))).toBe(true)
+      if (settings) {
+        await active.electronApp.evaluate(({ webContents }, url) => {
+          const target = webContents
+            .getAllWebContents()
+            .find((contents) => contents.getURL() === url)
+          if (!target) throw new Error('Owned settings renderer is missing')
+          const original = webContents.fromId
+          webContents.fromId = (id) => {
+            if (id === target.id) throw new Error('Native renderer registration was refused')
+            return original.call(webContents, id)
+          }
+        }, settings.url())
+        const creation = settings
+          .evaluate(() =>
+            window.deepchat.invoke('sessions.create', {
+              agentId: 'deepchat',
+              providerId: 'openai',
+              modelId: 'gpt-4o-mini',
+              message: ''
+            })
+          )
+          .catch(() => undefined)
+        await expect.poll(() => appProcess.exitCode).toBe(1)
+        await creation
+      } else expect(await active.close()).toBe('graceful')
+      await pending
+      await expect.poll(() => routes.every((route) => closed.has(route))).toBe(true)
+
+      active = await launchApp()
+      await waitForAppReady(active.page)
+      await active.electronApp.evaluate(({ dialog }) => {
+        dialog.showSaveDialog = async () => ({ canceled: true, filePath: '' })
+      })
+      expect(
+        await active.page.evaluate(() =>
+          window.deepchat.invoke('file.saveImage', { source: 'data:image/png;base64,aW1hZ2U=' })
+        )
+      ).toEqual({ canceled: true })
+      expect(await active.close()).toBe('graceful')
+    }
+  } finally {
+    await active?.close()
+    server.closeAllConnections()
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve()))
+    )
+  }
+})
 
 test('file preparation and native image actions preserve bytes and profile bounds @smoke', async ({
   launchApp

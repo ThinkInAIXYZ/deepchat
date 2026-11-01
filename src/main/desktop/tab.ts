@@ -25,10 +25,6 @@ import { getYoBrowserSession } from './browser/yoBrowserSession'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope } from '@shared/contracts/events'
 
-export interface TabDesktopSessionBindingPort {
-  unbind(webContentsId: number): void
-}
-
 export class TabPresenter implements ITabPresenter {
   // 全局标签页实例存储
   private tabs: Map<number, WebContentsView> = new Map()
@@ -58,8 +54,8 @@ export class TabPresenter implements ITabPresenter {
 
   constructor(
     windowPresenter: IWindowPresenter,
-    private readonly desktopSessionBinding: TabDesktopSessionBindingPort,
-    private readonly onFirstContentLoaded: () => void
+    private readonly onFirstContentLoaded: () => void,
+    private readonly showSaveDialog: import('./dialog').DialogService['showSaveDialog']
   ) {
     this.windowPresenter = windowPresenter // 注入窗口管理器
   }
@@ -98,7 +94,6 @@ export class TabPresenter implements ITabPresenter {
         }
       })
     }
-    views?.forEach((viewId) => this.desktopSessionBinding.unbind(viewId))
     this.windowTabs.delete(windowId)
     this.windowTypes.delete(windowId)
     this.chromeHeights.delete(windowId)
@@ -279,8 +274,6 @@ export class TabPresenter implements ITabPresenter {
       // 从窗口中移除视图
       this.detachViewFromWindow(window, view)
     }
-
-    this.desktopSessionBinding.unbind(view.webContents.id)
 
     // 移除事件监听
     this.removeWebContentsListeners(view.webContents)
@@ -737,6 +730,7 @@ export class TabPresenter implements ITabPresenter {
 
     const disposer = contextMenu({
       webContents: view.webContents,
+      showSaveDialog: this.showSaveDialog,
       publishEvent: (name, payload) => {
         void this.windowPresenter
           .sendToWebContents(

@@ -1,8 +1,17 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { test, expect } from '../fixtures/electronApp'
+import {
+  test,
+  expect,
+  resolvePackagedExecutable,
+  waitForMainAppWindow
+} from '../fixtures/electronApp'
+import { _electron, type ElectronApplication } from '@playwright/test'
 import { waitForAppReady } from '../helpers/wait'
-import { existsSync, readFileSync } from 'node:fs'
+import { openSettings } from '../helpers/settings'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { ChildProcess } from 'node:child_process'
+import { setTimeout as delay } from 'node:timers/promises'
 
 type JsonObject = Record<string, unknown>
 
@@ -33,6 +42,135 @@ const LIFECYCLE_EVENTS = new Set([
   'app.shutdown.started',
   'app.shutdown.terminal'
 ])
+
+test('quit cancels a pending database unlock and preserves the profile @smoke', async ({
+  launchApp
+}, testInfo) => {
+  const password = 'disposable-startup-quit-password'
+  const first = await launchApp()
+  expect(first.ownsUserDataDir).toBe(true)
+  await waitForAppReady(first.page)
+  await first.page.evaluate(() =>
+    window.deepchat.invoke('settings.update', {
+      changes: [
+        { key: 'copyWithCotEnabled', value: false },
+        { key: 'privacyModeEnabled', value: true }
+      ]
+    })
+  )
+  await first.page.evaluate(
+    (password) => window.deepchat.invoke('databaseSecurity.enable', { password }),
+    password
+  )
+  expect(await first.close()).toBe('graceful')
+  const metadataFile = join(first.userDataDir, 'database-security.json')
+  const state = JSON.parse(readFileSync(metadataFile, 'utf8'))
+  state.metadata.passwordStorage = 'manual'
+  delete state.metadata.wrappedPassword
+  writeFileSync(metadataFile, JSON.stringify(state))
+  const errorsFile = join(first.userDataDir, 'startup-error-dialogs.json')
+  writeFileSync(errorsFile, '[]')
+  const owned: { app: ElectronApplication; child: ChildProcess }[] = []
+  const launch = async () => {
+    const app = await _electron.launch({
+      ...(process.env.DEEPCHAT_E2E_APP_MODE === 'packaged'
+        ? { executablePath: resolvePackagedExecutable(), args: [] }
+        : { args: ['.'] }),
+      cwd: process.cwd(),
+      env: { ...process.env, DEEPCHAT_E2E_USER_DATA_DIR: first.userDataDir }
+    })
+    owned.push({ app, child: app.process() })
+    await app.evaluate(({ dialog }, file) => {
+      const fs = process.getBuiltinModule('node:fs') as typeof import('node:fs')
+      dialog.showErrorBox = (title) => {
+        const calls = JSON.parse(fs.readFileSync(file, 'utf8'))
+        fs.writeFileSync(file, JSON.stringify([...calls, title]))
+      }
+    }, errorsFile)
+    const findSplash = () => app.windows().find((page) => page.url().includes('/splash/'))
+    await expect.poll(() => Boolean(findSplash())).toBe(true)
+    return { app, splash: findSplash()! }
+  }
+  try {
+    const { app: waiting, splash } = await launch()
+    await expect(splash.locator('input[type="password"]')).toBeVisible()
+    const child = waiting.process()
+    const quitAt = Date.now()
+    await waiting.evaluate(({ app }) => app.quit())
+    await expect.poll(() => child.exitCode, { timeout: 10_000 }).not.toBeNull()
+    expect(child.exitCode).toBe(0)
+    await testInfo.attach('pending-unlock-quit', {
+      body: JSON.stringify({ quitMs: Date.now() - quitAt, exitCode: child.exitCode }),
+      contentType: 'application/json'
+    })
+
+    const { app: reopened, splash: unlock } = await launch()
+    await unlock.locator('input[type="password"]').fill(password)
+    await unlock.getByRole('button', { name: 'Unlock', exact: true }).click()
+    const page = await waitForMainAppWindow(reopened)
+    await waitForAppReady(page)
+    const snapshot = await page.evaluate(() =>
+      window.deepchat.invoke('settings.getSnapshot', { keys: ['copyWithCotEnabled'] })
+    )
+    expect(snapshot.values.copyWithCotEnabled).toBe(false)
+    const reopenedChild = reopened.process()
+    await reopened.evaluate(({ app }) => app.quit())
+    await expect.poll(() => reopenedChild.exitCode, { timeout: 10_000 }).not.toBeNull()
+    expect(reopenedChild.exitCode).toBe(0)
+    expect(JSON.parse(readFileSync(errorsFile, 'utf8'))).toEqual([])
+  } finally {
+    for (const { app, child } of owned.reverse()) {
+      if (child.exitCode !== null || child.signalCode !== null) continue
+      const splash = app.windows().find((page) => page.url().includes('/splash/'))
+      await splash
+        ?.getByRole('button', { name: 'Quit', exact: true })
+        .click({ timeout: 1000 })
+        .catch(() => {})
+      const closed = app.close().catch(() => {})
+      await Promise.race([closed, delay(1000)])
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+    }
+  }
+})
+
+test('Core owner failure ends the app generation and permits profile reopen @smoke', async ({
+  launchApp
+}) => {
+  const active = await launchApp()
+  expect(active.ownsUserDataDir).toBe(true)
+  await waitForAppReady(active.page)
+  const appProcess = active.electronApp.process()
+  const settings = await openSettings(active)
+  await active.electronApp.evaluate(({ webContents }, url) => {
+    const target = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+    if (!target) throw new Error('Owned settings renderer is missing')
+    const original = webContents.fromId
+    webContents.fromId = (id) => {
+      if (id === target.id) throw new Error('Native renderer registration was refused')
+      return original.call(webContents, id)
+    }
+  }, settings.url())
+  const pending = settings
+    .evaluate(() =>
+      window.deepchat.invoke('sessions.create', {
+        agentId: 'deepchat',
+        providerId: 'openai',
+        modelId: 'gpt-4o-mini',
+        message: ''
+      })
+    )
+    .catch(() => undefined)
+  await expect.poll(() => appProcess.exitCode).toBe(1)
+  await pending
+
+  const reopened = await launchApp()
+  await waitForAppReady(reopened.page)
+  const sessions = await reopened.page.evaluate(() =>
+    window.deepchat.invoke('sessions.listLightweight', { limit: 10 })
+  )
+  expect(sessions.items.length).toBeLessThanOrEqual(1)
+  expect(await reopened.close()).toBe('graceful')
+})
 
 test('启动应用 @smoke', async ({ app }, testInfo) => {
   test.skip(

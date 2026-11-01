@@ -138,6 +138,19 @@ jobs:
           --resources-path "dist/${{ env.UNPACKED_DIRECTORY }}/resources"
           --executable "dist/${{ env.UNPACKED_DIRECTORY }}/deepchat.bin"
 
+      - name: Verify packaged Core application
+        env:
+          DEEPCHAT_E2E_APP_MODE: packaged
+          DEEPCHAT_E2E_EXECUTABLE_PATH: ${{ github.workspace }}/dist/${{ env.UNPACKED_DIRECTORY }}/deepchat
+          DEEPCHAT_E2E_MEASURE_RESOURCES: '0'
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/package-core/report.json
+        run: >-
+          xvfb-run -a pnpm exec playwright test -c test/e2e/playwright.config.ts
+          test/e2e/specs/01-launch.smoke.spec.ts
+          test/e2e/specs/49-settings-snapshot.smoke.spec.ts
+          --grep "Core owner failure|pending database unlock|启动应用 @smoke|settings revisions"
+          --retries=0 --reporter=list,json --output=test-results/package-core
+
       - name: Verify packaged OpenDAL native package
         run: >-
           pnpm run smoke:opendal:native --
@@ -235,6 +248,7 @@ jobs:
           path: |
             package-output/manifest.json
             package-output/reports/
+            test-results/package-core/
             dist/light-ocr-smoke-linux-${{ inputs.arch }}.json
             dist/package-size-linux-${{ inputs.arch }}.json
           if-no-files-found: warn

@@ -1,4 +1,5 @@
 import { session, WebContentsView, type CookiesSetDetails, type Session } from 'electron'
+import { closeWebContents } from '../closeWebContents'
 
 export const YO_BROWSER_PARTITION = 'persist:yo-browser'
 
@@ -99,8 +100,11 @@ export async function getYoBrowserUnpartitionedCookies(): Promise<CookiesSetDeta
       .filter((cookie) => !cookie.partitionKey && !cookie.partitionKeyOpaque)
       .map(toElectronCookie)
   } finally {
-    if (debugSession.isAttached()) debugSession.detach()
-    view.webContents.close()
+    try {
+      if (debugSession.isAttached()) debugSession.detach()
+    } finally {
+      await closeWebContents(view.webContents)
+    }
   }
 }
 

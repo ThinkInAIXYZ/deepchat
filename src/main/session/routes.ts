@@ -1,4 +1,7 @@
 import {
+  browserFocusContentRoute,
+  computerUseSetPreviewModeRoute,
+  computerUseDismissPreviewRoute,
   chatCancelSubmissionRoute,
   chatDismissToolInteractionRoute,
   chatRespondToolInteractionRoute,
@@ -6,6 +9,8 @@ import {
   chatSteerActiveTurnRoute,
   chatStopStreamRoute,
   sessionsActivateRoute,
+  sessionsGetWidgetSnapshotRoute,
+  sessionsOpenDesktopRoute,
   sessionsClearMessagesRoute,
   sessionsCompactRoute,
   sessionsConvertPendingInputToSteerRoute,
@@ -70,7 +75,9 @@ import {
   sessionsTranslateTextRoute,
   sessionsUpdateDisabledAgentToolsRoute,
   sessionsUpdateGenerationSettingsRoute,
-  sessionsUpdateQueuedInputRoute
+  sessionsUpdateQueuedInputRoute,
+  type DeepchatRouteInput,
+  type DeepchatRouteOutput
 } from '@shared/contracts/routes'
 import type { SessionPermissionPort } from '@/session/contracts'
 import type { UsageStatsService } from '@/session/usageStatsService'
@@ -80,11 +87,13 @@ import type { TapeInspectorHeadWatcher } from '@/tape/application/traceInspector
 import {
   createRouteMap,
   requireRendererCaller,
-  type DeepchatRouteMap
+  type DeepchatRouteMap,
+  type RendererRouteCaller
 } from '@/routes/routeRegistry'
 import type { Scheduler } from '@/routes/scheduler'
 import type { SessionAgentAssignmentPort, SessionLifecyclePort, SessionTurnPort } from './contracts'
 import type { SessionQuery } from './query'
+import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import {
   SessionService,
   type SessionServiceDesktopPort,
@@ -96,6 +105,7 @@ import type { SessionTranslation } from './sessionTranslation'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { SubmissionCancellationRegistry } from './submissionCancellationRegistry'
 import type { SessionReferences } from './data/sessionReferences'
+import { buildFloatingWidgetSnapshot } from './widgetSnapshot'
 
 export type SessionRouteProjectionPort = SessionServiceProjectionPort &
   ChatServiceProjectionPort &
@@ -121,7 +131,21 @@ export type SessionRouteProjectionPort = SessionServiceProjectionPort &
 export function createSessionRoutes(deps: {
   lifecycle: SessionLifecyclePort
   projection: SessionRouteProjectionPort
-  desktop: SessionServiceDesktopPort
+  desktop: SessionServiceDesktopPort & Pick<DesktopSessionBinding, 'getActiveId'>
+  openDesktopSession(sessionId: string): Promise<boolean>
+  presentation: {
+    focusBrowser(sessionId: string, caller: RendererRouteCaller): Promise<boolean>
+    setComputerUsePreview(
+      sessionId: string,
+      mode: DeepchatRouteInput<'computerUse.setPreviewMode'>['mode'],
+      caller: RendererRouteCaller
+    ): Promise<DeepchatRouteOutput<'computerUse.setPreviewMode'>>
+    dismissComputerUsePreview(
+      sessionId: string,
+      runId: string,
+      caller: RendererRouteCaller
+    ): Promise<boolean>
+  }
   turn: SessionTurnPort
   assignment: SessionAgentAssignmentPort
   permission: Pick<SessionPermissionPort, 'clearSessionPermissions'>
@@ -163,6 +187,84 @@ export function createSessionRoutes(deps: {
   }
 
   return createRouteMap([
+    [
+      sessionsGetWidgetSnapshotRoute.name,
+      async (input, context) => {
+        sessionsGetWidgetSnapshotRoute.input.parse(input)
+        requireRendererCaller(context)
+        const [sessions, agents] = await Promise.all([
+          deps.projection.listSessions(),
+          listAvailableAgents(deps.agentSettings)
+        ])
+        return sessionsGetWidgetSnapshotRoute.output.parse({
+          snapshot: buildFloatingWidgetSnapshot(sessions, agents, false)
+        })
+      }
+    ],
+    [
+      sessionsOpenDesktopRoute.name,
+      async (rawInput, context) => {
+        const input = sessionsOpenDesktopRoute.input.parse(rawInput)
+        requireRendererCaller(context)
+        if (!(await deps.projection.getSession(input.sessionId))) return { opened: false }
+        return sessionsOpenDesktopRoute.output.parse({
+          opened: await deps.openDesktopSession(input.sessionId)
+        })
+      }
+    ],
+    [
+      browserFocusContentRoute.name,
+      async (rawInput, context) => {
+        const input = browserFocusContentRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
+        const active =
+          deps.desktop.getActiveId(caller.webContentsId) === input.sessionId ||
+          deps.lifecycle.ownsDraftSession(input.sessionId, caller.webContentsId)
+        return browserFocusContentRoute.output.parse({
+          focused:
+            caller.windowId != null &&
+            active &&
+            (await deps.presentation.focusBrowser(input.sessionId, caller))
+        })
+      }
+    ],
+    [
+      computerUseSetPreviewModeRoute.name,
+      async (rawInput, context) => {
+        const input = computerUseSetPreviewModeRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
+        if (
+          caller.windowId == null ||
+          (input.mode !== 'stopped' &&
+            deps.desktop.getActiveId(caller.webContentsId) !== input.sessionId)
+        ) {
+          return computerUseSetPreviewModeRoute.output.parse({
+            updated: false,
+            surface: 'none'
+          })
+        }
+        return computerUseSetPreviewModeRoute.output.parse(
+          await deps.presentation.setComputerUsePreview(input.sessionId, input.mode, caller)
+        )
+      }
+    ],
+    [
+      computerUseDismissPreviewRoute.name,
+      async (rawInput, context) => {
+        const input = computerUseDismissPreviewRoute.input.parse(rawInput)
+        const caller = requireRendererCaller(context)
+        const active = deps.desktop.getActiveId(caller.webContentsId) === input.sessionId
+        return computerUseDismissPreviewRoute.output.parse({
+          dismissed:
+            active &&
+            (await deps.presentation.dismissComputerUsePreview(
+              input.sessionId,
+              input.runId,
+              caller
+            ))
+        })
+      }
+    ],
     [
       sessionsCreateDraftRoute.name,
       async (rawInput, context) => {

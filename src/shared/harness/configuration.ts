@@ -8,12 +8,24 @@ export const CoreConfigurationCommandSchema = z.discriminatedUnion('operation', 
   z.object({ operation: z.literal('read'), input: settingsGetSnapshotRoute.input }).strict(),
   z.object({ operation: z.literal('update'), input: settingsUpdateRoute.input }).strict(),
   z.object({ operation: z.literal('nativeSnapshot') }).strict(),
+  z
+    .object({
+      operation: z.literal('floatingBounds'),
+      bounds: z
+        .object({
+          x: z.number().finite(),
+          y: z.number().finite(),
+          dockSide: z.enum(['left', 'right'])
+        })
+        .strict()
+    })
+    .strict(),
   z.object({ operation: z.literal('initialize') }).strict()
 ])
 export type CoreConfigurationCommand = z.infer<typeof CoreConfigurationCommandSchema>
 
 const theme = z.enum(['dark', 'light', 'system'])
-const snapshot: z.ZodType<NativeConfigurationSnapshot> = z
+export const NativeConfigurationSnapshotSchema: z.ZodType<NativeConfigurationSnapshot> = z
   .object({
     ownerId: z.string().uuid(),
     version: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
@@ -66,7 +78,9 @@ export const CoreConfigurationNativeSchema = z.discriminatedUnion('operation', [
   z.object({ operation: z.literal('applyLogging'), enabled: z.boolean() }).strict(),
   z.object({ operation: z.literal('openLoggingFolder') }).strict(),
   z.object({ operation: z.literal('enumerateFonts') }).strict(),
-  z.object({ operation: z.literal('snapshot'), snapshot }).strict(),
+  z
+    .object({ operation: z.literal('snapshot'), snapshot: NativeConfigurationSnapshotSchema })
+    .strict(),
   z.object({ operation: z.literal('events'), events: z.array(event).max(64) }).strict()
 ])
 export type CoreConfigurationNative = z.infer<typeof CoreConfigurationNativeSchema>

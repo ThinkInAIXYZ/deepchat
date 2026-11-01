@@ -11,7 +11,7 @@ import {
   prepareShellCommandForUtf8Output
 } from './shellOutputEncoding'
 import { describeSpawnFailure, resolveUsableSpawnCwd } from './spawnGuard'
-import { terminateProcessTree } from './processTree'
+import { terminateProcessTree, waitForClose } from './processTree'
 import { childProcessRegistry } from './childProcessRegistry'
 import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 import {
@@ -101,6 +101,10 @@ interface BackgroundSession {
   status: 'running' | 'done' | 'error' | 'killed'
   exitCode?: number
   errorMessage?: string
+  retirementError?: Error
+  terminationPromise?: Promise<void>
+  launchEnvironment?: Record<string, string>
+  nativeIdentity?: string
   createdAt: number
   lastAccessedAt: number
   outputBuffer: string
@@ -220,6 +224,7 @@ function isMissingUtilitySessionError(
 export class BackgroundExecSessionManager {
   private sessions = new Map<string, Map<string, BackgroundSession>>()
   private cleanupIntervalId?: NodeJS.Timeout
+  private stopped = false
 
   constructor() {
     this.startCleanupTimer()
@@ -241,8 +246,10 @@ export class BackgroundExecSessionManager {
       }
     }
 
+    let session: BackgroundSession
     try {
-      return this.startValidated(conversationId, command, cwd, options, ownedTree)
+      if (this.stopped) throw new Error('Background exec owner is stopping')
+      session = this.startValidated(conversationId, command, cwd, options, ownedTree)
     } catch (error) {
       if (ownedTree) {
         await cleanupOwnedSkillExecutionPackageTree(ownedTree).catch((cleanupError) => {
@@ -250,6 +257,65 @@ export class BackgroundExecSessionManager {
         })
       }
       throw error
+    }
+
+    try {
+      const child = session.child
+      const gate = child.stdio?.[3]
+      if (typeof child.pid === 'number') {
+        const registration = await childProcessRegistry.record(
+          {
+            subsystem: 'background-exec',
+            recordId: session.sessionId,
+            pid: child.pid,
+            commandLine: gate
+              ? child.spawnargs.slice(2)
+              : [session.shell, ...child.spawnargs.slice(1)],
+            cwd: session.cwd
+          },
+          child
+        )
+        if (typeof registration !== 'string') session.nativeIdentity = registration.nativeIdentity
+        // OS observation may precede Node's exit/close callbacks for a fast command.
+        if (registration === 'exited') await session.closePromise
+        if (registration === 'failed' && child.exitCode === null && child.signalCode === null) {
+          throw new Error('Background execution launch could not be registered')
+        }
+      }
+      if (this.stopped) throw new Error('Background exec owner is stopping')
+      if (gate) {
+        if (session.status !== 'running') throw new Error('Background execution launch stopped')
+        if (!session.nativeIdentity)
+          throw new Error('Background execution launch has no native identity')
+        if (!('write' in gate) || !('end' in gate) || !session.launchEnvironment)
+          throw new Error('Invalid execution gate')
+        const data = Buffer.from(JSON.stringify(session.launchEnvironment))
+        if (data.length > 2 * 1024 * 1024)
+          throw new Error('Execution environment exceeds launch limit')
+        const header = Buffer.alloc(4)
+        header.writeUInt32BE(data.length)
+        await new Promise<void>((resolve, reject) => {
+          gate.write(Buffer.concat([header, data]), (error?: Error | null) => {
+            if (error) reject(error)
+            else {
+              gate.end()
+              resolve()
+            }
+          })
+        })
+      }
+      if (this.stopped) throw new Error('Background exec owner is stopping')
+      logger.info(
+        `[BackgroundExec] Started session ${session.sessionId} for conversation ${conversationId}`
+      )
+      return { sessionId: session.sessionId, status: 'running' }
+    } catch (error) {
+      await this.killInternal(session, 'startup-failed')
+      if (this.sessions.get(conversationId)?.get(session.sessionId) === session)
+        await this.remove(conversationId, session.sessionId)
+      throw error
+    } finally {
+      session.launchEnvironment = undefined
     }
   }
 
@@ -259,7 +325,7 @@ export class BackgroundExecSessionManager {
     cwd: string,
     options: BackgroundExecStartOptions,
     ownedSkillExecutionPackageTree?: OwnedSkillExecutionPackageTree
-  ): StartSessionResult {
+  ): BackgroundSession {
     const config = getConfig()
     const sessionId = `bg_${nanoid(12)}`
     const commandShell = ResolvedCommandShellSchema.parse(options.commandShell)
@@ -280,7 +346,15 @@ export class BackgroundExecSessionManager {
     const args = directInvocation
       ? directInvocation.args
       : [...commandShell.args, prepareShellCommandForUtf8Output(commandShell.dialect, command)]
-    const preparedEnv = prepareProcessEnvForUtf8Output(options.env ?? {})
+    // Do not resurrect deleted Core variables from this reusable utility's environment.
+    const preparedEnv = prepareProcessEnvForUtf8Output(
+      options.env ??
+        Object.fromEntries(
+          Object.entries(process.env).filter(
+            (entry): entry is [string, string] => typeof entry[1] === 'string'
+          )
+        )
+    )
     const spawnCwd = resolveUsableSpawnCwd(cwd)
 
     const sessionDir = resolveSessionDir(conversationId)
@@ -292,12 +366,20 @@ export class BackgroundExecSessionManager {
       ? this.createOutputFilePath(sessionDir, sessionId, options?.outputPrefix)
       : null
 
-    const child = spawn(executable, args, {
-      cwd: spawnCwd,
-      env: { ...process.env, ...preparedEnv },
-      detached: process.platform !== 'win32',
-      windowsHide: true,
-      stdio: ['pipe', 'pipe', 'pipe']
+    const gateExecutable = process.platform === 'darwin' && process.env.DEEPCHAT_HARNESS_EXECUTABLE
+    const child = spawn(
+      gateExecutable || executable,
+      gateExecutable ? ['--exec-gate', executable, ...args] : args,
+      {
+        cwd: spawnCwd,
+        env: gateExecutable ? { ...process.env } : preparedEnv,
+        detached: process.platform !== 'win32',
+        windowsHide: true,
+        stdio: gateExecutable ? ['pipe', 'pipe', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe']
+      }
+    )
+    child.stdio?.[3]?.on('error', (error) => {
+      logger.warn('[BackgroundExec] Launch gate closed:', error)
     })
 
     let resolveClose = () => {}
@@ -341,6 +423,7 @@ export class BackgroundExecSessionManager {
       closeSettled: false,
       registryRecordCleared: false,
       timedOut: false,
+      ...(gateExecutable ? { launchEnvironment: preparedEnv } : {}),
       ...(ownedSkillExecutionPackageTree ? { ownedSkillExecutionPackageTree } : {})
     }
 
@@ -350,7 +433,9 @@ export class BackgroundExecSessionManager {
     const timeout = options?.timeout ?? config.timeoutSec * 1000
     if (timeout > 0) {
       session.killTimeoutId = setTimeout(() => {
-        void this.killInternal(session, 'timeout')
+        void this.killInternal(session, 'timeout').catch((error) => {
+          logger.warn('[BackgroundExec] Timed out process did not retire:', error)
+        })
       }, timeout)
     }
 
@@ -359,19 +444,7 @@ export class BackgroundExecSessionManager {
     }
     this.sessions.get(conversationId)!.set(sessionId, session)
 
-    if (typeof child.pid === 'number') {
-      childProcessRegistry.record({
-        subsystem: 'background-exec',
-        recordId: sessionId,
-        pid: child.pid,
-        commandLine: [executable, ...args],
-        cwd: spawnCwd
-      })
-    }
-
-    logger.info(`[BackgroundExec] Started session ${sessionId} for conversation ${conversationId}`)
-
-    return { sessionId, status: 'running' }
+    return session
   }
 
   list(conversationId: string): SessionMeta[] {
@@ -511,6 +584,7 @@ export class BackgroundExecSessionManager {
     const session = this.getSession(conversationId, sessionId)
     session.lastAccessedAt = Date.now()
     await session.closePromise
+    if (session.retirementError) throw session.retirementError
     return this.buildCompletionResult(session, previewChars)
   }
 
@@ -546,7 +620,11 @@ export class BackgroundExecSessionManager {
     beforeMutation?: () => void
   ): Promise<void> {
     const session = this.getSession(conversationId, sessionId)
-    if (session.status !== 'running') return
+    if (session.retirementError) throw session.retirementError
+    if (session.status !== 'running') {
+      await session.terminationPromise
+      return
+    }
     beforeMutation?.()
     await this.killInternal(session, 'user')
   }
@@ -586,6 +664,7 @@ export class BackgroundExecSessionManager {
     } else {
       await session.closePromise
     }
+    if (session.retirementError) throw session.retirementError
 
     await session.outputWriteQueue.catch((error) => {
       logger.warn('[BackgroundExec] Failed while draining output write queue:', error)
@@ -623,6 +702,7 @@ export class BackgroundExecSessionManager {
   }
 
   async shutdown(): Promise<void> {
+    this.stopped = true
     if (this.cleanupIntervalId) {
       clearInterval(this.cleanupIntervalId)
     }
@@ -634,11 +714,13 @@ export class BackgroundExecSessionManager {
       }
     }
 
-    await Promise.all(
-      allSessions.map(({ conversationId, sessionId }) =>
-        this.remove(conversationId, sessionId).catch(() => {})
-      )
+    const results = await Promise.allSettled(
+      allSessions.map(({ conversationId, sessionId }) => this.remove(conversationId, sessionId))
     )
+    const errors = results
+      .filter((result) => result.status === 'rejected')
+      .map((result) => result.reason)
+    if (errors.length) throw new AggregateError(errors, 'Background execution did not retire')
   }
 
   private getSession(conversationId: string, sessionId: string): BackgroundSession {
@@ -693,7 +775,9 @@ export class BackgroundExecSessionManager {
         session,
         `\n[Process terminated: output exceeded ${session.maxOutputBytes} bytes.]\n`
       )
-      void this.killInternal(session, 'output-limit')
+      void this.killInternal(session, 'output-limit').catch((error) => {
+        logger.warn('[BackgroundExec] Output-limited process did not retire:', error)
+      })
       return
     }
     session.totalOutputBytes += dataBytes
@@ -718,6 +802,15 @@ export class BackgroundExecSessionManager {
   }
 
   private setupProcessLifecycle(session: BackgroundSession): void {
+    const retireNativeExit = (code: number | null): boolean => {
+      if (!session.nativeIdentity) return false
+      const retirement = this.killInternal(session, 'exit')
+      session.exitCode = code ?? undefined
+      void retirement.catch((error) => {
+        logger.warn('[BackgroundExec] Native process group did not retire after root exit:', error)
+      })
+      return true
+    }
     session.child.on('error', (error) => {
       if (session.status === 'running') {
         session.status = 'error'
@@ -734,8 +827,13 @@ export class BackgroundExecSessionManager {
         shell: session.shell
       })
       queueMicrotask(() => {
+        if (session.terminationPromise) return
         if (!session.closeSettled && session.exitCode === undefined) {
-          void this.finalizeSession(session, null, null)
+          if (session.nativeIdentity) {
+            void this.killInternal(session, 'error').catch((error) => {
+              logger.warn('[BackgroundExec] Failed process group did not retire:', error)
+            })
+          } else void this.finalizeSession(session, null, null)
         }
       })
     })
@@ -745,10 +843,18 @@ export class BackgroundExecSessionManager {
         clearTimeout(session.killTimeoutId)
         session.killTimeoutId = undefined
       }
-      if (session.closeSettled || session.finalizationPromise || session.closeWatchdogId) return
+      if (
+        session.terminationPromise ||
+        session.closeSettled ||
+        session.finalizationPromise ||
+        session.closeWatchdogId
+      )
+        return
+      if (retireNativeExit(code)) return
       session.closeWatchdogId = setTimeout(() => {
         session.closeWatchdogId = undefined
-        if (session.closeSettled || session.finalizationPromise) return
+        if (session.terminationPromise || session.closeSettled || session.finalizationPromise)
+          return
         logger.warn(
           `[BackgroundExec] Session ${session.sessionId} exited without closing inherited stdio; forcing finalization`
         )
@@ -770,8 +876,13 @@ export class BackgroundExecSessionManager {
         clearTimeout(session.closeWatchdogId)
         session.closeWatchdogId = undefined
       }
-      this.clearRegistryRecord(session)
+      if (session.terminationPromise) {
+        if (session.nativeIdentity) session.exitCode = code ?? undefined
+        else this.recordProcessTerminalState(session, code, signal)
+        return
+      }
       if (session.closeSettled || session.finalizationPromise) return
+      if (retireNativeExit(code)) return
       this.recordProcessTerminalState(session, code, signal)
       void this.finalizeSession(session, code, signal)
     })
@@ -783,7 +894,9 @@ export class BackgroundExecSessionManager {
     signal: NodeJS.Signals | null
   ): void {
     if (session.status !== 'killed') {
-      if (signal === 'SIGTERM' || signal === 'SIGKILL') {
+      if (session.retirementError) {
+        session.status = 'error'
+      } else if (signal === 'SIGTERM' || signal === 'SIGKILL') {
         session.status = 'killed'
       } else if (code !== 0 && code !== null) {
         session.status = 'error'
@@ -794,8 +907,11 @@ export class BackgroundExecSessionManager {
     session.exitCode = code ?? undefined
   }
 
-  private async killInternal(session: BackgroundSession, reason: string): Promise<void> {
-    if (session.status !== 'running') return
+  private killInternal(session: BackgroundSession, reason: string): Promise<void> {
+    if (session.terminationPromise) return session.terminationPromise
+    if (session.retirementError) return Promise.reject(session.retirementError)
+    if (session.closeSettled || (session.status !== 'running' && !session.nativeIdentity))
+      return Promise.resolve()
 
     logger.info(`[BackgroundExec] Killing session ${session.sessionId} (reason: ${reason})`)
 
@@ -806,31 +922,50 @@ export class BackgroundExecSessionManager {
     if (reason === 'timeout') {
       session.timedOut = true
     }
-    session.status = 'killed'
+    if (reason !== 'exit' && session.status === 'running') session.status = 'killed'
 
-    let closed = false
-    try {
-      closed = await terminateProcessTree(session.child, { graceMs: 2000 })
-    } catch (error) {
-      logger.warn('[BackgroundExec] Failed to terminate process tree:', error)
-    }
-    if (!closed && !session.closeSettled) {
-      if (session.ownedSkillExecutionPackageTree) {
-        logger.warn(
-          '[BackgroundExec] Retaining owned Skill package tree for an unclosed process tree:',
-          { rootPath: session.ownedSkillExecutionPackageTree.rootPath }
-        )
-        session.ownedSkillExecutionPackageTree = undefined
+    session.terminationPromise = Promise.resolve().then(async () => {
+      let closed = false
+      try {
+        const gate = session.child.stdio?.[3]
+        if (gate && !session.nativeIdentity) {
+          gate.destroy()
+          closed = await waitForClose(session.child, 2500)
+        } else {
+          closed = await terminateProcessTree(session.child, {
+            graceMs: 2000,
+            nativeIdentity: session.nativeIdentity
+          })
+        }
+      } catch (error) {
+        logger.warn('[BackgroundExec] Failed to terminate process tree:', error)
       }
-      session.child.stdout?.destroy()
-      session.child.stderr?.destroy()
-      session.child.stdin?.destroy()
-      session.child.unref()
-      session.exitCode = undefined
-      await this.finalizeSession(session, null, 'SIGKILL', { clearRegistryRecord: false })
-    }
-
-    await session.closePromise
+      if (!closed) {
+        if (reason === 'exit') session.status = 'error'
+        session.retirementError = new Error(
+          `Background execution ${session.sessionId} did not retire`
+        )
+        if (session.ownedSkillExecutionPackageTree) {
+          logger.warn(
+            '[BackgroundExec] Retaining owned Skill package tree for an unclosed process tree:',
+            { rootPath: session.ownedSkillExecutionPackageTree.rootPath }
+          )
+          session.ownedSkillExecutionPackageTree = undefined
+        }
+        session.child.stdout?.destroy()
+        session.child.stderr?.destroy()
+        session.child.stdin?.destroy()
+        session.child.unref()
+        session.exitCode = undefined
+      } else if (reason === 'exit') {
+        this.recordProcessTerminalState(session, session.exitCode ?? null, session.child.signalCode)
+      }
+      await this.finalizeSession(session, session.exitCode ?? null, session.child.signalCode, {
+        clearRegistryRecord: closed
+      })
+      if (session.retirementError) throw session.retirementError
+    })
+    return session.terminationPromise
   }
 
   private getRecentOutput(buffer: string, maxChars: number): string {
@@ -1005,6 +1140,7 @@ export class BackgroundExecSessionManager {
     }
 
     await session.closePromise
+    if (session.retirementError) throw session.retirementError
   }
 
   private async finalizeSession(
@@ -1186,7 +1322,7 @@ export class BackgroundExecSessionManager {
 export interface BackgroundExecHost {
   readonly pid: number | undefined
   postMessage(message: BackgroundExecRpcRequest): void
-  kill(): void
+  kill(): Promise<void>
   onMessage(listener: (message: unknown) => void): void
   onExit(listener: (code: number) => void): void
   onError(listener: (type: string, location: string) => void): void
@@ -1213,6 +1349,7 @@ export class BackgroundExecService {
   private requestId = 0
   private readonly lifetime = new AbortController()
   private shutdownPromise: Promise<void> | null = null
+  private retirement: Promise<void> | null = null
   private readonly operations = new Set<Promise<unknown>>()
   private readonly pendingRequests = new Map<
     string,
@@ -1266,7 +1403,19 @@ export class BackgroundExecService {
     try {
       const result = await this.request<StartSessionResult>(
         'start',
-        [conversationId, command, cwd, options],
+        [
+          conversationId,
+          command,
+          cwd,
+          {
+            ...options,
+            env: Object.fromEntries(
+              Object.entries({ ...process.env, ...options.env }).filter(
+                (entry): entry is [string, string] => typeof entry[1] === 'string'
+              )
+            )
+          }
+        ],
         {
           beforePost: beforeStart,
           onPosted: () => {
@@ -1552,16 +1701,21 @@ export class BackgroundExecService {
 
   private async performShutdown(): Promise<void> {
     await this.hostReady?.catch(() => undefined)
+    const host = this.host
     try {
-      if (this.host) await this.postRequest(this.host, 'shutdown', [])
+      if (host) await this.postRequest(host, 'shutdown', [])
     } finally {
-      this.host?.kill()
-      this.host = null
-      this.rejectPendingRequests(new Error('Background exec utility process shut down.'))
-      while (this.operations.size) await Promise.allSettled(this.operations)
-      this.activeSessions.clear()
-      this.completedSessions.clear()
-      this.crashedSessions.clear()
+      try {
+        await host?.kill()
+        await this.retirement
+      } finally {
+        this.host = null
+        this.rejectPendingRequests(new Error('Background exec utility process shut down.'))
+        while (this.operations.size) await Promise.allSettled(this.operations)
+        this.activeSessions.clear()
+        this.completedSessions.clear()
+        this.crashedSessions.clear()
+      }
     }
   }
 
@@ -1616,10 +1770,11 @@ export class BackgroundExecService {
   }
 
   private async startHost(): Promise<BackgroundExecHost> {
+    await this.retirement
     this.assertActive()
     const host = await this.spawnHost(this.lifetime.signal)
     if (this.lifetime.signal.aborted) {
-      host.kill()
+      await host.kill()
       this.assertActive()
     }
     this.host = host
@@ -1627,7 +1782,13 @@ export class BackgroundExecService {
       if (this.host === host) this.handleHostMessage(message)
     })
     host.onExit((code) => {
-      if (this.host === host) this.handleHostExit(code)
+      if (this.host !== host) return
+      this.retirement = host.kill()
+      void this.retirement.catch((error) => {
+        this.stop()
+        logger.error('[BackgroundExecProxy] Helper retirement failed:', error)
+      })
+      this.handleHostExit(code)
     })
     host.onError((type, location) => {
       if (this.host === host)

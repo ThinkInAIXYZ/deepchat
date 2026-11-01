@@ -13,11 +13,11 @@ import {
 import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
 import path from 'path'
 import { type DeepchatEventName } from '@shared/contracts/events'
-import type { DialogServicePort } from '@shared/types/dialog'
 import { type RutisMemoryVectorStores } from '@/harness/memory-vector'
 import { FileService } from '@/file'
 import { noteNodeDemandFromMcp, mergeDetectionEnv, ToolchainService } from '@/toolchains'
 import { McpService } from '@/mcp'
+import { McpAppSandboxRegistry, type McpAppSandboxPort } from '@/mcp/apps/sandboxRegistry'
 import { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
 import { SyncService } from '@/sync'
 import { type DatabaseRequestGate } from '@/app/databaseRequestGate'
@@ -177,7 +177,6 @@ export async function createCoreRuntime(options: {
   importSnapshot: NonNullable<ConstructorParameters<typeof SyncPeerService>[0]['importSnapshot']>
   assertSyncTokenStorageAvailable(): void | Promise<void>
   semanticNotifications: SemanticNotificationPublisher
-  dialog: DialogServicePort
   secureCrypto: CredentialCryptoPort
   getProxyUrl(): Promise<string | null>
   whenProxyReady(): Promise<void>
@@ -192,7 +191,10 @@ export async function createCoreRuntime(options: {
   remoteSessionWindow: RemoteSessionWindowPort
   showNotification: NonNullable<RemoteServiceDeps['notifications']>['showNotification']
   mcpPreview: ConstructorParameters<typeof McpService>[15]
-  mcpApps: Pick<NonNullable<ConstructorParameters<typeof McpService>[16]>, 'registry' | 'desktop'>
+  mcpApps: {
+    desktop: NonNullable<ConstructorParameters<typeof McpService>[16]>['desktop']
+    publishConsent: Parameters<McpAppSandboxRegistry['setConsentPublisher']>[0]
+  }
   spawnBackgroundExecHost: ConstructorParameters<typeof BackgroundExecService>[0]
   spawnCodeModeHost: ConstructorParameters<typeof ToolService>[0]['spawnCodeModeHost']
   spawnSchedulerHost: ConstructorParameters<typeof SchedulerProcessManager>[0]['spawnHost']
@@ -673,7 +675,6 @@ export async function createCoreRuntime(options: {
       'extensions'
     ),
     files: fileService,
-    dialog: options.dialog,
     embeddings: providerRuntime,
     events: {
       publishFileUpdated: (file) =>
@@ -687,6 +688,18 @@ export async function createCoreRuntime(options: {
     }
   })
   const pluginRuntimeSupervisor = new PluginRuntimeSupervisor()
+  const mcpApps = new McpAppSandboxRegistry(options.execution.onRendererDestroyed)
+  mcpApps.setConsentPublisher(options.mcpApps.publishConsent)
+  const mcpAppSandbox: McpAppSandboxPort = {
+    getProtocolPolicy: async (instanceId) =>
+      await databaseRequests.runRequest('mcp.apps.protocolPolicy', () =>
+        mcpApps.getProtocolPolicy(instanceId)
+      ),
+    requestBrowserPermission: async (...args) =>
+      await databaseRequests.runRequest('mcp.apps.browserPermission', () =>
+        mcpApps.requestBrowserPermission(...args)
+      )
+  }
   mcpService = new McpService(
     providerSettings,
     agentSettings,
@@ -725,7 +738,7 @@ export async function createCoreRuntime(options: {
     pluginRuntimeSupervisor,
     options.mcpPreview,
     {
-      registry: options.mcpApps.registry,
+      registry: mcpApps,
       desktop: options.mcpApps.desktop,
       permissionBroker: toolPermissionBroker,
       getPermissionMode: async (conversationId) =>
@@ -1221,6 +1234,16 @@ export async function createCoreRuntime(options: {
   sessionTurn = coreExecution.sessionTurn
   sessionLifecycle = coreExecution.sessionLifecycle
   acpAgentRuntime = coreExecution.acpAgentRuntime
+  const openDesktopSession = async (sessionId: string): Promise<boolean> => {
+    if (options.isStopping()) return false
+    const target = await options.remoteSessionWindow.select()
+    if (!target || options.isStopping()) return false
+    const binding = coreExecution.desktopSessionBinding
+    await binding.activate(target.webContentsId, sessionId)
+    if (options.isStopping() || binding.getActiveId(target.webContentsId) !== sessionId)
+      return false
+    return await options.remoteSessionWindow.present(target)
+  }
   const remoteService = new RemoteService({
     profileDirectory: bootstrap.profileDirectory,
     authWindows: options.remoteAuthWindows,
@@ -1267,16 +1290,7 @@ export async function createCoreRuntime(options: {
     assignment: sessionAssignment,
     projection: sessionQuery,
     desktop: {
-      openSession: async (sessionId) => {
-        if (options.isStopping()) return false
-        const target = await options.remoteSessionWindow.select()
-        if (!target || options.isStopping()) return false
-        const binding = coreExecution.desktopSessionBinding
-        await binding.activate(target.webContentsId, sessionId)
-        if (options.isStopping() || binding.getActiveId(target.webContentsId) !== sessionId)
-          return false
-        return await options.remoteSessionWindow.present(target)
-      }
+      openSession: openDesktopSession
     },
     notifications: {
       showNotification: options.showNotification
@@ -1860,6 +1874,27 @@ export async function createCoreRuntime(options: {
   }
   return {
     execution: coreExecution,
+    host: {
+      resolveWorkspacePreviewRequest: async (url: string) =>
+        await databaseRequests.runRequest('workspace.nativePreview', () =>
+          workspaceService.resolvePreviewRequest(url)
+        ),
+      hasProvider: async (providerId: string) =>
+        await databaseRequests.runRequest('providers.nativeExists', async () =>
+          Boolean(providerSettings.getProviderById(providerId))
+        ),
+      getShutdownConfirmation: async () => knowledgeService.getShutdownConfirmation(),
+      clearPermissionCaches: async () => {
+        commandPermissionService.clearAll()
+        filePermissionService.clearAll()
+        settingsPermissionService.clearAll()
+        approvalBroker.clear()
+        mcpApps.clear()
+      }
+    },
+    mcpApps,
+    mcpAppSandbox,
+    openDesktopSession,
     initializeStartup,
     startStartupTasks,
     scheduleBackgroundWork,

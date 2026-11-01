@@ -11,7 +11,7 @@ import { Readable } from 'stream'
 import { is } from '@electron-toolkit/utils'
 import { WORKSPACE_PREVIEW_PROTOCOL } from '@shared/types/workspace'
 import { registerMcpAppProtocol } from '@/mcp/apps/sandboxProtocol'
-import type { McpAppSandboxRegistry, McpAppDesktopPort } from '@/mcp/apps/sandboxRegistry'
+import type { McpAppSandboxPort, McpAppDesktopPort } from '@/mcp/apps/sandboxRegistry'
 
 let workspacePreviewSchemeRegistered = false
 
@@ -163,7 +163,7 @@ const findDeepCdnResourcesDir = async (candidates: string[]): Promise<string> =>
 }
 
 export async function registerProtocols(
-  mcpAppSandboxRegistry: McpAppSandboxRegistry,
+  mcpAppSandbox: McpAppSandboxPort,
   resolveWorkspacePreview: (url: string) => Promise<string | null>
 ): Promise<McpAppDesktopPort> {
   logger.info('registerProtocols: Registering application protocols')
@@ -315,7 +315,7 @@ export async function registerProtocols(
     }
   })
 
-  const mcpAppDesktop = registerMcpAppProtocol(mcpAppSandboxRegistry)
+  const mcpAppDesktop = registerMcpAppProtocol(mcpAppSandbox)
 
   logger.info('registerProtocols: Application protocols registered successfully')
   return mcpAppDesktop

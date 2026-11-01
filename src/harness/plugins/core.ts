@@ -29,6 +29,10 @@ import {
   CoreNativeEventSchema,
   CoreKernelBootstrapSchema,
   CoreRouteInvocationSchema,
+  CoreMcpAppProtocolCommandSchema,
+  CoreMcpAppProtocolPolicySchema,
+  CoreHostQuerySchema,
+  CoreFailureComponentSchema,
   isCoreControlRoute,
   type CoreCarrierConfig,
   type CoreNativeMethod,
@@ -58,10 +62,13 @@ export default definePlugin<CoreCarrierConfig>({
       startKernel: 'async',
       invokeRoute: 'async',
       invokeControlRoute: 'async',
+      mcpAppProtocol: 'async',
+      hostQuery: 'async',
       configure: 'async',
       observeSystemTheme: 'async',
       nativeEvents: 'async',
       status: 'async',
+      beginShutdown: 'async',
       stop: 'async'
     }
   },
@@ -97,7 +104,7 @@ export default definePlugin<CoreCarrierConfig>({
     let configuration: ReturnType<typeof createCoreSettings> | undefined
     let configurationTail: Promise<void> = Promise.resolve()
     let configurationEvents: DeepchatEventEnvelope[] | undefined
-    const routeCalls = new Set<Promise<CorePayload>>()
+    const businessCalls = new Set<Promise<CorePayload>>()
     let settingsVersion = 0
     const isStopping = () =>
       phase === 'stopping' || phase === 'stopped' || Boolean(kernel?.stopping)
@@ -115,24 +122,26 @@ export default definePlugin<CoreCarrierConfig>({
       () => isStopping() || ctx.signal.aborted
     )
     const callNative = (method: CoreNativeMethod, args: unknown[]) => nativeCalls.call(method, args)
+    let failureReported = false
+    const fail = (component: z.infer<typeof CoreFailureComponentSchema>) => {
+      if (failureReported || phase === 'stopped') return
+      failureReported = true
+      // Report through reserved capacity even when presentation delivery has failed.
+      void callNative('core.failure', [component]).catch(() => {})
+      void stop().catch(() => {})
+    }
     const helpers = new CoreNativeHelpers(
       async (command) => await callNative('helpers', [command]),
-      () => {
-        void stop().catch(() => {})
-      }
+      () => fail('helpers')
     )
     const browser = new CoreNativeBrowser(
       async (command) => await callNative('browser', [command]),
-      () => {
-        void stop().catch(() => {})
-      }
+      () => fail('browser')
     )
     const desktop = new CoreNativeDesktop(
       async (command) => await callNative('desktop', [command]),
       (event) => kernel?.runtime.remoteService.handleAuthWindowEvent(event),
-      () => {
-        void stop().catch(() => {})
-      }
+      () => fail('desktop')
     )
     const host: CoreProfileHost = {
       setLoggingEnabled: async (enabled) => {
@@ -203,32 +212,39 @@ export default definePlugin<CoreCarrierConfig>({
       )
       return await operation
     }
-    const invokeRoute = (ref: CorePayload, control: boolean): Promise<CorePayload> => {
-      const operation = (async () => {
-        const input = CoreRouteInvocationSchema.parse(await store.decode(ref))
-        if (isCoreControlRoute(input.routeName) !== control)
-          throw new Error('Invalid Core route lane')
-        if (isStopping() || phase !== 'running' || !kernel)
-          throw new Error('Core business routes are unavailable')
-        return await store.encode(
-          await dispatchDeepchatRoute(
-            kernel.controller.routeDispatcher,
-            input.routeName,
-            input.input,
-            input.context
-          )
-        )
-      })()
-      routeCalls.add(operation)
+    const trackBusinessCall = (operation: Promise<CorePayload>): Promise<CorePayload> => {
+      businessCalls.add(operation)
       void operation.then(
-        () => routeCalls.delete(operation),
-        () => routeCalls.delete(operation)
+        () => businessCalls.delete(operation),
+        () => businessCalls.delete(operation)
       )
       return operation
     }
+    const invokeRoute = (ref: CorePayload, control: boolean): Promise<CorePayload> =>
+      trackBusinessCall(
+        (async () => {
+          const input = CoreRouteInvocationSchema.parse(await store.decode(ref))
+          if (isCoreControlRoute(input.routeName) !== control)
+            throw new Error('Invalid Core route lane')
+          if (isStopping() || phase !== 'running' || !kernel)
+            throw new Error('Core business routes are unavailable')
+          return await store.encode(
+            await dispatchDeepchatRoute(
+              kernel.controller.routeDispatcher,
+              input.routeName,
+              input.input,
+              input.context
+            )
+          )
+        })()
+      )
     const stop = (): Promise<void> => {
       if (stopping) return stopping
       phase = 'stopping'
+      profile?.databaseSecurityService.stop()
+      profile?.secretStore.pause()
+      const kernelRetirement = kernel?.stop()
+      void kernelRetirement?.catch(() => {})
       stopping = (async () => {
         // An in-flight Native effect must settle before profile startup can retire its lock.
         await opening?.catch(() => undefined)
@@ -241,9 +257,9 @@ export default definePlugin<CoreCarrierConfig>({
             errors.push(error)
           }
         }
-        await retire(async () => await kernel?.stop())
+        await retire(async () => await (kernelRetirement ?? kernel?.stop()))
         await retire(async () => await starting?.catch(() => undefined))
-        await retire(() => browser.close())
+        if (kernelAttempted) await retire(() => browser.close())
         await retire(() => helpers.close())
         await retire(() => desktop.close())
         await retire(() => configurationTail)
@@ -252,7 +268,7 @@ export default definePlugin<CoreCarrierConfig>({
         await retire(() => memory.retire())
         await retire(() => admission.close())
         await retire(() => nativeCalls.drain())
-        await Promise.allSettled(routeCalls)
+        await Promise.allSettled(businessCalls)
         if (kernelAttempted && !kernel)
           errors.push(new Error('Partial Core Kernel requires physical retirement'))
         if (errors.length) throw new AggregateError(errors, 'Core did not retire')
@@ -283,6 +299,9 @@ export default definePlugin<CoreCarrierConfig>({
               ...bootstrap,
               host,
               crypto,
+              observe: async (observation) => {
+                await callNative('profile.observation', [observation])
+              },
               onOwnershipChanged: (owned) => {
                 ownsProfile = owned
               }
@@ -433,7 +452,8 @@ export default definePlugin<CoreCarrierConfig>({
                 kernelPublish = publish
               },
               isStopping,
-              allowInsecureTls: input.allowInsecureTls
+              allowInsecureTls: input.allowInsecureTls,
+              onFailure: () => fail('http')
             })
             if (isStopping()) throw new Error('Core Kernel startup was stopped')
             phase = 'kernel-assembled'
@@ -457,6 +477,8 @@ export default definePlugin<CoreCarrierConfig>({
               return await owner.update(command.input.changes)
             case 'nativeSnapshot':
               return owner.readNativeSnapshot()
+            case 'floatingBounds':
+              return await owner.setFloatingButtonBounds(command.bounds)
             case 'initialize':
               return await owner.initializeDesktop()
           }
@@ -485,6 +507,46 @@ export default definePlugin<CoreCarrierConfig>({
       async invokeControlRoute(ref: CorePayload): Promise<CorePayload> {
         return await invokeRoute(ref, true)
       },
+      async mcpAppProtocol(ref: CorePayload): Promise<CorePayload> {
+        return await trackBusinessCall(
+          (async () => {
+            const input = CoreMcpAppProtocolCommandSchema.parse(await store.decode(ref))
+            if (isStopping() || phase !== 'running' || !kernel)
+              throw new Error('Core MCP App protocol is unavailable')
+            const sandbox = kernel.runtime.mcpAppSandbox
+            return await store.encode(
+              input.operation === 'policy'
+                ? CoreMcpAppProtocolPolicySchema.parse(
+                    await sandbox.getProtocolPolicy(input.instanceId)
+                  )
+                : z
+                    .boolean()
+                    .parse(
+                      await sandbox.requestBrowserPermission(
+                        input.instanceId,
+                        input.context,
+                        input.kinds
+                      )
+                    )
+            )
+          })()
+        )
+      },
+      async hostQuery(ref: CorePayload): Promise<CorePayload> {
+        return await trackBusinessCall(
+          (async () => {
+            const input = CoreHostQuerySchema.parse(await store.decode(ref))
+            if (isStopping() || phase !== 'running' || !kernel)
+              throw new Error('Core host queries are unavailable')
+            const host = kernel.runtime.host
+            return await store.encode(
+              input.operation === 'workspacePreview'
+                ? await host.resolveWorkspacePreviewRequest(input.url)
+                : await host.hasProvider(input.providerId)
+            )
+          })()
+        )
+      },
       async observeSystemTheme() {
         return await runConfiguration(async (owner) => await owner.observeSystemTheme())
       },
@@ -493,6 +555,30 @@ export default definePlugin<CoreCarrierConfig>({
         if (Array.isArray(event)) {
           helpers.accept(event)
           return await store.encode(undefined)
+        }
+        if (event.type === 'host.settingsWindow' || event.type === 'host.systemResume') {
+          if (isStopping() || !kernel) throw new Error('Core host control is unavailable')
+          if (event.type === 'host.systemResume') {
+            if (phase !== 'running' || kernel.databaseRequests.state !== 'running')
+              return await store.encode(undefined)
+            kernel.observeSystemResume()
+          } else {
+            kernel.observeSettingsWindow(event.action)
+          }
+          return await store.encode(undefined)
+        }
+        if (event.type === 'host.clearPermissions' || event.type === 'host.shutdownConfirmation') {
+          return await trackBusinessCall(
+            (async () => {
+              if (isStopping() || phase !== 'running' || !kernel)
+                throw new Error('Core host control is unavailable')
+              return await store.encode(
+                event.type === 'host.clearPermissions'
+                  ? await kernel.runtime.host.clearPermissionCaches()
+                  : await kernel.runtime.host.getShutdownConfirmation()
+              )
+            })()
+          )
         }
         if (event.type.startsWith('desktop.')) {
           desktop.accept(event)
@@ -505,6 +591,10 @@ export default definePlugin<CoreCarrierConfig>({
       },
       async stop() {
         await stop()
+        return await store.encode(status())
+      },
+      async beginShutdown() {
+        void stop().catch(() => {})
         return await store.encode(status())
       }
     })

@@ -649,13 +649,13 @@ const McpAppDescriptorSchema: z.ZodType<McpAppDescriptor> = z.object({
   resourceUri: z.string().startsWith('ui://').max(4096),
   resourceMimeType: z.literal('text/html;profile=mcp-app')
 })
-const McpAppCspSchema = z.object({
+export const McpAppCspSchema = z.object({
   connectDomains: z.array(z.string().max(2048)).max(64).optional(),
   resourceDomains: z.array(z.string().max(2048)).max(64).optional(),
   frameDomains: z.array(z.string().max(2048)).max(64).optional(),
   baseUriDomains: z.array(z.string().max(2048)).max(64).optional()
 })
-const McpAppPermissionsSchema = z.object({
+export const McpAppPermissionsSchema = z.object({
   camera: z.object({}).optional(),
   microphone: z.object({}).optional(),
   geolocation: z.object({}).optional(),

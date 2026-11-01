@@ -1,6 +1,6 @@
+import { buildFloatingWidgetSnapshot } from '@/session/widgetSnapshot'
 import { describe, expect, it } from 'vitest'
 import {
-  buildFloatingWidgetSnapshot,
   getPeekedCollapsedBounds,
   getCollapsedWidgetSize,
   getExpandedWidgetSize,
@@ -19,6 +19,9 @@ describe('floating widget layout helpers', () => {
           projectDir: null,
           isPinned: false,
           isDraft: false,
+          sessionKind: 'regular',
+          orchestrationPolicy: 'explicit',
+          toolModeOverride: null,
           createdAt: 1,
           updatedAt: 10,
           status: 'idle',
@@ -32,6 +35,9 @@ describe('floating widget layout helpers', () => {
           projectDir: null,
           isPinned: false,
           isDraft: false,
+          sessionKind: 'regular',
+          orchestrationPolicy: 'explicit',
+          toolModeOverride: null,
           createdAt: 1,
           updatedAt: 9,
           status: 'generating',
@@ -45,6 +51,9 @@ describe('floating widget layout helpers', () => {
           projectDir: null,
           isPinned: false,
           isDraft: false,
+          sessionKind: 'regular',
+          orchestrationPolicy: 'explicit',
+          toolModeOverride: null,
           createdAt: 1,
           updatedAt: 99,
           status: 'generating',

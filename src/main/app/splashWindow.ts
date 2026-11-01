@@ -49,6 +49,7 @@ export class SplashWindow {
   private splashLoadPromise: Promise<void> | null = null
   private splashShowDelayTimer: ReturnType<typeof setTimeout> | null = null
   private debugMode: SplashDebugMode | null = null
+  private databaseStartupCanceled = false
   constructor() {
     this.setupDatabaseUnlockListeners()
   }
@@ -164,6 +165,7 @@ export class SplashWindow {
     reason: DatabaseUnlockReason
     safeStorageAvailable: boolean
   }): Promise<string | null> {
+    if (this.databaseStartupCanceled) return null
     this.unlockRequest?.resolve(null)
 
     const requestId = `database-unlock-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -183,6 +185,7 @@ export class SplashWindow {
   async requestDatabaseRecovery(
     payload: Omit<DatabaseRecoveryRequestPayload, 'requestId'>
   ): Promise<DatabaseRecoveryChoice | null> {
+    if (this.databaseStartupCanceled) return null
     this.recoveryRequest?.resolve(null)
 
     const requestId = `database-recovery-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -208,6 +211,14 @@ export class SplashWindow {
     }
     this.forceShowSplash({ skipDelay: true })
     this.emitDebugMode()
+  }
+
+  cancelDatabaseStartup(): void {
+    this.databaseStartupCanceled = true
+    this.unlockRequest?.resolve(null)
+    this.unlockRequest = null
+    this.recoveryRequest?.resolve(null)
+    this.recoveryRequest = null
   }
 
   async closeDebugScenario(): Promise<boolean> {

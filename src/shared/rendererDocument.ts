@@ -1,4 +1,4 @@
-type AppDocument = 'main' | 'settings' | 'splash'
+type AppDocument = 'main' | 'settings' | 'splash' | 'floating'
 
 function documentUrl(value: string): string | null {
   try {
@@ -21,7 +21,8 @@ export function createAppDocumentMatcher(
   const entries = [
     ['index.html', 'main'],
     ['settings/index.html', 'settings'],
-    ['splash/index.html', 'splash']
+    ['splash/index.html', 'splash'],
+    ['floating/index.html', 'floating']
   ] as const
   for (const [entry, kind] of entries) {
     documents.set(new URL(entry, rendererDirectoryUrl).href, kind)
@@ -39,6 +40,7 @@ export function createAppDocumentMatcher(
       documents.set(new URL(`/${entry}`, base).href, kind)
     }
     documents.set(new URL('/splash/', base).href, 'splash')
+    documents.set(new URL('/floating/', base).href, 'floating')
   }
 
   return (url) => documents.get(documentUrl(url) ?? '') ?? null

@@ -28,13 +28,19 @@ Vue component / Pinia store
   -> owning main module
 ```
 
-main 进程只有一个 composition root：`src/main/app/composition.ts`。它创建模块、注入窄依赖、注册
-route、排定 start/stop，但不向业务代码提供模块查找入口。
+Main's composition root, `src/main/app/composition.ts`, connects Native adapters, fixed desktop
+routes and the Core generation. Business modules receive explicit dependencies from the Core
+composition root; neither root exposes a module lookup interface.
 
-First-party Core composition lives in `src/harness/core/`. Main currently invokes these factories
-locally; admission and Memory vector capabilities already run through the Rust/Rutis host. The
-[migration plan](../architecture/rutis-multiprocess-backend/plan.md) tracks the actual process and
-writer cutover. Composition files are not independent plugins or processes.
+The default Rust/Rutis host loads the first-party Core plugin in `src/harness/plugins/core.ts`.
+`src/harness/core/kernel.ts` composes Harness, Provider, Memory, Session/Tape, scheduler and the
+shared profile writer in that SDK worker. Main retains Native capabilities and authenticated
+ingress through typed ports. See the [migration plan](../architecture/rutis-multiprocess-backend/plan.md)
+for acceptance and remaining work; internal composition files do not each create a plugin/process.
+
+```text
+Renderer <-> Main [Native ports] <-> Rust/Rutis <-> TS Core [Harness + profile writer]
+```
 
 ```text
 src/main/
@@ -73,18 +79,18 @@ src/main/
 
 常见任务入口：
 
-| 任务 | 入口 |
-| --- | --- |
-| 发送、停止、交互回复 | `src/main/session/turn.ts`、`src/main/session/chatService.ts` |
-| Session create/restore/delete | `src/main/session/` |
-| DeepChat loop | `src/main/agent/deepchat/loop/`、`runtime/` |
-| Direct ACP | `src/main/agent/acp/instance/`、`runtime/` |
-| Provider/auth/model | `src/main/provider/` |
-| Agent tools | `src/main/tool/agentTools/` |
-| MCP | `src/main/mcp/` |
-| Memory | `src/main/memory/`、`src/main/agent/deepchat/memory/` |
-| import/export | `src/main/app/startupMigrations/`、`src/main/exporter/` |
-| Renderer chat UI | `src/renderer/src/features/chat-page/ChatPage.vue`、`components/message/` |
+| 任务                          | 入口                                                                      |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| 发送、停止、交互回复          | `src/main/session/turn.ts`、`src/main/session/chatService.ts`             |
+| Session create/restore/delete | `src/main/session/`                                                       |
+| DeepChat loop                 | `src/main/agent/deepchat/loop/`、`runtime/`                               |
+| Direct ACP                    | `src/main/agent/acp/instance/`、`runtime/`                                |
+| Provider/auth/model           | `src/main/provider/`                                                      |
+| Agent tools                   | `src/main/tool/agentTools/`                                               |
+| MCP                           | `src/main/mcp/`                                                           |
+| Memory                        | `src/main/memory/`、`src/main/agent/deepchat/memory/`                     |
+| import/export                 | `src/main/app/startupMigrations/`、`src/main/exporter/`                   |
+| Renderer chat UI              | `src/renderer/src/features/chat-page/ChatPage.vue`、`components/message/` |
 
 ## 质量门
 

@@ -34,6 +34,9 @@ patchedDependencies:
   '@electron/notarize@3.1.1':
     hash: b2e4a3334f86d72808116962914a4a2062da8c99b2d5cb86e67b73eb5ce3ab87
     path: patches/@electron__notarize@3.1.1.patch
+  undici@8.10.2:
+    hash: 736ca10c63827a747255cb580caa7240711d11f3b3a0c8fc21dfdb10b134d8b5
+    path: patches/undici@8.10.2.patch
 
 importers:
 
@@ -212,7 +215,7 @@ importers:
         version: 7.2.4
       undici:
         specifier: ^8.10.2
-        version: 8.10.2
+        version: 8.10.2(patch_hash=736ca10c63827a747255cb580caa7240711d11f3b3a0c8fc21dfdb10b134d8b5)
       xlsx:
         specifier: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
         version: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
@@ -13779,7 +13782,7 @@ snapshots:
 
   undici@7.29.1: {}
 
-  undici@8.10.2: {}
+  undici@8.10.2(patch_hash=736ca10c63827a747255cb580caa7240711d11f3b3a0c8fc21dfdb10b134d8b5): {}
 
   unist-util-is@6.0.1:
     dependencies:

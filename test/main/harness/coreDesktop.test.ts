@@ -2,9 +2,111 @@ import { expect, it, vi } from 'vitest'
 import { CoreNativeDesktop } from '../../../src/harness/core/desktop'
 import type { CoreKernelNative } from '../../../src/harness/core/kernel'
 import { CoreDesktopNative } from '@/harness/desktop'
+import { createDeepchatEventEnvelope, type DeepchatEventEnvelope } from '@shared/contracts/events'
+import { CORE_NATIVE_QUEUED, CORE_PRESENTATION_QUEUED } from '@shared/harness/core'
 
 vi.unmock('path')
 vi.unmock('node:path')
+
+it('delivers the latest projections without displacing business events', async () => {
+  const entered = Promise.withResolvers<void>()
+  const released = Promise.withResolvers<void>()
+  const businessDelivered = Promise.withResolvers<void>()
+  const delivered: DeepchatEventEnvelope[] = []
+  const failed = vi.fn()
+  const native = new CoreDesktopNative(
+    {
+      mcpReadinessChanged() {},
+      renderer: {
+        broadcast: async (event) => {
+          delivered.push(event)
+          if (delivered.length === 1) {
+            entered.resolve()
+            await released.promise
+          }
+          if (event.name === 'appRuntime.accessibilityChanged') businessDelivered.resolve()
+        }
+      }
+    } as unknown as CoreKernelNative,
+    async () => {},
+    async () => {},
+    failed
+  )
+  const core = new CoreNativeDesktop(
+    (command) => native.invoke([command]),
+    () => {},
+    failed
+  )
+  const ports = await core.createPorts({ temporaryDirectory: '/tmp', profileDirectory: '/profile' })
+  const snapshot = (run: string) =>
+    createDeepchatEventEnvelope('startup.workload.changed', {
+      startupRunId: run,
+      target: 'settings',
+      tasks: []
+    })
+  const delegation = (parent: string, id: string, revision: number) =>
+    createDeepchatEventEnvelope('orchestration.liveDelegation.changed', {
+      schemaVersion: 1,
+      parentSessionId: parent,
+      delegation: {
+        schemaVersion: 1,
+        id,
+        parentSessionId: parent,
+        childSessionId: null,
+        slotId: 'explorer',
+        targetAgentId: 'deepchat',
+        title: 'Owned delegation',
+        status: 'running',
+        lastTurnSeq: 1,
+        createdAt: 0,
+        updatedAt: revision,
+        revision,
+        summaryPreview: null,
+        errorPreview: null
+      }
+    })
+  try {
+    ports.renderer.broadcast(snapshot('first'))
+    await entered.promise
+    for (let i = 0; i < CORE_NATIVE_QUEUED * 2; i++) {
+      ports.renderer.broadcast(snapshot(String(i)))
+      ports.renderer.broadcast(delegation('parent:a', 'child', i))
+      ports.renderer.broadcast(delegation('parent', 'a:child', i))
+    }
+    ports.renderer.broadcast(delegation('parent:a', 'child', 0))
+    ports.renderer.broadcast(
+      createDeepchatEventEnvelope('appRuntime.accessibilityChanged', { enabled: true })
+    )
+    released.resolve()
+    await businessDelivered.promise
+    await ports.mcpReadinessChanged(false)
+    expect(delivered.filter((event) => event.name === 'startup.workload.changed')).toEqual([
+      snapshot('first'),
+      snapshot(String(CORE_NATIVE_QUEUED * 2 - 1))
+    ])
+    expect(
+      delivered.filter((event) => event.name === 'appRuntime.accessibilityChanged')
+    ).toHaveLength(1)
+    expect(
+      delivered.filter((event) => event.name === 'orchestration.liveDelegation.changed')
+    ).toEqual([
+      delegation('parent:a', 'child', CORE_NATIVE_QUEUED * 2 - 1),
+      delegation('parent', 'a:child', CORE_NATIVE_QUEUED * 2 - 1)
+    ])
+    expect(failed).not.toHaveBeenCalled()
+    for (let i = 0; i < CORE_PRESENTATION_QUEUED; i++)
+      ports.renderer.broadcast(
+        createDeepchatEventEnvelope('appRuntime.accessibilityChanged', { enabled: Boolean(i % 2) })
+      )
+    expect(() => ports.renderer.broadcast(snapshot('over-capacity'))).toThrow(
+      'Core presentation queue exceeded'
+    )
+    expect(failed).toHaveBeenCalledOnce()
+  } finally {
+    released.resolve()
+    await core.close()
+  }
+})
 
 it('cancels reordered Native calls and releases completed cancellation identities', async () => {
   const failed = vi.fn()
@@ -77,12 +179,19 @@ it('owns renderer subscriptions until registration and waits for physical Native
   let pluginOwner: unknown = 'plugin-a'
   let remoteTarget: unknown = { windowId: 1, webContentsId: 7 }
   let presented: unknown = true
+  let focused: unknown = true
+  let previewResult: unknown = { updated: true, surface: 'renderer-canvas' }
   const native = new CoreDesktopNative(
     {
       pluginSettingsWindow: { getPluginIdForWebContents: async () => pluginOwner },
       remoteSessionWindow: {
         select: async () => remoteTarget,
         present: async () => presented
+      },
+      sessionPresentation: {
+        focusBrowser: async () => focused,
+        setComputerUsePreview: async () => previewResult,
+        dismissComputerUsePreview: async () => true
       },
       onRendererDestroyed: (id, listener) => {
         callbacks.set(id, listener)
@@ -118,6 +227,17 @@ it('owns renderer subscriptions until registration and waits for physical Native
   expect(await ports.remoteSessionWindow.select()).toBeNull()
   remoteTarget = { windowId: 1, webContentsId: '7' }
   await expect(ports.remoteSessionWindow.select()).rejects.toThrow()
+  const caller = { kind: 'renderer', webContentsId: 7, windowId: 1 } as const
+  expect(await ports.sessionPresentation.focusBrowser('session', caller)).toBe(true)
+  focused = { focused: true }
+  await expect(ports.sessionPresentation.focusBrowser('session', caller)).rejects.toThrow()
+  expect(
+    await ports.sessionPresentation.setComputerUsePreview('session', 'eligible', caller)
+  ).toEqual({ updated: true, surface: 'renderer-canvas' })
+  previewResult = { updated: true, surface: 'unknown' }
+  await expect(
+    ports.sessionPresentation.setComputerUsePreview('session', 'eligible', caller)
+  ).rejects.toThrow()
   const first = vi.fn()
   const second = vi.fn()
   const stopFirst = ports.onRendererDestroyed(7, first)
@@ -136,7 +256,7 @@ it('owns renderer subscriptions until registration and waits for physical Native
   })
   await Promise.resolve()
   expect(closed).toBe(false)
-  await expect(ports.getProxyUrl()).rejects.toThrow('stopping')
+  await expect(ports.getProxySnapshot()).rejects.toThrow('stopping')
   release.resolve()
   await closing
   expect(callbacks.size).toBe(0)

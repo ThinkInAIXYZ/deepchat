@@ -3,6 +3,7 @@ import { test, expect } from '../fixtures/electronApp'
 import { openSettings, openSettingsTab, selectProvider } from '../helpers/settings'
 import { waitForAppReady } from '../helpers/wait'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '../../../src/shared/contracts/channels'
+import { ModelType } from '../../../src/shared/model'
 
 test('connection saving does not depend on the fixed probe model @smoke', async ({
   app
@@ -49,34 +50,37 @@ test('connection saving does not depend on the fixed probe model @smoke', async 
   const baseUrl = `http://127.0.0.1:${address.port}/v1`
   try {
     await waitForAppReady(app.page)
-    const baseline = await app.page.evaluate(async (url) => {
-      const { provider } = await window.deepchat.invoke('providers.update', {
-        providerId: 'alibaba-token-plan-cn',
-        updates: { apiKey: 'old-fixture-key', baseUrl: url, enable: false }
-      })
-      await window.deepchat.invoke('models.saveCustom', {
-        providerId: provider.id,
-        config: {
-          maxTokens: 2048,
-          contextLength: 8192,
-          vision: false,
-          functionCall: false,
-          reasoning: false,
-          type: 'chat',
-          isUserDefined: true
-        },
-        model: {
-          id: 'custom-text-fixture',
-          name: 'Custom text fixture',
-          type: 'chat',
-          enabled: true
-        }
-      })
-      return await window.deepchat.invoke('providers.validateDraft', {
-        provider: { ...provider, apiKey: 'replacement-fixture-key' },
-        loadModels: false
-      })
-    }, baseUrl)
+    const baseline = await app.page.evaluate(
+      async ({ url, modelType }) => {
+        const { provider } = await window.deepchat.invoke('providers.update', {
+          providerId: 'alibaba-token-plan-cn',
+          updates: { apiKey: 'old-fixture-key', baseUrl: url, enable: false }
+        })
+        await window.deepchat.invoke('models.saveCustom', {
+          providerId: provider.id,
+          config: {
+            maxTokens: 2048,
+            contextLength: 8192,
+            vision: false,
+            functionCall: false,
+            reasoning: false,
+            type: modelType,
+            isUserDefined: true
+          },
+          model: {
+            id: 'custom-text-fixture',
+            name: 'Custom text fixture',
+            type: modelType,
+            enabled: true
+          }
+        })
+        return await window.deepchat.invoke('providers.validateDraft', {
+          provider: { ...provider, apiKey: 'replacement-fixture-key' },
+          loadModels: false
+        })
+      },
+      { url: baseUrl, modelType: ModelType.Chat }
+    )
     expect(baseline).toMatchObject({ isOk: false, errorMsg: 'AccessDenied.Unpurchased' })
 
     const page = await openSettings(app)
@@ -86,6 +90,7 @@ test('connection saving does not depend on the fixed probe model @smoke', async 
     await expect(page.getByTestId('provider-api-key-summary')).toBeVisible()
     await page.getByTestId('provider-verify-button').click()
     await page.getByTestId('model-check-select').click()
+    await page.getByTestId('model-check-enabled-only').click()
     await page.locator('[data-model-id="qwen3.8-flash"][data-testid="model-check-option"]').click()
     await page.getByTestId('model-check-submit').click()
     await expect(page.getByTestId('model-check-result')).toHaveAttribute('data-success', 'false')
@@ -127,6 +132,7 @@ test('connection saving does not depend on the fixed probe model @smoke', async 
 
     await page.getByTestId('provider-verify-button').click()
     await page.getByTestId('model-check-select').click()
+    await page.getByTestId('model-check-enabled-only').click()
     await expect(
       page.locator('[data-testid="model-check-option"][data-model-id="happyhorse-1.1-r2v"]')
     ).toHaveCount(0)
@@ -235,10 +241,10 @@ test('connection saving does not depend on the fixed probe model @smoke', async 
     await page.locator('#modelName').fill('Unsaved custom fixture')
     await page
       .getByRole('dialog')
-      .getByRole('button', { name: /^(保存配置|Save Configuration)$/ })
+      .getByRole('button', { name: /^(保存配置|Save configuration)$/ })
       .click()
     await expect(page.getByRole('dialog').getByRole('alert')).toContainText(
-      /保存失败|Failed to save/
+      /保存失败|Could not save/
     )
     await expect(page.locator('#modelId')).toHaveValue('unsaved-custom-fixture')
     await page.screenshot({ path: testInfo.outputPath('custom-model-save-failed.png') })

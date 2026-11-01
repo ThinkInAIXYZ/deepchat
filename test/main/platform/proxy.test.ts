@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createServer } from 'node:http'
+import type { Socket } from 'node:net'
 
 const electronMocks = vi.hoisted(() => ({
   setProxy: vi.fn(),
@@ -6,11 +8,11 @@ const electronMocks = vi.hoisted(() => ({
 }))
 
 const { Agent, EnvHttpProxyAgent, setGlobalDispatcher } = vi.hoisted(() => ({
-  Agent: vi.fn(function Agent() {
-    return {}
+  Agent: vi.fn(function Agent(_options: unknown) {
+    return { close: vi.fn(async () => undefined), destroy: vi.fn(async () => undefined) }
   }),
-  EnvHttpProxyAgent: vi.fn(function EnvHttpProxyAgent() {
-    return {}
+  EnvHttpProxyAgent: vi.fn(function EnvHttpProxyAgent(_options: unknown) {
+    return { close: vi.fn(async () => undefined), destroy: vi.fn(async () => undefined) }
   }),
   setGlobalDispatcher: vi.fn()
 }))
@@ -54,7 +56,7 @@ describe('ProxyConfig readiness', () => {
 
     config.initFromConfig(ProxyMode.SYSTEM, '')
     let settled = false
-    void config.whenReady().then(() => {
+    void config.getProxySnapshot().then(() => {
       settled = true
     })
     await Promise.resolve()
@@ -62,6 +64,11 @@ describe('ProxyConfig readiness', () => {
     expect(settled).toBe(false)
     finishResolution('DIRECT')
     await expect(config.whenReady()).resolves.toBe(true)
+    await expect(config.getProxySnapshot()).resolves.toEqual({
+      version: 1,
+      proxyUrl: null,
+      noProxy: ''
+    })
     expect(electronMocks.resolveProxy).toHaveBeenCalledWith('https://www.google.com')
   })
 
@@ -90,6 +97,109 @@ describe('ProxyConfig readiness', () => {
     expect(config.getProxyUrl()).toBeNull()
     expect(electronMocks.setProxy).toHaveBeenLastCalledWith({ mode: 'direct' })
   })
+
+  it('joins draining pools and accepted native resolution while fencing late effects', async () => {
+    electronMocks.resolveProxy.mockResolvedValue('DIRECT')
+    const config = new ProxyConfig()
+    await config.resolveProxy()
+    const previous = setGlobalDispatcher.mock.calls.at(-1)![0]
+    const drain = Promise.withResolvers<void>()
+    previous.close.mockReturnValueOnce(drain.promise)
+    await config.resolveProxy()
+    const current = setGlobalDispatcher.mock.calls.at(-1)![0]
+    const native = Promise.withResolvers<string>()
+    electronMocks.resolveProxy.mockReturnValueOnce(native.promise)
+    const pending = config.resolveProxy()
+    const rejected = expect(pending).rejects.toThrow('Native HTTP is stopping')
+    await vi.waitFor(() => expect(electronMocks.resolveProxy).toHaveBeenCalledTimes(3))
+    const queued = expect(config.resolveProxy()).rejects.toThrow('Native HTTP is stopping')
+    const installations = setGlobalDispatcher.mock.calls.length
+    const nativeCalls = electronMocks.setProxy.mock.calls.length
+    const closing = config.close()
+    expect(config.close()).toBe(closing)
+    let closed = false
+    void closing.then(() => {
+      closed = true
+    })
+    await vi.waitFor(() => {
+      expect(previous.destroy).toHaveBeenCalledOnce()
+      expect(current.destroy).toHaveBeenCalledOnce()
+    })
+    expect(closed).toBe(false)
+    native.resolve('PROXY late.example:8080')
+    await Promise.all([rejected, queued])
+    expect(setGlobalDispatcher).toHaveBeenCalledTimes(installations)
+    expect(electronMocks.setProxy).toHaveBeenCalledTimes(nativeCalls)
+    expect(closed).toBe(false)
+    drain.resolve()
+    await closing
+    await expect(config.getProxySnapshot()).rejects.toThrow('Native HTTP is stopping')
+    expect(() => config.setProxyMode(ProxyMode.NONE)).toThrow('Native HTTP is stopping')
+  })
+
+  it('retains a failed transport receipt and invalidates its owner', async () => {
+    electronMocks.resolveProxy.mockResolvedValue('DIRECT')
+    const failed = vi.fn()
+    const config = new ProxyConfig(failed)
+    await config.resolveProxy()
+    const previous = setGlobalDispatcher.mock.calls.at(-1)![0]
+    const failure = new Error('transport did not close')
+    previous.close.mockRejectedValue(failure)
+    previous.destroy.mockRejectedValue(failure)
+    await config.resolveProxy().catch(() => {})
+    await vi.waitFor(() => expect(failed).toHaveBeenCalledExactlyOnceWith(failure))
+    await expect(config.getProxySnapshot()).rejects.toBe(failure)
+    const closing = config.close()
+    await expect(closing).rejects.toThrow('Native HTTP did not retire')
+    expect(config.close()).toBe(closing)
+  })
+
+  it(
+    'aborts a real held request after graceful Agent retirement has started',
+    { timeout: 15_000 },
+    async () => {
+      const actual = await vi.importActual<typeof import('undici')>('undici')
+      const sockets = new Set<Socket>()
+      const entered = Promise.withResolvers<void>()
+      const server = createServer(() => entered.resolve())
+      server.on('connection', (socket) => {
+        sockets.add(socket)
+        socket.once('close', () => sockets.delete(socket))
+      })
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      const agent = new actual.Agent({ headersTimeout: 0, bodyTimeout: 0 })
+      let settled = false
+      let graceful: Promise<void> | undefined
+      const request = actual
+        .fetch(`http://127.0.0.1:${(server.address() as { port: number }).port}`, {
+          dispatcher: agent
+        })
+        .catch((error: unknown) => error)
+        .finally(() => {
+          settled = true
+        })
+      try {
+        await entered.promise
+        graceful = agent.close()
+        await agent.destroy(new Error('owned shutdown'))
+        await vi.waitFor(
+          () => {
+            expect(settled).toBe(true)
+            expect(sockets.size).toBe(0)
+          },
+          { timeout: 5000 }
+        )
+        expect(await request).toBeInstanceOf(Error)
+        await graceful
+      } finally {
+        for (const socket of sockets) socket.destroy()
+        await agent.destroy()
+        await request
+        await graceful
+        await new Promise<void>((resolve) => server.close(() => resolve()))
+      }
+    }
+  )
 })
 
 const PROXY_ENV_KEYS = [
@@ -230,6 +340,9 @@ describe('process-wide fetch dispatcher', () => {
       .mockRejectedValueOnce(new Error('resolve failed'))
     const config = new ProxyConfig()
     await config.resolveProxy()
+    const snapshot = await config.getProxySnapshot()
+    expect(snapshot).toMatchObject({ version: 1, proxyUrl: 'http://127.0.0.1:7890' })
+    expect(snapshot.noProxy).toContain('localhost')
     vi.clearAllMocks()
     electronMocks.setProxy.mockResolvedValue(undefined)
 
@@ -239,6 +352,7 @@ describe('process-wide fetch dispatcher', () => {
     expect(Agent).not.toHaveBeenCalled()
     expect(setGlobalDispatcher).not.toHaveBeenCalled()
     expect(config.getProxyUrl()).toBe('http://127.0.0.1:7890')
+    await expect(config.getProxySnapshot()).resolves.toEqual(snapshot)
   })
 
   it('preserves inherited NO_PROXY after a DIRECT to proxy transition', async () => {
@@ -268,6 +382,11 @@ describe('process-wide fetch dispatcher', () => {
 
     await expect(config.resolveProxy()).resolves.toBe(true)
     expect(config.getProxyUrl()).toBeNull()
+    await expect(config.getProxySnapshot()).resolves.toEqual({
+      version: 2,
+      proxyUrl: null,
+      noProxy: ''
+    })
     expect(process.env.http_proxy).toBeUndefined()
     expect(process.env.https_proxy).toBeUndefined()
     expect(process.env.HTTP_PROXY).toBeUndefined()

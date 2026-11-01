@@ -10,7 +10,7 @@ There is no retained implementation switch or local fallback.
 
 Current scope: staged implementation in
 [Draft PR #2465](https://github.com/ThinkInAIXYZ/deepchat/pull/2465), targeting `dev`. Admission is
-committed as `ffcd98770` and the roadmap as `f35adff34`. G4 is complete at `356143755`; G5 is active.
+committed as `ffcd98770` and the roadmap as `f35adff34`. G4 is complete at `356143755`; G5 local acceptance is complete and publication/native CI are pending.
 Later goals start only after their dependencies and the preceding selected goal pass validation.
 
 Use this file as the only tracker. [The RFC](spec.md) defines capability ownership, Memory
@@ -24,6 +24,14 @@ remove replaced wiring. Run format, i18n, lint and typechecks before committing.
 goal separately to this same Draft PR, then update its status before starting the next goal.
 Failed checks must be resolved or recorded as a concrete external blocker; they cannot be silently
 skipped to advance. Keep the PR in draft and do not merge it as part of this execution.
+
+Publication for verification is distinct from distribution. Finish a goal's complete source wiring,
+local behavior comparisons and review before its coherent commit/push to the Draft PR. Run required
+checks and the six native package targets on that exact published head; the goal stays active and
+the next goal cannot start until those checks pass. PR verification packages deliberately have no
+Apple distribution credentials or installers. Preserve signing/notarization and signed-package
+acceptance as mandatory distribution gates in the release pipeline; they are not prerequisites for
+pushing the source that CI must validate. This ordering governs G5 checkpoint publication notes.
 
 Correctness, persistence, ownership, bounded resources and lifecycle behavior remain blocking.
 Shared-CI wall-clock overruns are reports, not failed checks. Batch adjacent internal composition
@@ -50,21 +58,21 @@ Reuse the retained baseline instead of accumulating a complete output tree for e
 
 ## Live goals and dependencies
 
-| Goal | State | Dependencies | Completion condition |
-| --- | --- | --- | --- |
-| G0 Admission | Complete, `ffcd98770` | Existing branch baseline | Default Rutis wiring, matching real-app E2E and old path removed |
-| G1 Whole-capability roadmap | Complete; documentation only | G0 and source research | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence |
-| G2 Baselines and first service contract | Complete, `84e3e0ead` | G1 | Reproducible resource baselines and frozen operation/ownership budgets |
-| G3 Memory vector resources | Complete, `7ee99619b` | G2 | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
-| G4 Store commands and desktop ports | Complete, `356143755` | G2 | Explicit durable operations, writer inventory and asynchronous host capabilities |
-| G5 Cohesive TS Harness backend | In progress: Core control/startup composition | G4 | Run/loop/Session/Tape/Provider composition operates under one backend authority |
-| G6 Full Memory capability | Planned | G3, G4, G5 | Recall, ingestion, management and maintenance use the one Memory service |
-| G7 Rust control owner | Planned | G2, G5 | Admission and cohesive run/interaction settlement preserve all fences |
-| G8 Rust batch computations | Conditional | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go |
-| G9 Peripheral capabilities | Conditional per selected module | G4, G5 | Independent useful lifetime, real consumer cutover and no duplicate supervisor |
-| G10 Rust durable Store | Conditional compatibility project | G4, G5, G6, G7 | One compatible encrypted writer and proven migration/recovery/maintenance behavior |
-| G11 Headless Session Host | Planned | G4, G5 and host-port audit | Real CLI execution without Electron and without a connected desktop |
-| G12 Multiple clients and devices | Planned | G11 and explicit grants | Reconnect-safe clients and separately authorized, revocable device operations |
+| Goal                                    | State                                                    | Dependencies                   | Completion condition                                                                              |
+| --------------------------------------- | -------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| G0 Admission                            | Complete, `ffcd98770`                                    | Existing branch baseline       | Default Rutis wiring, matching real-app E2E and old path removed                                  |
+| G1 Whole-capability roadmap             | Complete; documentation only                             | G0 and source research         | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence                  |
+| G2 Baselines and first service contract | Complete, `84e3e0ead`                                    | G1                             | Reproducible resource baselines and frozen operation/ownership budgets                            |
+| G3 Memory vector resources              | Complete, `7ee99619b`                                    | G2                             | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
+| G4 Store commands and desktop ports     | Complete, `356143755`                                    | G2                             | Explicit durable operations, writer inventory and asynchronous host capabilities                  |
+| G5 Cohesive TS Harness backend          | Local acceptance complete; publication/native CI pending | G4                             | Run/loop/Session/Tape/Provider composition operates under one backend authority                   |
+| G6 Full Memory capability               | Planned                                                  | G3, G4, G5                     | Recall, ingestion, management and maintenance use the one Memory service                          |
+| G7 Rust control owner                   | Planned                                                  | G2, G5                         | Admission and cohesive run/interaction settlement preserve all fences                             |
+| G8 Rust batch computations              | Conditional                                              | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go           |
+| G9 Peripheral capabilities              | Conditional per selected module                          | G4, G5                         | Independent useful lifetime, real consumer cutover and no duplicate supervisor                    |
+| G10 Rust durable Store                  | Conditional compatibility project                        | G4, G5, G6, G7                 | One compatible encrypted writer and proven migration/recovery/maintenance behavior                |
+| G11 Headless Session Host               | Planned                                                  | G4, G5 and host-port audit     | Real CLI execution without Electron and without a connected desktop                               |
+| G12 Multiple clients and devices        | Planned                                                  | G11 and explicit grants        | Reconnect-safe clients and separately authorized, revocable device operations                     |
 
 G3 is selected for its bounded file/resource ownership, not an assumed native query speedup.
 G2 may reject its process placement if transport or aggregate memory costs are unacceptable.
@@ -186,14 +194,14 @@ before selection. This keeps the first isolation contract separate from an unpro
 The following are medians of five runs. Footprint/RSS are sampled per-run peaks; event-loop values
 are medians of each run's p99. Provider work uses the existing local fixtures.
 
-| Case | Build | UI ready, ms | Footprint, MiB | RSS, MiB | Sampled CPU, s | Main loop p99, ms |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Startup | Baseline | 1988.70 | 1012.96 | 1475.91 | 4.76 | 44.96 |
-| Startup | Admission | 2058.19 | 1036.56 | 1545.00 | 4.68 | 68.81 |
-| Streaming | Baseline | 1999.99 | 1372.99 | 1677.64 | 7.74 | 47.78 |
-| Streaming | Admission | 2067.01 | 1395.93 | 1759.14 | 7.78 | 54.10 |
-| Delegation | Baseline | 1995.45 | 1067.48 | 1482.30 | 6.76 | 45.15 |
-| Delegation | Admission | 2069.24 | 1093.26 | 1565.52 | 6.77 | 50.86 |
+| Case       | Build     | UI ready, ms | Footprint, MiB | RSS, MiB | Sampled CPU, s | Main loop p99, ms |
+| ---------- | --------- | -----------: | -------------: | -------: | -------------: | ----------------: |
+| Startup    | Baseline  |      1988.70 |        1012.96 |  1475.91 |           4.76 |             44.96 |
+| Startup    | Admission |      2058.19 |        1036.56 |  1545.00 |           4.68 |             68.81 |
+| Streaming  | Baseline  |      1999.99 |        1372.99 |  1677.64 |           7.74 |             47.78 |
+| Streaming  | Admission |      2067.01 |        1395.93 |  1759.14 |           7.78 |             54.10 |
+| Delegation | Baseline  |      1995.45 |        1067.48 |  1482.30 |           6.76 |             45.15 |
+| Delegation | Admission |      2069.24 |        1093.26 |  1565.52 |           6.77 |             50.86 |
 
 Current startup has a 1975-2336 ms range and 82.72 ms median absolute deviation (MAD). Streaming
 readiness MAD is 80.01 ms; delegation readiness MAD is 66.13 ms. Current footprint MADs are 12.87,
@@ -212,16 +220,16 @@ Together, 7 performance files/11 checks pass with native SQLite required and no 
 The temporary scale fixture stays outside the deliverable; existing performance suites and the
 production adapter supply the repeatable operations.
 
-| Native operation | Scale | Median, ms | p95, ms |
-| --- | ---: | ---: | ---: |
-| FTS recall | 1k rows | 0.56 | 0.65 |
-| FTS recall | 10k rows | 0.87 | 1.00 |
-| FTS recall | 50k rows | 2.89 | 3.20 |
-| Vector query, 384 dimensions, top 20 | 1k rows | 0.83 | 0.94 |
-| Vector query, 384 dimensions, top 20 | 10k rows | 3.92 | 4.17 |
-| Vector query, 384 dimensions, top 20 | 50k rows | 29.01 | 29.14 |
-| Tape bounded range | 100k entries | 0.04 | 0.05 |
-| Tape full view | 100k entries | 108.22 | 131.52 |
+| Native operation                     |        Scale | Median, ms | p95, ms |
+| ------------------------------------ | -----------: | ---------: | ------: |
+| FTS recall                           |      1k rows |       0.56 |    0.65 |
+| FTS recall                           |     10k rows |       0.87 |    1.00 |
+| FTS recall                           |     50k rows |       2.89 |    3.20 |
+| Vector query, 384 dimensions, top 20 |      1k rows |       0.83 |    0.94 |
+| Vector query, 384 dimensions, top 20 |     10k rows |       3.92 |    4.17 |
+| Vector query, 384 dimensions, top 20 |     50k rows |      29.01 |   29.14 |
+| Tape bounded range                   | 100k entries |       0.04 |    0.05 |
+| Tape full view                       | 100k entries |     108.22 |  131.52 |
 
 These are fixture/native-adapter timings, not end-to-end application recall or a JS/Rust comparison.
 The Tape result justifies checking range use and materialization before rewriting a fold; it does
@@ -246,15 +254,15 @@ above. A documentation or test-only commit with verified identical runtime artif
 require another complete resource capture. Do not repeat shared-runner benchmarks merely to
 obtain a green timing sample.
 
-| Gate | Required result |
-| --- | --- |
-| Unused Memory | No additional process; UI-ready medians add at most `max(100 ms, 2 x baseline MAD)` per case; sampled footprint medians add at most `max(32 MiB, 2 x baseline MAD)` |
+| Gate                        | Required result                                                                                                                                                                                       |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unused Memory               | No additional process; UI-ready medians add at most `max(100 ms, 2 x baseline MAD)` per case; sampled footprint medians add at most `max(32 MiB, 2 x baseline MAD)`                                   |
 | Memory-active resource cost | After drain, at most 64 MiB extra process-tree footprint; sampled active peaks at most 128 MiB extra for matching vectors/rows; one staged upload of at most 16 MiB; store leases and queues converge |
-| Warm native query | p95 overhead at most `max(5 ms, 20% of native baseline p95)`, including every transport/copy; establish the matching real-app baseline before replacing the module |
-| Upsert | Mean overhead at most `max(5 ms, 25% of baseline mean batch time)` per logical 50-row batch at the characterized sizes; preserve one atomic native transaction |
-| First vector use | Runtime plus native open has median at most 500 ms and p95 at most 1 second; preserve the existing retrieval fallback/deadlines rather than extending them |
-| Loaded control loop | Delegation loop-p99 median adds at most `max(10 ms, 2 x baseline MAD)`; bulk transfer cannot starve acquire/release/cancel |
-| Correctness and isolation | Same recall selection/quality and durable data; atomic interrupted uploads, known-ID late-open cleanup, stale-generation rejection, FTS degradation and no replacement admission owner |
+| Warm native query           | p95 overhead at most `max(5 ms, 20% of native baseline p95)`, including every transport/copy; establish the matching real-app baseline before replacing the module                                    |
+| Upsert                      | Mean overhead at most `max(5 ms, 25% of baseline mean batch time)` per logical 50-row batch at the characterized sizes; preserve one atomic native transaction                                        |
+| First vector use            | Runtime plus native open has median at most 500 ms and p95 at most 1 second; preserve the existing retrieval fallback/deadlines rather than extending them                                            |
+| Loaded control loop         | Delegation loop-p99 median adds at most `max(10 ms, 2 x baseline MAD)`; bulk transfer cannot starve acquire/release/cancel                                                                            |
+| Correctness and isolation   | Same recall selection/quality and durable data; atomic interrupted uploads, known-ID late-open cleanup, stale-generation rejection, FTS degradation and no replacement admission owner                |
 
 Do not accept a rewrite for noise-level gains. Later performance-driven Rust work requires at least
 20% lower total CPU for the selected local workload or 15% lower settled aggregate footprint,
@@ -327,11 +335,11 @@ seconds, then the median across five runs. This window does not establish a stat
 Use the G2 macOS/M5 observer and hardware; builds are unpackaged with the Playwright inspector.
 Sampled CPU excludes shutdown and processes that live entirely between samples.
 
-| Rows | Settled baseline / migrated (MiB) | Delta (MiB) | Sampled active peak baseline / migrated (MiB) | Sampled CPU baseline / migrated (s) |
-| --- | --- | --- | --- | --- |
-| 1,000 | 943.18 / 961.20 | +18.02 | 1110.96 / 1122.17 | 7.27 / 6.50 |
-| 10,000 | 700.82 / 722.83 | +22.00 | 1226.11 / 1272.08 | 21.31 / 11.18 |
-| 50,000 | 1036.09 / 1023.17 | -12.92 | 1883.62 / 1538.78 | 121.12 / 71.79 |
+| Rows   | Settled baseline / migrated (MiB) | Delta (MiB) | Sampled active peak baseline / migrated (MiB) | Sampled CPU baseline / migrated (s) |
+| ------ | --------------------------------- | ----------- | --------------------------------------------- | ----------------------------------- |
+| 1,000  | 943.18 / 961.20                   | +18.02      | 1110.96 / 1122.17                             | 7.27 / 6.50                         |
+| 10,000 | 700.82 / 722.83                   | +22.00      | 1226.11 / 1272.08                             | 21.31 / 11.18                       |
+| 50,000 | 1036.09 / 1023.17                 | -12.92      | 1883.62 / 1538.78                             | 121.12 / 71.79                      |
 
 Every scale passes the unchanged 64-MiB settled and 128-MiB sampled-peak allowances. Reopen/clear
 phases also pass their resource checks. All unused launches have the same process-name counts;
@@ -437,11 +445,11 @@ Five independent strict operation runs pass all three characterized scales: 15 c
 matching Electron Node 24.22.0 / ABI 148. The complete seven-file/13-check suite separately passes
 in both default strict and explicit report-only modes. The numeric budgets are unchanged.
 
-| Rows | 50-row write overhead range (ms) | Maximum query p95 overhead (ms) | Maximum first-open median / p95 (ms) |
-| --- | --- | --- | --- |
-| 1,000 | 1.811-1.967 | 0.489 | 137.098 / 201.337 |
-| 10,000 | 1.336-1.424 | 1.059 | 135.859 / 137.561 |
-| 50,000 | 1.180-1.263 | 2.346 | 135.841 / 137.134 |
+| Rows   | 50-row write overhead range (ms) | Maximum query p95 overhead (ms) | Maximum first-open median / p95 (ms) |
+| ------ | -------------------------------- | ------------------------------- | ------------------------------------ |
+| 1,000  | 1.811-1.967                      | 0.489                           | 137.098 / 201.337                    |
+| 10,000 | 1.336-1.424                      | 1.059                           | 135.859 / 137.561                    |
+| 50,000 | 1.180-1.263                      | 2.346                           | 135.841 / 137.134                    |
 
 Focused timing-policy, workflow, scope and entrypoint contracts pass 22 checks. Invalid timing
 values still fail in both modes; only the explicit reporting value disables a wall-clock budget
@@ -507,17 +515,17 @@ removing the scheduler connection alone does not complete G4.
 
 ### Audited ownership entrypoints
 
-| Connection or persistence owner | Current entrypoints | Required boundary |
-| --- | --- | --- |
-| Shared application database | `MainDatabase`; Session, Tape, Agent, Memory, Provider, MCP, settings, Project, delegation, scheduler and sync facades use its connection | Keep domain transactions together; move the normal writer and its business owners together in G5 |
-| Scheduler utility process | Timer and heartbeat only; `CronJobsRepository.queueDueRuns` observes and advances due work in one transaction at the current Store owner | No database path/password/SQL crosses the helper port; preserve request correlation, generation fences and owner-side dispatch |
-| Shared-file maintenance | `databaseSecurity.ts`, `mainDatabase.ts`, sync import/config import and backup helpers open active, source or staged files | Fence normal work, explicitly own each file and connection, preserve rekey/import/backup/reopen recovery; main loses these writable paths at G5 cutover |
-| Import sources | Provider import, legacy chat import and browser profile import use source/snapshot connections; `DataImporter` currently opens both source and target with writable-capable configuration | Distinguish source ownership from the active target; keep target mutations inside the authoritative maintenance operation |
-| Schema catalog | `schemaCatalog.ts` opens an in-memory database for schema inspection | Keep this temporary local connection internal to the Store owner |
-| OCR artifacts | `ocrArtifactStore.ts` owns a separate encrypted derived-cache database | Preserve its explicit independent file owner; this is not a second writer of the shared application file |
-| Vector stores | The G3 Memory worker and Knowledge's existing DuckDB owner use separate files | Preserve their existing resource authorities and maintenance fences |
-| Configuration | Bootstrap constructs legacy app/MCP/ACP settings; runtime settings use database adapters; Provider model stores are required; attached ACP retains only an isolated legacy snapshot | Use acknowledged mutations and versioned read snapshots; hand off the complete legacy-file authority with the cohesive configuration owner at G5 |
-| Credentials and desktop state | Main supplies async crypto/unlock; DatabaseSecurity, SecretStore, Sync, MCP and Codex/Grok own explicit private persistence; native configuration readers use a committed projection; the plugin owner uses its independent Conf file | Keep authorized crypto/native operations separate from persistence; preserve consent, one complete file writer and the final handoff inventory |
+| Connection or persistence owner | Current entrypoints                                                                                                                                                                                                                   | Required boundary                                                                                                                                       |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shared application database     | `MainDatabase`; Session, Tape, Agent, Memory, Provider, MCP, settings, Project, delegation, scheduler and sync facades use its connection                                                                                             | Keep domain transactions together; move the normal writer and its business owners together in G5                                                        |
+| Scheduler utility process       | Timer and heartbeat only; `CronJobsRepository.queueDueRuns` observes and advances due work in one transaction at the current Store owner                                                                                              | No database path/password/SQL crosses the helper port; preserve request correlation, generation fences and owner-side dispatch                          |
+| Shared-file maintenance         | `databaseSecurity.ts`, `mainDatabase.ts`, sync import/config import and backup helpers open active, source or staged files                                                                                                            | Fence normal work, explicitly own each file and connection, preserve rekey/import/backup/reopen recovery; main loses these writable paths at G5 cutover |
+| Import sources                  | Provider import, legacy chat import and browser profile import use source/snapshot connections; `DataImporter` currently opens both source and target with writable-capable configuration                                             | Distinguish source ownership from the active target; keep target mutations inside the authoritative maintenance operation                               |
+| Schema catalog                  | `schemaCatalog.ts` opens an in-memory database for schema inspection                                                                                                                                                                  | Keep this temporary local connection internal to the Store owner                                                                                        |
+| OCR artifacts                   | `ocrArtifactStore.ts` owns a separate encrypted derived-cache database                                                                                                                                                                | Preserve its explicit independent file owner; this is not a second writer of the shared application file                                                |
+| Vector stores                   | The G3 Memory worker and Knowledge's existing DuckDB owner use separate files                                                                                                                                                         | Preserve their existing resource authorities and maintenance fences                                                                                     |
+| Configuration                   | Bootstrap constructs legacy app/MCP/ACP settings; runtime settings use database adapters; Provider model stores are required; attached ACP retains only an isolated legacy snapshot                                                   | Use acknowledged mutations and versioned read snapshots; hand off the complete legacy-file authority with the cohesive configuration owner at G5        |
+| Credentials and desktop state   | Main supplies async crypto/unlock; DatabaseSecurity, SecretStore, Sync, MCP and Codex/Grok own explicit private persistence; native configuration readers use a committed projection; the plugin owner uses its independent Conf file | Keep authorized crypto/native operations separate from persistence; preserve consent, one complete file writer and the final handoff inventory          |
 
 ### Ordered implementation slices
 
@@ -582,14 +590,14 @@ worker window, with no forced GC. Use G2's hardware and 500-ms process-tree phys
 observer; settled values are per-run final-ten-second medians, then medians across five runs.
 All three phase comparisons pass the unchanged allowances selected above.
 
-| Phase / metric | Baseline | Migrated | Delta |
-| --- | ---: | ---: | ---: |
-| Unused UI ready, ms | 1932.24 | 1927.26 | -4.98 |
-| Unused sampled peak footprint, MiB | 1032.93 | 1025.47 | -7.47 |
-| Active sampled peak footprint, MiB | 1038.36 | 1039.72 | +1.36 |
-| Active settled footprint, MiB | 855.95 | 847.97 | -7.98 |
-| Active Main loop p99, ms | 12.45 | 12.33 | -0.12 |
-| Reopen sampled peak footprint, MiB | 1061.75 | 1054.50 | -7.25 |
+| Phase / metric                     | Baseline | Migrated | Delta |
+| ---------------------------------- | -------: | -------: | ----: |
+| Unused UI ready, ms                |  1932.24 |  1927.26 | -4.98 |
+| Unused sampled peak footprint, MiB |  1032.93 |  1025.47 | -7.47 |
+| Active sampled peak footprint, MiB |  1038.36 |  1039.72 | +1.36 |
+| Active settled footprint, MiB      |   855.95 |   847.97 | -7.98 |
+| Active Main loop p99, ms           |    12.45 |    12.33 | -0.12 |
+| Reopen sampled peak footprint, MiB |  1061.75 |  1054.50 | -7.25 |
 
 Unused process-name counts match in every pair. These measurements establish the cost of the
 scheduler ownership change in this fixture; they do not establish a Rust or CPU speedup.
@@ -1974,7 +1982,6 @@ entrypoint ceiling. Its two frontend fixtures use the branch's required public h
 and RSS method, with no private factory replacement. The merged app, contract/Tool suites and
 matching policy workload are the final validation source; new CI must inspect this integrated head.
 
-
 ### Desktop appearance and native settings commands
 
 - [x] Require plain bootstrap locale and asynchronous theme/login/UI capabilities; remove
@@ -2032,7 +2039,6 @@ six packages `40627565315`/barrier `122622838387` before this slice is published
 its own exact-head CI. G4 remains active: font enumeration, logging/restart and other native/config
 consumer contracts still require audit/extraction before G5's exclusive profile/writer handoff.
 G5–G12 retain their full scope and conditional adoption rules.
-
 
 ### Font, logging and content-protection capabilities
 
@@ -2264,14 +2270,14 @@ preceding CI barriers. Do not trigger another all-platform publication for each 
 or documentation-only audit. Preserve the full contracts below, then verify the batch's actual
 default composition before starting G5.
 
-| Owner/call chain | Current boundary | Required work before claiming the selected cutover |
-| --- | --- | --- |
-| RemoteConversationRunner | Session/catalog/turn/projection and workspace-default queries are async; Main supplies the absolute profile root | Preserve file/workspace authorization and the existing cache/generated-asset paths at G5 handoff |
-| ChannelAdapter and five built-in factories | Lifecycle/event adapter has no native import; actual downloads remain inside the clients/Runner | Co-locate those business owners at G5; require a carrier only for an actual later host/device transfer |
-| RemoteService Feishu/Weixin login | Main owns windows behind operation-ID commands/events; Core drains startup/polls/callback servers and fences late results | Bridge this private port with authenticated G5 ownership and preserve actual cancellation/close/server settlement |
-| Provider OAuthService/Copilot windows | Main owns presentation and validates new tokens; Core issues secret-free targets and atomically commits against current configuration | Preserve the private owner commands, maintenance invalidation and authenticated G5 caller grants |
-| Window/Tray/Notification/Shortcut/Floating | Configuration readers use a private committed projection; floating bounds use acknowledged owner mutations; Agent/catalogue queries are already async | Preserve the projection and existing async owner queries at G5 handoff |
-| Upgrade settings and renderer diagnostics | Core receives the explicit application version; Main reads projected channel/privacy/logging flags | Preserve normalization under the configuration owner and Main's native updater/diagnostic lifetime at G5 |
+| Owner/call chain                                       | Current boundary                                                                                                                                                   | Required work before claiming the selected cutover                                                                                    |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| RemoteConversationRunner                               | Session/catalog/turn/projection and workspace-default queries are async; Main supplies the absolute profile root                                                   | Preserve file/workspace authorization and the existing cache/generated-asset paths at G5 handoff                                      |
+| ChannelAdapter and five built-in factories             | Lifecycle/event adapter has no native import; actual downloads remain inside the clients/Runner                                                                    | Co-locate those business owners at G5; require a carrier only for an actual later host/device transfer                                |
+| RemoteService Feishu/Weixin login                      | Main owns windows behind operation-ID commands/events; Core drains startup/polls/callback servers and fences late results                                          | Bridge this private port with authenticated G5 ownership and preserve actual cancellation/close/server settlement                     |
+| Provider OAuthService/Copilot windows                  | Main owns presentation and validates new tokens; Core issues secret-free targets and atomically commits against current configuration                              | Preserve the private owner commands, maintenance invalidation and authenticated G5 caller grants                                      |
+| Window/Tray/Notification/Shortcut/Floating             | Configuration readers use a private committed projection; floating bounds use acknowledged owner mutations; Agent/catalogue queries are already async              | Preserve the projection and existing async owner queries at G5 handoff                                                                |
+| Upgrade settings and renderer diagnostics              | Core receives the explicit application version; Main reads projected channel/privacy/logging flags                                                                 | Preserve normalization under the configuration owner and Main's native updater/diagnostic lifetime at G5                              |
 | Plugin installation, context Hooks and MCP supervision | One portable business owner keeps installation/safety persistence, Tape Hooks and synchronous supervisor decisions local; Main supplies async shell/window effects | Transfer this owner and its independent Conf file with the cohesive backend; preserve physical drain and private native caller grants |
 
 Attachment I/O follows the actual clients/Runner call chain and stays local to that business
@@ -2675,12 +2681,12 @@ claimed. Build, format/check, lint and i18n pass. Evidence and hashes are in
 recapture at this preparation step. Main still invokes the local entry and holds its objects until
 the complete Rutis Core composition and actual writer/route/lifecycle cutover below.
 
-- [ ] Move the actual Harness composition and its Run/loop/interaction/pending-input feedback
+- [x] Move the actual Harness composition and its Run/loop/interaction/pending-input feedback
       cluster together. Keep Provider streaming and prompt/tool integration local initially.
-- [ ] Move the shared database facades, Session/Tape projection/recovery, configuration authority
+- [x] Move the shared database facades, Session/Tape projection/recovery, configuration authority
       and scheduler claim transactions with their business owners. Fence/drain old ownership
       before opening the backend writer; remove main's writable shadow access.
-- [ ] Retarget existing renderer/CLI domain handlers without changing public behavior. Keep
+- [x] Retarget existing renderer/CLI domain handlers without changing public behavior. Keep
       authenticated ingress and native capability presentation in the desktop adapter.
 - [ ] Compare real streaming, delegation, pending-input settlement, approvals, cancel/resume,
       restart recovery, backup/rekey/import and shutdown. Validate lost replies, stale callbacks,
@@ -2690,6 +2696,15 @@ the complete Rutis Core composition and actual writer/route/lifecycle cutover be
 
 Completion: one backend owns active/durable business state, Electron main remains responsive under
 the agreed workload, and ownership loss cannot create two profile owners or duplicate execution.
+
+The default application opens its profile through `CoreConnection.openProfile`, then assembles and
+starts the actual SDK Kernel before exposing business readiness. Core owns the shared writer,
+Harness, Provider, Memory, MCP, Session/Tape and scheduler composition. Main retains authenticated
+ingress, read-only configuration projections and fixed Native effects; it constructs no writable
+business shadow. Core retirement drains the Kernel, Browser, helpers, desktop effects, configuration,
+Memory, admission and accepted callbacks before releasing profile ownership. Failed retirement
+retains that ownership until physical process exit. The implementation items above are complete;
+whole-goal functional, responsiveness and distribution acceptance remains open.
 
 ### Profile ownership and retirement
 
@@ -3140,16 +3155,18 @@ native package acceptance remain required before publication. G6-G12 retain thei
 - [x] Implement fixed helper commands, Core proxies, a Native owner and the reserved event lane
       in the Core link. Retain Main launch/RSS ownership and existing helper protocols;
       preserve cancellation, callback ordering and actual process retirement with bounded queues.
-- [ ] Use these ports in actual SDK Kernel assembly and validate lifecycle, saturated ordinary
+- [x] Use these ports in actual SDK Kernel assembly and validate lifecycle, saturated ordinary
       calls, payload bounds and matching application behavior. Full G5 writer/routes/lifecycle
       adoption remains required; transport tests and constructors do not establish completion.
 
 The actual Core worker owns its helper proxy and event endpoint. Main's helper owner accepts only
 five approved kinds, validated protocol messages and owned-host RSS requests. Startup admission is
 separate from the opened/failed event. Cancellation can retire pending startup; an uncancelable
-late host is compensated. Native helper retirement awaits actual exit and the required Main
-attested Exec-descendant recovery capability. Unexpected Exec exit remains owned until recovery
-settles. Main must bind that capability to the same profile during complete Kernel adoption.
+late host is compensated. Native Exec retirement awaits the owned host's asynchronous kill
+receipt, which covers actual exit and profile-scoped registered-command recovery. The former
+arbitrary-PID recovery callback is removed. Unexpected exit stays owned until recovery settles;
+the execution service waits for that same receipt before replacement startup or shutdown.
+Complete descendant/fd authority still requires acceptance during Kernel adoption.
 
 Native calls retain their sixteen-call bound with two retirement slots; ordinary work has a
 64-request/64-MiB waiting bound. Queued values are snapshots and stop rejects queued ordinary work.
@@ -3186,8 +3203,8 @@ writer, public-route and lifecycle adoption with old-path removal and native/pac
 - [x] Implement fixed Browser commands and callback receipts in the Core SDK link. Preserve
       normalized dispatch commitment, cancellation, recoverable errors and native retirement;
       serialize Browser/helper callbacks through the existing reserved event slot.
-- [ ] Bind this Browser port and Main's physical-retirement capability into the complete SDK
-      Kernel. The private worker owns the proxy but does not yet invoke the complete runtime.
+- [x] Bind this Browser port and Main's physical-retirement capability into the default SDK
+      Kernel, including user-opened pages when no Agent Browser tool was called.
 
 Core keeps the actual authorization callback and returns a distinct denial outcome without
 fencing a healthy generation. Main retains native Browser objects and normalizes target arguments.
@@ -3200,25 +3217,69 @@ The helper and Browser sources share one bounded snapshot queue for the reserved
 Browser cancellation/close reuse the two Native retirement slots. Recoverable Browser-unavailable
 payloads and the original Core commit errors survive transport; no uncertain operation is replayed.
 
-Local verification passes **184 distinct TypeScript checks across ten files**, including four
-durable additions for acknowledged authorization, late cancellation/physical retirement, encrypted
-event ordering and real Browser dispatch after a held commit. The actual SDK profile/event
-regressions require native SQLite. All six Rust checks, normal build, types, format/check, lint,
-i18n, Rust fmt and Clippy pass. Existing Browser fixtures now match their actual callback types.
+Every assembled Kernel retires Main's Browser owner before profile release. Agent-tool usage does
+not determine ownership of pages created by public desktop routes. Profile-only Memory/Admission
+SDK operations do not acquire the desktop owner. Main caches each page's close receipt, fences new
+page/preview allocation during shutdown and awaits the actual WebContents `destroyed` event without
+a before-unload veto. Physical close failures remain failed and retain ownership; all pages are
+attempted. Destruction callbacks address the same state object, so a late event cannot erase a
+replacement with the same Session identity. No new capability, process or transport is added.
 
-Immutable `f511c078b` and the candidate pass the same actual Browser typed-route load/status/destroy
-scenario. The first-message baseline failure is a stale client catalog: Main returns both enabled
-custom models, but model facts reach consumers without invalidating the 200-ms catalog cache.
-The client now invalidates affected catalogs before forwarding catalog/status facts. The candidate
-passes the full existing first-message case: both model/icon selections, message completion,
-Workspace content and retained native Browser identity/page state. New-chat helpers scope their
-input assertion to the new-thread page, excluding retained inactive session editors. No deadline
-or automatic retry is added. Baseline failure evidence is `.deepchat/rutis-g5-browser-acceptance/`;
-diagnosis and passing candidate evidence are `.deepchat/rutis-g5-kernel-assembly-acceptance/`.
+Current verification passes **77 distinct TS checks across seven files**: 59 Browser presenter,
+handler, caller and transport checks plus 18 actual SDK profile/Memory/Admission checks with native
+SQLite required. Two small durable additions protect held physical destruction with a neighboring
+close failure, and profile writer exclusion until the Native Browser receipt settles without Agent
+Browser calls. The latter still passes after moving its setup under guaranteed fixture cleanup;
+the targeted confirmation is not added to the distinct case count. Normal build, Node/web and
+scoped test types, format, lint and i18n pass. Rust/Cargo and catalog hashes are unchanged; retain
+their existing eight Rust/fmt/locked-Clippy and catalog evidence rather than rerunning those matrices.
 
-No performance capture or gain claim is made. G5 remains active and unpublished: complete Kernel
-default adoption, remaining Native callbacks, the writer/public routes/lifecycle/maintenance,
-descendant/proxy authority, full acceptance and native/signed packages remain required.
+The current app passes **seven distinct scenarios**: the new Browser retirement case and six
+first-message Workspace/Browser, image, OAuth and CLI regressions. The Browser case holds response
+headers, response-body reads and a WebSocket, verifies they are still live before retirement, and
+exercises explicit page destruction, normal quit and Core-owner failure. Each path physically
+closes the three requests and reopens the persisted Session with a fresh uninitialized Browser.
+The foreground focus case remains pending an unlocked Mac and is excluded from this selection.
+
+The same immutable f511 fixture passes explicit destruction and graceful quit, with physical network
+closure receipts. It fails at line 232 in the Core-failure phase: refused Native renderer registration
+leaves the process alive under the unchanged 30-second observation deadline. Later failure-phase
+network closure/reopen assertions do not execute. The result is 0/1 complete cases, not proof that
+the baseline cannot close ordinary Browser requests. The real SDK receipt case separately proves
+profile exclusion for the migrated ownership boundary. Current/frozen trees, fixture and external
+dependency hashes are restored and verified in `browser-retirement-comparison.json` under
+`.deepchat/rutis-g5-kernel-assembly-acceptance/`.
+
+No new resource capture or performance claim is selected: the existing shutdown receipt changes
+no process placement, transport or hot-path batch. Shared-CI timing remains report-only. Compact
+raw reports and the one required immutable baseline remain; completed media and temporary configs
+are pruned. G5 remains active/unpublished. Other Native/concurrent faults, lost ancestry/privilege changes, unlocked foreground and supported
+signed/platform acceptance remain separate work before whole-G5 review, publication and exact-head
+CI. G6-G12 remain unstarted.
+
+The browser download manager, its unused presenter method/type and obsolete preferred-page selector
+are removed. No typed route or Agent tool called them; their constructor installed a default-session
+listener that could never match an admitted download. Browser-origin downloads retain their existing
+Chromium/Main application ownership. Upgrade and image downloads are separate active capabilities.
+
+Active Native views use one small `closeWebContents` implementation. Browser pages join it through
+their existing owner; the temporary cookie-inspection view joins it in `finally`, including a
+failed debugger detach. Application windows and floating UI belong to their Main application owners.
+The old Tab presenter has no view-creation callers; its floating-window registration is a borrowed
+capture/context lookup. It is not a second Native view owner or an additional Core teardown gate.
+Its existing source and the Main composition retain their accepted hashes.
+
+The cleanup passes 75 existing/new checks across five Browser/import/composition files. Two compact
+cases protect temporary-view closure for successful reads and failed debugger detachment. The
+import fixture models Electron's documented empty defaults for omitted cookie names/values;
+scoped test types include this fixture. Normal build, Node/web types, lint/i18n and formatting pass.
+The current application passes seven Browser, MCP/private account, image and Copilot cases. The
+same Browser fixture and frozen artifact/dependency hashes reuse the accepted baseline report;
+no unchanged baseline rerun or new resource capture is selected. Core and Rust artifacts are
+byte-identical to the preceding Browser receipt. The normal ACP registry agent refresh is retained
+and passes 16 registry/migration checks; Provider catalog hashes are unchanged. The retained
+Browser baseline exercises an OpenAI Session and no ACP Agent operation, so its scope establishes
+page/request retirement rather than refreshed ACP catalog parity.
 
 ### Cohesive Kernel root
 
@@ -3231,8 +3292,8 @@ descendant/proxy authority, full acceptance and native/signed packages remain re
       application; remove its inline route/maintenance construction and SDK placeholder errors.
 - [x] Activate the actual SDK Kernel and route business requests through its local controller,
       with bounded queues, reserved control, Native caller revalidation and startup/shutdown fencing.
-- [ ] Adopt public ingress, shared writer and lifecycle in the default Core process before G5
-      publication.
+- [x] Adopt public ingress, shared writer and lifecycle in the default Core process. Whole-G5
+      fault/resource/native/platform acceptance remains required before publication.
 
 `createCoreKernel` owns the cohesive business graph and its terminal drain. The same settings
 version source feeds configuration events; renderer-session ownership retains its `null` meaning.
@@ -3297,7 +3358,9 @@ its flows propagate cancellation and await owned-window, request and response-bo
 Complete production Core Native binding remains required before default adoption.
 Plugin-window ownership checks await their Native query, while Main sender
 authorization retains a synchronous registry and rejects promise/object results. Proxy mutations
-await Native application; actual HTTP/PAC/custom/auth behavior still needs cutover acceptance.
+await Native application and SDK dispatcher synchronization. The SDK preserves the existing
+single-probe system policy, custom authentication and bypass rules; default-process adoption
+still requires whole-goal acceptance.
 
 Existing affected verification passes **65 Main checks across five files**, **26 SDK/Native
 checks across seven files** and **13 request-gate checks**. The default application passes seven
@@ -3430,6 +3493,1087 @@ remain in `.deepchat/rutis-g5-kernel-assembly-acceptance/`; finished media are r
 needed baseline is preserved. The default writer/routes/lifecycle still run in Main. Complete
 Native/helper/Browser binding, descendant/proxy authority, default Core adoption and whole-goal
 fault/native/signed package acceptance remain required; G5 stays active and unpublished.
+
+### G5 desktop business route ownership
+
+The existing Core settings map owns eleven language/theme/shortcut/floating-widget/update-channel
+handlers. The Core Session map owns browser-focus and Computer Use preview admission, preserving
+active-session/draft-owner checks and the inactive-preview stop exception. Main supplies three
+fixed Native presentation methods, validates the current renderer/window pair and checks shutdown;
+it does not read Session business state for these effects. Native desktop and upgrade maps hold
+no AppSettings or Session owner. TabPresenter has no Session-binding dependency; renderer
+destruction owns binding retirement. Existing desktop route names, processes and resource bounds
+stay unchanged.
+
+The floating widget consumes two typed Session routes and the existing ACP icon query through
+the Core dispatcher. Its Native presenter has no AgentSettings, SessionQuery or Session-binding
+dependency. Core filters and orders regular sessions and shares the existing desktop-session
+activation operation with Remote. Main keeps geometry, appearance and expanded state; all widget
+IPC reads/actions authenticate its exact owned top-level document. Ordinary renderer APIs remain
+unavailable to that document. One in-flight snapshot read coalesces updates and rejects retired
+window replies. Native initialization acknowledges creation/appearance without awaiting a Core
+query; the window displays after its initial refresh, avoiding startup reentrancy.
+
+Validation passes **144 checks across seven files**: 133 route/settings/SDK/Native checks plus eleven
+window/binding checks. The actual standalone SDK exercises configuration writes/reads and preview
+admission for owned drafts, active sessions, deactivation and cleanup. One durable Native identity
+case extends the existing file; other coverage extends existing cases. Normal build including
+Node/web types, affected-test types, format/check, lint and i18n pass with the existing Remote
+warning only. Rust is unchanged. The real settings/shortcut/floating-widget persistence scenario
+passes on the immutable baseline and current application. Foreground browser-focus acceptance is
+pending an unlocked Mac: Native observation confirms a visible attached browser with a live
+session while the OS reports the host window unfocused, and the desktop tool reports a locked
+session. Both artifacts reject focus under that condition. The full foreground scenario and its
+Native readiness check remain; no security guard or functional deadline is relaxed. Its receipt
+is not counted as a pass. G5 remains active and unpublished, with default Core writer/routes/
+lifecycle adoption, remaining production Native bindings and whole-goal acceptance still required.
+
+Widget validation passes **129 checks across five existing files**, including actual standalone
+SDK snapshot filtering, missing-session rejection, Core activation and the resulting binding. One
+durable Native case verifies startup acknowledgement with a held Core read, no premature display,
+replacement-window isolation and foreign-reader rejection. The latest Native/layout and SDK
+selections pass fourteen and nine checks respectively. The same two real-app cases pass on both
+the immutable baseline and current build: scoped widget IPC, snapshot/session opening/collapse,
+plus settings/shortcut/floating-bounds persistence and reopen. Normal build, Node/web and affected
+unit/E2E types, format/check, lint and i18n pass; Rust and generated catalogs are unchanged. No
+benchmark matrix, timeout increase, new test file, dependency or process is introduced. Current
+and baseline artifacts are restored and hash-verified after comparison; finished profiles and
+bundles are pruned while the sole baseline and compact evidence remain.
+
+### G5 MCP App protocol ownership
+
+The Core runtime constructs the single MCP App registry used by its source/tool authorization
+owners. Main's startup and protocol layer hold only two asynchronous policy/permission operations;
+their registry construction, direct revocation and owner-subscription map are removed. Core owns
+one renderer subscription while an owner has creations/views, cancels pending consent on retirement
+and releases unused subscriptions. Maintenance clears the registry before database drain. Terminal
+close also rejects new reservations, including a route admitted before shutdown that reaches view
+creation later. Native owner validation and separate-origin protocol responses remain in Main.
+
+The SDK exposes the same two operations through a fixed private, schema-validated protocol. They
+share the existing bounded ordinary queue and business drain; Native owner destruction uses the
+existing reserved event lane. Human answers/cancellation and status/stop keep their reserved slots.
+No public route, process, dependency, queue limit or functional deadline changes.
+
+Validation passes **49 affected checks across six files**, **75 catalog checks across five files**
+and **six Rust checks**. One durable registry case covers shared subscription ownership, pending
+consent retirement, synchronous owner destruction and terminal admission. Existing actual SDK
+coverage verifies cold/unknown-instance denial and protocol progress after queued ordinary work,
+while human control and status remain available. The same MCP App application scenario passes on
+immutable `f511c078b` and the current build: saved sources, Native CSP/permission policy, consent,
+revocation, graceful shutdown and reopen. Six current application regressions also pass: scoped
+widget session opening and five maintenance/shutdown cases. Current/baseline Main and Rust hashes
+are restored and verified. Normal build, Node/web and affected unit/E2E types, format/check, lint,
+i18n, Rust fmt and locked Clippy pass, with the existing Remote warning only. Normal Provider/ACP
+refreshes remain separate. Compact receipts and the one needed baseline remain; fixture profiles
+and bundles retire automatically. Default writer/routes/lifecycle still run in Main. G5 remains
+active and unpublished pending full Core adoption, remaining Native bindings and whole-goal
+fault/native/signed acceptance; foreground browser focus still requires the unlocked Mac.
+
+### G5 desktop host controls
+
+Main's Workspace preview, Provider-deeplink and quit-preparation callbacks use the Core runtime's
+host facade. Main no longer holds Provider settings, the three permission services or the approval
+broker for these operations. Preview/Provider queries enter the database gate and existing bounded
+ordinary queue. Two fixed host controls use the reserved Native event lane: permission clearing
+and shutdown-confirmation data. Knowledge returns the existing dialog data and has no dialog
+dependency or presentation method; Main presents it and interprets the response. The event lane
+does not wait for user input. No public route, resource bound, process, dependency or deadline changes.
+
+Quit/update preparation awaits permission retirement. Update installation records its shutdown
+promise before the first await, preserving exclusion of concurrent requests. Failed quit preparation
+is reported and leaves the shutdown claim uncommitted. Kernel retirement clears permissions before
+the CLI server drains. Private host operations join accepted business work before writer release;
+ordinary query denial does not invalidate an otherwise live Native bridge.
+
+Validation passes **49 affected checks across five files**, including the actual SDK under full
+ordinary load, plus **75 catalog checks** and **six Rust checks**. One durable Knowledge case covers
+idle/pending confirmation data; SDK coverage extends its existing case. Eleven app scenarios pass
+across Workspace/preload isolation, Provider deeplinks, CLI approvals, MCP Apps and five maintenance/
+shutdown cases. The final app build passes the same two affected preview/deeplink scenarios as the
+immutable baseline. Normal build, final app rebuild, Node/web and affected unit/E2E types, format/
+check, lint, i18n, Rust fmt and locked Clippy pass, with the existing Remote warning only. Normal
+Provider metadata refresh remains separate. Disposable profiles/bundles retire; compact evidence
+and the one required baseline remain. Default profile/writer/routes/lifecycle still run in Main;
+production helper/Browser retirement, default Core network adoption and
+whole-goal acceptance remain required. G5 stays active and unpublished; locked-Mac foreground
+acceptance is unchanged.
+
+### G5 Core HTTP ownership
+
+Main publishes its committed effective proxy URL, merged bypass rules and monotonically increasing
+revision through one fixed Native operation. The SDK Kernel initializes its own Undici dispatcher
+and proxy environment before constructing Provider/runtime owners. Proxy-setting acknowledgement
+waits for that synchronization. Stale revisions are ignored, equal effective policies reuse the
+pool, and failed Native resolution leaves the last committed policy intact. System resolution
+preserves the existing single probe and first HTTP proxy result; per-destination PAC evaluation is
+outside this change. Credential-bearing proxy URLs are no longer logged directly.
+
+Replaced pools close gracefully while accepted requests finish. Kernel stop destroys both current
+and draining pools at the beginning of retirement, then waits for closure before releasing the
+writer. Existing library/native transport owners retain their own cancellation contracts. Main
+uses the same pure dispatcher/environment helpers; its default process placement is unchanged.
+
+Validation passes **25 checks across three existing files**, including the actual standalone SDK
+with local HTTP endpoints: authenticated proxy requests, bypass, direct mode, live policy changes,
+in-flight response completion, shutdown of current and draining connections, and profile reopen.
+One durable SDK case covers this network/lifecycle contract. Existing Native tests cover snapshot
+readiness, revision changes and last-good resolution. Normal build, Node/web and affected-test
+types, format/check, lint and i18n pass. Rust and generated catalogs are unchanged, so their
+unchanged suites are not repeated. No performance result is claimed.
+
+The immutable `f511c078b` application selection passes configuration reads and two Provider
+save/error flows. Its Provider probe scenario exposes the startup-route result-sharing defect
+described below. The corrected current artifact has passing evidence for all four scenarios,
+including the complete probe/credential/save-error flow. Compact reports and restored baseline
+hashes are in `.deepchat/rutis-g5-kernel-assembly-acceptance/`. Source changes remain uncommitted
+and unpublished.
+Default Core adoption, production Native/helper/Browser retirement, descendant fd/environment
+authority, foreground focus and complete fault/native/signed acceptance remain open. G5 is active;
+G6 has not started.
+
+### G5 startup route result isolation
+
+Each tracked business request has its own startup-work identity. The coordinator retains shared
+progress labels and the existing CPU/IO concurrency limits, while arguments and caller identities
+cannot inherit another request's result or authorization. Query caching stays with the existing
+clients. This fixes concurrent Provider catalog reads returning the first Provider's catalog and
+incorrectly marking an empty model list ready. The shared route dispatcher applies the same rule
+to the default Main runtime and SDK Kernel; no new public route, dependency or process is added.
+
+Validation passes **102 distinct checks across five Main/SDK/Native files**, including a single
+durable concurrency case using the real coordinator with different Provider IDs and caller IDs.
+Existing checks retain maintenance revalidation, cancellation and accepted-handler drain. The
+current application passes all four selected configuration/Provider scenarios. The complete
+Provider flow covers model selection, denied/successful requests, saved credentials, disabled
+Provider persistence, custom model filtering, rejected writes and retained input. Its fixture
+explicitly disables the enabled-only filter before selecting an inactive model and uses current
+localized save/error labels. Temporary read-only diagnostics are removed.
+
+Normal build, Node/web and affected-test types, format/check, lint and i18n pass. The normal
+Provider catalog refresh passes **75 checks across five files** and is held separately in
+`fe4ea751e`; G5 source remains uncommitted/unpublished. No unchanged benchmark, deadline increase
+or Rust suite is repeated. Compact reports/source hashes and the sole needed baseline remain;
+completed profiles and media are pruned. Default cross-process adoption, production Native/helper/
+Browser retirement, descendant authority, foreground focus and whole-goal fault/native/signed
+acceptance remain required. G5 is active; G6 has not started.
+
+### G5 registered execution retirement
+
+The production Native Exec host owns an asynchronous kill receipt and replays exit to late
+subscribers. Retirement is registered before synchronous exit callbacks can reenter it. It captures its helper PID
+before exposing commands, waits for physical exit and performs profile-scoped recovery of that
+helper's registered command roots using the existing start-time/command-line attestation. Unmatched
+or unobservable identities are not killed. Unreadable/corrupted records and incomplete recovery
+reject the receipt; live owned records cannot expire merely because they are old. Scoped recovery
+requests serialize without sharing another owner's result, while startup recovery retains its
+once-per-subsystem behavior.
+
+The default Main execution service awaits this receipt during shutdown, canceled startup and
+unexpected-helper recovery before allowing replacement startup. The Core proxy forwards it through
+the existing termination command. Its Native helper owner retains exited Exec hosts until that
+receipt settles and propagates failure. The separate arbitrary-PID recovery callback is removed.
+Other helper kinds keep their existing contracts, resource bounds and reserved control capacity.
+
+Validation passes **115 distinct checks across eight Main/SDK files**, including the actual SDK
+Kernel. Three new durable unit cases cover scoped ownership/concurrency, unreadable records and
+physical-exit/recovery failure; existing service/helper cases extend shutdown, replacement and late
+startup coverage. Scoped unit/E2E types pass. The large 53-case manager fixture remains runtime
+checked; its existing unrelated typing errors are recorded separately from source and scoped-test
+checks. Normal build including Node/web types, format/check, lint and i18n pass. Normal Provider/ACP
+metadata passes **75 checks across five files** and is held separately in `466791536`.
+
+The current application passes four execution scenarios: completion/output/persistence, shutdown
+with an active command, canceled pending Native startup and unexpected helper loss. The immutable
+baseline passes the same first three; its helper-loss scenario leaves the owned command running.
+The new durable fault case uses the public Agent/tool flow, kills only its owned Native helper and
+checks command retirement before app shutdown and profile reopen. Test failure cleanup releases
+the owned command through its fixture sentinel; it does not signal a potentially reused PID.
+No deadline, performance gate or production debug API is added.
+
+This proves registered-root recovery, not complete process containment. Failed registration,
+legitimate exec identity changes, escaped descendants, process-group/fd retirement and supported
+platform/signed behavior remain required for G5 acceptance. G5 remains active and unpublished. Compact reports and restored
+artifact hashes remain in `.deepchat/rutis-g5-kernel-assembly-acceptance/`; completed bulk artifacts
+are pruned and the sole needed immutable baseline is retained. G6 has not started.
+
+### G5 default Core composition
+
+- [ ] Complete default Core acceptance: remaining streaming/delegation/interaction, Browser and
+      helper faults, selected identity-bound process retirement, representative resource/responsiveness evidence and
+      supported native package behavior. Complete local acceptance before publishing the coherent
+      G5 source; keep G5 active until exact-head CI passes. Signed distribution remains release-gated.
+
+The default process move selects one paired resource capture of the existing eight-delegation
+workload on this fixed Mac, with identical local Provider fixtures, profiles and observer. Retain
+all process-tree footprint/CPU samples, startup readiness and Main event-loop p95/p99. This is
+structural-migration evidence, not a speedup adoption decision. Do not run a five-pair matrix or
+turn an individual wall-clock difference into a gate; allow at most one confirmation batch for a
+suspected material regression under the execution rule above.
+
+Main starts the existing Rutis host and Core connection, opens the profile in Core and activates
+its cohesive Kernel. It no longer constructs the profile writer, data, Provider, Harness, Memory,
+MCP, synchronization or business route/controller roots. Native routes keep their sender guard and
+fixed Main handlers; business routes use bounded Core ingress with the original caller guard
+rechecked before dispatch. Activation holds that existing queue until business readiness is
+acknowledged; cold SDK calls remain denied. Widget reads wait for the same acknowledgement.
+
+Configuration snapshots remain read-only in Main; floating bounds use an exact private command.
+Settings-window lifecycle and system resume reach the Core startup/scheduler owners. Resume
+acknowledges dispatch without holding the Native event lane for helper replies; its finite work
+joins the database lifetime gate. Core event targets and versions remain authoritative. Unsent full startup-progress snapshots and live-delegation projections supersede older queued
+versions for the same target or parent/delegation identity. Projection revisions cannot regress.
+Renderer publication does not retain a Promise waiter per superseded update; the owner retains
+the actual Native delivery receipts. Other events keep their deliveries. Real eight-delegation
+acceptance measured a 69-entry presentation peak, exceeding the preparation budget of 64. The
+independent presentation budget is 256 entries/64 MiB; business ingress and Native callback/control
+capacities retain their existing limits.
+
+Shutdown pauses Native writes and requires the Core shutdown fence before closing windows. That
+fence pauses secrets/security mutations and execution admission; final closure still awaits
+accepted Native effects and actual helper/Browser/desktop retirement before host release. Failed
+receipts prevent a terminal reset/restart action. Full reset creates its filesystem-only launcher
+cleanup owner after Core retires. Core connection loss and internal helper/Browser/desktop/HTTP owner failures notify Main once
+through a fixed component-only capability with reserved control capacity. The app generation
+retires without replaying business operations or reopening the writer in Main. Shutdown fences
+and lifecycle events remain admissible after failure, so physical helper exit receipts cannot
+deadlock retirement. A retired connection ignores its expected host exit. Complete Native fault
+and process-containment acceptance remains required.
+
+Validation passes **58 checks across seven Main/SDK files**, including the actual Core worker,
+and **six Rust checks**. Existing lifecycle cases cover activation queuing/cancellation, the
+shutdown fence, physical retirement, configuration persistence and connection failure. One small
+case verifies latest startup and delegation projections under a held Native operation, including
+identity separation, stale revisions and independent business events. An actual SDK fault case
+checks failure notification, continued shutdown control and writer exclusion until Native closure. Three source-order assertions for removed Main wiring are deleted.
+Node/web and affected-test types, normal build with subsequent current harness/app rebuilds,
+format/check, lint, i18n, Rust fmt and locked Clippy pass; the existing Remote warning remains.
+
+The actual default app passes **14 scenarios across five files**: configuration reads, all three
+Provider model/credential/save-error flows, encryption/rekey/reopen, five maintenance/drain cases
+and four Exec completion/shutdown/canceled-start/helper-loss cases. A separate launch/exit case
+passes. A temporary OS-handle probe confirms the profile lock is held by one SDK worker beneath
+the Rust host with a different PID from Electron Main; it and the temporary diagnostics are
+removed. Original failure receipts retain the progress-queue overflow and held-Native shutdown
+findings. Corrected application behavior uses no deadline increase or fallback.
+
+The immutable baseline passes **13 of the same 14 cases**; its helper-loss case leaves the owned
+command alive. The current app passes that case and all 13 shared cases. Both artifact trees are
+restored and hash-verified. Evidence is `.deepchat/rutis-g5-kernel-assembly-acceptance/`. Default adoption remains partial G5 evidence;
+source wiring and these cases do not establish whole-goal completion. G6 has not started. Finished
+bulk artifacts are pruned while reports, raw measurements and the sole needed baseline remain.
+
+Default failure/flow acceptance also covers a refused Native renderer registration: Core reports a
+fatal owner failure while its process is still present, Main ends the generation with status 1,
+and a fresh app opens the same profile without replaying the uncertain creation. The current app passes all six selected flows: this owner-failure/reopen case, normal streaming,
+first-message Workspace/Browser, eight-delegation admission/cancel/release, Memory lazy worker
+allocation/model changes/loss and CLI approval/persistence. The original public flows remain in
+use. The affected unit/SDK selection passes 58 cases across seven files; the projection case also
+verifies explicit overflow at the 256-entry boundary. The immutable baseline passes four of
+the same six cases: its refused-registration case keeps the app alive, and its first-message
+case cannot select the newly added model. Streaming, delegation, Memory recovery and CLI approval
+pass on both. The current and baseline trees are restored and hash-verified.
+Memory verification tracks all pre-existing SDK workers and exactly one newly allocated Memory
+worker instead of assuming the Rust host has only one initial child. The default controller no
+longer accepts the obsolete Native route-map injection option. Validation outcomes and matching
+baseline evidence are recorded with the application receipts; no timing threshold is raised.
+
+Main owns interactive message dialogs and rejects pending responses during retirement, including
+requests arriving after closure. The unused Core dialog invocation/response capabilities are
+removed; shutdown confirmation crosses the boundary only as strictly validated data. The existing
+CLI approval flow also verifies Core loss while approval remains unanswered: the generation exits
+with status 1, the command does not succeed, and reopening preserves the last approved settings.
+The current app passes; the immutable baseline leaves the app alive at the same injected Native
+failure. Normal build refreshes retain the Provider catalog; its four focused suites pass 79 checks.
+
+The selected eight-delegation resource pair passes its functional assertions on both builds and
+records seven process-tree samples per build. Current/baseline total footprint medians are
+1108.1/993.4 MiB, peaks 1146.5/1038.8 MiB and last samples 1146.5/1038.8 MiB. Main's last footprint
+is 138.5/330.2 MiB; the current tree adds one Core SDK worker, with nine/eight final processes.
+Observed process CPU is 6.42/5.86 seconds, readiness 1933/2049 ms and Main loop p95/p99
+12.8/23.1 versus 33.8/57.4 ms. These short, single-pair observations establish the process/memory
+tradeoff; they do not establish variance, sustained responsiveness, settled idle footprint,
+input-to-paint latency or a performance gain. No confirmation batch or timing-gate change is
+selected. Raw numeric samples and comparison receipts are retained; both artifact trees are
+restored and hash-verified. Full G5 acceptance remains open.
+
+Native directory/file, image-save and context-menu pickers share the existing Main DialogService.
+Its bounded FIFO accepts at most 16 requests and opens one physical picker at a time. Parent
+selection is captured per request; stopping or parent destruction denies unsent work. Main ends
+the active macOS sheet after the Core fence, waits for actual Native completion and then destroys
+the parent. Other platforms destroy the parent before the completion drain. The owner retains
+outstanding receipts throughout; it creates no extra process or public API and returns no fake
+cancellation acknowledgement.
+
+One unit case protects FIFO results, the 16-request bound, unsent cancellation and physical-close
+waiting. One macOS application case protects queued directory requests and an active image-save
+picker during normal shutdown, with real OS dialogs. Project persistence, image/file actions and
+CLI approval/failure recovery retain their public flows. The immutable baseline requires forced
+exit with native pickers and stays alive after the Native failure while CLI approval is unanswered.
+Both artifact trees are restored and hash-verified.
+Native picker lifetime does not alter the delegation process layout or workload, so no additional
+resource matrix is selected. Other supported platform behavior, foreground focus and
+the remaining containment/fault/signed-package acceptance stay open. G5 remains active and unpublished.
+
+- [x] Validate the existing Main image owner's shutdown signal against held HTTP headers/body,
+      late Native effects and committed target writes. Connect it before Native settings-write
+      drain, retain the existing Native call receipts and compare the public application flow
+      against the retained baseline. No process, RPC method, timeout or resource matrix is added.
+
+The existing DesktopImageActions owns one Main-lifetime abort controller. Shutdown stops it before
+awaiting Native settings writes, so held image calls cannot occupy every ordinary Core slot while
+quit preparation waits. The signal cancels actual HTTP headers/body and cache reads. Checks after
+awaited reads and picker results deny late picker, clipboard or file-write effects. A target write
+already started completes normally; the existing Native call and business receipts retain it
+until completion. No separate request map or cross-process AbortSignal is introduced.
+
+The selected Main/SDK suites pass 25 checks across five files. Image coverage retains byte/path
+parity, rejects late data even when the Native stub ignores cancellation, and holds an accepted
+target write across shutdown until its real file completion. All 46 existing Project checks pass,
+including lazy preparation without getter side effects. The Project application case checks the
+prepared directory and acknowledged version; live bootstrap/renderer callers can legitimately
+create the directory before its explicit request, so transient-absence assertions are removed.
+
+The default app passes all four selected cases across Project and file/image flows. Held-download
+coverage fills all three ordinary Core slots during quit, holds both HTTP headers and response
+body, observes physical connection closure and reopens the same profile with a fresh image owner.
+It also verifies Core-owner failure during two held downloads. The frozen baseline passes ordinary
+Project and image/file flows; picker and download shutdown require forced exit under the existing
+ten-second deadline. Its download case fails on quit before reaching the later failure subcase.
+Both artifact trees are restored and hash-verified. G5 remains active and unpublished; remaining
+Native/concurrent interaction, process containment, foreground and native/signed platform gates
+are not implied by these selected passes.
+
+The unchanged CLI approval/failure-reopen case also passes on this same current app artifact.
+Its matching frozen-baseline failure is retained with identical test source and baseline hashes;
+no unchanged baseline retry is selected. Normal Provider catalog and Rust host inputs are unchanged.
+
+### G5 execution registration and failed retirement
+
+Exec startup waits for the existing registry's explicit recorded/exited/failed result before
+acknowledging a live command. A failed registration terminates and removes the owned session,
+then rejects startup. OS-observed exit waits for the existing completion receipt, so short commands
+retain their output even when Node receives exit/close after the identity observation. MCP, ACP
+and tunnel callers retain their existing behavior; no additional registry, RPC or process is added.
+
+A failed process termination retains its registry recovery evidence and owned Skill package tree,
+and rejects kill/removal/shutdown. Local output finalization cannot stand in for physical exit.
+Shutdown drains every accepted session, aggregates failed retirement and refuses subsequent starts,
+including startup suspended on identity observation. A late root close cannot clear a failed
+tree-retirement receipt. This does not establish escaped-descendant containment or recovery after helper
+loss during the initial registration window; those boundaries remain required for G5.
+
+Validation passes **97 checks across five execution/registry/Native files**. Two durable manager
+cases cover pending registration, failed physical retirement, retained package ownership, real
+subprocess termination, fast-command completion and the shutdown start fence. One registry case
+covers unavailable storage/identity and already-exited cleanup. The default-root fixture supplies
+an owned identity instead of relying on an arbitrary live OS PID.
+
+The current application passes all **five execution scenarios**, including the new public Agent
+flow with an unavailable registry directory, visible tool failure, restored storage, graceful
+shutdown and persisted failure after reopening. The same new scenario fails on immutable
+`f511c078b`: it returns `running` and a session ID despite failed registration. The unchanged
+baseline's earlier execution scenarios reuse their existing receipts; no unchanged benchmark or
+baseline matrix is repeated. Source Node/web types, scoped registry/E2E types, app build, format,
+lint and i18n pass. The large manager test fixture still has the previously recorded unrelated
+TypeScript errors; all its runtime cases pass and no new-case typing error was reported.
+
+Compact reports/raw receipts and the sole needed baseline remain; completed media and the
+temporary test type configuration are removed. G5 remains active and unpublished. Exec identity
+transitions, recovery across the initial-registration/helper-loss window, escaped descendants,
+complete process-group/fd retirement, unlocked foreground focus and native/signed platform
+acceptance remain required. G6-G12 retain their declared dependencies and scope.
+
+### G5 macOS execution identity across exec
+
+The existing Rust executable provides a read-only process-identity command before Tokio/Rutis
+startup. Main supplies its absolute development/packaged artifact path to owned workers through
+an internal environment value. On supported macOS, new launch records persist the boot-session
+UUID and XNU process unique ID as an opaque string, preserving all 64 bits. The same identity
+survives exec even though argv, executable UUID and pidversion can change. Observation replaces
+the ordinary ps query for these records and creates no additional resident process or supervisor.
+
+Native identities never downgrade to timestamp/argv attestation during recovery. Missing identity
+refuses cleanup and retains evidence; a changed native birth identity refuses signaling and drops
+the stale record. Legacy records and other platforms retain conservative start-time/argv checks;
+an argv mismatch alone no longer claims PID reuse or deletes uncertain ownership. Existing
+MCP/ACP/tunnel callers keep the same registration API and lifecycle behavior. The sole additional
+Cargo dependency declaration is libc, already present in the locked dependency graph.
+
+Apple defines the selected identity flavor in its private XNU header. Actual native/signed
+platform acceptance remains required, and Windows/Linux process identity is not relaxed. This
+selected change does not establish atomic identity-bound signaling, helper-loss recovery during
+initial registration, escaped-descendant containment or complete process-group/fd retirement.
+G5 remains active and unpublished; G6 has not started.
+
+Validation passes **119 checks across eight execution/registry/Native/runtime files**, including
+real Rust host startup, SDK Core and the copied runtime closure. The single new registry case
+covers same native identity after exec, missing identity, PID reuse and refused signaling. The
+existing legacy mismatch case now protects retained uncertainty. All **seven Rust checks** pass;
+the native test observes shell-to-cat exec at one PID, stable identity and rejected post-exit lookup.
+The artifact CLI accepts a live owned PID and rejects zero without output. Source Node/web and
+scoped registry/E2E types, the normal full build, format, lint, i18n and locked Clippy pass. Normal
+Provider/ACP refresh output is retained; **92 catalog checks across five files** pass.
+
+The current application passes **seven Exec/MCP scenarios**. The new public Agent case first
+registers a gated shell, releases exec into Node, verifies the same registered PID, loses its owned
+Exec helper and observes command retirement before graceful shutdown and profile reopen. Its raw
+record proves default native identity use. The matching new case on immutable `f511c078b` leaves
+the command alive after helper loss. This is the observed failure, without attributing the entire
+baseline's missing recovery behavior solely to argv comparison. Existing unchanged baseline
+scenarios retain their earlier receipts. No unchanged benchmark or resource matrix is repeated;
+this does not add a resident process or change the selected delegation process layout.
+
+Compact native records, raw reports, hashes and the sole needed immutable baseline remain.
+Completed test media, copied test closures and temporary configs are removed. G5 stays active and
+unpublished. Initial-registration/helper-loss recovery, atomic checked signaling, descendants,
+group/fd/environment authority, foreground focus and native/signed acceptance remain required.
+
+### G5 explicit execution group retirement
+
+Explicit POSIX termination retains its acquired process-group target through root exit, waits for
+the group and physical stdio close, and escalates the same group when TERM leaves a member alive.
+It never falls back to the old root PID after acquiring that group. Unknown liveness does not
+prove exit. If the root is already gone when termination starts and a group remains, refuse a
+successful receipt without signaling that unproven group. Windows taskkill and the existing
+non-group descendant fallback keep their interfaces.
+
+Exec records one termination promise before invoking the process helper. Kill callers join it;
+root close, error and inherited-stdio watchdog paths cannot finalize output, remove registry
+records or delete owned Skill packages ahead of the tree receipt. Failed tree retirement stays
+failed after a late root close. Normal root completion is unchanged; descendants that detach,
+root-loss recovery before termination admission and atomic identity-bound signaling still need
+their separate ownership proof. G5 remains active and unpublished.
+
+Validation passes **273 cases across fourteen shared execution/registry/Native, MCP, Sync,
+Skill, foreground shell and plugin files**. The new real-process case exercises both termination
+APIs with a root that closes while its child ignores TERM and owns separate stdio. The existing
+manager case now closes the root before resolving failed tree retirement and verifies retained
+registry/package ownership and refused shutdown, including a late root close. Existing mock
+coverage verifies that a vanished acquired group never falls back to a potentially reused root.
+Fixture teardown releases its own sentinel and waits for known child/root exit before deleting
+its files; it does not signal a potentially reused PID.
+
+The current application passes **eight Exec/MCP scenarios**. The new public Agent shutdown case
+owns a parent and a TERM-resistant child, observes both gone before profile reopen and retains
+the stored conversation. The same new case fails on immutable `f511c078b`: the app closes gracefully
+and the root is gone, but the child remains alive. The raw failure points to the child-exit check;
+fixture cleanup subsequently releases and drains that child through its own sentinel. Existing
+unchanged baseline scenes reuse their receipts; no deadline or ownership assertion is weakened.
+
+Both Core SDK and Main are rebuilt. Node/web source types, scoped process/registry/E2E types,
+format, docs format, lint and i18n pass. The existing manager fixture still has the exact same
+22 unrelated TypeScript diagnostics, with no additions/removals; all runtime cases pass. Rust and
+catalog sources/artifacts are unchanged from their accepted checks, so no unchanged Rust, catalog
+or resource matrix is repeated. Compact raw reports and the sole needed baseline remain; completed
+media and temporary configs are removed. G5 stays active/unpublished, G6-G12 unstarted.
+
+### G5 macOS pre-registration execution gate
+
+New macOS background commands first enter the existing Rust artifact's execution gate before
+Tokio/Rutis startup. The native helper records the gated root's identity before releasing a
+length-prefixed environment frame over a dedicated fourth descriptor. User environment overrides
+are withheld from the gate process, so dynamic-loader overrides cannot run before admission;
+stdin/stdout/stderr retain their existing roles. The control frame is bounded at two MiB on both
+ends, and the control descriptor closes before exec. The requested executable/args and environment
+then run at the same registered PID, without an additional resident process or supervisor.
+
+EOF or incomplete/malformed/oversized grants run no user command. Stop/timeout while registration
+is pending cannot release the gate. Failed startup compensates through the existing single tree
+retirement receipt; pending environment values are released when startup settles. New native
+identity observation fails closed instead of downgrading a gated command to legacy argv/time.
+Legacy records and other platforms keep their conservative observation path. The existing Rust
+process module owns both inspection and the gate; no additional dependency, runtime queue, public
+route or implementation flag is added. Complete physical retirement of unobserved gate roots,
+escaped descendants, checked signaling and native/signed acceptance remain separate G5 work.
+
+Resource selection: run exactly one current/baseline pair of the existing public Exec completion
+scenario with its ordinary resource sampler, including profile reopen. Do not add a confirmation
+batch, unchanged matrix or wall-clock adoption gate. This end-to-end pair includes the cohesive
+Core migration and cannot isolate gate cost or prove a performance gain.
+
+Registration binds native identity to the actual owned child object. It revalidates that child
+after asynchronous inspection before persisting identity, so a reaped child cannot attest a reused
+PID. PID-only callers retain their conservative legacy attestation. The existing pending-record
+case adds child exit alongside clear/replace, without a separate test harness or ownership map.
+
+Validation passes **275 cases across fourteen execution/registry/Native, MCP, Sync, Skill,
+foreground shell and plugin files**, plus **seven Rust cases**. One durable real-gate case covers
+release, parent-side EOF and oversized control frames; it verifies deferred environment values,
+untouched stdin, unchanged PID and closed control descriptor. The final application passes
+**nine Exec/MCP scenarios**. Its new public Agent fault case holds identity observation, kills the
+owned helper before registration completes, observes gate-root exit with no user marker, and
+reopens the persisted request without starting that command. The same new case fails on immutable
+`f511c078b` with the command root still alive after helper loss. That baseline fails before the
+later no-marker/reopen checks; do not claim those baseline steps ran. Test-only observer wrappers
+hold both the old ps path and the native inspector, then release/drain through their own sentinels.
+
+The predeclared Exec completion/reopen resource pair passes on both artifacts. The initial launch
+retains six samples per build: current/baseline last total footprints are **1150.2/1038.7 MiB**,
+Main last footprints **129.7/306.6 MiB**, and final process counts **10/9**. Observed cumulative
+sampled CPU is **6.627/5.748 s**, UI readiness **1952/2026 ms**, and Main loop p95/p99
+**12.45/30.98 vs 27.80/112.72 ms**. Reopen retains five/four samples, with last totals
+**1083.9/980.1 MiB**, Main **126.2/298.0 MiB** and process counts **9/8**. All samples, including
+startup, remain in the raw reports. This includes Core composition changes, cannot isolate the
+gate or transient peaks, and establishes neither variance, settled idle nor a gain. The ordinary
+sampler may miss short-lived processes. The local post-inspection child check is added after that
+pair without changing its Rust gate, process layout or workload. No confirmation batch or further
+measurement is selected.
+
+Normal full build and final Core/Main rebuild, Node/web source types, scoped process/registry/E2E
+types, format/docs, lint, i18n and locked Clippy/fmt pass. The existing manager fixture retains the
+same 22 unrelated typing diagnostics with no additions/removals. Generated catalogs are unchanged
+from their accepted checks and are retained. Current and frozen output hashes verify; completed
+media/configs are removed while compact raw evidence and the sole needed baseline remain.
+G5 stays active/unpublished. Unobserved pre-registration gate retirement, natural root loss,
+escaped descendants, atomic checked signaling, remaining Native/fd/environment/proxy authority,
+foreground focus and native/signed platform acceptance remain required before G6.
+
+### G5 macOS identity-bound group recovery
+
+Registered native recovery delegates its persisted birth identity to the existing Rust artifact.
+A bounded group snapshot is accepted only while its root retains that identity and group. TERM
+and force address each captured member through the system audit-token interface, which validates
+PID/version in the kernel. Recovery never sends a numeric PID/group signal or reacquires members
+after the root can have exited. Membership is checked between two observations of each member's
+birth, preventing a reused PID in the listing from authorizing a different process. Unsupported
+systems, uncertain snapshots, concurrent exec and new/surviving members retain failed ownership
+evidence. Disappearance of both the captured births and group remains the receipt. No resident
+process, dependency, supervisor or production switch is introduced.
+
+Validation passes **334 execution/registry, MCP, ACP, Sync, Skill, shell and plugin cases across
+sixteen files**, **eight Rust cases** and **104 catalog checks across seven files**. One real Rust
+case refuses another birth identity without killing the command, then escalates an owned root
+and child that ignore TERM. Fixture EOF and an actual parent wait drain the commands even after
+a failed assertion. One adapter case protects the native receipt and refuses unavailable or
+malformed responses without numeric-PID fallback. The normal generated Provider/ACP refreshes are kept.
+
+The final application passes **ten Exec/MCP cases**, including the new macOS public Agent case
+that loses its Exec helper while a child ignores TERM. The root and child exit before graceful
+shutdown and profile reopen. The identical final-source selected case also passes independently;
+its non-macOS skip guard does not change the ten-case macOS workload or application artifact.
+Immutable `f511c078b` fails the new case with its root still alive after helper loss, before its
+later child/reopen checks. This does not isolate the audit-token interface as the baseline's sole
+cause. Owned release sentinels subsequently drain the fixture, and both trees are restored and
+hash-verified. Earlier unchanged baseline results remain scoped evidence.
+
+Normal full build, final Rust/Core rebuild, Node/web source types, scoped process/registry/E2E
+types, formatting, lint, i18n, Rust fmt and locked Clippy pass. The unchanged manager fixture's
+22 existing type diagnostics retain their earlier receipt. No new performance measurements or
+gain claim are selected; the earlier resource pair binds its own artifact snapshot. Completed
+media and temporary configs are removed while compact evidence and the sole baseline remain.
+Natural root loss before recovery, escaped descendants, explicit utility-owned signaling,
+supported native/signed compatibility and whole G5 acceptance remain open. G5 stays active and
+unpublished; G6-G12 are unstarted.
+
+### G5 shared native execution termination
+
+Successful registration supplies its existing observed identity directly to the session owner.
+Admitted macOS commands use the same Rust identity-bound group implementation for explicit stop,
+timeout and shutdown as for helper loss. Group retirement and actual owned-child stdio close are
+both required before registry/package cleanup. A gate without a native identity cannot release
+user code. Native root exit also joins that retirement. Rust authenticates surviving group members
+through captured parent-birth chains when their root has exited; uncertain ancestry refuses a
+receipt. Native recovery retains records after root PID loss until this check settles.
+Pre-registration compensation, missing ancestry and escaped descendants retain their separate
+ownership requirements. Root exit keeps its exit code and output; list/poll remain running while
+its physical receipt is pending. It cannot report successful
+completion while physical retirement is pending or failed. Late close cannot clear that failure.
+
+Validation passes **440 cases across twenty-three execution/registry/Native-host, MCP, ACP, Sync,
+Skill, shell, plugin and catalog files**, including the normal generated Provider/ACP refreshes,
+and **eight Rust cases**. One native completion case covers held and refused retirement, original
+output/exit code, retained registry/package ownership, late close and refused shutdown. One
+registry case verifies root disappearance cannot erase native group ownership and preserves a
+custom attester's refusal. Existing gate/output-limit and process adapter cases cover identity
+forwarding and actual stdio closure. The Rust real-process case covers both live and already-exited
+roots, rejects another birth without killing its child, then forces its owned TERM-resistant child.
+No exact incidental terminal-signal assertion or test-only production route is retained.
+
+The actual application passes **eleven Exec/MCP cases**. The new macOS public Agent case exits
+its root with a TERM-resistant child on separate stdio, observes both gone, polls full output and
+exit code 0, closes gracefully and reopens the stored conversation. Immutable `f511c078b` exits
+the root but leaves the child alive, failing before its later output/persistence assertions.
+Owned release sentinels drain its failed fixture. Same source and current/frozen artifacts are
+hash-bound and both trees are restored; unchanged baseline cases reuse their existing receipts.
+The final-source selected case follows ordinary `running` feedback with another uniquely
+identified public poll rather than assuming PID disappearance synchronously settles the Native
+receipt. It is included in the eleven scenarios, not counted as another distinct workflow.
+
+Full build, Node/web source types, scoped process/registry/E2E types, formatting, lint, i18n,
+locked Rust Clippy and fmt pass. The manager fixture has exactly the same 22 type diagnostics
+after normalized comparison, with no additions/removals; that probe is not called green.
+
+Resource selection for the new completion path: exactly one ordinary Exec completion/reopen
+current/baseline pair at the existing 500 ms sampling interval. Retain all startup samples and
+report aggregate/Main memory, process count, CPU, readiness and Main-loop delay. The deterministic
+requirement is no additional resident process after the command's physical receipt. Timing is
+report-only; no confirmation batch, unchanged matrix or relative CI gate is selected. Both
+functional resource runs pass. Initial current/baseline samples are **8/6**, post-ready **4/3**;
+total median **1079.9/981.9 MiB**, peak **1146.6/1058.7 MiB**, last **1141.4/1058.7 MiB**, Main
+**130.4/306.0 MiB**, process count **10/9**, observed sampled cumulative CPU **8.051/5.940 s**,
+readiness **2112/2074 ms**, and Main-loop p95/p99 **14.62/24.72 vs 25.46/158.47 ms**. Reopen
+samples are **5/4**, post-ready **2/1**; last total **1102.7/988.0 MiB**, Main **127.8/295.6 MiB**,
+processes **9/8**, CPU **5.760/5.039 s**, readiness **1913/1981 ms**, loop **12.63/25.43 vs
+37.26/112.85 ms**. All startup samples remain in the raw receipt. Aggregate last/peak memory is
+higher. This includes Core migration, may miss short-lived native checks and cannot isolate this
+completion path, settled idle, input-to-paint, variance or a gain. The resource receipt identifies
+its own artifact snapshot separately from final behavior acceptance; Rust implementation, process
+layout and workload are unchanged, but final-artifact performance is not established. The declared
+budget is exhausted.
+
+Compact evidence and the sole frozen baseline remain; ended media and temporary configurations
+are removed. G5 remains active/unpublished, G6-G12 intact/unstarted. Missing ancestry, escaped
+descendants, unobserved pre-registration gates, remaining Native/Browser/concurrent faults and
+unlocked foreground/native/signed supported-platform acceptance still require proof.
+
+### G5 descendants outside the original process group
+
+Extend the existing Rust termination operation with bounded same-user birth snapshots. Keep
+captured ownership across TERM/force, follow parent-birth chains across groups and verify a fresh
+snapshot before success. Never signal a process merely because its UID or numeric PID matches.
+Refuse unknown inspection, overflow, ambiguous ownership or surviving descendants. Keep the
+existing registry and native caller; add no resident service or dependency. Unobservable ancestry,
+privilege changes, pre-registration gates and supported native/signed compatibility remain open.
+
+The native command is `--terminate-tree`. Each bounded snapshot covers the original group and
+same-user candidates; captured parent-birth chains authorize targets across groups and sessions.
+The operation retains captured births across at most three snapshots. Unknown inspection,
+overflow or uncertain ancestry refuses retirement. Root PID reuse within the same boot and record
+age cannot discard native ownership; a validated identity from a different boot clears obsolete
+ownership without signaling a current numeric PID.
+
+All 104 execution/registry/Native-host checks and eight Rust checks pass. The real Rust case
+covers live/exited roots with children inside/outside the original group, rejects another birth,
+proves stale-boot cleanup has no effect on a current child, and retires TERM-resistant members.
+The normal build retains Provider/ACP refreshes. The refreshed ACP catalog passes 20 checks across
+four files; unchanged caller/catalog evidence retains its own source snapshot. Node/web and scoped
+process/registry/E2E types, format, lint, i18n, locked Rust Clippy and fmt pass. The unchanged manager
+fixture retains its preceding 22 existing diagnostics; this is not a green whole-fixture type check.
+
+The rebuilt app passes all 12 Exec/MCP scenes. The public Agent escaped-root-exit case observes
+separate root/child process groups before releasing the root, then verifies root/child disappearance,
+full output, exit code 0, graceful close and persisted conversation after reopen. The immutable
+f511 baseline fails at line 488: its root is gone but its escaped child remains alive. Later baseline
+feedback/reopen checks do not execute. Owned release files drain the fixture. Current/frozen trees
+are restored and hash-verified in `escaped-comparison.json`; reports remain under
+`.deepchat/rutis-g5-kernel-assembly-acceptance/`.
+
+Exactly one declared ordinary completion/reopen resource pair passes at 500 ms, retaining all
+startup samples. Initial current/baseline: 6/6 samples, post-ready 2/3; median 927.7/996.3 MiB,
+peak/last 1152.5/1058.2 MiB, Main 131.8/308.4 MiB, processes 10/9, sampled cumulative CPU
+6.815/5.913 s, readiness 2066/2041 ms, loop p95/p99 12.57/27.74 vs 23.82/138.94 ms.
+Reopen: 5/4 samples, post-ready 2/1; median 926.9/843.5 MiB, peak 1083.8/992.7 MiB,
+last 1083.8/981.5 MiB, Main 115.0/295.2 MiB, processes 9/8, CPU 5.608/4.990 s,
+readiness 1953/1960 ms, loop 14.53/28.30 vs 34.73/112.85 ms. Aggregate last/peak memory
+is higher. This sparse pair includes Core migration and can miss short-lived native checks; it
+cannot isolate descendant-capture cost, settled idle, variance, input-to-paint or a gain. The budget
+is exhausted. Shared-CI timing stays report-only; no confirmation batch or unchanged matrix.
+
+G5 remains active/unpublished; G6-G12 remain unstarted. Unobservable/lost ancestry, privilege
+changes, pre-registration compensation, remaining Native/Browser/concurrent faults and unlocked
+foreground/supported native/signed-platform acceptance still require proof.
+
+### G5 execution gates before command registration
+
+The Main-owned Exec helper captures its native birth before exposing the command channel. On
+helper exit, reuse the existing Rust termination operation in owner-descendant mode, without
+assuming that an Electron utility process leads a process group. Retire observable birth-linked
+descendants before reaping command records and acknowledging retirement. Missing helper identity
+refuses native readiness; failed descendant retirement retains the failed receipt. Do not add a
+resident supervisor, second registry, dependency or renderer API. Utility-side cancellation before
+native identity closes the ungranted gate and waits for actual child closure; it must not fall back
+to numeric PID/group signals for that unobserved launch.
+
+The native `--terminate-owner` mode reuses the bounded birth-ancestry operation without observing
+or signaling a numerically matching process group. Main reuses the existing identity observer,
+validates the still-owned utility after inspection, and retains its birth in the existing host
+handle. The native channel is unavailable until that attestation succeeds. Actual helper exit,
+owner-descendant retirement and command-record recovery all precede the retirement receipt.
+The session manager closes an ungranted gate through EOF and the existing physical-close wait;
+there is no numeric PID/group mutation fallback while its native identity remains unknown.
+
+All 112 relevant TS checks across six files and all eight Rust checks pass, with locked Clippy and
+fmt. The existing real Rust case covers group and non-group owner roots, live/exited roots and
+children inside/outside the original group. New Native boundary coverage holds attestation and
+retirement, refuses missing/canceled identity and failed descendant receipts, and prevents late
+readiness. The existing real-gate EOF case now cancels through the session API and verifies actual
+Rust process exit without invoking tree signaling. No additional application scenario is added.
+The final normal build, Node/web and scoped types, format, lint and i18n pass. The manager fixture
+still reports the same 22 existing diagnostics, with zero normalized additions/removals. Provider
+and ACP catalog hashes are unchanged from their preceding accepted refresh checks.
+
+The final rebuilt app passes all 12 Exec/MCP scenes. The existing registration-loss case withholds
+the gate executable and identity observer through helper loss, verifies both processes exit before
+the fixture release, preserves the absence of user effects and reopens the persisted request.
+This combines a stalled launch executable with real Rust gate/EOF regression protection; it is
+not proof of arbitrary lost ancestry. The same immutable f511 baseline fails at line 324 with the
+command root alive, before no-marker/reopen assertions. Owned release sentinels drain its fixture.
+`gate-owner-comparison.json` binds current/frozen artifacts and the same final test source; both
+artifact trees are restored. Evidence remains under the existing kernel-assembly acceptance root.
+
+The single declared completion/reopen resource pair passes at 500 ms, retaining all startup
+samples. Initial current/baseline: 7/6 samples, post-ready 3/3; median 1048.4/979.3 MiB,
+peak/last 1150.2/1052.1 MiB, Main 129.9/306.0 MiB, processes 10/9, sampled CPU
+6.919/5.941 s, readiness 2109/2066 ms, loop p95/p99 14.34/29.41 vs 32.34/111.08 ms.
+Reopen: 5/4 samples, post-ready 2/1; median 931.4/853.7 MiB, peak 1114.3/1023.8 MiB,
+last 1114.3/991.8 MiB, Main 125.4/296.0 MiB, processes 9/8, CPU 5.526/4.999 s,
+readiness 1880/1968 ms, loop 14.68/28.49 vs 36.93/119.08 ms. Total last/peak memory is
+higher. Samples bind their own artifact snapshot: final behavior additionally changes utility-side
+ungranted-gate cancellation, a branch outside this ordinary workload. Rust implementation and
+process layout are unchanged, but final-artifact performance is not established. Sparse startup
+sampling cannot isolate owner-retirement cost, settled idle, variance, input-to-paint or a gain.
+Budget exhausted; shared-CI timing is report-only, with no confirmation batch or unchanged matrix.
+
+G5 remains active/unpublished and G6-G12 unstarted. Lost/unobservable ancestry and privilege
+changes, remaining fd/environment/proxy authority and Native/Browser/concurrent faults, unlocked
+foreground and supported native/signed-platform acceptance remain required. Compact raw evidence
+and the sole immutable baseline remain; ended media and temporary configurations are removed.
+
+### G5 command environment authority
+
+Core resolves public command environment overrides into one complete launch snapshot before
+Native dispatch. The reusable utility must not merge its older environment into that snapshot;
+the Rust gate replaces its trusted bootstrap environment only after admission. Retain the existing
+shell/PATH preparation, per-command overrides, separate stdin and same-PID exec. Clearing proxy
+settings must remove old helper-inherited proxy variables; utility-only control markers must not
+reach the admitted command.
+
+The public Exec service resolves overrides against Core's string-valued process environment.
+The Native manager uses that complete snapshot, with its existing UTF-8 preparation, as the target
+environment. Rust calls `env_clear` before applying the admitted grant; the trusted gate bootstrap
+still receives its existing environment before admission. The default service, utility and Rust
+artifact are connected directly. No dependency, process, option, alternate route or registry is added.
+
+Validation passes 223 TS checks across thirteen execution/registry/Native/helper, shell, command and
+Skill files, plus all eight Rust checks, locked Clippy and fmt. One small service case protects
+snapshot/override/deletion across helper reuse. The existing Native environment case refuses
+utility inheritance, and the existing actual Rust gate case proves a bootstrap-only marker is
+absent after admitted exec while stdin/PID behavior remains intact. Final normal build, Node/web
+and scoped types, format, lint and i18n pass. The manager fixture retains the same 22 existing
+diagnostic messages with zero normalized additions/removals; it is not a green fixture type check.
+Provider and ACP catalogs match their preceding accepted refresh checks.
+
+The actual app passes all 13 Exec/MCP scenes. The new environment scene runs two commands through
+one helper: a background command observes its custom proxy, public settings clear the proxy, and a
+foreground command receives neither the old proxy nor the utility-only control marker. Both commands
+finish through ordinary public feedback; the conversation survives graceful close and reopen.
+The fixture uses the normal foreground wait for the second command and preserves the existing
+no-progress guard. The retained failure diagnostic records actual no-progress feedback and is
+not a passing acceptance result. The final-source immutable f511 baseline fails at
+line 515 with both the old proxy and utility marker still present in the second command. Later
+baseline final-feedback/reopen assertions do not execute. Owned release files drain the fixture.
+`environment-comparison.json` binds the same final fixture/current/frozen artifacts and restored
+trees under `.deepchat/rutis-g5-kernel-assembly-acceptance/`.
+
+No process placement or new transport is introduced; ordinary Exec callers already provide complete
+prepared environments. No resource capture, unchanged benchmark matrix, timing gate or performance
+gain is claimed for this correctness fix. Previous resource receipts retain their own source/artifact
+scope and do not measure the current complete-environment launch cost. Shared-CI timing stays
+report-only. Compact raw evidence and the sole immutable baseline remain; ended media, temporary
+configurations and the diagnostic fixture instrumentation are removed.
+
+G5 remains active/unpublished, with G6-G12 unstarted. Unobservable/lost ancestry and privilege
+changes, remaining Native Chromium/fd lifetimes and Browser/concurrent faults, unlocked foreground
+and supported native/signed-platform acceptance still require proof. Main's global-fetch dispatcher
+ownership is covered by the acceptance below; other transports retain their separate ownership.
+
+### G5 Main HTTP lifetime
+
+Main owns its current and draining HTTP dispatchers in the existing ProxyConfig. Proxy replacement
+allows accepted requests to drain. Shutdown fences new resolutions, aborts current/draining transports,
+awaits any accepted Electron proxy resolution and rejects late installation/environment changes.
+The existing Native desktop receipt joins this retirement before Core releases its profile. Keep
+one Main-scoped instance and report physical failures through the existing Core invalidation path.
+
+Undici 8.10.2 Agent clears its client map at the start of close. An owned held-header characterization
+demonstrates that destroy can then return with its request and socket still alive. The existing pnpm
+patch mechanism now preserves clients until graceful close settles, allowing forced retirement to
+reach them in both Main and Core. The version is unchanged; frozen offline installation passes.
+No new dependency, process, dispatcher wrapper or public option is added.
+
+Validation passes 106 distinct TS checks across nine files: 45 proxy/composition/Core/desktop checks,
+31 Copilot OAuth checks and 30 Provider catalog checks. Private account credentials, callbacks and
+adapters also pass 76 existing checks across six files. The real installed Agent regression holds headers,
+begins graceful close, forces destroy and verifies physical request/socket retirement. Proxy tests
+also cover current/draining pools, accepted late resolution, rejected queued resolution and retained
+retirement failures. Native SQLite is required for Core checks. Final normal build, Node/web and
+scoped test types, format, lint, i18n and diff checks pass. The unchanged Rust matrix retains its
+eight-check evidence; the manager fixture's 22 existing diagnostics remain outside a green type
+claim. Normal Provider/ACP refreshes are retained.
+
+The actual app passes all four selected OAuth/MCP scenarios, alongside 21 maintenance, Exec/MCP,
+image and CLI regressions on the same application artifacts. One shared disposable HTTPS fixture
+serves Copilot validation and private Provider discovery/revocation, with certificate verification
+enabled and exact CONNECT host restrictions. It owns its sockets, temporary trust file and app-only
+environment changes; no runtime OpenSSL dependency or OS trust change is needed.
+
+The private Provider case preserves both plaintext and native-wrapped legacy credential files
+byte-for-byte through reads/cancellation. Public logout sends each saved refresh token and client ID
+to its actual HTTPS authority, including trusted xAI discovery; both files disappear and signed-out
+state survives reopen. The MCP case preserves native ciphertext, settings-window authorization and
+durable credential removal. The Copilot case preserves a newer saved credential against a stale
+response and verifies instruction-window retirement/reopen. The HTTP shutdown case holds two real
+Native requests in old/current pools, ignores caller cancellation deliberately and verifies transport
+disconnection, graceful quit and unchanged credentials after reopen. No new test case is added.
+
+With the same final fixture, the immutable f511 baseline passes 2/4: both credential compatibility
+cases. Copilot instruction-window quit at line 179 and held-HTTP quit at line 276 require forced exit
+under the unchanged ten-second deadline. Later retirement/reopen assertions do not execute. The
+ordinary failure is not attributed solely to HTTP pools. Both Main builds externalize Undici and
+use the same current patched install;
+this comparison isolates Main ownership, not a pristine baseline dependency tree. The independent
+pre-patch Agent characterization establishes the library defect.
+
+Current/frozen artifacts, fixture sources and dependency hashes are restored and verified in
+`oauth-fixture-comparison.json` under `.deepchat/rutis-g5-kernel-assembly-acceptance/`. The same app's
+21 regression cases are recorded in `native-http-regression-current-app.json`. Ended media,
+the editable package copy, certificate-generation scratch files and temporary type configuration
+are removed; compact raw reports and the sole frozen baseline remain. No resource capture,
+unchanged timing matrix, timing gate or performance gain is claimed. Shared-CI timing is report-only.
+
+G5 remains active/unpublished; G6-G12 are unstarted. Native Chromium pools, remaining
+fd/Browser/concurrent faults, unlocked foreground and supported signed
+platforms remain separate acceptance work. Whole G5 review, commit/push and exact-head CI precede G6.
+
+### G5 application coverage and fixture ownership
+
+The selected local smoke inventory is fully accounted for: 117 of 122 cases pass and five are
+skipped because they explicitly require live Provider configuration. The original Native foreground
+focus case remains outside that inventory and unverified while the Mac is locked. Coverage is
+assembled by case identity from terminal reports on the same unchanged application artifacts;
+the two broad batches stopped at their failure limit and are not individually green.
+
+Provider catalog, ACP registry/installation, Sync peer credentials and Remote login/Telegram
+fixtures use real HTTPS requests from their current business owner through the public proxy
+settings. The shared fixture restricts CONNECT authorities, scopes its public test CA to disposable
+application processes, preserves certificate verification and owns transport/environment cleanup.
+Native icon fetch and window presentation interception remain at their actual Main owner.
+Obsolete Main-only business fetch and MockAgent interception are removed. No production source,
+dependency or test case is added for this acceptance work.
+
+The existing UI scenarios use the current Provider catalog and expand the sidebar before operating
+on its rows. Attachment editing waits until the displayed input exists in the authoritative
+Session projection; an optimistic bubble is not a persisted message receipt. Generated composer
+screenshots use the test-owned output directory. The 17-case affected and remaining application
+batch passes, including actual QR login, Telegram pairing/open/window replacement, legacy Sync
+ciphertext, OAuth, held ACP refresh/repair, OCR and CLI approval. Scope, raw failures, final case
+receipts and artifact hashes are retained under
+`.deepchat/rutis-g5-kernel-assembly-acceptance/`.
+
+The same 14 Provider/ACP, Sync, Remote, catalog and composer scenarios pass against immutable
+`f511c078b`. The comparison uses the identical final fixtures and preserves the current patched
+Undici install shared by both Main builds; it is not a pristine-dependency baseline. Current and
+frozen application artifacts, dependencies and fixture hashes are verified after restoration.
+No new build, Rust suite or unchanged performance matrix is selected for these fixture-only changes.
+
+G5 remains active and unpublished. Remaining acceptance includes unlocked Native foreground
+focus, sustained responsiveness/resource interpretation, supported native packages and whole-change
+review. Signing/notarization remains a release gate. No performance improvement or G5 CI result
+is claimed.
+
+### Packaged default Core verification
+
+The package workflows must launch the actual packaged app, rather than infer default Core startup
+from the Admission/Memory subprocess check. Reuse the existing startup suite and settings case for
+normal startup/graceful retirement, pending encrypted-startup quit, Core owner failure/profile reopen
+and acknowledged settings persistence.
+Run them on each of the existing six native targets with disposable fixture-owned profiles, no
+retries and resource timing capture disabled. Linux uses Xvfb and the existing packaged launcher.
+Do not introduce a separate mocked Kernel, test-only startup route or new smoke suite.
+
+The local verification uses the accepted current build in an unsigned unpacked macOS arm64 package;
+native target CI results remain unproven until the complete source is published. Developer acceptance
+and screenshot directories must be excluded from the application archive. Keep compact raw results
+and remove the disposable package after acceptance. Native focus and responsiveness requirements
+remain separate; these packaged startup cases do not establish either.
+
+Quit awaits the existing startup completion promise before resolving its shutdown owner.
+Update-install preflight also waits before clearing permissions and retiring Core, preserving
+lifecycle-log order. A visible main window must not expose a gap in which quit falls through
+without a Core shutdown owner while the splash-close transition is pending.
+
+Database maintenance fences credentials before awaiting Native configuration pause or
+Provider/ACP preparation. A preparation failure restores credentials
+and admission only after Native configuration acknowledges resume; shutdown during that wait keeps
+the old generation fenced. An uncertain Native pause fails the owner and completes cleanup before
+reporting failure.
+
+Local macOS arm64 verification passes all three packaged application cases with zero retries and
+resource capture disabled. Normal quit is graceful and preserves startup/shutdown JSONL order;
+Core failure permits profile reopen, and settings revisions survive Main clock rollback and
+relaunch. The ASAR contains neither `.deepchat` nor `.amp`; packaged Main, Exec utility, Core and
+Rust host hashes match the normal build. Bundled Node integrity checks remain enabled.
+
+The same Core/Rust artifacts pass 141 relevant checks across 11 files, including actual SDK/native
+SQLite, and 21 development-app cases covering credentials, database encryption/maintenance,
+ACP repair, streaming and Native resource retirement. The final Root startup wait is verified by
+the packaged cases. Two recovery/stop cases are retained in the existing database ownership test;
+no new suite or production control interface is introduced.
+
+An outer macOS sandbox offline probe could not initialize Chromium's nested sandbox/SingletonSocket;
+its three cases never reached application acceptance. It does not establish offline startup.
+The successful package uses the standard launcher and retains normal web security. This unsigned
+local package omits optional bundled plugins/helpers and does not establish complete distribution
+or six-target CI acceptance.
+
+The owned temporary package (1,361,376 KiB) and 21 ended media/trace files (1,915,826 bytes) are
+removed after all readers exit. Raw reports, classified failure metadata and one immutable baseline
+remain. The retained `.deepchat` evidence is approximately 318 MiB, including the 207 MiB baseline.
+
+### Offline Core and failure boundary
+
+The default application starts, persists a settings change, quits gracefully and reopens that
+change while macOS denies external IP egress to the actual Rust host and its Core descendants.
+Both launches record the Main parent PID and the host's pre-exec checks: a TEST-NET external
+connection fails with `EPERM`, while loopback works. The temporary test entry imports the unchanged
+normal Main build after wrapping only the Rust host spawn; it assembles the real profile and
+Kernel, with no alternate backend or production switch. Native Main and Chromium retain normal
+security and are outside this network restriction. This proves Core startup without external
+egress, not whole-application or packaged offline distribution.
+
+The application case passes once with zero retries and resource capture disabled. A preliminary
+run using `NODE_OPTIONS` did not observe any restricted Core host; its three green ordinary smoke
+cases are not offline evidence. Keep the explicit process receipts and raw results, then remove
+the temporary entry, preload, sandbox profile, probe and test.
+
+Boundary review confirms that business route snapshots retain bounded queues and recheck the
+original caller guard before dispatch, while Main constructs no profile/database writer or business
+Kernel. The default Core failure callback retires Native owners and exits the desktop generation;
+the verified failure/reopen cases do not establish in-place Core restart. The RFC describes that
+same failure policy. Whole-change review remains open.
+
+### Sustained delegated-stream responsiveness
+
+Select one current/frozen pair of the existing eight-delegation application scenario with six
+active children and two queued. During the 30-second observation window, each active local Provider
+stream emits one small content fragment every 20 ms. Enter 120 trusted CDP keyboard characters at
+a 250 ms cadence into the visible composer, preserving its complete unsent text and all existing
+admission/cancellation/completion/shutdown assertions. There is no new production path or retained
+test suite. Reuse the sole frozen baseline and the same current dependency installation.
+
+Record each input event through two animation frames as a paint-opportunity proxy, plus browser
+Event Timing entries when available; report the latter's minimum-duration sampling explicitly.
+Record Main event-loop delay for the observation window and process-tree footprint/CPU at the
+existing 500 ms interval, retaining startup samples separately. First establish that trusted input
+and animation frames are observable; do not interpret missing frames or Event Timing as zero
+latency. The Mac's lock/foreground state remains a measurement limitation, and this capture does
+not replace Native focus or physical keyboard-to-display acceptance.
+
+This new sustained workload addresses the unmeasured interaction window; it does not repeat the
+earlier short resource matrix. One pair is structural evidence, with no universal speedup claim
+or CI wall-clock gate. Preserve every sample. A suspected material regression may select at most
+one confirmation pair under the execution rule; inconclusive variance stops measurement rather
+than triggering retries. Functional draft preservation, owned teardown and unchanged artifact
+restoration remain blocking. Remove the temporary scenario and ended media after inspection.
+
+The selected pair passes on both builds: all 120 trusted inputs remain in the unsent draft, seven
+delegations finish, one queued delegation is interrupted and both app generations quit gracefully.
+The active window spans 29.76 seconds per build, with 59 process-tree samples each; nine current
+and seven baseline startup/outside samples remain in the raw reports. All current/frozen artifacts
+and shared dependency hashes are restored, with no extra output copy retained.
+
+| Active-window observation                      |       Current | Frozen baseline |
+| ---------------------------------------------- | ------------: | --------------: |
+| Input to two-frame proxy p95, ms               |          12.0 |            11.9 |
+| Sampled browser keydown presentation p95, ms   |            24 |              24 |
+| Main loop p95 / p99, ms                        |     12.1/12.6 |       12.5/13.1 |
+| Main footprint median, MiB                     |         132.6 |           327.4 |
+| Total footprint median / peak, MiB             | 1082.2/1198.6 |   1038.3/1160.7 |
+| Process CPU delta over sampled window, seconds |          5.99 |            5.12 |
+| Stable process count                           |             9 |               8 |
+
+The browser observer returns 109/118 measured-window keydown entries with a 16 ms minimum and
+rounded durations; omitted inputs are not zero-latency samples. All 120 inputs have a two-frame
+proxy. DOM visibility/focus are true while IORegistry reports the Mac locked, so these observations
+do not establish Native foreground or physical display behavior. Total footprint median/peak are
+higher with Core, despite Main's lower footprint; the final active samples are 982.6/998.4 MiB,
+which demonstrates why a last sample alone cannot establish settled idle cost. CPU is also higher
+in this one pair. Input latency is similar here, and variance remains unproven.
+
+This completes the selected sustained workload and resource interpretation for structural G5
+review. No confirmation pair, unchanged benchmark rerun or performance gain claim is selected.
+Native foreground focus and whole-change review remain open before coherent publication; exact-head
+required/native-package CI must pass before G6. Keep the raw measurements and remove the temporary
+scenario rather than adding a permanent benchmark suite.
+
+### G5 startup quit and profile preservation
+
+Application quit cancels pending and future database unlock/recovery requests before awaiting the
+existing startup completion promise. The Core startup failure path still retires its generation and
+releases the exclusive profile owner before exit. Intentional quit suppresses the startup error
+dialog; ordinary startup failures retain their existing reporting. Ready-window quit and update
+installation retain their startup/shutdown ordering.
+
+A real encrypted-profile reproduction on the preceding normal build remained alive after the
+existing 10-second lifecycle deadline: quit waited for startup while startup waited for a password.
+The temporary reproduction is removed. One durable case in the existing startup suite requests quit
+at the password prompt, checks exit code zero and absence of error dialogs, then unlocks the same
+owned profile and verifies the persisted setting. The Splash display suite covers cancellation of
+both pending and future unlock/recovery requests. Existing environment setup uses Vitest stubs and
+restores the inherited environment after each case.
+
+The normal build, format, i18n, lint and source types pass. Relevant lifecycle checks pass 42 cases
+across three files. The affected development application run passes 24 cases; the new quit case
+passes separately after its cleanup retains the original ChildProcess handle instead of reading a
+released Playwright object. The initial cleanup failure remains in the raw report. No product
+assertion or timeout is relaxed, and the other 24 cases are not repeated.
+
+The actual unsigned macOS arm64 package passes all four selected startup/settings cases with zero
+retries and resource timing disabled. Its Main, Exec utility, Core and Rust hashes match the normal
+build; the ASAR excludes `.deepchat` and `.amp`, and bundled Node integrity checks remain enabled.
+The four-case selection is wired into the existing six native package targets. Local package
+acceptance does not establish their CI results or signed distribution.
+
+After all package readers exit, the owned 1,351,404 KiB verification directory and eight ended media
+files (1,032,437 bytes) are removed. Compact raw reports and the sole immutable baseline remain;
+`.deepchat` occupies approximately 321 MiB, including the 207 MiB baseline. No process/resource
+placement changed in this fix, so the accepted sustained comparison retains its original Main build
+scope and is not repeated.
+
+The corrected test explicitly selects the Splash document and bounds failure cleanup to processes
+it owns. That selection passes on the current normal build. The immutable `f511c078b` build does
+not display the password input after the same encrypted-profile setup, so its run never reaches the
+quit action and is not a valid behavior comparison. The first attempt also exposed unbounded test
+cleanup; both failed reports remain, with no baseline pass or product regression inferred. The
+failed process is retired, the frozen output is returned to its original location, and current
+artifact/dependency hashes are verified. No further unchanged baseline run is selected.
+
+The source review covers default composition/profile ownership, maintenance and shutdown ordering,
+renderer identity and revision fences, bounded dispatch, Native HTTP/Browser/Exec retirement and
+package boundaries. It identifies the startup quit cycle and stale Main-only architecture text;
+the lifecycle fix and the developer guide, architecture and flow descriptions now use the actual
+Core/Native split. G5 remains active and unpublished. Original Native foreground acceptance still
+requires manual Mac unlock. The extra frozen manual-password scenario remains unverified; the quit
+fix uses its confirmed preceding/current normal-build reproduction rather than this additional
+setup, and no further frozen manual-password run is selected. Required checks
+and all six native packages must pass on the eventual coherent published head before G6.
+
+### G5 Native foreground acceptance and publication
+
+After manual Mac unlock, the unchanged original Browser route case passes on both the current
+normal application and immutable `f511c078b` baseline, with zero retries and resource capture
+disabled. It verifies actual Electron window visibility/foreground focus, active Browser content
+focus, rejection after Session deactivation, status/events and destruction. Both runs use the same
+source case and fixture-owned disposable profiles. Native focus is established by the actual
+BrowserWindow; this acceptance makes no physical-keyboard/display latency claim.
+
+The baseline is selected by directory rename, then returned to its original location. Current Main,
+Exec utility, Core, Rust and dependency hashes match the accepted startup-quit build after restore;
+there is no copied output tree or remaining application reader. The initial invocation selected no
+tests because its start-anchored grep omitted Playwright's file prefix; it launched no application
+and is excluded from acceptance. The corrected selector lists exactly one case before execution.
+
+This closes the system-lock blocker. Selected local G5 behavior, ownership/resource interpretation
+and source review are complete at their documented scopes. The extra frozen manual-password setup
+remains unverified and has no further unchanged run selected; the quit fix uses its confirmed
+preceding/current normal-build reproduction. Existing package and sustained resource evidence keep
+their original artifact scopes and are not repeated.
+
+Publish the complete G5 source and default wiring to the existing Draft PR after final routine
+checks. Required checks and all six native verification packages must pass on that published head
+before G6 starts. G6–G12 remain intact and unstarted; the PR is not merged. The published CI result,
+not local macOS acceptance, establishes the remaining supported-platform verification.
 
 ## G6. Extract the complete Memory capability
 

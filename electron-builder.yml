@@ -3,6 +3,8 @@ productName: DeepChat
 directories:
   buildResources: build
 files:
+  - '!.deepchat/**'
+  - '!.amp/**'
   - '!**/.claude/*'
   - '!**/.github/*'
   - '!**/.cursor/*'

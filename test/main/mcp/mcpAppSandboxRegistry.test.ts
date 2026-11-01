@@ -34,8 +34,41 @@ const createInstance = (
   })
 
 describe('MCP App sandbox registry', () => {
+  it('owns one renderer lifetime through creation, consent and retirement', async () => {
+    let destroy!: () => void
+    const unsubscribe = vi.fn()
+    const observe = vi.fn((_id: number, listener: () => void) => {
+      destroy = listener
+      return unsubscribe
+    })
+    const registry = new McpAppSandboxRegistry(observe)
+    registry.setConsentPublisher(() => {})
+    const context = { webContentsId: 7, windowId: 11 }
+    const creation = registry.reserveCreation(context, descriptor.serverId)
+    const instance = createInstance(registry)
+    expect(observe).toHaveBeenCalledOnce()
+    registry.cancelCreation(creation)
+    expect(unsubscribe).not.toHaveBeenCalled()
+    const pending = registry.requestBrowserPermission(instance.instanceId, context, ['camera'])
+    destroy()
+    expect(await pending).toBe(false)
+    expect(registry.getForProtocol(instance.instanceId)).toBeNull()
+    expect(unsubscribe).toHaveBeenCalledOnce()
+    registry.close()
+    expect(() => registry.reserveCreation(context, descriptor.serverId)).toThrow(
+      'registry is closed'
+    )
+
+    const retired = new McpAppSandboxRegistry((_id, listener) => {
+      listener()
+      return unsubscribe
+    })
+    expect(() => retired.reserveCreation(context, descriptor.serverId)).toThrow('no longer active')
+    expect(unsubscribe).toHaveBeenCalledTimes(2)
+  })
+
   it('counts pending creation against both limits and releases canceled work', () => {
-    const registry = new McpAppSandboxRegistry()
+    const registry = new McpAppSandboxRegistry(() => () => {})
     const first = Array.from({ length: 32 }, () =>
       registry.reserveCreation({ webContentsId: 7, windowId: 11 }, descriptor.serverId)
     )
@@ -65,7 +98,7 @@ describe('MCP App sandbox registry', () => {
   it.each(['owner', 'server', 'maintenance'] as const)(
     'invalidates pending creation on %s revocation',
     (reason) => {
-      const registry = new McpAppSandboxRegistry()
+      const registry = new McpAppSandboxRegistry(() => () => {})
       const id = registry.reserveCreation({ webContentsId: 7, windowId: 11 }, descriptor.serverId)
       const signal = registry.getCreationSignal(id)
       if (reason === 'owner') registry.revokeByWebContents(7)
@@ -77,7 +110,7 @@ describe('MCP App sandbox registry', () => {
   )
 
   it('isolates protocol policy and rejects approval revoked before native dispatch', async () => {
-    const registry = new McpAppSandboxRegistry()
+    const registry = new McpAppSandboxRegistry(() => () => {})
     const instance = createInstance(registry)
     const policy = await registry.getProtocolPolicy(instance.instanceId)
     policy!.permissions!.camera = undefined
@@ -103,7 +136,7 @@ describe('MCP App sandbox registry', () => {
   })
 
   it('binds instances to the creating WebContents and revokes them', () => {
-    const registry = new McpAppSandboxRegistry()
+    const registry = new McpAppSandboxRegistry(() => () => {})
     const instance = createInstance(registry)
 
     expect(registry.assertOwned(instance.instanceId, { webContentsId: 7, windowId: 11 })).toBe(
@@ -118,7 +151,7 @@ describe('MCP App sandbox registry', () => {
   })
 
   it('revokes every instance bound to a reconfigured server', () => {
-    const registry = new McpAppSandboxRegistry()
+    const registry = new McpAppSandboxRegistry(() => () => {})
     const instance = createInstance(registry)
 
     registry.revokeByServer(descriptor.serverId)
@@ -127,7 +160,7 @@ describe('MCP App sandbox registry', () => {
   })
 
   it('rejects browser permission approval after the live App binding is lost', async () => {
-    const registry = new McpAppSandboxRegistry()
+    const registry = new McpAppSandboxRegistry(() => () => {})
     let isLive = true
     const instance = createInstance(registry, () => isLive)
     let consentRequestId = ''

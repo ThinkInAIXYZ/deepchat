@@ -25,7 +25,6 @@ import windowStateManager from 'electron-window-state' // Window state manager
 import { TabPresenter } from '../tab'
 import { FloatingChatWindow } from './FloatingChatWindow' // Floating chat window
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
-import { StartupWorkloadCoordinator } from '../../app/startupWorkloadCoordinator'
 import { openExternalUrl } from '@/lib/externalUrl'
 import { activateAppOnMac } from '@/lib/activateApp'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
@@ -60,7 +59,6 @@ export class WindowPresenter implements IWindowPresenter {
   private settingsWindowReady = false
   private pendingSettingsMessages: PendingSettingsMessage[] = []
   private pendingSettingsProviderInstalls: ProviderInstallPreview[] = []
-  private readonly startupWorkloadCoordinator?: StartupWorkloadCoordinator
   private tabPresenter!: TabPresenter
   // Serializes async tab lookups/deliveries per window so consecutive broadcasts
   // cannot reorder against each other when a delayed `getTab` resolves out of turn.
@@ -89,11 +87,12 @@ export class WindowPresenter implements IWindowPresenter {
       'getCloseToQuit' | 'getContentProtectionEnabled'
     >,
     private readonly onWindowCreated: (isMainWindow: boolean) => void,
-    startupWorkloadCoordinator?: StartupWorkloadCoordinator
+    private readonly settingsWindowLifecycle?: (
+      action: 'opened' | 'closed' | 'ready'
+    ) => Promise<void>
   ) {
     this.windows = new Map()
     this.settings = settings
-    this.startupWorkloadCoordinator = startupWorkloadCoordinator
   }
 
   applyContentProtection(enabled: boolean): void {
@@ -1372,7 +1371,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     this.settingsWindow = settingsWindow
     this.resetSettingsWindowState()
-    this.startupWorkloadCoordinator?.createRun('settings')
+    await this.settingsWindowLifecycle?.('opened')
     const windowId = settingsWindow.id
 
     if (navigation) {
@@ -1416,7 +1415,9 @@ export class WindowPresenter implements IWindowPresenter {
       logger.info(`Settings window ${windowId} closed.`)
       // Unmanage window state when window is closed
       settingsWindowState.unmanage()
-      this.startupWorkloadCoordinator?.cancelTarget('settings')
+      void this.settingsWindowLifecycle?.('closed').catch((error) =>
+        logger.warn('[Window] Settings workload retirement failed', error)
+      )
       this.settingsWindow = null
       this.resetSettingsWindowState(true)
     })
@@ -1542,7 +1543,9 @@ export class WindowPresenter implements IWindowPresenter {
     console.info(
       `[Startup][Settings][Main] window.notifySettingsReady windowId=${this.settingsWindow.id}`
     )
-    this.startupWorkloadCoordinator?.replayTarget('settings')
+    void this.settingsWindowLifecycle?.('ready').catch((error) =>
+      logger.warn('[Window] Settings workload replay failed', error)
+    )
     this.flushPendingSettingsMessages()
   }
 

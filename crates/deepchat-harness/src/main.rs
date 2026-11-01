@@ -30,6 +30,7 @@ use tokio::{
 mod core;
 mod layers;
 mod memory;
+mod process;
 mod transport;
 use transport::Output;
 
@@ -457,9 +458,52 @@ async fn mount(
     Ok(handle)
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
+    if args.first().is_some_and(|arg| arg == "--process-identity") {
+        if args.len() != 2 {
+            return Err("Usage: deepchat-harness --process-identity <pid>".into());
+        }
+        let pid: i32 = args[1].to_str().ok_or("Invalid process PID")?.parse()?;
+        if pid <= 0 {
+            return Err("Invalid process PID".into());
+        }
+        println!("{}", process::inspect(pid)?);
+        return Ok(());
+    }
+    if args.first().is_some_and(|arg| arg == "--exec-gate") {
+        process::launch(&args[1..])?;
+        return Ok(());
+    }
+    if args
+        .first()
+        .is_some_and(|arg| arg == "--terminate-tree" || arg == "--terminate-owner")
+    {
+        if args.len() != 4 {
+            return Err(
+                "Usage: deepchat-harness --terminate-{tree,owner} <pid> <identity> <grace-ms>"
+                    .into(),
+            );
+        }
+        let pid = args[1].to_str().ok_or("Invalid process PID")?.parse()?;
+        let identity = args[2].to_str().ok_or("Invalid process identity")?;
+        let grace_ms = args[3]
+            .to_str()
+            .ok_or("Invalid process grace period")?
+            .parse()?;
+        println!(
+            "{}",
+            serde_json::json!({ "retired": process::terminate_tree(pid, identity, grace_ms, args[0] == "--terminate-tree")? })
+        );
+        return Ok(());
+    }
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?
+        .block_on(run(args))
+}
+
+async fn run(args: Vec<std::ffi::OsString>) -> Result<()> {
     if args.len() != 5 {
         return Err(
             "Usage: deepchat-harness <electron> <runtime> <plugin> <capacity> <max-pending>".into(),

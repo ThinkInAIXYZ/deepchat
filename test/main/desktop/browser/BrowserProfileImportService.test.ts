@@ -15,8 +15,8 @@ afterEach(async () => {
 })
 
 const createCookie = (details: CookiesSetDetails): Cookie => ({
-  name: details.name,
-  value: details.value,
+  name: details.name ?? '',
+  value: details.value ?? '',
   domain: details.domain ?? new URL(details.url).hostname,
   hostOnly: details.domain === undefined,
   path: details.path ?? '/',

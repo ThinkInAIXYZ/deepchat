@@ -2,7 +2,6 @@ import logger from '@shared/logger'
 import { FloatingButtonWindow } from './FloatingButtonWindow'
 import { FloatingButtonConfig, FloatingButtonState, DEFAULT_FLOATING_BUTTON_CONFIG } from './types'
 import {
-  buildFloatingWidgetSnapshot,
   getPeekedCollapsedBounds,
   getWidgetSizeForSnapshot,
   repositionWidgetForResize,
@@ -11,14 +10,13 @@ import {
   type WidgetRect
 } from './layout'
 import type { FloatingWidgetSnapshot } from '@shared/types/floating-widget'
-import type { Agent, SessionWithState } from '@shared/types/agent-interface'
-import { listAvailableAgents } from '@/agent/shared/availableAgentCatalog'
 import { BrowserWindow, ipcMain, Menu, app, screen } from 'electron'
 import { FLOATING_BUTTON_EVENTS } from '@/events'
-import type { AgentSettingsPort } from '@/agent/settings'
 import { FLOATING_BUTTON_AVAILABLE } from '@shared/featureFlags'
-import type { SessionQuery } from '@/session/query'
-import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
+import { createRendererRouteContext, type RouteContext } from '@/routes/routeRegistry'
+import { createAppDocumentMatcher } from '@shared/rendererDocument'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import type { WindowPresenter } from '../window'
 import type { TabPresenter } from '../tab'
 import type { DesktopConfigurationProjection } from '../configurationProjection'
@@ -34,6 +32,27 @@ const WIDGET_LAYOUT_ANIMATION_INTERVAL_MS = 16
 const COLLAPSE_REVEAL_LOCK_MS = WIDGET_LAYOUT_ANIMATION_DURATION_MS + 120
 const COLLAPSED_WIDGET_INACTIVE_OPACITY = 0.5
 const ACTIVE_WIDGET_OPACITY = 1
+
+export interface FloatingWidgetBusinessPort {
+  getSnapshot(
+    context: RouteContext,
+    assertActive: () => void,
+    signal: AbortSignal
+  ): Promise<FloatingWidgetSnapshot>
+  getRegistryIconMarkup(
+    agentId: string,
+    iconUrl: string,
+    context: RouteContext,
+    assertActive: () => void,
+    signal: AbortSignal
+  ): Promise<string>
+  openSession(
+    sessionId: string,
+    context: RouteContext,
+    assertActive: () => void,
+    signal: AbortSignal
+  ): Promise<boolean>
+}
 
 type DragRuntimeState = {
   startX: number
@@ -64,10 +83,12 @@ const isNonEmptyString = (payload: unknown): payload is string =>
 export class FloatingButtonPresenter {
   private floatingWindow: FloatingButtonWindow | null = null
   private config: FloatingButtonConfig
-  private readonly agentSettings: Pick<
-    AgentSettingsPort,
-    'getAcpRegistryIconMarkup' | 'listAgents' | 'getAcpEnabled'
-  >
+  private lifetime: AbortController | undefined
+  private refreshing: { signal: AbortSignal; dirty: boolean; promise: Promise<void> } | undefined
+  private readonly matchDocument = createAppDocumentMatcher(
+    pathToFileURL(path.join(__dirname, '../renderer/')).href,
+    app.isPackaged ? undefined : process.env.ELECTRON_RENDERER_URL
+  )
   private snapshot: FloatingWidgetSnapshot = { ...EMPTY_SNAPSHOT }
   private layoutAnimationTimer: ReturnType<typeof setInterval> | null = null
   private collapseRevealTimer: ReturnType<typeof setTimeout> | null = null
@@ -77,10 +98,6 @@ export class FloatingButtonPresenter {
   private pendingLayoutSync = false
 
   constructor(
-    agentSettings: Pick<
-      AgentSettingsPort,
-      'getAcpRegistryIconMarkup' | 'listAgents' | 'getAcpEnabled'
-    >,
     private readonly settings: Pick<
       DesktopConfigurationProjection,
       | 'getFloatingButtonEnabled'
@@ -89,12 +106,10 @@ export class FloatingButtonPresenter {
       | 'getLanguage'
       | 'getCurrentThemeIsDark'
     >,
-    private readonly sessionQuery: SessionQuery,
-    private readonly desktopSessionBinding: DesktopSessionBinding,
     private readonly windowPresenter: WindowPresenter,
-    private readonly tabPresenter: TabPresenter
+    private readonly tabPresenter: TabPresenter,
+    private readonly business: FloatingWidgetBusinessPort
   ) {
-    this.agentSettings = agentSettings
     this.config = {
       ...DEFAULT_FLOATING_BUTTON_CONFIG
     }
@@ -128,6 +143,7 @@ export class FloatingButtonPresenter {
   }
 
   public destroy(): void {
+    this.lifetime?.abort(new Error('Floating widget closed'))
     this.config.enabled = false
     this.snapshot = { ...EMPTY_SNAPSHOT }
     this.isDragging = false
@@ -166,10 +182,10 @@ export class FloatingButtonPresenter {
     this.config.enabled = true
 
     if (this.floatingWindow) {
-      await this.refreshWidgetState()
+      const window = this.floatingWindow
       this.refreshLanguage()
       await this.refreshTheme()
-      this.floatingWindow.show()
+      if (this.floatingWindow === window) this.showAfterRefresh()
       return
     }
 
@@ -197,15 +213,38 @@ export class FloatingButtonPresenter {
     return this.floatingWindow?.getState() || null
   }
 
-  public async refreshWidgetState(): Promise<void> {
-    try {
-      const [sessions, agents] = await Promise.all([this.loadSessions(), this.loadAgents()])
-      this.snapshot = buildFloatingWidgetSnapshot(sessions, agents, this.snapshot.expanded)
-      this.applyWindowLayout()
-      this.pushSnapshotToRenderer()
-    } catch (error) {
-      console.error('Failed to refresh floating widget state:', error)
+  public refreshWidgetState(): Promise<void> {
+    if (!this.floatingWindow?.exists() || !this.lifetime || this.lifetime.signal.aborted)
+      return Promise.resolve()
+    const { signal } = this.lifetime
+    if (this.refreshing?.signal === signal) {
+      this.refreshing.dirty = true
+      return this.refreshing.promise
     }
+    const refresh = { signal, dirty: true, promise: Promise.resolve() }
+    this.refreshing = refresh
+    refresh.promise = (async () => {
+      try {
+        while (refresh.dirty && !signal.aborted) {
+          refresh.dirty = false
+          const caller = this.widgetCaller()
+          const snapshot = await this.business.getSnapshot(
+            caller.context,
+            caller.assertActive,
+            signal
+          )
+          caller.assertActive()
+          this.snapshot = { ...snapshot, expanded: this.snapshot.expanded }
+          this.applyWindowLayout()
+          this.pushSnapshotToRenderer()
+        }
+      } catch (error) {
+        if (!signal.aborted) console.error('Failed to refresh floating widget state:', error)
+      } finally {
+        if (this.refreshing === refresh) this.refreshing = undefined
+      }
+    })()
+    return refresh.promise
   }
 
   public refreshLanguage(locale = this.settings.getLanguage()): void {
@@ -232,6 +271,7 @@ export class FloatingButtonPresenter {
     }
 
     const theme = isDark === undefined ? await this.resolveTheme() : isDark ? 'dark' : 'light'
+    if (this.floatingWindow?.getWindow() !== buttonWindow || buttonWindow.isDestroyed()) return
     buttonWindow.webContents.send(FLOATING_BUTTON_EVENTS.THEME_CHANGED, theme)
   }
 
@@ -239,15 +279,34 @@ export class FloatingButtonPresenter {
     this.registerIpcHandlers()
 
     if (!this.floatingWindow) {
+      this.lifetime = new AbortController()
       const persistedBounds = this.settings.getFloatingButtonBounds()
       this.floatingWindow = new FloatingButtonWindow(this.config, persistedBounds)
-      await this.floatingWindow.create()
+      const window = this.floatingWindow
+      await window.create()
+      if (this.floatingWindow !== window) return
     }
 
-    await this.refreshWidgetState()
+    const window = this.floatingWindow
     this.refreshLanguage()
     await this.refreshTheme()
-    this.floatingWindow.show()
+    if (this.floatingWindow === window) this.showAfterRefresh()
+  }
+
+  private showAfterRefresh(): void {
+    const window = this.floatingWindow
+    const lifetime = this.lifetime
+    if (!window || !lifetime || lifetime.signal.aborted) return
+    // Native startup must acknowledge before a Core snapshot can complete.
+    void this.refreshWidgetState()
+      .then(() => {
+        if (this.floatingWindow === window && !lifetime.signal.aborted && window.exists()) {
+          window.show()
+        }
+      })
+      .catch((error) => {
+        if (!lifetime.signal.aborted) console.error('Failed to show floating widget:', error)
+      })
   }
 
   private registerIpcHandlers(): void {
@@ -267,33 +326,43 @@ export class FloatingButtonPresenter {
 
     let dragState: DragRuntimeState | null = null
 
-    ipcMain.handle(FLOATING_BUTTON_EVENTS.SNAPSHOT_REQUEST, async () => {
+    ipcMain.handle(FLOATING_BUTTON_EVENTS.SNAPSHOT_REQUEST, async (event) => {
+      this.widgetCaller(event).assertActive()
       if (this.snapshot.sessions.length === 0 && !this.snapshot.expanded) {
-        await this.refreshWidgetState()
+        void this.refreshWidgetState()
       }
       return this.snapshot
     })
 
-    ipcMain.handle(FLOATING_BUTTON_EVENTS.LANGUAGE_REQUEST, async () => {
+    ipcMain.handle(FLOATING_BUTTON_EVENTS.LANGUAGE_REQUEST, async (event) => {
+      this.widgetCaller(event).assertActive()
       return this.settings.getLanguage()
     })
 
-    ipcMain.handle(FLOATING_BUTTON_EVENTS.THEME_REQUEST, async () => {
+    ipcMain.handle(FLOATING_BUTTON_EVENTS.THEME_REQUEST, async (event) => {
+      this.widgetCaller(event).assertActive()
       return await this.resolveTheme()
     })
 
     ipcMain.handle(
       FLOATING_BUTTON_EVENTS.ACP_REGISTRY_ICON_REQUEST,
-      async (_event, payload: { agentId?: string; iconUrl?: string }) => {
-        const agentId = payload?.agentId?.trim()
-        const iconUrl = payload?.iconUrl?.trim()
+      async (event, payload: { agentId?: string; iconUrl?: string }) => {
+        const caller = this.widgetCaller(event)
+        const agentId = typeof payload?.agentId === 'string' ? payload.agentId.trim() : ''
+        const iconUrl = typeof payload?.iconUrl === 'string' ? payload.iconUrl.trim() : ''
 
         if (!agentId || !iconUrl) {
           return ''
         }
 
         try {
-          return (await this.agentSettings.getAcpRegistryIconMarkup(agentId, iconUrl)) ?? ''
+          return await this.business.getRegistryIconMarkup(
+            agentId,
+            iconUrl,
+            caller.context,
+            caller.assertActive,
+            caller.signal
+          )
         } catch (error) {
           console.warn('Failed to resolve floating ACP registry icon markup:', error)
           return ''
@@ -301,32 +370,38 @@ export class FloatingButtonPresenter {
       }
     )
 
-    ipcMain.on(FLOATING_BUTTON_EVENTS.CLICKED, () => {
+    ipcMain.on(FLOATING_BUTTON_EVENTS.CLICKED, (event) => {
+      if (!this.isWidgetSender(event)) return
       this.toggleExpanded()
     })
 
-    ipcMain.on(FLOATING_BUTTON_EVENTS.RIGHT_CLICKED, () => {
+    ipcMain.on(FLOATING_BUTTON_EVENTS.RIGHT_CLICKED, (event) => {
+      if (!this.isWidgetSender(event)) return
       this.showContextMenu()
     })
 
     ipcMain.on(FLOATING_BUTTON_EVENTS.HOVER_STATE_CHANGED, (_event, hovering: boolean) => {
+      if (!this.isWidgetSender(_event)) return
       this.setHovering(Boolean(hovering))
     })
 
-    ipcMain.on(FLOATING_BUTTON_EVENTS.TOGGLE_EXPANDED, () => {
+    ipcMain.on(FLOATING_BUTTON_EVENTS.TOGGLE_EXPANDED, (event) => {
+      if (!this.isWidgetSender(event)) return
       this.toggleExpanded()
     })
 
     ipcMain.on(FLOATING_BUTTON_EVENTS.SET_EXPANDED, (_event, expanded: boolean) => {
+      if (!this.isWidgetSender(_event)) return
       this.setExpanded(Boolean(expanded))
     })
 
     ipcMain.on(FLOATING_BUTTON_EVENTS.OPEN_SESSION, (_event, sessionId: unknown) => {
+      if (!this.isWidgetSender(_event)) return
       if (!isNonEmptyString(sessionId)) {
         return
       }
 
-      void this.openSession(sessionId.trim())
+      void this.openSession(sessionId.trim(), this.widgetCaller(_event))
     })
 
     ipcMain.on(FLOATING_BUTTON_EVENTS.DRAG_START, (event, payload: unknown) => {
@@ -419,13 +494,44 @@ export class FloatingButtonPresenter {
     })
   }
 
-  private isWidgetSender(event: Electron.IpcMainEvent): boolean {
+  private isWidgetSender(event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): boolean {
     const window = this.floatingWindow?.getWindow()
     if (!window || window.isDestroyed()) return false
     return (
       event.sender.id === window.webContents.id &&
-      event.senderFrame === window.webContents.mainFrame
+      event.senderFrame === window.webContents.mainFrame &&
+      !event.sender.isDestroyed() &&
+      event.senderFrame?.url === window.webContents.getURL() &&
+      this.matchDocument(event.senderFrame.url) === 'floating'
     )
+  }
+
+  private widgetCaller(event?: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent) {
+    const window = this.floatingWindow?.getWindow()
+    const signal = this.lifetime?.signal
+    if (!window || !signal) throw new Error('Floating widget is unavailable')
+    const frame = event?.senderFrame ?? window.webContents.mainFrame
+    const url = frame.url
+    const assertActive = () => {
+      signal.throwIfAborted()
+      if (
+        this.floatingWindow?.getWindow() !== window ||
+        window.isDestroyed() ||
+        window.webContents.isDestroyed() ||
+        window.webContents.mainFrame !== frame ||
+        frame.url !== url ||
+        window.webContents.getURL() !== url ||
+        this.matchDocument(url) !== 'floating' ||
+        (event && !this.isWidgetSender(event))
+      )
+        throw new Error('Floating widget caller retired')
+    }
+    assertActive()
+    return {
+      context: createRendererRouteContext(window.webContents.id, window.id),
+      assertActive,
+      signal
+    }
   }
 
   private setExpanded(expanded: boolean): void {
@@ -649,26 +755,25 @@ export class FloatingButtonPresenter {
     return isDark ? 'dark' : 'light'
   }
 
-  private async loadSessions(): Promise<SessionWithState[]> {
-    return await this.sessionQuery.listSessions()
-  }
-
-  private async loadAgents(): Promise<Agent[]> {
-    return await listAvailableAgents(this.agentSettings)
-  }
-
-  private async openSession(sessionId: string): Promise<void> {
+  private async openSession(
+    sessionId: string,
+    caller: ReturnType<FloatingButtonPresenter['widgetCaller']>
+  ): Promise<void> {
     try {
-      const targetWindow = await this.resolveChatWindow()
-      if (!targetWindow || targetWindow.isDestroyed()) {
-        return
+      if (
+        await this.business.openSession(
+          sessionId,
+          caller.context,
+          caller.assertActive,
+          caller.signal
+        )
+      ) {
+        caller.assertActive()
+        this.setExpanded(false)
       }
-
-      await this.desktopSessionBinding.activate(targetWindow.webContents.id, sessionId)
-      this.windowPresenter.show(targetWindow.id, true)
-      this.setExpanded(false)
     } catch (error) {
-      console.error('Failed to open session from floating widget:', error)
+      if (!caller.signal.aborted)
+        console.error('Failed to open session from floating widget:', error)
     }
   }
 

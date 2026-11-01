@@ -7,8 +7,13 @@ function hasExited(child: ChildProcess): boolean {
   return child.exitCode !== null || child.signalCode !== null
 }
 
-function waitForClose(child: ChildProcess, timeoutMs: number): Promise<boolean> {
-  if (hasExited(child)) {
+export function waitForClose(child: ChildProcess, timeoutMs: number): Promise<boolean> {
+  if (
+    hasExited(child) &&
+    (child.stdio ?? [child.stdin, child.stdout, child.stderr]).every(
+      (stream) => !stream || stream.closed
+    )
+  ) {
     return Promise.resolve(true)
   }
 
@@ -117,23 +122,31 @@ async function signalDescendantsRecursively(
   }
 }
 
-async function signalProcessTree(pid: number, signal: 'SIGTERM' | 'SIGKILL'): Promise<void> {
+async function signalProcessTree(
+  pid: number,
+  signal: 'SIGTERM' | 'SIGKILL',
+  ownedGroup = false
+): Promise<boolean> {
   if (process.platform === 'win32') {
     const args = ['/PID', `${pid}`, '/T', '/F']
     await spawnAndWait('taskkill', args)
-    return
+    return false
   }
 
   const childSignal = signal === 'SIGKILL' ? '-KILL' : '-TERM'
   try {
     process.kill(-pid, signal)
+    return true
   } catch {
+    // Never fall back to a potentially reused root PID after acquiring its group.
+    if (ownedGroup) return true
     await signalDescendantsRecursively(pid, childSignal)
     try {
       process.kill(pid, signal)
     } catch {
       // Process may have already exited.
     }
+    return false
   }
 }
 
@@ -142,7 +155,7 @@ function isProcessAlive(pid: number): boolean {
     process.kill(pid, 0)
     return true
   } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'EPERM'
+    return (error as NodeJS.ErrnoException).code !== 'ESRCH'
   }
 }
 
@@ -162,35 +175,62 @@ export async function terminateProcessTreeByPid(
   pid: number,
   options: {
     graceMs?: number
+    nativeIdentity?: string
+    ownedGroup?: boolean
   } = {}
 ): Promise<boolean> {
   if (!Number.isSafeInteger(pid) || pid <= 0) {
     throw new Error(`Cannot terminate invalid process id: ${pid}`)
   }
+  if (options.nativeIdentity !== undefined) {
+    const executable = process.env.DEEPCHAT_HARNESS_EXECUTABLE
+    if (process.platform !== 'darwin' || !executable) return false
+    const output = await spawnAndCapture(executable, [
+      options.ownedGroup === false ? '--terminate-owner' : '--terminate-tree',
+      `${pid}`,
+      options.nativeIdentity,
+      `${Math.min(2000, Math.max(0, options.graceMs ?? 2000))}`
+    ])
+    try {
+      return JSON.parse(output).retired === true
+    } catch {
+      return false
+    }
+  }
+  if (options.ownedGroup === false) return false
   if (!isProcessAlive(pid)) {
-    return true
+    return process.platform === 'win32' || !isProcessAlive(-pid)
   }
 
   const graceMs = Math.max(0, options.graceMs ?? 2000)
-  await signalProcessTree(pid, 'SIGTERM')
-  if (await waitForPidExit(pid, graceMs)) {
+  const grouped = await signalProcessTree(pid, 'SIGTERM')
+  const target = grouped ? -pid : pid
+  if (await waitForPidExit(target, graceMs)) {
     return true
   }
 
-  await signalProcessTree(pid, 'SIGKILL')
-  return await waitForPidExit(pid, FORCE_KILL_SETTLE_MS)
+  await signalProcessTree(pid, 'SIGKILL', grouped)
+  return await waitForPidExit(target, FORCE_KILL_SETTLE_MS)
 }
 
 export async function terminateProcessTree(
   child: ChildProcess,
   options: {
     graceMs?: number
+    nativeIdentity?: string
   } = {}
 ): Promise<boolean> {
   const graceMs = Math.max(0, options.graceMs ?? 2000)
 
+  if (options.nativeIdentity !== undefined) {
+    if (!child.pid) return false
+    const retired = await terminateProcessTreeByPid(child.pid, options)
+    return retired && (await waitForClose(child, FORCE_KILL_SETTLE_MS))
+  }
+
   if (hasExited(child)) {
-    return true
+    if (process.platform !== 'win32' && child.pid && isProcessAlive(-child.pid)) return false
+    return await waitForClose(child, graceMs)
   }
 
   const pid = child.pid
@@ -203,11 +243,19 @@ export async function terminateProcessTree(
     return await waitForClose(child, graceMs)
   }
 
-  await signalProcessTree(pid, 'SIGTERM')
-  if (await waitForClose(child, graceMs)) {
+  const grouped = await signalProcessTree(pid, 'SIGTERM')
+  const settled = await Promise.all([
+    waitForClose(child, graceMs),
+    grouped ? waitForPidExit(-pid, graceMs) : Promise.resolve(true)
+  ])
+  if (settled.every(Boolean)) {
     return true
   }
 
-  await signalProcessTree(pid, 'SIGKILL')
-  return await waitForClose(child, FORCE_KILL_SETTLE_MS)
+  await signalProcessTree(pid, 'SIGKILL', grouped)
+  const forced = await Promise.all([
+    waitForClose(child, FORCE_KILL_SETTLE_MS),
+    grouped ? waitForPidExit(-pid, FORCE_KILL_SETTLE_MS) : Promise.resolve(true)
+  ])
+  return forced.every(Boolean)
 }

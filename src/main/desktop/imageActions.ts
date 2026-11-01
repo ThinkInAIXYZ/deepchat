@@ -1,4 +1,4 @@
-import { clipboard, dialog, nativeImage, net } from 'electron'
+import { clipboard, nativeImage, net } from 'electron'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -99,40 +99,56 @@ function buildDefaultImageName(mimeType: string, suggestedName?: string): string
 }
 
 export class DesktopImageActions {
-  constructor(private readonly userDataPath: string) {
+  private readonly shutdown = new AbortController()
+
+  constructor(
+    private readonly userDataPath: string,
+    private readonly showSaveDialog: (
+      options: Electron.SaveDialogOptions
+    ) => Promise<Electron.SaveDialogReturnValue>
+  ) {
     if (!path.isAbsolute(userDataPath)) throw new Error('Image profile directory must be absolute')
   }
 
   async saveImage(file: SaveImageInput): Promise<{ canceled: boolean; path?: string }> {
     const image = await this.resolveImageData(file)
+    this.shutdown.signal.throwIfAborted()
     const defaultPath = buildDefaultImageName(image.mimeType, file.suggestedName)
 
     const preferredExtension = getImageExtensionFromMimeType(image.mimeType)
     const extensions = Array.from(new Set([preferredExtension, ...IMAGE_SAVE_EXTENSIONS]))
-    const { canceled, filePath } = await dialog.showSaveDialog({
+    const { canceled, filePath } = await this.showSaveDialog({
       defaultPath,
       filters: [
         { name: 'Images', extensions },
         { name: 'All Files', extensions: ['*'] }
       ]
     })
+    this.shutdown.signal.throwIfAborted()
 
     if (canceled || !filePath) {
       return { canceled: true }
     }
 
+    // A granted write must finish once started, including during shutdown.
     await fs.writeFile(filePath, image.data)
     return { canceled: false, path: filePath }
   }
 
   async copyImage(file: SaveImageInput): Promise<{ copied: boolean }> {
     const image = await this.resolveImageData(file)
+    this.shutdown.signal.throwIfAborted()
     const clipboardImage = this.createClipboardImage(image)
     clipboard.writeImage(clipboardImage)
     return { copied: true }
   }
 
+  stop(): void {
+    this.shutdown.abort(new Error('Native image actions are stopping'))
+  }
+
   private async resolveImageData(file: SaveImageInput): Promise<ResolvedImageData> {
+    this.shutdown.signal.throwIfAborted()
     const source = file.source.trim()
     if (source.startsWith('data:image/')) {
       return this.resolveDataUrlImage(source)
@@ -183,7 +199,7 @@ export class DesktopImageActions {
     }
 
     return {
-      data: await fs.readFile(fullPath),
+      data: await fs.readFile(fullPath, { signal: this.shutdown.signal }),
       mimeType
     }
   }
@@ -197,7 +213,7 @@ export class DesktopImageActions {
       throw new Error('Unsupported image URL')
     }
 
-    const response = await net.fetch(url.toString())
+    const response = await net.fetch(url.toString(), { signal: this.shutdown.signal })
     if (!response.ok) {
       throw new Error(`Failed to download image: ${response.status}`)
     }
