@@ -213,7 +213,15 @@ export default fileURLToPath(import.meta.ROLLUP_FILE_URL_${reference})`
     await cp(source, path.join(output, 'node_modules', name), {
       recursive: true,
       dereference: true,
-      filter: (file) => !path.relative(source, file).split(path.sep).includes('node_modules')
+      filter: (file) => {
+        const relative = path.relative(source, file)
+        const parts = relative.split(path.sep)
+        return (
+          !parts.includes('node_modules') &&
+          !['test', 'tests'].includes(parts[0]) &&
+          !/\.(?:map|pdb|d\.[cm]?ts)$/.test(relative)
+        )
+      }
     })
   }
   const pkg = JSON.parse(await readFile(runtimePackage, 'utf8'))

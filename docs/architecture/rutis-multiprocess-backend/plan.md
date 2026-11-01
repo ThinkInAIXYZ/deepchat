@@ -4618,6 +4618,12 @@ module lookup. Development and standalone output retain their complete local dep
 The Rutis runner resolves from the first-party entry's package anchor. DuckDB native/API identity
 validation remains mandatory. Package-size budgets are unchanged.
 
+The portable dependency closure excludes package test fixtures, source maps, type declarations
+and Windows debug symbols. Runtime JavaScript, native libraries/helpers, package metadata and
+licenses remain. These files otherwise bypass electron-builder's normal dependency filtering when
+copied through `extraResources`. The selected installed dependency payload falls from about
+320 MiB to 259 MiB; this is disk usage, not a process-memory or latency result.
+
 The existing native Memory integration fixture uses the actual electron-builder resource matchers
 and exercises the shared dependency layout outside the checkout. Admission still exercises the
 standalone closure. The Core failure acceptance identifies its owned settings window through the
@@ -4635,6 +4641,15 @@ Its archive excludes developer artifacts, and its Harness has no duplicate priva
 Bundled plugins are absent from this local verification; it establishes neither installer size nor
 signed distribution. Supported-platform packages and original integrated Native foreground acceptance
 remain pending; G6 cannot start until the exact published head passes.
+
+Required PR checks pass on `4046f417c`, including 10,360 Main cases with the eight existing skips.
+Its Windows x64 and Linux arm64 packages pass; Linux x64 and macOS arm64 still exceed the size
+budgets. Runtime payload filtering passes the three affected suites, 47 cases, plus matching text
+extraction for a 14-page PDF and a real PTY child exit. An unsigned macOS arm64 package outside the
+checkout passes the four Core/settings cases, an additional actual-app PDF extraction case and the
+native Memory smoke. The temporary PDF acceptance driver is removed. Bundled plugins are absent
+from this local package, so installer-size and complete platform acceptance still require CI for
+the published filtering source; this evidence does not establish G5 completion.
 
 ## G6. Extract the complete Memory capability
 
