@@ -132,14 +132,17 @@ describe('BackgroundExecSessionManager', () => {
     clearInterval((manager as never).cleanupIntervalId)
     vi.mocked(spawn).mockReset()
     mockSpawnHost.mockReset()
-    mockAssertPackageTree.mockResolvedValue(undefined)
-    mockCleanupPackageTree.mockResolvedValue(undefined)
-    mockTerminateProcessTree.mockResolvedValue(true)
+    mockAssertPackageTree.mockReset().mockResolvedValue(undefined)
+    mockCleanupPackageTree.mockReset().mockResolvedValue(undefined)
+    mockTerminateProcessTree.mockReset().mockResolvedValue(true)
     registryMock.record.mockReset().mockResolvedValue({ alive: true })
     registryMock.clear.mockReset()
     vi.spyOn(fs, 'existsSync').mockReturnValue(true)
     vi.spyOn(fs, 'statSync').mockImplementation((candidate) =>
-      String(candidate).includes('workspace') ? mockStats('directory') : mockStats('file')
+      String(candidate).includes('workspace') ||
+      normalizedPath(candidate) === normalizedPath(process.cwd())
+        ? mockStats('directory')
+        : mockStats('file')
     )
     vi.spyOn(fs, 'accessSync').mockReturnValue(undefined)
   })
@@ -1131,9 +1134,9 @@ describe('backgroundExecSessionManager utility proxy', () => {
 
   beforeEach(() => {
     mockSpawnHost.mockReset()
-    mockAssertPackageTree.mockResolvedValue(undefined)
-    mockCleanupPackageTree.mockResolvedValue(undefined)
-    mockTerminateProcessTree.mockResolvedValue(true)
+    mockAssertPackageTree.mockReset().mockResolvedValue(undefined)
+    mockCleanupPackageTree.mockReset().mockResolvedValue(undefined)
+    mockTerminateProcessTree.mockReset().mockResolvedValue(true)
     backgroundExecSessionManager = new BackgroundExecService(mockSpawnHost)
   })
 

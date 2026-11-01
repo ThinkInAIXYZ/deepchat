@@ -184,7 +184,7 @@ describe('PR Check workflow contracts', () => {
       'Build Rutis harness for native integration',
       'Validate portable memory behavior',
       'Smoke native SQLite',
-      'Validate native Tape storage',
+      'Validate native Store ownership and Tape',
       'Validate encrypted OCR artifact storage',
       'Validate native memory storage',
       'Validate memory retrieval quality',
@@ -222,7 +222,7 @@ describe('PR Check workflow contracts', () => {
     expect(getStep(nativeJob, 'Smoke native SQLite').run).toBe(
       'node scripts/smoke-memory-native-sqlite.js'
     )
-    expect(getStep(nativeJob, 'Validate native Tape storage').run).toContain(
+    expect(getStep(nativeJob, 'Validate native Store ownership and Tape').run).toContain(
       'test/main/tape/traceInspector.test.ts'
     )
     expect(getStep(nativeJob, 'Validate encrypted OCR artifact storage').run).toBe(

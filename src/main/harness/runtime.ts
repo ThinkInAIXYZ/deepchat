@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import { z } from 'zod'
 import {
@@ -139,7 +140,11 @@ export class HarnessRuntime {
       host,
       [
         electronExecutable,
-        path.join(directory, 'node_modules', '@arcships', 'rutis-runtime'),
+        path.dirname(
+          createRequire(path.join(directory, 'admission.mjs')).resolve(
+            '@arcships/rutis-runtime/package.json'
+          )
+        ),
         path.join(directory, 'admission.mjs'),
         String(capacity),
         String(maxPending)

@@ -1921,7 +1921,7 @@ describe('basic API-key provider registrations', () => {
       embeddingStrategy: 'none',
       checkModelId: 'meta-llama/llama-3.3-70b-instruct'
     })
-    const provider = new AiSdkProvider(config, createProviderSettings())
+    const provider = new AiSdkProvider(config, createProviderSettings(), providerTestEnvironment)
     ;(provider as any).isInitialized = true
 
     await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
@@ -1961,7 +1961,7 @@ describe('basic API-key provider registrations', () => {
       })
     )
     global.fetch = fetchMock
-    const provider = new AiSdkProvider(defaults, createProviderSettings())
+    const provider = new AiSdkProvider(defaults, createProviderSettings(), providerTestEnvironment)
 
     expect(await provider.fetchModels({ suppressErrors: false })).toEqual([
       {

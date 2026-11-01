@@ -10,7 +10,8 @@ There is no retained implementation switch or local fallback.
 
 Current scope: staged implementation in
 [Draft PR #2465](https://github.com/ThinkInAIXYZ/deepchat/pull/2465), targeting `dev`. Admission is
-committed as `ffcd98770` and the roadmap as `f35adff34`. G4 is complete at `356143755`; G5 local integration acceptance is complete; native CI is pending.
+committed as `ffcd98770` and the roadmap as `f35adff34`. G4 is complete at `356143755`;
+G5 is active, with supported-platform CI corrections and integrated Native acceptance pending.
 Later goals start only after their dependencies and the preceding selected goal pass validation.
 
 Use this file as the only tracker. [The RFC](spec.md) defines capability ownership, Memory
@@ -65,7 +66,7 @@ Reuse the retained baseline instead of accumulating a complete output tree for e
 | G2 Baselines and first service contract | Complete, `84e3e0ead`                                   | G1                             | Reproducible resource baselines and frozen operation/ownership budgets                            |
 | G3 Memory vector resources              | Complete, `7ee99619b`                                   | G2                             | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
 | G4 Store commands and desktop ports     | Complete, `356143755`                                   | G2                             | Explicit durable operations, writer inventory and asynchronous host capabilities                  |
-| G5 Cohesive TS Harness backend          | Integrated local acceptance complete; native CI pending | G4                             | Run/loop/Session/Tape/Provider composition operates under one backend authority                   |
+| G5 Cohesive TS Harness backend          | Active; CI corrections and Native acceptance pending   | G4                             | Run/loop/Session/Tape/Provider composition operates under one backend authority                   |
 | G6 Full Memory capability               | Planned                                                 | G3, G4, G5                     | Recall, ingestion, management and maintenance use the one Memory service                          |
 | G7 Rust control owner                   | Planned                                                 | G2, G5                         | Admission and cohesive run/interaction settlement preserve all fences                             |
 | G8 Rust batch computations              | Conditional                                             | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go           |
@@ -4608,6 +4609,32 @@ original source scope; no unchanged performance matrix or package rebuild is sel
 Publish the conflict-free integration, then require exact-head checks and all six native packages
 before G6. Merge-conflicted pull requests cannot start these pull-request workflows. The PR remains
 Draft against `dev` and is not merged.
+
+### G5 shared package dependencies and CI acceptance
+
+The desktop package places the Harness dependency closure in the shared unpacked `node_modules`
+directory. Native payloads are included once; Core and Memory resolve them through Node's parent
+module lookup. Development and standalone output retain their complete local dependency closure.
+The Rutis runner resolves from the first-party entry's package anchor. DuckDB native/API identity
+validation remains mandatory. Package-size budgets are unchanged.
+
+The existing native Memory integration fixture uses the actual electron-builder resource matchers
+and exercises the shared dependency layout outside the checkout. Admission still exercises the
+standalone closure. The Core failure acceptance identifies its owned settings window through the
+Playwright BrowserWindow handle, avoiding URL equality while preserving failure, exit and profile
+reopen assertions.
+
+Main CI fixture corrections reset queued process mocks between cases, recognize the real working
+directory on Linux, pass the explicit Provider environment, and use the current Tape port and native
+workflow step name. Tape tool rejection still verifies no available query method is called. No
+production compatibility API or platform skip is added. The eight selected test files pass 189
+cases; the normal build and repository format, i18n and lint checks pass. The actual-app Core failure
+and profile reopen case passes with zero retries. The unsigned local macOS arm64 package passes all
+four selected application cases and native Memory read/write, restart, reset and physical shutdown.
+Its archive excludes developer artifacts, and its Harness has no duplicate private dependency tree.
+Bundled plugins are absent from this local verification; it establishes neither installer size nor
+signed distribution. Supported-platform packages and original integrated Native foreground acceptance
+remain pending; G6 cannot start until the exact published head passes.
 
 ## G6. Extract the complete Memory capability
 

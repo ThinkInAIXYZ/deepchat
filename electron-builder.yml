@@ -58,9 +58,9 @@ extraResources:
     filter: ['providers.json']
   - from: ./out/harness/
     to: app.asar.unpacked/harness
-    filter: ['**/*']
+    filter: ['**/*', '!node_modules/**']
   - from: ./out/harness/node_modules/
-    to: app.asar.unpacked/harness/node_modules
+    to: app.asar.unpacked/node_modules
     filter: ['**/*']
   - from: ./out/cli/
     to: app.asar.unpacked/cli

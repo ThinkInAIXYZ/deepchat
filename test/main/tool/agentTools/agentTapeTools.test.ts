@@ -30,16 +30,6 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
         slots: []
       })
     }),
-    getTapeInfo: vi.fn().mockResolvedValue({
-      sessionId: 'conv-1',
-      entries: 3,
-      anchors: 1,
-      lastAnchor: 'session/start',
-      lastAnchorEntryId: 1,
-      entriesSinceLastAnchor: 2,
-      lastTokenUsage: 42,
-      migrationState: 'ready'
-    }),
     searchTape: vi.fn().mockResolvedValue([
       {
         sessionId: 'conv-1',
@@ -69,26 +59,6 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
           createdAt: 10
         }
       ]
-    }),
-    listTapeAnchors: vi.fn().mockResolvedValue([
-      {
-        sessionId: 'conv-1',
-        entryId: 1,
-        kind: 'anchor',
-        name: 'session/start',
-        payload: { state: { owner: 'human' } },
-        meta: {},
-        createdAt: 1
-      }
-    ]),
-    handoffTape: vi.fn().mockResolvedValue({
-      sessionId: 'conv-1',
-      entryId: 4,
-      kind: 'anchor',
-      name: 'handoff/manual',
-      payload: { state: { summary: 'done' } },
-      meta: { handoff: true },
-      createdAt: 20
     }),
     createSubagentSession: vi.fn(),
     sendConversationMessage: vi.fn(),
@@ -331,9 +301,6 @@ describe('Agent tape tools', () => {
       maxBytesPerEntry: undefined,
       maxTotalBytes: undefined
     })
-    expect(runtimePort.tape.getTapeInfo).not.toHaveBeenCalled()
-    expect(runtimePort.tape.listTapeAnchors).not.toHaveBeenCalled()
-    expect(runtimePort.tape.handoffTape).not.toHaveBeenCalled()
   })
 
   it('recalls a finalized ACP child through source-qualified linked Tape options', async () => {
@@ -391,9 +358,6 @@ describe('Agent tape tools', () => {
       maxTotalBytes: undefined,
       sourceSessionId: 'acp-child'
     })
-    expect(runtimePort.tape.getTapeInfo).not.toHaveBeenCalled()
-    expect(runtimePort.tape.listTapeAnchors).not.toHaveBeenCalled()
-    expect(runtimePort.tape.handoffTape).not.toHaveBeenCalled()
   })
 
   it('rejects invalid cross-Tape selectors before calling the runtime', async () => {
@@ -447,9 +411,8 @@ describe('Agent tape tools', () => {
         `Tape tool '${toolName}' is not available to the model.`
       )
 
-      expect(runtimePort.tape.getTapeInfo).not.toHaveBeenCalled()
-      expect(runtimePort.tape.listTapeAnchors).not.toHaveBeenCalled()
-      expect(runtimePort.tape.handoffTape).not.toHaveBeenCalled()
+      expect(runtimePort.tape.searchTape).not.toHaveBeenCalled()
+      expect(runtimePort.tape.getTapeContext).not.toHaveBeenCalled()
     }
   )
 })

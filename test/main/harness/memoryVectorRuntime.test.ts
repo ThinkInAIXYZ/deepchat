@@ -49,8 +49,8 @@ async function create(memoryDbDir?: string) {
     }
   )
   await copyFiles(matchers)
-  const { shareHarnessDuckDbNativePackage } = await import('../../../scripts/afterPack.js')
-  await shareHarnessDuckDbNativePackage({
+  const { validateHarnessDuckDbNativePackage } = await import('../../../scripts/afterPack.js')
+  await validateHarnessDuckDbNativePackage({
     appOutDir: root,
     electronPlatformName: process.platform,
     arch: process.arch

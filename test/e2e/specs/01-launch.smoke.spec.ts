@@ -141,15 +141,17 @@ test('Core owner failure ends the app generation and permits profile reopen @smo
   await waitForAppReady(active.page)
   const appProcess = active.electronApp.process()
   const settings = await openSettings(active)
-  await active.electronApp.evaluate(({ webContents }, url) => {
-    const target = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+  const settingsWindow = await active.electronApp.browserWindow(settings)
+  const rendererId = await settingsWindow.evaluate((window) => window.webContents.id)
+  await active.electronApp.evaluate(({ webContents }, rendererId) => {
+    const target = webContents.fromId(rendererId)
     if (!target) throw new Error('Owned settings renderer is missing')
     const original = webContents.fromId
     webContents.fromId = (id) => {
       if (id === target.id) throw new Error('Native renderer registration was refused')
       return original.call(webContents, id)
     }
-  }, settings.url())
+  }, rendererId)
   const pending = settings
     .evaluate(() =>
       window.deepchat.invoke('sessions.create', {
