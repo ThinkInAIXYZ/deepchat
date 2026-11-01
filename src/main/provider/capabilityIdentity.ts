@@ -2,6 +2,8 @@ import {
   isClaudeFamilyModelId,
   isDeepSeekSeriesModelId,
   isGeminiFamilyModelId,
+  isGemmaFamilyModelId,
+  isOpenAIFamilyModelId,
   type NewApiCapabilityFamilyHint,
   type NewApiEndpointType
 } from '@shared/model'
@@ -176,6 +178,9 @@ const getModelFamilyProviderIds = (modelId: string): string[] => {
   if (isGeminiFamilyModelId(modelId)) {
     addUniqueProviderId(providerIds, 'google')
   }
+  if (isGemmaFamilyModelId(modelId)) {
+    addUniqueProviderId(providerIds, 'google')
+  }
   if (normalizedModelId.includes('kimi') || normalizedModelId.includes('moonshot')) {
     addUniqueProviderId(providerIds, 'moonshot')
   }
@@ -205,6 +210,9 @@ const getModelFamilyProviderIds = (modelId: string): string[] => {
     addUniqueProviderId(providerIds, 'cohere')
   }
   if (canonicalModelId.startsWith('gpt-oss-')) {
+    addUniqueProviderId(providerIds, 'openai')
+  }
+  if (isOpenAIFamilyModelId(modelId)) {
     addUniqueProviderId(providerIds, 'openai')
   }
   if (normalizedModelId.includes('qwen') || normalizedModelId.includes('qwq')) {
@@ -370,6 +378,14 @@ export const resolveCapabilityIdentity = (
   const uniqueMatch = modelCapabilities.findUniqueCapabilityModelMatch(input.modelId)
   if (uniqueMatch) {
     return toMatchedIdentity(uniqueMatch, input.modelId)
+  }
+
+  // Gateways (e.g. New API) have no catalog entry of their own, and the same upstream model id
+  // often appears under many provider entries. Use the catalog only when most entries agree on
+  // the model's capability profile; genuinely conflicting ids still resolve without a match.
+  const dominantMatch = modelCapabilities.findDominantCapabilityModelMatch(input.modelId)
+  if (dominantMatch) {
+    return toMatchedIdentity(dominantMatch, input.modelId)
   }
 
   return {

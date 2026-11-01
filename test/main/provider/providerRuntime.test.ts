@@ -368,7 +368,7 @@ describe('ProviderRuntime Integration Tests', () => {
       expect(currentProvider?.id).toBe('mock-openai-api')
     })
 
-    it('defers provider bootstrap until a provider instance is requested', async () => {
+    it('never bootstraps the catalog from provider instance creation', async () => {
       const fetchSpy = vi.spyOn(AiSdkProvider.prototype, 'fetchModels').mockResolvedValue([])
 
       const presenter = createProviderRuntime(mockProviderSettings)
@@ -382,7 +382,7 @@ describe('ProviderRuntime Integration Tests', () => {
       await Promise.resolve()
       await Promise.resolve()
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1)
+      expect(fetchSpy).not.toHaveBeenCalled()
     })
 
     it('should resolve novita via apiType fallback without an id-specific provider mapping', () => {

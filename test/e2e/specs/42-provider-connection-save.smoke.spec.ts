@@ -294,6 +294,123 @@ test('custom providers can be saved without a probe @smoke', async ({ app }, tes
   }
 })
 
+test('refresh discovers models added to the upstream catalog @smoke', async ({ app }, testInfo) => {
+  let catalogIds = ['fixture-alpha']
+  const server = createServer((request, response) => {
+    if (!request.url?.endsWith('/v1/models')) {
+      response.writeHead(404).end()
+      return
+    }
+    response.writeHead(200, { 'Content-Type': 'application/json' })
+    response.end(
+      JSON.stringify({
+        object: 'list',
+        data: catalogIds.map((id) => ({ id, object: 'model', owned_by: 'fixture' }))
+      })
+    )
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const { port } = server.address() as { port: number }
+  const baseUrl = `http://127.0.0.1:${port}`
+  try {
+    await waitForAppReady(app.page)
+    await app.page.evaluate(async (url) => {
+      await window.deepchat.invoke('providers.update', {
+        providerId: 'new-api',
+        updates: { apiKey: 'catalog-fixture-key', baseUrl: url, enable: true }
+      })
+    }, baseUrl)
+
+    const page = await openSettings(app)
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await openSettingsTab(page, 'settings-tab-model-providers')
+    await selectProvider(page, 'new-api')
+
+    const modelSection = page.getByTestId('provider-models-section')
+    await page.getByTestId('provider-models-refresh-button').click()
+    await expect(
+      modelSection.getByTestId('provider-model-toggle-new-api-fixture-alpha')
+    ).toBeVisible()
+    const lastSynced = page.getByTestId('provider-catalog-last-synced')
+    await expect(lastSynced).toBeVisible()
+    await lastSynced.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: testInfo.outputPath('catalog-first-refresh.png') })
+
+    // The reported defect: after one cached discovery, later upstream additions never appeared.
+    catalogIds = ['fixture-alpha', 'fixture-beta']
+    await page.getByTestId('provider-models-refresh-button').click()
+    await modelSection.getByRole('textbox').fill('fixture-beta')
+    const betaToggle = modelSection.getByTestId('provider-model-toggle-new-api-fixture-beta')
+    await expect(betaToggle).toBeVisible()
+    await betaToggle.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: testInfo.outputPath('catalog-second-refresh.png') })
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
+test('connect and load preselects the new provider catalog @smoke', async ({ app }) => {
+  const requestedPaths: string[] = []
+  const server = createServer((request, response) => {
+    requestedPaths.push(`${request.method} ${request.url}`)
+    if (!request.url?.endsWith('/v1/models')) {
+      response.writeHead(404).end()
+      return
+    }
+    response.writeHead(200, { 'Content-Type': 'application/json' })
+    response.end(
+      JSON.stringify({
+        object: 'list',
+        data: ['fixture-chat-a', 'fixture-chat-b'].map((id) => ({
+          id,
+          object: 'model',
+          owned_by: 'fixture'
+        }))
+      })
+    )
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const { port } = server.address() as { port: number }
+  try {
+    await waitForAppReady(app.page)
+    const page = await openSettings(app)
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await openSettingsTab(page, 'settings-tab-model-providers')
+    await page.getByTestId('provider-add-button').click()
+    await page.getByTestId('add-provider-name').fill('Catalog fixture')
+    await page.getByTestId('add-provider-base-url').fill(`http://127.0.0.1:${port}/v1`)
+    await page.getByTestId('add-provider-api-key').fill('fixture-key')
+    await page.getByTestId('add-provider-connect').click()
+    await expect(page.getByTestId('add-provider-success')).toBeVisible()
+
+    const providerId = await page.evaluate(async () => {
+      const { providers } = await window.deepchat.invoke('providers.list', {})
+      return providers.find((provider) => provider.name === 'Catalog fixture')?.id
+    })
+    expect(providerId).toBeTruthy()
+    const catalog = await page.evaluate(async (id) => {
+      const { catalog } = await window.deepchat.invoke('providers.catalog.get', {
+        providerId: id
+      })
+      return catalog
+    }, providerId!)
+    expect(
+      catalog.models
+        .filter((model) => model.enabled)
+        .map((model) => model.id)
+        .sort()
+    ).toEqual(['fixture-chat-a', 'fixture-chat-b'])
+    await expect(page.getByTestId('add-provider-success-description')).toContainText(
+      /Loaded 2 models and preselected 2|已加载 2 个模型，预选 2 个/
+    )
+    expect(requestedPaths.filter((path) => path === 'GET /v1/models').length).toBeGreaterThan(0)
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('provider-specific fields and save errors remain visible @smoke', async ({
   app
 }, testInfo) => {

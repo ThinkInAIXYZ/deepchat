@@ -7,6 +7,7 @@ import type {
   RENDERER_MODEL_META,
   IModelConfig
 } from '@shared/types/provider'
+import type { ProviderCatalogState, ProviderCatalogStatePatch } from '@shared/types/providerCatalog'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import {
   ModelType,
@@ -255,7 +256,22 @@ export interface ProviderSettingsPort {
   getProviderById(id: string): LLM_PROVIDER | undefined
   setProviderById(id: string, provider: LLM_PROVIDER): void
   getProviderModels(providerId: string): MODEL_META[]
+  getRawProviderModels(providerId: string): MODEL_META[]
+  getRawCustomModels(providerId: string): MODEL_META[]
   resolveEffectiveModels(models: MODEL_META[], providerId: string): MODEL_META[]
+  getProviderCatalogState(providerId: string): ProviderCatalogState | undefined
+  setProviderCatalogState(
+    providerId: string,
+    patch: ProviderCatalogStatePatch,
+    options?: { bumpRevision?: boolean }
+  ): ProviderCatalogState
+  applyProviderCatalogUpdate(
+    providerId: string,
+    models: MODEL_META[] | null,
+    patch: ProviderCatalogStatePatch,
+    options?: { bumpRevision?: boolean }
+  ): ProviderCatalogState
+  deleteProviderCatalogState(providerId: string): void
   getProviderModelRouteMetadata(
     providerId: string,
     modelId: string,
@@ -1064,6 +1080,7 @@ export class ProviderSettings implements ProviderSettingsPort {
    */
   removeProviderAtomic(providerId: string): void {
     this.providerHelper.removeProviderAtomic(providerId)
+    this.database.settingsTable.deleteProviderCatalogState(providerId)
   }
 
   /**
@@ -1125,6 +1142,14 @@ export class ProviderSettings implements ProviderSettingsPort {
       this.providerModelHelper.getProviderModels(providerId),
       providerId
     )
+  }
+
+  getRawProviderModels(providerId: string): MODEL_META[] {
+    return this.providerModelHelper.getProviderModels(providerId)
+  }
+
+  getRawCustomModels(providerId: string): MODEL_META[] {
+    return this.providerModelHelper.getCustomModels(providerId)
   }
 
   resolveEffectiveModels(models: MODEL_META[], providerId: string): MODEL_META[] {
@@ -1218,6 +1243,40 @@ export class ProviderSettings implements ProviderSettingsPort {
 
   setProviderModels(providerId: string, models: MODEL_META[]): void {
     this.providerModelHelper.setProviderModels(providerId, models)
+  }
+
+  getProviderCatalogState(providerId: string): ProviderCatalogState | undefined {
+    return this.database.settingsTable.getProviderCatalogState(providerId)
+  }
+
+  setProviderCatalogState(
+    providerId: string,
+    patch: ProviderCatalogStatePatch,
+    options?: { bumpRevision?: boolean }
+  ): ProviderCatalogState {
+    return this.database.settingsTable.setProviderCatalogState(providerId, patch, options)
+  }
+
+  /**
+   * Persists learned catalog facts and their operational state in one commit. A crash can never
+   * leave model rows newer than the `fetched_at`/`revision` that describes them.
+   */
+  applyProviderCatalogUpdate(
+    providerId: string,
+    models: MODEL_META[] | null,
+    patch: ProviderCatalogStatePatch,
+    options?: { bumpRevision?: boolean }
+  ): ProviderCatalogState {
+    return this.database.settingsTable.runInTransaction(() => {
+      if (models) {
+        this.setProviderModels(providerId, models)
+      }
+      return this.setProviderCatalogState(providerId, patch, options)
+    })
+  }
+
+  deleteProviderCatalogState(providerId: string): void {
+    this.database.settingsTable.deleteProviderCatalogState(providerId)
   }
 
   getEnabledProviders(): LLM_PROVIDER[] {

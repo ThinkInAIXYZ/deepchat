@@ -14,7 +14,6 @@ import {
   modelsGetProviderConfigsRoute,
   modelsHasUserConfigRoute,
   modelsImportConfigsRoute,
-  modelsListRuntimeRoute,
   modelsRemoveCustomRoute,
   modelsResetConfigRoute,
   modelsSaveCustomRoute,
@@ -29,76 +28,15 @@ import type { CapabilitySnapshotQuery } from '@shared/types/model-capabilities'
 import { getDeepchatBridge } from './core'
 
 export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) {
-  async function fetchProviderCatalog(providerId: string) {
-    const result = await bridge.invoke(modelsGetProviderCatalogRoute.name, { providerId })
-    return result.catalog
-  }
-
   async function fetchCapabilities(query: CapabilitySnapshotQuery) {
     return await bridge.invoke(modelsGetCapabilitiesRoute.name, query)
   }
 
-  type ProviderCatalog = Awaited<ReturnType<typeof fetchProviderCatalog>>
-  type ProviderCatalogCacheEntry = {
-    expiresAt: number
-    promise: Promise<ProviderCatalog>
-  }
-
-  const catalogCache = new Map<string, ProviderCatalogCacheEntry>()
   const capabilitiesCache = new Map<string, ReturnType<typeof fetchCapabilities>>()
 
-  function clearProviderCatalogCache(providerId?: string) {
-    if (providerId) {
-      catalogCache.delete(providerId)
-      return
-    }
-
-    catalogCache.clear()
-  }
-
-  async function getProviderCatalog(providerId: string) {
-    const cached = catalogCache.get(providerId)
-    const now = Date.now()
-    if (cached && cached.expiresAt > now) {
-      return await cached.promise
-    }
-
-    const promise = fetchProviderCatalog(providerId)
-    catalogCache.set(providerId, {
-      expiresAt: now + 200,
-      promise
-    })
-    return await promise
-  }
-
-  async function getProviderModels(providerId: string) {
-    const catalog = await getProviderCatalog(providerId)
-    return catalog.providerModels
-  }
-
-  async function getCustomModels(providerId: string) {
-    const catalog = await getProviderCatalog(providerId)
-    return catalog.customModels
-  }
-
   async function getDbProviderModels(providerId: string) {
-    const catalog = await getProviderCatalog(providerId)
-    return catalog.dbProviderModels
-  }
-
-  async function getBatchModelStatus(providerId: string, modelIds: string[]) {
-    const catalog = await getProviderCatalog(providerId)
-    const result: Record<string, boolean> = {}
-    for (const modelId of modelIds) {
-      result[modelId] = catalog.modelStatusMap[modelId] ?? false
-    }
-    return result
-  }
-
-  async function getModelList(providerId: string) {
-    const result = await bridge.invoke(modelsListRuntimeRoute.name, { providerId })
-    clearProviderCatalogCache(providerId)
-    return result.models
+    const result = await bridge.invoke(modelsGetProviderCatalogRoute.name, { providerId })
+    return result.catalog.dbProviderModels
   }
 
   async function updateModelStatus(providerId: string, modelId: string, enabled: boolean) {
@@ -107,7 +45,6 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
       modelId,
       enabled
     })
-    clearProviderCatalogCache(providerId)
     return result
   }
 
@@ -119,7 +56,6 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
       providerId,
       updates
     })
-    clearProviderCatalogCache(providerId)
     return result
   }
 
@@ -128,7 +64,6 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
     model: Omit<RENDERER_MODEL_META, 'providerId' | 'isCustom' | 'group'>
   ) {
     const result = await bridge.invoke(modelsAddCustomRoute.name, { providerId, model })
-    clearProviderCatalogCache(providerId)
     return result.model
   }
 
@@ -144,13 +79,11 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
       model,
       config: config as any
     })
-    clearProviderCatalogCache(providerId)
     return result.model
   }
 
   async function removeCustomModel(providerId: string, modelId: string) {
     const result = await bridge.invoke(modelsRemoveCustomRoute.name, { providerId, modelId })
-    clearProviderCatalogCache(providerId)
     return result.removed
   }
 
@@ -164,7 +97,6 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
       modelId,
       updates
     })
-    clearProviderCatalogCache(providerId)
     return result.updated
   }
 
@@ -179,7 +111,6 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
       providerId,
       config: config as any
     })
-    clearProviderCatalogCache(providerId)
     return result.config
   }
 
@@ -188,7 +119,6 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
       modelId,
       providerId
     })
-    clearProviderCatalogCache(providerId)
     return result.reset
   }
 
@@ -334,12 +264,7 @@ export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) 
   }
 
   return {
-    clearProviderCatalogCache,
-    getProviderModels,
-    getCustomModels,
     getDbProviderModels,
-    getBatchModelStatus,
-    getModelList,
     updateModelStatus,
     setBatchModelStatus,
     addCustomModel,

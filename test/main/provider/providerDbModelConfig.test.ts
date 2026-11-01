@@ -339,7 +339,12 @@ describe('Provider DB strict matching and user overrides', () => {
     })
     expect(
       resolveCapabilityIdentity({ providerId: 'custom-relay', modelId: 'codex/gpt-5.6-sol' })
-    ).toMatchObject({ catalogMatched: false })
+    ).toMatchObject({
+      providerId: 'openai',
+      requestModelId: 'codex/gpt-5.6-sol',
+      catalogMatched: true,
+      catalogModelId: 'gpt-5.6-sol'
+    })
     expect(
       resolveCapabilityIdentity({ providerId: 'magpie', modelId: 'cursor/auto' })
     ).toMatchObject({ requestModelId: 'cursor/auto', catalogMatched: false })
@@ -531,13 +536,13 @@ describe('Provider DB strict matching and user overrides', () => {
     expect(config.reasoningEffort).toBeUndefined()
   })
 
-  it('uses safe defaults instead of selecting an ambiguous global model match', () => {
+  it('uses the dominant catalog profile when limits differ but capabilities agree', () => {
     const helper = new ModelConfigHelper()
 
     const cfg = helper.getModelConfig('shared-model', 'new-api')
 
-    expect(cfg.contextLength).toBe(16000)
-    expect(cfg.maxTokens).toBe(4096)
+    expect(cfg.contextLength).toBe(22222)
+    expect(cfg.maxTokens).toBe(2222)
   })
 
   it('keeps New API catalog defaults stable across reset, refresh, and restart', () => {

@@ -33,8 +33,11 @@ import {
   type VideoGenerationOptions
 } from '@shared/videoGenerationSettings'
 import { normalizeTtsSettings, type TtsSettings } from '@shared/ttsSettings'
-import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
-import { isProviderDbBackedProvider } from './providerRegistry'
+import {
+  ProviderChange,
+  ProviderBatchUpdate,
+  checkRequiresRebuild
+} from '@shared/provider-operations'
 import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
@@ -61,6 +64,12 @@ import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import { AcpProvider } from './providers/acpProvider'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import type {
+  ProviderCatalogRefreshReason,
+  ProviderCatalogRefreshResult,
+  ProviderCatalogSnapshot
+} from '@shared/types/providerCatalog'
+import { ProviderCatalogService } from './catalog/providerCatalogService'
 
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -134,13 +143,13 @@ export class ProviderRuntime
 {
   private currentProviderId: string | null = null
   private readonly activeStreams: Map<string, StreamState> = new Map()
-  private readonly modelRefreshPromises: Map<string, Promise<void>> = new Map()
   private readonly providerSettings: ProviderSettingsPort
   private readonly config: ProviderConfig = {
     maxConcurrentStreams: 10
   }
   private readonly rateLimitManager: RateLimitManager
   private readonly providerInstanceManager: ProviderInstanceManager
+  private readonly providerCatalogService: ProviderCatalogService
   private readonly modelManager: ModelManager
   private readonly ollamaManager: OllamaManager
   private readonly embeddingManager: EmbeddingManager
@@ -166,6 +175,15 @@ export class ProviderRuntime
     )
     this.acpRuntimeOwner = acpRuntimeOwner
     this.acpSessionPersistence = acpSessionPersistence
+    this.providerCatalogService = new ProviderCatalogService({
+      settings: providerSettings,
+      source: {
+        fetchCatalog: (providerId) => this.getProviderInstance(providerId).fetchCatalog(),
+        reloadModels: (providerId) =>
+          this.getExistingProviderInstance(providerId)?.reloadModelsFromSettings()
+      },
+      publishEvent: this.publishEvent
+    })
     this.providerInstanceManager = new ProviderInstanceManager({
       providerSettings,
       locale,
@@ -177,7 +195,8 @@ export class ProviderRuntime
         this.currentProviderId = providerId
       },
       acpRuntimeOwner: this.acpRuntimeOwner,
-      publishEvent: this.publishEvent
+      publishEvent: this.publishEvent,
+      catalogWriter: this.providerCatalogService
     })
     this.modelManager = new ModelManager({
       providerSettings,
@@ -212,11 +231,20 @@ export class ProviderRuntime
   }
 
   setProviderById(providerId: string, provider: LLM_PROVIDER): void {
-    if (!this.providerSettings.getProviderById(providerId)) {
+    const previous = this.providerSettings.getProviderById(providerId)
+    if (!previous) {
       return
     }
     this.providerSettings.setProviderById(providerId, provider)
     this.replaceProviders(this.providerSettings.getProviders())
+    const updatedFields = Object.fromEntries(
+      Object.entries(provider).filter(
+        ([key, value]) => (previous as Record<string, unknown>)[key] !== value
+      )
+    )
+    if (checkRequiresRebuild(updatedFields)) {
+      this.providerCatalogService.onProviderConfigChanged(providerId)
+    }
   }
 
   updateProviderAtomic(providerId: string, updates: Partial<LLM_PROVIDER>): boolean {
@@ -230,12 +258,29 @@ export class ProviderRuntime
       requiresRebuild,
       updates
     })
+    if (requiresRebuild) {
+      this.providerCatalogService.onProviderConfigChanged(providerId)
+    }
     return requiresRebuild
   }
 
   updateProvidersBatch(batchUpdate: ProviderBatchUpdate): void {
+    const previousProviderIds = new Set(
+      this.providerSettings.getProviders().map((provider) => provider.id)
+    )
     this.providerSettings.updateProvidersBatch(batchUpdate)
     this.handleProviderBatchUpdate(batchUpdate)
+    const nextProviderIds = new Set(batchUpdate.providers.map((provider) => provider.id))
+    for (const providerId of previousProviderIds) {
+      if (!nextProviderIds.has(providerId)) {
+        this.providerCatalogService.forgetCatalog(providerId)
+      }
+    }
+    for (const change of batchUpdate.changes) {
+      if (change.operation !== 'reorder' && change.requiresRebuild) {
+        this.providerCatalogService.onProviderConfigChanged(change.providerId)
+      }
+    }
   }
 
   addProviderAtomic(provider: LLM_PROVIDER): void {
@@ -246,6 +291,7 @@ export class ProviderRuntime
       requiresRebuild: true,
       provider
     })
+    this.providerCatalogService.onProviderConfigChanged(provider.id)
   }
 
   removeProviderAtomic(providerId: string): void {
@@ -267,7 +313,45 @@ export class ProviderRuntime
   }
 
   handleProviderDbUpdated(): void {
-    this.refreshEnabledProviderDbBackedModelsInBackground('provider-db-updated')
+    this.providerCatalogService.onProviderDbUpdated()
+  }
+
+  getProviderCatalog(providerId: string): ProviderCatalogSnapshot {
+    return this.providerCatalogService.getSnapshot(providerId)
+  }
+
+  listProviderCatalogs(providerIds?: string[]): ProviderCatalogSnapshot[] {
+    return this.providerCatalogService.listSnapshots(providerIds)
+  }
+
+  refreshProviderCatalog(
+    providerId: string,
+    reason: ProviderCatalogRefreshReason = 'user'
+  ): Promise<ProviderCatalogRefreshResult> {
+    return this.providerCatalogService.refresh(providerId, reason)
+  }
+
+  ensureProviderCatalogFresh(providerId: string): boolean {
+    return this.providerCatalogService.ensureFresh(providerId)
+  }
+
+  replaceProviderCatalogFromSource(
+    providerId: string,
+    models: MODEL_META[],
+    reason: ProviderCatalogRefreshReason = 'external-write'
+  ): ProviderCatalogRefreshResult {
+    return this.providerCatalogService.replaceFromSource(providerId, models, reason)
+  }
+
+  notifyProviderCatalogExternalWrite(
+    providerId: string,
+    reason: ProviderCatalogRefreshReason = 'external-write'
+  ): void {
+    this.providerCatalogService.onExternalCatalogWrite(providerId, reason)
+  }
+
+  invalidateProviderCatalogFromSync(providerId: string): void {
+    this.providerCatalogService.invalidateFromSync(providerId)
   }
 
   getProviders(): LLM_PROVIDER[] {
@@ -1003,67 +1087,11 @@ export class ProviderRuntime
     }
   }
 
-  private getEnabledProviderIdsUsingProviderDb(): string[] {
-    return this.providerInstanceManager
-      .getProviders()
-      .filter(
-        (provider) =>
-          provider.enable &&
-          isProviderDbBackedProvider(provider.id) &&
-          provider.id !== 'openai-codex'
-      )
-      .map((provider) => provider.id)
-  }
-
-  private async syncProviderDbBeforeRefresh(providerId: string): Promise<void> {
-    if (!isProviderDbBackedProvider(providerId)) {
-      return
-    }
-
-    const result = await this.providerSettings.refreshProviderDb(true)
-    if (result.status === 'error') {
-      throw new Error(result.message || 'Provider DB refresh failed')
-    }
-  }
-
-  private enqueueProviderModelRefresh(providerId: string): Promise<void> {
-    const existingRefresh = this.modelRefreshPromises.get(providerId)
-    if (existingRefresh) {
-      return existingRefresh
-    }
-
-    const refreshPromise = (async () => {
-      const provider = this.getProviderInstance(providerId)
-      await provider.refreshModels()
-    })().finally(() => {
-      if (this.modelRefreshPromises.get(providerId) === refreshPromise) {
-        this.modelRefreshPromises.delete(providerId)
-      }
-    })
-
-    this.modelRefreshPromises.set(providerId, refreshPromise)
-    return refreshPromise
-  }
-
-  private refreshEnabledProviderDbBackedModelsInBackground(reason: string): void {
-    for (const providerId of this.getEnabledProviderIdsUsingProviderDb()) {
-      void this.enqueueProviderModelRefresh(providerId).catch((error) => {
-        console.warn(
-          `[ProviderRuntime] Failed to refresh models for provider ${providerId} during ${reason}:`,
-          error
-        )
-      })
-    }
-  }
-
   async refreshModels(providerId: string): Promise<void> {
-    try {
-      await this.syncProviderDbBeforeRefresh(providerId)
-      await this.enqueueProviderModelRefresh(providerId)
-    } catch (error) {
-      console.error(`Failed to refresh models for provider ${providerId}:`, error)
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      throw new Error(`Model refresh failed: ${errorMessage}`)
+    const result = await this.providerCatalogService.refresh(providerId, 'user')
+    if (result.status === 'failed') {
+      // Never surface upstream errors here: they can contain connection credentials.
+      throw new Error(`Model refresh failed: ${result.errorCode ?? 'unknown'}`)
     }
   }
 
@@ -1071,11 +1099,17 @@ export class ProviderRuntime
     providerId: string,
     model: Omit<MODEL_META, 'providerId' | 'isCustom' | 'group'>
   ): Promise<MODEL_META> {
-    return this.modelManager.addCustomModel(providerId, model)
+    const added = await this.modelManager.addCustomModel(providerId, model)
+    this.providerCatalogService.onExternalCatalogWrite(providerId, 'external-write')
+    return added
   }
 
   async removeCustomModel(providerId: string, modelId: string): Promise<boolean> {
-    return this.modelManager.removeCustomModel(providerId, modelId)
+    const removed = await this.modelManager.removeCustomModel(providerId, modelId)
+    if (removed) {
+      this.providerCatalogService.onExternalCatalogWrite(providerId, 'external-write')
+    }
+    return removed
   }
 
   async updateCustomModel(
@@ -1083,7 +1117,11 @@ export class ProviderRuntime
     modelId: string,
     updates: Partial<MODEL_META>
   ): Promise<boolean> {
-    return this.modelManager.updateCustomModel(providerId, modelId, updates)
+    const updated = await this.modelManager.updateCustomModel(providerId, modelId, updates)
+    if (updated) {
+      this.providerCatalogService.onExternalCatalogWrite(providerId, 'external-write')
+    }
+    return updated
   }
 
   async getCustomModels(providerId: string): Promise<MODEL_META[]> {

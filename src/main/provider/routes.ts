@@ -41,6 +41,10 @@ import {
   oauthXaiGrokLogoutRoute,
   oauthXaiGrokStartDeviceLoginRoute,
   providersAddRoute,
+  providersCatalogEnsureFreshRoute,
+  providersCatalogGetRoute,
+  providersCatalogListRoute,
+  providersCatalogRefreshRoute,
   providersValidateDraftRoute,
   providersGetAcpProcessConfigOptionsRoute,
   providersGetEmbeddingDimensionsRoute,
@@ -442,6 +446,56 @@ export function createProviderRoutes(deps: {
       }
     ],
     [
+      providersCatalogGetRoute.name,
+      async (rawInput) => {
+        const input = providersCatalogGetRoute.input.parse(rawInput)
+        return providersCatalogGetRoute.output.parse({
+          catalog: providerRuntime.getProviderCatalog(input.providerId)
+        })
+      }
+    ],
+    [
+      providersCatalogListRoute.name,
+      async (rawInput) => {
+        const input = providersCatalogListRoute.input.parse(rawInput)
+        return providersCatalogListRoute.output.parse({
+          catalogs: providerRuntime.listProviderCatalogs(input.providerIds)
+        })
+      }
+    ],
+    [
+      providersCatalogRefreshRoute.name,
+      async (rawInput) => {
+        const input = providersCatalogRefreshRoute.input.parse(rawInput)
+        const result = await providerRuntime.refreshProviderCatalog(input.providerId, input.reason)
+        const catalog = providerRuntime.getProviderCatalog(input.providerId)
+        const provider = providerSettings.getProviderById(input.providerId)
+        if (result.status !== 'failed' && result.status !== 'superseded') {
+          recordActivity({
+            category: 'provider',
+            action: 'refreshed',
+            targetType: 'provider',
+            targetId: input.providerId,
+            targetLabel: provider?.name ?? input.providerId,
+            routeName: 'settings-provider',
+            routeParams: { providerId: input.providerId },
+            summaryKey: 'settings.controlCenter.activity.providerModelsRefreshed',
+            summaryParams: { name: provider?.name ?? input.providerId }
+          })
+        }
+        return providersCatalogRefreshRoute.output.parse({ result, catalog })
+      }
+    ],
+    [
+      providersCatalogEnsureFreshRoute.name,
+      async (rawInput) => {
+        const input = providersCatalogEnsureFreshRoute.input.parse(rawInput)
+        return providersCatalogEnsureFreshRoute.output.parse({
+          scheduled: providerRuntime.ensureProviderCatalogFresh(input.providerId)
+        })
+      }
+    ],
+    [
       providersListOllamaModelsRoute.name,
       async (rawInput) => {
         const input = providersListOllamaModelsRoute.input.parse(rawInput)
@@ -610,12 +664,12 @@ export function createProviderRoutes(deps: {
       async (rawInput, context) => {
         requireRendererCaller(context)
         const input = modelsSaveCustomRoute.input.parse(rawInput)
-        return modelsSaveCustomRoute.output.parse({
-          model: providerSettings.saveCustomModel({
-            ...input,
-            model: input.model as MODEL_META
-          })
+        const savedModel = providerSettings.saveCustomModel({
+          ...input,
+          model: input.model as MODEL_META
         })
+        providerRuntime.notifyProviderCatalogExternalWrite(input.providerId)
+        return modelsSaveCustomRoute.output.parse({ model: savedModel })
       }
     ],
     [
@@ -654,6 +708,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         const input = modelsSetConfigRoute.input.parse(rawInput)
         providerSettings.setModelConfig(input.modelId, input.providerId, input.config)
+        providerRuntime.notifyProviderCatalogExternalWrite(input.providerId, 'config')
         return modelsSetConfigRoute.output.parse({
           config: providerSettings.getModelConfig(input.modelId, input.providerId)
         })
@@ -664,6 +719,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         const input = modelsResetConfigRoute.input.parse(rawInput)
         providerSettings.resetModelConfig(input.modelId, input.providerId)
+        providerRuntime.notifyProviderCatalogExternalWrite(input.providerId, 'config')
         return modelsResetConfigRoute.output.parse({ reset: true })
       }
     ],

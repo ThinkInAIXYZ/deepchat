@@ -1,9 +1,11 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LLM_PROVIDER } from '@shared/types/provider'
+import type { LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
+import type { ProviderCatalogState, ProviderCatalogStatePatch } from '@shared/types/providerCatalog'
+import { checkRequiresRebuild } from '@shared/provider-operations'
 import type { MainDatabase } from '../../../src/main/data/mainDatabase'
 import { ProviderRuntime } from '../../../src/main/provider'
-import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
+import { BaseLLMProvider } from '../../../src/main/provider/baseProvider'
 import { AcpRuntimeOwner } from '@/agent/acp/client'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
 
@@ -71,12 +73,68 @@ const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   ...overrides
 })
 
-const createProviderSettings = (provider = createProvider()) =>
-  ({
+const createProviderSettings = (provider = createProvider()) => {
+  const providerModels: Record<string, MODEL_META[]> = {}
+  const customModels: Record<string, MODEL_META[]> = {}
+  const catalogStates = new Map<string, ProviderCatalogState>()
+
+  const setProviderCatalogState = vi.fn(
+    (
+      providerId: string,
+      patch: ProviderCatalogStatePatch,
+      options: { bumpRevision?: boolean } = {}
+    ) => {
+      const existing = catalogStates.get(providerId)
+      const next: ProviderCatalogState = {
+        providerId,
+        revision: (existing?.revision ?? 0) + (options.bumpRevision ? 1 : 0),
+        fetchedAt: patch.fetchedAt !== undefined ? patch.fetchedAt : (existing?.fetchedAt ?? null),
+        source: patch.source !== undefined ? patch.source : (existing?.source ?? null),
+        lastRefreshReason:
+          patch.lastRefreshReason !== undefined
+            ? patch.lastRefreshReason
+            : (existing?.lastRefreshReason ?? null),
+        lastErrorCode:
+          patch.lastErrorCode !== undefined
+            ? patch.lastErrorCode
+            : (existing?.lastErrorCode ?? null),
+        lastErrorAt:
+          patch.lastErrorAt !== undefined ? patch.lastErrorAt : (existing?.lastErrorAt ?? null)
+      }
+      catalogStates.set(providerId, next)
+      return next
+    }
+  )
+
+  return {
     getProviders: vi.fn().mockReturnValue([provider]),
     getProviderById: vi.fn().mockReturnValue(provider),
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
+    getRawProviderModels: vi.fn((providerId: string) => providerModels[providerId] ?? []),
+    getRawCustomModels: vi.fn((providerId: string) => customModels[providerId] ?? []),
+    getDbProviderModels: vi.fn().mockReturnValue([]),
+    resolveEffectiveModels: vi.fn((models: MODEL_META[]) => models),
+    getBatchModelStatus: vi.fn((_providerId: string, modelIds: string[]) =>
+      Object.fromEntries(modelIds.map((modelId) => [modelId, false]))
+    ),
+    getProviderCatalogState: vi.fn((providerId: string) => catalogStates.get(providerId)),
+    setProviderCatalogState,
+    applyProviderCatalogUpdate: vi.fn(
+      (
+        providerId: string,
+        models: MODEL_META[] | null,
+        patch: ProviderCatalogStatePatch,
+        options: { bumpRevision?: boolean } = {}
+      ) => {
+        if (models) {
+          providerModels[providerId] = models
+        }
+        return setProviderCatalogState(providerId, patch, options)
+      }
+    ),
+    deleteProviderCatalogState: vi.fn((providerId: string) => catalogStates.delete(providerId)),
+    notifyModelsChanged: vi.fn(),
     getModelConfig: vi.fn().mockReturnValue({
       maxTokens: 4096,
       contextLength: 8192,
@@ -92,12 +150,18 @@ const createProviderSettings = (provider = createProvider()) =>
       lastUpdated: Date.now(),
       providersCount: 1
     }),
-    setProviderModels: vi.fn(),
+    setProviderModels: vi.fn((providerId: string, models: MODEL_META[]) => {
+      providerModels[providerId] = models
+    }),
     getModelStatus: vi.fn().mockReturnValue(true),
+    updateProviderAtomic: vi.fn((_providerId: string, updates: Partial<LLM_PROVIDER>) =>
+      checkRequiresRebuild(updates)
+    ),
     updateCustomModel: vi.fn(),
     addCustomModel: vi.fn(),
     removeCustomModel: vi.fn()
-  }) as unknown as ProviderSettingsPort
+  } as unknown as ProviderSettingsPort
+}
 
 const mockSqlitePresenter = {
   getAcpSession: vi.fn().mockResolvedValue(null),
@@ -148,16 +212,16 @@ describe('ProviderRuntime background model sync', () => {
   })
 
   it('does not trigger an extra startup refresh for non DB-backed providers', async () => {
-    const refreshSpy = vi
-      .spyOn(AiSdkProvider.prototype, 'refreshModels')
-      .mockResolvedValue(undefined)
+    const fetchCatalogSpy = vi
+      .spyOn(BaseLLMProvider.prototype, 'fetchCatalog')
+      .mockResolvedValue([])
 
     const presenter = createProviderRuntime(createProviderSettings())
     await Promise.resolve()
     await Promise.resolve()
 
     expect(presenter.getProviders()).toHaveLength(1)
-    expect(refreshSpy).not.toHaveBeenCalled()
+    expect(fetchCatalogSpy).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -167,9 +231,9 @@ describe('ProviderRuntime background model sync', () => {
     'xiaomi-token-plan-sgp',
     'xiaomi-token-plan-ams'
   ])('re-syncs enabled %s models when provider-db updates', async (id) => {
-    const refreshSpy = vi
-      .spyOn(AiSdkProvider.prototype, 'refreshModels')
-      .mockResolvedValue(undefined)
+    const fetchCatalogSpy = vi
+      .spyOn(BaseLLMProvider.prototype, 'fetchCatalog')
+      .mockResolvedValue([])
 
     const presenter = createProviderRuntime(
       createProviderSettings(
@@ -183,17 +247,17 @@ describe('ProviderRuntime background model sync', () => {
     )
     await Promise.resolve()
     await Promise.resolve()
-    refreshSpy.mockClear()
+    fetchCatalogSpy.mockClear()
 
     await notifyProviderDbUpdated(presenter)
 
-    expect(refreshSpy).toHaveBeenCalledTimes(1)
+    expect(fetchCatalogSpy).toHaveBeenCalledTimes(1)
   })
 
   it('skips OpenAI Codex when provider-db updates in the background', async () => {
-    const refreshSpy = vi
-      .spyOn(AiSdkProvider.prototype, 'refreshModels')
-      .mockResolvedValue(undefined)
+    const fetchCatalogSpy = vi
+      .spyOn(BaseLLMProvider.prototype, 'fetchCatalog')
+      .mockResolvedValue([])
 
     const presenter = createProviderRuntime(
       createProviderSettings(
@@ -207,17 +271,18 @@ describe('ProviderRuntime background model sync', () => {
     )
     await Promise.resolve()
     await Promise.resolve()
-    refreshSpy.mockClear()
+    fetchCatalogSpy.mockClear()
 
     await notifyProviderDbUpdated(presenter)
 
-    expect(refreshSpy).not.toHaveBeenCalled()
+    expect(fetchCatalogSpy).not.toHaveBeenCalled()
+    expect(presenter.getProviderCatalog('openai-codex').revision).toBe(1)
   })
 
   it('ignores provider-db updates for providers that do not use the provider DB catalog', async () => {
-    const refreshSpy = vi
-      .spyOn(AiSdkProvider.prototype, 'refreshModels')
-      .mockResolvedValue(undefined)
+    const fetchCatalogSpy = vi
+      .spyOn(BaseLLMProvider.prototype, 'fetchCatalog')
+      .mockResolvedValue([])
 
     const presenter = createProviderRuntime(createProviderSettings())
     await Promise.resolve()
@@ -225,14 +290,15 @@ describe('ProviderRuntime background model sync', () => {
 
     await notifyProviderDbUpdated(presenter)
 
-    expect(refreshSpy).not.toHaveBeenCalled()
+    expect(fetchCatalogSpy).not.toHaveBeenCalled()
+    expect(presenter.getProviderCatalog('novita').revision).toBe(1)
   })
 
   it('coalesces duplicate background refreshes for the same provider', async () => {
-    let resolveRefresh: (() => void) | null = null
-    const refreshSpy = vi.spyOn(AiSdkProvider.prototype, 'refreshModels').mockReturnValue(
-      new Promise<void>((resolve) => {
-        resolveRefresh = resolve
+    let resolveFetch: ((models: MODEL_META[]) => void) | null = null
+    const fetchCatalogSpy = vi.spyOn(BaseLLMProvider.prototype, 'fetchCatalog').mockReturnValue(
+      new Promise<MODEL_META[]>((resolve) => {
+        resolveFetch = resolve
       })
     )
 
@@ -249,20 +315,19 @@ describe('ProviderRuntime background model sync', () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    expect(refreshSpy).not.toHaveBeenCalled()
+    expect(fetchCatalogSpy).not.toHaveBeenCalled()
 
     await notifyProviderDbUpdated(presenter)
     await notifyProviderDbUpdated(presenter)
 
-    expect(refreshSpy).toHaveBeenCalledTimes(1)
+    expect(fetchCatalogSpy).toHaveBeenCalledTimes(1)
 
-    resolveRefresh?.()
-    await Promise.resolve()
-    await Promise.resolve()
+    resolveFetch?.([])
+    await vi.waitFor(() => expect(presenter.getProviderCatalog('doubao').status).toBe('fresh'))
 
     await notifyProviderDbUpdated(presenter)
 
-    expect(refreshSpy).toHaveBeenCalledTimes(2)
+    expect(fetchCatalogSpy).toHaveBeenCalledTimes(2)
   })
 
   it.each([
@@ -280,21 +345,21 @@ describe('ProviderRuntime background model sync', () => {
       baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
     })
     const providerSettings = createProviderSettings(provider)
-    const refreshSpy = vi
-      .spyOn(AiSdkProvider.prototype, 'refreshModels')
-      .mockResolvedValue(undefined)
+    const fetchCatalogSpy = vi
+      .spyOn(BaseLLMProvider.prototype, 'fetchCatalog')
+      .mockResolvedValue([])
 
     const presenter = createProviderRuntime(providerSettings)
     await presenter.refreshModels(id)
 
     expect(providerSettings.refreshProviderDb).toHaveBeenCalledWith(true)
-    expect(refreshSpy).toHaveBeenCalledTimes(1)
+    expect(fetchCatalogSpy).toHaveBeenCalledTimes(1)
     expect(providerSettings.refreshProviderDb.mock.invocationCallOrder[0]).toBeLessThan(
-      refreshSpy.mock.invocationCallOrder[0]
+      fetchCatalogSpy.mock.invocationCallOrder[0]
     )
   })
 
-  it('surfaces provider DB refresh failures without rebuilding DB-backed provider models', async () => {
+  it('falls back to the cached provider DB when the download fails', async () => {
     const provider = createProvider({
       id: 'doubao',
       name: 'Doubao',
@@ -308,36 +373,35 @@ describe('ProviderRuntime background model sync', () => {
       providersCount: 1,
       message: 'network down'
     })
-    const refreshSpy = vi
-      .spyOn(AiSdkProvider.prototype, 'refreshModels')
-      .mockResolvedValue(undefined)
+    const fetchCatalogSpy = vi
+      .spyOn(BaseLLMProvider.prototype, 'fetchCatalog')
+      .mockResolvedValue([])
 
     const presenter = createProviderRuntime(providerSettings)
 
-    await expect(presenter.refreshModels('doubao')).rejects.toThrow(
-      'Model refresh failed: network down'
-    )
-    expect(refreshSpy).not.toHaveBeenCalled()
+    await presenter.refreshModels('doubao')
+
+    expect(fetchCatalogSpy).toHaveBeenCalledTimes(1)
+    expect(presenter.getProviderCatalog('doubao').status).not.toBe('error')
   })
 
   it('does not refresh provider DB for providers that manage models themselves', async () => {
     const providerSettings = createProviderSettings()
-    const refreshSpy = vi
-      .spyOn(AiSdkProvider.prototype, 'refreshModels')
-      .mockResolvedValue(undefined)
+    const fetchCatalogSpy = vi
+      .spyOn(BaseLLMProvider.prototype, 'fetchCatalog')
+      .mockResolvedValue([])
 
     const presenter = createProviderRuntime(providerSettings)
     await presenter.refreshModels('novita')
 
     expect(providerSettings.refreshProviderDb).not.toHaveBeenCalled()
-    expect(refreshSpy).toHaveBeenCalledTimes(1)
+    expect(fetchCatalogSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('logs provider-db refresh failures without blocking presenter initialization', async () => {
-    const refreshSpy = vi
-      .spyOn(AiSdkProvider.prototype, 'refreshModels')
+  it('records a failed background refresh without blocking presenter initialization', async () => {
+    const fetchCatalogSpy = vi
+      .spyOn(BaseLLMProvider.prototype, 'fetchCatalog')
       .mockRejectedValue(new Error('refresh failed'))
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     const presenter = createProviderRuntime(
       createProviderSettings(
@@ -353,14 +417,36 @@ describe('ProviderRuntime background model sync', () => {
     await Promise.resolve()
 
     await notifyProviderDbUpdated(presenter)
+    await vi.waitFor(() => expect(presenter.getProviderCatalog('doubao').status).toBe('error'))
+
+    expect(presenter.getProviders()).toHaveLength(1)
+    expect(presenter.getProviderCatalog('doubao').lastErrorCode).toBe('unknown')
+    expect(fetchCatalogSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('revalidates the catalog only for rebuild-relevant provider updates', async () => {
+    const provider = createProvider({
+      id: 'doubao',
+      name: 'Doubao',
+      apiType: 'doubao',
+      baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
+    })
+    const providerSettings = createProviderSettings(provider)
+    const fetchCatalogSpy = vi
+      .spyOn(BaseLLMProvider.prototype, 'fetchCatalog')
+      .mockResolvedValue([])
+
+    const presenter = createProviderRuntime(providerSettings)
     await Promise.resolve()
     await Promise.resolve()
 
-    expect(presenter.getProviders()).toHaveLength(1)
-    expect(refreshSpy).toHaveBeenCalledTimes(1)
-    expect(warnSpy).toHaveBeenCalledWith(
-      '[ProviderRuntime] Failed to refresh models for provider doubao during provider-db-updated:',
-      expect.any(Error)
-    )
+    presenter.updateProviderAtomic('doubao', {
+      rateLimit: { enabled: true, qpsLimit: 1 }
+    })
+    await Promise.resolve()
+    expect(fetchCatalogSpy).not.toHaveBeenCalled()
+
+    presenter.updateProviderAtomic('doubao', { apiKey: 'rotated-key' })
+    await vi.waitFor(() => expect(fetchCatalogSpy).toHaveBeenCalledTimes(1))
   })
 })

@@ -56,6 +56,7 @@ async function setup(options?: {
   }
 
   const modelStore = {
+    refreshProviderCatalog: vi.fn().mockResolvedValue(true),
     applyInitialModelRecommendations: vi
       .fn()
       .mockImplementation(
@@ -206,7 +207,11 @@ describe('AddProviderFlow', () => {
     const committed = providerStore.commitValidatedDraft.mock.calls[0][0]
     expect(committed.custom).toBe(true)
     expect(committed.customHeaders).toEqual({ 'X-Tenant-ID': 'team-a' })
+    expect(modelStore.refreshProviderCatalog).toHaveBeenCalledWith(committed.id, 'config')
     expect(modelStore.applyInitialModelRecommendations).toHaveBeenCalledWith(committed.id)
+    expect(modelStore.refreshProviderCatalog.mock.invocationCallOrder[0]).toBeLessThan(
+      modelStore.applyInitialModelRecommendations.mock.invocationCallOrder[0]
+    )
 
     expect(wrapper.emitted('created')).toBeUndefined()
     expect(wrapper.find('[data-testid="add-provider-success"]').exists()).toBe(true)

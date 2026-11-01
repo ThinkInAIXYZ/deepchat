@@ -1,6 +1,13 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
 import type { IModelConfig, LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
+import type {
+  ProviderCatalogErrorCode,
+  ProviderCatalogRefreshReason,
+  ProviderCatalogSource,
+  ProviderCatalogState,
+  ProviderCatalogStatePatch
+} from '@shared/types/providerCatalog'
 import { getValidProviderCustomHeaders } from '@shared/providerCustomHeaders'
 import { LEGACY_MODEL_CONFIG_META_KEY, normalizeUserModelConfigEntry } from '../userModelConfig'
 import {
@@ -47,6 +54,17 @@ type ModelConfigRow = {
   updated_at: number
 }
 
+type ProviderCatalogStateRow = {
+  provider_id: string
+  revision: number
+  fetched_at: number | null
+  source: string | null
+  last_refresh_reason: string | null
+  last_error_code: string | null
+  last_error_at: number | null
+  updated_at: number
+}
+
 export type SaveCustomModelInput = {
   providerId: string
   originalModelId?: string
@@ -76,6 +94,11 @@ export class ProviderSettingsTable extends BaseTable {
 
   override createTable(): void {
     this.db.exec(this.getCreateTableSQL())
+  }
+
+  /** Runs several table writes as one commit; nested table transactions become savepoints. */
+  runInTransaction<T>(operation: () => T): T {
+    return this.db.transaction(operation)()
   }
 
   getCreateTableSQL(): string {
@@ -130,15 +153,41 @@ export class ProviderSettingsTable extends BaseTable {
         updated_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_model_configs_provider ON model_configs(provider_id);
+
+      CREATE TABLE IF NOT EXISTS provider_catalog_state (
+        provider_id TEXT PRIMARY KEY,
+        revision INTEGER NOT NULL DEFAULT 0,
+        fetched_at INTEGER,
+        source TEXT,
+        last_refresh_reason TEXT,
+        last_error_code TEXT,
+        last_error_at INTEGER,
+        updated_at INTEGER NOT NULL
+      );
     `
   }
 
   getMigrationSQL(version: number): string | null {
-    return version === 25 ? this.getCreateTableSQL() : null
+    if (version === 25) return this.getCreateTableSQL()
+    if (version === 26) {
+      return `
+        CREATE TABLE IF NOT EXISTS provider_catalog_state (
+          provider_id TEXT PRIMARY KEY,
+          revision INTEGER NOT NULL DEFAULT 0,
+          fetched_at INTEGER,
+          source TEXT,
+          last_refresh_reason TEXT,
+          last_error_code TEXT,
+          last_error_at INTEGER,
+          updated_at INTEGER NOT NULL
+        );
+      `
+    }
+    return null
   }
 
   getLatestVersion(): number {
-    return 25
+    return 26
   }
 
   listProviders(): LLM_PROVIDER[] {
@@ -291,6 +340,84 @@ export class ProviderSettingsTable extends BaseTable {
         this.upsertProviderModel(providerId, source, storedModel, index)
       })
     })()
+  }
+
+  getProviderCatalogState(providerId: string): ProviderCatalogState | undefined {
+    const row = this.db
+      .prepare('SELECT * FROM provider_catalog_state WHERE provider_id = ?')
+      .get(providerId) as ProviderCatalogStateRow | undefined
+    return row ? this.toProviderCatalogState(row) : undefined
+  }
+
+  setProviderCatalogState(
+    providerId: string,
+    patch: ProviderCatalogStatePatch,
+    options: { bumpRevision?: boolean } = {}
+  ): ProviderCatalogState {
+    const timestamp = now()
+    return this.db.transaction(() => {
+      const existing = this.getProviderCatalogState(providerId)
+      const next: ProviderCatalogState = {
+        providerId,
+        revision: (existing?.revision ?? 0) + (options.bumpRevision ? 1 : 0),
+        fetchedAt: patch.fetchedAt !== undefined ? patch.fetchedAt : (existing?.fetchedAt ?? null),
+        source: patch.source !== undefined ? patch.source : (existing?.source ?? null),
+        lastRefreshReason:
+          patch.lastRefreshReason !== undefined
+            ? patch.lastRefreshReason
+            : (existing?.lastRefreshReason ?? null),
+        lastErrorCode:
+          patch.lastErrorCode !== undefined
+            ? patch.lastErrorCode
+            : (existing?.lastErrorCode ?? null),
+        lastErrorAt:
+          patch.lastErrorAt !== undefined ? patch.lastErrorAt : (existing?.lastErrorAt ?? null)
+      }
+
+      this.db
+        .prepare(
+          `INSERT INTO provider_catalog_state (
+            provider_id, revision, fetched_at, source, last_refresh_reason,
+            last_error_code, last_error_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(provider_id) DO UPDATE SET
+            revision = excluded.revision,
+            fetched_at = excluded.fetched_at,
+            source = excluded.source,
+            last_refresh_reason = excluded.last_refresh_reason,
+            last_error_code = excluded.last_error_code,
+            last_error_at = excluded.last_error_at,
+            updated_at = excluded.updated_at`
+        )
+        .run(
+          providerId,
+          next.revision,
+          next.fetchedAt,
+          next.source,
+          next.lastRefreshReason,
+          next.lastErrorCode,
+          next.lastErrorAt,
+          timestamp
+        )
+
+      return next
+    })()
+  }
+
+  deleteProviderCatalogState(providerId: string): void {
+    this.db.prepare('DELETE FROM provider_catalog_state WHERE provider_id = ?').run(providerId)
+  }
+
+  private toProviderCatalogState(row: ProviderCatalogStateRow): ProviderCatalogState {
+    return {
+      providerId: row.provider_id,
+      revision: row.revision,
+      fetchedAt: row.fetched_at,
+      source: (row.source as ProviderCatalogSource | null) ?? null,
+      lastRefreshReason: (row.last_refresh_reason as ProviderCatalogRefreshReason | null) ?? null,
+      lastErrorCode: (row.last_error_code as ProviderCatalogErrorCode | null) ?? null,
+      lastErrorAt: row.last_error_at
+    }
   }
 
   saveCustomModel(input: SaveCustomModelInput): void {

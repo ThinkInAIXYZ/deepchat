@@ -1032,7 +1032,8 @@ export async function createMainProcessControl(dependencies: {
           providerRuntime.updateProviderAtomic('acp', { enable: enabled })
         }
       },
-      clearAcpProviderModels: () => providerSettings.setProviderModels('acp', []),
+      clearAcpProviderModels: () =>
+        providerRuntime.replaceProviderCatalogFromSource('acp', [], 'acp'),
       clearAcpProviderModelStatus: () => providerSettings.clearProviderModelStatusCache('acp'),
       refreshAcpProviderAgents: async (agentIds) => {
         const provider = providerRuntime.getProviderInstance('acp')
@@ -3102,7 +3103,11 @@ export async function createMainProcessControl(dependencies: {
       providerImportService: new ProviderImportService({
         getProviders: () => providerSettings.getProviders(),
         getDefaultProviders: () => providerSettings.getDefaultProviders(),
-        addCustomModel: (providerId, model) => providerSettings.addCustomModel(providerId, model),
+        addCustomModel: (providerId, model) => {
+          const added = providerSettings.addCustomModel(providerId, model)
+          providerRuntime.invalidateProviderCatalogFromSync(providerId)
+          return added
+        },
         updateProvidersBatch: (batchUpdate) => providerRuntime.updateProvidersBatch(batchUpdate)
       }),
       oauthService,

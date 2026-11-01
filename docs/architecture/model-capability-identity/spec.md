@@ -87,16 +87,25 @@ capability identity using this precedence:
 6. recognized model family;
 7. transport-provider match;
 8. unique global exact or canonical match;
-9. transport fallback with an unknown catalog model.
+9. dominant global capability match;
+10. transport fallback with an unknown catalog model.
 
-An ambiguous global match is not selected by provider iteration order. All capabilities for a
-resolved model use the same provider and catalog model identity.
+An ambiguous global match is not selected by provider iteration order. The dominant global match
+accepts a model ID only when one capability signature covers at least two thirds of its
+provider-db entries, and then selects a representative entry deterministically: the most common
+context/output pair wins, ties prefer larger limits, and within that group a canonical vendor
+entry wins before alphabetical provider order. Below that coverage the ID stays unknown. Lookup
+keys are normalized before matching, so routing prefixes such as `auto/deepseek-v4.1-flash`
+resolve against the unqualified catalog ID while `requestModelId` keeps the prefix. All
+capabilities for a resolved model use the same provider and catalog model identity.
 
 Qualified namespaces, owner metadata, and canonical model-family rules may identify a known model
 origin even when an aggregator returns an unqualified ID. The maintained origin rules cover
 families with an authoritative provider-db owner, including GLM, MiniMax, StepFun, Mistral, Cohere,
-and OpenAI GPT-OSS. Families without an authoritative owner record, or whose provider-db mirrors
-disagree about reasoning semantics, remain unknown rather than selecting an arbitrary mirror.
+OpenAI (`gpt-*`, `chatgpt-*`, `o*` reasoning models, Codex, Sora, DALL-E, embeddings, Whisper,
+TTS, moderation), Gemma, and GPT-OSS. Families without an authoritative owner record, or whose
+provider-db mirrors disagree about reasoning semantics, remain unknown rather than selecting an
+arbitrary mirror.
 
 Resolved identity distinguishes the ID sent to the service from the optional ID selected in the
 catalog:

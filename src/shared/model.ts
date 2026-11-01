@@ -1,6 +1,8 @@
 // src/shared/model.ts
 // Implement enum and runtime exports to avoid Vite errors
 
+import { normalizeCanonicalModelId } from './modelId'
+
 export enum ModelType {
   Chat = 'chat',
   Embedding = 'embedding',
@@ -296,6 +298,26 @@ export function isGeminiFamilyModelId(modelId: string | undefined): boolean {
 
 export function isDeepSeekSeriesModelId(modelId: string | undefined): boolean {
   return normalizeModelId(modelId).includes('deepseek')
+}
+
+export function isOpenAIFamilyModelId(modelId: string | undefined): boolean {
+  const canonicalModelId = normalizeCanonicalModelId(modelId)
+  return (
+    canonicalModelId.startsWith('gpt-') ||
+    canonicalModelId.startsWith('chatgpt-') ||
+    canonicalModelId.startsWith('codex-') ||
+    canonicalModelId.startsWith('sora-') ||
+    canonicalModelId.startsWith('dall-e-') ||
+    canonicalModelId.startsWith('text-embedding-') ||
+    canonicalModelId.startsWith('whisper-') ||
+    canonicalModelId.startsWith('tts-') ||
+    canonicalModelId.startsWith('omni-moderation-') ||
+    /^o[1-9](?:\d+)?(?:-|$)/.test(canonicalModelId)
+  )
+}
+
+export function isGemmaFamilyModelId(modelId: string | undefined): boolean {
+  return normalizeCanonicalModelId(modelId).startsWith('gemma-')
 }
 
 function hasAnthropicRouteHint(
