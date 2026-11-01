@@ -390,7 +390,8 @@ export class SessionLifecycle implements SessionLifecyclePort {
       generationSettings: input.generationSettings,
       disabledAgentTools: input.disabledAgentTools,
       activeSkills: input.activeSkills,
-      toolModeOverride: input.toolModeOverride
+      toolModeOverride: input.toolModeOverride,
+      preserveExecutionConfig: input.preserveExecutionConfig
     })
     return await this.dependencies.agentLifecycle.runWithAgentOperation(
       runtimeConfig.agentId,

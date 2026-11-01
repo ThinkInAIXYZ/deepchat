@@ -3,9 +3,12 @@ import { BrowserPageStatus } from '../types/browser'
 import { ApiEndpointType, ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
 import {
   AttachmentRepresentationPreferenceSchema,
+  EntityIdSchema,
   FileMetadataValueSchema,
   ImageGenerationOptionsSchema,
   PdfEmbeddedTextCoverageSchema,
+  RevisionSchema,
+  TimestampMsSchema,
   VideoGenerationOptionsSchema,
   TtsSettingsSchema,
   JsonValueSchema,
@@ -23,6 +26,7 @@ import {
   AGENT_OUTPUT_LIMIT_MIN_CHARS
 } from '../lib/agentOutputLimits'
 import { ToolModeSchema } from '../toolMode'
+import { OrchestrationPolicySchema } from '../orchestration/policy'
 import { ProviderCustomHeadersSchema } from '../providerCustomHeaders'
 import { MediaSettingsCapabilitiesSchema } from '../types/model-capabilities'
 
@@ -590,6 +594,60 @@ export const ProviderModelCatalogSchema = z.object({
   modelStatusMap: ModelStatusMapSchema
 })
 
+export const ProviderCatalogStatusSchema = z.enum([
+  'unknown',
+  'fresh',
+  'stale',
+  'refreshing',
+  'error'
+])
+
+export const ProviderCatalogSourceSchema = z.enum([
+  'remote',
+  'provider-db',
+  'config',
+  'runtime',
+  'ollama',
+  'acp'
+])
+
+export const ProviderCatalogErrorCodeSchema = z.enum([
+  'auth',
+  'forbidden',
+  'not-found',
+  'timeout',
+  'network',
+  'http',
+  'invalid-response',
+  'unknown'
+])
+
+export const ProviderCatalogModelSummarySchema = ProviderModelSummarySchema.extend({
+  // Only catalog snapshots carry this: the UI needs to tell a raw provider fact from a derived value.
+  explicitFunctionCall: z.boolean().optional()
+})
+
+export const ProviderCatalogSnapshotSchema = z.object({
+  providerId: EntityIdSchema,
+  revision: RevisionSchema,
+  status: ProviderCatalogStatusSchema,
+  fetchedAt: TimestampMsSchema.nullable(),
+  source: ProviderCatalogSourceSchema,
+  lastErrorCode: ProviderCatalogErrorCodeSchema.nullable(),
+  models: z.array(ProviderCatalogModelSummarySchema)
+})
+
+export const ProviderCatalogRefreshResultSchema = z.object({
+  providerId: EntityIdSchema,
+  status: z.enum(['ok', 'not-modified', 'failed', 'superseded']),
+  revision: RevisionSchema,
+  fetchedAt: TimestampMsSchema.nullable(),
+  added: z.array(z.string()),
+  removed: z.array(z.string()),
+  updated: z.array(z.string()),
+  errorCode: ProviderCatalogErrorCodeSchema.nullable()
+})
+
 export const AcpConfigOptionValueSchema = z.looseObject({
   value: z.string(),
   label: z.string(),
@@ -680,6 +738,7 @@ export const DeepChatAgentConfigSchema = z.looseObject({
   enabledSkillNames: z.array(z.string()).nullable().optional(),
   enabledMcpServerIds: z.array(z.string()).nullable().optional(),
   subagentEnabled: z.boolean().optional(),
+  defaultOrchestrationPolicy: OrchestrationPolicySchema.optional(),
   defaultProjectPath: z.string().nullable().optional(),
   readFileAutoTruncateChars: z
     .number()

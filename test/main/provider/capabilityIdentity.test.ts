@@ -82,7 +82,14 @@ const state = vi.hoisted(() => ({
               }
             }
           },
-          { id: 'ambiguous-model', temperature: true }
+          { id: 'ambiguous-model', temperature: true },
+          {
+            id: 'consensus-model',
+            temperature: true,
+            tool_call: true,
+            limit: { context: 100000, output: 8000 }
+          },
+          { id: 'gpt-5', temperature: true }
         ]
       },
       llmgateway: {
@@ -90,12 +97,26 @@ const state = vi.hoisted(() => ({
         models: [
           { id: 'kimi-k3', temperature: false },
           { id: 'ambiguous-model', temperature: false },
-          { id: 'hunyuan-ambiguous', reasoning: { supported: true } }
+          { id: 'hunyuan-ambiguous', reasoning: { supported: true } },
+          {
+            id: 'consensus-model',
+            temperature: true,
+            tool_call: true,
+            limit: { context: 100000, output: 8000 }
+          }
         ]
       },
       mirror: {
         id: 'mirror',
-        models: [{ id: 'hunyuan-ambiguous', reasoning: { supported: false }, temperature: false }]
+        models: [
+          { id: 'hunyuan-ambiguous', reasoning: { supported: false }, temperature: false },
+          {
+            id: 'consensus-model',
+            temperature: false,
+            tool_call: true,
+            limit: { context: 200000, output: 16000 }
+          }
+        ]
       },
       anthropic: {
         id: 'anthropic',
@@ -400,6 +421,52 @@ describe('capability identity resolution', () => {
       requestModelId: 'hunyuan-ambiguous',
       catalogMatched: false,
       catalogModelId: null
+    })
+  })
+
+  it('uses the dominant capability profile for a model shared by many providers', () => {
+    const identity = resolveCapabilityIdentity({
+      providerId: 'new-api',
+      modelId: 'consensus-model',
+      endpointType: 'openai'
+    })
+
+    expect(identity).toEqual({
+      providerId: 'aihubmix',
+      requestModelId: 'consensus-model',
+      catalogMatched: true,
+      catalogModelId: 'consensus-model'
+    })
+  })
+
+  it('strips routing prefixes before matching a shared model id', () => {
+    const identity = resolveCapabilityIdentity({
+      providerId: 'new-api',
+      modelId: 'auto/consensus-model',
+      endpointType: 'openai'
+    })
+
+    expect(identity).toEqual({
+      providerId: 'aihubmix',
+      requestModelId: 'auto/consensus-model',
+      catalogMatched: true,
+      catalogModelId: 'consensus-model'
+    })
+  })
+
+  it('maps OpenAI model families ahead of transport hints', () => {
+    const identity = resolveCapabilityIdentity({
+      providerId: 'new-api',
+      modelId: 'auto/gpt-5',
+      ownedBy: 'claude',
+      endpointType: 'anthropic'
+    })
+
+    expect(identity).toEqual({
+      providerId: 'openai',
+      requestModelId: 'auto/gpt-5',
+      catalogMatched: true,
+      catalogModelId: 'gpt-5'
     })
   })
 

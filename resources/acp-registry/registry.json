@@ -26,7 +26,7 @@
     {
       "id": "amp-acp",
       "name": "Amp",
-      "version": "0.10.0",
+      "version": "0.11.0",
       "description": "ACP wrapper for Amp - the frontier coding agent",
       "repository": "https://github.com/tao12345666333/amp-acp",
       "authors": [
@@ -38,29 +38,29 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.10.0/amp-acp-darwin-aarch64.tar.gz",
+            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.11.0/amp-acp-darwin-aarch64.tar.gz",
             "cmd": "./amp-acp",
-            "sha256": "0434cab747e8f655bbf57dba2421dfd4e01f885ded7776d166150547f07385f3"
+            "sha256": "4bf329d06ffa80123f88324cf27260054bfda6ad952eb4337c30747ad9618ad8"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.10.0/amp-acp-darwin-x86_64.tar.gz",
+            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.11.0/amp-acp-darwin-x86_64.tar.gz",
             "cmd": "./amp-acp",
-            "sha256": "ceb87500641814bf0f5944f028328c45ff2db8205ab51a37cff622e91d7ea6a4"
+            "sha256": "0e016273310457f5dbd145962473625645f2bfe490f8fa47d4e9ced4a42a97a2"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.10.0/amp-acp-linux-aarch64.tar.gz",
+            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.11.0/amp-acp-linux-aarch64.tar.gz",
             "cmd": "./amp-acp",
-            "sha256": "523e03dbf013dd9281aa8aa296691e472d039ed7f47c464ebdc4a6f0a0567ef1"
+            "sha256": "fa77d0b4379f89c33fb6cf346b49149c09e48c9e0358d997e0267d846e0a8930"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.10.0/amp-acp-linux-x86_64.tar.gz",
+            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.11.0/amp-acp-linux-x86_64.tar.gz",
             "cmd": "./amp-acp",
-            "sha256": "320959bb1de650681413a3fc72febd62fded65c734b9ab3399855e007fcdd1ba"
+            "sha256": "57642a7d6e80015cffab263e84c05cde2283b1aa5c80349d0161124f1df24a81"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.10.0/amp-acp-windows-x86_64.zip",
+            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.11.0/amp-acp-windows-x86_64.zip",
             "cmd": "amp-acp.exe",
-            "sha256": "af3fe51c6b555f25446cb18cc81218d0cc334227289215cacb5a53feb12ff33f"
+            "sha256": "908add2112197527c8a3e303721c5edccf73b1d85daf55e6911c3fb6ac07f00a"
           }
         }
       }
@@ -228,7 +228,7 @@
     {
       "id": "codebuddy-code",
       "name": "Codebuddy Code",
-      "version": "2.179.0",
+      "version": "2.179.1",
       "description": "Tencent Cloud's official intelligent coding tool",
       "website": "https://www.codebuddy.cn/cli/",
       "authors": [
@@ -238,7 +238,7 @@
       "license_url": "https://www.codebuddy.cn/agreement/",
       "distribution": {
         "npx": {
-          "package": "@tencent-ai/codebuddy-code@2.179.0",
+          "package": "@tencent-ai/codebuddy-code@2.179.1",
           "args": [
             "--acp"
           ]
@@ -603,7 +603,7 @@
     {
       "id": "factory-droid",
       "name": "Factory Droid",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Factory Droid - AI coding agent powered by Factory AI",
       "website": "https://factory.ai/product/cli",
       "authors": [
@@ -613,7 +613,7 @@
       "license_url": "https://factory.ai/legal/terms",
       "distribution": {
         "npx": {
-          "package": "droid@1.0.0",
+          "package": "droid@1.1.0",
           "args": [
             "exec",
             "--output-format",
@@ -797,7 +797,7 @@
     {
       "id": "harn",
       "name": "Harn",
-      "version": "0.10.181",
+      "version": "0.10.184",
       "description": "Harn runs .harn agent pipelines as a native ACP coding agent over stdio.",
       "repository": "https://github.com/burin-labs/harn",
       "website": "https://harnlang.com",
@@ -809,49 +809,49 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.181/harn-aarch64-apple-darwin.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.184/harn-aarch64-apple-darwin.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "acf3ba2dd2e2a38f83ce8ad3a6bf35a27d5907479d928303927fa12e5a96d395"
+            "sha256": "adb6633316790a7c69f74ae1d37c52c3ea6f3854b3b95154e53c957fdf3b7af8"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.181/harn-x86_64-apple-darwin.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.184/harn-x86_64-apple-darwin.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "755ba8cea5932d1535b0928356c3c8371eca3bc6a71fc1424bbcc050e7e5f22e"
+            "sha256": "af0833cf04bf72fb7362f7d44e70c4d8bbede9057b6e5699adfc16620071605d"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.181/harn-aarch64-unknown-linux-gnu.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.184/harn-aarch64-unknown-linux-gnu.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "6a919def15324924391ec5251afcc609253d49e2bee70eedc943abbd73ed2918"
+            "sha256": "fbf94c36d1db389972310dae9e199d12bb7ce97909e7218cd7f29314418f1a9d"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.181/harn-x86_64-unknown-linux-gnu.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.184/harn-x86_64-unknown-linux-gnu.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "f14ffbc85d1414619d762a2f96a3d03f656d0abd4594acda050c440efa5846d3"
+            "sha256": "8c9b9da510517e271dc949efaa5c1b6b8a21fc4bf51e81654cf381c9742efbf3"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.181/harn-x86_64-pc-windows-msvc.zip",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.184/harn-x86_64-pc-windows-msvc.zip",
             "cmd": "harn.exe",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "2c40a0a070d16c1ed9edd95a23f27770b492c0eb47fdd80254ada1460552b7d5"
+            "sha256": "0b9c1a18a629f7ecf70723e2dc2ad785444e9e7b0b7f813989ea2e42da492f09"
           }
         }
       },
@@ -984,7 +984,7 @@
     {
       "id": "kimchi",
       "name": "Kimchi",
-      "version": "1.25.0",
+      "version": "1.25.1",
       "description": "Coding agent powered by multi-model orchestration",
       "repository": "https://github.com/getkimchi/kimchi",
       "website": "https://kimchi.dev",
@@ -996,8 +996,8 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.25.0/kimchi_darwin_arm64.tar.gz",
-            "sha256": "3f48cbea3d7e9bdd8a3dc799ee7248e8ff83bea2075524fcff89e10a77891e91",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.25.1/kimchi_darwin_arm64.tar.gz",
+            "sha256": "f9b5f26b35198a4893c0c4847e6e6bfd24b12353decd4ae98025c0bea952c9bf",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1005,8 +1005,8 @@
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.25.0/kimchi_darwin_amd64.tar.gz",
-            "sha256": "3faf54cf27e189d0e52b674613eacf690708b7db3d5100133fb144b45132ae54",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.25.1/kimchi_darwin_amd64.tar.gz",
+            "sha256": "ade9e154ad5ef23a233a641bf7eae20722c3acb7cbf5c8323f8117777fbf1322",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1014,8 +1014,8 @@
             ]
           },
           "linux-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.25.0/kimchi_linux_arm64.tar.gz",
-            "sha256": "92fa8b8767dc513ae35c8d46403b35ff41b90e196648076a9bda053426568f35",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.25.1/kimchi_linux_arm64.tar.gz",
+            "sha256": "42301b962ec6c6feab6d92f90c077eddf194bac156e08acbd236acb7c4215f6f",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1023,8 +1023,8 @@
             ]
           },
           "linux-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.25.0/kimchi_linux_amd64.tar.gz",
-            "sha256": "df0ed809e98154e905c7615351a4745bb408705b4a8fee30c23323796a6c4897",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.25.1/kimchi_linux_amd64.tar.gz",
+            "sha256": "2d782cf78d40d0303d72374ae6d827895b083afcfd8dc6be483d503a854cd242",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1032,8 +1032,8 @@
             ]
           },
           "windows-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.25.0/kimchi_windows_amd64.zip",
-            "sha256": "19dc93f66c55cd98949de9508d7a0a3708176f73fb6f5b2c5fe98b7e68726534",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.25.1/kimchi_windows_amd64.zip",
+            "sha256": "1b9f64e447d2a98ac4b44aacb7788ae33b85abe24a90a04b06bb8093434beb38",
             "cmd": "./bin/kimchi.exe",
             "args": [
               "--mode",
@@ -1212,7 +1212,7 @@
     {
       "id": "opencode",
       "name": "OpenCode",
-      "version": "2.2.4",
+      "version": "2.2.5",
       "description": "The open source coding agent",
       "repository": "https://github.com/anomalyco/opencode",
       "website": "https://opencode.ai",
@@ -1225,52 +1225,52 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v2.2.4/opencode-darwin-arm64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v2.2.5/opencode-darwin-arm64.zip",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "4e093cae2931773c354896d98e7da0cfa3607c110aeaf255ba07f9c2d2238219"
+            "sha256": "25ba9908979fa7d764792c82589b4b5768ab1511154e0317d98aa77d216ce767"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v2.2.4/opencode-darwin-x64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v2.2.5/opencode-darwin-x64.zip",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "2be9b7671f94a9636b85ff31fcfce613f197c5204ec90291982d692010d072fd"
+            "sha256": "4d4419022e6ffbd48afc97c5101bdf001d38b0499f516169b9a80a87a340fd56"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v2.2.4/opencode-linux-arm64.tar.gz",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v2.2.5/opencode-linux-arm64.tar.gz",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "81edcae078f36356cde3cf57d0cc6627896b18d1bddf47317cb025c56fcffd93"
+            "sha256": "5a528f42caf576c6cdece6a191eb273d3db54effa5518e0402684d8f8026aeb6"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v2.2.4/opencode-linux-x64.tar.gz",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v2.2.5/opencode-linux-x64.tar.gz",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "1b70ce4a88e27c3643c2bb61c757dfe173b4e3629926ce808d45f3774d87826e"
+            "sha256": "09f44302c10fd036912f59c81fd1aef5df45dd06f649197f9dfc9bbe2a79614e"
           },
           "windows-aarch64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v2.2.4/opencode-windows-arm64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v2.2.5/opencode-windows-arm64.zip",
             "cmd": "./opencode.exe",
             "args": [
               "acp"
             ],
-            "sha256": "ad20a596f664bce9fccd87215e138c4bc4f823162d50b6779f5cee8d74100bd0"
+            "sha256": "4e426a39d68516b036cd28b574c5ce5f3b50846ab460521f83f2458fe7f242d8"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/anomalyco/opencode/releases/download/v2.2.4/opencode-windows-x64.zip",
+            "archive": "https://github.com/anomalyco/opencode/releases/download/v2.2.5/opencode-windows-x64.zip",
             "cmd": "./opencode.exe",
             "args": [
               "acp"
             ],
-            "sha256": "8255fa4808b9ed1bfbc5a4f50c800cabc3a88e66f0d67d0f87bd38cce32f7321"
+            "sha256": "2f3bfd6b3527c60c2a882557b20ddc9ba6bdff4b5a8fe61c853da8fcfb3076e8"
           }
         }
       }
@@ -1278,7 +1278,7 @@
     {
       "id": "opencode-v2",
       "name": "OpenCode V2",
-      "version": "2.2.4",
+      "version": "2.2.5",
       "description": "The open source coding agent, version 2",
       "repository": "https://github.com/anomalyco/opencode",
       "website": "https://opencode.ai",
@@ -1291,52 +1291,52 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://opencode.ai/files/bin/2.2.4/opencode-darwin-arm64.zip",
+            "archive": "https://opencode.ai/files/bin/2.2.5/opencode-darwin-arm64.zip",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "4e093cae2931773c354896d98e7da0cfa3607c110aeaf255ba07f9c2d2238219"
+            "sha256": "25ba9908979fa7d764792c82589b4b5768ab1511154e0317d98aa77d216ce767"
           },
           "darwin-x86_64": {
-            "archive": "https://opencode.ai/files/bin/2.2.4/opencode-darwin-x64.zip",
+            "archive": "https://opencode.ai/files/bin/2.2.5/opencode-darwin-x64.zip",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "2be9b7671f94a9636b85ff31fcfce613f197c5204ec90291982d692010d072fd"
+            "sha256": "4d4419022e6ffbd48afc97c5101bdf001d38b0499f516169b9a80a87a340fd56"
           },
           "linux-aarch64": {
-            "archive": "https://opencode.ai/files/bin/2.2.4/opencode-linux-arm64.tar.gz",
+            "archive": "https://opencode.ai/files/bin/2.2.5/opencode-linux-arm64.tar.gz",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "81edcae078f36356cde3cf57d0cc6627896b18d1bddf47317cb025c56fcffd93"
+            "sha256": "5a528f42caf576c6cdece6a191eb273d3db54effa5518e0402684d8f8026aeb6"
           },
           "linux-x86_64": {
-            "archive": "https://opencode.ai/files/bin/2.2.4/opencode-linux-x64.tar.gz",
+            "archive": "https://opencode.ai/files/bin/2.2.5/opencode-linux-x64.tar.gz",
             "cmd": "./opencode",
             "args": [
               "acp"
             ],
-            "sha256": "1b70ce4a88e27c3643c2bb61c757dfe173b4e3629926ce808d45f3774d87826e"
+            "sha256": "09f44302c10fd036912f59c81fd1aef5df45dd06f649197f9dfc9bbe2a79614e"
           },
           "windows-aarch64": {
-            "archive": "https://opencode.ai/files/bin/2.2.4/opencode-windows-arm64.zip",
+            "archive": "https://opencode.ai/files/bin/2.2.5/opencode-windows-arm64.zip",
             "cmd": "./opencode.exe",
             "args": [
               "acp"
             ],
-            "sha256": "ad20a596f664bce9fccd87215e138c4bc4f823162d50b6779f5cee8d74100bd0"
+            "sha256": "4e426a39d68516b036cd28b574c5ce5f3b50846ab460521f83f2458fe7f242d8"
           },
           "windows-x86_64": {
-            "archive": "https://opencode.ai/files/bin/2.2.4/opencode-windows-x64.zip",
+            "archive": "https://opencode.ai/files/bin/2.2.5/opencode-windows-x64.zip",
             "cmd": "./opencode.exe",
             "args": [
               "acp"
             ],
-            "sha256": "8255fa4808b9ed1bfbc5a4f50c800cabc3a88e66f0d67d0f87bd38cce32f7321"
+            "sha256": "2f3bfd6b3527c60c2a882557b20ddc9ba6bdff4b5a8fe61c853da8fcfb3076e8"
           }
         }
       }
@@ -1449,7 +1449,7 @@
     {
       "id": "qwen-code",
       "name": "Qwen Code",
-      "version": "0.26.4",
+      "version": "0.26.5",
       "description": "Alibaba's Qwen coding assistant",
       "repository": "https://github.com/QwenLM/qwen-code",
       "website": "https://qwenlm.github.io/qwen-code-docs/en/users/overview",
@@ -1460,7 +1460,7 @@
       "license_url": "https://github.com/QwenLM/qwen-code/blob/main/LICENSE",
       "distribution": {
         "npx": {
-          "package": "@qwen-code/qwen-code@0.26.4",
+          "package": "@qwen-code/qwen-code@0.26.5",
           "args": [
             "--acp",
             "--experimental-skills"

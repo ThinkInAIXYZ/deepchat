@@ -957,6 +957,25 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('resolves cheapaimodel through authenticated OpenAI-compatible model discovery', () => {
+    expect(
+      resolveAiSdkProviderDefinition(
+        createProvider({
+          id: 'cheapaimodel',
+          name: 'cheapaimodel',
+          baseUrl: 'https://api.cheapaimodel.ai/v1'
+        })
+      )
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none'
+    })
+  })
+
   it('resolves AtmoRouter through authenticated OpenAI-compatible model discovery', () => {
     expect(
       resolveAiSdkProviderDefinition(
@@ -1087,6 +1106,44 @@ describe('basic API-key provider registrations', () => {
           id: 'yapi',
           name: 'Y-API',
           baseUrl: 'https://api.y-api.bestvirtualgoods.com/v1'
+        })
+      )
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none'
+    })
+  })
+
+  it('resolves xxapi through authenticated OpenAI-compatible model discovery', () => {
+    expect(
+      resolveAiSdkProviderDefinition(
+        createProvider({
+          id: 'xxapi',
+          name: 'xxapi',
+          baseUrl: 'https://xxapi.ai/v1'
+        })
+      )
+    ).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'openai',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      routeStrategy: 'none',
+      embeddingStrategy: 'none'
+    })
+  })
+
+  it('resolves llm.buzz through authenticated OpenAI-compatible model discovery', () => {
+    expect(
+      resolveAiSdkProviderDefinition(
+        createProvider({
+          id: 'llmbuzz',
+          name: 'llm.buzz',
+          baseUrl: 'https://api.llm.buzz/api/v1'
         })
       )
     ).toMatchObject({
@@ -1847,6 +1904,96 @@ describe('basic API-key provider registrations', () => {
     expect(models.find(({ id }) => id === 'glm-5.1')).not.toHaveProperty('ownedBy')
     expect(fetchMock).toHaveBeenCalledWith(
       'https://cloudgpu.app/v1/models',
+      expect.objectContaining({ method: 'GET' })
+    )
+  })
+
+  it('checks Obscurify.ai with a chat model instead of its public model list', async () => {
+    const defaults = DEFAULT_PROVIDERS.find((provider) => provider.id === 'obscurify')!
+    expect(defaults).toBeDefined()
+    const config = { ...defaults, apiKey: 'test-key' }
+    // The /v1/models catalog is public, so listing models cannot validate a key.
+    expect(resolveAiSdkProviderDefinition(config)).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'obscurify',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none',
+      checkModelId: 'meta-llama/llama-3.3-70b-instruct'
+    })
+    const provider = new AiSdkProvider(config, createProviderSettings())
+    ;(provider as any).isInitialized = true
+
+    await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
+    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerKind: 'openai-compatible',
+        provider: expect.objectContaining({
+          id: 'obscurify',
+          apiKey: 'test-key',
+          baseUrl: 'https://obscurify.ai/v1'
+        })
+      }),
+      [{ role: 'user', content: 'Hello' }],
+      'meta-llama/llama-3.3-70b-instruct',
+      expect.any(Object),
+      0.2,
+      16
+    )
+  })
+
+  it('reads chat models with context length and tool support from the Obscurify.ai catalog', async () => {
+    const defaults = DEFAULT_PROVIDERS.find(({ id }) => id === 'obscurify')!
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        object: 'list',
+        data: [
+          { id: 'moonshotai/kimi-k2-0905', context_length: 262144, tools: true },
+          { id: 'vendor/plain-model', context_length: 0, tools: false },
+          { id: 'vendor/no-metadata' },
+          { id: 'google/gemini-2.5-flash-image', context_length: 32768, tools: false },
+          { id: 'typesafe/jev-1.14', decisions: true, tools: false },
+          { id: 'typesafe/jev-latest', tools: false },
+          { id: 'vendor/decider-small', decisions: true, tools: false },
+          { id: '  ' },
+          { id: 7 }
+        ]
+      })
+    )
+    global.fetch = fetchMock
+    const provider = new AiSdkProvider(defaults, createProviderSettings())
+
+    expect(await provider.fetchModels({ suppressErrors: false })).toEqual([
+      {
+        id: 'moonshotai/kimi-k2-0905',
+        name: 'moonshotai/kimi-k2-0905',
+        group: 'default',
+        providerId: 'obscurify',
+        isCustom: false,
+        type: 'chat',
+        contextLength: 262144,
+        functionCall: true
+      },
+      {
+        id: 'vendor/plain-model',
+        name: 'vendor/plain-model',
+        group: 'default',
+        providerId: 'obscurify',
+        isCustom: false,
+        type: 'chat',
+        functionCall: false
+      },
+      {
+        id: 'vendor/no-metadata',
+        name: 'vendor/no-metadata',
+        group: 'default',
+        providerId: 'obscurify',
+        isCustom: false,
+        type: 'chat'
+      }
+    ])
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://obscurify.ai/v1/models',
       expect.objectContaining({ method: 'GET' })
     )
   })

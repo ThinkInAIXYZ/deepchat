@@ -170,6 +170,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes Obscurify.ai as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'obscurify',
+        name: 'Obscurify.ai',
+        apiType: 'openai-completions',
+        baseUrl: 'https://obscurify.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://obscurify.ai/?utm_source=deepchat',
+          apiKey: 'https://obscurify.ai/account',
+          docs: 'https://obscurify.ai/api-docs',
+          models: 'https://obscurify.ai/model_cards',
+          defaultBaseUrl: 'https://obscurify.ai/v1'
+        })
+      })
+    )
+  })
+
   it('includes AI Stupid Level as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
@@ -245,6 +264,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes cheapaimodel as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'cheapaimodel',
+        name: 'cheapaimodel',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.cheapaimodel.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://cheapaimodel.ai/?utm_source=deepchat',
+          apiKey: 'https://console.cheapaimodel.ai/keys?utm_source=deepchat',
+          docs: 'https://cheapaimodel.ai/docs?utm_source=deepchat',
+          models: 'https://cheapaimodel.ai/models?utm_source=deepchat',
+          defaultBaseUrl: 'https://api.cheapaimodel.ai/v1'
+        })
+      })
+    )
+  })
+
   it('includes AtmoRouter as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
@@ -278,6 +316,44 @@ describe('DEFAULT_PROVIDERS', () => {
           docs: 'https://y-api.bestvirtualgoods.com/docs',
           models: 'https://y-api.bestvirtualgoods.com/models',
           defaultBaseUrl: 'https://api.y-api.bestvirtualgoods.com/v1'
+        })
+      })
+    )
+  })
+
+  it('includes xxapi as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'xxapi',
+        name: 'xxapi',
+        apiType: 'openai-completions',
+        baseUrl: 'https://xxapi.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://xxapi.ai/',
+          apiKey: 'https://xxapi.ai/keys',
+          docs: 'https://docs.xxapi.ai/getting-started',
+          models: 'https://xxapi.ai/pricing',
+          defaultBaseUrl: 'https://xxapi.ai/v1'
+        })
+      })
+    )
+  })
+
+  it('includes llm.buzz as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'llmbuzz',
+        name: 'llm.buzz',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.llm.buzz/api/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://llm.buzz/',
+          apiKey: 'https://app.llm.buzz',
+          docs: 'https://llm.buzz',
+          models: 'https://api.llm.buzz/api/v1/models',
+          defaultBaseUrl: 'https://api.llm.buzz/api/v1'
         })
       })
     )

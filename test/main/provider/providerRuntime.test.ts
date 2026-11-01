@@ -11,6 +11,7 @@ import { AcpRuntimeOwner } from '@/agent/acp/client'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import { DEFAULT_PROVIDERS } from '@/provider/defaults'
 import { ProviderInstanceManager } from '@/provider/managers/providerInstanceManager'
+import type { ProviderCatalogStatePatch } from '@shared/types/providerCatalog'
 
 const {
   mockRunAiSdkCoreStream,
@@ -113,7 +114,7 @@ describe('ProviderRuntime Integration Tests', () => {
 
   const createProviderRuntime = (providerSettings: ProviderSettings) => {
     const persistence = new AcpSessionPersistence(
-      mockSqlitePresenter,
+      mockSqlitePresenter as never,
       mockSqlitePresenter as never,
       {
         newEnvironmentsTable: { listPathsForSession: () => [], syncPath: vi.fn() }
@@ -167,6 +168,16 @@ describe('ProviderRuntime Integration Tests', () => {
       setModelStatus: vi.fn(),
       updateCustomModel: vi.fn(),
       setProviderModels: vi.fn(),
+      setProviderCatalogState: vi.fn((providerId: string, patch: ProviderCatalogStatePatch) => ({
+        providerId,
+        revision: 1,
+        fetchedAt: null,
+        source: null,
+        lastRefreshReason: null,
+        lastErrorCode: null,
+        lastErrorAt: null,
+        ...patch
+      })),
       getCustomModels: vi.fn().mockReturnValue([]),
       getProviderModels: vi.fn().mockReturnValue([]),
       getModelStatus: vi.fn().mockReturnValue(true),
@@ -338,7 +349,7 @@ describe('ProviderRuntime Integration Tests', () => {
         defaultHeaders: providerTestEnvironment.defaultHeaders,
         getLanguage: () => 'en-US'
       },
-      agentSettings: { getAcpEnabled: () => false, getAcpAgents: () => [] },
+      agentSettings: { getAcpEnabled: async () => false, getAcpAgents: async () => [] },
       activeStreams: new Map(),
       rateLimitManager: { cleanupProviderRateLimit: vi.fn(), syncProviders: vi.fn() } as never,
       getCurrentProviderId: () => null,
@@ -479,7 +490,7 @@ describe('ProviderRuntime Integration Tests', () => {
       expect(currentProvider?.id).toBe('mock-openai-api')
     })
 
-    it('defers provider bootstrap until a provider instance is requested', async () => {
+    it('never bootstraps the catalog from provider instance creation', async () => {
       const fetchSpy = vi.spyOn(AiSdkProvider.prototype, 'fetchModels').mockResolvedValue([])
 
       const presenter = createProviderRuntime(mockProviderSettings)
@@ -493,7 +504,7 @@ describe('ProviderRuntime Integration Tests', () => {
       await Promise.resolve()
       await Promise.resolve()
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1)
+      expect(fetchSpy).not.toHaveBeenCalled()
     })
 
     it('should resolve novita via apiType fallback without an id-specific provider mapping', () => {

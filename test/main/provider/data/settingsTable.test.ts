@@ -309,6 +309,55 @@ describeIfSqlite('ProviderSettingsTable', () => {
     db.close()
   })
 
+  it('stores catalog operational state with monotonic revisions', () => {
+    const { db, table } = createTable()
+
+    expect(table.getProviderCatalogState('new-api')).toBeUndefined()
+
+    const initial = table.setProviderCatalogState('new-api', {
+      fetchedAt: 1000,
+      source: 'remote',
+      lastRefreshReason: 'user'
+    })
+    expect(initial).toEqual({
+      providerId: 'new-api',
+      revision: 0,
+      fetchedAt: 1000,
+      source: 'remote',
+      lastRefreshReason: 'user',
+      lastErrorCode: null,
+      lastErrorAt: null
+    })
+
+    const refreshed = table.setProviderCatalogState(
+      'new-api',
+      { fetchedAt: 2000, lastErrorCode: null, lastErrorAt: null },
+      { bumpRevision: true }
+    )
+    expect(refreshed.revision).toBe(1)
+    expect(refreshed.fetchedAt).toBe(2000)
+
+    const failed = table.setProviderCatalogState('new-api', {
+      lastErrorCode: 'timeout',
+      lastErrorAt: 3000
+    })
+    expect(failed).toMatchObject({
+      revision: 1,
+      fetchedAt: 2000,
+      lastErrorCode: 'timeout',
+      lastErrorAt: 3000
+    })
+
+    const cleared = table.setProviderCatalogState('new-api', { fetchedAt: null })
+    expect(cleared.fetchedAt).toBeNull()
+    expect(cleared.lastErrorCode).toBe('timeout')
+
+    table.deleteProviderCatalogState('new-api')
+    expect(table.getProviderCatalogState('new-api')).toBeUndefined()
+
+    db.close()
+  })
+
   it('migrates legacy rows using explicit user intent without value heuristics', () => {
     const { db, table } = createTable()
     const insert = db.prepare(

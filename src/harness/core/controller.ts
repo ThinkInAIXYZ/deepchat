@@ -180,7 +180,11 @@ export function createCoreController(options: {
     providerImportService: new ProviderImportService({
       getProviders: () => providerSettings.getProviders(),
       getDefaultProviders: () => providerSettings.getDefaultProviders(),
-      addCustomModel: (providerId, model) => providerSettings.addCustomModel(providerId, model),
+      addCustomModel: (providerId, model) => {
+        const added = providerSettings.addCustomModel(providerId, model)
+        providerRuntime.invalidateProviderCatalogFromSync(providerId)
+        return added
+      },
       updateProvidersBatch: (batchUpdate) => providerRuntime.updateProvidersBatch(batchUpdate)
     }),
     oauthService,

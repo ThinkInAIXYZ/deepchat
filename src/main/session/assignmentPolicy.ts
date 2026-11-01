@@ -165,23 +165,35 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
       }
     }
 
-    // Cross-agent child: keep the parent workdir/model and intersect its live authority with the
-    // target Agent policy. A target default may restrict the parent but can never elevate it.
     const agentConfig = await this.config.resolveDeepChatAgentConfig(descriptor.id)
+    const modelPreset = input.preserveExecutionConfig ? null : agentConfig?.defaultModelPreset
+    const providerId = modelPreset ? modelPreset.providerId?.trim() : input.providerId
+    const modelId = modelPreset ? modelPreset.modelId?.trim() : input.modelId
+    if (
+      !providerId ||
+      !modelId ||
+      (modelPreset && !this.config.isModelAvailable(providerId, modelId))
+    ) {
+      throw new Error(`Subagent ${descriptor.id} default model is unavailable.`)
+    }
+    this.assertAcpSessionHasWorkdir(providerId, input.projectDir)
+    const modelChanged = providerId !== input.providerId || modelId !== input.modelId
     const parentGeneration = input.generationSettings ?? {}
-    const generationSettings = this.mergeDefaultGenerationSettings(agentConfig, {
-      ...parentGeneration,
-      systemPrompt:
-        typeof agentConfig?.systemPrompt === 'string'
-          ? agentConfig.systemPrompt
-          : parentGeneration.systemPrompt
-    })
+    const generationSettings = input.preserveExecutionConfig
+      ? input.generationSettings
+      : this.mergeDefaultGenerationSettings(agentConfig, {
+          ...(modelChanged ? {} : parentGeneration),
+          systemPrompt:
+            typeof agentConfig?.systemPrompt === 'string'
+              ? agentConfig.systemPrompt
+              : parentGeneration.systemPrompt
+        })
 
     return {
       agentId: descriptor.id,
       targetAgentId,
-      providerId: input.providerId,
-      modelId: input.modelId,
+      providerId,
+      modelId,
       permissionMode: resolveCrossAgentPermissionMode(
         input.permissionMode,
         agentConfig?.permissionMode

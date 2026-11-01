@@ -352,7 +352,10 @@ import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOve
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
 import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
-import { DEFAULT_ORCHESTRATION_POLICY } from '@shared/orchestration/policy'
+import {
+  DEFAULT_ORCHESTRATION_POLICY,
+  normalizeOrchestrationPolicy
+} from '@shared/orchestration/policy'
 import type {
   DeepChatAgentConfig,
   MessageFile,
@@ -531,6 +534,7 @@ const acpDraftRequestSeq = ref(0)
 const isCompletingSwitchAgentGuide = ref(false)
 let currentDraftDefaultsTask: Promise<void> | null = null
 let draftDefaultsRequestSeq = 0
+let draftOrchestrationPolicyRevision = 0
 let cancelEnsureDraftTask: (() => void) | null = null
 let voiceInputConfigToken = 0
 let searchCapabilityToken = 0
@@ -1477,6 +1481,7 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   draftStore.permissionMode = 'full_access'
   draftStore.disabledAgentTools = [...DEFAULT_DISABLED_AGENT_TOOLS]
   draftStore.orchestrationPolicy = DEFAULT_ORCHESTRATION_POLICY
+  const orchestrationPolicyRevision = draftOrchestrationPolicyRevision
   draftStore.toolModeOverride = null
   draftStore.systemPrompt = undefined
   draftStore.temperature = undefined
@@ -1517,7 +1522,7 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   }
 
   const config = await resolveDeepChatAgentConfig(agentId)
-  if (requestSeq !== draftDefaultsRequestSeq) {
+  if (workspaceDisposed || requestSeq !== draftDefaultsRequestSeq) {
     return
   }
   const agentDefaultProjectPath = normalizeProjectPath(config.defaultProjectPath)
@@ -1544,6 +1549,12 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   draftStore.permissionMode = config.permissionMode === 'default' ? 'default' : 'full_access'
   draftStore.disabledAgentTools = [...(config.disabledAgentTools ?? DEFAULT_DISABLED_AGENT_TOOLS)]
   draftStore.toolModeOverride = config.defaultToolMode ?? null
+  if (orchestrationPolicyRevision === draftOrchestrationPolicyRevision) {
+    draftStore.orchestrationPolicy =
+      config.subagentEnabled === false
+        ? DEFAULT_ORCHESTRATION_POLICY
+        : normalizeOrchestrationPolicy(config.defaultOrchestrationPolicy)
+  }
   Object.assign(draftStore, buildDraftGenerationSettings(config))
   if (projectDirIntent) {
     sessionStore.consumeNewConversationProjectDirIntent(projectDirIntent.id)
@@ -1821,6 +1832,14 @@ watch(
     activeSubmission.value = null
     isSubmittingInput.value = false
     isPreparingAttachments.value = false
+  },
+  { flush: 'sync' }
+)
+
+watch(
+  () => draftStore.orchestrationPolicy,
+  () => {
+    draftOrchestrationPolicyRevision += 1
   },
   { flush: 'sync' }
 )

@@ -14,6 +14,7 @@ export type AiSdkModelSourceStrategy =
   | 'apimodels'
   | 'runcrate'
   | 'cloudgpu'
+  | 'obscurify'
   | 'apimart'
   | 'openai-codex'
   | 'opencode-go'
@@ -334,7 +335,31 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'cheapaimodel',
+    createDefinition({
+      ...OPENAI_BASE,
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none'
+    })
+  ],
+  [
     'yapi',
+    createDefinition({
+      ...OPENAI_BASE,
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none'
+    })
+  ],
+  [
+    'xxapi',
+    createDefinition({
+      ...OPENAI_BASE,
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none'
+    })
+  ],
+  [
+    'llmbuzz',
     createDefinition({
       ...OPENAI_BASE,
       credentialStrategy: 'api-key',
@@ -635,6 +660,20 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
       credentialStrategy: 'api-key',
       embeddingStrategy: 'none',
       checkModelId: 'deepseek-v4.1-flash',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
+    'obscurify',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'obscurify',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'none',
+      checkModelId: 'meta-llama/llama-3.3-70b-instruct',
       checkPrompt: 'Hello',
       checkTemperature: 0.2,
       checkMaxTokens: 16

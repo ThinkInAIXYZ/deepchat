@@ -396,6 +396,7 @@ export interface SessionAssignmentConfigPort {
   getDefaultModel(): { providerId: string; modelId: string } | null | undefined
   getDefaultProjectPath(): string | null
   resolveDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig | null>
+  isModelAvailable(providerId: string, modelId: string): boolean
 }
 
 export interface CreateAssignmentInput {
@@ -434,6 +435,7 @@ export interface SubagentAssignmentInput {
   disabledAgentTools?: string[]
   activeSkills?: string[]
   toolModeOverride?: ToolModeOverride
+  preserveExecutionConfig?: boolean
 }
 
 export interface ResolvedSubagentAssignment {
@@ -610,6 +612,7 @@ export interface SessionLifecycleSubagentInput {
   activeSkills?: string[]
   toolModeOverride?: ToolModeOverride
   liveDelegationContext?: LiveDelegationSubagentContext
+  preserveExecutionConfig?: boolean
 }
 
 export interface SessionLifecyclePort {

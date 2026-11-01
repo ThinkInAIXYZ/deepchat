@@ -10,7 +10,7 @@ There is no retained implementation switch or local fallback.
 
 Current scope: staged implementation in
 [Draft PR #2465](https://github.com/ThinkInAIXYZ/deepchat/pull/2465), targeting `dev`. Admission is
-committed as `ffcd98770` and the roadmap as `f35adff34`. G4 is complete at `356143755`; G5 local acceptance is complete and publication/native CI are pending.
+committed as `ffcd98770` and the roadmap as `f35adff34`. G4 is complete at `356143755`; G5 local integration acceptance is complete; native CI is pending.
 Later goals start only after their dependencies and the preceding selected goal pass validation.
 
 Use this file as the only tracker. [The RFC](spec.md) defines capability ownership, Memory
@@ -58,21 +58,21 @@ Reuse the retained baseline instead of accumulating a complete output tree for e
 
 ## Live goals and dependencies
 
-| Goal                                    | State                                                    | Dependencies                   | Completion condition                                                                              |
-| --------------------------------------- | -------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------- |
-| G0 Admission                            | Complete, `ffcd98770`                                    | Existing branch baseline       | Default Rutis wiring, matching real-app E2E and old path removed                                  |
-| G1 Whole-capability roadmap             | Complete; documentation only                             | G0 and source research         | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence                  |
-| G2 Baselines and first service contract | Complete, `84e3e0ead`                                    | G1                             | Reproducible resource baselines and frozen operation/ownership budgets                            |
-| G3 Memory vector resources              | Complete, `7ee99619b`                                    | G2                             | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
-| G4 Store commands and desktop ports     | Complete, `356143755`                                    | G2                             | Explicit durable operations, writer inventory and asynchronous host capabilities                  |
-| G5 Cohesive TS Harness backend          | Local acceptance complete; publication/native CI pending | G4                             | Run/loop/Session/Tape/Provider composition operates under one backend authority                   |
-| G6 Full Memory capability               | Planned                                                  | G3, G4, G5                     | Recall, ingestion, management and maintenance use the one Memory service                          |
-| G7 Rust control owner                   | Planned                                                  | G2, G5                         | Admission and cohesive run/interaction settlement preserve all fences                             |
-| G8 Rust batch computations              | Conditional                                              | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go           |
-| G9 Peripheral capabilities              | Conditional per selected module                          | G4, G5                         | Independent useful lifetime, real consumer cutover and no duplicate supervisor                    |
-| G10 Rust durable Store                  | Conditional compatibility project                        | G4, G5, G6, G7                 | One compatible encrypted writer and proven migration/recovery/maintenance behavior                |
-| G11 Headless Session Host               | Planned                                                  | G4, G5 and host-port audit     | Real CLI execution without Electron and without a connected desktop                               |
-| G12 Multiple clients and devices        | Planned                                                  | G11 and explicit grants        | Reconnect-safe clients and separately authorized, revocable device operations                     |
+| Goal                                    | State                                                   | Dependencies                   | Completion condition                                                                              |
+| --------------------------------------- | ------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| G0 Admission                            | Complete, `ffcd98770`                                   | Existing branch baseline       | Default Rutis wiring, matching real-app E2E and old path removed                                  |
+| G1 Whole-capability roadmap             | Complete; documentation only                            | G0 and source research         | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence                  |
+| G2 Baselines and first service contract | Complete, `84e3e0ead`                                   | G1                             | Reproducible resource baselines and frozen operation/ownership budgets                            |
+| G3 Memory vector resources              | Complete, `7ee99619b`                                   | G2                             | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
+| G4 Store commands and desktop ports     | Complete, `356143755`                                   | G2                             | Explicit durable operations, writer inventory and asynchronous host capabilities                  |
+| G5 Cohesive TS Harness backend          | Integrated local acceptance complete; native CI pending | G4                             | Run/loop/Session/Tape/Provider composition operates under one backend authority                   |
+| G6 Full Memory capability               | Planned                                                 | G3, G4, G5                     | Recall, ingestion, management and maintenance use the one Memory service                          |
+| G7 Rust control owner                   | Planned                                                 | G2, G5                         | Admission and cohesive run/interaction settlement preserve all fences                             |
+| G8 Rust batch computations              | Conditional                                             | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go           |
+| G9 Peripheral capabilities              | Conditional per selected module                         | G4, G5                         | Independent useful lifetime, real consumer cutover and no duplicate supervisor                    |
+| G10 Rust durable Store                  | Conditional compatibility project                       | G4, G5, G6, G7                 | One compatible encrypted writer and proven migration/recovery/maintenance behavior                |
+| G11 Headless Session Host               | Planned                                                 | G4, G5 and host-port audit     | Real CLI execution without Electron and without a connected desktop                               |
+| G12 Multiple clients and devices        | Planned                                                 | G11 and explicit grants        | Reconnect-safe clients and separately authorized, revocable device operations                     |
 
 G3 is selected for its bounded file/resource ownership, not an assumed native query speedup.
 G2 may reject its process placement if transport or aggregate memory costs are unacceptable.
@@ -4574,6 +4574,40 @@ Publish the complete G5 source and default wiring to the existing Draft PR after
 checks. Required checks and all six native verification packages must pass on that published head
 before G6 starts. G6–G12 remain intact and unstarted; the PR is not merged. The published CI result,
 not local macOS acceptance, establishes the remaining supported-platform verification.
+
+### G5 current dev integration
+
+The current `dev` adds centralized Provider Catalog ownership and subagent model-selection fixes.
+Their composition stays inside Core: ACP catalog replacement and imported model invalidation use
+`ProviderRuntime`; subagent selection receives the availability predicate and the sanitized
+execution snapshot. Main retains the G5 Native composition and does not reconstruct these business
+owners. Upstream providers, renderer projections and catalog contracts are preserved.
+
+Detached catalog revalidation, config refresh and explicit refresh execute their entire fetch and
+commit in the existing database request scope. Maintenance drains accepted refreshes before
+rekey/import; shutdown starts HTTP retirement and drains requests before releasing the profile.
+One existing catalog test covers a detached refresh holding maintenance until its write commits
+and rejects a new refresh during maintenance. The catalog writer guard also scans `src/harness`.
+The obsolete renderer catalog-cache invalidation calls are removed with the cache that `dev`
+replaced; renderer subscriptions forward the authoritative backend notifications.
+
+The integrated normal build, format, i18n, lint, renderer architecture baseline and generated-icon
+checks pass. All 19 selected actual-app startup/provider/delegation/maintenance/ACP cases pass at
+their recorded scopes: 18 in the initial run, with the remaining provider case passing after two
+obsolete picker-toggle clicks are removed. The picker now correctly shows all catalog models
+when only a custom model is enabled; credential, selection, persistence and error assertions remain.
+The 18 successful cases are not repeated.
+
+Catalog/Provider Runtime checks pass 57 cases across three files, including the detached-refresh
+drain regression. A mock gains the new catalog-state method, and its unused ACP fixture follows
+the current async ports. Targeted test types and lint pass. Model picker/store tests pass; renderer
+API client tests pass 53 cases after deleting an obsolete test of the removed renderer catalog
+cache. No production API is restored to satisfy that test. Earlier artifact evidence keeps its
+original source scope; no unchanged performance matrix or package rebuild is selected.
+
+Publish the conflict-free integration, then require exact-head checks and all six native packages
+before G6. Merge-conflicted pull requests cannot start these pull-request workflows. The PR remains
+Draft against `dev` and is not merged.
 
 ## G6. Extract the complete Memory capability
 

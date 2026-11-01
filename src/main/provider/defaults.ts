@@ -193,6 +193,34 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'xxapi',
+    name: 'xxapi',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://xxapi.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://xxapi.ai/',
+      apiKey: 'https://xxapi.ai/keys',
+      docs: 'https://docs.xxapi.ai/getting-started',
+      models: 'https://xxapi.ai/pricing'
+    }
+  },
+  {
+    id: 'llmbuzz',
+    name: 'llm.buzz',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.llm.buzz/api/v1',
+    enable: false,
+    websites: {
+      official: 'https://llm.buzz/',
+      apiKey: 'https://app.llm.buzz',
+      docs: 'https://llm.buzz',
+      models: 'https://api.llm.buzz/api/v1/models'
+    }
+  },
+  {
     id: 'apimodels',
     name: 'apimodels.app',
     apiType: 'openai-completions',
@@ -676,6 +704,34 @@ const PROVIDER_DEFAULTS: LLM_PROVIDER_BASE[] = [
       apiKey: 'https://cloudgpu.app/api/console?utm_source=deepchat',
       docs: 'https://cloudgpu.app/api/docs?utm_source=deepchat',
       models: 'https://cloudgpu.app/api?utm_source=deepchat'
+    }
+  },
+  {
+    id: 'cheapaimodel',
+    name: 'cheapaimodel',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.cheapaimodel.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://cheapaimodel.ai/?utm_source=deepchat',
+      apiKey: 'https://console.cheapaimodel.ai/keys?utm_source=deepchat',
+      docs: 'https://cheapaimodel.ai/docs?utm_source=deepchat',
+      models: 'https://cheapaimodel.ai/models?utm_source=deepchat'
+    }
+  },
+  {
+    id: 'obscurify',
+    name: 'Obscurify.ai',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://obscurify.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://obscurify.ai/?utm_source=deepchat',
+      apiKey: 'https://obscurify.ai/account',
+      docs: 'https://obscurify.ai/api-docs',
+      models: 'https://obscurify.ai/model_cards'
     }
   },
   {

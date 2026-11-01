@@ -56,6 +56,8 @@ import opperColorIcon from '@/assets/llm-icons/opper.svg?url'
 import aistupidlevelIcon from '@/assets/llm-icons/aistupidlevel.svg?url'
 import runcrateIcon from '@/assets/llm-icons/runcrate.svg?url'
 import cloudgpuIcon from '@/assets/llm-icons/cloudgpu.svg?url'
+import cheapaimodelIcon from '@/assets/llm-icons/cheapaimodel.svg?url'
+import obscurifyIcon from '@/assets/llm-icons/obscurify.svg?url'
 import demonrouteColorIcon from '@/assets/llm-icons/demonroute.svg?url'
 import orcarouterColorIcon from '@/assets/llm-icons/orcarouter.svg?url'
 import synthoraiColorIcon from '@/assets/llm-icons/synthorai.svg?url'
@@ -101,6 +103,8 @@ import cheaperInferenceIcon from '@/assets/llm-icons/cheaper-inference.svg?url'
 import futureinfraIcon from '@/assets/llm-icons/futureinfra.svg?url'
 import atmorouterIcon from '@/assets/llm-icons/atmorouter.svg?url'
 import yapiIcon from '@/assets/llm-icons/yapi.svg?url'
+import xxapiIcon from '@/assets/llm-icons/xxapi.svg?url'
+import llmbuzzIcon from '@/assets/llm-icons/llmbuzz.svg?url'
 import apimodelsIcon from '@/assets/llm-icons/apimodels.png?url'
 import anonrouterIcon from '@/assets/llm-icons/anonrouter.svg?url'
 import typesafeIcon from '@/assets/llm-icons/typesafe.png?url'
@@ -157,6 +161,8 @@ export const modelIcons = {
   futureinfra: futureinfraIcon,
   atmorouter: atmorouterIcon,
   yapi: yapiIcon,
+  xxapi: xxapiIcon,
+  llmbuzz: llmbuzzIcon,
   apimodels: apimodelsIcon,
   zeabur: zeaburColorIcon,
   zeroone: zerooneColorIcon,
@@ -204,6 +210,8 @@ export const modelIcons = {
   aistupidlevel: aistupidlevelIcon,
   runcrate: runcrateIcon,
   cloudgpu: cloudgpuIcon,
+  cheapaimodel: cheapaimodelIcon,
+  obscurify: obscurifyIcon,
   demonroute: demonrouteColorIcon,
   orcarouter: orcarouterColorIcon,
   synthorai: synthoraiColorIcon,
@@ -288,6 +296,9 @@ const monoIconUrls = new Set<string>([
   aistupidlevelIcon,
   runcrateIcon,
   cloudgpuIcon,
+  xxapiIcon,
+  llmbuzzIcon,
+  obscurifyIcon,
   demonrouteColorIcon,
   githubColorIcon,
   qiniuIcon,

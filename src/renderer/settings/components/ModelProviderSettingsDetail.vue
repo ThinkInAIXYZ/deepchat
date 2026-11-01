@@ -51,6 +51,13 @@
       >
         {{ t('settings.provider.refreshModelsWithMetadataHint') }}
       </p>
+      <p
+        v-if="catalogLastSyncedAt"
+        data-testid="provider-catalog-last-synced"
+        class="mt-2 text-xs leading-5 text-muted-foreground"
+      >
+        {{ t('settings.data.lastSyncTime') }}: {{ catalogLastSyncedAt }}
+      </p>
     </template>
 
     <template #advanced>
@@ -101,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
@@ -126,6 +133,8 @@ import {
 } from '@shared/providerCustomHeaders'
 import ProviderCustomHeadersEditor from './ProviderCustomHeadersEditor.vue'
 import { isProviderReadyForOnboarding } from './providerOnboardingReadiness'
+import { createProviderCatalogClient } from '../../api/ProviderCatalogClient'
+import type { ProviderCatalogSnapshot } from '@shared/types/providerCatalog'
 
 interface ProviderWebsites {
   official: string
@@ -157,6 +166,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const providerStore = useProviderStore()
 const modelStore = useModelStore()
+const providerCatalogClient = createProviderCatalogClient()
 const uiSettingsStore = useUiSettingsStore()
 const azureApiVersion = ref('')
 const geminiSafetyLevels = reactive<Record<string, number>>({})
@@ -167,6 +177,40 @@ const providerModels = ref<RENDERER_MODEL_META[]>([])
 const customModels = ref<RENDERER_MODEL_META[]>([])
 const isModelListLoading = ref(true)
 const isRefreshingModels = ref(false)
+const catalogSnapshot = ref<ProviderCatalogSnapshot | null>(null)
+const catalogLastSyncedAt = computed(() =>
+  catalogSnapshot.value?.fetchedAt
+    ? new Date(catalogSnapshot.value.fetchedAt).toLocaleString()
+    : null
+)
+
+const applyCatalogState = (snapshot: ProviderCatalogSnapshot) => {
+  if (snapshot.providerId !== props.provider.id) {
+    return
+  }
+  const current = catalogSnapshot.value
+  if (current?.providerId === snapshot.providerId && snapshot.revision < current.revision) {
+    return
+  }
+  catalogSnapshot.value = snapshot
+}
+
+const refreshCatalogSnapshot = async (providerId: string) => {
+  try {
+    applyCatalogState(await providerCatalogClient.getCatalog(providerId))
+  } catch (error) {
+    if (import.meta.env.DEV) console.debug('Failed to refresh catalog state:', error)
+  }
+}
+
+// Background revalidation updates the snapshot outside this page's refresh button.
+const unsubscribeCatalogChanged = providerCatalogClient.onCatalogChanged((payload) => {
+  if (payload.providerId !== props.provider.id || payload.status === 'refreshing') {
+    return
+  }
+  void refreshCatalogSnapshot(payload.providerId)
+})
+onBeforeUnmount(unsubscribeCatalogChanged)
 const isProviderStatusUpdating = ref(false)
 const isAuthModeUpdating = ref(false)
 const hasInitializedModelList = ref(false)
@@ -259,7 +303,7 @@ const validateApiKey = async () => {
       checkResult.value = true
       showCheckModelDialog.value = true
       // 验证成功后刷新当前provider的模型列表
-      await modelStore.refreshProviderModels(props.provider.id)
+      await modelStore.refreshProviderCatalog(props.provider.id, 'user')
       // 首次配置成功且用户尚未勾选任何模型时，应用确定性的初始推荐
       await modelStore.applyInitialModelRecommendations(props.provider.id)
       return true
@@ -303,6 +347,13 @@ const initProviderSettings = async () => {
   if (import.meta.env.DEV) console.debug('initData for provider:', props.provider.id)
 
   await providerStore.ensureDefaultProvidersReady()
+
+  try {
+    applyCatalogState(await providerCatalogClient.getCatalog(props.provider.id))
+  } catch (error) {
+    catalogSnapshot.value = null
+    if (import.meta.env.DEV) console.debug('Failed to read provider catalog state:', error)
+  }
 
   // Fetch Azure API Version if applicable
   if (props.provider.id === 'azure-openai') {
@@ -387,7 +438,7 @@ const handleAuthModeChange = async (mode: 'api-key' | 'chatgpt') => {
   isAuthModeUpdating.value = true
   try {
     await providerStore.updateProviderConfig(props.provider.id, { openaiAuthMode: mode })
-    const refreshed = await modelStore.refreshProviderModels(props.provider.id)
+    const refreshed = await modelStore.refreshProviderCatalog(props.provider.id, 'config')
     if (!refreshed) {
       throw new Error('Failed to refresh models after changing the OpenAI authentication mode')
     }
@@ -578,10 +629,22 @@ const handleRefreshModels = async () => {
 
   let refreshed = false
   try {
-    refreshed = await modelStore.refreshProviderModels(props.provider.id, true)
+    const { result, catalog } = await providerCatalogClient.refreshCatalog(
+      props.provider.id,
+      'user'
+    )
+    applyCatalogState(catalog)
+    // `superseded` means a newer refresh took over; the catalog is not in an error state.
+    refreshed = result.status !== 'failed'
   } catch {
     // Do not expose upstream errors, which can contain connection credentials.
   } finally {
+    try {
+      // The catalog refresh owns upstream discovery; the store re-reads the persisted projection.
+      await modelStore.refreshProviderModels(props.provider.id, false)
+    } catch {
+      refreshed = false
+    }
     isRefreshingModels.value = false
     isModelListLoading.value = false
   }

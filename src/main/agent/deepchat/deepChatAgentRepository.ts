@@ -9,6 +9,7 @@ import {
   normalizeDeepChatSubagentConfig
 } from '@shared/lib/deepchatSubagents'
 import { normalizeToolModeOverride } from '@shared/toolMode'
+import { normalizeOrchestrationPolicy } from '@shared/orchestration/policy'
 import type {
   AgentAvatar,
   CreateDeepChatAgentInput,
@@ -134,6 +135,9 @@ const mergeDeepChatConfig = (
       overrideConfig.enabledMcpServerIds
     ),
     subagentEnabled: overrideConfig.subagentEnabled ?? baseConfig.subagentEnabled ?? true,
+    defaultOrchestrationPolicy: normalizeOrchestrationPolicy(
+      overrideConfig.defaultOrchestrationPolicy ?? baseConfig.defaultOrchestrationPolicy
+    ),
     subagents:
       overrideConfig.subagents ?? baseConfig.subagents ?? createDefaultDeepChatSubagentSlots(),
     autoCompactionEnabled:

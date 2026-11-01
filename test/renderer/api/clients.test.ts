@@ -20,6 +20,7 @@ import { createOAuthClient } from '../../../src/renderer/api/OAuthClient'
 import { createProjectClient } from '../../../src/renderer/api/ProjectClient'
 import { createRemoteControlClient } from '../../../src/renderer/api/RemoteControlClient'
 import { createProviderClient } from '../../../src/renderer/api/ProviderClient'
+import { createProviderCatalogClient } from '../../../src/renderer/api/ProviderCatalogClient'
 import { createSessionClient } from '../../../src/renderer/api/SessionClient'
 import { createSettingsClient } from '../../../src/renderer/api/SettingsClient'
 import { createShortcutClient } from '../../../src/renderer/api/ShortcutClient'
@@ -29,50 +30,6 @@ import { createToolClient } from '../../../src/renderer/api/ToolClient'
 import { createWindowClient } from '../../../src/renderer/api/WindowClient'
 
 describe('renderer api clients', () => {
-  it('invalidates cached model catalogs before forwarding remote model changes', async () => {
-    const now = vi.spyOn(Date, 'now').mockReturnValue(1000)
-    try {
-      const bridge = createBridge()
-      const catalog = {
-        providerModels: [],
-        customModels: [{ id: 'first' }],
-        dbProviderModels: [],
-        modelStatusMap: {}
-      }
-      vi.mocked(bridge.invoke).mockImplementation(
-        async () =>
-          ({
-            catalog: { ...catalog, customModels: [...catalog.customModels] }
-          }) as never
-      )
-      const client = createModelClient(bridge)
-      const models = () => client.getCustomModels('custom')
-      const listener = async () => {
-        expect((await models()).map((model) => model.id)).toEqual(
-          catalog.customModels.map((model) => model.id)
-        )
-      }
-      client.onModelsChanged(listener)
-      client.onModelStatusChanged(listener)
-      client.onModelBatchStatusChanged(listener)
-      await models()
-      await models()
-      expect(bridge.invoke).toHaveBeenCalledOnce()
-      const events = [
-        { providerId: 'custom', reason: 'custom-models', version: 1 },
-        { providerId: 'custom', modelId: 'second', enabled: true, version: 2 },
-        { providerId: 'custom', updates: [{ modelId: 'second', enabled: true }], version: 3 }
-      ]
-      for (const [index, payload] of events.entries()) {
-        catalog.customModels.push({ id: `added-${index}` })
-        await vi.mocked(bridge.on).mock.calls[index][1](payload as never)
-        expect(bridge.invoke).toHaveBeenCalledTimes(index + 2)
-      }
-    } finally {
-      now.mockRestore()
-    }
-  })
-
   it('serializes reactive session group cursors and directory filters for IPC', async () => {
     const bridge = createBridge()
     const cursor = reactive({ id: 'session-5', updatedAt: 123 })
@@ -3155,6 +3112,61 @@ describe('renderer api clients', () => {
     browserClient.onPreviewAction(listener)
 
     expect(bridge.on).toHaveBeenCalledWith('browser.preview.action', listener)
+  })
+
+  it('invokes the provider catalog routes and subscribes to catalog changes', async () => {
+    const bridge = createBridge()
+    const catalog = {
+      providerId: 'new-api',
+      revision: 2,
+      status: 'fresh',
+      fetchedAt: 1_700_000_000_000,
+      source: 'remote',
+      lastErrorCode: null,
+      models: []
+    }
+    vi.mocked(bridge.invoke).mockImplementation(async (routeName: string) => {
+      switch (routeName) {
+        case 'providers.catalog.get':
+          return { catalog }
+        case 'providers.catalog.list':
+          return { catalogs: [catalog] }
+        case 'providers.catalog.refresh':
+          return {
+            result: {
+              providerId: 'new-api',
+              status: 'failed',
+              revision: 2,
+              fetchedAt: null,
+              added: [],
+              removed: [],
+              updated: [],
+              errorCode: 'timeout'
+            },
+            catalog
+          }
+        case 'providers.catalog.ensureFresh':
+          return { scheduled: true }
+        default:
+          return {}
+      }
+    })
+    const client = createProviderCatalogClient(bridge)
+
+    await expect(client.getCatalog('new-api')).resolves.toMatchObject({ providerId: 'new-api' })
+    await expect(client.listCatalogs(['new-api'])).resolves.toHaveLength(1)
+    await expect(client.refreshCatalog('new-api', 'user')).resolves.toMatchObject({
+      result: { status: 'failed', errorCode: 'timeout' }
+    })
+    await expect(client.ensureFresh('new-api')).resolves.toBe(true)
+    expect(bridge.invoke).toHaveBeenCalledWith('providers.catalog.refresh', {
+      providerId: 'new-api',
+      reason: 'user'
+    })
+
+    const listener = vi.fn()
+    client.onCatalogChanged(listener)
+    expect(bridge.on).toHaveBeenCalledWith('providers.catalog.changed', listener)
   })
 
   it('subscribes to Computer Use preview frames and surface changes', () => {

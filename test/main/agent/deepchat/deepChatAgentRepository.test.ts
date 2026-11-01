@@ -66,6 +66,31 @@ function createMutableRepository(initialRows: any[] = []) {
 }
 
 describe('DeepChatAgentRepository', () => {
+  it('persists independent orchestration defaults and retains them while Subagents are disabled', () => {
+    const { repository } = createMutableRepository()
+    repository.ensureBuiltin({ config: { defaultOrchestrationPolicy: 'proactive' } })
+    const legacy = repository.create({ name: 'Legacy' })
+    const configured = repository.create({
+      name: 'Proactive',
+      config: { defaultOrchestrationPolicy: 'proactive' }
+    })
+
+    expect(repository.resolveConfig(legacy.id).defaultOrchestrationPolicy).toBe('explicit')
+    expect(repository.resolveConfig(configured.id).defaultOrchestrationPolicy).toBe('proactive')
+    expect(repository.listResolvedConfigs()).toContainEqual({
+      agentId: configured.id,
+      config: expect.objectContaining({ defaultOrchestrationPolicy: 'proactive' })
+    })
+
+    repository.update(configured.id, { config: { subagentEnabled: false } })
+    expect(repository.resolveConfig(configured.id)).toMatchObject({
+      subagentEnabled: false,
+      defaultOrchestrationPolicy: 'proactive'
+    })
+    repository.update(configured.id, { config: { defaultOrchestrationPolicy: 'explicit' } })
+    expect(repository.getConfig(configured.id)?.defaultOrchestrationPolicy).toBe('explicit')
+  })
+
   it('deletes DeepChat agent memory rows and the agent row in one transaction', () => {
     const agents = new Map<string, any>([
       [

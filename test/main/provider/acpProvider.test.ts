@@ -1522,3 +1522,49 @@ describe('AcpProvider runDebugAction error handling', () => {
     expect(queue.done).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('AcpProvider catalog ownership', () => {
+  const createCatalogProvider = (catalogWriter: {
+    replaceFromSource: ReturnType<typeof vi.fn>
+  }) => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.provider = { id: 'acp', name: 'ACP', enable: true }
+    provider.providerSettings = { getModelConfig: vi.fn() }
+    provider.agentSettings = {
+      getAcpEnabled: vi.fn().mockResolvedValue(true),
+      getAcpAgents: vi.fn().mockResolvedValue([
+        { id: 'agent1', name: 'Agent 1', command: 'agent-one' },
+        { id: 'agent2', name: 'Agent 2', command: 'agent-two' }
+      ])
+    }
+    provider.catalogWriter = catalogWriter
+    return provider
+  }
+
+  it('publishes agent models through the catalog writer instead of persisting directly', async () => {
+    const catalogWriter = { replaceFromSource: vi.fn() }
+    const provider = createCatalogProvider(catalogWriter)
+
+    await provider.syncCatalogFromAgents()
+
+    expect(catalogWriter.replaceFromSource).toHaveBeenCalledWith(
+      'acp',
+      [
+        expect.objectContaining({ id: 'agent1', isCustom: true, providerId: 'acp' }),
+        expect.objectContaining({ id: 'agent2', isCustom: true, providerId: 'acp' })
+      ],
+      'acp'
+    )
+    expect(provider.providerSettings.setProviderModels).toBeUndefined()
+  })
+
+  it('keeps the last-known catalog when agent loading fails', async () => {
+    const catalogWriter = { replaceFromSource: vi.fn() }
+    const provider = createCatalogProvider(catalogWriter)
+    provider.agentSettings.getAcpAgents.mockRejectedValueOnce(new Error('agent registry offline'))
+
+    await provider.syncCatalogFromAgents()
+
+    expect(catalogWriter.replaceFromSource).not.toHaveBeenCalled()
+  })
+})

@@ -46,6 +46,7 @@ import type { DeepChatTaskContractContext } from '@shared/types/task-contract'
 import { projectTaskEvaluationSummary } from '@/tape/domain/taskEvaluation'
 import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import type { SessionDeletionGatePort } from '@/session/deletionGate'
+import type { SubagentAssignmentInput } from '@/session/contracts'
 import { classifyToolEffect } from '@/tool/effectClassification'
 import type { ToolEffectObservation } from '@/tool/effectObserver'
 import { resolveToolPermissionMode } from '@/tool/permission/permissionMode'
@@ -119,6 +120,9 @@ export interface LiveDelegationAssistantResult {
 
 export interface LiveDelegationServiceSessionPort
   extends AgentToolSessionPort, AgentSubagentToolPort {
+  resolveSubagentExecutionSnapshot(
+    input: SubagentAssignmentInput
+  ): Promise<LiveDelegationTurnExecutionSnapshot>
   findDelegationChild(
     parentSessionId: string,
     delegationId: string
@@ -400,8 +404,21 @@ export class LiveDelegationService {
 
     const delegationId = nanoid()
     const turnId = nanoid()
-    const executionSnapshot = createTurnExecutionSnapshot(parent)
+    const parentSnapshot = createTurnExecutionSnapshot(parent)
     const projectDir = await this.resolveParentProjectDir(parent)
+    const executionSnapshot = await this.options.sessions.resolveSubagentExecutionSnapshot({
+      agentId: targetAgentId,
+      parentAgentId: parent.agentId,
+      targetAgentId,
+      projectDir,
+      providerId: parentSnapshot.providerId,
+      modelId: parentSnapshot.modelId,
+      generationSettings: parentSnapshot.generationSettings ?? undefined,
+      toolModeOverride: parentSnapshot.toolModeOverride,
+      permissionMode: parent.permissionMode,
+      disabledAgentTools: parent.disabledAgentTools,
+      activeSkills: parent.activeSkills
+    })
     const created = this.runAuthorizedStartMutation(parent, 'spawn', authorization, () =>
       this.options.repository.create(
         {
@@ -1057,6 +1074,7 @@ export class LiveDelegationService {
           projectDir: safety.projectDir,
           providerId: executionSnapshot.providerId,
           modelId: executionSnapshot.modelId,
+          preserveExecutionConfig: true,
           permissionMode: safety.parent.permissionMode,
           toolModeOverride: executionSnapshot.toolModeOverride,
           generationSettings: executionSnapshot.generationSettings
@@ -2039,7 +2057,11 @@ function createTurnExecutionSnapshot(
     providerId: session.providerId,
     modelId: session.modelId,
     generationSettings: session.generationSettings
-      ? structuredClone(session.generationSettings)
+      ? {
+          ...structuredClone(session.generationSettings),
+          thinkingBudget: session.generationSettings.thinkingBudget,
+          reasoningEffort: session.generationSettings.reasoningEffort
+        }
       : null,
     toolModeOverride: session.toolModeOverride
   }

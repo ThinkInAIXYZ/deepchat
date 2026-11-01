@@ -9,6 +9,7 @@ import type { CredentialCryptoPort } from '@/config/secretStore'
 import type { ProviderAccountAuthPort } from '@shared/types/oauth'
 import type { DeepchatEventName } from '@shared/contracts/events'
 import { ProviderRuntime } from '@/provider'
+import type { ProviderCatalogServiceDeps } from '@/provider/catalog/providerCatalogService'
 import { AcpProvider } from '@/provider/providers/acpProvider'
 import { buildDefaultProviderHeaders } from '@/provider/providerHeaders'
 import { providerDbLoader } from '@/provider/providerDbLoader'
@@ -58,6 +59,7 @@ export function createCoreProviders(options: {
   sendToRenderer: AcpAuthServiceDependencies['sendToRenderer']
   onRendererDestroyed: AcpAuthServiceDependencies['onRendererDestroyed']
   publishEvent(name: DeepchatEventName, payload: unknown): void
+  runCatalogRefresh: NonNullable<ProviderCatalogServiceDeps['runRefresh']>
   projectEnvironmentChanged(): void
   readLanguage(): string
   allowInsecureTls: boolean
@@ -129,7 +131,8 @@ export function createCoreProviders(options: {
           providerRuntime.updateProviderAtomic('acp', { enable: enabled })
         }
       },
-      clearAcpProviderModels: () => providerSettings.setProviderModels('acp', []),
+      clearAcpProviderModels: () =>
+        providerRuntime.replaceProviderCatalogFromSource('acp', [], 'acp'),
       clearAcpProviderModelStatus: () => providerSettings.clearProviderModelStatusCache('acp'),
       refreshAcpProviderAgents: async (agentIds) => {
         const provider = providerRuntime.getProviderInstance('acp')
@@ -195,7 +198,8 @@ export function createCoreProviders(options: {
     profile.mcpSettings,
     acpRuntimeOwner,
     acpSessionPersistence,
-    publishDeepchatEvent
+    publishDeepchatEvent,
+    options.runCatalogRefresh
   )
   const cliComputeService = new CliComputeService({
     providerSettings,

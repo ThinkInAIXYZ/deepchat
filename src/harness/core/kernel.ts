@@ -307,6 +307,8 @@ export async function createCoreKernel(options: {
       sendToRenderer: native.sendToRenderer,
       onRendererDestroyed: native.onRendererDestroyed,
       publishEvent,
+      runCatalogRefresh: (operation) =>
+        databaseRequests.runRequest('providers.catalog.refresh', operation),
       projectEnvironmentChanged: () => runtime?.projectService.notifyEnvironmentProjectionChanged(),
       readLanguage: () => settings.desktopSettings.getLanguage(),
       allowInsecureTls: options.allowInsecureTls,
