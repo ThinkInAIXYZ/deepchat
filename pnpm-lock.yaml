@@ -342,7 +342,7 @@ importers:
         version: 0.18.7
       markstream-vue:
         specifier: 2.0.11
-        version: 2.0.11(@antv/infographic@0.2.20)(katex@0.18.7)(mermaid@11.17.2)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue-i18n@11.4.10(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
+        version: 2.0.11(@antv/infographic@0.2.20)(katex@0.18.7)(mermaid@11.17.2)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue-i18n@11.4.17(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
       mermaid:
         specifier: ^11.17.2
         version: 11.17.2
@@ -419,8 +419,8 @@ importers:
         specifier: ^3.5.42
         version: 3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)
       vue-i18n:
-        specifier: ^11.4.10
-        version: 11.4.10(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
+        specifier: ^11.4.14
+        version: 11.4.17(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
       vue-router:
         specifier: ^5.3.1
         version: 5.3.1(@pinia/colada@0.20.0(pinia@3.0.4(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(@vue/compiler-sfc@3.5.42)(esbuild@0.28.1)(pinia@3.0.4(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(rollup@4.62.2)(vite@7.3.7(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0))(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
@@ -1792,20 +1792,20 @@ packages:
   '@internationalized/number@3.6.7':
     resolution: {integrity: sha512-3ji1fcrT+FPAK86UqEhB/psHixYo6niWPJtt7+qRaYFynt/BaJG8GhAPimtWUpEiVSTq8ZM8L5psMxGquiB/Vg==}
 
-  '@intlify/core-base@11.4.10':
-    resolution: {integrity: sha512-+yJ74JRWVJokdgG9zYNMyTSzeNV3O9T4vVxk8PvLFHmI+R/BYA//cITh7vhRK37hWLZ4/kTcKcUz1dlWOpypIg==}
+  '@intlify/core-base@11.4.17':
+    resolution: {integrity: sha512-HwKRw4C0n/Nb+d6BcpT6sJdc/XPZEQjY9eMX1+1tvAqDcz0G7ovLQadKnfYvOkk1NH4sskho3rrVLyplnBoP7Q==}
     engines: {node: '>= 22'}
 
-  '@intlify/devtools-types@11.4.10':
-    resolution: {integrity: sha512-xZxzZsAuu6/0zoLRVQWdpXWe5Kjl0LnWpjlQA3r9u9FbLYMhapqt7IwkgQyn0Tm2GUNAqhj9eZiUmYOrB024BQ==}
+  '@intlify/devtools-types@11.4.17':
+    resolution: {integrity: sha512-PvB/BdftBBgEfY2PJvK4n61ENr91TWaNQAy46fw8/eLSgQrkUIPJ1gNrkbO0hyE5fY1l1lrWFKab93lNiNVATg==}
     engines: {node: '>= 22'}
 
-  '@intlify/message-compiler@11.4.10':
-    resolution: {integrity: sha512-oUB/scz2EJENXDiUJ7JjZffOrH8UIZ1BuZeHvonbi5fWLavLt04aivuk2OIByOZA0tsci1bkeeQRmwhb5M8Imw==}
+  '@intlify/message-compiler@11.4.17':
+    resolution: {integrity: sha512-DFFSqirBN54QctjiZibXuS1X5LFtkT/4TNzBKG4lc2sMvPI/LflPWin1u6Sgbz/bB8rlcdcXTbiddNJV64rJYg==}
     engines: {node: '>= 22'}
 
-  '@intlify/shared@11.4.10':
-    resolution: {integrity: sha512-FeImVdPeoSHTm3NBFFZHv0eRP9gQ3F4lj2puDBX5Kw7iiM1uJW6JTf39ian0K/17pbXCI3ef5i9RVsRrALqI6Q==}
+  '@intlify/shared@11.4.17':
+    resolution: {integrity: sha512-oGrg/AL/spD9/kjpR9bch+yd9V4gYxod1txoLQalPs2C+riR1c2bh9T5Wjcb7obh6fxUwrHgnVAp0+FEbC4RfQ==}
     engines: {node: '>= 22'}
 
   '@isaacs/cliui@8.0.2':
@@ -6908,8 +6908,8 @@ packages:
       '@vue/composition-api':
         optional: true
 
-  vue-i18n@11.4.10:
-    resolution: {integrity: sha512-Lp+BjOxqzOY87DS6Z8KrQrpiTr9IN/Lt4kZEilwyXG2Wrx+AcU6IVsAW92HNXtVcn1HFFPV6ty41p9e/qDpyvg==}
+  vue-i18n@11.4.17:
+    resolution: {integrity: sha512-Wm3ovbi5aWQ/k0Wv26y/36/9F6nmaCInS05GZwzbc4ZCZX4mdG0J70qGt7U/RGkakFl6h0rPc6Bo0Licc5Ctsw==}
     engines: {node: '>= 22'}
     peerDependencies:
       vue: ^3.0.0
@@ -8544,23 +8544,23 @@ snapshots:
     dependencies:
       '@swc/helpers': 0.5.23
 
-  '@intlify/core-base@11.4.10':
+  '@intlify/core-base@11.4.17':
     dependencies:
-      '@intlify/devtools-types': 11.4.10
-      '@intlify/message-compiler': 11.4.10
-      '@intlify/shared': 11.4.10
+      '@intlify/devtools-types': 11.4.17
+      '@intlify/message-compiler': 11.4.17
+      '@intlify/shared': 11.4.17
 
-  '@intlify/devtools-types@11.4.10':
+  '@intlify/devtools-types@11.4.17':
     dependencies:
-      '@intlify/core-base': 11.4.10
-      '@intlify/shared': 11.4.10
+      '@intlify/core-base': 11.4.17
+      '@intlify/shared': 11.4.17
 
-  '@intlify/message-compiler@11.4.10':
+  '@intlify/message-compiler@11.4.17':
     dependencies:
-      '@intlify/shared': 11.4.10
+      '@intlify/shared': 11.4.17
       source-map-js: 1.2.2
 
-  '@intlify/shared@11.4.10': {}
+  '@intlify/shared@11.4.17': {}
 
   '@isaacs/cliui@8.0.2':
     dependencies:
@@ -12289,7 +12289,7 @@ snapshots:
 
   markstream-core@2.0.11: {}
 
-  markstream-vue@2.0.11(@antv/infographic@0.2.20)(katex@0.18.7)(mermaid@11.17.2)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue-i18n@11.4.10(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)):
+  markstream-vue@2.0.11(@antv/infographic@0.2.20)(katex@0.18.7)(mermaid@11.17.2)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue-i18n@11.4.17(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)):
     dependencies:
       '@chenglou/pretext': 0.0.8
       '@floating-ui/dom': 1.8.0
@@ -12301,7 +12301,7 @@ snapshots:
       katex: 0.18.7
       mermaid: 11.17.2
       stream-diffs: 0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
-      vue-i18n: 11.4.10(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
+      vue-i18n: 11.4.17(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
 
   matcher@3.0.0:
     dependencies:
@@ -13889,11 +13889,11 @@ snapshots:
     dependencies:
       vue: 3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)
 
-  vue-i18n@11.4.10(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)):
+  vue-i18n@11.4.17(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)):
     dependencies:
-      '@intlify/core-base': 11.4.10
-      '@intlify/devtools-types': 11.4.10
-      '@intlify/shared': 11.4.10
+      '@intlify/core-base': 11.4.17
+      '@intlify/devtools-types': 11.4.17
+      '@intlify/shared': 11.4.17
       '@vue/devtools-api': 6.6.4
       vue: 3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)
 
