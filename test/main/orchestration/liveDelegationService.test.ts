@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AgentInvocationAdmission } from '../../../src/harness/admission'
+import path from 'node:path'
+import { HarnessRuntime } from '@/harness/runtime'
+import { RutisAgentInvocationAdmission } from '@/harness/admission'
 import { TOOL_EXECUTION } from '@shared/types/mcp'
 import {
   LIVE_DELEGATION_MAX_ACTIVE_PER_PARENT,
@@ -78,13 +80,26 @@ describeIfSqlite('LiveDelegationService', () => {
   let service: InstanceType<typeof LiveDelegationServiceCtor>
   let harness: ReturnType<typeof createSessionHarness>
   let deletionGate: SessionDeletionGate
-  let admission: AgentInvocationAdmission
+  let admission: RutisAgentInvocationAdmission
   let consentAuthority: LiveDelegationConsentAuthority
   let observations: LiveDelegationLifecycleObservation[]
   let dispatchObservation: (observation: LiveDelegationLifecycleObservation) => void | Promise<void>
   let monotonicNow: number
 
-  beforeEach(() => {
+  const admissionRuntimes: HarnessRuntime[] = []
+  async function createAdmission(capacity = 2, maxPending = 10) {
+    const runtime = await HarnessRuntime.start({
+      directory: path.resolve('out/harness'),
+      electronExecutable: process.execPath,
+      capacity,
+      maxPending,
+      observe: () => {}
+    })
+    admissionRuntimes.push(runtime)
+    return RutisAgentInvocationAdmission.create({ runtime, capacity, maxPending })
+  }
+
+  beforeEach(async () => {
     db = new DatabaseCtor(':memory:')
     db.exec(`
       PRAGMA foreign_keys = ON;
@@ -107,7 +122,7 @@ describeIfSqlite('LiveDelegationService', () => {
     )
     harness = createSessionHarness(db)
     deletionGate = new SessionDeletionGate()
-    admission = new AgentInvocationAdmission(2, 10)
+    admission = await createAdmission(2, 10)
     consentAuthority = new LiveDelegationConsentAuthority()
     observations = []
     dispatchObservation = (observation) => observations.push(observation)
@@ -127,6 +142,7 @@ describeIfSqlite('LiveDelegationService', () => {
 
   afterEach(async () => {
     await service?.stop()
+    await Promise.all(admissionRuntimes.splice(0).map((runtime) => runtime.stop()))
     db?.close()
     db = null
     vi.restoreAllMocks()
@@ -462,7 +478,7 @@ describeIfSqlite('LiveDelegationService', () => {
     const childSessionId = repository.require(created.delegation.id).childSessionId!
     expect(repository.requireTurn(turnId).status).toBe('queued')
     expect(harness.sessions.sendConversationMessage).not.toHaveBeenCalled()
-    expect(admission.snapshot().active).toBe(0)
+    expect((await admission.snapshot()).active).toBe(0)
     expect(repository.listEvents('parent')).toEqual([])
     expect(() => service.prepareTaskContractContext(childSessionId)).toThrow(
       /no admitted live-delegation runtime/u
@@ -470,7 +486,7 @@ describeIfSqlite('LiveDelegationService', () => {
 
     await service.stop()
     harness.sessions.sendConversationMessage.mockClear()
-    admission = new AgentInvocationAdmission(2, 10)
+    admission = await createAdmission(2, 10)
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
@@ -791,7 +807,7 @@ describeIfSqlite('LiveDelegationService', () => {
       sessions: harness.sessions,
       safety: harness.safety,
       consent: consentAuthority,
-      admission: new AgentInvocationAdmission(2, 10),
+      admission: await createAdmission(2, 10),
       deletionGate
     })
     service.start()
@@ -1029,7 +1045,7 @@ describeIfSqlite('LiveDelegationService', () => {
 
   it('freezes generation settings while applying live permission and workspace safety', async () => {
     await service.stop()
-    admission = new AgentInvocationAdmission(1, 10)
+    admission = await createAdmission(1, 10)
     const blocker = await admission.acquire({ ownerId: 'other-session' })
     service = new LiveDelegationServiceCtor({
       repository,
@@ -1395,7 +1411,7 @@ describeIfSqlite('LiveDelegationService', () => {
 
   it('rejects revoked waiting work before it queues for another permit', async () => {
     await service.stop()
-    admission = new AgentInvocationAdmission(1, 10)
+    admission = await createAdmission(1, 10)
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
@@ -1431,7 +1447,9 @@ describeIfSqlite('LiveDelegationService', () => {
         }
       }
     })
-    await vi.waitFor(() => expect(admission.snapshot()).toMatchObject({ active: 0, pending: 0 }))
+    await vi.waitFor(async () =>
+      expect(await admission.snapshot()).toMatchObject({ active: 0, pending: 0 })
+    )
     const blocker = await admission.acquire({ ownerId: 'other-session' })
     harness.parent.subagentCapability = {
       available: false,
@@ -1439,7 +1457,7 @@ describeIfSqlite('LiveDelegationService', () => {
     }
 
     await expect(service.beforeInteractionContinuation(childId)).rejects.toThrow('unavailable')
-    expect(admission.snapshot()).toMatchObject({ active: 1, pending: 0 })
+    expect(await admission.snapshot()).toMatchObject({ active: 1, pending: 0 })
     await vi.waitFor(() =>
       expect(repository.require(spawned.delegation.id).status).toBe('interrupted')
     )
@@ -1538,7 +1556,7 @@ describeIfSqlite('LiveDelegationService', () => {
 
   it('releases a waiting child permit and reacquires before continuation', async () => {
     await service.stop()
-    admission = new AgentInvocationAdmission(1, 10)
+    admission = await createAdmission(1, 10)
     service = new LiveDelegationServiceCtor({
       repository,
       sessions: harness.sessions,
@@ -1558,7 +1576,7 @@ describeIfSqlite('LiveDelegationService', () => {
       expect(repository.listTurns(first.delegation.id, 1)[0]?.status).toBe('running')
     )
     const firstChildId = repository.require(first.delegation.id).childSessionId!
-    expect(admission.snapshot()).toMatchObject({ active: 1, pending: 0 })
+    expect(await admission.snapshot()).toMatchObject({ active: 1, pending: 0 })
     harness.publish({
       sessionId: firstChildId,
       kind: 'status',
@@ -1582,7 +1600,7 @@ describeIfSqlite('LiveDelegationService', () => {
         }
       }
     })
-    expect(admission.snapshot()).toMatchObject({ active: 0, pending: 0 })
+    expect(await admission.snapshot()).toMatchObject({ active: 0, pending: 0 })
 
     const second = await service.spawn('parent', {
       slotId: 'reviewer',
@@ -1594,7 +1612,7 @@ describeIfSqlite('LiveDelegationService', () => {
     )
     const secondChildId = repository.require(second.delegation.id).childSessionId!
     const continuation = service.beforeInteractionContinuation(firstChildId)
-    await vi.waitFor(() => expect(admission.snapshot().pending).toBe(1))
+    await vi.waitFor(async () => expect((await admission.snapshot()).pending).toBe(1))
 
     harness.publishAnswer(secondChildId, 'Second result.', 220)
     harness.publish({
@@ -1604,7 +1622,7 @@ describeIfSqlite('LiveDelegationService', () => {
       status: 'idle'
     })
     await expect(continuation).resolves.toBe(true)
-    expect(admission.snapshot()).toMatchObject({ active: 1, pending: 0 })
+    expect(await admission.snapshot()).toMatchObject({ active: 1, pending: 0 })
 
     harness.publish({
       sessionId: firstChildId,
@@ -1615,7 +1633,7 @@ describeIfSqlite('LiveDelegationService', () => {
     expect(repository.requireTurn(first.turns[0]!.id).status).toBe('running')
     harness.publishAnswer(firstChildId, 'First result.', 240)
     harness.publish({ sessionId: firstChildId, kind: 'status', updatedAt: 241, status: 'idle' })
-    await vi.waitFor(() => expect(admission.snapshot().active).toBe(0))
+    await vi.waitFor(async () => expect((await admission.snapshot()).active).toBe(0))
   })
 
   it('keeps a recovered turn live when waiting suspends a queued lease', async () => {
@@ -1634,7 +1652,7 @@ describeIfSqlite('LiveDelegationService', () => {
     harness.addChild('child-recovered-wait', created.delegation.id, 'generating')
     repository.bindChild(created.delegation.id, 'child-recovered-wait', 110)
     repository.markTurnStarted(created.turn.id, 120)
-    admission = new AgentInvocationAdmission(1, 10)
+    admission = await createAdmission(1, 10)
     const blocker = await admission.acquire({ ownerId: 'other-session' })
     service = new LiveDelegationServiceCtor({
       repository,
@@ -1645,7 +1663,7 @@ describeIfSqlite('LiveDelegationService', () => {
       deletionGate
     })
     service.start()
-    await vi.waitFor(() => expect(admission.snapshot().pending).toBe(1))
+    await vi.waitFor(async () => expect((await admission.snapshot()).pending).toBe(1))
 
     harness.publish({
       sessionId: 'child-recovered-wait',
@@ -1663,7 +1681,7 @@ describeIfSqlite('LiveDelegationService', () => {
         }
       }
     })
-    await vi.waitFor(() => expect(admission.snapshot().pending).toBe(0))
+    await vi.waitFor(async () => expect((await admission.snapshot()).pending).toBe(0))
     expect(repository.requireTurn(created.turn.id).status).toBe('waiting_question')
 
     blocker.release()
@@ -1902,7 +1920,7 @@ describeIfSqlite('LiveDelegationService', () => {
       sessions: harness.sessions,
       safety: harness.safety,
       consent: consentAuthority,
-      admission: new AgentInvocationAdmission(2, 10),
+      admission: await createAdmission(2, 10),
       deletionGate,
       onChanged: (_parentSessionId, delegationId) => {
         publishedStatuses.push(repository.require(delegationId).status)
@@ -2261,7 +2279,7 @@ describeIfSqlite('LiveDelegationService', () => {
       sessions: harness.sessions,
       safety: harness.safety,
       consent: consentAuthority,
-      admission: new AgentInvocationAdmission(2, 10),
+      admission: await createAdmission(2, 10),
       deletionGate,
       observe: (observation) => dispatchObservation(observation),
       now: () => monotonicNow
@@ -2335,7 +2353,7 @@ describeIfSqlite('LiveDelegationService', () => {
       sessions: harness.sessions,
       safety: harness.safety,
       consent: consentAuthority,
-      admission: new AgentInvocationAdmission(2, 10),
+      admission: await createAdmission(2, 10),
       deletionGate,
       observe: (observation) => dispatchObservation(observation),
       now: () => monotonicNow
@@ -2392,7 +2410,7 @@ describeIfSqlite('LiveDelegationService', () => {
       sessions: harness.sessions,
       safety: harness.safety,
       consent: consentAuthority,
-      admission: new AgentInvocationAdmission(2, 10),
+      admission: await createAdmission(2, 10),
       deletionGate
     })
     service.start()
@@ -2436,7 +2454,7 @@ describeIfSqlite('LiveDelegationService', () => {
       sessions: harness.sessions,
       safety: harness.safety,
       consent: consentAuthority,
-      admission: new AgentInvocationAdmission(2, 10),
+      admission: await createAdmission(2, 10),
       deletionGate,
       observe: (observation) => dispatchObservation(observation),
       now: () => monotonicNow
@@ -2487,7 +2505,7 @@ describeIfSqlite('LiveDelegationService', () => {
       sessions: harness.sessions,
       safety: harness.safety,
       consent: consentAuthority,
-      admission: new AgentInvocationAdmission(2, 10),
+      admission: await createAdmission(2, 10),
       deletionGate
     })
     service.start()
@@ -2537,7 +2555,7 @@ describeIfSqlite('LiveDelegationService', () => {
       sessions: harness.sessions,
       safety: harness.safety,
       consent: consentAuthority,
-      admission: new AgentInvocationAdmission(2, 10),
+      admission: await createAdmission(2, 10),
       deletionGate,
       observe: (observation) => dispatchObservation(observation),
       now: () => monotonicNow
@@ -2651,7 +2669,7 @@ describeIfSqlite('LiveDelegationService', () => {
       sessions: harness.sessions,
       safety: harness.safety,
       consent: consentAuthority,
-      admission: new AgentInvocationAdmission(2, 10),
+      admission: await createAdmission(2, 10),
       deletionGate,
       onChanged
     })
@@ -2700,7 +2718,7 @@ describeIfSqlite('LiveDelegationService', () => {
       sessions: harness.sessions,
       safety: harness.safety,
       consent: consentAuthority,
-      admission: new AgentInvocationAdmission(2, 10),
+      admission: await createAdmission(2, 10),
       deletionGate
     })
     service.start()
@@ -2766,7 +2784,7 @@ describeIfSqlite('LiveDelegationService', () => {
       sessions: harness.sessions,
       safety: harness.safety,
       consent: consentAuthority,
-      admission: new AgentInvocationAdmission(2, 10),
+      admission: await createAdmission(2, 10),
       deletionGate
     })
     service.start()
@@ -2833,7 +2851,7 @@ describeIfSqlite('LiveDelegationService', () => {
       sessions: harness.sessions,
       safety: harness.safety,
       consent: consentAuthority,
-      admission: new AgentInvocationAdmission(2, 10),
+      admission: await createAdmission(2, 10),
       deletionGate
     })
 

@@ -268,15 +268,12 @@ impl Native {
             }
             state.admission_pending += 1;
         }
-        let mut input: Vec<Value> = input.iter().cloned().map(Value::from).collect();
+        let input: Vec<Value> = input.iter().cloned().map(Value::from).collect();
         let value = if acquire && input.len() != 3 {
             Err(BridgeError::Value(
                 "Invalid Core acquisition arguments".into(),
             ))
         } else {
-            if acquire {
-                input.insert(2, Value::Signal);
-            }
             service.invoke(
                 "dispatchCore",
                 Value::List(vec![

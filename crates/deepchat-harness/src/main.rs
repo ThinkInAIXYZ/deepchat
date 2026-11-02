@@ -27,6 +27,7 @@ use tokio::{
     time::{sleep, timeout},
 };
 
+mod admission;
 mod core;
 mod layers;
 mod memory;
@@ -109,32 +110,6 @@ enum Request {
     },
 }
 
-#[derive(Serialize, Deserialize)]
-struct Observation(u64, Json);
-impl Event for Observation {
-    const NAME: &'static str = "deepchat/admission/observation";
-    type Value = ();
-}
-
-struct ObservationForwarder(Output);
-impl rutis::Listener<Observation> for ObservationForwarder {
-    fn call<'a>(
-        &'a self,
-        _: &'a Ctx,
-        event: &'a Observation,
-        _: rutis::Call<'a, ()>,
-    ) -> BoxFuture<'a, std::result::Result<Option<()>, CordisError>> {
-        Box::pin(async move {
-            let value = event.1.clone();
-            let _ = self
-                .0
-                .send(json!({ "type": "observation", "sequence": event.0, "value": value }))
-                .await;
-            Ok(None)
-        })
-    }
-}
-
 fn error(name: &str, message: impl ToString) -> Json {
     fn bounded(value: &str, max: usize) -> &str {
         let mut end = max.min(value.len());
@@ -192,19 +167,7 @@ impl Plugin for AdmissionGateway {
             let service = ctx.require_as::<dyn HostDispatch>(self.injects[0].clone())?;
             self.native
                 .bind_admission(service.clone(), self.capacity, self.max_pending);
-            ctx.events().on(
-                ctx,
-                &EventKey::<Observation>::of(),
-                ObservationForwarder(self.outgoing.clone()),
-            )?;
-            let runtime = invoke(
-                service
-                    .invoke("snapshot", Value::List(vec![]))
-                    .map_err(|e| CordisError::PluginFailed(Box::new(e)))?,
-            )
-            .await
-            .map_err(|e| CordisError::ServiceNotFound(e.to_string()))?;
-            let _ = self.outgoing.send(json!({ "type": "ready", "protocol": 1, "hostPid": std::process::id(), "runtime": runtime["runtime"] })).await;
+            self.outgoing.send(json!({ "type": "ready", "protocol": 2, "hostPid": std::process::id(), "owner": "rust" })).await.map_err(|e| CordisError::ServiceNotFound(e.to_string()))?;
             let mut incoming = self.incoming.lock().unwrap().take().ok_or_else(|| {
                 CordisError::ServiceNotFound("Admission generation was replaced".into())
             })?;
@@ -227,13 +190,7 @@ impl Plugin for AdmissionGateway {
                                 if id == 0 || id > 9_007_199_254_740_991 || pending.contains(&id) || pending.len() >= MAX_CALLS {
                                     return Err(CordisError::ServiceNotFound("Invalid or excessive harness request".into()));
                                 }
-                                let mut args: Vec<Value> = args.into_iter().map(Value::from).collect();
-                                if matches!(method, Method::Acquire) {
-                                    if args.len() != 3 {
-                                        return Err(CordisError::ServiceNotFound("Invalid acquire arguments".into()));
-                                    }
-                                    args.insert(2, Value::Signal);
-                                }
+                                let args: Vec<Value> = args.into_iter().map(Value::from).collect();
                                 let value = match service.invoke("dispatch", Value::List(vec![json!(id).into(), json!(method.name()).into(), Value::List(args)])) {
                                     Ok(value) => value,
                                     Err(error) => {
@@ -362,7 +319,7 @@ async fn mount(
     core_incoming: mpsc::Receiver<Request>,
     native: Arc<core::Native>,
     outgoing: Output,
-) -> Result<RuntimeHandle> {
+) -> Result<()> {
     let electron = PathBuf::from(&args[0]).canonicalize()?;
     let runtime = PathBuf::from(&args[1]).canonicalize()?;
     let plugin = PathBuf::from(&args[2]).canonicalize()?;
@@ -381,12 +338,6 @@ async fn mount(
         .stderr(Stdio::Inherit);
     #[cfg(unix)]
     let launcher = launcher.inherit_fd();
-    let admission_runtime = LocalRuntime::launcher(
-        "harness",
-        launcher.clone().arg(runtime.join("src/runner.mjs")),
-        runtime.join("package.json"),
-    );
-    let handle = admission_runtime.handle();
     // Bounded vector uploads do not need a throughput-grown idle nursery.
     let memory_runtime = LocalRuntime::launcher(
         "memory",
@@ -404,13 +355,14 @@ async fn mount(
     let catalog = ServiceCatalog::new();
     let memory_rows =
         Arc::new(RuntimeResolver::modules(memory_runtime.handle()).with_catalog(&catalog));
-    let rows = Arc::new(RuntimeResolver::node(handle.clone()).with_catalog(&catalog));
     let core_rows =
         Arc::new(RuntimeResolver::modules(core_runtime.handle()).with_catalog(&catalog));
-    root.plugin(admission_runtime);
+    root.plugin(admission::Owner {
+        admission: Arc::new(admission::Admission::new(capacity, max_pending)),
+        output: outgoing.clone(),
+    });
     let loader = LoaderPlugin::new(
         Chain::new()
-            .with_shared(rows.clone())
             .with_shared(memory_rows.clone())
             .with_shared(core_rows.clone()),
         LoaderOptions {
@@ -422,7 +374,6 @@ async fn mount(
     let layers = Arc::new(layers::Layers::new(loader_handle));
     root.provide_as::<dyn HostDispatch>(host_key("deepchatCoreNative"), native.clone())?;
     root.plugin(loader).await?;
-    root.plugin(RuntimeRowsPlugin::new(rows));
     root.plugin(RuntimeRowsPlugin::new(memory_rows));
     root.plugin(RuntimeRowsPlugin::new(core_rows));
     root.plugin(AdmissionGateway {
@@ -434,10 +385,6 @@ async fn mount(
         outgoing: outgoing.clone(),
     });
     let plugin_url = url::Url::from_file_path(plugin).map_err(|_| "Invalid plugin path")?;
-    let patches: Vec<Patch> = serde_json::from_value(json!([{ "insert": [{
-        "id": "admission", "name": plugin_url.as_str(), "config": { "capacity": capacity, "maxPending": max_pending }
-    }] }]))?;
-    layers.set("harness", patches).await?;
     let memory_link = native.memory.clone();
     root.plugin(core::Bootstrap::new(
         core_runtime,
@@ -455,7 +402,7 @@ async fn mount(
         layers,
         plugin_url,
     ));
-    Ok(handle)
+    Ok(())
 }
 
 fn main() -> Result<()> {
@@ -529,14 +476,26 @@ async fn run(args: Vec<std::ffi::OsString>) -> Result<()> {
     });
     let mut writer = tokio::spawn(transport::write_responses(responses));
     let result = async {
-        let runtime = timeout(Duration::from_secs(15), mount(&root, &args, incoming, memory_incoming, core_incoming, native, outgoing)).await??;
+        timeout(
+            Duration::from_secs(15),
+            mount(
+                &root,
+                &args,
+                incoming,
+                memory_incoming,
+                core_incoming,
+                native,
+                outgoing,
+            ),
+        )
+        .await??;
         tokio::select! {
             result = &mut reader => result?,
             result = &mut writer => { result??; Err("Harness output closed".into()) },
-            reason = runtime_loss(runtime) => Err(format!("Harness runtime stopped: {reason}").into()),
             result = tokio::signal::ctrl_c() => { result?; Ok(()) },
         }
-    }.await;
+    }
+    .await;
     let shutdown = timeout(Duration::from_secs(10), root.shutdown()).await;
     if !matches!(&shutdown, Ok(Ok(()))) {
         kill_processes();

@@ -139,7 +139,7 @@ export class RutisAgentInvocationAdmission implements AgentInvocationAdmissionPo
   async snapshot() {
     await Promise.all(this.releases)
     const value = z
-      .object({ admission: AdmissionSnapshotSchema, runtime: z.unknown() })
+      .object({ admission: AdmissionSnapshotSchema })
       .strict()
       .parse(await this.runtime.request('snapshot', []))
     return value.admission

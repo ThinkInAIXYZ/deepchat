@@ -56,16 +56,9 @@ const frameSchema = z.union([
   z
     .object({
       type: z.literal('ready'),
-      protocol: z.literal(1),
+      protocol: z.literal(2),
       hostPid: z.number().int().positive(),
-      runtime: z
-        .object({
-          pid: z.number().int().positive(),
-          node: z.string().max(64),
-          electron: z.string().max(64).nullable(),
-          modules: z.string().max(32)
-        })
-        .strict()
+      owner: z.literal('rust')
     })
     .strict(),
   z
@@ -141,11 +134,11 @@ export class HarnessRuntime {
       [
         electronExecutable,
         path.dirname(
-          createRequire(path.join(directory, 'admission.mjs')).resolve(
+          createRequire(path.join(directory, 'core.mjs')).resolve(
             '@arcships/rutis-runtime/package.json'
           )
         ),
-        path.join(directory, 'admission.mjs'),
+        path.join(directory, 'core.mjs'),
         String(capacity),
         String(maxPending)
       ],

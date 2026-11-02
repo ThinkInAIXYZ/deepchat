@@ -2,7 +2,6 @@ import { vi } from 'vitest'
 import os from 'node:os'
 import path from 'node:path'
 import type { AgentToolDependencies } from '@/tool/runtimePorts'
-import { AgentInvocationAdmission } from '../../../../src/harness/admission'
 import { BackgroundExecService } from '@/agent/shared/process/backgroundExecSessionManager'
 
 export const createBackgroundExecFixture = () =>
@@ -10,11 +9,19 @@ export const createBackgroundExecFixture = () =>
     throw new Error('Background helper launch must be supplied by the test')
   })
 
+const requireAdmission = () => {
+  throw new Error('Admission must be supplied by the test')
+}
+
 export const createAgentToolDependencies = (
   overrides: Record<string, any> = {}
 ): AgentToolDependencies => ({
   backgroundExec: overrides.backgroundExec ?? createBackgroundExecFixture(),
-  agentInvocationAdmission: overrides.agentInvocationAdmission ?? new AgentInvocationAdmission(),
+  agentInvocationAdmission: overrides.agentInvocationAdmission ?? {
+    acquire: vi.fn(requireAdmission),
+    createLease: vi.fn(requireAdmission),
+    run: vi.fn(requireAdmission)
+  },
   sessions: {
     resolveConversationWorkdir:
       overrides.resolveConversationWorkdir ?? vi.fn().mockResolvedValue(null),

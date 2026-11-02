@@ -759,11 +759,12 @@ execution continues to settle independently and commit results in provider call 
 
 ## Invocation admission runtime
 
-Process-wide delegated-Agent invocation admission is owned by the Rutis TS plugin in
-`src/harness/plugins/admission.ts`. Main composition creates one `RutisAgentInvocationAdmission`
-client and retains caller-owned lease state through the existing admission port. The local main
-queue constructor is removed. The Rust host owns the runtime generation and its bounded private
-transport; disconnect closes admission without a local fallback or automatic replacement owner.
+Process-wide delegated-Agent invocation admission is owned by the Rust Rutis plugin in
+`crates/deepchat-harness/src/admission.rs`. Main and Core use `RutisAgentInvocationAdmission`
+clients with independent ordered lanes into one queue/permit authority. Caller-owned lease handles
+remain behind the existing admission port. There is no dedicated admission Node runtime, TS queue
+constructor or fallback. The Rust owner enforces fairness, cancellation, known-ID late-grant
+cleanup and bounded diagnostics; host loss retires the generation without an automatic replacement.
 
 This boundary is distinct from the Harness pending-input pump and its four fences, which retain
 their existing owners. The [Rutis runtime RFC](../rutis-multiprocess-backend/spec.md) specifies call

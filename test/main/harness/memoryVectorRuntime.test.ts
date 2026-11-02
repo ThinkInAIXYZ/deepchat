@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { DuckDBInstance } from '@duckdb/node-api'
 import { createRequire } from 'node:module'
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -320,8 +321,15 @@ describe('Rutis native Memory runtime', () => {
       2
     )
     const worker = runtime.memoryIdentity!
-    expect([process.pid, identity.hostPid, identity.runtime.pid]).not.toContain(worker.pid)
-    expect(worker.modules).toBe(identity.runtime.modules)
+    expect([process.pid, identity.hostPid]).not.toContain(worker.pid)
+    const expectedVersions = JSON.parse(
+      execFileSync(require('electron'), ['-p', 'JSON.stringify(process.versions)'], {
+        encoding: 'utf8',
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_OPTIONS: '', NODE_PATH: '' }
+      })
+    )
+    expect(worker.modules).toBe(expectedVersions.modules)
+    expect(worker.node).toBe(expectedVersions.node)
     await store.upsert([
       { memoryId: 'anchor', embedding: [1, 0] },
       { memoryId: 'other', embedding: [0, 1] }
@@ -385,7 +393,7 @@ describe('Rutis native Memory runtime', () => {
     await stores.dispose()
     await runtime.stop()
     expect(() => process.kill(worker.pid, 0)).toThrow()
-    expect(() => process.kill(identity.runtime.pid, 0)).toThrow()
+    expect(() => process.kill(identity.hostPid, 0)).toThrow()
   })
 
   it('serves admission while chunked vector batches run and isolates native worker death', async () => {
@@ -424,6 +432,6 @@ describe('Rutis native Memory runtime', () => {
     expect(await admission.snapshot()).toMatchObject({ active: 0, pending: 0 })
     expect(runtime.identity).toEqual(identity)
     expect(runtime.memoryIdentity).toEqual(worker)
-    expect(() => process.kill(identity.runtime.pid, 0)).not.toThrow()
+    expect(() => process.kill(identity.hostPid, 0)).not.toThrow()
   })
 })

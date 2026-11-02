@@ -120,11 +120,11 @@ describe('application Rutis admission runtime', () => {
     )
     const identity = admission.identity!
     expect(identity.hostPid).not.toBe(process.pid)
-    expect(identity.runtime.pid).not.toBe(identity.hostPid)
+    expect(identity).toMatchObject({ protocol: 2, owner: 'rust' })
     await admission.close()
     expect(observations.at(-1)).toMatchObject({ type: 'closed', active: 0, pending: 0 })
     await active.get(admission)!.stop()
-    expect(() => process.kill(identity.runtime.pid, 0)).toThrow()
+    expect(() => process.kill(identity.hostPid, 0)).toThrow()
   })
 
   it('isolates asynchronous diagnostic failures from admission outcomes', async () => {
@@ -177,7 +177,7 @@ describe('application Rutis admission runtime', () => {
       [
         require('electron'),
         path.join(directory, 'node_modules', '@arcships', 'rutis-runtime'),
-        path.join(directory, 'admission.mjs'),
+        path.join(directory, 'core.mjs'),
         '1',
         '4'
       ],
@@ -194,7 +194,7 @@ describe('application Rutis admission runtime', () => {
       child.kill('SIGKILL')
     }, 5000)
     try {
-      const ready = await new Promise<{ runtime: { pid: number } }>((resolve, reject) => {
+      const ready = await new Promise<{ hostPid: number }>((resolve, reject) => {
         let bytes = Buffer.alloc(0)
         child.once('error', reject)
         child.stdout.on('data', (chunk: Buffer) => {
@@ -210,7 +210,7 @@ describe('application Rutis admission runtime', () => {
       child.stdin.write(Buffer.concat([header, body]))
       expect(await exited).not.toBe(0)
       expect(forced).toBe(false)
-      expect(() => process.kill(ready.runtime.pid, 0)).toThrow()
+      expect(() => process.kill(ready.hostPid, 0)).toThrow()
     } finally {
       clearTimeout(timer)
       child.stdin.destroy()
@@ -225,7 +225,7 @@ describe('application Rutis admission runtime', () => {
     const queued = expect(admission.acquire({ ownerId: 'queued' })).rejects.toThrow()
     await expect.poll(async () => (await admission.snapshot()).pending).toBe(1)
     const identity = admission.identity!
-    process.kill(identity.runtime.pid, 'SIGKILL')
+    process.kill(identity.hostPid, 'SIGKILL')
     await queued
     await expect(admission.acquire({ ownerId: 'late' })).rejects.toThrow(/Rutis host/)
     expect(admission.identity).toEqual(identity)

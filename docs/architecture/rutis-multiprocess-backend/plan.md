@@ -12,7 +12,8 @@ Current scope: staged implementation in
 [Draft PR #2465](https://github.com/ThinkInAIXYZ/deepchat/pull/2465), targeting `dev`. Admission is
 committed as `ffcd98770` and the roadmap as `f35adff34`. G4 is complete at `356143755`;
 G5 is complete at `1719f8075`; exact-source required checks, all six native verification
-packages and the original integrated Native foreground case pass. G6 is active.
+packages and the original integrated Native foreground case pass. G6 is complete at `bd64c2d53`;
+G7 is active, beginning with control ownership and operation-contract selection.
 Later goals start only after their dependencies and the preceding selected goal pass validation.
 
 Use this file as the only tracker. [The RFC](spec.md) defines capability ownership, Memory
@@ -60,21 +61,21 @@ Reuse the retained baseline instead of accumulating a complete output tree for e
 
 ## Live goals and dependencies
 
-| Goal                                    | State                                                   | Dependencies                   | Completion condition                                                                              |
-| --------------------------------------- | ------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------- |
-| G0 Admission                            | Complete, `ffcd98770`                                   | Existing branch baseline       | Default Rutis wiring, matching real-app E2E and old path removed                                  |
-| G1 Whole-capability roadmap             | Complete; documentation only                            | G0 and source research         | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence                  |
-| G2 Baselines and first service contract | Complete, `84e3e0ead`                                   | G1                             | Reproducible resource baselines and frozen operation/ownership budgets                            |
-| G3 Memory vector resources              | Complete, `7ee99619b`                                   | G2                             | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
-| G4 Store commands and desktop ports     | Complete, `356143755`                                   | G2                             | Explicit durable operations, writer inventory and asynchronous host capabilities                  |
-| G5 Cohesive TS Harness backend          | Complete, `1719f8075`                                   | G4                             | Run/loop/Session/Tape/Provider composition operates under one backend authority                   |
-| G6 Full Memory capability               | Active                                                  | G3, G4, G5                     | Recall, ingestion, management and maintenance use the one Memory service                          |
-| G7 Rust control owner                   | Planned                                                 | G2, G5                         | Admission and cohesive run/interaction settlement preserve all fences                             |
-| G8 Rust batch computations              | Conditional                                             | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go           |
-| G9 Peripheral capabilities              | Conditional per selected module                         | G4, G5                         | Independent useful lifetime, real consumer cutover and no duplicate supervisor                    |
-| G10 Rust durable Store                  | Conditional compatibility project                       | G4, G5, G6, G7                 | One compatible encrypted writer and proven migration/recovery/maintenance behavior                |
-| G11 Headless Session Host               | Planned                                                 | G4, G5 and host-port audit     | Real CLI execution without Electron and without a connected desktop                               |
-| G12 Multiple clients and devices        | Planned                                                 | G11 and explicit grants        | Reconnect-safe clients and separately authorized, revocable device operations                     |
+| Goal                                    | State                                    | Dependencies                   | Completion condition                                                                              |
+| --------------------------------------- | ---------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| G0 Admission                            | Complete, `ffcd98770`                    | Existing branch baseline       | Default Rutis wiring, matching real-app E2E and old path removed                                  |
+| G1 Whole-capability roadmap             | Complete; documentation only             | G0 and source research         | Capability map, Memory boundary, Rust ranking, ordered goals and honest evidence                  |
+| G2 Baselines and first service contract | Complete, `84e3e0ead`                    | G1                             | Reproducible resource baselines and frozen operation/ownership budgets                            |
+| G3 Memory vector resources              | Complete, `7ee99619b`                    | G2                             | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
+| G4 Store commands and desktop ports     | Complete, `356143755`                    | G2                             | Explicit durable operations, writer inventory and asynchronous host capabilities                  |
+| G5 Cohesive TS Harness backend          | Complete, `1719f8075`                    | G4                             | Run/loop/Session/Tape/Provider composition operates under one backend authority                   |
+| G6 Full Memory capability               | Complete, `bd64c2d53`                    | G3, G4, G5                     | Recall, ingestion, management and maintenance use the one Memory service                          |
+| G7 Rust control owner                   | Active; ownership and contract selection | G2, G5                         | Admission and cohesive run/interaction settlement preserve all fences                             |
+| G8 Rust batch computations              | Conditional                              | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go           |
+| G9 Peripheral capabilities              | Conditional per selected module          | G4, G5                         | Independent useful lifetime, real consumer cutover and no duplicate supervisor                    |
+| G10 Rust durable Store                  | Conditional compatibility project        | G4, G5, G6, G7                 | One compatible encrypted writer and proven migration/recovery/maintenance behavior                |
+| G11 Headless Session Host               | Planned                                  | G4, G5 and host-port audit     | Real CLI execution without Electron and without a connected desktop                               |
+| G12 Multiple clients and devices        | Planned                                  | G11 and explicit grants        | Reconnect-safe clients and separately authorized, revocable device operations                     |
 
 G3 is selected for its bounded file/resource ownership, not an assumed native query speedup.
 G2 may reject its process placement if transport or aggregate memory costs are unacceptable.
@@ -4703,7 +4704,7 @@ Verify unchanged worker placement in the actual app and retain all baseline/cand
       config changes, Agent delete and database maintenance in the real app.
 - [x] Review resource/quality evidence, run native/evaluation and relevant E2E checks, and remove
       the old Memory facade construction and manual lifecycle wiring after parity.
-- [ ] Publish the coherent G6 source and require exact-head PR checks and all six native
+- [x] Publish the coherent G6 source and require exact-head PR checks and all six native
       verification packages before G7. Keep this goal active until those checks pass.
 
 Completion: all consumers use the one capability; plugin unload/recovery cannot advance an
@@ -4762,9 +4763,45 @@ the ten unaffected successful cases are not repeated for the local watcher chang
 The Memory renderer selection passes 63 cases across three existing files. Only the one new
 plugin lifecycle case is retained; existing component and token fixtures are extended in place.
 
+G6 completion: published source `bd64c2d53a903cdcc6096ccab01848a6d3179e19` passes
+[required checks](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/41401181090) and all six
+[native verification packages](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/41401181085),
+including both aggregate barriers. Main has 715 passing files, two existing skipped files,
+10,361 passing cases and eight existing skips. Every platform executes and passes DuckDB VSS,
+Memory, Core application, OpenDAL, offline OCR and unchanged installer-size verification.
+The critical steps are successful, not skipped. The whole-goal audit confirms the sole facade
+constructor is in the Memory plugin and replaced lifecycle wiring is absent. The PR remains
+Draft against `dev`, mergeable and unmerged. Compact evidence includes
+`six-platform-completion-audit.json` under the G6 acceptance directory. G7 may begin; signed
+distribution remains release-gated and no performance improvement is claimed.
+
 ## G7. Migrate the control owner to Rust
 
-- [ ] Move admission queue/permit authority to Rust as a complete slice, preserving ordering,
+Admission queues/permits now belong to the Rust Rutis plugin in
+`crates/deepchat-harness/src/admission.rs`. The remaining control cluster still needs its concrete
+wire operations and durable-effect ordering fixed before implementation. Instance,
+Run, operation and message fences span `DeepChatAgentRuntime`, `DeepChatAgentInstance` and
+`RunLifecycleCoordinator`; interaction parking and pending-input feedback also involve
+`InteractionCoordinator`, `PendingInputAdmissionCoordinator` and `PendingInputPump`.
+Provider/loop effects, AbortControllers and shared-database transaction closures remain local
+drivers in TS. Moving the queue alone does not complete this goal.
+
+Source audit identifies a concrete distributed-settlement constraint: `DurablePendingInputClaim`
+records a disposition even when post-persistence publication fails or durable verification is
+unavailable. Preserve that fence across lost replies; do not translate an RPC rejection into an
+automatic release/retry. Instance/controller identities, symbol drain leases, interaction locks,
+resume exclusion and Provider resolvers must be classified as control authority or local effect
+handles before defining the wire contract. `LoopRun` also contains messages, stream state and
+prompt/tool resources that remain TS data, rather than moving the complete object through RPC.
+
+- [ ] Inventory the complete cluster's writers, synchronous checks, awaited effects, durable
+      claims/dispositions and recovery paths; define bounded operation-level transition commands
+      and their accepted/stale/cancelled/unknown outcomes in the RFC before implementation.
+- [ ] Select the same public application control/interaction workloads for immutable G6 baseline
+      and candidate comparison. Declare one representative resource workload and unchanged
+      structural budgets; do not introduce a relative CI wall-clock gate or a process per helper.
+
+- [x] Move admission queue/permit authority to Rust as a complete slice, preserving ordering,
       cancellation/late grants, fairness and diagnostics. Delete the TS queue owner after E2E parity.
 - [ ] Move Run transitions, interaction parking/cancellation and pending-input settlement as one
       cohesive control owner. Preserve instance/run/operation/message fences and durable claimed
@@ -4776,6 +4813,66 @@ plugin lifecycle case is retained; existing component and token fixtures are ext
 
 Completion: the Rust owner is authoritative, lifecycle semantics match, and the agreed resource
 envelope holds. This phase need not eliminate the TS runtime used by Provider/protocol adapters.
+
+### G7 admission slice and acceptance
+
+The first independently verifiable slice moves the complete admission owner into the existing
+Rust host and removes the dedicated admission TS runtime. It does not complete G7. The operation
+groups above are specified in the RFC; the Run/interaction/pending-input group still requires its
+concrete effect ordering and wire-schema audit before that group's implementation.
+
+Use accepted source `bd64c2d53` and its verified normal output as the immutable G7 baseline.
+Compare unchanged `01-launch`, `36-chat-streaming` and `44-admission-delegation` actual-app cases,
+with disposable profiles, zero retries and the same local Provider fixture. Delegation exercises
+two parent Sessions, six executing children, two queued children, queued interruption, release and
+the final seven-completed/one-interrupted result. Existing actual-host suites also cover owner
+fairness, owner headroom, suspend/resume, pre-abort/late grant, closure, host loss, caller ordering,
+generation retirement and oversized-frame teardown. Retarget obsolete TS-owner tests to useful
+Rust or actual-host behavior coverage; do not retain a second implementation solely for tests.
+
+Process placement changes, so capture one baseline/candidate delegation resource pair using the
+existing observer, including the whole process tree. The structural objective is one fewer idle
+Node runtime and one Rust admission authority. Retain the existing 64-MiB settled/128-MiB active
+peak footprint allowances and report startup, CPU and loop-p99 alongside the G3 reference limits
+(`max(100 ms, 2 x baseline MAD)` readiness, `max(10 ms, 2 x baseline MAD)` loop-p99).
+One pair cannot establish variance or a speed gain. Investigate a concrete suspected material
+regression with at most one confirmation batch under the RFC's measurement rule. Shared CI timings
+remain report-only. Production deadlines, queue and transport bounds remain unchanged.
+
+Freeze and verify the G7 baseline before changing build output. Once that replacement baseline is
+verified, remove the ended G6 source-`1719f8075` output tree and retain its compact manifest and
+acceptance receipts. Do not accumulate completed acceptance packages or profiles.
+
+The default admission implementation and its old-path cleanup are locally verified. Main and Core
+share the Rust queue through separate ordered lanes. The dedicated TS admission runtime, its
+plugin and queue implementation are removed. Readiness protocol 2 reports a Rust owner; actual
+native workers retain independent executable/ABI checks. Service tests use the real Rust owner;
+there is no retained TS queue solely for fixtures. Three Rust cases protect scheduling/cancelled
+reply cleanup, plugin retirement and bounded diagnostics, while three client cases retain input,
+hostile-correlation and known-ID late-grant protection.
+
+Both immutable baseline and candidate pass the same seven actual-app cases: five launch/recovery
+cases, editable streaming and the delegation workload. Zero retries. A normal full application
+build and final host build pass. Local validation passes 11 Rust tests, 33 client/actual-host/package
+cases, 294 delegation/tool consumer cases, 94 native-vector/tool-service cases and 16 Core/Memory
+lifecycle cases. These scopes are separate; intermediate reruns are not additional coverage.
+Format, i18n, lint, Node/web types and locked Cargo fmt/clippy pass; lint retains the existing
+unrelated Remote `no-unsafe-finally` warning. Required PR checks and six actual native verification
+packages must still pass on the published source before another implementation slice.
+
+The single delegation resource pair observes Rust-host direct runtime children decreasing from
+two to one. Whole-tree sampled footprint median is 1036.26/964.03 MiB and sampled active peak is
+1083.12/1153.15 MiB (baseline/candidate): the peak increases 70.03 MiB, within the 128-MiB allowance.
+Observed process-lifetime CPU totals are 8.4167/6.4002 seconds, UI readiness 2624.04/1923.68 ms and
+Main loop-p99 29.25/27.36 ms. There are 11/7 time samples across unequal fixture durations. These
+are descriptive observations, not repeated-run variance, stable settled-idle evidence or a speed
+gain. No material over-budget sample selects a confirmation batch. Raw reports and the calculation
+method are retained in `admission-resource-pair.json`; no unchanged benchmark rerun is selected.
+
+The G7 baseline is accepted source `bd64c2d53`, verified across 2187 output files. The ended G6
+source-`1719f8075` baseline is removed after verification, freeing 353,330,090 bytes; its manifest
+and compact receipts remain. The remaining G7 Run/interaction/pending-input authority work is
+unimplemented. G7 remains active, and G8-G12 have not started.
 
 ## G8. Select measured Rust batch work
 

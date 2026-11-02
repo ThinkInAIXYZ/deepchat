@@ -2,8 +2,8 @@
 
 ## Status and decision
 
-Status: G0-G4 complete; cohesive Core backend extraction in progress (G5).
-Evidence date: 2026-10-31. Published baseline: `356143755` (admission code `ffcd98770`).
+Status: G0-G6 complete; Rust control ownership and operation contracts are being selected (G7).
+Evidence date: 2026-11-02. Published baseline: `bd64c2d53` (admission code `ffcd98770`).
 Implementation reference: Rutis `v0.16.0`, released on 2026-10-24. Crates and npm packages are pinned
 to that version.
 
@@ -42,24 +42,22 @@ parallel production/development owner.
 
 ## Admission module migration
 
-The first module is Agent invocation admission: capacity, per-owner fairness, pending bounds,
-cancellation, permits, and diagnostics. Keep the tested TS implementation as the Rutis plugin's
-single owner. The application retains a typed client and caller-owned lease state; it no longer
-constructs an in-process admission queue.
+Agent invocation admission covers capacity, per-owner fairness, pending bounds, cancellation,
+permits and diagnostics. Its single owner is a Rust Rutis plugin in the existing host. Main and
+Core retain typed clients and caller-owned lease handles; neither constructs an admission queue.
 
 ```text
-LiveDelegationService / existing admission port
-                 |
-Electron main: typed admission client + lease state
-                 | bounded private stdin/stdout frames
-Rust/Rutis host: declared service dependency, cancellation, lifetime
-                 | upstream Rutis local runtime transport
-Electron Node-mode runtime: first-party admission TS plugin
-                 |
-One admission queue and permit owner
+Main client + lease handles       Core client + lease handles
+            |                                  |
+    bounded private pipes             authenticated Rutis bridge
+            +------------------+---------------+
+                               |
+                 Rust host / admission Rutis plugin
+                 one queue, owner ring and permit registry
 ```
 
-The client preserves synchronous lease suspend/release and asynchronous resume. Commands carry a connection-wide sequence. The TS dispatcher starts operations in caller order
+The client preserves synchronous lease suspend/release and asynchronous resume. Commands carry
+an independent sequence for each caller lane. The Rust dispatcher starts operations in caller order
 even when concurrent Rutis RPCs arrive out of order; it does not await a queued acquire before
 starting a later release. Cancellation during acquire uses an acquisition identity chosen before the call and sends an
 ordered release. The RPC remains tracked until it settles; the remote record aborts queued work
@@ -74,10 +72,11 @@ host protocol. Child generation loss rejects pending requests and closes admissi
 does not start another owner or retry unknown operations. Graceful shutdown stops delegation,
 closes admission, flushes diagnostics and then shuts down the host/runtime with bounded deadlines.
 
-Build the host, compiled plugin and unmodified Rutis runtime closure as application artifacts.
-Application startup uses these artifacts both locally and when packaged, with the packaged Electron
-executable in Node mode. Missing artifacts fail startup with an actionable build error. `pnpm harness:build` builds the
-locked host and compiled plugin; normal dev, test and application builds call it. The repository
+Build the host, compiled Core/Memory plugins and unmodified Rutis runtime closure as application
+artifacts. Admission starts within Rust; Core and the lazy vector worker use the packaged Electron
+executable in Node mode. Readiness protocol 2 identifies the admission owner as Rust without an
+invented Node identity. Missing artifacts fail startup with an actionable build error.
+`pnpm harness:build` builds the locked host and compiled plugins; normal dev, test and application builds call it. The repository
 pins Rust 1.95.0 through Rustup. `beforePack` rebuilds the native artifact for the selected target,
 and `extraResources` installs the closure under `app.asar.unpacked/harness`. Runtime startup has a
 15-second deadline, non-acquire RPCs 10 seconds, host root shutdown 10 seconds, and client force
@@ -86,14 +85,14 @@ packages are release dependencies through the copied closure, not a boot-time do
 
 ### Rust owner sequence
 
-| Owner                                                  | Current migration direction                                   | Acceptance boundary                                                                                     |
-| ------------------------------------------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Runtime dependencies and child lifetimes               | Rust/Rutis                                                    | Actual app startup, bounded shutdown and fail-closed disconnect                                         |
-| Invocation admission                                   | TS Rutis plugin with a typed application client               | Existing fairness/leases/diagnostics plus end-to-end delegation parity; remove local queue construction |
-| Run control, cancellation and pending-input settlement | Extract explicit ports, then migrate as a cohesive Rust owner | Preserve all four fences, synchronous queue feedback, ordering and durable dispositions                 |
-| Provider, MCP, Skills and product hooks                | TS plugins where independent resource lifetimes exist         | Retain adapters and use operation-level calls, avoiding token-level RPC                                 |
-| Tape, persistence and recovery                         | Dedicated migration after Harness ports                       | Preserve schema, encryption, same-connection transactions, recovery and one mutation authority          |
-| UI, OAuth and native capability presentation           | Desktop host adapters                                         | Narrow async ports without Electron-main imports in the Harness                                         |
+| Owner                                                  | Current migration direction                                   | Acceptance boundary                                                                               |
+| ------------------------------------------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Runtime dependencies and child lifetimes               | Rust/Rutis                                                    | Actual app startup, bounded shutdown and fail-closed disconnect                                   |
+| Invocation admission                                   | Rust Rutis plugin with typed Main/Core clients                | Fairness/leases/diagnostics and end-to-end delegation parity; no dedicated admission Node runtime |
+| Run control, cancellation and pending-input settlement | Extract explicit ports, then migrate as a cohesive Rust owner | Preserve all four fences, synchronous queue feedback, ordering and durable dispositions           |
+| Provider, MCP, Skills and product hooks                | TS plugins where independent resource lifetimes exist         | Retain adapters and use operation-level calls, avoiding token-level RPC                           |
+| Tape, persistence and recovery                         | Dedicated migration after Harness ports                       | Preserve schema, encryption, same-connection transactions, recovery and one mutation authority    |
+| UI, OAuth and native capability presentation           | Desktop host adapters                                         | Narrow async ports without Electron-main imports in the Harness                                   |
 
 Every later module follows the same branch workflow: select owner, replace implementation and
 callers, run the real application comparison, then remove the old path. Everywhere remains a
@@ -124,11 +123,13 @@ host routing task would defeat the responsiveness objective.
 ### Source-backed capability map
 
 The following are ownership groups, not a required plugin count or a new directory structure.
-Names describe proposed capabilities; only admission is currently connected through Rutis.
+The default Rutis desktop hosts the cohesive Core backend and Memory capability, with Rust
+admission and a lazy vector runtime. The map also names later extraction candidates;
+their inclusion does not establish implemented isolation or a Rust performance gain.
 
 | Capability                              | Current owners and entry points                                                                                                                                                                         | Proposed service and authority                                                                                                     | Initial placement and Rust direction                                                                                                         |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime and admission                   | `src/main/harness/{runtime,admission}.ts`, `src/harness/plugins/admission.ts`, `crates/deepchat-harness`                                                                                                | Required-service readiness, generation lifetime, bounded admission and permits                                                     | Rust host plus existing TS admission plugin; a Rust queue is a structural migration until measured otherwise                                 |
+| Runtime and admission                   | `src/main/harness/{runtime,admission}.ts`, `crates/deepchat-harness/src/admission.rs`                                                                                                                   | Required-service readiness, generation lifetime, bounded admission and permits                                                     | One Rust Rutis queue/permit owner; TS clients retain effect handles; Run/interaction control migration remains part of G7                    |
 | Run control and interaction             | `RunLifecycleCoordinator`, `PendingInputAdmissionCoordinator`, `PendingInputPump`, `InteractionCoordinator`, `InteractionParkingRegistry`, `ProviderPermissionCoordinator` in `src/main/agent/deepchat` | One owner for run transitions, four fences, queued-input dispositions, cancellation and approval settlement                        | Keep cohesive with the TS Harness first; later one Rust control owner, using atomic transition commands rather than RPC per coordinator      |
 | Agent execution and context             | `DeepChatLoopRunner`, `DeepChatLoopEngine`, `TurnCoordinator`, context/input/compaction coordinators, prompt assembly and `src/main/agent/deepchat/runtime/contextBuilder.ts`                           | Execute a turn from an admitted input; assemble bounded context; stream ordered results                                            | TS core with Provider streaming nearby; profile JSON, projection, token estimation and pruning before selecting a batched Rust operation     |
 | Session, Store and Tape                 | Session lifecycle/settings/identity, transcript mutation and message projection; `src/main/tape`; shared database composition                                                                           | Durable commands, Tape/projection consistency, recovery and configuration snapshots; exactly one authority for each mutation       | Move existing SQLite-backed owners together into TS core; Rust storage is a separate later compatibility project                             |
@@ -156,6 +157,60 @@ tool permission decisions and loop progress local until an operation-level proto
 ordering and backpressure. Progressively remove Electron dependencies through desktop ports;
 moving business code out of `src/main` is an outcome of ownership extraction, not a bulk rename.
 
+### Control migration constraints
+
+The current instance registry fences by object identity. `DeepChatAgentInstance` also owns active
+Run/controller references, symbol-valued drain leases, interaction locks, resume exclusion and
+Provider permission resolvers. These are not wire values. The Rust control owner must use explicit
+instance, Run, operation, message and lease identities; TS retains the actual AbortControllers,
+Provider callbacks, stream state, prompt/tool resources and context caches as effect-driver data.
+A TS projection of control state cannot independently authorize an effect or become a second Run
+registry. Select the operation boundary across this whole cluster before moving its implementation.
+
+`DurablePendingInputClaim.settle` synchronously applies a Store transition and records its outcome.
+If notification throws after persistence, it checks the durable row; if the outcome cannot be
+observed, it still fences the intended disposition against a conflicting second transition.
+The control protocol must distinguish rejected, durably applied and unknown outcomes. A missing
+reply or publication failure cannot mean that no write occurred, and cannot automatically release
+or replay the claim. Queue consumption, attachment blocking, mutation release, pre-user-fact
+release and post-rollback release retain their distinct behavior.
+
+The persisted pending-input rows remain the content and ordering authority. Startup restart holds,
+manual-resume intent, consume-before-Provider semantics and deterministic post-settlement wakeup
+must survive the control-owner move. Shared Store transaction closures stay in their TS owner;
+neither a generic SQL service nor an independently timed RPC for each queue predicate preserves
+this boundary. The existing Harness contract remains binding until its actual replacement is
+implemented and validated.
+
+The control boundary is selected by operation, with the following ownership groups. Each group's
+wire schema and effect ordering must be fixed before its implementation cuts over.
+
+| Operation group                      | Rust authority                                                                                           | TS effect driver and durable authority                                                                                                    |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Admit/release invocation             | Capacity, owner ring, FIFO queues, owner limits, queued cancellation, permit IDs and bounded diagnostics | Provider invocation and lease suspend/resume handles; caller allocates acquisition ID before dispatch                                     |
+| Open/replace/retire Session instance | Incarnation identity, active Run and operation slots, current status and first-turn readiness            | Hydrated Session configuration, real controllers and readiness waiters; replacement aborts the originating handles                        |
+| Begin/attach/settle/cancel turn      | Distinct instance/Run/operation/message fences, cancellation intent and ordered transition receipts      | Loop messages/stream/prompt/tool data, transcript transactions and terminal publication; old-Run cleanup cannot mutate replacement status |
+| Park/resolve/resume interaction      | Ordered interaction references, message/tool-call exclusion, resume leases and permission identity       | Tool effects, deferred AbortControllers, Provider resolve callbacks and persisted tool-batch content                                      |
+| Claim/drain/dispose pending input    | Drain lease, in-flight claim identity, chosen disposition and acknowledged or unknown outcome            | Existing Store selection/atomic mutation; persisted input ordering, restart reconciliation and publication                                |
+
+An awaited external effect resumes through its owning operation, rather than authorizing work
+from a cached `isCurrent` reply. Durable effects require an explicit identity and outcome receipt;
+cancellation cannot erase an already admitted mutation. An unknown receipt fences conflicting
+dispositions until durable reconciliation. Runtime loss retires the generation instead of
+reconstructing authority from TS snapshots. Cleanup remains bound to its originating incarnation.
+
+The first G7 slice uses the existing admission acquire/release/snapshot/close/flush method set,
+64-KiB frames, 1-MiB output quota and 1024 concurrent-call limit. The Rust Rutis plugin replaces
+the TS queue owner and its dedicated runtime. Main and Core retain independent ordered caller
+lanes; a queued acquire never blocks a later release. Core retains its authenticated row/generation
+binding, single-generation dispatcher and reserved cancellation/cleanup capacity. Permit IDs are
+known before dispatch, so cancellation releases a late grant without replaying acquisition.
+Owner IDs and correlations retain the 256-UTF-16-unit bound, owner limits clamp to global capacity,
+and default capacity/pending limits remain 6/256. Duration samples remain bounded to 256 and
+observation buffering to 512; diagnostic backpressure must not decide admission outcomes.
+Readiness identifies the Rust owner truthfully. Node/Electron ABI validation belongs to the
+actual Core/vector worker that loads a native binding, not a removed admission worker.
+
 ## Memory as a first-class capability
 
 ### Ownership and first extraction
@@ -173,7 +228,7 @@ open/close/reset/quarantine of per-Agent stores. Its files are separate from the
 and most operations are already asynchronous. Keep the current DuckDB implementation in TS first.
 This is a lifecycle and isolation experiment, not a claimed query-speed optimization. Use one
 additional TS runtime, started lazily by the existing Rust host when the first store is needed.
-Native poison requires a new process; sharing the admission runtime would couple that recovery to
+Native poison requires a new process; loading DuckDB in Core would couple that recovery to
 unrelated active Runs. No runtime is created per Agent, and unused Memory starts no extra process.
 The additional runtime must pass the G2 resource budgets before adoption.
 
@@ -330,7 +385,7 @@ migration or fallback to a second native owner in Electron main.
   round trip with Node's Buffer implementation. Reuse an exact, independently allocated backing
   buffer; copy pooled or partial buffers so decoded bytes cannot expose unrelated data.
 - Launch only the vector runtime with `--max-semi-space-size=8`. Sustained bounded uploads must
-  not retain a throughput-grown idle nursery. Preserve the admission runtime's default heap policy
+  not retain a throughput-grown idle nursery. Preserve the Core runtime's default heap policy
   and validate query/write latency alongside aggregate footprint; no forced GC is used.
 - Bound query results to the existing recall ceiling of 800, and list/delete operations to 512
   IDs. Current callers use single-item management deletion, at most 50 embedding-orphan IDs,
@@ -1966,14 +2021,14 @@ restoring writes against an unacknowledged Native state.
 
 ## Feasibility gates and acceptance
 
-| Gate                | Required evidence                                                                                                                     | Current evidence                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Runtime launch      | Rust host loads a compiled plugin through the upstream runner using packaged Electron, exchanges async calls, cancels, and shuts down | Default SDK Kernel and six-target packaged application checks pass at `1719f8075`                                        |
-| Platform extraction | OAuth, crypto, MCP Apps, helper launch, and desktop snapshots work through narrow ports without backend Electron-main imports         | Default Native bindings/lifetimes and six-target package checks pass; original integrated foreground case passes locally               |
-| Storage ownership   | One mutation authority, preserved transactions, scheduler claims, encryption, backup/rekey/import and maintenance recovery            | Default profile/writer/routes/lifecycle run in Core; local exclusivity, maintenance and recovery checks pass                 |
-| Failure behavior    | Core/host loss, lost replies, stale callbacks, full queues, and shutdown cannot create duplicate execution or two profile owners      | Core loss, shutdown/helper/Browser faults and profile exclusion pass at their recorded application/package scopes        |
+| Gate                | Required evidence                                                                                                                     | Current evidence                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime launch      | Rust host loads a compiled plugin through the upstream runner using packaged Electron, exchanges async calls, cancels, and shuts down | Default SDK Kernel, Memory capability and six-target packaged application checks pass at `bd64c2d53`                                               |
+| Platform extraction | OAuth, crypto, MCP Apps, helper launch, and desktop snapshots work through narrow ports without backend Electron-main imports         | Default Native bindings/lifetimes and six-target package checks pass; original integrated foreground case passes locally                           |
+| Storage ownership   | One mutation authority, preserved transactions, scheduler claims, encryption, backup/rekey/import and maintenance recovery            | Default profile/writer/routes/lifecycle run in Core; local exclusivity, maintenance and recovery checks pass                                       |
+| Failure behavior    | Core/host loss, lost replies, stale callbacks, full queues, and shutdown cannot create duplicate execution or two profile owners      | Core loss, shutdown/helper/Browser faults and profile exclusion pass at their recorded application/package scopes                                  |
 | Responsiveness      | Repeated baseline/spike measurements show improvement beyond baseline variance under the same backend-heavy workload                  | Fixed-Mac sustained pair records input-paint/EventTiming and Main loop samples; lower Main footprint, higher total footprint/CPU; no speedup claim |
-| Distribution        | Offline, signed/packaged launch and cleanup work on every supported target                                                            | All six verification packages pass; signed/notarized and complete offline distribution remain release gates                                 |
+| Distribution        | Offline, signed/packaged launch and cleanup work on every supported target                                                            | All six verification packages pass; signed/notarized and complete offline distribution remain release gates                                        |
 
 Everywhere delivery has additional gates beyond desktop separation:
 

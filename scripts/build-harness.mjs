@@ -67,7 +67,6 @@ export default fileURLToPath(import.meta.ROLLUP_FILE_URL_${reference})`
       copyPublicDir: false,
       lib: {
         entry: {
-          admission: path.join(repositoryRoot, 'src', 'harness', 'plugins', 'admission.ts'),
           core: path.join(repositoryRoot, 'src', 'harness', 'plugins', 'core.ts'),
           memory: path.join(repositoryRoot, 'src', 'harness', 'plugins', 'memory.ts'),
           'memory-vector': path.join(

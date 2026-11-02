@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -16,6 +17,12 @@ assert(values['resources-path'], '--resources-path is required')
 assert(values.executable, '--executable is required')
 const resourcesPath = path.resolve(values['resources-path'])
 const electronExecutable = path.resolve(values.executable)
+const expectedVersions = JSON.parse(
+  execFileSync(electronExecutable, ['-p', 'JSON.stringify(process.versions)'], {
+    encoding: 'utf8',
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_OPTIONS: '', NODE_PATH: '' }
+  })
+)
 const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), 'deepchat-harness-smoke-'))
 
 try {
@@ -83,13 +90,9 @@ try {
       try {
         const store = await stores.createVectorStore('smoke', embedding, 2)
         assert.equal(store.isUsable(), true)
-        assert(
-          ![process.pid, identity.hostPid, identity.runtime.pid].includes(
-            runtime.memoryIdentity.pid
-          )
-        )
-        assert.equal(runtime.memoryIdentity.modules, identity.runtime.modules)
-        assert.equal(runtime.memoryIdentity.node, identity.runtime.node)
+        assert(![process.pid, identity.hostPid].includes(runtime.memoryIdentity.pid))
+        assert.equal(runtime.memoryIdentity.modules, expectedVersions.modules)
+        assert.equal(runtime.memoryIdentity.node, expectedVersions.node)
         if (restarting) {
           assert.deepEqual(await store.listMemoryIds(null, 512), ['other'])
         } else {
@@ -131,11 +134,7 @@ try {
       } finally {
         await runtime.stop()
       }
-      for (const pid of [
-        runtime.identity.hostPid,
-        runtime.identity.runtime.pid,
-        runtime.memoryIdentity?.pid
-      ]) {
+      for (const pid of [runtime.identity.hostPid, runtime.memoryIdentity?.pid]) {
         if (pid) assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' })
       }
     }
