@@ -155,13 +155,13 @@
     "qrcode": "^1.5.4",
     "run-applescript": "^7.1.0",
     "safe-regex2": "^5.1.1",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "tokenx": "2.1.0",
     "turndown": "^7.2.4",
-    "undici": "^8.10.2",
+    "undici": "^8.12.2",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "xml2js": "^0.6.2",
-    "zod": "^4.5.4"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@antv/infographic": "^0.2.20",
