@@ -80,6 +80,7 @@ export async function createCoreKernel(options: {
   >
   admission: RuntimeOptions['agentInvocationAdmission']
   vectors: RuntimeOptions['memoryVectorStores']
+  memory: RuntimeOptions['memory']
   bindEventPublisher(publish: (name: DeepchatEventName, payload: unknown) => void): void
   isStopping(): boolean
   allowInsecureTls: boolean
@@ -229,23 +230,7 @@ export async function createCoreKernel(options: {
         await step('skill-sync', () => owner.skillSyncService.destroy())
         await step('skills', () => owner.skillService.destroy())
         await step('watchers', () => owner.fileWatcherService.destroy())
-        const ingestion = (() => {
-          try {
-            return owner.execution.memoryIngestionObserver.drainAndFence().then(
-              (outcome) => ({ outcome }) as const,
-              (error: unknown) => ({ error }) as const
-            )
-          } catch (error) {
-            return Promise.resolve({ error })
-          }
-        })()
-        await step('memory', () => owner.memoryService.dispose())
-        await step('memory-ingestion', async () => {
-          const result = await ingestion
-          if ('error' in result) throw result.error
-          if (result.outcome.timedOut)
-            logger.warn('[Core] Late Memory ingestion remains fenced', result.outcome)
-        })
+        await step('memory', () => owner.memory.stop())
         await step('knowledge', () => owner.knowledgeService.destroy())
         await step('ocr', () => owner.ocrRuntimeService.close())
         owner.cliMutationGuard.clear()
@@ -356,6 +341,7 @@ export async function createCoreKernel(options: {
       },
       agentInvocationAdmission: options.admission,
       memoryVectorStores: options.vectors,
+      memory: options.memory,
       execution: {
         typedEventHub,
         resolveSessionRunId: data.resolveSessionRunId,
@@ -415,7 +401,7 @@ export async function createCoreKernel(options: {
         await owner.initializeStartup()
         assertActive()
         owner.cronJobs.start()
-        owner.memoryService.startBackgroundMaintenance()
+        owner.memory.start()
         await native.configurationHost.resume()
         assertActive()
         await settings.appSettingsService.observeSystemTheme()

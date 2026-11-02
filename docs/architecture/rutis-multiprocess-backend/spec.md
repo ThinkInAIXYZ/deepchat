@@ -215,6 +215,20 @@ commands while it remains the only writer. Its shared repositories do not move m
 Memory becomes a plugin. The whole-core database cutover moves all remaining facades and scheduler
 claim transactions together; main then loses writable shadow access.
 
+After that cutover, the full Memory plugin shares the Core runtime with Store, Provider and
+Harness. The Rust host loads it before Core, and Core declares its service dependency. Its
+owner-local attachment accepts the existing policy, repository, Provider and vector-resource
+ports; it is not a serialized repository API. All prompt, tool, management and Agent consumers
+receive the same facade. Existing read epochs, execution tokens and atomic Tape observations stay
+local to their authorities rather than becoming cached remote snapshots.
+
+The plugin owns facade construction and the complete Memory lifecycle. Harness explicitly binds
+its ingestion observer; pause/drain, resume and final retirement coordinate that observer with
+background maintenance and vector disposal. Unload fences ingestion and the facade before awaiting
+provider/native retirement. A retired attachment cannot reopen, and stale references cannot revive
+its execution epoch. Core's profile release still requires the plugin's retirement receipt.
+This extraction adds no worker, data-path RPC, schema or dependency; it makes no performance claim.
+
 ### Existing bounds and the actual optimization question
 
 The current implementation already bounds recall materialization to 800 candidates, keeps a vector
@@ -1951,12 +1965,12 @@ restoring writes against an unacknowledged Native state.
 
 | Gate                | Required evidence                                                                                                                     | Current evidence                                                                                                             |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Runtime launch      | Rust host loads a compiled plugin through the upstream runner using packaged Electron, exchanges async calls, cancels, and shuts down | Default packaged SDK Kernel verified on macOS arm64; six-target CI acceptance pending                                        |
-| Platform extraction | OAuth, crypto, MCP Apps, helper launch, and desktop snapshots work through narrow ports without backend Electron-main imports         | Default Native bindings and acknowledged local lifetimes verified; supported-platform behavior remains pending               |
+| Runtime launch      | Rust host loads a compiled plugin through the upstream runner using packaged Electron, exchanges async calls, cancels, and shuts down | Default SDK Kernel and six-target packaged application checks pass at `1719f8075`                                        |
+| Platform extraction | OAuth, crypto, MCP Apps, helper launch, and desktop snapshots work through narrow ports without backend Electron-main imports         | Default Native bindings/lifetimes and six-target package checks pass; original integrated foreground case passes locally               |
 | Storage ownership   | One mutation authority, preserved transactions, scheduler claims, encryption, backup/rekey/import and maintenance recovery            | Default profile/writer/routes/lifecycle run in Core; local exclusivity, maintenance and recovery checks pass                 |
-| Failure behavior    | Core/host loss, lost replies, stale callbacks, full queues, and shutdown cannot create duplicate execution or two profile owners      | Default Core loss fences the generation; local shutdown/helper/Browser faults verified; whole-goal acceptance pending        |
-| Responsiveness      | Repeated baseline/spike measurements show improvement beyond baseline variance under the same backend-heavy workload                  | Fixed-Mac paired capture records lower Main footprint and higher total footprint; sustained input latency remains unverified |
-| Distribution        | Offline, signed/packaged launch and cleanup work on every supported target                                                            | Local unsigned macOS arm64 Core package verified; offline and signed release targets pending                                 |
+| Failure behavior    | Core/host loss, lost replies, stale callbacks, full queues, and shutdown cannot create duplicate execution or two profile owners      | Core loss, shutdown/helper/Browser faults and profile exclusion pass at their recorded application/package scopes        |
+| Responsiveness      | Repeated baseline/spike measurements show improvement beyond baseline variance under the same backend-heavy workload                  | Fixed-Mac sustained pair records input-paint/EventTiming and Main loop samples; lower Main footprint, higher total footprint/CPU; no speedup claim |
+| Distribution        | Offline, signed/packaged launch and cleanup work on every supported target                                                            | All six verification packages pass; signed/notarized and complete offline distribution remain release gates                                 |
 
 Everywhere delivery has additional gates beyond desktop separation:
 

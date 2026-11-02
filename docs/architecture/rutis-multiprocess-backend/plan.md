@@ -11,7 +11,8 @@ There is no retained implementation switch or local fallback.
 Current scope: staged implementation in
 [Draft PR #2465](https://github.com/ThinkInAIXYZ/deepchat/pull/2465), targeting `dev`. Admission is
 committed as `ffcd98770` and the roadmap as `f35adff34`. G4 is complete at `356143755`;
-G5 is active, with supported-platform CI corrections and integrated Native acceptance pending.
+G5 is complete at `1719f8075`; exact-source required checks, all six native verification
+packages and the original integrated Native foreground case pass. G6 is active.
 Later goals start only after their dependencies and the preceding selected goal pass validation.
 
 Use this file as the only tracker. [The RFC](spec.md) defines capability ownership, Memory
@@ -66,8 +67,8 @@ Reuse the retained baseline instead of accumulating a complete output tree for e
 | G2 Baselines and first service contract | Complete, `84e3e0ead`                                   | G1                             | Reproducible resource baselines and frozen operation/ownership budgets                            |
 | G3 Memory vector resources              | Complete, `7ee99619b`                                   | G2                             | Actual vector operations through Rutis, preserved native lifecycle and old factory wiring removed |
 | G4 Store commands and desktop ports     | Complete, `356143755`                                   | G2                             | Explicit durable operations, writer inventory and asynchronous host capabilities                  |
-| G5 Cohesive TS Harness backend          | Active; CI corrections and Native acceptance pending   | G4                             | Run/loop/Session/Tape/Provider composition operates under one backend authority                   |
-| G6 Full Memory capability               | Planned                                                 | G3, G4, G5                     | Recall, ingestion, management and maintenance use the one Memory service                          |
+| G5 Cohesive TS Harness backend          | Complete, `1719f8075`                                   | G4                             | Run/loop/Session/Tape/Provider composition operates under one backend authority                   |
+| G6 Full Memory capability               | Active                                                  | G3, G4, G5                     | Recall, ingestion, management and maintenance use the one Memory service                          |
 | G7 Rust control owner                   | Planned                                                 | G2, G5                         | Admission and cohesive run/interaction settlement preserve all fences                             |
 | G8 Rust batch computations              | Conditional                                             | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go           |
 | G9 Peripheral capabilities              | Conditional per selected module                         | G4, G5                         | Independent useful lifetime, real consumer cutover and no duplicate supervisor                    |
@@ -2689,10 +2690,10 @@ the complete Rutis Core composition and actual writer/route/lifecycle cutover be
       before opening the backend writer; remove main's writable shadow access.
 - [x] Retarget existing renderer/CLI domain handlers without changing public behavior. Keep
       authenticated ingress and native capability presentation in the desktop adapter.
-- [ ] Compare real streaming, delegation, pending-input settlement, approvals, cancel/resume,
+- [x] Compare real streaming, delegation, pending-input settlement, approvals, cancel/resume,
       restart recovery, backup/rekey/import and shutdown. Validate lost replies, stale callbacks,
       runtime loss and all supported native/package targets before distribution.
-- [ ] Review resource deltas and whole-change contracts; retain only durable regression coverage,
+- [x] Review resource deltas and whole-change contracts; retain only durable regression coverage,
       run required checks and remove replaced main composition/lifecycle paths after parity.
 
 Completion: one backend owns active/durable business state, Electron main remains responsive under
@@ -2705,7 +2706,7 @@ ingress, read-only configuration projections and fixed Native effects; it constr
 business shadow. Core retirement drains the Kernel, Browser, helpers, desktop effects, configuration,
 Memory, admission and accepted callbacks before releasing profile ownership. Failed retirement
 retains that ownership until physical process exit. The implementation items above are complete;
-whole-goal functional, responsiveness and distribution acceptance remains open.
+whole-goal acceptance is recorded below. Signed distribution remains release-gated.
 
 ### Profile ownership and retirement
 
@@ -3700,7 +3701,7 @@ are pruned and the sole needed immutable baseline is retained. G6 has not starte
 
 ### G5 default Core composition
 
-- [ ] Complete default Core acceptance: remaining streaming/delegation/interaction, Browser and
+- [x] Complete default Core acceptance: remaining streaming/delegation/interaction, Browser and
       helper faults, selected identity-bound process retirement, representative resource/responsiveness evidence and
       supported native package behavior. Complete local acceptance before publishing the coherent
       G5 source; keep G5 active until exact-head CI passes. Signed distribution remains release-gated.
@@ -4651,22 +4652,96 @@ native Memory smoke. The temporary PDF acceptance driver is removed. Bundled plu
 from this local package, so installer-size and complete platform acceptance still require CI for
 the published filtering source; this evidence does not establish G5 completion.
 
+### G5 completion
+
+Source `1719f8075bae3423dfd193166b56ccb024859896` passes required
+[PR checks](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/41300270510) and all six
+[native verification packages](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/41300270522).
+Main reports 714 passing files, two skipped files, 10,360 passing cases and eight existing skips.
+Every package target executes and passes DuckDB VSS, Memory, Core application, OpenDAL, offline
+OCR and installer-size verification. No critical step is skipped and no size budget is increased.
+
+The same source's normal output passes the original Browser route case after manual Mac unlock
+on 2026-11-02: one case, zero retries, no resource capture. Its actual Electron BrowserWindow is
+visible and focused; active Browser focus succeeds, inactive focus is rejected, and status/events
+and destruction pass. The unchanged case also has accepted immutable-baseline evidence above.
+This closes integrated Native acceptance; it makes no physical-input latency claim. The earlier
+auto-locked failure remains in the raw record.
+
+Default business composition and the sole shared writer are in Core; Main holds authenticated
+ingress and Native ports. Functional, fault, lifecycle, package and selected resource evidence
+meet the structural cutover requirements at their documented scopes. Main footprint is lower,
+while aggregate footprint and sampled CPU are higher in the one sustained pair; no general speed
+or memory improvement is claimed. Signing/notarization and complete offline distribution remain
+release gates. G5 is complete, the PR remains Draft/unmerged, and G6 may start. Compact receipts
+are in `.deepchat/rutis-g5-kernel-assembly-acceptance/`; ended packages have been removed.
+
 ## G6. Extract the complete Memory capability
 
-- [ ] Move the existing facade and internal retrieval/extraction/reflection/persona/directive/
+Placement: one first-party `deepchat-memory` Rutis row in the existing Core worker, loaded before
+the Core row. Preserve the lazy G3 native vector worker. Attach the current owner-local Store,
+Provider, policy and change-event ports once; keep the ingestion coordinator in Harness and bind
+its observer explicitly. Move Memory construction and pause/drain/resume/retirement into this
+capability, then remove their manual Kernel/maintenance wiring. All domain consumers share its
+one facade, preserving existing synchronous transaction and epoch checks without a new RPC.
+
+Validation selection: compare the existing Agent CRUD, Memory lineage/impact, native vector
+relaunch/loss and database-maintenance application cases on unchanged G5 output and the extracted
+output. Run affected native Memory, evaluation, ingestion and SDK lifecycle coverage; retain only
+missing unload/revoked-epoch regression protection. This owner-local extraction adds no process,
+IPC or storage path and has no speed objective, so no additional resource capture is selected.
+Verify unchanged worker placement in the actual app and retain all baseline/candidate receipts.
+
+- [x] Move the existing facade and internal retrieval/extraction/reflection/persona/directive/
       maintenance services into one TS plugin. Preserve policy, Provider execution and Store ports;
       keep Harness ingestion scheduling and execution fences explicit.
-- [ ] Replace synchronous cross-boundary assumptions with versioned reads and authoritative
+- [x] Replace synchronous cross-boundary assumptions with versioned reads and authoritative
       epoch-validated operations. Retarget prompt injection, memory tools, management routes,
       Agent lifecycle, cursor settlement and maintenance as one complete service migration.
-- [ ] Compare scope/temporal/tombstone filtering, recall quality, mixed-language budgets,
+- [x] Compare scope/temporal/tombstone filtering, recall quality, mixed-language budgets,
       directive approval/trust, FTS/vector degradation, CAS/audit/lineage, background drain,
       config changes, Agent delete and database maintenance in the real app.
-- [ ] Review resource/quality evidence, run native/evaluation and relevant E2E checks, and remove
+- [x] Review resource/quality evidence, run native/evaluation and relevant E2E checks, and remove
       the old Memory facade construction and manual lifecycle wiring after parity.
+- [ ] Publish the coherent G6 source and require exact-head PR checks and all six native
+      verification packages before G7. Keep this goal active until those checks pass.
 
 Completion: all consumers use the one capability; plugin unload/recovery cannot advance an
 unsettled cursor, reuse a revoked execution token or resurrect forgotten data.
+
+The Rust host loads the Memory and Core rows in one existing runtime. Only the Memory plugin
+constructs the facade in application source. Core supplies the same live repository, policy,
+Provider and vector ports; prompt contribution, ingestion, tools, routes and Agent cleanup share
+that instance. Kernel startup/retirement and database maintenance call its coordinated lifecycle,
+with no remaining manual facade construction or separate ingestion-disposal sequence.
+
+Local validation passes the normal build, 986 Memory behavior cases across 56 files, seven
+retrieval-quality cases, 372 native cases across 20 files (two existing Windows-only skips),
+22 actual SDK/admission cases across three files, and eight Rust cases. The one new durable test
+loads the actual Rutis plugin and holds extraction across unload: ingestion fences, the old
+execution token is rejected, no late row is written, and the retired attachment cannot reopen.
+Existing tests retain scope, temporal, CAS/audit/lineage, cursor and maintenance coverage.
+
+Both unchanged G5 output and the extracted application pass the same 12 selected scenarios:
+Agent CRUD; Memory lineage/impact; native vector persistence/deletion/clear; nine-Agent store
+convergence, model changes and worker loss; five database-maintenance/shutdown cases; prompt
+policy/trust; and nonempty Agent namespace deletion across relaunch. The initial baseline Agent
+launch closes its renderer session before actions; its raw failure is retained, and a targeted
+diagnostic run passes. Nine other baseline scenarios and ten candidate scenarios pass in their
+original batch. No product change is attributed to that initial failure.
+
+The policy comparison preserves historical search evidence while current prompt recall excludes
+expired states, foreign-project content and forgotten rows. Unapproved directives stay outside
+the instruction lane; approval enables them. Fact text cannot forge the directive container.
+Mixed-language budget/selection manifests match exactly: 234/256 total tokens, one selected fact
+and one budget-dropped candidate. Agent deletion retires both claim and directive visibility after
+restart. Temporary application policy/retirement drivers are removed after acceptance.
+
+Actual SDK and application cases verify the shared owner and existing lazy vector lifetime; this
+change adds no Node worker or data-path RPC and makes no speed/RSS claim. Baseline and candidate
+outputs are restored by rename and all file hashes verified. Compact raw evidence and the sole
+needed baseline are in `.deepchat/rutis-g6-memory-capability-acceptance/`. Normal Provider/ACP
+registry refreshes are retained. Signed distribution remains release-gated.
 
 ## G7. Migrate the control owner to Rust
 

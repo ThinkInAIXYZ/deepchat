@@ -26,7 +26,7 @@
     {
       "id": "amp-acp",
       "name": "Amp",
-      "version": "0.11.0",
+      "version": "0.12.0",
       "description": "ACP wrapper for Amp - the frontier coding agent",
       "repository": "https://github.com/tao12345666333/amp-acp",
       "authors": [
@@ -38,29 +38,29 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.11.0/amp-acp-darwin-aarch64.tar.gz",
+            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.12.0/amp-acp-darwin-aarch64.tar.gz",
             "cmd": "./amp-acp",
-            "sha256": "4bf329d06ffa80123f88324cf27260054bfda6ad952eb4337c30747ad9618ad8"
+            "sha256": "1c5f08f44f3711710769585855cefcdbaed53e4133c2263d59a368b5a1597151"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.11.0/amp-acp-darwin-x86_64.tar.gz",
+            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.12.0/amp-acp-darwin-x86_64.tar.gz",
             "cmd": "./amp-acp",
-            "sha256": "0e016273310457f5dbd145962473625645f2bfe490f8fa47d4e9ced4a42a97a2"
+            "sha256": "4245776441b18c05621dd66376064e66aebba90806a0d787592ea558207c5a68"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.11.0/amp-acp-linux-aarch64.tar.gz",
+            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.12.0/amp-acp-linux-aarch64.tar.gz",
             "cmd": "./amp-acp",
-            "sha256": "fa77d0b4379f89c33fb6cf346b49149c09e48c9e0358d997e0267d846e0a8930"
+            "sha256": "f75b1f4a2adc1c243601952070eb24bbcfecf328692f799815b59efeb9791528"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.11.0/amp-acp-linux-x86_64.tar.gz",
+            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.12.0/amp-acp-linux-x86_64.tar.gz",
             "cmd": "./amp-acp",
-            "sha256": "57642a7d6e80015cffab263e84c05cde2283b1aa5c80349d0161124f1df24a81"
+            "sha256": "c25e3635159ee12f8a77bd775dd8a8fc21cc4d25a3a23483ffafec73ccb910fe"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.11.0/amp-acp-windows-x86_64.zip",
+            "archive": "https://github.com/tao12345666333/amp-acp/releases/download/v0.12.0/amp-acp-windows-x86_64.zip",
             "cmd": "amp-acp.exe",
-            "sha256": "908add2112197527c8a3e303721c5edccf73b1d85daf55e6911c3fb6ac07f00a"
+            "sha256": "7377158ddac570d50f1eb98e0ce39ca6ecf18990bf917c1930bf628509ae12b4"
           }
         }
       }
@@ -228,7 +228,7 @@
     {
       "id": "codebuddy-code",
       "name": "Codebuddy Code",
-      "version": "2.179.1",
+      "version": "2.179.2",
       "description": "Tencent Cloud's official intelligent coding tool",
       "website": "https://www.codebuddy.cn/cli/",
       "authors": [
@@ -238,7 +238,7 @@
       "license_url": "https://www.codebuddy.cn/agreement/",
       "distribution": {
         "npx": {
-          "package": "@tencent-ai/codebuddy-code@2.179.1",
+          "package": "@tencent-ai/codebuddy-code@2.179.2",
           "args": [
             "--acp"
           ]
@@ -797,7 +797,7 @@
     {
       "id": "harn",
       "name": "Harn",
-      "version": "0.10.184",
+      "version": "0.10.185",
       "description": "Harn runs .harn agent pipelines as a native ACP coding agent over stdio.",
       "repository": "https://github.com/burin-labs/harn",
       "website": "https://harnlang.com",
@@ -809,49 +809,49 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.184/harn-aarch64-apple-darwin.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.185/harn-aarch64-apple-darwin.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "adb6633316790a7c69f74ae1d37c52c3ea6f3854b3b95154e53c957fdf3b7af8"
+            "sha256": "28c29df3c27ce4be8677de0a6908e77999a03ed3662ea0404922992df106317d"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.184/harn-x86_64-apple-darwin.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.185/harn-x86_64-apple-darwin.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "af0833cf04bf72fb7362f7d44e70c4d8bbede9057b6e5699adfc16620071605d"
+            "sha256": "9c13468f816b3e0c1feb1428179f19cfa0648ee108738611ae6f02eafc5eedb8"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.184/harn-aarch64-unknown-linux-gnu.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.185/harn-aarch64-unknown-linux-gnu.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "fbf94c36d1db389972310dae9e199d12bb7ce97909e7218cd7f29314418f1a9d"
+            "sha256": "c1818ca6c49614e5600e9d8f8d82f5bc54a3cb97d0ba8a1da615a65ff7a3f295"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.184/harn-x86_64-unknown-linux-gnu.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.185/harn-x86_64-unknown-linux-gnu.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "8c9b9da510517e271dc949efaa5c1b6b8a21fc4bf51e81654cf381c9742efbf3"
+            "sha256": "ac55d0b1544b4f6175b26aaae65de74cd3767efff705bfcd0dfc3deb74a1e5ec"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.184/harn-x86_64-pc-windows-msvc.zip",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.185/harn-x86_64-pc-windows-msvc.zip",
             "cmd": "harn.exe",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "0b9c1a18a629f7ecf70723e2dc2ad785444e9e7b0b7f813989ea2e42da492f09"
+            "sha256": "a6354030455e7fb82d3953907698b6ab60f2baa1f2dcc868723980a227c56195"
           }
         }
       },

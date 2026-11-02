@@ -6,6 +6,7 @@ import { createCoreKernel } from '../core/kernel'
 import { CoreNativeCalls } from '../core/native'
 import { createCoreSettings } from '../core/settings'
 import { CoreMemoryRuntime, type CoreMemoryService } from '../core/memory'
+import type { MemoryCapability } from './memory'
 import { RutisMemoryVectorStores } from '@/harness/memory-vector'
 import path from 'node:path'
 import {
@@ -53,7 +54,7 @@ const profileBootstrap = z
 
 export default definePlugin<CoreCarrierConfig>({
   name: 'deepchat-core',
-  inject: ['deepchatCoreNative'],
+  inject: ['deepchatCoreNative', 'deepchatMemoryCapability'],
   provides: {
     deepchatCore: {
       identity: 'async',
@@ -73,6 +74,7 @@ export default definePlugin<CoreCarrierConfig>({
     }
   },
   async apply(ctx, input) {
+    const memoryCapability = ctx.use<MemoryCapability>('deepchatMemoryCapability')
     const config = CoreCarrierConfigSchema.parse(input)
     const store = new CorePayloadStore(config, 'core')
     const native = ctx.use<
@@ -448,6 +450,7 @@ export default definePlugin<CoreCarrierConfig>({
               },
               admission,
               vectors: ownerVectors,
+              memory: memoryCapability,
               bindEventPublisher: (publish) => {
                 kernelPublish = publish
               },

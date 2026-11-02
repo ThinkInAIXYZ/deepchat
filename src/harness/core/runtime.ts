@@ -52,7 +52,7 @@ import { HookSettings } from '@/hook/config'
 import { SchedulerService, createCronJobRunSessionStarter } from '@/scheduler'
 import { SchedulerProcessManager } from '@/scheduler/schedulerProcessManager'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { MemoryService } from '@/memory'
+import type { MemoryCapability } from '../plugins/memory'
 import { ProjectService } from '@/project'
 import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
 import { RemoteService } from '@/remote'
@@ -203,6 +203,7 @@ export async function createCoreRuntime(options: {
     RutisMemoryVectorStores,
     'createVectorStore' | 'resetVectorStore' | 'markVectorStoreQuarantined'
   >
+  memory: MemoryCapability
   execution: Pick<
     CoreExecutionOptions,
     | 'typedEventHub'
@@ -1129,7 +1130,7 @@ export async function createCoreRuntime(options: {
     settingsPermissionService,
     toolPermissionBroker
   })
-  const memoryService = new MemoryService({
+  const memoryService = options.memory.open({
     repository: createLivePort(() => memoryDatabase.agentMemoryTable),
     directiveRepository: createLivePort(() => memoryDatabase.agentMemoryDirectiveTable),
     auditRepository: createLivePort(() => memoryDatabase.agentMemoryAuditTable),
@@ -1229,6 +1230,7 @@ export async function createCoreRuntime(options: {
     ...options.execution
   })
   deepChatAgentHarness = coreExecution.deepChatAgentHarness
+  options.memory.bindIngestion(coreExecution.memoryIngestionObserver)
   sessionQuery = coreExecution.sessionQuery
   sessionAssignment = coreExecution.sessionAssignment
   sessionTurn = coreExecution.sessionTurn
@@ -1930,6 +1932,7 @@ export async function createCoreRuntime(options: {
     pluginService,
     hookService,
     memoryService,
+    memory: options.memory,
     remoteService,
     cronJobs,
     backgroundExec,

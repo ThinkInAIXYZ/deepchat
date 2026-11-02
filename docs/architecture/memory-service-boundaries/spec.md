@@ -12,6 +12,15 @@ decomposition and a separate scheduler are out of scope.
 
 ## Design and invariants
 
+- The first-party `deepchat-memory` Rutis plugin owns the facade and its lifecycle in the Core
+  worker, alongside the sole shared Store and Provider owners. Core injects this capability;
+  prompt, tools, management and Agent lifecycle use its one facade. Repository callbacks stay
+  owner-local. The existing lazy vector worker retains its separate native resource lifetime.
+- Harness binds its ingestion observer explicitly. The capability coordinates pause/drain,
+  resume and final retirement; unload fences the observer and facade before awaiting cleanup.
+  Core cannot release the profile without retirement acknowledgement. Existing execution epochs,
+  read validation, transactions and cursor settlement remain authoritative.
+
 - Retrieval shares readiness/warmup, vector failure classification and authoritative vector-row
   validation predicates, not a callback-driven traversal. Decision retrieval retains batching,
   snapshot reuse, conflict exclusion and pinned ordering. Recall retains cancellation, circuit

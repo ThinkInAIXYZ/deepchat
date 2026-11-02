@@ -1,5 +1,6 @@
 {
   "behavior": [
+    "test/main/harness/memoryCapability.test.ts",
     "test/main/contracts/memoryContractParity.test.ts",
     "test/main/agent/deepchat/memory/memoryExtractionChunks.test.ts",
     "test/main/agent/deepchat/memory/memoryRuntimeCoordinator.test.ts",

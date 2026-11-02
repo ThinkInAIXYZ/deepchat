@@ -455,8 +455,15 @@ impl Plugin for Bootstrap {
                 injects: [host_key("deepchatCore")],
                 native: self.native.clone(),
             });
-            let patches: Vec<Patch> = serde_json::from_value(json!([{ "insert": [{ "id": "core", "name": format!("core:{}", self.plugin), "config": config }] }]))
+            let memory_plugin = self
+                .plugin
+                .join("memory.mjs")
                 .map_err(|e| CordisError::ServiceNotFound(e.to_string()))?;
+            let patches: Vec<Patch> = serde_json::from_value(json!([{ "insert": [
+                { "id": "core-memory", "name": format!("core:{memory_plugin}") },
+                { "id": "core", "name": format!("core:{}", self.plugin), "config": config }
+            ] }]))
+            .map_err(|e| CordisError::ServiceNotFound(e.to_string()))?;
             if self.layers.set("core", patches).await.is_err() {
                 self.native.retire().await;
                 processes.kill();

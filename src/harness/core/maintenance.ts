@@ -58,7 +58,7 @@ export function createCoreMaintenance(options: {
     | 'syncService'
     | 'replicaEndpoint'
     | 'automaticSync'
-    | 'memoryService'
+    | 'memory'
     | 'cronJobs'
     | 'remoteService'
     | 'hookService'
@@ -92,14 +92,14 @@ export function createCoreMaintenance(options: {
     syncService,
     replicaEndpoint,
     automaticSync,
-    memoryService,
+    memory,
     cronJobs,
     remoteService,
     hookService,
     pluginService,
     syncReplica
   } = runtime
-  const { deepChatAgentHarness, acpAgentRuntime, memoryIngestionObserver } = execution
+  const { deepChatAgentHarness, acpAgentRuntime } = execution
   function runDatabaseMaintenance(command: DatabaseImportCommand): Promise<SyncImportResult>
   function runDatabaseMaintenance(
     command: DatabaseEncryptionCommand
@@ -169,25 +169,14 @@ export function createCoreMaintenance(options: {
       await native.configurationHost.drainWrites()
       replicaEndpoint.stop()
       await automaticSync?.pause()
-      memoryService.stopBackgroundMaintenance()
+      memory.pause()
       await execution.liveDelegationService.stop()
       await cronJobs.stop()
       await remoteService.destroy()
       await native.remoteAuthWindows.closeAll()
       await hookService.stop()
       await pluginService.contextHooks?.stop()
-      const drain = await memoryIngestionObserver.drainAndFence()
-      if (drain.timedOut) {
-        throw new Error(
-          `Memory ingestion did not drain for sessions: ${drain.pendingSessions.join(', ')}`
-        )
-      }
-      const pendingMaintenanceAgents = await memoryService.drainBackgroundMaintenance()
-      if (pendingMaintenanceAgents.length > 0) {
-        throw new Error(
-          `Memory maintenance did not drain for agents: ${pendingMaintenanceAgents.join(', ')}`
-        )
-      }
+      await memory.drain()
       await suspendSessionRuntimes()
       await databaseRequests.drain()
       if (options.isStopping()) {
@@ -267,8 +256,7 @@ export function createCoreMaintenance(options: {
       }
       deepChatAgentHarness.reconcileAfterDatabaseReopen()
       profile.secretStore.resume()
-      memoryIngestionObserver.resumeIngestion()
-      memoryService.startBackgroundMaintenance()
+      memory.start()
       pluginService.contextHooks?.start()
       hookService.start()
       cronJobs.start()

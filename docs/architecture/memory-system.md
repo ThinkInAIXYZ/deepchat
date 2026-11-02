@@ -27,7 +27,11 @@ flowchart LR
 - `src/main/agent/deepchat/memory/` 只负责每个 Session 的 prompt contribution、terminal ingestion、
   epoch、cursor 和 fence。
 - Session 保存 Memory cursor/settings，不拥有 Memory row 或 vector store。
-- App 负责 shutdown/database maintenance 时的全局 fence 和停止顺序，不解释 Memory 业务状态。
+- `deepchat-memory` Rutis 插件在 Core worker 内构造唯一 facade，统一负责 Memory 的暂停、排空、
+  恢复和关闭；Harness 显式绑定 ingestion observer。共享 Store 与 Provider 保持同进程，已有惰性
+  向量 worker 继续独立管理原生资源。
+- Core 负责 shutdown/database maintenance 的全局顺序，收到 Memory 退役回执后才能释放 profile；
+  不解释 Memory 业务状态。
 - Memory runtime 通过 `TapeRawEntryReader` 和 `TapeAnchorWriter` 读取执行事实、记录
   `memory/view_assembled` 与 `memory/extract` anchor；Memory routes 只通过 `TapeInspectionReader`
   获取 effective source span 和 manifest DTO，不接收 Tape table 或 raw Tape row。
