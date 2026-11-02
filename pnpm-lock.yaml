@@ -347,8 +347,8 @@ importers:
         specifier: ^11.17.2
         version: 11.17.2
       minimatch:
-        specifier: ^10.2.6
-        version: 10.2.6
+        specifier: ^11.0.1
+        version: 11.0.4
       monaco-editor:
         specifier: ^0.55.1
         version: 0.55.1
