@@ -59,6 +59,14 @@ it('Memory unload fences admitted extraction and cannot reopen its retired attac
     expect(repository.countByAgent('a')).toBe(0)
     expect(() => capability.open(deps)).toThrow('cannot reopen')
     expect(() => capability.start()).toThrow('unavailable')
+    const replacement = await load(memoryPlugin, { strict: false })
+    try {
+      const next = replacement.service<MemoryCapability>('deepchatMemoryCapability').open(deps)
+      expect(next.canContinueExecution(token)).toBe(false)
+      expect(next.canContinueExecution(next.captureExecutionToken('a'))).toBe(true)
+    } finally {
+      await replacement.unload()
+    }
   } finally {
     request.resolve('[]')
     await plugin.unload()

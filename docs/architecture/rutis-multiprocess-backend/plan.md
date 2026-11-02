@@ -4720,6 +4720,9 @@ retrieval-quality cases, 372 native cases across 20 files (two existing Windows-
 22 actual SDK/admission cases across three files, and eight Rust cases. The one new durable test
 loads the actual Rutis plugin and holds extraction across unload: ingestion fences, the old
 execution token is rejected, no late row is written, and the retired attachment cannot reopen.
+Tokens bind the facade instance identity and Agent epoch; a reloaded plugin rejects an old token
+even when its numeric Agent epoch matches, while accepting its own token. The existing unload
+case provides minimal characterization of that recovery boundary without adding another case.
 Existing tests retain scope, temporal, CAS/audit/lineage, cursor and maintenance coverage.
 
 Both unchanged G5 output and the extracted application pass the same 12 selected scenarios:
@@ -4742,6 +4745,22 @@ change adds no Node worker or data-path RPC and makes no speed/RSS claim. Baseli
 outputs are restored by rename and all file hashes verified. Compact raw evidence and the sole
 needed baseline are in `.deepchat/rutis-g6-memory-capability-acceptance/`. Normal Provider/ACP
 registry refreshes are retained. Signed distribution remains release-gated.
+
+Same-ID Memory row refreshes preserve the inline editor's draft and delete confirmation. The
+reset watcher compares Agent, memory ID and mode as separate sources, so a freshly loaded row
+object cannot reset those local states. The existing real-dialog regression also verifies a row
+refresh preserves the draft, confirmation and subsequent progress/error behavior. DOM, layout,
+preload and IPC contracts are unchanged.
+
+The instance-fence validation passes 986 Memory cases, 372 native cases with two existing platform
+skips, seven quality cases, 383 Harness/plugin cases and 11 focused context/plugin cases. Its
+policy/selection/allocation receipt matches the unchanged G5 baseline exactly. The application
+batch passes 11 scenarios and exposes the inline-reset race above in the remaining impact case;
+affected lineage/impact acceptance then passes both original cases with zero retries, retaining
+all original receipts. Together these establish the same 12 selected application scenarios;
+the ten unaffected successful cases are not repeated for the local watcher change.
+The Memory renderer selection passes 63 cases across three existing files. Only the one new
+plugin lifecycle case is retained; existing component and token fixtures are extended in place.
 
 ## G7. Migrate the control owner to Rust
 

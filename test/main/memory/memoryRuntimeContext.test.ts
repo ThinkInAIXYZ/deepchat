@@ -242,8 +242,9 @@ describe('MemoryRuntimeContext execution epoch', () => {
       providerControl: { abortAgent: vi.fn(), abortAll: vi.fn() }
     })
 
-    expect(ctx.captureOperationFence('agent-a')).toEqual({ agentId: 'agent-a', generation: 0 })
-    expect(ctx.captureOperationFence('agent-a')).toEqual({ agentId: 'agent-a', generation: 0 })
+    const token = ctx.captureOperationFence('agent-a')
+    expect(token).toEqual({ ownerId: expect.any(String), agentId: 'agent-a', generation: 0 })
+    expect(ctx.captureOperationFence('agent-a')).toEqual(token)
     expect(resolveAgentConfig).not.toHaveBeenCalled()
     expect(ctx.listObservedExecutionAgentIds()).toEqual([])
   })

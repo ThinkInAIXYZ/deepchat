@@ -3,6 +3,7 @@ import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 import type { MemoryModelRef } from '../domain/types'
 
 export interface MemoryExecutionToken {
+  ownerId: string
   agentId: string
   generation: number
 }

@@ -227,6 +227,9 @@ its ingestion observer; pause/drain, resume and final retirement coordinate that
 background maintenance and vector disposal. Unload fences ingestion and the facade before awaiting
 provider/native retirement. A retired attachment cannot reopen, and stale references cannot revive
 its execution epoch. Core's profile release still requires the plugin's retirement receipt.
+Execution tokens bind both the Memory facade instance and the Agent epoch. A replacement facade
+rejects the retired instance's tokens even when their Agent epoch numbers match; ordinary policy
+changes retain the existing per-Agent epoch rules. This identity is ephemeral, not a schema field.
 This extraction adds no worker, data-path RPC, schema or dependency; it makes no performance claim.
 
 ### Existing bounds and the actual optimization question

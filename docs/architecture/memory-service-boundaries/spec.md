@@ -20,6 +20,8 @@ decomposition and a separate scheduler are out of scope.
   resume and final retirement; unload fences the observer and facade before awaiting cleanup.
   Core cannot release the profile without retirement acknowledgement. Existing execution epochs,
   read validation, transactions and cursor settlement remain authoritative.
+- Execution tokens include the facade instance identity as well as the Agent epoch. A replacement
+  plugin rejects tokens issued by the retired instance, including equal numeric epochs.
 
 - Retrieval shares readiness/warmup, vector failure classification and authoritative vector-row
   validation predicates, not a callback-driven traversal. Decision retrieval retains batching,

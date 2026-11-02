@@ -816,11 +816,9 @@ function handleKeydown(event: KeyboardEvent): void {
   }
 }
 
-watch(
-  () => [props.agentId, props.memory?.id, props.mode],
-  () => seed(),
-  { immediate: true }
-)
+watch([() => props.agentId, () => props.memory?.id, () => props.mode], () => seed(), {
+  immediate: true
+})
 watch(busy, (value) => emit('busy', value), { immediate: true, flush: 'sync' })
 watch(dirty, (value) => emit('dirty', value), { immediate: true, flush: 'sync' })
 watch(sourceOpen, () => void loadSource())

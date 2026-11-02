@@ -57,6 +57,7 @@ export function isUniqueConstraintError(error: unknown): boolean {
 }
 
 export class MemoryRuntimeContext {
+  private readonly ownerId = nanoid()
   private disposed = false
   private paused = false
   private readonly readEpochByAgent = new Map<string, number>()
@@ -110,6 +111,7 @@ export class MemoryRuntimeContext {
 
   captureOperationFence(agentId: string): MemoryOperationFence {
     return {
+      ownerId: this.ownerId,
       agentId,
       generation: this.getOrCreateExecutionState(agentId).generation
     }
@@ -119,6 +121,7 @@ export class MemoryRuntimeContext {
     return (
       !this.disposed &&
       !this.paused &&
+      fence.ownerId === this.ownerId &&
       (this.executionStateByAgent.get(fence.agentId)?.generation ?? 0) === fence.generation
     )
   }

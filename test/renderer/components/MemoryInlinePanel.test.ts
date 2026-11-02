@@ -350,8 +350,15 @@ describe('MemoryInlinePanel', () => {
     memoryClient.remove.mockReturnValueOnce(pending.promise)
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
+    await wrapper.get('textarea').setValue('Unsaved memory draft')
     await wrapper.get('[data-testid="memory-inline-delete-trigger"]').trigger('click')
     await flushPromises()
+    await wrapper.setProps({ memory: memory({ importance: 0.5 }) })
+    await flushPromises()
+    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe(
+      'Unsaved memory draft'
+    )
+    expect(document.querySelector('[data-testid="memory-inline-delete-confirm"]')).not.toBeNull()
     document
       .querySelector<HTMLButtonElement>('[data-testid="memory-inline-delete-confirm"]')!
       .click()

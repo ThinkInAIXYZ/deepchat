@@ -1205,7 +1205,11 @@ function createRuntimeDependencies(
 function createMemoryRuntimePort(): MemoryRuntimePort {
   return {
     isEnabled: vi.fn(() => false),
-    captureExecutionToken: vi.fn((agentId: string) => ({ agentId, generation: 0 })),
+    captureExecutionToken: vi.fn((agentId: string) => ({
+      ownerId: 'memory-test-owner',
+      agentId,
+      generation: 0
+    })),
     canContinueExecution: vi.fn(() => true),
     getInjectionTokenBudget: vi.fn(() => 1_200),
     buildInjection: vi.fn().mockResolvedValue(null),
@@ -1392,7 +1396,8 @@ describe('DeepChatAgentHarness', () => {
       ...port,
       isEnabled,
       captureExecutionToken:
-        port.captureExecutionToken ?? vi.fn((agentId: string) => ({ agentId, generation: 0 })),
+        port.captureExecutionToken ??
+        vi.fn((agentId: string) => ({ ownerId: 'memory-test-owner', agentId, generation: 0 })),
       canContinueExecution:
         port.canContinueExecution ??
         vi.fn(

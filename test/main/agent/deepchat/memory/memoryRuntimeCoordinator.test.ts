@@ -97,6 +97,7 @@ function createHarness() {
   const port = {
     isEnabled,
     captureExecutionToken: vi.fn((agentId: string) => ({
+      ownerId: 'memory-test-owner',
       agentId,
       generation: executionGenerations.get(agentId) ?? 0
     })),
