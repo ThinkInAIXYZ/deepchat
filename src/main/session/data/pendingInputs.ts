@@ -264,6 +264,10 @@ export class SessionPendingInputs {
     return Boolean(this.getNextSteerInput(sessionId) ?? this.getNextQueuedInput(sessionId))
   }
 
+  hasUnconsumedInputs(sessionId: string): boolean {
+    return this.store.hasUnconsumedInputs(sessionId)
+  }
+
   hasBlockingInput(sessionId: string): boolean {
     return this.store.hasBlockingInput(sessionId)
   }

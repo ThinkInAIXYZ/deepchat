@@ -1385,15 +1385,6 @@ export async function createMainProcessControl(dependencies: {
     }
   })
   const syncAppliedSessions = new Set<string>()
-  const hasPendingSyncSession = (id: string): boolean =>
-    Boolean(
-      mainDatabase
-        .getDatabase()
-        .prepare(
-          "SELECT 1 FROM deepchat_pending_inputs WHERE session_id=? AND state != 'consumed' LIMIT 1"
-        )
-        .get(id)
-    )
   syncReplica = new SyncReplicaStore({
     database: () => mainDatabase.getDatabase(),
     directory: path.join(app.getPath('userData'), 'sync-replica'),
@@ -1401,7 +1392,7 @@ export async function createMainProcessControl(dependencies: {
       databaseMaintenanceState === 'running' &&
       (kind === 'session'
         ? !syncActiveSessions.has(id) &&
-          !hasPendingSyncSession(id) &&
+          !sessionData.pendingInputs.hasUnconsumedInputs(id) &&
           (syncAppliedSessions.has(id) || !sessionDeletionGate.hasActiveOperations(id))
         : syncActiveSessions.size === 0 &&
           !sessionDeletionGate.hasActiveOperationsOutside(syncAppliedSessions)),
@@ -1414,7 +1405,7 @@ export async function createMainProcessControl(dependencies: {
         const id = ids[index]
         if (
           syncActiveSessions.has(id) ||
-          hasPendingSyncSession(id) ||
+          sessionData.pendingInputs.hasUnconsumedInputs(id) ||
           sessionDeletionGate.hasActiveOperations(id)
         )
           return false

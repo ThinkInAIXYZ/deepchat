@@ -58,6 +58,10 @@ export class SessionPendingInputStore {
     return this.database.deepchatPendingInputsTable.countActiveBySession(sessionId)
   }
 
+  hasUnconsumedInputs(sessionId: string): boolean {
+    return this.database.deepchatPendingInputsTable.hasUnconsumedBySession(sessionId)
+  }
+
   countActiveQueue(sessionId: string): number {
     return this.database.deepchatPendingInputsTable
       .listActiveBySession(sessionId)

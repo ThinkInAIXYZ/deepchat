@@ -55,7 +55,7 @@ pnpm exec vitest run --config vitest.config.ts test/main/agent/deepchat/runtime/
 
 **目标**：让 Sync 只问“这个会话是否还有未消费输入”，完整保留同步应用门禁。
 
-- [ ] **依赖**：无。**删除**：`app/composition.ts#hasPendingSyncSession` 中的手写 SQL。由 pending-input 存储提供按 session 判断存在性的只读操作，沿现有 Sync guard 注入。保持索引友好的存在性查询。`hasPendingTurnInput` 查的是下一条可执行输入，不能代替 `state != 'consumed'`。
+- [x] **依赖**：无。**删除**：`app/composition.ts#hasPendingSyncSession` 中的手写 SQL。由 pending-input 存储提供按 session 判断存在性的只读操作，沿现有 Sync guard 注入。保持索引友好的存在性查询。`hasPendingTurnInput` 查的是下一条可执行输入，不能代替 `state != 'consumed'`。
 
 **实施顺序**
 
