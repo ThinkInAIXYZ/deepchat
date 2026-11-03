@@ -77,7 +77,7 @@ pnpm exec vitest run --config vitest.config.ts test/main/session/data/pendingInp
 
 **目标**：让 Sync 活跃状态只有一个写入所有者，保持桌面和后台观察者看到的原有顺序。
 
-- [ ] **依赖**：无。**删除**：`SessionStatusPublisher` 对 renderer 事件名、`SessionUiPort` 的依赖，以及两个发布回调对 `syncActiveSessions` 的重复写入。运行时传出已校验的状态变化或 usage 更新；宿主保留现有输出顺序。Sync 统一消费 DeepChat 与其他状态生产者，包含既有 `running` 与 `generating` 来源。逐一迁入 Direct ACP、Remote、CLI、浏览器预览回收与悬浮窗观察点。
+- [x] **依赖**：无。**删除**：`SessionStatusPublisher` 对 renderer 事件名、`SessionUiPort` 的依赖，以及两个发布回调对 `syncActiveSessions` 的重复写入。运行时传出已校验的状态变化或 usage 更新；宿主保留现有输出顺序。Sync 统一消费 DeepChat 与其他状态生产者，包含既有 `running` 与 `generating` 来源。逐一迁入 Direct ACP、Remote、CLI、浏览器预览回收与悬浮窗观察点。
 
 **实施顺序**
 

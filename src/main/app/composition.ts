@@ -1,3 +1,6 @@
+import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
+import { SyncSessionActivity } from '@/sync/sessionActivity'
+import type { DeepChatInternalSessionUpdate } from '@/agent/deepchat/runtime/sessionUpdates'
 import { SyncReplicaStore } from '@/sync/replica/store'
 import { SyncReplicaEndpoint } from '@/sync/replica/endpoint'
 import { AutomaticSync } from '@/sync/replica/automatic'
@@ -539,7 +542,7 @@ export async function createMainProcessControl(dependencies: {
   let syncHostService: SyncHostService
   let syncReplica: SyncReplicaStore | undefined
   let automaticSync: AutomaticSync | undefined
-  const syncActiveSessions = new Set<string>()
+  const syncActiveSessions = new SyncSessionActivity(() => syncReplica?.wake())
   let deeplinkService: DeeplinkService
   let notificationService: NotificationService
   let tabPresenter: TabPresenter
@@ -772,12 +775,7 @@ export async function createMainProcessControl(dependencies: {
     sessionEventRouter.publish(name, payload)
     if (name === 'sessions.status.changed') {
       const state = payload as { sessionId: string; status: string }
-      if (state.status === 'generating' || state.status === 'running')
-        syncActiveSessions.add(state.sessionId)
-      else {
-        syncActiveSessions.delete(state.sessionId)
-        syncReplica?.wake()
-      }
+      syncActiveSessions.update(state.sessionId, state.status)
     }
   }
   dependencies.mcpAppSandboxRegistry.setConsentPublisher((windowId, payload) => {
@@ -2077,6 +2075,18 @@ export async function createMainProcessControl(dependencies: {
   })
   agentSettings.start()
 
+  const publishSessionUpdate = (update: DeepChatInternalSessionUpdate): void => {
+    sessionRuntimeEvents.publish(update)
+    if (update.kind === 'status' && (update.status === 'idle' || update.status === 'error')) {
+      void yoBrowserPresenter.releaseInactivePreview(update.sessionId).catch((error) => {
+        logger.warn('[YoBrowser] Failed to release inactive preview', {
+          sessionId: update.sessionId,
+          error
+        })
+      })
+    }
+  }
+
   // Initialize new agent architecture presenters
   deepChatAgentHarness = createDeepChatAgentHarness({
     providerRuntime,
@@ -2095,28 +2105,15 @@ export async function createMainProcessControl(dependencies: {
       })
     },
     publishEvent: publishDeepchatEvent,
-    publishSessionUpdate: (update) => {
-      sessionRuntimeEvents.publish(update)
-      if (update.kind === 'status') {
-        if (update.status === 'generating') syncActiveSessions.add(update.sessionId)
-        else {
-          syncActiveSessions.delete(update.sessionId)
-          syncReplica?.wake()
-        }
-      }
-      if (update.kind === 'status' && (update.status === 'idle' || update.status === 'error')) {
-        void yoBrowserPresenter.releaseInactivePreview(update.sessionId).catch((error) => {
-          logger.warn('[YoBrowser] Failed to release inactive preview', {
-            sessionId: update.sessionId,
-            error
-          })
-        })
-      }
-    },
+    publishSessionUpdate,
+    publishStatus: createSessionStatusProjection({
+      publishEvent: publishDeepchatEvent,
+      publishSessionUpdate,
+      sessionUiPort
+    }),
     providerCatalogPort,
     sessionPermissionPort,
     acpAsLlmProviderPermission: acpAsLlmProviderPermission,
-    sessionUiPort,
     memoryPort: memoryService,
     getMemoryIngestionProjection: () => memoryDatabase.ingestionProjectionTable,
     cacheImage: (data, options) => deviceService.cacheImage(data, options),

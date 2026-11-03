@@ -1,3 +1,4 @@
+import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
 import * as fs from 'node:fs'
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -895,6 +896,7 @@ function createMockProviderRuntime() {
 function createMockProviderSettings() {
   const settings = {
     getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
+    getProviderDbSourceUrl: vi.fn(() => 'https://example.com/provider-db.json'),
     getModelConfig: vi
       .fn()
       .mockReturnValue({ temperature: 0.7, maxTokens: 4096, contextLength: 128000 }),
@@ -968,9 +970,16 @@ function createMockToolService() {
 }
 
 function createRuntimeDependencies() {
+  const publishSessionUpdate = vi.fn()
+  const sessionUiPort = { refreshSessionUi: vi.fn() }
   return {
     publishEvent: publishDeepchatEventMock,
-    publishSessionUpdate: vi.fn(),
+    publishSessionUpdate,
+    publishStatus: createSessionStatusProjection({
+      publishEvent: publishDeepchatEventMock,
+      publishSessionUpdate,
+      sessionUiPort
+    }),
     providerCatalogPort: {
       getProviderModels: vi.fn().mockReturnValue([]),
       getCustomModels: vi.fn().mockReturnValue([])
@@ -983,7 +992,7 @@ function createRuntimeDependencies() {
     acpAsLlmProviderPermission: {
       resolveAgentPermission: vi.fn().mockResolvedValue(undefined)
     },
-    sessionUiPort: { refreshSessionUi: vi.fn() },
+    sessionUiPort,
     memoryPort: { isEnabled: vi.fn().mockReturnValue(false) } as any,
     getMemoryIngestionProjection: () => sqlitePresenter.deepchatMemoryIngestionProjectionTable,
     cacheImage: vi.fn(async (data: string) => data),

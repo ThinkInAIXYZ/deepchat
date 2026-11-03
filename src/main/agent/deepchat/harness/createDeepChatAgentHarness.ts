@@ -259,9 +259,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   const runLifecycle = new RunLifecycleCoordinator({
     runtime,
     statusPublisher: new SessionStatusPublisher({
-      publishEvent,
-      publishSessionUpdate,
-      sessionUiPort: deps.sessionUiPort
+      publishStatus: deps.publishStatus
     }),
     transcript: messageStore,
     messageProjection,

@@ -87,9 +87,7 @@ function createHarness(initialMessages: ChatMessageRecord[] = []) {
   const runtime = new DeepChatAgentRuntime()
   const messages = [...initialMessages]
   const statusPorts: SessionStatusPublisherPorts = {
-    publishEvent: vi.fn(),
-    publishSessionUpdate: vi.fn(),
-    sessionUiPort: { refreshSessionUi: vi.fn() }
+    publishStatus: vi.fn()
   }
   const transcript: RunLifecycleCoordinatorPorts['transcript'] = {
     getMessage: vi.fn((messageId: string) => messages.find(({ id }) => id === messageId) ?? null),
@@ -451,10 +449,9 @@ describe('RunLifecycleCoordinator', () => {
     await coordinator.cancel(SESSION_ID)
 
     expect(scope.instance.getPendingInteractions()).toEqual([])
-    expect(vi.mocked(transcript.setMessageError).mock.calls.map(([messageId]) => messageId)).toEqual([
-      'message-1',
-      'message-2'
-    ])
+    expect(
+      vi.mocked(transcript.setMessageError).mock.calls.map(([messageId]) => messageId)
+    ).toEqual(['message-1', 'message-2'])
     expect(emitMessageRefresh.mock.calls.map(([, messageId]) => messageId)).toEqual([
       'message-1',
       'message-2'

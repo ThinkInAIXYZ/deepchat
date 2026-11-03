@@ -12,7 +12,8 @@ import type { AcpAsLlmProviderPermissionPort, ProviderCatalogPort } from '@/prov
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type { SessionData } from '@/session/data'
 import type { SessionDatabase } from '@/session/data/database'
-import type { SessionPermissionPort, SessionUiPort } from '@/session/contracts'
+import type { SessionPermissionPort } from '@/session/contracts'
+import type { SessionStatusPublisherPorts } from '@/agent/deepchat/runtime/sessionStatusPublisher'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { CacheImageOptions } from '@/platform/imageCache'
 import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
@@ -79,7 +80,7 @@ export interface DeepChatHarnessDependencies {
   providerCatalogPort: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
   sessionPermissionPort: SessionPermissionPort
   acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
-  sessionUiPort: SessionUiPort
+  publishStatus: SessionStatusPublisherPorts['publishStatus']
   memoryPort: MemoryRuntimePort
   getMemoryIngestionProjection(): MemoryIngestionProjection
   cacheImage(data: string, options?: CacheImageOptions): Promise<string>

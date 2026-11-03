@@ -1,3 +1,4 @@
+import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createHash } from 'node:crypto'
 import fs from 'fs/promises'
@@ -1139,10 +1140,18 @@ function createRuntimeDependencies(
   } = {}
 ): DeepChatHarnessDependencies & {
   attachmentRouter: { prepare: ReturnType<typeof vi.fn> }
+  sessionUiPort: { refreshSessionUi: ReturnType<typeof vi.fn> }
 } {
+  const publishSessionUpdate = vi.fn()
+  const sessionUiPort = { refreshSessionUi: vi.fn() }
   return {
     publishEvent: publishDeepchatEvent,
-    publishSessionUpdate: vi.fn(),
+    publishSessionUpdate,
+    publishStatus: createSessionStatusProjection({
+      publishEvent: publishDeepchatEvent,
+      publishSessionUpdate,
+      sessionUiPort
+    }),
     providerCatalogPort: {
       getProviderModels: vi.fn().mockReturnValue([]),
       getCustomModels: vi.fn().mockReturnValue([])
@@ -1163,7 +1172,7 @@ function createRuntimeDependencies(
     acpAsLlmProviderPermission: {
       resolveAgentPermission: options.resolveAgentPermission ?? vi.fn().mockResolvedValue(undefined)
     },
-    sessionUiPort: { refreshSessionUi: vi.fn() },
+    sessionUiPort,
     memoryPort: options.memoryPort ?? createMemoryRuntimePort(),
     getMemoryIngestionProjection:
       options.getMemoryIngestionProjection ?? (() => undefined as never),
