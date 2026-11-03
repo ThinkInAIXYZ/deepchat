@@ -126,6 +126,12 @@ jobs:
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
 
+      - name: Build standalone Node Host
+        run: pnpm run headless:build
+
+      - name: Verify standalone Node Host
+        run: pnpm run smoke:headless
+
       - name: Verify packaged DuckDB VSS
         shell: bash
         run: |

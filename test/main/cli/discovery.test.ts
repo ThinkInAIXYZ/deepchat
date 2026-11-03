@@ -50,6 +50,11 @@ describe('CLI descriptor discovery', () => {
         homeDirectory: '/unused'
       })
     ).toBe(path.resolve('./profile'))
+    expect(
+      resolveCliUserDataPath({
+        env: { DEEPCHAT_USER_DATA_DIR: './host-profile', DEEPCHAT_E2E_USER_DATA_DIR: './unused' }
+      })
+    ).toBe(path.resolve('./host-profile'))
   })
 
   it('fails closed when an Agent token variable is present but invalid', () => {

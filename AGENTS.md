@@ -6,6 +6,8 @@
 - Require Rust >=1.88 with Cargo; normal dev/build commands compile the Rutis host automatically.
 - Core code: `src/main`, `src/preload`, `src/renderer`, `src/shared`; stack: Electron/Vue 3/TS.
 - Rutis host: `crates/deepchat-harness`; first-party TS capabilities/composition: `src/harness`.
+- Standalone Node Session Host: `src/headless`; build with `pnpm headless:build`, verify with
+  `pnpm smoke:headless`. Keep its runtime closure Electron-free and excluded from desktop packaging.
 - Tests: use Vitest in `test/main`, Vitest with Vue Test Utils in `test/renderer`, and Playwright in
   `test/e2e`; run the smallest relevant suite.
 - Default to implementation-first development: inspect and design, complete the planned code change,

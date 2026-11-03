@@ -18,6 +18,7 @@ files:
   - '!out/main/lightOcrHelper.js'
   - '!out/cli/**'
   - '!out/harness/**'
+  - '!out/headless/**'
   - '!resources/model-db/**'
   - '!resources/acp-registry/**'
   - '!crates/**'

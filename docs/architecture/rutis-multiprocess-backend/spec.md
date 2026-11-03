@@ -2099,6 +2099,37 @@ performance or independently hot-reloadable Core claim.
 
 ## Everywhere application and execution boundaries
 
+### Ordinary Node Session Host
+
+The selected G11 distribution reuses the existing Rust/Rutis host and TS Core; its foreground
+Node entry replaces Electron's Native host ports. Build it with `pnpm headless:build`, then copy
+the entire `out/headless` directory to the same target platform/architecture. The target provides
+Node >=24.22.1 <25; no Electron installation or running desktop is required. Core, its native
+dependency closure, helper entry, CLI, catalogs and available license materials travel together.
+This artifact is excluded from desktop packaging.
+
+Start `node index.mjs --profile <directory>` with a stable `DEEPCHAT_HOST_KEY` containing a canonical
+base64 32-byte master key. Credentials use versioned AES-256-GCM envelopes and separate HKDF usage
+keys. The master key is supplied by the embedding environment, removed before child launch and
+never written by the host; it is not an OS keychain claim. Preserve the key across restarts.
+`DEEPCHAT_HOST_DATABASE_PASSWORD` optionally supplies an existing encrypted database's manual
+unlock password. Database recovery cannot silently reset data. Desktop-wrapped credentials require
+their original security adapter; sharing a profile does not convert its credential format.
+
+Use `DEEPCHAT_USER_DATA_DIR=<directory> node cli/deepchat.mjs <command>` for the same authenticated
+UDS/named-pipe surface. The host retains authority after a CLI exits. Shutdown drains Core and owned
+helpers before releasing the profile. Ordinary Node helpers reuse existing execution, Code Mode,
+watcher and scheduler owners; a blocked Code VM cannot own its own IPC-death cleanup thread.
+IPC and worker delivery are bounded. SIGINT/SIGTERM request graceful retirement where the OS
+delivers those signals; forced Windows termination instead exercises owner loss and recovery.
+
+Sensitive CLI writes retain existing caller, scope, effect, argument binding, timeout and audit
+checks. A host TTY can return one exact approval or denial through a terminal target; it cannot
+claim a renderer identity. Request cancellation and timeout retire the native prompt before the
+request closes. Without a TTY, operations requiring approval report unavailable. Desktop windows,
+Browser/CUA and native presentation remain explicit unavailable capabilities on this host.
+G11 remains under integration acceptance; this contract alone does not establish validated delivery.
+
 ### Application clients
 
 Keep one application command/query/event contract with transport adapters. Desktop local uses

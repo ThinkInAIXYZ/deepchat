@@ -47,6 +47,71 @@ async function waitForRequests(requests: unknown[], count: number): Promise<void
 }
 
 describe('CliMutationGuard', () => {
+  it.each(['approved', 'denied'] as const)(
+    'settles a trusted terminal decision as %s without renderer authority',
+    async (decision) => {
+      const harness = createHarness()
+      const entered = Promise.withResolvers<string>()
+      const answer = Promise.withResolvers<'approved' | 'denied'>()
+      vi.mocked(harness.presentation.getTarget).mockResolvedValue({ host: 'terminal' })
+      vi.mocked(harness.presentation.present).mockImplementation(async (_target, payload) => {
+        entered.resolve(payload.requestId)
+        return await answer.promise
+      })
+      const pending = harness.authorize()
+      const outcome = pending.then(
+        () => 'approved',
+        (error: CliRequestError) => error.code
+      )
+      const requestId = await entered.promise
+      expect(harness.guard.resolve({ requestId, decision: 'approved' }, rendererCaller(70))).toBe(
+        false
+      )
+      harness.guard.cancelRenderer(70)
+      answer.resolve(decision)
+      expect(await outcome).toBe(decision === 'approved' ? 'approved' : 'approval_denied')
+      expect(harness.close).toHaveBeenCalledWith(
+        { host: 'terminal' },
+        { requestId, reason: decision }
+      )
+    }
+  )
+
+  it('cancels an awaiting terminal presentation when its CLI caller disconnects', async () => {
+    const harness = createHarness()
+    const entered = Promise.withResolvers<AbortSignal>()
+    const retiring = Promise.withResolvers<void>()
+    const retired = Promise.withResolvers<void>()
+    vi.mocked(harness.presentation.getTarget).mockResolvedValue({ host: 'terminal' })
+    vi.mocked(harness.presentation.present).mockImplementation(
+      async (_target, _payload, signal) => {
+        entered.resolve(signal!)
+        await new Promise<void>((resolve) => {
+          signal!.addEventListener(
+            'abort',
+            () => {
+              retiring.resolve()
+              resolve()
+            },
+            { once: true }
+          )
+        })
+        await retired.promise
+        throw signal!.reason
+      }
+    )
+    const controller = new AbortController()
+    const pending = harness.authorize(controller.signal)
+    const rejection = expect(pending).rejects.toMatchObject({ code: 'cancelled' })
+    const signal = await entered.promise
+    controller.abort()
+    await retiring.promise
+    expect(harness.close).not.toHaveBeenCalled()
+    retired.resolve()
+    await rejection
+    expect(signal.aborted).toBe(true)
+  })
+
   it('resumes only the exact request resolved by its target renderer', async () => {
     const harness = createHarness()
     const pending = harness.authorize()

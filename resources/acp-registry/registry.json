@@ -647,7 +647,7 @@
     {
       "id": "factory-droid",
       "name": "Factory Droid",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "description": "Factory Droid - AI coding agent powered by Factory AI",
       "website": "https://factory.ai/product/cli",
       "authors": [
@@ -657,7 +657,7 @@
       "license_url": "https://factory.ai/legal/terms",
       "distribution": {
         "npx": {
-          "package": "droid@1.1.0",
+          "package": "droid@1.2.0",
           "args": [
             "exec",
             "--output-format",

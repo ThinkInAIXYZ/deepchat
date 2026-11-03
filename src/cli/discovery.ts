@@ -39,7 +39,7 @@ function resolveDefaultProfilePath(
 
 export function resolveCliUserDataPath(options: CliDiscoveryOptions = {}): string {
   const env = options.env ?? process.env
-  const explicitPath = env[EXPLICIT_PROFILE_ENV]?.trim()
+  const explicitPath = env.DEEPCHAT_USER_DATA_DIR?.trim() || env[EXPLICIT_PROFILE_ENV]?.trim()
   if (explicitPath) return path.resolve(explicitPath)
   return resolveDefaultProfilePath(
     env,

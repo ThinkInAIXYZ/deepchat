@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { SecretStore } from '@/config/secretStore'
+import { createHeadlessNative } from '../../../src/headless/native'
 
 function fixture() {
   const values = new Map([['credential', 'wrapped:previous']])
@@ -17,6 +20,57 @@ function fixture() {
 }
 
 describe('SecretStore lifecycle', () => {
+  it('authenticates headless credentials across restart and retires the original key owner', async () => {
+    const createNative = (masterKey: Uint8Array) =>
+      createHeadlessNative({
+        profileDirectory: path.join(tmpdir(), 'deepchat-headless-credential-contract'),
+        temporaryDirectory: tmpdir(),
+        masterKey,
+        publishEvent() {}
+      })
+    const suppliedKey = Buffer.alloc(32, 7)
+    const first = createNative(suppliedKey)
+    suppliedKey.fill(0)
+    const restarted = createNative(Buffer.alloc(32, 7))
+    const wrongKey = createNative(Buffer.alloc(32, 8))
+    const { settings, values } = fixture()
+    const secrets = new SecretStore(settings as never, first.crypto)
+    const restoredSecrets = new SecretStore(settings as never, restarted.crypto)
+    try {
+      const plaintext = 'headless-token-🔐\u0000'
+      const wrapped = await secrets.wrap(plaintext)
+      expect(wrapped).not.toContain(plaintext)
+      expect(await secrets.wrap(plaintext)).not.toBe(wrapped)
+      secrets.setWrapped('credential', wrapped)
+      expect(await secrets.get('credential')).toBe(plaintext)
+      expect(await restoredSecrets.get('credential')).toBe(plaintext)
+      expect(await first.crypto.getBackend()).toBe('headless-aes-256-gcm')
+      await expect(wrongKey.crypto.decrypt(wrapped)).rejects.toThrow('authentication failed')
+
+      const parts = wrapped.split(':')
+      const changed = Buffer.from(parts[2], 'base64url')
+      changed[changed.length - 1] ^= 1
+      parts[2] = changed.toString('base64url')
+      await expect(restoredSecrets.unwrap(parts.join(':'))).rejects.toThrow('authentication failed')
+      await expect(restarted.crypto.decrypt('electron-wrapped-secret')).rejects.toThrow(
+        'Unsupported headless credential envelope'
+      )
+      expect(values.get('credential')).toBe(wrapped)
+
+      const closing = first.close()
+      expect(first.close()).toBe(closing)
+      await closing
+      expect(await first.crypto.isAvailable()).toBe(false)
+      await expect(first.crypto.encrypt(plaintext)).rejects.toThrow('stopped')
+      await expect(first.crypto.decrypt(wrapped)).rejects.toThrow('stopped')
+      await expect(first.kernel.configurationHost.resume()).rejects.toThrow('stopped')
+      await expect(first.kernel.ocrCacheKeyProvider.loadOrCreateKey()).rejects.toThrow('stopped')
+      expect(await restoredSecrets.get('credential')).toBe(plaintext)
+    } finally {
+      await Promise.all([first.close(), restarted.close(), wrongKey.close()])
+    }
+  })
+
   it.each([false, true])(
     'fences opaque unwrap results across maintenance (native failure=%s)',
     async (failed) => {

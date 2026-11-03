@@ -91,6 +91,7 @@ export class CoreNativeDesktop {
         if (
           (method === 'fetchRegistryIcon' ||
             method === 'agentDesktop.readImageSize' ||
+            (method === 'approvalPresentation.present' && args.length === 3) ||
             method.startsWith('copilotAuthorization.')) &&
           args.length > 1
         )

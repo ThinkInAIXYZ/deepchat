@@ -533,6 +533,22 @@ $ pnpm run dev
 
 ### Build
 
+For an independent Node Session Host, run `pnpm headless:build` and copy the complete `out/headless`
+directory to the matching platform/architecture. The host requires Node >=24.22.1 <25, an explicit
+profile and a stable credential master key; it runs without Electron or a connected desktop:
+
+```bash
+export DEEPCHAT_HOST_KEY='<base64-encoded 32-byte key>'
+node out/headless/index.mjs --profile /path/to/host-profile
+# In another terminal:
+DEEPCHAT_USER_DATA_DIR=/path/to/host-profile node out/headless/cli/deepchat.mjs system status --json
+```
+
+Keep the same key across restarts. Sensitive CLI mutations require confirmation on the host TTY;
+desktop-only operations report unavailable. See the
+[runtime contract](docs/architecture/rutis-multiprocess-backend/spec.md#ordinary-node-session-host)
+and [acceptance status](docs/architecture/rutis-multiprocess-backend/plan.md#g11-g12-deliver-everywhere-from-the-extracted-core).
+
 ```bash
 # For Windows
 $ pnpm run build:win

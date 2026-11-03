@@ -84,16 +84,16 @@ export function resolveBundledCliDirectory(
   }>
 ): string | null {
   const platform = input.platform ?? process.platform
-  const directory = input.isPackaged
-    ? path.join(input.resourcesPath, 'app.asar.unpacked', 'cli')
-    : path.join(input.appPath, 'out', 'cli')
-  const launcher = path.join(directory, platform === 'win32' ? 'deepchat.cmd' : 'deepchat')
-  if (input.isFile) return input.isFile(launcher) ? directory : null
-  try {
-    return fs.statSync(launcher).isFile() ? directory : null
-  } catch {
-    return null
+  const directories = input.isPackaged
+    ? [path.join(input.resourcesPath, 'app.asar.unpacked', 'cli')]
+    : [path.join(input.appPath, 'out', 'cli'), path.join(input.appPath, 'cli')]
+  for (const directory of directories) {
+    const launcher = path.join(directory, platform === 'win32' ? 'deepchat.cmd' : 'deepchat')
+    try {
+      if (input.isFile ? input.isFile(launcher) : fs.statSync(launcher).isFile()) return directory
+    } catch {}
   }
+  return null
 }
 
 export class AgentCliCommandAccess {

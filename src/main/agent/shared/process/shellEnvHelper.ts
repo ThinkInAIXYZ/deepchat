@@ -360,6 +360,8 @@ export async function resolveShellBootstrapEnv(): Promise<Record<string, string>
 
   return await new Promise<Record<string, string>>((resolve, reject) => {
     const child = spawn(shell, args, {
+      // An interactive probe must not take its caller's controlling terminal.
+      detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,

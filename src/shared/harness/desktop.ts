@@ -29,6 +29,10 @@ export type CoreProxySnapshot = z.infer<typeof CoreProxySnapshotSchema>
 export const CoreWindowTargetSchema = z
   .object({ windowId: z.number().int().positive(), webContentsId: z.number().int().positive() })
   .strict()
+export const CoreApprovalTargetSchema = z.union([
+  CoreWindowTargetSchema,
+  z.object({ host: z.literal('terminal') }).strict()
+])
 const context = CoreWindowTargetSchema.extend({ windowId: z.number().int().positive().nullable() })
 const rendererCaller = context.extend({ kind: z.literal('renderer') })
 const envelope = z
@@ -79,8 +83,11 @@ export const CoreDesktopArguments = {
   'workspaceDesktop.listFileOpenApps': z.tuple([text]),
   'workspaceDesktop.openFileWithApp': z.tuple([text, text]),
   'approvalPresentation.getTarget': empty,
-  'approvalPresentation.present': z.tuple([CoreWindowTargetSchema, approvalRequestedEvent.payload]),
-  'approvalPresentation.close': z.tuple([CoreWindowTargetSchema, approvalClosedEvent.payload]),
+  'approvalPresentation.present': z.tuple([
+    CoreApprovalTargetSchema,
+    approvalRequestedEvent.payload
+  ]),
+  'approvalPresentation.close': z.tuple([CoreApprovalTargetSchema, approvalClosedEvent.payload]),
   'ocrCacheKeyProvider.loadOrCreateKey': empty,
   initializeFloatingButton: empty,
   assertSyncTokenStorageAvailable: empty,

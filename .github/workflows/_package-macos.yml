@@ -168,6 +168,12 @@ jobs:
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
           NODE_OPTIONS: '--max-old-space-size=4096'
 
+      - name: Build standalone Node Host
+        run: pnpm run headless:build
+
+      - name: Verify standalone Node Host
+        run: pnpm run smoke:headless
+
       - name: Verify packaged DuckDB VSS
         run: |
           extension_path="${APP_DIRECTORY}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension.b64"

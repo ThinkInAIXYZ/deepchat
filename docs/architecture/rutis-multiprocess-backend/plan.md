@@ -80,7 +80,7 @@ Reuse the retained baseline instead of accumulating a complete output tree for e
 | G8 Rust batch computations              | Complete: selection no-go         | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go           |
 | G9 Peripheral capabilities              | Complete, `6607e0b27`              | G4, G5                         | Independent useful lifetime, real consumer cutover and no duplicate supervisor                    |
 | G10 Rust durable Store                  | Complete: selection no-go          | G4, G5, G6, G7                 | Compatible whole-owner cutover with a concrete benefit, or a recorded no-go                        |
-| G11 Headless Session Host               | Planned                           | G4, G5 and host-port audit     | Real CLI execution without Electron and without a connected desktop                               |
+| G11 Headless Session Host               | In progress                       | G4, G5 and host-port audit     | Real CLI execution without Electron and without a connected desktop                               |
 | G12 Multiple clients and devices        | Planned                           | G11 and explicit grants        | Reconnect-safe clients and separately authorized, revocable device operations                     |
 
 G3 is selected for its bounded file/resource ownership, not an assumed native query speedup.
@@ -5223,7 +5223,55 @@ is rerun solely for this decision.
 
 ## G11-G12. Deliver Everywhere from the extracted core
 
-- [ ] G11: provide non-Electron configuration, credentials, filesystem/process and approval ports;
+G11 uses the existing Rust host, Core worker, sole profile writer and authenticated local-control
+CLI surface. `src/headless` supplies a foreground ordinary-Node owner and actual system/helper
+adapters. `pnpm headless:build` creates a self-contained native closure for the build platform;
+the running distribution needs Node 24, without Electron or a checkout. Desktop builds exclude
+this separate artifact. No alternate Harness, database writer, approval policy or application
+protocol is introduced.
+
+An explicit `--profile` and a stable `DEEPCHAT_HOST_KEY` are required. The 32-byte base64 master
+key derives separate authenticated-encryption credential and OCR keys; it is not persisted or
+inherited by child processes. This host does not claim an OS keychain backend. An encrypted database
+may additionally use an explicit manual unlock password. Recovery failures preserve the profile;
+there is no automatic reset or silent credential plaintext fallback.
+
+The existing CLI accepts `DEEPCHAT_USER_DATA_DIR` for profile discovery, retaining the E2E alias.
+Approved work survives viewer disconnect; the foreground owner controls service lifetime. Native
+desktop windows, Browser/CUA permissions and UI-only operations report unavailable. Sensitive CLI
+mutations use the same policy/broker and require an exact per-request terminal confirmation;
+without a host TTY, those mutations fail closed. Terminal approvals never acquire renderer IDs.
+Cancellation aborts and physically retires a prompt before its request completes.
+
+Local acceptance passes on ordinary Node 24.22.1/macOS arm64. The complete distribution is copied
+outside the checkout: no Electron resolution, startup/version, second-owner rejection, actual HTTP
+Provider Sessions, query/cancel/completion, owner death, restart recovery without replay and all
+three Node/Rust/Core PIDs retiring pass. Eight real PTY cases pass on the untouched final artifact:
+deny, wrong request ID, exact approval and persistence, cancellation/disconnect followed by another
+prompt, same-key restart and no-TTY refusal. The login-shell environment probe runs in a separate
+session so it cannot steal the foreground terminal. Prompt construction/errors cannot poison the
+next approval. Fifteen helper checks cover real operations, blocked asynchronous Code continuations,
+parent death, descendants and bounded Node/Worker send queues.
+
+Existing relevant suites pass: four CLI/native-port files have 60 cases; the final shell-environment,
+approval and real Core-runtime selection has 34 cases; SecretStore has nine cases. These selections
+overlap and are not summed. The same actual desktop approval workload passes against the immutable
+accepted `6607e0b27` build and the final candidate. Normal application build, final Harness/app/CLI
+rebuild, headless build, format, i18n, lint, Node/web types and all 46 local links pass. Normal
+Provider/ACP refreshes remain. All disposable comparison copies/profiles are removed after receipts;
+the accepted G9 baseline is retained.
+
+Integration acceptance remains open until required checks and all six actual platform jobs pass on
+the published source, including the new standalone build/smoke steps. Windows forced termination
+is owner-death evidence, not proof of a POSIX graceful signal. The smoke checks dead-PID refusal
+when a forced exit leaves a discovery descriptor. Offline Cargo metadata is filtered to the actual
+Harness target: a fresh target-only cache reproduces failure without the filter and success with
+it. Available dependency licenses are inventoried without claiming missing texts were included.
+No release/distribution or performance gain is claimed. Compact evidence is under
+`.deepchat/rutis-g11-headless-acceptance/`, including `headless-final-{build,smoke}.log`,
+`headless-tty-approval.json`, helper receipts and matching desktop reports.
+
+- [x] G11: provide non-Electron configuration, credentials, filesystem/process and approval ports;
       boot a declared headless Node/Rust distribution with actual CLI submit/query/cancel/recovery.
 - [ ] G11: verify offline startup, no Electron imports/installation, native packages, storage
       ownership, shutdown and service policy after all clients disconnect.

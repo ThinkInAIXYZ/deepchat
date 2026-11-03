@@ -9,17 +9,20 @@ import { CliRequestError } from './errors'
 const CLI_APPROVAL_DOMAIN = 'cli-mutation'
 const DEFAULT_APPROVAL_TIMEOUT_MS = 2 * 60_000
 
-export type CliApprovalTarget = Readonly<{
-  windowId: number
-  webContentsId: number
-}>
+export type CliApprovalTarget =
+  | Readonly<{
+      windowId: number
+      webContentsId: number
+    }>
+  | Readonly<{ host: 'terminal' }>
 
 export type CliApprovalPresentationPort = Readonly<{
   getTarget(): Promise<CliApprovalTarget | null>
   present(
     target: CliApprovalTarget,
-    payload: DeepchatEventPayload<'approvals.requested'>
-  ): Promise<boolean>
+    payload: DeepchatEventPayload<'approvals.requested'>,
+    signal?: AbortSignal
+  ): Promise<boolean | 'approved' | 'denied'>
   close(target: CliApprovalTarget, payload: DeepchatEventPayload<'approvals.closed'>): Promise<void>
 }>
 
@@ -75,7 +78,7 @@ export class CliMutationGuard {
     const target = await this.presentation.getTarget()
     throwIfSignalAborted(input.signal)
     if (!target) {
-      throw new CliRequestError('unavailable', 'No trusted renderer is available for approval', {
+      throw new CliRequestError('unavailable', 'No trusted approval surface is available', {
         httpStatus: 503,
         retriable: true
       })
@@ -85,6 +88,8 @@ export class CliMutationGuard {
     const scopeKey = `cli:${input.connectionId}`
     let approvalRequestId: string | undefined
     let closeReason: DeepchatEventPayload<'approvals.closed'>['reason'] = 'cancelled'
+    const presentationLifetime = new AbortController()
+    let presentation: Promise<boolean | 'approved' | 'denied'> | undefined
 
     try {
       const pending = this.approvals.create(
@@ -97,7 +102,7 @@ export class CliMutationGuard {
           arguments: input.arguments,
           ...(input.displayData !== undefined ? { redactedDisplayData: input.displayData } : {}),
           metadata: {
-            targetWebContentsId: target.webContentsId,
+            ...('webContentsId' in target ? { targetWebContentsId: target.webContentsId } : {}),
             clientRequestId: input.clientRequestId
           }
         },
@@ -109,23 +114,36 @@ export class CliMutationGuard {
       )
       approvalRequestId = pending.requestId
       this.pendingTargets.set(pending.requestId, { scopeKey, target })
+      const decisionPromise = this.approvals.wait(pending.requestId, input.signal)
 
-      let presented: boolean
+      let presented: boolean | 'approved' | 'denied'
       try {
-        presented = await this.presentation.present(target, {
-          requestId: pending.requestId,
-          operation: input.operation,
-          effect: input.effect,
-          principal: input.principal,
-          expiresAt: pending.expiresAt,
-          ...(pending.redactedDisplayData !== undefined
-            ? { displayData: pending.redactedDisplayData }
-            : {})
-        })
+        presentation = this.presentation.present(
+          target,
+          {
+            requestId: pending.requestId,
+            operation: input.operation,
+            effect: input.effect,
+            principal: input.principal,
+            expiresAt: pending.expiresAt,
+            ...(pending.redactedDisplayData !== undefined
+              ? { displayData: pending.redactedDisplayData }
+              : {})
+          },
+          AbortSignal.any([input.signal, presentationLifetime.signal])
+        )
+        presented = await Promise.race([presentation, decisionPromise.then(() => true as const)])
       } catch {
         presented = false
       }
-      if (!presented) {
+      throwIfSignalAborted(input.signal)
+      if (typeof presented === 'string' && 'host' in target) {
+        this.approvals.resolve({
+          requestId: pending.requestId,
+          scopeKey,
+          decision: presented
+        })
+      } else if (presented !== true) {
         closeReason = 'unavailable'
         this.approvals.resolve({
           requestId: pending.requestId,
@@ -138,7 +156,7 @@ export class CliMutationGuard {
         })
       }
 
-      const decision = await this.approvals.wait(pending.requestId, input.signal)
+      const decision = await decisionPromise
       closeReason = decisionCloseReason(decision)
       if (decision.allowed) {
         return { approvalRequestId: pending.requestId }
@@ -182,6 +200,8 @@ export class CliMutationGuard {
       }
       throw error
     } finally {
+      presentationLifetime.abort()
+      await presentation?.catch(() => undefined)
       if (approvalRequestId) {
         this.pendingTargets.delete(approvalRequestId)
         this.rendererUnavailableRequests.delete(approvalRequestId)
@@ -197,7 +217,12 @@ export class CliMutationGuard {
     caller: RendererRouteCaller
   ): boolean {
     const pending = this.pendingTargets.get(input.requestId)
-    if (!pending || pending.target.webContentsId !== caller.webContentsId) return false
+    if (
+      !pending ||
+      !('webContentsId' in pending.target) ||
+      pending.target.webContentsId !== caller.webContentsId
+    )
+      return false
     return this.approvals.resolve({
       requestId: input.requestId,
       scopeKey: pending.scopeKey,
@@ -207,7 +232,8 @@ export class CliMutationGuard {
 
   cancelRenderer(webContentsId: number): void {
     for (const [requestId, pending] of this.pendingTargets) {
-      if (pending.target.webContentsId !== webContentsId) continue
+      if (!('webContentsId' in pending.target) || pending.target.webContentsId !== webContentsId)
+        continue
       this.rendererUnavailableRequests.add(requestId)
       this.approvals.resolve({
         requestId,

@@ -650,6 +650,7 @@ export async function createMainProcessControl(dependencies: {
           return target ? { windowId: target.windowId, webContentsId: target.webContentsId } : null
         },
         present: async (target, payload) => {
+          if (!('windowId' in target)) return false
           const readyTarget = await semanticNotificationTargets.getTargetForWindow(target.windowId)
           if (
             !readyTarget ||
@@ -666,6 +667,7 @@ export async function createMainProcessControl(dependencies: {
           )
         },
         close: async (target, payload) => {
+          if (!('windowId' in target)) return
           const readyTarget = await semanticNotificationTargets.getTargetByWebContents(
             target.webContentsId
           )

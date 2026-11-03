@@ -48,6 +48,8 @@
     "build": "pnpm run typecheck && pnpm run harness:build && electron-vite build && pnpm run cli:build",
     "cli:build": "node scripts/build-cli.mjs",
     "harness:build": "node scripts/build-harness.mjs",
+    "headless:build": "node scripts/build-headless.mjs",
+    "smoke:headless": "node scripts/smoke-headless.mjs",
     "release:ff": "node scripts/release-fast-forward.mjs",
     "postinstall": "install-electron && electron-builder install-app-deps",
     "hooks:install": "git config core.hooksPath .githooks",

@@ -17,11 +17,31 @@ const targets = {
   'linux-x64': 'x86_64-unknown-linux-gnu'
 }
 
-export async function buildHarness({ platform = process.platform, arch = process.arch } = {}) {
+export const harnessExternalModules = [
+  ...builtinModules,
+  /^node:/,
+  'better-sqlite3-multiple-ciphers',
+  '@duckdb/node-api',
+  '@duckdb/node-bindings',
+  'sharp',
+  '@ff-labs/fff-node',
+  'opendal',
+  'pdf-parse-new',
+  'node-pty',
+  '@larksuiteoapi/node-sdk'
+]
+
+export async function buildHarness({
+  platform = process.platform,
+  arch = process.arch,
+  outDir = path.join(repositoryRoot, 'out', 'harness'),
+  plugins = [],
+  additionalPackages = new Map()
+} = {}) {
   const target = targets[`${platform}-${arch}`]
   if (!target) throw new Error(`Unsupported harness target: ${platform}-${arch}`)
   const crate = path.join(repositoryRoot, 'crates', 'deepchat-harness')
-  const output = path.join(repositoryRoot, 'out', 'harness')
+  const output = path.resolve(outDir)
   const result = spawnSync(
     'cargo',
     [
@@ -42,6 +62,7 @@ export async function buildHarness({ platform = process.platform, arch = process
     root: repositoryRoot,
     publicDir: false,
     plugins: [
+      ...plugins,
       {
         name: 'harness-module-path',
         load(id) {
@@ -82,19 +103,7 @@ export default fileURLToPath(import.meta.ROLLUP_FILE_URL_${reference})`
         fileName: (_, name) => `${name}.mjs`
       },
       rollupOptions: {
-        external: [
-          ...builtinModules,
-          /^node:/,
-          'better-sqlite3-multiple-ciphers',
-          '@duckdb/node-api',
-          '@duckdb/node-bindings',
-          'sharp',
-          '@ff-labs/fff-node',
-          'opendal',
-          'pdf-parse-new',
-          'node-pty',
-          '@larksuiteoapi/node-sdk'
-        ]
+        external: [...harnessExternalModules, ...additionalPackages.keys()]
       }
     }
   })
@@ -133,6 +142,7 @@ export default fileURLToPath(import.meta.ROLLUP_FILE_URL_${reference})`
   const bindingsPackage = apiRequire.resolve('@duckdb/node-bindings/package.json')
   const bindingsRequire = createRequire(bindingsPackage)
   const packages = new Map([
+    ...additionalPackages,
     ...['@deepseek-ai/cordis', '@deepseek-ai/cosmokit', 'ws'].map((name) => [
       name,
       runtimeRequire.resolve(`${name}/package.json`)
@@ -227,6 +237,7 @@ export default fileURLToPath(import.meta.ROLLUP_FILE_URL_${reference})`
   }
   const pkg = JSON.parse(await readFile(runtimePackage, 'utf8'))
   if (pkg.version !== '0.16.0') throw new Error('Rutis SDK/runtime version mismatch')
+  return target
 }
 
 export default async function beforePack(context) {
