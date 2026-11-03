@@ -231,7 +231,7 @@ pnpm exec vitest run --config vitest.config.ts test/main/agent/deepchat/harness/
 
 **目标**：确认未被产品或扩展加载后，移除失去用途的入口；现用 MCP 策略与浏览器工具继续工作。
 
-- [ ] **依赖**：无；不阻塞 M9。**拟删文件**：[BrowserContextBuilder.ts](../../../src/main/desktop/browser/BrowserContextBuilder.ts)、[agentMcpFilter.ts](../../../src/main/mcp/agentMcpFilter.ts)。删除前针对当时的目标分支复查文件名、导出名、路径别名、动态发现、构建入口、插件与 fixtures。有消费者的项退出本片。
+- [x] **依赖**：无；不阻塞 M9。**拟删文件**：`desktop/browser/BrowserContextBuilder.ts`、`mcp/agentMcpFilter.ts`。删除前针对当时的目标分支复查文件名、导出名、路径别名、动态发现、构建入口、插件与 fixtures。有消费者的项退出本片。
 
 **实施顺序**
 

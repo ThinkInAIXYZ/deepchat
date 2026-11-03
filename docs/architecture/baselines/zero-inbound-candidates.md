@@ -6,19 +6,17 @@ These files have no in-repo importers inside their scope and need manual classif
 
 ## main
 
-- Candidate count: 13
+- Candidate count: 11
 
 - `agent/shared/agentCatalogEventSink.ts`
 - `backgroundExecUtilityHostEntry.ts`
 - `codeModeUtilityHostEntry.ts`
 - `config/aes.ts`
-- `desktop/browser/BrowserContextBuilder.ts`
 - `env.d.ts`
 - `fileWatcherUtilityHostEntry.ts`
 - `lib/system.ts`
 - `lib/terminalHelper.ts`
 - `lightOcrHelperEntry.ts`
-- `mcp/agentMcpFilter.ts`
 - `schedulerUtilityHostEntry.ts`
 - `session/data/tables/attachments.ts`
 
