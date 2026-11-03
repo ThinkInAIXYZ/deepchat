@@ -622,3 +622,32 @@ export interface WorkingMemoryReadPort {
   flushWorkingMemoryIfDirty(agentId: string): void
   scheduleWorkingRefresh(agentId: string): void
 }
+
+export interface MemoryIngestionMessage {
+  sessionId: string
+  messageId: string
+  orderSeq: number
+  entryId: number
+  role: 'user' | 'assistant'
+  content: string
+  status: 'sent' | 'error'
+  hadToolUse: boolean
+}
+
+export interface MemoryIngestionProjection {
+  readCurrentRange(
+    sessionId: string,
+    fromOrderSeqExclusive: number,
+    toOrderSeqInclusive: number
+  ): {
+    current: boolean
+    maxEntryId: number
+    rows: MemoryIngestionMessage[]
+  }
+  replaceSession(
+    sessionId: string,
+    rows: readonly MemoryIngestionMessage[],
+    maxEntryId: number
+  ): void
+  invalidateSession(sessionId: string): void
+}

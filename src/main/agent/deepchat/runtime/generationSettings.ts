@@ -1,6 +1,6 @@
 import type { PersistedSessionGenerationRow } from '@/session/data/contracts'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
-import type { PromptSettings } from '@/agent/promptSettings'
+import type { PromptSettingsPort } from '@/agent/promptSettings'
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { ReasoningPortrait } from '@shared/types/model-db'
 import type { ResolvedModelCapabilitySnapshot } from '@shared/types/model-capabilities'
@@ -201,7 +201,7 @@ export function buildPersistedGenerationSettingsReplacement(
 
 async function buildDefaultGenerationSettings(
   providerSettings: ProviderModelResolutionPort,
-  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>,
+  promptSettings: PromptSettingsPort,
   providerId: string,
   modelId: string,
   context: ProviderModelRuntimeFacts = resolveProviderModelRuntimeFacts(
@@ -325,7 +325,7 @@ async function buildDefaultGenerationSettings(
 
 export async function sanitizeGenerationSettings(
   providerSettings: ProviderModelResolutionPort,
-  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>,
+  promptSettings: PromptSettingsPort,
   providerId: string,
   modelId: string,
   patch: Partial<SessionGenerationSettings>,
@@ -642,7 +642,7 @@ function normalizeVerbosity(
 export async function resolveSessionGenerationSettings(
   dependencies: {
     providerSettings: ProviderModelResolutionPort
-    promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
+    promptSettings: PromptSettingsPort
     state?: Pick<
       import('@shared/types/agent-interface').DeepChatSessionState,
       'providerId' | 'modelId'

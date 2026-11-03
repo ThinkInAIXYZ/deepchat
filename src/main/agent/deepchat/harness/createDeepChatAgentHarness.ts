@@ -49,7 +49,6 @@ import type {
   ExecutionRecoveryReport
 } from '@/tape/domain/executionJournal'
 import type { ExecutionJournalRecoveryReader } from '@/tape/ports/capabilities'
-import { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
 import {
   createDeepChatLoopTapePort,
   createSkillContextTapePort
@@ -258,7 +257,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     messageProjection,
     terminalObserver: hookSink,
     pendingInputWakeup: pendingInputWakeup.wakeup,
-    programmaticAuthority: deps.agentCliTokenAuthority
+    programmaticAuthority: deps.programmaticTools
   })
   const sessionState = new SessionStateResolver({
     registry: runtime,
@@ -308,12 +307,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   const interactionParking = new InteractionParkingRegistry()
   const toolSurfaceDiagnostics = new ToolSurfaceShadowDiagnosticsRegistry()
   const toolSurfaceCanaryDiagnostics = new ToolSurfaceCanaryDiagnosticsRegistry()
-  const programmaticToolParents =
-    deps.programmaticToolParents ??
-    new ProgrammaticToolParentRegistry({
-      tokenAuthority: deps.agentCliTokenAuthority,
-      executionJournal: programmaticExecutionJournal
-    })
+  const programmaticToolParents = deps.programmaticTools
   const pruningFeedback = new JevPruningFeedback()
   const sessionLifecycle = new SessionLifecycleCoordinator({
     registry: runtime,

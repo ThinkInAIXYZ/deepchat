@@ -82,10 +82,10 @@ import {
 import type { DeepChatToolCatalogSnapshot, DeepChatToolResolver } from './toolResolver'
 import type { ToolOutputGuard, ToolOutputGuardResult } from './toolOutputGuard'
 import type { ResumeBudgetToolCall } from './turnResumeContract'
-import { parseMessageMetadata } from '@/session/usageStats'
+import { parseMessageMetadata } from '@/session/data/messageContent'
 import { extractUserMessageInput } from '@/session/data/userMessageContent'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
-import type { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
+import type { AttachmentPreparationPort } from '@shared/types/attachment'
 import {
   resolveDeepChatContextBudgetLength,
   shouldUseDeepChatContextBudget
@@ -113,7 +113,7 @@ import type {
   TurnCompletion
 } from './pendingInputContracts'
 import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
-import type { CommandShellService } from '@/agent/shared/process/commandShellService'
+import type { CommandShellPort } from '@shared/commandShell'
 import type { SessionPendingInputsPort } from '@/session/data/contracts'
 import {
   SkillContextMaterializer,
@@ -180,7 +180,7 @@ export interface TurnCoordinatorPorts {
   toolOutputGuard: ToolOutputGuard
   runLifecycle: TurnRunLifecyclePort
   registry: SessionScopeRegistry
-  attachmentRouter: Pick<AttachmentCapabilityRouter, 'prepare'>
+  attachmentRouter: Pick<AttachmentPreparationPort, 'prepare'>
   sessionSettings: Pick<
     SessionSettingsCoordinator,
     'resolveProjectDir' | 'getEffectiveGenerationSettings'
@@ -192,7 +192,7 @@ export interface TurnCoordinatorPorts {
   >
   skillContextMaterializer: SkillContextMaterializer
   taskContractContext: DeepChatTaskContractContextPort
-  commandShell: Pick<CommandShellService, 'resolveForTurn'>
+  commandShell: Pick<CommandShellPort, 'resolveForTurn'>
   loopRunner: Pick<DeepChatLoopRunner, 'run'>
   messageProjection: Pick<MessageProjectionService, 'refresh'>
   hookSink: Pick<RuntimeHookSink, 'scope'>
@@ -438,7 +438,7 @@ export class TurnCoordinator {
     sessionActiveSkillNames: string[]
     sessionSkillBodies: SkillProjectionBodies['sessionSkillBodies']
     contextLength: number
-    commandShell: Awaited<ReturnType<CommandShellService['resolveForTurn']>>
+    commandShell: Awaited<ReturnType<CommandShellPort['resolveForTurn']>>
   }): Promise<DeepChatPromptAssembly> {
     const assembly = await this.runPreStreamStep(
       {

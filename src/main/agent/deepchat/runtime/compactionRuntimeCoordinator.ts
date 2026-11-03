@@ -34,7 +34,7 @@ import { resolveInterleavedReasoningConfig } from './generationSettings'
 import { resolveProviderInputCapabilities } from './providerInputCapabilities'
 import { resolveProviderModelRuntimeFacts } from './providerModelRuntimeFacts'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { CommandShellService } from '@/agent/shared/process/commandShellService'
+import type { CommandShellPort } from '@shared/commandShell'
 import {
   isSummaryGapReason,
   type SummaryGapReason
@@ -98,7 +98,7 @@ export interface CompactionRuntimeCoordinatorDependencies {
   registry: SessionScopeRegistry
   sessionState: Pick<SessionStateResolver, 'getSummary'>
   promptAssembly: Pick<PromptAssemblyService, 'createBasePromptAssembler'>
-  commandShell: Pick<CommandShellService, 'resolveForTurn'>
+  commandShell: Pick<CommandShellPort, 'resolveForTurn'>
   messageProjection: Pick<MessageProjectionService, 'refresh'>
   output: DeepChatOutputPort
 }

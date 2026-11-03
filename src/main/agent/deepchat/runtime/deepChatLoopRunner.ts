@@ -4,7 +4,7 @@ import type { DeepChatOutputPort } from './output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import { projectPluginContext } from './pluginContext'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
-import type { CacheImageOptions } from '@/platform/imageCache'
+import type { CacheImageOptions } from '@shared/types/attachment'
 import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
@@ -198,7 +198,7 @@ import {
   type ToolSurfaceRunController,
   type ToolSurfaceSnapshot
 } from './toolSurface'
-import { buildToolSearchDefinition } from '@/tool/agentTools/toolSearchTool'
+import { buildToolSearchDefinition } from '@shared/contracts/toolSearch'
 import {
   MAX_PROGRAMMATIC_TOOL_BATCH_STEPS,
   MAX_PROGRAMMATIC_TOOL_CHILDREN,
@@ -221,7 +221,7 @@ import type { PromptAssemblyService } from './promptAssemblyService'
 import type { SessionIdentityService } from './sessionIdentityService'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { ClosedToolResultPruner, ToolPermissionReviewer } from './toolRuntimeBindings'
-import type { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
+import type { ProgrammaticToolPort } from '@/agent/deepchat/runtime/programmaticExecParent'
 import { CommittedRunProjectionError } from './runTerminalProjectionError'
 
 function wrapTerminalCommitFailure(
@@ -410,7 +410,7 @@ export interface DeepChatLoopRunnerPorts {
   contextCoordinator: DeepChatContextCoordinator
   toolSurfaceRunMode?: ToolSurfaceRunModePort
   programmaticToolParents: Pick<
-    ProgrammaticToolParentRegistry,
+    ProgrammaticToolPort,
     'prepare' | 'commitRunTerminal'
   >
   toolSurfaceDiagnostics: ToolSurfaceShadowDiagnosticsRegistryPort

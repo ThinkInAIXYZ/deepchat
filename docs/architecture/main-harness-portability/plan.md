@@ -187,7 +187,7 @@ pnpm exec vitest run --config vitest.config.ts test/main/session/data/transcript
 
 **目标**：同一运行循环可消费受限宿主能力；具体权限、token、子操作与后台服务不进入核心。
 
-- [ ] **依赖**：M6。**删除**：内建 runtime 对 CLI token/parent registry、宿主 tool 实现、Skill/Plugin/Memory 服务类以及平台配置的具体导入和公开类型泄漏。沿现有 provider/tool adapter 接线分离运行决策和实际执行。保留 run-scoped grant 的颁发、精确匹配、撤销和副作用日志在可信宿主，Tool Surface 的执行/恢复语义按现有合同保留。
+- [x] **依赖**：M6。**删除**：内建 runtime 对 CLI token/parent registry、宿主 tool 实现、Skill/Plugin/Memory 服务类以及平台配置的具体导入和公开类型泄漏。沿现有 provider/tool adapter 接线分离运行决策和实际执行。保留 run-scoped grant 的颁发、精确匹配、撤销和副作用日志在可信宿主，Tool Surface 的执行/恢复语义按现有合同保留。
 
 **实施顺序**
 

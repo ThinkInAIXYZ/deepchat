@@ -19,7 +19,7 @@ import { buildExecutionContractBinding } from '@/tape/domain/executionContract'
 import {
   parseQuestionToolArgs,
   QUESTION_TOOL_NAME
-} from '@/tool/agentTools/questionTool'
+} from '@shared/contracts/questionTool'
 import type {
   InterleavedReasoningConfig,
   IoParams,
@@ -99,12 +99,12 @@ import type {
 } from '@/agent/deepchat/loop/loopRun'
 import type {
   ProgrammaticToolParentRegistration,
-  ProgrammaticToolParentRegistry
-} from '@/cli/programmaticToolParentRegistry'
+  ProgrammaticToolPort
+} from '@/agent/deepchat/runtime/programmaticExecParent'
 import {
   ProgrammaticCommandLaunchError,
   isProgrammaticCommandLaunchError
-} from '@/tool/agentTools/agentBashHandler'
+} from '@shared/types/core/mcp'
 import {
   buildToolSurfaceDeferredDispatchBinding,
   claimToolSurfaceExecution,
@@ -1793,7 +1793,7 @@ async function runToolCall(params: {
   toolSurfaceExecutionBatch?: ToolSurfaceExecutionBatch
   toolSurfaceSnapshot?: ToolSurfaceSnapshot
   programmaticToolCapability?: ProgrammaticToolCapabilityV1
-  programmaticToolParents?: Pick<ProgrammaticToolParentRegistry, 'prepare'>
+  programmaticToolParents?: Pick<ProgrammaticToolPort, 'prepare'>
   toolCallOrdinalWithinBatch: number
   commandShell: ResolvedCommandShell
   contextLength: number
@@ -2582,7 +2582,7 @@ export interface SettleToolBatchParams {
   requestView?: LoopRunRequestViewBinding
   executionContract?: DeepChatExecutionContract | null
   toolSurface?: LoopRunRequestToolSurfaceBinding | null
-  programmaticToolParents?: Pick<ProgrammaticToolParentRegistry, 'prepare'>
+  programmaticToolParents?: Pick<ProgrammaticToolPort, 'prepare'>
   commandShell: ResolvedCommandShell
 }
 

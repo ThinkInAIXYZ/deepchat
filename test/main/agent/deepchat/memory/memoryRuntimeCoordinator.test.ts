@@ -1,3 +1,4 @@
+import { createMemoryIngestionProjectionPort } from '@/memory/data/ingestionProjectionPort'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -155,7 +156,9 @@ function createHarness() {
     tapeAnchorWriter: { appendAnchor: appendTapeAnchor },
     getTapeRows,
     appendTapeAnchor,
-    getIngestionProjection: vi.fn(() => projection)
+    getIngestionProjection: vi.fn(() =>
+      createMemoryIngestionProjectionPort(() => projection as never)
+    )
   }
   const coordinator = new MemoryRuntimeCoordinator(deps)
   const memorySession = instance.getMemorySessionHandle()

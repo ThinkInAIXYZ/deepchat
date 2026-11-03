@@ -6,7 +6,7 @@ import type {
 import type { ToolServicePort } from '@shared/types/tool'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
-import type { PromptSettings } from '@/agent/promptSettings'
+import type { PromptSettingsPort } from '@/agent/promptSettings'
 import type {
   DeepChatAgentRuntime,
   SessionScopeRegistry
@@ -25,7 +25,7 @@ import type { InteractionParkingRegistry } from './interactionParkingRegistry'
 import type { ToolSurfaceShadowDiagnosticsRegistryPort } from './toolSurfaceDiagnostics'
 import type { ToolSurfaceCanaryDiagnosticsRegistry } from './toolSurfaceCanaryDiagnostics'
 import { revokeToolSurfaceDeferredDispatchesForSession } from './toolSurface'
-import type { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
+import type { ProgrammaticToolPort } from '@/agent/deepchat/runtime/programmaticExecParent'
 
 export interface SessionInitConfig {
   agentId?: string
@@ -41,7 +41,7 @@ export type SessionLifecycleRegistry = SessionScopeRegistry & Pick<DeepChatAgent
 export interface SessionLifecycleCoordinatorDependencies {
   registry: SessionLifecycleRegistry
   providerSettings: ProviderModelResolutionPort
-  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
+  promptSettings: PromptSettingsPort
   sessionStore: Pick<SessionSettingsPort, 'create' | 'delete'>
   transcript: Pick<SessionTranscriptPort, 'deleteBySession'>
   pendingInputs: Pick<SessionPendingInputsPort, 'deleteBySession'>
@@ -60,7 +60,7 @@ export interface SessionLifecycleCoordinatorDependencies {
   interactionParking: Pick<InteractionParkingRegistry, 'clearSession'>
   toolSurfaceDiagnostics: Pick<ToolSurfaceShadowDiagnosticsRegistryPort, 'clear'>
   toolSurfaceCanaryDiagnostics: Pick<ToolSurfaceCanaryDiagnosticsRegistry, 'clearSession'>
-  programmaticToolParents: Pick<ProgrammaticToolParentRegistry, 'releaseSession'>
+  programmaticToolParents: Pick<ProgrammaticToolPort, 'releaseSession'>
   pruningFeedback: Pick<JevPruningFeedback, 'clear'>
 }
 

@@ -17,14 +17,11 @@ import type {
   MemoryInjectionResult,
   MemoryRuntimePort
 } from '@/memory/injection'
-import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/shared/agentDescriptors'
 import { withSoftDeadline } from '@/memory/core/asyncDeadline'
 import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'
-import type {
-  DeepChatMemoryIngestionCurrentRange,
-  DeepChatMemoryIngestionProjectionInput,
-  DeepChatMemoryIngestionProjectionRow
-} from '@/memory/data/tables/deepchatMemoryIngestionProjection'
+import type { MemoryIngestionMessage, MemoryIngestionProjection } from '@/memory/ports'
+export type { MemoryIngestionProjection } from '@/memory/ports'
 import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import type { TapeAnchorWriter, TapeNonContextEntryReader } from '@/tape/ports/capabilities'
 import {
@@ -67,20 +64,6 @@ interface MemoryAdmissionWindow {
   chunks: MemoryExtractionChunk[]
   hadToolUse: boolean
   visibleTextChars: number
-}
-
-export interface MemoryIngestionProjection {
-  readCurrentRange(
-    sessionId: string,
-    fromOrderSeqExclusive: number,
-    toOrderSeqInclusive: number
-  ): DeepChatMemoryIngestionCurrentRange
-  replaceSession(
-    sessionId: string,
-    rows: readonly DeepChatMemoryIngestionProjectionInput[],
-    maxEntryId: number
-  ): void
-  invalidateSession(sessionId: string): void
 }
 
 export interface MemoryRuntimeCoordinatorDependencies {
@@ -642,8 +625,8 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     if (!ingestionRange || ingestionRange.rows.length === 0) return null
 
     const selected = ingestionRange.rows.map((row) => ({
-      orderSeq: row.order_seq,
-      entryId: row.entry_id,
+      orderSeq: row.orderSeq,
+      entryId: row.entryId,
       role: row.role,
       content: row.content
     }))
@@ -672,7 +655,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     }
     return {
       chunks,
-      hadToolUse: ingestionRange.rows.some((row) => row.had_tool_use === 1),
+      hadToolUse: ingestionRange.rows.some((row) => row.hadToolUse),
       visibleTextChars: chunks.reduce((total, chunk) => total + chunk.text.length, 0)
     }
   }
@@ -807,7 +790,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     sessionId: string,
     fromOrderSeqExclusive: number,
     toOrderSeqInclusive: number
-  ): { rows: DeepChatMemoryIngestionProjectionRow[]; cursorCommitAllowed: boolean } | null {
+  ): { rows: MemoryIngestionMessage[]; cursorCommitAllowed: boolean } | null {
     const projection = this.deps.getIngestionProjection()
     if (
       !projection ||
@@ -864,7 +847,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     toOrderSeqInclusive: number,
     maxEntryId: number,
     projection: MemoryIngestionProjection
-  ): { rows: DeepChatMemoryIngestionProjectionRow[]; cursorCommitAllowed: boolean } {
+  ): { rows: MemoryIngestionMessage[]; cursorCommitAllowed: boolean } {
     const view = buildEffectiveTapeView(this.deps.tapeReader.getBySession(sessionId))
     const projectionRows = this.projectionRowsFromEffectiveView(sessionId, view)
     try {
@@ -917,7 +900,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     fromOrderSeqExclusive: number,
     toOrderSeqInclusive: number,
     cursorCommitAllowed: boolean
-  ): { rows: DeepChatMemoryIngestionProjectionRow[]; cursorCommitAllowed: boolean } | null {
+  ): { rows: MemoryIngestionMessage[]; cursorCommitAllowed: boolean } | null {
     try {
       const view = buildEffectiveTapeView(this.deps.tapeReader.getBySession(sessionId))
       const rows = this.projectionRowsFromEffectiveView(sessionId, view)
@@ -934,7 +917,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
   private projectionRowsFromEffectiveView(
     sessionId: string,
     view: ReturnType<typeof buildEffectiveTapeView>
-  ): DeepChatMemoryIngestionProjectionInput[] {
+  ): MemoryIngestionMessage[] {
     const messageIdsWithToolUse = new Set<string>()
     for (const row of view.rows) {
       const messageId = this.readToolCallMessageId(row)
@@ -963,22 +946,13 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
   }
 
   private filterIngestionRange(
-    rows: readonly DeepChatMemoryIngestionProjectionInput[],
+    rows: readonly MemoryIngestionMessage[],
     fromOrderSeqExclusive: number,
     toOrderSeqInclusive: number
-  ): DeepChatMemoryIngestionProjectionRow[] {
-    return rows
-      .filter((row) => row.orderSeq > fromOrderSeqExclusive && row.orderSeq <= toOrderSeqInclusive)
-      .map((row) => ({
-        session_id: row.sessionId,
-        message_id: row.messageId,
-        order_seq: row.orderSeq,
-        entry_id: row.entryId,
-        role: row.role,
-        content: row.content,
-        status: row.status,
-        had_tool_use: row.hadToolUse ? 1 : 0
-      }))
+  ): MemoryIngestionMessage[] {
+    return rows.filter(
+      (row) => row.orderSeq > fromOrderSeqExclusive && row.orderSeq <= toOrderSeqInclusive
+    )
   }
 
   private readToolCallMessageId(row: DeepChatTapeEntryRow): string | null {

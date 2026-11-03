@@ -6,10 +6,10 @@ import type { SkillMetadataSnapshotPort, SkillServicePort } from '@shared/types/
 import type { ToolServicePort } from '@shared/types/tool'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
-import type { PromptSettings } from '@/agent/promptSettings'
+import type { PromptSettingsPort } from '@/agent/promptSettings'
 import type { HookObserver } from '@/hook/observer'
 import type { MemoryRuntimePort } from '@/memory/injection'
-import type { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
+import type { AttachmentPreparationPort } from '@shared/types/attachment'
 import type { AcpAsLlmProviderPermissionPort, ProviderCatalogPort } from '@/provider/ports'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type {
@@ -31,9 +31,9 @@ import type {
 import type { SessionPermissionPort } from '@/session/contracts'
 import type { SessionStatusPublisherPorts } from '@/agent/deepchat/runtime/sessionStatusPublisher'
 import type { SkillSettingsPort } from '@/skill/settings'
-import type { CacheImageOptions } from '@/platform/imageCache'
+import type { CacheImageOptions } from '@shared/types/attachment'
 import type { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import type { CommandShellService } from '@/agent/shared/process/commandShellService'
+import type { CommandShellPort } from '@shared/commandShell'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type { MemoryIngestionProjection } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
 import type { CompactionRuntimeCoordinator } from '@/agent/deepchat/runtime/compactionRuntimeCoordinator'
@@ -55,8 +55,7 @@ import type { ToolSurfaceShadowDiagnosticsRegistry } from '@/agent/deepchat/runt
 import type { ToolSurfaceCanaryDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
 import type { DeepChatTaskContractContextPort } from '@/agent/deepchat/loop/ports'
 import type { ToolSurfaceRunModePort } from '@/agent/deepchat/runtime/deepChatLoopRunner'
-import type { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
-import type { AgentCliTokenAuthority } from '@/cli/agentTokenAuthority'
+import type { ProgrammaticToolPort } from '@/agent/deepchat/runtime/programmaticExecParent'
 
 export type DeepChatHarnessSkillPort = Pick<
   SkillServicePort,
@@ -108,20 +107,15 @@ export interface DeepChatHarnessDependencies {
   skillService: DeepChatHarnessSkillPort
   skillSettings: SkillSettingsPort
   traceSettings: AgentTraceSettingsPort
-  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
-  attachmentRouter: Pick<AttachmentCapabilityRouter, 'prepare'>
+  promptSettings: PromptSettingsPort
+  attachmentRouter: Pick<AttachmentPreparationPort, 'prepare'>
   interactionContinuationAdmission: InteractionContinuationAdmissionPort
   taskContractContext: DeepChatTaskContractContextPort
-  commandShell: Pick<CommandShellService, 'resolveForTurn' | 'resolveProfile'>
+  commandShell: Pick<CommandShellPort, 'resolveForTurn' | 'resolveProfile'>
   /** Internal rollout seam. Production remains on the legacy path unless explicitly assigned. */
   toolSurfaceRunMode?: ToolSurfaceRunModePort
-  /** Process-live causality owner. It never reconstructs dispatch authority from Tape. */
-  programmaticToolParents?: ProgrammaticToolParentRegistry
-  /** Shared local-control authority for inert exact-operation grants and Run-scoped revocation. */
-  agentCliTokenAuthority: Pick<
-    AgentCliTokenAuthority,
-    'prepareProgrammaticOperation' | 'revokeConversation'
-  >
+  /** The host owns exact-operation grants and process-live settlement authority. */
+  programmaticTools: ProgrammaticToolPort
   runJournalObserver?: RunJournalObserver
   diagnosticNow?: MonotonicClock
 }

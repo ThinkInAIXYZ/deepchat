@@ -1,6 +1,7 @@
 import type {
   AssistantMessageBlock,
   MessageFile,
+  MessageMetadata,
   UserMessageContent
 } from '@shared/types/agent-interface'
 import {
@@ -368,4 +369,17 @@ export function buildTerminalErrorBlocks(
   })
 
   return normalizedBlocks
+}
+
+export function parseMessageMetadata(raw: string | MessageMetadata): MessageMetadata {
+  if (typeof raw !== 'string') {
+    return raw ?? {}
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as MessageMetadata
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
 }

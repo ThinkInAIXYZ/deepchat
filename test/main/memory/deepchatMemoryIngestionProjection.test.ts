@@ -1,3 +1,4 @@
+import { createMemoryIngestionProjectionPort } from '@/memory/data/ingestionProjectionPort'
 import { describe, expect, vi } from 'vitest'
 import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'
 import { SqliteTapeLifecycleAdapter } from '@/tape/infrastructure/sqlite/tapeLifecycleAdapter'
@@ -237,6 +238,25 @@ describe('DeepChatMemoryIngestionProjectionTable', () => {
         ])
         expect(JSON.stringify(currentRange.rows)).not.toContain('must-not-enter-memory')
         expect(replacement.entry_id).toBeGreaterThan(originalM1EntryId)
+        const runtimeRange = createMemoryIngestionProjectionPort(() => projection).readCurrentRange(
+          's1',
+          0,
+          10
+        )
+        expect(runtimeRange).toMatchObject({
+          current: true,
+          rows: [
+            {
+              messageId: 'm1',
+              orderSeq: 1,
+              entryId: replacement.entry_id,
+              content: 'first corrected',
+              status: 'error',
+              hadToolUse: true
+            },
+            { messageId: 'm2', orderSeq: 2, content: 'second', status: 'sent', hadToolUse: false }
+          ]
+        })
       } finally {
         db.close()
       }

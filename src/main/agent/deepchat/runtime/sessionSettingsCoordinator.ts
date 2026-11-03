@@ -13,7 +13,7 @@ import type {
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { SessionIdentityService } from './sessionIdentityService'
-import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/deepchat/deepChatAgentRepository'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/shared/agentDescriptors'
 import type { SessionPermissionPort } from '@/session/contracts'
 import {
   buildPersistedGenerationSettingsPatch,
@@ -27,11 +27,11 @@ import {
 } from './providerModelRuntimeFacts'
 import type { SessionSettingsPort } from '@/session/data/contracts'
 import type { DeepChatToolResolver } from './toolResolver'
-import type { PromptSettings } from '@/agent/promptSettings'
+import type { PromptSettingsPort } from '@/agent/promptSettings'
 
 interface SessionSettingsCoordinatorDependencies {
   providerSettings: ProviderModelResolutionPort
-  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
+  promptSettings: PromptSettingsPort
   sessionStore: SessionSettingsPort
   toolResolver: DeepChatToolResolver
   sessionPermissionPort: SessionPermissionPort

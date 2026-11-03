@@ -22,7 +22,7 @@ import type {
 } from '@shared/types/tool'
 import type { PermissionMode, SessionKind } from '@shared/types/agent-interface'
 import { resolveToolOffloadTemplatePath } from '@/agent/shared/storage/sessionPaths'
-import { QUESTION_TOOL_NAME } from '@/tool/agentTools/questionTool'
+import { QUESTION_TOOL_NAME } from '@shared/contracts/questionTool'
 import { ToolMapper, type ToolSource } from './toolMapper'
 import {
   CRON_JOB_AGENT_TOOL_NAME,

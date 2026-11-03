@@ -19,7 +19,7 @@ import type { ModelConfig } from '@shared/types/provider'
 import type { DeepChatProviderAttemptIdentity } from '@shared/types/provider-attempt'
 import type { DeepChatOutputPort } from './output'
 import type { SessionTranscriptPort } from '@/session/data/contracts'
-import type { CacheImageOptions } from '@/platform/imageCache'
+import type { CacheImageOptions } from '@shared/types/attachment'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type {
   DeepChatLoopNotificationObserver,
@@ -42,7 +42,7 @@ import type {
 } from '@/tape/domain/executionJournal'
 import type { SessionPermissionGrant } from '@/session/contracts'
 import type { ToolSurfaceDeferredDispatchBindingV1 } from './toolSurface'
-import type { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
+import type { ProgrammaticToolPort } from '@/agent/deepchat/runtime/programmaticExecParent'
 
 interface RunJournalObservationIdentity {
   runId: string
@@ -337,7 +337,7 @@ export interface ProcessParams {
   notificationObserver?: DeepChatLoopNotificationObserver
   controls?: ProcessControlCollaborators
   diagnostics?: ProcessInternalDiagnostics
-  programmaticToolParents?: Pick<ProgrammaticToolParentRegistry, 'prepare'>
+  programmaticToolParents?: Pick<ProgrammaticToolPort, 'prepare'>
   commitRunTerminal(selection: ProcessTerminalSelection): void
   io: ProcessIoParams
 }

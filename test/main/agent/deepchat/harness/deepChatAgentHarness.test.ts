@@ -1,3 +1,5 @@
+import { createMemoryIngestionProjectionPort } from '@/memory/data/ingestionProjectionPort'
+import { createDeepChatProgrammaticToolPort } from '@/cli/deepChatToolPort'
 import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
 import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
@@ -1180,8 +1182,9 @@ function createRuntimeDependencies(
     },
     sessionUiPort,
     memoryPort: options.memoryPort ?? createMemoryRuntimePort(),
-    getMemoryIngestionProjection:
-      options.getMemoryIngestionProjection ?? (() => undefined as never),
+    getMemoryIngestionProjection: options.getMemoryIngestionProjection
+      ? () => createMemoryIngestionProjectionPort(options.getMemoryIngestionProjection!)
+      : () => undefined as never,
     cacheImage: vi.fn(async (data: string) => data),
     skillService: options.skillService ?? getSkillServiceMock(),
     skillSettings: {
@@ -1205,12 +1208,9 @@ function createRuntimeDependencies(
     taskContractContext: {
       prepare: vi.fn().mockReturnValue(null)
     },
-    agentCliTokenAuthority: {
-      prepareProgrammaticOperation: vi.fn(() => {
-        throw new Error('Programmatic operation authority is not configured for this test')
-      }),
+    programmaticTools: createDeepChatProgrammaticToolPort(new ProgrammaticToolParentRegistry(), {
       revokeConversation: vi.fn()
-    },
+    }),
     commandShell: {
       resolveForTurn: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL),
       resolveProfile: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL)
@@ -1619,7 +1619,9 @@ describe('DeepChatAgentHarness', () => {
       hookObserver: createHookObserver(hookDispatcher),
       toolSurfaceRunMode: { resolve },
       pluginContext,
-      programmaticToolParents,
+      programmaticTools: createDeepChatProgrammaticToolPort(programmaticToolParents, {
+        revokeConversation: vi.fn()
+      }),
       runJournalObserver,
       diagnosticNow
     })
@@ -1732,7 +1734,9 @@ describe('DeepChatAgentHarness', () => {
       ...sessionData.runtime,
       toolService: toolService,
       hookObserver: createHookObserver(hookDispatcher),
-      programmaticToolParents,
+      programmaticTools: createDeepChatProgrammaticToolPort(programmaticToolParents, {
+        revokeConversation: vi.fn()
+      }),
       runJournalObserver,
       diagnosticNow
     })

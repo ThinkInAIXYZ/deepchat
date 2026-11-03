@@ -18,9 +18,9 @@ import { isSendMessageInputEmpty } from '@/agent/shared/agentSessionNormalizatio
 import type { SessionPendingInputsPort } from '@/session/data/contracts'
 import type { SessionTranscriptPort } from '@/session/data/contracts'
 import type {
-  AttachmentCapabilityRouter,
+  AttachmentPreparationPort,
   AttachmentPreparationResult
-} from '@/ocr/attachmentCapabilityRouter'
+} from '@shared/types/attachment'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { createAbortError, PENDING_INPUT_ABORT_REASON } from './abortErrors'
 import { supportsProviderVision } from './providerInputCapabilities'
@@ -83,7 +83,7 @@ export interface PendingInputAdmissionCoordinatorPorts {
   pendingInputs: PendingInputAdmissionStorePort
   pump: PendingInputAdmissionPumpPort
   transcript: Pick<SessionTranscriptPort, 'getMessage'>
-  attachmentRouter: Pick<AttachmentCapabilityRouter, 'prepare'>
+  attachmentRouter: Pick<AttachmentPreparationPort, 'prepare'>
   sessionState: Pick<SessionStateResolver, 'get'>
   registry: SessionScopeRegistry
   sessionSettings: Pick<SessionSettingsCoordinator, 'resolveProjectDir'>

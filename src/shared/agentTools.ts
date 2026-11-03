@@ -1,3 +1,5 @@
+export const GLOB_TOOL_NAME = 'glob'
+export const GREP_TOOL_NAME = 'grep'
 export const CRON_JOB_AGENT_TOOL_NAME = 'cronjob'
 export const SUBAGENT_ORCHESTRATOR_TOOL_NAME = 'subagent_orchestrator'
 export const LIVE_DELEGATION_AGENT_TOOL_NAME = 'deepchat_subagents'

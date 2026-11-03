@@ -1,3 +1,4 @@
+import type { ProgrammaticToolPort } from './programmaticExecParent'
 import logger from '@shared/logger'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
@@ -13,7 +14,7 @@ import type {
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type { SessionTranscriptPort } from '@/session/data/contracts'
 import { buildTerminalErrorBlocks } from '@/session/data/messageContent'
-import { parseMessageMetadata } from '@/session/usageStats'
+import { parseMessageMetadata } from '@/session/data/messageContent'
 import {
   collectPendingInteractionEntries,
   parseAssistantBlocks,
@@ -29,7 +30,6 @@ import type { MessageProjectionService } from './messageProjectionService'
 import { resolveStreamRequestId as resolveRegistryStreamRequestId } from './streamRequestId'
 import { revokeToolSurfaceDeferredDispatchesForSession } from './toolSurface'
 import type { ProcessResult } from './types'
-import type { AgentCliTokenAuthority } from '@/cli/agentTokenAuthority'
 
 export type PendingInputWakeReason = 'enqueue' | 'completed' | 'manual'
 
@@ -57,7 +57,7 @@ export interface RunLifecycleCoordinatorPorts {
   pendingInputWakeup: PendingInputWakeup
   terminalObserver: RunTerminalObserver
   messageProjection: Pick<MessageProjectionService, 'refresh'>
-  programmaticAuthority: Pick<AgentCliTokenAuthority, 'revokeConversation'>
+  programmaticAuthority: Pick<ProgrammaticToolPort, 'revokeConversation'>
 }
 
 export class RunLifecycleCoordinator {

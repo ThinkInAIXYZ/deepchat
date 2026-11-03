@@ -1,3 +1,5 @@
+import { createMemoryIngestionProjectionPort } from '@/memory/data/ingestionProjectionPort'
+import { createDeepChatProgrammaticToolPort } from '@/cli/deepChatToolPort'
 import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
 import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
@@ -2120,7 +2122,8 @@ export async function createMainProcessControl(dependencies: {
     sessionPermissionPort,
     acpAsLlmProviderPermission: acpAsLlmProviderPermission,
     memoryPort: memoryService,
-    getMemoryIngestionProjection: () => memoryDatabase.ingestionProjectionTable,
+    getMemoryIngestionProjection: () =>
+      createMemoryIngestionProjectionPort(() => memoryDatabase.ingestionProjectionTable),
     cacheImage: (data, options) => deviceService.cacheImage(data, options),
     runJournalObserver: emitRunJournalObservation,
     skillService: skillService,
@@ -2138,8 +2141,10 @@ export async function createMainProcessControl(dependencies: {
       prepare: (sessionId) => liveDelegationService.prepareTaskContractContext(sessionId)
     },
     toolSurfaceRunMode: toolSurfaceRollout,
-    agentCliTokenAuthority,
-    programmaticToolParents
+    programmaticTools: createDeepChatProgrammaticToolPort(
+      programmaticToolParents,
+      agentCliTokenAuthority
+    )
   })
   const sessionTranscriptMutations = new SessionTranscriptMutations({
     transcript: sessionData.transcript,

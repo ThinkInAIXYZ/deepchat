@@ -1,3 +1,6 @@
+import { createMemoryIngestionProjectionPort } from '@/memory/data/ingestionProjectionPort'
+import { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
+import { createDeepChatProgrammaticToolPort } from '@/cli/deepChatToolPort'
 import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
 import * as fs from 'node:fs'
@@ -998,7 +1001,10 @@ function createRuntimeDependencies() {
     },
     sessionUiPort,
     memoryPort: { isEnabled: vi.fn().mockReturnValue(false) } as any,
-    getMemoryIngestionProjection: () => sqlitePresenter.deepchatMemoryIngestionProjectionTable,
+    getMemoryIngestionProjection: () =>
+      createMemoryIngestionProjectionPort(
+        () => sqlitePresenter.deepchatMemoryIngestionProjectionTable
+      ),
     cacheImage: vi.fn(async (data: string) => data),
     skillSettings: {
       isEnabled: vi.fn(() => true),
@@ -1017,12 +1023,9 @@ function createRuntimeDependencies() {
     taskContractContext: {
       prepare: vi.fn().mockReturnValue(null)
     },
-    agentCliTokenAuthority: {
-      prepareProgrammaticOperation: vi.fn(() => {
-        throw new Error('Programmatic operation authority is not configured for this test')
-      }),
+    programmaticTools: createDeepChatProgrammaticToolPort(new ProgrammaticToolParentRegistry(), {
       revokeConversation: vi.fn()
-    },
+    }),
     commandShell: {
       resolveForTurn: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL),
       resolveProfile: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL)

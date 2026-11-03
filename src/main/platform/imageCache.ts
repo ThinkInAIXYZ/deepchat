@@ -1,3 +1,5 @@
+import type { CacheImageOptions } from '@shared/types/attachment'
+export type { CacheImageOptions } from '@shared/types/attachment'
 import fs from 'node:fs'
 import path from 'node:path'
 import dns from 'node:dns/promises'
@@ -74,11 +76,6 @@ for (const [network, prefix] of [
   ['ff00::', 8]
 ] as const) {
   blockedImageNetworks.addSubnet(network, prefix, 'ipv6')
-}
-
-export type CacheImageOptions = {
-  signal?: AbortSignal
-  allowPrivateNetwork?: boolean
 }
 
 export type RemoteFileOptions = CacheImageOptions & {
