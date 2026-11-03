@@ -348,7 +348,11 @@ const refreshData = async () => {
     operationId: 'refresh',
     code: 'settings.environments.refresh',
     failureTitle: t('common.error.operationFailed'),
-    action: projectStore.refreshProjectSnapshot
+    action: async () => {
+      if (!(await projectStore.refreshProjectSnapshot())) {
+        throw new Error(projectStore.error ?? 'Project snapshot refresh failed')
+      }
+    }
   })
 }
 
