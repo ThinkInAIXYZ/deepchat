@@ -2093,7 +2093,6 @@ export async function createMainProcessControl(dependencies: {
     providerRuntime,
     providerSettings,
     agentSettings,
-    database: sessionData.database,
     sessionData,
     toolService,
     hookObserver: hookService,

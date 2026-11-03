@@ -1,11 +1,11 @@
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { SessionScopeRegistry } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import type { SessionDatabase } from '@/session/data/database'
+import type { SessionResourceReadPort } from '@/session/data/contracts'
 import type { SessionKind } from '@shared/types/agent-interface'
 
 export interface SessionIdentityServiceDependencies {
   registry: SessionScopeRegistry
-  database: Pick<SessionDatabase, 'newSessionsTable'>
+  sessions: Pick<SessionResourceReadPort, 'getIdentity'>
 }
 
 export class SessionIdentityService {
@@ -18,7 +18,7 @@ export class SessionIdentityService {
       return cached
     }
 
-    const persisted = this.deps.database.newSessionsTable?.get(sessionId)?.agent_id?.trim()
+    const persisted = this.deps.sessions.getIdentity(sessionId)?.agentId
     if (persisted) {
       instance?.setAgentId(persisted)
       return persisted
@@ -28,16 +28,16 @@ export class SessionIdentityService {
   }
 
   getParentSessionId(sessionId: string): string | undefined {
-    return this.deps.database.newSessionsTable?.get(sessionId)?.parent_session_id ?? undefined
+    return this.deps.sessions.getIdentity(sessionId)?.parentSessionId ?? undefined
   }
 
   getSessionKind(sessionId: string): SessionKind | null {
-    return this.deps.database.newSessionsTable?.get(sessionId)?.session_kind ?? null
+    return this.deps.sessions.getIdentity(sessionId)?.kind ?? null
   }
 
   isAcpBackedSubagentSession(sessionId: string, providerId?: string): boolean {
-    const sessionRow = this.deps.database.newSessionsTable?.get(sessionId)
-    if (!sessionRow || sessionRow.session_kind !== 'subagent') {
+    const session = this.deps.sessions.getIdentity(sessionId)
+    if (!session || session.kind !== 'subagent') {
       return false
     }
 

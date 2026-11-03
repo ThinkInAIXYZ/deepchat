@@ -1,3 +1,4 @@
+import { SessionSettingsStore } from '@/session/data/settings'
 import { describe, expect, it, vi } from 'vitest'
 import {
   DeepChatToolResolver,
@@ -95,7 +96,7 @@ describe('DeepChatToolResolver Subagent capability', () => {
       },
       skillSettings: { isEnabled: vi.fn(() => false) },
       skillService: { getActiveSkills: vi.fn(), validateSkillNames: vi.fn() },
-      sqlitePresenter: {
+      sessions: new SessionSettingsStore({
         newSessionsTable: {
           get: vi.fn(() => ({
             session_kind: 'regular',
@@ -103,7 +104,7 @@ describe('DeepChatToolResolver Subagent capability', () => {
           })),
           getDisabledAgentTools: vi.fn(() => [])
         }
-      },
+      } as never, {} as never),
       toolService: { getAllToolDefinitions, syncAgentToolContext: vi.fn() },
       registry: createScopeRegistry(resourceInstance),
       identity: {
@@ -164,12 +165,12 @@ describe('DeepChatToolResolver Subagent capability', () => {
       },
       skillSettings: { isEnabled: vi.fn(() => false) },
       skillService: { getActiveSkills: vi.fn(), setActiveSkills: vi.fn() },
-      sqlitePresenter: {
+      sessions: new SessionSettingsStore({
         newSessionsTable: {
           get: vi.fn(() => row),
           getDisabledAgentTools: vi.fn(() => [])
         }
-      },
+      } as never, {} as never),
       toolService: {
         getAllToolDefinitions,
         syncAgentToolContext: vi.fn()
@@ -258,7 +259,7 @@ describe('DeepChatToolResolver Subagent capability', () => {
       },
       skillSettings: { isEnabled: vi.fn(() => false) },
       skillService: { getActiveSkills: vi.fn(), setActiveSkills: vi.fn() },
-      sqlitePresenter: {
+      sessions: new SessionSettingsStore({
         newSessionsTable: {
           get: vi.fn((sessionId: string) =>
             sessionId === 'child-1'
@@ -272,7 +273,7 @@ describe('DeepChatToolResolver Subagent capability', () => {
           ),
           getDisabledAgentTools: vi.fn(() => [])
         }
-      },
+      } as never, {} as never),
       toolService: { getAllToolDefinitions },
       registry: createScopeRegistry(resourceInstance),
       identity: {
@@ -300,6 +301,7 @@ describe('DeepChatToolResolver Subagent capability', () => {
 
   it('intersects parent and target tool authority for Subagent catalog and dispatch', async () => {
     const getAllToolDefinitions = vi.fn().mockResolvedValue([])
+    let parentExists = true
     const resourceInstance = createResourceInstance('reviewer')
     const resolveDeepChatAgentConfig = vi.fn(async (agentId: string) =>
       agentId === 'parent-agent'
@@ -319,7 +321,7 @@ describe('DeepChatToolResolver Subagent capability', () => {
       },
       skillSettings: { isEnabled: vi.fn(() => false) },
       skillService: { getActiveSkills: vi.fn(), validateSkillNames: vi.fn() },
-      sqlitePresenter: {
+      sessions: new SessionSettingsStore({
         newSessionsTable: {
           get: vi.fn((sessionId: string) =>
             sessionId === 'child-1'
@@ -328,13 +330,13 @@ describe('DeepChatToolResolver Subagent capability', () => {
                   session_kind: 'subagent',
                   parent_session_id: 'parent-1'
                 }
-              : { agent_id: 'parent-agent', session_kind: 'regular' }
+              : parentExists ? { agent_id: 'parent-agent', session_kind: 'regular' } : null
           ),
           getDisabledAgentTools: vi.fn((sessionId: string) =>
             sessionId === 'child-1' ? ['write'] : ['exec']
           )
         }
-      },
+      } as never, {} as never),
       toolService: {
         getAllToolDefinitions,
         syncAgentToolContext: vi.fn()
@@ -365,6 +367,11 @@ describe('DeepChatToolResolver Subagent capability', () => {
     await expect(
       resolver.resolveAgentExtensionPolicy('child-1', resourceInstance as any)
     ).resolves.toEqual({ enabledMcpServerIds: ['mcp-b'] })
+    parentExists = false
+    await expect(
+      resolver.resolveAgentExtensionPolicy('child-1', resourceInstance as any)
+    ).rejects.toThrow('has no resolvable parent tool policy')
+    expect(getAllToolDefinitions).toHaveBeenCalledTimes(1)
   })
 
   it('does not expose Subagents to regular non-DeepChat compatibility sessions', async () => {
@@ -388,12 +395,12 @@ describe('DeepChatToolResolver Subagent capability', () => {
       },
       skillSettings: { isEnabled: vi.fn(() => false) },
       skillService: { getActiveSkills: vi.fn(), setActiveSkills: vi.fn() },
-      sqlitePresenter: {
+      sessions: new SessionSettingsStore({
         newSessionsTable: {
           get: vi.fn(() => ({ session_kind: 'regular', subagent_enabled: 1 })),
           getDisabledAgentTools: vi.fn(() => [])
         }
-      },
+      } as never, {} as never),
       toolService: { getAllToolDefinitions },
       registry: createScopeRegistry(resourceInstance),
       identity: {
@@ -442,12 +449,12 @@ describe('DeepChatToolResolver Subagent capability', () => {
       },
       skillSettings: { isEnabled: vi.fn(() => false) },
       skillService: { getActiveSkills: vi.fn(), setActiveSkills: vi.fn() },
-      sqlitePresenter: {
+      sessions: new SessionSettingsStore({
         newSessionsTable: {
           get: vi.fn(() => ({ session_kind: 'regular' })),
           getDisabledAgentTools: vi.fn(() => [])
         }
-      },
+      } as never, {} as never),
       toolService: { getAllToolDefinitions },
       registry: createScopeRegistry(resourceInstance),
       identity: {
@@ -491,12 +498,12 @@ describe('DeepChatToolResolver Subagent capability', () => {
       },
       skillSettings: { isEnabled: vi.fn(() => false) },
       skillService: { getActiveSkills: vi.fn(), setActiveSkills: vi.fn() },
-      sqlitePresenter: {
+      sessions: new SessionSettingsStore({
         newSessionsTable: {
           get: vi.fn(() => ({ session_kind: 'regular', subagent_enabled: 1 })),
           getDisabledAgentTools: vi.fn(() => [])
         }
-      },
+      } as never, {} as never),
       toolService: { getAllToolDefinitions },
       registry: createScopeRegistry(resourceInstance),
       identity: {
@@ -550,12 +557,12 @@ describe('DeepChatToolResolver Agent Skill scope', () => {
       },
       skillSettings: { isEnabled: vi.fn(() => true) },
       skillService,
-      sqlitePresenter: {
+      sessions: new SessionSettingsStore({
         newSessionsTable: {
           get: vi.fn(() => ({ session_kind: 'regular' })),
           getDisabledAgentTools: vi.fn(() => [])
         }
-      },
+      } as never, {} as never),
       toolService: { getAllToolDefinitions },
       registry: createScopeRegistry(resourceInstance),
       identity: {
@@ -806,7 +813,7 @@ describe('DeepChatToolResolver Run definition universe', () => {
       },
       skillSettings: { isEnabled: vi.fn(() => true) },
       skillService,
-      sqlitePresenter: {
+      sessions: new SessionSettingsStore({
         newSessionsTable: {
           get: vi.fn((sessionId: string) =>
             sessionId === 'parent-session'
@@ -820,7 +827,7 @@ describe('DeepChatToolResolver Run definition universe', () => {
           ),
           getDisabledAgentTools: vi.fn(() => ['exec'])
         }
-      },
+      } as never, {} as never),
       toolService: { getAllToolDefinitions, getToolDefinitionUniverse },
       registry: createScopeRegistry(resourceInstance, options?.assertCurrent),
       identity: {

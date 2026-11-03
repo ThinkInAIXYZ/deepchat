@@ -1,3 +1,4 @@
+import { SessionSettingsStore } from '@/session/data/settings'
 import { describe, expect, it, vi } from 'vitest'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
@@ -13,7 +14,7 @@ function createHarness(row?: { agent_id?: string; session_kind?: string }) {
   const get = vi.fn(() => row)
   const deps = {
     registry: runtime,
-    database: { newSessionsTable: { get } }
+    sessions: new SessionSettingsStore({ newSessionsTable: { get } } as never, {} as never)
   } as unknown as SessionIdentityServiceDependencies
 
   return { get, identity: new SessionIdentityService(deps), runtime }

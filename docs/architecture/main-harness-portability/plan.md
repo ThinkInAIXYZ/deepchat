@@ -143,7 +143,7 @@ pnpm exec vitest run --config vitest.config.ts test/main/agent/manager/directAcp
 
 **目标**：身份、工作目录、工具范围与记忆游标由拥有数据的模块解释；运行时只接收业务值。
 
-- [ ] **依赖**：无。**删除**：`SessionIdentityService`、`DeepChatToolResolver.sqlitePresenter` 和 Harness 内 Memory 回调对具体表的读取/更新。按实际操作从现有 Session/Memory 所有者取得身份、父子与工作目录、工具限制、Memory 游标推进/回退。adapter 在宿主侧解析数据库行，运行时消费最小业务值。
+- [x] **依赖**：无。**删除**：`SessionIdentityService`、`DeepChatToolResolver.sqlitePresenter` 和 Harness 内 Memory 回调对具体表的读取/更新。按实际操作从现有 Session/Memory 所有者取得身份、父子与工作目录、工具限制、Memory 游标推进/回退。adapter 在宿主侧解析数据库行，运行时消费最小业务值。
 
 **实施顺序**
 

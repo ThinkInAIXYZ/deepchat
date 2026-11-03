@@ -1114,7 +1114,6 @@ describe('Integration: createSession end-to-end', () => {
       providerRuntime: llmProvider,
       providerSettings: providerSettings,
       agentSettings: providerSettings,
-      database: sqlitePresenter,
       sessionData: sessionData,
       toolService: toolService,
       hookObserver: noopHookObserver
@@ -1301,7 +1300,6 @@ describe('Integration: ACP hook observer', () => {
       providerRuntime: llmProvider,
       providerSettings: providerSettings,
       agentSettings: providerSettings,
-      database: sqlitePresenter,
       sessionData: sessionData,
       toolService: createMockToolService(),
       hookObserver: createHookObserver(hookDispatcher)
@@ -1412,7 +1410,6 @@ describe('Integration: multi-turn context', () => {
       providerRuntime: llmProvider,
       providerSettings: providerSettings,
       agentSettings: providerSettings,
-      database: sqlitePresenter,
       sessionData: sessionData,
       toolService: createMockToolService(),
       hookObserver: noopHookObserver
@@ -2100,7 +2097,6 @@ describe('Integration: crash recovery', () => {
       providerRuntime: llmProvider,
       providerSettings: providerSettings,
       agentSettings: providerSettings,
-      database: sqlitePresenter,
       sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
         publishPendingInputsChanged: vi.fn(),
         publishMessagesChanged: vi.fn()

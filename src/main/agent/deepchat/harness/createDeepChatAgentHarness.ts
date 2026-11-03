@@ -170,7 +170,6 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     attachmentRouter,
     cacheImage,
     commandShell,
-    database,
     diagnosticNow,
     hookObserver,
     providerRuntime,
@@ -190,7 +189,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   const pendingInputCoordinator = sessionData.pendingInputs
 
   const runtime = new DeepChatAgentRuntime()
-  const identity = new SessionIdentityService({ registry: runtime, database })
+  const identity = new SessionIdentityService({ registry: runtime, sessions: sessionStore })
   const messageProjection = new MessageProjectionService({
     registry: runtime,
     transcript: messageStore,
@@ -199,7 +198,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   const toolResolver = new DeepChatToolResolver({
     agentSettings,
     skillSettings,
-    sqlitePresenter: database,
+    sessions: sessionStore,
     toolService,
     skillService,
     registry: runtime,
@@ -212,12 +211,11 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     getNextMessageOrderSeq: (sessionId) => messageStore.getNextOrderSeq(sessionId),
     getMessagesUpToOrderSeq: (sessionId, orderSeq) =>
       messageStore.getMessagesUpToOrderSeq(sessionId, orderSeq),
-    getMemoryCursorOrderSeq: (sessionId) =>
-      database.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId),
+    getMemoryCursorOrderSeq: (sessionId) => sessionStore.getMemoryCursorOrderSeq(sessionId),
     updateMemoryCursorOrderSeq: (sessionId, orderSeq) =>
-      database.deepchatSessionsTable.updateMemoryCursorOrderSeq(sessionId, orderSeq),
+      sessionStore.updateMemoryCursorOrderSeq(sessionId, orderSeq),
     rewindMemoryCursorOrderSeq: (sessionId, orderSeq) =>
-      database.deepchatSessionsTable.rewindMemoryCursorOrderSeq(sessionId, orderSeq),
+      sessionStore.rewindMemoryCursorOrderSeq(sessionId, orderSeq),
     tapeReader: tapeService,
     tapeAnchorWriter: tapeService,
     getIngestionProjection: deps.getMemoryIngestionProjection
@@ -233,7 +231,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     beginSessionAgentReassignment: async (sessionId) =>
       await memory.beginSessionAgentReassignment(sessionId),
     finishSessionAgentReassignment: (sessionId) => memory.finishSessionAgentReassignment(sessionId),
-    readPersistedProjectDir: (sessionId) => database.newSessionsTable?.get(sessionId)?.project_dir
+    readPersistedProjectDir: (sessionId) => sessionStore.getIdentity(sessionId)?.projectDir
   })
   const promptAssembly = new PromptAssemblyService({
     registry: runtime,

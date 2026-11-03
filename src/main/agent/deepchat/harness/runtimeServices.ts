@@ -12,7 +12,6 @@ import type { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRoute
 import type { AcpAsLlmProviderPermissionPort, ProviderCatalogPort } from '@/provider/ports'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type { SessionData } from '@/session/data'
-import type { SessionDatabase } from '@/session/data/database'
 import type { SessionPermissionPort } from '@/session/contracts'
 import type { SessionStatusPublisherPorts } from '@/agent/deepchat/runtime/sessionStatusPublisher'
 import type { SkillSettingsPort } from '@/skill/settings'
@@ -67,7 +66,6 @@ export interface DeepChatHarnessDependencies {
   providerRuntime: ProviderExecutionPort
   providerSettings: ProviderModelResolutionPort
   agentSettings: AgentSettingsPort
-  database: SessionDatabase
   sessionData: SessionData
   toolService: ToolServicePort
   hookObserver: HookObserver

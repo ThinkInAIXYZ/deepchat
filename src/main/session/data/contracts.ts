@@ -1,3 +1,6 @@
+import type { SessionKind } from '@shared/types/agent-interface'
+import type { OrchestrationPolicy } from '@shared/orchestration/policy'
+import type { ToolModeOverride } from '@shared/toolMode'
 import type {
   AgentTapeAnchorResult,
   AgentTapeAnchorsOptions,
@@ -185,4 +188,16 @@ export interface SessionTapePort {
     input: ExportTapeInspectorSupportFactsInput
   ): ExportTapeInspectorSupportFactsOutput
   linkSubagentTape(input: SubagentTapeLinkInput): Promise<SubagentTapeLinkReceipt>
+}
+
+export interface SessionResourceReadPort {
+  getIdentity(sessionId: string): {
+    agentId: string | undefined
+    parentSessionId: string | undefined
+    kind: SessionKind | null
+    projectDir: string | null
+  } | null
+  getOrchestrationPolicy(sessionId: string): OrchestrationPolicy
+  getToolModeOverride(sessionId: string): ToolModeOverride
+  getDisabledAgentTools(sessionId: string): string[]
 }
