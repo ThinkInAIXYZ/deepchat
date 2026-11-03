@@ -21,7 +21,6 @@ import { DcStatusPill } from '@dc-ui/components/status-pill'
 import { useMcpStore } from '@/stores/mcp'
 import { useI18n } from 'vue-i18n'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
-import { useRouter } from 'vue-router'
 import McpServerCard from './McpServerCard.vue'
 import McpEnterpriseProfiles from './McpEnterpriseProfiles.vue'
 import McpServerForm from '../McpServerForm.vue'
@@ -33,7 +32,6 @@ import { createMcpClient } from '@api/McpClient'
 
 const mcpStore = useMcpStore()
 const { t } = useI18n()
-const router = useRouter()
 const mcpClient = createMcpClient()
 const props = withDefaults(
   defineProps<{
@@ -54,6 +52,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'toggle-agent-server': [serverName: string, enabled: boolean]
+  'open-knowledge-settings': [subtab: string]
 }>()
 
 const isAddServerDialogOpen = ref(false)
@@ -451,10 +450,7 @@ const openEditServerDialog = (serverName: string) => {
   }
 
   if (specialServers[serverName]) {
-    router.push({
-      name: 'settings-knowledge-base',
-      query: { subtab: specialServers[serverName] }
-    })
+    emit('open-knowledge-settings', specialServers[serverName])
     return
   }
 

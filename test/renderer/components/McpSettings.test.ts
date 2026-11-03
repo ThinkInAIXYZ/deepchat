@@ -2,8 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
-const TEST_TIMEOUT_MS = 20000
-
 const passthrough = (name: string) =>
   defineComponent({
     name,
@@ -17,24 +15,10 @@ const buttonStub = defineComponent({
 })
 
 const setup = async (
-  query: Record<string, string> = {},
   props: Record<string, unknown> = {},
   options: { mcpEnabled?: boolean } = {}
 ) => {
   vi.resetModules()
-
-  const route = reactive({
-    query: { ...query }
-  })
-
-  const router = {
-    replace: vi
-      .fn()
-      .mockImplementation(async ({ query: nextQuery }: { query?: Record<string, string> }) => {
-        route.query = { ...(nextQuery || {}) }
-      }),
-    push: vi.fn()
-  }
 
   const notifyRenderer = vi.fn()
   const configClient = {
@@ -102,10 +86,6 @@ const setup = async (
     clearNpmRegistryCache: vi.fn().mockResolvedValue(undefined)
   })
 
-  vi.doMock('vue-router', () => ({
-    useRoute: () => route,
-    useRouter: () => router
-  }))
   vi.doMock('@/stores/mcp', () => ({
     useMcpStore: () => mcpStore
   }))
@@ -127,12 +107,6 @@ const setup = async (
       skipStep: vi.fn().mockResolvedValue(null)
     })
   }))
-  vi.doMock('@api/WindowClient', () => ({
-    createWindowClient: () => ({
-      focusMainWindow: vi.fn().mockResolvedValue(true),
-      resumeGuidedOnboarding: vi.fn().mockResolvedValue({ requested: true, focused: true })
-    })
-  }))
   vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({
     notifyRenderer
   }))
@@ -142,7 +116,7 @@ const setup = async (
     })
   }))
 
-  const McpSettings = (await import('../../../src/renderer/settings/components/McpSettings.vue'))
+  const McpSettings = (await import('../../../src/renderer/src/features/mcp/McpSettingsView.vue'))
     .default
 
   const wrapper = mount(McpSettings, {
@@ -180,11 +154,6 @@ const setup = async (
           emits: ['toggle-agent-server'],
           template:
             '<button data-testid="servers-view" :disabled="agentScopedBusy" @click="$emit(\'toggle-agent-server\', \'Custom\', true)">{{ agentScopedToggle }}:{{ serverEnabledOverrides.Custom }}:{{ serverLoadingOverrides.Custom }}</button>'
-        }),
-        McpBuiltinMarket: defineComponent({
-          name: 'McpBuiltinMarket',
-          emits: ['back'],
-          template: '<button data-testid="market-view" @click="$emit(\'back\')">market</button>'
         })
       }
     }
@@ -194,56 +163,29 @@ const setup = async (
 
   return {
     wrapper,
-    router,
     configClient,
     mcpStore,
     notifyRenderer
   }
 }
 
-describe('McpSettings', () => {
+describe('McpSettingsView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it(
-    'renders the default MCP settings content when no subview is selected',
-    async () => {
-      const { wrapper } = await setup()
-
-      expect(wrapper.find('[data-testid="servers-view"]').exists()).toBe(true)
-      expect(wrapper.find('[data-testid="market-view"]').exists()).toBe(false)
-    },
-    TEST_TIMEOUT_MS
-  )
-
-  it('keeps the MCP page frame static around the scrolling server list', async () => {
-    const { wrapper } = await setup()
-    const serverView = wrapper.find('[data-testid="servers-view"]')
-    const serverPanel = serverView.element.parentElement
-    const scrollFrame = serverPanel?.parentElement
-
-    expect(wrapper.find('[data-testid="settings-mcp-page"]').classes()).toContain('min-h-0')
-    expect(serverPanel?.className).toContain('min-h-0')
-    expect(scrollFrame?.className).toContain('overflow-hidden')
-  })
-
   it('respects the global MCP master switch in agent scope', async () => {
-    const { wrapper } = await setup(
-      {},
-      { scope: 'agent', agentId: 'deepchat' },
-      { mcpEnabled: false }
-    )
+    const { wrapper } = await setup({ scope: 'agent', agentId: 'deepchat' }, { mcpEnabled: false })
 
     expect(wrapper.find('[data-testid="servers-view"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('settings.mcp.enableToAccess')
   })
 
   it('saves MCP server toggles to the current agent in agent scope', async () => {
-    const { wrapper, configClient, mcpStore, notifyRenderer } = await setup(
-      {},
-      { scope: 'agent', agentId: 'deepchat' }
-    )
+    const { wrapper, configClient, mcpStore, notifyRenderer } = await setup({
+      scope: 'agent',
+      agentId: 'deepchat'
+    })
 
     expect(wrapper.find('[data-testid="servers-view"]').text()).toContain('true:false:')
 
@@ -267,7 +209,7 @@ describe('McpSettings', () => {
   })
 
   it('optimistically reflects one agent policy write and blocks overlapping toggles', async () => {
-    const { wrapper, configClient } = await setup({}, { scope: 'agent', agentId: 'deepchat' })
+    const { wrapper, configClient } = await setup({ scope: 'agent', agentId: 'deepchat' })
     let resolveUpdate: (agent: Record<string, unknown>) => void = () => undefined
     configClient.updateDeepChatAgent.mockImplementationOnce(
       () =>
@@ -301,10 +243,10 @@ describe('McpSettings', () => {
 
   it('rolls back failed agent-scoped toggles and reports the failure toast', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const { wrapper, configClient, notifyRenderer } = await setup(
-      {},
-      { scope: 'agent', agentId: 'deepchat' }
-    )
+    const { wrapper, configClient, notifyRenderer } = await setup({
+      scope: 'agent',
+      agentId: 'deepchat'
+    })
     configClient.updateDeepChatAgent.mockRejectedValueOnce(new Error('write failed'))
 
     await wrapper.find('[data-testid="servers-view"]').trigger('click')
@@ -323,13 +265,13 @@ describe('McpSettings', () => {
   })
 
   it('requires an explicit target for agent scope', async () => {
-    const { wrapper, configClient } = await setup({}, { scope: 'agent' })
+    const { wrapper, configClient } = await setup({ scope: 'agent' })
     expect(configClient.listAgents).not.toHaveBeenCalled()
     expect(wrapper.get('[role="alert"]').text()).toContain('agentScopeUnsupported')
   })
 
   it('ignores a policy load that returns after switching targets', async () => {
-    const { wrapper, configClient } = await setup({}, { scope: 'agent', agentId: 'deepchat' })
+    const { wrapper, configClient } = await setup({ scope: 'agent', agentId: 'deepchat' })
     let resolveA!: (config: { enabledMcpServerIds: string[] }) => void
     configClient.listAgents.mockImplementation(async ({ ids }) => [
       { id: ids[0], type: 'deepchat' }
@@ -357,14 +299,11 @@ describe('McpSettings', () => {
 
   it('keeps a delayed save bound to its original target and notifies the caller', async () => {
     const saved = vi.fn()
-    const { wrapper, configClient } = await setup(
-      {},
-      {
-        scope: 'agent',
-        agentId: 'deepchat',
-        onAgentPolicySaved: saved
-      }
-    )
+    const { wrapper, configClient } = await setup({
+      scope: 'agent',
+      agentId: 'deepchat',
+      onAgentPolicySaved: saved
+    })
     let resolveSave!: (agent: Record<string, unknown>) => void
     configClient.updateDeepChatAgent.mockImplementationOnce(
       () =>
@@ -448,20 +387,5 @@ describe('McpSettings', () => {
     expect(notifyRenderer).not.toHaveBeenCalled()
     fetchMock.mockRestore()
     consoleError.mockRestore()
-  })
-
-  it('renders the market subview and clears only the market query on back', async () => {
-    const { wrapper, router } = await setup({ view: 'market', foo: '1' })
-
-    expect(wrapper.find('[data-testid="market-view"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="servers-view"]').exists()).toBe(false)
-
-    await wrapper.find('[data-testid="market-view"]').trigger('click')
-    await flushPromises()
-
-    expect(router.replace).toHaveBeenCalledWith({
-      name: 'settings-mcp',
-      query: { foo: '1' }
-    })
   })
 })

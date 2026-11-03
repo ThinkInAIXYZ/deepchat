@@ -30,7 +30,7 @@ pnpm exec vitest run --config vitest.config.renderer.ts test/renderer/components
 
 **目标**：聊天插件与 Settings 共用 MCP 配置实现，各自决定 market 返回位置、路由和窗口动作。
 
-- [ ] **依赖**：R1。**删除**：`McpPluginsPage.vue → settings/components/McpSettings.vue` 的跨应用实现导入，以及 MCP 共用视图内按当前 app 猜 router、market 返回位置和 onboarding 跳转的分支。把现有共用实现及实际需要的子组件归入 MCP feature；两侧现有路由入口各自适配导航、引导和窗口动作。沿用现有 MCP store/clients，同窗口只绑定一套监听。
+- [x] **依赖**：R1。**删除**：`McpPluginsPage.vue → settings/components/McpSettings.vue` 的跨应用实现导入，以及 MCP 共用视图内按当前 app 猜 router、market 返回位置和 onboarding 跳转的分支。把现有共用实现及实际需要的子组件归入 MCP feature；两侧现有路由入口各自适配导航、引导和窗口动作。沿用现有 MCP store/clients，同窗口只绑定一套监听。
 
 **实施顺序**
 

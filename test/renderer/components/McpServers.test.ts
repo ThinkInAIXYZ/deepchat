@@ -37,10 +37,11 @@ const serverCardStub = defineComponent({
       required: true
     }
   },
-  emits: ['toggle', 'authenticate', 'remove', 'diagnostics'],
+  emits: ['toggle', 'authenticate', 'remove', 'diagnostics', 'edit'],
   template: `
     <div>
       <button data-testid="server-card" @click="$emit('toggle')">{{ server.name }}:{{ server.enabled }}</button>
+      <button data-testid="edit-server" @click="$emit('edit')">edit</button>
       <button data-testid="authenticate-server" @click="$emit('authenticate')">auth</button>
       <button data-testid="remove-server" @click="$emit('remove')">remove</button>
       <button data-testid="diagnostics-server" @click="$emit('diagnostics')">
@@ -116,15 +117,6 @@ const createDiagnostics = (serverId: string) => ({
 
 const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
-
-  const router = {
-    currentRoute: {
-      value: {
-        query: {}
-      }
-    },
-    push: vi.fn().mockResolvedValue(undefined)
-  }
 
   const notifyRenderer = vi.fn()
   const defaultServerList = options.withServers
@@ -202,9 +194,7 @@ const setup = async (options: SetupOptions = {}) => {
       t: (key: string) => key
     })
   }))
-  vi.doMock('vue-router', () => ({
-    useRouter: () => router
-  }))
+
   const getServerDiagnostics = vi.fn()
   vi.doMock('@api/McpClient', () => ({
     createMcpClient: () => ({
@@ -247,7 +237,6 @@ const setup = async (options: SetupOptions = {}) => {
 
   return {
     wrapper,
-    router,
     mcpStore,
     notifyRenderer,
     getServerDiagnostics
@@ -576,6 +565,14 @@ describe('McpServers', () => {
     await authCallbackInput!.trigger('keydown.enter')
 
     expect(mcpStore.completeServerAuthFromCallbackUrl).toHaveBeenCalledTimes(1)
+  })
+
+  it('delegates knowledge server editing to its host', async () => {
+    const { wrapper } = await setup({
+      serverList: [{ name: 'difyKnowledge', enabled: false, isRunning: false }]
+    })
+    await wrapper.get('[data-testid="edit-server"]').trigger('click')
+    expect(wrapper.emitted('open-knowledge-settings')).toEqual([['dify']])
   })
 
   it('keeps edit failures in the dialog and closes only after a successful retry', async () => {

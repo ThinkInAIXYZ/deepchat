@@ -59,6 +59,8 @@ Window clients     -> typed preload API -> authorized main route
 | Renderer API、跨窗服务、基础 UI | `*Client` 封装 IPC；通知服务共享呈现逻辑；显示模型和通用组件承载展示 | client 只经已有 typed bridge；跨窗服务不引用窗口根/聊天 store；基础 UI 消费 props 与局部 UI 依赖 |
 | Preload 与 main | 验证 route/event 合同、sender、授权、Session 归属和模型/附件实际能力 | 现有 IPC 和 main 模块。renderer 的局部筛选和乐观回显均不能替代可信侧校验 |
 
+MCP 的两个路由适配页分别读取本窗口的 `view=market` query，并保留其他 query。共享实现位于 `features/mcp/McpSettingsView.vue`，通过 `market` 接收当前视图，通过 `open-market`、`close-market`、`continue-onboarding` 和 `open-knowledge-settings` 交付用户意图与已取得的引导状态。Settings 适配页在本窗口导航或唤回主窗口；聊天插件适配页导航到本窗口的插件路由，或通过 typed client 打开 Settings。服务器列表和 market 不读取另一应用的路由表，也不导入 Settings 实现。
+
 ## 行为合同与验收
 
 - **独立窗口。** 干净 Pinia 中挂载、离开、重进全局 MCP 管理，只建立 MCP 所需的订阅；该视图及其子树不得创建聊天 Session/message store 或注册聊天流监听。聊天插件入口和独立 Settings 入口均能完成原有配置、market 和引导动作。Agent 范围由调用方通过 `agentId` 明确传入目标；未提供目标时显示原有不支持提示，不推算默认 Agent。保存成功通过 `agent-policy-saved` 携带原目标 ID 通知调用方，由调用方刷新其缓存。若调用方用当前聊天选择，沿用 active Session Agent → selected Agent → `deepchat` 的优先级。异步结果不能覆盖切换后的目标。
