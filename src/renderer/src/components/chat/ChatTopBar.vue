@@ -598,7 +598,7 @@ const handleClearConfirm = async () => {
   clearDialogBusy.value = true
   clearDialogError.value = null
   try {
-    await sessionStore.clearSessionMessages(props.sessionId)
+    await chatSessionStore.clearSessionMessages(props.sessionId)
     clearDialogOpen.value = false
   } catch (error) {
     console.error(t('common.error.cleanMessagesFailed'), error)
@@ -615,7 +615,7 @@ const handleDeleteConfirm = async () => {
   deleteDialogBusy.value = true
   deleteDialogError.value = null
   try {
-    await sessionStore.deleteSession(props.sessionId)
+    await chatSessionStore.deleteSession(props.sessionId)
     deleteDialogOpen.value = false
   } catch (error) {
     console.error(t('common.error.deleteChatFailed'), error)

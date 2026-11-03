@@ -17,8 +17,6 @@ import {
   type OrchestrationPolicy
 } from '@shared/orchestration/policy'
 import { downloadBlob } from '@/lib/download'
-import { useMessageStore } from './message'
-import { useLiveDelegationStore } from './liveDelegation'
 import type { SessionCompactionChangedPayload } from './sessionIpc'
 import { normalizeWorkspacePath } from '@shared/utils/filesystem'
 import type { ToolModeOverride } from '@shared/toolMode'
@@ -57,19 +55,7 @@ export interface SessionGroup {
 }
 
 export type GroupMode = 'time' | 'project'
-export interface NewConversationProjectDirIntent {
-  id: number
-  projectDir: string | null
-  consumed: boolean
-}
-export type StartNewConversationOptions = {
-  refresh?: boolean
-  projectDir?: string | null
-  agentId?: string
-}
-export type CloseSessionOptions = {
-  refresh?: boolean
-}
+
 type ActiveCompactionSync = {
   sessionId: string
   requestId: number
@@ -305,8 +291,6 @@ function cloneSessionPageCursor(
 export const useSessionStore = defineStore('session', () => {
   const sessionClient = createSessionClient()
   const configClient = createConfigClient()
-  const messageStore = useMessageStore()
-  const liveDelegationStore = useLiveDelegationStore()
   let groupModeLoadPromise: Promise<void> | null = null
   let groupModeWriteQueue: Promise<void> = Promise.resolve()
   let latestGroupModeWrite: Promise<void> = Promise.resolve()
@@ -627,11 +611,6 @@ export const useSessionStore = defineStore('session', () => {
       sessionByIdRefreshRevisions.set(sessionId, ++sessionByIdsRefreshRevision)
     }
     sessions.value = sessions.value.filter((session) => !targetIds.has(session.id))
-    for (const sessionId of targetIds) {
-      liveDelegationStore.purge(sessionId)
-      messageStore.invalidateRecentSessionView(sessionId)
-      messageStore.purgeSessionTracking(sessionId)
-    }
 
     if (bootstrapActiveSession.value && targetIds.has(bootstrapActiveSession.value.id)) {
       bootstrapActiveSession.value = null
@@ -683,7 +662,6 @@ export const useSessionStore = defineStore('session', () => {
       })
     }
 
-    messageStore.invalidateRecentSessionView(sessionId)
     const nextStatus = mapSessionStatus(status)
     const index = sessions.value.findIndex((session) => session.id === sessionId)
     if (index >= 0 && sessions.value[index].status !== nextStatus) {
@@ -947,7 +925,6 @@ export const useSessionStore = defineStore('session', () => {
     for (const sessionId of normalizedIds) {
       sessionByIdRefreshRevisions.set(sessionId, refreshRevision)
       requestedRevisions.set(sessionId, refreshRevision)
-      messageStore.invalidateRecentSessionView(sessionId)
     }
     const listEpoch = sessionListEpoch
     const hasCurrentRequestedId = (): boolean =>
@@ -1017,16 +994,6 @@ export const useSessionStore = defineStore('session', () => {
     commitSessionSnapshot(session)
   }
 
-  async function deleteSession(sessionId: string): Promise<void> {
-    error.value = null
-    try {
-      await sessionClient.deleteSession(sessionId)
-      removeSessions([sessionId])
-    } catch (deleteError) {
-      error.value = `Failed to delete session: ${deleteError}`
-    }
-  }
-
   async function setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<void> {
     error.value = null
     try {
@@ -1078,21 +1045,6 @@ export const useSessionStore = defineStore('session', () => {
     } catch (pinError) {
       error.value = `Failed to toggle pinned state: ${pinError}`
       throw pinError
-    }
-  }
-
-  async function clearSessionMessages(sessionId: string): Promise<void> {
-    error.value = null
-    try {
-      await sessionClient.clearSessionMessages(sessionId)
-      if (activeSessionId.value === sessionId) {
-        messageStore.clearStreamingState()
-        const restored = await messageStore.loadMessages(sessionId)
-        applyRestoredSession(restored)
-      }
-    } catch (clearError) {
-      error.value = `Failed to clear session messages: ${clearError}`
-      throw clearError
     }
   }
 
@@ -1247,9 +1199,7 @@ export const useSessionStore = defineStore('session', () => {
     applyConfirmedOrchestrationPolicy,
     renameSession,
     toggleSessionPinned,
-    clearSessionMessages,
     exportSession,
-    deleteSession,
     setSessionProjectDir,
     moveSessionToAgent,
     setGroupMode,

@@ -24,7 +24,7 @@ import type {
   SessionWithState
 } from '@shared/types/agent-interface'
 import { useStreamStateStore } from './stream'
-import { bindMessageStoreIpc } from './messageIpc'
+import { createMessageIpcBinding } from './messageIpc'
 import { RecentMessageViewCache, type RecentMessageView } from './recentMessageViewCache'
 
 const EPHEMERAL_STREAM_MESSAGE_PREFIXES = ['__rate_limit__:']
@@ -1087,7 +1087,7 @@ export const useMessageStore = defineStore('message', () => {
     hydratingStreamMessageIds.delete(messageId)
   }
 
-  const messageIpcBinding = bindMessageStoreIpc({
+  const messageIpcBinding = createMessageIpcBinding({
     getActiveSessionId: () => currentSessionId.value,
     getCurrentStreamIdentity: () => ({
       sessionId: currentStreamSessionId.value,
@@ -1135,6 +1135,7 @@ export const useMessageStore = defineStore('message', () => {
   }
 
   return {
+    connect: messageIpcBinding.connect,
     messageIds,
     messageCache,
     isStreaming,

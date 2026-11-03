@@ -43,7 +43,9 @@ const setupStore = async () => {
     }),
     onMessagesChanged: vi.fn((listener: (payload: any) => void) => {
       messageListeners.push(listener)
-      return () => undefined
+      return () => {
+        messageListeners.splice(messageListeners.indexOf(listener), 1)
+      }
     })
   }
   const streamListeners = {
@@ -58,15 +60,21 @@ const setupStore = async () => {
   const chatClient = {
     onStreamUpdated: vi.fn((listener: (payload: any) => void) => {
       streamListeners.updated.push(listener)
-      return () => undefined
+      return () => {
+        streamListeners.updated.splice(streamListeners.updated.indexOf(listener), 1)
+      }
     }),
     onStreamCompleted: vi.fn((listener: (payload: any) => void) => {
       streamListeners.completed.push(listener)
-      return () => undefined
+      return () => {
+        streamListeners.completed.splice(streamListeners.completed.indexOf(listener), 1)
+      }
     }),
     onStreamFailed: vi.fn((listener: (payload: any) => void) => {
       streamListeners.failed.push(listener)
-      return () => undefined
+      return () => {
+        streamListeners.failed.splice(streamListeners.failed.indexOf(listener), 1)
+      }
     }),
     onStreamActivity: vi.fn(() => () => undefined)
   }
@@ -101,6 +109,7 @@ const setupStore = async () => {
   }
   const { useMessageStore } = await import('@/stores/ui/message')
   const store = useMessageStore()
+  store.connect()
   store.setCurrentSessionId('s1')
   return { store, sessionClient, streamListeners, ipcListeners, messageListeners }
 }
@@ -1076,8 +1085,8 @@ describe('messageStore', () => {
     expect(store.messageCache.value.get('message-old')?.content).not.toContain('late old')
   })
 
-  it('keeps settled request tombstones after many later terminals', async () => {
-    const { store, sessionClient, streamListeners } = await setupStore()
+  it('keeps settled request tombstones across reconnect and many later terminals', async () => {
+    const { store, sessionClient, streamListeners, messageListeners } = await setupStore()
     await store.loadMessages('s1')
 
     streamListeners.updated[0]({
@@ -1104,6 +1113,17 @@ describe('messageStore', () => {
         completedAt: index + 3
       })
     }
+
+    const stop = store.connect()
+    expect(streamListeners.updated).toHaveLength(1)
+    expect(streamListeners.completed).toHaveLength(1)
+    stop()
+    expect(streamListeners.updated).toHaveLength(0)
+    expect(streamListeners.completed).toHaveLength(0)
+    expect(messageListeners).toHaveLength(0)
+    store.connect()
+    expect(streamListeners.updated).toHaveLength(1)
+    expect(messageListeners).toHaveLength(1)
 
     streamListeners.updated[0]({
       kind: 'snapshot',

@@ -720,7 +720,10 @@
 </template>
 
 <script setup lang="ts">
-import { useChatSessionStore } from '@/features/chat-session/store'
+import {
+  useChatSessionStore,
+  type StartNewConversationOptions
+} from '@/features/chat-session/store'
 import { ref, computed, nextTick, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
@@ -754,12 +757,7 @@ import {
 import { createSettingsClient } from '@api/SettingsClient'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useProjectStore } from '@/stores/ui/project'
-import {
-  useSessionStore,
-  type SessionGroup,
-  type StartNewConversationOptions,
-  type UISession
-} from '@/stores/ui/session'
+import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 import {
@@ -1148,7 +1146,7 @@ const handleDeleteConfirm = async () => {
   }
 
   try {
-    await sessionStore.deleteSession(targetSession.id)
+    await chatSessionStore.deleteSession(targetSession.id)
   } catch (error) {
     console.error(t('common.error.deleteChatFailed'), error)
   }

@@ -164,9 +164,6 @@ async function setupStore() {
       flushPendingTargetedUpdate: () => undefined
     }))
   }))
-  vi.doMock('../../../src/renderer/src/stores/ui/messageIpc', () => ({
-    bindMessageStoreIpc: vi.fn(() => () => undefined)
-  }))
 
   const { createPinia, setActivePinia } = await import('pinia')
   setActivePinia(createPinia())

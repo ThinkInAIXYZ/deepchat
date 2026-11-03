@@ -49,6 +49,7 @@ type SessionListTestItem = {
 }
 
 type SetupStoreOptions = {
+  listOnly?: boolean
   initialSettings?: Record<string, unknown>
   failGetSetting?: boolean
   getSettingPromise?: Promise<unknown>
@@ -164,15 +165,16 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     }),
     onUpdated: vi.fn((listener: (payload: any) => void) => {
       sessionListeners.push(listener)
-      return () => undefined
+      return () => sessionListeners.splice(sessionListeners.indexOf(listener), 1)
     }),
     onStatusChanged: vi.fn((listener: (payload: any) => void) => {
       sessionStatusListeners.push(listener)
-      return () => undefined
+      return () => sessionStatusListeners.splice(sessionStatusListeners.indexOf(listener), 1)
     }),
     onCompactionChanged: vi.fn((listener: (payload: any) => void) => {
       sessionCompactionListeners.push(listener)
-      return () => undefined
+      return () =>
+        sessionCompactionListeners.splice(sessionCompactionListeners.indexOf(listener), 1)
     })
   }
   const chatClient = {
@@ -376,6 +378,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   dependencies.useAttachmentPreparationStore.mockReturnValue(attachmentPreparationStore)
   dependencies.useAgentStore.mockReturnValue(agentStore)
   dependencies.useMessageStore.mockReturnValue({
+    connect: vi.fn(() => vi.fn()),
     clearStreamingState,
     invalidateRecentSessionView,
     purgeSessionTracking,
@@ -394,8 +397,8 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   const scope = effectScope()
   storeScopes.push(scope)
   const store = scope.run(() => useSessionStore(pinia))!
-  const chatSession = scope.run(() => useChatSessionStore(pinia))!
-  chatSession.connect()
+  const chatSession = options.listOnly ? null! : scope.run(() => useChatSessionStore(pinia))!
+  chatSession?.connect()
   await new Promise((resolve) => setTimeout(resolve, 0))
   const emitSessionUpdate = (payload: unknown) => {
     for (const handler of sessionListeners) {
@@ -414,6 +417,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   }
   return {
     store,
+    pinia,
     chatSession,
     settings,
     configClient,
@@ -438,6 +442,49 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
 }
 
 describe('sessionStore.getFilteredGroups', () => {
+  it('loads a standalone list without chat owners and binds one disposable window connection', async () => {
+    const before = [
+      dependencies.useMessageStore,
+      dependencies.useAgentStore,
+      dependencies.useDraftStore,
+      dependencies.usePageRouterStore,
+      dependencies.useAttachmentPreparationStore
+    ].map((factory) => factory.mock.calls.length)
+    const { store, pinia, sessionClient } = await setupStore({ listOnly: true })
+    await store.fetchSessions()
+    expect([...pinia._s.keys()]).toEqual(['session'])
+    expect(
+      [
+        dependencies.useMessageStore,
+        dependencies.useAgentStore,
+        dependencies.useDraftStore,
+        dependencies.usePageRouterStore,
+        dependencies.useAttachmentPreparationStore
+      ].map((factory) => factory.mock.calls.length)
+    ).toEqual(before)
+    expect(sessionClient.onUpdated).not.toHaveBeenCalled()
+    const { useChatSessionStore } = await import('@/features/chat-session/store')
+    const owner = useChatSessionStore(pinia)
+    const stop = owner.connect()
+    owner.connect()
+    expect(sessionClient.onUpdated).toHaveBeenCalledTimes(1)
+    stop()
+    const stopAgain = owner.connect()
+    expect(sessionClient.onUpdated).toHaveBeenCalledTimes(2)
+    stop()
+    sessionClient.getActive.mockResolvedValue({ session: createSession() })
+    // A stale cleanup cannot disconnect the remounted window.
+    const listener = sessionClient.onUpdated.mock.calls.at(-1)![0]
+    listener({
+      reason: 'activated',
+      sessionIds: ['session-1'],
+      activeSessionId: 'session-1',
+      webContentsId: 1
+    })
+    await vi.waitFor(() => expect(store.activeSessionId).toBe('session-1'))
+    stopAgain()
+    disposePinia(pinia)
+  })
   it('hides draft sessions from grouped sidebar lists', async () => {
     const { store } = await setupStore({
       initialSettings: {

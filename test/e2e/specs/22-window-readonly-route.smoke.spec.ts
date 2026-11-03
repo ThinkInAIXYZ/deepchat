@@ -116,4 +116,23 @@ test('main and settings windows expose current window state through typed route 
   await second.evaluate(() => window.deepchat.invoke('sessions.deactivate', {}))
   await expect.poll(() => state(second)).toEqual({ id: null, route: { name: 'newThread' } })
   await expect.poll(() => state(app.page)).toEqual({ id: null, route: { name: 'newThread' } })
+  await app.page.evaluate(
+    (sessionId) => window.deepchat.invoke('sessions.activate', { sessionId }),
+    ids[0]
+  )
+  await expect
+    .poll(() => state(app.page))
+    .toEqual({ id: ids[0], route: { name: 'chat', sessionId: ids[0] } })
+  await second.evaluate(
+    (sessionId) => window.deepchat.invoke('sessions.delete', { sessionId }),
+    ids[0]
+  )
+  await expect.poll(() => state(app.page)).toEqual({ id: null, route: { name: 'newThread' } })
+  await expect.poll(() => state(second)).toEqual({ id: null, route: { name: 'newThread' } })
+  expect(
+    await app.page.evaluate(
+      (sessionId) => window.deepchat.invoke('sessions.restore', { sessionId, limit: 40 }),
+      ids[0]
+    )
+  ).toMatchObject({ session: null, messages: [] })
 })

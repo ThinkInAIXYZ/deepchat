@@ -166,6 +166,29 @@ test('local streaming preserves an editable composer and completes the response 
       await expect(app.page.getByTestId('chat-message-user')).toHaveCount(1)
     }
     await openSettings(app)
+    const previousPages = new Set(app.electronApp.windows())
+    await app.electronApp.evaluate(({ Menu }) => {
+      const fileMenu = Menu.getApplicationMenu()?.items.find((item) =>
+        item.submenu?.items.some((entry) => /New Window/i.test(entry.label))
+      )
+      const command = fileMenu?.submenu?.items.find((entry) => /New Window/i.test(entry.label))
+      if (!command) throw new Error('New Window command is unavailable')
+      command.click()
+    })
+    await expect
+      .poll(
+        () =>
+          app.electronApp
+            .windows()
+            .filter(
+              (page) => !previousPages.has(page) && page.url().includes('/renderer/index.html')
+            ).length
+      )
+      .toBe(1)
+    const second = app.electronApp
+      .windows()
+      .find((page) => !previousPages.has(page) && page.url().includes('/renderer/index.html'))!
+    await waitForAppReady(second)
     const cli = (args: string[]) =>
       promisify(execFile)(process.execPath, [resolve('out/cli/deepchat.mjs'), ...args], {
         env: { ...process.env, DEEPCHAT_E2E_USER_DATA_DIR: app.userDataDir },
@@ -188,6 +211,15 @@ test('local streaming preserves an editable composer and completes the response 
     )
     expect(started.ok).toBe(true)
     await expect.poll(() => streamCount).toBe(2)
+    await second.evaluate(
+      (sessionId) => window.deepchat.invoke('sessions.activate', { sessionId }),
+      started.result.runId
+    )
+    await expect(second.getByTestId('chat-page-shell')).toHaveAttribute('data-generating', 'true')
+    await expect(app.page.getByTestId('chat-message-user')).toContainText(
+      'Render the local streaming fixture.'
+    )
+    await expect(editor).toHaveText(draft)
     const watch = cli(['run', 'watch', '--run', started.result.runId, '--jsonl'])
     void watch.catch(() => {})
     let observed = ''
@@ -222,6 +254,8 @@ test('local streaming preserves an editable composer and completes the response 
       status: 'sent',
       text: expect.stringContaining('Stream complete.')
     })
+    await expect(second.getByTestId('chat-message-assistant')).toContainText('Stream complete.')
+    await expect(second.getByTestId('chat-page-shell')).toHaveAttribute('data-generating', 'false')
     expect(app.pageErrors).toEqual([])
   } finally {
     releaseResponse()

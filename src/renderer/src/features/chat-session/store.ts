@@ -8,21 +8,30 @@ import type {
   SessionWithState,
   SendMessageInput
 } from '@shared/types/agent-interface'
-import {
-  useSessionStore,
-  type UISession,
-  type NewConversationProjectDirIntent,
-  type StartNewConversationOptions,
-  type CloseSessionOptions
-} from '@/stores/ui/session'
+import { useSessionStore, type UISession } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useDraftStore } from '@/stores/ui/draft'
+import { useLiveDelegationStore } from '@/stores/ui/liveDelegation'
 import { useMessageStore } from '@/stores/ui/message'
 import { usePageRouterStore } from '@/stores/ui/pageRouter'
 import { useAttachmentPreparationStore } from '@/stores/ui/attachmentPreparation'
 import { bindSessionStoreIpc, type SessionStoreIpcBinding } from '@/stores/ui/sessionIpc'
 import { completeOnboardingStep } from '@/lib/onboardingResume'
 import { isAbortError } from '@/lib/errors'
+
+export interface NewConversationProjectDirIntent {
+  id: number
+  projectDir: string | null
+  consumed: boolean
+}
+export type StartNewConversationOptions = {
+  refresh?: boolean
+  projectDir?: string | null
+  agentId?: string
+}
+export type CloseSessionOptions = {
+  refresh?: boolean
+}
 
 type SubmissionRequestOptions = {
   submissionId?: string
@@ -39,13 +48,13 @@ export const useChatSessionStore = defineStore('chat-session', () => {
     hasActiveSession,
     error
   } = storeToRefs(projection)
-  const { clearActiveSessionSummary, commitSessionSnapshot, setSearchIntent, applySessionStatus } =
-    projection
+  const { clearActiveSessionSummary, commitSessionSnapshot, setSearchIntent } = projection
   const sessionClient = createSessionClient()
   const chatClient = createChatClient()
   const agentStore = useAgentStore()
   const draftStore = useDraftStore()
   const messageStore = useMessageStore()
+  const liveDelegationStore = useLiveDelegationStore()
   const pageRouter = usePageRouterStore()
   const attachmentPreparationStore = useAttachmentPreparationStore()
   const webContentsId = ref<number | null>(null)
@@ -54,6 +63,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
   const newConversationProjectDirIntent = ref<NewConversationProjectDirIntent | null>(null)
   let binding: SessionStoreIpcBinding | null = null
   let connectionGeneration = 0
+  let disconnectMessages: (() => void) | null = null
 
   const setActiveSessionId = (id: string | null): void => {
     projection.setActiveSessionId(id)
@@ -355,9 +365,51 @@ export const useChatSessionStore = defineStore('chat-session', () => {
     syncSelectedAgentToSession(projection.activeSessionId)
   }
 
+  async function deleteSession(sessionId: string): Promise<void> {
+    error.value = null
+    try {
+      await sessionClient.deleteSession(sessionId)
+      removeSessions([sessionId])
+    } catch (deleteError) {
+      error.value = `Failed to delete session: ${deleteError}`
+    }
+  }
+
+  async function clearSessionMessages(sessionId: string): Promise<void> {
+    error.value = null
+    try {
+      await sessionClient.clearSessionMessages(sessionId)
+      if (activeSessionId.value === sessionId) {
+        messageStore.clearStreamingState()
+        const restored = await messageStore.loadMessages(sessionId)
+        applyRestoredSession(restored)
+      }
+    } catch (clearError) {
+      error.value = `Failed to clear session messages: ${clearError}`
+      throw clearError
+    }
+  }
+
+  const applySessionStatus = (sessionId: string, status: string, version?: number): boolean => {
+    const applied = projection.applySessionStatus(sessionId, status, version)
+    if (applied) messageStore.invalidateRecentSessionView(sessionId)
+    return applied
+  }
+
+  const refreshSessionsByIds = async (ids: string[]): Promise<void> => {
+    for (const id of new Set(ids.map((id) => id.trim()).filter(Boolean)))
+      messageStore.invalidateRecentSessionView(id)
+    await projection.refreshSessionsByIds(ids)
+  }
+
   const removeSessions = (ids: string[]): void => {
     const removedActive = activeSessionId.value !== null && ids.includes(activeSessionId.value)
     projection.removeSessions(ids)
+    for (const id of new Set(ids)) {
+      liveDelegationStore.purge(id)
+      messageStore.invalidateRecentSessionView(id)
+      messageStore.purgeSessionTracking(id)
+    }
     if (removedActive) {
       createActivationNavigationRequest()
       messageStore.clearStreamingState()
@@ -369,21 +421,28 @@ export const useChatSessionStore = defineStore('chat-session', () => {
   function disconnect(): void {
     connectionGeneration += 1
     createActivationNavigationRequest()
+    disconnectMessages?.()
+    disconnectMessages = null
     binding?.cleanup()
     binding = null
     webContentsId.value = null
   }
 
   function connect(): () => void {
-    if (binding) return disconnect
+    if (binding) {
+      const currentBinding = binding
+      return () => {
+        if (binding === currentBinding) disconnect()
+      }
+    }
     const generation = ++connectionGeneration
+    disconnectMessages = messageStore.connect()
     binding = bindSessionStoreIpc({
       webContentsId: () => webContentsId.value,
       fetchSessions: projection.fetchSessions,
-      refreshSessionsByIds: projection.refreshSessionsByIds,
+      refreshSessionsByIds,
       removeSessions,
       onSynchronized: async (ids) => {
-        for (const id of ids) messageStore.invalidateRecentSessionView(id)
         const id = activeSessionId.value
         if (id && ids.includes(id)) await messageStore.loadMessages(id)
       },
@@ -401,7 +460,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
         applyDeactivatedSession()
       },
       onStatusChanged: (sessionId, status, version) => {
-        const applied = projection.applySessionStatus(sessionId, status, version)
+        const applied = applySessionStatus(sessionId, status, version)
         if (applied && activeSessionId.value === sessionId && status !== 'generating')
           projection.synchronizeContextOccupancy(sessionId)
       },
@@ -424,6 +483,8 @@ export const useChatSessionStore = defineStore('chat-session', () => {
 
   return {
     createSession,
+    deleteSession,
+    clearSessionMessages,
     sendMessage,
     setSessionModel,
     selectSession,

@@ -140,7 +140,7 @@ pnpm exec vitest run --config vitest.config.renderer.ts test/renderer/stores/ses
 
 **目标**：单独读取 Session 列表不会建立聊天消息运行态；聊天窗口只注册一套可回收的监听。
 
-- [ ] **依赖**：R5、R6。**删除**：创建 Session 投影时顺带创建消息、草稿、路由、附件恢复或 delegation store 的剩余依赖。重点迁出 `removeSessions`、数据库替换/刷新、活跃会话清空/删除与消息缓存失效的跨 store 副作用。用既有 `sessionIpc`、`messageIpc` 在窗口生命周期内各绑定一次。Session 投影仍负责自己的版本/分页失效；消息的 request tombstone 保留在 `messageIpc`。
+- [x] **依赖**：R5、R6。**删除**：创建 Session 投影时顺带创建消息、草稿、路由、附件恢复或 delegation store 的剩余依赖。重点迁出 `removeSessions`、数据库替换/刷新、活跃会话清空/删除与消息缓存失效的跨 store 副作用。用既有 `sessionIpc`、`messageIpc` 在窗口生命周期内各绑定一次。Session 投影仍负责自己的版本/分页失效；消息的 request tombstone 保留在 `messageIpc`。
 
 **实施顺序**
 
