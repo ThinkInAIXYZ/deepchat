@@ -41,7 +41,7 @@ import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAg
 import type { ResolvedCommandShell } from '@shared/commandShell'
 import type { ResolvedToolMode } from '@shared/toolMode'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
-import type { SessionPendingInputs } from '@/session/data/pendingInputs'
+import type { SessionPendingInputsPort } from '@/session/data/contracts'
 import {
   appendCliProgrammaticToolAdapterSection,
   resolveEffectiveActiveSkillNames
@@ -82,10 +82,10 @@ import {
   type ContextOverflowFacts
 } from '@/agent/deepchat/runtime/contextWindowError'
 import { buildPersistableMessageTracePayload } from '@/agent/deepchat/runtime/messageTracePayload'
-import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
 import { processStream } from '@/agent/deepchat/runtime/process'
 import type { ProviderPermissionCoordinator } from '@/agent/deepchat/runtime/providerPermissionCoordinator'
-import type { SessionSummaryState, SessionSettingsStore } from '@/session/data/settings'
+import type { SessionSummaryState, SessionSettingsPort } from '@/session/data/contracts'
 import { AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES } from '@/agent/deepchat/runtime/toolPermissionReviewer'
 import {
   resolveTapeViewManifestPolicy,
@@ -399,10 +399,10 @@ export interface DeepChatLoopRunnerPorts {
   providerRuntime: ProviderExecutionPort
   providerSettings: ProviderModelResolutionPort
   traceSettings: AgentTraceSettingsPort
-  sessionStore: SessionSettingsStore
-  messageStore: SessionTranscript
+  sessionStore: SessionSettingsPort
+  messageStore: SessionTranscriptPort
   tape: DeepChatLoopTapePort
-  pendingInputCoordinator: SessionPendingInputs
+  pendingInputCoordinator: SessionPendingInputsPort
   toolResolver: DeepChatToolResolver
   providerPermissionCoordinator: ProviderPermissionCoordinator
   compactionService: CompactionService

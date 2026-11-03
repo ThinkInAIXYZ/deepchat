@@ -1,4 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createSessionDataFromDatabase } from '@/session/data'
+
+vi.unmock('fs')
+vi.unmock('node:fs')
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
@@ -40,7 +47,8 @@ const blocks: AssistantMessageBlock[] = [
  */
 describeIfSqlite('SessionTranscript keeps transcript and Tape writes atomic', () => {
   function createTranscript() {
-    const connection = new MainDatabaseCtor(':memory:')
+    const directory = mkdtempSync(join(tmpdir(), 'deepchat-transcript-atomicity-'))
+    const connection = new MainDatabaseCtor(join(directory, 'agent.db'))
     const database = new SessionDatabaseCtor(connection)
     const tape = new SessionTapeCtor(database)
     let failTape = false
@@ -59,6 +67,10 @@ describeIfSqlite('SessionTranscript keeps transcript and Tape writes atomic', ()
     const transcript = new SessionTranscriptCtor(database, tapeFacts)
     return {
       connection,
+      close: () => {
+        connection.close()
+        rmSync(directory, { recursive: true, force: true })
+      },
       database,
       transcript,
       setTapeFailing: (value: boolean) => {
@@ -68,7 +80,7 @@ describeIfSqlite('SessionTranscript keeps transcript and Tape writes atomic', ()
   }
 
   it('does not commit a user message whose Tape fact failed to append', () => {
-    const { connection, database, transcript, setTapeFailing } = createTranscript()
+    const { close, database, transcript, setTapeFailing } = createTranscript()
     try {
       setTapeFailing(true)
 
@@ -80,15 +92,24 @@ describeIfSqlite('SessionTranscript keeps transcript and Tape writes atomic', ()
       ).toEqual({ c: 0 })
       expect(database.deepchatTapeEntriesTable.getBySession('s1')).toEqual([])
     } finally {
-      connection.close()
+      close()
     }
   })
 
   it('keeps the assistant message pending when its terminal Tape fact fails', () => {
-    const { connection, database, transcript, setTapeFailing } = createTranscript()
+    const { close, connection, database, transcript, setTapeFailing } = createTranscript()
     try {
+      database.deepchatSessionsTable.create('s1', 'openai', 'fixture', 'default')
+      const { pendingInputs, tape } = createSessionDataFromDatabase(database, {
+        publishPendingInputsChanged: () => {},
+        publishMessagesChanged: () => {}
+      }).runtime
+      tape.ensureSessionTapeReady('s1', transcript)
       transcript.createUserMessage('s1', 1, userContent)
       const assistantId = transcript.createAssistantMessage('s1', 2)
+      const cursorBefore = transcript.readProjectionCursor('s1')
+      const queued = pendingInputs.queuePendingInput('s1', { text: 'Next turn' })
+      pendingInputs.claimQueuedInput('s1', queued.id)
       setTapeFailing(true)
 
       expect(() => transcript.finalizeAssistantMessage(assistantId, blocks, '{}')).toThrow(
@@ -96,6 +117,12 @@ describeIfSqlite('SessionTranscript keeps transcript and Tape writes atomic', ()
       )
       expect(() => transcript.setMessageError(assistantId, blocks)).toThrow('tape unavailable')
 
+      connection.reopen()
+      expect(transcript.readProjectionCursor('s1')).toEqual(cursorBefore)
+      expect(pendingInputs.getInput('s1', queued.id)?.state).toBe('claimed')
+      const recovery = pendingInputs.recoverInputsAfterRestart()
+      expect(recovery.heldQueueInputIds).toEqual(new Set([queued.id]))
+      expect(pendingInputs.getInput('s1', queued.id)?.state).toBe('pending')
       const row = database.deepchatMessagesTable.get(assistantId)
       expect(row).toMatchObject({ status: 'pending', content: '[]' })
       expect(database.deepchatAssistantBlocksTable.listByMessageIds([assistantId])).toEqual([])
@@ -107,16 +134,18 @@ describeIfSqlite('SessionTranscript keeps transcript and Tape writes atomic', ()
       transcript.finalizeAssistantMessage(assistantId, blocks, '{}')
 
       expect(database.deepchatMessagesTable.get(assistantId)?.status).toBe('sent')
+      expect(transcript.readProjectionCursor('s1')).not.toEqual(cursorBefore)
+      expect(transcript.getMessages('s1')).toHaveLength(2)
       expect(
         database.deepchatTapeEntriesTable.getBySession('s1').filter((r) => r.kind === 'message')
       ).toHaveLength(2)
     } finally {
-      connection.close()
+      close()
     }
   })
 
   it('keeps the previous content when an edit cannot record its Tape replacement', () => {
-    const { connection, database, transcript, setTapeFailing } = createTranscript()
+    const { close, database, transcript, setTapeFailing } = createTranscript()
     try {
       const userId = transcript.createUserMessage('s1', 1, userContent)
       const before = database.deepchatMessagesTable.get(userId)!
@@ -129,7 +158,7 @@ describeIfSqlite('SessionTranscript keeps transcript and Tape writes atomic', ()
       expect(database.deepchatMessagesTable.get(userId)).toEqual(before)
       expect(transcript.getMessage(userId)?.content).toContain('hello')
     } finally {
-      connection.close()
+      close()
     }
   })
 })

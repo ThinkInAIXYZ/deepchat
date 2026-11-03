@@ -11,8 +11,8 @@ import type {
   SessionRuntimeScope
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
-import type { SessionTranscript } from '@/session/data/transcript'
-import { buildTerminalErrorBlocks } from '@/session/data/transcript'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
+import { buildTerminalErrorBlocks } from '@/session/data/messageContent'
 import { parseMessageMetadata } from '@/session/usageStats'
 import {
   collectPendingInteractionEntries,
@@ -34,7 +34,7 @@ import type { AgentCliTokenAuthority } from '@/cli/agentTokenAuthority'
 export type PendingInputWakeReason = 'enqueue' | 'completed' | 'manual'
 
 type RunLifecycleTranscript = Pick<
-  SessionTranscript,
+  SessionTranscriptPort,
   'getMessage' | 'getMessages' | 'setMessageError'
 >
 

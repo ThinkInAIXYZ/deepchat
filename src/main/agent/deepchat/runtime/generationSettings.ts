@@ -1,6 +1,7 @@
+import type { PersistedSessionGenerationRow } from '@/session/data/contracts'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type { PromptSettings } from '@/agent/promptSettings'
-import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
+import type { SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { ReasoningPortrait } from '@shared/types/model-db'
 import type { ResolvedModelCapabilitySnapshot } from '@shared/types/model-capabilities'
 import {
@@ -35,24 +36,7 @@ import {
   type ProviderModelRuntimeFacts
 } from './providerModelRuntimeFacts'
 
-export type PersistedSessionGenerationRow = {
-  provider_id: string
-  model_id: string
-  permission_mode: PermissionMode
-  system_prompt: string | null
-  temperature: number | null
-  top_p: number | null
-  context_length: number | null
-  max_tokens: number | null
-  timeout_ms: number | null
-  thinking_budget: number | null
-  reasoning_effort: SessionGenerationSettings['reasoningEffort'] | null
-  reasoning_visibility: SessionGenerationSettings['reasoningVisibility'] | null
-  verbosity: SessionGenerationSettings['verbosity'] | null
-  force_interleaved_thinking_compat: number | null
-  image_generation_options_json: string | null
-  video_generation_options_json: string | null
-}
+export type { PersistedSessionGenerationRow } from '@/session/data/contracts'
 
 function normalizeTopP(value: unknown): number | undefined {
   const numeric = parseFiniteNumericValue(value)

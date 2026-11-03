@@ -18,7 +18,7 @@ import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/types/provider'
 import type { DeepChatProviderAttemptIdentity } from '@shared/types/provider-attempt'
 import type { DeepChatOutputPort } from './output'
-import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
 import type { CacheImageOptions } from '@/platform/imageCache'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type {
@@ -146,7 +146,7 @@ export interface IoParams {
   messageId: string
   providerId: string
   modelId: string
-  messageStore: SessionTranscript
+  messageStore: SessionTranscriptPort
   abortSignal: AbortSignal
   output: DeepChatOutputPort
 }

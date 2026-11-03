@@ -60,7 +60,7 @@ import {
   resolveAgentToolReview
 } from '@/tool/permission'
 import { emitDeepChatLoopNotification } from '@/agent/deepchat/loop/notificationObserver'
-import { buildTerminalErrorBlocks } from '@/session/data/transcript'
+import { buildTerminalErrorBlocks } from '@/session/data/messageContent'
 import { finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import type { EchoHandle } from './echo'
 import {

@@ -1,3 +1,5 @@
+import { buildTerminalErrorBlocks } from './messageContent'
+import type { SessionTranscriptPort, CompactionMessageOptions } from './contracts'
 import { nanoid } from 'nanoid'
 import type { SessionDatabase } from './database'
 import type {
@@ -49,12 +51,6 @@ import { TranscriptProjectionApplier } from './transcriptProjection'
 const COMPACTION_SHIFT_MATERIALIZATION_BATCH_SIZE = 500
 const MAX_COMPACTION_ATTEMPT_ID_CHARACTERS = 128
 
-type CompactionMessageOptions = {
-  compactionAttemptId: string
-  boundaryReason?: SessionCompactionBoundaryReason | null
-  error?: string
-}
-
 function normalizeCompactionAttemptId(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const normalized = value.trim()
@@ -84,40 +80,6 @@ function summaryUpdatedAtFromCompactionAnchor(row: DeepChatTapeEntryRow): number
   return typeof generatedSummary === 'string' && generatedSummary.trim() ? row.created_at : null
 }
 
-function shouldConvertPendingBlockToError(
-  status: AssistantMessageBlock['status']
-): status is 'pending' | 'loading' {
-  return status === 'pending' || status === 'loading'
-}
-
-export function buildTerminalErrorBlocks(
-  blocks: AssistantMessageBlock[],
-  errorMessage: string
-): AssistantMessageBlock[] {
-  const normalizedBlocks: AssistantMessageBlock[] = Array.isArray(blocks)
-    ? blocks.map(
-        (block): AssistantMessageBlock =>
-          shouldConvertPendingBlockToError(block.status)
-            ? { ...block, status: 'error' as const }
-            : block
-      )
-    : []
-
-  const lastBlock = normalizedBlocks[normalizedBlocks.length - 1]
-  if (lastBlock?.type === 'error' && lastBlock.content === errorMessage) {
-    return normalizedBlocks
-  }
-
-  normalizedBlocks.push({
-    type: 'error',
-    content: errorMessage,
-    status: 'error',
-    timestamp: Date.now()
-  })
-
-  return normalizedBlocks
-}
-
 type StructuredMessageMaps = {
   userRows: Map<string, DeepChatUserMessageRow>
   fileRows: Map<string, DeepChatUserMessageFileRow[]>
@@ -130,7 +92,7 @@ export type TranscriptTapePort = TapeMessageFactWriter &
   TapeCompactionModelCallWriter &
   TapeProjectionHeadReader
 
-export class SessionTranscript implements TapeTranscriptProjection {
+export class SessionTranscript implements SessionTranscriptPort, TapeTranscriptProjection {
   private database: SessionDatabase
   private readonly tapeFacts: TapeMessageFactWriter
   private readonly tapeHead: TapeProjectionHeadReader

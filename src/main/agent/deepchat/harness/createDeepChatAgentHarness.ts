@@ -173,17 +173,17 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     providerSettings,
     output,
     runJournalObserver,
-    sessionData,
+    sessionSettings: sessionStore,
+    transcript: messageStore,
+    tape: tapeService,
+    pendingInputs: pendingInputCoordinator,
+    programmaticExecutionJournal,
     sessionPermissionPort,
     skillService,
     skillSettings,
     toolService,
     traceSettings
   } = deps
-  const sessionStore = sessionData.settings
-  const messageStore = sessionData.transcript
-  const tapeService = sessionData.tapeStore
-  const pendingInputCoordinator = sessionData.pendingInputs
 
   const runtime = new DeepChatAgentRuntime()
   const identity = new SessionIdentityService({ registry: runtime, sessions: sessionStore })
@@ -312,7 +312,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     deps.programmaticToolParents ??
     new ProgrammaticToolParentRegistry({
       tokenAuthority: deps.agentCliTokenAuthority,
-      executionJournal: sessionData.programmaticExecutionJournal
+      executionJournal: programmaticExecutionJournal
     })
   const pruningFeedback = new JevPruningFeedback()
   const sessionLifecycle = new SessionLifecycleCoordinator({
@@ -387,7 +387,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     traceSettings,
     sessionStore,
     messageStore,
-    tape: createDeepChatLoopTapePort(tapeService, sessionData.programmaticExecutionJournal),
+    tape: createDeepChatLoopTapePort(tapeService, programmaticExecutionJournal),
     pendingInputCoordinator,
     toolResolver,
     providerPermissionCoordinator,

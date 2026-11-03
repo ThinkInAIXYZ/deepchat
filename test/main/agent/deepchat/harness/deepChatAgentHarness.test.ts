@@ -1614,7 +1614,7 @@ describe('DeepChatAgentHarness', () => {
       providerRuntime: llmProvider,
       providerSettings,
       agentSettings: providerSettings,
-      sessionData,
+      ...sessionData.runtime,
       toolService,
       hookObserver: createHookObserver(hookDispatcher),
       toolSurfaceRunMode: { resolve },
@@ -1729,7 +1729,7 @@ describe('DeepChatAgentHarness', () => {
       providerRuntime: llmProvider,
       providerSettings: providerSettings,
       agentSettings: providerSettings,
-      sessionData: sessionData,
+      ...sessionData.runtime,
       toolService: toolService,
       hookObserver: createHookObserver(hookDispatcher),
       programmaticToolParents,
@@ -2772,10 +2772,10 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings,
         agentSettings: providerSettings,
-        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+        ...createSessionDataFromDatabase(sqlitePresenter as never, {
           publishPendingInputsChanged: vi.fn(),
           publishMessagesChanged: vi.fn()
-        }),
+        }).runtime,
         toolService,
         hookObserver: noopHookObserver
       })
@@ -2811,10 +2811,10 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings,
         agentSettings: providerSettings,
-        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+        ...createSessionDataFromDatabase(sqlitePresenter as never, {
           publishPendingInputsChanged: vi.fn(),
           publishMessagesChanged: vi.fn()
-        }),
+        }).runtime,
         toolService,
         hookObserver: noopHookObserver
       })
@@ -2876,7 +2876,7 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings,
         agentSettings: providerSettings,
-        sessionData: recoverySessionData,
+        ...recoverySessionData.runtime,
         toolService,
         hookObserver: noopHookObserver
       })
@@ -2913,10 +2913,10 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings,
         agentSettings: providerSettings,
-        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+        ...createSessionDataFromDatabase(sqlitePresenter as never, {
           publishPendingInputsChanged: vi.fn(),
           publishMessagesChanged: vi.fn()
-        }),
+        }).runtime,
         toolService,
         hookObserver: noopHookObserver
       })
@@ -2982,7 +2982,7 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings,
         agentSettings: providerSettings,
-        sessionData: recoverySessionData,
+        ...recoverySessionData.runtime,
         toolService,
         hookObserver: noopHookObserver
       })
@@ -3021,10 +3021,10 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings,
         agentSettings: providerSettings,
-        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+        ...createSessionDataFromDatabase(sqlitePresenter as never, {
           publishPendingInputsChanged: vi.fn(),
           publishMessagesChanged: vi.fn()
-        }),
+        }).runtime,
         toolService,
         hookObserver: noopHookObserver
       })
@@ -3051,20 +3051,16 @@ describe('DeepChatAgentHarness', () => {
           providerRuntime: llmProvider,
           providerSettings,
           agentSettings: providerSettings,
-          sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+          ...createSessionDataFromDatabase(sqlitePresenter as never, {
             publishPendingInputsChanged: vi.fn(),
             publishMessagesChanged: vi.fn()
-          }),
+          }).runtime,
           toolService,
           hookObserver: noopHookObserver
         })
       ).toThrow('journal read failed')
       expect(sqlitePresenter.deepchatPendingInputsTable.listActive).not.toHaveBeenCalled()
       expect(sqlitePresenter.deepchatMessagesTable.getByStatus).not.toHaveBeenCalled()
-    })
-
-    it('calls pending status query on init', () => {
-      expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledWith('pending')
     })
 
     it('reruns persisted runtime reconciliation after the database is reopened', () => {
@@ -3077,7 +3073,16 @@ describe('DeepChatAgentHarness', () => {
       ).toHaveBeenCalledOnce()
       expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledOnce()
 
+      const recoveryOrder = () =>
+        [
+          sqlitePresenter.deepchatTapeEntriesTable.listUnterminatedRunEvents,
+          sqlitePresenter.deepchatPendingInputsTable.listActive,
+          sqlitePresenter.deepchatMessagesTable.getCompactionRecoveryCandidates,
+          sqlitePresenter.deepchatMessagesTable.getByStatus
+        ].map((method) => vi.mocked(method).mock.invocationCallOrder.at(-1))
+      expect(recoveryOrder()).toEqual([...recoveryOrder()].sort((a, b) => a! - b!))
       agent.reconcileAfterDatabaseReopen()
+      expect(recoveryOrder()).toEqual([...recoveryOrder()].sort((a, b) => a! - b!))
 
       expect(
         sqlitePresenter.deepchatTapeEntriesTable.listUnterminatedRunEvents
@@ -3108,10 +3113,10 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings: providerSettings,
         agentSettings: providerSettings,
-        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+        ...createSessionDataFromDatabase(sqlitePresenter as never, {
           publishPendingInputsChanged: vi.fn(),
           publishMessagesChanged: vi.fn()
-        }),
+        }).runtime,
         toolService: toolService,
         hookObserver: noopHookObserver
       })
@@ -3169,10 +3174,10 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings: providerSettings,
         agentSettings: providerSettings,
-        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+        ...createSessionDataFromDatabase(sqlitePresenter as never, {
           publishPendingInputsChanged: vi.fn(),
           publishMessagesChanged: vi.fn()
-        }),
+        }).runtime,
         toolService: toolService,
         hookObserver: noopHookObserver
       })
@@ -3229,7 +3234,7 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings,
         agentSettings: providerSettings,
-        sessionData: recoverySessionData,
+        ...recoverySessionData.runtime,
         toolService,
         hookObserver: noopHookObserver
       })
@@ -11576,7 +11581,7 @@ describe('DeepChatAgentHarness', () => {
           providerRuntime: llmProvider,
           providerSettings,
           agentSettings: providerSettings,
-          sessionData: restartedSessionData,
+          ...restartedSessionData.runtime,
           toolService,
           hookObserver: noopHookObserver
         })
@@ -14367,10 +14372,10 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings: providerSettings,
         agentSettings: providerSettings,
-        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+        ...createSessionDataFromDatabase(sqlitePresenter as never, {
           publishPendingInputsChanged: vi.fn(),
           publishMessagesChanged: vi.fn()
-        }),
+        }).runtime,
         toolService: toolService,
         hookObserver: noopHookObserver
       })
@@ -18786,7 +18791,7 @@ describe('DeepChatAgentHarness', () => {
       agent = createDeepChatAgentHarness({
         ...runtimeDependencies,
         sessionPermissionPort,
-        sessionData,
+        ...sessionData.runtime,
         toolService,
         providerRuntime: llmProvider,
         providerSettings,

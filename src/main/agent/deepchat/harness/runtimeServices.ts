@@ -1,3 +1,4 @@
+import type { SkillContextTapePort } from '@/tape/application/capabilityAdapters'
 import type { DeepChatOutputPort } from '../runtime/output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import type { ProviderExecutionPort } from '@shared/types/provider'
@@ -11,7 +12,22 @@ import type { MemoryRuntimePort } from '@/memory/injection'
 import type { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
 import type { AcpAsLlmProviderPermissionPort, ProviderCatalogPort } from '@/provider/ports'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
-import type { SessionData } from '@/session/data'
+import type {
+  SessionSettingsPort,
+  SessionTranscriptPort,
+  SessionPendingInputsPort
+} from '@/session/data/contracts'
+import type {
+  DeepChatLoopTapePort,
+  TapeAnchorReader,
+  TapeAnchorWriter,
+  TapeNonContextEntryReader,
+  TapeContextOccupancyReader,
+  ExecutionJournalRecoveryReader,
+  TapeToolSurfaceViewReader,
+  ExecutionJournalWriter,
+  NestedExecutionJournalWriter
+} from '@/tape/ports/capabilities'
 import type { SessionPermissionPort } from '@/session/contracts'
 import type { SessionStatusPublisherPorts } from '@/agent/deepchat/runtime/sessionStatusPublisher'
 import type { SkillSettingsPort } from '@/skill/settings'
@@ -65,7 +81,19 @@ export interface DeepChatHarnessDependencies {
   providerRuntime: ProviderExecutionPort
   providerSettings: ProviderModelResolutionPort
   agentSettings: AgentSettingsPort
-  sessionData: SessionData
+  sessionSettings: SessionSettingsPort
+  transcript: SessionTranscriptPort
+  pendingInputs: SessionPendingInputsPort
+  tape: Omit<DeepChatLoopTapePort, keyof NestedExecutionJournalWriter> &
+    SkillContextTapePort &
+    TapeAnchorReader &
+    TapeAnchorWriter &
+    TapeNonContextEntryReader &
+    TapeContextOccupancyReader &
+    ExecutionJournalRecoveryReader &
+    TapeToolSurfaceViewReader
+  programmaticExecutionJournal: Pick<ExecutionJournalWriter, 'commitToolOutcome'> &
+    NestedExecutionJournalWriter
   toolService: ToolServicePort
   hookObserver: HookObserver
   onSessionCompleted?: (sessionId: string) => void

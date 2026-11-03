@@ -12,8 +12,8 @@ import {
   type CompactionIntent,
   type CompactionService
 } from './compactionService'
-import type { SessionTranscript } from '@/session/data/transcript'
-import type { SessionSettingsStore, SessionSummaryState } from '@/session/data/settings'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
+import type { SessionSettingsPort, SessionSummaryState } from '@/session/data/contracts'
 import { isAbortError, throwIfAbortRequested } from './abortErrors'
 import type { DeepChatToolResolver } from './toolResolver'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
@@ -66,7 +66,7 @@ type CompactionServicePort = Pick<
 >
 
 type CompactionSessionStore = Pick<
-  SessionSettingsStore,
+  SessionSettingsPort,
   | 'get'
   | 'getReconstructionAnchorPromptState'
   | 'getReconstructionAnchorPromptStateByCompactionAttemptId'
@@ -76,7 +76,7 @@ type CompactionSessionStore = Pick<
 
 type CompactionTranscript = TapeTranscriptProjection &
   Pick<
-    SessionTranscript,
+    SessionTranscriptPort,
     | 'createCompactionMessage'
     | 'createCompactionMessageAtOrderSeq'
     | 'deleteMessage'

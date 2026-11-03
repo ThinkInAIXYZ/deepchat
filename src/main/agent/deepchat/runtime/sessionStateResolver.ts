@@ -4,7 +4,7 @@ import type {
   DeepChatAgentRuntime,
   SessionScopeRegistry
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import type { SessionSettingsStore } from '@/session/data/settings'
+import type { SessionSettingsPort } from '@/session/data/contracts'
 import type { PersistedSessionGenerationRow } from './generationSettings'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { SessionIdentityService } from './sessionIdentityService'
@@ -18,7 +18,7 @@ export type SessionStateLifecyclePort = Pick<RunLifecycleCoordinator, 'hasPendin
 
 export interface SessionStateResolverDependencies {
   registry: SessionStateRegistry
-  sessionStore: Pick<SessionSettingsStore, 'get'>
+  sessionStore: Pick<SessionSettingsPort, 'get'>
   runLifecycle: SessionStateLifecyclePort
   identity: Pick<SessionIdentityService, 'getAgentId'>
   sessionSettings: Pick<SessionSettingsCoordinator, 'getEffectiveGenerationSettings'>

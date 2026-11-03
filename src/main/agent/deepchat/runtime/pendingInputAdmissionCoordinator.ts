@@ -15,8 +15,8 @@ import {
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { isSendMessageInputEmpty } from '@/agent/shared/agentSessionNormalization'
-import type { SessionPendingInputs } from '@/session/data/pendingInputs'
-import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionPendingInputsPort } from '@/session/data/contracts'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
 import type {
   AttachmentCapabilityRouter,
   AttachmentPreparationResult
@@ -31,7 +31,7 @@ import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { SessionStateResolver } from './sessionStateResolver'
 
 export type PendingInputAdmissionStorePort = Pick<
-  SessionPendingInputs,
+  SessionPendingInputsPort,
   | 'degradeBlockedInput'
   | 'deletePendingInput'
   | 'getInput'
@@ -82,7 +82,7 @@ export interface PendingInputAdmissionCoordinatorPorts {
   providerSettings: Pick<ProviderModelResolutionPort, 'getModelConfig'>
   pendingInputs: PendingInputAdmissionStorePort
   pump: PendingInputAdmissionPumpPort
-  transcript: Pick<SessionTranscript, 'getMessage'>
+  transcript: Pick<SessionTranscriptPort, 'getMessage'>
   attachmentRouter: Pick<AttachmentCapabilityRouter, 'prepare'>
   sessionState: Pick<SessionStateResolver, 'get'>
   registry: SessionScopeRegistry

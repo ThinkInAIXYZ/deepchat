@@ -34,7 +34,7 @@ import {
   updateSkillDraftToolCallResponse,
   updateToolCallResponse
 } from './interactionProjection'
-import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
 import type { ProviderPermissionCoordinator } from './providerPermissionCoordinator'
 import { MAX_TOOL_CALLS_SKIPPED_ERROR } from './process'
 import {
@@ -112,7 +112,7 @@ type SkillDraftPresenter = Pick<
 >
 
 export interface InteractionCoordinatorPorts {
-  messageStore: SessionTranscript
+  messageStore: SessionTranscriptPort
   providerPermissionCoordinator: ProviderPermissionCoordinator
   skillService: SkillDraftPresenter
   runLifecycle: InteractionRunLifecyclePort

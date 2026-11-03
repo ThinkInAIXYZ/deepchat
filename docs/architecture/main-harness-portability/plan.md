@@ -165,7 +165,7 @@ pnpm exec vitest run --config vitest.config.ts test/main/agent/deepchat/runtime/
 
 **目标**：核心只描述需要提交的事实，SQLite 宿主保持一个事务和一个重开/恢复顺序。
 
-- [ ] **依赖**：M5、M6。**删除**：内建 Harness 的 `database: SessionDatabase`、`sessionData: SessionData` 和消费方对具体 transcript、Tape store、journal 或 pending-input 实现的依赖。复用 [Session 数据合同](../../../src/main/session/data/contracts.ts) 和 [Tape 能力](../../../src/main/tape/ports/capabilities.ts)。SQLite adapter 持有事务。宿主负责编排数据库重开，内核运用同一个 pump 装载重启 hold，并在 hydrate/发起请求前完成每次恢复。
+- [x] **依赖**：M5、M6。**删除**：内建 Harness 的 `database: SessionDatabase`、`sessionData: SessionData` 和消费方对具体 transcript、Tape store、journal 或 pending-input 实现的依赖。复用 [Session 数据合同](../../../src/main/session/data/contracts.ts) 和 [Tape 能力](../../../src/main/tape/ports/capabilities.ts)。SQLite adapter 持有事务。宿主负责编排数据库重开，内核运用同一个 pump 装载重启 hold，并在 hydrate/发起请求前完成每次恢复。
 
 **实施顺序**
 

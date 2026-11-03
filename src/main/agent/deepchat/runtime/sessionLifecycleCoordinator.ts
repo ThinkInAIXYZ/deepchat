@@ -12,9 +12,9 @@ import type {
   SessionScopeRegistry
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
-import type { SessionSettingsStore } from '@/session/data/settings'
-import type { SessionTranscript } from '@/session/data/transcript'
-import type { SessionPendingInputs } from '@/session/data/pendingInputs'
+import type { SessionSettingsPort } from '@/session/data/contracts'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
+import type { SessionPendingInputsPort } from '@/session/data/contracts'
 import type { CompactionRuntimeCoordinator } from './compactionRuntimeCoordinator'
 import { sanitizeGenerationSettings } from './generationSettings'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
@@ -42,9 +42,9 @@ export interface SessionLifecycleCoordinatorDependencies {
   registry: SessionLifecycleRegistry
   providerSettings: ProviderModelResolutionPort
   promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
-  sessionStore: Pick<SessionSettingsStore, 'create' | 'delete'>
-  transcript: Pick<SessionTranscript, 'deleteBySession'>
-  pendingInputs: Pick<SessionPendingInputs, 'deleteBySession'>
+  sessionStore: Pick<SessionSettingsPort, 'create' | 'delete'>
+  transcript: Pick<SessionTranscriptPort, 'deleteBySession'>
+  pendingInputs: Pick<SessionPendingInputsPort, 'deleteBySession'>
   toolService: Pick<ToolServicePort, 'clearConversationToolMapping'>
   identity: Pick<SessionIdentityService, 'getAgentId'>
   sessionSettings: Pick<SessionSettingsCoordinator, 'normalizeProjectDir'>

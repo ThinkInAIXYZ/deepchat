@@ -1,3 +1,15 @@
+import type {
+  AssistantMessageBlock,
+  AttachmentPreparationSummary,
+  MessageMetadata,
+  MessageTraceRecord,
+  SessionCompactionBoundaryReason,
+  UserMessageContent
+} from '@shared/types/agent-interface'
+import type { SearchResult } from '@shared/types/core/search'
+import type { TapeProjectionCursor } from '@/tape/ports/capabilities'
+import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
+import type { TapeCompactionModelCallInput } from '@/tape/domain/compactionUsage'
 import type { SessionKind } from '@shared/types/agent-interface'
 import type { OrchestrationPolicy } from '@shared/orchestration/policy'
 import type { ToolModeOverride } from '@shared/toolMode'
@@ -200,4 +212,237 @@ export interface SessionResourceReadPort {
   getOrchestrationPolicy(sessionId: string): OrchestrationPolicy
   getToolModeOverride(sessionId: string): ToolModeOverride
   getDisabledAgentTools(sessionId: string): string[]
+}
+
+export type PersistedSessionGenerationRow = {
+  provider_id: string
+  model_id: string
+  permission_mode: PermissionMode
+  system_prompt: string | null
+  temperature: number | null
+  top_p: number | null
+  context_length: number | null
+  max_tokens: number | null
+  timeout_ms: number | null
+  thinking_budget: number | null
+  reasoning_effort: SessionGenerationSettings['reasoningEffort'] | null
+  reasoning_visibility: SessionGenerationSettings['reasoningVisibility'] | null
+  verbosity: SessionGenerationSettings['verbosity'] | null
+  force_interleaved_thinking_compat: number | null
+  image_generation_options_json: string | null
+  video_generation_options_json: string | null
+}
+
+export type SessionSummaryState = {
+  summaryText: string | null
+  summaryCursorOrderSeq: number
+  summaryUpdatedAt: number | null
+}
+
+export type ReconstructionAnchorPromptState = {
+  entryId: number
+  name: string
+  state: Record<string, unknown>
+  createdAt: number
+}
+
+export type SummaryStateCompareAndSetResult = {
+  applied: boolean
+  currentState: SessionSummaryState
+}
+
+export type SummaryTapeAnchorInput = {
+  name: string
+  state: Record<string, unknown>
+  meta?: Record<string, unknown>
+}
+
+export type CompactionMessageOptions = {
+  compactionAttemptId: string
+  boundaryReason?: SessionCompactionBoundaryReason | null
+  error?: string
+}
+
+export interface PendingInputRestartRecovery {
+  affectedSessionIds: Set<string>
+  heldQueueInputIds: Set<string>
+}
+
+export interface SessionSettingsPort extends SessionResourceReadPort {
+  create(
+    id: string,
+    providerId: string,
+    modelId: string,
+    permissionMode: PermissionMode,
+    generationSettings?: Partial<SessionGenerationSettings>
+  ): void
+  get(id: string): PersistedSessionGenerationRow | undefined
+  getMemoryCursorOrderSeq(sessionId: string): number | null
+  updateMemoryCursorOrderSeq(sessionId: string, orderSeq: number): void
+  rewindMemoryCursorOrderSeq(sessionId: string, orderSeq: number): void
+  delete(id: string): void
+  updatePermissionMode(id: string, mode: PermissionMode): void
+  updateSessionModel(id: string, providerId: string, modelId: string): void
+  getGenerationSettings(id: string): Partial<SessionGenerationSettings> | null
+  updateGenerationSettings(id: string, settings: Partial<SessionGenerationSettings>): void
+  updateSessionConfiguration(
+    id: string,
+    providerId: string,
+    modelId: string,
+    generationSettings: Partial<SessionGenerationSettings>,
+    permissionMode?: PermissionMode
+  ): void
+  getSummaryState(id: string): SessionSummaryState
+  getReconstructionAnchorPromptState(id: string): ReconstructionAnchorPromptState | null
+  getReconstructionAnchorPromptStateByCompactionAttemptId(
+    id: string,
+    compactionAttemptId: string
+  ): ReconstructionAnchorPromptState | null
+  updateSummaryState(id: string, state: SessionSummaryState): void
+  compareAndSetSummaryState(
+    id: string,
+    expectedState: SessionSummaryState,
+    nextState: SessionSummaryState,
+    tapeAnchor?: SummaryTapeAnchorInput
+  ): SummaryStateCompareAndSetResult
+  resetSummaryState(id: string): void
+  resetTape(id: string): void
+}
+
+export interface SessionTranscriptPort {
+  readProjectionCursor(sessionId: string): TapeProjectionCursor | null
+  writeProjectionCursor(sessionId: string, cursor: TapeProjectionCursor): void
+  applyTapeEntries(rows: readonly DeepChatTapeEntryRow[]): void
+  createUserMessage(
+    sessionId: string,
+    orderSeq: number,
+    content: UserMessageContent,
+    options?: {
+      status?: 'pending' | 'sent'
+      metadata?: MessageMetadata
+    }
+  ): string
+  createAssistantMessage(sessionId: string, orderSeq: number): string
+  createCompactionMessage(
+    sessionId: string,
+    orderSeq: number,
+    status: 'compacting' | 'compacted',
+    summaryUpdatedAt: number | null,
+    options: CompactionMessageOptions
+  ): string
+  createCompactionMessageAtOrderSeq(
+    sessionId: string,
+    orderSeq: number,
+    status: 'compacting' | 'compacted',
+    summaryUpdatedAt: number | null,
+    options: CompactionMessageOptions & { shiftExistingMessages?: boolean }
+  ): string
+  updateAssistantContent(
+    messageId: string,
+    blocks: AssistantMessageBlock[],
+    metadata?: string
+  ): void
+  updateAssistantMetadata(messageId: string, metadata: string): void
+  updateMessageStatus(messageId: string, status: 'pending'): void
+  markSteerMessagesRead(messageIds: string[], readAt: number): ChatMessageRecord[]
+  updateSteerDelivery(
+    messageIds: string[],
+    delivery: 'accepted' | 'applied' | 'failed' | 'unknown'
+  ): ChatMessageRecord[]
+  settleSteerMessages(messageIds: string[]): ChatMessageRecord[]
+  failPendingSteerMessages(messageIds: string[]): ChatMessageRecord[]
+  restoreUserMessage(messageId: string): void
+  finalizeAssistantMessage(
+    messageId: string,
+    blocks: AssistantMessageBlock[],
+    metadata: string
+  ): void
+  updateCompactionMessage(
+    messageId: string,
+    status: 'compacting' | 'compacted' | 'failed',
+    summaryUpdatedAt: number | null,
+    options: CompactionMessageOptions
+  ): void
+  recordCompactionModelCall(input: TapeCompactionModelCallInput): void
+  setMessageError(messageId: string, blocks: AssistantMessageBlock[], metadata?: string): void
+  getMessages(sessionId: string): ChatMessageRecord[]
+  getPendingAssistantMessages(sessionId: string): ChatMessageRecord[]
+  hasMessages(sessionId: string): boolean
+  listMessagesPage(
+    sessionId: string,
+    options?: {
+      limit?: number
+      cursor?: MessagePageCursor | null
+    }
+  ): ChatMessagePageResult
+  getMessagesUpToOrderSeq(sessionId: string, maxOrderSeq: number): ChatMessageRecord[]
+  getMessageIds(sessionId: string): string[]
+  getMessage(messageId: string): ChatMessageRecord | null
+  getLastUserMessageBeforeOrAt(sessionId: string, orderSeq: number): ChatMessageRecord | null
+  updateMessageContent(messageId: string, content: string): void
+  getNextOrderSeq(sessionId: string): number
+  deleteBySession(sessionId: string): void
+  deleteMessage(messageId: string): void
+  deleteFromOrderSeq(sessionId: string, fromOrderSeq: number): void
+  addSearchResult(row: {
+    sessionId: string
+    messageId: string
+    searchId?: string | null
+    rank?: number | null
+    result: SearchResult
+  }): void
+  getSearchResults(messageId: string, searchId?: string): SearchResult[]
+  insertMessageTrace(row: {
+    id: string
+    messageId: string
+    sessionId: string
+    providerId: string
+    modelId: string
+    endpoint: string
+    headersJson: string
+    bodyJson: string
+    truncated: boolean
+    createdAt?: number
+    requestSeq?: number
+    logicalRound?: number | null
+    physicalAttempt?: number | null
+  }): number
+  listMessageTraces(messageId: string): MessageTraceRecord[]
+  getMessageTraceCount(messageId: string): number
+  getMaxMessageTraceRequestSeq(messageId: string): number
+  cloneSentMessagesToSession(
+    sourceSessionId: string,
+    targetSessionId: string,
+    maxOrderSeq: number
+  ): number
+  recoverPendingMessages(options?: {
+    forceRecoverMessagesBySession?: ReadonlyMap<string, ReadonlySet<string>>
+  }): number
+  reconcileCompactionMessages(): { compacted: number; retracted: number; failed: number }
+}
+
+export interface SessionPendingInputsPort extends SessionPendingInputRuntimePort {
+  getInput(sessionId: string, itemId: string): PendingSessionInputRecord | null
+  createClaimedQueueUserMessage(
+    sessionId: string,
+    itemId: string,
+    content: UserMessageContent
+  ): string
+  hasUnconsumedInputs(sessionId: string): boolean
+  hasBlockingInput(sessionId: string): boolean
+  hasClaimedInput(sessionId: string): boolean
+  releaseClaimedQueueInput(sessionId: string, itemId: string): PendingSessionInputRecord
+  releaseClaimedQueueInputForRetry(sessionId: string, itemId: string): PendingSessionInputRecord
+  retryReleasedQueueInput(sessionId: string, itemId: string): PendingSessionInputRecord
+  blockClaimedInput(
+    sessionId: string,
+    itemId: string,
+    blocking: AttachmentPreparationSummary
+  ): PendingSessionInputRecord
+  retryBlockedInput(sessionId: string, itemId: string): PendingSessionInputRecord
+  degradeBlockedInput(sessionId: string, itemId: string): PendingSessionInputRecord
+  recoverInputsAfterRestart(): PendingInputRestartRecovery
+  hasActiveInputs(sessionId: string): boolean
+  isAtCapacity(sessionId: string): boolean
+  deleteBySession(sessionId: string): void
 }

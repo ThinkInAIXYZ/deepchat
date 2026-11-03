@@ -25,14 +25,14 @@ import {
 import {
   type ProviderModelRuntimeFacts
 } from './providerModelRuntimeFacts'
-import type { SessionSettingsStore } from '@/session/data/settings'
+import type { SessionSettingsPort } from '@/session/data/contracts'
 import type { DeepChatToolResolver } from './toolResolver'
 import type { PromptSettings } from '@/agent/promptSettings'
 
 interface SessionSettingsCoordinatorDependencies {
   providerSettings: ProviderModelResolutionPort
   promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
-  sessionStore: SessionSettingsStore
+  sessionStore: SessionSettingsPort
   toolResolver: DeepChatToolResolver
   sessionPermissionPort: SessionPermissionPort
   registry: SessionScopeRegistry
@@ -59,7 +59,7 @@ export class SessionSettingsCoordinator {
 
   private resolveUpdateScope(sessionId: string): {
     scope: SessionRuntimeScope
-    dbSession: ReturnType<SessionSettingsStore['get']>
+    dbSession: ReturnType<SessionSettingsPort['get']>
   } {
     const appSessionId = toAppSessionId(sessionId)
     const hydratedScope = this.deps.registry.getHydratedScope(appSessionId)

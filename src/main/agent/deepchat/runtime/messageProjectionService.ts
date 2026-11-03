@@ -1,6 +1,6 @@
 import type { DeepChatOutputPort } from './output'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
 import {
   buildAssistantDeliverySegments,
   buildAssistantPreviewMarkdown,
@@ -10,7 +10,7 @@ import {
 import { resolveStreamRequestId, type StreamRequestIdRegistry } from './streamRequestId'
 
 export type MessageProjectionTranscript = Pick<
-  SessionTranscript,
+  SessionTranscriptPort,
   'getMessage' | 'updateAssistantContent'
 >
 

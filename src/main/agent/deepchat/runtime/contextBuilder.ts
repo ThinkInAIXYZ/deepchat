@@ -16,7 +16,7 @@ import type {
   MessageFile,
   SendMessageInput
 } from '@shared/types/agent-interface'
-import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
 import type {
   DeepChatTapeViewPinnedFirstUser,
   DeepChatTapeViewSyntheticContribution
@@ -1839,7 +1839,7 @@ export function buildCacheAwareContextWithMetadata(
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
-  messageStore: SessionTranscript,
+  messageStore: SessionTranscriptPort,
   supportsVision: boolean = false,
   options: CacheAwareContextBuildOptions
 ): ContextBuildResult {
@@ -1979,7 +1979,7 @@ export function buildCacheAwareResumeContextWithMetadata(
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
-  messageStore: SessionTranscript,
+  messageStore: SessionTranscriptPort,
   supportsVision: boolean = false,
   options: CacheAwareContextBuildOptions
 ): ContextBuildResult {
@@ -2155,7 +2155,7 @@ export function buildContext(
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
-  messageStore: SessionTranscript,
+  messageStore: SessionTranscriptPort,
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
@@ -2177,7 +2177,7 @@ export function buildContextWithMetadata(
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
-  messageStore: SessionTranscript,
+  messageStore: SessionTranscriptPort,
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ContextBuildResult {
@@ -2426,7 +2426,7 @@ export function buildResumeContext(
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
-  messageStore: SessionTranscript,
+  messageStore: SessionTranscriptPort,
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
@@ -2448,7 +2448,7 @@ export function buildResumeContextWithMetadata(
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
-  messageStore: SessionTranscript,
+  messageStore: SessionTranscriptPort,
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ContextBuildResult {

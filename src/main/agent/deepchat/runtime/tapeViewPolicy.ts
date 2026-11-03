@@ -1,5 +1,5 @@
 import type { ChatMessageRecord, SendMessageInput } from '@shared/types/agent-interface'
-import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
 import type { DeepChatTapeViewContextBuilderVersion } from '@shared/types/tape-view-manifest'
 import {
   buildCacheAwareContextWithMetadata,
@@ -38,7 +38,7 @@ export interface TapeChatViewPolicyInput {
   systemPrompt: string
   contextLength: number
   reserveTokens: number
-  messageStore: SessionTranscript
+  messageStore: SessionTranscriptPort
   supportsVision: boolean
   historyRecords: ChatMessageRecord[]
   contextContributions?: ContextRuntimeContributions
@@ -51,7 +51,7 @@ export interface TapeResumeViewPolicyInput {
   systemPrompt: string
   contextLength: number
   reserveTokens: number
-  messageStore: SessionTranscript
+  messageStore: SessionTranscriptPort
   supportsVision: boolean
   historyRecords: ChatMessageRecord[]
   contextContributions?: ContextRuntimeContributions

@@ -8,7 +8,8 @@ import {
   type ProviderPermissionInteractionInput,
   type ProviderPermissionProjection
 } from './interactionProjection'
-import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
+import { buildTerminalErrorBlocks } from '@/session/data/messageContent'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
 import { buildUsageFromMetadata, stampInteractionResolution } from './runtimeMetadata'
 import type { PendingToolInteraction, StreamState } from './types'
 import { markStreamChanged } from './types'
@@ -29,7 +30,7 @@ type ProviderPermissionRunLifecyclePort = Pick<
 >
 
 interface ProviderPermissionCoordinatorDependencies {
-  messageStore: SessionTranscript
+  messageStore: SessionTranscriptPort
   runLifecycle: ProviderPermissionRunLifecyclePort
   permissionPort: AcpAsLlmProviderPermissionPort
   messageProjection: Pick<MessageProjectionService, 'refresh'>

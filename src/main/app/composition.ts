@@ -2102,7 +2102,7 @@ export async function createMainProcessControl(dependencies: {
     providerRuntime,
     providerSettings,
     agentSettings,
-    sessionData,
+    ...sessionData.runtime,
     toolService,
     hookObserver: hookService,
     pluginContext: pluginService.contextHooks,

@@ -117,9 +117,18 @@ export function createSessionDataFromDatabase(
     }
   }
 
+  const settings = new SessionSettingsStore(database, tapeStore)
+  const pendingInputs = new SessionPendingInputs(pendingInputStore, transcript, events)
   return {
     database,
-    settings: new SessionSettingsStore(database, tapeStore),
+    settings,
+    runtime: {
+      sessionSettings: settings,
+      transcript,
+      pendingInputs,
+      tape: tapeStore,
+      programmaticExecutionJournal
+    },
     transcript,
     tape,
     tapeStore,
@@ -127,7 +136,7 @@ export function createSessionDataFromDatabase(
       tape.getTapeInfo(sessionId)
     ),
     programmaticExecutionJournal,
-    pendingInputs: new SessionPendingInputs(pendingInputStore, transcript, events)
+    pendingInputs
   }
 }
 

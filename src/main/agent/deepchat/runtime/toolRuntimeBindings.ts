@@ -5,7 +5,7 @@ import type { AgentSettingsPort } from '@/agent/settings'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type { SessionScopeRegistry } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { ToolResultPort } from '@/agent/deepchat/loop/ports'
-import type { SessionSettingsStore } from '@/session/data/settings'
+import type { SessionSettingsPort } from '@/session/data/contracts'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { SessionIdentityService } from './sessionIdentityService'
 import logger from '@shared/logger'
@@ -46,7 +46,7 @@ export interface ToolRuntimeBindingDependencies {
     'executeWithRateLimit' | 'generateCompletionStandalone' | 'runJudgment'
   >
   registry: SessionScopeRegistry
-  sessionStore: Pick<SessionSettingsStore, 'get'>
+  sessionStore: Pick<SessionSettingsPort, 'get'>
   identity: Pick<SessionIdentityService, 'getAgentId'>
   runLifecycle: Pick<RunLifecycleCoordinator, 'getAbortSignal'>
   /**

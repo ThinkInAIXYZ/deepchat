@@ -59,14 +59,15 @@ import {
   updateToolCallResponse,
   parseAssistantBlocks
 } from './interactionProjection'
-import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
+import { buildTerminalErrorBlocks } from '@/session/data/messageContent'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
 import type { ProcessResult } from './types'
 import {
   buildUsageFromMetadata,
   stampInteractionResolution,
   stampTerminalMetadata
 } from './runtimeMetadata'
-import type { SessionSettingsStore } from '@/session/data/settings'
+import type { SessionSettingsPort } from '@/session/data/contracts'
 import type {
   TapeProviderAttemptReader,
   TapeReconciliationPort
@@ -113,7 +114,7 @@ import type {
 } from './pendingInputContracts'
 import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
 import type { CommandShellService } from '@/agent/shared/process/commandShellService'
-import type { SessionPendingInputs } from '@/session/data/pendingInputs'
+import type { SessionPendingInputsPort } from '@/session/data/contracts'
 import {
   SkillContextMaterializer,
   type MaterializedSkillProjection,
@@ -164,9 +165,9 @@ export interface TurnCoordinatorPorts {
   providerRuntime: Pick<ProviderExecutionPort, 'getRuntimeContextLimitTokens'>
   providerSettings: ProviderModelResolutionPort
   traceSettings: AgentTraceSettingsPort
-  sessionStore: SessionSettingsStore
-  messageStore: SessionTranscript
-  pendingInputs: Pick<SessionPendingInputs, 'createClaimedQueueUserMessage'>
+  sessionStore: SessionSettingsPort
+  messageStore: SessionTranscriptPort
+  pendingInputs: Pick<SessionPendingInputsPort, 'createClaimedQueueUserMessage'>
   tapeReconciliation: TapeReconciliationPort & TapeProviderAttemptReader
   toolResolver: DeepChatToolResolver
   compactionService: CompactionService
@@ -2119,7 +2120,7 @@ export class TurnCoordinator {
 }
 
 function resolveAssistantTurnSearchIntent(
-  messageStore: Pick<SessionTranscript, 'getMessage' | 'getLastUserMessageBeforeOrAt'>,
+  messageStore: Pick<SessionTranscriptPort, 'getMessage' | 'getLastUserMessageBeforeOrAt'>,
   sessionId: string,
   assistantMessageId: string
 ): boolean {
@@ -2132,7 +2133,7 @@ function resolveAssistantTurnSearchIntent(
 }
 
 function resolveAssistantTurnMessageSkillNames(
-  messageStore: Pick<SessionTranscript, 'getMessage' | 'getLastUserMessageBeforeOrAt'>,
+  messageStore: Pick<SessionTranscriptPort, 'getMessage' | 'getLastUserMessageBeforeOrAt'>,
   sessionId: string,
   assistantMessageId: string
 ): string[] {
