@@ -242,6 +242,25 @@ describe('McpSettings', () => {
     })
   })
 
+  it('adds the disabled Bowmark MCP server for existing users', async () => {
+    const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
+    const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))
+    const mcpStore = (helper as any).mcpStore
+
+    mcpStore.set('mcpServers', {})
+
+    const servers = await helper.getMcpServers()
+
+    expect(servers['bowmark-web-data']).toMatchObject({
+      type: 'http',
+      baseUrl: 'https://api.bowmark.ai/mcp',
+      customHeaders: {
+        Authorization: 'Bearer YOUR_BOWMARK_API_KEY'
+      },
+      enabled: false
+    })
+  })
+
   it('adds the disabled EvoLink MCP server (OAuth sign-in) for existing users', async () => {
     const { McpSettings, createMcpSettingsDefaults } = await loadHelper('darwin')
     const helper = new McpSettings(createMemoryStore(createMcpSettingsDefaults()))

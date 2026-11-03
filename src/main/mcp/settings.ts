@@ -313,6 +313,20 @@ const DEFAULT_MCP_SERVERS = {
         Authorization: 'Bearer YOUR_WEBZ_API_TOKEN'
       }
     },
+    'bowmark-web-data': {
+      command: '',
+      args: [],
+      env: {},
+      descriptions:
+        'Bowmark MCP: typed functions for live data on 100+ websites (LinkedIn, X, Instagram, Reddit, YouTube and more), returned as JSON and tested on a schedule. Requires a Bowmark API key from https://bowmark.ai (starts with a free $10), set as an Authorization: Bearer header. Docs: https://bowmark.ai/docs.',
+      icons: '🏹',
+      disable: false,
+      type: 'http' as MCPServerType,
+      baseUrl: 'https://api.bowmark.ai/mcp',
+      customHeaders: {
+        Authorization: 'Bearer YOUR_BOWMARK_API_KEY'
+      }
+    },
     'skyaccess-empty-legs': {
       command: '',
       args: [],

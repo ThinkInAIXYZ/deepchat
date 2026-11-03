@@ -31,6 +31,8 @@ remove replaced wiring. Run format, i18n, lint and typechecks before committing.
 goal separately to this same Draft PR, then update its status before starting the next goal.
 Failed checks must be resolved or recorded as a concrete external blocker; they cannot be silently
 skipped to advance. Keep the PR in draft and do not merge it as part of this execution.
+If conflicts prevent CI from starting, compare against a freshly fetched target branch; cached PR
+base metadata and local remote-tracking refs may describe an older target.
 
 Publication for verification is distinct from distribution. Finish a goal's complete source wiring,
 local behavior comparisons and review before its coherent commit/push to the Draft PR. Run required
@@ -5107,6 +5109,23 @@ Local verification:
   warning remains. Normal generated Provider refreshes are retained.
 - Independent ownership review finds no blocking issue. Application/native checks remain the
   authority for actual default assembly; no hot-reload or resource improvement is claimed.
+
+The source includes `dev` at `145e51763`, retaining beta.8, dependency updates, Wally, Bowmark and
+all sponsors. Lockfile integration keeps the upstream resolved dependency graph and adds the
+existing Rutis/Provider patches. The HTTP shutdown fix is applied to the actual resolved
+`undici@8.12.3`: retain child dispatchers until graceful closure so forced shutdown can still abort
+held requests. Patch applicability and a real held-request self-check pass against the
+integrity-verified official release. The new Bowmark/Wally fixtures use the required owner-local
+Store/Provider environment ports. Frozen installation passes. Integration verification includes
+the changed MCP/HTTP dependencies and file-search/Nowledge boundaries, without new test files.
+The integrated build passes Node/web typechecks and the normal application/CLI build. Across
+disjoint relevant selections, 44 Main files/658 cases pass; the new Wally environment fixture is
+corrected and its 63-case file passes without repeating the 429 already-passing dependency cases.
+All 11 integrated actual-app cases pass with zero retries: the two matching baseline Hooks cases,
+five maintenance/shutdown cases, MCP stdio ownership/child cleanup, MCP App sandbox/consent/reopen
+and two Native Provider authorization/HTTP shutdown cases. Format, i18n, lint and diff checks pass;
+the existing Remote warning remains. Integration evidence uses `hooks-integrated-*` logs/reports
+and `integrated-candidate-manifest.json`; the exact-source CI/native package gate remains open.
 
 Evidence is under `.deepchat/rutis-g9-hooks-acceptance/`: `baseline-manifest.json`,
 `hooks-{baseline,candidate}-functional.{log,json}`, `hooks-application-build.log`,

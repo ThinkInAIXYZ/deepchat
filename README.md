@@ -481,6 +481,10 @@ Common commands include `/start`, `/help`, `/pair`, `/new`, `/sessions`, `/use`,
       <img src="./src/renderer/src/assets/llm-icons/obscurify.svg" width="50" height="50" alt="Obscurify.ai Icon"><br/>
       <a href="https://obscurify.ai/?utm_source=deepchat">Obscurify.ai</a>
     </td>
+    <td>
+      <img src="./src/renderer/src/assets/llm-icons/wally-color.svg" width="50" height="50" alt="Wally Icon"><br/>
+      <a href="https://www.runwally.com/">Wally</a>
+    </td>
   </tr>
 
 </table>

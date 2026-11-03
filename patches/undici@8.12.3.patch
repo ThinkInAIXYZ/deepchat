@@ -1,8 +1,8 @@
 diff --git a/lib/dispatcher/agent.js b/lib/dispatcher/agent.js
-index 95c1b0923f08bbcf0774059a212c118fd4600d0f..6cd304d37ebeba5fa0e23d8dae85750819bbffb6 100644
+index 7f95e308700abe28dc2cb50150dc81f5461ca81b..37b1c671feb94cd558439f2c683509a452a5d398 100644
 --- a/lib/dispatcher/agent.js
 +++ b/lib/dispatcher/agent.js
-@@ -148,9 +148,7 @@ class Agent extends DispatcherBase {
+@@ -150,9 +150,7 @@ class Agent extends DispatcherBase {
      for (const dispatcher of this[kClients].values()) {
        closePromises.push(dispatcher.close())
      }

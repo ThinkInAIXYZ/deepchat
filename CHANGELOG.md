@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.1.4-beta.8 (2026-11-03)
+- Provider model refreshes now contact the current catalog source, show sync status, and preserve existing models on failure
+- Improved gateway model capability detection, connection-test model lists, and model selection after the first connection
+- Enabled proactive collaboration by default for new Agents and added an Agent-level setting
+- Fixed subagents ignoring their configured default models and preserved their execution settings when resuming
+- Added the cheapaimodel, xxapi, llm.buzz, Obscurify.ai, and Wally providers, plus the Bowmark web data MCP preset
+- Updated dependencies with security fixes and refreshed the bundled model and ACP catalogs
+- 修复服务商模型刷新未请求当前目录来源的问题，展示同步状态，并在刷新失败时保留已有模型
+- 改善网关模型能力识别、连接测试模型列表，以及首次连接后的模型选择同步
+- 新建 Agent 默认启用主动协作，并支持为各 Agent 单独设置
+- 修复子代理忽略自身默认模型配置的问题，并在恢复执行时保留其运行设置
+- 新增 cheapaimodel、xxapi、llm.buzz、Obscurify.ai 和 Wally 服务商，以及 Bowmark 网页数据 MCP 预设
+- 更新依赖以修复安全问题，并刷新内置模型与 ACP 目录
+
 ## v1.1.4-beta.7 (2026-10-28)
 - Select the Agent directly in the new-conversation composer while preserving Agent-specific drafts, model choices, and workspace defaults
 - Restored ACP composer preparation, automatically created or recovered the Chats workspace, and kept composer controls and option menus usable in narrow windows

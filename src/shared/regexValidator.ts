@@ -1,4 +1,4 @@
-import { minimatch } from 'minimatch'
+import { Minimatch } from 'minimatch'
 import safeRegex from 'safe-regex2'
 
 const DEFAULT_MAX_PATTERN_LENGTH = 1000
@@ -29,10 +29,10 @@ export function validateRegexPattern(
 }
 
 /**
- * Validate glob pattern for ReDoS safety
+ * Validate glob pattern length and syntax
  * @param pattern The glob pattern to validate
  * @param maxLength Maximum allowed pattern length (default: 1000)
- * @throws Error if pattern is unsafe or exceeds length limit
+ * @throws Error if pattern is invalid or exceeds length limit
  */
 export function validateGlobPattern(
   pattern: string,
@@ -44,21 +44,13 @@ export function validateGlobPattern(
     )
   }
 
-  let compiled: RegExp | false
   try {
-    compiled = minimatch.makeRe(pattern)
+    // minimatch 11 matches globs with a non-recursive matcher instead of
+    // compiling them to a RegExp (makeRe was removed), so there is no
+    // generated regex left to inspect with safe-regex2.
+    new Minimatch(pattern)
   } catch (error) {
     throw new Error(`Invalid glob pattern: ${pattern}. Error: ${error}`)
-  }
-
-  if (!compiled) {
-    throw new Error(`Invalid glob pattern: ${pattern}`)
-  }
-
-  if (!safeRegex(compiled)) {
-    throw new Error(
-      'Glob pattern is potentially unsafe and may cause ReDoS (Regular Expression Denial of Service). Please use a simpler, safer pattern.'
-    )
   }
 }
 
