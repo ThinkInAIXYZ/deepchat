@@ -1,57 +1,120 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import Database from 'better-sqlite3-multiple-ciphers'
 import { test, expect } from '../fixtures/electronApp'
-import {
-  createNewChat,
-  getAssistantMessages,
-  getUserMessages,
-  selectAgent,
-  selectModel,
-  sendMessage
-} from '../helpers/chat'
-import {
-  createExactReplyPrompt,
-  createSmokeToken,
-  E2E_TARGET_MODEL_ID,
-  E2E_TARGET_PROVIDER_ID
-} from '../helpers/testData'
-import { waitForAppReady, waitForGenerationDone } from '../helpers/wait'
+import { waitForAppReady } from '../helpers/wait'
 
 type ScrollProbe = Window & {
   __deepchatScrollWrites?: Array<number | 'scroll' | 'scrollBy' | 'scrollTo'>
 }
 
-test('ChatPage keeps exclusive scrollbar ownership @smoke', async ({ app }) => {
-  test.skip(
-    process.env.RUN_PROVIDER_INTEGRATION !== 'true',
-    'Set RUN_PROVIDER_INTEGRATION=true to run the real ChatPage scroll check.'
-  )
-
-  const firstToken = createSmokeToken('E2E_SCROLL_ONE')
-  const secondToken = createSmokeToken('E2E_SCROLL_TWO')
-
+test('ChatPage restores virtualized history and keeps exclusive scrollbar ownership @smoke', async ({
+  launchApp
+}, testInfo) => {
+  const initial = await launchApp()
+  expect(initial.ownsUserDataDir).toBe(true)
+  await waitForAppReady(initial.page)
+  const ids = await initial.page.evaluate(async () => {
+    await window.deepchat.invoke('config.setLanguage', { language: 'en-US' })
+    const ids: string[] = []
+    for (let index = 0; index < 2; index += 1) {
+      const { session } = await window.deepchat.invoke('sessions.create', {
+        agentId: 'deepchat',
+        message: '',
+        providerId: 'openai',
+        modelId: 'gpt-4o'
+      })
+      ids.push(session.id)
+    }
+    return ids
+  })
+  expect(await initial.close()).toBe('graceful')
+  const securityPath = join(initial.userDataDir, 'database-security.json')
+  if (existsSync(securityPath))
+    expect(JSON.parse(readFileSync(securityPath, 'utf8')).metadata?.enabled).not.toBe(true)
+  // Seed only the closed, disposable profile; application reads use the production transcript adapter.
+  const db = new Database(join(initial.userDataDir, 'app_db', 'agent.db'))
+  const firstToken = 'history-row-000'
+  try {
+    const insert = db.prepare(`INSERT INTO deepchat_messages
+      (id, session_id, order_seq, role, content, status, is_context_edge, metadata, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'sent', 0, '{}', ?, ?)`)
+    db.transaction(() => {
+      const now = Date.now()
+      for (const [sessionIndex, sessionId] of ids.entries()) {
+        const count = sessionIndex === 0 ? 240 : 2
+        for (let index = 0; index < count; index += 1) {
+          const role = index % 2 === 0 ? 'user' : 'assistant'
+          const text =
+            sessionIndex === 0
+              ? `history-row-${String(index).padStart(3, '0')}: ${'Persisted conversation evidence. '.repeat(20)}`
+              : 'Second conversation evidence.'
+          const content =
+            role === 'user'
+              ? JSON.stringify({ text, files: [], links: [], search: false, think: false })
+              : JSON.stringify([
+                  { type: 'content', content: text, status: 'success', timestamp: now + index }
+                ])
+          insert.run(
+            `scroll-${sessionIndex}-${index}`,
+            sessionId,
+            index + 1,
+            role,
+            content,
+            now + index,
+            now + index
+          )
+        }
+      }
+    })()
+  } finally {
+    db.close()
+  }
+  const app = await launchApp()
   await waitForAppReady(app.page)
-  await selectAgent(app.page)
-  await createNewChat(app.page)
-  await selectModel(app.page, E2E_TARGET_MODEL_ID, E2E_TARGET_PROVIDER_ID)
-
-  await sendMessage(app.page, createExactReplyPrompt(firstToken))
-  await waitForGenerationDone(app.page)
-  await sendMessage(app.page, createExactReplyPrompt(secondToken))
-  await waitForGenerationDone(app.page)
-
-  await expect(getUserMessages(app.page)).toHaveCount(2)
-  await expect(getAssistantMessages(app.page)).toHaveCount(2)
+  const activate = (sessionId: string) =>
+    app.page.evaluate(
+      (sessionId) => window.deepchat.invoke('sessions.activate', { sessionId }),
+      sessionId
+    )
+  await activate(ids[0])
+  await expect(app.page.getByTestId('chat-page-shell')).toBeVisible()
+  await expect(app.page.getByText('history-row-239:', { exact: false }).first()).toBeVisible()
+  await expect(app.page.getByTestId('history-load-earlier')).toBeVisible()
+  for (let page = 0; page < 4; page += 1) {
+    const earlier = app.page.getByTestId('history-load-earlier')
+    if ((await earlier.count()) === 0) break
+    await earlier.click()
+    await expect(app.page.getByTestId('history-loading-indicator')).toHaveCount(0)
+  }
+  await expect(app.page.getByTestId('history-load-earlier')).toHaveCount(0)
+  const restored = await app.page.evaluate(
+    (sessionId) => window.deepchat.invoke('sessions.restore', { sessionId, limit: 500 }),
+    ids[0]
+  )
+  expect(restored.messages).toHaveLength(240)
+  const rows = app.page.locator(
+    '[data-testid="chat-message-user"], [data-testid="chat-message-assistant"]'
+  )
+  await expect.poll(() => rows.count()).toBeLessThan(240)
+  const historyViewport = app.page.getByTestId('chat-page')
+  await historyViewport.evaluate((element) => {
+    element.scrollTop = 0
+  })
+  await expect(app.page.getByText(firstToken, { exact: false }).first()).toBeVisible()
+  await historyViewport.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+  await expect(app.page.getByText('history-row-239:', { exact: false }).first()).toBeVisible()
+  await activate(ids[1])
+  await expect(app.page.getByTestId('chat-message-assistant')).toContainText(
+    'Second conversation evidence.'
+  )
+  await activate(ids[0])
+  await expect(app.page.getByText('history-row-239:', { exact: false }).first()).toBeVisible()
+  await app.page.screenshot({ path: testInfo.outputPath('restored-virtual-history.png') })
 
   const viewport = app.page.getByTestId('chat-page')
-  await viewport.evaluate((element) => {
-    const rows = element.querySelectorAll<HTMLElement>(
-      '[data-testid="chat-message-user"], [data-testid="chat-message-assistant"]'
-    )
-    rows.forEach((row) => {
-      row.style.minHeight = '360px'
-    })
-  })
-  await app.page.waitForTimeout(250)
-
   await viewport.evaluate((element) => {
     element.scrollTop = element.scrollHeight
   })
@@ -128,7 +191,7 @@ test('ChatPage keeps exclusive scrollbar ownership @smoke', async ({ app }) => {
   await app.page.keyboard.press(process.platform === 'darwin' ? 'Meta+f' : 'Control+f')
   const searchInput = app.page.locator('.chat-search-bar input').first()
   await expect(searchInput).toBeVisible()
-  await searchInput.fill(firstToken)
+  await searchInput.fill('history-row-220')
   await expect(app.page.locator('[data-chat-search-active]')).toHaveCount(1)
 
   const navigationWrites = await viewport.evaluate(

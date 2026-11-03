@@ -162,7 +162,7 @@ pnpm exec vitest run --config vitest.config.renderer.ts test/renderer/stores/mes
 
 **目标**：只删除确认无消费者的旧组件，保留聊天列表真实的骨架和虚拟化行为。
 
-- [ ] **依赖**：无。**拟删文件**：[MessageItemPlaceholder.vue](../../../src/renderer/src/components/message/MessageItemPlaceholder.vue)。在当前目标分支复查显式/动态 import、Vue 标签两种拼写、组件注册、模板、fixtures 与构建入口；发现活跃调用就把该项移出删除片。
+- [x] **依赖**：无。**拟删文件**：`MessageItemPlaceholder.vue`。在当前目标分支复查显式/动态 import、Vue 标签两种拼写、组件注册、模板、fixtures 与构建入口；发现活跃调用就把该项移出删除片。
 
 **实施顺序**
 

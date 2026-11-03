@@ -22,7 +22,7 @@ These files have no in-repo importers inside their scope and need manual classif
 
 ## renderer-main
 
-- Candidate count: 44
+- Candidate count: 43
 
 - `components/ChatConfig.vue`
 - `components/ChatConfig/ConfigSwitchField.vue`
@@ -45,7 +45,6 @@ These files have no in-repo importers inside their scope and need manual classif
 - `components/mcp-config/AgentMcpSelector.vue`
 - `components/mcp-config/const.ts`
 - `components/message/MessageActionButtons.vue`
-- `components/message/MessageItemPlaceholder.vue`
 - `components/message/ReferencePreview.vue`
 - `components/settings/ModelConfigItem.vue`
 - `composables/useArtifactCodeEditor.ts`
