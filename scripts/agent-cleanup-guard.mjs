@@ -449,6 +449,12 @@ export function findDeepChatHarnessBarrelViolations(source) {
   return violations
 }
 
+export function isDeepChatAcpHostImport(filePath, specifier) {
+  if (!isUnder(filePath, DEEPCHAT_HARNESS_DIR)) return false
+  const resolved = resolveSpecifierPath(filePath, specifier)
+  return resolved !== null && isUnder(resolved, path.join(ROOT, 'src/main/agent/acp'))
+}
+
 export function isDeepChatHarnessImport(filePath, specifier) {
   if (!DEEPCHAT_RUNTIME_LAYER_DIRS.some((layerDir) => isUnder(filePath, layerDir))) {
     return false
@@ -544,6 +550,10 @@ async function findViolations() {
     for (const specifier of extractModuleSpecifiers(source)) {
       if (isLegacyMainImport(filePath, specifier)) {
         violations.push(buildViolation('legacy-main-import', filePath, specifier))
+      }
+
+      if (isDeepChatAcpHostImport(filePath, specifier)) {
+        violations.push(buildViolation('deepchat-harness-imports-acp-host', filePath, specifier))
       }
 
       if (isDeepChatHarnessImport(filePath, specifier)) {

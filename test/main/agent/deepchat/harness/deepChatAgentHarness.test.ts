@@ -1,3 +1,4 @@
+import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
 import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -8046,6 +8047,16 @@ describe('DeepChatAgentHarness', () => {
         }
       })
 
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        provider_id: 'acp',
+        model_id: 'agent-id',
+        permission_mode: 'default',
+        system_prompt: 'DIRECT_CONFIGURED',
+        context_length: 8192,
+        max_tokens: 2048,
+        timeout_ms: 5000
+      })
+
       let activeHooks: any
       const prompt = vi.fn(async (request: schema.PromptRequest) => {
         activeHooks.onEvents([{ type: 'text', content: 'direct response' }])
@@ -8095,7 +8106,28 @@ describe('DeepChatAgentHarness', () => {
       const owner = new AcpRuntimeOwner(() => sharedClient)
       const directRuntime = new AcpAgentRuntime(
         owner,
-        (input) => agent.createAcpAgentInstanceDependencies(input),
+        (input) =>
+          createAcpCompatibilityDependencies(
+            {
+              providerRuntime: llmProvider,
+              providerSettings,
+              promptSettings: runtimeDependencies.promptSettings,
+              traceSettings: runtimeDependencies.traceSettings,
+              sessionStore: sessionData.settings,
+              messageStore: sessionData.transcript,
+              tape: sessionData.tapeStore,
+              agentSettings: providerSettings,
+              skillSettings: runtimeDependencies.skillSettings,
+              skillService,
+              toolService,
+              providerCatalogPort: runtimeDependencies.providerCatalogPort,
+              commandShell: runtimeDependencies.commandShell,
+              hookObserver: createHookObserver(hookDispatcher),
+              output: runtimeDependencies.output,
+              publishStatus: runtimeDependencies.publishStatus
+            },
+            input
+          ),
         sessionData.pendingInputs
       )
       const descriptor: AcpAgentDescriptor = {

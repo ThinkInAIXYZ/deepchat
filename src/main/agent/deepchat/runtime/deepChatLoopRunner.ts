@@ -1,3 +1,5 @@
+import { createRateLimitBlock } from './echo'
+import { createProviderViewManifest, type ProviderViewManifestInput } from '@/tape/application/providerViewManifest'
 import type { DeepChatOutputPort } from './output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import { projectPluginContext } from './pluginContext'
@@ -16,7 +18,6 @@ import type {
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { DeepChatPromptAssembly } from '@shared/types/prompt-assembly'
-import type { DeepChatExecutionContract } from '@shared/types/execution-contract'
 import type { DeepChatTaskContractContext } from '@shared/types/task-contract'
 import type {
   ProviderExecutionPort,
@@ -25,13 +26,11 @@ import type {
 } from '@shared/types/provider'
 import type { DeepChatProviderAttemptIdentity } from '@shared/types/provider-attempt'
 import type {
-  DeepChatTapeSkillContext,
   DeepChatTapeViewContextBuilderVersion,
   DeepChatTapeViewPinnedFirstUser,
   DeepChatTapeViewPolicy,
   DeepChatTapeViewSyntheticContribution,
-  DeepChatTapeViewTaskType,
-  DeepChatTapeViewTokenBudget
+  DeepChatTapeViewTaskType
 } from '@shared/types/tape-view-manifest'
 import { randomUUID } from 'node:crypto'
 import { getReasoningEffectiveEnabledForProvider } from '@shared/types/model-db'
@@ -89,11 +88,6 @@ import type { ProviderPermissionCoordinator } from '@/agent/deepchat/runtime/pro
 import type { SessionSummaryState, SessionSettingsStore } from '@/session/data/settings'
 import { AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES } from '@/agent/deepchat/runtime/toolPermissionReviewer'
 import {
-  buildExcludedRefs,
-  buildIncludedRefs,
-  buildRequestRefs,
-  buildSyntheticContributionRefs,
-  createTapeViewManifest,
   resolveTapeViewManifestPolicy,
   type TapeViewContextSelection
 } from '@/tape/domain/viewManifest'
@@ -395,31 +389,7 @@ export type DeepChatLoopRunInput = {
   abortController?: AbortController
 }
 
-export interface CommitTapeProviderViewInput {
-  sessionId: string
-  messageId: string
-  requestSeq: number
-  taskType: DeepChatTapeViewTaskType
-  policy: DeepChatTapeViewPolicy
-  policyVersion?: number | null
-  messages: ChatMessage[]
-  tools: MCPToolDefinition[]
-  tokenBudget: Omit<DeepChatTapeViewTokenBudget, 'estimatedPromptTokens'>
-  providerId: string
-  modelId: string
-  selection?: TapeViewContextSelection
-  summaryCursorOrderSeq: number
-  supportsVision: boolean
-  supportsAudioInput: boolean
-  traceDebugEnabled: boolean
-  contextBuilderVersion: DeepChatTapeViewContextBuilderVersion
-  syntheticContributions?: DeepChatTapeViewSyntheticContribution[]
-  pinnedFirstUser?: DeepChatTapeViewPinnedFirstUser
-  executionContract?: DeepChatExecutionContract
-  runId?: string
-  tapeIncarnationId?: string
-  skillContexts?: DeepChatTapeSkillContext[]
-  requireDurableManifest?: boolean
+export interface CommitTapeProviderViewInput extends ProviderViewManifestInput {
   toolSurfaceSnapshot?: ToolSurfaceSnapshot | null
   programmaticToolCapability: ProgrammaticToolCapabilityV1 | null
 }
@@ -2591,56 +2561,7 @@ export class DeepChatLoopRunner {
     manifestHash: string
     tapeIncarnationId?: string
   } {
-    const sourceMaps = this.ports.tape.getViewManifestSourceMaps(
-      params.sessionId,
-      params.messageId
-    )
-    const selection = params.selection
-      ? {
-          ...params.selection,
-          ...(params.syntheticContributions !== undefined
-            ? { syntheticContributions: params.syntheticContributions }
-            : {})
-        }
-      : undefined
-    const manifest = createTapeViewManifest({
-      sessionId: params.sessionId,
-      messageId: params.messageId,
-      requestSeq: params.requestSeq,
-      taskType: params.taskType,
-      policy: params.policy,
-      policyVersion: params.policyVersion ?? null,
-      contextBuilderVersion: params.contextBuilderVersion,
-      messages: params.messages,
-      tools: params.tools,
-      latestEntryId: sourceMaps.latestEntryId,
-      anchorEntryIds: sourceMaps.reconstructionAnchorEntryIds,
-      reconstructionAnchorEntryId: sourceMaps.reconstructionAnchorEntryId,
-      included: selection
-        ? buildIncludedRefs(selection, sourceMaps)
-        : [
-            ...buildRequestRefs(params.messages, sourceMaps, params.pinnedFirstUser),
-            ...buildSyntheticContributionRefs(params.syntheticContributions ?? [])
-          ],
-      excluded: selection ? buildExcludedRefs(selection, sourceMaps) : [],
-      summaryCursor: selection?.summaryCursor,
-      tokenBudget: params.tokenBudget,
-      providerId: params.providerId,
-      modelId: params.modelId,
-      summaryCursorOrderSeq: params.summaryCursorOrderSeq,
-      supportsVision: params.supportsVision,
-      supportsAudioInput: params.supportsAudioInput,
-      traceDebugEnabled: params.traceDebugEnabled,
-      ...(params.executionContract ? { executionContract: params.executionContract } : {}),
-      ...(params.runId !== undefined ? { runId: params.runId } : {}),
-      ...(params.tapeIncarnationId !== undefined
-        ? { tapeIncarnationId: params.tapeIncarnationId }
-        : {}),
-      ...(params.skillContexts?.length ? { skillContexts: params.skillContexts } : {}),
-      ...(params.requireDurableManifest !== undefined
-        ? { requireDurableManifest: params.requireDurableManifest }
-        : {})
-    })
+    const manifest = createProviderViewManifest(this.ports.tape, params)
     if (!params.toolSurfaceSnapshot) {
       if (params.programmaticToolCapability !== null) {
         throw new Error('A legacy provider View cannot carry a Programmatic capability.')
@@ -2716,22 +2637,7 @@ export class DeepChatLoopRunner {
     snapshot: Pick<RateLimitQueueSnapshot, 'providerId' | 'estimatedWaitTime'> &
       Partial<Pick<RateLimitQueueSnapshot, 'qpsLimit' | 'currentQps' | 'queueLength'>>
   ): void {
-    const block: AssistantMessageBlock = {
-      type: 'action',
-      action_type: 'rate_limit',
-      content: '',
-      status: 'pending',
-      timestamp: Date.now(),
-      extra: {
-        providerId: snapshot.providerId,
-        ...(snapshot.qpsLimit === undefined ? {} : { qpsLimit: snapshot.qpsLimit }),
-        ...(snapshot.currentQps === undefined
-          ? {}
-          : { currentQps: snapshot.currentQps }),
-        ...(snapshot.queueLength === undefined ? {} : { queueLength: snapshot.queueLength }),
-        estimatedWaitTime: snapshot.estimatedWaitTime
-      }
-    }
+    const block = createRateLimitBlock(snapshot)
 
     this.ports.output.streamSnapshot({
       kind: 'snapshot',

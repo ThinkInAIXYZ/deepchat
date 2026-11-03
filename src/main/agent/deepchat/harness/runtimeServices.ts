@@ -16,7 +16,6 @@ import type { SessionPermissionPort } from '@/session/contracts'
 import type { SessionStatusPublisherPorts } from '@/agent/deepchat/runtime/sessionStatusPublisher'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { CacheImageOptions } from '@/platform/imageCache'
-import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
 import type { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { CommandShellService } from '@/agent/shared/process/commandShellService'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
@@ -118,6 +117,5 @@ export interface DeepChatRuntimeServices {
   memoryIngestionObserver: MemoryIngestionObserver
   toolSurfaceDiagnostics: ToolSurfaceShadowDiagnosticsRegistry
   toolSurfaceCanaryDiagnostics: ToolSurfaceCanaryDiagnosticsRegistry
-  acpCompatibility: AcpAgentInstanceDependencyFactory
   reconcileAfterDatabaseReopen(): void
 }

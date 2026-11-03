@@ -121,7 +121,7 @@ pnpm exec vitest run --config vitest.config.ts test/main/agent/deepchat/runtime/
 
 **目标**：Direct ACP 由自己的宿主装配；DeepChat 作为内建 backend 或使用 ACP Provider 的行为可分别验证。
 
-- [ ] **依赖**：无。**删除**：`AcpAgentRuntime → DeepChatAgentHarness.createAcpAgentInstanceDependencies`、Harness 构造对 `acp/compatibility/dependencies` 和公开面的 ACP 专用 factory。由 ACP 在宿主接线时取得其需要的 prompt、视图提交、历史、状态、限流和 hook 操作。确需共用的执行行为只保留一个实现，不能通过暴露一组可变 coordinator 绕过 Harness 门面。
+- [x] **依赖**：无。**删除**：`AcpAgentRuntime → DeepChatAgentHarness.createAcpAgentInstanceDependencies`、Harness 构造对 `acp/compatibility/dependencies` 和公开面的 ACP 专用 factory。由 ACP 在宿主接线时取得其需要的 prompt、视图提交、历史、状态、限流和 hook 操作。确需共用的执行行为只保留一个实现，不能通过暴露一组可变 coordinator 绕过 Harness 门面。
 
 **实施顺序**
 

@@ -1,3 +1,4 @@
+import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
 import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
 import { SyncSessionActivity } from '@/sync/sessionActivity'
@@ -2088,6 +2089,14 @@ export async function createMainProcessControl(dependencies: {
     }
   }
 
+  const notifySessionCompleted = (sessionId: string) => {
+    const session = appSessionService.get(sessionId)
+    if (session?.sessionKind !== 'regular' || resolveSessionRunId(sessionId) !== null) return
+    void notificationService.showSessionCompletion(session).catch((error) => {
+      logger.warn('[Notification] Failed to notify session completion', { sessionId, error })
+    })
+  }
+
   // Initialize new agent architecture presenters
   deepChatAgentHarness = createDeepChatAgentHarness({
     providerRuntime,
@@ -2097,13 +2106,7 @@ export async function createMainProcessControl(dependencies: {
     toolService,
     hookObserver: hookService,
     pluginContext: pluginService.contextHooks,
-    onSessionCompleted: (sessionId) => {
-      const session = appSessionService.get(sessionId)
-      if (session?.sessionKind !== 'regular' || resolveSessionRunId(sessionId) !== null) return
-      void notificationService.showSessionCompletion(session).catch((error) => {
-        logger.warn('[Notification] Failed to notify session completion', { sessionId, error })
-      })
-    },
+    onSessionCompleted: notifySessionCompleted,
     output: createDeepChatOutputProjection({
       publishEvent: publishDeepchatEvent,
       publishSessionUpdate
@@ -2148,7 +2151,36 @@ export async function createMainProcessControl(dependencies: {
   memoryIngestionObserver = deepChatAgentHarness.memoryIngestionObserver
   acpAgentRuntime = new AcpAgentRuntime(
     acpRuntimeOwner,
-    (input) => deepChatAgentHarness.createAcpAgentInstanceDependencies(input),
+    (input) =>
+      createAcpCompatibilityDependencies(
+        {
+          providerRuntime,
+          providerSettings,
+          promptSettings,
+          traceSettings,
+          sessionStore: sessionData.settings,
+          messageStore: sessionData.transcript,
+          tape: sessionData.tapeStore,
+          agentSettings,
+          skillSettings,
+          skillService,
+          toolService,
+          providerCatalogPort,
+          commandShell: commandShellService,
+          hookObserver: hookService,
+          onSessionCompleted: notifySessionCompleted,
+          output: createDeepChatOutputProjection({
+            publishEvent: publishDeepchatEvent,
+            publishSessionUpdate
+          }),
+          publishStatus: createSessionStatusProjection({
+            publishEvent: publishDeepchatEvent,
+            publishSessionUpdate,
+            sessionUiPort
+          })
+        },
+        input
+      ),
     sessionData.pendingInputs
   )
   agentManager = new AgentManager(agentRepository, appSessionService, {

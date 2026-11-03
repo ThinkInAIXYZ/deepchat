@@ -13,7 +13,6 @@ import type {
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
-import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
 import type { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import { resolveDeepChatToolProfileKind } from '@/agent/deepchat/runtime/toolResolver'
@@ -75,12 +74,6 @@ export class DeepChatAgentHarness
   }
 
   readonly reconcileAfterDatabaseReopen = (): void => this.services.reconcileAfterDatabaseReopen()
-
-  createAcpAgentInstanceDependencies(
-    input: Parameters<AcpAgentInstanceDependencyFactory>[0]
-  ): ReturnType<AcpAgentInstanceDependencyFactory> {
-    return this.services.acpCompatibility(input)
-  }
 
   initSession(
     sessionId: string,

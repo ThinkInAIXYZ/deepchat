@@ -76,10 +76,12 @@ export function mapPersistedGenerationPatch(
   capabilitySnapshot?: ResolvedModelCapabilitySnapshot
 ): Partial<SessionGenerationSettings> {
   const patch: Partial<SessionGenerationSettings> = {}
-  const snapshot = capabilitySnapshot ?? providerSettings.getCapabilitySnapshot({
-    providerId: sessionRow.provider_id,
-    modelId: sessionRow.model_id
-  })
+  const snapshot =
+    capabilitySnapshot ??
+    providerSettings.getCapabilitySnapshot({
+      providerId: sessionRow.provider_id,
+      modelId: sessionRow.model_id
+    })
   if (snapshot.reasoningPortrait?.budgetExclusiveWithEffort) {
     // Persisted null means no session override, not a new model-level default.
     patch.thinkingBudget = undefined
@@ -305,12 +307,10 @@ async function buildDefaultGenerationSettings(
     snapshot.supportsReasoningEffort &&
     (!anthropicReasoningToggle || anthropicReasoningEnabled)
   ) {
-    const rawEffort = modelConfig.reasoningEffort ??
+    const rawEffort =
+      modelConfig.reasoningEffort ??
       (portrait?.budgetExclusiveWithEffort ? undefined : snapshot.reasoningEffortDefault)
-    const normalizedEffort = normalizeReasoningEffort(
-      portrait,
-      rawEffort
-    )
+    const normalizedEffort = normalizeReasoningEffort(portrait, rawEffort)
     if (normalizedEffort) {
       defaults.reasoningEffort = normalizedEffort
     }
@@ -491,8 +491,7 @@ export async function sanitizeGenerationSettings(
       modelConfig.reasoningVisibility ?? portrait?.visibility
     )
     const normalizedVisibility =
-      normalizeReasoningVisibility(capabilityProviderId, portrait, fromPatch) ??
-      defaultVisibility
+      normalizeReasoningVisibility(capabilityProviderId, portrait, fromPatch) ?? defaultVisibility
     if (normalizedVisibility) {
       next.reasoningVisibility = normalizedVisibility
     } else {
@@ -654,4 +653,64 @@ function normalizeVerbosity(
   }
 
   return undefined
+}
+
+export async function resolveSessionGenerationSettings(
+  dependencies: {
+    providerSettings: ProviderModelResolutionPort
+    promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
+    state?: Pick<
+      import('@shared/types/agent-interface').DeepChatSessionState,
+      'providerId' | 'modelId'
+    >
+    cached?: SessionGenerationSettings
+    readPersisted(): PersistedSessionGenerationRow | undefined
+  },
+  sessionId: string,
+  providedProviderModelFacts?: ProviderModelRuntimeFacts
+): Promise<SessionGenerationSettings> {
+  const state = dependencies.state
+  let dbSession: PersistedSessionGenerationRow | undefined
+  if (providedProviderModelFacts) {
+    dbSession = state ? undefined : dependencies.readPersisted()
+    const expectedProviderId = state?.providerId ?? dbSession?.provider_id
+    const expectedModelId = state?.modelId ?? dbSession?.model_id
+    if (!expectedProviderId || !expectedModelId) {
+      throw new Error(`Session ${sessionId} not found`)
+    }
+    assertProviderModelRuntimeFacts(providedProviderModelFacts, expectedProviderId, expectedModelId)
+  }
+  const cached = dependencies.cached
+  if (cached) {
+    return { ...cached }
+  }
+
+  dbSession ??= dependencies.readPersisted()
+  const providerId = state?.providerId ?? dbSession?.provider_id
+  const modelId = state?.modelId ?? dbSession?.model_id
+
+  if (!providerId || !modelId) {
+    throw new Error(`Session ${sessionId} not found`)
+  }
+
+  const providerModelFacts =
+    providedProviderModelFacts ??
+    resolveProviderModelRuntimeFacts(dependencies.providerSettings, providerId, modelId)
+  const persistedPatch = dbSession
+    ? mapPersistedGenerationPatch(
+        dependencies.providerSettings,
+        dbSession,
+        providerModelFacts.capabilitySnapshot
+      )
+    : {}
+  const sanitized = await sanitizeGenerationSettings(
+    dependencies.providerSettings,
+    dependencies.promptSettings,
+    providerId,
+    modelId,
+    persistedPatch,
+    undefined,
+    providerModelFacts
+  )
+  return { ...sanitized }
 }

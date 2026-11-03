@@ -303,13 +303,15 @@ subscription channel, and no state of its own:
   absorbs the queue routing previously performed inside the instance delegate.
 - `SessionStatePort` for session state and settings.
 - `SessionTranscriptRuntimePort` for transcript mutation coordination.
-- The ACP compatibility dependency factory, the tool registry refresh entry point, the Memory
-  ingestion observer, and the runtime registry accessor.
+- The tool registry refresh entry point, the Memory ingestion observer, and the runtime registry
+  accessor.
 
 The facade owns no phase machine, queue, cache, subscription, or derived fact, and every method
 delegates to exactly one owner. Multi-owner sequences belong to `SessionLifecycleCoordinator` or
-`TranscriptMutationCoordinator`. The ACP compatibility dependency factory is bound at composition
-and reaches the facade as one pre-bound function rather than as raw infrastructure fields.
+`TranscriptMutationCoordinator`. Direct ACP dependencies are assembled by the ACP host from Session,
+Provider, tool, Skill, hook, output and Tape ports. Its prompt resource scope starts no DeepChat loop,
+pending-input pump or recovery pass. Generation resolution, provider View construction and rate-limit
+blocks share their implementation with the built-in backend; no ACP factory is exposed by the facade.
 
 The harness barrel exports only `createDeepChatAgentHarness`, the facade type, and its dependency
 types. The composed owner graph, its factory, and the pending-input wakeup binding stay
@@ -717,8 +719,7 @@ execution continues to settle independently and commit results in provider call 
 4. `DeepChatAgentInstance` exposes runtime state only; `DeepChatAgentInstanceDelegate`, the registry
    hydrator, and `DeepChatAgentRuntime.dispose()` are gone, and the manager backend reaches send,
    cancel, snapshot, and close through the harness port.
-5. The facade declares no field other than its owners and the bound ACP compatibility dependency
-   factory, and satisfies `DeepChatAgentBackendPort`, `SessionStatePort`, and
+5. The facade declares no field other than its owners, exposes no ACP dependency factory, and satisfies `DeepChatAgentBackendPort`, `SessionStatePort`, and
    `SessionTranscriptRuntimePort` by explicit `implements` clauses.
 6. `DeepChatLoopRunnerPorts`, `TurnCoordinatorPorts`, and `InteractionCoordinatorPorts` shrink, the
    six Tape capabilities are one composed port, and no port member is a closure over the facade.

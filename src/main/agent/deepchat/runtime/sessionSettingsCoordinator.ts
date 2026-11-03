@@ -18,13 +18,11 @@ import type { SessionPermissionPort } from '@/session/contracts'
 import {
   buildPersistedGenerationSettingsPatch,
   buildPersistedGenerationSettingsReplacement,
-  mapPersistedGenerationPatch,
   sanitizeGenerationSettings,
+  resolveSessionGenerationSettings,
   type PersistedSessionGenerationRow
 } from './generationSettings'
 import {
-  assertProviderModelRuntimeFacts,
-  resolveProviderModelRuntimeFacts,
   type ProviderModelRuntimeFacts
 } from './providerModelRuntimeFacts'
 import type { SessionSettingsStore } from '@/session/data/settings'
@@ -373,57 +371,13 @@ export class SessionSettingsCoordinator {
     providedProviderModelFacts?: ProviderModelRuntimeFacts
   ): Promise<SessionGenerationSettings> {
     this.assertCurrent(sessionId, expectedInstance)
-    const state = expectedInstance.getRuntimeState()
-    let dbSession: PersistedSessionGenerationRow | undefined
-    if (providedProviderModelFacts) {
-      dbSession = state
-        ? undefined
-        : (this.deps.sessionStore.get(sessionId) as PersistedSessionGenerationRow | undefined)
-      const expectedProviderId = state?.providerId ?? dbSession?.provider_id
-      const expectedModelId = state?.modelId ?? dbSession?.model_id
-      if (!expectedProviderId || !expectedModelId) {
-        throw new Error(`Session ${sessionId} not found`)
-      }
-      assertProviderModelRuntimeFacts(
-        providedProviderModelFacts,
-        expectedProviderId,
-        expectedModelId
-      )
-    }
-    const cached = expectedInstance.getGenerationSettings()
-    if (cached) {
-      return { ...cached }
-    }
-
-    dbSession ??= this.deps.sessionStore.get(sessionId) as
-      | PersistedSessionGenerationRow
-      | undefined
-    const providerId = state?.providerId ?? dbSession?.provider_id
-    const modelId = state?.modelId ?? dbSession?.model_id
-
-    if (!providerId || !modelId) {
-      throw new Error(`Session ${sessionId} not found`)
-    }
-
-    const providerModelFacts =
-      providedProviderModelFacts ??
-      resolveProviderModelRuntimeFacts(this.deps.providerSettings, providerId, modelId)
-    const persistedPatch = dbSession
-      ? mapPersistedGenerationPatch(
-          this.deps.providerSettings,
-          dbSession,
-          providerModelFacts.capabilitySnapshot
-        )
-      : {}
-    const sanitized = await sanitizeGenerationSettings(
-      this.deps.providerSettings,
-      this.deps.promptSettings,
-      providerId,
-      modelId,
-      persistedPatch,
-      undefined,
-      providerModelFacts
-    )
+    const sanitized = await resolveSessionGenerationSettings({
+      providerSettings: this.deps.providerSettings,
+      promptSettings: this.deps.promptSettings,
+      state: expectedInstance.getRuntimeState(),
+      cached: expectedInstance.getGenerationSettings(),
+      readPersisted: () => this.deps.sessionStore.get(sessionId) as PersistedSessionGenerationRow | undefined
+    }, sessionId, providedProviderModelFacts)
     this.assertCurrent(sessionId, expectedInstance)
     expectedInstance.setGenerationSettings(sanitized)
     return { ...sanitized }

@@ -4,7 +4,8 @@ import {
   findDeepChatHarnessBarrelViolations,
   findDeepChatRootOwnershipViolations,
   findMissingDeepChatOwnershipSymbols,
-  isDeepChatHarnessImport
+  isDeepChatHarnessImport,
+  isDeepChatAcpHostImport
 } from '../../../scripts/agent-cleanup-guard.mjs'
 
 const repositoryRoot = process.cwd()
@@ -63,6 +64,14 @@ describe('agent cleanup guard', () => {
         '@/agent/deepchat/harness'
       )
     ).toBe(false)
+  })
+
+  it('keeps ACP host assembly outside the Harness while allowing shared runtime helpers', () => {
+    const harness = path.join(repositoryRoot, 'src/main/agent/deepchat/harness/createDeepChatAgentHarness.ts')
+    expect(isDeepChatAcpHostImport(harness, '@/agent/acp/compatibility/dependencies')).toBe(true)
+    expect(isDeepChatAcpHostImport(harness, '../../acp/instance')).toBe(true)
+    expect(isDeepChatAcpHostImport(harness, '../runtime/generationSettings')).toBe(false)
+    expect(isDeepChatAcpHostImport(path.join(repositoryRoot, 'src/main/app/composition.ts'), '@/agent/acp/instance')).toBe(false)
   })
 
   it('accepts only allowlisted harness barrel exports', () => {

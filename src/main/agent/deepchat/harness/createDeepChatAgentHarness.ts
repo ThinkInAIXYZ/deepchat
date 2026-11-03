@@ -1,8 +1,5 @@
 import logger from '@shared/logger'
-import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
-import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { DeepChatContextCoordinator } from '@/agent/deepchat/loop/contextCoordinator'
 import { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
 import { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
@@ -502,73 +499,6 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     toolSurfaceDiagnostics
   })
 
-  const acpCompatibility: AcpAgentInstanceDependencyFactory = (input) =>
-    createAcpCompatibilityDependencies(
-      {
-        output,
-        providerSettings,
-        traceSettings,
-        providerRuntime,
-        sessionStore,
-        messageStore,
-        tapeReconciliation: tapeService,
-        toolResolver,
-        appendViewManifest: (manifest) =>
-          loopRunner.commitTapeProviderView({
-            sessionId: manifest.sessionId,
-            messageId: manifest.messageId,
-            requestSeq: manifest.requestSeq,
-            taskType: manifest.taskType,
-            policy: manifest.policy,
-            policyVersion: manifest.policyVersion,
-            contextBuilderVersion: 'legacy-v1',
-            messages: manifest.messages,
-            tools: manifest.localToolDefinitions,
-            tokenBudget: manifest.tokenBudget,
-            providerId: manifest.providerId,
-            modelId: manifest.modelId,
-            summaryCursorOrderSeq: manifest.summaryCursorOrderSeq,
-            supportsVision: manifest.supportsVision,
-            supportsAudioInput: manifest.supportsAudioInput,
-            traceDebugEnabled: manifest.traceDebugEnabled,
-            programmaticToolCapability: null
-          }),
-        setStatus: (sessionId, status) => runLifecycle.transitionCurrentStatus(sessionId, status),
-        getSessionState: async (sessionId) => await sessionState.get(sessionId),
-        getDeepChatInstance: (sessionId) =>
-          runtime.getOrHydrateScope(toAppSessionId(sessionId)).instance,
-        getGenerationSettings: async (sessionId, instance) =>
-          await sessionSettings.getEffectiveGenerationSettings(sessionId, instance),
-        buildSystemPrompt: async (
-          sessionId,
-          basePrompt,
-          tools,
-          activeSkills,
-          sessionActiveSkills,
-          contextLength,
-          instance
-        ) =>
-          await promptAssembly.build(
-            sessionId,
-            basePrompt,
-            tools,
-            await commandShell.resolveForTurn(),
-            activeSkills,
-            instance,
-            {
-              sessionActiveSkillNamesOverride: sessionActiveSkills,
-              contextLength
-            }
-          ),
-        emitRateLimitWaitingMessage: (sessionId, messageId, requestId, snapshot) =>
-          loopRunner.emitRateLimitWaitingMessage(sessionId, messageId, requestId, snapshot),
-        clearRateLimitWaitingMessage: (sessionId, messageId, requestId) =>
-          loopRunner.clearRateLimitWaitingMessage(sessionId, messageId, requestId),
-        hookSink
-      },
-      input
-    )
-
   const reconcilePersistedRuntimeState = (): void => {
     const forceRecoverMessagesBySession = reportStartupExecutionRecovery(tapeService)
     const pendingInputRecovery = pendingInputCoordinator.recoverInputsAfterRestart()
@@ -612,7 +542,6 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     memoryIngestionObserver: memory,
     toolSurfaceDiagnostics,
     toolSurfaceCanaryDiagnostics,
-    acpCompatibility,
     reconcileAfterDatabaseReopen: reconcilePersistedRuntimeState
   }
 }
