@@ -181,5 +181,5 @@ pnpm exec vitest run --config vitest.config.renderer.ts test/renderer/composable
 
 ## Renderer 联合验收
 
-- [ ] 每片实施后审阅受影响的窗口、路由、异步取消、卸载和 IPC 调用者。选择该片最小行为套件；只有现有用例未覆盖具体回归时才补测试。运行 format、i18n、lint、typecheck，以及 `pnpm run architecture:renderer-baseline:check`。实际减少受限导入时同步刷新并审阅基线明细。
-- [ ] 在最终候选提交上，从干净的 Chat 与 Settings 窗口验证 MCP、首条与后续发送、草稿恢复、快速切换和迟到流。用真实 Electron 多窗口验证 sender/target 并记录平台。核对移除的依赖、别名、重复监听及清理候选，结果纳入同一 PR 的合并门槛。
+- [x] 每片实施后审阅受影响的窗口、路由、异步取消、卸载和 IPC 调用者。选择该片最小行为套件；只有现有用例未覆盖具体回归时才补测试。运行 format、i18n、lint、typecheck，以及 `pnpm run architecture:renderer-baseline:check`。实际减少受限导入时同步刷新并审阅基线明细。
+- [x] 在最终候选提交上，从干净的 Chat 与 Settings 窗口验证 MCP、首条与后续发送、草稿恢复、快速切换和迟到流。用真实 Electron 多窗口验证 sender/target 并记录平台。核对移除的依赖、别名、重复监听及清理候选，结果纳入同一 PR 的合并门槛。
