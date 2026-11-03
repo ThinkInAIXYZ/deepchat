@@ -212,6 +212,11 @@ or second source of truth is introduced.
 
 ## Harness Facade Slice
 
+The facade contract below describes the embedded runtime. The
+[host portability contract](../main-harness-portability/spec.md) governs the transfer of ACP
+assembly, database access and desktop projection to host adapters. It preserves the single
+runtime registry, recovery ownership and observable projection order.
+
 ### Problem
 
 The coordinator ownership slice extracted lifecycle, admission, pump, and compaction owners, but

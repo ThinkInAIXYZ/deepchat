@@ -40,6 +40,8 @@ Completed implementation trackers and resolved issue reports are available throu
 | [features/mcp-authorization-extensions/](./features/mcp-authorization-extensions/)                             | 授权扩展已落地，等待受控 OAuth 与安全存储验证                                                  |
 | [features/mcp-tasks/](./features/mcp-tasks/)                                                                   | Tasks 被上游公开 v2 adapter 阻塞，未实现、未宣称支持                                           |
 | [architecture/chat-scroll-ownership/](./architecture/chat-scroll-ownership/)                                   | chat viewport ownership、windowing 与真实 Chromium 验证进行中                                  |
+| [Main 宿主边界与 Harness](./architecture/main-harness-portability/spec.md) | [单一重构 PR 的实施、合并与 beta 发布安排](./architecture/main-harness-portability/plan.md) |
+| [Renderer 窗口隔离](./architecture/renderer-window-isolation/spec.md) | [同一 PR 的 Renderer 步骤与验收](./architecture/renderer-window-isolation/plan.md) |
 | [architecture/memory-quality-gates-and-observability/](./architecture/memory-quality-gates-and-observability/) | retrieval artifact upload 待完成                                                               |
 | [architecture/memory-vector-store-v2/](./architecture/memory-vector-store-v2/)                                 | v2 已落地，保留 migration window 后的 VSS removal follow-up                                    |
 | [issues/chat-history-search-scroll-coordinates/](./issues/chat-history-search-scroll-coordinates/)             | 等待 Electron/macOS 物理滚动验证                                                               |

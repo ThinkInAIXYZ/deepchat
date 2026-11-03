@@ -50,6 +50,9 @@ measurement-cache contract.
 
 ## Dependency Rules
 
+The [window isolation contract](../renderer-window-isolation/spec.md) assigns ownership of the
+shared MCP view, chat navigation and message subscriptions within these startup boundaries.
+
 `@` resolves to `src/renderer/src`. App, feature, platform, and foundation modules stay under that
 root and the existing TypeScript include scope:
 
