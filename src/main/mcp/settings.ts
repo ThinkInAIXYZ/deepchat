@@ -317,7 +317,7 @@ const DEFAULT_MCP_SERVERS = {
       args: [],
       env: {},
       descriptions:
-        'Bowmark MCP: typed functions for live data on 100+ websites (LinkedIn, X, Instagram, Reddit, YouTube and more), returned as JSON and tested on a schedule. Requires a Bowmark API key from https://bowmark.ai (starts with a free $10), set as an Authorization: Bearer header. Docs: https://bowmark.ai/docs.',
+        'Bowmark MCP: live structured data from 750+ websites (LinkedIn, X, Instagram, Reddit, YouTube and more) through a library of tested functions: find one with get_library, call it with run. Results come back as JSON. Requires a Bowmark API key from https://bowmark.ai (starts with a free $10), set as an Authorization: Bearer header. Docs: https://bowmark.ai/docs.',
       icons: '🏹',
       disable: false,
       type: 'http' as MCPServerType,
