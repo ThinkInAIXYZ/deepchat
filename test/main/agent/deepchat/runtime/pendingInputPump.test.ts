@@ -1,4 +1,3 @@
-import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
   ChatMessageRecord,
@@ -662,7 +661,7 @@ describe('PendingInputPump', () => {
         throw new Error('claim publication failed')
       }
     )
-    vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(false)
 
@@ -687,7 +686,7 @@ describe('PendingInputPump', () => {
         return claimed
       }
     )
-    vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(false)
 
@@ -853,7 +852,7 @@ describe('PendingInputPump', () => {
       }
     )
     const harness = createHarness([createInput('queue', 'queue')], start)
-    const error = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(true)
     await vi.waitFor(() => expect(harness.scope.instance.isPendingQueueDraining()).toBe(false))
@@ -878,7 +877,7 @@ describe('PendingInputPump', () => {
       [createInput('failed', 'queue', 1), createInput('later', 'queue', 2)],
       start
     )
-    vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(true)
     await vi.waitFor(() => expect(harness.scope.instance.isPendingQueueDraining()).toBe(false))
@@ -898,7 +897,7 @@ describe('PendingInputPump', () => {
         throw new Error('consume publication failed')
       }
     )
-    vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(true)
     await vi.waitFor(() => expect(harness.scope.instance.isPendingQueueDraining()).toBe(false))
@@ -931,7 +930,7 @@ describe('PendingInputPump', () => {
         throw primaryError
       }
     )
-    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
     expect(() =>
       claim.settle({

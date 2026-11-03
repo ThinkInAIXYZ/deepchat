@@ -1,5 +1,4 @@
 import { beforeEach, vi } from 'vitest'
-import logger from '@shared/logger'
 import {
   describe,
   expect,
@@ -20,15 +19,6 @@ import {
   buildTapeToolResultPayloadHash
 } from '@/tape/domain/toolSurfaceFacts'
 import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
-
-vi.mock('@shared/logger', () => ({
-  default: {
-    error: vi.fn(),
-    warn: vi.fn(),
-    info: vi.fn(),
-    debug: vi.fn()
-  }
-}))
 
 describe('SessionTape reconciliation and facts', () => {
   it('uses the explicit replacement revision kind instead of the reason text', () => {
@@ -110,7 +100,9 @@ describe('SessionTape reconciliation and facts', () => {
 
   describe('sent message fact re-append', () => {
     beforeEach(() => {
-      vi.mocked(logger.warn).mockClear()
+      vi.spyOn(console, 'warn')
+        .mockImplementation(() => {})
+        .mockClear()
     })
 
     it('stays silent while the existing entry carries the same record', () => {
@@ -121,7 +113,7 @@ describe('SessionTape reconciliation and facts', () => {
       appendMessageRecordToTape(table as any, { ...record, traceCount: 3 }, 'live')
 
       expect(entries.filter((entry) => entry.kind === 'message')).toHaveLength(1)
-      expect(logger.warn).not.toHaveBeenCalled()
+      expect(console.warn).not.toHaveBeenCalled()
     })
 
     it('does not report a backfill that meets a fact written by an earlier version', () => {
@@ -135,7 +127,7 @@ describe('SessionTape reconciliation and facts', () => {
         'backfill'
       )
 
-      expect(logger.warn).not.toHaveBeenCalled()
+      expect(console.warn).not.toHaveBeenCalled()
     })
 
     it('warns once and names the field when the existing entry holds a different record', () => {
@@ -160,8 +152,8 @@ describe('SessionTape reconciliation and facts', () => {
       )
 
       expect(entries.filter((entry) => entry.kind === 'message')).toHaveLength(1)
-      expect(logger.warn).toHaveBeenCalledTimes(1)
-      expect(logger.warn).toHaveBeenCalledWith(
+      expect(console.warn).toHaveBeenCalledTimes(1)
+      expect(console.warn).toHaveBeenCalledWith(
         expect.stringContaining('different record'),
         expect.objectContaining({
           sessionId: 's1',
@@ -170,7 +162,7 @@ describe('SessionTape reconciliation and facts', () => {
           fields: ['content']
         })
       )
-      expect(vi.mocked(logger.warn).mock.calls[0]?.[1]).not.toHaveProperty('content')
+      expect(vi.mocked(console.warn).mock.calls[0]?.[1]).not.toHaveProperty('content')
     })
   })
 

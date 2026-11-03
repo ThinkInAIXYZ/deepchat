@@ -1,5 +1,4 @@
 import { expect, it, vi } from 'vitest'
-import logger from '@shared/logger'
 import { buildScopedMemoryProvenanceKey } from '@/memory/core/scoring'
 import { Database, dropV48DerivedArtifacts, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
@@ -4011,7 +4010,7 @@ describeIfSqlite('AgentMemoryTable FTS5 + migration', () => {
         content: 'zebra fact',
         scope: { type: 'session', id: 's2' }
       })
-      const warn = vi.spyOn(logger, 'warn')
+      const warn = vi.spyOn(console, 'warn')
       // A clean database opens without touching a row or logging.
       const before = db.prepare('SELECT * FROM agent_memory ORDER BY id').all()
       new AgentMemoryTableCtor(db).assertCurrentSchema()

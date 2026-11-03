@@ -4,7 +4,6 @@ import type {
   PendingSessionInputRecord,
   SendMessageInput
 } from '@shared/types/agent-interface'
-import logger from '@shared/logger'
 import { describe, expect, it, vi } from 'vitest'
 import {
   PendingInputAdmissionCoordinator,
@@ -368,7 +367,7 @@ describe('PendingInputAdmissionCoordinator', () => {
       state: 'retry_required'
     }
     vi.mocked(test.pump.drain).mockRejectedValueOnce(new Error('state unavailable'))
-    const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     await expect(test.coordinator.retryPendingQueueInput(SESSION_ID, 'input')).resolves.toEqual({
       accepted: true,
@@ -395,7 +394,7 @@ describe('PendingInputAdmissionCoordinator', () => {
       throw new Error('publication unavailable')
     })
     vi.mocked(test.pump.drain).mockResolvedValueOnce(true)
-    const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     await expect(test.coordinator.retryPendingQueueInput(SESSION_ID, 'input')).resolves.toEqual({
       accepted: true,
@@ -668,7 +667,7 @@ describe('PendingInputAdmissionCoordinator', () => {
     }
     vi.mocked(test.pump.claimQueuedInputForPreparation).mockReturnValueOnce(claim)
     vi.mocked(test.ports.attachmentRouter.prepare).mockRejectedValueOnce(preparationError)
-    const logError = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    const logError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     await expect(test.coordinator.steerPendingInput(SESSION_ID, 'input')).rejects.toBe(
       preparationError

@@ -1,3 +1,4 @@
+import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { randomUUID } from 'node:crypto'
 import { jsonrepair } from 'jsonrepair'
 import { vi } from 'vitest'
@@ -19,14 +20,6 @@ import type { ProcessParams, ProcessResult } from '@/agent/deepchat/runtime/type
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { POSIX_COMMAND_SHELL } from '../../../helpers/commandShell'
-
-vi.mock('@/events', () => ({
-  STREAM_EVENTS: {
-    RESPONSE: 'stream:response',
-    END: 'stream:end',
-    ERROR: 'stream:error'
-  }
-}))
 
 export interface ScriptedProviderRound {
   events: LLMCoreStreamEvent[]
@@ -546,8 +539,10 @@ export async function runNativeAgentEvalScenario(
     },
     io: {
       messageStore,
-      publishEvent: vi.fn(),
-      publishSessionUpdate: vi.fn(),
+      output: createDeepChatOutputProjection({
+        publishEvent: vi.fn(),
+        publishSessionUpdate: vi.fn()
+      }),
       tapeToolFactWriter: {
         appendToolFact: async () => ({ sessionId, entryId: 1, toolResult: null })
       },

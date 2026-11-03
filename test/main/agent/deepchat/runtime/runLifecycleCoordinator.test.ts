@@ -1,4 +1,3 @@
-import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
   ChatMessageRecord,
@@ -467,7 +466,7 @@ describe('RunLifecycleCoordinator', () => {
     const resolve = vi
       .fn()
       .mockRejectedValue(new Error('Unknown ACP permission request: permission-1'))
-    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     scope.instance.registerActiveProviderPermission({
       requestId: 'permission-1',
       messageId: 'message-1',
@@ -491,7 +490,7 @@ describe('RunLifecycleCoordinator', () => {
     const scope = coordinator.getOrCreateScope(SESSION_ID)
     const failure = new Error('permission bridge failed')
     const resolve = vi.fn().mockRejectedValue(failure)
-    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     scope.instance.registerActiveProviderPermission({
       requestId: 'permission-1',
       messageId: 'message-1',
@@ -514,7 +513,7 @@ describe('RunLifecycleCoordinator', () => {
     const { coordinator, pendingInputWakeup } = createHarness()
     const error = new Error('queue unavailable')
     vi.mocked(pendingInputWakeup.drain).mockRejectedValueOnce(error)
-    const logError = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    const logError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     coordinator.schedulePendingInputDrain(SESSION_ID, 'completed')
     await flushPromises()
