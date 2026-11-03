@@ -238,7 +238,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import McpServers from '@/components/mcp-config/components/McpServers.vue'
 import McpBuiltinMarket from './McpBuiltinMarket.vue'
 import { Switch } from '@shadcn/components/ui/switch'
@@ -258,8 +258,6 @@ import {
 import { DcSubmitButton, useDcFormSubmit } from '@dc-ui/components/form'
 import { useMcpStore } from '@/stores/mcp'
 import { useLanguageStore } from '@/stores/language'
-import { useAgentStore } from '@/stores/ui/agent'
-import { useSessionStore } from '@/stores/ui/session'
 import { useRoute, useRouter } from 'vue-router'
 import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
@@ -272,17 +270,20 @@ import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort
 const props = withDefaults(
   defineProps<{
     scope?: 'global' | 'agent'
+    agentId?: string
   }>(),
   {
     scope: 'global'
   }
 )
 
+const emit = defineEmits<{
+  'agent-policy-saved': [agentId: string]
+}>()
+
 const { t } = useI18n()
 const languageStore = useLanguageStore()
 const mcpStore = useMcpStore()
-const agentStore = useAgentStore()
-const sessionStore = useSessionStore()
 const configClient = createConfigClient()
 const route = useRoute()
 const router = useRouter()
@@ -343,19 +344,7 @@ const normalizeList = (value: string[] | null | undefined): string[] =>
     (left, right) => left.localeCompare(right)
   )
 const isAgentScope = computed(() => props.scope === 'agent')
-const targetAgentId = computed(() => {
-  const activeSessionAgentId = sessionStore.activeSession?.agentId?.trim()
-  if (activeSessionAgentId) {
-    return activeSessionAgentId
-  }
-
-  const selectedAgentId = agentStore.selectedAgentId?.trim()
-  if (selectedAgentId) {
-    return selectedAgentId
-  }
-
-  return 'deepchat'
-})
+const targetAgentId = computed(() => props.agentId?.trim() || null)
 const isDeepChatTarget = computed(() =>
   Boolean(targetAgent.value && targetAgent.value.type === 'deepchat')
 )
@@ -472,7 +461,7 @@ const handleMcpEnabledChange = async (enabled: boolean) => {
   }
 }
 
-watch(targetAgentId, () => {
+watch([isAgentScope, targetAgentId], () => {
   void loadAgentPolicy()
 })
 
@@ -490,6 +479,13 @@ const loadAgentPolicy = async () => {
   const requestedAgentId = targetAgentId.value
   agentPolicyLoading.value = true
   agentPolicyError.value = null
+  if (!requestedAgentId) {
+    targetAgent.value = null
+    targetAgentConfig.value = {}
+    agentPolicyLoading.value = false
+    agentPolicyError.value = t('settings.pluginsHub.agentScopeUnsupported')
+    return
+  }
   try {
     const agents = await configClient.listAgents({
       agentType: 'deepchat',
@@ -558,6 +554,7 @@ const handleToggleAgentServer = async (serverName: string, enabled: boolean) => 
   const previousConfig = targetAgentConfig.value
   const enabledMcpServerIds = buildNextAgentMcpServerIds(serverName, enabled)
   const requestedAgentId = agent.id
+  const requestId = agentPolicyRequestId.value
   agentToggleServerName.value = serverName
   targetAgentConfig.value = {
     ...previousConfig,
@@ -573,7 +570,8 @@ const handleToggleAgentServer = async (serverName: string, enabled: boolean) => 
       throw new Error(`Agent "${requestedAgentId}" no longer exists`)
     }
 
-    if (targetAgentId.value !== requestedAgentId) {
+    emit('agent-policy-saved', requestedAgentId)
+    if (requestId !== agentPolicyRequestId.value || targetAgentId.value !== requestedAgentId) {
       return
     }
 
@@ -588,14 +586,9 @@ const handleToggleAgentServer = async (serverName: string, enabled: boolean) => 
       code: 'settings.agentMcpPolicy.saved',
       title: t('settings.mcp.saveSuccess')
     })
-    try {
-      await agentStore.refreshAgentsByIds('deepchat', [requestedAgentId])
-    } catch (refreshError) {
-      console.warn('[McpSettings] Agent cache refresh failed after MCP policy save:', refreshError)
-    }
   } catch (error) {
     console.error('[McpSettings] Failed to save agent MCP policy:', error)
-    if (targetAgentId.value === requestedAgentId) {
+    if (requestId === agentPolicyRequestId.value && targetAgentId.value === requestedAgentId) {
       targetAgentConfig.value = previousConfig
     }
     notifyRenderer({
@@ -815,6 +808,10 @@ const handleNpmDialogOpenChange = (open: boolean) => {
   npmAdvancedDialogOpen.value = open
   if (!open) npmRegistryFeedback.value = null
 }
+
+onBeforeUnmount(() => {
+  agentPolicyRequestId.value += 1
+})
 
 onMounted(() => {
   void loadNpmRegistryStatus()

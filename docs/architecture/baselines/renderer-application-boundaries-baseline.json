@@ -344,14 +344,6 @@
       "specifier": "@/stores/mcp"
     },
     {
-      "file": "src/renderer/settings/components/McpSettings.vue",
-      "specifier": "@/stores/ui/agent"
-    },
-    {
-      "file": "src/renderer/settings/components/McpSettings.vue",
-      "specifier": "@/stores/ui/session"
-    },
-    {
       "file": "src/renderer/settings/components/MemoryConfigInlinePanel.vue",
       "specifier": "@/components/icons/ModelIcon.vue"
     },
@@ -564,5 +556,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 128
+  "settingsToChatAppImportCount": 126
 }

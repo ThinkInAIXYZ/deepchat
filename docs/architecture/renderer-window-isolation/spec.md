@@ -61,7 +61,7 @@ Window clients     -> typed preload API -> authorized main route
 
 ## 行为合同与验收
 
-- **独立窗口。** 干净 Pinia 中挂载、离开、重进全局 MCP 管理，只建立 MCP 所需的订阅；该视图及其子树不得创建聊天 Session/message store 或注册聊天流监听。聊天插件入口和独立 Settings 入口均能完成原有配置、market 和引导动作。Agent 范围由调用方明确传入目标；若调用方用当前聊天选择，沿用 active Session Agent → selected Agent → `deepchat` 的优先级。异步结果不能覆盖切换后的目标。
+- **独立窗口。** 干净 Pinia 中挂载、离开、重进全局 MCP 管理，只建立 MCP 所需的订阅；该视图及其子树不得创建聊天 Session/message store 或注册聊天流监听。聊天插件入口和独立 Settings 入口均能完成原有配置、market 和引导动作。Agent 范围由调用方通过 `agentId` 明确传入目标；未提供目标时显示原有不支持提示，不推算默认 Agent。保存成功通过 `agent-policy-saved` 携带原目标 ID 通知调用方，由调用方刷新其缓存。若调用方用当前聊天选择，沿用 active Session Agent → selected Agent → `deepchat` 的优先级。异步结果不能覆盖切换后的目标。
 - **启动与导航。** ChatTabView 提交 shell 快照后发起首个 Session 列表读取；所有窗口继续处理早期 deeplink 和 bootstrap 失败回退。激活/失活只影响目标 webContents。本地选择、IPC 激活、关闭和带 Tape incarnation 的引用跳转遵循最新意图；过期结果不能再次导航、切换 Agent 或覆盖草稿。卸载移除本窗口订阅。[定向 IPC](../../../src/renderer/src/stores/ui/sessionIpc.ts)
 - **草稿与提交。** 新会话可异步解析模型，已有会话使用当前选择。二者在能力相同时保留相同文件和顺序；不支持音频时提示被过滤的数量及模型，能力查询失败时保留原附件供 main 裁决。输入修改、会话切换、取消或过期回执不能清除较新的草稿。首次创建的会话遇到附件阻塞时保留原恢复行为；queue、steer、retry 各自保留语义。[首条提交](../../../src/renderer/src/pages/NewThreadPage.vue) · [后续提交](../../../src/renderer/src/features/chat-page/composables/useComposerSubmit.ts)
 - **流与安全。** `messageIpc` 是 request 代次和终态唯一裁决点；清除当前屏幕的流不等于删除旧 request 的 tombstone。多窗口迟到帧不能复活已结束的消息；永久删除会话时释放对应跟踪。客户端不获得 provider replay、凭据或 Electron 对象。[消息订阅](../../../src/renderer/src/stores/ui/messageIpc.ts)

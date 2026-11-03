@@ -8,7 +8,7 @@ R1–R8 属于同一个重构 PR。按下列依赖在工作分支提交，R1 可
 
 **目标**：在全新 Settings 窗口打开全局 MCP 时，只初始化 MCP 功能，不初始化聊天订阅。
 
-- [ ] **依赖**：无。**删除**：`McpSettings.vue` 对 `useSessionStore`、`useAgentStore` 的直接构造，以及共享页面内从 active Session 猜目标的逻辑。默认和现有两个路由都走 global，无需 Agent。agent 范围显式接收目标 ID，必要时由该范围的调用者在保存成功后刷新相关 Agent 缓存。保留全局 master switch 和加载/保存目标变更保护；不为 agent 范围新建产品入口。
+- [x] **依赖**：无。**删除**：`McpSettings.vue` 对 `useSessionStore`、`useAgentStore` 的直接构造，以及共享页面内从 active Session 猜目标的逻辑。默认和现有两个路由都走 global，无需 Agent。agent 范围显式接收目标 ID，必要时由该范围的调用者在保存成功后刷新相关 Agent 缓存。保留全局 master switch 和加载/保存目标变更保护；不为 agent 范围新建产品入口。
 
 **实施顺序**
 
