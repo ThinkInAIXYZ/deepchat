@@ -354,6 +354,9 @@ const setup = async (options?: {
   vi.doMock('@/stores/ui/session', () => ({
     useSessionStore: () => sessionStore
   }))
+  vi.doMock('@/features/chat-session/store', () => ({
+    useChatSessionStore: () => sessionStore
+  }))
   vi.doMock('@/stores/ui/agent', () => ({
     useAgentStore: () => agentStore
   }))

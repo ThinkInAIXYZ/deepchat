@@ -720,6 +720,7 @@
 </template>
 
 <script setup lang="ts">
+import { useChatSessionStore } from '@/features/chat-session/store'
 import { ref, computed, nextTick, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
@@ -786,6 +787,7 @@ const router = useRouter()
 const agentStore = useAgentStore()
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
+const chatSessionStore = useChatSessionStore()
 const sidebarStore = useSidebarStore()
 const spotlightStore = useSpotlightStore()
 const themeStore = useThemeStore()
@@ -925,7 +927,7 @@ const { getShortcutBadgeLabelForSession, hasShortcutBadgeForSession, hideShortcu
     isGroupCollapsed,
     excludedSessionId: pinFlightSessionId,
     hasOwnOverlayOpen: () => spotlightStore.open || deleteDialogOpen.value,
-    selectSession: (sessionId) => void sessionStore.selectSession(sessionId)
+    selectSession: (sessionId) => void chatSessionStore.selectSession(sessionId)
   })
 
 const {
@@ -1097,7 +1099,7 @@ const startNewChat = async (options: StartNewConversationOptions) => {
   } catch (error) {
     console.warn('[WindowSideBar] Failed to switch to chat route:', error)
   } finally {
-    await sessionStore.startNewConversation(options)
+    await chatSessionStore.startNewConversation(options)
   }
 }
 
@@ -1131,7 +1133,7 @@ const handleSessionClick = async (session: { id: string }) => {
   } catch (error) {
     console.warn('[WindowSideBar] Failed to switch to chat route:', error)
   } finally {
-    await sessionStore.selectSession(session.id)
+    await chatSessionStore.selectSession(session.id)
   }
 }
 

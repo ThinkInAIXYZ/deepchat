@@ -336,6 +336,7 @@
 </template>
 
 <script setup lang="ts">
+import { useChatSessionStore } from '@/features/chat-session/store'
 import type { ToolInteractionResponse } from '@shared/types/agent-interface'
 import {
   ref,
@@ -1580,6 +1581,7 @@ const {
     Boolean(activePendingInteraction.value) || isHandlingInteraction.value,
   messageStore,
   sessionStore,
+  selectSession: useChatSessionStore().selectSession,
   sessionClient,
   chatClient,
   loadMessagesForSession,

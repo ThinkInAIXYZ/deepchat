@@ -47,6 +47,9 @@ vi.mock('@/stores/theme', () => ({
 vi.mock('@/stores/ui/session', () => ({
   useSessionStore: () => ({ selectSession: vi.fn() })
 }))
+vi.mock('@/features/chat-session/store', () => ({
+  useChatSessionStore: () => ({ selectSession: vi.fn() })
+}))
 
 describe('chat rendering performance smoke', () => {
   it('mounts the production MessageList path with realistic message shapes', async () => {

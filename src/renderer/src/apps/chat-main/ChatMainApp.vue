@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useChatSessionStore } from '@/features/chat-session/store'
 import { onMounted, ref, watch, onBeforeUnmount, computed, provide, nextTick } from 'vue'
 import { useEventListener, useMediaQuery } from '@vueuse/core'
 import { RouterView, useRoute, useRouter } from 'vue-router'
@@ -78,6 +79,9 @@ const notificationClient = createNotificationClient()
 const onboardingClient = createOnboardingClient()
 const windowClient = createWindowClient()
 const sessionStore = useSessionStore()
+const chatSessionStore = useChatSessionStore()
+const disconnectChatSession = chatSessionStore.connect()
+onBeforeUnmount(disconnectChatSession)
 const agentStore = useAgentStore()
 const draftStore = useDraftStore()
 const pageRouterStore = usePageRouterStore()
@@ -237,7 +241,7 @@ const handleZoomResume = () => {
 // Handle creating new conversation
 const handleCreateNewConversation = async () => {
   try {
-    await sessionStore.startNewConversation({ refresh: true })
+    await chatSessionStore.startNewConversation({ refresh: true })
   } catch (error) {
     console.error('Failed to create new conversation:', error)
   }
@@ -281,7 +285,7 @@ const activatePendingStartDeeplink = async () => {
     agentStore.setSelectedAgent('deepchat')
 
     if (sessionStore.hasActiveSession) {
-      await sessionStore.closeSession()
+      await chatSessionStore.closeSession()
       if (!isCurrentPendingStartDeeplink()) {
         return
       }
@@ -435,7 +439,7 @@ const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRu
     }
 
     if (sessionId) {
-      void sessionStore.selectSession(sessionId)
+      void chatSessionStore.selectSession(sessionId)
     }
   },
   getCurrentRouteName: () => router.currentRoute.value.name

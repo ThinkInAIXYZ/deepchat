@@ -52,6 +52,7 @@
 </template>
 
 <script setup lang="ts">
+import { useChatSessionStore } from '@/features/chat-session/store'
 import { inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createStartupClient } from '@api/StartupClient'
 import type { RendererStartupWorkloadTaskId } from '@shared/contracts/routes'
@@ -77,6 +78,7 @@ import {
 
 const pageRouter = usePageRouterStore()
 const sessionStore = useSessionStore()
+const chatSessionStore = useChatSessionStore()
 const agentStore = useAgentStore()
 const projectStore = useProjectStore()
 const draftStore = useDraftStore()
@@ -84,7 +86,7 @@ watch(
   () => pageRouter.currentRoute,
   (route) => {
     if (route === 'newThread') {
-      agentStore.setSelectedAgent(sessionStore.newConversationTargetAgentId)
+      agentStore.setSelectedAgent(chatSessionStore.newConversationTargetAgentId)
     }
   },
   { immediate: true, flush: 'sync' }
@@ -185,7 +187,7 @@ onMounted(async () => {
       `[Startup][Renderer] startup.bootstrap.ready run=${bootstrap.startupRunId} agents=${bootstrap.agents.length} activeSession=${bootstrap.activeSessionId ?? 'none'}`
     )
 
-    await sessionStore.applyBootstrapShell({
+    await chatSessionStore.applyBootstrapShell({
       activeSessionId: bootstrap.activeSessionId,
       activeSession: bootstrap.activeSession ?? null
     })

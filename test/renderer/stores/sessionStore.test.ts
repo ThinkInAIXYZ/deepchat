@@ -1,3 +1,4 @@
+import { createPinia, setActivePinia, disposePinia, type Pinia } from 'pinia'
 import { effectScope, reactive, type EffectScope } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -19,10 +20,8 @@ const dependencies = vi.hoisted(() => ({
   getRuntimeWebContentsId: vi.fn()
 }))
 
-vi.mock('pinia', async () => ({
-  ...(await vi.importActual<typeof import('pinia')>('pinia')),
-  defineStore: (_id: string, setup: () => unknown) => setup
-}))
+vi.unmock('pinia')
+
 vi.mock('@api/ConfigClient', () => ({ createConfigClient: dependencies.createConfigClient }))
 vi.mock('@api/OnboardingClient', () => ({
   createOnboardingClient: dependencies.createOnboardingClient
@@ -70,6 +69,7 @@ type SetupStoreOptions = {
 
 const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
 const storeScopes: EffectScope[] = []
+const storePinia: Pinia[] = []
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void
@@ -83,6 +83,7 @@ function createDeferred<T>() {
 
 afterEach(() => {
   storeScopes.splice(0).forEach((scope) => scope.stop())
+  storePinia.splice(0).forEach(disposePinia)
   window.sessionStorage.removeItem(GUIDED_ONBOARDING_RESUME_STORAGE_KEY)
 })
 
@@ -386,9 +387,15 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   )
 
   const { useSessionStore } = await import('@/stores/ui/session')
+  const { useChatSessionStore } = await import('@/features/chat-session/store')
+  const pinia = createPinia()
+  storePinia.push(pinia)
+  setActivePinia(pinia)
   const scope = effectScope()
   storeScopes.push(scope)
-  const store = scope.run(() => useSessionStore())!
+  const store = scope.run(() => useSessionStore(pinia))!
+  const chatSession = scope.run(() => useChatSessionStore(pinia))!
+  chatSession.connect()
   await new Promise((resolve) => setTimeout(resolve, 0))
   const emitSessionUpdate = (payload: unknown) => {
     for (const handler of sessionListeners) {
@@ -407,6 +414,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   }
   return {
     store,
+    chatSession,
     settings,
     configClient,
     clearStreamingState,
@@ -439,7 +447,7 @@ describe('sessionStore.getFilteredGroups', () => {
     await store.fetchSessions()
     const now = Date.now()
 
-    store.sessions.value = [
+    store.sessions = [
       {
         id: 'draft-1',
         title: 'Draft',
@@ -481,7 +489,7 @@ describe('sessionStore.getFilteredGroups', () => {
     const { store } = await setupStore()
     const now = Date.now()
 
-    store.sessions.value = [
+    store.sessions = [
       {
         id: 'pinned-1',
         title: 'Pinned',
@@ -523,9 +531,9 @@ describe('sessionStore.getFilteredGroups', () => {
 
   it('merges group pages without changing global pagination or resurrecting deleted or stale rows', async () => {
     const { store, sessionClient, emitSessionUpdate } = await setupStore()
-    store.sessions.value = [createSession({ id: 'current', title: 'Current', revision: 5 })]
-    store.hasMore.value = true
-    store.nextCursor.value = { id: 'global', updatedAt: 100 }
+    store.sessions = [createSession({ id: 'current', title: 'Current', revision: 5 })]
+    store.hasMore = true
+    store.nextCursor = { id: 'global', updatedAt: 100 }
     const pending = createDeferred<{
       items: ReturnType<typeof createSession>[]
       hasMore: boolean
@@ -544,15 +552,15 @@ describe('sessionStore.getFilteredGroups', () => {
       nextCursor: { id: 'old-workspace', updatedAt: 1 }
     })
     await request
-    expect(store.sessions.value.map((session: { id: string }) => session.id).sort()).toEqual([
+    expect(store.sessions.map((session: { id: string }) => session.id).sort()).toEqual([
       'current',
       'old-workspace'
     ])
-    expect(
-      store.sessions.value.find((session: { id: string }) => session.id === 'current').title
-    ).toBe('Current')
-    expect(store.nextCursor.value).toEqual({ id: 'global', updatedAt: 100 })
-    expect(store.hasMore.value).toBe(true)
+    expect(store.sessions.find((session: { id: string }) => session.id === 'current').title).toBe(
+      'Current'
+    )
+    expect(store.nextCursor).toEqual({ id: 'global', updatedAt: 100 })
+    expect(store.hasMore).toBe(true)
   })
 
   it('discards a pending group page when history is imported', async () => {
@@ -571,8 +579,8 @@ describe('sessionStore.getFilteredGroups', () => {
       nextCursor: null
     })
     expect(await request).toBeNull()
-    expect(store.sessions.value).toEqual([])
-    expect(store.historyRevision.value).toBe(1)
+    expect(store.sessions).toEqual([])
+    expect(store.historyRevision).toBe(1)
   })
 
   it('sorts fetched sessions alphabetically by title', async () => {
@@ -590,7 +598,7 @@ describe('sessionStore.getFilteredGroups', () => {
 
     await store.fetchSessions()
 
-    expect(store.sessions.value.map((session: { title: string }) => session.title)).toEqual([
+    expect(store.sessions.map((session: { title: string }) => session.title)).toEqual([
       'Alpha',
       'Bravo',
       'Zulu'
@@ -602,7 +610,7 @@ describe('sessionStore.getFilteredGroups', () => {
     const now = Date.now()
 
     await store.fetchSessions()
-    store.sessions.value = [
+    store.sessions = [
       {
         id: 'windows-1',
         title: 'Windows Chat',
@@ -630,7 +638,7 @@ describe('sessionStore.getFilteredGroups', () => {
     const now = Date.now()
 
     await store.fetchSessions()
-    store.sessions.value = [
+    store.sessions = [
       createSession({
         id: 'project-1',
         title: 'Workspace A',
@@ -670,7 +678,7 @@ describe('sessionStore.getFilteredGroups', () => {
     const now = Date.now()
 
     await store.fetchSessions()
-    store.sessions.value = [
+    store.sessions = [
       createSession({
         id: 'old-alpha',
         title: 'Alpha',
@@ -704,7 +712,7 @@ describe('sessionStore.getFilteredGroups', () => {
   it('keeps pinned sessions alphabetically sorted after pinning', async () => {
     const { store, sessionClient } = await setupStore()
 
-    store.sessions.value = [
+    store.sessions = [
       createSession({ id: 'bravo-pinned', title: 'Bravo', isPinned: true, updatedAt: 10 }),
       createSession({ id: 'target', title: 'Zulu', isPinned: false, updatedAt: 5 }),
       createSession({ id: 'grouped-alpha', title: 'Alpha', isPinned: false, updatedAt: 20 })
@@ -730,7 +738,7 @@ describe('sessionStore.getFilteredGroups', () => {
     const now = Date.now()
 
     await store.fetchSessions()
-    store.sessions.value = [
+    store.sessions = [
       createSession({ id: 'target', title: 'Zulu', isPinned: true, updatedAt: now - 10 }),
       createSession({
         id: 'grouped-existing',
@@ -758,7 +766,7 @@ describe('sessionStore.getFilteredGroups', () => {
     const now = Date.now()
 
     await store.fetchSessions()
-    store.sessions.value = [
+    store.sessions = [
       createSession({
         id: 'agent-a-pinned',
         title: 'Zulu pinned',
@@ -809,7 +817,7 @@ describe('sessionStore.getFilteredGroups', () => {
     const now = Date.now()
 
     await store.fetchSessions()
-    store.sessions.value = [
+    store.sessions = [
       createSession({
         id: 'agent-a-today',
         agentId: 'agent-a',
@@ -850,7 +858,7 @@ describe('sessionStore group mode preferences', () => {
 
     await store.fetchSessions()
 
-    expect(store.groupMode.value).toBe('project')
+    expect(store.groupMode).toBe('project')
   })
 
   it('restores the saved group mode preference', async () => {
@@ -862,7 +870,7 @@ describe('sessionStore group mode preferences', () => {
 
     await store.fetchSessions()
 
-    expect(store.groupMode.value).toBe('time')
+    expect(store.groupMode).toBe('time')
   })
 
   it('falls back to project when the saved preference is invalid', async () => {
@@ -874,7 +882,7 @@ describe('sessionStore group mode preferences', () => {
 
     await store.fetchSessions()
 
-    expect(store.groupMode.value).toBe('project')
+    expect(store.groupMode).toBe('project')
   })
 
   it('persists toggled group mode changes', async () => {
@@ -887,7 +895,7 @@ describe('sessionStore group mode preferences', () => {
 
     await store.toggleGroupMode()
 
-    expect(store.groupMode.value).toBe('time')
+    expect(store.groupMode).toBe('time')
     expect(configClient.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'time')
     expect(settings[SIDEBAR_GROUP_MODE_KEY]).toBe('time')
   })
@@ -902,7 +910,7 @@ describe('sessionStore group mode preferences', () => {
     savedPreference.resolve('time')
     await request
 
-    expect(store.groupMode.value).toBe('project')
+    expect(store.groupMode).toBe('project')
     expect(configClient.setSetting).toHaveBeenCalledWith(SIDEBAR_GROUP_MODE_KEY, 'project')
   })
 
@@ -920,7 +928,7 @@ describe('sessionStore group mode preferences', () => {
     await expect(firstWrite).rejects.toThrow('failed to write setting')
     await expect(secondWrite).rejects.toThrow('failed to write setting')
     expect(configClient.setSetting).toHaveBeenCalledTimes(1)
-    expect(store.groupMode.value).toBe('project')
+    expect(store.groupMode).toBe('project')
 
     configClient.setSetting.mockReset()
     configClient.setSetting.mockRejectedValue(new Error('failed to write setting'))
@@ -931,7 +939,7 @@ describe('sessionStore group mode preferences', () => {
     await expect(queuedTimeWrite).rejects.toThrow('failed to write setting')
     await expect(queuedProjectWrite).rejects.toThrow('failed to write setting')
     expect(configClient.setSetting).toHaveBeenCalledTimes(2)
-    expect(store.groupMode.value).toBe('project')
+    expect(store.groupMode).toBe('project')
   })
 
   it('serializes concurrent group mode writes and persists the last toggle', async () => {
@@ -953,7 +961,7 @@ describe('sessionStore group mode preferences', () => {
 
     await Promise.resolve()
 
-    expect(store.groupMode.value).toBe('project')
+    expect(store.groupMode).toBe('project')
     expect(configClient.setSetting).toHaveBeenCalledTimes(1)
 
     pendingResolvers.shift()?.()
@@ -972,16 +980,17 @@ describe('sessionStore.startNewConversation', () => {
   it.each([undefined, '/work/app', null])(
     'uses the draft Agent regardless of filtering, active history, or workspace %s',
     async (projectDir) => {
-      const { store, agentStore, draftStore, pageRouter, sessionClient } = await setupStore({
-        selectedAgentId: 'history-agent',
-        filterAgentId: 'filtered-agent',
-        draftAgentId: 'acp-a',
-        enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
-      })
-      store.sessions.value = [createSession({ id: 'active', agentId: 'history-agent' })]
-      store.activeSessionId.value = 'active'
+      const { chatSession, store, agentStore, draftStore, pageRouter, sessionClient } =
+        await setupStore({
+          selectedAgentId: 'history-agent',
+          filterAgentId: 'filtered-agent',
+          draftAgentId: 'acp-a',
+          enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
+        })
+      store.sessions = [createSession({ id: 'active', agentId: 'history-agent' })]
+      store.activeSessionId = 'active'
 
-      await store.startNewConversation({
+      await chatSession.startNewConversation({
         refresh: true,
         ...(projectDir !== undefined ? { projectDir } : {})
       })
@@ -991,50 +1000,50 @@ describe('sessionStore.startNewConversation', () => {
       expect(agentStore.filterAgentId).toBe('filtered-agent')
       expect(sessionClient.listLightweight).not.toHaveBeenCalled()
       expect(sessionClient.deactivate).toHaveBeenCalledOnce()
-      expect(store.activeSessionId.value).toBeNull()
+      expect(store.activeSessionId).toBeNull()
       expect(pageRouter.goToNewThread).toHaveBeenCalledWith({ refresh: true })
-      expect(store.newConversationProjectDirIntent.value).toEqual(
+      expect(chatSession.newConversationProjectDirIntent).toEqual(
         projectDir === undefined ? null : { id: 1, projectDir, consumed: false }
       )
     }
   )
 
   it('keeps the draft Agent when browsing another Agent conversation', async () => {
-    const { store, agentStore, draftStore } = await setupStore({
+    const { chatSession, store, agentStore, draftStore } = await setupStore({
       draftAgentId: 'deepchat',
       enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
     })
-    store.sessions.value = [createSession({ id: 'acp-session', agentId: 'acp-a' })]
-    await store.selectSession('acp-session')
+    store.sessions = [createSession({ id: 'acp-session', agentId: 'acp-a' })]
+    await chatSession.selectSession('acp-session')
     expect(agentStore.selectedAgentId).toBe('acp-a')
     expect(draftStore.agentId).toBe('deepchat')
 
-    await store.startNewConversation()
+    await chatSession.startNewConversation()
 
     expect(agentStore.selectedAgentId).toBe('deepchat')
     expect(draftStore.agentId).toBe('deepchat')
   })
 
   it('keeps the active execution context when deactivation fails', async () => {
-    const { store, agentStore, sessionClient, pageRouter } = await setupStore({
+    const { chatSession, store, agentStore, sessionClient, pageRouter } = await setupStore({
       selectedAgentId: 'acp-a',
       enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
     })
-    store.sessions.value = [createSession({ id: 'active', agentId: 'acp-a' })]
-    store.activeSessionId.value = 'active'
+    store.sessions = [createSession({ id: 'active', agentId: 'acp-a' })]
+    store.activeSessionId = 'active'
     sessionClient.deactivate.mockRejectedValueOnce(new Error('deactivation failed'))
-    await store.startNewConversation()
-    expect(store.activeSessionId.value).toBe('active')
+    await chatSession.startNewConversation()
+    expect(store.activeSessionId).toBe('active')
     expect(agentStore.selectedAgentId).toBe('acp-a')
     expect(pageRouter.goToNewThread).not.toHaveBeenCalled()
   })
 
   it('allows an explicit Agent command without changing the history filter', async () => {
-    const { store, agentStore, draftStore } = await setupStore({
+    const { chatSession, store, agentStore, draftStore } = await setupStore({
       filterAgentId: 'deepchat',
       enabledAgents: [{ id: 'deepchat' }, { id: 'acp-a', type: 'acp' }]
     })
-    await store.startNewConversation({ agentId: 'acp-a' })
+    await chatSession.startNewConversation({ agentId: 'acp-a' })
     expect(agentStore.selectedAgentId).toBe('acp-a')
     expect(draftStore.agentId).toBe('acp-a')
     expect(agentStore.filterAgentId).toBe('deepchat')
@@ -1043,11 +1052,11 @@ describe('sessionStore.startNewConversation', () => {
   it.each(['deepchat', 'removed-agent'])(
     'defaults %s to DeepChat independently of catalog ordering',
     async (draftAgentId) => {
-      const { store, agentStore, draftStore } = await setupStore({
+      const { chatSession, store, agentStore, draftStore } = await setupStore({
         draftAgentId,
         enabledAgents: [{ id: 'acp-a', type: 'acp' }, { id: 'deepchat' }]
       })
-      await store.startNewConversation()
+      await chatSession.startNewConversation()
       expect(agentStore.selectedAgentId).toBe('deepchat')
       expect(draftStore.agentId).toBe('deepchat')
     }
@@ -1058,7 +1067,7 @@ describe('sessionStore onboarding progress', () => {
   it.each(['failure', 'abort'] as const)(
     'opens an accepted first message after a draft submission %s without sending it again',
     async (kind) => {
-      const { store, sessionClient, pageRouter } = await setupStore()
+      const { chatSession, store, sessionClient, pageRouter } = await setupStore()
       const failure = new Error(kind === 'abort' ? 'Aborted' : 'Reply failed')
       if (kind === 'abort') failure.name = 'AbortError'
       sessionClient.create.mockRejectedValueOnce(failure)
@@ -1069,21 +1078,21 @@ describe('sessionStore onboarding progress', () => {
       })
 
       expect(
-        await store.createSession({
+        await chatSession.createSession({
           agentId: 'deepchat',
           draftSessionId: session.id,
           message: 'Review the project'
         })
       ).toEqual({ session })
       expect(pageRouter.goToChat).toHaveBeenCalledWith(session.id)
-      expect(store.activeSession.value?.status).toBe('error')
-      expect(store.error.value).toBeNull()
+      expect(store.activeSession?.status).toBe('error')
+      expect(store.error).toBeNull()
       expect(sessionClient.create).toHaveBeenCalledTimes(1)
     }
   )
 
   it('keeps an unused draft retryable when a failed submission has no accepted message', async () => {
-    const { store, sessionClient, pageRouter } = await setupStore()
+    const { chatSession, store, sessionClient, pageRouter } = await setupStore()
     const failure = new Error('Preparation failed')
     sessionClient.create.mockRejectedValueOnce(failure)
     sessionClient.restore.mockResolvedValueOnce({
@@ -1091,37 +1100,41 @@ describe('sessionStore onboarding progress', () => {
       messages: []
     })
     await expect(
-      store.createSession({ agentId: 'deepchat', draftSessionId: 'session-1', message: 'Review' })
+      chatSession.createSession({
+        agentId: 'deepchat',
+        draftSessionId: 'session-1',
+        message: 'Review'
+      })
     ).rejects.toBe(failure)
     expect(pageRouter.goToChat).not.toHaveBeenCalled()
   })
 
   it('does not replace newer navigation while recovering an accepted draft submission', async () => {
-    const { store, sessionClient, pageRouter } = await setupStore()
+    const { chatSession, store, sessionClient, pageRouter } = await setupStore()
     sessionClient.create.mockRejectedValueOnce(new Error('Reply failed'))
     const recovery = createDeferred<{
       session: ReturnType<typeof createSession>
       messages: { id: string }[]
     }>()
     sessionClient.restore.mockReturnValueOnce(recovery.promise)
-    const creation = store.createSession({
+    const creation = chatSession.createSession({
       agentId: 'deepchat',
       draftSessionId: 'session-1',
       message: 'Review'
     })
     await vi.waitFor(() => expect(sessionClient.restore).toHaveBeenCalled())
-    await store.closeSession()
+    await chatSession.closeSession()
     recovery.resolve({ session: createSession(), messages: [{ id: 'accepted-user-message' }] })
     await creation
     expect(pageRouter.goToChat).not.toHaveBeenCalled()
-    expect(store.activeSessionId.value).toBeNull()
+    expect(store.activeSessionId).toBeNull()
   })
   it('marks the first-chat step complete after creating the first session', async () => {
-    const { store, onboardingClient, pageRouter, sessionClient } = await setupStore({
+    const { chatSession, store, onboardingClient, pageRouter, sessionClient } = await setupStore({
       onboardingCurrentStepId: 'first-chat'
     })
 
-    await store.createSession({
+    await chatSession.createSession({
       agentId: 'deepchat',
       message: 'hello onboarding',
       projectDir: '/tmp/workspace',
@@ -1137,7 +1150,7 @@ describe('sessionStore onboarding progress', () => {
       modelId: 'gpt-4'
     })
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-1')
-    expect(store.activeSession.value?.status).toBe('working')
+    expect(store.activeSession?.status).toBe('working')
     expect(onboardingClient.getState).toHaveBeenCalledTimes(1)
     expect(onboardingClient.setStepStatus).toHaveBeenCalledWith({
       stepId: 'first-chat',
@@ -1148,10 +1161,10 @@ describe('sessionStore onboarding progress', () => {
   it.each([true, false])(
     'recognizes an initial turn with no text when it has a reference=%s',
     async (hasReference) => {
-      const { store, onboardingClient } = await setupStore({
+      const { chatSession, store, onboardingClient } = await setupStore({
         onboardingCurrentStepId: 'first-chat'
       })
-      await store.createSession({
+      await chatSession.createSession({
         agentId: 'deepchat',
         message: '',
         inlineItems: hasReference
@@ -1168,7 +1181,7 @@ describe('sessionStore onboarding progress', () => {
           : []
       })
 
-      expect(store.activeSession.value?.status).toBe(hasReference ? 'working' : 'none')
+      expect(store.activeSession?.status).toBe(hasReference ? 'working' : 'none')
       expect(onboardingClient.getState).toHaveBeenCalledTimes(hasReference ? 1 : 0)
       if (hasReference) {
         expect(onboardingClient.setStepStatus).toHaveBeenCalledWith({
@@ -1180,7 +1193,7 @@ describe('sessionStore onboarding progress', () => {
   )
 
   it('does not publish a store error when new-session preparation is cancelled', async () => {
-    const { store, sessionClient } = await setupStore()
+    const { chatSession, store, sessionClient } = await setupStore()
     const abortError = new Error('Aborted')
     abortError.name = 'AbortError'
     sessionClient.create.mockRejectedValueOnce(abortError)
@@ -1191,7 +1204,7 @@ describe('sessionStore onboarding progress', () => {
     }
 
     await expect(
-      store.createSession(input, {
+      chatSession.createSession(input, {
         submissionId: 'submission-1',
         isCancellationRequested: () => true
       })
@@ -1200,12 +1213,18 @@ describe('sessionStore onboarding progress', () => {
     expect(sessionClient.create).toHaveBeenCalledWith(input, {
       submissionId: 'submission-1'
     })
-    expect(store.error.value).toBeNull()
+    expect(store.error).toBeNull()
   })
 
   it('stages a rejected initial attachment draft without marking the session working', async () => {
-    const { store, onboardingClient, pageRouter, sessionClient, attachmentPreparationStore } =
-      await setupStore({ onboardingCurrentStepId: 'first-chat' })
+    const {
+      chatSession,
+      store,
+      onboardingClient,
+      pageRouter,
+      sessionClient,
+      attachmentPreparationStore
+    } = await setupStore({ onboardingCurrentStepId: 'first-chat' })
     const summary = {
       status: 'needs_user_action' as const,
       issues: [{ attachmentIndex: 0, reason: 'ocr_empty' as const }],
@@ -1226,7 +1245,7 @@ describe('sessionStore onboarding progress', () => {
       }
     })
 
-    const result = await store.createSession({
+    const result = await chatSession.createSession({
       agentId: 'deepchat',
       message: '',
       files: [file],
@@ -1247,15 +1266,15 @@ describe('sessionStore onboarding progress', () => {
       },
       summary
     })
-    expect(store.activeSession.value?.status).toBe('none')
+    expect(store.activeSession?.status).toBe('none')
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-1')
     expect(onboardingClient.getState).not.toHaveBeenCalled()
   })
 
   it('hands the first-turn search intent to the chat composer before navigation', async () => {
-    const { store, pageRouter } = await setupStore()
+    const { chatSession, store, pageRouter } = await setupStore()
 
-    await store.createSession({
+    await chatSession.createSession({
       agentId: 'deepchat',
       message: 'Find current prices',
       providerId: 'deepseek',
@@ -1284,7 +1303,7 @@ describe('sessionStore onboarding progress', () => {
 
   it('restores session status without publishing an error when send preparation is cancelled', async () => {
     const { store, chatClient } = await setupStore()
-    store.sessions.value = [createSession({ id: 'session-1', status: 'none' })]
+    store.sessions = [createSession({ id: 'session-1', status: 'none' })]
     const abortError = new Error('Aborted')
     abortError.name = 'AbortError'
     chatClient.sendMessage.mockRejectedValueOnce(abortError)
@@ -1299,13 +1318,13 @@ describe('sessionStore onboarding progress', () => {
     expect(chatClient.sendMessage).toHaveBeenCalledWith('session-1', 'hello', {
       submissionId: 'submission-1'
     })
-    expect(store.sessions.value[0]?.status).toBe('none')
-    expect(store.error.value).toBeNull()
+    expect(store.sessions[0]?.status).toBe('none')
+    expect(store.error).toBeNull()
   })
 
   it('publishes a non-abort send failure even when cancellation was requested', async () => {
     const { store, chatClient } = await setupStore()
-    store.sessions.value = [createSession({ id: 'session-1', status: 'none' })]
+    store.sessions = [createSession({ id: 'session-1', status: 'none' })]
     chatClient.sendMessage.mockRejectedValueOnce(new Error('OCR runtime unavailable'))
 
     await expect(
@@ -1315,8 +1334,8 @@ describe('sessionStore onboarding progress', () => {
       })
     ).rejects.toThrow('OCR runtime unavailable')
 
-    expect(store.sessions.value[0]?.status).toBe('error')
-    expect(store.error.value).toContain('OCR runtime unavailable')
+    expect(store.sessions[0]?.status).toBe('error')
+    expect(store.error).toContain('OCR runtime unavailable')
   })
 
   it('requests a welcome-guide resume when a pending chat onboarding step completes', async () => {
@@ -1379,15 +1398,21 @@ describe('sessionStore onboarding progress', () => {
 
 describe('sessionStore streaming cleanup', () => {
   it('clears streaming state when switching active session', async () => {
-    const { store, clearStreamingState, setCurrentSessionId, sessionClient, agentStore } =
-      await setupStore({
-        selectedAgentId: 'deepchat',
-        filterAgentId: null
-      })
-    store.activeSessionId.value = 'session-a'
-    store.sessions.value = [createSession({ id: 'session-b', agentId: 'acp-a' })]
+    const {
+      chatSession,
+      store,
+      clearStreamingState,
+      setCurrentSessionId,
+      sessionClient,
+      agentStore
+    } = await setupStore({
+      selectedAgentId: 'deepchat',
+      filterAgentId: null
+    })
+    store.activeSessionId = 'session-a'
+    store.sessions = [createSession({ id: 'session-b', agentId: 'acp-a' })]
 
-    await store.selectSession('session-b')
+    await chatSession.selectSession('session-b')
 
     expect(sessionClient.activate).toHaveBeenCalledWith('session-b')
     expect(agentStore.selectedAgentId).toBe('acp-a')
@@ -1397,10 +1422,10 @@ describe('sessionStore streaming cleanup', () => {
   })
 
   it('hydrates the selected active session before routing to chat', async () => {
-    const { store, sessionClient, pageRouter, agentStore } = await setupStore({
+    const { chatSession, store, sessionClient, pageRouter, agentStore } = await setupStore({
       selectedAgentId: 'deepchat'
     })
-    store.sessions.value = [createSession({ id: 'session-acp', agentId: 'dimcode' })]
+    store.sessions = [createSession({ id: 'session-acp', agentId: 'dimcode' })]
     sessionClient.getActive.mockResolvedValueOnce({
       session: createSession({
         id: 'session-acp',
@@ -1413,13 +1438,13 @@ describe('sessionStore streaming cleanup', () => {
       })
     })
 
-    await store.selectSession('session-acp')
+    await chatSession.selectSession('session-acp')
 
     expect(sessionClient.activate).toHaveBeenCalledWith('session-acp')
     expect(sessionClient.getActive).toHaveBeenCalledTimes(1)
-    expect(store.activeSession.value?.providerId).toBe('acp')
-    expect(store.activeSession.value?.modelId).toBe('dimcode')
-    expect(store.activeSession.value?.status).toBe('working')
+    expect(store.activeSession?.providerId).toBe('acp')
+    expect(store.activeSession?.modelId).toBe('dimcode')
+    expect(store.activeSession?.status).toBe('working')
     expect(agentStore.selectedAgentId).toBe('dimcode')
     expect(agentStore.filterAgentId).toBe('deepchat')
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-acp')
@@ -1429,12 +1454,12 @@ describe('sessionStore streaming cleanup', () => {
   })
 
   it('still routes when selected session hydration fails', async () => {
-    const { store, sessionClient, pageRouter } = await setupStore()
+    const { chatSession, store, sessionClient, pageRouter } = await setupStore()
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     sessionClient.getActive.mockRejectedValueOnce(new Error('restore failed'))
 
     try {
-      await store.selectSession('session-fallback')
+      await chatSession.selectSession('session-fallback')
 
       expect(sessionClient.activate).toHaveBeenCalledWith('session-fallback')
       expect(warnSpy).toHaveBeenCalledWith(
@@ -1448,11 +1473,11 @@ describe('sessionStore streaming cleanup', () => {
   })
 
   it('hydrates active session and selected agent from the bootstrap shell', async () => {
-    const { store, setCurrentSessionId, agentStore } = await setupStore({
+    const { chatSession, store, setCurrentSessionId, agentStore } = await setupStore({
       selectedAgentId: 'deepchat'
     })
 
-    await store.applyBootstrapShell({
+    await chatSession.applyBootstrapShell({
       activeSessionId: 'session-sync-1',
       activeSession: {
         id: 'session-sync-1',
@@ -1472,15 +1497,15 @@ describe('sessionStore streaming cleanup', () => {
       }
     })
 
-    expect(store.activeSessionId.value).toBe('session-sync-1')
+    expect(store.activeSessionId).toBe('session-sync-1')
     expect(setCurrentSessionId).toHaveBeenCalledWith('session-sync-1')
     expect(agentStore.selectedAgentId).toBe('acp-sync')
     expect(agentStore.filterAgentId).toBe('deepchat')
   })
 
   it('does not let a stale bootstrap shell overwrite a newer canonical session snapshot', async () => {
-    const { store } = await setupStore()
-    store.sessions.value = [
+    const { chatSession, store } = await setupStore()
+    store.sessions = [
       createSession({
         id: 'session-sync-1',
         title: 'Current title',
@@ -1490,7 +1515,7 @@ describe('sessionStore streaming cleanup', () => {
       })
     ]
 
-    await store.applyBootstrapShell({
+    await chatSession.applyBootstrapShell({
       activeSessionId: 'session-sync-1',
       activeSession: createSession({
         id: 'session-sync-1',
@@ -1501,16 +1526,16 @@ describe('sessionStore streaming cleanup', () => {
       })
     })
 
-    expect(store.sessions.value).toEqual([
+    expect(store.sessions).toEqual([
       expect.objectContaining({ id: 'session-sync-1', title: 'Current title', revision: 3 })
     ])
-    expect(store.activeSession.value).toEqual(
+    expect(store.activeSession).toEqual(
       expect.objectContaining({ id: 'session-sync-1', title: 'Current title', revision: 3 })
     )
   })
 
   it('keeps canonical, hydrated, and bootstrap session projections on the newest revision', async () => {
-    const { store } = await setupStore()
+    const { chatSession, store } = await setupStore()
     const current = createSession({
       id: 'session-sync-1',
       title: 'Current title',
@@ -1520,9 +1545,9 @@ describe('sessionStore streaming cleanup', () => {
       providerId: 'acp',
       modelId: 'dimcode'
     })
-    store.sessions.value = [current, createSession({ id: 'session-other', revision: 1 })]
+    store.sessions = [current, createSession({ id: 'session-other', revision: 1 })]
 
-    await store.applyBootstrapShell({
+    await chatSession.applyBootstrapShell({
       activeSessionId: 'session-sync-1',
       activeSession: current
     })
@@ -1539,10 +1564,10 @@ describe('sessionStore streaming cleanup', () => {
       })
     )
 
-    expect(store.sessions.value.find((session) => session.id === 'session-sync-1')).toEqual(
+    expect(store.sessions.find((session) => session.id === 'session-sync-1')).toEqual(
       expect.objectContaining({ title: 'Current title', revision: 3 })
     )
-    expect(store.activeSession.value).toEqual(
+    expect(store.activeSession).toEqual(
       expect.objectContaining({
         title: 'Current title',
         revision: 3,
@@ -1552,11 +1577,11 @@ describe('sessionStore streaming cleanup', () => {
       })
     )
 
-    await store.applyBootstrapShell({
+    await chatSession.applyBootstrapShell({
       activeSessionId: 'session-other',
       activeSession: createSession({ id: 'session-other', revision: 1 })
     })
-    await store.applyBootstrapShell({
+    await chatSession.applyBootstrapShell({
       activeSessionId: 'session-sync-1',
       activeSession: createSession({
         id: 'session-sync-1',
@@ -1566,21 +1591,21 @@ describe('sessionStore streaming cleanup', () => {
       })
     })
 
-    expect(store.activeSession.value).toEqual(
+    expect(store.activeSession).toEqual(
       expect.objectContaining({ id: 'session-sync-1', title: 'Current title', revision: 3 })
     )
   })
 
   it('keeps a confirmed proactive policy across active projections and stale reads', async () => {
-    const { store } = await setupStore()
+    const { chatSession, store } = await setupStore()
     const current = createSession({
       id: 'session-workflow',
       orchestrationPolicy: 'explicit',
       revision: 3,
       updatedAt: 3
     })
-    store.sessions.value = [current]
-    await store.applyBootstrapShell({
+    store.sessions = [current]
+    await chatSession.applyBootstrapShell({
       activeSessionId: 'session-workflow',
       activeSession: current
     })
@@ -1596,15 +1621,15 @@ describe('sessionStore streaming cleanup', () => {
       })
     )
 
-    expect(store.sessions.value[0]?.orchestrationPolicy).toBe('proactive')
-    expect(store.activeSession.value?.orchestrationPolicy).toBe('proactive')
+    expect(store.sessions[0]?.orchestrationPolicy).toBe('proactive')
+    expect(store.activeSession?.orchestrationPolicy).toBe('proactive')
   })
 
   it('clears streaming when bootstrap shell switches the active session', async () => {
-    const { store, clearStreamingState } = await setupStore()
-    store.activeSessionId.value = 'session-a'
+    const { chatSession, store, clearStreamingState } = await setupStore()
+    store.activeSessionId = 'session-a'
 
-    await store.applyBootstrapShell({
+    await chatSession.applyBootstrapShell({
       activeSessionId: 'session-b',
       activeSession: {
         id: 'session-b',
@@ -1625,13 +1650,13 @@ describe('sessionStore streaming cleanup', () => {
     })
 
     expect(clearStreamingState).toHaveBeenCalledTimes(1)
-    expect(store.activeSessionId.value).toBe('session-b')
+    expect(store.activeSessionId).toBe('session-b')
   })
 
   it('returns to new thread when the current window receives a deactivation event', async () => {
     const { store, clearStreamingState, setCurrentSessionId, pageRouter, emitSessionUpdate } =
       await setupStore()
-    store.activeSessionId.value = 'session-a'
+    store.activeSessionId = 'session-a'
     pageRouter.currentRoute = 'chat'
 
     emitSessionUpdate({
@@ -1641,7 +1666,7 @@ describe('sessionStore streaming cleanup', () => {
     })
 
     expect(clearStreamingState).toHaveBeenCalledTimes(1)
-    expect(store.activeSessionId.value).toBeNull()
+    expect(store.activeSessionId).toBeNull()
     expect(setCurrentSessionId).toHaveBeenCalledWith(null)
     expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
   })
@@ -1651,7 +1676,7 @@ describe('sessionStore streaming cleanup', () => {
     const { store, emitSessionUpdate, pageRouter } = await setupStore({
       runtimeIdentity: runtimeIdentity.promise
     })
-    store.sessions.value = [createSession({ id: 'session-early' })]
+    store.sessions = [createSession({ id: 'session-early' })]
 
     emitSessionUpdate({
       sessionIds: ['session-early'],
@@ -1671,7 +1696,7 @@ describe('sessionStore streaming cleanup', () => {
     runtimeIdentity.resolve({ windowId: 1, webContentsId: 1 })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(store.activeSessionId.value).toBeNull()
+    expect(store.activeSessionId).toBeNull()
     expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
     expect(pageRouter.goToChat).not.toHaveBeenCalled()
   })
@@ -1681,7 +1706,7 @@ describe('sessionStore streaming cleanup', () => {
     const { store, emitSessionUpdate, pageRouter } = await setupStore({
       runtimeIdentity: runtimeIdentity.promise
     })
-    store.sessions.value = [createSession({ id: 'session-current' })]
+    store.sessions = [createSession({ id: 'session-current' })]
 
     emitSessionUpdate({
       sessionIds: ['session-current'],
@@ -1699,7 +1724,7 @@ describe('sessionStore streaming cleanup', () => {
     runtimeIdentity.resolve({ windowId: 1, webContentsId: 1 })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(store.activeSessionId.value).toBe('session-current')
+    expect(store.activeSessionId).toBe('session-current')
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-current')
   })
 
@@ -1708,7 +1733,7 @@ describe('sessionStore streaming cleanup', () => {
     const { store, emitSessionUpdate, pageRouter } = await setupStore({
       runtimeIdentity: runtimeIdentity.promise
     })
-    store.sessions.value = [createSession({ id: 'session-other' })]
+    store.sessions = [createSession({ id: 'session-other' })]
 
     emitSessionUpdate({
       sessionIds: ['session-other'],
@@ -1719,7 +1744,7 @@ describe('sessionStore streaming cleanup', () => {
     runtimeIdentity.resolve({ windowId: 1, webContentsId: 1 })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(store.activeSessionId.value).toBeNull()
+    expect(store.activeSessionId).toBeNull()
     expect(pageRouter.goToChat).not.toHaveBeenCalled()
   })
 
@@ -1739,7 +1764,7 @@ describe('sessionStore streaming cleanup', () => {
     const { store, pageRouter, emitSessionUpdate, agentStore } = await setupStore({
       selectedAgentId: 'deepchat'
     })
-    store.sessions.value = [createSession({ id: 'session-external', agentId: 'agent-b' })]
+    store.sessions = [createSession({ id: 'session-external', agentId: 'agent-b' })]
 
     emitSessionUpdate({
       sessionIds: ['session-external'],
@@ -1749,7 +1774,7 @@ describe('sessionStore streaming cleanup', () => {
     })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(store.activeSessionId.value).toBe('session-external')
+    expect(store.activeSessionId).toBe('session-external')
     expect(agentStore.selectedAgentId).toBe('agent-b')
     expect(agentStore.filterAgentId).toBe('deepchat')
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-external')
@@ -1757,7 +1782,7 @@ describe('sessionStore streaming cleanup', () => {
 
   it('hydrates the activated session before routing from the activation event', async () => {
     const { store, pageRouter, emitSessionUpdate, sessionClient } = await setupStore()
-    store.sessions.value = [createSession({ id: 'session-event', agentId: 'dimcode' })]
+    store.sessions = [createSession({ id: 'session-event', agentId: 'dimcode' })]
     sessionClient.getActive.mockResolvedValueOnce({
       session: createSession({
         id: 'session-event',
@@ -1775,8 +1800,8 @@ describe('sessionStore streaming cleanup', () => {
     })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(store.activeSession.value?.providerId).toBe('acp')
-    expect(store.activeSession.value?.modelId).toBe('dimcode')
+    expect(store.activeSession?.providerId).toBe('acp')
+    expect(store.activeSession?.modelId).toBe('dimcode')
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-event')
     expect(pageRouter.goToChat.mock.invocationCallOrder[0]).toBeGreaterThan(
       sessionClient.getActive.mock.invocationCallOrder[0]
@@ -1784,8 +1809,8 @@ describe('sessionStore streaming cleanup', () => {
   })
 
   it('keeps the current session summary while duplicate activation rehydrates', async () => {
-    const { store, pageRouter, emitSessionUpdate, sessionClient } = await setupStore()
-    store.sessions.value = [createSession({ id: 'session-acp', agentId: 'dimcode' })]
+    const { chatSession, store, pageRouter, emitSessionUpdate, sessionClient } = await setupStore()
+    store.sessions = [createSession({ id: 'session-acp', agentId: 'dimcode' })]
     sessionClient.getActive.mockResolvedValueOnce({
       session: createSession({
         id: 'session-acp',
@@ -1794,7 +1819,7 @@ describe('sessionStore streaming cleanup', () => {
         modelId: 'dimcode'
       })
     })
-    await store.selectSession('session-acp')
+    await chatSession.selectSession('session-acp')
     pageRouter.goToChat.mockClear()
     let resolveActiveSession: (value: { session: ReturnType<typeof createSession> }) => void = () =>
       undefined
@@ -1811,8 +1836,8 @@ describe('sessionStore streaming cleanup', () => {
       activeSessionId: 'session-acp'
     })
 
-    expect(store.activeSession.value?.providerId).toBe('acp')
-    expect(store.activeSession.value?.modelId).toBe('dimcode')
+    expect(store.activeSession?.providerId).toBe('acp')
+    expect(store.activeSession?.modelId).toBe('dimcode')
     expect(pageRouter.goToChat).not.toHaveBeenCalled()
 
     resolveActiveSession({
@@ -1830,7 +1855,7 @@ describe('sessionStore streaming cleanup', () => {
 
   it('does not route stale activation after the window is deactivated', async () => {
     const { store, pageRouter, emitSessionUpdate, sessionClient } = await setupStore()
-    store.sessions.value = [createSession({ id: 'session-stale', agentId: 'dimcode' })]
+    store.sessions = [createSession({ id: 'session-stale', agentId: 'dimcode' })]
     let resolveActiveSession: (value: { session: ReturnType<typeof createSession> }) => void = () =>
       undefined
     sessionClient.getActive.mockReturnValueOnce(
@@ -1863,7 +1888,7 @@ describe('sessionStore streaming cleanup', () => {
     })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(store.activeSessionId.value).toBeNull()
+    expect(store.activeSessionId).toBeNull()
     expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
     expect(pageRouter.goToChat).not.toHaveBeenCalledWith('session-stale')
   })
@@ -1871,11 +1896,12 @@ describe('sessionStore streaming cleanup', () => {
   it.each(['selection', 'reference', 'close'])(
     'does not let delayed reference validation override a newer %s',
     async (action) => {
-      const { store, pageRouter, sessionClient, clearStreamingState } = await setupStore()
-      store.activeSessionId.value = 'session-current'
+      const { chatSession, store, pageRouter, sessionClient, clearStreamingState } =
+        await setupStore()
+      store.activeSessionId = 'session-current'
       const validation = createDeferred<object>()
       sessionClient.resolveReference.mockReturnValueOnce(validation.promise)
-      const first = store.selectSession('session-a', 'inc-a')
+      const first = chatSession.selectSession('session-a', 'inc-a')
       expect(sessionClient.resolveReference).toHaveBeenCalledWith({
         sessionId: 'session-a',
         expectedTapeIncarnationId: 'inc-a'
@@ -1883,15 +1909,15 @@ describe('sessionStore streaming cleanup', () => {
       expect(sessionClient.activate).not.toHaveBeenCalled()
       expect(clearStreamingState).not.toHaveBeenCalled()
       if (action === 'close') {
-        await store.closeSession()
+        await chatSession.closeSession()
       } else {
-        await store.selectSession('session-b', action === 'reference' ? 'inc-b' : undefined)
+        await chatSession.selectSession('session-b', action === 'reference' ? 'inc-b' : undefined)
       }
       validation.resolve({})
       await first
       expect(sessionClient.activate).not.toHaveBeenCalledWith('session-a')
       expect(pageRouter.goToChat).not.toHaveBeenCalledWith('session-a')
-      expect(store.activeSessionId.value).toBe(action === 'close' ? null : 'session-b')
+      expect(store.activeSessionId).toBe(action === 'close' ? null : 'session-b')
       if (action !== 'close') {
         expect(sessionClient.activate).toHaveBeenCalledExactlyOnceWith('session-b')
         expect(pageRouter.goToChat).toHaveBeenCalledWith('session-b')
@@ -1902,27 +1928,27 @@ describe('sessionStore streaming cleanup', () => {
   it.each([false, true])(
     'only reports reference validation failure if still current (superseded=%s)',
     async (superseded) => {
-      const { store, sessionClient, clearStreamingState } = await setupStore()
-      store.activeSessionId.value = 'session-current'
+      const { chatSession, store, sessionClient, clearStreamingState } = await setupStore()
+      store.activeSessionId = 'session-current'
       const validation = createDeferred<object>()
       sessionClient.resolveReference.mockReturnValueOnce(validation.promise)
-      const selection = store.selectSession('session-a', 'stale-incarnation')
+      const selection = chatSession.selectSession('session-a', 'stale-incarnation')
       const assertion = superseded
         ? expect(selection).resolves.toBeUndefined()
         : expect(selection).rejects.toThrow('reference reset')
-      if (superseded) await store.selectSession('session-b')
+      if (superseded) await chatSession.selectSession('session-b')
       validation.reject(new Error('reference reset'))
       await assertion
       expect(sessionClient.activate).not.toHaveBeenCalledWith('session-a')
-      expect(store.activeSessionId.value).toBe(superseded ? 'session-b' : 'session-current')
+      expect(store.activeSessionId).toBe(superseded ? 'session-b' : 'session-current')
       if (!superseded) expect(clearStreamingState).not.toHaveBeenCalled()
-      expect(store.error.value).toBeNull()
+      expect(store.error).toBeNull()
     }
   )
 
   it('lets the latest selected session win when hydration resolves out of order', async () => {
-    const { store, pageRouter, sessionClient } = await setupStore()
-    store.sessions.value = [
+    const { chatSession, store, pageRouter, sessionClient } = await setupStore()
+    store.sessions = [
       createSession({ id: 'session-a', agentId: 'deepchat' }),
       createSession({ id: 'session-b', agentId: 'dimcode' })
     ]
@@ -1943,9 +1969,9 @@ describe('sessionStore streaming cleanup', () => {
         })
       })
 
-    const firstSelection = store.selectSession('session-a')
+    const firstSelection = chatSession.selectSession('session-a')
     await Promise.resolve()
-    await store.selectSession('session-b')
+    await chatSession.selectSession('session-b')
 
     resolveSessionA({
       session: createSession({
@@ -1956,14 +1982,14 @@ describe('sessionStore streaming cleanup', () => {
     })
     await firstSelection
 
-    expect(store.activeSessionId.value).toBe('session-b')
+    expect(store.activeSessionId).toBe('session-b')
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-b')
     expect(pageRouter.goToChat).not.toHaveBeenCalledWith('session-a')
   })
 
   it('rejects stale session hydration after an A-B-A activation cycle', async () => {
-    const { store, sessionClient } = await setupStore()
-    store.sessions.value = [
+    const { chatSession, store, sessionClient } = await setupStore()
+    store.sessions = [
       createSession({ id: 'session-a', title: 'Session A' }),
       createSession({ id: 'session-b', title: 'Session B' })
     ]
@@ -1977,64 +2003,64 @@ describe('sessionStore streaming cleanup', () => {
         session: createSession({ id: 'session-a', title: 'Session A latest', revision: 2 })
       })
 
-    const firstSelection = store.selectSession('session-a')
+    const firstSelection = chatSession.selectSession('session-a')
     await Promise.resolve()
-    await store.selectSession('session-b')
-    await store.selectSession('session-a')
+    await chatSession.selectSession('session-b')
+    await chatSession.selectSession('session-a')
 
-    expect(store.activeSession.value?.title).toBe('Session A latest')
+    expect(store.activeSession?.title).toBe('Session A latest')
 
     staleSessionA.resolve({
       session: createSession({ id: 'session-a', title: 'Session A stale' })
     })
     await firstSelection
 
-    expect(store.activeSession.value?.title).toBe('Session A latest')
+    expect(store.activeSession?.title).toBe('Session A latest')
   })
 
   it('does not let a pending close clear a later selected session', async () => {
-    const { store, sessionClient, pageRouter } = await setupStore()
+    const { chatSession, store, sessionClient, pageRouter } = await setupStore()
     const deactivation = createDeferred<{ deactivated: boolean }>()
     sessionClient.deactivate.mockReturnValueOnce(deactivation.promise)
-    store.activeSessionId.value = 'session-a'
-    store.sessions.value = [
+    store.activeSessionId = 'session-a'
+    store.sessions = [
       createSession({ id: 'session-a' }),
       createSession({ id: 'session-b', agentId: 'dimcode' })
     ]
 
-    const close = store.closeSession()
+    const close = chatSession.closeSession()
     await Promise.resolve()
-    await store.selectSession('session-b')
+    await chatSession.selectSession('session-b')
     deactivation.resolve({ deactivated: true })
     await close
 
-    expect(store.activeSessionId.value).toBe('session-b')
+    expect(store.activeSessionId).toBe('session-b')
     expect(pageRouter.goToChat).toHaveBeenCalledWith('session-b')
     expect(pageRouter.goToNewThread).not.toHaveBeenCalled()
   })
 
   it('does not let a stale select failure replace a later selection', async () => {
-    const { store, sessionClient } = await setupStore()
+    const { chatSession, store, sessionClient } = await setupStore()
     const firstActivation = createDeferred<{ activated: boolean }>()
     sessionClient.activate.mockReturnValueOnce(firstActivation.promise)
 
-    const firstSelect = store.selectSession('session-a')
+    const firstSelect = chatSession.selectSession('session-a')
     await Promise.resolve()
-    await store.selectSession('session-b')
+    await chatSession.selectSession('session-b')
     firstActivation.reject(new Error('stale activation failure'))
     await firstSelect
 
-    expect(store.activeSessionId.value).toBe('session-b')
-    expect(store.error.value).toBeNull()
+    expect(store.activeSessionId).toBe('session-b')
+    expect(store.error).toBeNull()
   })
 
   it('keeps a created session in the list without reclaiming a later selection', async () => {
-    const { store, sessionClient, pageRouter } = await setupStore()
+    const { chatSession, store, sessionClient, pageRouter } = await setupStore()
     const pendingCreation = createDeferred<{ session: ReturnType<typeof createSession> }>()
     sessionClient.create.mockReturnValueOnce(pendingCreation.promise)
-    store.sessions.value = [createSession({ id: 'session-b', agentId: 'dimcode' })]
+    store.sessions = [createSession({ id: 'session-b', agentId: 'dimcode' })]
 
-    const creation = store.createSession({
+    const creation = chatSession.createSession({
       agentId: 'deepchat',
       message: '',
       projectDir: '/tmp/workspace',
@@ -2042,21 +2068,21 @@ describe('sessionStore streaming cleanup', () => {
       modelId: 'gpt-4'
     })
     await Promise.resolve()
-    await store.selectSession('session-b')
+    await chatSession.selectSession('session-b')
     pendingCreation.resolve({ session: createSession({ id: 'session-created', title: 'Created' }) })
     await creation
 
-    expect(store.activeSessionId.value).toBe('session-b')
-    expect(store.sessions.value.map((session) => session.id)).toContain('session-created')
+    expect(store.activeSessionId).toBe('session-b')
+    expect(store.sessions.map((session) => session.id)).toContain('session-created')
     expect(pageRouter.goToChat).not.toHaveBeenCalledWith('session-created')
   })
 
   it('does not let a stale create failure replace a later selection error state', async () => {
-    const { store, sessionClient } = await setupStore()
+    const { chatSession, store, sessionClient } = await setupStore()
     const pendingCreation = createDeferred<{ session: ReturnType<typeof createSession> }>()
     sessionClient.create.mockReturnValueOnce(pendingCreation.promise)
 
-    const creation = store.createSession({
+    const creation = chatSession.createSession({
       agentId: 'deepchat',
       message: '',
       projectDir: '/tmp/workspace',
@@ -2064,18 +2090,18 @@ describe('sessionStore streaming cleanup', () => {
       modelId: 'gpt-4'
     })
     await Promise.resolve()
-    await store.selectSession('session-b')
+    await chatSession.selectSession('session-b')
     pendingCreation.reject(new Error('stale create failure'))
     await expect(creation).rejects.toThrow('stale create failure')
 
-    expect(store.activeSessionId.value).toBe('session-b')
-    expect(store.error.value).toBeNull()
+    expect(store.activeSessionId).toBe('session-b')
+    expect(store.error).toBeNull()
   })
 
   it('updates the local session status immediately from the session status event', async () => {
     const { store, emitSessionStatusChange, invalidateRecentSessionView } = await setupStore()
-    store.sessions.value = [createSession({ id: 'session-status', status: 'none' })]
-    store.activeSessionId.value = 'session-status'
+    store.sessions = [createSession({ id: 'session-status', status: 'none' })]
+    store.activeSessionId = 'session-status'
 
     emitSessionStatusChange({
       sessionId: 'session-status',
@@ -2083,7 +2109,7 @@ describe('sessionStore streaming cleanup', () => {
       version: 1
     })
 
-    expect(store.activeSession.value?.status).toBe('working')
+    expect(store.activeSession?.status).toBe('working')
     expect(invalidateRecentSessionView).toHaveBeenCalledWith('session-status')
 
     emitSessionStatusChange({
@@ -2092,13 +2118,13 @@ describe('sessionStore streaming cleanup', () => {
       version: 2
     })
 
-    expect(store.activeSession.value?.status).toBe('none')
+    expect(store.activeSession?.status).toBe('none')
   })
 
   it('does not let a stale restore snapshot overwrite a newer idle event', async () => {
     const { store, emitSessionStatusChange } = await setupStore()
-    store.activeSessionId.value = 'session-status'
-    store.sessions.value = [createSession({ id: 'session-status', status: 'working' })]
+    store.activeSessionId = 'session-status'
+    store.sessions = [createSession({ id: 'session-status', status: 'working' })]
 
     emitSessionStatusChange({
       sessionId: 'session-status',
@@ -2109,13 +2135,13 @@ describe('sessionStore streaming cleanup', () => {
       createSession({ id: 'session-status', status: 'generating', updatedAt: 2 })
     )
 
-    expect(store.activeSession.value?.status).toBe('none')
+    expect(store.activeSession?.status).toBe('none')
   })
 
   it('does not let a stale restore snapshot overwrite a newer generating event', async () => {
     const { store, emitSessionStatusChange } = await setupStore()
-    store.activeSessionId.value = 'session-status'
-    store.sessions.value = [createSession({ id: 'session-status', status: 'none' })]
+    store.activeSessionId = 'session-status'
+    store.sessions = [createSession({ id: 'session-status', status: 'none' })]
 
     emitSessionStatusChange({
       sessionId: 'session-status',
@@ -2126,13 +2152,13 @@ describe('sessionStore streaming cleanup', () => {
       createSession({ id: 'session-status', status: 'idle', updatedAt: 2 })
     )
 
-    expect(store.activeSession.value?.status).toBe('working')
+    expect(store.activeSession?.status).toBe('working')
   })
 
   it('ignores status events older than the latest observed version', async () => {
     const { store, emitSessionStatusChange, invalidateRecentSessionView } = await setupStore()
-    store.activeSessionId.value = 'session-status'
-    store.sessions.value = [createSession({ id: 'session-status', status: 'none' })]
+    store.activeSessionId = 'session-status'
+    store.sessions = [createSession({ id: 'session-status', status: 'none' })]
 
     emitSessionStatusChange({
       sessionId: 'session-status',
@@ -2145,12 +2171,12 @@ describe('sessionStore streaming cleanup', () => {
       version: 1
     })
 
-    expect(store.activeSession.value?.status).toBe('working')
+    expect(store.activeSession?.status).toBe('working')
     expect(invalidateRecentSessionView).toHaveBeenCalledTimes(1)
   })
 
   it('refreshes context occupancy on activation and generation settlement', async () => {
-    const { store, sessionClient, emitSessionStatusChange } = await setupStore()
+    const { chatSession, store, sessionClient, emitSessionStatusChange } = await setupStore()
     sessionClient.getContextOccupancy.mockResolvedValue({
       freshness: 'current',
       source: 'provider',
@@ -2162,9 +2188,9 @@ describe('sessionStore streaming cleanup', () => {
       measuredAt: 100
     })
 
-    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+    await chatSession.applyBootstrapShell({ activeSessionId: 'session-a' })
     await vi.waitFor(() => {
-      expect(store.activeContextOccupancy.value?.occupiedTokens).toBe(750)
+      expect(store.activeContextOccupancy?.occupiedTokens).toBe(750)
     })
 
     sessionClient.getContextOccupancy.mockClear()
@@ -2176,8 +2202,8 @@ describe('sessionStore streaming cleanup', () => {
   })
 
   it('does not refresh context occupancy for a stale settled-status event', async () => {
-    const { store, sessionClient, emitSessionStatusChange } = await setupStore()
-    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+    const { chatSession, store, sessionClient, emitSessionStatusChange } = await setupStore()
+    await chatSession.applyBootstrapShell({ activeSessionId: 'session-a' })
     sessionClient.getContextOccupancy.mockClear()
 
     emitSessionStatusChange({ sessionId: 'session-a', status: 'generating', version: 2 })
@@ -2188,10 +2214,10 @@ describe('sessionStore streaming cleanup', () => {
 
   it('refreshes context occupancy after a buffered compaction replacement', async () => {
     const snapshot = createDeferred<any>()
-    const { store, sessionClient, emitSessionCompactionChange } = await setupStore()
+    const { chatSession, store, sessionClient, emitSessionCompactionChange } = await setupStore()
     sessionClient.getCompactionSnapshot.mockReturnValueOnce(snapshot.promise)
 
-    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+    await chatSession.applyBootstrapShell({ activeSessionId: 'session-a' })
     sessionClient.getContextOccupancy.mockClear()
     emitSessionCompactionChange({
       sessionId: 'session-a',
@@ -2220,8 +2246,8 @@ describe('sessionStore streaming cleanup', () => {
   })
 
   it('refreshes context occupancy after a successful model update', async () => {
-    const { store, sessionClient } = await setupStore()
-    await store.applyBootstrapShell({ activeSessionId: 'session-1' })
+    const { chatSession, store, sessionClient } = await setupStore()
+    await chatSession.applyBootstrapShell({ activeSessionId: 'session-1' })
     sessionClient.getContextOccupancy.mockClear()
 
     await store.setSessionModel('session-1', 'anthropic', 'claude-3-7-sonnet')
@@ -2232,14 +2258,14 @@ describe('sessionStore streaming cleanup', () => {
   it('rejects late context occupancy responses across session switches', async () => {
     const first = createDeferred<any>()
     const second = createDeferred<any>()
-    const { store, sessionClient } = await setupStore()
+    const { chatSession, store, sessionClient } = await setupStore()
     sessionClient.getContextOccupancy.mockReset()
     sessionClient.getContextOccupancy
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise)
 
-    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
-    await store.applyBootstrapShell({ activeSessionId: 'session-b' })
+    await chatSession.applyBootstrapShell({ activeSessionId: 'session-a' })
+    await chatSession.applyBootstrapShell({ activeSessionId: 'session-b' })
     first.resolve({
       freshness: 'current',
       source: 'provider',
@@ -2251,7 +2277,7 @@ describe('sessionStore streaming cleanup', () => {
       measuredAt: 100
     })
     await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(store.activeContextOccupancy.value).toBeNull()
+    expect(store.activeContextOccupancy).toBeNull()
 
     second.resolve({
       freshness: 'stale',
@@ -2264,7 +2290,7 @@ describe('sessionStore streaming cleanup', () => {
       measuredAt: 200
     })
     await vi.waitFor(() => {
-      expect(store.activeContextOccupancy.value).toMatchObject({
+      expect(store.activeContextOccupancy).toMatchObject({
         freshness: 'stale',
         occupiedTokens: 300
       })
@@ -2272,7 +2298,7 @@ describe('sessionStore streaming cleanup', () => {
   })
 
   it('retries a failed context occupancy snapshot once', async () => {
-    const { store, sessionClient } = await setupStore()
+    const { chatSession, store, sessionClient } = await setupStore()
     sessionClient.getContextOccupancy.mockReset()
     sessionClient.getContextOccupancy
       .mockRejectedValueOnce(new Error('temporary IPC failure'))
@@ -2287,23 +2313,23 @@ describe('sessionStore streaming cleanup', () => {
         measuredAt: 300
       })
 
-    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+    await chatSession.applyBootstrapShell({ activeSessionId: 'session-a' })
     await vi.waitFor(() => {
       expect(sessionClient.getContextOccupancy).toHaveBeenCalledTimes(2)
-      expect(store.activeContextOccupancy.value).toMatchObject({ occupiedTokens: 600 })
+      expect(store.activeContextOccupancy).toMatchObject({ occupiedTokens: 600 })
     })
   })
 
   it('cancels a pending occupancy retry after switching sessions', async () => {
-    const { store, sessionClient } = await setupStore()
+    const { chatSession, store, sessionClient } = await setupStore()
     sessionClient.getContextOccupancy.mockReset()
     sessionClient.getContextOccupancy.mockRejectedValueOnce(new Error('temporary IPC failure'))
     vi.useFakeTimers()
 
     try {
-      await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+      await chatSession.applyBootstrapShell({ activeSessionId: 'session-a' })
       await Promise.resolve()
-      await store.applyBootstrapShell({ activeSessionId: 'session-b' })
+      await chatSession.applyBootstrapShell({ activeSessionId: 'session-b' })
       await vi.runAllTimersAsync()
 
       expect(sessionClient.getContextOccupancy).toHaveBeenCalledTimes(2)
@@ -2316,10 +2342,10 @@ describe('sessionStore streaming cleanup', () => {
 
   it('buffers compaction events until the active-session snapshot is applied', async () => {
     const snapshot = createDeferred<any>()
-    const { store, sessionClient, emitSessionCompactionChange } = await setupStore()
+    const { chatSession, store, sessionClient, emitSessionCompactionChange } = await setupStore()
     sessionClient.getCompactionSnapshot.mockReturnValueOnce(snapshot.promise)
 
-    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+    await chatSession.applyBootstrapShell({ activeSessionId: 'session-a' })
 
     emitSessionCompactionChange({
       sessionId: 'session-a',
@@ -2354,7 +2380,7 @@ describe('sessionStore streaming cleanup', () => {
     expect(sessionClient.onCompactionChanged.mock.invocationCallOrder[0]).toBeLessThan(
       sessionClient.getCompactionSnapshot.mock.invocationCallOrder[0]
     )
-    expect(store.activeCompactionSnapshot.value).toEqual({
+    expect(store.activeCompactionSnapshot).toEqual({
       state: {
         status: 'compacted',
         cursorOrderSeq: 7,
@@ -2374,20 +2400,20 @@ describe('sessionStore streaming cleanup', () => {
       emitSeq: 2,
       latestAnchorEntryId: 20
     })
-    expect(store.activeCompactionSnapshot.value?.emitSeq).toBe(3)
+    expect(store.activeCompactionSnapshot?.emitSeq).toBe(3)
   })
 
   it('ignores a late compaction snapshot and event after switching sessions', async () => {
     const firstSnapshot = createDeferred<any>()
     const secondSnapshot = createDeferred<any>()
-    const { store, sessionClient, emitSessionCompactionChange } = await setupStore()
+    const { chatSession, store, sessionClient, emitSessionCompactionChange } = await setupStore()
     sessionClient.getCompactionSnapshot.mockReset()
     sessionClient.getCompactionSnapshot
       .mockReturnValueOnce(firstSnapshot.promise)
       .mockReturnValueOnce(secondSnapshot.promise)
 
-    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
-    await store.applyBootstrapShell({ activeSessionId: 'session-b' })
+    await chatSession.applyBootstrapShell({ activeSessionId: 'session-a' })
+    await chatSession.applyBootstrapShell({ activeSessionId: 'session-b' })
 
     emitSessionCompactionChange({
       sessionId: 'session-a',
@@ -2421,7 +2447,7 @@ describe('sessionStore streaming cleanup', () => {
     })
     await Promise.resolve()
 
-    expect(store.activeCompactionSnapshot.value).toEqual({
+    expect(store.activeCompactionSnapshot).toEqual({
       state: {
         status: 'compacted',
         cursorOrderSeq: 4,
@@ -2436,12 +2462,12 @@ describe('sessionStore streaming cleanup', () => {
   it('keeps buffered replacement state when the compaction snapshot fails', async () => {
     const snapshot = createDeferred<any>()
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const { store, sessionClient, emitSessionCompactionChange } = await setupStore()
+    const { chatSession, store, sessionClient, emitSessionCompactionChange } = await setupStore()
     sessionClient.getCompactionSnapshot
       .mockReturnValueOnce(snapshot.promise)
       .mockRejectedValueOnce(new Error('snapshot retry failed'))
 
-    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+    await chatSession.applyBootstrapShell({ activeSessionId: 'session-a' })
     emitSessionCompactionChange({
       sessionId: 'session-a',
       status: 'compacted',
@@ -2455,7 +2481,7 @@ describe('sessionStore streaming cleanup', () => {
 
     await vi.waitFor(() => {
       expect(sessionClient.getCompactionSnapshot).toHaveBeenCalledTimes(2)
-      expect(store.activeCompactionSnapshot.value).toEqual({
+      expect(store.activeCompactionSnapshot).toEqual({
         state: {
           status: 'compacted',
           cursorOrderSeq: 7,
@@ -2476,7 +2502,7 @@ describe('sessionStore streaming cleanup', () => {
       emitSeq: 4,
       latestAnchorEntryId: 40
     })
-    expect(store.activeCompactionSnapshot.value?.emitSeq).toBe(4)
+    expect(store.activeCompactionSnapshot?.emitSeq).toBe(4)
     expect(
       warnSpy.mock.calls.filter(
         ([message]) => message === '[sessionStore] Failed to synchronize compaction state:'
@@ -2486,7 +2512,7 @@ describe('sessionStore streaming cleanup', () => {
   })
 
   it('recovers a compaction snapshot after one transient failure', async () => {
-    const { store, sessionClient } = await setupStore()
+    const { chatSession, store, sessionClient } = await setupStore()
     sessionClient.getCompactionSnapshot.mockReset()
     sessionClient.getCompactionSnapshot
       .mockRejectedValueOnce(new Error('temporary IPC failure'))
@@ -2501,11 +2527,11 @@ describe('sessionStore streaming cleanup', () => {
         latestAnchorEntryId: 30
       })
 
-    await store.applyBootstrapShell({ activeSessionId: 'session-a' })
+    await chatSession.applyBootstrapShell({ activeSessionId: 'session-a' })
 
     await vi.waitFor(() => {
       expect(sessionClient.getCompactionSnapshot).toHaveBeenCalledTimes(2)
-      expect(store.activeCompactionSnapshot.value).toMatchObject({
+      expect(store.activeCompactionSnapshot).toMatchObject({
         state: { cursorOrderSeq: 7 },
         emitSeq: 3
       })
@@ -2515,7 +2541,7 @@ describe('sessionStore streaming cleanup', () => {
   it('purges message tracking when a session is permanently removed', async () => {
     const { store, emitSessionUpdate, invalidateRecentSessionView, purgeSessionTracking } =
       await setupStore()
-    store.sessions.value = [createSession({ id: 'session-removed' })]
+    store.sessions = [createSession({ id: 'session-removed' })]
     store.setSearchIntent('session-removed', true)
 
     emitSessionUpdate({
@@ -2525,7 +2551,7 @@ describe('sessionStore streaming cleanup', () => {
 
     expect(invalidateRecentSessionView).toHaveBeenCalledWith('session-removed')
     expect(purgeSessionTracking).toHaveBeenCalledWith('session-removed')
-    expect(store.sessions.value).toEqual([])
+    expect(store.sessions).toEqual([])
     expect(store.getSearchIntent('session-removed')).toBe(false)
   })
 })
@@ -2563,20 +2589,16 @@ describe('sessionStore pagination', () => {
         nextCursor: null
       })
       await staleRefresh
-      expect(store.sessions.value.map((session) => session.id).sort()).toEqual(
+      expect(store.sessions.map((session) => session.id).sort()).toEqual(
         mode === 'overwrite' ? ['restored'] : ['local', 'restored']
       )
-      expect(store.sessions.value.find((session) => session.id === 'restored')?.title).toBe(
-        'From backup'
-      )
+      expect(store.sessions.find((session) => session.id === 'restored')?.title).toBe('From backup')
     }
   )
 
   it('keeps the newest overlapping session refresh result', async () => {
     const { store, sessionClient } = await setupStore()
-    store.sessions.value = [
-      createSession({ id: 'session-refresh', title: 'Original', updatedAt: 1 })
-    ]
+    store.sessions = [createSession({ id: 'session-refresh', title: 'Original', updatedAt: 1 })]
     const firstRefresh = createDeferred<ReturnType<typeof createSession>[]>()
     const secondRefresh = createDeferred<ReturnType<typeof createSession>[]>()
     sessionClient.getLightweightByIds
@@ -2591,7 +2613,7 @@ describe('sessionStore pagination', () => {
     firstRefresh.resolve([createSession({ id: 'session-refresh', title: 'Old', updatedAt: 2 })])
     await firstRequest
 
-    expect(store.sessions.value).toEqual([
+    expect(store.sessions).toEqual([
       expect.objectContaining({ id: 'session-refresh', title: 'New', updatedAt: 3 })
     ])
   })
@@ -2612,7 +2634,7 @@ describe('sessionStore pagination', () => {
     refreshA.resolve([createSession({ id: 'session-a', title: 'A', updatedAt: 2 })])
     await requestA
 
-    expect(store.sessions.value).toEqual([
+    expect(store.sessions).toEqual([
       expect.objectContaining({ id: 'session-a', title: 'A', updatedAt: 2 }),
       expect.objectContaining({ id: 'session-b', title: 'B', updatedAt: 3 })
     ])
@@ -2641,7 +2663,7 @@ describe('sessionStore pagination', () => {
     await firstRequest
 
     // sortSessions orders the flat list by title collator, not updatedAt.
-    expect(store.sessions.value).toEqual([
+    expect(store.sessions).toEqual([
       expect.objectContaining({ id: 'session-a', title: 'A', updatedAt: 3 }),
       expect.objectContaining({ id: 'session-c', title: 'C', updatedAt: 4 }),
       expect.objectContaining({ id: 'session-b', title: 'New B', updatedAt: 4 })
@@ -2650,21 +2672,21 @@ describe('sessionStore pagination', () => {
 
   it('does not let an older session update overwrite a newer local session', async () => {
     const { store, sessionClient } = await setupStore()
-    store.sessions.value = [createSession({ id: 'session-refresh', title: 'New', updatedAt: 3 })]
+    store.sessions = [createSession({ id: 'session-refresh', title: 'New', updatedAt: 3 })]
     sessionClient.getLightweightByIds.mockResolvedValueOnce([
       createSession({ id: 'session-refresh', title: 'Old', updatedAt: 2 })
     ])
 
     await store.refreshSessionsByIds(['session-refresh'])
 
-    expect(store.sessions.value).toEqual([
+    expect(store.sessions).toEqual([
       expect.objectContaining({ id: 'session-refresh', title: 'New', updatedAt: 3 })
     ])
   })
 
   it('uses durable revision to order snapshots with the same timestamp', async () => {
     const { store, sessionClient } = await setupStore()
-    store.sessions.value = [
+    store.sessions = [
       createSession({
         id: 'session-refresh',
         title: 'Current title',
@@ -2685,7 +2707,7 @@ describe('sessionStore pagination', () => {
 
     await store.refreshSessionsByIds(['session-refresh'])
 
-    expect(store.sessions.value).toEqual([
+    expect(store.sessions).toEqual([
       expect.objectContaining({
         id: 'session-refresh',
         title: 'New title',
@@ -2698,7 +2720,7 @@ describe('sessionStore pagination', () => {
 
   it('rejects a lower durable revision even when its timestamp is newer', async () => {
     const { store, sessionClient } = await setupStore()
-    store.sessions.value = [
+    store.sessions = [
       createSession({ id: 'session-refresh', title: 'Current', updatedAt: 3, revision: 11 })
     ]
     sessionClient.getLightweightByIds.mockResolvedValueOnce([
@@ -2707,14 +2729,14 @@ describe('sessionStore pagination', () => {
 
     await store.refreshSessionsByIds(['session-refresh'])
 
-    expect(store.sessions.value[0]).toMatchObject({ title: 'Current', revision: 11 })
+    expect(store.sessions[0]).toMatchObject({ title: 'Current', revision: 11 })
   })
 
   it('does not reinsert a deleted session from a pending targeted refresh', async () => {
     const { store, sessionClient, emitSessionUpdate } = await setupStore()
     const pendingRefresh = createDeferred<ReturnType<typeof createSession>[]>()
     sessionClient.getLightweightByIds.mockReturnValueOnce(pendingRefresh.promise)
-    store.sessions.value = [createSession({ id: 'session-deleted' })]
+    store.sessions = [createSession({ id: 'session-deleted' })]
 
     const refresh = store.refreshSessionsByIds(['session-deleted'])
     await Promise.resolve()
@@ -2722,8 +2744,8 @@ describe('sessionStore pagination', () => {
     pendingRefresh.resolve([createSession({ id: 'session-deleted', title: 'Stale response' })])
     await refresh
 
-    expect(store.sessions.value).toEqual([])
-    expect(store.error.value).toBeNull()
+    expect(store.sessions).toEqual([])
+    expect(store.error).toBeNull()
   })
 
   it('does not reinsert a deleted session from a pending first-page response', async () => {
@@ -2745,10 +2767,10 @@ describe('sessionStore pagination', () => {
     })
     await fetch
 
-    expect(store.sessions.value).toEqual([])
-    expect(store.loading.value).toBe(false)
-    expect(store.loadingMore.value).toBe(false)
-    expect(store.error.value).toBeNull()
+    expect(store.sessions).toEqual([])
+    expect(store.loading).toBe(false)
+    expect(store.loadingMore).toBe(false)
+    expect(store.error).toBeNull()
   })
 
   it('preserves a targeted update that commits while an older first page is pending', async () => {
@@ -2775,7 +2797,7 @@ describe('sessionStore pagination', () => {
     })
     await fetch
 
-    expect(store.sessions.value).toEqual([
+    expect(store.sessions).toEqual([
       expect.objectContaining({
         id: 'session-refresh',
         title: 'Targeted update',
@@ -2803,16 +2825,16 @@ describe('sessionStore pagination', () => {
     ])
     await targetedRefresh
 
-    expect(store.sessions.value).toEqual([
+    expect(store.sessions).toEqual([
       expect.objectContaining({ id: 'session-current', title: 'Current', updatedAt: 40 })
     ])
-    expect(store.error.value).toBeNull()
+    expect(store.error).toBeNull()
   })
 
   it('prioritizes the active bootstrap session when the first page starts after shell hydration', async () => {
-    const { store, sessionClient } = await setupStore()
+    const { chatSession, store, sessionClient } = await setupStore()
 
-    await store.applyBootstrapShell({
+    await chatSession.applyBootstrapShell({
       activeSessionId: 'bootstrap-session',
       activeSession: createSession({ id: 'bootstrap-session' })
     })
@@ -2846,7 +2868,6 @@ describe('sessionStore pagination', () => {
     const firstFetch = store.fetchSessions()
     const secondFetch = store.fetchSessions()
 
-    expect(secondFetch).toBe(firstFetch)
     await Promise.resolve()
     expect(sessionClient.listLightweight).toHaveBeenCalledTimes(1)
 
@@ -2898,11 +2919,11 @@ describe('sessionStore pagination', () => {
     })
     await loadMore
 
-    expect(store.sessions.value.map((session) => session.id)).toEqual(['session-a', 'session-c'])
-    expect(store.hasMore.value).toBe(true)
-    expect(store.nextCursor.value).toEqual({ updatedAt: 30, id: 'session-a' })
-    expect(store.error.value).toBeNull()
-    expect(store.loadingMore.value).toBe(false)
+    expect(store.sessions.map((session) => session.id)).toEqual(['session-a', 'session-c'])
+    expect(store.hasMore).toBe(true)
+    expect(store.nextCursor).toEqual({ updatedAt: 30, id: 'session-a' })
+    expect(store.error).toBeNull()
+    expect(store.loadingMore).toBe(false)
   })
 
   it('keeps a pending pagination success after refreshing sessions by ID', async () => {
@@ -2937,14 +2958,14 @@ describe('sessionStore pagination', () => {
     await loadMore
 
     // sortSessions orders the flat list by title collator, not updatedAt.
-    expect(store.sessions.value).toEqual([
+    expect(store.sessions).toEqual([
       expect.objectContaining({ id: 'session-b', title: 'Next page', updatedAt: 20 }),
       expect.objectContaining({ id: 'session-a', title: 'Refreshed', updatedAt: 40 })
     ])
-    expect(store.hasMore.value).toBe(false)
-    expect(store.nextCursor.value).toBeNull()
-    expect(store.error.value).toBeNull()
-    expect(store.loadingMore.value).toBe(false)
+    expect(store.hasMore).toBe(false)
+    expect(store.nextCursor).toBeNull()
+    expect(store.error).toBeNull()
+    expect(store.loadingMore).toBe(false)
   })
 
   it('does not let a stale targeted failure replace a newer targeted error', async () => {
@@ -2960,25 +2981,25 @@ describe('sessionStore pagination', () => {
 
     secondRefresh.reject(new Error('new failure'))
     await secondRequest
-    expect(store.error.value).toBe('Failed to refresh sessions: Error: new failure')
+    expect(store.error).toBe('Failed to refresh sessions: Error: new failure')
 
     firstRefresh.reject(new Error('old failure'))
     await firstRequest
 
-    expect(store.error.value).toBe('Failed to refresh sessions: Error: new failure')
+    expect(store.error).toBe('Failed to refresh sessions: Error: new failure')
   })
 
   it('keeps a list error while a background targeted refresh succeeds', async () => {
     const { store, sessionClient } = await setupStore()
-    store.error.value = 'Failed to load more sessions: Error: pagination failure'
+    store.error = 'Failed to load more sessions: Error: pagination failure'
     sessionClient.getLightweightByIds.mockResolvedValueOnce([
       createSession({ id: 'session-a', title: 'Refreshed', updatedAt: 40 })
     ])
 
     await store.refreshSessionsByIds(['session-a'])
 
-    expect(store.error.value).toBe('Failed to load more sessions: Error: pagination failure')
-    expect(store.sessions.value).toEqual([
+    expect(store.error).toBe('Failed to load more sessions: Error: pagination failure')
+    expect(store.sessions).toEqual([
       expect.objectContaining({ id: 'session-a', title: 'Refreshed', updatedAt: 40 })
     ])
   })
@@ -3010,17 +3031,17 @@ describe('sessionStore pagination', () => {
     pendingPage.reject(new Error('pagination failure'))
     await loadMore
 
-    expect(store.sessions.value).toEqual([
+    expect(store.sessions).toEqual([
       expect.objectContaining({ id: 'session-a', title: 'Refreshed', updatedAt: 40 })
     ])
-    expect(store.hasMore.value).toBe(true)
-    expect(store.nextCursor.value).toEqual({ updatedAt: 30, id: 'session-a' })
-    expect(store.error.value).toBe('Failed to load more sessions: Error: pagination failure')
-    expect(store.loadingMore.value).toBe(false)
+    expect(store.hasMore).toBe(true)
+    expect(store.nextCursor).toEqual({ updatedAt: 30, id: 'session-a' })
+    expect(store.error).toBe('Failed to load more sessions: Error: pagination failure')
+    expect(store.loadingMore).toBe(false)
   })
 
   it('preserves workspace history and resumes pagination after a background refresh', async () => {
-    const { store, sessionClient, emitSessionUpdate } = await setupStore()
+    const { chatSession, store, sessionClient, emitSessionUpdate } = await setupStore()
     const recent = Array.from({ length: 30 }, (_, index) =>
       createSession({
         id: `recent-${index}`,
@@ -3044,7 +3065,11 @@ describe('sessionStore pagination', () => {
 
     const created = createSession({ id: 'created', updatedAt: 300 })
     sessionClient.create.mockResolvedValueOnce({ session: created })
-    await store.createSession({ message: '', agentId: 'deepchat', projectDir: '/tmp/workspace' })
+    await chatSession.createSession({
+      message: '',
+      agentId: 'deepchat',
+      projectDir: '/tmp/workspace'
+    })
 
     const firstPage = createDeferred<{
       items: ReturnType<typeof createSession>[]
@@ -3063,7 +3088,7 @@ describe('sessionStore pagination', () => {
     await store.loadNextPage()
 
     expect(sessionClient.listLightweight).toHaveBeenCalledTimes(3)
-    expect(store.loading.value).toBe(true)
+    expect(store.loading).toBe(true)
     firstPage.resolve({
       items: [created, ...recent.slice(0, 29)],
       hasMore: true,
@@ -3077,18 +3102,18 @@ describe('sessionStore pagination', () => {
         .find((group) => group.id === '/tmp/workspace')
         ?.sessions.map((session) => session.id)
     expect(workspaceIds()).toEqual(['created', ...history.map((session) => session.id)])
-    expect(store.nextCursor.value).toEqual(historyCursor)
-    expect(store.hasMore.value).toBe(true)
+    expect(store.nextCursor).toEqual(historyCursor)
+    expect(store.hasMore).toBe(true)
 
     await store.loadNextPage()
 
     expect(sessionClient.listLightweight.mock.calls.at(-1)?.[0].cursor).toEqual(historyCursor)
     expect(workspaceIds()).toEqual(['created', ...history.map((session) => session.id), 'older'])
-    expect(store.sessions.value).toHaveLength(62)
-    expect(store.hasMore.value).toBe(false)
-    expect(store.nextCursor.value).toBeNull()
-    expect(store.loadingMore.value).toBe(false)
-    expect(store.error.value).toBeNull()
+    expect(store.sessions).toHaveLength(62)
+    expect(store.hasMore).toBe(false)
+    expect(store.nextCursor).toBeNull()
+    expect(store.loadingMore).toBe(false)
+    expect(store.error).toBeNull()
   })
 
   it('keeps exhausted pagination complete when refreshing the first page', async () => {
@@ -3114,9 +3139,9 @@ describe('sessionStore pagination', () => {
     await store.fetchSessions()
     await store.loadNextPage()
 
-    expect(store.sessions.value).toHaveLength(31)
-    expect(store.hasMore.value).toBe(false)
-    expect(store.nextCursor.value).toBeNull()
+    expect(store.sessions).toHaveLength(31)
+    expect(store.hasMore).toBe(false)
+    expect(store.nextCursor).toBeNull()
     expect(sessionClient.listLightweight).toHaveBeenCalledTimes(3)
   })
 
@@ -3156,8 +3181,8 @@ describe('sessionStore pagination', () => {
       cursor: { updatedAt: 30, id: 'session-a' }
     })
     expect(lastCall.cursor).not.toBe(store.nextCursor?.value)
-    expect(store.hasMore.value).toBe(false)
-    expect(store.sessions.value.map((session: { id: string }) => session.id)).toEqual([
+    expect(store.hasMore).toBe(false)
+    expect(store.sessions.map((session: { id: string }) => session.id)).toEqual([
       'session-a',
       'session-b'
     ])

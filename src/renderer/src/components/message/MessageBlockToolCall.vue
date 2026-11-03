@@ -297,6 +297,7 @@
 </template>
 
 <script setup lang="ts">
+import { useChatSessionStore } from '@/features/chat-session/store'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, useId, watch } from 'vue'
@@ -309,7 +310,6 @@ import {
   resolveStepPresentation
 } from '@/lib/legacyAgentPlan'
 import { useThemeStore } from '@/stores/theme'
-import { useSessionStore } from '@/stores/ui/session'
 import { getMarkstreamLanguageFromFilename } from '@/lib/markstreamLanguage'
 import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import { parseLiveDelegationSpawnBlock } from '@/lib/liveDelegationToolCall'
@@ -322,7 +322,7 @@ const McpAppView = defineAsyncComponent(() => import('@/components/mcp/McpAppVie
 const { t } = useI18n()
 
 const themeStore = useThemeStore()
-const sessionStore = useSessionStore()
+const chatSessionStore = useChatSessionStore()
 
 const props = defineProps<{
   block: DisplayAssistantMessageBlock
@@ -791,7 +791,7 @@ const handleSubagentSessionOpen = (task: SubagentProgressTask) => {
     return
   }
 
-  void sessionStore.selectSession(task.sessionId)
+  void chatSessionStore.selectSession(task.sessionId)
 }
 
 function getSubagentModeLabel(mode: string): string {

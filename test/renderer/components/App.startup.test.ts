@@ -260,6 +260,7 @@ const mountApp = async (options?: {
     })
   })
   const sessionStore = {
+    connect: vi.fn(() => vi.fn()),
     hasActiveSession,
     activeSessionId: hasActiveSession ? 'session-1' : null,
     startNewConversation: vi.fn().mockResolvedValue(undefined),
@@ -353,6 +354,9 @@ const mountApp = async (options?: {
   }))
   vi.doMock('@/stores/ui/session', () => ({
     useSessionStore: () => sessionStore
+  }))
+  vi.doMock('@/features/chat-session/store', () => ({
+    useChatSessionStore: () => sessionStore
   }))
   vi.doMock('@/stores/ui/agent', () => ({
     useAgentStore: () => agentStore

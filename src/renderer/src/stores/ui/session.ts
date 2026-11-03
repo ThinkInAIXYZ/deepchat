@@ -2,18 +2,14 @@ import { defineStore } from 'pinia'
 import { ref, computed, onScopeDispose, getCurrentScope, shallowReactive } from 'vue'
 import { createChatClient } from '../../../api/ChatClient'
 import { createConfigClient } from '../../../api/ConfigClient'
-import { createOnboardingClient } from '../../../api/OnboardingClient'
 import { createSessionClient } from '../../../api/SessionClient'
-import { getRuntimeWebContentsId } from '@api/runtime'
 import type { ComputedRef } from 'vue'
-import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
 import type {
   DeepChatSubagentMeta,
   SessionKind,
   SessionMetadata,
   SessionListItem,
   SessionWithState,
-  CreateSessionInput,
   SendMessageInput,
   SessionCompactionSnapshot,
   SessionContextOccupancySnapshot
@@ -23,18 +19,11 @@ import {
   type OrchestrationPolicy
 } from '@shared/orchestration/policy'
 import { downloadBlob } from '@/lib/download'
-import {
-  readGuidedOnboardingResumeIntent,
-  requestGuidedOnboardingResume
-} from '@/lib/onboardingResume'
-import { useAgentStore } from './agent'
-import { useDraftStore } from './draft'
-import { usePageRouterStore } from './pageRouter'
+import { completeOnboardingStep } from '@/lib/onboardingResume'
 import { useMessageStore } from './message'
-import { useAttachmentPreparationStore } from './attachmentPreparation'
 import { useLiveDelegationStore } from './liveDelegation'
 import { isAbortError } from '@/lib/errors'
-import { bindSessionStoreIpc, type SessionCompactionChangedPayload } from './sessionIpc'
+import type { SessionCompactionChangedPayload } from './sessionIpc'
 import { normalizeWorkspacePath } from '@shared/utils/filesystem'
 import type { ToolModeOverride } from '@shared/toolMode'
 
@@ -162,10 +151,6 @@ function createFallbackActiveSession(session: UISession): UIActiveSessionSummary
 
 function isRegularSession(session: Pick<UISession, 'sessionKind'>): boolean {
   return (session.sessionKind ?? 'regular') === 'regular'
-}
-
-async function getCurrentWebContentsId(): Promise<number | null> {
-  return await getRuntimeWebContentsId()
 }
 
 function registerStoreCleanup(cleanup: () => void): void {
@@ -329,14 +314,8 @@ export const useSessionStore = defineStore('session', () => {
   const sessionClient = createSessionClient()
   const chatClient = createChatClient()
   const configClient = createConfigClient()
-  const onboardingClient = createOnboardingClient()
-  const agentStore = useAgentStore()
-  const draftStore = useDraftStore()
-  const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
-  const attachmentPreparationStore = useAttachmentPreparationStore()
   const liveDelegationStore = useLiveDelegationStore()
-  const myWebContentsId = ref<number | null>(null)
   let groupModeLoadPromise: Promise<void> | null = null
   let groupModeWriteQueue: Promise<void> = Promise.resolve()
   let latestGroupModeWrite: Promise<void> = Promise.resolve()
@@ -357,11 +336,9 @@ export const useSessionStore = defineStore('session', () => {
   // Imports clear these tombstones because backups can restore previously deleted IDs.
   const removedSessionIds = new Set<string>()
   let sessionByIdsErrorRevision: number | null = null
-  let activationNavigationRequestId = 0
   let compactionSyncRequestId = 0
   let contextOccupancyRequestId = 0
   let activeCompactionSync: ActiveCompactionSync | null = null
-  let newConversationProjectDirIntentId = 0
   let sessionFetchPromise: Promise<void> | null = null
 
   const sessions = ref<UISession[]>([])
@@ -371,7 +348,6 @@ export const useSessionStore = defineStore('session', () => {
   const activeCompactionSnapshot = ref<SessionCompactionSnapshot | null>(null)
   const activeContextOccupancy = ref<SessionContextOccupancySnapshot | null>(null)
   const searchIntents = shallowReactive(new Map<string, boolean>())
-  const newConversationProjectDirIntent = ref<NewConversationProjectDirIntent | null>(null)
   const groupMode = ref<GroupMode>(DEFAULT_GROUP_MODE)
   const loading = ref(false)
   const loadingMore = ref(false)
@@ -380,17 +356,6 @@ export const useSessionStore = defineStore('session', () => {
   const hasMore = ref(false)
   const nextCursor = ref<{ updatedAt: number; id: string } | null>(null)
   const error = ref<string | null>(null)
-  let sessionIpcBinding: ReturnType<typeof bindSessionStoreIpc> | null = null
-
-  void getCurrentWebContentsId()
-    .then((webContentsId) => {
-      myWebContentsId.value = webContentsId
-      sessionIpcBinding?.flushPendingTargetedUpdate()
-    })
-    .catch((identityError) => {
-      console.warn('[sessionStore] Failed to resolve runtime webContents id:', identityError)
-    })
-
   const applyCompactionEvent = (payload: SessionCompactionChangedPayload): void => {
     const current = activeCompactionSnapshot.value
     if (current && payload.emitSeq <= current.emitSeq) {
@@ -512,7 +477,6 @@ export const useSessionStore = defineStore('session', () => {
   const setActiveSessionId = (sessionId: string | null): void => {
     const changed = activeSessionId.value !== sessionId
     activeSessionId.value = sessionId
-    messageStore.setCurrentSessionId(sessionId)
     if (!sessionId) {
       compactionSyncRequestId += 1
       activeCompactionSync = null
@@ -544,14 +508,6 @@ export const useSessionStore = defineStore('session', () => {
     setSearchIntent(sessionId, enabled)
     return enabled
   }
-
-  const createActivationNavigationRequest = (): number => {
-    activationNavigationRequestId += 1
-    return activationNavigationRequestId
-  }
-
-  const isCurrentActivationNavigation = (requestId: number, sessionId: string): boolean =>
-    activationNavigationRequestId === requestId && activeSessionId.value === sessionId
 
   const normalizeGroupMode = (value: unknown): GroupMode =>
     value === 'time' || value === 'project' ? value : DEFAULT_GROUP_MODE
@@ -695,10 +651,7 @@ export const useSessionStore = defineStore('session', () => {
     }
 
     if (activeSessionId.value && targetIds.has(activeSessionId.value)) {
-      createActivationNavigationRequest()
-      messageStore.clearStreamingState()
       setActiveSessionId(null)
-      pageRouter.goToNewThread()
     }
 
     if (hadPendingInitialFetch && !hasLoadedInitialPage.value) {
@@ -725,32 +678,7 @@ export const useSessionStore = defineStore('session', () => {
 
   const hasActiveSession: ComputedRef<boolean> = computed(() => activeSessionId.value !== null)
 
-  const newConversationTargetAgentId = computed(() => {
-    return agentStore.enabledAgents.some((agent) => agent.id === draftStore.agentId)
-      ? draftStore.agentId
-      : 'deepchat'
-  })
-
   const sessionGroups: ComputedRef<SessionGroup[]> = computed(() => getFilteredGroups(null))
-
-  const syncSelectedAgentToSession = (
-    sessionId: string | null,
-    availableSessions: UISession[] = sessions.value
-  ): void => {
-    if (!sessionId) {
-      return
-    }
-
-    const targetSession =
-      availableSessions.find((session) => session.id === sessionId) ??
-      (bootstrapActiveSession.value?.id === sessionId ? bootstrapActiveSession.value : null)
-    const targetAgentId = targetSession?.agentId?.trim()
-    if (!targetAgentId || agentStore.selectedAgentId === targetAgentId) {
-      return
-    }
-
-    agentStore.setSelectedAgent(targetAgentId)
-  }
 
   const applySessionStatus = (sessionId: string, status: string, version?: number): boolean => {
     if (version !== undefined) {
@@ -852,24 +780,6 @@ export const useSessionStore = defineStore('session', () => {
       modelId: session.modelId
     }
     bootstrapActiveSession.value = canonical
-    syncSelectedAgentToSession(session.id)
-  }
-
-  const hydrateActiveSessionSummary = async (
-    sessionId: string,
-    activationRequestId: number
-  ): Promise<void> => {
-    try {
-      const active = await sessionClient.getActive()
-      if (
-        isCurrentActivationNavigation(activationRequestId, sessionId) &&
-        active.session?.id === sessionId
-      ) {
-        applyRestoredSession(active.session)
-      }
-    } catch (restoreError) {
-      console.warn('[sessionStore] Failed to hydrate selected session:', restoreError)
-    }
   }
 
   const applyBootstrapShell = async (input: {
@@ -878,12 +788,7 @@ export const useSessionStore = defineStore('session', () => {
   }): Promise<void> => {
     await ensureGroupModeLoaded()
 
-    const previousActiveSessionId = activeSessionId.value
     const nextActiveSessionId = input.activeSessionId ?? null
-
-    if (previousActiveSessionId && previousActiveSessionId !== nextActiveSessionId) {
-      messageStore.clearStreamingState()
-    }
 
     setActiveSessionId(nextActiveSessionId)
     // A repeated bootstrap shell for the same selected session must not discard
@@ -902,8 +807,6 @@ export const useSessionStore = defineStore('session', () => {
     } else {
       bootstrapActiveSession.value = null
     }
-
-    syncSelectedAgentToSession(nextActiveSessionId)
   }
 
   const loadSessionPage = async (options: {
@@ -950,7 +853,6 @@ export const useSessionStore = defineStore('session', () => {
           nextCursor.value = result.nextCursor
         }
         hasLoadedInitialPage.value = true
-        syncSelectedAgentToSession(activeSessionId.value)
       } catch (loadError) {
         if (requestId === initialPageRequestId && listEpoch === sessionListEpoch) {
           error.value = `Failed to load sessions: ${loadError}`
@@ -1102,11 +1004,6 @@ export const useSessionStore = defineStore('session', () => {
         error.value = null
         sessionByIdsErrorRevision = null
       }
-
-      const activeId = activeSessionId.value
-      if (activeId && acceptedItems.some((item) => item.id === activeId)) {
-        syncSelectedAgentToSession(activeId)
-      }
     } catch (refreshError) {
       if (hasCurrentRequestedId()) {
         const canReplaceError =
@@ -1122,222 +1019,11 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function createSession(input: CreateSessionInput, options?: SubmissionRequestOptions) {
-    error.value = null
-    const requestId = createActivationNavigationRequest()
-    try {
-      const result = options?.submissionId
-        ? await sessionClient.create(input, { submissionId: options.submissionId })
-        : await sessionClient.create(input)
-      const session = result.session
-      setSearchIntent(session.id, input.search === true)
-      const hasInitialTurn =
-        input.message.trim().length > 0 ||
-        (input.files?.length ?? 0) > 0 ||
-        input.inlineItems?.some((item) => item.type === 'session') === true
-      const attachmentPreparation = result.initialTurn?.attachmentPreparation
-      const initialTurnNeedsUserAction = attachmentPreparation?.status === 'needs_user_action'
-      const hasAcceptedInitialTurn = hasInitialTurn && !initialTurnNeedsUserAction
-      if (initialTurnNeedsUserAction) {
-        attachmentPreparationStore.stageInitialDraftRecovery({
-          sessionId: session.id,
-          input: {
-            text: input.message,
-            ...(input.files ? { files: input.files } : {}),
-            ...(input.search === true ? { search: true } : {}),
-            ...(input.activeSkills ? { activeSkills: input.activeSkills } : {}),
-            ...(input.inlineItems ? { inlineItems: input.inlineItems } : {})
-          },
-          summary: attachmentPreparation
-        })
-      }
-      // Creation is durable even if the user has navigated elsewhere while it was pending.
-      commitSessionSnapshot(session)
-      if (activationNavigationRequestId !== requestId) {
-        return result
-      }
-
-      setActiveSessionId(session.id)
-      applyRestoredSession(session)
-      if (hasAcceptedInitialTurn) {
-        applySessionStatus(session.id, 'generating')
-      }
-      syncSelectedAgentToSession(session.id)
-      pageRouter.goToChat(session.id)
-      if (hasAcceptedInitialTurn) {
-        await completeOnboardingStep('first-chat')
-      }
-      return result
-    } catch (createError) {
-      if (input.draftSessionId) {
-        try {
-          // A failed reply can still leave an accepted first message; open its conversation.
-          const recovered = await sessionClient.restore(input.draftSessionId, 1)
-          const session = recovered.session
-          if (session && !session.isDraft && recovered.messages.length > 0) {
-            commitSessionSnapshot(session)
-            setSearchIntent(session.id, input.search === true)
-            if (activationNavigationRequestId === requestId) {
-              setActiveSessionId(session.id)
-              applyRestoredSession(session)
-              syncSelectedAgentToSession(session.id)
-              pageRouter.goToChat(session.id)
-              await completeOnboardingStep('first-chat')
-            }
-            return { session }
-          }
-        } catch (recoveryError) {
-          console.warn('[sessionStore] Failed to recover adopted draft:', recoveryError)
-        }
-      }
-      if (
-        activationNavigationRequestId === requestId &&
-        !(options?.isCancellationRequested?.() && isAbortError(createError))
-      ) {
-        error.value = `Failed to create session: ${createError}`
-      }
-      throw createError
-    }
-  }
-
   async function setSessionToolMode(override: ToolModeOverride): Promise<void> {
     const sessionId = activeSessionId.value
     if (!sessionId) return
     const session = await sessionClient.setSessionToolMode(sessionId, override)
     commitSessionSnapshot(session)
-  }
-
-  async function selectSession(
-    sessionId: string,
-    expectedTapeIncarnationId?: string
-  ): Promise<void> {
-    error.value = null
-    const requestId = createActivationNavigationRequest()
-    if (expectedTapeIncarnationId !== undefined) {
-      // Reference validation is part of navigation, so newer selections/close cancel it too.
-      try {
-        await sessionClient.resolveReference({ sessionId, expectedTapeIncarnationId })
-      } catch (referenceError) {
-        if (activationNavigationRequestId === requestId) throw referenceError
-        return
-      }
-      if (activationNavigationRequestId !== requestId) return
-    }
-    try {
-      if (activeSessionId.value && activeSessionId.value !== sessionId) {
-        messageStore.clearStreamingState()
-      }
-      await sessionClient.activate(sessionId)
-      if (activationNavigationRequestId !== requestId) {
-        return
-      }
-      clearActiveSessionSummary()
-      syncSelectedAgentToSession(sessionId)
-      setActiveSessionId(sessionId)
-      await hydrateActiveSessionSummary(sessionId, requestId)
-      if (!isCurrentActivationNavigation(requestId, sessionId)) {
-        return
-      }
-      pageRouter.goToChat(sessionId)
-    } catch (selectError) {
-      if (activationNavigationRequestId === requestId) {
-        error.value = `Failed to select session: ${selectError}`
-      }
-    }
-  }
-
-  async function closeSession(options: CloseSessionOptions = {}): Promise<void> {
-    error.value = null
-    const requestId = createActivationNavigationRequest()
-    try {
-      messageStore.clearStreamingState()
-      await sessionClient.deactivate()
-      if (activationNavigationRequestId !== requestId) {
-        return
-      }
-      clearActiveSessionSummary()
-      setActiveSessionId(null)
-      agentStore.setSelectedAgent(newConversationTargetAgentId.value)
-      pageRouter.goToNewThread(options.refresh ? { refresh: true } : {})
-    } catch (closeError) {
-      if (activationNavigationRequestId === requestId) {
-        error.value = `Failed to close session: ${closeError}`
-      }
-    }
-  }
-
-  async function startNewConversation(options: StartNewConversationOptions = {}): Promise<void> {
-    error.value = null
-
-    createActivationNavigationRequest()
-    if (options.agentId) {
-      draftStore.agentId = options.agentId
-    }
-    const targetAgentId = newConversationTargetAgentId.value
-    draftStore.agentId = targetAgentId
-
-    newConversationProjectDirIntent.value = Object.prototype.hasOwnProperty.call(
-      options,
-      'projectDir'
-    )
-      ? {
-          id: ++newConversationProjectDirIntentId,
-          projectDir: options.projectDir?.trim() || null,
-          consumed: false
-        }
-      : null
-
-    if (hasActiveSession.value) {
-      await closeSession({ refresh: options.refresh ?? true })
-      return
-    }
-
-    if (agentStore.selectedAgentId !== targetAgentId) {
-      agentStore.setSelectedAgent(targetAgentId)
-    }
-
-    pageRouter.goToNewThread({ refresh: options.refresh ?? true })
-  }
-
-  function consumeNewConversationProjectDirIntent(intentId: number): void {
-    const intent = newConversationProjectDirIntent.value
-    if (!intent || intent.id !== intentId || intent.consumed) {
-      return
-    }
-
-    newConversationProjectDirIntent.value = { ...intent, consumed: true }
-  }
-
-  async function completeOnboardingStep(stepId: GuidedOnboardingStepId): Promise<void> {
-    try {
-      const state = await onboardingClient.getState()
-
-      if (state.status !== 'active') {
-        return
-      }
-
-      const step = state.steps.find((candidate) => candidate.id === stepId)
-
-      if (!step || step.status === 'completed' || step.status === 'skipped') {
-        return
-      }
-
-      const nextState = await onboardingClient.setStepStatus({
-        stepId,
-        status: 'completed'
-      })
-
-      if (nextState.status === 'active' && nextState.currentStepId === null) {
-        await onboardingClient.complete()
-      }
-
-      const resumeIntent = readGuidedOnboardingResumeIntent()
-      if (resumeIntent?.trigger === 'step-completed' && resumeIntent.stepId === stepId) {
-        requestGuidedOnboardingResume('step-completed')
-      }
-    } catch (completionError) {
-      console.warn(`[SessionStore] Failed to complete onboarding step ${stepId}:`, completionError)
-    }
   }
 
   async function sendMessage(
@@ -1393,11 +1079,6 @@ export const useSessionStore = defineStore('session', () => {
     try {
       await sessionClient.deleteSession(sessionId)
       removeSessions([sessionId])
-      if (activeSessionId.value === sessionId) {
-        messageStore.clearStreamingState()
-        setActiveSessionId(null)
-        pageRouter.goToNewThread()
-      }
     } catch (deleteError) {
       error.value = `Failed to delete session: ${deleteError}`
     }
@@ -1424,7 +1105,6 @@ export const useSessionStore = defineStore('session', () => {
       commitSessionSnapshot(updated)
       if (activeSessionId.value === sessionId) {
         applyRestoredSession(updated)
-        syncSelectedAgentToSession(sessionId)
       }
     } catch (updateError) {
       error.value = `Failed to move session: ${updateError}`
@@ -1560,65 +1240,27 @@ export const useSessionStore = defineStore('session', () => {
       : groupByProject(visibleSessions)
   }
 
-  sessionIpcBinding = bindSessionStoreIpc({
-    webContentsId: () => myWebContentsId.value,
-    fetchSessions,
-    refreshSessionsByIds,
-    removeSessions,
-    onSynchronized: async (ids) => {
-      for (const id of ids) messageStore.invalidateRecentSessionView(id)
-      const id = activeSessionId.value
-      if (id && ids.includes(id)) await messageStore.loadMessages(id)
-    },
-    onImported: (mode) => {
-      historyRevision.value += 1
-      if (mode === 'overwrite') {
-        const replacedIds = sessions.value.map((session) => session.id)
-        if (activeSessionId.value) replacedIds.push(activeSessionId.value)
-        removeSessions(replacedIds)
-        hasLoadedInitialPage.value = false
-      }
-      removedSessionIds.clear()
-      // A request started against the previous database must not deduplicate this refresh.
-      sessionFetchPromise = null
-      return fetchSessions()
-    },
-    onActivated: async (sessionId) => {
-      const requestId = createActivationNavigationRequest()
-      if (activeSessionId.value && activeSessionId.value !== sessionId) {
-        messageStore.clearStreamingState()
-      }
-      if (activeSessionSummary.value?.id !== sessionId) {
-        clearActiveSessionSummary()
-      }
-      syncSelectedAgentToSession(sessionId)
-      setActiveSessionId(sessionId)
-      await hydrateActiveSessionSummary(sessionId, requestId)
-      if (!isCurrentActivationNavigation(requestId, sessionId)) {
-        return
-      }
-      pageRouter.goToChat(sessionId)
-    },
-    onDeactivated: () => {
-      createActivationNavigationRequest()
-      messageStore.clearStreamingState()
-      clearActiveSessionSummary()
+  const invalidateHistory = (mode?: 'increment' | 'overwrite'): void => {
+    historyRevision.value += 1
+    sessionListEpoch += 1
+    initialPageRequestId += 1
+    nextPageRequestId += 1
+    sessionFetchPromise = null
+    loading.value = false
+    loadingMore.value = false
+    if (mode === 'overwrite') {
+      sessions.value = []
+      bootstrapActiveSession.value = null
+      activeSessionSummary.value = null
       setActiveSessionId(null)
-      pageRouter.goToNewThread()
-    },
-    onStatusChanged: (sessionId, status, version) => {
-      const applied = applySessionStatus(sessionId, status, version)
-      if (applied && activeSessionId.value === sessionId && status !== 'generating') {
-        synchronizeContextOccupancy(sessionId)
-      }
-    },
-    onCompactionChanged: handleCompactionChanged
-  })
+      hasLoadedInitialPage.value = false
+    }
+    removedSessionIds.clear()
+  }
   registerStoreCleanup(() => {
     compactionSyncRequestId += 1
     activeCompactionSync = null
     contextOccupancyRequestId += 1
-    sessionIpcBinding?.cleanup()
   })
   void ensureGroupModeLoaded()
 
@@ -1628,7 +1270,6 @@ export const useSessionStore = defineStore('session', () => {
     activeCompactionSnapshot,
     activeCompactionState,
     activeContextOccupancy,
-    newConversationProjectDirIntent,
     groupMode,
     loading,
     loadingMore,
@@ -1643,23 +1284,26 @@ export const useSessionStore = defineStore('session', () => {
     toggleSearchIntent,
     sessionGroups,
     hasActiveSession,
-    newConversationTargetAgentId,
+    bootstrapActiveSession,
+    activeSessionSummary,
+    setActiveSessionId,
+    clearActiveSessionSummary,
+    commitSessionSnapshot,
+    removeSessions,
+    applySessionStatus,
+    handleCompactionChanged,
+    invalidateHistory,
     applyBootstrapShell,
     applyRestoredSession,
     fetchSessions,
     loadNextPage,
     loadSessionGroupPage,
     refreshSessionsByIds,
-    createSession,
     sendMessage,
     setSessionModel,
     synchronizeContextOccupancy,
     setSessionToolMode,
     applyConfirmedOrchestrationPolicy,
-    selectSession,
-    closeSession,
-    startNewConversation,
-    consumeNewConversationProjectDirIntent,
     renameSession,
     toggleSessionPinned,
     clearSessionMessages,

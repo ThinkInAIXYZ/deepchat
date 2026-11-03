@@ -79,6 +79,11 @@ vi.mock('@/stores/ui/session', () => ({
     selectSession: selectSessionMock
   })
 }))
+vi.mock('@/features/chat-session/store', () => ({
+  useChatSessionStore: () => ({
+    selectSession: selectSessionMock
+  })
+}))
 
 vi.mock('@/stores/ui/liveDelegation', () => ({
   useLiveDelegationStore: () => liveDelegationStoreMock

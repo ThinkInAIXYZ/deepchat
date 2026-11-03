@@ -96,7 +96,7 @@ pnpm exec vitest run --config vitest.config.renderer.ts test/renderer/stores/pro
 
 **目标**：一个窗口只有一份激活意图序号；Session 投影更新、Agent 选择与路由跳转不会接受过期结果。
 
-- [ ] **依赖**：无。**删除**：`stores/ui/session.ts` 中 `selectSession`、`closeSession`、`startNewConversation` 和 `sessionIpc` 激活/失活回调内重复的“清流、切选择、加载摘要、跳转”。让聊天窗口持有一份导航请求序号；本地操作、引用跳转、定向 IPC 和创建会话的迟到回执都遵守同一个过期判定。迁移侧栏、快捷键、Spotlight、消息引用等实际调用者。Store 留可复用的列表和 active-summary 操作。
+- [x] **依赖**：无。**删除**：`stores/ui/session.ts` 中 `selectSession`、`closeSession`、`startNewConversation` 和 `sessionIpc` 激活/失活回调内重复的“清流、切选择、加载摘要、跳转”。让聊天窗口持有一份导航请求序号；本地操作、引用跳转、定向 IPC 和创建会话的迟到回执都遵守同一个过期判定。迁移侧栏、快捷键、Spotlight、消息引用等实际调用者。Store 留可复用的列表和 active-summary 操作。
 
 **实施顺序**
 

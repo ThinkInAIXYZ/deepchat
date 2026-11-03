@@ -478,6 +478,9 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/ui/session', () => ({
     useSessionStore: () => sessionStore
   }))
+  vi.doMock('@/features/chat-session/store', () => ({
+    useChatSessionStore: () => sessionStore
+  }))
   vi.doMock('@/stores/ui/sidebar', () => ({
     useSidebarStore: () => sidebarStore
   }))

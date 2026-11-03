@@ -297,6 +297,7 @@
 </template>
 
 <script setup lang="ts">
+import { useChatSessionStore } from '@/features/chat-session/store'
 import { computed, nextTick, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -380,6 +381,7 @@ import { cancelChatInputHeroFlight, prepareChatInputHeroFlight } from '@/lib/cha
 
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
+const chatSessionStore = useChatSessionStore()
 const agentStore = useAgentStore()
 const modelStore = useModelStore()
 const draftStore = useDraftStore()
@@ -1338,7 +1340,7 @@ async function submitText(
     }
 
     if (isAcp && targetAcpSessionId) {
-      await sessionStore.selectSession(targetAcpSessionId)
+      await chatSessionStore.selectSession(targetAcpSessionId)
       if (submission.cancelled) {
         if (preparedHeroFlight) cancelChatInputHeroFlight()
         return false
@@ -1403,9 +1405,9 @@ async function submitText(
     let accepted = false
     try {
       if (submissionOptions) {
-        await sessionStore.createSession(createInput, submissionOptions)
+        await chatSessionStore.createSession(createInput, submissionOptions)
       } else {
-        await sessionStore.createSession(createInput)
+        await chatSessionStore.createSession(createInput)
       }
       accepted = true
     } finally {
@@ -1468,7 +1470,7 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   const globalDefaultProjectPath = normalizeProjectPath(projectStore.defaultProjectPath)
   const currentProjectPath = normalizeProjectPath(projectStore.selectedProject?.path)
   const selectedProjectSource = projectStore.selectionSource
-  const pendingProjectDirIntent = sessionStore.newConversationProjectDirIntent
+  const pendingProjectDirIntent = chatSessionStore.newConversationProjectDirIntent
   const projectDirIntent =
     pendingProjectDirIntent && !pendingProjectDirIntent.consumed
       ? {
@@ -1516,7 +1518,7 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
     draftStore.permissionMode = 'full_access'
     draftStore.disabledAgentTools = []
     if (projectDirIntent) {
-      sessionStore.consumeNewConversationProjectDirIntent(projectDirIntent.id)
+      chatSessionStore.consumeNewConversationProjectDirIntent(projectDirIntent.id)
     }
     return
   }
@@ -1557,7 +1559,7 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   }
   Object.assign(draftStore, buildDraftGenerationSettings(config))
   if (projectDirIntent) {
-    sessionStore.consumeNewConversationProjectDirIntent(projectDirIntent.id)
+    chatSessionStore.consumeNewConversationProjectDirIntent(projectDirIntent.id)
   }
 }
 
@@ -1813,7 +1815,7 @@ watch(
   [
     () => selectedAgent.value.id,
     () => selectedAgent.value.type,
-    () => sessionStore.newConversationProjectDirIntent?.id ?? 0
+    () => chatSessionStore.newConversationProjectDirIntent?.id ?? 0
   ],
   () => {
     const requestSeq = ++draftDefaultsRequestSeq

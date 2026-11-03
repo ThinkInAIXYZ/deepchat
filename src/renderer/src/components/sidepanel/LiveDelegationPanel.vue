@@ -93,6 +93,7 @@
 </template>
 
 <script setup lang="ts">
+import { useChatSessionStore } from '@/features/chat-session/store'
 import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
@@ -103,12 +104,11 @@ import type {
 } from '@shared/orchestration/liveDelegation'
 import { getLiveDelegationStatusPresentation } from '@/lib/liveDelegationPresentation'
 import { useLiveDelegationStore } from '@/stores/ui/liveDelegation'
-import { useSessionStore } from '@/stores/ui/session'
 
 const props = defineProps<{ sessionId: string }>()
 const emit = defineEmits<{ countChanged: [count: number] }>()
 const { t } = useI18n()
-const sessionStore = useSessionStore()
+const chatSessionStore = useChatSessionStore()
 const liveDelegationStore = useLiveDelegationStore()
 const actionError = ref<string | null>(null)
 const openingId = ref<string | null>(null)
@@ -158,7 +158,8 @@ async function openChild(delegation: LiveDelegationSummary): Promise<void> {
       throw new Error('The delegation no longer matches the displayed task.')
     }
     if (!confirmed.childSessionId) throw new Error('The child Session is not available yet.')
-    if (sessionId === props.sessionId) await sessionStore.selectSession(confirmed.childSessionId)
+    if (sessionId === props.sessionId)
+      await chatSessionStore.selectSession(confirmed.childSessionId)
   } catch (error) {
     if (sessionId === props.sessionId) {
       console.warn('[LiveDelegationPanel] Failed to open child Session:', error)

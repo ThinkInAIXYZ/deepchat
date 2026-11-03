@@ -12,16 +12,16 @@
 </template>
 
 <script setup lang="ts">
+import { useChatSessionStore } from '@/features/chat-session/store'
 import { computed } from 'vue'
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/vue-3'
 import { useI18n } from 'vue-i18n'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
-import { useSessionStore } from '@/stores/ui/session'
 import ReferenceChip from '../ReferenceChip.vue'
 
 const props = defineProps<NodeViewProps>()
 const { t } = useI18n()
-const sessionStore = useSessionStore()
+const chatSessionStore = useChatSessionStore()
 const tooltip = computed(() =>
   [props.node.attrs.projectDir, props.node.attrs.sessionId].filter(Boolean).join('\n')
 )
@@ -32,7 +32,10 @@ function remove() {
 
 async function open() {
   try {
-    await sessionStore.selectSession(props.node.attrs.sessionId, props.node.attrs.tapeIncarnationId)
+    await chatSessionStore.selectSession(
+      props.node.attrs.sessionId,
+      props.node.attrs.tapeIncarnationId
+    )
   } catch {
     notifyRenderer({
       kind: 'error',

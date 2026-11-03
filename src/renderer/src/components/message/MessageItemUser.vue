@@ -118,6 +118,7 @@
 </template>
 
 <script setup lang="ts">
+import { useChatSessionStore } from '@/features/chat-session/store'
 import type {
   DisplayUserMessage,
   DisplayUserMessageInlineBlock,
@@ -139,7 +140,6 @@ import ReferenceEditor from '../chat/ReferenceEditor.vue'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
 import { getSessionReferenceText } from '@shared/sessionReferences'
-import { useSessionStore } from '@/stores/ui/session'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import type { UserMessageInlineItem } from '@shared/types/agent-interface'
@@ -154,7 +154,7 @@ type ReferenceEditorApi = {
 
 const deviceClient = createDeviceClient()
 const windowClient = createWindowClient()
-const sessionStore = useSessionStore()
+const chatSessionStore = useChatSessionStore()
 const { t } = useI18n()
 
 const props = defineProps<{
@@ -257,7 +257,7 @@ const previewFile = (filePath: string) => {
 
 const openSessionReference = async (sessionId: string, tapeIncarnationId: string) => {
   try {
-    await sessionStore.selectSession(sessionId, tapeIncarnationId)
+    await chatSessionStore.selectSession(sessionId, tapeIncarnationId)
   } catch {
     notifyRenderer({
       kind: 'error',
