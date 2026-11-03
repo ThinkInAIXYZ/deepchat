@@ -18,7 +18,6 @@ import { parseMessageMetadata } from '@/session/usageStats'
 import {
   collectPendingInteractionEntries,
   parseAssistantBlocks,
-  reconcilePendingInteractionEntries,
   type PendingInteractionEntry
 } from './interactionProjection'
 import { redactRuntimeErrorForLog } from './runtimeErrorLogging'
@@ -163,7 +162,7 @@ export class RunLifecycleCoordinator {
     return await this.ports.statusPublisher.transition(scope, status, owner, usage)
   }
 
-  async refreshPendingInteractions(sessionId: string): Promise<boolean> {
+  private readPendingInteractions(sessionId: string): PendingInteractionEntry[] {
     const pendingEntries: PendingInteractionEntry[] = []
     for (const message of this.ports.transcript.getMessages(sessionId)) {
       if (message.role !== 'assistant') {
@@ -177,7 +176,14 @@ export class RunLifecycleCoordinator {
         )
       )
     }
-    return await this.reconcilePendingInteractions(sessionId, pendingEntries)
+    return pendingEntries
+  }
+
+  async refreshPendingInteractions(sessionId: string): Promise<boolean> {
+    return await this.reconcilePendingInteractions(
+      sessionId,
+      this.readPendingInteractions(sessionId)
+    )
   }
 
   async reconcilePendingInteractions(
@@ -188,8 +194,27 @@ export class RunLifecycleCoordinator {
     if (!scope) {
       return pendingEntries.length > 0
     }
-    await reconcilePendingInteractionEntries(scope.instance, pendingEntries)
-    return scope.instance.hasPendingInteractions()
+    await scope.instance.controlReady()
+    const deadline = performance.now() + 10_000
+    while (true) {
+      scope.assertCurrent()
+      // Rebuild after readiness and rejected observations; never rebind captured entries.
+      pendingEntries = this.readPendingInteractions(sessionId)
+      const accepted = await scope.instance.replacePendingInteractions(
+        pendingEntries.map(({ interaction }) => ({
+          messageId: interaction.messageId,
+          toolCallId: interaction.toolCallId,
+          origin: interaction.origin,
+          order: interaction.order
+        })),
+        undefined,
+        { reconcile: true }
+      )
+      scope.assertCurrent()
+      if (accepted) return scope.instance.hasPendingInteractions()
+      if (performance.now() >= deadline)
+        throw new Error('Pending interactions kept changing during reconciliation')
+    }
   }
 
   async hasPendingInteractions(sessionId: string): Promise<boolean> {

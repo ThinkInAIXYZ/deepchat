@@ -10579,12 +10579,14 @@ describe('DeepChatAgentHarness', () => {
     })
 
     it('ignores stale run completion after a newer turn starts', async () => {
+      const firstRunStarted = deferred<void>()
       let resolveFirstRun: ((value: any) => void) | null = null
       ;(processStream as ReturnType<typeof vi.fn>)
         .mockImplementationOnce(
           () =>
             new Promise((resolve) => {
               resolveFirstRun = resolve
+              firstRunStarted.resolve()
             })
         )
         .mockResolvedValueOnce({
@@ -10606,7 +10608,7 @@ describe('DeepChatAgentHarness', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const firstProcess = agent.processMessage('s1', 'First')
-      await new Promise((resolve) => setTimeout(resolve, 10))
+      await firstRunStarted.promise
 
       await agent.cancelGeneration('s1')
       await agent.processMessage('s1', 'Second')

@@ -5127,6 +5127,33 @@ and two Native Provider authorization/HTTP shutdown cases. Format, i18n, lint an
 the existing Remote warning remains. Integration evidence uses `hooks-integrated-*` logs/reports
 and `integrated-candidate-manifest.json`; the exact-source CI/native package gate remains open.
 
+The `993b21a12` Main CI run reports 10,308 passing cases and four failures in three files.
+An obsolete HookService constructor-source assertion is removed; the actual SDK unload and
+application contracts cover that ownership. Fixed-duration test waits are replaced with existing
+Provider-entry and durable assistant-completion signals while preserving nonblocking send,
+immediately invisible claimed input, fact/content, event and stale-Run assertions.
+
+The CI also exposes a real interaction-observation race: an owner captured before entering the
+Core lane may be stale after a queued prepare/commit, although the incarnation remains current.
+A gated actual Native receipt proves the rejection. Reconciliation now checks readiness/scope and
+rereads durable facts for the first attempt and every known owner rejection, with a bounded retry
+budget; explicit old-Run writes, replacement scopes and unknown outcomes remain fenced. One
+actual-Root regression in the existing RunLifecycle suite covers owner rotation, changed durable
+facts, the readiness wait and rejection of an explicit old-Run write. Cold-recovery assertions
+remain intact. No new protocol, positive local authority or test file is added.
+
+Repair validation passes: normal application/CLI build and Node/web types; 25 disjoint relevant
+Main files/918 cases; and all 13 actual-app cases (the integrated 11 plus ordered question replies
+and Steer cancellation/restart/manual queue recovery), zero retries. The new actual-Root
+reconciliation regression passes with the existing 20 RunLifecycle cases. Runtime integration's
+20 cases pass after replacing its fixed business waits with one completion helper and explicit
+Provider-entry gates; immediately invisible pending input and context/content assertions remain.
+The earlier logs retain fixture failures instead of rerunning the unchanged 440/477 passing groups
+to erase their history. Format, i18n, lint, document links and diff checks pass. Repair evidence uses
+`hooks-repair-*`, `hooks-owner-reconciliation-tests.log` and `repair-candidate-manifest.json`.
+The six native targets pass on `993b21a12`, but the production repair requires new exact-source CI
+and platform verification before G9 can be accepted.
+
 Evidence is under `.deepchat/rutis-g9-hooks-acceptance/`: `baseline-manifest.json`,
 `hooks-{baseline,candidate}-functional.{log,json}`, `hooks-application-build.log`,
 `hooks-affected-tests.log`, `hooks-final-service-tests.log`, Rust/static logs and the publication

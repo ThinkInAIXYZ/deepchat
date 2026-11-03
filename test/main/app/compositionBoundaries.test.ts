@@ -43,17 +43,6 @@ describe('session boundary composition', () => {
     )
   })
 
-  it('keeps hooks notifications on one instance that owns every configuration write', async () => {
-    const compositionSource = await readComposition()
-
-    expect(compositionSource.match(/new HookService\(/g)).toHaveLength(1)
-    expect(compositionSource).toContain(
-      'getSession: (sessionId) => sessionQuery.getSession(sessionId)'
-    )
-    expect(compositionSource).toContain('createHookRoutes({ service: hookService })')
-    expect(compositionSource).not.toContain('settings: hookSettings')
-  })
-
   it('constructs Scheduler once after Remote with complete execution dependencies', async () => {
     const compositionSource = await readComposition()
 

@@ -317,6 +317,15 @@ the execution-contract object under the batch ID selected by Rust; it cannot sel
 its local object map. Clearing a batch drops that object. Restored transcript references are
 reconciled through the same owner-bound command before they can authorize a continuation.
 
+Current-observation reconciliation waits for readiness, checks the incarnation, then synchronously
+reads current durable interaction facts before selecting the cached Root owner and submitting.
+A known owner rejection may repeat that observation while the same incarnation remains current;
+it must reread durable facts, never rebind captured entries to a replacement owner. Retries have a
+10-second budget after readiness; a late accepted result remains authoritative. Scope replacement
+and unknown transport outcomes still propagate. Explicit Run/operation writes retain their captured
+owner and cannot retry under a replacement owner. Session-state queries preserve cold transcript
+hydration so restored approvals have actual Root references before continuation admission.
+
 An interaction handler acquires its originating exclusion lease before transcript hydration,
 then asks Rust to validate that exact lease and the first pending tuple. Positive Provider and
 deferred-tool grants recheck that first tuple at their own grant boundary. Persisting a resolved

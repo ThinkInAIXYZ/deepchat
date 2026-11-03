@@ -87,7 +87,8 @@ function createMessage(
 }
 
 function createHarness(initialMessages: ChatMessageRecord[] = []) {
-  const runtime = new DeepChatAgentRuntime(control())
+  const harnessControl = control()
+  const runtime = new DeepChatAgentRuntime(harnessControl)
   const messages = [...initialMessages]
   const statusPorts: SessionStatusPublisherPorts = {
     publishEvent: vi.fn(),
@@ -120,6 +121,7 @@ function createHarness(initialMessages: ChatMessageRecord[] = []) {
   })
 
   return {
+    control: harnessControl,
     coordinator,
     emitMessageRefresh,
     messages,
@@ -140,6 +142,81 @@ async function flushPromises(): Promise<void> {
 describe('RunLifecycleCoordinator', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('rebuilds current durable interactions across owner rotation and readiness waits', async () => {
+    const {
+      coordinator,
+      control: port,
+      messages
+    } = createHarness([createMessage('old-message', [createPendingAction('old-tool')])])
+    const scope = coordinator.getOrCreateScope(SESSION_ID)
+    await scope.instance.controlReady()
+    const oldRun = createRun(SESSION_ID, 'old-run', 'old-message')
+    await coordinator.registerRun(scope, oldRun)
+    const entered = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    const send = port.send.bind(port)
+    let held = false
+    const gate = vi.spyOn(port, 'send').mockImplementation(async (command, receive) => {
+      if (command.method === 'updateInteractions' && !held) {
+        held = true
+        entered.resolve()
+        await release.promise
+      }
+      return await send(command, receive)
+    })
+    try {
+      const observation = coordinator.refreshPendingInteractions(SESSION_ID)
+      await entered.promise
+      messages.splice(
+        0,
+        messages.length,
+        createMessage('new-message', [createPendingAction('new-tool')])
+      )
+      oldRun.abortController.abort()
+      await coordinator.ensureOperationController(scope)
+      release.resolve()
+      expect(await observation).toBe(true)
+      expect(scope.instance.getPendingInteractions()).toMatchObject([
+        { messageId: 'new-message', toolCallId: 'new-tool' }
+      ])
+      expect(
+        await scope.instance.replacePendingInteractions(
+          [
+            {
+              messageId: 'old-message',
+              toolCallId: 'old-tool',
+              origin: 'pre-check-permission',
+              order: 0
+            }
+          ],
+          { kind: 'run', id: 'old-run' }
+        )
+      ).toBe(false)
+      expect(scope.instance.getPendingInteractions()).toMatchObject([
+        { messageId: 'new-message', toolCallId: 'new-tool' }
+      ])
+    } finally {
+      release.resolve()
+      gate.mockRestore()
+    }
+
+    const readyEntered = Promise.withResolvers<void>()
+    const ready = Promise.withResolvers<void>()
+    vi.spyOn(scope.instance, 'controlReady').mockImplementationOnce(async () => {
+      readyEntered.resolve()
+      await ready.promise
+    })
+    messages.splice(0, messages.length)
+    const observation = coordinator.reconcilePendingInteractions(SESSION_ID, [])
+    await readyEntered.promise
+    messages.push(createMessage('ready-message', [createPendingAction('ready-tool')]))
+    ready.resolve()
+    expect(await observation).toBe(true)
+    expect(scope.instance.getPendingInteractions()).toMatchObject([
+      { messageId: 'ready-message', toolCallId: 'ready-tool' }
+    ])
   })
 
   it('replaces an aborted lingering run with a fresh operation controller', async () => {

@@ -1078,6 +1078,23 @@ function createDeepChatManager(deepchatAgent: DeepChatAgentHarness, sqlitePresen
   }
 }
 
+async function waitForCompletedTurns(
+  sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>,
+  projection: ReturnType<typeof createSessionQueryFixture>,
+  sessionId: string,
+  count: number
+): Promise<void> {
+  await vi.waitFor(async () => {
+    const assistants = sqlitePresenter.deepchatMessagesTable
+      .getBySession(sessionId)
+      .filter((message: any) => message.role === 'assistant')
+    expect(assistants).toHaveLength(count)
+    expect(assistants.every((message: any) => message.status === 'sent')).toBe(true)
+    expect((await projection.getSession(sessionId))?.status).toBe('idle')
+  })
+  await createBackendControl.flush()
+}
+
 describe('Integration: createSession end-to-end', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockProviderRuntime>
@@ -1156,8 +1173,7 @@ describe('Integration: createSession end-to-end', () => {
       1
     )
 
-    // Wait for non-blocking processMessage to complete
-    await new Promise((r) => setTimeout(r, 50))
+    await waitForCompletedTurns(sqlitePresenter, projection, session.id, 1)
 
     // 1. new_sessions row created
     expect(sqlitePresenter.newSessionsTable.create).toHaveBeenCalledWith(
@@ -1228,10 +1244,8 @@ describe('Integration: createSession end-to-end', () => {
   })
 
   it('session list returns enriched sessions', async () => {
-    await lifecycle.createSession({ agentId: 'deepchat', message: 'Hello' }, 1)
-
-    // Wait for processMessage to complete
-    await new Promise((r) => setTimeout(r, 50))
+    const session = await lifecycle.createSession({ agentId: 'deepchat', message: 'Hello' }, 1)
+    await waitForCompletedTurns(sqlitePresenter, projection, session.id, 1)
 
     const sessions = await projection.listSessions()
     expect(sessions).toHaveLength(1)
@@ -1242,7 +1256,7 @@ describe('Integration: createSession end-to-end', () => {
   it('deleteSession cleans up all data', async () => {
     const session = await lifecycle.createSession({ agentId: 'deepchat', message: 'To delete' }, 1)
 
-    await new Promise((r) => setTimeout(r, 50))
+    await waitForCompletedTurns(sqlitePresenter, projection, session.id, 1)
 
     await lifecycle.deleteSession(session.id)
 
@@ -1254,7 +1268,7 @@ describe('Integration: createSession end-to-end', () => {
   it('clearSessionMessages clears messages but keeps session row', async () => {
     const session = await lifecycle.createSession({ agentId: 'deepchat', message: 'To clear' }, 1)
 
-    await new Promise((r) => setTimeout(r, 50))
+    await waitForCompletedTurns(sqlitePresenter, projection, session.id, 1)
 
     await turn.clearSessionMessages(session.id)
 
@@ -1336,7 +1350,12 @@ describe('Integration: ACP hook observer', () => {
       1
     )
 
-    await new Promise((r) => setTimeout(r, 50))
+    await vi.waitFor(() => {
+      expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+        'SessionEnd',
+        expect.objectContaining({ conversationId: session.id })
+      )
+    })
 
     expect(session.agentId).toBe('coder')
     expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
@@ -1444,14 +1463,12 @@ describe('Integration: multi-turn context', () => {
       1
     )
 
-    // Wait for first processMessage to complete
-    await new Promise((r) => setTimeout(r, 50))
+    await waitForCompletedTurns(sqlitePresenter, projection, session.id, 1)
 
     // Send second message
     await turn.sendMessage(session.id, 'Follow up question')
 
-    // Wait for second processMessage to complete
-    await new Promise((r) => setTimeout(r, 50))
+    await waitForCompletedTurns(sqlitePresenter, projection, session.id, 2)
 
     // Verify coreStream was called twice
     const providerInstance = llmProvider.getProviderInstance.mock.results[0].value
@@ -1518,16 +1535,16 @@ describe('Integration: multi-turn context', () => {
       { agentId: 'deepchat', message: 'Hello', projectDir: null },
       1
     )
-    await new Promise((r) => setTimeout(r, 50))
+    await waitForCompletedTurns(sqlitePresenter, projection, session.id, 1)
 
     await turn.sendMessage(session.id, 'Follow up (string)')
-    await new Promise((r) => setTimeout(r, 50))
+    await waitForCompletedTurns(sqlitePresenter, projection, session.id, 2)
 
     await turn.sendMessage(session.id, {
       text: 'Follow up (object)',
       files: [{ name: 'a.md', path: '/tmp/a.md', mimeType: 'text/markdown', content: '# a' } as any]
     })
-    await new Promise((r) => setTimeout(r, 50))
+    await waitForCompletedTurns(sqlitePresenter, projection, session.id, 3)
 
     const messages = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
     const userMessages = messages.filter((m: any) => m.role === 'user')
@@ -1539,12 +1556,12 @@ describe('Integration: multi-turn context', () => {
   })
 
   it('persists the initial user message before the first assistant stream responds', async () => {
-    let releaseFirstTurn: (() => void) | null = null
+    const firstProviderEntered = Promise.withResolvers<void>()
+    const releaseFirstTurn = Promise.withResolvers<void>()
     const providerInstance = {
       coreStream: vi.fn().mockImplementationOnce(async function* () {
-        await new Promise<void>((resolve) => {
-          releaseFirstTurn = resolve
-        })
+        firstProviderEntered.resolve()
+        await releaseFirstTurn.promise
         yield { type: 'text', content: 'First response' }
         yield { type: 'stop', stop_reason: 'complete' }
       })
@@ -1555,7 +1572,7 @@ describe('Integration: multi-turn context', () => {
       { agentId: 'deepchat', message: 'First turn', projectDir: null },
       1
     )
-    await new Promise((r) => setTimeout(r, 20))
+    await firstProviderEntered.promise
 
     const messagesBeforeStream = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
     const userMessagesBeforeStream = messagesBeforeStream.filter(
@@ -1564,12 +1581,13 @@ describe('Integration: multi-turn context', () => {
     expect(userMessagesBeforeStream).toHaveLength(1)
     expect(JSON.parse(userMessagesBeforeStream[0].content).text).toBe('First turn')
 
-    releaseFirstTurn?.()
-    await new Promise((r) => setTimeout(r, 80))
+    releaseFirstTurn.resolve()
+    await waitForCompletedTurns(sqlitePresenter, projection, session.id, 1)
   })
 
   it('keeps immediately runnable sends out of the visible pending queue', async () => {
-    let releaseSecondTurn: (() => void) | null = null
+    const secondProviderEntered = Promise.withResolvers<void>()
+    const releaseSecondTurn = Promise.withResolvers<void>()
     const providerInstance = {
       coreStream: vi
         .fn()
@@ -1578,9 +1596,8 @@ describe('Integration: multi-turn context', () => {
           yield { type: 'stop', stop_reason: 'complete' }
         })
         .mockImplementationOnce(async function* () {
-          await new Promise<void>((resolve) => {
-            releaseSecondTurn = resolve
-          })
+          secondProviderEntered.resolve()
+          await releaseSecondTurn.promise
           yield { type: 'text', content: 'Second response' }
           yield { type: 'stop', stop_reason: 'complete' }
         })
@@ -1591,33 +1608,36 @@ describe('Integration: multi-turn context', () => {
       { agentId: 'deepchat', message: 'First turn', projectDir: null },
       1
     )
-    await new Promise((r) => setTimeout(r, 80))
+    await waitForCompletedTurns(sqlitePresenter, projection, session.id, 1)
 
-    await turn.sendMessage(session.id, 'Immediate follow up')
-    await new Promise((r) => setTimeout(r, 20))
+    try {
+      await turn.sendMessage(session.id, 'Immediate follow up')
+      await expect(turn.listPendingInputs(session.id)).resolves.toEqual([])
+      await secondProviderEntered.promise
 
-    await expect(turn.listPendingInputs(session.id)).resolves.toEqual([])
-
-    const messagesDuringSecondTurn = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
-    const userMessagesDuringSecondTurn = messagesDuringSecondTurn.filter(
-      (message: any) => message.role === 'user'
-    )
-    expect(userMessagesDuringSecondTurn).toHaveLength(2)
-    expect(JSON.parse(userMessagesDuringSecondTurn[1].content).text).toBe('Immediate follow up')
-
-    releaseSecondTurn?.()
-    await new Promise((r) => setTimeout(r, 80))
+      const messagesDuringSecondTurn = sqlitePresenter.deepchatMessagesTable.getBySession(
+        session.id
+      )
+      const userMessagesDuringSecondTurn = messagesDuringSecondTurn.filter(
+        (message: any) => message.role === 'user'
+      )
+      expect(userMessagesDuringSecondTurn).toHaveLength(2)
+      expect(JSON.parse(userMessagesDuringSecondTurn[1].content).text).toBe('Immediate follow up')
+    } finally {
+      releaseSecondTurn.resolve()
+    }
+    await waitForCompletedTurns(sqlitePresenter, projection, session.id, 2)
   })
 
   it('keeps queued messages out of formal history until the current turn completes', async () => {
-    let releaseFirstTurn: (() => void) | null = null
+    const firstProviderEntered = Promise.withResolvers<void>()
+    const releaseFirstTurn = Promise.withResolvers<void>()
     const providerInstance = {
       coreStream: vi
         .fn()
         .mockImplementationOnce(async function* () {
-          await new Promise<void>((resolve) => {
-            releaseFirstTurn = resolve
-          })
+          firstProviderEntered.resolve()
+          await releaseFirstTurn.promise
           yield { type: 'text', content: 'First response' }
           yield { type: 'stop', stop_reason: 'complete' }
         })
@@ -1632,7 +1652,7 @@ describe('Integration: multi-turn context', () => {
       { agentId: 'deepchat', message: 'First turn', projectDir: null },
       1
     )
-    await new Promise((r) => setTimeout(r, 20))
+    await firstProviderEntered.promise
 
     await turn.queuePendingInput(session.id, 'Queued follow up')
 
@@ -1645,8 +1665,8 @@ describe('Integration: multi-turn context', () => {
     expect(beforeUserMessages).toHaveLength(1)
     expect(JSON.parse(beforeUserMessages[0].content).text).toBe('First turn')
 
-    releaseFirstTurn?.()
-    await new Promise((r) => setTimeout(r, 80))
+    releaseFirstTurn.resolve()
+    await waitForCompletedTurns(sqlitePresenter, projection, session.id, 2)
 
     const afterMessages = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
     const afterUserMessages = afterMessages.filter((message: any) => message.role === 'user')
@@ -1656,14 +1676,14 @@ describe('Integration: multi-turn context', () => {
   })
 
   it('drains converted steer inputs as visible user messages before queued messages', async () => {
-    let releaseFirstTurn: (() => void) | null = null
+    const firstProviderEntered = Promise.withResolvers<void>()
+    const releaseFirstTurn = Promise.withResolvers<void>()
     const providerInstance = {
       coreStream: vi
         .fn()
         .mockImplementationOnce(async function* () {
-          await new Promise<void>((resolve) => {
-            releaseFirstTurn = resolve
-          })
+          firstProviderEntered.resolve()
+          await releaseFirstTurn.promise
           yield { type: 'text', content: 'First response' }
           yield { type: 'stop', stop_reason: 'complete' }
         })
@@ -1678,7 +1698,7 @@ describe('Integration: multi-turn context', () => {
       { agentId: 'deepchat', message: 'Turn one', projectDir: null },
       1
     )
-    await new Promise((r) => setTimeout(r, 20))
+    await firstProviderEntered.promise
 
     await turn.queuePendingInput(session.id, 'Steer instruction')
     await turn.queuePendingInput(session.id, 'Queued target')
@@ -1687,10 +1707,8 @@ describe('Integration: multi-turn context', () => {
     expect(pendingInputs).toHaveLength(2)
     await turn.convertPendingInputToSteer(session.id, pendingInputs[0].id)
 
-    releaseFirstTurn?.()
-    await vi.waitFor(() => {
-      expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
-    })
+    releaseFirstTurn.resolve()
+    await waitForCompletedTurns(sqlitePresenter, projection, session.id, 3)
 
     expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
     const secondCallMessages = providerInstance.coreStream.mock.calls[1][0]
@@ -1722,7 +1740,8 @@ describe('Integration: multi-turn context', () => {
   })
 
   it('rebudgets long converted steer inputs as their own visible turn', async () => {
-    let releaseFirstTurn: (() => void) | null = null
+    const firstProviderEntered = Promise.withResolvers<void>()
+    const releaseFirstTurn = Promise.withResolvers<void>()
     const firstPrompt = 'P'.repeat(2000)
     const firstResponse = 'R'.repeat(2000)
     // Sized so prompt + response + steer exceeds the 2560-token context with the
@@ -1732,9 +1751,8 @@ describe('Integration: multi-turn context', () => {
       coreStream: vi
         .fn()
         .mockImplementationOnce(async function* () {
-          await new Promise<void>((resolve) => {
-            releaseFirstTurn = resolve
-          })
+          firstProviderEntered.resolve()
+          await releaseFirstTurn.promise
           yield { type: 'text', content: firstResponse }
           yield { type: 'stop', stop_reason: 'complete' }
         })
@@ -1749,7 +1767,7 @@ describe('Integration: multi-turn context', () => {
       { agentId: 'deepchat', message: firstPrompt, projectDir: null },
       1
     )
-    await new Promise((r) => setTimeout(r, 20))
+    await firstProviderEntered.promise
 
     await assignment.updateSessionGenerationSettings(session.id, {
       contextLength: 2560,
@@ -1772,10 +1790,8 @@ describe('Integration: multi-turn context', () => {
     expect(pendingInputs).toHaveLength(2)
     await turn.convertPendingInputToSteer(session.id, pendingInputs[0].id)
 
-    releaseFirstTurn?.()
-    await vi.waitFor(() => {
-      expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
-    })
+    releaseFirstTurn.resolve()
+    await waitForCompletedTurns(sqlitePresenter, projection, session.id, 3)
 
     expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
     const secondCallMessages = providerInstance.coreStream.mock.calls[1][0]
@@ -1863,12 +1879,20 @@ describe('Integration: multi-turn context', () => {
       })
     ).resolves.toEqual({ resumed: false, waitingForUserMessage: true })
 
-    await new Promise((r) => setTimeout(r, 20))
+    await createBackendControl.flush()
     expect(providerInstance.coreStream).not.toHaveBeenCalled()
     await expect(deepchatAgent.listPendingInputs('s-follow-up')).resolves.toHaveLength(1)
 
     await deepchatAgent.queuePendingInput('s-follow-up', 'Actual follow-up answer')
-    await new Promise((r) => setTimeout(r, 80))
+    await vi.waitFor(async () => {
+      const assistants = sqlitePresenter.deepchatMessagesTable
+        .getBySession('s-follow-up')
+        .filter((message: any) => message.role === 'assistant' && message.id !== 'm-follow-up')
+      expect(assistants).toHaveLength(2)
+      expect(assistants.every((message: any) => message.status === 'sent')).toBe(true)
+      expect((await deepchatAgent.getSessionState('s-follow-up'))?.status).toBe('idle')
+    })
+    await createBackendControl.flush()
 
     expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
     const firstFollowUpCall = providerInstance.coreStream.mock.calls[0][0]
@@ -1909,13 +1933,19 @@ describe('Integration: multi-turn context', () => {
       { agentId: 'deepchat', message: 'Fail first', projectDir: null },
       1
     )
-    await new Promise((r) => setTimeout(r, 50))
+    await vi.waitFor(async () => {
+      expect((await projection.getSession(session.id))?.status).toBe('error')
+    })
+    await createBackendControl.flush()
 
     const failedSession = await projection.getSession(session.id)
     expect(failedSession?.status).toBe('error')
 
     await turn.sendMessage(session.id, 'Recover after error')
-    await new Promise((r) => setTimeout(r, 80))
+    await vi.waitFor(async () => {
+      expect((await projection.getSession(session.id))?.status).toBe('idle')
+    })
+    await createBackendControl.flush()
 
     const recoveredSession = await projection.getSession(session.id)
     expect(recoveredSession?.status).toBe('idle')
