@@ -2,10 +2,10 @@
 
 ## Status and decision
 
-Status: G0-G7 complete; G8 records a Rust-batch selection no-go; G9 product Hooks passes local
-functional acceptance and awaits exact-source publication/platform verification.
-Evidence date: 2026-11-03. Accepted Rust control source: `f1b425e4b`; G9 comparison baseline: the
-same accepted application's hash-verified build.
+Status: G0-G9 complete, including the G8 Rust-batch selection no-go. G9 product Hooks and
+current-observation reconciliation are accepted at `6607e0b27`; G10 Store selection is next.
+Evidence date: 2026-11-03. The accepted source passes required CI and all six native package
+targets. G9's matching application comparison uses the hash-verified `f1b425e4b` build.
 Implementation reference: Rutis `v0.16.0`, released on 2026-10-24. Crates and npm packages are pinned
 to that version.
 

@@ -15,9 +15,9 @@ G5 is complete at `1719f8075`; exact-source required checks, all six native veri
 packages and the original integrated Native foreground case pass. G6 is complete at `bd64c2d53`;
 G7 is complete at `f1b425e4b`: Rust admission and cohesive Run/interaction/input control pass
 local functional acceptance, required CI and all six actual native package targets. G8 is the
-completed selection no-go; G9 product Hooks passes local functional acceptance and awaits
-publication/platform verification. Further performance
-sampling is not selected.
+completed selection no-go; G9 product Hooks and current-observation reconciliation are complete
+at `6607e0b27`, with required CI and all six actual native package targets accepted. G10 Store
+compatibility selection is next. Further performance sampling is not selected.
 Later goals start only after their dependencies and the preceding selected goal pass validation.
 
 Use this file as the only tracker. [The RFC](spec.md) defines capability ownership, Memory
@@ -77,7 +77,7 @@ Reuse the retained baseline instead of accumulating a complete output tree for e
 | G6 Full Memory capability               | Complete, `bd64c2d53`             | G3, G4, G5                     | Recall, ingestion, management and maintenance use the one Memory service                          |
 | G7 Rust control owner                   | Complete, `f1b425e4b`             | G2, G5                         | Admission and cohesive run/interaction settlement preserve all fences                             |
 | G8 Rust batch computations              | Complete: selection no-go         | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go           |
-| G9 Peripheral capabilities              | Active: product Hooks             | G4, G5                         | Independent useful lifetime, real consumer cutover and no duplicate supervisor                    |
+| G9 Peripheral capabilities              | Complete, `6607e0b27`              | G4, G5                         | Independent useful lifetime, real consumer cutover and no duplicate supervisor                    |
 | G10 Rust durable Store                  | Conditional compatibility project | G4, G5, G6, G7                 | One compatible encrypted writer and proven migration/recovery/maintenance behavior                |
 | G11 Headless Session Host               | Planned                           | G4, G5 and host-port audit     | Real CLI execution without Electron and without a connected desktop                               |
 | G12 Multiple clients and devices        | Planned                           | G11 and explicit grants        | Reconnect-safe clients and separately authorized, revocable device operations                     |
@@ -5070,7 +5070,7 @@ is claimed and no partial migration is left connected.
       envelope; account for idle Node processes removed or added.
 - [x] Review, validate and remove the replaced manual wiring. Repeat only for another selected
       module with a concrete lifecycle or measured resource benefit.
-- [ ] Publish this coherent source to the same Draft PR and pass required CI plus all six actual
+- [x] Publish this coherent source to the same Draft PR and pass required CI plus all six actual
       native package targets before starting G10/G11.
 
 Selected: product Hooks, as defined in the RFC. The Rutis attachment owns actual HookService
@@ -5125,7 +5125,7 @@ All 11 integrated actual-app cases pass with zero retries: the two matching base
 five maintenance/shutdown cases, MCP stdio ownership/child cleanup, MCP App sandbox/consent/reopen
 and two Native Provider authorization/HTTP shutdown cases. Format, i18n, lint and diff checks pass;
 the existing Remote warning remains. Integration evidence uses `hooks-integrated-*` logs/reports
-and `integrated-candidate-manifest.json`; the exact-source CI/native package gate remains open.
+and `integrated-candidate-manifest.json`; exact-source acceptance is recorded below.
 
 The `993b21a12` Main CI run reports 10,308 passing cases and four failures in three files.
 An obsolete HookService constructor-source assertion is removed; the actual SDK unload and
@@ -5151,8 +5151,21 @@ Provider-entry gates; immediately invisible pending input and context/content as
 The earlier logs retain fixture failures instead of rerunning the unchanged 440/477 passing groups
 to erase their history. Format, i18n, lint, document links and diff checks pass. Repair evidence uses
 `hooks-repair-*`, `hooks-owner-reconciliation-tests.log` and `repair-candidate-manifest.json`.
-The six native targets pass on `993b21a12`, but the production repair requires new exact-source CI
-and platform verification before G9 can be accepted.
+The accepted repair source is `6607e0b27`:
+
+- [PR Check 41582709161](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/41582709161)
+  completes successfully, including aggregate `125744664604`, Main (715 passing files/10,312
+  cases; two files/eight cases skipped as in the preceding CI), Renderer, Native Memory,
+  application build and static checks.
+- [Package Check 41582709186](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/41582709186)
+  completes successfully, including aggregate `125747684574` and all six actual macOS/Windows/Linux
+  x64/arm64 targets. Every target actually passes packaged DuckDB VSS, Memory runtime, Core
+  application, OpenDAL, offline Light OCR and installer-size verification; none of these checks
+  is skipped. This is PR verification, with distribution signing/notarization kept in release gates.
+- `hooks-repair-six-platform-audit.json` records exact-source job and critical-step evidence.
+  The verified immutable baseline is the accepted `6607e0b27` output (2,185 files), recorded in
+  `accepted-baseline-manifest.json`. The ended G7 `bd64c2d53` build copy is removed only after
+  replacement hash verification; its manifest and raw comparison evidence remain.
 
 Evidence is under `.deepchat/rutis-g9-hooks-acceptance/`: `baseline-manifest.json`,
 `hooks-{baseline,candidate}-functional.{log,json}`, `hooks-application-build.log`,
