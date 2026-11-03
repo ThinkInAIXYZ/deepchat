@@ -1,4 +1,3 @@
-import logger from '@shared/logger'
 import type {
   DeepChatSessionState,
   PendingInputEnqueueSource,
@@ -134,7 +133,7 @@ class DurablePendingInputClaim implements ClaimedPendingInputHandle {
         // The persistence boundary was crossed but its outcome cannot be observed. Fence the claim
         // conservatively so no caller can apply a second, potentially conflicting transition.
         this.fencedDisposition = disposition
-        logger.warn(
+        console.warn(
           `[DeepChatAgent] failed to verify pending input settlement session=${this.sessionId} item=${this.id}`,
           redactRuntimeErrorForLog(verificationError)
         )
@@ -379,7 +378,7 @@ export class PendingInputPump {
     const drainLease = scope?.instance.tryAcquirePendingQueueDrain() ?? null
     if (!scope || !drainLease) {
       const released = this.tryRelease(claim)
-      logger.error(
+      console.error(
         `[DeepChatAgent] pending input start rejected session=${record.sessionId} stage=adopt-claim`
       )
       if (released) {
@@ -501,7 +500,7 @@ export class PendingInputPump {
 
   schedule(sessionId: string, reason: PendingInputWakeReason): void {
     void this.drain(sessionId, reason).catch((error) => {
-      logger.error(
+      console.error(
         `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason}`,
         redactRuntimeErrorForLog(error)
       )
@@ -668,7 +667,7 @@ export class PendingInputPump {
       claim.settle({ kind: 'release-before-user-fact' })
       return true
     } catch (error) {
-      logger.warn(
+      console.warn(
         `[DeepChatAgent] failed to release claimed pending input item=${claim.id}`,
         redactRuntimeErrorForLog(error)
       )
@@ -763,7 +762,7 @@ export class PendingInputPump {
     stage: string,
     error: unknown
   ): void {
-    logger.error(
+    console.error(
       `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason} stage=${stage}`,
       redactRuntimeErrorForLog(error)
     )

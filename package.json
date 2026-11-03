@@ -14,6 +14,7 @@
     "prebuild": "node scripts/generate-icon-collections.mjs && node scripts/fetch-provider-db.mjs && node scripts/fetch-acp-registry.mjs",
     "preinstall": "npx only-allow pnpm",
     "test": "vitest run",
+    "test:harness:node": "node scripts/verify-harness-node.mjs",
     "test:main": "vitest run --config vitest.config.ts test/main",
     "test:memory:scope": "node scripts/check-memory-test-scope.mjs",
     "test:memory:type": "node scripts/typecheck-memory-tests.mjs",

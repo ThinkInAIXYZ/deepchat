@@ -6,7 +6,8 @@ import {
 import type { SessionTapePort, SessionTranscriptReadPort } from '@/session/data/contracts'
 
 export function createDeepChatAgentBackendFixture(
-  port: DeepChatAgentBackendPort,
+  port: Omit<DeepChatAgentBackendPort, 'openSessionInstance' | 'getHydratedSessionListState'> &
+    Partial<Pick<DeepChatAgentBackendPort, 'openSessionInstance' | 'getHydratedSessionListState'>>,
   providedRuntime?: DeepChatAgentRuntime,
   data: {
     transcript: Pick<SessionTranscriptReadPort, 'hasMessages'>
@@ -26,5 +27,21 @@ export function createDeepChatAgentBackendFixture(
 ) {
   const runtime = providedRuntime ?? new DeepChatAgentRuntime()
 
-  return createDeepChatAgentBackend({ port, runtime, ...data })
+  return createDeepChatAgentBackend({
+    port: Object.assign(Object.create(port), {
+      openSessionInstance:
+        port.openSessionInstance ??
+        ((sessionId) => {
+          const instance = runtime.getOrHydrate(sessionId)
+          return () => {
+            if (runtime.getHydrated(sessionId) === instance) runtime.evict(sessionId)
+          }
+        }),
+      getHydratedSessionListState:
+        port.getHydratedSessionListState ??
+        (async (sessionId) =>
+          runtime.getHydrated(sessionId) ? await port.getSessionListState(sessionId) : null)
+    }),
+    ...data
+  })
 }

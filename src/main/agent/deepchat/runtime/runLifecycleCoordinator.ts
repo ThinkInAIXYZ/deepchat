@@ -1,5 +1,4 @@
 import type { ProgrammaticToolPort } from './programmaticExecParent'
-import logger from '@shared/logger'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
@@ -473,7 +472,7 @@ export class RunLifecycleCoordinator {
 
   schedulePendingInputDrain(sessionId: string, reason: PendingInputWakeReason): void {
     void this.requestPendingInputDrain(sessionId, reason).catch((error) => {
-      logger.error(
+      console.error(
         `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason}`,
         redactRuntimeErrorForLog(error)
       )
@@ -522,7 +521,7 @@ export class RunLifecycleCoordinator {
   private cancelProviderPermissions(instance: DeepChatAgentInstance): void {
     for (const permission of instance.takeActiveProviderPermissions()) {
       void resolveProviderPermissionSafely(() => permission.resolve(false)).catch((error) => {
-        logger.warn(
+        console.warn(
           `[DeepChatAgent] Failed to cancel ACP permission request ${permission.requestId}:`,
           redactRuntimeErrorForLog(error)
         )

@@ -4,33 +4,7 @@
 
 [分步实施计划](./plan.md) · [Renderer 边界](../renderer-window-isolation/spec.md) · [Session 合同](../session-management.md) · [已有 Harness 合同](../deepchat-agent-harness-boundaries/spec.md)
 
-## 现状依赖
-
-基线为 `dev@145e51763`。箭头从使用者指向依赖。图中同时标出了构造、调用和发布回调；同一模块在不同路径出现，代表同一个实例。
-
-```text
-Renderer -> preload -> sender authorization -> module route --+
-CLI local control / Remote / Scheduler -----------------------+-> Session -> AgentManager
-
-AgentManager -> DeepChat backend -> Harness
-AgentManager -> Direct ACP -> AcpAgentRuntime -> Harness.createAcpAgentInstanceDependencies
-
-Harness factory -> ACP compatibility -> ACP runtime barrel -> Electron process manager
-                -> SessionData + SessionDatabase -> transcript / Tape / queue / SQLite tables
-                -> RunLifecycle / Turn / PendingInputPump -> DeepChatLoopRunner
-                                                              |-> generationSettings -> providerDbLoader -> Electron app
-                                                              +-> dispatch -> clientMessageProjection -> renderer DTO
-SessionStatusPublisher -> typed events -> app event router     -> syncActiveSessions
-                       -> internal update -> app callback      -> syncActiveSessions
-                       -> SessionUiPort -> floating widget
-Sync replica guard     -> app composition -> SQL on deepchat_pending_inputs
-```
-
-- `generationSettings` 要求目录来源 URL；导入的 loader 在模块求值时构造，默认解析 `app.getPath('userData')` 并尝试创建缓存目录。运行一轮模型请求由此依赖桌面启动环境。[调用点](../../../src/main/agent/deepchat/runtime/generationSettings.ts) · [构造点](../../../src/main/provider/providerDbLoader.ts)
-- `DeepChatHarnessDependencies` 暴露 31 个成员，包括完整的 `SessionData` 与 `SessionDatabase`。身份解析、工具策略、Memory 游标都能直接访问表。Direct ACP 在创建实例时还经 Harness 取得 prompt、历史、状态和限流协作者。[构造合同](../../../src/main/agent/deepchat/harness/runtimeServices.ts) · [实际装配和恢复顺序](../../../src/main/agent/deepchat/harness/createDeepChatAgentHarness.ts)
-- `SessionStatusPublisher` 决定状态变化，也知道四个输出的顺序。组合入口在两个回调写同一个 Sync 活跃集合，并为 Sync 自行查询未消费输入。`dispatch`、`echo`、`deepChatLoopRunner` 则知道客户端消息的投影格式。[状态发布](../../../src/main/agent/deepchat/runtime/sessionStatusPublisher.ts) · [宿主组合](../../../src/main/app/composition.ts) · [输出裁剪](../../../src/main/session/clientMessageProjection.ts)
-
-## 目标依赖
+## 运行边界
 
 ```text
 Desktop routes / CLI / Remote / Scheduler -> Session commands and queries -> AgentManager
@@ -82,3 +56,13 @@ Host projection adapter -> client projection / typed events / internal updates /
 3. **持久化与恢复。** 终态消息先追加 Tape，再更新 transcript 及投影游标，同一事务成功或回滚。输入 claim、consume、release 及关联消息维持原子语义；重启不得自动执行历史 queue 或重放效果不确定的工具调用。journal 分类、pending/hold、compaction、剩余 pending message 的恢复次序保持。相同 profile 只有一个恢复/写入所有者。维护重开后读取新连接。
 4. **可移植性。** 使用普通 Node 装载生产入口，禁止 Electron、Vue、具体 SQLite 驱动、桌面服务和桌面 IPC 合同进入核心的传递依赖；允许测试宿主单独加载其存储驱动。在空临时目录、无 Electron mock 的环境构造真实 Harness。脚本化模型第一轮要求一个受限工具，下一次模型请求必须收到实际工具结果，再发送第二条用户消息验证上下文连续。另验证权限等待与响应、取消、重开后恢复、提交失败回滚。
 5. **兼容与范围。** Electron 通过同一入口执行内建 Agent；Direct ACP 与 ACP-as-Provider 各自可发送、取消和恢复原有状态。IPC、CLI 协议、用户数据格式和已有会话可读性是每个实施步骤的约束。生产灰度为零的 Tool Surface 仍有显式执行、诊断和历史记录，只在另有产品退役决定时处理。[灰度与历史合同](../tool-surface-virtualization/spec.md)
+
+## 独立 Node 验收入口
+
+```bash
+pnpm run test:harness:node
+```
+
+[执行器](../../../scripts/verify-harness-node.mjs) 构建并审查生产 Harness 的静态和动态模块闭包，拒绝桌面服务、IPC 路由及具体存储实现进入核心；测试宿主另行加载真实 SQLite adapter。CJS 和 ESM 加载器分别先自检拒绝 Electron，再启动独立进程，完全避开 Vitest setup。
+
+[最小宿主](../../../test/node/deepChatHarness.ts) 使用受限文件读取工具、脚本化模型和一次性 SQLite 文件，校验两轮上下文、工具结果进入下一次模型请求、拒绝权限、重开后的授权恢复、取消、事务失败及异常退出后的队列 hold。事务失败保留已提交的 journal 终态，回滚失败的消息投影；重开不会伪造成功消息或自动重放工具。三个进程退出码依次为 `0`、预期异常退出 `73`、`0`，真实 SQLite 不可用时直接失败。

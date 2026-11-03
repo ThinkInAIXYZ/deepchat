@@ -55,10 +55,12 @@ import {
 } from '@shared/commandShell'
 import {
   buildCommandPermissionSignature,
-  isCommandSignatureForProfile,
+  isCommandSignatureForProfile
+} from '@/tool/permission/commandPermissionService'
+import {
   requiresAgentToolApprovalShellProfile,
   resolveAgentToolReview
-} from '@/tool/permission'
+} from '@/tool/permission/agentToolReviewPolicy'
 import { emitDeepChatLoopNotification } from '@/agent/deepchat/loop/notificationObserver'
 import { buildTerminalErrorBlocks } from '@/session/data/messageContent'
 import { finalizeTrailingPendingNarrativeBlocks } from './accumulator'

@@ -11,7 +11,7 @@ import type {
 import {
   ProgrammaticToolInvocationNameSchema,
   ProgrammaticToolPropertyNameSchema
-} from '@shared/contracts/routes/tools.routes'
+} from '@shared/contracts/programmaticTools'
 import { canonicalJsonStringifyData, hashJsonData } from '@/tape/domain/canonicalJson'
 import { isToolEffectWithinCeiling } from '@/tape/domain/executionContract'
 import {

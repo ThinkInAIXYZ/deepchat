@@ -1,4 +1,3 @@
-import logger from '@shared/logger'
 import {
   createStaleDeepChatInstanceError,
   type SessionScopeRegistry
@@ -223,7 +222,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       }
       return { memory, directives }
     } catch (error) {
-      logger.warn(`[DeepChatAgent] memory injection skipped: ${String(error)}`)
+      console.warn(`[DeepChatAgent] memory injection skipped: ${String(error)}`)
       return EMPTY_MEMORY_PROMPT_CONTRIBUTION
     }
   }
@@ -244,14 +243,14 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       )
       if (deadlineResult.timedOut) {
         injectionAbort.abort()
-        logger.warn(
+        console.warn(
           `[DeepChatAgent] memory injection timed out for session=${input.sessionId}; sending without memory section`
         )
         return null
       }
       return deadlineResult.value
     } catch (error) {
-      logger.warn(`[DeepChatAgent] memory injection skipped: ${String(error)}`)
+      console.warn(`[DeepChatAgent] memory injection skipped: ${String(error)}`)
       return null
     }
   }
@@ -274,7 +273,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
         .filter((content): content is string => Boolean(content))
         .join('\n\n')
       if (estimateTokens(combinedContent) > input.totalTokenBudget) {
-        logger.error(
+        console.error(
           `[DeepChatAgent] memory contribution exceeded its budget for session=${input.sessionId}; dropping memory section`
         )
         return EMPTY_MEMORY_CONTEXT_CONTRIBUTION
@@ -282,7 +281,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       let anchorEntryId: number | null = null
       if (assembled.manifest) {
         if (assembled.manifest.degradations?.length) {
-          logger.info(
+          console.info(
             `[DeepChatAgent] memory injection degraded for session=${input.sessionId} causes=${assembled.manifest.degradations.join(',')}`
           )
         }
@@ -304,7 +303,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
             })
             anchorEntryId = anchor.entry_id
           } catch (error) {
-            logger.warn(`[DeepChatAgent] memory view anchor skipped: ${String(error)}`)
+            console.warn(`[DeepChatAgent] memory view anchor skipped: ${String(error)}`)
           }
         }
       }
@@ -314,7 +313,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
         anchorEntryId
       }
     } catch (error) {
-      logger.warn(`[DeepChatAgent] memory injection skipped: ${String(error)}`)
+      console.warn(`[DeepChatAgent] memory injection skipped: ${String(error)}`)
       return EMPTY_MEMORY_CONTEXT_CONTRIBUTION
     }
   }
@@ -334,7 +333,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
         estimateTokens(assembled.content) >
           Math.min(input.totalTokenBudget, DIRECTIVE_TOKEN_CEILING)
       ) {
-        logger.error(
+        console.error(
           `[DeepChatAgent] directive contribution exceeded its budget for session=${input.sessionId}; dropping directive section`
         )
         return EMPTY_DIRECTIVE_CONTEXT_CONTRIBUTION
@@ -345,7 +344,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
         anchorEntryId: null
       }
     } catch (error) {
-      logger.warn(`[DeepChatAgent] directive contribution skipped: ${String(error)}`)
+      console.warn(`[DeepChatAgent] directive contribution skipped: ${String(error)}`)
       return EMPTY_DIRECTIVE_CONTEXT_CONTRIBUTION
     }
   }
@@ -369,7 +368,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       })
       return { ...input.contribution, anchorEntryId: anchor.entry_id }
     } catch (error) {
-      logger.warn(`[DeepChatAgent] directive view anchor skipped: ${String(error)}`)
+      console.warn(`[DeepChatAgent] directive view anchor skipped: ${String(error)}`)
       return input.contribution
     }
   }
@@ -409,7 +408,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
         for (const id of idsToRecord) seen.add(id)
       }
     } catch (error) {
-      logger.warn(`[DeepChatAgent] memory access accounting skipped: ${String(error)}`)
+      console.warn(`[DeepChatAgent] memory access accounting skipped: ${String(error)}`)
     }
   }
 
@@ -425,7 +424,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       this.assertCurrentSessionHandle(input.session)
       this.enqueueFallbackExtraction(input.session.sessionId)
     } catch (error) {
-      logger.warn(`[DeepChatAgent] memory turn ingestion skipped: ${String(error)}`)
+      console.warn(`[DeepChatAgent] memory turn ingestion skipped: ${String(error)}`)
     }
   }
 
@@ -451,7 +450,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
         )
       })
     } catch (error) {
-      logger.warn(`[DeepChatAgent] memory compaction ingestion skipped: ${String(error)}`)
+      console.warn(`[DeepChatAgent] memory compaction ingestion skipped: ${String(error)}`)
     }
   }
 
@@ -511,7 +510,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       }
     }
     const next = previous.then(runTask, runTask).catch((error) => {
-      logger.warn(`[DeepChatAgent] memory extraction chain error: ${String(error)}`)
+      console.warn(`[DeepChatAgent] memory extraction chain error: ${String(error)}`)
     })
     this.extractionChains.set(sessionId, next)
     void next.finally(() => {
@@ -607,7 +606,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
         )
       }
     } catch (error) {
-      logger.warn(`[DeepChatAgent] memory extraction skipped: ${String(error)}`)
+      console.warn(`[DeepChatAgent] memory extraction skipped: ${String(error)}`)
     }
   }
 
@@ -829,7 +828,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       try {
         projection.invalidateSession(sessionId)
       } catch {}
-      logger.warn(
+      console.warn(
         `[DeepChatAgent] memory ingestion projection unavailable; falling back to Tape: ${String(error)}`
       )
       return this.buildFullTapeIngestionRange(
@@ -862,7 +861,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
       try {
         projection.invalidateSession(sessionId)
       } catch {}
-      logger.warn(
+      console.warn(
         `[DeepChatAgent] memory ingestion projection rebuild failed; using Tape without cursor commit: ${String(error)}`
       )
       return {
@@ -909,7 +908,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
         cursorCommitAllowed
       }
     } catch (error) {
-      logger.warn(`[DeepChatAgent] authoritative Tape fallback failed: ${String(error)}`)
+      console.warn(`[DeepChatAgent] authoritative Tape fallback failed: ${String(error)}`)
       return null
     }
   }

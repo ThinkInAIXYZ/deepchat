@@ -1,4 +1,3 @@
-import logger from '@shared/logger'
 import { TOOL_SEARCH_AGENT_TOOL_NAME } from '@shared/agentTools'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -728,7 +727,7 @@ function settleLoopOutcome(
       throw journalError
     }
     if (io.abortSignal.aborted) {
-      logger.info(`[ProcessStream] aborted via exception after ${eventCount} events`)
+      console.info(`[ProcessStream] aborted via exception after ${eventCount} events`)
       stampRunOutcome(state, 'aborted', 'user_stop')
       commitRunTerminal({
         outcome: 'aborted',
@@ -809,7 +808,7 @@ function settleLoopOutcome(
 
   if (outcome.type === 'max_provider_rounds') {
     const errorMessage = `Maximum agent turns exceeded (${outcome.limit}).`
-    logger.info(`[ProcessStream] ${errorMessage}`)
+    console.info(`[ProcessStream] ${errorMessage}`)
     stampRunOutcome(state, 'error', 'max_turns')
     commitRunTerminal({ outcome: 'error', stopReason: 'max_turns', errorMessage })
     outputSink.fail({
@@ -843,7 +842,7 @@ function settleLoopOutcome(
     }
   }
   if (outcome.type === 'max_tool_calls') {
-    logger.info(
+    console.info(
       `[ProcessStream] max tool calls reached (${outcome.attemptedToolCount} > ${outcome.limit}), stopping`
     )
     markUnexecutedToolCallsForLimit(state)
@@ -1002,7 +1001,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
     })
   }
 
-  logger.info(`[ProcessStream] start session=${io.sessionId} message=${io.messageId}`)
+  console.info(`[ProcessStream] start session=${io.sessionId} message=${io.messageId}`)
   let eventCount = 0
   let pendingToolSurfaceCandidateRelease: PendingToolSurfaceCandidateRelease | null = null
   // Every round replays all settled tool blocks of the message; facts appended by an earlier
@@ -1046,7 +1045,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         }
       } catch (error) {
         toolFactsPersisted = false
-        logger.warn(
+        console.warn(
           `[ProcessStream] Failed to append tool facts: ${
             error instanceof Error ? error.message : String(error)
           }`
@@ -1062,7 +1061,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             ? toolResultBySourceId.get(`${record.id}:${toolCallId}`)
             : undefined
           if (!toolResult) {
-            logger.warn(
+            console.warn(
               '[ProcessStream] ToolSearch activation was not released because its durable result receipt is unavailable.'
             )
             return
@@ -1155,7 +1154,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
         state.metadata.noProgressToolLoop = resumedObservation.snapshot
         if (resumedObservation.correctionAppended) {
           commitCorrectedToolMessage(conversationMessages, resumedToolBatch.batchMessages)
-          logger.warn(
+          console.warn(
             `[ProcessStream] repeated resumed tool batch detected count=${resumedObservation.repeatedBatchCount}; requesting a strategy change`
           )
         }
@@ -1210,7 +1209,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
               accumulate(state, event)
             }
             if (io.abortSignal.aborted) {
-              logger.info(`[ProcessStream] aborted after ${eventCount} events`)
+              console.info(`[ProcessStream] aborted after ${eventCount} events`)
               echo.stop()
               commitRoundUsage(state)
               return {
@@ -1315,7 +1314,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             throw new Error('Provider response lost its active Tool Surface binding.')
           }
 
-          logger.info(
+          console.info(
             `[ProcessStream] stream iteration done reason=${state.stopReason} events=${eventCount} blocks=${state.blocks.length}`
           )
 
@@ -1480,7 +1479,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
           }
 
           if (executed.type === 'paused') {
-            logger.info(
+            console.info(
               `[ProcessStream] paused for user interaction count=${executed.interactions.length}`
             )
             return {
@@ -1502,12 +1501,12 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             state.metadata.noProgressToolLoop = noProgressObservation.snapshot
             if (noProgressObservation.correctionAppended) {
               commitCorrectedToolMessage(conversationMessages, completedBatchMessages)
-              logger.warn(
+              console.warn(
                 `[ProcessStream] repeated tool batch detected count=${noProgressObservation.repeatedBatchCount}; requesting a strategy change`
               )
             }
             if (noProgressObservation.shouldTerminate) {
-              logger.warn(
+              console.warn(
                 `[ProcessStream] ${NO_PROGRESS_TERMINAL_ERROR} session=${io.sessionId} message=${io.messageId}`
               )
               return {

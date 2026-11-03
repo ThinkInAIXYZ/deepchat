@@ -6,12 +6,12 @@ import { createSessionStatusProjection } from '@/session/sessionStatusProjection
 import * as fs from 'node:fs'
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createDeepChatAgentHarness, type DeepChatAgentHarness } from '@/agent/deepchat/harness'
+import type { DeepChatAgentHarness } from '@/agent/deepchat/harness'
+import { createDeepChatAgentHarness, getHarnessOwners } from '../../helpers/deepChatHarnessFixture'
 import { estimateMessagesTokens } from '@/agent/deepchat/runtime/contextBuilder'
 import { createHookObserver, noopHookObserver } from '../hook/hookObserverFixture'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
-import logger from '@shared/logger'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatActiveGeneration } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { createDeepChatAgentBackendFixture } from '../agent/manager/deepChatAgentBackendFixture'
@@ -54,6 +54,7 @@ vi.mock('@/events', async (importOriginal) => {
 })
 
 beforeEach(() => {
+  vi.spyOn(console, 'info').mockImplementation(() => {})
   vi.mocked(fs.promises.readFile).mockRejectedValue(
     Object.assign(new Error('AGENTS.md does not exist'), { code: 'ENOENT' })
   )
@@ -1066,7 +1067,7 @@ function createTranscriptMutations(
 }
 
 function createDeepChatManager(deepchatAgent: DeepChatAgentHarness, sqlitePresenter: any) {
-  const backend = createDeepChatAgentBackendFixture(deepchatAgent, deepchatAgent.deepChatRuntime)
+  const backend = createDeepChatAgentBackendFixture(deepchatAgent)
   const descriptor = (agentId: string) => ({
     id: agentId,
     kind: 'deepchat' as const,
@@ -1488,8 +1489,8 @@ describe('Integration: multi-turn context', () => {
     const providerInstance = {
       coreStream: vi.fn(async function* () {
         providerAttempt += 1
-        const run = deepchatAgent.deepChatRuntime
-          .getOrHydrate(toAppSessionId(sessionId))
+        const run = getHarnessOwners(deepchatAgent)
+          .runtime.getOrHydrate(toAppSessionId(sessionId))
           .getActiveGeneration()
         if (!run) throw new Error('Expected an active loop run')
         observedRuns.push(run)
@@ -1833,8 +1834,8 @@ describe('Integration: multi-turn context', () => {
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
 
     await deepchatAgent.initSession('s-follow-up', { providerId: 'openai', modelId: 'gpt-4' })
-    const runtimeState = deepchatAgent.deepChatRuntime
-      .getOrHydrate(toAppSessionId('s-follow-up'))
+    const runtimeState = getHarnessOwners(deepchatAgent)
+      .runtime.getOrHydrate(toAppSessionId('s-follow-up'))
       .getRuntimeState()
     if (!runtimeState) throw new Error('Missing runtime state for s-follow-up')
     runtimeState.status = 'generating'
@@ -2092,7 +2093,7 @@ describe('Integration: crash recovery', () => {
       }
     ])
 
-    const loggerInfoMock = vi.mocked(logger.info)
+    const loggerInfoMock = vi.mocked(console.info)
 
     // Creating the agent triggers crash recovery
     createDeepChatAgentHarness({

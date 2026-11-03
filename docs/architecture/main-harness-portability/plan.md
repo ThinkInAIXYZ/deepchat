@@ -209,7 +209,7 @@ pnpm exec vitest run --config vitest.config.ts test/main/agent/deepchat/runtime/
 
 **目标**：以一个可执行证据证明 Desktop 和普通 Node 使用同一套真正的 Harness，旧数据也能恢复。
 
-- [ ] **依赖**：M1、M4、M5、M7、M8。**删除**：公开入口剩余的 Electron 间接导入（包括 `@shared/logger`）、只为接线暴露的 registry/observer 和具体宿主类型。Desktop 的 backend 现在直接读取 `deepChatRuntime`，维护路径读取 `memoryIngestionObserver`；迁为明确的实例操作与 drain/reopen 合同后，再删除旧 getter。保留一个注册表、一个 pump 和每个 profile 一个写入所有者。模块仍在当前源码树内。
+- [x] **依赖**：M1、M4、M5、M7、M8。**删除**：公开入口剩余的 Electron 间接导入（包括 `@shared/logger`）、只为接线暴露的 registry/observer 和具体宿主类型。Desktop 的 backend 现在直接读取 `deepChatRuntime`，维护路径读取 `memoryIngestionObserver`；迁为明确的实例操作与 drain/reopen 合同后，再删除旧 getter。保留一个注册表、一个 pump 和每个 profile 一个写入所有者。模块仍在当前源码树内。
 
 **实施顺序**
 
@@ -223,7 +223,7 @@ pnpm exec vitest run --config vitest.config.ts test/main/agent/deepchat/runtime/
 pnpm exec vitest run --config vitest.config.ts test/main/agent/deepchat/harness/deepChatAgentHarness.test.ts test/main/agent/manager/deepChatAgentBackend.test.ts
 ```
 
-以上是桌面兼容回归。M9 必须另交付独立 Node 回归的入口和可复跑命令；仅运行已有 Vitest 文件、仅调用 LoopEngine 或跳过本机数据库用例都不足以签收。
+以上是桌面兼容回归。独立 Node 回归通过 `pnpm run test:harness:node` 运行 [执行器](../../../scripts/verify-harness-node.mjs) 和 [最小宿主](../../../test/node/deepChatHarness.ts)；仅运行已有 Vitest 文件、仅调用 LoopEngine 或跳过本机数据库用例都不足以签收。
 
 **验收标准**：审查入口的静态、动态、本地别名、barrel 及公开类型依赖。以独立 Node 进程运行 spec 的两轮工具会话、权限恢复、取消和持久化失败场景，显式拒绝加载 Electron。仅网络模型和外设使用脚本化替身；事务/重启使用能跨实例重新打开的临时存储，并与真实 SQLite adapter 的原子性用例交叉验证。`test/setup.ts` 默认 mock Electron，普通 Vitest 绿灯不足以证明可移植。Electron 入口用同一核心验证发送、流、工具响应、旧会话、Direct ACP 与兼容 Provider。发布独立包是此门槛之后的独立决定。
 

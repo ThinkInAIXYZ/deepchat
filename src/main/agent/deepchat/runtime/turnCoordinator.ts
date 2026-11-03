@@ -1,7 +1,6 @@
 import type { DeepChatOutputPort } from './output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
-import logger from '@shared/logger'
 import type {
   AttachmentPreparationSummary,
   AssistantMessageBlock,
@@ -258,7 +257,7 @@ export class TurnCoordinator {
         )
       } catch (error) {
         signal.throwIfAborted()
-        logger.warn('[DeepChatAgent] Failed to resolve provider runtime context limit', {
+        console.warn('[DeepChatAgent] Failed to resolve provider runtime context limit', {
           providerId: state.providerId,
           modelId: state.modelId,
           error: error instanceof Error ? error.message : String(error)
@@ -529,7 +528,7 @@ export class TurnCoordinator {
         providerModelFacts
       )
       const projectDir = this.ports.sessionSettings.resolveProjectDir(sessionId, context?.projectDir, instance)
-      logger.info(
+      console.info(
         `[DeepChatAgent] processMessage session=${sessionId} promptLength=${content.text.length} fileCount=${content.files?.length ?? 0} hasProjectDir=${projectDir !== null}`
       )
 

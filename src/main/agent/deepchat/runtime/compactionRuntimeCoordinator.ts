@@ -1,6 +1,5 @@
 import type { DeepChatOutputPort } from './output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
-import logger from '@shared/logger'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type {
   SessionCompactionSnapshot,
@@ -425,7 +424,7 @@ export class CompactionRuntimeCoordinator {
             source: 'compact', boundaryId: intent.compactionAttemptId, signal: options?.signal
           })
         } catch (error) {
-          logger.warn('[PluginHooks] Compaction hook dispatch failed', { sessionId, error })
+          console.warn('[PluginHooks] Compaction hook dispatch failed', { sessionId, error })
         }
       }
     }

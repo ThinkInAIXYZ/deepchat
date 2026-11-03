@@ -1,4 +1,3 @@
-import logger from '@shared/logger'
 
 const PRE_STREAM_SLOW_STEP_MS = 500
 export const PRE_STREAM_STUCK_WARN_MS = 5_000
@@ -22,7 +21,7 @@ export function logSlowPreStreamStep(sessionId: string, step: string, startedAt:
     return
   }
 
-  logger.warn(
+  console.warn(
     `[DeepChatAgent] pre-stream step slow session=${sessionId} step=${step} elapsed=${elapsed}ms`
   )
 }
@@ -50,7 +49,7 @@ function startPreStreamStepWatchdog(input: PreStreamStepInput): PreStreamBoundar
   const cancel = () => close(false)
   const logStuck = (escalated: boolean) => {
     if (closed) return
-    logger.warn(
+    console.warn(
       `[DeepChatAgent] pre-stream step STUCK${escalated ? ' escalation' : ''} session=${sessionId} message=${messageId ?? '<pending>'} step=${step} elapsedMs=${Date.now() - startedAt}`
     )
   }

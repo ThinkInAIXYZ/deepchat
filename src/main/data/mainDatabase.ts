@@ -1,4 +1,3 @@
-import logger from '@shared/logger'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import fs from 'fs'
 import type { DatabaseRepairReport, DatabaseSchemaDiagnosis } from '@shared/types/databaseSchema'
@@ -207,7 +206,9 @@ export class MainDatabase {
     const openStart = performance.now()
     this.db = openSQLiteDatabase(this.dbPath, this.password)
     this.db.prepare('SELECT 1').get()
-    logger.info(`MainDatabase: phase=open duration=${(performance.now() - openStart).toFixed(2)}ms`)
+    console.info(
+      `MainDatabase: phase=open duration=${(performance.now() - openStart).toFixed(2)}ms`
+    )
 
     const initTablesStart = performance.now()
     this.schemaCatalog = createMainSchemaCatalog(this.db)
@@ -219,7 +220,7 @@ export class MainDatabase {
       )
     }
     this.schemaCatalog.createTables()
-    logger.info(
+    console.info(
       `MainDatabase: phase=initTables duration=${(performance.now() - initTablesStart).toFixed(2)}ms`
     )
 
@@ -228,7 +229,7 @@ export class MainDatabase {
     this.schemaCatalog.finalize({
       backupBeforeMemoryRecovery: () => this.createDatabaseBackup('memory-state-repair')
     })
-    logger.info(
+    console.info(
       `MainDatabase: phase=migrate duration=${(performance.now() - migrateStart).toFixed(2)}ms`
     )
   }
@@ -270,7 +271,7 @@ export class MainDatabase {
       if (nativeFs.existsSync(walPath)) {
         nativeFs.copyFileSync(walPath, `${backupPath}-wal`)
       }
-      logger.info(`Database backed up to: ${backupPath}`)
+      console.info(`Database backed up to: ${backupPath}`)
       return backupPath
     } catch (error) {
       console.error('Error creating database backup:', error)
@@ -328,10 +329,10 @@ export class MainDatabase {
       const migrationSQLs = migrations.get(version) || []
       this.db.transaction(() => {
         if (migrationSQLs.length > 0) {
-          logger.info(`Executing migration version ${version}`)
+          console.info(`Executing migration version ${version}`)
           migrationSQLs.forEach((sqlBlock) => {
             for (const statement of splitSqlStatements(sqlBlock)) {
-              logger.info(`Executing SQL: ${statement}`)
+              console.info(`Executing SQL: ${statement}`)
               try {
                 this.db.exec(statement)
               } catch (error) {

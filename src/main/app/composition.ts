@@ -194,10 +194,7 @@ import { AcpAgentRuntime } from '@/agent/acp/instance'
 import { createAcpRuntimeOwner } from '@/agent/acp/createRuntimeOwner'
 import { createAcpRoutes } from '@/agent/acp/routes'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
-import type {
-  MemoryIngestionDrainOutcome,
-  MemoryIngestionObserver
-} from '@/agent/deepchat/memory/memoryIngestionObserver'
+import type { MemoryIngestionDrainOutcome } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import { MemoryService, isSafeAgentId, type MemoryServicePort } from '../memory'
 import { createMemoryVectorStorePaths, MemoryVectorStore } from '../memory/infra/memoryVectorStore'
 import { ProjectService } from '../project'
@@ -574,7 +571,6 @@ export async function createMainProcessControl(dependencies: {
   let agentManager: AgentManager
   let acpAgentRuntime: AcpAgentRuntime
   let memoryService: MemoryServicePort
-  let memoryIngestionObserver: MemoryIngestionObserver
   let projectService: ProjectService
   let remoteService: RemoteServiceLike
   let pluginService: PluginServicePort
@@ -2153,7 +2149,6 @@ export async function createMainProcessControl(dependencies: {
     runtime: deepChatAgentHarness,
     runInTransaction: (operation) => sessionData.database.getDatabase().transaction(operation)()
   })
-  memoryIngestionObserver = deepChatAgentHarness.memoryIngestionObserver
   acpAgentRuntime = new AcpAgentRuntime(
     acpRuntimeOwner,
     (input) =>
@@ -2191,7 +2186,6 @@ export async function createMainProcessControl(dependencies: {
   agentManager = new AgentManager(agentRepository, appSessionService, {
     deepchat: createDeepChatAgentBackend({
       port: deepChatAgentHarness,
-      runtime: deepChatAgentHarness.deepChatRuntime,
       transcript: sessionData.transcript,
       tape: sessionData.tape
     }),
@@ -3066,7 +3060,7 @@ export async function createMainProcessControl(dependencies: {
     // awaiting the existing chains. This avoids both late SQLite writes and shutdown deadlocks.
     const memoryIngestionDrain = (() => {
       try {
-        return memoryIngestionObserver.drainAndFence().then(
+        return deepChatAgentHarness.drainMemoryIngestion().then(
           (outcome) => ({ outcome }) as const,
           (error) => ({ error }) as const
         )
@@ -3758,7 +3752,7 @@ export async function createMainProcessControl(dependencies: {
       await cronJobs.stop()
       await remoteService.destroy()
       await hookService.stop()
-      const drain = await memoryIngestionObserver.drainAndFence()
+      const drain = await deepChatAgentHarness.drainMemoryIngestion()
       if (drain.timedOut) {
         throw new Error(
           `Memory ingestion did not drain for sessions: ${drain.pendingSessions.join(', ')}`
@@ -3798,7 +3792,7 @@ export async function createMainProcessControl(dependencies: {
         reopenApplicationDatabase()
       }
       deepChatAgentHarness.reconcileAfterDatabaseReopen()
-      memoryIngestionObserver.resumeIngestion()
+      deepChatAgentHarness.resumeMemoryIngestion()
       memoryService.startBackgroundMaintenance()
       hookService.start()
       cronJobs.start()

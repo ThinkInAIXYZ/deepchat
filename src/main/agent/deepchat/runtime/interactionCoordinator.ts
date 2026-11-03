@@ -72,7 +72,8 @@ import {
   resolveDeferredToolSurfaceDispatch
 } from './deferredToolSurface'
 import { CommandShellProfileSchema } from '@shared/commandShell'
-import { isAgentToolPathBearing, isCommandSignatureForProfile } from '@/tool/permission'
+import { isCommandSignatureForProfile } from '@/tool/permission/commandPermissionService'
+import { isAgentToolPathBearing } from '@/tool/permission/agentToolReviewPolicy'
 
 const DEFERRED_INTERACTION_PARKED_ERROR =
   'Execution is parked after its durable dispatch boundary and will not be retried automatically.'

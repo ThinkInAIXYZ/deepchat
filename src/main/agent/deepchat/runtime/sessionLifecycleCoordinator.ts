@@ -1,4 +1,3 @@
-import logger from '@shared/logger'
 import type {
   PermissionMode,
   SessionGenerationSettings
@@ -70,7 +69,7 @@ export class SessionLifecycleCoordinator {
   async init(sessionId: string, config: SessionInitConfig): Promise<void> {
     const projectDir = this.deps.sessionSettings.normalizeProjectDir(config.projectDir)
     const permissionMode = config.permissionMode ?? 'default'
-    logger.info(
+    console.info(
       `[DeepChatAgent] initSession id=${sessionId} provider=${config.providerId} model=${config.modelId} permission=${permissionMode} hasProjectDir=${projectDir !== null}`
     )
     const generationSettings = await sanitizeGenerationSettings(

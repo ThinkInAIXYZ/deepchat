@@ -1,4 +1,3 @@
-import logger from '@shared/logger'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { DeepChatContextCoordinator } from '@/agent/deepchat/loop/contextCoordinator'
 import { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
@@ -126,9 +125,9 @@ function reportStartupExecutionRecovery(
   for (const report of candidates.slice(0, MAX_STARTUP_RECOVERY_DETAILS)) {
     const diagnostic = buildStartupRecoveryDiagnostic(report)
     if (report.classification === 'corruption') {
-      logger.error('[DeepChatAgent] Execution Journal recovery candidate parked', diagnostic)
+      console.error('[DeepChatAgent] Execution Journal recovery candidate parked', diagnostic)
     } else {
-      logger.warn('[DeepChatAgent] Execution Journal recovery candidate parked', diagnostic)
+      console.warn('[DeepChatAgent] Execution Journal recovery candidate parked', diagnostic)
     }
   }
   if (candidates.length <= MAX_STARTUP_RECOVERY_DETAILS) return forceRecoverMessagesBySession
@@ -149,9 +148,9 @@ function reportStartupExecutionRecovery(
     automaticRetry: false as const
   }
   if (classificationCounts.corruption > 0) {
-    logger.error('[DeepChatAgent] Execution Journal recovery diagnostics truncated', summary)
+    console.error('[DeepChatAgent] Execution Journal recovery diagnostics truncated', summary)
   } else {
-    logger.warn('[DeepChatAgent] Execution Journal recovery diagnostics truncated', summary)
+    console.warn('[DeepChatAgent] Execution Journal recovery diagnostics truncated', summary)
   }
   return forceRecoverMessagesBySession
 }
@@ -498,7 +497,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     const pendingInputRecovery = pendingInputCoordinator.recoverInputsAfterRestart()
     pendingInputPump.replaceRestartedQueueInputs(pendingInputRecovery.heldQueueInputIds)
     if (pendingInputRecovery.affectedSessionIds.size > 0) {
-      logger.info(
+      console.info(
         `DeepChatAgent: reconciled ${pendingInputRecovery.affectedSessionIds.size} sessions with pending inputs`
       )
     }
@@ -509,14 +508,14 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
       compactionRecovery.retracted > 0 ||
       compactionRecovery.failed > 0
     ) {
-      logger.info(
+      console.info(
         `DeepChatAgent: reconciled ${compactionRecovery.compacted} committed, ${compactionRecovery.retracted} stale, and ${compactionRecovery.failed} failed compaction markers`
       )
     }
 
     const recovered = messageStore.recoverPendingMessages({ forceRecoverMessagesBySession })
     if (recovered > 0) {
-      logger.info(`DeepChatAgent: recovered ${recovered} pending messages to error status`)
+      console.info(`DeepChatAgent: recovered ${recovered} pending messages to error status`)
     }
   }
   reconcilePersistedRuntimeState()

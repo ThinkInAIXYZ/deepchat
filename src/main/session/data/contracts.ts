@@ -446,3 +446,17 @@ export interface SessionPendingInputsPort extends SessionPendingInputRuntimePort
   isAtCapacity(sessionId: string): boolean
   deleteBySession(sessionId: string): void
 }
+
+export interface SessionTranscriptRuntimePort {
+  prepareClearMessages(sessionId: string): Promise<void>
+  finishClearMessages(sessionId: string): void
+  prepareRetry(
+    sessionId: string,
+    options?: { allowRestartHeldQueue?: boolean }
+  ): Promise<{ projectDir: string | null }>
+  assertNoActivePendingInputs(sessionId: string): void
+  cancelForTranscriptMutation(sessionId: string): Promise<void>
+  invalidateTranscriptFrom(sessionId: string, orderSeq: number): void
+  finishTranscriptTruncate(sessionId: string): void
+  resetForkTarget(sessionId: string, clonedMemoryCursorOrderSeq: number): void
+}

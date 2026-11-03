@@ -1,5 +1,4 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
-import logger from '@shared/logger'
 import type {
   DeepChatSessionState,
   ChatMessageRecord,
@@ -454,7 +453,7 @@ export class PendingInputAdmissionCoordinator {
       if (persisted?.mode !== 'queue' || persisted.state !== 'pending') {
         throw error
       }
-      logger.error(
+      console.error(
         `[DeepChatAgent] retry pending queue publication failed session=${sessionId}`,
         redactRuntimeErrorForLog(error)
       )
@@ -463,7 +462,7 @@ export class PendingInputAdmissionCoordinator {
     try {
       started = await this.ports.pump.drain(sessionId, 'manual')
     } catch (error) {
-      logger.error(
+      console.error(
         `[DeepChatAgent] retry pending queue drain failed session=${sessionId}`,
         redactRuntimeErrorForLog(error)
       )
@@ -630,7 +629,7 @@ export class PendingInputAdmissionCoordinator {
     try {
       claim.settle({ kind: 'release-before-user-fact' })
     } catch (releaseError) {
-      logger.error(
+      console.error(
         `[DeepChatAgent] failed to release pending input after admission failure item=${claim.id}`,
         redactRuntimeErrorForLog(releaseError)
       )

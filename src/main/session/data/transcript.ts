@@ -13,7 +13,6 @@ import type {
   AssistantMessageBlock
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
-import logger from '@shared/logger'
 import type { DeepChatMessageRow } from '@/session/data/tables/deepchatMessages'
 import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import type { DeepChatAssistantBlockRow } from '@/session/data/tables/deepchatAssistantBlocks'
@@ -539,7 +538,7 @@ export class SessionTranscript implements SessionTranscriptPort, TapeTranscriptP
           )
         )
       } catch (error) {
-        logger.warn('Failed to project nested execution audit availability', { sessionId }, error)
+        console.warn('Failed to project nested execution audit availability', { sessionId }, error)
       }
     }
     const messages = this.toRecords(pageRows).map((message) => ({
@@ -872,7 +871,7 @@ export class SessionTranscript implements SessionTranscriptPort, TapeTranscriptP
         retracted += 1
       } catch (error) {
         failed += 1
-        logger.warn(
+        console.warn(
           'Failed to reconcile compaction marker',
           { sessionId: row.session_id, messageId: row.id },
           error
@@ -1037,7 +1036,7 @@ export class SessionTranscript implements SessionTranscriptPort, TapeTranscriptP
         this.database.deepchatUsageStatsTable.upsert(usageRecord)
       }
     } catch (error) {
-      logger.error(
+      console.error(
         'Failed to persist deepchat usage stats',
         { messageId: record.id, source: 'live' },
         error

@@ -303,8 +303,8 @@ subscription channel, and no state of its own:
   absorbs the queue routing previously performed inside the instance delegate.
 - `SessionStatePort` for session state and settings.
 - `SessionTranscriptRuntimePort` for transcript mutation coordination.
-- The tool registry refresh entry point, the Memory ingestion observer, and the runtime registry
-  accessor.
+- Tool registry refresh, instance acquisition/release and hydrated-summary reads, plus explicit
+  Memory ingestion drain/fence, resume and database-reopen operations. No owner object is exposed.
 
 The facade owns no phase machine, queue, cache, subscription, or derived fact, and every method
 delegates to exactly one owner. Multi-owner sequences belong to `SessionLifecycleCoordinator` or

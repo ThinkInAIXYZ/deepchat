@@ -13,8 +13,7 @@ import type {
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
-import type { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
+import type { MemoryIngestionDrainOutcome } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import { resolveDeepChatToolProfileKind } from '@/agent/deepchat/runtime/toolResolver'
 import type { ToolSurfaceShadowDiagnosticsSnapshot } from '@/agent/deepchat/runtime/toolSurfaceDiagnostics'
 import type { ToolSurfaceCanaryDiagnosticsSnapshot } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
@@ -22,26 +21,34 @@ import type { TurnStartContext } from '@/agent/deepchat/runtime/turnCoordinator'
 import type { AgentSessionSendInput } from '@/agent/shared/agentSessionHandle'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatAgentBackendPort } from '@/agent/manager/deepChatAgentBackend'
-import type { SessionStatePort } from '@/session/data/contracts'
-import type { SessionTranscriptRuntimePort } from '@/session/transcriptMutations'
+import type { SessionStatePort, SessionTranscriptRuntimePort } from '@/session/data/contracts'
 import type { DeepChatRuntimeServices } from './runtimeServices'
 
-/**
- * Public boundary of the DeepChat agent runtime. Every method delegates to exactly one owner; the
- * harness holds no phase, queue, cache, subscription, or derived fact of its own.
- */
+/** Public runtime boundary; mutable state belongs to the composed owners. */
 export class DeepChatAgentHarness
   implements DeepChatAgentBackendPort, SessionStatePort, SessionTranscriptRuntimePort
 {
   constructor(private readonly services: DeepChatRuntimeServices) {}
 
-  get deepChatRuntime(): DeepChatAgentRuntime {
-    return this.services.runtime
+  openSessionInstance(sessionId: string): () => void {
+    const id = toAppSessionId(sessionId)
+    const instance = this.services.runtime.getOrHydrate(id)
+    return () => {
+      if (this.services.runtime.getHydrated(id) === instance) this.services.runtime.evict(id)
+    }
   }
 
-  get memoryIngestionObserver(): MemoryIngestionObserver {
-    return this.services.memoryIngestionObserver
+  async getHydratedSessionListState(sessionId: string): Promise<DeepChatSessionState | null> {
+    if (!this.services.runtime.getHydrated(toAppSessionId(sessionId))) return null
+    return await this.services.sessionState.getSummary(sessionId)
   }
+
+  drainMemoryIngestion(): Promise<MemoryIngestionDrainOutcome> {
+    return this.services.memoryIngestionObserver.drainAndFence()
+  }
+
+  readonly resumeMemoryIngestion = (): void =>
+    this.services.memoryIngestionObserver.resumeIngestion()
 
   /** Current-lineage main-process diagnostics only; no renderer or public IPC route exposes this. */
   getToolSurfaceShadowDiagnostics(sessionId: string): ToolSurfaceShadowDiagnosticsSnapshot | null {

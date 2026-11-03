@@ -1,3 +1,12 @@
+import {
+  ProgrammaticToolInvocationNameSchema,
+  ProgrammaticToolPropertyNameSchema
+} from '../programmaticTools'
+export {
+  ProgrammaticToolInvocationNameSchema,
+  ProgrammaticToolPropertyNameSchema,
+  PROGRAMMATIC_TOOL_NAME_MAX_CHARACTERS
+} from '../programmaticTools'
 import { z } from 'zod'
 import type { MCPToolDefinition } from '@shared/types/mcp'
 import { defineRouteContract } from '../common'
@@ -10,7 +19,6 @@ export const PROGRAMMATIC_TOOL_RPC_MAX_BODY_BYTES =
   4 * 1024 * 1024 + PROGRAMMATIC_TOOL_RPC_ENVELOPE_OVERHEAD_BYTES
 export const PROGRAMMATIC_TOOL_RPC_TIMEOUT_MS = 30 * 60_000
 
-export const PROGRAMMATIC_TOOL_NAME_MAX_CHARACTERS = 512
 export const PROGRAMMATIC_TOOL_QUERY_MAX_CHARACTERS = 4_096
 export const PROGRAMMATIC_TOOL_DESCRIPTION_MAX_CHARACTERS = 2_048
 export const PROGRAMMATIC_TOOL_SIGNATURE_MAX_CHARACTERS = 16 * 1024
@@ -21,7 +29,6 @@ const PROGRAMMATIC_TOOL_POINTER_MAX_BYTES = 4_096
 const PROGRAMMATIC_TOOL_POINTER_MAX_SEGMENTS = 64
 const PROGRAMMATIC_TOOL_FROM_PATTERN = /^\$steps\/(0|[1-9][0-9]*)\/result(.*)$/s
 const RFC_6901_SEGMENT_PATTERN = /^(?:[^~/]|~[01])*$/
-const PROGRAMMATIC_TOOL_CONTROL_PATTERN = /[\p{Cc}\p{Cf}\p{Cs}]/u
 const UTF8_ENCODER = new TextEncoder()
 
 function isBoundedJsonPointer(value: string): boolean {
@@ -79,21 +86,6 @@ function jsonPointerPathsOverlap(left: string, right: string): boolean {
     return segment === rightSegments[index]
   })
 }
-
-export const ProgrammaticToolInvocationNameSchema = z
-  .string()
-  .min(1)
-  .max(PROGRAMMATIC_TOOL_NAME_MAX_CHARACTERS)
-  .refine((value) => value === value.trim() && !PROGRAMMATIC_TOOL_CONTROL_PATTERN.test(value), {
-    message: 'Programmatic Tool name must be canonical'
-  })
-
-export const ProgrammaticToolPropertyNameSchema = z
-  .string()
-  .max(PROGRAMMATIC_TOOL_NAME_MAX_CHARACTERS)
-  .refine((value) => !PROGRAMMATIC_TOOL_CONTROL_PATTERN.test(value), {
-    message: 'Programmatic Tool property name must not contain control characters'
-  })
 
 const ProgrammaticToolJsonObjectSchema = z.record(
   ProgrammaticToolPropertyNameSchema,

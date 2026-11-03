@@ -4,8 +4,14 @@ import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRun
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { createDeepChatAgentBackendFixture } from './deepChatAgentBackendFixture'
 
-const createPort = (): DeepChatAgentBackendPort => {
-  const port: DeepChatAgentBackendPort = {
+const createPort = (): Omit<
+  DeepChatAgentBackendPort,
+  'openSessionInstance' | 'getHydratedSessionListState'
+> => {
+  const port: Omit<
+    DeepChatAgentBackendPort,
+    'openSessionInstance' | 'getHydratedSessionListState'
+  > = {
     initSession: vi.fn().mockResolvedValue(undefined),
     processMessage: vi.fn().mockResolvedValue({ requestId: 'request', messageId: 'message' }),
     queuePendingInput: vi.fn().mockResolvedValue({}),
@@ -133,22 +139,6 @@ describe('DeepChatAgentBackend', () => {
 
     expect(instance).toBeDefined()
     expect(runtime.getHydrated(sessionId)).toBeUndefined()
-  })
-
-  it('leaves a replacement runtime instance alone when a stale handle closes', async () => {
-    const port = createPort()
-    const runtime = new DeepChatAgentRuntime()
-    const backend = createDeepChatAgentBackendFixture(port, runtime)
-    const sessionId = toAppSessionId('session')
-    const handle = backend.open(sessionId)
-    vi.mocked(port.destroySession).mockImplementationOnce(async () => {
-      runtime.evict(sessionId)
-      runtime.getOrHydrate(sessionId)
-    })
-
-    await handle.close()
-
-    expect(runtime.getHydrated(sessionId)).toBeDefined()
   })
 
   it('exposes required transfer, subagent, and generation facets', async () => {

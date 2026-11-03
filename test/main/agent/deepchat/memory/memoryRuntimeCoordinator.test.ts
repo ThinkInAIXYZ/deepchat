@@ -9,7 +9,6 @@ import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRun
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type { MemoryPromptContributor } from '@/agent/deepchat/memory/memoryPromptContributor'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
-import logger from '@shared/logger'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { MemoryService } from '@/memory'
 import { estimateTokens } from '@/memory/injection'
@@ -368,7 +367,7 @@ describe('MemoryRuntimeCoordinator', () => {
     const { coordinator, deps, memorySession, port } = createHarness()
     const lateInjection = deferred<any>()
     port.buildInjection.mockReturnValue(lateInjection.promise)
-    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const input = {
       session: memorySession,
       query: 'redis',
@@ -436,7 +435,7 @@ describe('MemoryRuntimeCoordinator', () => {
         estimatedTokens: 20
       }
     })
-    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
     const contribution = coordinator.contribute({
       session: memorySession,
@@ -533,7 +532,7 @@ describe('MemoryRuntimeCoordinator', () => {
         estimatedTokens: 250
       }
     })
-    const error = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     const contribution = await coordinator.contribute({
       session: memorySession,
@@ -576,7 +575,7 @@ describe('MemoryRuntimeCoordinator', () => {
 
   it('logs and anchors settled degradation without adding an empty memory section', async () => {
     const { coordinator, deps, memorySession, port } = createHarness()
-    const info = vi.spyOn(logger, 'info').mockImplementation(() => undefined)
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined)
     port.buildInjection.mockResolvedValue({
       payload: { selfModel: null, working: null, memories: [], tokenBudget: 1200 },
       manifest: {

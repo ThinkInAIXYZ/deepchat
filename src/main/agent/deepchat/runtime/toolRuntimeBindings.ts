@@ -8,7 +8,6 @@ import type { ToolResultPort } from '@/agent/deepchat/loop/ports'
 import type { SessionSettingsPort } from '@/session/data/contracts'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { SessionIdentityService } from './sessionIdentityService'
-import logger from '@shared/logger'
 import { normalizeToolResultContent } from './toolAdapters'
 import { reviewAutoApproveToolPermission } from './toolPermissionReviewer'
 import {
@@ -70,7 +69,7 @@ export function createToolResultNormalizer(
         toolArgs: tool.toolArgs
       })
     ) {
-      logger.info('[DeepChatAgent] tool result pruning miss:', {
+      console.info('[DeepChatAgent] tool result pruning miss:', {
         sessionId: tool.sessionId,
         toolName: tool.toolName,
         toolCallId: tool.toolCallId,
@@ -174,7 +173,7 @@ export function createClosedToolResultPruner(
     })
 
     if (!outcome.attempted) {
-      logger.info('[DeepChatAgent] tool result pruning skipped:', {
+      console.info('[DeepChatAgent] tool result pruning skipped:', {
         sessionId,
         skipReason: outcome.skipReason
       })
@@ -188,7 +187,7 @@ export function createClosedToolResultPruner(
       outcome.decisions.filter((decision) => !decision.kept)
     )
 
-    logger.info('[DeepChatAgent] tool result pruning decision:', {
+    console.info('[DeepChatAgent] tool result pruning decision:', {
       sessionId,
       shape: outcome.shape,
       stateTokens: outcome.stateTokens,

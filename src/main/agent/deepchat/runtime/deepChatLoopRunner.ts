@@ -5,7 +5,6 @@ import type { PluginContextPort } from '@shared/types/userPlugin'
 import { projectPluginContext } from './pluginContext'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type { CacheImageOptions } from '@shared/types/attachment'
-import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
   ChatMessageRecord,
@@ -326,7 +325,7 @@ function createProviderViewProvenanceDiagnosticReporter(): (
   return (error, context): void => {
     if (emitted < MAX_PROVIDER_VIEW_PROVENANCE_DIAGNOSTICS_PER_RUN) {
       emitted += 1
-      logger.warn('[DeepChatAgent] Provider View provenance persistence failed', {
+      console.warn('[DeepChatAgent] Provider View provenance persistence failed', {
         schemaVersion: 1,
         requestSeq: context.requestSeq,
         failurePolicy: context.failurePolicy,
@@ -338,7 +337,7 @@ function createProviderViewProvenanceDiagnosticReporter(): (
     }
     if (suppressionReported) return
     suppressionReported = true
-    logger.warn('[DeepChatAgent] Additional provider View provenance diagnostics suppressed', {
+    console.warn('[DeepChatAgent] Additional provider View provenance diagnostics suppressed', {
       schemaVersion: 1,
       limit: MAX_PROVIDER_VIEW_PROVENANCE_DIAGNOSTICS_PER_RUN
     })
@@ -822,7 +821,7 @@ export class DeepChatLoopRunner {
         }
         if (!runtimeContextRefreshFailureReported) {
           runtimeContextRefreshFailureReported = true
-          logger.warn('[DeepChatAgent] Failed to refresh provider runtime context limit', {
+          console.warn('[DeepChatAgent] Failed to refresh provider runtime context limit', {
             providerId: state.providerId,
             modelId: requestModelId,
             retainedLimitTokens: currentRuntimeContextLimitTokens,
@@ -1910,7 +1909,7 @@ export class DeepChatLoopRunner {
                     })
                   },
                   onBuildError: (error) =>
-                    logger.warn(
+                    console.warn(
                       `[DeepChatAgent] Failed to construct execution contract: ${
                         error instanceof Error ? error.message : String(error)
                       }`
@@ -2102,7 +2101,7 @@ export class DeepChatLoopRunner {
                 }
               },
               onAppendError: (error) =>
-                logger.warn(
+                console.warn(
                   `[DeepChatAgent] Failed to persist provider attempt outcome: ${
                     error instanceof Error ? error.message : String(error)
                   }`
@@ -2124,7 +2123,7 @@ export class DeepChatLoopRunner {
               ) {
                 clearProviderRetryWaiting()
               }
-              logger.info('[DeepChatAgent] Provider retry lifecycle', {
+              console.info('[DeepChatAgent] Provider retry lifecycle', {
                 sessionId,
                 messageId,
                 providerId: state.providerId,
@@ -2504,7 +2503,7 @@ export class DeepChatLoopRunner {
               createToolSurfaceCanaryRunEvidenceRecorder().snapshot()
           })
         } catch (error) {
-          logger.warn('[DeepChatAgent] Tool Surface canary diagnostics recording failed', {
+          console.warn('[DeepChatAgent] Tool Surface canary diagnostics recording failed', {
             sessionId,
             providerId: state.providerId,
             modelId: state.modelId,
