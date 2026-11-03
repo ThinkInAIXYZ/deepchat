@@ -2,7 +2,7 @@
 
 ## Status and decision
 
-Status: G0-G6 complete; Rust admission accepted; G7 control implementation is undergoing functional acceptance.
+Status: G0-G7 complete; G8 records a Rust-batch selection no-go; G9 is the next capability selection.
 Evidence date: 2026-11-02. Rust admission source: `1b054b22a`; comparison baseline: `bd64c2d53`.
 Implementation reference: Rutis `v0.16.0`, released on 2026-10-24. Crates and npm packages are pinned
 to that version.
@@ -584,6 +584,36 @@ batch computation. If a remote operation needs the entire history to produce a s
 co-locate that computation with Store or return a bounded projection from the current owner first.
 Durable transaction callbacks and arbitrary synchronous repository calls are not wire protocols.
 
+### Rust batch selection outcome
+
+G8 selects no additional Rust computation boundary. Functional delivery takes priority, and the
+current candidates do not establish a useful data-local batch or a measured CPU bottleneck. This
+decision retains the existing consumer wiring; it makes no claim about comparative execution speed.
+
+- Tape projection remains beside Store. [`TapeFactService`](../../../src/main/tape/application/factService.ts)
+  and [`TapeRecallService`](../../../src/main/tape/application/recallService.ts) read rows and call
+  [`buildEffectiveTapeView`](../../../src/main/tape/domain/effectiveView.ts) synchronously. The
+  [`replay service`](../../../src/main/tape/application/viewReplayService.ts) consumes the same
+  physical envelopes, provenance and effective identities. Moving only the fold adds row/result
+  transfer or a new native binding while retaining the current Store and consumer. Preserve UTF-8
+  binary ordering, retractions and [`canonical hashing`](../../../src/main/tape/domain/canonicalJson.ts).
+- [`ToolOutputGuard`](../../../src/main/agent/deepchat/runtime/toolOutputGuard.ts) already accepts
+  batches. Its decision uses messages, tool definitions, output limits and the shared context
+  estimator, then retains filesystem artifact ownership and cancellation. A separate scanner
+  neither removes that owner nor establishes an independent lifetime; it would add data transfer
+  and another implementation of the policy.
+- [`Memory retrieval`](../../../src/main/memory/services/retrievalService.ts) batches embedding
+  and vector requests. [`MemoryVectorStore`](../../../src/main/memory/infra/memoryVectorStore.ts)
+  delegates distance, ordering and limits to native DuckDB. Residual
+  [`retrieval policy`](../../../src/main/memory/core/scoring.ts) operates under the
+  [`800-candidate bound`](../../../src/main/memory/core/retrievalBudget.ts). This bound alone does
+  not prove low cost, but no established residual bottleneck justifies another transfer boundary.
+
+Do not add an experimental flag, duplicate algorithm or benchmark framework for these rejected
+candidates. Reopen selection only for an observed stage bottleneck or a compatible data-owner move
+that supports a bounded Rust-local operation. G9 proceeds with independently useful capability
+lifetimes; it does not depend on a speculative speed rewrite.
+
 ### Measurement and adoption gates
 
 Functional delivery is the execution priority. Structural migrations are gated by actual default
@@ -656,10 +686,10 @@ its owner and transfer bounded results or authorized artifact references. Consid
 path only when measured copies justify it. Every mutation needs defined acknowledgement,
 idempotency/recovery and unknown-outcome behavior, plus stale-generation rejection and shutdown.
 
-The next execution gate is baseline/contract selection, followed by the vector resource slice if
-its costs and wire contract are acceptable. The live plan orders full Memory, cohesive Harness,
-selective Rust and Everywhere work by their ownership dependencies. Headless availability does
-not depend on rewriting every TS adapter in Rust.
+G7 control and native-package acceptance is complete. G8 records the selection no-go above;
+the next execution gate is a useful peripheral capability and its actual consumer cutover. The
+live plan orders that work, Store compatibility and Everywhere delivery by ownership dependencies.
+Headless availability does not depend on rewriting every TS adapter in Rust.
 
 ## Product destination
 

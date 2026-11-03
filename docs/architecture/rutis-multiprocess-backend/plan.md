@@ -13,8 +13,10 @@ Current scope: staged implementation in
 committed as `ffcd98770` and the roadmap as `f35adff34`. G4 is complete at `356143755`;
 G5 is complete at `1719f8075`; exact-source required checks, all six native verification
 packages and the original integrated Native foreground case pass. G6 is complete at `bd64c2d53`;
-G7 is active: Rust admission is accepted at `1b054b22a`; cohesive Run/interaction/pending-input
-operation contracts are being selected before that group's implementation.
+G7 is complete at `f1b425e4b`: Rust admission and cohesive Run/interaction/input control pass
+local functional acceptance, required CI and all six actual native package targets. G8 is the
+completed selection no-go; G9 is the next functional capability selection. Further performance
+sampling is not selected.
 Later goals start only after their dependencies and the preceding selected goal pass validation.
 
 Use this file as the only tracker. [The RFC](spec.md) defines capability ownership, Memory
@@ -37,24 +39,23 @@ Apple distribution credentials or installers. Preserve signing/notarization and 
 acceptance as mandatory distribution gates in the release pipeline; they are not prerequisites for
 pushing the source that CI must validate. This ordering governs G5 checkpoint publication notes.
 
+A documentation-only decision may reuse accepted runtime/package evidence when the complete diff
+is limited to non-executable documentation excluded from application packaging. Record that code
+source and the checked diff; run the documentation/static checks. This exception cannot cover a
+source, test, dependency, resource, build or packaging change.
+
 Correctness, persistence, ownership, bounded resources and lifecycle behavior remain blocking.
 Shared-CI wall-clock overruns are reports, not failed checks. Batch adjacent internal composition
 changes and their verification within the selected goal. Reuse existing coverage; keep only durable
 behavior, persistence, ownership or recovery tests and remove disposable implementation scaffolding.
 Matching application E2E is required for the complete capability cutover and affected public or
-lifecycle behavior, not each internal file move. Resource measurements are required only for
-material process, IPC, batching or storage-path changes, or an explicit performance objective;
-they do not automatically require a complete capture. Ordinary async port
-extraction does not automatically need another process-tree benchmark. Select affected workloads
-and a bounded measurement/confirmation budget first. Treat noise-level differences as inconclusive,
-keep all samples, and block adoption only on a reproducible material regression rather than an
-isolated timing overrun. A structural change starts with one representative affected resource
-workload; only an explicit performance adoption decision requires five paired samples. Allow at
-most one predeclared confirmation batch for a suspected regression. If it remains inconclusive,
-record the uncertainty and stop measuring; CI timing noise does not block a structural extraction.
-Further measurement requires changed code, a changed workload or concrete new evidence. Shared
-runners may enforce deterministic work, payload and queue limits; do not add relative wall-clock
-regression gates to them. Do not rerun CI or unchanged benchmarks to obtain a passing timing sample.
+lifecycle behavior, not each internal file move. Functional delivery takes priority. Resource
+observations are informational; do not add sampling or investigate timing variance as a condition
+of a structural migration. Investigate an observed user-visible regression when there is concrete
+evidence. A module selected specifically to claim a performance gain needs supporting evidence;
+without it, retain the current implementation and record no-go. Shared runners may enforce
+correctness and deterministic work, payload and queue limits, but timing noise must not trigger
+unchanged CI or benchmark reruns.
 
 After acceptance, remove obsolete source/build copies, disposable profiles and test media. Retain
 compact receipts, raw measurements and only the immutable baselines still needed for pending work.
@@ -71,8 +72,8 @@ Reuse the retained baseline instead of accumulating a complete output tree for e
 | G4 Store commands and desktop ports     | Complete, `356143755`             | G2                             | Explicit durable operations, writer inventory and asynchronous host capabilities                  |
 | G5 Cohesive TS Harness backend          | Complete, `1719f8075`             | G4                             | Run/loop/Session/Tape/Provider composition operates under one backend authority                   |
 | G6 Full Memory capability               | Complete, `bd64c2d53`             | G3, G4, G5                     | Recall, ingestion, management and maintenance use the one Memory service                          |
-| G7 Rust control owner                   | Active; Rust admission accepted   | G2, G5                         | Admission and cohesive run/interaction settlement preserve all fences                             |
-| G8 Rust batch computations              | Conditional                       | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go           |
+| G7 Rust control owner                   | Complete, `f1b425e4b`             | G2, G5                         | Admission and cohesive run/interaction settlement preserve all fences                             |
+| G8 Rust batch computations              | Complete: selection no-go         | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go           |
 | G9 Peripheral capabilities              | Conditional per selected module   | G4, G5                         | Independent useful lifetime, real consumer cutover and no duplicate supervisor                    |
 | G10 Rust durable Store                  | Conditional compatibility project | G4, G5, G6, G7                 | One compatible encrypted writer and proven migration/recovery/maintenance behavior                |
 | G11 Headless Session Host               | Planned                           | G4, G5 and host-port audit     | Real CLI execution without Electron and without a connected desktop                               |
@@ -4778,17 +4779,16 @@ distribution remains release-gated and no performance improvement is claimed.
 
 ## G7. Migrate the control owner to Rust
 
-Admission queues/permits now belong to the Rust Rutis plugin in
-`crates/deepchat-harness/src/admission.rs`. The scope/operation/Run control protocol is selected
-and partially connected in the unpublished worktree, including exclusion leases, interaction
-parking, attachment acceptance, Provider/deferred resolvers and interaction/batch projections.
-The remaining input selection and durable-effect protocol is specified and being connected.
-Instance,
-Run, operation and message fences span `DeepChatAgentRuntime`, `DeepChatAgentInstance` and
-`RunLifecycleCoordinator`; interaction parking and pending-input feedback also involve
-`InteractionCoordinator`, `PendingInputAdmissionCoordinator` and `PendingInputPump`.
-Provider/loop effects, AbortControllers and shared-database transaction closures remain local
-drivers in TS. Moving the queue alone does not complete this goal.
+Admission queues/permits belong to `crates/deepchat-harness/src/admission.rs`; scope, Run,
+interaction and input control belong to the Rust control owner. The default-wired group is
+published at `f1b425e4be3b28f496b446c5987fdf59363ae84e`. Its local functional acceptance and required
+PR checks and all six actual native package targets pass, including both required aggregates.
+G7 is complete; G8 records the selection no-go below.
+
+The Core worker retains Provider/loop effects, AbortControllers, rich Run data and shared-database
+transaction closures. Instance, Run, operation and message fences span `DeepChatAgentRuntime`,
+`DeepChatAgentInstance` and `RunLifecycleCoordinator`; Rust grants and acknowledgements govern
+interaction, input and effect transitions through their local drivers.
 
 Source audit identifies a concrete distributed-settlement constraint: `DurablePendingInputClaim`
 records a disposition even when post-persistence publication fails or durable verification is
@@ -4826,7 +4826,7 @@ The loop's 128-tool execution limit does not prove a matching legacy interaction
 - [x] Compare all control/recovery behaviors in the actual app and remove replaced TS control
       ownership. Preserve existing resource reports without additional performance sampling;
       verify architectural changes without claiming an unmeasured speed gain.
-- [ ] Publish the verified control group to the same Draft PR; verify required CI and all six
+- [x] Publish the verified control group to the same Draft PR; verify required CI and all six
       actual native package targets on that exact source before G8.
 
 Completion: the Rust owner is authoritative, public behavior and lifecycle/recovery semantics are
@@ -4836,10 +4836,9 @@ phase need not eliminate the TS runtime used by Provider/protocol adapters.
 
 ### G7 admission slice and acceptance
 
-The first independently verifiable slice moves the complete admission owner into the existing
-Rust host and removes the dedicated admission TS runtime. It does not complete G7. The operation
-groups above are specified in the RFC; the Run/interaction/pending-input group still requires its
-concrete effect ordering and wire-schema audit before that group's implementation.
+The admission slice moves its complete owner into the existing Rust host and removes the
+dedicated admission TS runtime. Its acceptance is separate from the cohesive control-group
+verification below; admission alone does not complete G7.
 
 Use accepted source `bd64c2d53` and its verified normal output as the immutable G7 baseline.
 Compare unchanged `01-launch`, `36-chat-streaming` and `44-admission-delegation` actual-app cases,
@@ -4884,7 +4883,7 @@ required aggregates. Main has 714 passing files, two existing skipped files, 10,
 and eight existing skips. All six macOS/Windows/Linux x64/arm64 packages actually execute and pass
 the six critical native/installer-size steps; none are skipped. Compact audit:
 `admission-six-platform-completion-audit.json`. This completes admission acceptance, and the next
-G7 control group may proceed once its concrete contract is fixed. The full G7 goal remains active.
+The cohesive control group is accepted separately below; admission evidence remains valid.
 
 The single delegation resource pair observes Rust-host direct runtime children decreasing from
 two to one. Whole-tree sampled footprint median is 1036.26/964.03 MiB and sampled active peak is
@@ -4897,11 +4896,11 @@ method are retained in `admission-resource-pair.json`; no unchanged benchmark re
 
 The G7 baseline is accepted source `bd64c2d53`, verified across 2187 output files. The ended G6
 source-`1719f8075` baseline is removed after verification, freeing 353,330,090 bytes; its manifest
-and compact receipts remain. G7 remains active, and G8-G12 have not started.
+and compact receipts remain. The full G7 control acceptance is recorded below.
 
 ### G7 control owner implementation status
 
-The unpublished worktree contains the Rust scope/operation/Run state machine, the private
+The accepted source `f1b425e4b` contains the Rust scope/operation/Run state machine, the private
 generation-authenticated asynchronous Native command, the bounded Core command client and local
 effect-handle driver. Default Core assembly passes this port into the Harness. Instance creation,
 Run registration/replacement, cancellation, readiness, status and originating cleanup use Rust
@@ -5007,23 +5006,55 @@ public wiring and database reopen after the new input-effect drain. Reports are
 are in `control-baseline-functional.json` and `control-baseline-functional-swap-receipt.json`.
 
 Whole-change review confirms one Rust control authority with local TS effect handles, no added
-runtime/dependency/fallback, and removal of the replaced control paths. Remaining work is the
-coherent commit/push and exact-source CI/package verification. The accepted PR source remains
-`1b054b22a` until publication; G8 has not started.
+runtime/dependency/fallback, and removal of the replaced control paths. The group is committed and
+pushed at `f1b425e4be3b28f496b446c5987fdf59363ae84e` on the same Draft PR. Its exact-source
+[PR Check](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/41572645470) and required aggregate
+pass. [Package Check](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/41572645550) and its
+required aggregate pass. Every macOS/Windows/Linux x64/arm64 target actually executes and passes
+packaged DuckDB VSS, Memory runtime, Core application, OpenDAL, offline OCR and installer-size
+verification; none of those critical checks is skipped. The compact actual-step audit is
+`control-six-platform-audit.json`. This completes G7 on source `f1b425e4b`; the G8 selection
+no-go is recorded below. No merge or release is performed.
 
 ## G8. Select measured Rust batch work
 
-- [ ] Select one profiled batch from Tape/context projection, bounded tool-output processing or
-      Memory computation. Record its expected CPU/allocation mechanism and numeric target first.
-- [ ] Co-locate work with its data or pass a bounded batch; preserve Unicode/canonical ordering,
-      provenance, retractions, token/quality policy and cancellation. Reuse native engines.
-- [ ] Connect the actual consumer, compare complete output and real-app resource results, then
-      remove old wiring only after adoption. If it fails the budget/variance gate, record no-go
-      and retain the simpler TS implementation instead of retaining a permanent experiment flag.
-- [ ] Review, select durable regression protection and run appropriate checks before completion.
+- [x] Inspect Tape/context projection, tool-output processing and Memory computation through their
+      actual consumers, data owners and native bindings.
+- [x] Decide whether a useful bounded Rust batch is justified before adding another protocol,
+      implementation or dependency. The current selection is **no-go**.
+- [x] Preserve the single existing implementation and actual consumer wiring for each rejected
+      candidate. No alternate path, experimental flag or disposable benchmark is retained.
+- [x] Review the decision against the functional priority and validate the documentation-only
+      change. Runtime behavior and package inputs remain the accepted G7 source.
 
-Completion: a measured successful module migration or an explicit evidence-backed no-go.
-Rust line count and microbenchmarks that exclude transfer costs are not success criteria.
+### Selection outcome
+
+No CPU-oriented Rust batch is selected. This is a selection no-go, not a claim that the current
+code is fast or that Rust cannot improve it. No measured CPU/allocation bottleneck establishes a
+reason to add the boundary, and functional delivery takes priority over speculative profiling.
+The audited mechanisms are concrete:
+
+| Candidate | Current consumer and ownership evidence | Decision |
+| --- | --- | --- |
+| Tape effective view and replay/context projection | `TapeFactService.getMessageRecords` and `TapeRecallService.getEffectiveMessageSourceSpan` synchronously fold rows from the current Store. Replay consumes the same effective rows and canonical identities/hashes. | Retain the owner-local fold. Moving only computation to the separate Rust host requires transferring rows and projected output while keeping the Store/TS consumer. There is no selected bounded data-local operation or independent lifetime to justify that new boundary. |
+| Tool-output processing | `ToolOutputGuard.fitToolBatchOutputs` already accepts a batch. Its fit policy consumes conversation messages, tool definitions and configured limits; fallback uses the existing Node filesystem artifact/cancellation path. | Retain the existing batch and offload path. Moving only scanning does not remove the caller, filesystem owner or TS runtime, and introduces context/output transfer plus duplicate policy/estimation semantics without demonstrated benefit. |
+| Memory computation | Retrieval already batches embeddings and vector queries. Distance/order/limit execute inside native DuckDB. The remaining TS retrieval/refill policy caps candidates at 800 and applies current temporal, scope, lineage and ranking policy. | Keep native vector work and the bounded owner-local policy. A Rust wrapper does not change DuckDB's algorithm, and no significant residual scoring cost is established. |
+
+The normative source-backed decision and links are in the RFC. Reconsider only after a concrete
+stage bottleneck is observed or a compatible Store/data-owner move makes a bounded operation
+local to Rust. No measurements, production changes, test additions or package rebuild are selected
+for this no-go. Existing G7 functional and six-platform evidence remains applicable because only
+the RFC and this tracker change. G9 is the next functional capability selection after publication.
+
+Validation: all 39 local documentation links resolve. Repository format, i18n, lint and Node/web
+typechecks pass; lint retains its existing unrelated Remote warning. The complete change from
+accepted `f1b425e4b` is limited to this plan and the RFC. Application source, tests, dependencies,
+resources and build/packaging inputs are unchanged; `electron-builder.yml` excludes documentation.
+The accepted G7 real-app, required-CI and six-native-package evidence is therefore reused without
+another build, benchmark or runtime-test batch.
+
+Completion: the explicit evidence-backed selection no-go above. No Rust performance improvement
+is claimed and no partial migration is left connected.
 
 ## G9. Extract peripheral services with independent useful lifetimes
 
