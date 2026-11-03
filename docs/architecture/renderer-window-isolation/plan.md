@@ -74,7 +74,7 @@ pnpm exec vitest run --config vitest.config.renderer.ts test/renderer/pages/NewT
 
 **目标**：快照刷新只有一个可调用的名字，消费者和测试都指向真正拥有版本与去重的实现。
 
-- [ ] **依赖**：无。**删除**：`project.ts` 的 `fetchProjects`、`fetchEnvironments`、`loadDefaultProjectPath`、`refreshEnvironmentData` 四个导出。`ChatTabView` 的正常/回退启动、侧栏、`EnvironmentsSettings` 和相应测试替身在同一片改用 `refreshProjectSnapshot`。
+- [x] **依赖**：无。**删除**：`project.ts` 的 `fetchProjects`、`fetchEnvironments`、`loadDefaultProjectPath`、`refreshEnvironmentData` 四个导出。`ChatTabView` 的正常/回退启动、侧栏、`EnvironmentsSettings` 和相应测试替身在同一片改用 `refreshProjectSnapshot`。
 
 **实施顺序**
 

@@ -1155,7 +1155,7 @@ const handleDeleteConfirm = async () => {
 }
 
 onMounted(() => {
-  void projectStore.fetchEnvironments()
+  void projectStore.refreshProjectSnapshot()
 })
 </script>
 

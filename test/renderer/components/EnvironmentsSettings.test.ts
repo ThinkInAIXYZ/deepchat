@@ -235,7 +235,7 @@ async function setup(overrides?: {
       }
     ],
     archivedEnvironments: overrides?.archivedEnvironments ?? [],
-    refreshEnvironmentData: vi.fn().mockResolvedValue(undefined),
+    refreshProjectSnapshot: vi.fn().mockResolvedValue(undefined),
     openDirectory: vi.fn().mockResolvedValue(undefined),
     setDefaultProject: vi.fn().mockResolvedValue(undefined),
     clearDefaultProject: vi.fn().mockResolvedValue(undefined),
@@ -312,7 +312,7 @@ describe('EnvironmentsSettings', () => {
   it('renders non-temp environments by default and refreshes on mount', async () => {
     const { wrapper, projectStore } = await setup()
 
-    expect(projectStore.refreshEnvironmentData).toHaveBeenCalledTimes(1)
+    expect(projectStore.refreshProjectSnapshot).toHaveBeenCalledTimes(1)
     expect(wrapper.findAll('[data-testid="environment-row"]')).toHaveLength(1)
     expect(wrapper.text()).toContain('app')
     expect(wrapper.text()).not.toContain('tmp-1')

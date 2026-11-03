@@ -321,7 +321,7 @@ const setup = async (options: SetupOptions = {}) => {
     defaultChatWorkspacePath: options.defaultChatWorkspacePath ?? null,
     defaultProjectPath: options.defaultProjectPath ?? null,
     snapshotReady: options.projectSnapshotReady ?? true,
-    fetchEnvironments: vi.fn().mockResolvedValue(undefined),
+    refreshProjectSnapshot: vi.fn().mockResolvedValue(undefined),
     reorderEnvironments: vi.fn().mockResolvedValue(undefined),
     archiveEnvironment: vi.fn().mockResolvedValue(undefined),
     openDirectory: vi.fn().mockResolvedValue(undefined),

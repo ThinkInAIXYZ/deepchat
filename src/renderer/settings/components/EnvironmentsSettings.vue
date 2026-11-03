@@ -348,7 +348,7 @@ const refreshData = async () => {
     operationId: 'refresh',
     code: 'settings.environments.refresh',
     failureTitle: t('common.error.operationFailed'),
-    action: projectStore.refreshEnvironmentData
+    action: projectStore.refreshProjectSnapshot
   })
 }
 

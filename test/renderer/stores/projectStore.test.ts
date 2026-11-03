@@ -139,7 +139,7 @@ describe('projectStore snapshot ownership', () => {
     projectClient.getSnapshot.mockReturnValueOnce(pending.promise)
 
     const first = store.refreshProjectSnapshot()
-    const second = store.fetchProjects()
+    const second = store.refreshProjectSnapshot()
     expect(projectClient.getSnapshot).toHaveBeenCalledTimes(1)
 
     pending.resolve(snapshot(1))

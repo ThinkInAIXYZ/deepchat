@@ -204,7 +204,7 @@ onMounted(async () => {
     // Don't block on them, they load in background while we mark interactive
     criticalLoadPromises = Promise.allSettled([
       agentStore.fetchAgents(),
-      projectStore.fetchProjects(),
+      projectStore.refreshProjectSnapshot(),
       modelStore.initialize(),
       ollamaStore.initialize()
     ]).then(() => {
@@ -216,7 +216,7 @@ onMounted(async () => {
       outcome: 'failed'
     })
     console.warn('[Startup][Renderer] ChatTabView critical hydration failed:', error)
-    await Promise.allSettled([agentStore.fetchAgents(), projectStore.loadDefaultProjectPath()])
+    await Promise.allSettled([agentStore.fetchAgents(), projectStore.refreshProjectSnapshot()])
     await initializeRouteFromFallbackState()
     performanceReporter?.recordStartup('route-ready', { fallback: true })
   } finally {
