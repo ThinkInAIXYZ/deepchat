@@ -16,8 +16,9 @@ packages and the original integrated Native foreground case pass. G6 is complete
 G7 is complete at `f1b425e4b`: Rust admission and cohesive Run/interaction/input control pass
 local functional acceptance, required CI and all six actual native package targets. G8 is the
 completed selection no-go; G9 product Hooks and current-observation reconciliation are complete
-at `6607e0b27`, with required CI and all six actual native package targets accepted. G10 Store
-compatibility selection is next. Further performance sampling is not selected.
+at `6607e0b27`, with required CI and all six actual native package targets accepted. G10 completes
+with a Store selection no-go; G11 headless Session Host is next. Further performance sampling is
+not selected.
 Later goals start only after their dependencies and the preceding selected goal pass validation.
 
 Use this file as the only tracker. [The RFC](spec.md) defines capability ownership, Memory
@@ -78,7 +79,7 @@ Reuse the retained baseline instead of accumulating a complete output tree for e
 | G7 Rust control owner                   | Complete, `f1b425e4b`             | G2, G5                         | Admission and cohesive run/interaction settlement preserve all fences                             |
 | G8 Rust batch computations              | Complete: selection no-go         | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go           |
 | G9 Peripheral capabilities              | Complete, `6607e0b27`              | G4, G5                         | Independent useful lifetime, real consumer cutover and no duplicate supervisor                    |
-| G10 Rust durable Store                  | Conditional compatibility project | G4, G5, G6, G7                 | One compatible encrypted writer and proven migration/recovery/maintenance behavior                |
+| G10 Rust durable Store                  | Complete: selection no-go          | G4, G5, G6, G7                 | Compatible whole-owner cutover with a concrete benefit, or a recorded no-go                        |
 | G11 Headless Session Host               | Planned                           | G4, G5 and host-port audit     | Real CLI execution without Electron and without a connected desktop                               |
 | G12 Multiple clients and devices        | Planned                           | G11 and explicit grants        | Reconnect-safe clients and separately authorized, revocable device operations                     |
 
@@ -5172,17 +5173,53 @@ Evidence is under `.deepchat/rutis-g9-hooks-acceptance/`: `baseline-manifest.jso
 `hooks-affected-tests.log`, `hooks-final-service-tests.log`, Rust/static logs and the publication
 receipt. Ended owned media/profiles are removed after compact receipts are retained.
 
-## G10. Decide and migrate durable Store to Rust
+## G10. Durable Store selection: complete, no-go
 
-- [ ] Establish compatible encryption/SQLite extension/collation/native packaging support before
-      selecting a driver. Inventory every writer and maintenance/recovery contract again.
-- [ ] Preserve durable schemas and atomic Session/Tape/Memory/scheduler operations with one writer;
-      compare migration, import/export, rekey, backup, recovery and poisoned/partial failure cases.
-- [ ] Measure end-to-end resource savings and deployment cost. If the evidence supports cutover,
-      connect real consumers, validate signed/platform packages and remove old storage ownership.
-      Otherwise retain the TS/native Store and record the compatibility or benefit limit.
+- [x] Audit the actual engine, cipher settings, binding ABI, packaging, shared writers and complete
+      maintenance/recovery boundary; assess plausible Rust linking routes without selecting a driver.
+- [x] Review existing real-driver tests and distinguish current behavior from unexecuted Rust
+      interoperability and cross-file crash acceptance.
+- [x] Retain the TS/native Store and its existing consumers. Record the functional/deployment
+      benefit limit; add no dependency, runtime protocol, prototype writer or performance sampling.
 
-This goal is conditional; an independent Harness or headless product does not require it.
+The current native SQLite3MC engine uses the SQLCipher 4-compatible configuration and a Node-API
+v10 binding. The accepted application already ships that binding on all six native targets. A
+Store-only rewrite leaves the Node Core in place; ordinary Node execution does not require an
+Electron-specific SQLite binding. The whole headless artifact still needs G11 validation.
+
+No independently useful table slice can transfer writer authority: pending-input claims and Tape,
+Memory projections/CAS/FTS/audit, scheduler claims, settings revisions and Sync apply share atomic
+operations. A complete Rust owner also requires the profile lock, maintenance/security/backup
+connections, commit notifications, grouped asynchronous consumers and pre-stream durable consume.
+That is a possible future migration, but no current functional or deployment requirement selects it.
+The [RFC selection outcome](spec.md#rust-store-selection-outcome) records the source and primary
+driver references. This is a present adoption decision, not a claim that compatible Rust storage
+is impossible or that the existing Store is faster.
+
+Current regression evidence uses actual SQLite, SQLCipher, temporary files and child processes:
+`profileStartupNative`, `databaseSecurityNative`, `mainDatabase`, `memoryNativeMigration`,
+`backupConsistency`, `dataImporterNative` and `transcriptAtomicity`. Existing application scenarios
+51/54 exercise encryption, import/maintenance and graceful restart. Journal SIGKILL tests do not
+establish atomicity across encrypted database replacement and metadata files. No TS/Rust/TS file,
+WAL, competing-lock, error-classification or encryption test is reported as passed for a Rust driver.
+
+If a concrete Store-bound failure or independent durable-owner deployment requirement reopens
+selection, the conditional cutover requirements remain:
+
+- Use one compatible encrypted writer and finite business commands; preserve schemas, Unicode/FTS/
+  notifications, once-only input consumption, snapshot reads and guarded Sync transactions.
+- Prove real cross-engine file/WAL/key compatibility and writer exclusion, plus migration,
+  import/export, rekey, backup, partial failure, poisoned handles and crash/recovery behavior.
+- Connect every actual consumer and maintenance owner, compare application behavior, validate all
+  native targets and remove replaced ownership. Signed distribution remains a release gate. Any
+  explicit resource-gain claim needs evidence; structural delivery does not require new sampling.
+
+G10 changes only this RFC and plan, which application packaging excludes. Runtime and native-package
+evidence is reused from accepted source `6607e0b27` and the G9 required/all-six acceptance above.
+The checked diff contains only these two documentation files. All 46 local references, diff
+whitespace checks, repository format, i18n, lint and Node/web typechecks pass. Lint retains the
+existing unrelated Remote `no-unsafe-finally` warning. No unchanged application or native workflow
+is rerun solely for this decision.
 
 ## G11-G12. Deliver Everywhere from the extracted core
 

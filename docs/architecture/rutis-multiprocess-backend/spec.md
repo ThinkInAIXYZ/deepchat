@@ -2,8 +2,9 @@
 
 ## Status and decision
 
-Status: G0-G9 complete, including the G8 Rust-batch selection no-go. G9 product Hooks and
-current-observation reconciliation are accepted at `6607e0b27`; G10 Store selection is next.
+Status: G0-G10 complete, including the G8 Rust-batch and G10 Store selection no-go decisions.
+G9 product Hooks and current-observation reconciliation are accepted at `6607e0b27`.
+G11 headless Session Host is next; the existing TS/native Store remains its durable owner.
 Evidence date: 2026-11-03. The accepted source passes required CI and all six native package
 targets. G9's matching application comparison uses the hash-verified `f1b425e4b` build.
 Implementation reference: Rutis `v0.16.0`, released on 2026-10-24. Crates and npm packages are pinned
@@ -625,6 +626,58 @@ candidates. Reopen selection only for an observed stage bottleneck or a compatib
 that supports a bounded Rust-local operation. G9 proceeds with independently useful capability
 lifetimes; it does not depend on a speculative speed rewrite.
 
+### Rust Store selection outcome
+
+G10 retains the current TS/native Store. A Rust writer is technically plausible, but the selected
+functional roadmap has no independently useful storage-owner cutover that removes a runtime or
+enables a missing product capability. Headless execution does not require this rewrite. No Rust
+driver, storage protocol, parallel writer or benchmark prototype is added.
+
+The locked `better-sqlite3-multiple-ciphers` 13.0.3 already executes native SQLite 3.53.4 with
+SQLite3MC 2.4.0. Its binding uses Node-API v10; the
+[`runtime builder`](../../../scripts/build-harness.mjs) ships per-platform prebuilds. The binding
+is not tied to Electron's V8 ABI: [Node-API guarantees ABI stability for its supported API](https://nodejs.org/api/n-api.html#implications-of-abi-stability).
+This does not prove the complete headless distribution; G11 must validate that distribution.
+Provider, Harness, MCP and Memory policy still require Node after a Store-only rewrite.
+
+[`Connection configuration`](../../../src/main/data/connectionConfig.ts) selects the SQLCipher
+cipher with `legacy=4`, UTF-8 key bytes, WAL, `synchronous=NORMAL` and a bounded page cache.
+[SQLite3MC documents SQLCipher 4 compatibility parameters](https://utelle.github.io/SQLite3MultipleCiphers/docs/ciphers/cipher_sqlcipher/).
+A Rust binding could link the same amalgamation or use a compatible SQLCipher build;
+[rusqlite supports custom SQLite linking and SQLCipher builds](https://github.com/rusqlite/rusqlite#notes-on-building-rusqlite-and-libsqlite3-sys).
+Neither route proves bidirectional file/WAL compatibility. Preserve actual extensions and compile
+options, FTS, Unicode search, `deepchat_sync_notify` and Memory FTS-scope functions. A plain bundled
+SQLite driver is insufficient. Driver/MSRV selection and native linking need six-platform evidence
+if this migration is reopened; they are engineering choices, not proof of incompatibility.
+
+The useful future boundary is the complete durable owner, not selected tables:
+
+- [`Pending inputs`](../../../src/main/session/data/pendingInputs.ts), transcript and Tape commit
+  queue claims, materialization, links and cursor changes atomically. Tape append also maintains
+  provenance and Memory ingestion projections. Memory mutations need their CAS, audit, tombstone
+  and FTS savepoint behavior; scheduler claims and catalog revisions share the same writer.
+- The current transaction ports accept local synchronous callbacks. Remote commands must encode
+  whole business operations. In particular, the
+  [`pre-stream input pump`](../../../src/main/agent/deepchat/runtime/pendingInputPump.ts) needs an
+  acknowledged once-only durable consume before Provider entry; a control grant is not a commit.
+  Authorized [`Session reads`](../../../src/main/session/data/sessionReferences.ts) need one
+  consistent snapshot. Sync apply must retain its runtime/deletion guards through commit.
+- [`Profile ownership`](../../../src/main/app/profileStartup.ts) must follow the physical writer.
+  Core death cannot release its lock while a Rust writer survives. Maintenance must fence and
+  drain all consumers, close the writer, perform the file operation and reopen before admission.
+  Backup snapshots retain their read lock through actual copying. Rekey includes database files,
+  metadata, validation, replacement and rollback, not only a cipher PRAGMA.
+
+Existing real-driver tests cover profile exclusion and process death, encrypted enable/rekey/unlock/
+disable, migration rollback, concurrent-WAL backup, partial import rollback and transcript atomicity.
+They establish current behavior, not Rust interoperability or process-kill atomicity between
+database replacement and metadata persistence. Those candidate checks remain unexecuted.
+
+Reopen selection for an observed Store-bound product failure or a concrete independently useful
+durable-owner deployment/lifecycle requirement. First preserve the complete finite command boundary,
+then prove cross-engine files/WAL/locks and encryption/recovery before consumer cutover. Do not infer
+a performance benefit from the language change, or add sampling to justify the current roadmap.
+
 ### Measurement and adoption gates
 
 Functional delivery is the execution priority. Structural migrations are gated by actual default
@@ -697,9 +750,9 @@ its owner and transfer bounded results or authorized artifact references. Consid
 path only when measured copies justify it. Every mutation needs defined acknowledgement,
 idempotency/recovery and unknown-outcome behavior, plus stale-generation rejection and shutdown.
 
-G7 control and native-package acceptance is complete. G8 records the selection no-go above;
-the next execution gate is a useful peripheral capability and its actual consumer cutover. The
-live plan orders that work, Store compatibility and Everywhere delivery by ownership dependencies.
+G7 control and G9 Hooks/native-package acceptance are complete. G8 and G10 record their selection
+no-go decisions above. The next execution gate is actual headless Session Host delivery. The
+live plan orders Everywhere delivery by ownership dependencies.
 Headless availability does not depend on rewriting every TS adapter in Rust.
 
 ## Product destination
