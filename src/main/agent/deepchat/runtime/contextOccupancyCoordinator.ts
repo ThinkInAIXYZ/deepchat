@@ -44,6 +44,7 @@ export class ContextOccupancyCoordinator {
 
   async getSnapshot(sessionId: string): Promise<SessionContextOccupancySnapshot> {
     const scope = this.deps.runtime.getOrHydrateScope(toAppSessionId(sessionId))
+    await scope.instance.controlReady()
     let state = scope.state()
     if (!state) {
       try {

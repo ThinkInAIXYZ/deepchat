@@ -1,3 +1,4 @@
+import { useHarnessControl } from '../helpers/control'
 import { describe, expect, it, vi } from 'vitest'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
@@ -5,6 +6,8 @@ import {
   SessionLifecycleCoordinator,
   type SessionLifecycleCoordinatorDependencies
 } from '@/agent/deepchat/runtime/sessionLifecycleCoordinator'
+
+const control = useHarnessControl()
 
 const SESSION_ID = 'session'
 
@@ -16,10 +19,16 @@ function createHarness() {
       order.push(label)
       return result as TResult
     }
-  const runtime = new DeepChatAgentRuntime()
+  const runtime = new DeepChatAgentRuntime(control())
+  const clearSessionControl = runtime.clearSessionControl.bind(runtime)
+  vi.spyOn(runtime, 'clearSessionControl').mockImplementation(async (...args) => {
+    await clearSessionControl(...args)
+    order.push('runtime.clearSessionControl')
+  })
   const cancel = vi.fn(async () => undefined)
   const deps = {
     registry: runtime,
+    fenceInputEffects: vi.fn(record('fenceInputEffects')),
     providerSettings: {} as SessionLifecycleCoordinatorDependencies['providerSettings'],
     promptSettings: { getDefaultSystemPrompt: vi.fn(async () => '') },
     sessionStore: { create: vi.fn(), delete: vi.fn(record('sessionStore.delete')) },
@@ -45,7 +54,6 @@ function createHarness() {
       cancelScopeOperations: vi.fn(record('runLifecycle.cancelScopeOperations')),
       scopeFor: vi.fn()
     },
-    interactionParking: { clearSession: vi.fn(record('interactionParking.clearSession')) },
     toolSurfaceDiagnostics: { clear: vi.fn(record('toolSurfaceDiagnostics.clear')) },
     toolSurfaceCanaryDiagnostics: {
       clearSession: vi.fn(record('toolSurfaceCanaryDiagnostics.clearSession'))
@@ -122,6 +130,7 @@ describe('SessionLifecycleCoordinator', () => {
     await coordinator.destroy(SESSION_ID)
 
     expect(order).toEqual([
+      'fenceInputEffects',
       'memory.beginSessionDestroy',
       'runLifecycle.cancelScopeOperations',
       'runLifecycle.clearFirstTurnReady',
@@ -132,7 +141,7 @@ describe('SessionLifecycleCoordinator', () => {
       'programmaticToolParents.releaseSession',
       'pruningFeedback.clear',
       'toolSurfaceCanaryDiagnostics.clearSession',
-      'interactionParking.clearSession',
+      'runtime.clearSessionControl',
       'toolSurfaceDiagnostics.clear',
       'memory.finishSessionDestroy',
       'toolService.clearConversationToolMapping'
@@ -147,6 +156,7 @@ describe('SessionLifecycleCoordinator', () => {
     await coordinator.destroy(SESSION_ID)
 
     expect(order).toEqual([
+      'fenceInputEffects',
       'memory.beginSessionDestroy',
       'runLifecycle.clearFirstTurnReady',
       'pendingInputs.deleteBySession',
@@ -156,7 +166,7 @@ describe('SessionLifecycleCoordinator', () => {
       'programmaticToolParents.releaseSession',
       'pruningFeedback.clear',
       'toolSurfaceCanaryDiagnostics.clearSession',
-      'interactionParking.clearSession',
+      'runtime.clearSessionControl',
       'memory.finishSessionDestroy',
       'toolService.clearConversationToolMapping'
     ])

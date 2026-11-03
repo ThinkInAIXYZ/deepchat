@@ -1,3 +1,5 @@
+import { useHarnessControl } from '../helpers/control'
+import { MAX_PENDING_INPUTS } from '@shared/pendingInput'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createHash } from 'node:crypto'
 import fs from 'fs/promises'
@@ -85,6 +87,7 @@ import { DeepChatLoopRunner } from '@/agent/deepchat/runtime/deepChatLoopRunner'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
+const control = useHarnessControl()
 const publishDeepchatEvent = vi.fn()
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -193,13 +196,23 @@ function getRuntimeState(agent: DeepChatAgentHarness, sessionId: string): DeepCh
   return state
 }
 
-function setRuntimeStatus(
+async function setRuntimeStatus(
   agent: DeepChatAgentHarness,
   sessionId: string,
   status: DeepChatSessionState['status']
-): void {
+): Promise<void> {
   const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId(sessionId))
-  instance.setRuntimeState({ ...getRuntimeState(agent, sessionId), status })
+  await instance.controlReady()
+  const run = instance.getActiveGeneration()
+  const controller = instance.getAbortController()
+  await instance.transitionControlStatus(
+    run
+      ? { kind: 'run', id: run.runId }
+      : controller
+        ? instance.operationOwner(controller)
+        : { kind: 'orphan' },
+    status
+  )
 }
 
 function deferred<T>() {
@@ -1140,6 +1153,7 @@ function createRuntimeDependencies(
   attachmentRouter: { prepare: ReturnType<typeof vi.fn> }
 } {
   return {
+    control: control(),
     publishEvent: publishDeepchatEvent,
     publishSessionUpdate: vi.fn(),
     providerCatalogPort: {
@@ -1600,6 +1614,7 @@ describe('DeepChatAgentHarness', () => {
   ): void => {
     agent = createDeepChatAgentHarness({
       ...runtimeDependencies,
+      control: control(),
       providerRuntime: llmProvider,
       providerSettings,
       agentSettings: providerSettings,
@@ -1769,10 +1784,13 @@ describe('DeepChatAgentHarness', () => {
         const processing = agent.processMessage('s1', privateContent)
         await activeSkillsStarted.promise
 
+        await control.flush()
         await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_WARN_MS - 1)
         expect(stuckWarnings()).toHaveLength(0)
+        await control.flush()
         await vi.advanceTimersByTimeAsync(1)
         expect(stuckWarnings()).toHaveLength(1)
+        await control.flush()
         await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_ESCALATION_MS - PRE_STREAM_STUCK_WARN_MS)
         expect(stuckWarnings()).toHaveLength(2)
         expect(stuckWarnings()[0]).toContain('step=active-skills')
@@ -1782,6 +1800,7 @@ describe('DeepChatAgentHarness', () => {
         await agent.cancelGeneration('s1')
         pending.resolve([])
         await processing
+        await control.flush()
         await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_ESCALATION_MS)
         expect(stuckWarnings()).toHaveLength(2)
       } finally {
@@ -1802,6 +1821,7 @@ describe('DeepChatAgentHarness', () => {
         )
         await agent.processMessage('s1', 'rejected step')
 
+        await control.flush()
         await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_ESCALATION_MS)
         expect(stuckWarnings()).toHaveLength(0)
         expect(warn.mock.calls.map(([message]) => String(message)).join('\n')).not.toContain(
@@ -1835,6 +1855,7 @@ describe('DeepChatAgentHarness', () => {
         await vi.waitFor(() =>
           expect(providerSettings.getDefaultSystemPrompt).toHaveBeenCalledTimes(2)
         )
+        await control.flush()
         await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_WARN_MS)
         expect(stuckWarnings()).toEqual([
           expect.stringContaining('message=<pending> step=generation-settings')
@@ -1856,6 +1877,7 @@ describe('DeepChatAgentHarness', () => {
             callsBeforeResume
           )
         )
+        await control.flush()
         await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_WARN_MS)
         expect(stuckWarnings()).toEqual([
           expect.stringContaining('message=m1 step=generation-settings')
@@ -1896,6 +1918,7 @@ describe('DeepChatAgentHarness', () => {
         await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
         const processing = agent.processMessage('s1', 'Hello')
         await providerStarted.promise
+        await control.flush()
         await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_ESCALATION_MS)
         expect(
           stuckWarnings().filter((message) => message.includes('step=pre-stream-provider-start'))
@@ -1930,6 +1953,7 @@ describe('DeepChatAgentHarness', () => {
         await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
         const processing = agent.processMessage('s1', 'Hello')
         await vi.waitFor(() => expect(llmProvider.executeWithRateLimit).toHaveBeenCalledTimes(1))
+        await control.flush()
         await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_ESCALATION_MS)
         expect(
           stuckWarnings().filter((message) => message.includes('step=pre-stream-provider-start'))
@@ -1952,6 +1976,7 @@ describe('DeepChatAgentHarness', () => {
       try {
         await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
         await agent.processMessage('s1', 'Hello')
+        await control.flush()
         await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_ESCALATION_MS)
         expect(
           stuckWarnings().filter((message) => message.includes('step=pre-stream-provider-start'))
@@ -1983,10 +2008,12 @@ describe('DeepChatAgentHarness', () => {
       const processing = agent.processMessage('s1', 'Hello')
       await vi.waitFor(() => expect(processStream).toHaveBeenCalledOnce())
       await agent.cancelGeneration('s1')
+      await control.flush()
       await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_ESCALATION_MS)
 
       providerAdmission.resolve()
       await processing
+      await control.flush()
       await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_ESCALATION_MS)
 
       expect(
@@ -3845,7 +3872,7 @@ describe('DeepChatAgentHarness', () => {
         'tool_b',
         'tool_a'
       ])
-      expect(eventOrder).toEqual(['provider-entered', 'provider-complete'])
+      expect(eventOrder.slice(0, 2)).toEqual(['provider-entered', 'provider-complete'])
       await vi.waitFor(() =>
         expect(eventOrder).toEqual(['provider-entered', 'provider-complete', 'shadow-universe'])
       )
@@ -5431,6 +5458,7 @@ describe('DeepChatAgentHarness', () => {
 
       const processing = agent.processMessage('s1', 'Hello')
       await vi.waitFor(() => expect(buildInjection).toHaveBeenCalledTimes(1))
+      await control.flush()
       await vi.advanceTimersByTimeAsync(MEMORY_INJECTION_TIMEOUT_MS)
       await processing
 
@@ -6094,8 +6122,47 @@ describe('DeepChatAgentHarness', () => {
         state: 'claimed'
       })
 
+      const releaseAcknowledged = deferred<void>()
+      const continuePromotion = deferred<void>()
+      let preparationClaimId: string | undefined
+      const sendControl = runtimeDependencies.control.send.bind(runtimeDependencies.control)
+      vi.spyOn(runtimeDependencies.control, 'send').mockImplementation(async (command, receive) => {
+        if (command.method === 'prepareClaimEffect' && command.action === 'release-for-mutation') {
+          preparationClaimId = command.claimId
+        }
+        const receipt = await sendControl(command, receive)
+        if (
+          command.method === 'ackInputEffect' &&
+          preparationClaimId &&
+          command.claimId === preparationClaimId &&
+          command.outcome === 'applied'
+        ) {
+          releaseAcknowledged.resolve()
+          await continuePromotion.promise
+        }
+        return receipt
+      })
       preflightDone.resolve()
-      await steerPromise
+      try {
+        await releaseAcknowledged.promise
+        expect(sqlitePresenter.deepchatPendingInputsTable.get(firstQueued.id)).toMatchObject({
+          mode: 'queue',
+          state: 'pending'
+        })
+        await agent.updateQueuedInput('s1', 'steer-preflight-second', {
+          text: 'Must remain second',
+          files: []
+        })
+        await control.flush()
+        expect(processStream).toHaveBeenCalledOnce()
+        expect(sqlitePresenter.deepchatPendingInputsTable.get(firstQueued.id)).toMatchObject({
+          mode: 'queue',
+          state: 'pending'
+        })
+      } finally {
+        continuePromotion.resolve()
+        await steerPromise
+      }
       await vi.waitFor(() => expect(processStream).toHaveBeenCalledTimes(2))
 
       const secondRun = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
@@ -7545,6 +7612,8 @@ describe('DeepChatAgentHarness', () => {
         modelId: 'gpt-4',
         permissionMode: 'default'
       })
+      await replacement.controlReady()
+      await replacement.transitionControlStatus({ kind: 'orphan' }, 'generating')
       replacement.replaceRuntimeActivatedSkills(['replacement-skill'])
       replacement.setToolProfileCache({
         profile: 'general',
@@ -10231,6 +10300,7 @@ describe('DeepChatAgentHarness', () => {
         modelId: 'gpt-4',
         permissionMode: 'full_access'
       })
+      await setRuntimeStatus(agent, 's1', 'generating')
 
       await expect(agent.setSessionModel('s1', 'anthropic', 'claude-3-5-sonnet')).rejects.toThrow(
         'Cannot switch model while session is generating.'
@@ -10395,7 +10465,7 @@ describe('DeepChatAgentHarness', () => {
         const instance = agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))
         await expect(agent.getSessionState('s1')).resolves.toMatchObject({ status: 'generating' })
         expect(instance?.getPendingInteractions()).toHaveLength(1)
-        setRuntimeStatus(agent, 's1', 'generating')
+        await setRuntimeStatus(agent, 's1', 'generating')
 
         await agent.cancelGeneration('s1')
 
@@ -10663,7 +10733,7 @@ describe('DeepChatAgentHarness', () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const cancelSpy = vi.spyOn(agent, 'cancelGeneration').mockResolvedValue(undefined)
       const controller = new AbortController()
-      agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).registerActiveGeneration(
+      await agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).registerActiveGeneration(
         createLoopRun({
           runId: 'run-1',
           sessionId: toAppSessionId('s1'),
@@ -10803,7 +10873,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('preflights a normal send before accepting it into a busy session queue', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      setRuntimeStatus(agent, 's1', 'generating')
+      await setRuntimeStatus(agent, 's1', 'generating')
       const summary = {
         status: 'needs_user_action' as const,
         issues: [{ attachmentIndex: 0, reason: 'ocr_empty' as const }],
@@ -10831,7 +10901,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('preserves send order while an earlier attachment preflight is still running', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      setRuntimeStatus(agent, 's1', 'generating')
+      await setRuntimeStatus(agent, 's1', 'generating')
       const firstStarted = deferred<void>()
       const releaseFirst = deferred<void>()
       const prepare = vi.fn(async ({ content }) => {
@@ -10877,7 +10947,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('removes a cancelled send waiter without letting later sends bypass the active preflight', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      setRuntimeStatus(agent, 's1', 'generating')
+      await setRuntimeStatus(agent, 's1', 'generating')
       const firstStarted = deferred<void>()
       const releaseFirst = deferred<void>()
       const prepare = vi.fn(async ({ content }) => {
@@ -11089,7 +11159,7 @@ describe('DeepChatAgentHarness', () => {
       }
       sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([interactionRow])
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-      setRuntimeStatus(agent, 's1', 'generating')
+      await setRuntimeStatus(agent, 's1', 'generating')
 
       try {
         const claimed = await agent.queuePendingInput('s1', 'Retry after interaction')
@@ -11105,8 +11175,10 @@ describe('DeepChatAgentHarness', () => {
         expect(processStream).not.toHaveBeenCalled()
 
         sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([])
-        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.replacePendingInteractions([])
-        setRuntimeStatus(agent, 's1', 'idle')
+        await agent.deepChatRuntime
+          .getHydrated(toAppSessionId('s1'))
+          ?.replacePendingInteractions([])
+        await setRuntimeStatus(agent, 's1', 'idle')
         sqlitePresenter.deepchatPendingInputsTable.update.mockClear()
         await expect(agent.retryPendingQueueInput('s1', claimed.id)).resolves.toMatchObject({
           accepted: true
@@ -11148,7 +11220,7 @@ describe('DeepChatAgentHarness', () => {
           ])
         }
       ])
-      setRuntimeStatus(agent, 's1', 'generating')
+      await setRuntimeStatus(agent, 's1', 'generating')
       const firstPreparationStarted = deferred<void>()
       const releaseFirstPreparation = deferred<void>()
       runtimeDependencies.attachmentRouter.prepare = vi.fn(async ({ content }) => {
@@ -11180,7 +11252,7 @@ describe('DeepChatAgentHarness', () => {
       await vi.waitFor(() => expect(processStream).toHaveBeenCalledOnce())
     })
 
-    it('keeps a pre-user-fact runtime failure pending until an explicit retry', async () => {
+    it('keeps a failed attachment recheck retryable until explicitly retried', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const ready = { status: 'ready' as const, issues: [], suggestedActions: [] }
       const prepare = vi
@@ -11197,10 +11269,11 @@ describe('DeepChatAgentHarness', () => {
         })
         expect(queued.state).toBe('pending')
         await agent.updateQueuedInput('s1', queued.id, queued.payload)
+        await vi.waitFor(() => expect(prepare).toHaveBeenCalledOnce())
 
         await vi.waitFor(async () => {
           expect(await agent.listPendingInputs('s1')).toEqual([
-            expect.objectContaining({ id: queued.id, state: 'pending' })
+            expect.objectContaining({ id: queued.id, state: 'retry_required' })
           ])
         })
         expect(prepare).toHaveBeenCalledOnce()
@@ -11216,6 +11289,94 @@ describe('DeepChatAgentHarness', () => {
       } finally {
         errorSpy.mockRestore()
       }
+    })
+
+    it('rejects a full waiting lane before preparing another Send attachment', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      let id = 0
+      vi.mocked(nanoid).mockImplementation(() => `capacity-${++id}`)
+      for (let index = 0; index < MAX_PENDING_INPUTS; index++) {
+        sessionData.pendingInputs.queuePendingInput('s1', { text: `Waiting ${index}`, files: [] })
+      }
+      runtimeDependencies.attachmentRouter.prepare.mockClear()
+
+      await expect(
+        agent.send('s1', { content: { text: 'At capacity', files: [] }, queue: { source: 'send' } })
+      ).rejects.toThrow('Pending input limit reached for this session.')
+
+      expect(runtimeDependencies.attachmentRouter.prepare).not.toHaveBeenCalled()
+      expect(await agent.listPendingInputs('s1')).toHaveLength(MAX_PENDING_INPUTS)
+      expect(processStream).not.toHaveBeenCalled()
+    })
+
+    it.each(['publication', 'immediate-drain'] as const)(
+      'keeps a durable Queue retry accepted after a %s failure',
+      async (failureAt) => {
+        await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+        let id = 0
+        vi.mocked(nanoid).mockImplementation(() => `retry-${++id}`)
+        const queued = sessionData.pendingInputs.queuePendingInput('s1', {
+          text: 'Retry me',
+          files: []
+        })
+        sessionData.pendingInputs.claimQueuedInput('s1', queued.id)
+        sessionData.pendingInputs.releaseClaimedQueueInputForRetry('s1', queued.id)
+        const retry = sessionData.pendingInputs.retryReleasedQueueInput.bind(
+          sessionData.pendingInputs
+        )
+        const failure = new Error('retry notification unavailable')
+        vi.spyOn(sessionData.pendingInputs, 'retryReleasedQueueInput').mockImplementationOnce(
+          (...args) => {
+            const record = retry(...args)
+            if (failureAt === 'publication') throw failure
+            vi.spyOn(sessionData.pendingInputs, 'listPendingInputs').mockImplementationOnce(() => {
+              throw failure
+            })
+            return record
+          }
+        )
+
+        await expect(agent.retryPendingQueueInput('s1', queued.id)).resolves.toEqual({
+          accepted: true,
+          started: failureAt === 'publication'
+        })
+
+        await vi.waitFor(() => expect(processStream).toHaveBeenCalledOnce())
+        await vi.waitFor(async () => expect(await agent.listPendingInputs('s1')).toEqual([]))
+        expect(logger.error).toHaveBeenCalledWith(
+          expect.stringContaining(
+            failureAt === 'publication'
+              ? 'retry pending queue publication failed'
+              : 'retry pending queue drain failed'
+          ),
+          { name: 'Error' }
+        )
+      }
+    )
+
+    it('preserves the attachment failure when its claimed Queue release also fails', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const queued = sessionData.pendingInputs.queuePendingInput('s1', {
+        text: 'Steer me',
+        files: []
+      })
+      const preparationError = new Error('attachment runtime unavailable')
+      runtimeDependencies.attachmentRouter.prepare.mockRejectedValueOnce(preparationError)
+      vi.spyOn(
+        sessionData.pendingInputs,
+        'releaseClaimedQueueInputForRetry'
+      ).mockImplementationOnce(() => {
+        throw new Error('claim release unavailable')
+      })
+
+      await expect(agent.steerPendingInput('s1', queued.id)).rejects.toBe(preparationError)
+
+      expect(sessionData.pendingInputs.getInput('s1', queued.id)?.state).toBe('claimed')
+      expect(processStream).not.toHaveBeenCalled()
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('failed to release pending input after admission failure'),
+        { name: 'Error' }
+      )
     })
 
     it('rolls back a user fact when compaction fails after the fact is appended', async () => {
@@ -11537,6 +11698,7 @@ describe('DeepChatAgentHarness', () => {
         })
         const restartedAgent = createDeepChatAgentHarness({
           ...runtimeDependencies,
+          control: control(),
           providerRuntime: llmProvider,
           providerSettings,
           agentSettings: providerSettings,
@@ -14052,6 +14214,7 @@ describe('DeepChatAgentHarness', () => {
       })
 
       const compaction = agent.compactSession('s1')
+      const rejected = expect(compaction).rejects.toMatchObject({ name: 'AbortError' })
       await vi.waitFor(() => expect(prepareForManualCompaction).toHaveBeenCalledTimes(1))
 
       const sessionId = toAppSessionId('s1')
@@ -14063,6 +14226,8 @@ describe('DeepChatAgentHarness', () => {
         modelId: 'gpt-4',
         permissionMode: 'default'
       })
+      await replacement.controlReady()
+      await replacement.transitionControlStatus({ kind: 'orphan' }, 'generating')
       replacement.setToolProfileCache({
         profile: 'general',
         fingerprint: 'replacement tool fingerprint',
@@ -14075,9 +14240,7 @@ describe('DeepChatAgentHarness', () => {
       })
 
       preparation.resolve(null)
-      await expect(compaction).rejects.toMatchObject({
-        name: 'StaleDeepChatAgentInstanceError'
-      })
+      await rejected
 
       expect(replacement.getRuntimeState()?.status).toBe('generating')
       expect(replacement.getToolProfileCache()?.fingerprint).toBe('replacement tool fingerprint')
@@ -14115,6 +14278,7 @@ describe('DeepChatAgentHarness', () => {
       const sessionId = toAppSessionId('s1')
       const staleInstance = agent.deepChatRuntime.getOrHydrate(sessionId)
       const compaction = agent.compactSession('s1')
+      const rejected = expect(compaction).rejects.toMatchObject({ name: 'AbortError' })
       await vi.waitFor(() => expect(applyCompaction).toHaveBeenCalledTimes(1))
       expect(staleInstance.getCompactionState()?.status).toBe('compacting')
 
@@ -14126,6 +14290,8 @@ describe('DeepChatAgentHarness', () => {
         modelId: 'gpt-4',
         permissionMode: 'default'
       })
+      await replacement.controlReady()
+      await replacement.transitionControlStatus({ kind: 'orphan' }, 'generating')
       replacement.setCompactionState({
         status: 'compacted',
         cursorOrderSeq: 17,
@@ -14141,9 +14307,7 @@ describe('DeepChatAgentHarness', () => {
         }
       })
 
-      await expect(compaction).rejects.toMatchObject({
-        name: 'StaleDeepChatAgentInstanceError'
-      })
+      await rejected
       expect(replacement.getCompactionState()).toEqual({
         status: 'compacted',
         cursorOrderSeq: 17,
@@ -14199,7 +14363,7 @@ describe('DeepChatAgentHarness', () => {
         providerId: 'openai',
         modelId: 'gpt-4'
       })
-      setRuntimeStatus(agent, 's1', 'generating')
+      await setRuntimeStatus(agent, 's1', 'generating')
 
       await expect(agent.compactSession('s1')).rejects.toThrow(
         'Manual compaction is only available when the session is idle.'
@@ -14601,18 +14765,20 @@ describe('DeepChatAgentHarness', () => {
       return row
     }
 
-    const registerActiveInteractionRun = (
+    const registerActiveInteractionRun = async (
       messageId: string,
       blocks: AssistantMessageBlock[],
-      runId = `run-${messageId}`
+      runId = `run-${messageId}`,
+      sessionId = 's1'
     ) => {
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
-      const abortController = new AbortController()
+      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId(sessionId))
+      await instance.controlReady()
+      const abortController = await instance.ensureOperationController()
       const streamState = createState()
       streamState.blocks = structuredClone(blocks)
       const run = createLoopRun({
         runId,
-        sessionId: toAppSessionId('s1'),
+        sessionId: toAppSessionId(sessionId),
         messageId,
         abortController,
         messages: [],
@@ -14624,8 +14790,8 @@ describe('DeepChatAgentHarness', () => {
           toolMode: { mode: 'agent', source: 'fallback' }
         }
       })
-      instance.registerActiveGeneration(run)
-      setRuntimeStatus(agent, 's1', 'generating')
+      await instance.registerActiveGeneration(run)
+      await setRuntimeStatus(agent, sessionId, 'generating')
       return { instance, run, abortController, streamState }
     }
 
@@ -15645,7 +15811,7 @@ describe('DeepChatAgentHarness', () => {
           }
         ]
       })
-      const { instance, abortController } = registerActiveInteractionRun('new-message', [])
+      const { instance, abortController } = await registerActiveInteractionRun('new-message', [])
 
       const interaction = agent.respondToolInteraction('s1', 'm1', 'tc1', {
         kind: 'question_option',
@@ -17166,7 +17332,7 @@ describe('DeepChatAgentHarness', () => {
         }
       )
       const instance = agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))
-      instance?.replacePendingToolBatch(
+      await instance?.replacePendingToolBatch(
         [
           {
             messageId: 'm1',
@@ -17265,59 +17431,62 @@ describe('DeepChatAgentHarness', () => {
         ]
       })
 
-      const { instance } = registerActiveInteractionRun(
+      const { instance } = await registerActiveInteractionRun(
         'm1',
         JSON.parse(row.content) as AssistantMessageBlock[]
       )
-      instance.registerActiveProviderPermission({
-        requestId: 'acp-req-1',
-        messageId: 'm1',
-        toolCallId: 'tc1',
-        providerId: 'acp',
-        permissionType: 'command',
-        resolve: async (granted: boolean) => {
-          await llmProvider.resolveAgentPermission('acp-req-1', granted)
-          sqlitePresenter.deepchatMessagesTable.updateContent(
-            'm1',
-            JSON.stringify([
-              {
-                type: 'tool_call',
-                status: 'pending',
-                timestamp: 1,
-                tool_call: {
-                  id: 'tc1',
-                  name: 'Terminal',
-                  params: '{"command":"dir"}',
-                  response: ''
-                }
-              },
-              {
-                type: 'action',
-                action_type: 'tool_call_permission',
-                status: 'granted',
-                timestamp: 2,
-                content: 'components.messageBlockPermissionRequest.description.command',
-                tool_call: { id: 'tc1', name: 'Terminal', params: '{"command":"dir"}' },
-                extra: {
-                  needsUserAction: false,
-                  permissionType: 'command',
-                  grantedPermissions: 'command',
-                  providerId: 'acp',
-                  permissionRequestId: 'acp-req-1',
-                  permissionRequest: JSON.stringify({
+      await instance.registerActiveProviderPermission(
+        {
+          requestId: 'acp-req-1',
+          messageId: 'm1',
+          toolCallId: 'tc1',
+          providerId: 'acp',
+          permissionType: 'command',
+          resolve: async (granted: boolean) => {
+            await llmProvider.resolveAgentPermission('acp-req-1', granted)
+            sqlitePresenter.deepchatMessagesTable.updateContent(
+              'm1',
+              JSON.stringify([
+                {
+                  type: 'tool_call',
+                  status: 'pending',
+                  timestamp: 1,
+                  tool_call: {
+                    id: 'tc1',
+                    name: 'Terminal',
+                    params: '{"command":"dir"}',
+                    response: ''
+                  }
+                },
+                {
+                  type: 'action',
+                  action_type: 'tool_call_permission',
+                  status: 'granted',
+                  timestamp: 2,
+                  content: 'components.messageBlockPermissionRequest.description.command',
+                  tool_call: { id: 'tc1', name: 'Terminal', params: '{"command":"dir"}' },
+                  extra: {
+                    needsUserAction: false,
                     permissionType: 'command',
-                    description: 'components.messageBlockPermissionRequest.description.command',
-                    toolName: 'Terminal',
+                    grantedPermissions: 'command',
                     providerId: 'acp',
-                    requestId: 'acp-req-1',
-                    command: 'dir'
-                  })
+                    permissionRequestId: 'acp-req-1',
+                    permissionRequest: JSON.stringify({
+                      permissionType: 'command',
+                      description: 'components.messageBlockPermissionRequest.description.command',
+                      toolName: 'Terminal',
+                      providerId: 'acp',
+                      requestId: 'acp-req-1',
+                      command: 'dir'
+                    })
+                  }
                 }
-              }
-            ])
-          )
-        }
-      })
+              ])
+            )
+          }
+        },
+        instance.getActiveGeneration()!.runId
+      )
 
       const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
         kind: 'permission',
@@ -17340,24 +17509,41 @@ describe('DeepChatAgentHarness', () => {
 
     it('cancels only the target session live ACP permission resolvers', async () => {
       const resolve = vi.fn().mockResolvedValue(undefined)
-      const first = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
-      const second = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s2'))
-      first.registerActiveProviderPermission({
-        requestId: 'acp-req-1',
-        messageId: 'm1',
-        toolCallId: 'tc1',
-        providerId: 'acp',
-        permissionType: 'command',
-        resolve
-      })
-      second.registerActiveProviderPermission({
-        requestId: 'acp-req-2',
-        messageId: 'm2',
-        toolCallId: 'tc2',
-        providerId: 'acp',
-        permissionType: 'command',
-        resolve: vi.fn().mockResolvedValue(undefined)
-      })
+      await agent.initSession('s1', { providerId: 'acp', modelId: 'claude-code-acp' })
+      await agent.initSession('s2', { providerId: 'acp', modelId: 'claude-code-acp' })
+      const { instance: first, run: firstRun } = await registerActiveInteractionRun(
+        'm1',
+        [],
+        'run-1'
+      )
+      const { instance: second, run: secondRun } = await registerActiveInteractionRun(
+        'm2',
+        [],
+        'run-2',
+        's2'
+      )
+      await first.registerActiveProviderPermission(
+        {
+          requestId: 'acp-req-1',
+          messageId: 'm1',
+          toolCallId: 'tc1',
+          providerId: 'acp',
+          permissionType: 'command',
+          resolve
+        },
+        firstRun.runId
+      )
+      await second.registerActiveProviderPermission(
+        {
+          requestId: 'acp-req-2',
+          messageId: 'm2',
+          toolCallId: 'tc2',
+          providerId: 'acp',
+          permissionType: 'command',
+          resolve: vi.fn().mockResolvedValue(undefined)
+        },
+        secondRun.runId
+      )
 
       await agent.cancelGeneration('s1')
       await Promise.resolve()
@@ -17401,7 +17587,7 @@ describe('DeepChatAgentHarness', () => {
           }
         ]
       })
-      const { instance, streamState } = registerActiveInteractionRun(
+      const { instance, streamState } = await registerActiveInteractionRun(
         'm1',
         JSON.parse(row.content) as AssistantMessageBlock[]
       )
@@ -17473,7 +17659,7 @@ describe('DeepChatAgentHarness', () => {
           }
         ]
       })
-      const { instance, abortController } = registerActiveInteractionRun(
+      const { instance, abortController } = await registerActiveInteractionRun(
         'm1',
         JSON.parse(row.content) as AssistantMessageBlock[]
       )
@@ -17536,7 +17722,7 @@ describe('DeepChatAgentHarness', () => {
           }
         ]
       })
-      const { instance, abortController } = registerActiveInteractionRun(
+      const { instance, abortController } = await registerActiveInteractionRun(
         'new-message',
         [],
         'new-run'
@@ -17712,20 +17898,23 @@ describe('DeepChatAgentHarness', () => {
           }
         ]
       })
-      const { instance, abortController } = registerActiveInteractionRun(
+      const { instance, abortController } = await registerActiveInteractionRun(
         'new-message',
         [],
         'new-run'
       )
       const resolveNewPermission = vi.fn().mockResolvedValue(undefined)
-      instance.registerActiveProviderPermission({
-        requestId: 'acp-shared-req',
-        messageId: 'new-message',
-        toolCallId: 'tc-new',
-        providerId: 'acp',
-        permissionType: 'command',
-        resolve: resolveNewPermission
-      })
+      await instance.registerActiveProviderPermission(
+        {
+          requestId: 'acp-shared-req',
+          messageId: 'new-message',
+          toolCallId: 'tc-new',
+          providerId: 'acp',
+          permissionType: 'command',
+          resolve: resolveNewPermission
+        },
+        instance.getActiveGeneration()!.runId
+      )
 
       await expect(
         agent.respondToolInteraction('s1', 'm1', 'tc-old', {
@@ -17760,7 +17949,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('terminalizes a stale unowned ACP permission as provider_error', async () => {
       await agent.initSession('s1', { providerId: 'acp', modelId: 'claude-code-acp' })
-      setRuntimeStatus(agent, 's1', 'generating')
+      await setRuntimeStatus(agent, 's1', 'generating')
       llmProvider.resolveAgentPermission.mockRejectedValueOnce(
         new Error('Unknown ACP permission request: acp-stale-req')
       )
@@ -17841,7 +18030,7 @@ describe('DeepChatAgentHarness', () => {
         commandSignature: 'posix:npm test',
         shellProfile: 'posix'
       })
-      const { abortController } = registerActiveInteractionRun(
+      const { abortController } = await registerActiveInteractionRun(
         'm1',
         JSON.parse(row.content) as AssistantMessageBlock[]
       )
@@ -18010,6 +18199,8 @@ describe('DeepChatAgentHarness', () => {
         modelId: 'gpt-4',
         permissionMode: 'auto_approve'
       })
+      await instance.controlReady()
+      await instance.transitionControlStatus({ kind: 'orphan' }, 'generating')
 
       const dismissed = await agent.dismissToolInteraction('s1', 'm1', 'tc1')
 
@@ -18263,6 +18454,7 @@ describe('DeepChatAgentHarness', () => {
         }
       )
 
+      await control.flush()
       await vi.advanceTimersByTimeAsync(30_000)
       await expect(resultPromise).resolves.toEqual(
         expect.objectContaining({
@@ -18751,6 +18943,7 @@ describe('DeepChatAgentHarness', () => {
       })
       agent = createDeepChatAgentHarness({
         ...runtimeDependencies,
+        control: control(),
         sessionPermissionPort,
         database: sqlitePresenter,
         sessionData,
@@ -18792,7 +18985,12 @@ describe('DeepChatAgentHarness', () => {
           })
         )
         expect(executeDeferredToolCallSpy).toHaveBeenCalledWith(
-          's1',
+          expect.objectContaining({
+            scope: expect.objectContaining({ sessionId: 's1' }),
+            lease: expect.objectContaining({
+              target: { kind: 'interaction', messageId: 'm1', toolCallId: 'tc1' }
+            })
+          }),
           'm1',
           expect.objectContaining({ id: 'tc1', name: 'exec' }),
           expect.any(Function),
@@ -19168,7 +19366,7 @@ describe('DeepChatAgentHarness', () => {
 
       const executionPromise = approvePendingTool('m1', 'tc-subagent')
 
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await vi.waitFor(() => expect(capturedSignal).toBeDefined())
 
       expect(capturedSignal).toBeDefined()
       expect(capturedSignal?.aborted).toBe(false)
@@ -19232,7 +19430,9 @@ describe('DeepChatAgentHarness', () => {
             }))
           )
         }
-        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.replacePendingInteractions([])
+        await agent.deepChatRuntime
+          .getHydrated(toAppSessionId('s1'))
+          ?.replacePendingInteractions([])
         toolResult.resolve({
           content: 'done',
           rawData: { content: 'done', isError: false }

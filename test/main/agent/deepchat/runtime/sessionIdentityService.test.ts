@@ -1,3 +1,4 @@
+import { useHarnessControl } from '../helpers/control'
 import { describe, expect, it, vi } from 'vitest'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
@@ -6,10 +7,12 @@ import {
   type SessionIdentityServiceDependencies
 } from '@/agent/deepchat/runtime/sessionIdentityService'
 
+const control = useHarnessControl()
+
 const SESSION_ID = 'session'
 
 function createHarness(row?: { agent_id?: string; session_kind?: string }) {
-  const runtime = new DeepChatAgentRuntime()
+  const runtime = new DeepChatAgentRuntime(control())
   const get = vi.fn(() => row)
   const deps = {
     registry: runtime,

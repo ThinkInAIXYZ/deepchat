@@ -1242,12 +1242,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
                 firstNewBlock,
                 providerAttemptIdentity
               )
-              emitDeepChatLoopNotification(notificationObserver, {
-                event: 'PermissionRequest',
-                permission,
-                tool
-              })
-              controls?.onStreamingProviderPermission?.(permission, tool, (granted) => {
+              await controls?.onStreamingProviderPermission?.(permission, tool, (granted) => {
                 markStreamingProviderPermissionResolved(
                   actionBlock,
                   granted,
@@ -1255,6 +1250,11 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
                 )
                 markStreamChanged(state)
                 updateOutput()
+              })
+              emitDeepChatLoopNotification(notificationObserver, {
+                event: 'PermissionRequest',
+                permission,
+                tool
               })
               updateOutput()
               continue

@@ -1,8 +1,10 @@
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
+import type { HarnessControlOwner } from '@shared/harness/control'
 import { projectPendingInteraction } from '@shared/chat/pendingInteraction'
 import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
+import { createStaleDeepChatInstanceError } from '@/agent/deepchat/instance/controlSession'
 import type { PendingToolInteraction } from './types'
 
 export type PendingInteractionEntry = {
@@ -18,6 +20,7 @@ export type ProviderPermissionInteractionInput = {
   permissionType: 'read' | 'write' | 'all' | 'command'
   granted: boolean
   ownerRun?: LoopRun<unknown>
+  controlOwner?: HarnessControlOwner
   signal?: AbortSignal
 }
 
@@ -198,37 +201,41 @@ export function collectPendingInteractionEntries(
   return entries
 }
 
-export function replacePendingInteractions(
+export async function replacePendingInteractions(
   instance: DeepChatAgentInstance,
-  entries: readonly PendingInteractionEntry[]
-): void {
-  instance.replacePendingInteractions(
+  entries: readonly PendingInteractionEntry[],
+  owner?: HarnessControlOwner,
+  reconcile = false
+): Promise<void> {
+  const accepted = await instance.replacePendingInteractions(
     entries.map(({ interaction }) => ({
       messageId: interaction.messageId,
       toolCallId: interaction.toolCallId,
       origin: interaction.origin,
       order: interaction.order
-    }))
+    })),
+    owner,
+    { reconcile }
   )
+  if (!accepted) throw createStaleDeepChatInstanceError(instance.sessionId)
 }
 
-export function reconcilePendingInteractionEntries(
+export async function reconcilePendingInteractionEntries(
   instance: DeepChatAgentInstance,
-  entries: PendingInteractionEntry[]
-): PendingInteractionEntry[] {
-  const knownInteractions = instance.getPendingInteractions()
-  for (const entry of entries) {
-    const known = knownInteractions.find(
-      (interaction) =>
-        interaction.messageId === entry.interaction.messageId &&
-        interaction.toolCallId === entry.interaction.toolCallId
+  entries: PendingInteractionEntry[],
+  owner?: HarnessControlOwner
+): Promise<PendingInteractionEntry[]> {
+  await replacePendingInteractions(instance, entries, owner, true)
+  return instance.getPendingInteractions().flatMap((known) => {
+    const entry = entries.find(
+      ({ interaction }) =>
+        interaction.messageId === known.messageId && interaction.toolCallId === known.toolCallId
     )
-    if (known) {
-      entry.interaction.origin = known.origin
-      entry.interaction.order = known.order
-    }
-  }
-  return entries.sort((left, right) => left.interaction.order - right.interaction.order)
+    if (!entry) return []
+    entry.interaction.origin = known.origin
+    entry.interaction.order = known.order
+    return [entry]
+  })
 }
 
 export function parseQuestionOptions(raw: unknown): Array<{ label: string; description?: string }> {

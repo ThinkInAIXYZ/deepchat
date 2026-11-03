@@ -99,6 +99,7 @@ function setup(
   } = {}
 ) {
   const instance = {
+    controlReady: async () => {},
     getContextWindowObservation: vi.fn(() => {
       const providerContextLimitTokens = overrides.providerContextLimitTokens
       const providerPromptLimitTokens = overrides.providerPromptLimitTokens

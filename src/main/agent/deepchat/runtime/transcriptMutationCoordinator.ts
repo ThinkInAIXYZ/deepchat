@@ -56,13 +56,14 @@ export class TranscriptMutationCoordinator {
     this.deps.memory.clearProjectionRetry(sessionId)
   }
 
-  finishClearMessages(sessionId: string): void {
+  async finishClearMessages(sessionId: string): Promise<void> {
     const instance = this.deps.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
-    instance.replacePendingInteractions([])
+    await instance.replacePendingInteractions([])
     this.deps.compaction.reset(sessionId, instance)
-    this.deps.runLifecycle.transitionStatus(
+    await this.deps.runLifecycle.transitionStatus(
       this.deps.runLifecycle.scopeFor(sessionId, instance),
-      'idle'
+      'idle',
+      { kind: 'orphan' }
     )
   }
 
@@ -79,10 +80,10 @@ export class TranscriptMutationCoordinator {
     if (state.status === 'generating') {
       throw new Error('Cannot retry while session is generating.')
     }
-    if (this.deps.runLifecycle.hasPendingInteractions(sessionId)) {
+    if (await this.deps.runLifecycle.hasPendingInteractions(sessionId)) {
       throw new Error('Please resolve pending tool interactions before retrying.')
     }
-    this.deps.admission.assertNoActiveInputs(sessionId, options)
+    await this.deps.admission.assertNoActiveInputs(sessionId, options)
     this.deps.runLifecycle.assertCurrentInstance(sessionId, instance)
     return {
       projectDir: this.deps.sessionSettings.resolveProjectDir(sessionId, undefined, instance)
@@ -104,18 +105,20 @@ export class TranscriptMutationCoordinator {
     this.deps.memory.invalidateFromOrderSeq(sessionId, orderSeq)
   }
 
-  finishTranscriptTruncate(sessionId: string): void {
-    this.deps.runLifecycle.refreshPendingInteractions(sessionId)
-    this.deps.runLifecycle.transitionCurrentStatus(sessionId, 'idle')
+  async finishTranscriptTruncate(sessionId: string): Promise<void> {
+    await this.deps.runLifecycle.refreshPendingInteractions(sessionId)
+    await this.deps.runLifecycle.transitionCurrentStatus(sessionId, 'idle')
   }
 
   resetForkTarget(targetSessionId: string, clonedMemoryCursorOrderSeq: number): void {
-    const targetInstance = this.deps.registry.getOrHydrateScope(toAppSessionId(targetSessionId)).instance
+    const targetInstance = this.deps.registry.getOrHydrateScope(
+      toAppSessionId(targetSessionId)
+    ).instance
     this.deps.compaction.reset(targetSessionId, targetInstance)
     this.deps.memory.seedExtractionCursor(targetSessionId, clonedMemoryCursorOrderSeq)
   }
 
-  assertNoActivePendingInputs(sessionId: string): void {
-    this.deps.admission.assertNoActiveInputs(sessionId)
+  async assertNoActivePendingInputs(sessionId: string): Promise<void> {
+    await this.deps.admission.assertNoActiveInputs(sessionId)
   }
 }

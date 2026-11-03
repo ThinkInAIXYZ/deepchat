@@ -1,3 +1,5 @@
+import type { HarnessControlLease, HarnessControlOwner } from '@shared/harness/control'
+import type { SessionRuntimeScope } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { randomUUID } from 'node:crypto'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type {
@@ -83,7 +85,7 @@ export interface DeferredToolExecutorDependencies {
   cacheImage(data: string, options?: CacheImageOptions): Promise<string>
   runLifecycle: Pick<
     RunLifecycleCoordinator,
-    'registerDeferredToolController' | 'clearDeferredToolController' | 'getAbortSignal'
+    'registerDeferredToolController' | 'clearDeferredToolController'
   >
   sessionSettings: Pick<SessionSettingsCoordinator, 'resolveProjectDir'>
   sessionState: Pick<SessionStateResolver, 'get'>
@@ -123,7 +125,7 @@ export class DeferredToolExecutor {
   constructor(private readonly dependencies: DeferredToolExecutorDependencies) {}
 
   async execute(
-    sessionId: string,
+    context: { scope: SessionRuntimeScope; lease: HarnessControlLease; owner: HarnessControlOwner },
     messageId: string,
     toolCall: NonNullable<AssistantMessageBlock['tool_call']>,
     onToolCallStarted?: () => void,
@@ -134,6 +136,8 @@ export class DeferredToolExecutor {
     onDispatchCommitted?: () => void,
     permissionLease?: ToolPermissionLeaseCapability
   ): Promise<DeferredToolExecutionResult> {
+    const { scope, lease, owner } = context
+    const sessionId = scope.sessionId
     const toolName = toolCall.name
     if (!toolName) {
       return {
@@ -149,12 +153,10 @@ export class DeferredToolExecutor {
     }
     const toolCallId = toolCall.id
 
-    const deferredAbortController = this.dependencies.runLifecycle.registerDeferredToolController(
-      sessionId,
-      toolCallId
+    const deferredAbortController = await this.dependencies.runLifecycle.registerDeferredToolController(
+      scope, messageId, toolCallId, lease, owner
     )
-    const deferredAbortSignal =
-      deferredAbortController?.signal ?? this.dependencies.runLifecycle.getAbortSignal(sessionId)
+    const deferredAbortSignal = deferredAbortController.signal
     let invoked = false
     let runId: string | null = null
     let runStartedCommitted = false
@@ -816,11 +818,7 @@ export class DeferredToolExecutor {
         invoked
       }
     } finally {
-      this.dependencies.runLifecycle.clearDeferredToolController(
-        sessionId,
-        toolCallId,
-        deferredAbortController ?? undefined
-      )
+      await this.dependencies.runLifecycle.clearDeferredToolController(scope, deferredAbortController)
     }
   }
 }

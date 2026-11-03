@@ -35,14 +35,10 @@ import { resolveProviderInputCapabilities } from './providerInputCapabilities'
 import { resolveProviderModelRuntimeFacts } from './providerModelRuntimeFacts'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { CommandShellService } from '@/agent/shared/process/commandShellService'
-import {
-  isSummaryGapReason,
-  type SummaryGapReason
-} from './contextContributions'
+import { isSummaryGapReason, type SummaryGapReason } from './contextContributions'
 
 type ManualCompactionLifecycle = Pick<
   RunLifecycleCoordinator,
-  | 'canSettleOperation'
   | 'clearOperationController'
   | 'ensureOperationController'
   | 'hasPendingInteractions'
@@ -128,7 +124,13 @@ export class CompactionRuntimeCoordinator {
     sessionId: string,
     expectedInstance?: DeepChatAgentInstance
   ): Promise<SessionCompactionSnapshot> {
-    const projection = this.resolveProjection(sessionId, expectedInstance)
+    const hydrated =
+      expectedInstance ?? this.deps.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
+    if (!hydrated && !this.deps.sessionStore.get(sessionId))
+      throw new Error(`Session ${sessionId} not found`)
+    const instance = hydrated ?? this.instance(sessionId)
+    await instance.controlReady()
+    const projection = this.resolveProjection(sessionId, instance)
     return {
       state: projection.state,
       emitSeq: this.currentEmitSeq(sessionId),
@@ -140,7 +142,8 @@ export class CompactionRuntimeCoordinator {
     sessionId: string,
     expectedInstance?: DeepChatAgentInstance
   ): { state: SessionCompactionState; latestAnchorEntryId: number | null } {
-    const hydratedInstance = expectedInstance ?? this.deps.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
+    const hydratedInstance =
+      expectedInstance ?? this.deps.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
     const runtimeState = hydratedInstance?.getRuntimeState()
     const session = this.deps.sessionStore.get(sessionId)
     if (!runtimeState && !session) {
@@ -149,7 +152,8 @@ export class CompactionRuntimeCoordinator {
     const instance = hydratedInstance ?? this.instance(sessionId)
     this.assertCurrent(sessionId, instance)
 
-    const reconstructionAnchor = this.deps.sessionStore.getReconstructionAnchorPromptState(sessionId)
+    const reconstructionAnchor =
+      this.deps.sessionStore.getReconstructionAnchorPromptState(sessionId)
     const latestAnchorEntryId = reconstructionAnchor?.entryId ?? null
     const persistedState = this.fromSummary(
       this.deps.sessionStore.getSummaryState(sessionId),
@@ -172,27 +176,23 @@ export class CompactionRuntimeCoordinator {
     return { state: { ...persistedState }, latestAnchorEntryId }
   }
 
-  async compact(
-    sessionId: string
-  ): Promise<{ compacted: boolean; state: SessionCompactionState }> {
+  async compact(sessionId: string): Promise<{ compacted: boolean; state: SessionCompactionState }> {
     const instance = this.instance(sessionId)
     const scope = this.deps.runLifecycle.scopeFor(sessionId, instance)
+    await instance.controlReady()
     const state = instance.getRuntimeState() ?? (await this.deps.sessionState.getSummary(sessionId))
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
     }
     this.assertCurrent(sessionId, instance)
-    const modelConfig = this.deps.providerSettings.getModelConfig(
-      state.modelId,
-      state.providerId
-    )
+    const modelConfig = this.deps.providerSettings.getModelConfig(state.modelId, state.providerId)
     if (shouldBypassDeepChatContextBudget(state.providerId, modelConfig, state.modelId)) {
       throw new Error('Manual compaction is only available for DeepChat agent sessions.')
     }
     if (state.status !== 'idle') {
       throw new Error('Manual compaction is only available when the session is idle.')
     }
-    if (this.deps.runLifecycle.hasPendingInteractions(sessionId)) {
+    if (await this.deps.runLifecycle.hasPendingInteractions(sessionId)) {
       throw new Error('Pending tool interactions must be resolved before compacting.')
     }
 
@@ -203,8 +203,12 @@ export class CompactionRuntimeCoordinator {
       modelConfig
     )
     const { capabilitySnapshot } = providerModelFacts
-    this.deps.runLifecycle.transitionStatus(scope, 'generating')
-    const compactionAbortController = this.deps.runLifecycle.ensureOperationController(scope)
+    const compactionAbortController = await this.deps.runLifecycle.ensureOperationController(scope)
+    await this.deps.runLifecycle.transitionStatus(
+      scope,
+      'generating',
+      instance.operationOwner(compactionAbortController)
+    )
     const compactionAbortSignal = compactionAbortController.signal
     try {
       throwIfAbortRequested(compactionAbortSignal)
@@ -229,20 +233,13 @@ export class CompactionRuntimeCoordinator {
         modelConfig,
         state.modelId
       )
-      const maxTokens = capAgentRequestMaxTokens(
-        generationSettings.maxTokens,
-        contextBudgetLength
-      )
+      const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
       const activeSkillNames = await awaitWithAbort(
         this.deps.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId),
         compactionAbortSignal
       )
       this.assertCurrent(sessionId, instance)
-      const projectDir = this.deps.sessionSettings.resolveProjectDir(
-        sessionId,
-        undefined,
-        instance
-      )
+      const projectDir = this.deps.sessionSettings.resolveProjectDir(sessionId, undefined, instance)
       const tools = await awaitWithAbort(
         this.deps.toolResolver.loadToolDefinitionsForSession(
           sessionId,
@@ -321,14 +318,12 @@ export class CompactionRuntimeCoordinator {
         state: this.resolveProjection(sessionId, instance).state
       }
     } finally {
-      const stillOwnsLifecycle = this.deps.runLifecycle.canSettleOperation(
+      await this.deps.runLifecycle.clearOperationController(scope, compactionAbortController)
+      await this.deps.runLifecycle.transitionStatus(
         scope,
-        compactionAbortController
+        'idle',
+        instance.operationOwner(compactionAbortController)
       )
-      this.deps.runLifecycle.clearOperationController(scope, compactionAbortController)
-      if (stillOwnsLifecycle) {
-        this.deps.runLifecycle.transitionStatus(scope, 'idle')
-      }
     }
   }
 
@@ -415,14 +410,28 @@ export class CompactionRuntimeCoordinator {
       throw error
     }
 
-    if (result.anchorCommitted && result.outcome !== 'unchanged' && scope.isCurrent() && this.deps.pluginContext?.hasHooks()) {
+    if (
+      result.anchorCommitted &&
+      result.outcome !== 'unchanged' &&
+      scope.isCurrent() &&
+      this.deps.pluginContext?.hasHooks()
+    ) {
       const state = expectedInstance.getRuntimeState()
       if (state && state.providerId !== 'acp') {
         try {
           await this.deps.pluginContext.accept({
-            sessionId, messageId: compactionMessageId, prompt: '', model: state.modelId,
-            cwd: this.deps.sessionSettings.resolveProjectDir(sessionId, undefined, expectedInstance),
-            source: 'compact', boundaryId: intent.compactionAttemptId, signal: options?.signal
+            sessionId,
+            messageId: compactionMessageId,
+            prompt: '',
+            model: state.modelId,
+            cwd: this.deps.sessionSettings.resolveProjectDir(
+              sessionId,
+              undefined,
+              expectedInstance
+            ),
+            source: 'compact',
+            boundaryId: intent.compactionAttemptId,
+            signal: options?.signal
           })
         } catch (error) {
           logger.warn('[PluginHooks] Compaction hook dispatch failed', { sessionId, error })
@@ -528,7 +537,8 @@ export class CompactionRuntimeCoordinator {
     expectedInstance = this.instance(sessionId)
   ): void {
     this.assertCurrent(sessionId, expectedInstance)
-    const reconstructionAnchor = this.deps.sessionStore.getReconstructionAnchorPromptState(sessionId)
+    const reconstructionAnchor =
+      this.deps.sessionStore.getReconstructionAnchorPromptState(sessionId)
     const projectedState = {
       ...state,
       boundaryReason:

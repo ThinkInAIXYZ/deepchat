@@ -11,7 +11,6 @@ import { CompactionService } from '@/agent/deepchat/runtime/compactionService'
 import { DeepChatLoopRunner } from '@/agent/deepchat/runtime/deepChatLoopRunner'
 import { DeferredToolExecutor } from '@/agent/deepchat/runtime/deferredToolExecutor'
 import { InteractionCoordinator } from '@/agent/deepchat/runtime/interactionCoordinator'
-import { InteractionParkingRegistry } from '@/agent/deepchat/runtime/interactionParkingRegistry'
 import { MessageProjectionService } from '@/agent/deepchat/runtime/messageProjectionService'
 import { PendingInputAdmissionCoordinator } from '@/agent/deepchat/runtime/pendingInputAdmissionCoordinator'
 import { PendingInputPump } from '@/agent/deepchat/runtime/pendingInputPump'
@@ -190,7 +189,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   const tapeService = sessionData.tapeStore
   const pendingInputCoordinator = sessionData.pendingInputs
 
-  const runtime = new DeepChatAgentRuntime()
+  const runtime = new DeepChatAgentRuntime(deps.control)
   const identity = new SessionIdentityService({ registry: runtime, database })
   const messageProjection = new MessageProjectionService({
     registry: runtime,
@@ -314,7 +313,6 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     commandShell,
     messageProjection
   })
-  const interactionParking = new InteractionParkingRegistry()
   const toolSurfaceDiagnostics = new ToolSurfaceShadowDiagnosticsRegistry()
   const toolSurfaceCanaryDiagnostics = new ToolSurfaceCanaryDiagnosticsRegistry()
   const programmaticToolParents =
@@ -325,6 +323,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     })
   const pruningFeedback = new JevPruningFeedback()
   const sessionLifecycle = new SessionLifecycleCoordinator({
+    fenceInputEffects: (sessionId) => pendingInputPump.fenceSessionInputEffects(sessionId),
     registry: runtime,
     providerSettings,
     promptSettings: deps.promptSettings,
@@ -337,7 +336,6 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     compaction,
     memory,
     runLifecycle,
-    interactionParking,
     toolSurfaceDiagnostics,
     toolSurfaceCanaryDiagnostics,
     programmaticToolParents,
@@ -459,14 +457,11 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     hookSink
   })
   const pendingInputPump = new PendingInputPump({
+    control: deps.control,
     pendingInputs: pendingInputCoordinator,
     transcript: messageStore,
     runLifecycle,
     turnStarter: turnCoordinator,
-    // Steer merging depends on an in-flight steerActiveTurn reaching the steer marker before a
-    // settlement-triggered drain adopts the claim, and that window is currently defined only by
-    // this read's async depth. The extra boundary is kept until the race is closed properly.
-    sessionState: { get: async (sessionId) => await sessionState.get(sessionId) },
     sessionSettings
   })
   pendingInputWakeup.bind(pendingInputPump)
@@ -493,7 +488,6 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     hookSink,
     turnCoordinator,
     continuationAdmission: deps.interactionContinuationAdmission,
-    interactionParking,
     executionJournal: tapeService,
     viewManifests: tapeService,
     toolSurfaces: tapeService
@@ -577,10 +571,20 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
       input
     )
 
-  const reconcilePersistedRuntimeState = (): void => {
+  const reconcilePersistedRuntimeState = (): Promise<void> => {
+    const retiredEffects = pendingInputPump.fenceInputEffectsForRecovery()
     const forceRecoverMessagesBySession = reportStartupExecutionRecovery(tapeService)
     const pendingInputRecovery = pendingInputCoordinator.recoverInputsAfterRestart()
-    pendingInputPump.replaceRestartedQueueInputs(pendingInputRecovery.heldQueueInputIds)
+    const inputRecovery = pendingInputPump.replaceRestartedQueueInputs(
+      [...pendingInputRecovery.affectedSessionIds].map((sessionId) => ({
+        sessionId,
+        heldInputIds: pendingInputCoordinator
+          .listPendingInputs(sessionId)
+          .filter(({ id }) => pendingInputRecovery.heldQueueInputIds.has(id))
+          .map(({ id }) => id)
+      })),
+      retiredEffects
+    )
     if (pendingInputRecovery.affectedSessionIds.size > 0) {
       logger.info(
         `DeepChatAgent: reconciled ${pendingInputRecovery.affectedSessionIds.size} sessions with pending inputs`
@@ -602,10 +606,14 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     if (recovered > 0) {
       logger.info(`DeepChatAgent: recovered ${recovered} pending messages to error status`)
     }
+    return inputRecovery
   }
-  reconcilePersistedRuntimeState()
+  const ready = reconcilePersistedRuntimeState()
+  void ready.catch(() => {})
 
   return {
+    ready,
+    drainPendingInputEffects: () => pendingInputPump.drainForMaintenance(),
     runtime,
     sessionLifecycle,
     sessionState,

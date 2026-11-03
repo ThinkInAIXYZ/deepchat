@@ -26,6 +26,11 @@ import {
 
 const SESSION_ID = 'session-1'
 const MESSAGE_ID = 'message-1'
+const EXECUTION_CONTEXT = {
+  scope: { sessionId: SESSION_ID },
+  lease: { id: 'interaction', target: { kind: 'interaction', messageId: MESSAGE_ID, toolCallId: 'call-1' } },
+  owner: { kind: 'operation', id: 'operation' }
+} as unknown as Parameters<DeferredToolExecutor['execute']>[0]
 const TOOL_CALL = {
   id: 'call-1',
   name: 'write_file',
@@ -168,9 +173,8 @@ function createHarness(
     },
     cacheImage: vi.fn(async (data: string) => data),
     runLifecycle: {
-      registerDeferredToolController: vi.fn(() => abortController),
-      clearDeferredToolController: vi.fn(),
-      getAbortSignal: vi.fn(() => undefined)
+      registerDeferredToolController: vi.fn(async () => abortController),
+      clearDeferredToolController: vi.fn(async () => true)
     },
     sessionSettings: { resolveProjectDir: vi.fn(() => '/workspace') },
     sessionState: {
@@ -208,7 +212,7 @@ function createHarness(
     dependencies,
     execute: (onToolCallStarted?: () => void) =>
       executor.execute(
-        SESSION_ID,
+        EXECUTION_CONTEXT,
         MESSAGE_ID,
         toolCall,
         onToolCallStarted,
@@ -457,7 +461,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
     const executionContract = buildContract()
 
     await executor.execute(
-      SESSION_ID,
+      EXECUTION_CONTEXT,
       MESSAGE_ID,
       TOOL_CALL,
       undefined,
@@ -501,7 +505,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
       try {
         await expect(
           harness.executor.execute(
-            SESSION_ID,
+            EXECUTION_CONTEXT,
             MESSAGE_ID,
             toolCall,
             undefined,
@@ -547,7 +551,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
     const { dependencies, executor } = createHarness()
 
     await executor.execute(
-      SESSION_ID,
+      EXECUTION_CONTEXT,
       MESSAGE_ID,
       TOOL_CALL,
       undefined,
@@ -572,7 +576,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
     const permissionLease = { kind: 'file' as const, leaseId: 'file-lease-1' }
 
     await executor.execute(
-      SESSION_ID,
+      EXECUTION_CONTEXT,
       MESSAGE_ID,
       TOOL_CALL,
       undefined,
@@ -595,7 +599,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
 
     await expect(
       executor.execute(
-        SESSION_ID,
+        EXECUTION_CONTEXT,
         MESSAGE_ID,
         TOOL_CALL,
         undefined,
@@ -612,7 +616,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
   it('fails closed when deferred Agent filesystem execution lacks a stored shell profile', async () => {
     const { dependencies, executionJournal, executor } = createHarness()
 
-    await expect(executor.execute(SESSION_ID, MESSAGE_ID, TOOL_CALL)).resolves.toMatchObject({
+    await expect(executor.execute(EXECUTION_CONTEXT, MESSAGE_ID, TOOL_CALL)).resolves.toMatchObject({
       responseText: 'Deferred file execution is missing its shell profile.',
       isError: true,
       invoked: false
@@ -633,7 +637,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
     const { server_name: _serverName, ...unboundToolCall } = TOOL_CALL
 
     await expect(
-      executor.execute(SESSION_ID, MESSAGE_ID, unboundToolCall, undefined, undefined, 'posix')
+      executor.execute(EXECUTION_CONTEXT, MESSAGE_ID, unboundToolCall, undefined, undefined, 'posix')
     ).resolves.toMatchObject({
       responseText: 'Deferred tool execution is missing its server identity.',
       isError: true,
@@ -659,7 +663,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
       }
     ] as never)
 
-    await executor.execute(SESSION_ID, MESSAGE_ID, {
+    await executor.execute(EXECUTION_CONTEXT, MESSAGE_ID, {
       ...TOOL_CALL,
       name: 'echo',
       server_name: 'mcp-server'
@@ -675,7 +679,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
 
     await expect(
       executor.execute(
-        SESSION_ID,
+        EXECUTION_CONTEXT,
         MESSAGE_ID,
         { ...TOOL_CALL, name: 'echo', server_name: 'mcp-server' },
         undefined,

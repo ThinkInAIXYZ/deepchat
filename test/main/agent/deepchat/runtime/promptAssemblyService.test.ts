@@ -1,3 +1,4 @@
+import { useHarnessControl } from '../helpers/control'
 import { describe, expect, it, vi } from 'vitest'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
@@ -6,6 +7,8 @@ import {
   type PromptAssemblyServiceDependencies
 } from '@/agent/deepchat/runtime/promptAssemblyService'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
+
+const control = useHarnessControl()
 
 const SESSION_ID = 'session'
 
@@ -36,7 +39,7 @@ function createHarness(
   memoryContent: string | null = 'recalled memory',
   directiveContent: string | null = null
 ) {
-  const runtime = new DeepChatAgentRuntime()
+  const runtime = new DeepChatAgentRuntime(control())
   const contribute = vi.fn(async () => ({
     memory: {
       content: memoryContent,
@@ -109,7 +112,8 @@ describe('PromptAssemblyService', () => {
   it('binds the base assembler to the expected instance and copies its inputs', async () => {
     const { runtime, service } = createHarness()
     buildSystemPromptWithSkills.mockClear()
-    const instance = runtime.getOrHydrate(toAppSessionId('other'))
+    const instance = runtime.getOrHydrate(toAppSessionId(SESSION_ID))
+    await instance.controlReady()
     const toolDefinitions = [] as never[]
     const activeSkillNames = ['skill-a']
     const sessionActiveSkillNames = ['session-skill']

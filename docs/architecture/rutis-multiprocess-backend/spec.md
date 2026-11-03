@@ -2,8 +2,8 @@
 
 ## Status and decision
 
-Status: G0-G6 complete; Rust control ownership and operation contracts are being selected (G7).
-Evidence date: 2026-11-02. Published baseline: `bd64c2d53` (admission code `ffcd98770`).
+Status: G0-G6 complete; Rust admission accepted; G7 control implementation is undergoing functional acceptance.
+Evidence date: 2026-11-02. Rust admission source: `1b054b22a`; comparison baseline: `bd64c2d53`.
 Implementation reference: Rutis `v0.16.0`, released on 2026-10-24. Crates and npm packages are pinned
 to that version.
 
@@ -210,6 +210,152 @@ and default capacity/pending limits remain 6/256. Duration samples remain bounde
 observation buffering to 512; diagnostic backpressure must not decide admission outcomes.
 Readiness identifies the Rust owner truthfully. Node/Electron ABI validation belongs to the
 actual Core/vector worker that loads a native binding, not a removed admission worker.
+
+### Cohesive control protocol
+
+The private `deepchatCoreNative.control(generation, sequence, command)` method is asynchronous,
+authenticated to the existing Core row and generation. Its version-1 receipts carry accepted,
+stale or cancelled results, an owner revision, explicit scope/operation/Run identities and local
+fences. A transport error has an unknown outcome: synchronously fence Core's local effect handles,
+report the existing required-service failure and retire the generation without replay. Main and
+renderer callers cannot dispatch this method.
+
+Rust commands perform finite state transitions only. They never await Provider work, SQL, native
+presentation or a Core callback. Core serializes command submission and receipt application; a
+queued resource request returns its known ticket immediately instead of holding that command
+lane. Later release receipts grant queued tickets. Retain the SDK's 16-MiB internal message bound,
+a 16-MiB queued-metadata bound and 1024 queued commands, with cleanup/failure sent through reserved
+capacity. Large data, function references and transaction callbacks are not control arguments.
+
+| Operation | Required identity and transition |
+| --- | --- |
+| Open/retire scope | Session ID and caller-allocated incarnation; Rust owns the current-incarnation index. Retired originating records remain eligible for their own cleanup |
+| Prepare/commit operation | Incarnation and a caller-allocated controller/operation ID; prepare identifies superseded local handles, Core fences them, commit revalidates the transition before granting replacement |
+| Prepare/commit Run | Incarnation, operation ID, Run ID and message ID; fence the previous Run independently from a reused controller; a newer Run cannot be authorized before Core's fence acknowledgement |
+| Abort/clear/finalize | Expected originating operation or Run ID; cancellation retains a registered Run until its handler settles. Cleanup cannot clear a replacement slot. An operation-clear receipt distinguishes slot removal from permission to finish originating local data cleanup |
+| Publish status/readiness | Explicit operation, Run or orphan-settlement owner; a cached predicate cannot authorize a later status mutation. Terminal observation and current-Session publication remain separate decisions |
+| Park/respond/resume | Message/tool/permission references, interaction lease and resume lease; Rust owns order and exclusion. Core retains resolver callbacks and persisted execution-contract data |
+| Accept/wake/drain | Separate send/steer acceptance tickets, wake reason and drain lease; retain Session input capacity ten and manual/enqueue/completed wake ordering |
+| Settle claim | Claimed row/source, owning operation, phase and durable outcome; Rust grants a disposition, then records rejected/applied/unknown. Rollback and release are separate acknowledged phases |
+
+Core allocates local effect handles before dispatch. A fence can revoke a still-pending handle;
+a late receipt cannot activate it. Scope, Run and controller fences are distinct: cancelling work
+does not itself erase a Run's terminal-settlement ownership. TS retains rich context and Run data
+indexed by Rust-issued identities, plus read-only projections. These lookups cannot grant a Run,
+acquire a lock, select a conflicting claim disposition or replace a control slot.
+
+Prepare/commit is needed where a replacement would otherwise become current before Core has
+stopped the old handle. Core performs local revocation synchronously, acknowledges it, and starts
+effects only after Rust commits the grant. Root receipts are applied before subsequent commands;
+release and cancellation never wait behind Provider or database work. Initial negative cancellation
+also fences pending local handles, covering user stop before a grant arrives.
+
+The synchronous pre-stream boundary and local Store closures cannot acquire control remotely.
+Their bounded operation must already hold its Rust authorization. Manual queue consumption,
+ordinary queued error rollback, thrown-after-registration cleanup and steer consumption retain
+their different transitions. The remaining interaction/claim wire schemas must be fixed against
+their actual drivers before their implementation is connected.
+
+Interaction, resume and drain exclusion use an acquired lease with a caller-allocated ID and a
+typed target: message/tool pair, message, or the Session drain. Acquire is a finite non-waiting
+transition; its receipt distinguishes granted, busy and parked. Release requires the exact target
+and lease ID, including originating cleanup after retirement. The Core driver retains opaque
+lease handles, not a second lock set. Cancellation fences effects without releasing a lease while
+its handler is still running. Retired records retain only the leases needed for originating
+cleanup and are collected after their final release.
+
+An interaction's indeterminate dispatch parks its message through its originating lease. Parking
+belongs to the Session for the Core generation and survives Instance cleanup/reload. Destroying a
+Session clears parking and revokes older scopes' right to park it again. A retired handler may
+record its indeterminate dispatch before destruction, but cannot revive parking after destruction.
+Acquire consults this Rust state directly; no TS `isParked` predicate authorizes a response.
+
+Attachment acceptance uses two Rust FIFO lanes per Session, send and steer. A queue command returns
+granted or queued immediately. A later release receipt names the next granted scope/ticket, and
+Core resolves only that pre-registered local waiter. Cancelling a queued ticket removes it without
+bypassing the active predecessor. Retiring a scope cancels its waiters, while an active preparation
+retains its lane until its handler releases it; a replacement scope cannot overlap that work.
+Both send and steer enter their lane, eliminating the cached `hasPriorSteerAcceptance` decision.
+Tickets carry explicit scope and caller-allocated IDs; their payload and attachment work remain TS.
+After preparation, the driver checks that originating scope before writing input facts. It cannot
+rehydrate a replacement scope to apply a ticket granted to the retired producer.
+
+Provider permission registration binds a callback ID to its scope, Run, message, tool and Provider
+request ID. The callback remains local TS data; Rust owns the selected slot. Registration is awaited
+by the streaming event loop. Resolving requires the originating interaction lease and an exact
+callback identity, or Rust's confirmation that the slot is absent. A direct positive fallback also
+requires the matching live Run; an orphan may only be denied. A conflicting slot is never consumed.
+Taking a resolution consumes it before invoking the Provider and retains that fact until Run
+cleanup, so a failed or late reply cannot authorize another direct fallback. Fresh registration
+has a new callback ID. Tool IDs may be empty for Provider callbacks.
+
+Run replacement, clear, abort and scope retirement atomically revoke the corresponding callback
+slots and return local cancellation fences. Core may deny a pending handle immediately, including
+before its registration reply, but cannot grant a positive response without the Rust receipt.
+After the Provider effect, the driver rechecks the original scope/Run cancellation fence before
+publishing its decision. It does not rehydrate another Instance to apply a late callback.
+A denial may finish the same retained Run's cancellation cleanup; it cannot publish for a
+replacement Run or retired scope.
+
+Deferred tool execution holds a child lease of its exact interaction and originating Run or
+operation. Rust grants one child for that target; duplicate acquisition is busy. The child ID
+selects a local AbortController, and cleanup releases that exact originating lease without looking
+up a replacement Instance. Abort, owner replacement and retirement revoke children and fence their
+controllers. Core allocates the controller before acquisition and propagates parent cancellation
+locally, so a late grant cannot start a cancelled tool. It keeps no independent tool-to-controller
+registry that can authorize execution.
+
+Controller reuse does not merge Run authority. Once registered, status and originating cleanup
+carry the Run ID as well as the captured operation ID. Bare operation status cannot settle a live
+or previously registered Run. A subsequent grant invalidates earlier terminal-status authority;
+the last cleared operation records which Run it belonged to. Pending interaction projection is
+updated atomically with an accepted Rust status transition before publication. Rust also owns
+interaction origin/order reconciliation and tool-batch call/invocation/commit/pending IDs. TS keeps
+the execution-contract object under the batch ID selected by Rust; it cannot select a batch from
+its local object map. Clearing a batch drops that object. Restored transcript references are
+reconciled through the same owner-bound command before they can authorize a continuation.
+
+An interaction handler acquires its originating exclusion lease before transcript hydration,
+then asks Rust to validate that exact lease and the first pending tuple. Positive Provider and
+deferred-tool grants recheck that first tuple at their own grant boundary. Persisting a resolved
+interaction precedes advancing the Root projection; a response must not expose the next approval
+while the previous one is only locally resolved.
+
+Input selection sends a body-free Store summary: ordered queue IDs/states, the steer head,
+claimed/blocking flags and question-follow-up intent. Rust combines it with its status,
+interactions, drain owner and restart/manual holds to choose an action and reserve the sole
+Session claim before TS writes a claimed row. Ordinary pending enqueue does not reserve a claim.
+After a grant, one synchronous local closure rechecks the observed summary and scope before
+performing the existing Store operation. This check may reject a grant; it cannot choose a
+different input. A changed summary is acknowledged as rejected before requesting another grant.
+Queue capacity counts waiting queue entries, excluding claimed rows and steer inputs.
+
+Each granted claim has origin-bound effect tickets for user-fact creation, rollback and its finite
+durable dispositions. The driver acknowledges applied, rejected or unknown after the synchronous
+Store effect and its durable verification. Publication failure after persistence is still applied;
+verification failure is unknown and cannot authorize release or replay. User-fact creation and
+claimed-row linking remain one SQL transaction. Release after rollback requires an acknowledged
+rollback. Cancelling or retiring a scope can narrow effects immediately, while originating cleanup
+retains its exact claim identity.
+
+Manual queue consumption obtains its fixed consume ticket before entering the loop. The
+synchronous once-only pre-stream boundary uses that ticket before either rate-gate waiting or
+Provider streaming, then queues its outcome acknowledgement. A never-attempted ticket must be
+explicitly rejected before selecting a different disposition; a lost reply is not rejection.
+Rust owns the active steer marker, restart/manual holds and deferred wake priority
+`manual > enqueue > completed`. A busy drain request records a wake only after Rust has observed
+the owning claim's settlement; exact drain completion returns that wake once.
+
+One Harness belongs to one Core generation. Startup recovery imports profile holds through the
+same ordered control lane, and input entrypoints await its acknowledgement. Database reopen first
+fences outstanding local input tickets and awaits their outcomes under the existing maintenance
+boundary, then reconciles durable Store rows and awaits Root recovery before resuming ingress.
+Recovery cannot silently erase a live unknown claim or let a late preauthorized SQL callback
+modify the reopened database.
+
+Rutis 0.16 exposes synchronous host methods, but its session pump has no per-call deadline. Use
+the asynchronous control method rather than introducing an unbounded Core-thread wait or a new
+watchdog. This choice does not change the existing native SQLite transaction boundary.
 
 ## Memory as a first-class capability
 
@@ -440,6 +586,13 @@ Durable transaction callbacks and arbitrary synchronous repository calls are not
 
 ### Measurement and adoption gates
 
+Functional delivery is the execution priority. Structural migrations are gated by actual default
+wiring, preserved behavior, lifecycle/recovery correctness, appropriate tests and real-application
+validation. Existing resource observations are retained as reports; additional sampling and timing
+variance analysis do not block these migrations. Investigate a concrete user-visible performance
+regression when observed. A later module selected specifically for a performance claim still
+needs direct supporting evidence; do not claim a gain from its language or framework alone.
+
 Establish two baselines: the application before admission extraction and committed `ffcd98770`.
 Use the first to account for the total architecture cost and the second to attribute each next
 module. Preserve immutable artifacts and isolated profiles, with versions and workload parameters.
@@ -473,8 +626,9 @@ databases and retained IPC queues in interpretation.
 Before implementing a performance-driven Rust slice, record a numeric target and maximum accepted
 startup, memory and responsiveness regressions in the live plan from that baseline. Adopt it only
 when repeated end-to-end results exceed baseline variance, preserve output/quality and meet those
-budgets. An isolation-driven slice may be accepted for proven failure containment within the same
-resource budgets; report that purpose explicitly instead of calling it a speed optimization.
+budgets when making that explicit performance claim. An isolation-driven slice is accepted on
+functional and lifecycle evidence; retain resource observations as reports and describe its
+architectural purpose without claiming a speed improvement.
 
 Shared PR runners report wall-clock timing budgets without blocking on an individual overrun.
 They still enforce correctness, ownership, bounded work/queues, runtime compatibility, finite
@@ -486,22 +640,11 @@ internal composition changes and their relevant checks. Require matching baselin
 application E2E for a complete capability cutover or affected public/lifecycle behavior, rather
 than repeating it for each internal file move. Shared runners may enforce deterministic work,
 payload and queue limits; do not add relative wall-clock regression gates to them.
-Select targeted fixed-device resource comparisons when a module materially changes process
-placement, IPC volume, batching or storage access, or when measured performance is its adoption
-objective. Include transport and the whole process tree where those costs change. For a structural
-extraction, start with one representative affected workload; expand only when it exposes a concrete
-suspected regression. Ordinary port extraction requires no performance rerun solely because it
-changes an async call. Reuse verified immutable runtime evidence for documentation or test-only edits.
-
-Choose the affected workloads and measurement budget before running. Report central tendency and
-spread against a matching local baseline; do not infer a regression or improvement from one sample
-or a noise-level difference. An isolated timing overrun does not block the next slice. Investigate
-a material suspected regression with at most one predeclared confirmation batch, retaining every
-sample; a reproducible material regression must be resolved before adoption. If that batch remains
-inconclusive, stop measuring and record the uncertainty without a speed claim. Further measurement
-requires a changed implementation, workload or concrete new evidence. CI timing noise alone cannot
-block a structural extraction. Do not retry shared CI until it happens to pass, repeat unchanged whole-app captures, or
-optimize production code solely to meet a noisy shared-runner sample.
+Use existing fixed-device observations when useful. Do not schedule additional resource captures
+for a structural extraction solely because process placement or IPC changes, or repeat a workload
+to resolve timing noise. Keep functional E2E and correctness gates independent of performance
+reports. Select a focused measurement only for an observed material regression or an explicitly
+selected performance-driven module, and stop once it answers that concrete question.
 Size completion waits for the bounded fixture and shutdown work; a fixture timeout is not an
 additional adoption latency budget. Production handshake, retrieval and ownership deadlines remain
 unchanged when a large benchmark needs more completion headroom.

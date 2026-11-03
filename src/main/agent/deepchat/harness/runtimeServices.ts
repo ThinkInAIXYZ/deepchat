@@ -65,6 +65,7 @@ export type DeepChatHarnessSkillPort = Pick<
   SkillMetadataSnapshotPort
 
 export interface DeepChatHarnessDependencies {
+  control: import('@shared/harness/control').HarnessControlPort
   pluginContext?: PluginContextPort
   providerRuntime: ProviderExecutionPort
   providerSettings: ProviderModelResolutionPort
@@ -109,6 +110,8 @@ export interface DeepChatHarnessDependencies {
  * contract is package-private so no caller can reach an owner around the harness.
  */
 export interface DeepChatRuntimeServices {
+  ready: Promise<void>
+  drainPendingInputEffects(): Promise<void>
   runtime: DeepChatAgentRuntime
   sessionLifecycle: SessionLifecycleCoordinator
   sessionState: SessionStateResolver
@@ -124,5 +127,5 @@ export interface DeepChatRuntimeServices {
   toolSurfaceDiagnostics: ToolSurfaceShadowDiagnosticsRegistry
   toolSurfaceCanaryDiagnostics: ToolSurfaceCanaryDiagnosticsRegistry
   acpCompatibility: AcpAgentInstanceDependencyFactory
-  reconcileAfterDatabaseReopen(): void
+  reconcileAfterDatabaseReopen(): Promise<void>
 }

@@ -1,3 +1,4 @@
+import { useHarnessControl } from '../helpers/control'
 import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
@@ -18,6 +19,8 @@ import {
 } from '@/agent/deepchat/runtime/sessionStatusPublisher'
 import * as toolSurface from '@/agent/deepchat/runtime/toolSurface'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
+
+const control = useHarnessControl()
 
 const SESSION_ID = 'session'
 
@@ -84,7 +87,7 @@ function createMessage(
 }
 
 function createHarness(initialMessages: ChatMessageRecord[] = []) {
-  const runtime = new DeepChatAgentRuntime()
+  const runtime = new DeepChatAgentRuntime(control())
   const messages = [...initialMessages]
   const statusPorts: SessionStatusPublisherPorts = {
     publishEvent: vi.fn(),
@@ -142,20 +145,21 @@ describe('RunLifecycleCoordinator', () => {
   it('replaces an aborted lingering run with a fresh operation controller', async () => {
     const { coordinator } = createHarness()
     const scope = coordinator.getOrCreateScope(SESSION_ID)
+    await scope.instance.controlReady()
     const oldController = new AbortController()
     const permissionResolve = vi.fn().mockResolvedValue(undefined)
-    coordinator.registerRun(scope, createRun(SESSION_ID, 'run-old', 'message-old', oldController))
-    scope.instance.registerActiveProviderPermission({
+    await coordinator.registerRun(scope, createRun(SESSION_ID, 'run-old', 'message-old', oldController))
+    await scope.instance.registerActiveProviderPermission({
       requestId: 'permission-old',
       messageId: 'message-old',
       toolCallId: 'tool-old',
       providerId: 'acp',
       permissionType: 'write',
       resolve: permissionResolve
-    })
+    }, 'run-old')
     oldController.abort()
 
-    const replacement = coordinator.ensureOperationController(scope)
+    const replacement = await coordinator.ensureOperationController(scope)
     await flushPromises()
 
     expect(replacement).not.toBe(oldController)
@@ -166,17 +170,17 @@ describe('RunLifecycleCoordinator', () => {
     expect(permissionResolve).toHaveBeenCalledWith(false)
   })
 
-  it('requires the exact controller owner before clearing operation state', () => {
+  it('requires the exact controller owner before clearing operation state', async () => {
     const { coordinator } = createHarness()
     const scope = coordinator.getOrCreateScope(SESSION_ID)
-    const owned = coordinator.ensureOperationController(scope)
-    const replacement = new AbortController()
-    scope.instance.setAbortController(replacement)
+    await scope.instance.controlReady()
+    const owned = await coordinator.ensureOperationController(scope)
+    const replacement = await scope.instance.ensureOperationController()
 
-    expect(coordinator.clearOperationController(scope)).toBe(false)
-    expect(coordinator.clearOperationController(scope, owned)).toBe(false)
+    expect(await coordinator.clearOperationController(scope)).toBe(false)
+    expect(await coordinator.clearOperationController(scope, owned)).toBe(false)
     expect(scope.instance.getAbortController()).toBe(replacement)
-    expect(coordinator.clearOperationController(scope, replacement)).toBe(true)
+    expect(await coordinator.clearOperationController(scope, replacement)).toBe(true)
     expect(scope.instance.getAbortController()).toBeUndefined()
   })
 
@@ -184,24 +188,26 @@ describe('RunLifecycleCoordinator', () => {
     const { coordinator, runtime } = createHarness()
     const sessionId = toAppSessionId(SESSION_ID)
     const staleScope = coordinator.getOrCreateScope(SESSION_ID)
+    await staleScope.instance.controlReady()
     const staleRun = createRun(SESSION_ID, 'shared-run', 'stale-message')
     const stalePermissionResolve = vi.fn().mockResolvedValue(undefined)
-    coordinator.registerRun(staleScope, staleRun)
-    staleScope.instance.registerActiveProviderPermission({
+    await coordinator.registerRun(staleScope, staleRun)
+    await staleScope.instance.registerActiveProviderPermission({
       requestId: 'stale-permission',
       messageId: 'stale-message',
       toolCallId: 'stale-tool',
       providerId: 'acp',
       permissionType: 'write',
       resolve: stalePermissionResolve
-    })
+    }, 'shared-run')
 
     runtime.evict(sessionId)
     const currentScope = coordinator.getOrCreateScope(SESSION_ID)
+    await currentScope.instance.controlReady()
     const currentRun = createRun(SESSION_ID, 'shared-run', 'current-message')
-    coordinator.registerRun(currentScope, currentRun)
+    await coordinator.registerRun(currentScope, currentRun)
 
-    expect(coordinator.clearRun(staleScope, staleRun.runId)).toBe(true)
+    expect(await coordinator.clearRun(staleScope, staleRun.runId)).toBe(true)
     await flushPromises()
 
     expect(staleScope.instance.getActiveGeneration()).toBeUndefined()
@@ -209,12 +215,13 @@ describe('RunLifecycleCoordinator', () => {
     expect(stalePermissionResolve).toHaveBeenCalledOnce()
   })
 
-  it('rejects a run whose session does not match its scope', () => {
+  it('rejects a run whose session does not match its scope', async () => {
     const { coordinator } = createHarness()
     const scope = coordinator.getOrCreateScope(SESSION_ID)
+    await scope.instance.controlReady()
     const mismatchedRun = createRun('other', 'run-other', 'message-other')
 
-    expect(() => coordinator.registerRun(scope, mismatchedRun)).toThrow(
+    await expect(coordinator.registerRun(scope, mismatchedRun)).rejects.toThrow(
       'Loop run run-other belongs to session other, not session'
     )
     expect(scope.instance.getActiveGeneration()).toBeUndefined()
@@ -223,26 +230,27 @@ describe('RunLifecycleCoordinator', () => {
   it('keeps run, message and first-turn-ready fences distinct', async () => {
     const { coordinator } = createHarness()
     const scope = coordinator.getOrCreateScope(SESSION_ID)
+    await scope.instance.controlReady()
     const run = createRun(SESSION_ID, 'run-1', 'message-1')
-    coordinator.registerRun(scope, run)
+    await coordinator.registerRun(scope, run)
 
     expect(coordinator.isRunCurrentForScope(scope, 'run-1')).toBe(true)
     expect(coordinator.isMessageAssociatedWithRun(run, 'message-1')).toBe(true)
     expect(coordinator.isMessageAssociatedWithRun(run, 'message-2')).toBe(false)
     expect(coordinator.resolveStreamRequestId(SESSION_ID, 'message-1')).toBe('run-1')
     expect(coordinator.resolveStreamRequestId(SESSION_ID, 'message-2')).toBe('message-2')
-    expect(coordinator.markFirstTurnReady(scope, 'run-other')).toBe(false)
+    expect(await coordinator.markFirstTurnReady(scope, 'run-other')).toBe(false)
 
     const ready = scope.instance.waitForFirstTurnReady({ timeoutMs: 100 })
-    expect(coordinator.markFirstTurnReady(scope, 'run-1')).toBe(true)
+    expect(await coordinator.markFirstTurnReady(scope, 'run-1')).toBe(true)
     await expect(ready).resolves.toBe(true)
 
     coordinator.clearFirstTurnReady(SESSION_ID)
     run.abortController.abort()
-    expect(coordinator.markFirstTurnReady(scope, 'run-1')).toBe(false)
+    expect(await coordinator.markFirstTurnReady(scope, 'run-1')).toBe(false)
   })
 
-  it('does not hydrate an evicted session while clearing first-turn readiness', () => {
+  it('does not hydrate an evicted session while clearing first-turn readiness', async () => {
     const { coordinator, runtime } = createHarness()
     const sessionId = toAppSessionId(SESSION_ID)
     coordinator.getOrCreateScope(SESSION_ID)
@@ -253,19 +261,21 @@ describe('RunLifecycleCoordinator', () => {
     expect(runtime.getHydrated(sessionId)).toBeUndefined()
   })
 
-  it('observes a stale terminal result without overwriting the current run status', () => {
+  it('observes a stale terminal result without overwriting the current run status', async () => {
     const { coordinator, terminalObserver } = createHarness()
     const scope = coordinator.getOrCreateScope(SESSION_ID)
+    await scope.instance.controlReady()
     scope.instance.setRuntimeState(createState('generating'))
+    await scope.instance.transitionControlStatus({ kind: 'orphan' }, 'generating')
     const staleRun = createRun(SESSION_ID, 'run-stale', 'message-stale')
     const currentRun = createRun(SESSION_ID, 'run-current', 'message-current')
-    coordinator.registerRun(scope, staleRun)
-    coordinator.registerRun(scope, currentRun)
+    await coordinator.registerRun(scope, staleRun)
+    await coordinator.registerRun(scope, currentRun)
     vi.mocked(terminalObserver.observeTerminal).mockImplementation(() => {
       expect(scope.state()?.status).toBe('generating')
     })
 
-    coordinator.applyProcessResultStatus(
+    await coordinator.applyProcessResultStatus(
       SESSION_ID,
       { status: 'completed', stopReason: 'complete' },
       staleRun.runId
@@ -274,7 +284,7 @@ describe('RunLifecycleCoordinator', () => {
     expect(terminalObserver.observeTerminal).toHaveBeenCalledOnce()
     expect(scope.state()?.status).toBe('generating')
 
-    coordinator.applyProcessResultStatus(
+    await coordinator.applyProcessResultStatus(
       SESSION_ID,
       { status: 'completed', stopReason: 'complete' },
       currentRun.runId
@@ -284,14 +294,16 @@ describe('RunLifecycleCoordinator', () => {
     expect(scope.state()?.status).toBe('idle')
   })
 
-  it('does not let an aborted turn overwrite a replacement operation status', () => {
+  it('does not let an aborted turn overwrite a replacement operation status', async () => {
     const message = createMessage('message-old', [])
     const { coordinator, terminalObserver, transcript } = createHarness([message])
     const scope = coordinator.getOrCreateScope(SESSION_ID)
+    await scope.instance.controlReady()
     scope.instance.setRuntimeState(createState('generating'))
-    const replacement = coordinator.ensureOperationController(scope)
+    await scope.instance.transitionControlStatus({ kind: 'orphan' }, 'generating')
+    const replacement = await coordinator.ensureOperationController(scope)
 
-    coordinator.settleAbortedTurn(SESSION_ID, message.id, 'run-old', '{}')
+    await coordinator.settleAbortedTurn(SESSION_ID, message.id, 'run-old', '{}')
 
     expect(scope.state()?.status).toBe('generating')
     expect(scope.instance.getAbortController()).toBe(replacement)
@@ -310,9 +322,11 @@ describe('RunLifecycleCoordinator', () => {
       message
     ])
     const scope = coordinator.getOrCreateScope(SESSION_ID)
+    await scope.instance.controlReady()
     scope.instance.setRuntimeState(createState('generating'))
+    await scope.instance.transitionControlStatus({ kind: 'orphan' }, 'generating')
 
-    expect(coordinator.refreshPendingInteractions(SESSION_ID)).toBe(true)
+    expect(await coordinator.refreshPendingInteractions(SESSION_ID)).toBe(true)
     await coordinator.cancel(SESSION_ID)
 
     expect(scope.instance.getPendingInteractions()).toEqual([])
@@ -346,9 +360,10 @@ describe('RunLifecycleCoordinator', () => {
     expect(revoke).toHaveBeenCalledWith(SESSION_ID)
   })
 
-  it('revokes deferred dispatches and live grants when current scope operations are cancelled', () => {
+  it('revokes deferred dispatches and live grants when current scope operations are cancelled', async () => {
     const { coordinator, revokeConversation } = createHarness()
     const scope = coordinator.getOrCreateScope(SESSION_ID)
+    await scope.instance.controlReady()
     const revoke = vi.spyOn(toolSurface, 'revokeToolSurfaceDeferredDispatchesForSession')
 
     coordinator.cancelScopeOperations(scope)
@@ -360,7 +375,9 @@ describe('RunLifecycleCoordinator', () => {
   it('settles a generating session that nothing owns when it is stopped', async () => {
     const { coordinator, pendingInputWakeup, terminalObserver } = createHarness()
     const scope = coordinator.getOrCreateScope(SESSION_ID)
+    await scope.instance.controlReady()
     scope.instance.setRuntimeState(createState('generating'))
+    await scope.instance.transitionControlStatus({ kind: 'orphan' }, 'generating')
     vi.spyOn(toolSurface, 'revokeToolSurfaceDeferredDispatchesForSession')
 
     await coordinator.cancel(SESSION_ID)
@@ -371,16 +388,18 @@ describe('RunLifecycleCoordinator', () => {
     expect(pendingInputWakeup.drain).toHaveBeenCalledWith(SESSION_ID, 'completed')
   })
 
-  it('declines to settle while the transcript still holds another approval', () => {
+  it('declines to settle while the transcript still holds another approval', async () => {
     const message = createMessage('message-pending', [createPendingAction('tool-1')])
     const { coordinator, terminalObserver } = createHarness([message])
     const scope = coordinator.getOrCreateScope(SESSION_ID)
+    await scope.instance.controlReady()
     scope.instance.setRuntimeState(createState('generating'))
+    await scope.instance.transitionControlStatus({ kind: 'orphan' }, 'generating')
     // The instance queue is stale relative to the transcript: the caller closed one entry, and
     // another message's approval is still open.
-    scope.instance.replacePendingInteractions([])
+    await scope.instance.replacePendingInteractions([])
 
-    expect(coordinator.settleOrphanedInteraction(SESSION_ID, null)).toBe(false)
+    expect(await coordinator.settleOrphanedInteraction(SESSION_ID, null)).toBe(false)
     expect(scope.state()?.status).toBe('generating')
     expect(terminalObserver.observeTerminal).not.toHaveBeenCalled()
   })
@@ -388,7 +407,9 @@ describe('RunLifecycleCoordinator', () => {
   it('leaves an error session untouched when it is stopped', async () => {
     const { coordinator, pendingInputWakeup, terminalObserver } = createHarness()
     const scope = coordinator.getOrCreateScope(SESSION_ID)
+    await scope.instance.controlReady()
     scope.instance.setRuntimeState(createState('error'))
+    await scope.instance.transitionControlStatus({ kind: 'orphan' }, 'error')
     vi.spyOn(toolSurface, 'revokeToolSurfaceDeferredDispatchesForSession')
 
     await coordinator.cancel(SESSION_ID)
@@ -401,18 +422,20 @@ describe('RunLifecycleCoordinator', () => {
     expect(pendingInputWakeup.drain).not.toHaveBeenCalled()
   })
 
-  it('leaves a generating session alone while a run still owns it', () => {
+  it('leaves a generating session alone while a run still owns it', async () => {
     const { coordinator, terminalObserver } = createHarness()
     const scope = coordinator.getOrCreateScope(SESSION_ID)
+    await scope.instance.controlReady()
     scope.instance.setRuntimeState(createState('generating'))
-    coordinator.registerRun(scope, createRun(SESSION_ID, 'run-live', 'message-live'))
+    await scope.instance.transitionControlStatus({ kind: 'orphan' }, 'generating')
+    await coordinator.registerRun(scope, createRun(SESSION_ID, 'run-live', 'message-live'))
 
-    expect(coordinator.settleOrphanedInteraction(SESSION_ID, null)).toBe(false)
+    expect(await coordinator.settleOrphanedInteraction(SESSION_ID, null)).toBe(false)
     expect(scope.state()?.status).toBe('generating')
     expect(terminalObserver.observeTerminal).not.toHaveBeenCalled()
   })
 
-  it('preserves pending interaction order across assistant messages', () => {
+  it('preserves pending interaction order across assistant messages', async () => {
     const first = createMessage('message-1', [
       createPendingAction('tool-1'),
       createPendingAction('tool-2')
@@ -420,8 +443,9 @@ describe('RunLifecycleCoordinator', () => {
     const second = createMessage('message-2', [createPendingAction('tool-3')], 2)
     const { coordinator } = createHarness([first, second])
     const scope = coordinator.getOrCreateScope(SESSION_ID)
+    await scope.instance.controlReady()
 
-    expect(coordinator.refreshPendingInteractions(SESSION_ID)).toBe(true)
+    expect(await coordinator.refreshPendingInteractions(SESSION_ID)).toBe(true)
     expect(scope.instance.getPendingInteractions()).toEqual([
       expect.objectContaining({ messageId: 'message-1', toolCallId: 'tool-1', order: 0 }),
       expect.objectContaining({ messageId: 'message-1', toolCallId: 'tool-2', order: 1 }),
@@ -445,9 +469,11 @@ describe('RunLifecycleCoordinator', () => {
     const { coordinator, emitMessageRefresh, pendingInputWakeup, terminalObserver, transcript } =
       createHarness([first, second])
     const scope = coordinator.getOrCreateScope(SESSION_ID)
+    await scope.instance.controlReady()
     scope.instance.setRuntimeState(createState('generating'))
+    await scope.instance.transitionControlStatus({ kind: 'orphan' }, 'generating')
 
-    expect(coordinator.refreshPendingInteractions(SESSION_ID)).toBe(true)
+    expect(await coordinator.refreshPendingInteractions(SESSION_ID)).toBe(true)
     await coordinator.cancel(SESSION_ID)
 
     expect(scope.instance.getPendingInteractions()).toEqual([])
@@ -467,18 +493,20 @@ describe('RunLifecycleCoordinator', () => {
   it('cancels provider permissions exactly once and ignores already-stale requests', async () => {
     const { coordinator } = createHarness()
     const scope = coordinator.getOrCreateScope(SESSION_ID)
+    await scope.instance.controlReady()
+    await coordinator.registerRun(scope, createRun(SESSION_ID, 'run-1', 'message-1'))
     const resolve = vi
       .fn()
       .mockRejectedValue(new Error('Unknown ACP permission request: permission-1'))
     const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
-    scope.instance.registerActiveProviderPermission({
+    await scope.instance.registerActiveProviderPermission({
       requestId: 'permission-1',
       messageId: 'message-1',
       toolCallId: 'tool-1',
       providerId: 'acp',
       permissionType: 'write',
       resolve
-    })
+    }, 'run-1')
 
     await coordinator.cancel(SESSION_ID)
     await coordinator.cancel(SESSION_ID)
@@ -492,23 +520,25 @@ describe('RunLifecycleCoordinator', () => {
   it('reports genuine provider permission cancellation failures', async () => {
     const { coordinator } = createHarness()
     const scope = coordinator.getOrCreateScope(SESSION_ID)
+    await scope.instance.controlReady()
     const failure = new Error('permission bridge failed')
+    await coordinator.registerRun(scope, createRun(SESSION_ID, 'run-1', 'message-1'))
     const resolve = vi.fn().mockRejectedValue(failure)
     const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
-    scope.instance.registerActiveProviderPermission({
+    await scope.instance.registerActiveProviderPermission({
       requestId: 'permission-1',
       messageId: 'message-1',
       toolCallId: 'tool-1',
       providerId: 'acp',
       permissionType: 'write',
       resolve
-    })
+    }, 'run-1')
 
     await coordinator.cancel(SESSION_ID)
     await flushPromises()
 
     expect(warn).toHaveBeenCalledWith(
-      '[DeepChatAgent] Failed to cancel ACP permission request permission-1:',
+      '[DeepChatAgent] Failed to cancel ACP permission:',
       { name: 'Error' }
     )
   })

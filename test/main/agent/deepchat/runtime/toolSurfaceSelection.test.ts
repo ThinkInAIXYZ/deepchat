@@ -1,3 +1,4 @@
+import { useHarnessControl } from '../helpers/control'
 import { describe, expect, it } from 'vitest'
 import { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
@@ -13,6 +14,8 @@ import {
   TOOL_SURFACE_PRODUCTION_ROLLOUT_POLICY_V1,
   ToolSurfaceRolloutOwner
 } from '@/agent/deepchat/runtime/toolSurfaceRollout'
+
+const control = useHarnessControl()
 
 describe('Tool Surface adapter selection', () => {
   const policy = createAutomaticToolSurfaceSelectionPolicy(256)
@@ -120,8 +123,8 @@ describe('Tool Surface adapter selection', () => {
 
   it('keeps bounded process-live adapter history isolated by instance and lineage', () => {
     const history = new ToolSurfaceAdapterHistory({ maxLineagesPerInstance: 2 })
-    const firstInstance = new DeepChatAgentInstance(toAppSessionId('session-1'))
-    const secondInstance = new DeepChatAgentInstance(toAppSessionId('session-1'))
+    const firstInstance = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
+    const secondInstance = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
     const scope = (modelId: string) => ({
       sessionId: 'session-1',
       providerId: 'provider-1',

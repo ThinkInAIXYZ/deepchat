@@ -1,3 +1,4 @@
+import type { HarnessControlOwner } from '@shared/harness/control'
 import type {
   AttachmentPreparationSummary,
   MessageStartResult,
@@ -24,9 +25,15 @@ export interface ClaimedPendingInputHandle {
   readonly assistantMessageId: string | null
   readonly disposition: ClaimedInputDisposition | null
 
+  bindOwner(controller: AbortController, owner: HarnessControlOwner): void
+  prepareUserFact(): Promise<(effect: () => string) => string>
+  prepareConsume(): Promise<() => void>
+  rollback(effect: () => void): Promise<void>
+  flushEffects(): Promise<void>
+
   settle<TDisposition extends ClaimedInputDisposition>(
     disposition: TDisposition
-  ): ClaimedInputSettlementResult<TDisposition>
+  ): Promise<ClaimedInputSettlementResult<TDisposition>>
 }
 
 export interface TurnCompletion {

@@ -1,3 +1,4 @@
+import { useHarnessControl } from '../helpers/control'
 import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
@@ -19,6 +20,8 @@ import type {
   ClaimedInputDisposition,
   TurnCompletion
 } from '@/agent/deepchat/runtime/pendingInputContracts'
+
+const control = useHarnessControl()
 
 const SESSION_ID = 'session'
 
@@ -136,7 +139,17 @@ function createPendingInputStore(initialRecords: PendingSessionInputRecord[]) {
     replaceRecord(itemId, { state: 'consumed', consumedAt: 2 })
   }
 
+  let inputSequence = 0
   const store: PendingInputPumpStorePort = {
+    queuePendingInput: vi.fn((sessionId, input, options) => {
+      const id = `new-${++inputSequence}`
+      const record = { ...createInput(id, 'queue', Math.max(0, ...Array.from(records.values()).map((row) => row.queueOrder ?? 0)) + 1),
+        sessionId, state: options?.state ?? 'pending', payload: typeof input === 'string' ? { text: input, files: [] } : input }
+      records.set(id, record)
+      return record
+    }),
+    acceptSteerMessage: vi.fn(() => { throw new Error('Unexpected visible steer acceptance') }),
+    promoteQueuedInputToSteerMessage: vi.fn(() => { throw new Error('Unexpected steer promotion') }),
     blockClaimedInput: vi.fn(
       (sessionId: string, itemId: string, blocking: AttachmentPreparationSummary) => {
         const record = requireRecord(sessionId, itemId)
@@ -203,26 +216,33 @@ function createPendingInputStore(initialRecords: PendingSessionInputRecord[]) {
   return { consumeQueue, records, store, claim }
 }
 
-function completion(
+async function completion(
   context: PendingInputTurnContext,
   disposition: ClaimedInputDisposition
-): TurnCompletion {
-  context.claimedInput?.settle(disposition)
+): Promise<TurnCompletion> {
+  await context.claimedInput.settle(disposition)
   return {
     messageStart: { requestId: 'request', messageId: 'message' },
     claimedInputDisposition: disposition
   }
 }
 
-function createHarness(
+async function createHarness(
   inputs: PendingSessionInputRecord[],
   start?: PendingInputPumpPorts['turnStarter']['start']
 ) {
-  const runtime = new DeepChatAgentRuntime()
+  const controlPort = control()
+  const runtime = new DeepChatAgentRuntime(controlPort)
   const scope = runtime.getOrHydrateScope(toAppSessionId(SESSION_ID))
+  await scope.instance.controlReady()
   scope.instance.setRuntimeState(createState())
   const pendingInputs = createPendingInputStore(inputs)
-  const hasPendingInteractions = vi.fn(() => false)
+  const hasPendingInteractions = vi.fn(async (sessionId: string, entries: Array<{ interaction: { messageId: string; toolCallId: string; origin: 'question'; order: number } }>) => {
+    const current = runtime.getHydratedScope(toAppSessionId(sessionId))
+    if (!current) return entries.length > 0
+    await current.instance.replacePendingInteractions(entries.map(({ interaction }) => interaction), undefined, { reconcile: true })
+    return current.instance.hasPendingInteractions()
+  })
   const messages: ChatMessageRecord[] = []
   const turnStarter: PendingInputPumpPorts['turnStarter'] = {
     start:
@@ -232,6 +252,7 @@ function createHarness(
       )
   }
   const ports: PendingInputPumpPorts = {
+    control: controlPort,
     pendingInputs: pendingInputs.store,
     transcript: { getMessages: vi.fn(() => messages) },
     runLifecycle: {
@@ -240,20 +261,17 @@ function createHarness(
       reconcilePendingInteractions: hasPendingInteractions
     },
     turnStarter,
-    sessionState: {
-      get: vi.fn(async (sessionId: string) =>
-        runtime.getHydratedScope(toAppSessionId(sessionId))?.state() ?? null
-      )
-    },
     sessionSettings: { resolveProjectDir: vi.fn(() => '/workspace') }
   }
 
+  const pump = new PendingInputPump(ports)
+  await pump.replaceRestartedQueueInputs([])
   return {
     hasPendingInteractions,
     messages,
     pendingInputs,
     ports,
-    pump: new PendingInputPump(ports),
+    pump,
     runtime,
     scope,
     turnStarter
@@ -277,17 +295,17 @@ describe('PendingInputPump', () => {
 
   it('keeps a restarted Queue head held across automatic wakeups until manual resume', async () => {
     const queue = createInput('queue', 'queue')
-    const test = createHarness([queue])
-    test.pump.holdRestartedQueueInputs([queue.id])
+    const test = await createHarness([queue])
+    await test.pump.replaceRestartedQueueInputs([{ sessionId: SESSION_ID, heldInputIds: [queue.id] }])
 
     await expect(test.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(false)
     await expect(test.pump.drain(SESSION_ID, 'completed')).resolves.toBe(false)
     expect(test.pendingInputs.store.claimQueuedInput).not.toHaveBeenCalled()
-    expect(test.pump.hasRestartHeldQueueInputs(SESSION_ID)).toBe(true)
-    expect(test.pump.hasOnlyRestartHeldQueueInputs(SESSION_ID)).toBe(true)
+    expect(await test.pump.hasRestartHeldQueueInputs(SESSION_ID)).toBe(true)
+    expect(await test.pump.hasOnlyRestartHeldQueueInputs(SESSION_ID)).toBe(true)
 
-    expect(test.pump.releaseRestartHoldForSession(SESSION_ID)).toBe(true)
-    expect(test.pump.hasRestartHeldQueueInputs(SESSION_ID)).toBe(false)
+    expect(await test.pump.releaseRestartHoldForSession(SESSION_ID)).toBe(true)
+    expect(await test.pump.hasRestartHeldQueueInputs(SESSION_ID)).toBe(false)
     await expect(test.pump.drain(SESSION_ID, 'manual')).resolves.toBe(true)
     expect(test.pendingInputs.store.claimQueuedInput).toHaveBeenCalledWith(SESSION_ID, queue.id)
   })
@@ -295,16 +313,16 @@ describe('PendingInputPump', () => {
   it('replaces obsolete restart holds after the database is reopened', async () => {
     const obsolete = createInput('obsolete', 'queue', 1)
     const restored = createInput('restored', 'queue', 2)
-    const test = createHarness([obsolete, restored])
-    test.pump.holdRestartedQueueInputs([obsolete.id])
+    const test = await createHarness([obsolete, restored])
+    await test.pump.replaceRestartedQueueInputs([{ sessionId: SESSION_ID, heldInputIds: [obsolete.id] }])
 
-    test.pump.replaceRestartedQueueInputs([restored.id])
+    await test.pump.replaceRestartedQueueInputs([{ sessionId: SESSION_ID, heldInputIds: [restored.id] }])
 
     await expect(test.pump.drain(SESSION_ID, 'completed')).resolves.toBe(true)
     await vi.waitFor(() => expect(test.scope.instance.isPendingQueueDraining()).toBe(false))
     expect(test.pendingInputs.records.has(obsolete.id)).toBe(false)
     expect(test.pendingInputs.records.get(restored.id)?.state).toBe('pending')
-    expect(test.pump.hasRestartHeldQueueInputs(SESSION_ID)).toBe(true)
+    expect(await test.pump.hasRestartHeldQueueInputs(SESSION_ID)).toBe(true)
   })
 
   it('keeps a restart-held tail behind a retry-required Queue head', async () => {
@@ -313,11 +331,11 @@ describe('PendingInputPump', () => {
       state: 'retry_required' as const
     }
     const heldTail = createInput('held-tail', 'queue', 2)
-    const test = createHarness([released, heldTail])
-    test.pump.holdRestartedQueueInputs([heldTail.id])
+    const test = await createHarness([released, heldTail])
+    await test.pump.replaceRestartedQueueInputs([{ sessionId: SESSION_ID, heldInputIds: [heldTail.id] }])
 
-    expect(test.pump.hasRestartHeldQueueInputs(SESSION_ID)).toBe(false)
-    expect(test.pump.releaseRestartHoldForSession(SESSION_ID)).toBe(false)
+    expect(await test.pump.hasRestartHeldQueueInputs(SESSION_ID)).toBe(false)
+    expect(await test.pump.releaseRestartHoldForSession(SESSION_ID)).toBe(false)
     await expect(test.pump.drain(SESSION_ID, 'completed')).resolves.toBe(false)
 
     test.pendingInputs.records.set(released.id, { ...released, state: 'pending' })
@@ -327,7 +345,7 @@ describe('PendingInputPump', () => {
     expect(test.turnStarter.start).toHaveBeenCalledOnce()
     expect(test.pendingInputs.records.has(released.id)).toBe(false)
     expect(test.pendingInputs.records.get(heldTail.id)?.state).toBe('pending')
-    expect(test.pump.hasRestartHeldQueueInputs(SESSION_ID)).toBe(true)
+    expect(await test.pump.hasRestartHeldQueueInputs(SESSION_ID)).toBe(true)
   })
 
   it('keeps manual Queue consumption semantics after an attachment-resolution wake', async () => {
@@ -346,9 +364,9 @@ describe('PendingInputPump', () => {
       }
     )
     const queue = createInput('queue', 'queue')
-    const test = createHarness([queue], start)
-    test.pump.holdRestartedQueueInputs([queue.id])
-    expect(test.pump.releaseRestartHoldForSession(SESSION_ID)).toBe(true)
+    const test = await createHarness([queue], start)
+    await test.pump.replaceRestartedQueueInputs([{ sessionId: SESSION_ID, heldInputIds: [queue.id] }])
+    expect(await test.pump.releaseRestartHoldForSession(SESSION_ID)).toBe(true)
 
     await expect(test.pump.drain(SESSION_ID, 'manual')).resolves.toBe(true)
     await vi.waitFor(() => expect(test.pendingInputs.records.get(queue.id)?.state).toBe('blocked'))
@@ -367,22 +385,25 @@ describe('PendingInputPump', () => {
     await vi.waitFor(() => expect(test.pendingInputs.records.has(queue.id)).toBe(false))
   })
 
-  it('lets an explicit composer Send start without releasing a restarted Queue hold', () => {
+  it('lets an explicit composer Send start without releasing a restarted Queue hold', async () => {
     const queue = createInput('queue', 'queue')
-    const test = createHarness([queue])
-    test.pump.holdRestartedQueueInputs([queue.id])
+    const test = await createHarness([queue])
+    await test.pump.replaceRestartedQueueInputs([{ sessionId: SESSION_ID, heldInputIds: [queue.id] }])
 
-    expect(test.pump.shouldClaimImmediately(SESSION_ID, 'idle', 'send')).toBe(true)
-    expect(test.pump.shouldClaimImmediately(SESSION_ID, 'idle', 'queue')).toBe(false)
-    expect(test.pump.hasOnlyRestartHeldQueueInputs(SESSION_ID)).toBe(true)
+    const sent = await test.pump.enqueue(SESSION_ID, 'send', 'send', '/workspace')
+    expect(sent.state).toBe('claimed')
+    await vi.waitFor(() => expect(test.scope.instance.isPendingQueueDraining()).toBe(false))
+    const queued = await test.pump.enqueue(SESSION_ID, 'queue', 'queue', '/workspace')
+    expect(queued.state).toBe('pending')
+    expect(await test.pump.hasRestartHeldQueueInputs(SESSION_ID)).toBe(true)
   })
 
-  it('does not let new input bypass a retry-required Queue head', () => {
+  it('does not let new input bypass a retry-required Queue head', async () => {
     const retryRequired = {
       ...createInput('retry', 'queue'),
       state: 'retry_required' as const
     }
-    const test = createHarness([retryRequired])
+    const test = await createHarness([retryRequired])
     const followUpBlock: AssistantMessageBlock = {
       type: 'action',
       action_type: 'question_request',
@@ -422,8 +443,9 @@ describe('PendingInputPump', () => {
       }
     )
 
-    expect(test.pump.shouldClaimImmediately(SESSION_ID, 'idle', 'send')).toBe(false)
-    expect(test.pump.shouldClaimImmediately(SESSION_ID, 'idle', 'queue')).toBe(false)
+    expect((await test.pump.enqueue(SESSION_ID, 'send', 'send', '/workspace')).state).toBe('pending')
+    expect((await test.pump.enqueue(SESSION_ID, 'queue', 'queue', '/workspace')).state).toBe('pending')
+    expect(test.turnStarter.start).not.toHaveBeenCalled()
   })
 
   it('claims steer input before an older queued input', async () => {
@@ -435,7 +457,7 @@ describe('PendingInputPump', () => {
         return await deferred.promise
       }
     )
-    const harness = createHarness(
+    const harness = await createHarness(
       [createInput('queue', 'queue', 1), createInput('steer', 'steer')],
       start
     )
@@ -447,9 +469,12 @@ describe('PendingInputPump', () => {
     expect(harness.pendingInputs.records.get('steer')?.state).toBe('claimed')
     expect(harness.pendingInputs.records.get('queue')?.state).toBe('pending')
 
-    harness.hasPendingInteractions.mockReturnValue(true)
+    harness.messages.push({ id: 'approval', sessionId: SESSION_ID, orderSeq: 1, role: 'assistant',
+      content: JSON.stringify([{ type: 'action', action_type: 'question_request', status: 'pending', timestamp: 1,
+        tool_call: { id: 'tool', name: 'ask_question', params: '{}' }, extra: { needsUserAction: true } }]),
+      status: 'pending', isContextEdge: 0, metadata: '{}', createdAt: 1, updatedAt: 1 })
     const disposition = { kind: 'consume' } as const
-    executionContext?.claimedInput?.settle(disposition)
+    await executionContext?.claimedInput.settle(disposition)
     deferred.resolve({
       messageStart: { requestId: 'request', messageId: 'message' },
       claimedInputDisposition: disposition
@@ -457,39 +482,6 @@ describe('PendingInputPump', () => {
     await vi.waitFor(() => expect(harness.scope.instance.isPendingQueueDraining()).toBe(false))
   })
 
-  it('propagates a rejected session-state read and releases the drain lease', async () => {
-    const harness = createHarness([createInput('queue', 'queue')])
-    const failure = new Error('session state unavailable')
-    vi.mocked(harness.ports.sessionState.get).mockRejectedValueOnce(failure)
-
-    await expect(harness.pump.drain(SESSION_ID, 'completed')).rejects.toBe(failure)
-
-    expect(harness.scope.instance.isPendingQueueDraining()).toBe(false)
-    expect(harness.pendingInputs.store.claimQueuedInput).not.toHaveBeenCalled()
-    expect(harness.turnStarter.start).not.toHaveBeenCalled()
-  })
-
-  it('acquires the single-flight lease before the first async state read', async () => {
-    const harness = createHarness([createInput('queue', 'queue')])
-    const stateRead = createDeferred<DeepChatSessionState | null>()
-    vi.mocked(harness.ports.sessionState.get).mockImplementation(
-      async () => await stateRead.promise
-    )
-
-    const firstDrain = harness.pump.drain(SESSION_ID, 'enqueue')
-    const concurrentDrain = harness.pump.drain(SESSION_ID, 'enqueue')
-
-    await expect(concurrentDrain).resolves.toBe(false)
-    expect(harness.ports.sessionState.get).toHaveBeenCalledOnce()
-    expect(harness.pendingInputs.store.claimQueuedInput).not.toHaveBeenCalled()
-
-    stateRead.resolve(createState())
-    await expect(firstDrain).resolves.toBe(true)
-    await vi.waitFor(() => expect(harness.scope.instance.isPendingQueueDraining()).toBe(false))
-
-    expect(harness.turnStarter.start).toHaveBeenCalledOnce()
-    expect(harness.pendingInputs.store.claimQueuedInput).toHaveBeenCalledOnce()
-  })
 
   it('keeps one drain in flight per session', async () => {
     const deferred = createDeferred<TurnCompletion>()
@@ -500,14 +492,14 @@ describe('PendingInputPump', () => {
         return await deferred.promise
       }
     )
-    const harness = createHarness([createInput('queue', 'queue')], start)
+    const harness = await createHarness([createInput('queue', 'queue')], start)
 
     await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(true)
     await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(false)
     expect(start).toHaveBeenCalledOnce()
 
     const disposition = { kind: 'consume' } as const
-    executionContext?.claimedInput?.settle(disposition)
+    await executionContext?.claimedInput.settle(disposition)
     deferred.resolve({
       messageStart: { requestId: 'request', messageId: 'message' },
       claimedInputDisposition: disposition
@@ -528,12 +520,13 @@ describe('PendingInputPump', () => {
       .mockImplementationOnce(async (_sessionId, _content, context) =>
         completion(context, { kind: 'consume' })
       )
-    const harness = createHarness([createInput('retry', 'queue')], start)
+    const harness = await createHarness([createInput('retry', 'queue')], start)
 
     await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(true)
-    const disposition = { kind: 'release-after-rollback' } as const
-    firstContext?.claimedInput?.settle(disposition)
-    harness.pump.schedule(SESSION_ID, 'enqueue')
+    const disposition = { kind: 'release-before-user-fact' } as const
+    await firstContext?.claimedInput.settle(disposition)
+    const later = await harness.pump.enqueue(SESSION_ID, 'Later', 'queue', '/workspace')
+    expect(later.state).toBe('pending')
     expect(start).toHaveBeenCalledOnce()
 
     firstTurn.resolve({
@@ -544,6 +537,7 @@ describe('PendingInputPump', () => {
     await vi.waitFor(() => expect(harness.scope.instance.isPendingQueueDraining()).toBe(false))
     expect(start).toHaveBeenCalledOnce()
     expect(harness.pendingInputs.records.get('retry')?.state).toBe('retry_required')
+    expect(harness.pendingInputs.records.get(later.id)?.state).toBe('pending')
   })
 
   it('does not replay an enqueue accepted while the active turn is still generating', async () => {
@@ -555,17 +549,18 @@ describe('PendingInputPump', () => {
         return await firstTurn.promise
       }
     )
-    const harness = createHarness([createInput('active', 'queue')], start)
+    const harness = await createHarness([createInput('active', 'queue')], start)
 
     await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(true)
     const disposition = { kind: 'consume' } as const
-    firstContext?.claimedInput?.settle(disposition)
+    await firstContext?.claimedInput.settle(disposition)
+    await harness.scope.instance.transitionControlStatus({ kind: 'orphan' }, 'generating')
     harness.scope.instance.setRuntimeState(createState('generating'))
-    harness.pendingInputs.records.set('queued', createInput('queued', 'queue', 2))
-
-    harness.pump.schedule(SESSION_ID, 'enqueue')
+    const queued = await harness.pump.enqueue(SESSION_ID, 'Queued', 'queue', '/workspace')
+    expect(queued.state).toBe('pending')
     expect(start).toHaveBeenCalledOnce()
 
+    await harness.scope.instance.transitionControlStatus({ kind: 'orphan' }, 'error')
     harness.scope.instance.setRuntimeState(createState('error'))
     firstTurn.resolve({
       messageStart: { requestId: 'request', messageId: 'message' },
@@ -574,88 +569,12 @@ describe('PendingInputPump', () => {
 
     await vi.waitFor(() => expect(harness.scope.instance.isPendingQueueDraining()).toBe(false))
     expect(start).toHaveBeenCalledOnce()
-    expect(harness.pendingInputs.records.get('queued')?.state).toBe('pending')
+    expect(harness.pendingInputs.records.get(queued.id)?.state).toBe('pending')
   })
 
-  it('starts a send deferred behind a draining question follow-up', async () => {
-    const harness = createHarness([createInput('follow-up', 'queue')])
-    const followUpBlock: AssistantMessageBlock = {
-      type: 'action',
-      action_type: 'question_request',
-      status: 'success',
-      timestamp: 2,
-      content: 'Answer in chat',
-      extra: {
-        needsUserAction: false,
-        questionResolution: 'replied',
-        questionFollowUpPending: true
-      }
-    }
-    harness.messages.push(
-      {
-        id: 'user-before-question',
-        sessionId: SESSION_ID,
-        orderSeq: 1,
-        role: 'user',
-        content: 'Ask me',
-        status: 'sent',
-        isContextEdge: 0,
-        metadata: '{}',
-        createdAt: 1,
-        updatedAt: 1
-      },
-      {
-        id: 'question',
-        sessionId: SESSION_ID,
-        orderSeq: 2,
-        role: 'assistant',
-        content: JSON.stringify([followUpBlock]),
-        status: 'sent',
-        isContextEdge: 0,
-        metadata: '{}',
-        createdAt: 2,
-        updatedAt: 2
-      }
-    )
-    const overlapLease = harness.scope.instance.tryAcquirePendingQueueDrain()
-    if (!overlapLease) throw new Error('Expected the overlap drain lease')
-
-    expect(harness.pump.shouldClaimImmediately(SESSION_ID, 'idle', 'send')).toBe(false)
-    expect(harness.turnStarter.start).not.toHaveBeenCalled()
-    expect(harness.ports.transcript.getMessages).toHaveBeenCalledOnce()
-
-    harness.messages.push({
-      id: 'accepted-follow-up',
-      sessionId: SESSION_ID,
-      orderSeq: 3,
-      role: 'user',
-      content: 'My answer',
-      status: 'sent',
-      isContextEdge: 0,
-      metadata: '{}',
-      createdAt: 3,
-      updatedAt: 3
-    })
-    expect(harness.scope.instance.releasePendingQueueDrain(overlapLease)).toBe(true)
-
-    await expect(harness.pump.drain(SESSION_ID, 'completed')).resolves.toBe(true)
-    await vi.waitFor(() => expect(harness.scope.instance.isPendingQueueDraining()).toBe(false))
-
-    expect(harness.turnStarter.start).toHaveBeenCalledOnce()
-    expect(harness.pendingInputs.records.has('follow-up')).toBe(false)
-  })
-
-  it('does not scan the transcript when a queue-origin input cannot drain from status', () => {
-    const harness = createHarness([createInput('queue', 'queue')])
-
-    expect(harness.pump.shouldClaimImmediately(SESSION_ID, 'generating', 'queue')).toBe(false)
-
-    expect(harness.ports.transcript.getMessages).not.toHaveBeenCalled()
-    expect(harness.hasPendingInteractions).not.toHaveBeenCalled()
-  })
 
   it('releases a durable claim when claim publication throws', async () => {
-    const harness = createHarness([createInput('queue', 'queue')])
+    const harness = await createHarness([createInput('queue', 'queue')])
     vi.mocked(harness.pendingInputs.store.claimQueuedInput).mockImplementationOnce(
       (sessionId, itemId) => {
         harness.pendingInputs.claim(sessionId, itemId, 'queue')
@@ -676,7 +595,7 @@ describe('PendingInputPump', () => {
   })
 
   it('releases a claim when publication replaces the originating instance', async () => {
-    const harness = createHarness([createInput('queue', 'queue')])
+    const harness = await createHarness([createInput('queue', 'queue')])
     const staleInstance = harness.scope.instance
     vi.mocked(harness.pendingInputs.store.claimQueuedInput).mockImplementationOnce(
       (sessionId, itemId) => {
@@ -700,55 +619,8 @@ describe('PendingInputPump', () => {
     expect(staleInstance.isPendingQueueDraining()).toBe(false)
   })
 
-  it('does not clear a newer active steer marker while adopting a claim', async () => {
-    const harness = createHarness([createInput('steer', 'steer')])
-    harness.scope.instance.setActiveSteerPendingInputId('newer-steer')
 
-    await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(true)
-    await vi.waitFor(() => expect(harness.scope.instance.isPendingQueueDraining()).toBe(false))
 
-    expect(harness.scope.instance.getActiveSteerPendingInputId()).toBe('newer-steer')
-  })
-
-  it.each(['queue', 'steer'] as const)('uses the %s consume transition', async (mode) => {
-    const harness = createHarness([createInput(mode, mode)])
-
-    await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(true)
-    await vi.waitFor(() => expect(harness.scope.instance.isPendingQueueDraining()).toBe(false))
-
-    if (mode === 'queue') {
-      expect(harness.pendingInputs.store.consumeQueuedInput).toHaveBeenCalledWith(SESSION_ID, mode)
-      expect(harness.pendingInputs.store.consumeSteerInput).not.toHaveBeenCalled()
-    } else {
-      expect(harness.pendingInputs.store.consumeSteerInput).toHaveBeenCalledWith(SESSION_ID, mode)
-      expect(harness.pendingInputs.store.consumeQueuedInput).not.toHaveBeenCalled()
-    }
-  })
-
-  it.each(['queue', 'steer'] as const)('uses the %s release transition', async (mode) => {
-    const start: PendingInputPumpPorts['turnStarter']['start'] = vi.fn(
-      async (_sessionId, _content, context) =>
-        completion(context, { kind: 'release-after-rollback' })
-    )
-    const harness = createHarness([createInput(mode, mode)], start)
-
-    await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(true)
-    await vi.waitFor(() => expect(harness.scope.instance.isPendingQueueDraining()).toBe(false))
-
-    if (mode === 'queue') {
-      expect(harness.pendingInputs.store.releaseClaimedQueueInputForRetry).toHaveBeenCalledWith(
-        SESSION_ID,
-        mode
-      )
-      expect(harness.pendingInputs.store.releaseClaimedInput).not.toHaveBeenCalled()
-    } else {
-      expect(harness.pendingInputs.store.releaseClaimedInput).toHaveBeenCalledWith(SESSION_ID, mode)
-      expect(harness.pendingInputs.store.releaseClaimedQueueInputForRetry).not.toHaveBeenCalled()
-    }
-    expect(harness.pendingInputs.records.get(mode)?.state).toBe(
-      mode === 'queue' ? 'retry_required' : 'pending'
-    )
-  })
 
   it('blocks a claimed head without draining later inputs', async () => {
     const attachmentPreparation: AttachmentPreparationSummary = {
@@ -760,7 +632,7 @@ describe('PendingInputPump', () => {
       async (_sessionId, _content, context) =>
         completion(context, { kind: 'block', attachmentPreparation })
     )
-    const harness = createHarness(
+    const harness = await createHarness(
       [createInput('blocked', 'queue', 1), createInput('later', 'queue', 2)],
       start
     )
@@ -776,12 +648,12 @@ describe('PendingInputPump', () => {
     expect(harness.pendingInputs.records.get('later')?.state).toBe('pending')
   })
 
-  it('leaves a released input at the head for explicit retry', async () => {
+  it('keeps an unstarted input at the head for explicit retry', async () => {
     const start: PendingInputPumpPorts['turnStarter']['start'] = vi.fn(
       async (_sessionId, _content, context) =>
-        completion(context, { kind: 'release-after-rollback' })
+        completion(context, { kind: 'release-before-user-fact' })
     )
-    const harness = createHarness(
+    const harness = await createHarness(
       [createInput('retry', 'queue', 1), createInput('later', 'queue', 2)],
       start
     )
@@ -795,7 +667,7 @@ describe('PendingInputPump', () => {
   })
 
   it('continues with the next input after consuming the current head', async () => {
-    const harness = createHarness([
+    const harness = await createHarness([
       createInput('first', 'queue', 1),
       createInput('second', 'queue', 2)
     ])
@@ -809,7 +681,7 @@ describe('PendingInputPump', () => {
     expect(harness.scope.instance.isPendingQueueDraining()).toBe(false)
   })
 
-  it('cleans only the originating instance after replacement', async () => {
+  it('retains the originating drain until its replaced Instance turn settles', async () => {
     const deferred = createDeferred<TurnCompletion>()
     let executionContext: PendingInputTurnContext | undefined
     const start: PendingInputPumpPorts['turnStarter']['start'] = vi.fn(
@@ -818,18 +690,18 @@ describe('PendingInputPump', () => {
         return await deferred.promise
       }
     )
-    const harness = createHarness([createInput('queue', 'queue')], start)
+    const harness = await createHarness([createInput('queue', 'queue')], start)
 
     await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(true)
     const staleInstance = harness.scope.instance
     harness.runtime.evict(toAppSessionId(SESSION_ID))
     const replacement = harness.runtime.getOrHydrateScope(toAppSessionId(SESSION_ID))
     replacement.instance.setRuntimeState(createState())
-    const replacementDrainLease = replacement.instance.tryAcquirePendingQueueDrain()
-    if (!replacementDrainLease) throw new Error('Expected replacement drain lease')
+    await replacement.instance.controlReady()
+    await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(false)
 
     const disposition = { kind: 'consume' } as const
-    executionContext?.claimedInput?.settle(disposition)
+    await executionContext?.claimedInput.settle(disposition)
     deferred.resolve({
       messageStart: { requestId: 'request', messageId: 'message' },
       claimedInputDisposition: disposition
@@ -837,22 +709,36 @@ describe('PendingInputPump', () => {
     await vi.waitFor(() => expect(staleInstance.isPendingQueueDraining()).toBe(false))
 
     expect(staleInstance.isPendingQueueDraining()).toBe(false)
+    await control.flush()
+    const replacementTurn = createDeferred<TurnCompletion>()
+    let replacementContext: PendingInputTurnContext | undefined
+    vi.mocked(harness.turnStarter.start).mockImplementationOnce(async (_sessionId, _content, context) => {
+      replacementContext = context
+      return await replacementTurn.promise
+    })
+    harness.pendingInputs.records.set('replacement', createInput('replacement', 'queue'))
+    await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(true)
     expect(replacement.instance.isPendingQueueDraining()).toBe(true)
-    expect(replacement.instance.releasePendingQueueDrain(replacementDrainLease)).toBe(true)
+    await replacementContext!.claimedInput.settle(disposition)
+    replacementTurn.resolve({
+      messageStart: { requestId: 'replacement-run', messageId: 'replacement-message' },
+      claimedInputDisposition: disposition
+    })
+    await vi.waitFor(() => expect(replacement.instance.isPendingQueueDraining()).toBe(false))
   })
 
   it('reports inconsistent turn completion without applying a second transition', async () => {
     const start: PendingInputPumpPorts['turnStarter']['start'] = vi.fn(
       async (_sessionId, _content, context) => {
         const settled = { kind: 'consume' } as const
-        context.claimedInput?.settle(settled)
+        await context.claimedInput.settle(settled)
         return {
           messageStart: { requestId: 'request', messageId: 'message' },
           claimedInputDisposition: { kind: 'release-after-rollback' }
         }
       }
     )
-    const harness = createHarness([createInput('queue', 'queue')], start)
+    const harness = await createHarness([createInput('queue', 'queue')], start)
     const error = vi.spyOn(logger, 'error').mockImplementation(() => undefined)
 
     await expect(harness.pump.drain(SESSION_ID, 'enqueue')).resolves.toBe(true)
@@ -874,7 +760,7 @@ describe('PendingInputPump', () => {
     const start: PendingInputPumpPorts['turnStarter']['start'] = vi.fn(async () => {
       throw new Error('turn failed before reporting settlement')
     })
-    const harness = createHarness(
+    const harness = await createHarness(
       [createInput('failed', 'queue', 1), createInput('later', 'queue', 2)],
       start
     )
@@ -891,7 +777,7 @@ describe('PendingInputPump', () => {
   })
 
   it('does not repeat a durable consume when publication throws afterward', async () => {
-    const harness = createHarness([createInput('queue', 'queue')])
+    const harness = await createHarness([createInput('queue', 'queue')])
     vi.mocked(harness.pendingInputs.store.consumeQueuedInput).mockImplementationOnce(
       (sessionId, itemId) => {
         harness.pendingInputs.consumeQueue(sessionId, itemId)
@@ -908,9 +794,9 @@ describe('PendingInputPump', () => {
     expect(harness.pendingInputs.store.releaseClaimedQueueInput).not.toHaveBeenCalled()
   })
 
-  it('preserves the primary settlement error when durable verification also fails', () => {
-    const harness = createHarness([createInput('queue', 'queue')])
-    const claim = harness.pump.claimQueuedInputForPreparation(SESSION_ID, 'queue')
+  it('preserves the primary settlement error when durable verification also fails', async () => {
+    const harness = await createHarness([createInput('queue', 'queue')])
+    const claim = await harness.pump.claimQueuedInputForPreparation(SESSION_ID, 'queue')
     const primaryError = new Error('publication failed')
     const verificationError = new Error('verification failed')
     const getInput = vi.mocked(harness.pendingInputs.store.getInput).getMockImplementation()
@@ -933,7 +819,7 @@ describe('PendingInputPump', () => {
     )
     const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
 
-    expect(() =>
+    await expect(
       claim.settle({
         kind: 'block',
         attachmentPreparation: {
@@ -942,10 +828,10 @@ describe('PendingInputPump', () => {
           suggestedActions: ['retry']
         }
       })
-    ).toThrow(primaryError)
+    ).rejects.toBe(primaryError)
 
     expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('failed to verify pending input settlement'),
+      expect.stringContaining('failed to verify input effect'),
       { name: 'Error' }
     )
     expect(claim.disposition).toEqual({

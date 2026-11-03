@@ -1,3 +1,4 @@
+import { useHarnessControl } from '../helpers/control'
 import { describe, expect, it, vi } from 'vitest'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
@@ -5,6 +6,8 @@ import {
   SessionStatusPublisher,
   type SessionStatusPublisherPorts
 } from '@/agent/deepchat/runtime/sessionStatusPublisher'
+
+const control = useHarnessControl()
 
 function createPublisher() {
   const ports: SessionStatusPublisherPorts = {
@@ -16,9 +19,10 @@ function createPublisher() {
 }
 
 describe('SessionStatusPublisher', () => {
-  it('updates current state and publishes the four projections in order', () => {
-    const runtime = new DeepChatAgentRuntime()
+  it('updates current state and publishes the four projections in order', async () => {
+    const runtime = new DeepChatAgentRuntime(control())
     const scope = runtime.getOrHydrateScope(toAppSessionId('session'))
+    await scope.instance.controlReady()
     scope.instance.setRuntimeState({
       status: 'idle',
       providerId: 'openai',
@@ -27,7 +31,7 @@ describe('SessionStatusPublisher', () => {
     })
     const { ports, publisher } = createPublisher()
 
-    expect(publisher.transition(scope, 'generating')).toBe(true)
+    expect(await publisher.transition(scope, 'generating', { kind: 'orphan' })).toBe(true)
 
     expect(scope.state()?.status).toBe('generating')
     expect(ports.publishEvent).toHaveBeenNthCalledWith(1, 'sessions.status.changed', {
@@ -55,28 +59,30 @@ describe('SessionStatusPublisher', () => {
     expect(order).toEqual([...order].sort((left, right) => left - right))
   })
 
-  it('does not publish when state is missing and treats an unchanged status as success', () => {
-    const runtime = new DeepChatAgentRuntime()
+  it('does not publish when state is missing and treats an unchanged status as success', async () => {
+    const runtime = new DeepChatAgentRuntime(control())
     const scope = runtime.getOrHydrateScope(toAppSessionId('session'))
+    await scope.instance.controlReady()
     const { ports, publisher } = createPublisher()
 
-    expect(publisher.transition(scope, 'idle')).toBe(false)
+    expect(await publisher.transition(scope, 'idle', { kind: 'orphan' })).toBe(false)
     scope.instance.setRuntimeState({
       status: 'idle',
       providerId: 'openai',
       modelId: 'gpt-5',
       permissionMode: 'full_access'
     })
-    expect(publisher.transition(scope, 'idle')).toBe(true)
+    expect(await publisher.transition(scope, 'idle', { kind: 'orphan' })).toBe(true)
 
     expect(ports.publishEvent).not.toHaveBeenCalled()
     expect(ports.publishSessionUpdate).not.toHaveBeenCalled()
     expect(ports.sessionUiPort.refreshSessionUi).not.toHaveBeenCalled()
   })
 
-  it('publishes terminal usage even when the projected status is already unchanged', () => {
-    const runtime = new DeepChatAgentRuntime()
+  it('publishes terminal usage even when the projected status is already unchanged', async () => {
+    const runtime = new DeepChatAgentRuntime(control())
     const scope = runtime.getOrHydrateScope(toAppSessionId('session'))
+    await scope.instance.controlReady()
     scope.instance.setRuntimeState({
       status: 'idle',
       providerId: 'openai',
@@ -85,7 +91,7 @@ describe('SessionStatusPublisher', () => {
     })
     const { ports, publisher } = createPublisher()
 
-    expect(publisher.transition(scope, 'idle', { totalTokens: 12 })).toBe(true)
+    expect(await publisher.transition(scope, 'idle', { kind: 'orphan' }, { totalTokens: 12 })).toBe(true)
 
     expect(ports.publishSessionUpdate).toHaveBeenCalledWith({
       sessionId: 'session',
@@ -98,10 +104,11 @@ describe('SessionStatusPublisher', () => {
     expect(ports.sessionUiPort.refreshSessionUi).not.toHaveBeenCalled()
   })
 
-  it('fences stale and mismatched scopes before mutating any instance', () => {
-    const runtime = new DeepChatAgentRuntime()
+  it('fences stale and mismatched scopes before mutating any instance', async () => {
+    const runtime = new DeepChatAgentRuntime(control())
     const sessionId = toAppSessionId('session')
     const staleScope = runtime.getOrHydrateScope(sessionId)
+    await staleScope.instance.controlReady()
     staleScope.instance.setRuntimeState({
       status: 'idle',
       providerId: 'openai',
@@ -110,6 +117,7 @@ describe('SessionStatusPublisher', () => {
     })
     runtime.evict(sessionId)
     const currentScope = runtime.getOrHydrateScope(sessionId)
+    await currentScope.instance.controlReady()
     currentScope.instance.setRuntimeState({
       status: 'idle',
       providerId: 'openai',
@@ -117,6 +125,7 @@ describe('SessionStatusPublisher', () => {
       permissionMode: 'full_access'
     })
     const otherScope = runtime.getOrHydrateScope(toAppSessionId('other'))
+    await otherScope.instance.controlReady()
     otherScope.instance.setRuntimeState({
       status: 'idle',
       providerId: 'openai',
@@ -126,8 +135,8 @@ describe('SessionStatusPublisher', () => {
     const mismatchedScope = runtime.scopeFor(sessionId, otherScope.instance)
     const { ports, publisher } = createPublisher()
 
-    expect(publisher.transition(staleScope, 'error')).toBe(false)
-    expect(publisher.transition(mismatchedScope, 'error')).toBe(false)
+    expect(await publisher.transition(staleScope, 'error', { kind: 'orphan' })).toBe(false)
+    expect(await publisher.transition(mismatchedScope, 'error', { kind: 'orphan' })).toBe(false)
 
     expect(staleScope.state()?.status).toBe('idle')
     expect(currentScope.state()?.status).toBe('idle')

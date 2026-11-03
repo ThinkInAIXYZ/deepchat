@@ -1,4 +1,5 @@
 import { createCoreAdmission, type CoreAdmissionService } from '../core/admission'
+import { CoreHarnessControl, type CoreControlService } from '../core/control'
 import { CoreNativeHelpers } from '../core/helpers'
 import { CoreNativeBrowser } from '../core/browser'
 import { CoreNativeDesktop } from '../core/desktop'
@@ -79,6 +80,7 @@ export default definePlugin<CoreCarrierConfig>({
     const store = new CorePayloadStore(config, 'core')
     const native = ctx.use<
       CoreAdmissionService &
+        CoreControlService &
         CoreMemoryService & {
           invoke(
             generation: string,
@@ -132,6 +134,7 @@ export default definePlugin<CoreCarrierConfig>({
       void callNative('core.failure', [component]).catch(() => {})
       void stop().catch(() => {})
     }
+    const control = new CoreHarnessControl(native, config.generation, () => fail('control'))
     const helpers = new CoreNativeHelpers(
       async (command) => await callNative('helpers', [command]),
       () => fail('helpers')
@@ -271,6 +274,7 @@ export default definePlugin<CoreCarrierConfig>({
         await retire(() => admission.close())
         await retire(() => nativeCalls.drain())
         await Promise.allSettled(businessCalls)
+        control.stop()
         if (kernelAttempted && !kernel)
           errors.push(new Error('Partial Core Kernel requires physical retirement'))
         if (errors.length) throw new AggregateError(errors, 'Core did not retire')
@@ -425,6 +429,7 @@ export default definePlugin<CoreCarrierConfig>({
             if (isStopping()) throw new Error('Core Kernel startup was stopped')
             kernelAttempted = true
             kernel = await createCoreKernel({
+              control,
               profile: ownerProfile,
               settings: ownerSettings,
               bootstrap: {

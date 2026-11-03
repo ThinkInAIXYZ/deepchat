@@ -7,6 +7,9 @@ import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
+import { useHarnessControl } from '../helpers/control'
+
+const control = useHarnessControl()
 
 const TOOL_DEFINITION: MCPToolDefinition = {
   execution: TOOL_EXECUTION.read.parallel,
@@ -43,14 +46,24 @@ function createRun(
 }
 
 describe('DeepChatAgentRuntime', () => {
-  it('aborts hydrated generations and deferred work without evicting or hydrating sessions', () => {
-    const runtime = new DeepChatAgentRuntime()
+  it('aborts hydrated generations and deferred work without evicting or hydrating sessions', async () => {
+    const runtime = new DeepChatAgentRuntime(control())
     const sessionId = toAppSessionId('running')
     const instance = runtime.getOrHydrate(sessionId)
-    const controller = new AbortController()
+    await instance.controlReady()
+    const controller = await instance.ensureOperationController()
     const run = createRun(sessionId, 'run', 'message', controller)
-    instance.registerActiveGeneration(run)
-    const deferred = instance.registerDeferredToolAbortController('tool')
+    await instance.registerActiveGeneration(run)
+    await instance.replacePendingInteractions(
+      [{ messageId: 'message', toolCallId: 'tool', origin: 'pre-check-permission', order: 0 }],
+      { kind: 'run', id: run.runId }
+    )
+    const lease = await instance.acquireInteraction('message', 'tool')
+    if (!lease || lease === 'parked') throw new Error('Expected interaction lease')
+    const deferred = await instance.registerDeferredToolAbortController('message', 'tool', lease, {
+      kind: 'run',
+      id: run.runId
+    })
     runtime.abortGenerations()
     expect(controller.signal.aborted).toBe(true)
     expect(deferred.signal.aborted).toBe(true)
@@ -59,13 +72,16 @@ describe('DeepChatAgentRuntime', () => {
     expect(runtime.getHydrated(toAppSessionId('missing'))).toBeUndefined()
   })
 
-  it('hydrates one stable instance per app session', () => {
-    const runtime = new DeepChatAgentRuntime()
+  it('hydrates one stable instance per app session', async () => {
+    const runtime = new DeepChatAgentRuntime(control())
     const sessionId = toAppSessionId('session')
 
     const first = runtime.getOrHydrate(sessionId)
+    await first.controlReady()
     const second = runtime.getOrHydrate(sessionId)
+    await second.controlReady()
     const other = runtime.getOrHydrate(toAppSessionId('other'))
+    await other.controlReady()
 
     expect(first).toBe(second)
     expect(other).not.toBe(first)
@@ -73,13 +89,14 @@ describe('DeepChatAgentRuntime', () => {
     expect(other.sessionId).toBe(toAppSessionId('other'))
   })
 
-  it('creates a minimal current scope over the registered instance state', () => {
-    const runtime = new DeepChatAgentRuntime()
+  it('creates a minimal current scope over the registered instance state', async () => {
+    const runtime = new DeepChatAgentRuntime(control())
     const sessionId = toAppSessionId('session')
 
     expect(runtime.getHydratedScope(sessionId)).toBeUndefined()
 
     const scope = runtime.getOrHydrateScope(sessionId)
+    await scope.instance.controlReady()
     scope.instance.setRuntimeState({
       status: 'idle',
       providerId: 'openai',
@@ -97,11 +114,12 @@ describe('DeepChatAgentRuntime', () => {
     expect(runtime.scopeFor(sessionId, scope.instance)).toBe(scope)
   })
 
-  it('fences evicted and mismatched scopes with the stable stale-instance identity', () => {
-    const runtime = new DeepChatAgentRuntime()
+  it('fences evicted and mismatched scopes with the stable stale-instance identity', async () => {
+    const runtime = new DeepChatAgentRuntime(control())
     const sessionId = toAppSessionId('session')
     const otherSessionId = toAppSessionId('other')
     const instance = runtime.getOrHydrate(sessionId)
+    await instance.controlReady()
     const currentScope = runtime.scopeFor(sessionId, instance)
     const mismatchedScope = runtime.scopeFor(otherSessionId, instance)
 
@@ -112,6 +130,7 @@ describe('DeepChatAgentRuntime', () => {
 
     runtime.evict(sessionId)
     const replacementScope = runtime.getOrHydrateScope(sessionId)
+    await replacementScope.instance.controlReady()
 
     expect(currentScope.isCurrent()).toBe(false)
     expect(replacementScope.isCurrent()).toBe(true)
@@ -123,40 +142,45 @@ describe('DeepChatAgentRuntime', () => {
     }
   })
 
-  it('exposes runtime state only, with no orchestration surface on the instance', () => {
-    const runtime = new DeepChatAgentRuntime()
+  it('exposes runtime state only, with no orchestration surface on the instance', async () => {
+    const runtime = new DeepChatAgentRuntime(control())
     const instance = runtime.getOrHydrate(toAppSessionId('session'))
+    await instance.controlReady()
 
     for (const orchestration of ['send', 'cancel', 'snapshot', 'close']) {
       expect(instance).not.toHaveProperty(orchestration)
     }
   })
 
-  it('replaces an evicted instance on the next hydration', () => {
-    const runtime = new DeepChatAgentRuntime()
+  it('replaces an evicted instance on the next hydration', async () => {
+    const runtime = new DeepChatAgentRuntime(control())
     const sessionId = toAppSessionId('session')
     const instance = runtime.getOrHydrate(sessionId)
+    await instance.controlReady()
 
     expect(runtime.evict(sessionId)).toBe(true)
     expect(runtime.evict(sessionId)).toBe(false)
     expect(runtime.getOrHydrate(sessionId)).not.toBe(instance)
   })
 
-  it('reads only already hydrated instances without creating a shell', () => {
-    const runtime = new DeepChatAgentRuntime()
+  it('reads only already hydrated instances without creating a shell', async () => {
+    const runtime = new DeepChatAgentRuntime(control())
     const sessionId = toAppSessionId('session')
 
     expect(runtime.getHydrated(sessionId)).toBeUndefined()
     const instance = runtime.getOrHydrate(sessionId)
+    await instance.controlReady()
     expect(runtime.getHydrated(sessionId)).toBe(instance)
     runtime.evict(sessionId)
     expect(runtime.getHydrated(sessionId)).toBeUndefined()
   })
 
   it('isolates identity, settings, status, project and readiness by session', async () => {
-    const runtime = new DeepChatAgentRuntime()
+    const runtime = new DeepChatAgentRuntime(control())
     const first = runtime.getOrHydrate(toAppSessionId('first'))
+    await first.controlReady()
     const second = runtime.getOrHydrate(toAppSessionId('second'))
+    await second.controlReady()
 
     first.setAgentId('agent-a')
     first.setProjectDir('/workspace/a')
@@ -174,6 +198,7 @@ describe('DeepChatAgentRuntime', () => {
       permissionMode: 'default'
     })
 
+    await first.transitionControlStatus({ kind: 'orphan' }, 'generating')
     expect(first.getAgentId()).toBe('agent-a')
     expect(first.hasProjectDir()).toBe(true)
     expect(first.getProjectDir()).toBe('/workspace/a')
@@ -187,14 +212,17 @@ describe('DeepChatAgentRuntime', () => {
     const canceledWait = first.waitForFirstTurnReady()
     first.clearFirstTurnReady()
     await expect(canceledWait).resolves.toBe(false)
-    first.markFirstTurnReady()
+    const controller = await first.ensureOperationController()
+    await first.registerActiveGeneration(createRun('first', 'ready-run', 'message', controller))
+    await first.markFirstTurnReady('ready-run')
     await expect(first.waitForFirstTurnReady()).resolves.toBe(true)
   })
 
-  it('keeps provider context observations runtime-local and model-scoped', () => {
-    const runtime = new DeepChatAgentRuntime()
+  it('keeps provider context observations runtime-local and model-scoped', async () => {
+    const runtime = new DeepChatAgentRuntime(control())
     const sessionId = toAppSessionId('session')
     const instance = runtime.getOrHydrate(sessionId)
+    await instance.controlReady()
 
     instance.recordContextWindowObservation({
       providerId: 'new-api',
@@ -253,205 +281,36 @@ describe('DeepChatAgentRuntime', () => {
     expect(instance.getContextWindowObservation('openai', 'other-model')).toBeUndefined()
   })
 
-  it('reuses an owned preparation controller for the active generation', () => {
-    const runtime = new DeepChatAgentRuntime()
-    const instance = runtime.getOrHydrate(toAppSessionId('session'))
-    const controller = new AbortController()
-
-    instance.setAbortController(controller)
-    expect(instance.getAbortSignal()).toBe(controller.signal)
-
-    const run = createRun('session', 'run-1', 'message-1', controller)
-    const generation = instance.registerActiveGeneration(run)
-    expect(generation).toBe(run)
-    expect(controller.signal.aborted).toBe(false)
-    expect(instance.getActiveGeneration()).toBe(generation)
-    expect(instance.clearActiveGeneration('stale-run')).toBe(false)
-    expect(instance.isActiveRun('run-1')).toBe(true)
-    expect(instance.clearActiveGeneration('run-1')).toBe(true)
-    expect(instance.getActiveGeneration()).toBeUndefined()
-    expect(instance.getAbortController()).toBeUndefined()
-  })
-
-  it('aborts the previous active generation before replacing it', () => {
-    const runtime = new DeepChatAgentRuntime()
-    const instance = runtime.getOrHydrate(toAppSessionId('session'))
-    const firstController = new AbortController()
-    const replacementController = new AbortController()
-    const replacement = createRun('session', 'run-2', 'message-2', replacementController)
-
-    instance.registerActiveGeneration(createRun('session', 'run-1', 'message-1', firstController))
-    instance.registerActiveGeneration(replacement)
-
-    expect(firstController.signal.aborted).toBe(true)
-    expect(replacementController.signal.aborted).toBe(false)
-    expect(instance.getActiveGeneration()).toBe(replacement)
-    expect(instance.getAbortController()).toBe(replacementController)
-  })
-
-  it('aborts an owned preparation controller when a different active run replaces it', () => {
-    const runtime = new DeepChatAgentRuntime()
-    const instance = runtime.getOrHydrate(toAppSessionId('session'))
-    const preparationController = new AbortController()
-    const activeController = new AbortController()
-    const run = createRun('session', 'run-1', 'message-1', activeController)
-
-    instance.setAbortController(preparationController)
-    instance.registerActiveGeneration(run)
-
-    expect(preparationController.signal.aborted).toBe(true)
-    expect(activeController.signal.aborted).toBe(false)
-    expect(instance.getActiveGeneration()).toBe(run)
-    expect(instance.getAbortController()).toBe(activeController)
-  })
-
-  it('aborts pre-stream work immediately but retains an active run until settlement', () => {
-    const runtime = new DeepChatAgentRuntime()
+  it('aborts pre-stream work immediately but retains an active run until settlement', async () => {
+    const runtime = new DeepChatAgentRuntime(control())
     const first = runtime.getOrHydrate(toAppSessionId('first'))
+    await first.controlReady()
     const second = runtime.getOrHydrate(toAppSessionId('second'))
-    const preStreamController = new AbortController()
+    await second.controlReady()
+    const preStreamController = await first.ensureOperationController()
     const activeController = new AbortController()
 
-    first.setAbortController(preStreamController)
     first.requestGenerationAbort()
     expect(preStreamController.signal.aborted).toBe(true)
-    expect(first.getAbortController()).toBeUndefined()
+    await vi.waitFor(() => expect(first.getAbortController()).toBeUndefined())
 
-    first.registerActiveGeneration(createRun('first', 'run-1', 'message-1', activeController))
+    await first.registerActiveGeneration(createRun('first', 'run-1', 'message-1', activeController))
     first.requestGenerationAbort()
     expect(activeController.signal.aborted).toBe(true)
     expect(first.getActiveGeneration()?.runId).toBe('run-1')
     expect(second.getAbortSignal()).toBeUndefined()
 
     first.abortAndClearGeneration()
-    expect(first.getActiveGeneration()).toBeUndefined()
+    await vi.waitFor(() => expect(first.getActiveGeneration()).toBeUndefined())
     expect(first.getAbortController()).toBeUndefined()
   })
 
-  it('isolates pending drain and steer merge state by instance', () => {
-    const runtime = new DeepChatAgentRuntime()
+  it('owns isolated runtime skill selections and tool caches', async () => {
+    const runtime = new DeepChatAgentRuntime(control())
     const first = runtime.getOrHydrate(toAppSessionId('first'))
+    await first.controlReady()
     const second = runtime.getOrHydrate(toAppSessionId('second'))
-
-    first.setActiveSteerPendingInputId('steer-1')
-    const drainLease = first.tryAcquirePendingQueueDrain()
-
-    expect(first.getActiveSteerPendingInputId()).toBe('steer-1')
-    expect(drainLease).not.toBeNull()
-    expect(first.tryAcquirePendingQueueDrain()).toBeNull()
-    expect(first.isPendingQueueDraining()).toBe(true)
-    expect(second.getActiveSteerPendingInputId()).toBeUndefined()
-    expect(second.isPendingQueueDraining()).toBe(false)
-    expect(first.clearActiveSteerPendingInputId('stale-steer')).toBe(false)
-    expect(first.clearActiveSteerPendingInputId('steer-1')).toBe(true)
-    expect(first.releasePendingQueueDrain(Symbol('not-owner'))).toBe(false)
-    expect(first.isPendingQueueDraining()).toBe(true)
-
-    first.clearOwnedState()
-    expect(first.isPendingQueueDraining()).toBe(false)
-  })
-
-  it('owns ordered interactions and per-session response guards', () => {
-    const runtime = new DeepChatAgentRuntime()
-    const first = runtime.getOrHydrate(toAppSessionId('first'))
-    const second = runtime.getOrHydrate(toAppSessionId('second'))
-
-    first.replacePendingToolBatch(
-      [
-        {
-          messageId: 'message',
-          toolCallId: 'tool-1',
-          origin: 'pre-check-permission',
-          order: 0
-        },
-        {
-          messageId: 'message',
-          toolCallId: 'tool-2',
-          origin: 'pre-check-permission',
-          order: 1
-        }
-      ],
-      {
-        callOrder: ['tool-1', 'tool-2'],
-        invokedCallIds: [],
-        committedResultCallIds: [],
-        pendingInteractionCallIds: ['tool-1', 'tool-2']
-      }
-    )
-
-    expect(first.getFirstPendingInteraction()).toEqual({
-      messageId: 'message',
-      toolCallId: 'tool-1',
-      origin: 'pre-check-permission',
-      order: 0
-    })
-    expect(first.hasPendingInteractions()).toBe(true)
-    expect(first.getPendingToolBatchState()).toEqual({
-      callOrder: ['tool-1', 'tool-2'],
-      invokedCallIds: [],
-      committedResultCallIds: [],
-      pendingInteractionCallIds: ['tool-1', 'tool-2']
-    })
-    expect(
-      first.transitionPendingInteractionOrigin('message', 'tool-1', 'post-call-permission')
-    ).toBe(true)
-    expect(first.getFirstPendingInteraction()?.origin).toBe('post-call-permission')
-    expect(second.hasPendingInteractions()).toBe(false)
-    expect(first.tryLockInteraction('message', 'tool-1')).toBe(true)
-    expect(first.tryLockInteraction('message', 'tool-1')).toBe(false)
-    expect(second.tryLockInteraction('message', 'tool-1')).toBe(true)
-    expect(first.tryBeginResume('message')).toBe(true)
-    expect(first.tryBeginResume('message')).toBe(false)
-
-    first.unlockInteraction('message', 'tool-1')
-    first.finishResume('message')
-    expect(first.tryLockInteraction('message', 'tool-1')).toBe(true)
-    expect(first.tryBeginResume('message')).toBe(true)
-
-    first.replacePendingInteractions([
-      { messageId: 'message', toolCallId: 'acp-tool', origin: 'acp-permission', order: 0 }
-    ])
-    expect(first.hasPendingInteractions()).toBe(true)
-    expect(first.getPendingToolBatchState()).toBeUndefined()
-  })
-
-  it('owns deferred tool cancellation and live provider permissions', () => {
-    const runtime = new DeepChatAgentRuntime()
-    const first = runtime.getOrHydrate(toAppSessionId('first'))
-    const second = runtime.getOrHydrate(toAppSessionId('second'))
-    const staleController = first.registerDeferredToolAbortController('tool')
-    const currentController = first.registerDeferredToolAbortController('tool')
-    const resolve = vi.fn().mockResolvedValue(undefined)
-
-    first.registerActiveProviderPermission({
-      requestId: 'request',
-      messageId: 'message',
-      toolCallId: 'tool',
-      providerId: 'acp',
-      permissionType: 'command',
-      resolve
-    })
-
-    expect(staleController.signal.aborted).toBe(true)
-    expect(currentController.signal.aborted).toBe(false)
-    expect(first.clearDeferredToolAbortController('tool', staleController)).toBe(false)
-    expect(first.hasDeferredToolAbortController('tool')).toBe(true)
-    expect(first.hasActiveProviderPermission('request')).toBe(true)
-    expect(second.hasActiveProviderPermission('request')).toBe(false)
-    expect(first.takeActiveProviderPermissions()).toEqual([
-      expect.objectContaining({ requestId: 'request', resolve })
-    ])
-
-    first.abortDeferredToolCalls()
-    expect(currentController.signal.aborted).toBe(true)
-    expect(first.hasDeferredToolAbortController('tool')).toBe(false)
-    expect(first.hasActiveProviderPermission('request')).toBe(false)
-  })
-
-  it('owns isolated runtime skill selections and tool caches', () => {
-    const runtime = new DeepChatAgentRuntime()
-    const first = runtime.getOrHydrate(toAppSessionId('first'))
-    const second = runtime.getOrHydrate(toAppSessionId('second'))
+    await second.controlReady()
 
     first.replaceRuntimeActivatedSkills(['skill-b', 'skill-a', 'skill-a', ' '])
     first.setToolProfileCache({
@@ -469,11 +328,13 @@ describe('DeepChatAgentRuntime', () => {
     expect(first.getToolProfileCache()).toBeUndefined()
   })
 
-  it('owns isolated compaction projections and stable legacy memory handles', () => {
-    const runtime = new DeepChatAgentRuntime()
+  it('owns isolated compaction projections and stable legacy memory handles', async () => {
+    const runtime = new DeepChatAgentRuntime(control())
     const sessionId = toAppSessionId('first')
     const first = runtime.getOrHydrate(sessionId)
+    await first.controlReady()
     const second = runtime.getOrHydrate(toAppSessionId('second'))
+    await second.controlReady()
 
     first.setCompactionState({
       status: 'compacting',
@@ -494,6 +355,7 @@ describe('DeepChatAgentRuntime', () => {
 
     runtime.evict(sessionId)
     const replacement = runtime.getOrHydrate(sessionId)
+    await replacement.controlReady()
     expect(replacement.getMemorySessionHandle()).not.toBe(first.getMemorySessionHandle())
     expect(replacement.getMemorySessionHandle().sessionId).toBe(sessionId)
 
@@ -501,11 +363,13 @@ describe('DeepChatAgentRuntime', () => {
     expect(first.getCompactionState()).toBeUndefined()
   })
 
-  it('invalidates tool revisions and clears only the owning instance lifecycle', () => {
-    const runtime = new DeepChatAgentRuntime()
+  it('invalidates tool revisions and clears only the owning instance lifecycle', async () => {
+    const runtime = new DeepChatAgentRuntime(control())
     const sessionId = toAppSessionId('session')
     const staleInstance = runtime.getOrHydrate(sessionId)
+    await staleInstance.controlReady()
     const other = runtime.getOrHydrate(toAppSessionId('other'))
+    await other.controlReady()
 
     for (const instance of [staleInstance, other]) {
       instance.setToolProfileCache({
@@ -523,27 +387,11 @@ describe('DeepChatAgentRuntime', () => {
 
     runtime.evict(sessionId)
     const currentInstance = runtime.getOrHydrate(sessionId)
+    await currentInstance.controlReady()
     currentInstance.replaceRuntimeActivatedSkills(['current-skill'])
     staleInstance.clearOwnedState()
 
     expect(currentInstance.getRuntimeActivatedSkills()).toEqual(['current-skill'])
     expect(staleInstance.getRuntimeActivatedSkills()).toEqual([])
-  })
-
-  it('does not let a stale drain completion clear a rehydrated instance', () => {
-    const runtime = new DeepChatAgentRuntime()
-    const sessionId = toAppSessionId('session')
-    const staleInstance = runtime.getOrHydrate(sessionId)
-    const staleLease = staleInstance.tryAcquirePendingQueueDrain()
-    if (!staleLease) throw new Error('Expected stale instance to acquire the drain')
-
-    runtime.evict(sessionId)
-    const currentInstance = runtime.getOrHydrate(sessionId)
-    const currentLease = currentInstance.tryAcquirePendingQueueDrain()
-    if (!currentLease) throw new Error('Expected current instance to acquire the drain')
-    staleInstance.releasePendingQueueDrain(staleLease)
-
-    expect(currentInstance.isPendingQueueDraining()).toBe(true)
-    expect(currentInstance.releasePendingQueueDrain(currentLease)).toBe(true)
   })
 })

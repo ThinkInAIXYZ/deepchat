@@ -1,4 +1,7 @@
+import { useHarnessControl } from '../helpers/control'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const control = useHarnessControl()
 
 import {
   MEMORY_INJECTION_TIMEOUT_MS,
@@ -84,7 +87,7 @@ function createHarness() {
   let cursor = 0
   let rows = [createRecord('u1', 1, 'Remember Redis.')]
   let tapeRows = rows.map(toTapeRow)
-  const registry = new DeepChatAgentRuntime()
+  const registry = new DeepChatAgentRuntime(control())
   const instance = registry.getOrHydrate(toAppSessionId('s1'))
   instance.setRuntimeState({
     status: 'idle',

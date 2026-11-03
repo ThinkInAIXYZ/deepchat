@@ -17,6 +17,7 @@ import {
 const createResourceInstance = (agentId = 'deepchat') => {
   let cached: { profile: 'general'; fingerprint: string; tools: [] } | undefined
   return {
+    controlReady: async () => {},
     getAgentId: vi.fn(() => agentId),
     getRuntimeState: vi.fn(() => ({
       status: 'idle',

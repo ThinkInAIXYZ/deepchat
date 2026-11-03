@@ -1,3 +1,4 @@
+import { useHarnessControl } from '../helpers/control'
 import { describe, expect, it, vi } from 'vitest'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
@@ -5,6 +6,8 @@ import {
   SessionStateResolver,
   type SessionStateResolverDependencies
 } from '@/agent/deepchat/runtime/sessionStateResolver'
+
+const control = useHarnessControl()
 
 const SESSION_ID = 'session'
 
@@ -16,7 +19,7 @@ const PERSISTED_ROW = {
 
 function createHarness(options: { persisted?: unknown; hasPendingInteractions?: boolean } = {}) {
   const order: string[] = []
-  const runtime = new DeepChatAgentRuntime()
+  const runtime = new DeepChatAgentRuntime(control())
   const getAgentId = vi.fn(() => {
     order.push('identity.getAgentId')
     return 'deepchat'

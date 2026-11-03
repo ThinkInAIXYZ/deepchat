@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import type { DeepChatAgentBackendPort } from '@/agent/manager/deepChatAgentBackend'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { createDeepChatAgentBackendFixture } from './deepChatAgentBackendFixture'
+import {
+  createBackendControl,
+  createDeepChatAgentBackendFixture
+} from './deepChatAgentBackendFixture'
 
 const createPort = (): DeepChatAgentBackendPort => {
   const port: DeepChatAgentBackendPort = {
@@ -122,7 +125,7 @@ describe('DeepChatAgentBackend', () => {
 
   it('releases its own runtime instance when durable teardown fails', async () => {
     const port = createPort()
-    const runtime = new DeepChatAgentRuntime()
+    const runtime = new DeepChatAgentRuntime(createBackendControl())
     const backend = createDeepChatAgentBackendFixture(port, runtime)
     const sessionId = toAppSessionId('session')
     const handle = backend.open(sessionId)
@@ -137,7 +140,7 @@ describe('DeepChatAgentBackend', () => {
 
   it('leaves a replacement runtime instance alone when a stale handle closes', async () => {
     const port = createPort()
-    const runtime = new DeepChatAgentRuntime()
+    const runtime = new DeepChatAgentRuntime(createBackendControl())
     const backend = createDeepChatAgentBackendFixture(port, runtime)
     const sessionId = toAppSessionId('session')
     const handle = backend.open(sessionId)

@@ -1,8 +1,5 @@
 import logger from '@shared/logger'
-import type {
-  PermissionMode,
-  SessionGenerationSettings
-} from '@shared/types/agent-interface'
+import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { ToolServicePort } from '@shared/types/tool'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
@@ -21,7 +18,6 @@ import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { SessionIdentityService } from './sessionIdentityService'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { JevPruningFeedback } from './jevPruningFeedback'
-import type { InteractionParkingRegistry } from './interactionParkingRegistry'
 import type { ToolSurfaceShadowDiagnosticsRegistryPort } from './toolSurfaceDiagnostics'
 import type { ToolSurfaceCanaryDiagnosticsRegistry } from './toolSurfaceCanaryDiagnostics'
 import { revokeToolSurfaceDeferredDispatchesForSession } from './toolSurface'
@@ -36,10 +32,12 @@ export interface SessionInitConfig {
   generationSettings?: Partial<SessionGenerationSettings>
 }
 
-export type SessionLifecycleRegistry = SessionScopeRegistry & Pick<DeepChatAgentRuntime, 'evict'>
+export type SessionLifecycleRegistry = SessionScopeRegistry &
+  Pick<DeepChatAgentRuntime, 'evict' | 'clearSessionControl'>
 
 export interface SessionLifecycleCoordinatorDependencies {
   registry: SessionLifecycleRegistry
+  fenceInputEffects(sessionId: string): void
   providerSettings: ProviderModelResolutionPort
   promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
   sessionStore: Pick<SessionSettingsStore, 'create' | 'delete'>
@@ -57,7 +55,6 @@ export interface SessionLifecycleCoordinatorDependencies {
     RunLifecycleCoordinator,
     'cancel' | 'clearFirstTurnReady' | 'cancelScopeOperations' | 'scopeFor'
   >
-  interactionParking: Pick<InteractionParkingRegistry, 'clearSession'>
   toolSurfaceDiagnostics: Pick<ToolSurfaceShadowDiagnosticsRegistryPort, 'clear'>
   toolSurfaceCanaryDiagnostics: Pick<ToolSurfaceCanaryDiagnosticsRegistry, 'clearSession'>
   programmaticToolParents: Pick<ProgrammaticToolParentRegistry, 'releaseSession'>
@@ -88,6 +85,7 @@ export class SessionLifecycleCoordinator {
       generationSettings
     )
     const instance = this.deps.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
+    await instance.controlReady()
     instance.setAgentId(
       config.agentId?.trim() || this.deps.identity.getAgentId(sessionId) || 'deepchat'
     )
@@ -130,11 +128,16 @@ export class SessionLifecycleCoordinator {
 
   async destroy(sessionId: string): Promise<void> {
     const instance = this.deps.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
+    this.deps.fenceInputEffects(sessionId)
     this.deps.memory.beginSessionDestroy(sessionId)
     if (instance) {
+      instance.fenceInputEffects()
       this.deps.runLifecycle.cancelScopeOperations(
         this.deps.runLifecycle.scopeFor(sessionId, instance)
       )
+      if (this.deps.registry.getHydratedScope(toAppSessionId(sessionId))?.instance === instance) {
+        this.deps.registry.evict(toAppSessionId(sessionId))
+      }
     }
     this.deps.runLifecycle.clearFirstTurnReady(sessionId)
 
@@ -145,14 +148,13 @@ export class SessionLifecycleCoordinator {
     this.deps.programmaticToolParents.releaseSession(sessionId)
     this.deps.pruningFeedback.clear(sessionId)
     this.deps.toolSurfaceCanaryDiagnostics.clearSession(sessionId)
-    this.deps.interactionParking.clearSession(sessionId)
+    await this.deps.registry.clearSessionControl(toAppSessionId(sessionId), instance)
     if (instance) {
       try {
         this.deps.toolSurfaceDiagnostics.clear(instance)
       } catch {}
     }
     instance?.clearOwnedState()
-    this.deps.registry.evict(toAppSessionId(sessionId))
     this.deps.memory.finishSessionDestroy(sessionId)
     this.deps.toolService.clearConversationToolMapping(sessionId)
   }

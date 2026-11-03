@@ -1,4 +1,5 @@
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
+import type { SessionRuntimeScope } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { parseMessageMetadata } from '@/session/usageStats'
 import type { AcpAsLlmProviderPermissionPort } from '@/provider/ports'
 import {
@@ -9,11 +10,7 @@ import {
 } from './interactionProjection'
 import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
 import { buildUsageFromMetadata, stampInteractionResolution } from './runtimeMetadata'
-import type {
-  DeepChatEventPublisher,
-  PendingToolInteraction,
-  StreamState
-} from './types'
+import type { DeepChatEventPublisher, PendingToolInteraction, StreamState } from './types'
 import { markStreamChanged } from './types'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
@@ -23,16 +20,16 @@ import { resolveProviderPermissionSafely } from './providerPermissionResolution'
 type ProviderPermissionRunLifecyclePort = Pick<
   RunLifecycleCoordinator,
   | 'getHydratedScope'
-  | 'getOrCreateScope'
   | 'isMessageAssociatedWithRun'
   | 'isRunCurrentForScope'
   | 'observeTerminal'
   | 'resolveStreamRequestId'
-  | 'transitionCurrentStatus'
+  | 'scopeFor'
+  | 'transitionStatus'
 >
 
 interface ProviderPermissionCoordinatorDependencies {
-  messageStore: SessionTranscript
+  messageStore: Pick<SessionTranscript, 'getMessage' | 'updateAssistantContent' | 'setMessageError'>
   runLifecycle: ProviderPermissionRunLifecyclePort
   permissionPort: AcpAsLlmProviderPermissionPort
   messageProjection: Pick<MessageProjectionService, 'refresh'>
@@ -42,93 +39,118 @@ interface ProviderPermissionCoordinatorDependencies {
 export class ProviderPermissionCoordinator {
   constructor(private readonly deps: ProviderPermissionCoordinatorDependencies) {}
 
-  register(
-    sessionId: string,
-    messageId: string,
+  async register(
+    scope: SessionRuntimeScope,
+    ownerRun: LoopRun<unknown>,
     permission: NonNullable<PendingToolInteraction['permission']>,
     tool: { callId?: string; name?: string; params?: string },
     commitDecision: (granted: boolean) => void
-  ): void {
+  ): Promise<void> {
     const requestId = permission.requestId?.trim()
     const providerId = permission.providerId?.trim()
-    if (!requestId || providerId !== 'acp') {
-      return
-    }
-
-    this.deps.runLifecycle.getOrCreateScope(sessionId).instance.registerActiveProviderPermission({
-      requestId,
-      messageId,
-      toolCallId: tool.callId || '',
-      providerId,
-      permissionType: permission.permissionType,
-      resolve: async (granted) => {
-        await this.deps.permissionPort.resolveAgentPermission(requestId, granted)
-        commitDecision(granted)
-      }
-    })
+    if (!requestId || providerId !== 'acp') return
+    await scope.instance.registerActiveProviderPermission(
+      {
+        requestId,
+        messageId: ownerRun.messageId,
+        toolCallId: tool.callId || '',
+        providerId,
+        permissionType: permission.permissionType,
+        resolve: async (granted) => {
+          await this.deps.permissionPort.resolveAgentPermission(requestId, granted)
+          if (
+            this.deps.runLifecycle.isRunCurrentForScope(scope, ownerRun.runId) &&
+            (!granted || !ownerRun.abortController.signal.aborted)
+          )
+            commitDecision(granted)
+        }
+      },
+      ownerRun.runId
+    )
   }
 
-  async resolve(input: ProviderPermissionInteractionInput): Promise<void> {
-    const instance = this.deps.runLifecycle.getHydratedScope(input.sessionId)?.instance
-    const activeCandidate = instance?.getActiveProviderPermission(input.requestId)
+  async resolve(
+    input: ProviderPermissionInteractionInput & { interactionLeaseId: string }
+  ): Promise<void> {
+    const scope = this.deps.runLifecycle.getHydratedScope(input.sessionId)
+    if (!scope) return
+    const { instance } = scope
+    const candidate = instance.getActiveProviderPermission(input.requestId)
     const active =
-      activeCandidate?.messageId === input.messageId &&
-      activeCandidate.toolCallId === input.toolCallId
-        ? activeCandidate
+      candidate?.messageId === input.messageId && candidate.toolCallId === input.toolCallId
+        ? candidate
         : undefined
-    const hasConflictingActive = Boolean(activeCandidate && !active)
     const ownerRun = this.deps.runLifecycle.isMessageAssociatedWithRun(
       input.ownerRun,
       input.messageId
     )
       ? input.ownerRun
       : undefined
+    if (input.signal?.aborted || ownerRun?.abortController.signal.aborted) return
 
-    if (input.signal?.aborted || ownerRun?.abortController.signal.aborted) {
+    const granted = ownerRun ? input.granted : false
+    const decision = await instance.takeProviderPermission({
+      requestId: input.requestId,
+      messageId: input.messageId,
+      toolCallId: input.toolCallId,
+      runId: ownerRun?.runId ?? null,
+      leaseId: input.interactionLeaseId,
+      granted,
+      expected: active
+    })
+    if (
+      decision.kind === 'stale' ||
+      input.signal?.aborted ||
+      !scope.isCurrent() ||
+      ownerRun?.abortController.signal.aborted
+    )
       return
-    }
-
-    if (ownerRun) {
-      if (hasConflictingActive) {
+    if (decision.kind === 'conflict') {
+      if (ownerRun) {
         const projection: ProviderPermissionProjection = {
           status: 'error',
           message: 'ACP permission request ownership changed.'
         }
         this.updateActiveState(ownerRun, input, projection)
         this.updatePersistedState(input, projection)
-        if (instance) {
-          this.removePending(instance, input)
-        }
-        return
-      }
-
-      let resolution: { status: 'resolved' } | { status: 'stale'; error: unknown }
-      try {
-        resolution = await resolveProviderPermissionSafely(
-          active
-            ? () => active.resolve(input.granted)
-            : () => this.deps.permissionPort.resolveAgentPermission(input.requestId, input.granted)
+        await this.removePending(instance, input)
+      } else {
+        await this.fail(
+          input,
+          'ACP permission request ownership changed.',
+          instance,
+          !input.ownerRun
         )
-      } finally {
-        instance?.clearActiveProviderPermission(input.requestId, active)
       }
+      return
+    }
 
-      const currentScope = this.deps.runLifecycle.getHydratedScope(input.sessionId)
+    const resolve = async () =>
+      decision.kind === 'spent'
+        ? {
+            status: 'stale' as const,
+            error: new Error('ACP permission resolution was already claimed.')
+          }
+        : await resolveProviderPermissionSafely(() =>
+            decision.kind === 'callback'
+              ? decision.permission.resolve(granted)
+              : this.deps.permissionPort.resolveAgentPermission(input.requestId, granted)
+          )
+    if (ownerRun) {
+      const resolution = await resolve()
       if (
         input.signal?.aborted ||
         ownerRun.abortController.signal.aborted ||
-        !currentScope ||
-        !this.deps.runLifecycle.isRunCurrentForScope(currentScope, ownerRun.runId)
-      ) {
+        !this.deps.runLifecycle.isRunCurrentForScope(scope, ownerRun.runId)
+      )
         return
-      }
       if (resolution.status === 'stale') {
         console.warn(
           `[DeepChatAgent] ACP permission request expired while its generation remained active: ${input.requestId}`,
           resolution.error
         )
       }
-      if (!active || resolution.status === 'stale') {
+      if (decision.kind !== 'callback' || resolution.status === 'stale') {
         const projection: ProviderPermissionProjection =
           resolution.status === 'resolved'
             ? { status: 'resolved', granted: input.granted }
@@ -136,36 +158,17 @@ export class ProviderPermissionCoordinator {
         this.updateActiveState(ownerRun, input, projection)
         this.updatePersistedState(input, projection)
       }
-      this.removePending(currentScope.instance, input)
+      await this.removePending(instance, input)
       return
     }
 
-    if (hasConflictingActive) {
-      this.fail(input, 'ACP permission request ownership changed.', instance)
-      return
-    }
-
-    let resolution:
-      | { status: 'resolved' }
-      | { status: 'stale'; error: unknown }
-      | { status: 'failed'; error: unknown }
+    let resolution: Awaited<ReturnType<typeof resolve>> | { status: 'failed'; error: unknown }
     try {
-      try {
-        resolution = await resolveProviderPermissionSafely(
-          active
-            ? () => active.resolve(false)
-            : () => this.deps.permissionPort.resolveAgentPermission(input.requestId, false)
-        )
-      } catch (error) {
-        resolution = { status: 'failed', error }
-      }
-    } finally {
-      instance?.clearActiveProviderPermission(input.requestId, active)
+      resolution = await resolve()
+    } catch (error) {
+      resolution = { status: 'failed', error }
     }
-
-    if (input.signal?.aborted) {
-      return
-    }
+    if (input.signal?.aborted || !scope.isCurrent()) return
     if (resolution.status === 'stale') {
       console.warn(
         `[DeepChatAgent] Failing stale ACP permission request ${input.requestId}:`,
@@ -177,12 +180,13 @@ export class ProviderPermissionCoordinator {
         resolution.error
       )
     }
-    this.fail(
+    await this.fail(
       input,
       resolution.status === 'stale'
         ? 'Permission request expired.'
         : 'ACP permission request lost its active generation.',
-      instance
+      instance,
+      !input.ownerRun
     )
   }
 
@@ -213,11 +217,12 @@ export class ProviderPermissionCoordinator {
     }
   }
 
-  private fail(
+  private async fail(
     input: ProviderPermissionInteractionInput,
     errorMessage: string,
-    instance?: DeepChatAgentInstance
-  ): void {
+    instance?: DeepChatAgentInstance,
+    publishStatus = true
+  ): Promise<void> {
     const message = this.deps.messageStore.getMessage(input.messageId)
     if (!message || message.role !== 'assistant') {
       return
@@ -237,10 +242,7 @@ export class ProviderPermissionCoordinator {
     )
     this.deps.messageProjection.refresh(input.sessionId, input.messageId)
     this.deps.publishEvent('chat.stream.failed', {
-      requestId: this.deps.runLifecycle.resolveStreamRequestId(
-        input.sessionId,
-        input.messageId
-      ),
+      requestId: this.deps.runLifecycle.resolveStreamRequestId(input.sessionId, input.messageId),
       sessionId: input.sessionId,
       messageId: input.messageId,
       failedAt: Date.now(),
@@ -253,28 +255,31 @@ export class ProviderPermissionCoordinator {
       usage: buildUsageFromMetadata(terminalMetadata)
     })
     if (instance) {
-      this.removePending(instance, input)
-      if (!instance.getActiveGeneration()) {
-        this.deps.runLifecycle.transitionCurrentStatus(
-          input.sessionId,
+      await this.removePending(instance, input)
+      if (publishStatus && !instance.getActiveGeneration()) {
+        await this.deps.runLifecycle.transitionStatus(
+          this.deps.runLifecycle.scopeFor(input.sessionId, instance),
           'error',
+          input.controlOwner ?? { kind: 'orphan' },
           buildUsageFromMetadata(terminalMetadata)
         )
       }
     }
   }
 
-  private removePending(
+  private async removePending(
     instance: DeepChatAgentInstance,
     input: ProviderPermissionInteractionInput
-  ): void {
-    instance.replacePendingInteractions(
+  ): Promise<void> {
+    await instance.replacePendingInteractions(
       instance
         .getPendingInteractions()
         .filter(
           (interaction) =>
             interaction.messageId !== input.messageId || interaction.toolCallId !== input.toolCallId
-        )
+        ),
+      input.controlOwner ??
+        (input.ownerRun ? { kind: 'run', id: input.ownerRun.runId } : { kind: 'orphan' })
     )
   }
 }

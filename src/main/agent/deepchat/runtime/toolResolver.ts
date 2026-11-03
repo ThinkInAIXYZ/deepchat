@@ -306,6 +306,7 @@ export class DeepChatToolResolver {
     const resourceInstance =
       providedResourceInstance ??
       this.dependencies.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
+    await resourceInstance.controlReady()
     const catalog = this.createSessionToolCatalogPort(
       sessionId,
       projectDir,
@@ -331,6 +332,7 @@ export class DeepChatToolResolver {
     const resourceInstance =
       providedResourceInstance ??
       this.dependencies.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
+    await resourceInstance.controlReady()
     this.assertCurrent(sessionId, resourceInstance)
     const providerId = resourceInstance.getRuntimeState()?.providerId?.trim()
     if (this.dependencies.identity.isAcpBackedSubagentSession(sessionId, providerId)) {

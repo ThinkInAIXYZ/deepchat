@@ -1,3 +1,4 @@
+import type { HarnessControlOwner } from '@shared/harness/control'
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import logger from '@shared/logger'
@@ -54,10 +55,7 @@ import type { CompactionRuntimeCoordinator } from './compactionRuntimeCoordinato
 import { hasCompactionBoundaryAdvanced, type CompactionService } from './compactionService'
 import { isContextWindowErrorLike } from './contextWindowError'
 import { resolveInterleavedReasoningConfig } from './generationSettings'
-import {
-  updateToolCallResponse,
-  parseAssistantBlocks
-} from './interactionProjection'
+import { updateToolCallResponse, parseAssistantBlocks } from './interactionProjection'
 import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
 import type { DeepChatEventPublisher, ProcessResult } from './types'
 import {
@@ -66,10 +64,7 @@ import {
   stampTerminalMetadata
 } from './runtimeMetadata'
 import type { SessionSettingsStore } from '@/session/data/settings'
-import type {
-  TapeProviderAttemptReader,
-  TapeReconciliationPort
-} from '@/tape/ports/capabilities'
+import type { TapeProviderAttemptReader, TapeReconciliationPort } from '@/tape/ports/capabilities'
 import { isExecutionJournalError } from '@/tape/domain/executionJournal'
 import { isCommittedRunProjectionError } from './runTerminalProjectionError'
 import {
@@ -106,10 +101,7 @@ import type { RuntimeHookSink } from './runtimeHookSink'
 import type { DeepChatTaskContractContextPort } from '@/agent/deepchat/loop/ports'
 import type { SessionIdentityService } from './sessionIdentityService'
 import { meetTaskContractToolDefinitions } from './taskContractCapability'
-import type {
-  ClaimedPendingInputHandle,
-  TurnCompletion
-} from './pendingInputContracts'
+import type { ClaimedPendingInputHandle, TurnCompletion } from './pendingInputContracts'
 import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
 import type { CommandShellService } from '@/agent/shared/process/commandShellService'
 import type { SessionPendingInputs } from '@/session/data/pendingInputs'
@@ -129,7 +121,6 @@ type TurnRunLifecyclePort = Pick<
   RunLifecycleCoordinator,
   | 'applyProcessResultStatus'
   | 'assertCurrentInstance'
-  | 'canSettleOperation'
   | 'clearOperationController'
   | 'clearRun'
   | 'ensureOperationController'
@@ -139,7 +130,6 @@ type TurnRunLifecyclePort = Pick<
   | 'schedulePendingInputDrain'
   | 'scopeFor'
   | 'settleAbortedTurn'
-  | 'transitionCurrentStatus'
   | 'transitionStatus'
 >
 
@@ -184,10 +174,8 @@ export interface TurnCoordinatorPorts {
     'resolveProjectDir' | 'getEffectiveGenerationSettings'
   >
   promptAssembly: Pick<PromptAssemblyService, 'createBasePromptAssembler'>
-  identity: Partial<Pick<SessionIdentityService, 'getParentSessionId'>> & Pick<
-    SessionIdentityService,
-    'getAgentId' | 'getSessionKind' | 'isAcpBackedSubagentSession'
-  >
+  identity: Partial<Pick<SessionIdentityService, 'getParentSessionId'>> &
+    Pick<SessionIdentityService, 'getAgentId' | 'getSessionKind' | 'isAcpBackedSubagentSession'>
   skillContextMaterializer: SkillContextMaterializer
   taskContractContext: DeepChatTaskContractContextPort
   commandShell: Pick<CommandShellService, 'resolveForTurn'>
@@ -278,10 +266,7 @@ export class TurnCoordinator {
       modelConfig,
       state.modelId
     )
-    const contextObservation = instance.getContextWindowObservation(
-      state.providerId,
-      state.modelId
-    )
+    const contextObservation = instance.getContextWindowObservation(state.providerId, state.modelId)
     const effectiveContextBudget = useContextBudget
       ? resolveEffectiveContextBudget({
           configuredContextLength: configuredContextBudgetLength,
@@ -314,13 +299,11 @@ export class TurnCoordinator {
     }
     const requestedSessionActiveSkillNames =
       input.sessionActiveSkillNamesOverride === undefined
-        ? await this.runPreStreamStep(
-            { sessionId, messageId, step: 'active-skills', signal },
-            () =>
-              awaitWithAbort(
-                this.ports.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId),
-                signal
-              )
+        ? await this.runPreStreamStep({ sessionId, messageId, step: 'active-skills', signal }, () =>
+            awaitWithAbort(
+              this.ports.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId),
+              signal
+            )
           )
         : [...input.sessionActiveSkillNamesOverride]
     const sessionActiveSkillNames = await awaitWithAbort(
@@ -489,11 +472,12 @@ export class TurnCoordinator {
     let pluginRunStarted = false
     let initializedScope: SessionRuntimeScope | undefined
     let initializedAbortController: AbortController | undefined
+    let initializedOperationOwner: { kind: 'operation'; id: string } | undefined
     let statusTransitionAttempted = false
     let statusBeforeInitialization: DeepChatSessionState['status'] | undefined
     let linkedSteerMessageIds: string[] = []
     let reservedSteerAssistantMessageId: string | null = null
-    const initializeTurn = () => {
+    const initializeTurn = async () => {
       const instance = this.ports.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
       if (!instance) throw new Error(`Session ${sessionId} not found`)
       instance.clearPreStreamTranscriptAnchor()
@@ -505,10 +489,12 @@ export class TurnCoordinator {
         instance.setPreStreamTranscriptAnchorId(reservedTranscriptAnchor)
       }
       const scope = this.ports.runLifecycle.scopeFor(sessionId, instance)
+      await instance.controlReady()
+      scope.assertCurrent()
       initializedScope = scope
       const state = instance.getRuntimeState()
       if (!state) throw new Error(`Session ${sessionId} not found`)
-      if (this.ports.runLifecycle.hasPendingInteractions(sessionId)) {
+      if (await this.ports.runLifecycle.hasPendingInteractions(sessionId)) {
         throw new Error('Pending tool interactions must be resolved before sending a new message.')
       }
       if (isSendMessageInputEmpty(content)) {
@@ -526,18 +512,26 @@ export class TurnCoordinator {
         state.modelId,
         providerModelFacts
       )
-      const projectDir = this.ports.sessionSettings.resolveProjectDir(sessionId, context?.projectDir, instance)
+      const projectDir = this.ports.sessionSettings.resolveProjectDir(
+        sessionId,
+        context?.projectDir,
+        instance
+      )
       logger.info(
         `[DeepChatAgent] processMessage session=${sessionId} promptLength=${content.text.length} fileCount=${content.files?.length ?? 0} hasProjectDir=${projectDir !== null}`
       )
 
       this.ports.pluginContext?.beginRun?.(sessionId)
       pluginRunStarted = true
-      const preStreamAbortController = this.ports.runLifecycle.ensureOperationController(scope)
+      const preStreamAbortController =
+        await this.ports.runLifecycle.ensureOperationController(scope)
+      const operationOwner = instance.operationOwner(preStreamAbortController)
+      claimedInput?.bindOwner(preStreamAbortController, operationOwner)
+      initializedOperationOwner = operationOwner
       initializedAbortController = preStreamAbortController
       statusBeforeInitialization = state.status
       statusTransitionAttempted = true
-      this.ports.runLifecycle.transitionStatus(scope, 'generating')
+      await this.ports.runLifecycle.transitionStatus(scope, 'generating', operationOwner)
       return {
         scope,
         instance,
@@ -547,11 +541,12 @@ export class TurnCoordinator {
         supportsAudioInput,
         projectDir,
         preStreamAbortController,
+        operationOwner,
         preStreamAbortSignal: preStreamAbortController.signal
       }
     }
 
-    let initializedTurn: ReturnType<typeof initializeTurn>
+    let initializedTurn: Awaited<ReturnType<typeof initializeTurn>>
     try {
       if (isSteerClaim && claimedInput) {
         linkedSteerMessageIds = claimedInput.messageIds
@@ -560,7 +555,7 @@ export class TurnCoordinator {
           throw new Error(`Claimed steer input ${claimedInput.id} has no reserved transcript.`)
         }
       }
-      initializedTurn = initializeTurn()
+      initializedTurn = await initializeTurn()
     } catch (error) {
       if (pluginRunStarted) this.ports.pluginContext?.endRun?.(sessionId)
       if (claimedInput && !claimedInput.disposition) {
@@ -574,9 +569,9 @@ export class TurnCoordinator {
               )
               this.ports.messageProjection.refresh(sessionId, reservedSteerAssistantMessageId)
             }
-            claimedInput.settle({ kind: 'consume' })
+            await claimedInput.settle({ kind: 'consume' })
           } else {
-            claimedInput.settle({ kind: 'release-before-user-fact' })
+            await claimedInput.settle({ kind: 'release-before-user-fact' })
           }
         } catch (releaseError) {
           console.warn('[DeepChatAgent] failed to release claimed pending input:', releaseError)
@@ -584,12 +579,17 @@ export class TurnCoordinator {
       }
       if (initializedScope && initializedAbortController) {
         try {
-          this.ports.runLifecycle.clearOperationController(
+          await this.ports.runLifecycle.clearOperationController(
             initializedScope,
-            initializedAbortController
+            initializedAbortController,
+            undefined,
+            initializedOperationOwner ? { operationId: initializedOperationOwner.id } : undefined
           )
         } catch (cleanupError) {
-          console.warn('[DeepChatAgent] failed to clear rejected turn abort controller:', cleanupError)
+          console.warn(
+            '[DeepChatAgent] failed to clear rejected turn abort controller:',
+            cleanupError
+          )
         }
       }
       initializedScope?.instance.clearPreStreamTranscriptAnchor()
@@ -599,7 +599,11 @@ export class TurnCoordinator {
         statusBeforeInitialization !== undefined
       ) {
         try {
-          this.ports.runLifecycle.transitionStatus(initializedScope, statusBeforeInitialization)
+          await this.ports.runLifecycle.transitionStatus(
+            initializedScope,
+            statusBeforeInitialization,
+            initializedOperationOwner!
+          )
         } catch (cleanupError) {
           console.warn('[DeepChatAgent] failed to restore rejected turn status:', cleanupError)
         }
@@ -615,6 +619,7 @@ export class TurnCoordinator {
       supportsAudioInput,
       projectDir,
       preStreamAbortController,
+      operationOwner,
       preStreamAbortSignal
     } = initializedTurn
     const providerReplayProjector = createDeepSeekResponsesReplayProjector({
@@ -633,6 +638,10 @@ export class TurnCoordinator {
     let assistantMessageId: string | null = reservedSteerAssistantMessageId
     let assistantCreationAttempted = isSteerClaim
     let streamRunId: string | undefined
+    const turnOwner = (): HarnessControlOwner =>
+      streamRunId ? { kind: 'run', id: streamRunId } : operationOwner
+    const transitionTurnStatus = async (status: DeepChatSessionState['status']) =>
+      await this.ports.runLifecycle.transitionStatus(scope, status, turnOwner())
     let attachmentPreparation: AttachmentPreparationSummary | undefined
 
     try {
@@ -690,12 +699,12 @@ export class TurnCoordinator {
       }
       if (attachmentPreparation?.status === 'needs_user_action') {
         if (claimedInput) {
-          claimedInput.settle({
+          await claimedInput.settle({
             kind: 'block',
             attachmentPreparation
           })
         }
-        this.ports.runLifecycle.transitionStatus(scope, 'idle')
+        await transitionTurnStatus('idle')
         return complete({ requestId: null, messageId: null, attachmentPreparation })
       }
       const {
@@ -737,16 +746,18 @@ export class TurnCoordinator {
           awaitWithAbort(
             this.ports.skillContextMaterializer.prepareFresh({
               sessionId,
-              agentId: instance.getAgentId()?.trim() || this.ports.identity.getAgentId(sessionId) || 'deepchat',
+              agentId:
+                instance.getAgentId()?.trim() ||
+                this.ports.identity.getAgentId(sessionId) ||
+                'deepchat',
               messageSkillNames: messageActiveSkillNames,
               sessionSkillNames: sessionActiveSkillNames
             }),
             preStreamAbortSignal
           )
       )
-      const candidateSkillBodies = this.ports.skillContextMaterializer.preview(
-        preparedSkillContexts
-      )
+      const candidateSkillBodies =
+        this.ports.skillContextMaterializer.preview(preparedSkillContexts)
       let unguardedBasePromptAssembly = await this.assembleBasePrompt({
         sessionId,
         messageId: userMessageId,
@@ -784,10 +795,8 @@ export class TurnCoordinator {
       const ensureHistory = () =>
         runSynchronousPreStreamStep(sessionId, 'tape-ready', () =>
           getTapeContextHistoryRecords(
-            this.ports.tapeReconciliation.ensureSessionTapeReady(
-              sessionId,
-              this.ports.messageStore
-            ).historyRecords
+            this.ports.tapeReconciliation.ensureSessionTapeReady(sessionId, this.ports.messageStore)
+              .historyRecords
           )
         )
       const prepareCompactionIntent = async (historyRecords: ChatMessageRecord[]) => {
@@ -892,6 +901,9 @@ export class TurnCoordinator {
         historyRecords = preparedInput.history
         summaryState = preparedInput.summary
       } else {
+        const appendClaimedUserFact = claimedInput
+          ? await claimedInput.prepareUserFact()
+          : undefined
         const preparedInput = await this.ports.inputPreparationCoordinator.prepareInitial({
           ensureHistory,
           prepareIntent: prepareCompactionIntent,
@@ -920,10 +932,12 @@ export class TurnCoordinator {
               'user-message-create',
               () =>
                 claimedInput && claimedInput.source !== 'steer'
-                  ? this.ports.pendingInputs.createClaimedQueueUserMessage(
-                      sessionId,
-                      claimedInput.id,
-                      userContent
+                  ? appendClaimedUserFact!(() =>
+                      this.ports.pendingInputs.createClaimedQueueUserMessage(
+                        sessionId,
+                        claimedInput.id,
+                        userContent
+                      )
                     )
                   : this.ports.messageStore.createUserMessage(
                       sessionId,
@@ -1004,18 +1018,21 @@ export class TurnCoordinator {
 
       if (state.providerId !== 'acp' && this.ports.pluginContext?.hasHooks()) {
         await this.ports.pluginContext.accept({
-          sessionId, messageId: userMessageId, prompt: content.text, cwd: projectDir,
-          model: state.modelId, parentSessionId: this.ports.identity.getParentSessionId?.(sessionId),
-          agentId: this.ports.identity.getAgentId(sessionId), signal: preStreamAbortSignal
+          sessionId,
+          messageId: userMessageId,
+          prompt: content.text,
+          cwd: projectDir,
+          model: state.modelId,
+          parentSessionId: this.ports.identity.getParentSessionId?.(sessionId),
+          agentId: this.ports.identity.getAgentId(sessionId),
+          signal: preStreamAbortSignal
         })
         scope.assertCurrent()
         throwIfAbortRequested(preStreamAbortSignal)
       }
 
       const buildContextView = (
-        contextContributions: Awaited<
-          ReturnType<PostCompactionPromptAssembler['assemble']>
-        >
+        contextContributions: Awaited<ReturnType<PostCompactionPromptAssembler['assemble']>>
       ) => {
         const contextBuildStartedAt = Date.now()
         // A retried user prompt that is anchored and kept in the transcript is
@@ -1124,7 +1141,7 @@ export class TurnCoordinator {
       throwIfAbortRequested(preStreamAbortSignal)
 
       if (claimedInput?.source === 'send') {
-        claimedInput.settle({ kind: 'consume' })
+        await claimedInput.settle({ kind: 'consume' })
       }
 
       if (context?.emitRefreshBeforeStream) {
@@ -1141,6 +1158,10 @@ export class TurnCoordinator {
         },
         preStreamStartedAt
       )
+      const consumeBeforeProviderStream =
+        context?.consumeClaimBeforeProviderStream && claimedInput && !claimedInput.disposition
+          ? await claimedInput.prepareConsume()
+          : undefined
       let streamResult: { runId: string; result: ProcessResult }
       try {
         streamResult = await this.ports.loopRunner.run({
@@ -1162,7 +1183,7 @@ export class TurnCoordinator {
           initialRuntimeContextLimitTokens: runtimeContextLimitTokens ?? null,
           taskContractContext,
           providerReplayProjector,
-          abortController: preStreamAbortController,
+          abortController: preStreamAbortController ?? undefined,
           maxProviderRounds: context?.maxProviderRounds,
           interleavedReasoning,
           materializedSkillContexts,
@@ -1184,7 +1205,7 @@ export class TurnCoordinator {
               claimedInput &&
               !claimedInput.disposition
             ) {
-              claimedInput.settle({ kind: 'consume' })
+              consumeBeforeProviderStream?.()
             }
             providerBoundary.complete()
           },
@@ -1204,18 +1225,20 @@ export class TurnCoordinator {
           result.status === 'paused' ||
           result.status === 'aborted'
         ) {
-          claimedInput.settle({ kind: 'consume' })
+          await claimedInput.settle({ kind: 'consume' })
         } else {
-          this.rollbackPendingInputTurn(sessionId, userMessageId, instance)
+          await claimedInput.rollback(() =>
+            this.rollbackPendingInputTurn(sessionId, userMessageId, instance)
+          )
           userMessageId = null
           assistantMessageId = null
-          claimedInput.settle({ kind: 'release-after-rollback' })
+          await claimedInput.settle({ kind: 'release-after-rollback' })
         }
       }
       try {
-        this.ports.runLifecycle.applyProcessResultStatus(sessionId, result, runId)
+        await this.ports.runLifecycle.applyProcessResultStatus(sessionId, result, runId)
       } finally {
-        this.ports.runLifecycle.clearRun(scope, runId)
+        await this.ports.runLifecycle.clearRun(scope, runId)
       }
       if (!claimedInput && result?.status === 'completed') {
         this.ports.runLifecycle.schedulePendingInputDrain(sessionId, 'completed')
@@ -1265,16 +1288,18 @@ export class TurnCoordinator {
         if (claimedInput && !claimedInput.disposition) {
           try {
             if (streamRunId) {
-              claimedInput.settle({ kind: 'consume' })
+              await claimedInput.settle({ kind: 'consume' })
             } else if (isSteerClaim) {
-              claimedInput.settle({ kind: 'consume' })
+              await claimedInput.settle({ kind: 'consume' })
             } else if (!userMessageId) {
-              claimedInput.settle({ kind: 'release-before-user-fact' })
+              await claimedInput.settle({ kind: 'release-before-user-fact' })
             } else {
-              this.rollbackPendingInputTurn(sessionId, userMessageId, instance)
+              await claimedInput.rollback(() =>
+                this.rollbackPendingInputTurn(sessionId, userMessageId, instance)
+              )
               userMessageId = null
               assistantMessageId = null
-              claimedInput.settle({ kind: 'release-after-rollback' })
+              await claimedInput.settle({ kind: 'release-after-rollback' })
             }
           } catch (releaseError) {
             console.warn('[DeepChatAgent] failed to settle Journal-failed input:', releaseError)
@@ -1294,7 +1319,7 @@ export class TurnCoordinator {
           }
         }
         observeRejectedTurn(err)
-        this.ports.runLifecycle.transitionCurrentStatus(sessionId, 'idle')
+        await transitionTurnStatus('idle')
         throw err
       }
       const aborted = committedAbortTerminal
@@ -1302,8 +1327,7 @@ export class TurnCoordinator {
         : committedErrorTerminal
           ? false
           : preStreamAbortSignal.aborted
-      const pendingInputHandoff =
-        preStreamAbortSignal.reason === PENDING_INPUT_ABORT_REASON
+      const pendingInputHandoff = preStreamAbortSignal.reason === PENDING_INPUT_ABORT_REASON
       const staleInstance = isStaleDeepChatInstanceError(errorToProject)
       if (!userMessageId && pendingInputHandoff && claimedInput?.source !== 'steer') {
         userMessageId = claimedInput?.messageIds.at(-1) ?? null
@@ -1318,14 +1342,14 @@ export class TurnCoordinator {
       if (claimedInput && !claimedInput.disposition) {
         if (committedErrorTerminal || isSteerClaim) {
           try {
-            claimedInput.settle({ kind: 'consume' })
+            await claimedInput.settle({ kind: 'consume' })
           } catch (releaseError) {
             console.warn('[DeepChatAgent] failed to consume claimed steer input:', releaseError)
           }
         } else if (!userMessageId) {
           pendingInputFailedBeforeUserFact = true
           try {
-            claimedInput.settle({ kind: 'release-before-user-fact' })
+            await claimedInput.settle({ kind: 'release-before-user-fact' })
           } catch (releaseError) {
             console.warn('[DeepChatAgent] failed to release claimed pending input:', releaseError)
           }
@@ -1334,12 +1358,14 @@ export class TurnCoordinator {
             // Abort or instance replacement preserves the partial turn. Other failures make the
             // input retryable only after all facts derived from this user message are rolled back.
             if (aborted || staleInstance) {
-              claimedInput.settle({ kind: 'consume' })
+              await claimedInput.settle({ kind: 'consume' })
             } else {
-              this.rollbackPendingInputTurn(sessionId, userMessageId, instance)
+              await claimedInput.rollback(() =>
+                this.rollbackPendingInputTurn(sessionId, userMessageId, instance)
+              )
               userMessageId = null
               assistantMessageId = null
-              claimedInput.settle({ kind: 'release-after-rollback' })
+              await claimedInput.settle({ kind: 'release-after-rollback' })
             }
           } catch (releaseError) {
             console.warn('[DeepChatAgent] failed to release claimed queue input:', releaseError)
@@ -1369,11 +1395,21 @@ export class TurnCoordinator {
           this.ports.messageProjection.refresh(sessionId, assistantMessageId)
           assistantMessageId = null
         }
-        this.ports.runLifecycle.clearOperationController(scope, preStreamAbortController)
-        this.ports.runLifecycle.applyProcessResultStatus(sessionId, {
-          status: 'completed',
-          stopReason: PENDING_INPUT_ABORT_REASON
-        })
+        await this.ports.runLifecycle.clearOperationController(
+          scope,
+          preStreamAbortController,
+          undefined,
+          { operationId: operationOwner.id, runId: streamRunId }
+        )
+        await this.ports.runLifecycle.applyProcessResultStatus(
+          sessionId,
+          {
+            status: 'completed',
+            stopReason: PENDING_INPUT_ABORT_REASON
+          },
+          streamRunId,
+          turnOwner()
+        )
         if (!claimedInput) {
           this.ports.runLifecycle.schedulePendingInputDrain(sessionId, 'completed')
         }
@@ -1384,7 +1420,12 @@ export class TurnCoordinator {
         if (userMessageId && !isSteerClaim) {
           this.ports.messageProjection.refresh(sessionId, userMessageId)
         }
-        this.ports.runLifecycle.clearOperationController(scope, preStreamAbortController)
+        await this.ports.runLifecycle.clearOperationController(
+          scope,
+          preStreamAbortController,
+          undefined,
+          { operationId: operationOwner.id, runId: streamRunId }
+        )
         const abortMetadata = stampTerminalMetadata(
           {
             ...(streamRunId ? { runId: streamRunId } : {}),
@@ -1396,11 +1437,12 @@ export class TurnCoordinator {
           'aborted',
           'user_stop'
         )
-        this.ports.runLifecycle.settleAbortedTurn(
+        await this.ports.runLifecycle.settleAbortedTurn(
           sessionId,
           assistantMessageId,
           streamRunId,
-          JSON.stringify(abortMetadata)
+          JSON.stringify(abortMetadata),
+          turnOwner()
         )
         // Once the user fact exists, stop/steer advances to the next item. Before that boundary the
         // released item remains visible and retryable until an explicit user action.
@@ -1418,12 +1460,7 @@ export class TurnCoordinator {
       const stopReason =
         committedErrorTerminal?.stopReason ??
         (isContextWindowErrorLike(errorToProject) ? 'context_window' : 'pre_stream_error')
-      if (
-        !assistantMessageId &&
-        !assistantCreationAttempted &&
-        userMessageId &&
-        !claimedInput
-      ) {
+      if (!assistantMessageId && !assistantCreationAttempted && userMessageId && !claimedInput) {
         try {
           assistantCreationAttempted = true
           assistantMessageId = this.ports.messageStore.createAssistantMessage(
@@ -1461,10 +1498,7 @@ export class TurnCoordinator {
         )
         this.ports.messageProjection.refresh(sessionId, assistantMessageId)
         this.ports.publishEvent('chat.stream.failed', {
-          requestId: this.ports.runLifecycle.resolveStreamRequestId(
-            sessionId,
-            assistantMessageId
-          ),
+          requestId: this.ports.runLifecycle.resolveStreamRequestId(sessionId, assistantMessageId),
           sessionId,
           messageId: assistantMessageId,
           failedAt: Date.now(),
@@ -1479,22 +1513,22 @@ export class TurnCoordinator {
           usage: buildUsageFromMetadata(terminalMetadata) ?? null,
           error: { message: errorMessage }
         })
-      this.ports.runLifecycle.transitionCurrentStatus(sessionId, 'error')
+      await transitionTurnStatus('error')
       return complete({
         requestId: assistantMessageId,
         messageId: assistantMessageId
       })
     } finally {
       if (pluginRunStarted) this.ports.pluginContext?.endRun?.(sessionId)
-      const ownsTurnLifecycle = this.ports.runLifecycle.canSettleOperation(
+      await this.ports.runLifecycle.clearOperationController(
         scope,
-        preStreamAbortController
+        preStreamAbortController,
+        () => {
+          instance.clearPreStreamTranscriptAnchor()
+          instance.replaceRuntimeActivatedSkills([])
+        },
+        { operationId: operationOwner.id, runId: streamRunId }
       )
-      this.ports.runLifecycle.clearOperationController(scope, preStreamAbortController)
-      if (ownsTurnLifecycle) {
-        instance.clearPreStreamTranscriptAnchor()
-        instance.replaceRuntimeActivatedSkills([])
-      }
     }
   }
 
@@ -1507,26 +1541,36 @@ export class TurnCoordinator {
   ): Promise<boolean> {
     const instance = this.ports.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
     const scope = this.ports.runLifecycle.scopeFor(sessionId, instance)
-    if (!instance.tryBeginResume(messageId)) {
+    const resumeLease = await instance.tryBeginResume(messageId)
+    if (!resumeLease) {
       return false
     }
     instance.replaceRuntimeActivatedSkills([])
     let preStreamAbortController: AbortController | null = null
     let preStreamAbortSignal: AbortSignal | undefined
     let streamRunId: string | undefined
+    let operationOwner: { kind: 'operation'; id: string } | undefined
+    const turnOwner = (): HarnessControlOwner | undefined =>
+      streamRunId ? { kind: 'run', id: streamRunId } : operationOwner
+    const transitionTurnStatus = async (status: DeepChatSessionState['status']) => {
+      const owner = turnOwner()
+      return owner ? await this.ports.runLifecycle.transitionStatus(scope, status, owner) : false
+    }
     const resumeAccounting =
       initialAccounting ??
       parseMessageMetadata(this.ports.messageStore.getMessage(messageId)?.metadata ?? '{}')
 
     try {
+      await instance.controlReady()
       scope.assertCurrent()
       const state = instance.getRuntimeState()
       if (!state) {
         throw new Error(`Session ${sessionId} not found`)
       }
 
-      this.ports.runLifecycle.transitionStatus(scope, 'generating')
-      preStreamAbortController = this.ports.runLifecycle.ensureOperationController(scope)
+      preStreamAbortController = await this.ports.runLifecycle.ensureOperationController(scope)
+      operationOwner = instance.operationOwner(preStreamAbortController)
+      await transitionTurnStatus('generating')
       preStreamAbortSignal = preStreamAbortController.signal
       instance.clearPreStreamTranscriptAnchor()
       instance.setPreStreamTranscriptAnchorId(messageId)
@@ -1556,7 +1600,11 @@ export class TurnCoordinator {
         searchIntent &&
         providerModelFacts.capabilitySnapshot.supportsSearch &&
         providerModelFacts.capabilitySnapshot.searchExecution === 'provider'
-      const projectDir = this.ports.sessionSettings.resolveProjectDir(sessionId, undefined, instance)
+      const projectDir = this.ports.sessionSettings.resolveProjectDir(
+        sessionId,
+        undefined,
+        instance
+      )
       const recoveredSkillBatch = resumeAccounting.runId
         ? this.ports.skillContextMaterializer.recoverResume({
             sessionId,
@@ -1828,9 +1876,8 @@ export class TurnCoordinator {
             budgetToolCall.id,
             resumeBudget.message
           )
-          await this.runPreStreamStep(
-            { sessionId, messageId, step: 'tool-output-cleanup' },
-            () => this.ports.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
+          await this.runPreStreamStep({ sessionId, messageId, step: 'tool-output-cleanup' }, () =>
+            this.ports.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
           )
         } else if (resumeBudget?.kind === 'terminal_error') {
           updateToolCallResponse(initialBlocks, budgetToolCall.id, resumeBudget.message, true)
@@ -1854,15 +1901,14 @@ export class TurnCoordinator {
             errorMessage: resumeBudget.message,
             usage: buildUsageFromMetadata(terminalMetadata)
           })
-          this.ports.runLifecycle.transitionCurrentStatus(sessionId, 'error')
+          await transitionTurnStatus('error')
           this.ports.memoryIngestionObserver.afterTurnSettled({
             session: instance.getMemorySessionHandle(),
             origin: 'resume',
             outcome: { kind: 'returned', status: 'error' }
           })
-          await this.runPreStreamStep(
-            { sessionId, messageId, step: 'tool-output-cleanup' },
-            () => this.ports.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
+          await this.runPreStreamStep({ sessionId, messageId, step: 'tool-output-cleanup' }, () =>
+            this.ports.toolOutputGuard.cleanupOffloadedOutput(budgetToolCall.offloadPath)
           )
           return false
         }
@@ -1891,7 +1937,7 @@ export class TurnCoordinator {
           initialRuntimeContextLimitTokens: runtimeContextLimitTokens ?? null,
           taskContractContext,
           toolMode,
-          abortController: preStreamAbortController,
+          abortController: preStreamAbortController ?? undefined,
           tools,
           toolCatalogSnapshot,
           commandShell,
@@ -1928,9 +1974,9 @@ export class TurnCoordinator {
       const { runId, result } = streamResult
       streamRunId = runId
       try {
-        this.ports.runLifecycle.applyProcessResultStatus(sessionId, result, runId)
+        await this.ports.runLifecycle.applyProcessResultStatus(sessionId, result, runId)
       } finally {
-        this.ports.runLifecycle.clearRun(scope, runId)
+        await this.ports.runLifecycle.clearRun(scope, runId)
       }
       if (result?.status === 'completed' || result?.status === 'aborted') {
         this.ports.runLifecycle.schedulePendingInputDrain(sessionId, 'completed')
@@ -1944,6 +1990,7 @@ export class TurnCoordinator {
       }
       return true
     } catch (error) {
+      if (!scope.isCurrent()) return false
       const committedProjectionError = isCommittedRunProjectionError(error) ? error : null
       const committedErrorTerminal =
         committedProjectionError?.terminal.outcome === 'error'
@@ -1967,7 +2014,7 @@ export class TurnCoordinator {
         isExecutionJournalError(error) ||
         (committedProjectionError && !committedErrorTerminal && !committedAbortTerminal)
       ) {
-        this.ports.runLifecycle.transitionCurrentStatus(sessionId, 'idle')
+        await transitionTurnStatus('idle')
         throw error
       }
       if (isStaleDeepChatInstanceError(errorToProject)) {
@@ -1992,14 +2039,21 @@ export class TurnCoordinator {
           )
           this.ports.messageProjection.refresh(sessionId, messageId)
         }
-        this.ports.runLifecycle.clearOperationController(
+        await this.ports.runLifecycle.clearOperationController(
           scope,
-          preStreamAbortController ?? undefined
+          preStreamAbortController ?? undefined,
+          undefined,
+          operationOwner ? { operationId: operationOwner.id, runId: streamRunId } : undefined
         )
-        this.ports.runLifecycle.applyProcessResultStatus(sessionId, {
-          status: 'completed',
-          stopReason: PENDING_INPUT_ABORT_REASON
-        })
+        await this.ports.runLifecycle.applyProcessResultStatus(
+          sessionId,
+          {
+            status: 'completed',
+            stopReason: PENDING_INPUT_ABORT_REASON
+          },
+          streamRunId,
+          turnOwner()
+        )
         this.ports.runLifecycle.schedulePendingInputDrain(sessionId, 'completed')
         return false
       }
@@ -2010,11 +2064,14 @@ export class TurnCoordinator {
           ? false
           : (preStreamAbortSignal?.aborted ?? false)
       if (aborted) {
-        this.ports.runLifecycle.clearOperationController(
+        await this.ports.runLifecycle.clearOperationController(
           scope,
-          preStreamAbortController ?? undefined
+          preStreamAbortController ?? undefined,
+          undefined,
+          operationOwner ? { operationId: operationOwner.id, runId: streamRunId } : undefined
         )
-        this.ports.runLifecycle.settleAbortedTurn(
+        if (!scope.isCurrent()) return false
+        await this.ports.runLifecycle.settleAbortedTurn(
           sessionId,
           messageId,
           streamRunId,
@@ -2022,7 +2079,8 @@ export class TurnCoordinator {
             streamRunId
               ? stampTerminalMetadata(resumeAccounting, 'aborted', 'user_stop', streamRunId)
               : stampInteractionResolution(resumeAccounting, 'cancelled')
-          )
+          ),
+          turnOwner()
         )
         // Stop/steer: continue the queue automatically with the next item (steer items first).
         this.ports.runLifecycle.schedulePendingInputDrain(sessionId, 'completed')
@@ -2053,21 +2111,19 @@ export class TurnCoordinator {
         errorMessage,
         usage: buildUsageFromMetadata(terminalMetadata)
       })
-      this.ports.runLifecycle.transitionCurrentStatus(sessionId, 'error')
+      await transitionTurnStatus('error')
       throw errorToProject
     } finally {
-      const ownsTurnLifecycle =
-        preStreamAbortController !== null &&
-        this.ports.runLifecycle.canSettleOperation(scope, preStreamAbortController)
-      this.ports.runLifecycle.clearOperationController(
+      await this.ports.runLifecycle.clearOperationController(
         scope,
-        preStreamAbortController ?? undefined
+        preStreamAbortController ?? undefined,
+        () => {
+          instance.clearPreStreamTranscriptAnchor()
+          instance.replaceRuntimeActivatedSkills([])
+        },
+        operationOwner ? { operationId: operationOwner.id, runId: streamRunId } : undefined
       )
-      if (ownsTurnLifecycle) {
-        instance.clearPreStreamTranscriptAnchor()
-        instance.replaceRuntimeActivatedSkills([])
-      }
-      instance.finishResume(messageId)
+      await instance.finishResume(resumeLease)
     }
   }
 
@@ -2138,7 +2194,8 @@ function resolveAssistantTurnMessageSkillNames(
   const assistant = messageStore.getMessage(assistantMessageId)
   if (!assistant || assistant.sessionId !== sessionId || assistant.role !== 'assistant') return []
   const user = messageStore.getLastUserMessageBeforeOrAt(sessionId, assistant.orderSeq)
-  const activeSkills = user?.role === 'user' ? extractUserMessageInput(user.content).activeSkills : []
+  const activeSkills =
+    user?.role === 'user' ? extractUserMessageInput(user.content).activeSkills : []
   return Array.isArray(activeSkills) ? activeSkills : []
 }
 

@@ -59,10 +59,10 @@ export class SessionSettingsCoordinator {
     this.deps.registry.scopeFor(toAppSessionId(sessionId), instance).assertCurrent()
   }
 
-  private resolveUpdateScope(sessionId: string): {
+  private async resolveUpdateScope(sessionId: string): Promise<{
     scope: SessionRuntimeScope
     dbSession: ReturnType<SessionSettingsStore['get']>
-  } {
+  }> {
     const appSessionId = toAppSessionId(sessionId)
     const hydratedScope = this.deps.registry.getHydratedScope(appSessionId)
     const dbSession = this.deps.sessionStore.get(sessionId)
@@ -71,6 +71,7 @@ export class SessionSettingsCoordinator {
     }
 
     const scope = hydratedScope ?? this.deps.registry.getOrHydrateScope(appSessionId)
+    await scope.instance.controlReady()
     scope.assertCurrent()
     return { scope, dbSession }
   }
@@ -90,7 +91,7 @@ export class SessionSettingsCoordinator {
       throw new Error('Session model update requires providerId and modelId.')
     }
 
-    const { scope, dbSession } = this.resolveUpdateScope(sessionId)
+    const { scope, dbSession } = await this.resolveUpdateScope(sessionId)
     const state = scope.state()
     const permissionMode = state?.permissionMode ?? dbSession?.permission_mode
     if (!permissionMode) {
@@ -149,7 +150,7 @@ export class SessionSettingsCoordinator {
       throw new Error('Turn execution snapshot requires providerId and modelId.')
     }
 
-    const { scope, dbSession } = this.resolveUpdateScope(sessionId)
+    const { scope, dbSession } = await this.resolveUpdateScope(sessionId)
     const state = scope.state()
     const permissionMode = state?.permissionMode ?? dbSession?.permission_mode
     if (!permissionMode) {
@@ -210,7 +211,7 @@ export class SessionSettingsCoordinator {
       throw new Error('Session agent context update requires agentId, providerId and modelId.')
     }
 
-    const { scope } = this.resolveUpdateScope(sessionId)
+    const { scope } = await this.resolveUpdateScope(sessionId)
     const state = scope.state()
     if (state?.status === 'generating') {
       throw new Error('Cannot move session while it is generating.')
@@ -270,8 +271,11 @@ export class SessionSettingsCoordinator {
     }
   }
 
-  setProjectDir(sessionId: string, projectDir: string | null): void {
-    this.applyProjectDir(sessionId, this.instance(sessionId), projectDir)
+  async setProjectDir(sessionId: string, projectDir: string | null): Promise<void> {
+    const instance = this.instance(sessionId)
+    await instance.controlReady()
+    this.assertCurrent(sessionId, instance)
+    this.applyProjectDir(sessionId, instance, projectDir)
   }
 
   resolveProjectDir(
@@ -334,7 +338,7 @@ export class SessionSettingsCoordinator {
     sessionId: string,
     settings: Partial<SessionGenerationSettings>
   ): Promise<SessionGenerationSettings> {
-    const { scope, dbSession } = this.resolveUpdateScope(sessionId)
+    const { scope, dbSession } = await this.resolveUpdateScope(sessionId)
     const state = scope.state()
     const providerId = state?.providerId ?? dbSession?.provider_id
     const modelId = state?.modelId ?? dbSession?.model_id
@@ -372,6 +376,7 @@ export class SessionSettingsCoordinator {
     expectedInstance = this.instance(sessionId),
     providedProviderModelFacts?: ProviderModelRuntimeFacts
   ): Promise<SessionGenerationSettings> {
+    await expectedInstance.controlReady()
     this.assertCurrent(sessionId, expectedInstance)
     const state = expectedInstance.getRuntimeState()
     let dbSession: PersistedSessionGenerationRow | undefined

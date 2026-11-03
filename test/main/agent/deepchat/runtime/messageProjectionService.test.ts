@@ -1,3 +1,4 @@
+import { useHarnessControl } from '../helpers/control'
 import { describe, expect, it, vi } from 'vitest'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
@@ -8,6 +9,8 @@ import {
 } from '@/agent/deepchat/runtime/messageProjectionService'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 
+const control = useHarnessControl()
+
 const SESSION_ID = 'session'
 const MESSAGE_ID = 'message'
 
@@ -17,7 +20,7 @@ function assistantMessage(content: string) {
 
 function createHarness(message: unknown = assistantMessage('[]')) {
   const order: string[] = []
-  const runtime = new DeepChatAgentRuntime()
+  const runtime = new DeepChatAgentRuntime(control())
   const getMessage = vi.fn(() => {
     order.push('transcript.getMessage')
     return message as never
@@ -62,10 +65,11 @@ describe('MessageProjectionService', () => {
     warn.mockRestore()
   })
 
-  it('uses the active run id only for the message that run owns', () => {
+  it('uses the active run id only for the message that run owns', async () => {
     const { deps, runtime, service } = createHarness()
     const scope = runtime.getOrHydrateScope(toAppSessionId(SESSION_ID))
-    scope.instance.registerActiveGeneration(
+    await scope.instance.controlReady()
+    await scope.instance.registerActiveGeneration(
       createLoopRun({
         runId: 'run-1',
         sessionId: toAppSessionId(SESSION_ID),

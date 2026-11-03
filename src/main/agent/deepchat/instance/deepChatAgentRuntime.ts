@@ -2,17 +2,13 @@ import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import { DeepChatAgentInstance } from './deepChatAgentInstance'
 
-export const STALE_DEEPCHAT_INSTANCE_ERROR_NAME = 'StaleDeepChatAgentInstanceError'
-
-export function createStaleDeepChatInstanceError(sessionId: string): Error {
-  const error = new Error(`DeepChat agent instance was replaced: ${sessionId}`)
-  error.name = STALE_DEEPCHAT_INSTANCE_ERROR_NAME
-  return error
-}
-
-export function isStaleDeepChatInstanceError(error: unknown): boolean {
-  return error instanceof Error && error.name === STALE_DEEPCHAT_INSTANCE_ERROR_NAME
-}
+export {
+  STALE_DEEPCHAT_INSTANCE_ERROR_NAME,
+  createStaleDeepChatInstanceError,
+  isStaleDeepChatInstanceError
+} from './controlSession'
+import { createStaleDeepChatInstanceError } from './controlSession'
+import type { HarnessControlPort } from '@shared/harness/control'
 
 export interface SessionRuntimeScope {
   readonly sessionId: AppSessionId
@@ -34,15 +30,19 @@ export type SessionScopeRegistry = Pick<
 
 export class DeepChatAgentRuntime {
   private readonly instances = new Map<AppSessionId, DeepChatAgentInstance>()
+  private readonly controlScopes = new Map<AppSessionId, string>()
   private readonly scopes = new WeakMap<DeepChatAgentInstance, SessionRuntimeScope>()
   private toolRegistryRevision = 0
+
+  constructor(private readonly control: HarnessControlPort) {}
 
   getOrHydrate(sessionId: AppSessionId): DeepChatAgentInstance {
     const current = this.instances.get(sessionId)
     if (current) return current
 
-    const instance = new DeepChatAgentInstance(sessionId)
+    const instance = new DeepChatAgentInstance(sessionId, this.control)
     this.instances.set(sessionId, instance)
+    this.controlScopes.set(sessionId, instance.controlScopeId)
     return instance
   }
 
@@ -71,9 +71,9 @@ export class DeepChatAgentRuntime {
       sessionId,
       instance,
       state: () => instance.getRuntimeState(),
-      isCurrent: () => this.instances.get(sessionId) === instance,
+      isCurrent: () => this.instances.get(sessionId) === instance && instance.isControlCurrent(),
       assertCurrent: () => {
-        if (this.instances.get(sessionId) !== instance) {
+        if (this.instances.get(sessionId) !== instance || !instance.isControlCurrent()) {
           throw createStaleDeepChatInstanceError(sessionId)
         }
       }
@@ -85,7 +85,21 @@ export class DeepChatAgentRuntime {
   }
 
   evict(sessionId: AppSessionId): boolean {
+    const instance = this.instances.get(sessionId)
+    if (!instance) return false
+    instance.retireControl()
     return this.instances.delete(sessionId)
+  }
+
+  async clearSessionControl(
+    sessionId: AppSessionId,
+    origin?: DeepChatAgentInstance
+  ): Promise<void> {
+    const originScopeId = origin?.controlScopeId ?? this.controlScopes.get(sessionId) ?? null
+    const receipt = await this.control.send({ method: 'clearSession', sessionId, originScopeId })
+    if (receipt.outcome !== 'accepted' || receipt.result !== true)
+      throw createStaleDeepChatInstanceError(sessionId)
+    if (this.controlScopes.get(sessionId) === originScopeId) this.controlScopes.delete(sessionId)
   }
 
   abortGenerations(): void {

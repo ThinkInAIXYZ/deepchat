@@ -126,6 +126,7 @@ type CoreExecution = ReturnType<typeof createCoreExecution>
 type CoreExecutionOptions = Parameters<typeof createCoreExecution>[0]
 
 export async function createCoreRuntime(options: {
+  control: import('@shared/harness/control').HarnessControlPort
   profile: Pick<
     CoreProfile,
     | 'settingsStore'
@@ -1171,6 +1172,7 @@ export async function createCoreRuntime(options: {
 
   coreExecution = createCoreExecution({
     harness: {
+      control: options.control,
       providerRuntime,
       providerSettings,
       agentSettings,
@@ -1229,6 +1231,7 @@ export async function createCoreRuntime(options: {
     databaseRequests,
     ...options.execution
   })
+  await coreExecution.deepChatAgentHarness.ready
   deepChatAgentHarness = coreExecution.deepChatAgentHarness
   options.memory.bindIngestion(coreExecution.memoryIngestionObserver)
   sessionQuery = coreExecution.sessionQuery

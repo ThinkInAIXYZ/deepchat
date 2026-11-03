@@ -1,3 +1,4 @@
+import type { HarnessControlLease, HarnessControlOwner } from '@shared/harness/control'
 import logger from '@shared/logger'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
@@ -18,10 +19,8 @@ import {
   collectPendingInteractionEntries,
   parseAssistantBlocks,
   reconcilePendingInteractionEntries,
-  replacePendingInteractions,
   type PendingInteractionEntry
 } from './interactionProjection'
-import { resolveProviderPermissionSafely } from './providerPermissionResolution'
 import { redactRuntimeErrorForLog } from './runtimeErrorLogging'
 import { buildUsageFromMetadata, stampInteractionResolution } from './runtimeMetadata'
 import type { SessionStatusPublisher } from './sessionStatusPublisher'
@@ -83,75 +82,45 @@ export class RunLifecycleCoordinator {
     return this.getHydratedScope(sessionId)?.instance.getAbortSignal()
   }
 
-  ensureOperationController(scope: SessionRuntimeScope): AbortController {
+  async ensureOperationController(scope: SessionRuntimeScope): Promise<AbortController> {
+    await scope.instance.controlReady()
     scope.assertCurrent()
-    const activeRun = scope.instance.getActiveGeneration()
-    if (activeRun) {
-      if (!activeRun.abortController.signal.aborted) {
-        return activeRun.abortController
-      }
-      // A cancelled run may remain registered until its handler settles. A new operation must never
-      // inherit its already-aborted controller.
-      this.clearRun(scope, activeRun.runId)
-    }
-
-    const existing = scope.instance.getAbortController()
-    existing?.abort()
-
-    const controller = new AbortController()
-    scope.instance.setAbortController(controller)
-    return controller
+    return await scope.instance.ensureOperationController()
   }
 
-  clearOperationController(
+  async clearOperationController(
     scope: SessionRuntimeScope,
-    controller?: AbortController
-  ): boolean {
-    if (!controller || !scope.isCurrent()) {
-      return false
-    }
-    return scope.instance.clearAbortController(controller)
+    controller?: AbortController,
+    settled?: () => void,
+    origin?: { operationId: string; runId?: string }
+  ): Promise<boolean> {
+    if (!controller || !scope.isCurrent()) return false
+    return await scope.instance.clearAbortController(controller, settled, origin)
   }
 
-  canSettleOperation(scope: SessionRuntimeScope, controller: AbortController): boolean {
-    if (!scope.isCurrent()) {
-      return false
-    }
-    const current = scope.instance.getAbortController()
-    return current === undefined || current === controller
-  }
-
-  registerRun<TStreamState>(
+  async registerRun<TStreamState>(
     scope: SessionRuntimeScope,
     run: LoopRun<TStreamState>
-  ): LoopRun<TStreamState> {
+  ): Promise<LoopRun<TStreamState>> {
+    await scope.instance.controlReady()
     scope.assertCurrent()
     if (run.sessionId !== scope.sessionId) {
       throw new Error(
         `Loop run ${run.runId} belongs to session ${run.sessionId}, not ${scope.sessionId}`
       )
     }
-    return scope.instance.registerActiveGeneration(run)
+    return await scope.instance.registerActiveGeneration(run)
   }
 
-  clearRun(scope: SessionRuntimeScope, runId: string): boolean {
-    // Cleanup stays bound to the originating instance even after replacement. Status and terminal
-    // projections use the independent current-scope and active-run fences.
-    if (
-      scope.instance.sessionId !== scope.sessionId ||
-      !scope.instance.clearActiveGeneration(runId)
-    ) {
-      return false
-    }
-    this.cancelProviderPermissions(scope.instance)
-    return true
+  async clearRun(scope: SessionRuntimeScope, runId: string): Promise<boolean> {
+    if (scope.instance.sessionId !== scope.sessionId) return false
+    return await scope.instance.clearActiveGeneration(runId)
   }
 
   isRunCurrent(sessionId: AppSessionId | string, runId: string): boolean {
     return (
-      this.ports.runtime
-        .getHydratedScope(toAppSessionId(sessionId))
-        ?.instance.isActiveRun(runId) ?? false
+      this.ports.runtime.getHydratedScope(toAppSessionId(sessionId))?.instance.isActiveRun(runId) ??
+      false
     )
   }
 
@@ -166,41 +135,35 @@ export class RunLifecycleCoordinator {
     return run?.messageId === messageId
   }
 
-  markFirstTurnReady(scope: SessionRuntimeScope, runId: string): boolean {
-    const run = scope.instance.getActiveGeneration()
-    if (
-      !this.isRunCurrentForScope(scope, runId) ||
-      !run ||
-      run.abortController.signal.aborted
-    ) {
-      return false
-    }
-    scope.instance.markFirstTurnReady()
-    return true
+  async markFirstTurnReady(scope: SessionRuntimeScope, runId: string): Promise<boolean> {
+    return await scope.instance.markFirstTurnReady(runId)
   }
 
   clearFirstTurnReady(sessionId: string): void {
     this.getHydratedScope(sessionId)?.instance.clearFirstTurnReady()
   }
 
-  transitionCurrentStatus(
+  async transitionCurrentStatus(
     sessionId: string,
     status: DeepChatSessionState['status'],
     usage?: Record<string, number>
-  ): boolean {
+  ): Promise<boolean> {
     const scope = this.getHydratedScope(sessionId)
-    return scope ? this.ports.statusPublisher.transition(scope, status, usage) : false
+    return scope
+      ? await this.ports.statusPublisher.transition(scope, status, { kind: 'orphan' }, usage)
+      : false
   }
 
-  transitionStatus(
+  async transitionStatus(
     scope: SessionRuntimeScope,
     status: DeepChatSessionState['status'],
+    owner: HarnessControlOwner,
     usage?: Record<string, number>
-  ): boolean {
-    return this.ports.statusPublisher.transition(scope, status, usage)
+  ): Promise<boolean> {
+    return await this.ports.statusPublisher.transition(scope, status, owner, usage)
   }
 
-  refreshPendingInteractions(sessionId: string): boolean {
+  async refreshPendingInteractions(sessionId: string): Promise<boolean> {
     const pendingEntries: PendingInteractionEntry[] = []
     for (const message of this.ports.transcript.getMessages(sessionId)) {
       if (message.role !== 'assistant') {
@@ -214,39 +177,45 @@ export class RunLifecycleCoordinator {
         )
       )
     }
-    return this.reconcilePendingInteractions(sessionId, pendingEntries)
+    return await this.reconcilePendingInteractions(sessionId, pendingEntries)
   }
 
-  reconcilePendingInteractions(
+  async reconcilePendingInteractions(
     sessionId: string,
     pendingEntries: PendingInteractionEntry[]
-  ): boolean {
+  ): Promise<boolean> {
     const scope = this.getHydratedScope(sessionId)
     if (!scope) {
       return pendingEntries.length > 0
     }
-    replacePendingInteractions(
-      scope.instance,
-      reconcilePendingInteractionEntries(scope.instance, pendingEntries)
-    )
+    await reconcilePendingInteractionEntries(scope.instance, pendingEntries)
     return scope.instance.hasPendingInteractions()
   }
 
-  hasPendingInteractions(sessionId: string): boolean {
-    return this.refreshPendingInteractions(sessionId)
+  async hasPendingInteractions(sessionId: string): Promise<boolean> {
+    return await this.refreshPendingInteractions(sessionId)
   }
 
-  registerDeferredToolController(sessionId: string, toolCallId: string): AbortController {
-    return this.getOrCreateScope(sessionId).instance.registerDeferredToolAbortController(toolCallId)
-  }
-
-  clearDeferredToolController(
-    sessionId: string,
+  async registerDeferredToolController(
+    scope: SessionRuntimeScope,
+    messageId: string,
     toolCallId: string,
-    controller?: AbortController
-  ): boolean {
-    const scope = this.getHydratedScope(sessionId)
-    return scope?.instance.clearDeferredToolAbortController(toolCallId, controller) ?? false
+    lease: HarnessControlLease,
+    owner: HarnessControlOwner
+  ): Promise<AbortController> {
+    return await scope.instance.registerDeferredToolAbortController(
+      messageId,
+      toolCallId,
+      lease,
+      owner
+    )
+  }
+
+  async clearDeferredToolController(
+    scope: SessionRuntimeScope,
+    controller: AbortController
+  ): Promise<boolean> {
+    return await scope.instance.clearDeferredToolAbortController(controller)
   }
 
   getActiveGeneration(sessionId: string): { eventId: string; runId: string } | null {
@@ -267,31 +236,29 @@ export class RunLifecycleCoordinator {
     }
 
     const { instance } = scope
-    if (!instance.hasPendingInteractions()) {
-      this.refreshPendingInteractions(sessionId)
-    }
-    const pendingInteractions = instance.getPendingInteractions()
-    const hasDeferredHandler = pendingInteractions.some((interaction) =>
-      instance.hasDeferredToolAbortController(interaction.toolCallId)
-    )
+    const hasDeferredHandler = instance
+      .getPendingInteractions()
+      .some((interaction) => instance.hasDeferredToolAbortController(interaction.toolCallId))
     const hasAsyncSettlementOwner = Boolean(
       instance.getActiveGeneration() || instance.getAbortController() || hasDeferredHandler
     )
 
     instance.requestGenerationAbort()
     instance.abortDeferredToolCalls()
-    this.cancelProviderPermissions(instance)
 
     if (hasAsyncSettlementOwner) {
       return
     }
+    if (!instance.hasPendingInteractions()) await this.refreshPendingInteractions(sessionId)
+    if (!scope.isCurrent()) return
+    const pendingInteractions = instance.getPendingInteractions()
     if (pendingInteractions.length === 0) {
       // Nothing owns the turn and no approval can resume it. A session left `generating` here
       // cannot be ended by any other path, so publish the terminal state instead of reporting a
       // stop that changed nothing. An `error` session already has its terminal state; settling it
       // again would emit a second one and replace the error with `idle`.
       if (this.currentState(sessionId)?.status === 'generating') {
-        this.settleOrphanedInteraction(sessionId, null)
+        await this.settleOrphanedInteraction(sessionId, null)
         this.schedulePendingInputDrain(sessionId, 'completed')
       }
       return
@@ -316,15 +283,19 @@ export class RunLifecycleCoordinator {
         JSON.stringify(terminalMetadata)
       )
     }
-    instance.replacePendingInteractions([])
+    await instance.replacePendingInteractions([])
     const primaryTerminal = terminalMessages[0]
-    this.settleInterruptedTurn(sessionId, {
-      messageId: null,
-      errorMessage: 'common.error.userCanceledGeneration',
-      stopReason: 'user_stop',
-      runId: primaryTerminal.terminalMetadata.runId,
-      metadata: JSON.stringify(primaryTerminal.terminalMetadata)
-    })
+    await this.settleInterruptedTurn(
+      sessionId,
+      {
+        messageId: null,
+        errorMessage: 'common.error.userCanceledGeneration',
+        stopReason: 'user_stop',
+        runId: primaryTerminal.terminalMetadata.runId,
+        metadata: JSON.stringify(primaryTerminal.terminalMetadata)
+      },
+      { kind: 'orphan' }
+    )
     this.schedulePendingInputDrain(sessionId, 'completed')
   }
 
@@ -336,69 +307,65 @@ export class RunLifecycleCoordinator {
     revokeToolSurfaceDeferredDispatchesForSession(scope.sessionId)
     scope.instance.abortAndClearGeneration()
     scope.instance.abortDeferredToolCalls()
-    this.cancelProviderPermissions(scope.instance)
   }
 
   observeTerminal(sessionId: string, result: ProcessResult): void {
     this.ports.terminalObserver.observeTerminal(sessionId, this.currentState(sessionId), result)
   }
 
-  applyProcessResultStatus(
+  async applyProcessResultStatus(
     sessionId: string,
     result: ProcessResult | null | undefined,
-    runId?: string
-  ): void {
-    // Terminal observers describe the run that ended even if a newer run has replaced it. Mutable
-    // Session projection is fenced by the active run identity below.
-    const isActive = !runId || this.isRunCurrent(sessionId, runId)
+    runId?: string,
+    owner: HarnessControlOwner = runId ? { kind: 'run', id: runId } : { kind: 'orphan' }
+  ): Promise<void> {
     const scope = this.getHydratedScope(sessionId)
     if (!result?.status) {
-      if (isActive && scope) {
-        scope.instance.replacePendingInteractions([])
-        this.transitionStatus(scope, 'idle')
-      }
+      if (scope)
+        await this.ports.statusPublisher.transition(scope, 'idle', owner, undefined, {
+          interactions: []
+        })
       return
     }
     if (result.status === 'paused') {
-      if (isActive && scope) {
-        if (result.toolBatchExecutionState) {
-          scope.instance.replacePendingToolBatch(
-            result.pendingInteractions ?? [],
-            result.toolBatchExecutionState
-          )
-        } else {
-          scope.instance.replacePendingInteractions(result.pendingInteractions ?? [])
-        }
-        this.transitionStatus(scope, 'generating')
-      }
+      if (scope)
+        await this.ports.statusPublisher.transition(scope, 'generating', owner, undefined, {
+          interactions: result.pendingInteractions ?? [],
+          ...(result.toolBatchExecutionState ? { batch: result.toolBatchExecutionState } : {})
+        })
       return
     }
 
+    // Terminal observation describes the ended Run; Root separately authorizes current projection.
     this.observeTerminal(sessionId, result)
-    if (!isActive || !scope) {
-      return
-    }
-    scope.instance.replacePendingInteractions([])
-    this.ports.statusPublisher.transition(
-      scope,
-      result.status === 'error' ? 'error' : 'idle',
-      result.usage
-    )
+    if (scope)
+      await this.ports.statusPublisher.transition(
+        scope,
+        result.status === 'error' ? 'error' : 'idle',
+        owner,
+        result.usage,
+        { interactions: [] }
+      )
   }
 
-  settleAbortedTurn(
+  async settleAbortedTurn(
     sessionId: string,
     messageId: string | null,
     runId?: string,
-    metadata?: string
-  ): void {
-    this.settleInterruptedTurn(sessionId, {
-      messageId,
-      errorMessage: 'common.error.userCanceledGeneration',
-      stopReason: 'user_stop',
-      runId,
-      metadata
-    })
+    metadata?: string,
+    owner?: HarnessControlOwner
+  ): Promise<void> {
+    await this.settleInterruptedTurn(
+      sessionId,
+      {
+        messageId,
+        errorMessage: 'common.error.userCanceledGeneration',
+        stopReason: 'user_stop',
+        runId,
+        metadata
+      },
+      owner
+    )
   }
 
   /**
@@ -408,11 +375,11 @@ export class RunLifecycleCoordinator {
    * turn, so a live run, a newer replacement operation, or another approval is never settled out
    * from under itself.
    */
-  settleOrphanedInteraction(
+  async settleOrphanedInteraction(
     sessionId: string,
     messageId: string | null,
     metadata?: string
-  ): boolean {
+  ): Promise<boolean> {
     const scope = this.getHydratedScope(sessionId)
     if (!scope) {
       return false
@@ -423,21 +390,20 @@ export class RunLifecycleCoordinator {
 
     // The caller may have closed one entry of a queue that is stale relative to the transcript.
     // Rebuild it before deciding, or another message's approval would be settled along with it.
-    this.refreshPendingInteractions(sessionId)
+    await this.refreshPendingInteractions(sessionId)
     if (scope.instance.getPendingInteractions().length > 0) {
       return false
     }
 
-    this.settleInterruptedTurn(sessionId, {
+    return await this.settleInterruptedTurn(sessionId, {
       messageId,
       errorMessage: 'common.error.sessionInterrupted',
       stopReason: 'interaction',
       metadata
     })
-    return true
   }
 
-  private settleInterruptedTurn(
+  private async settleInterruptedTurn(
     sessionId: string,
     input: {
       messageId: string | null
@@ -445,8 +411,9 @@ export class RunLifecycleCoordinator {
       stopReason: string
       runId?: string
       metadata?: string
-    }
-  ): void {
+    },
+    owner: HarnessControlOwner = input.runId ? { kind: 'run', id: input.runId } : { kind: 'orphan' }
+  ): Promise<boolean> {
     this.writeTerminalErrorBlock(sessionId, input.messageId, input.errorMessage, input.metadata)
     const usage = input.metadata
       ? buildUsageFromMetadata(parseMessageMetadata(input.metadata))
@@ -459,9 +426,10 @@ export class RunLifecycleCoordinator {
     })
 
     const scope = this.getHydratedScope(sessionId)
-    if (scope && this.canSettleAbortedRun(scope, input.runId)) {
-      this.ports.statusPublisher.transition(scope, 'idle', usage)
+    if (scope) {
+      return await this.ports.statusPublisher.transition(scope, 'idle', owner, usage)
     }
+    return false
   }
 
   async requestPendingInputDrain(
@@ -478,20 +446,6 @@ export class RunLifecycleCoordinator {
         redactRuntimeErrorForLog(error)
       )
     })
-  }
-
-  private canSettleAbortedRun(scope: SessionRuntimeScope, runId?: string): boolean {
-    if (!scope.isCurrent()) {
-      return false
-    }
-    const activeRun = scope.instance.getActiveGeneration()
-    const controller = scope.instance.getAbortController()
-    const hasReplacementController = Boolean(
-      controller && (!activeRun || controller !== activeRun.abortController)
-    )
-    return runId
-      ? activeRun?.runId === runId || (!activeRun && !hasReplacementController)
-      : !hasReplacementController
   }
 
   private currentState(sessionId: string): DeepChatSessionState | undefined {
@@ -517,16 +471,5 @@ export class RunLifecycleCoordinator {
     )
     this.ports.transcript.setMessageError(messageId, blocks, metadata)
     this.ports.messageProjection.refresh(sessionId, messageId)
-  }
-
-  private cancelProviderPermissions(instance: DeepChatAgentInstance): void {
-    for (const permission of instance.takeActiveProviderPermissions()) {
-      void resolveProviderPermissionSafely(() => permission.resolve(false)).catch((error) => {
-        logger.warn(
-          `[DeepChatAgent] Failed to cancel ACP permission request ${permission.requestId}:`,
-          redactRuntimeErrorForLog(error)
-        )
-      })
-    }
   }
 }

@@ -72,6 +72,7 @@ export class PromptAssemblyService {
       contextLength?: number
     } = {}
   ): Promise<string> {
+    await resourceInstance.controlReady()
     return await buildSystemPromptWithSkills(this.builderDependencies, {
       sessionId,
       basePrompt,
@@ -104,6 +105,7 @@ export class PromptAssemblyService {
       contextLength?: number
     } = {}
   ): Promise<DeepChatPromptAssembly> {
+    await resourceInstance.controlReady()
     return await buildSystemPromptAssemblyWithSkills(this.builderDependencies, {
       sessionId,
       basePrompt,

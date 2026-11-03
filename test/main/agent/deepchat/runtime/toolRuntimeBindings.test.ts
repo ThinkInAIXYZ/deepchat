@@ -1,3 +1,4 @@
+import { useHarnessControl } from '../helpers/control'
 import { describe, expect, it, vi } from 'vitest'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
@@ -9,6 +10,8 @@ import {
   type ToolRuntimeBindingDependencies
 } from '@/agent/deepchat/runtime/toolRuntimeBindings'
 import { JevPruningFeedback, JEV_PRUNING_TIGHTENED_DROP_BELOW } from '@/agent/deepchat/runtime/jevPruningFeedback'
+
+const control = useHarnessControl()
 
 const normalizeToolResultContent = vi.hoisted(() => vi.fn(async () => [{ type: 'text', text: 'ok' }]))
 const reviewAutoApproveToolPermission = vi.hoisted(() =>
@@ -27,7 +30,7 @@ vi.mock('@/agent/deepchat/runtime/toolPermissionReviewer', async (importOriginal
 const SESSION_ID = 'session'
 
 function createHarness(persisted?: { provider_id?: string; model_id?: string }) {
-  const runtime = new DeepChatAgentRuntime()
+  const runtime = new DeepChatAgentRuntime(control())
   const abortSignal = new AbortController().signal
   const deps = {
     providerSettings: {},

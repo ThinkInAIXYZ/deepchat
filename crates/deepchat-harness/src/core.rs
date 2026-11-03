@@ -19,6 +19,7 @@ pub struct Native {
     state: Arc<Mutex<NativeState>>,
     outgoing: Output,
     admission: Mutex<Option<(Arc<dyn HostDispatch>, Json)>>,
+    control: control::Control,
     pub(super) memory: Arc<memory::Link>,
 }
 
@@ -28,6 +29,7 @@ impl Native {
             state: Arc::default(),
             outgoing,
             admission: Mutex::new(None),
+            control: control::Control::default(),
             memory,
         }
     }
@@ -299,10 +301,43 @@ impl Native {
 
 impl HostDispatch for Native {
     fn methods(&self) -> Option<Json> {
-        Some(json!({ "invoke": "async", "admission": "async", "memory": "async" }))
+        Some(
+            json!({ "invoke": "async", "admission": "async", "memory": "async", "control": "async" }),
+        )
     }
 
     fn invoke(&self, method: &str, args: Value) -> rutis_bridge::session::Reply {
+        if method == "control" {
+            let row = caller_row()
+                .filter(|row| row.id() == "core")
+                .ok_or_else(|| {
+                    BridgeError::Value("Core control caller is not authorized".into())
+                })?;
+            let args = args.json()?;
+            let args = args
+                .as_array()
+                .filter(|args| args.len() == 3)
+                .ok_or_else(|| BridgeError::Value("Invalid Core control arguments".into()))?;
+            {
+                let mut state = self.state.lock().unwrap();
+                if !state.active
+                    || args[0].as_str() != Some(&state.generation)
+                    || state.caller.as_ref().is_some_and(|key| key != row.key())
+                {
+                    return Err(BridgeError::Value(
+                        "Core control generation is unavailable".into(),
+                    ));
+                }
+                state.caller = Some(row.key().to_owned());
+            }
+            let sequence = args[1]
+                .as_u64()
+                .ok_or_else(|| BridgeError::Value("Invalid Core control sequence".into()))?;
+            return self
+                .control
+                .dispatch(sequence, args[2].clone())
+                .map(Value::from);
+        }
         if method == "admission" {
             return self.admission(args);
         }
@@ -475,6 +510,7 @@ impl Plugin for Bootstrap {
             self.native.retire().await;
             processes.kill();
             processes.ended().await;
+            self.native.control.retire();
             let _ = self
                 .outgoing
                 .send(json!({ "type": "coreStopped", "message": "Core runtime stopped" }))

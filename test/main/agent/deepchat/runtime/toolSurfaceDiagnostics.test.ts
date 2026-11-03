@@ -1,3 +1,4 @@
+import { useHarnessControl } from '../helpers/control'
 import { describe, expect, it } from 'vitest'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
@@ -12,6 +13,8 @@ import {
   ToolSurfaceShadowDiagnosticsCollector,
   ToolSurfaceShadowDiagnosticsRegistry
 } from '@/agent/deepchat/runtime/toolSurfaceDiagnostics'
+
+const control = useHarnessControl()
 
 function agentTool(name: string, options: { description?: string } = {}): MCPToolDefinition {
   return {
@@ -229,7 +232,7 @@ describe('Tool Surface shadow diagnostics selection', () => {
 describe('Tool Surface shadow diagnostics registry', () => {
   it('isolates provider/model/profile lineages and invalidates evicted recorders', () => {
     const registry = new ToolSurfaceShadowDiagnosticsRegistry({ maxLineagesPerInstance: 1 })
-    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'))
+    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
     const definitions = [agentTool('read')]
     const firstScope = {
       sessionId: 'session-1',
@@ -268,8 +271,8 @@ describe('Tool Surface shadow diagnostics registry', () => {
 
   it('does not share a lineage between replacement Session instances', () => {
     const registry = new ToolSurfaceShadowDiagnosticsRegistry()
-    const firstInstance = new DeepChatAgentInstance(toAppSessionId('session-1'))
-    const replacement = new DeepChatAgentInstance(toAppSessionId('session-1'))
+    const firstInstance = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
+    const replacement = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
     const scope = {
       sessionId: 'session-1',
       providerId: 'provider-1',
@@ -290,7 +293,7 @@ describe('Tool Surface shadow diagnostics registry', () => {
 
   it('allows a pending universe to settle after its Run finishes', async () => {
     const registry = new ToolSurfaceShadowDiagnosticsRegistry()
-    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'))
+    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
     const scope = {
       sessionId: 'session-1',
       providerId: 'provider-1',
@@ -330,7 +333,7 @@ describe('Tool Surface shadow diagnostics registry', () => {
 
   it('commits deferred measurements in Run order when universes resolve in reverse', async () => {
     const registry = new ToolSurfaceShadowDiagnosticsRegistry()
-    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'))
+    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
     const scope = {
       sessionId: 'session-1',
       providerId: 'provider-1',
@@ -381,7 +384,7 @@ describe('Tool Surface shadow diagnostics registry', () => {
 
   it('cancels and invalidates deferred Runs when their Session instance is cleared', async () => {
     const registry = new ToolSurfaceShadowDiagnosticsRegistry()
-    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'))
+    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
     const scope = {
       sessionId: 'session-1',
       providerId: 'provider-1',
@@ -416,7 +419,7 @@ describe('Tool Surface shadow diagnostics registry', () => {
 
   it('cancels pending Runs without erasing settled lineage diagnostics', async () => {
     const registry = new ToolSurfaceShadowDiagnosticsRegistry()
-    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'))
+    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
     const scope = {
       sessionId: 'session-1',
       providerId: 'provider-1',
@@ -457,7 +460,7 @@ describe('Tool Surface shadow diagnostics registry', () => {
 
   it('owns and cancels a scheduled Run before its universe source starts', async () => {
     const registry = new ToolSurfaceShadowDiagnosticsRegistry()
-    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'))
+    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
     const scope = {
       sessionId: 'session-1',
       providerId: 'provider-1',
@@ -484,7 +487,7 @@ describe('Tool Surface shadow diagnostics registry', () => {
 
   it('detaches deferred diagnostics from mutable provider inputs before scheduling', async () => {
     const registry = new ToolSurfaceShadowDiagnosticsRegistry()
-    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'))
+    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
     const scope = {
       sessionId: 'session-1',
       providerId: 'provider-1',
@@ -528,7 +531,7 @@ describe('Tool Surface shadow diagnostics registry', () => {
 
   it('rechecks Session currency after a deferred universe resolves', async () => {
     const registry = new ToolSurfaceShadowDiagnosticsRegistry()
-    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'))
+    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
     const scope = {
       sessionId: 'session-1',
       providerId: 'provider-1',
@@ -558,7 +561,7 @@ describe('Tool Surface shadow diagnostics registry', () => {
 
   it('does not let a stalled lineage delay another provider lineage', async () => {
     const registry = new ToolSurfaceShadowDiagnosticsRegistry()
-    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'))
+    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
     const firstScope = {
       sessionId: 'session-1',
       providerId: 'provider-1',
@@ -603,7 +606,7 @@ describe('Tool Surface shadow diagnostics registry', () => {
 
   it('cancels a resolved Run while it waits behind the same lineage tail', async () => {
     const registry = new ToolSurfaceShadowDiagnosticsRegistry()
-    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'))
+    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
     const scope = {
       sessionId: 'session-1',
       providerId: 'provider-1',
@@ -643,7 +646,7 @@ describe('Tool Surface shadow diagnostics registry', () => {
 
   it('admits at most sixteen scheduled Runs and releases capacity after cancellation', async () => {
     const registry = new ToolSurfaceShadowDiagnosticsRegistry()
-    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'))
+    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
     const scope = {
       sessionId: 'session-1',
       providerId: 'provider-1',
@@ -696,7 +699,7 @@ describe('Tool Surface shadow diagnostics registry', () => {
     vi.useFakeTimers()
     try {
       const registry = new ToolSurfaceShadowDiagnosticsRegistry()
-      const instance = new DeepChatAgentInstance(toAppSessionId('session-1'))
+      const instance = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
       const scope = {
         sessionId: 'session-1',
         providerId: 'provider-1',
@@ -733,7 +736,7 @@ describe('Tool Surface shadow diagnostics registry', () => {
 
   it('contains synchronous and asynchronous universe source failures', async () => {
     const registry = new ToolSurfaceShadowDiagnosticsRegistry()
-    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'))
+    const instance = new DeepChatAgentInstance(toAppSessionId('session-1'), control())
     const baseScope = {
       sessionId: 'session-1',
       providerId: 'provider-1',

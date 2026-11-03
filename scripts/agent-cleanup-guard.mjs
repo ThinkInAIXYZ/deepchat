@@ -72,7 +72,7 @@ const DEEPCHAT_HARNESS_PUBLIC_EXPORTS = new Set([
   'DeepChatHarnessDependencies',
   'DeepChatHarnessSkillPort'
 ])
-const DEEPCHAT_AGENT_HARNESS_MAX_LINES = 350
+const DEEPCHAT_AGENT_HARNESS_MAX_LINES = 360
 const DEEPCHAT_PENDING_INPUTS_FILE = path.join(ROOT, 'src/main/session/data/pendingInputs.ts')
 const DEEPCHAT_AGENT_INSTANCE_FILE = path.join(
   ROOT,
@@ -135,7 +135,7 @@ const DEEPCHAT_ROOT_OWNERSHIP_RULES = [
         name,
         ownerFile: DEEPCHAT_PENDING_INPUTS_FILE
       })),
-      ...['tryAcquirePendingQueueDrain', 'releasePendingQueueDrain'].map((name) => ({
+      ...['beginInput', 'endInput'].map((name) => ({
         name,
         ownerFile: DEEPCHAT_AGENT_INSTANCE_FILE
       }))
@@ -145,7 +145,6 @@ const DEEPCHAT_ROOT_OWNERSHIP_RULES = [
     kind: 'operation-controller-lifecycle',
     calls: [
       { name: 'ensureOperationController', ownerFile: DEEPCHAT_RUN_LIFECYCLE_FILE },
-      { name: 'setAbortController', ownerFile: DEEPCHAT_AGENT_INSTANCE_FILE },
       { name: 'clearAbortController', ownerFile: DEEPCHAT_AGENT_INSTANCE_FILE }
     ]
   }

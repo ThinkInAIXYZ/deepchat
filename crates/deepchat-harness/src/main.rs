@@ -28,6 +28,7 @@ use tokio::{
 };
 
 mod admission;
+mod control;
 mod core;
 mod layers;
 mod memory;

@@ -9,7 +9,10 @@ import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
 import logger from '@shared/logger'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatActiveGeneration } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import { createDeepChatAgentBackendFixture } from '../agent/manager/deepChatAgentBackendFixture'
+import {
+  createBackendControl,
+  createDeepChatAgentBackendFixture
+} from '../agent/manager/deepChatAgentBackendFixture'
 import { createSessionQueryFixture } from './queryFixture'
 import { createSessionFixture } from './sessionFixture'
 import { createSessionData, createSessionDataFromDatabase } from '@/session/data'
@@ -969,6 +972,7 @@ function createMockToolService() {
 
 function createRuntimeDependencies() {
   return {
+    control: createBackendControl(),
     publishEvent: publishDeepchatEventMock,
     publishSessionUpdate: vi.fn(),
     providerCatalogPort: {
@@ -1020,7 +1024,7 @@ function createRuntimeDependencies() {
       resolveSessionAgentId: vi.fn().mockResolvedValue('deepchat'),
       validateSkillNames: vi
         .fn()
-        .mockImplementation(async (...args: unknown[]) => args.at(-1) as string[]),
+        .mockImplementation(async (_agentId: string, skillNames: string[]) => skillNames),
       setActiveSkills: vi
         .fn()
         .mockImplementation(async (_sessionId: string, skills: string[]) => skills),
@@ -1818,11 +1822,9 @@ describe('Integration: multi-turn context', () => {
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
 
     await deepchatAgent.initSession('s-follow-up', { providerId: 'openai', modelId: 'gpt-4' })
-    const runtimeState = deepchatAgent.deepChatRuntime
+    await deepchatAgent.deepChatRuntime
       .getOrHydrate(toAppSessionId('s-follow-up'))
-      .getRuntimeState()
-    if (!runtimeState) throw new Error('Missing runtime state for s-follow-up')
-    runtimeState.status = 'generating'
+      .transitionControlStatus({ kind: 'orphan' }, 'generating')
 
     await deepchatAgent.queuePendingInput('s-follow-up', 'Older queued prompt')
     expect(await deepchatAgent.listPendingInputs('s-follow-up')).toHaveLength(1)
@@ -1927,11 +1929,13 @@ describe('Integration: multi-turn context', () => {
   })
 
   it('drains queued turns when a new message is enqueued after a session error', async () => {
+    const firstProviderEntered = Promise.withResolvers<void>()
     let releaseFirstTurn: (() => void) | null = null
     const providerInstance = {
       coreStream: vi
         .fn()
         .mockImplementationOnce(async function* () {
+          firstProviderEntered.resolve()
           await new Promise<void>((resolve) => {
             releaseFirstTurn = resolve
           })
@@ -1948,11 +1952,14 @@ describe('Integration: multi-turn context', () => {
       { agentId: 'deepchat', message: 'Turn that errors', projectDir: null },
       1
     )
-    await new Promise((r) => setTimeout(r, 20))
+    await firstProviderEntered.promise
 
     await turn.queuePendingInput(session.id, 'Queued while failing')
     releaseFirstTurn?.()
-    await new Promise((r) => setTimeout(r, 80))
+    await vi.waitFor(async () => {
+      expect((await projection.getSession(session.id))?.status).toBe('error')
+    })
+    await createBackendControl.flush()
 
     const failedSession = await projection.getSession(session.id)
     expect(failedSession?.status).toBe('error')
@@ -1963,8 +1970,10 @@ describe('Integration: multi-turn context', () => {
 
     // Enqueuing from an errored session drains the backlog (no manual resume step).
     await turn.queuePendingInput(session.id, 'New message after error')
-    await vi.waitFor(() => {
+    await vi.waitFor(async () => {
       expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
+      expect((await projection.getSession(session.id))?.status).toBe('idle')
+      expect(await turn.listPendingInputs(session.id)).toEqual([])
     })
 
     const recoveredSession = await projection.getSession(session.id)

@@ -3,6 +3,7 @@ import { projectPluginContext } from './pluginContext'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type { CacheImageOptions } from '@/platform/imageCache'
 import logger from '@shared/logger'
+import { redactRuntimeErrorForLog } from './runtimeErrorLogging'
 import type {
   AssistantMessageBlock,
   ChatMessageRecord,
@@ -721,9 +722,10 @@ export class DeepChatLoopRunner {
     }
     const resourceInstance = providedResourceInstance ?? this.ports.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
     const resourceScope = this.ports.runLifecycle.scopeFor(sessionId, resourceInstance)
+    await resourceInstance.controlReady()
     resourceScope.assertCurrent()
     const abortController =
-      providedAbortController ?? this.ports.runLifecycle.ensureOperationController(resourceScope)
+      providedAbortController ?? await this.ports.runLifecycle.ensureOperationController(resourceScope)
     const abortSignal = abortController.signal
     throwIfAbortRequested(abortSignal)
     const state = resourceInstance.getRuntimeState()
@@ -1573,8 +1575,9 @@ export class DeepChatLoopRunner {
     try {
       this.ports.pluginContext?.beginRun?.(sessionId)
       pluginRunStarted = true
-      const activeGeneration = this.ports.runLifecycle.registerRun(resourceScope, loopRun)
+      const activeGeneration = await this.ports.runLifecycle.registerRun(resourceScope, loopRun)
       onRunRegistered?.(activeGeneration.runId)
+      throwIfAbortRequested(abortSignal)
       const rateLimitMessageId = `${RATE_LIMIT_STREAM_MESSAGE_PREFIX}${activeGeneration.runId}`
       let crossedPreStreamBoundary = false
       const crossPreStreamBoundary = () => {
@@ -2220,7 +2223,9 @@ export class DeepChatLoopRunner {
         initialBlocks,
         initialAccounting,
         onFirstProviderRoundReady: () => {
-          this.ports.runLifecycle.markFirstTurnReady(resourceScope, activeGeneration.runId)
+          void this.ports.runLifecycle.markFirstTurnReady(resourceScope, activeGeneration.runId).catch((error) => {
+            logger.warn('[DeepChatAgent] Failed to publish first provider round readiness:', redactRuntimeErrorForLog(error))
+          })
         },
         shouldYieldForPendingInput: () =>
           Boolean(this.ports.pendingInputCoordinator.getNextSteerInput(sessionId)),
@@ -2405,10 +2410,10 @@ export class DeepChatLoopRunner {
               executionRef
             })
           },
-          onStreamingProviderPermission: (permission, tool, commitDecision) => {
-            this.ports.providerPermissionCoordinator.register(
-              sessionId,
-              messageId,
+          onStreamingProviderPermission: async (permission, tool, commitDecision) => {
+            await this.ports.providerPermissionCoordinator.register(
+              resourceScope,
+              activeGeneration,
               permission,
               tool,
               commitDecision
@@ -2497,7 +2502,7 @@ export class DeepChatLoopRunner {
             ? error
             : wrapTerminalCommitFailure(error, terminalCommitError)
       } finally {
-        this.ports.runLifecycle.clearRun(resourceScope, loopRun.runId)
+        await this.ports.runLifecycle.clearRun(resourceScope, loopRun.runId)
       }
       throw errorToPropagate
     } finally {

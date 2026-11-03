@@ -190,7 +190,7 @@ export interface ProcessControlCollaborators {
       params?: string
     },
     commitDecision: (granted: boolean) => void
-  ) => void
+  ) => Promise<void>
   getActiveSkillNames?: () => string[]
   getEnabledMcpServerIds?: () => string[] | null | undefined
   getAgentId?: () => string | undefined

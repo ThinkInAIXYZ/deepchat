@@ -1,9 +1,12 @@
+import { useHarnessControl } from '../deepchat/helpers/control'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import {
   createDeepChatAgentBackend,
   type DeepChatAgentBackendPort
 } from '@/agent/manager/deepChatAgentBackend'
 import type { SessionTapePort, SessionTranscriptReadPort } from '@/session/data/contracts'
+
+export const createBackendControl = useHarnessControl()
 
 export function createDeepChatAgentBackendFixture(
   port: DeepChatAgentBackendPort,
@@ -24,7 +27,7 @@ export function createDeepChatAgentBackendFixture(
     }
   }
 ) {
-  const runtime = providedRuntime ?? new DeepChatAgentRuntime()
+  const runtime = providedRuntime ?? new DeepChatAgentRuntime(createBackendControl())
 
   return createDeepChatAgentBackend({ port, runtime, ...data })
 }

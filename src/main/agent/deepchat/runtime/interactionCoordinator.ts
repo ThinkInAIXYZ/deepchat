@@ -1,3 +1,4 @@
+import type { HarnessControlOwner } from '@shared/harness/control'
 import type {
   AssistantMessageBlock,
   ToolInteractionResponse,
@@ -58,7 +59,6 @@ import { throwIfAbortRequested } from './abortErrors'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { RuntimeHookScope, RuntimeHookSink } from './runtimeHookSink'
 import { ExecutionJournalError, isExecutionJournalError } from '@/tape/domain/executionJournal'
-import type { InteractionParkingRegistry } from './interactionParkingRegistry'
 import type {
   ExecutionJournalRecoveryReader,
   TapeExecutionViewManifestReader,
@@ -66,10 +66,7 @@ import type {
   TapeViewManifestReader
 } from '@/tape/ports/capabilities'
 import { resolveDeferredExecutionContract } from './deferredExecutionContract'
-import {
-  DeferredToolSurfaceError,
-  resolveDeferredToolSurfaceDispatch
-} from './deferredToolSurface'
+import { DeferredToolSurfaceError, resolveDeferredToolSurfaceDispatch } from './deferredToolSurface'
 import { CommandShellProfileSchema } from '@shared/commandShell'
 import { isAgentToolPathBearing, isCommandSignatureForProfile } from '@/tool/permission'
 
@@ -123,7 +120,6 @@ export interface InteractionCoordinatorPorts {
   turnCoordinator: TurnResumePort
   continuationAdmission: InteractionContinuationAdmissionPort
   publishEvent: DeepChatEventPublisher
-  interactionParking: Pick<InteractionParkingRegistry, 'isParked' | 'park'>
   executionJournal: Pick<
     ExecutionJournalRecoveryReader,
     'hasAnyCommittedDispatchForMessageToolCall'
@@ -151,11 +147,12 @@ export class InteractionCoordinator {
     response: ToolInteractionResponse
   ): Promise<ToolInteractionResult> {
     const instance = this.ports.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
-    if (this.ports.interactionParking.isParked(sessionId, messageId)) {
+    const scope = this.ports.runLifecycle.scopeFor(sessionId, instance)
+    const interactionLease = await instance.acquireInteraction(messageId, toolCallId)
+    if (interactionLease === 'parked') {
       throw new ExecutionJournalError(DEFERRED_INTERACTION_PARKED_ERROR, 'persistence_failed')
     }
-    const scope = this.ports.runLifecycle.scopeFor(sessionId, instance)
-    if (!instance.tryLockInteraction(messageId, toolCallId)) {
+    if (!interactionLease) {
       return { resumed: false }
     }
 
@@ -164,14 +161,13 @@ export class InteractionCoordinator {
       interactionOwnerRun,
       messageId
     )
+    let interactionOwner: HarnessControlOwner | undefined
     let resumedWaitingAdmission = false
     let interactionAbortController: AbortController | null = null
     let interactionAbortSignal: AbortSignal | undefined
     let claimedToolSurfaceDeferredDispatch: ToolSurfaceDeferredDispatch | undefined
     const resumeWaitingAdmission = async () => {
-      if (
-        await this.ports.continuationAdmission.resume(sessionId, interactionAbortSignal)
-      ) {
+      if (await this.ports.continuationAdmission.resume(sessionId, interactionAbortSignal)) {
         resumedWaitingAdmission = true
       }
     }
@@ -182,9 +178,12 @@ export class InteractionCoordinator {
         }
         interactionAbortSignal = interactionOwnerRun.abortController.signal
       } else {
-        interactionAbortController = this.ports.runLifecycle.ensureOperationController(scope)
+        interactionAbortController = await this.ports.runLifecycle.ensureOperationController(scope)
         interactionAbortSignal = interactionAbortController.signal
       }
+      interactionOwner = interactionOwnerRun
+        ? { kind: 'run' as const, id: interactionOwnerRun.runId }
+        : instance.operationOwner(interactionAbortController!)
       throwIfAbortRequested(interactionAbortSignal)
       const message = await this.ports.messageStore.getMessage(messageId)
       if (!message || message.role !== 'assistant') {
@@ -195,21 +194,17 @@ export class InteractionCoordinator {
       }
 
       let blocks = parseAssistantBlocks(message.content)
-      const pendingEntries = reconcilePendingInteractionEntries(
+      const pendingEntries = await reconcilePendingInteractionEntries(
         instance,
-        collectPendingInteractionEntries(messageId, blocks)
+        collectPendingInteractionEntries(messageId, blocks),
+        interactionOwner
       )
-      replacePendingInteractions(instance, pendingEntries)
       if (pendingEntries.length === 0) {
         throw new Error('No pending interaction found in target message.')
       }
 
-      const firstPendingInteraction = instance.getFirstPendingInteraction()
       const currentEntry = pendingEntries[0]
-      if (
-        firstPendingInteraction?.messageId !== messageId ||
-        firstPendingInteraction.toolCallId !== toolCallId
-      ) {
+      if (!(await instance.checkPendingInteraction(interactionLease, interactionOwner))) {
         throw new Error('Interaction queue out of order. Please handle the first pending item.')
       }
 
@@ -249,15 +244,21 @@ export class InteractionCoordinator {
             this.ports.messageStore.updateAssistantContent(messageId, blocks)
             this.ports.messageProjection.refresh(sessionId, messageId)
             this.ports.messageStore.updateMessageStatus(messageId, 'pending')
-            this.ports.runLifecycle.transitionStatus(scope, 'generating')
+            await this.ports.runLifecycle.transitionStatus(scope, 'generating', interactionOwner)
             return { resumed: false, handledInline: result.handledInline === true }
           }
-          instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
+          await instance.advancePendingToolBatch(
+            { committedResultCallId: toolCall.id },
+            interactionOwner
+          )
         } else if (response.kind === 'question_other') {
           const deferredResult = 'User chose to answer with a follow-up message.'
           markQuestionResolved(actionBlock, '', true)
           updateToolCallResponse(blocks, toolCall.id, deferredResult, false)
-          instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
+          await instance.advancePendingToolBatch(
+            { committedResultCallId: toolCall.id },
+            interactionOwner
+          )
           waitingForUserMessage = true
         } else {
           const answerText =
@@ -268,7 +269,10 @@ export class InteractionCoordinator {
           }
           markQuestionResolved(actionBlock, normalizedAnswer)
           updateToolCallResponse(blocks, toolCall.id, normalizedAnswer, false)
-          instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
+          await instance.advancePendingToolBatch(
+            { committedResultCallId: toolCall.id },
+            interactionOwner
+          )
         }
       } else if (actionBlock.action_type === 'tool_call_permission') {
         if (response.kind !== 'permission') {
@@ -289,6 +293,8 @@ export class InteractionCoordinator {
               permissionType,
               granted: response.granted,
               ownerRun: interactionOwnerRun,
+              controlOwner: interactionOwner,
+              interactionLeaseId: interactionLease.id,
               signal: interactionAbortSignal
             }),
             interactionAbortSignal
@@ -334,8 +340,8 @@ export class InteractionCoordinator {
               'duplicate_dispatch',
               { cause: error }
             )
-            this.ports.runLifecycle.transitionStatus(scope, 'idle')
-            this.ports.interactionParking.park(sessionId, messageId)
+            await this.ports.runLifecycle.transitionStatus(scope, 'idle', interactionOwner)
+            await instance.parkInteraction(interactionLease)
             markPermissionResolved(actionBlock, true, permissionType)
             updateToolCallResponse(
               blocks,
@@ -363,9 +369,9 @@ export class InteractionCoordinator {
                 )
               }
             }
-            replacePendingInteractions(instance, [])
             try {
               this.ports.messageStore.updateAssistantContent(messageId, blocks)
+              await replacePendingInteractions(instance, [], interactionOwner)
               this.ports.messageProjection.refresh(sessionId, messageId)
             } catch (projectionError) {
               throw new ExecutionJournalError(
@@ -414,7 +420,7 @@ export class InteractionCoordinator {
                 tool: { callId: toolCall.id, name: toolCall.name, params: toolCall.params }
               })
               execution = await this.ports.deferredToolExecutor.execute(
-                sessionId,
+                { scope, lease: interactionLease, owner: interactionOwner },
                 messageId,
                 toolCall.server_name === permissionGrant.serverName
                   ? toolCall
@@ -483,18 +489,24 @@ export class InteractionCoordinator {
             )
           }
           if (execution.journalFailure) {
-            this.ports.runLifecycle.transitionStatus(scope, 'idle')
+            await this.ports.runLifecycle.transitionStatus(scope, 'idle', interactionOwner)
             if (!execution.journalFailure.dispatchCommitted) {
               throw execution.journalFailure.error
             }
 
-            this.ports.interactionParking.park(sessionId, messageId)
+            await instance.parkInteraction(interactionLease)
             markPermissionResolved(actionBlock, true, permissionType)
             if (execution.invoked) {
-              instance.advancePendingToolBatch({ invokedCallId: toolCall.id })
+              await instance.advancePendingToolBatch(
+                { invokedCallId: toolCall.id },
+                interactionOwner
+              )
             }
             if (execution.journalFailure.outcomeCommitted) {
-              instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
+              await instance.advancePendingToolBatch(
+                { committedResultCallId: toolCall.id },
+                interactionOwner
+              )
             }
             updateToolCallResponse(blocks, toolCall.id, execution.responseText, execution.isError)
             for (const block of blocks) {
@@ -517,9 +529,9 @@ export class InteractionCoordinator {
                 )
               }
             }
-            replacePendingInteractions(instance, [])
             try {
               this.ports.messageStore.updateAssistantContent(messageId, blocks)
+              await replacePendingInteractions(instance, [], interactionOwner)
               this.ports.messageProjection.refresh(sessionId, messageId)
             } catch (projectionError) {
               throw new ExecutionJournalError(
@@ -532,11 +544,14 @@ export class InteractionCoordinator {
           }
           markPermissionResolved(actionBlock, true, permissionType)
           if (execution.invoked) {
-            instance.advancePendingToolBatch({ invokedCallId: toolCall.id })
+            await instance.advancePendingToolBatch({ invokedCallId: toolCall.id }, interactionOwner)
           }
           if (execution.terminalError) {
             const terminalMetadata = stampInteractionResolution(resumeAccounting, 'error')
-            instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
+            await instance.advancePendingToolBatch(
+              { committedResultCallId: toolCall.id },
+              interactionOwner
+            )
             hooks.emit({
               event: 'PostToolUseFailure',
               tool: {
@@ -566,17 +581,16 @@ export class InteractionCoordinator {
               usage: buildUsageFromMetadata(terminalMetadata) ?? null,
               error: { message: execution.terminalError }
             })
-            this.ports.runLifecycle.transitionStatus(
+            await this.ports.runLifecycle.transitionStatus(
               scope,
               'error',
+              interactionOwner,
               buildUsageFromMetadata(terminalMetadata)
             )
-            replacePendingInteractions(
+            await reconcilePendingInteractionEntries(
               instance,
-              reconcilePendingInteractionEntries(
-                instance,
-                collectPendingInteractionEntries(messageId, blocks)
-              )
+              collectPendingInteractionEntries(messageId, blocks),
+              interactionOwner
             )
             return { resumed: false }
           }
@@ -602,10 +616,11 @@ export class InteractionCoordinator {
           }
 
           if (execution.requiresPermission && execution.permissionRequest) {
-            instance.transitionPendingInteractionOrigin(
+            await instance.transitionPendingInteractionOrigin(
               messageId,
               toolCall.id,
-              'post-call-permission'
+              'post-call-permission',
+              interactionOwner
             )
             hooks.emit({
               event: 'PermissionRequest',
@@ -621,7 +636,10 @@ export class InteractionCoordinator {
               permissionRequest: JSON.stringify(execution.permissionRequest)
             }
           } else {
-            instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
+            await instance.advancePendingToolBatch(
+              { committedResultCallId: toolCall.id },
+              interactionOwner
+            )
             shouldDispatchResolvedToolHook = true
           }
         } else {
@@ -631,7 +649,10 @@ export class InteractionCoordinator {
           }
           markPermissionResolved(actionBlock, false, permissionType)
           updateToolCallResponse(blocks, toolCall.id, 'User denied the request.', true)
-          instance.advancePendingToolBatch({ committedResultCallId: toolCall.id })
+          await instance.advancePendingToolBatch(
+            { committedResultCallId: toolCall.id },
+            interactionOwner
+          )
           shouldDispatchResolvedToolHook = true
         }
 
@@ -644,10 +665,7 @@ export class InteractionCoordinator {
         throw new Error(`Unsupported action type: ${actionBlock.action_type}`)
       }
 
-      const remainingPending = reconcilePendingInteractionEntries(
-        instance,
-        collectPendingInteractionEntries(messageId, blocks)
-      )
+      const remainingPending = collectPendingInteractionEntries(messageId, blocks)
       const awaitsUserFollowUp = waitingForUserMessage || hasQuestionFollowUpIntent(blocks)
       const finishesForUserFollowUp = awaitsUserFollowUp && remainingPending.length === 0
       const persistedMetadata = finishesForUserFollowUp
@@ -669,14 +687,14 @@ export class InteractionCoordinator {
           accountingChanged ? JSON.stringify(resumeAccounting) : undefined
         )
       }
-      replacePendingInteractions(instance, remainingPending)
+      await reconcilePendingInteractionEntries(instance, remainingPending, interactionOwner)
       this.ports.messageProjection.refresh(sessionId, messageId)
 
       if (remainingPending.length > 0) {
         if (resumedWaitingAdmission) this.ports.continuationAdmission.suspend(sessionId)
         emitResolvedToolHook?.()
         this.ports.messageStore.updateMessageStatus(messageId, 'pending')
-        this.ports.runLifecycle.transitionStatus(scope, 'generating')
+        await this.ports.runLifecycle.transitionStatus(scope, 'generating', interactionOwner)
         return { resumed: false }
       }
 
@@ -687,15 +705,16 @@ export class InteractionCoordinator {
           stopReason: 'user_follow_up',
           usage: buildUsageFromMetadata(persistedMetadata)
         })
-        this.ports.runLifecycle.transitionStatus(
+        await this.ports.runLifecycle.transitionStatus(
           scope,
           'idle',
+          interactionOwner,
           buildUsageFromMetadata(persistedMetadata)
         )
         return { resumed: false, waitingForUserMessage: true }
       }
 
-      this.ports.runLifecycle.clearOperationController(
+      await this.ports.runLifecycle.clearOperationController(
         scope,
         interactionAbortController ?? undefined
       )
@@ -719,6 +738,7 @@ export class InteractionCoordinator {
         )
       }
       if (isExecutionJournalError(error)) throw error
+      if (!scope.isCurrent()) return { resumed: false }
       if (interactionAbortSignal?.aborted) {
         if (!claimedToolSurfaceDeferredDispatch) {
           revokeToolSurfaceDeferredDispatch(sessionId, messageId, toolCallId)
@@ -730,14 +750,17 @@ export class InteractionCoordinator {
           this.ports.messageStore.getMessage(messageId)?.metadata ?? '{}'
         )
         if (interactionAbortController) {
-          this.ports.runLifecycle.clearOperationController(scope, interactionAbortController)
+          await this.ports.runLifecycle.clearOperationController(scope, interactionAbortController)
         }
-        instance.replacePendingInteractions([])
-        this.ports.runLifecycle.settleAbortedTurn(
+        await instance.replacePendingInteractions([], interactionOwner)
+        await this.ports.runLifecycle.settleAbortedTurn(
           sessionId,
           messageId,
           undefined,
-          JSON.stringify(stampInteractionResolution(accounting, 'cancelled'))
+          JSON.stringify(stampInteractionResolution(accounting, 'cancelled')),
+          interactionAbortController
+            ? instance.operationOwner(interactionAbortController)
+            : undefined
         )
         this.ports.runLifecycle.schedulePendingInputDrain(sessionId, 'completed')
         return { resumed: false }
@@ -745,9 +768,9 @@ export class InteractionCoordinator {
       throw error
     } finally {
       if (interactionAbortController) {
-        this.ports.runLifecycle.clearOperationController(scope, interactionAbortController)
+        await this.ports.runLifecycle.clearOperationController(scope, interactionAbortController)
       }
-      instance.unlockInteraction(messageId, toolCallId)
+      await instance.unlockInteraction(interactionLease)
     }
   }
 
@@ -790,10 +813,7 @@ export class InteractionCoordinator {
       return false
     }
 
-    const metadata = stampInteractionResolution(
-      parseMessageMetadata(message.metadata),
-      'cancelled'
-    )
+    const metadata = stampInteractionResolution(parseMessageMetadata(message.metadata), 'cancelled')
     const metadataJson = JSON.stringify(metadata)
     const remainingPending = collectPendingInteractionEntries(messageId, blocks)
     if (remainingPending.length === 0) {
@@ -807,12 +827,14 @@ export class InteractionCoordinator {
     // Remove only the dismissed entry from the instance queue, preserving pending
     // interactions that belong to other messages.
     const instance = this.ports.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
-    instance.replacePendingInteractions(
-      instance.getPendingInteractions().filter(
-        (pending) => pending.messageId !== messageId || pending.toolCallId !== toolCallId
-      )
+    await instance.replacePendingInteractions(
+      instance
+        .getPendingInteractions()
+        .filter((pending) => pending.messageId !== messageId || pending.toolCallId !== toolCallId)
     )
-    if (this.ports.runLifecycle.settleOrphanedInteraction(sessionId, messageId, metadataJson)) {
+    if (
+      await this.ports.runLifecycle.settleOrphanedInteraction(sessionId, messageId, metadataJson)
+    ) {
       this.ports.runLifecycle.schedulePendingInputDrain(sessionId, 'completed')
     }
     return true
@@ -973,11 +995,7 @@ export class InteractionCoordinator {
     const permissionType = payload.permissionType
     const payloadServerName = payload.serverName?.trim()
     const toolCallServerName = toolCall.server_name?.trim()
-    if (
-      payloadServerName &&
-      toolCallServerName &&
-      payloadServerName !== toolCallServerName
-    ) {
+    if (payloadServerName && toolCallServerName && payloadServerName !== toolCallServerName) {
       throw new Error('Permission approval tool server identity does not match the tool call.')
     }
     const serverName = toolCallServerName || payloadServerName
@@ -1090,8 +1108,10 @@ export class InteractionCoordinator {
     sessionId: string,
     permission: SessionPermissionRequest
   ): Promise<Extract<SessionPermissionGrant, { kind: 'granted' }>> {
-    const grant: SessionPermissionGrant =
-      await this.ports.sessionPermissionPort.approvePermission(sessionId, permission)
+    const grant: SessionPermissionGrant = await this.ports.sessionPermissionPort.approvePermission(
+      sessionId,
+      permission
+    )
     if (grant?.kind === 'granted') return grant
     if (grant?.kind === 'command') {
       this.ports.sessionPermissionPort.revokeOneShotCommandPermission(

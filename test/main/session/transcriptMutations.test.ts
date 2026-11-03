@@ -306,6 +306,7 @@ describe('SessionTranscriptMutations', () => {
     const mutations = new SessionTranscriptMutations({ transcript, runtime } as any)
     const removing = mutations.editUserMessage('s1', 'message-1', 'removed', [])
     const retaining = mutations.editUserMessage('s1', 'message-1', 'stale', [reference])
+    await vi.waitFor(() => expect(cancellations).toHaveLength(2))
     cancellations[0]()
     await removing
     cancellations[1]()

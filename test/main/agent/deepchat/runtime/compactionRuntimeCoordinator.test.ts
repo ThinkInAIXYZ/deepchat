@@ -1,3 +1,4 @@
+import { useHarnessControl } from '../helpers/control'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
@@ -14,6 +15,8 @@ import type {
 import { ModelType } from '@shared/model'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
+
+const control = useHarnessControl()
 
 const SESSION_ID = 'session'
 
@@ -119,16 +122,17 @@ type PrepareManualCompactionInput = Parameters<
   CompactionRuntimeCoordinatorDependencies['compactionService']['prepareForManualCompaction']
 >[0]
 
-function createHarness(options?: {
+async function createHarness(options?: {
   hydrate?: boolean
   sessionExists?: boolean
   state?: DeepChatSessionState
 }) {
-  const runtime = new DeepChatAgentRuntime()
+  const runtime = new DeepChatAgentRuntime(control())
   const shouldHydrate = options?.hydrate !== false
   const initialInstance = shouldHydrate
     ? runtime.getOrHydrate(toAppSessionId(SESSION_ID))
     : undefined
+  if (initialInstance) await initialInstance.controlReady()
   if (initialInstance && options?.state !== undefined) {
     initialInstance.setRuntimeState(options.state)
   } else if (initialInstance) {
@@ -191,31 +195,18 @@ function createHarness(options?: {
   const scopeFor = vi.fn((sessionId: string, instance: DeepChatAgentInstance) =>
     runtime.scopeFor(toAppSessionId(sessionId), instance)
   )
-  const transitionStatus = vi.fn(
-    (
-      scope: ReturnType<typeof runtime.scopeFor>,
-      status: DeepChatSessionState['status']
-    ): boolean => {
-      if (!scope.isCurrent()) return false
-      const state = scope.state()
-      if (!state) return false
-      state.status = status
-      return true
-    }
-  )
-  const ensureOperationController = vi.fn((scope: ReturnType<typeof runtime.scopeFor>) => {
+  const transitionStatus = vi.fn(async (scope: ReturnType<typeof runtime.scopeFor>, status: DeepChatSessionState['status'], owner: Parameters<DeepChatAgentInstance['transitionControlStatus']>[0]) => Boolean(await scope.instance.transitionControlStatus(owner, status)))
+  const ensureOperationController = vi.fn(async (scope: ReturnType<typeof runtime.scopeFor>) => {
     scope.assertCurrent()
-    const controller = new AbortController()
-    scope.instance.setAbortController(controller)
-    return controller
+    return await scope.instance.ensureOperationController()
   })
   const canSettleOperation = vi.fn(
     (scope: ReturnType<typeof runtime.scopeFor>, controller: AbortController) =>
       scope.isCurrent() && scope.instance.getAbortController() === controller
   )
   const clearOperationController = vi.fn(
-    (scope: ReturnType<typeof runtime.scopeFor>, controller?: AbortController) =>
-      scope.isCurrent() && scope.instance.clearAbortController(controller)
+    async (scope: ReturnType<typeof runtime.scopeFor>, controller?: AbortController) =>
+      await scope.instance.clearAbortController(controller)
   )
   const runLifecycle: CompactionRuntimeCoordinatorDependencies['runLifecycle'] = {
     canSettleOperation,
@@ -345,7 +336,7 @@ describe('CompactionRuntimeCoordinator', () => {
   })
 
   it('does not hydrate an instance when neither runtime nor persisted session facts exist', async () => {
-    const { coordinator, getInstance, runtime } = createHarness({ hydrate: false })
+    const { coordinator, getInstance, runtime } = await createHarness({ hydrate: false })
 
     await expect(coordinator.getSnapshot(SESSION_ID)).rejects.toThrow(
       `Session ${SESSION_ID} not found`
@@ -356,7 +347,7 @@ describe('CompactionRuntimeCoordinator', () => {
   })
 
   it('keeps an in-flight state authoritative and otherwise refreshes from persisted summary', async () => {
-    const { coordinator, initialInstance, setSummaryState } = createHarness()
+    const { coordinator, initialInstance, setSummaryState } = await createHarness()
     setSummaryState({
       summaryText: 'Persisted summary',
       summaryCursorOrderSeq: 7,
@@ -393,7 +384,7 @@ describe('CompactionRuntimeCoordinator', () => {
   })
 
   it('projects a cursor-only reconstruction boundary as compacted', async () => {
-    const { coordinator, setSummaryState } = createHarness()
+    const { coordinator, setSummaryState } = await createHarness()
     setSummaryState({
       summaryText: null,
       summaryCursorOrderSeq: 7,
@@ -411,7 +402,7 @@ describe('CompactionRuntimeCoordinator', () => {
   })
 
   it('derives boundary-only reason and anchor identity from the latest Tape anchor', async () => {
-    const { coordinator, setReconstructionAnchor, setSummaryState } = createHarness()
+    const { coordinator, setReconstructionAnchor, setSummaryState } = await createHarness()
     setSummaryState({
       summaryText: null,
       summaryCursorOrderSeq: 7,
@@ -451,7 +442,7 @@ describe('CompactionRuntimeCoordinator', () => {
   })
 
   it('uses a per-session sequence across same-millisecond events and runtime replacement', async () => {
-    const { coordinator, publishedEvents, runtime } = createHarness()
+    const { coordinator, publishedEvents, runtime } = await createHarness()
     vi.spyOn(Date, 'now').mockReturnValue(100)
 
     coordinator.emit(SESSION_ID, coordinator.idleState())
@@ -464,6 +455,7 @@ describe('CompactionRuntimeCoordinator', () => {
 
     runtime.evict(toAppSessionId(SESSION_ID))
     const replacement = runtime.getOrHydrate(toAppSessionId(SESSION_ID))
+    await replacement.controlReady()
     replacement.setRuntimeState(createRuntimeState())
     coordinator.emit(SESSION_ID, coordinator.idleState(), replacement)
 
@@ -473,8 +465,8 @@ describe('CompactionRuntimeCoordinator', () => {
     await expect(coordinator.getSnapshot(SESSION_ID)).resolves.toMatchObject({ emitSeq: 3 })
   })
 
-  it('takes event boundary reasons only from the durable Tape anchor', () => {
-    const { coordinator, publishedEvents, setReconstructionAnchor } = createHarness()
+  it('takes event boundary reasons only from the durable Tape anchor', async () => {
+    const { coordinator, publishedEvents, setReconstructionAnchor } = await createHarness()
     setReconstructionAnchor({
       entryId: 42,
       name: 'compaction/context_pressure',
@@ -501,7 +493,7 @@ describe('CompactionRuntimeCoordinator', () => {
   })
 
   it('restarts process-local sequencing while preserving the durable anchor identity', async () => {
-    const { coordinator, deps, setReconstructionAnchor, setSummaryState } = createHarness()
+    const { coordinator, deps, setReconstructionAnchor, setSummaryState } = await createHarness()
     setSummaryState({
       summaryText: null,
       summaryCursorOrderSeq: 7,
@@ -545,7 +537,7 @@ describe('CompactionRuntimeCoordinator', () => {
       toolResolver,
       transitionStatus,
       providerSettings
-    } = createHarness()
+    } = await createHarness()
 
     await expect(coordinator.compact(SESSION_ID)).resolves.toEqual({
       compacted: false,
@@ -604,7 +596,7 @@ describe('CompactionRuntimeCoordinator', () => {
       messageStore,
       prepareForManualCompaction,
       publishedEvents
-    } = createHarness()
+    } = await createHarness()
     const intent = createIntent()
     prepareForManualCompaction.mockResolvedValueOnce(intent)
 
@@ -642,7 +634,7 @@ describe('CompactionRuntimeCoordinator', () => {
   })
 
   it('finishes compaction projection after a post-commit hook dispatch rejects', async () => {
-    const f = createHarness()
+    const f = await createHarness()
     f.prepareForManualCompaction.mockResolvedValueOnce(createIntent())
     f.deps.pluginContext = {
       hasHooks: () => true,
@@ -665,7 +657,7 @@ describe('CompactionRuntimeCoordinator', () => {
   })
 
   it('persists each observed summary call against the compaction marker identity', async () => {
-    const { applyCompaction, coordinator, messageStore } = createHarness()
+    const { applyCompaction, coordinator, messageStore } = await createHarness()
     const intent = createIntent()
     applyCompaction.mockImplementationOnce(async (_intent, _signal, observeModelCall) => {
       observeModelCall?.({
@@ -703,7 +695,7 @@ describe('CompactionRuntimeCoordinator', () => {
   })
 
   it('removes the local marker when another compaction attempt wins the anchor CAS', async () => {
-    const { applyCompaction, coordinator, messageStore } = createHarness()
+    const { applyCompaction, coordinator, messageStore } = await createHarness()
     const intent = createIntent()
     applyCompaction.mockResolvedValueOnce({
       outcome: 'summarized',
@@ -725,7 +717,7 @@ describe('CompactionRuntimeCoordinator', () => {
 
   it('finalizes a committed marker without mutating a replacement runtime', async () => {
     const { applyCompaction, coordinator, initialInstance, messageStore, publishedEvents, runtime } =
-      createHarness()
+      await createHarness()
     const completion = createDeferred<{
       outcome: 'summarized'
       anchorCommitted: true
@@ -741,6 +733,7 @@ describe('CompactionRuntimeCoordinator', () => {
     await vi.waitFor(() => expect(applyCompaction).toHaveBeenCalledOnce())
     runtime.evict(toAppSessionId(SESSION_ID))
     const replacement = runtime.getOrHydrate(toAppSessionId(SESSION_ID))
+    await replacement.controlReady()
     replacement.setRuntimeState(createRuntimeState())
     completion.resolve({
       outcome: 'summarized',
@@ -776,7 +769,7 @@ describe('CompactionRuntimeCoordinator', () => {
       messageStore,
       setReconstructionAnchor,
       setSummaryState
-    } = createHarness()
+    } = await createHarness()
     const intent = createIntent()
     const boundaryState = {
       summaryText: null,
@@ -833,7 +826,7 @@ describe('CompactionRuntimeCoordinator', () => {
       messageStore,
       publishedEvents,
       runtime
-    } = createHarness()
+    } = await createHarness()
     const completion = createDeferred<never>()
     const failure = new Error('provider failed')
     applyCompaction.mockImplementationOnce(async () => await completion.promise)
@@ -842,6 +835,7 @@ describe('CompactionRuntimeCoordinator', () => {
     await vi.waitFor(() => expect(applyCompaction).toHaveBeenCalledOnce())
     runtime.evict(toAppSessionId(SESSION_ID))
     const replacement = runtime.getOrHydrate(toAppSessionId(SESSION_ID))
+    await replacement.controlReady()
     replacement.setRuntimeState(createRuntimeState())
     completion.reject(failure)
 
@@ -861,21 +855,19 @@ describe('CompactionRuntimeCoordinator', () => {
 
   it('does not settle idle after the operation controller loses ownership', async () => {
     const {
-      canSettleOperation,
       coordinator,
       initialInstance,
       prepareForManualCompaction,
       transitionStatus
-    } = createHarness()
+    } = await createHarness()
     prepareForManualCompaction.mockImplementationOnce(async () => {
-      initialInstance?.setAbortController(new AbortController())
+      await initialInstance?.ensureOperationController()
       return null
     })
-    canSettleOperation.mockReturnValueOnce(false)
 
-    await coordinator.compact(SESSION_ID)
+    await expect(coordinator.compact(SESSION_ID)).rejects.toMatchObject({ name: 'AbortError' })
 
-    expect(transitionStatus.mock.calls.map(([, status]) => status)).toEqual(['generating'])
+    expect(transitionStatus.mock.calls.map(([, status]) => status)).toEqual(['generating', 'idle'])
     expect(initialInstance?.getRuntimeState()?.status).toBe('generating')
   })
 
@@ -886,7 +878,7 @@ describe('CompactionRuntimeCoordinator', () => {
       initialInstance,
       messageStore,
       publishedEvents
-    } = createHarness()
+    } = await createHarness()
     const controller = new AbortController()
     controller.abort()
     applyCompaction.mockRejectedValueOnce(new Error('late failure'))
@@ -912,7 +904,7 @@ describe('CompactionRuntimeCoordinator', () => {
   })
 
   it('restores the previous projection without masking a non-abort failure', async () => {
-    const { applyCompaction, coordinator, initialInstance, messageStore } = createHarness()
+    const { applyCompaction, coordinator, initialInstance, messageStore } = await createHarness()
     const failure = new Error('compaction failed')
     applyCompaction.mockRejectedValueOnce(failure)
 
@@ -936,7 +928,7 @@ describe('CompactionRuntimeCoordinator', () => {
   })
 
   it('retains a summary error while publishing the committed fallback boundary', async () => {
-    const { applyCompaction, coordinator, messageStore, initialInstance } = createHarness()
+    const { applyCompaction, coordinator, messageStore, initialInstance } = await createHarness()
     const summaryState = { summaryText: null, summaryCursorOrderSeq: 5, summaryUpdatedAt: null }
     applyCompaction.mockResolvedValueOnce({
       outcome: 'boundary_only',

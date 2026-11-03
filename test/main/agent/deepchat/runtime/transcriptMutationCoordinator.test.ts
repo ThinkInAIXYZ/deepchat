@@ -1,3 +1,4 @@
+import { useHarnessControl } from '../helpers/control'
 import { describe, expect, it, vi } from 'vitest'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
@@ -5,6 +6,8 @@ import {
   TranscriptMutationCoordinator,
   type TranscriptMutationCoordinatorDependencies
 } from '@/agent/deepchat/runtime/transcriptMutationCoordinator'
+
+const control = useHarnessControl()
 
 const SESSION_ID = 'session'
 
@@ -17,13 +20,16 @@ const IDLE_STATE = {
 
 function createHarness(state: unknown = IDLE_STATE) {
   const order: string[] = []
-  const runtime = new DeepChatAgentRuntime()
+  const runtime = new DeepChatAgentRuntime(control())
   const record = (label: string) => () => {
     order.push(label)
   }
   const deps = {
     registry: runtime,
-    sessionState: { get: vi.fn(async () => state) },
+    sessionState: { get: vi.fn(async () => {
+      await runtime.getOrHydrate(toAppSessionId(SESSION_ID)).controlReady()
+      return state
+    }) },
     sessionSettings: { resolveProjectDir: vi.fn(() => '/workspace') },
     admission: { assertNoActiveInputs: vi.fn(record('admission.assertNoActiveInputs')) },
     compaction: { reset: vi.fn(record('compaction.reset')), invalidateIfNeeded: vi.fn() },
@@ -77,14 +83,15 @@ describe('TranscriptMutationCoordinator', () => {
     expect(order).toEqual([])
   })
 
-  it('resets pending interactions, compaction, and status when clearing finishes', () => {
+  it('resets pending interactions, compaction, and status when clearing finishes', async () => {
     const { coordinator, order, runtime } = createHarness()
     const instance = runtime.getOrHydrate(toAppSessionId(SESSION_ID))
-    instance.replacePendingInteractions([
-      { messageId: 'm1', toolCallId: 'tc1', origin: 'permission', order: 0 }
+    await instance.controlReady()
+    await instance.replacePendingInteractions([
+      { messageId: 'm1', toolCallId: 'tc1', origin: 'pre-check-permission', order: 0 }
     ])
 
-    coordinator.finishClearMessages(SESSION_ID)
+    await coordinator.finishClearMessages(SESSION_ID)
 
     expect(instance.hasPendingInteractions()).toBe(false)
     expect(order).toEqual(['compaction.reset', 'runLifecycle.transitionStatus'])
@@ -146,10 +153,10 @@ describe('TranscriptMutationCoordinator', () => {
     })
   })
 
-  it('refreshes pending interactions before projecting idle after a truncate', () => {
+  it('refreshes pending interactions before projecting idle after a truncate', async () => {
     const { coordinator, order } = createHarness()
 
-    coordinator.finishTranscriptTruncate(SESSION_ID)
+    await coordinator.finishTranscriptTruncate(SESSION_ID)
 
     expect(order).toEqual([
       'runLifecycle.refreshPendingInteractions',
@@ -157,7 +164,7 @@ describe('TranscriptMutationCoordinator', () => {
     ])
   })
 
-  it('invalidates compaction and memory for the same order sequence', () => {
+  it('invalidates compaction and memory for the same order sequence', async () => {
     const { coordinator, deps } = createHarness()
 
     coordinator.invalidateTranscriptFrom(SESSION_ID, 7)
@@ -170,7 +177,7 @@ describe('TranscriptMutationCoordinator', () => {
     expect(deps.memory.invalidateFromOrderSeq).toHaveBeenCalledWith(SESSION_ID, 7)
   })
 
-  it('resets compaction and seeds the extracted cloned prefix on the fork target', () => {
+  it('resets compaction and seeds the extracted cloned prefix on the fork target', async () => {
     const { coordinator, deps, runtime } = createHarness()
 
     coordinator.resetForkTarget('target', 12)

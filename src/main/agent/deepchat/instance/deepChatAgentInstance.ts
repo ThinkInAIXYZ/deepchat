@@ -1,3 +1,17 @@
+import type {
+  HarnessAcceptanceLane,
+  HarnessControlLease,
+  HarnessControlOwner,
+  HarnessControlPort,
+  HarnessControlCommand,
+  HarnessInputSnapshot
+} from '@shared/harness/control'
+import {
+  DeepChatControlSession,
+  type ProviderPermissionTakeInput,
+  type ProviderPermissionTakeResult,
+  type PendingInteractionProjection
+} from './controlSession'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
@@ -13,7 +27,6 @@ import type {
 import type { MemorySessionHandle } from '@/agent/deepchat/memory/memoryPromptContributor'
 
 export type DeepChatActiveGeneration = LoopRun<unknown>
-export type PendingQueueDrainLease = symbol
 
 export interface DeepChatPendingInteractionRef {
   readonly messageId: string
@@ -51,23 +64,15 @@ const MAX_CONTEXT_WINDOW_OBSERVATIONS = 16
 
 export class DeepChatAgentInstance {
   readonly kind = 'deepchat' as const
+  private inputEffectsRetired = false
   private runtimeState?: DeepChatSessionState
   private generationSettings?: SessionGenerationSettings
   private agentId?: string
   private projectDir?: string | null
-  private firstTurnReady = false
+  private pendingReadyClears = 0
+  private readonly control: DeepChatControlSession
   private readonly firstTurnReadyWaiters = new Set<(ready: boolean) => void>()
-  private abortController?: AbortController
-  private activeRun?: DeepChatActiveGeneration
   private preStreamTranscriptAnchorId?: string
-  private activeSteerPendingInputId?: string
-  private pendingQueueDrainLease?: PendingQueueDrainLease
-  private pendingInteractions: DeepChatPendingInteractionRef[] = []
-  private pendingToolBatchState?: PersistedToolBatchState
-  private readonly interactionLocks = new Set<string>()
-  private readonly resumingMessages = new Set<string>()
-  private readonly deferredToolAbortControllers = new Map<string, AbortController>()
-  private readonly activeProviderPermissions = new Map<string, DeepChatActiveProviderPermission>()
   private readonly runtimeActivatedSkills = new Set<string>()
   private toolProfileCache?: DeepChatToolProfileCacheEntry
   private toolProfileRevisionToken = Symbol('deepchat-tool-profile-revision')
@@ -75,7 +80,17 @@ export class DeepChatAgentInstance {
   private readonly contextWindowObservations = new Map<string, DeepChatContextWindowObservation>()
   private readonly memorySessionHandle: MemorySessionHandle
 
-  constructor(readonly sessionId: AppSessionId) {
+  constructor(
+    readonly sessionId: AppSessionId,
+    control: HarnessControlPort
+  ) {
+    this.control = new DeepChatControlSession(sessionId, control, (state, current) => {
+      if (state && this.runtimeState) this.runtimeState.status = state.status
+      if (!current) this.settleFirstTurnReadyWaiters(false)
+      else if (state?.firstTurnReady && this.pendingReadyClears === 0) {
+        this.settleFirstTurnReadyWaiters(true)
+      }
+    })
     this.memorySessionHandle = Object.freeze({ sessionId })
   }
 
@@ -84,7 +99,7 @@ export class DeepChatAgentInstance {
   }
 
   setRuntimeState(state: DeepChatSessionState): void {
-    this.runtimeState = state
+    this.runtimeState = { ...state, status: this.control.status }
   }
 
   getGenerationSettings(): SessionGenerationSettings | undefined {
@@ -185,7 +200,7 @@ export class DeepChatAgentInstance {
   }
 
   async waitForFirstTurnReady(options?: { timeoutMs?: number }): Promise<boolean> {
-    if (this.firstTurnReady) return true
+    if (this.control.firstTurnReady && this.pendingReadyClears === 0) return true
 
     const timeoutMs = Math.max(0, options?.timeoutMs ?? 30000)
     if (timeoutMs === 0) return false
@@ -206,35 +221,78 @@ export class DeepChatAgentInstance {
     })
   }
 
-  markFirstTurnReady(): void {
-    if (this.firstTurnReady) return
-    this.firstTurnReady = true
-    this.settleFirstTurnReadyWaiters(true)
+  get controlScopeId(): string {
+    return this.control.id
+  }
+
+  get inputEffectsFenced(): boolean {
+    return this.inputEffectsRetired
+  }
+
+  fenceInputEffects(): void {
+    this.inputEffectsRetired = true
+  }
+
+  controlReady(): Promise<void> {
+    return this.control.ready
+  }
+
+  isControlCurrent(): boolean {
+    return this.control.current
+  }
+
+  retireControl(): void {
+    this.control.retire()
+  }
+
+  async markFirstTurnReady(runId: string): Promise<boolean> {
+    return await this.control.markReady(runId)
   }
 
   clearFirstTurnReady(): void {
-    this.firstTurnReady = false
+    this.pendingReadyClears++
     this.settleFirstTurnReadyWaiters(false)
+    void this.control
+      .clearReady()
+      .catch(() => {})
+      .finally(() => {
+        this.pendingReadyClears--
+        if (this.control.firstTurnReady && this.pendingReadyClears === 0) {
+          this.settleFirstTurnReadyWaiters(true)
+        }
+      })
   }
 
   getAbortController(): AbortController | undefined {
-    return this.abortController
+    return this.control.controller
   }
 
   getAbortSignal(): AbortSignal | undefined {
-    return this.activeRun?.abortController.signal ?? this.abortController?.signal
+    return this.control.run?.abortController.signal ?? this.control.controller?.signal
   }
 
-  setAbortController(controller: AbortController): void {
-    this.abortController = controller
+  async ensureOperationController(): Promise<AbortController> {
+    return await this.control.prepareOperation()
   }
 
-  clearAbortController(controller?: AbortController): boolean {
-    if (!this.abortController || (controller && this.abortController !== controller)) {
-      return false
-    }
-    this.abortController = undefined
-    return true
+  operationOwner(controller: AbortController): { kind: 'operation'; id: string } {
+    return this.control.owner(controller)
+  }
+
+  async transitionControlStatus(
+    owner: HarnessControlOwner,
+    status: DeepChatSessionState['status'],
+    interactions?: PendingInteractionProjection
+  ): Promise<{ previousStatus: DeepChatSessionState['status'] } | undefined> {
+    return await this.control.setStatus(owner, status, interactions)
+  }
+
+  async clearAbortController(
+    controller?: AbortController,
+    settled?: () => void,
+    origin?: { operationId: string; runId?: string }
+  ): Promise<boolean> {
+    return controller ? await this.control.clearController(controller, settled, origin) : false
   }
 
   getPreStreamTranscriptAnchorId(): string | undefined {
@@ -250,266 +308,206 @@ export class DeepChatAgentInstance {
   }
 
   getActiveGeneration(): DeepChatActiveGeneration | undefined {
-    return this.activeRun
+    return this.control.run
   }
 
-  registerActiveGeneration<TStreamState>(run: LoopRun<TStreamState>): LoopRun<TStreamState> {
-    const previousController = this.activeRun?.abortController ?? this.abortController
-    if (previousController && previousController !== run.abortController) {
-      previousController.abort()
-    }
-    this.activeRun = run
-    this.abortController = run.abortController
-    return run
+  async registerActiveGeneration<TStreamState>(
+    run: LoopRun<TStreamState>
+  ): Promise<LoopRun<TStreamState>> {
+    return await this.control.registerRun(run)
   }
 
-  clearActiveGeneration(runId: string): boolean {
-    if (!this.activeRun || this.activeRun.runId !== runId) {
-      return false
-    }
-    const { abortController } = this.activeRun
-    this.activeRun = undefined
-    this.clearAbortController(abortController)
-    return true
+  async clearActiveGeneration(runId: string): Promise<boolean> {
+    return await this.control.clearRun(runId)
   }
 
   isActiveRun(runId: string): boolean {
-    return this.activeRun?.runId === runId
+    return this.control.isRunCurrent(runId)
   }
 
   requestGenerationAbort(): void {
-    if (this.activeRun) {
-      this.activeRun.abortController.abort()
-      return
-    }
-    if (this.abortController) {
-      this.abortController.abort()
-      this.abortController = undefined
-    }
+    this.control.abort()
   }
 
   abortAndClearGeneration(): void {
-    const controller = this.activeRun?.abortController ?? this.abortController
-    controller?.abort()
-    this.abortController = undefined
-    this.activeRun = undefined
+    const run = this.control.run
+    const controller = this.control.controller
+    this.control.abort()
+    if (run) void this.control.clearRun(run.runId).catch(() => {})
+    else if (controller) void this.control.clearController(controller).catch(() => {})
   }
 
   getActiveSteerPendingInputId(): string | undefined {
-    return this.activeSteerPendingInputId
+    return this.control.activeSteerInputId
   }
 
-  setActiveSteerPendingInputId(itemId: string): void {
-    this.activeSteerPendingInputId = itemId
+  async queryInput(snapshot: HarnessInputSnapshot, reason?: 'enqueue' | 'completed' | 'manual') {
+    return await this.control.queryInput(snapshot, reason)
   }
 
-  clearActiveSteerPendingInputId(expectedItemId?: string): boolean {
-    if (
-      !this.activeSteerPendingInputId ||
-      (expectedItemId && this.activeSteerPendingInputId !== expectedItemId)
-    ) {
-      return false
-    }
-    this.activeSteerPendingInputId = undefined
-    return true
+  async beginInput(
+    input: Omit<
+      Extract<HarnessControlCommand, { method: 'beginInput' }>,
+      'method' | 'scopeId' | 'requestId'
+    >
+  ) {
+    return await this.control.beginInput(input)
+  }
+
+  async prepareClaimEffect(
+    claimId: string,
+    owner: HarnessControlOwner,
+    action: Extract<HarnessControlCommand, { method: 'prepareClaimEffect' }>['action']
+  ) {
+    return await this.control.prepareClaimEffect(claimId, owner, action)
+  }
+
+  async ackInputEffect(
+    input: Omit<Extract<HarnessControlCommand, { method: 'ackInputEffect' }>, 'method' | 'scopeId'>
+  ): Promise<void> {
+    await this.control.ackInputEffect(input)
+  }
+
+  async inputHold(
+    input: Omit<Extract<HarnessControlCommand, { method: 'inputHold' }>, 'method' | 'scopeId'>
+  ): Promise<boolean> {
+    return await this.control.inputHold(input)
+  }
+
+  async endInput(drainLeaseId: string) {
+    return await this.control.endInput(drainLeaseId)
   }
 
   isPendingQueueDraining(): boolean {
-    return this.pendingQueueDrainLease !== undefined
+    return this.control.draining
   }
 
-  tryAcquirePendingQueueDrain(): PendingQueueDrainLease | null {
-    if (this.pendingQueueDrainLease) {
-      return null
-    }
-    const lease = Symbol('pending-queue-drain')
-    this.pendingQueueDrainLease = lease
-    return lease
+  async acquireAttachmentAcceptance(
+    lane: HarnessAcceptanceLane,
+    signal?: AbortSignal
+  ): Promise<() => Promise<void>> {
+    return await this.control.acquireAcceptance(lane, signal)
   }
 
-  releasePendingQueueDrain(lease: PendingQueueDrainLease): boolean {
-    if (this.pendingQueueDrainLease !== lease) {
-      return false
-    }
-    this.pendingQueueDrainLease = undefined
-    return true
-  }
-
-  replacePendingInteractions(interactions: readonly DeepChatPendingInteractionRef[]): void {
-    this.pendingInteractions = interactions.map((interaction) => ({ ...interaction }))
-    const pendingToolBatchCallIds = this.pendingInteractions
-      .filter((interaction) => interaction.origin !== 'acp-permission')
-      .map((interaction) => interaction.toolCallId)
-    if (pendingToolBatchCallIds.length === 0) {
-      this.pendingToolBatchState = undefined
-    } else if (this.pendingToolBatchState) {
-      this.pendingToolBatchState = {
-        ...this.pendingToolBatchState,
-        pendingInteractionCallIds: pendingToolBatchCallIds
-      }
-    }
-  }
-
-  replacePendingToolBatch(
+  async replacePendingInteractions(
     interactions: readonly DeepChatPendingInteractionRef[],
-    state: PersistedToolBatchState
-  ): void {
-    this.pendingInteractions = interactions.map((interaction) => ({ ...interaction }))
-    this.pendingToolBatchState = {
-      callOrder: [...state.callOrder],
-      invokedCallIds: [...state.invokedCallIds],
-      committedResultCallIds: [...state.committedResultCallIds],
-      pendingInteractionCallIds: [...state.pendingInteractionCallIds],
-      ...(state.executionContract ? { executionContract: state.executionContract } : {})
-    }
+    owner?: HarnessControlOwner,
+    options?: { reconcile?: boolean }
+  ): Promise<boolean> {
+    return await this.control.replaceInteractions({ interactions, ...options }, owner)
+  }
+
+  async replacePendingToolBatch(
+    interactions: readonly DeepChatPendingInteractionRef[],
+    state: PersistedToolBatchState,
+    owner?: HarnessControlOwner
+  ): Promise<boolean> {
+    return await this.control.replaceInteractions({ interactions, batch: state }, owner)
   }
 
   getPendingToolBatchState(): PersistedToolBatchState | undefined {
-    const state = this.pendingToolBatchState
-    return state
-      ? {
-          callOrder: [...state.callOrder],
-          invokedCallIds: [...state.invokedCallIds],
-          committedResultCallIds: [...state.committedResultCallIds],
-          pendingInteractionCallIds: [...state.pendingInteractionCallIds],
-          ...(state.executionContract ? { executionContract: state.executionContract } : {})
-        }
-      : undefined
+    return this.control.batch
   }
 
-  advancePendingToolBatch(input: { invokedCallId?: string; committedResultCallId?: string }): void {
-    const state = this.pendingToolBatchState
-    if (!state) {
-      return
-    }
-    const invokedCallIds = [...state.invokedCallIds]
-    const committedResultCallIds = [...state.committedResultCallIds]
-    if (input.invokedCallId && !invokedCallIds.includes(input.invokedCallId)) {
-      invokedCallIds.push(input.invokedCallId)
-    }
-    if (
-      input.committedResultCallId &&
-      !committedResultCallIds.includes(input.committedResultCallId)
-    ) {
-      committedResultCallIds.push(input.committedResultCallId)
-    }
-    this.pendingToolBatchState = {
-      ...state,
-      invokedCallIds,
-      committedResultCallIds
-    }
+  async advancePendingToolBatch(
+    input: { invokedCallId?: string; committedResultCallId?: string },
+    owner?: HarnessControlOwner
+  ): Promise<void> {
+    await this.control.advanceBatch(input, owner)
   }
 
   getFirstPendingInteraction(): DeepChatPendingInteractionRef | undefined {
-    const first = this.pendingInteractions[0]
-    return first ? { ...first } : undefined
+    return this.control.interactions[0]
   }
 
   getPendingInteractions(): DeepChatPendingInteractionRef[] {
-    return this.pendingInteractions.map((interaction) => ({ ...interaction }))
+    return this.control.interactions
   }
 
-  transitionPendingInteractionOrigin(
+  async transitionPendingInteractionOrigin(
     messageId: string,
     toolCallId: string,
-    origin: PendingToolInteractionOrigin
-  ): boolean {
-    const interaction = this.pendingInteractions.find(
-      (candidate) => candidate.messageId === messageId && candidate.toolCallId === toolCallId
-    )
-    if (!interaction) {
-      return false
-    }
-    this.pendingInteractions = this.pendingInteractions.map((candidate) =>
-      candidate === interaction ? { ...candidate, origin } : candidate
-    )
-    return true
+    origin: PendingToolInteractionOrigin,
+    owner?: HarnessControlOwner
+  ): Promise<boolean> {
+    return await this.control.transitionInteractionOrigin(messageId, toolCallId, origin, owner)
   }
 
   hasPendingInteractions(): boolean {
-    return this.pendingInteractions.length > 0
+    return this.control.interactions.length > 0
   }
 
-  tryLockInteraction(messageId: string, toolCallId: string): boolean {
-    const key = this.buildInteractionKey(messageId, toolCallId)
-    if (this.interactionLocks.has(key)) {
-      return false
-    }
-    this.interactionLocks.add(key)
-    return true
+  async checkPendingInteraction(
+    lease: HarnessControlLease,
+    owner: HarnessControlOwner
+  ): Promise<boolean> {
+    return await this.control.checkInteraction(lease, owner)
   }
 
-  unlockInteraction(messageId: string, toolCallId: string): void {
-    this.interactionLocks.delete(this.buildInteractionKey(messageId, toolCallId))
+  async acquireInteraction(
+    messageId: string,
+    toolCallId: string
+  ): Promise<HarnessControlLease | 'parked' | null> {
+    return await this.control.acquireLease({ kind: 'interaction', messageId, toolCallId })
   }
 
-  tryBeginResume(messageId: string): boolean {
-    if (this.resumingMessages.has(messageId)) {
-      return false
-    }
-    this.resumingMessages.add(messageId)
-    return true
+  async parkInteraction(lease: HarnessControlLease): Promise<void> {
+    await this.control.parkInteraction(lease)
   }
 
-  finishResume(messageId: string): void {
-    this.resumingMessages.delete(messageId)
+  async unlockInteraction(lease: HarnessControlLease): Promise<void> {
+    await this.control.releaseLease(lease)
   }
 
-  registerDeferredToolAbortController(toolCallId: string): AbortController {
-    this.deferredToolAbortControllers.get(toolCallId)?.abort()
-    const controller = new AbortController()
-    this.deferredToolAbortControllers.set(toolCallId, controller)
-    return controller
+  async tryBeginResume(messageId: string): Promise<HarnessControlLease | null> {
+    const lease = await this.control.acquireLease({ kind: 'resume', messageId })
+    return lease === 'parked' ? null : lease
   }
 
-  clearDeferredToolAbortController(toolCallId: string, controller?: AbortController): boolean {
-    const current = this.deferredToolAbortControllers.get(toolCallId)
-    if (!current || (controller && current !== controller)) {
-      return false
-    }
-    this.deferredToolAbortControllers.delete(toolCallId)
-    return true
+  async finishResume(lease: HarnessControlLease): Promise<void> {
+    await this.control.releaseLease(lease)
+  }
+
+  async registerDeferredToolAbortController(
+    messageId: string,
+    toolCallId: string,
+    lease: HarnessControlLease,
+    owner: HarnessControlOwner
+  ): Promise<AbortController> {
+    return await this.control.registerDeferred(messageId, toolCallId, lease, owner)
+  }
+
+  async clearDeferredToolAbortController(controller: AbortController): Promise<boolean> {
+    return await this.control.clearDeferred(controller)
   }
 
   hasDeferredToolAbortController(toolCallId: string): boolean {
-    return this.deferredToolAbortControllers.has(toolCallId)
+    return this.control.hasDeferred(toolCallId)
   }
 
   abortDeferredToolCalls(): void {
-    for (const controller of this.deferredToolAbortControllers.values()) {
-      controller.abort()
-    }
-    this.deferredToolAbortControllers.clear()
+    this.control.abortDeferred()
   }
 
-  registerActiveProviderPermission(permission: DeepChatActiveProviderPermission): void {
-    this.activeProviderPermissions.set(permission.requestId, permission)
+  async registerActiveProviderPermission(
+    permission: DeepChatActiveProviderPermission,
+    runId: string
+  ): Promise<void> {
+    await this.control.registerPermission(permission, runId)
   }
 
   getActiveProviderPermission(requestId: string): DeepChatActiveProviderPermission | undefined {
-    return this.activeProviderPermissions.get(requestId)
+    return this.control.getPermission(requestId)
   }
 
-  clearActiveProviderPermission(
-    requestId: string,
-    expected?: DeepChatActiveProviderPermission
-  ): boolean {
-    const current = this.activeProviderPermissions.get(requestId)
-    if (!current || (expected && current !== expected)) {
-      return false
-    }
-    this.activeProviderPermissions.delete(requestId)
-    return true
-  }
-
-  takeActiveProviderPermissions(): DeepChatActiveProviderPermission[] {
-    const permissions = [...this.activeProviderPermissions.values()]
-    this.activeProviderPermissions.clear()
-    return permissions
+  async takeProviderPermission(
+    input: ProviderPermissionTakeInput
+  ): Promise<ProviderPermissionTakeResult> {
+    return await this.control.takePermission(input)
   }
 
   hasActiveProviderPermission(requestId: string): boolean {
-    return this.activeProviderPermissions.has(requestId)
+    return this.control.getPermission(requestId) !== undefined
   }
 
   replaceRuntimeActivatedSkills(skillNames: readonly string[]): void {
@@ -574,18 +572,12 @@ export class DeepChatAgentInstance {
     this.projectDir = undefined
     this.clearFirstTurnReady()
     this.preStreamTranscriptAnchorId = undefined
-    this.activeSteerPendingInputId = undefined
-    this.pendingQueueDrainLease = undefined
-    this.pendingInteractions = []
-    this.pendingToolBatchState = undefined
-    this.interactionLocks.clear()
-    this.resumingMessages.clear()
     this.abortDeferredToolCalls()
-    this.activeProviderPermissions.clear()
     this.runtimeActivatedSkills.clear()
     this.invalidateToolProfileCache()
     this.clearCompactionState()
     this.contextWindowObservations.clear()
+    this.control.release()
   }
 
   private contextWindowObservationKey(providerId: string, modelId: string): string {
@@ -596,9 +588,5 @@ export class DeepChatAgentInstance {
     const waiters = [...this.firstTurnReadyWaiters]
     this.firstTurnReadyWaiters.clear()
     for (const waiter of waiters) waiter(ready)
-  }
-
-  private buildInteractionKey(messageId: string, toolCallId: string): string {
-    return `${messageId}:${toolCallId}`
   }
 }

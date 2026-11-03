@@ -178,6 +178,12 @@ export function createCoreMaintenance(options: {
       await pluginService.contextHooks?.stop()
       await memory.drain()
       await suspendSessionRuntimes()
+      try {
+        await deepChatAgentHarness.drainPendingInputEffects()
+      } catch (error) {
+        databaseRequests.fail()
+        throw error
+      }
       await databaseRequests.drain()
       if (options.isStopping()) {
         throw new Error('App database owner is stopping')
@@ -247,6 +253,7 @@ export function createCoreMaintenance(options: {
       operationError = error
     }
 
+    if (databaseRequests.state === 'failed') throw operationError
     try {
       if (options.isStopping()) {
         throw new Error('App database owner is stopping')
@@ -254,7 +261,7 @@ export function createCoreMaintenance(options: {
       if (!mainDatabase.getDatabase().open) {
         reopenApplicationDatabase()
       }
-      deepChatAgentHarness.reconcileAfterDatabaseReopen()
+      await deepChatAgentHarness.reconcileAfterDatabaseReopen()
       profile.secretStore.resume()
       memory.start()
       pluginService.contextHooks?.start()

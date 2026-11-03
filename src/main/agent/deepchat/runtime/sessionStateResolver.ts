@@ -40,6 +40,7 @@ export class SessionStateResolver {
     hydrationMode: SessionStateHydrationMode
   ): Promise<DeepChatSessionState | null> {
     const instance = this.deps.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance
+    await instance.controlReady()
     const state = instance.getRuntimeState()
     if (state) {
       this.deps.identity.getAgentId(sessionId)
@@ -48,7 +49,7 @@ export class SessionStateResolver {
       }
       return {
         ...state,
-        ...(this.deps.runLifecycle.hasPendingInteractions(sessionId)
+        ...((await this.deps.runLifecycle.hasPendingInteractions(sessionId))
           ? { status: 'generating' as const }
           : {})
       }
@@ -64,7 +65,7 @@ export class SessionStateResolver {
     }
 
     this.deps.identity.getAgentId(sessionId)
-    const hasPendingInteractions = this.deps.runLifecycle.hasPendingInteractions(sessionId)
+    const hasPendingInteractions = await this.deps.runLifecycle.hasPendingInteractions(sessionId)
     const rebuilt: DeepChatSessionState = {
       status: 'idle',
       providerId: dbSession.provider_id,

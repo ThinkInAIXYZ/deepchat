@@ -1,17 +1,14 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import type {
-  DeepChatSessionState,
-  ChatMessageRecord,
   MessageStartResult,
-  PendingInputEnqueueSource,
   PendingSessionInputRecord,
   QueuePendingInputOptions,
   SendMessageInput
 } from '@shared/types/agent-interface'
 import {
-  createStaleDeepChatInstanceError,
-  type SessionScopeRegistry
+  type SessionScopeRegistry,
+  type SessionRuntimeScope
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { isSendMessageInputEmpty } from '@/agent/shared/agentSessionNormalization'
@@ -21,11 +18,10 @@ import type {
   AttachmentCapabilityRouter,
   AttachmentPreparationResult
 } from '@/ocr/attachmentCapabilityRouter'
-import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { createAbortError, PENDING_INPUT_ABORT_REASON } from './abortErrors'
 import { supportsProviderVision } from './providerInputCapabilities'
 import type { ClaimedPendingInputHandle } from './pendingInputContracts'
-import type { PendingInputWakeReason } from './runLifecycleCoordinator'
+import type { PendingInputPump } from './pendingInputPump'
 import { redactRuntimeErrorForLog } from './runtimeErrorLogging'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { SessionStateResolver } from './sessionStateResolver'
@@ -41,42 +37,26 @@ export type PendingInputAdmissionStorePort = Pick<
   | 'isAtCapacity'
   | 'listPendingInputs'
   | 'moveQueuedInput'
-  | 'acceptSteerMessage'
-  | 'promoteQueuedInputToSteerMessage'
-  | 'queuePendingInput'
   | 'retryBlockedInput'
   | 'retryReleasedQueueInput'
   | 'updateQueuedInput'
 >
 
-export interface PendingInputAdmissionPumpPort {
-  shouldClaimImmediately(
-    sessionId: string,
-    status: DeepChatSessionState['status'],
-    source: PendingInputEnqueueSource
-  ): boolean
-  startAcceptedInput(
-    record: PendingSessionInputRecord,
-    source: PendingInputEnqueueSource,
-    projectDir: string | null
-  ): void
-  schedule(sessionId: string, reason: PendingInputWakeReason): void
-  hasInteractionBlocker(sessionId: string): boolean
-  canDrain(
-    sessionId: string,
-    status: DeepChatSessionState['status'],
-    reason: PendingInputWakeReason
-  ): boolean
-  drain(sessionId: string, reason: PendingInputWakeReason): Promise<boolean>
-  claimQueuedInputForPreparation(
-    sessionId: string,
-    itemId: string
-  ): ClaimedPendingInputHandle
-  releaseRestartHoldForInput(itemId: string): void
-  releaseRestartHoldForSession(sessionId: string): boolean
-  hasRestartHeldQueueInputs(sessionId: string): boolean
-  hasOnlyRestartHeldQueueInputs(sessionId: string): boolean
-}
+export type PendingInputAdmissionPumpPort = Pick<
+  PendingInputPump,
+  | 'enqueue'
+  | 'acceptVisibleSteerInput'
+  | 'promoteQueuedInput'
+  | 'schedule'
+  | 'hasInteractionBlocker'
+  | 'canDrain'
+  | 'drain'
+  | 'claimQueuedInputForPreparation'
+  | 'releaseRestartHoldForInput'
+  | 'releaseRestartHoldForSession'
+  | 'hasRestartHeldQueueInputs'
+  | 'hasOnlyRestartHeldQueueInputs'
+>
 
 export interface PendingInputAdmissionCoordinatorPorts {
   providerSettings: Pick<ProviderModelResolutionPort, 'getModelConfig'>
@@ -90,27 +70,30 @@ export interface PendingInputAdmissionCoordinatorPorts {
 }
 
 export class PendingInputAdmissionCoordinator {
-  private readonly attachmentAcceptanceTails = new Map<string, Promise<void>>()
-
   constructor(private readonly ports: PendingInputAdmissionCoordinatorPorts) {}
 
   list(sessionId: string): PendingSessionInputRecord[] {
     return this.ports.pendingInputs.listPendingInputs(sessionId)
   }
 
-  isPendingQueueResumeAvailable(sessionId: string): boolean {
-    return this.ports.pump.hasRestartHeldQueueInputs(sessionId)
+  async isPendingQueueResumeAvailable(sessionId: string): Promise<boolean> {
+    await this.ports.registry.getOrHydrateScope(toAppSessionId(sessionId)).instance.controlReady()
+    return await this.ports.pump.hasRestartHeldQueueInputs(sessionId)
   }
 
   async queue(
     sessionId: string,
     content: string | SendMessageInput,
-    options?: QueuePendingInputOptions
+    options?: QueuePendingInputOptions,
+    expectedScope?: SessionRuntimeScope
   ): Promise<PendingSessionInputRecord> {
+    const scope = expectedScope ?? this.ports.registry.getOrHydrateScope(toAppSessionId(sessionId))
+    expectedScope?.assertCurrent()
     const state = await this.ports.sessionState.get(sessionId)
     if (!state) {
       throw new Error(`Session ${sessionId} not found`)
     }
+    scope.assertCurrent()
     const projectDir =
       options && Object.prototype.hasOwnProperty.call(options, 'projectDir')
         ? this.ports.sessionSettings.resolveProjectDir(sessionId, options.projectDir)
@@ -121,22 +104,14 @@ export class PendingInputAdmissionCoordinator {
       throw new Error('Message cannot be empty.')
     }
 
-    const source = options?.source ?? 'send'
-    const shouldClaimImmediately = this.ports.pump.shouldClaimImmediately(
+    return await this.ports.pump.enqueue(
       sessionId,
-      state.status,
-      source
+      input,
+      options?.source ?? 'send',
+      projectDir,
+      scope,
+      options?.signal
     )
-    const record = this.ports.pendingInputs.queuePendingInput(sessionId, input, {
-      state: shouldClaimImmediately ? 'claimed' : 'pending'
-    })
-
-    if (record.state === 'claimed') {
-      this.ports.pump.startAcceptedInput(record, source, projectDir)
-    } else {
-      this.ports.pump.schedule(sessionId, 'enqueue')
-    }
-    return record
   }
 
   async sendQueuedMessage(
@@ -153,7 +128,7 @@ export class PendingInputAdmissionCoordinator {
       return { requestId: null, messageId: null }
     }
 
-    const releaseAcceptanceLane = await this.acquireAttachmentAcceptanceLane(
+    const { release: releaseAcceptanceLane, scope } = await this.acquireAttachmentAcceptanceLane(
       sessionId,
       'send',
       context?.signal
@@ -166,6 +141,7 @@ export class PendingInputAdmissionCoordinator {
       const prepared = await this.prepareMessageInputNow(sessionId, content, {
         signal: context?.signal
       })
+      scope.assertCurrent()
       if (prepared.summary.status === 'needs_user_action') {
         return {
           requestId: null,
@@ -176,17 +152,22 @@ export class PendingInputAdmissionCoordinator {
 
       if (context?.signal?.aborted) throw createAbortError()
 
-      await this.queue(sessionId, prepared.content, {
-        ...options,
-        signal: context?.signal
-      })
+      await this.queue(
+        sessionId,
+        prepared.content,
+        {
+          ...options,
+          signal: context?.signal
+        },
+        scope
+      )
       return {
         requestId: null,
         messageId: null,
         attachmentPreparation: prepared.summary
       }
     } finally {
-      releaseAcceptanceLane()
+      await releaseAcceptanceLane()
     }
   }
 
@@ -196,19 +177,18 @@ export class PendingInputAdmissionCoordinator {
     options?: { signal?: AbortSignal }
   ): Promise<MessageStartResult> {
     const input = typeof content === 'string' ? { text: content, files: [] } : content
-    const hasPriorSteerAcceptance = this.attachmentAcceptanceTails.has(
-      this.buildAttachmentAcceptanceLaneKey(sessionId, 'steer')
+    const { release: releaseAcceptanceLane, scope } = await this.acquireAttachmentAcceptanceLane(
+      sessionId,
+      'steer',
+      options?.signal
     )
-    const releaseAcceptanceLane =
-      input.files?.length || hasPriorSteerAcceptance
-        ? await this.acquireAttachmentAcceptanceLane(sessionId, 'steer', options?.signal)
-        : () => {}
     try {
       const state = await this.ports.sessionState.get(sessionId)
+      scope.assertCurrent()
       if (!state) {
         throw new Error(`Session ${sessionId} not found`)
       }
-      if (this.ports.pump.hasInteractionBlocker(sessionId)) {
+      if (await this.ports.pump.hasInteractionBlocker(sessionId)) {
         throw new Error('Please resolve pending tool interactions before steering.')
       }
       if (isSendMessageInputEmpty(input)) {
@@ -221,6 +201,7 @@ export class PendingInputAdmissionCoordinator {
             content: input,
             summary: { status: 'ready', issues: [], suggestedActions: [] }
           }
+      scope.assertCurrent()
       if (prepared.summary.status === 'needs_user_action') {
         return {
           requestId: null,
@@ -235,13 +216,13 @@ export class PendingInputAdmissionCoordinator {
         attachmentPreparation: prepared.summary
       }
 
-      const instance = this.ports.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
+      const instance = scope.instance
       const activeGeneration = instance?.getActiveGeneration()
       const preStreamController = instance?.getAbortController()
 
       if (activeGeneration) {
         this.requireActiveAssistantMessage(sessionId, activeGeneration.messageId)
-        const accepted = this.acceptVisibleSteerInput(sessionId, prepared.content)
+        const accepted = await this.acceptVisibleSteerInput(scope, prepared.content)
         return { ...preparedResult, userMessage: accepted.message }
       }
 
@@ -251,7 +232,7 @@ export class PendingInputAdmissionCoordinator {
         (!preStreamController.signal.aborted ||
           preStreamController.signal.reason === PENDING_INPUT_ABORT_REASON)
       ) {
-        const accepted = this.acceptVisibleSteerInput(sessionId, prepared.content, {
+        const accepted = await this.acceptVisibleSteerInput(scope, prepared.content, {
           preStreamAnchorMessageId: instance.getPreStreamTranscriptAnchorId() ?? null
         })
         if (accepted.sourceMessage) {
@@ -268,24 +249,24 @@ export class PendingInputAdmissionCoordinator {
         ? this.ports.pendingInputs.getInput(sessionId, openSteerInputId)
         : null
       if (openSteerInput?.mode === 'steer' && openSteerInput.state === 'pending') {
-        const accepted = this.acceptVisibleSteerInput(sessionId, prepared.content)
+        const accepted = await this.acceptVisibleSteerInput(scope, prepared.content)
         this.ports.pump.schedule(sessionId, 'enqueue')
         return { ...preparedResult, userMessage: accepted.message }
       }
 
-      if (!this.ports.pump.canDrain(sessionId, state.status, 'enqueue')) {
+      if (!(await this.ports.pump.canDrain(sessionId, state.status, 'enqueue'))) {
         throw new Error('Unable to start the steered input.')
       }
 
-      const accepted = this.acceptVisibleSteerInput(sessionId, prepared.content)
-      releaseAcceptanceLane()
+      const accepted = await this.acceptVisibleSteerInput(scope, prepared.content)
+      await releaseAcceptanceLane()
       const started = await this.ports.pump.drain(sessionId, 'enqueue')
       if (!started) {
         this.ports.pump.schedule(sessionId, 'enqueue')
       }
       return { ...preparedResult, userMessage: accepted.message }
     } finally {
-      releaseAcceptanceLane()
+      await releaseAcceptanceLane()
     }
   }
 
@@ -314,10 +295,14 @@ export class PendingInputAdmissionCoordinator {
   }
 
   async steerPendingInput(sessionId: string, itemId: string): Promise<PendingSessionInputRecord> {
-    const releaseAcceptanceLane = await this.acquireAttachmentAcceptanceLane(sessionId, 'steer')
+    const { release: releaseAcceptanceLane, scope } = await this.acquireAttachmentAcceptanceLane(
+      sessionId,
+      'steer'
+    )
     try {
       await this.ensureSessionReady(sessionId)
-      if (this.ports.pump.hasInteractionBlocker(sessionId)) {
+      scope.assertCurrent()
+      if (await this.ports.pump.hasInteractionBlocker(sessionId)) {
         throw new Error('Please resolve pending tool interactions before steering.')
       }
 
@@ -334,40 +319,36 @@ export class PendingInputAdmissionCoordinator {
         throw new Error('Resolve the blocked attachment input before steering another item.')
       }
 
-      const claim = this.ports.pump.claimQueuedInputForPreparation(sessionId, itemId)
+      const claim = await this.ports.pump.claimQueuedInputForPreparation(sessionId, itemId)
       let prepared: AttachmentPreparationResult
       try {
         prepared = await this.prepareMessageInputNow(sessionId, pendingInput.payload)
+        scope.assertCurrent()
       } catch (error) {
-        this.releaseClaimAfterFailure(claim)
+        await this.releaseClaimAfterFailure(claim)
         throw error
       }
       if (prepared.summary.status === 'needs_user_action') {
         try {
-          return claim.settle({
+          return await claim.settle({
             kind: 'block',
             attachmentPreparation: prepared.summary
           })
         } catch (error) {
-          this.releaseClaimAfterFailure(claim)
+          await this.releaseClaimAfterFailure(claim)
           throw error
         }
       }
 
-      claim.settle({ kind: 'release-for-mutation' })
-      this.ports.pendingInputs.updateQueuedInput(sessionId, itemId, prepared.content)
-
-      const instance = this.ports.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
+      const instance = scope.instance
       const activeGeneration = instance?.getActiveGeneration()
       const preStreamController = instance?.getAbortController()
 
       if (activeGeneration) {
         this.requireActiveAssistantMessage(sessionId, activeGeneration.messageId)
-        const promoted = this.ports.pendingInputs.promoteQueuedInputToSteerMessage(
-          sessionId,
-          itemId
+        const promoted = (
+          await this.ports.pump.promoteQueuedInput(scope, itemId, prepared.content, claim)
         ).pendingInput
-        this.ports.pump.releaseRestartHoldForInput(itemId)
         return promoted
       }
 
@@ -377,9 +358,11 @@ export class PendingInputAdmissionCoordinator {
         (!preStreamController.signal.aborted ||
           preStreamController.signal.reason === PENDING_INPUT_ABORT_REASON)
       ) {
-        const accepted = this.ports.pendingInputs.promoteQueuedInputToSteerMessage(
-          sessionId,
+        const accepted = await this.ports.pump.promoteQueuedInput(
+          scope,
           itemId,
+          prepared.content,
+          claim,
           {
             preStreamAnchorMessageId: instance.getPreStreamTranscriptAnchorId() ?? null
           }
@@ -390,30 +373,27 @@ export class PendingInputAdmissionCoordinator {
         if (!preStreamController.signal.aborted) {
           preStreamController.abort(PENDING_INPUT_ABORT_REASON)
         }
-        this.ports.pump.releaseRestartHoldForInput(itemId)
         return accepted.pendingInput
       }
 
-      const record = this.ports.pendingInputs.promoteQueuedInputToSteerMessage(
-        sessionId,
-        itemId
+      const record = (
+        await this.ports.pump.promoteQueuedInput(scope, itemId, prepared.content, claim)
       ).pendingInput
-      this.ports.pump.releaseRestartHoldForInput(itemId)
-      releaseAcceptanceLane()
+      await releaseAcceptanceLane()
       const started = await this.ports.pump.drain(sessionId, 'enqueue')
       if (!started) {
         this.ports.pump.schedule(sessionId, 'enqueue')
       }
       return record
     } finally {
-      releaseAcceptanceLane()
+      await releaseAcceptanceLane()
     }
   }
 
   async deletePendingInput(sessionId: string, itemId: string): Promise<void> {
     await this.ensureSessionReady(sessionId)
     this.ports.pendingInputs.deletePendingInput(sessionId, itemId)
-    this.ports.pump.releaseRestartHoldForInput(itemId)
+    await this.ports.pump.releaseRestartHoldForInput(sessionId, itemId)
     this.ports.pump.schedule(sessionId, 'enqueue')
   }
 
@@ -485,25 +465,25 @@ export class PendingInputAdmissionCoordinator {
     if (this.ports.pendingInputs.hasClaimedInput(sessionId)) {
       return false
     }
-    if (!this.ports.pump.canDrain(sessionId, state.status, 'manual')) {
+    if (!(await this.ports.pump.canDrain(sessionId, state.status, 'manual'))) {
       return false
     }
-    if (!this.ports.pump.releaseRestartHoldForSession(sessionId)) {
+    if (!(await this.ports.pump.releaseRestartHoldForSession(sessionId))) {
       return false
     }
     return await this.ports.pump.drain(sessionId, 'manual')
   }
 
-  assertNoActiveInputs(
+  async assertNoActiveInputs(
     sessionId: string,
     options?: { allowRestartHeldQueue?: boolean }
-  ): void {
+  ): Promise<void> {
     if (!this.ports.pendingInputs.hasActiveInputs(sessionId)) {
       return
     }
     if (
       options?.allowRestartHeldQueue === true &&
-      this.ports.pump.hasOnlyRestartHeldQueueInputs(sessionId)
+      (await this.ports.pump.hasOnlyRestartHeldQueueInputs(sessionId))
     ) {
       return
     }
@@ -514,44 +494,10 @@ export class PendingInputAdmissionCoordinator {
     sessionId: string,
     lane: 'send' | 'steer',
     signal?: AbortSignal
-  ): Promise<() => void> {
-    const key = this.buildAttachmentAcceptanceLaneKey(sessionId, lane)
-    const previous = this.attachmentAcceptanceTails.get(key) ?? Promise.resolve()
-    let resolveSlot!: () => void
-    const slot = new Promise<void>((resolve) => {
-      resolveSlot = resolve
-    })
-    const tail = previous.then(
-      () => slot,
-      () => slot
-    )
-    this.attachmentAcceptanceTails.set(key, tail)
-
-    let released = false
-    const release = () => {
-      if (released) return
-      released = true
-      resolveSlot()
-      void tail.then(() => {
-        if (this.attachmentAcceptanceTails.get(key) === tail) {
-          this.attachmentAcceptanceTails.delete(key)
-        }
-      })
-    }
-    try {
-      await awaitWithAbort(previous, signal)
-      return release
-    } catch (error) {
-      release()
-      throw error
-    }
-  }
-
-  private buildAttachmentAcceptanceLaneKey(
-    sessionId: string,
-    lane: 'send' | 'steer'
-  ): string {
-    return `${lane}:${sessionId}`
+  ): Promise<{ release: () => Promise<void>; scope: SessionRuntimeScope }> {
+    const scope = this.ports.registry.getOrHydrateScope(toAppSessionId(sessionId))
+    const release = await scope.instance.acquireAttachmentAcceptance(lane, signal)
+    return { release, scope }
   }
 
   private async prepareMessageInputNow(
@@ -584,36 +530,12 @@ export class PendingInputAdmissionCoordinator {
     }
   }
 
-  private acceptVisibleSteerInput(
-    sessionId: string,
+  private async acceptVisibleSteerInput(
+    scope: SessionRuntimeScope,
     input: SendMessageInput,
-    options?: {
-      preStreamAnchorMessageId?: string | null
-    }
-  ): {
-    pendingInput: PendingSessionInputRecord
-    message: ChatMessageRecord
-    sourceMessage?: ChatMessageRecord
-  } {
-    const instance = this.ports.registry.getHydratedScope(toAppSessionId(sessionId))?.instance
-    if (!instance) {
-      throw createStaleDeepChatInstanceError(sessionId)
-    }
-    const activeItemId = instance.getActiveSteerPendingInputId() ?? null
-    const activeItem = activeItemId
-      ? this.ports.pendingInputs.getInput(sessionId, activeItemId)
-      : null
-    const mergeItemId =
-      activeItem?.mode === 'steer' && activeItem.state === 'pending' ? activeItem.id : null
-    if (activeItemId && !mergeItemId) {
-      instance.clearActiveSteerPendingInputId()
-    }
-    const accepted = this.ports.pendingInputs.acceptSteerMessage(sessionId, input, {
-      mergeItemId,
-      ...(options ? { preStreamAnchorMessageId: options.preStreamAnchorMessageId ?? null } : {})
-    })
-    instance.setActiveSteerPendingInputId(accepted.pendingInput.id)
-    return accepted
+    options?: { preStreamAnchorMessageId?: string | null }
+  ) {
+    return await this.ports.pump.acceptVisibleSteerInput(scope, input, options)
   }
 
   private requireActiveAssistantMessage(sessionId: string, messageId: string): void {
@@ -623,12 +545,12 @@ export class PendingInputAdmissionCoordinator {
     }
   }
 
-  private releaseClaimAfterFailure(claim: ClaimedPendingInputHandle): void {
+  private async releaseClaimAfterFailure(claim: ClaimedPendingInputHandle): Promise<void> {
     if (claim.disposition) {
       return
     }
     try {
-      claim.settle({ kind: 'release-before-user-fact' })
+      await claim.settle({ kind: 'release-before-user-fact' })
     } catch (releaseError) {
       logger.error(
         `[DeepChatAgent] failed to release pending input after admission failure item=${claim.id}`,

@@ -10,15 +10,15 @@ import { parseMessageMetadata } from './usageStats'
 
 export interface SessionTranscriptRuntimePort {
   prepareClearMessages(sessionId: string): Promise<void>
-  finishClearMessages(sessionId: string): void
+  finishClearMessages(sessionId: string): Promise<void>
   prepareRetry(
     sessionId: string,
     options?: { allowRestartHeldQueue?: boolean }
   ): Promise<{ projectDir: string | null }>
-  assertNoActivePendingInputs(sessionId: string): void
+  assertNoActivePendingInputs(sessionId: string): Promise<void>
   cancelForTranscriptMutation(sessionId: string): Promise<void>
   invalidateTranscriptFrom(sessionId: string, orderSeq: number): void
-  finishTranscriptTruncate(sessionId: string): void
+  finishTranscriptTruncate(sessionId: string): Promise<void>
   resetForkTarget(sessionId: string, clonedMemoryCursorOrderSeq: number): void
 }
 
@@ -34,7 +34,7 @@ export class SessionTranscriptMutations {
   async clearMessages(sessionId: string): Promise<void> {
     await this.dependencies.runtime.prepareClearMessages(sessionId)
     this.dependencies.clearTranscript(sessionId)
-    this.dependencies.runtime.finishClearMessages(sessionId)
+    await this.dependencies.runtime.finishClearMessages(sessionId)
   }
 
   async prepareRetryMessage(
@@ -93,13 +93,13 @@ export class SessionTranscriptMutations {
   }
 
   async deleteMessage(sessionId: string, messageId: string): Promise<void> {
-    this.dependencies.runtime.assertNoActivePendingInputs(sessionId)
+    await this.dependencies.runtime.assertNoActivePendingInputs(sessionId)
     const target = this.requireMessage(sessionId, messageId)
 
     await this.dependencies.runtime.cancelForTranscriptMutation(sessionId)
     this.dependencies.runtime.invalidateTranscriptFrom(sessionId, target.orderSeq)
     this.dependencies.transcript.deleteFromOrderSeq(sessionId, target.orderSeq)
-    this.dependencies.runtime.finishTranscriptTruncate(sessionId)
+    await this.dependencies.runtime.finishTranscriptTruncate(sessionId)
   }
 
   async editUserMessage(
@@ -108,7 +108,7 @@ export class SessionTranscriptMutations {
     text: string,
     inlineItems?: UserMessageInlineItem[]
   ): Promise<ChatMessageRecord> {
-    this.dependencies.runtime.assertNoActivePendingInputs(sessionId)
+    await this.dependencies.runtime.assertNoActivePendingInputs(sessionId)
     const target = this.requireMessage(sessionId, messageId)
     if (target.role !== 'user') throw new Error('Only user messages can be edited.')
 

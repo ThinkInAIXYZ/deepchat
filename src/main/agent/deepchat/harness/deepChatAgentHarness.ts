@@ -73,7 +73,14 @@ export class DeepChatAgentHarness
 
   readonly abortGenerations = (): void => this.services.runtime.abortGenerations()
 
-  readonly reconcileAfterDatabaseReopen = (): void => this.services.reconcileAfterDatabaseReopen()
+  get ready(): Promise<void> {
+    return this.services.ready
+  }
+
+  readonly drainPendingInputEffects = (): Promise<void> => this.services.drainPendingInputEffects()
+
+  readonly reconcileAfterDatabaseReopen = (): Promise<void> =>
+    this.services.reconcileAfterDatabaseReopen()
 
   createAcpAgentInstanceDependencies(
     input: Parameters<AcpAgentInstanceDependencyFactory>[0]
@@ -250,7 +257,7 @@ export class DeepChatAgentHarness
   }
 
   async setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<void> {
-    this.services.sessionSettings.setProjectDir(sessionId, projectDir)
+    await this.services.sessionSettings.setProjectDir(sessionId, projectDir)
   }
 
   async getPermissionMode(sessionId: string): Promise<PermissionMode> {
@@ -316,8 +323,8 @@ export class DeepChatAgentHarness
     return this.services.transcriptMutation.prepareClearMessages(sessionId)
   }
 
-  finishClearMessages(sessionId: string): void {
-    this.services.transcriptMutation.finishClearMessages(sessionId)
+  finishClearMessages(sessionId: string): Promise<void> {
+    return this.services.transcriptMutation.finishClearMessages(sessionId)
   }
 
   prepareRetry(
@@ -335,15 +342,15 @@ export class DeepChatAgentHarness
     this.services.transcriptMutation.invalidateTranscriptFrom(sessionId, orderSeq)
   }
 
-  finishTranscriptTruncate(sessionId: string): void {
-    this.services.transcriptMutation.finishTranscriptTruncate(sessionId)
+  finishTranscriptTruncate(sessionId: string): Promise<void> {
+    return this.services.transcriptMutation.finishTranscriptTruncate(sessionId)
   }
 
   resetForkTarget(targetSessionId: string, clonedMemoryCursorOrderSeq: number): void {
     this.services.transcriptMutation.resetForkTarget(targetSessionId, clonedMemoryCursorOrderSeq)
   }
 
-  assertNoActivePendingInputs(sessionId: string): void {
-    this.services.transcriptMutation.assertNoActivePendingInputs(sessionId)
+  async assertNoActivePendingInputs(sessionId: string): Promise<void> {
+    await this.services.transcriptMutation.assertNoActivePendingInputs(sessionId)
   }
 }

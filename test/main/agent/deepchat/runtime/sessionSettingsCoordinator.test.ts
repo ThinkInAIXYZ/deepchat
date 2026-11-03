@@ -1,3 +1,4 @@
+import { useHarnessControl } from '../helpers/control'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { SessionSettingsCoordinator } from '@/agent/deepchat/runtime/sessionSettingsCoordinator'
@@ -5,6 +6,8 @@ import type { ProviderModelResolutionPort } from '@/provider/settings'
 import { ModelType } from '@shared/model'
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
 import { describe, expect, it, vi } from 'vitest'
+
+const control = useHarnessControl()
 
 const SESSION_ID = 'session'
 const APP_SESSION_ID = toAppSessionId(SESSION_ID)
@@ -67,9 +70,10 @@ function createProviderSettings(): ProviderModelResolutionPort {
   }
 }
 
-function createHarness() {
-  const runtime = new DeepChatAgentRuntime()
+async function createHarness() {
+  const runtime = new DeepChatAgentRuntime(control())
   const instance = runtime.getOrHydrate(APP_SESSION_ID)
+  await instance.controlReady()
   instance.setRuntimeState({
     status: 'idle',
     providerId: 'openai',
@@ -121,9 +125,11 @@ function createHarness() {
     revalidateActiveSkillsForAgent,
     runtime,
     sessionStore,
-    replaceInstance() {
+    async replaceInstance() {
       runtime.evict(APP_SESSION_ID)
       const replacement = runtime.getOrHydrate(APP_SESSION_ID)
+      await replacement.controlReady()
+      await replacement.transitionControlStatus({ kind: 'orphan' }, 'generating')
       replacement.setRuntimeState({
         status: 'generating',
         providerId: 'replacement-provider',
@@ -141,13 +147,13 @@ function createHarness() {
 
 describe('SessionSettingsCoordinator', () => {
   it('does not persist or mutate a model switch after instance replacement', async () => {
-    const harness = createHarness()
+    const harness = await createHarness()
     const prompt = deferred<string>()
     harness.getDefaultSystemPrompt.mockReturnValueOnce(prompt.promise)
 
     const update = harness.coordinator.setModel(SESSION_ID, 'anthropic', 'claude-3-5-sonnet')
     await vi.waitFor(() => expect(harness.getDefaultSystemPrompt).toHaveBeenCalledOnce())
-    const replacement = harness.replaceInstance()
+    const replacement = await harness.replaceInstance()
     prompt.resolve('Target default prompt')
 
     await expect(update).rejects.toMatchObject({ name: 'StaleDeepChatAgentInstanceError' })
@@ -162,12 +168,13 @@ describe('SessionSettingsCoordinator', () => {
   })
 
   it('rechecks generating status before committing a model switch', async () => {
-    const harness = createHarness()
+    const harness = await createHarness()
     const prompt = deferred<string>()
     harness.getDefaultSystemPrompt.mockReturnValueOnce(prompt.promise)
 
     const update = harness.coordinator.setModel(SESSION_ID, 'anthropic', 'claude-3-5-sonnet')
     await vi.waitFor(() => expect(harness.getDefaultSystemPrompt).toHaveBeenCalledOnce())
+    await harness.instance.transitionControlStatus({ kind: 'orphan' }, 'generating')
     harness.instance.setRuntimeState({
       status: 'generating',
       providerId: 'openai',
@@ -182,7 +189,7 @@ describe('SessionSettingsCoordinator', () => {
   })
 
   it('does not publish agent context after replacement during reassignment fencing', async () => {
-    const harness = createHarness()
+    const harness = await createHarness()
     const reassignment = deferred<void>()
     harness.beginSessionAgentReassignment.mockReturnValueOnce(reassignment.promise)
 
@@ -195,7 +202,7 @@ describe('SessionSettingsCoordinator', () => {
     await vi.waitFor(() =>
       expect(harness.beginSessionAgentReassignment).toHaveBeenCalledWith(SESSION_ID)
     )
-    const replacement = harness.replaceInstance()
+    const replacement = await harness.replaceInstance()
     reassignment.resolve()
 
     await expect(update).rejects.toMatchObject({ name: 'StaleDeepChatAgentInstanceError' })
@@ -206,24 +213,34 @@ describe('SessionSettingsCoordinator', () => {
   })
 
   it('does not persist generation settings after instance replacement', async () => {
-    const harness = createHarness()
+    const harness = await createHarness()
 
     const update = harness.coordinator.updateGenerationSettings(SESSION_ID, {
       systemPrompt: 'Stale prompt'
     })
-    const replacement = harness.replaceInstance()
+    const rejected = expect(update).rejects.toMatchObject({ name: 'StaleDeepChatAgentInstanceError' })
+    const replacement = await harness.replaceInstance()
 
-    await expect(update).rejects.toMatchObject({ name: 'StaleDeepChatAgentInstanceError' })
+    await rejected
     expect(harness.sessionStore.updateGenerationSettings).not.toHaveBeenCalled()
     expect(replacement.getGenerationSettings()?.systemPrompt).toBe('Replacement prompt')
   })
 
   it('does not apply settings sanitized for a model that changed in flight', async () => {
-    const harness = createHarness()
+    const harness = await createHarness()
 
+    const started = deferred<void>()
+    const proceed = deferred<void>()
+    const getSettings = harness.coordinator.getEffectiveGenerationSettings.bind(harness.coordinator)
+    vi.spyOn(harness.coordinator, 'getEffectiveGenerationSettings').mockImplementationOnce(async (...args) => {
+      started.resolve()
+      await proceed.promise
+      return await getSettings(...args)
+    })
     const update = harness.coordinator.updateGenerationSettings(SESSION_ID, {
       systemPrompt: 'Old-model prompt'
     })
+    await started.promise
     harness.instance.setRuntimeState({
       status: 'idle',
       providerId: 'anthropic',
@@ -231,6 +248,7 @@ describe('SessionSettingsCoordinator', () => {
       permissionMode: 'default'
     })
 
+    proceed.resolve()
     await expect(update).rejects.toThrow(
       `Session ${SESSION_ID} model changed while generation settings were updating.`
     )
@@ -238,7 +256,7 @@ describe('SessionSettingsCoordinator', () => {
   })
 
   it('clears stale provider limits only when the configured context window changes', async () => {
-    const harness = createHarness()
+    const harness = await createHarness()
     harness.instance.recordContextWindowObservation({
       providerId: 'openai',
       modelId: 'gpt-4',
@@ -264,7 +282,7 @@ describe('SessionSettingsCoordinator', () => {
   })
 
   it('atomically applies the model and generation snapshot for an idle turn', async () => {
-    const harness = createHarness()
+    const harness = await createHarness()
     const generationSettings = {
       ...BASE_SETTINGS,
       systemPrompt: 'Frozen child prompt',
@@ -298,7 +316,7 @@ describe('SessionSettingsCoordinator', () => {
     { reasoningEffort: undefined, thinkingBudget: 4096 },
     { reasoningEffort: 'none' as const, thinkingBudget: undefined }
   ])('preserves snapshot reasoning controls without re-inheriting defaults: %j', async (controls) => {
-    const harness = createHarness()
+    const harness = await createHarness()
     vi.mocked(harness.providerSettings.getModelConfig).mockReturnValue({
       reasoning: true,
       reasoningEffort: 'low',
@@ -331,7 +349,8 @@ describe('SessionSettingsCoordinator', () => {
   })
 
   it('refuses to apply a turn snapshot after generation has started', async () => {
-    const harness = createHarness()
+    const harness = await createHarness()
+    await harness.instance.transitionControlStatus({ kind: 'orphan' }, 'generating')
     harness.instance.setRuntimeState({
       status: 'generating',
       providerId: 'openai',
@@ -350,7 +369,7 @@ describe('SessionSettingsCoordinator', () => {
   })
 
   it('does not apply a turn snapshot after the runtime instance is replaced', async () => {
-    const harness = createHarness()
+    const harness = await createHarness()
     const prompt = deferred<string>()
     harness.getDefaultSystemPrompt.mockReturnValueOnce(prompt.promise)
 
@@ -360,7 +379,7 @@ describe('SessionSettingsCoordinator', () => {
       generationSettings: { ...BASE_SETTINGS, systemPrompt: '' }
     })
     await vi.waitFor(() => expect(harness.getDefaultSystemPrompt).toHaveBeenCalledOnce())
-    const replacement = harness.replaceInstance()
+    const replacement = await harness.replaceInstance()
     prompt.resolve('Target default prompt')
 
     await expect(update).rejects.toMatchObject({ name: 'StaleDeepChatAgentInstanceError' })
@@ -369,7 +388,7 @@ describe('SessionSettingsCoordinator', () => {
   })
 
   it('preserves a permission downgrade while a turn snapshot is being sanitized', async () => {
-    const harness = createHarness()
+    const harness = await createHarness()
     const prompt = deferred<string>()
     harness.getDefaultSystemPrompt.mockReturnValueOnce(prompt.promise)
     harness.instance.getRuntimeState()!.permissionMode = 'full_access'

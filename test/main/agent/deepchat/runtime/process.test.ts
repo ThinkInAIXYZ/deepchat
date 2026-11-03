@@ -2780,7 +2780,9 @@ describe('processStream', () => {
     })
   })
 
-  it('flushes ACP provider permission blocks immediately and keeps live permission updates mutable', async () => {
+  it('awaits ACP permission registration before advancing the stream and keeps updates mutable', async () => {
+    const registered = Promise.withResolvers<void>()
+    let streamAdvanced = false
     let releaseStream: (() => void) | null = null
     let commitDecision: ((granted: boolean) => void) | null = null
     const coreStream = vi.fn(async function* () {
@@ -2819,6 +2821,7 @@ describe('processStream', () => {
           metadata: { rememberable: false }
         }
       } as LLMCoreStreamEvent
+      streamAdvanced = true
       await new Promise<void>((resolve) => {
         releaseStream = resolve
       })
@@ -2826,8 +2829,9 @@ describe('processStream', () => {
     }) as unknown as ProcessParams['coreStream']
 
     const onStreamingProviderPermission = vi.fn(
-      (_permission, _tool, resolvePermission: (granted: boolean) => void) => {
+      async (_permission, _tool, resolvePermission: (granted: boolean) => void) => {
         commitDecision = resolvePermission
+        await registered.promise
       }
     )
     const params = createParams({
@@ -2843,6 +2847,10 @@ describe('processStream', () => {
     await Promise.resolve()
 
     expect(onStreamingProviderPermission).toHaveBeenCalledTimes(1)
+    expect(streamAdvanced).toBe(false)
+    registered.resolve()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(streamAdvanced).toBe(true)
     expect(messageStore.updateAssistantContent).toHaveBeenCalled()
 
     const pendingBlocks = (messageStore.updateAssistantContent as ReturnType<typeof vi.fn>).mock

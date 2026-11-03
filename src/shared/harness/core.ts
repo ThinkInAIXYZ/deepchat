@@ -36,7 +36,13 @@ export const CoreNativeMethodSchema = z.enum([
 ])
 export type CoreNativeMethod = z.infer<typeof CoreNativeMethodSchema>
 
-export const CoreFailureComponentSchema = z.enum(['helpers', 'browser', 'desktop', 'http'])
+export const CoreFailureComponentSchema = z.enum([
+  'helpers',
+  'browser',
+  'desktop',
+  'http',
+  'control'
+])
 
 const profileObservation = z.object({
   durationMs: z.number().finite().nonnegative().optional(),

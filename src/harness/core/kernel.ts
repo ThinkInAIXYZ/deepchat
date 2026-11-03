@@ -67,6 +67,7 @@ export type CoreKernelNative = Pick<
   }
 
 export async function createCoreKernel(options: {
+  control: import('@shared/harness/control').HarnessControlPort
   profile: Awaited<ReturnType<typeof initializeCoreProfile>>
   settings: ReturnType<typeof createCoreSettings>
   bootstrap: RuntimeOptions['bootstrap']
@@ -316,6 +317,7 @@ export async function createCoreKernel(options: {
         databaseRequests.assertRouteAllowed('config.ensureAcpAgentInstalled')
     })
     runtime = await createCoreRuntime({
+      control: options.control,
       ...native,
       ...options.helpers,
       importSnapshot: async (filePath, mode) => {
