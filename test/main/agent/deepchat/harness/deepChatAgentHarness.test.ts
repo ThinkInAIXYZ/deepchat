@@ -1048,6 +1048,7 @@ function createMockProviderSettings() {
 
   const settings = {
     capabilityFixture,
+    getProviderDbSourceUrl: vi.fn(() => 'https://example.com/provider-db.json'),
     getModelConfig: vi.fn().mockReturnValue({
       type: ModelType.Chat,
       temperature: 0.7,
@@ -9177,11 +9178,15 @@ describe('DeepChatAgentHarness', () => {
       providerSettings.getSetting.mockImplementation((key: string) =>
         key === 'traceDebugEnabled' ? true : undefined
       )
+      providerSettings.getProviderDbSourceUrl.mockReturnValue('https://example.com/dist/all.json')
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (args) => {
+        expect(args.interleavedReasoning.providerDbSourceUrl).toBe(
+          'https://example.com/dist/all.json'
+        )
         args.diagnostics?.onInterleavedReasoningGap?.({
           providerId: 'zenmux',
           modelId: 'moonshotai/kimi-k2.5',
-          providerDbSourceUrl: 'https://example.com/dist/all.json',
+          providerDbSourceUrl: args.interleavedReasoning.providerDbSourceUrl,
           reasoningContentLength: 42,
           toolCallCount: 1
         })

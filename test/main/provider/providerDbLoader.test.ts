@@ -121,6 +121,18 @@ describe('ProviderDbLoader', () => {
     }
   })
 
+  it('prefers current catalog metadata and falls back to the default source', async () => {
+    const ProviderDbLoader = await importLoader()
+    const loader = new ProviderDbLoader()
+    expect(loader.getSourceUrl()).toBe(DEFAULT_PROVIDER_DB_URL)
+    writeMeta({ sourceUrl: '  https://example.com/old.json  ', lastUpdated: 1, ttlHours: 4 })
+    expect(loader.getSourceUrl()).toBe('https://example.com/old.json')
+    writeMeta({ sourceUrl: 'https://example.com/new.json', lastUpdated: 2, ttlHours: 4 })
+    expect(loader.getSourceUrl()).toBe('https://example.com/new.json')
+    writeMeta({ sourceUrl: '  ', lastUpdated: 3, ttlHours: 4 })
+    expect(loader.getSourceUrl()).toBe(DEFAULT_PROVIDER_DB_URL)
+  })
+
   it('initializes from cache and still triggers a startup refresh when cache is fresh', async () => {
     writeBuiltInDb(createAggregate(['builtin']))
     writeCachedDb(createAggregate(['openai']))

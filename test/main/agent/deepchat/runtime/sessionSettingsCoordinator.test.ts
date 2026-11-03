@@ -26,6 +26,7 @@ function deferred<T>() {
 
 function createProviderSettings(): ProviderModelResolutionPort {
   return {
+    getProviderDbSourceUrl: vi.fn(() => 'https://example.com/provider-db.json'),
     getProviderById: vi.fn().mockReturnValue(undefined),
     isKnownModel: vi.fn().mockReturnValue(true),
     getModelConfig: vi.fn().mockReturnValue({

@@ -33,7 +33,7 @@ pnpm --version
 
 **目标**：让参数解析只读取本次模型请求的事实，普通 Node 无需桌面 profile 就能加载该模块。
 
-- [ ] **依赖**：无。**删除**：`generationSettings.ts → providerDbLoader` 的值导入。沿现有 Provider 配置调用传入本次解析使用的来源 URL；保留已下载目录的 meta URL 及默认地址回退语义，配置变化后可取得新值。
+- [x] **依赖**：无。**删除**：`generationSettings.ts → providerDbLoader` 的值导入。沿现有 Provider 配置调用传入本次解析使用的来源 URL；保留已下载目录的 meta URL 及默认地址回退语义，配置变化后可取得新值。
 
 **实施顺序**
 

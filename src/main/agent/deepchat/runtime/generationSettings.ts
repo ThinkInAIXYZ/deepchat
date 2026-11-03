@@ -27,7 +27,6 @@ import {
 import { normalizeImageGenerationOptions } from '@shared/imageGenerationSettings'
 import { normalizeVideoGenerationOptions } from '@shared/videoGenerationSettings'
 import { isDeepSeekSeriesModelId } from '@shared/model'
-import { providerDbLoader } from '@/provider/providerDbLoader'
 import { capAgentDefaultMaxTokens } from './contextBudget'
 import type { InterleavedReasoningConfig } from './types'
 import {
@@ -605,7 +604,7 @@ export function resolveInterleavedReasoningConfig(
     forcedBySessionSetting,
     portraitInterleaved,
     reasoningSupported,
-    providerDbSourceUrl: providerDbLoader.getSourceUrl()
+    providerDbSourceUrl: providerSettings.getProviderDbSourceUrl()
   }
 }
 
