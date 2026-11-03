@@ -170,6 +170,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes Wally as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'wally',
+        name: 'Wally',
+        apiType: 'openai-completions',
+        baseUrl: 'https://inference.runanywhere.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://www.runwally.com/',
+          apiKey: 'https://console.runanywhere.ai/',
+          docs: 'https://docs.runanywhere.ai/wally-cloud/api',
+          models: 'https://www.runwally.com/pricing',
+          defaultBaseUrl: 'https://inference.runanywhere.ai/v1'
+        })
+      })
+    )
+  })
+
   it('includes Obscurify.ai as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
