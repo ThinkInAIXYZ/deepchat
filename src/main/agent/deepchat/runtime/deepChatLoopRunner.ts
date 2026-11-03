@@ -1,3 +1,4 @@
+import type { DeepChatOutputPort } from './output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import { projectPluginContext } from './pluginContext'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
@@ -82,7 +83,6 @@ import {
   type ContextOverflowFacts
 } from '@/agent/deepchat/runtime/contextWindowError'
 import { buildPersistableMessageTracePayload } from '@/agent/deepchat/runtime/messageTracePayload'
-import { cloneBlocksForRenderer } from '@/session/clientMessageProjection'
 import type { SessionTranscript } from '@/session/data/transcript'
 import { processStream } from '@/agent/deepchat/runtime/process'
 import type { ProviderPermissionCoordinator } from '@/agent/deepchat/runtime/providerPermissionCoordinator'
@@ -140,8 +140,6 @@ import {
   type ToolSurfaceRunModeAssignment
 } from '@/agent/deepchat/runtime/toolSurfaceSelection'
 import type {
-  DeepChatEventPublisher,
-  DeepChatSessionUpdatePublisher,
   InterleavedReasoningConfig,
   ProcessResult,
   ProcessTerminalSelection,
@@ -427,8 +425,7 @@ export interface CommitTapeProviderViewInput {
 }
 
 export interface DeepChatLoopRunnerPorts {
-  publishEvent: DeepChatEventPublisher
-  publishSessionUpdate: DeepChatSessionUpdatePublisher
+  output: DeepChatOutputPort
   providerRuntime: ProviderExecutionPort
   providerSettings: ProviderModelResolutionPort
   traceSettings: AgentTraceSettingsPort
@@ -2459,8 +2456,7 @@ export class DeepChatLoopRunner {
           messageStore: this.ports.messageStore,
           tapeToolFactWriter: this.ports.tape,
           executionJournalWriter: this.ports.tape,
-          publishEvent: this.ports.publishEvent,
-          publishSessionUpdate: this.ports.publishSessionUpdate
+          output: this.ports.output
         }
       })
       resourceScope.assertCurrent()
@@ -2737,19 +2733,19 @@ export class DeepChatLoopRunner {
       }
     }
 
-    this.ports.publishEvent('chat.stream.updated', {
+    this.ports.output.streamSnapshot({
       kind: 'snapshot',
       requestId,
       sessionId,
       messageId,
       updatedAt: Date.now(),
       revision: ++this.rateLimitRevision,
-      blocks: cloneBlocksForRenderer([block])
+      blocks: [block]
     })
   }
 
   clearRateLimitWaitingMessage(sessionId: string, messageId: string, requestId: string): void {
-    this.ports.publishEvent('chat.stream.updated', {
+    this.ports.output.streamSnapshot({
       kind: 'snapshot',
       requestId,
       sessionId,

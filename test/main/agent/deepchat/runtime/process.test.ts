@@ -1,3 +1,4 @@
+import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
@@ -411,8 +412,7 @@ describe('processStream', () => {
         messageStore,
         tapeToolFactWriter,
         executionJournalWriter,
-        publishEvent: publishDeepchatEventMock,
-        publishSessionUpdate: vi.fn()
+        output: createDeepChatOutputProjection({ publishEvent: publishDeepchatEventMock, publishSessionUpdate: vi.fn() })
       },
       ...processOverrides
     }

@@ -18,16 +18,12 @@ import type { SessionSettingsStore } from '@/session/data/settings'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type { TapeReconciliationPort } from '@/tape/ports/capabilities'
 import type { DeepChatToolResolver } from '@/agent/deepchat/runtime/toolResolver'
-import type {
-  DeepChatEventPublisher,
-  DeepChatSessionUpdatePublisher
-} from '@/agent/deepchat/runtime/types'
+import type { DeepChatOutputPort } from '@/agent/deepchat/runtime/output'
 import { AcpCompatibilityProjectionAdapter, AcpRequestTraceAdapter } from './adapters'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 
 export interface AcpCompatibilityDependencyBuilderDependencies {
-  publishEvent: DeepChatEventPublisher
-  publishSessionUpdate: DeepChatSessionUpdatePublisher
+  output: DeepChatOutputPort
   providerSettings: ProviderModelResolutionPort
   traceSettings: AgentTraceSettingsPort
   providerRuntime: Pick<ProviderExecutionPort, 'executeWithRateLimit'>
@@ -82,8 +78,7 @@ export function createAcpCompatibilityDependencies(
   const rateLimitRequestId = `acp:${sessionId}`
   let queuedForRateLimit = false
   const projection = new AcpCompatibilityProjectionAdapter({
-    publishEvent: dependencies.publishEvent,
-    publishSessionUpdate: dependencies.publishSessionUpdate,
+    output: dependencies.output,
     messageStore: dependencies.messageStore,
     tapeReconciliation: dependencies.tapeReconciliation,
     writeViewManifest: async (manifest) => dependencies.appendViewManifest(manifest),

@@ -1,3 +1,4 @@
+import type { DeepChatOutputPort } from '@/agent/deepchat/runtime/output'
 import { nanoid } from 'nanoid'
 import type { PermissionRequestPayload } from '@shared/types/core/llm-events'
 import { createStreamEvent } from '@shared/types/core/llm-events'
@@ -21,8 +22,6 @@ import { createAcpPromptTerminalEvents } from '@/agent/acp/runtime/acpContentMap
 import {
   createState,
   markStreamChanged,
-  type DeepChatEventPublisher,
-  type DeepChatSessionUpdatePublisher,
   type IoParams,
   type StreamState
 } from '@/agent/deepchat/runtime/types'
@@ -41,8 +40,7 @@ export interface AcpCompatibilityProjectionAdapterOptions {
   tapeReconciliation: TapeReconciliationPort
   writeViewManifest: (input: AcpViewManifestInput) => void | Promise<void>
   setStatus: (status: 'generating' | 'idle' | 'error') => void
-  publishEvent: DeepChatEventPublisher
-  publishSessionUpdate: DeepChatSessionUpdatePublisher
+  output: DeepChatOutputPort
 }
 
 export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjectionPort {
@@ -109,8 +107,7 @@ export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjec
       modelId: 'acp',
       messageStore,
       abortSignal: new AbortController().signal,
-      publishEvent: this.options.publishEvent,
-      publishSessionUpdate: this.options.publishSessionUpdate
+      output: this.options.output
     }
     this.states.set(messageId, { stream, io, echo: startEcho(stream, io) })
     return handle
@@ -192,7 +189,7 @@ export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjec
   }
 
   private emitCompletedRefresh(sessionId: string, messageId: string): void {
-    this.options.publishEvent('chat.stream.completed', {
+    this.options.output.streamCompleted({
       requestId: messageId,
       sessionId,
       messageId,

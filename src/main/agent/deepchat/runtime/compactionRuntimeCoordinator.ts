@@ -1,3 +1,4 @@
+import type { DeepChatOutputPort } from './output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import logger from '@shared/logger'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
@@ -11,7 +12,6 @@ import {
   type CompactionIntent,
   type CompactionService
 } from './compactionService'
-import type { DeepChatEventPublisher } from './types'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type { SessionSettingsStore, SessionSummaryState } from '@/session/data/settings'
 import { isAbortError, throwIfAbortRequested } from './abortErrors'
@@ -100,7 +100,7 @@ export interface CompactionRuntimeCoordinatorDependencies {
   promptAssembly: Pick<PromptAssemblyService, 'createBasePromptAssembler'>
   commandShell: Pick<CommandShellService, 'resolveForTurn'>
   messageProjection: Pick<MessageProjectionService, 'refresh'>
-  publishEvent: DeepChatEventPublisher
+  output: DeepChatOutputPort
 }
 
 interface ApplyCompactionOptions {
@@ -537,7 +537,7 @@ export class CompactionRuntimeCoordinator {
           : null
     }
     expectedInstance.setCompactionState(projectedState)
-    this.deps.publishEvent('sessions.compaction.changed', {
+    this.deps.output.compactionChanged({
       sessionId,
       status: projectedState.status,
       cursorOrderSeq: projectedState.cursorOrderSeq,

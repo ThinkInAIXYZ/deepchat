@@ -1,3 +1,4 @@
+import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as schema from '@agentclientprotocol/sdk'
 import { AcpContentMapper } from '@/agent/acp/runtime/acpContentMapper'
@@ -249,8 +250,10 @@ function createProjectionHarness() {
   const tapeService = new SessionTape(sqlitePresenter)
   const messageStore = new SessionTranscript(sqlitePresenter, tapeService)
   const adapter = new AcpCompatibilityProjectionAdapter({
-    publishEvent: publishDeepchatEvent,
-    publishSessionUpdate: vi.fn(),
+    output: createDeepChatOutputProjection({
+      publishEvent: publishDeepchatEvent,
+      publishSessionUpdate: vi.fn()
+    }),
     messageStore,
     tapeReconciliation: tapeService,
     writeViewManifest: vi.fn(),

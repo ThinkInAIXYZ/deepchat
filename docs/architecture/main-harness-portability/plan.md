@@ -99,7 +99,7 @@ pnpm exec vitest run --config vitest.config.ts test/main/agent/deepchat/runtime/
 
 **目标**：让内建 Agent 输出运行事实，宿主负责构造安全的客户端消息。
 
-- [ ] **依赖**：M3。**删除**：内建 runtime 中 `dispatch`、`echo`、`deepChatLoopRunner` 到 `cloneBlocksForRenderer` 的调用，以及 turn、compaction、permission、interaction 和 message projection 对 wire event 名的调用。每类事实保留其业务身份，宿主在既有出口完成脱敏、schema 投影、流结束/失败和内部更新的分发。所有既有事件名留在传输边界。
+- [x] **依赖**：M3。**删除**：内建 runtime 中 `dispatch`、`echo`、`deepChatLoopRunner` 到 `cloneBlocksForRenderer` 的调用，以及 turn、compaction、permission、interaction 和 message projection 对 wire event 名的调用。每类事实保留其业务身份，宿主在既有出口完成脱敏、schema 投影、流结束/失败和内部更新的分发。所有既有事件名留在传输边界。
 
 **实施顺序**
 

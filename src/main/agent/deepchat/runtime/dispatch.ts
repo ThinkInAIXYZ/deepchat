@@ -60,7 +60,6 @@ import {
   resolveAgentToolReview
 } from '@/tool/permission'
 import { emitDeepChatLoopNotification } from '@/agent/deepchat/loop/notificationObserver'
-import { cloneBlocksForRenderer } from '@/session/clientMessageProjection'
 import { buildTerminalErrorBlocks } from '@/session/data/transcript'
 import { finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import type { EchoHandle } from './echo'
@@ -1749,8 +1748,7 @@ function appendSkillDraftQuestionActionBlock(
 }
 
 function flushBlocksToRenderer(io: IoParams, state: StreamState): void {
-  const renderedBlocks = cloneBlocksForRenderer(state.blocks)
-  io.publishEvent('chat.stream.updated', {
+  io.output.streamSnapshot({
     kind: 'snapshot',
     requestId: io.requestId,
     sessionId: io.sessionId,
@@ -1759,10 +1757,10 @@ function flushBlocksToRenderer(io: IoParams, state: StreamState): void {
     modelId: io.modelId,
     updatedAt: Date.now(),
     revision: state.blocksRevision,
-    blocks: renderedBlocks
+    blocks: state.blocks
   })
 
-  io.publishSessionUpdate({
+  io.output.sessionUpdate({
     sessionId: io.sessionId,
     kind: 'blocks',
     updatedAt: Date.now(),
@@ -3372,7 +3370,7 @@ export function finalizePaused(state: StreamState, io: IoParams): void {
 
   io.messageStore.updateAssistantContent(io.messageId, state.blocks, JSON.stringify(state.metadata))
   flushBlocksToRenderer(io, state)
-  io.publishEvent('chat.stream.completed', {
+  io.output.streamCompleted({
     requestId: io.requestId,
     sessionId: io.sessionId,
     messageId: io.messageId,
@@ -3394,7 +3392,7 @@ export function finalize(state: StreamState, io: IoParams): void {
     JSON.stringify(state.metadata)
   )
   flushBlocksToRenderer(io, state)
-  io.publishEvent('chat.stream.completed', {
+  io.output.streamCompleted({
     requestId: io.requestId,
     sessionId: io.sessionId,
     messageId: io.messageId,
@@ -3411,7 +3409,7 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
 
   io.messageStore.setMessageError(io.messageId, state.blocks, JSON.stringify(state.metadata))
   flushBlocksToRenderer(io, state)
-  io.publishEvent('chat.stream.failed', {
+  io.output.streamFailed({
     requestId: io.requestId,
     sessionId: io.sessionId,
     messageId: io.messageId,

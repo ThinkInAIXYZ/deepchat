@@ -1,3 +1,4 @@
+import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
@@ -304,7 +305,7 @@ function createHarness(options?: {
       resolveForTurn: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL)
     },
     messageProjection: { refresh: emitMessageRefresh },
-    publishEvent: (event, payload) => publishedEvents.push({ event, payload })
+    output: createDeepChatOutputProjection({ publishEvent: (event, payload) => publishedEvents.push({ event, payload }), publishSessionUpdate: vi.fn() })
   }
   const coordinator = new CompactionRuntimeCoordinator(deps)
 

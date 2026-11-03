@@ -1,3 +1,4 @@
+import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
 import * as fs from 'node:fs'
 import { AppSessionService } from '@/agent/shared/appSessionService'
@@ -973,8 +974,11 @@ function createRuntimeDependencies() {
   const publishSessionUpdate = vi.fn()
   const sessionUiPort = { refreshSessionUi: vi.fn() }
   return {
-    publishEvent: publishDeepchatEventMock,
     publishSessionUpdate,
+    output: createDeepChatOutputProjection({
+      publishEvent: publishDeepchatEventMock,
+      publishSessionUpdate
+    }),
     publishStatus: createSessionStatusProjection({
       publishEvent: publishDeepchatEventMock,
       publishSessionUpdate,

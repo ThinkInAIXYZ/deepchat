@@ -1,3 +1,4 @@
+import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { describe, expect, it, vi } from 'vitest'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
@@ -12,7 +13,7 @@ const SESSION_ID = 'session'
 const MESSAGE_ID = 'message'
 
 function assistantMessage(content: string) {
-  return { id: MESSAGE_ID, role: 'assistant', content } as never
+  return { id: MESSAGE_ID, role: 'assistant' as const, content }
 }
 
 function createHarness(message: unknown = assistantMessage('[]')) {
@@ -22,23 +23,50 @@ function createHarness(message: unknown = assistantMessage('[]')) {
     order.push('transcript.getMessage')
     return message as never
   })
+  const publishEvent = vi.fn((name) => order.push(`event:${String(name)}`))
+  const publishSessionUpdate = vi.fn(() => order.push('sessionUpdate'))
   const deps: MessageProjectionServiceDependencies = {
     registry: runtime,
     transcript: { getMessage, updateAssistantContent: vi.fn(() => order.push('transcript.write')) },
-    publishEvent: vi.fn((name) => order.push(`event:${String(name)}`)),
-    publishSessionUpdate: vi.fn(() => order.push('sessionUpdate'))
+    output: createDeepChatOutputProjection({ publishEvent, publishSessionUpdate })
   } as unknown as MessageProjectionServiceDependencies
 
-  return { deps, order, runtime, service: new MessageProjectionService(deps) }
+  return {
+    deps,
+    publishEvent,
+    publishSessionUpdate,
+    order,
+    runtime,
+    service: new MessageProjectionService(deps)
+  }
 }
 
 describe('MessageProjectionService', () => {
   it('publishes stream completion, then reads the message, then publishes the session update', () => {
-    const { order, service } = createHarness()
+    const message = assistantMessage(
+      JSON.stringify([
+        {
+          type: 'action',
+          action_type: 'tool_call_permission',
+          status: 'pending',
+          timestamp: 1,
+          tool_call: { id: 'tool-1', name: 'fixture', params: '{}' },
+          extra: { providerReplayJson: '{"private":"provider-state"}', needsUserAction: true }
+        }
+      ])
+    )
+    const { order, service, publishSessionUpdate } = createHarness(message)
 
     service.refresh(SESSION_ID, MESSAGE_ID)
 
     expect(order).toEqual(['event:chat.stream.completed', 'transcript.getMessage', 'sessionUpdate'])
+    expect(publishSessionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        waitingInteraction: expect.objectContaining({ toolCallId: 'tool-1' })
+      })
+    )
+    expect(JSON.stringify(publishSessionUpdate.mock.calls)).not.toContain('providerReplayJson')
+    expect(message.content).toContain('providerReplayJson')
   })
 
   it('stops after stream completion for a missing or non-assistant message', () => {
@@ -63,7 +91,7 @@ describe('MessageProjectionService', () => {
   })
 
   it('uses the active run id only for the message that run owns', () => {
-    const { deps, runtime, service } = createHarness()
+    const { deps, publishEvent, runtime, service } = createHarness()
     const scope = runtime.getOrHydrateScope(toAppSessionId(SESSION_ID))
     scope.instance.registerActiveGeneration(
       createLoopRun({
@@ -85,7 +113,7 @@ describe('MessageProjectionService', () => {
     service.refresh(SESSION_ID, MESSAGE_ID)
     service.refresh(SESSION_ID, 'other-message')
 
-    expect(vi.mocked(deps.publishEvent).mock.calls.map(([, payload]) => payload)).toMatchObject([
+    expect(vi.mocked(publishEvent).mock.calls.map(([, payload]) => payload)).toMatchObject([
       { requestId: 'run-1', messageId: MESSAGE_ID },
       { requestId: 'other-message', messageId: 'other-message' }
     ])

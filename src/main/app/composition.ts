@@ -1,3 +1,4 @@
+import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
 import { SyncSessionActivity } from '@/sync/sessionActivity'
 import type { DeepChatInternalSessionUpdate } from '@/agent/deepchat/runtime/sessionUpdates'
@@ -2104,8 +2105,10 @@ export async function createMainProcessControl(dependencies: {
         logger.warn('[Notification] Failed to notify session completion', { sessionId, error })
       })
     },
-    publishEvent: publishDeepchatEvent,
-    publishSessionUpdate,
+    output: createDeepChatOutputProjection({
+      publishEvent: publishDeepchatEvent,
+      publishSessionUpdate
+    }),
     publishStatus: createSessionStatusProjection({
       publishEvent: publishDeepchatEvent,
       publishSessionUpdate,

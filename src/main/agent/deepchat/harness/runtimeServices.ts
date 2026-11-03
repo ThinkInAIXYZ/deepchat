@@ -1,3 +1,4 @@
+import type { DeepChatOutputPort } from '../runtime/output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import type { ProviderExecutionPort } from '@shared/types/provider'
 import type { SkillMetadataSnapshotPort, SkillServicePort } from '@shared/types/skill'
@@ -34,11 +35,7 @@ import type { SessionSettingsCoordinator } from '@/agent/deepchat/runtime/sessio
 import type { SessionStateResolver } from '@/agent/deepchat/runtime/sessionStateResolver'
 import type { TranscriptMutationCoordinator } from '@/agent/deepchat/runtime/transcriptMutationCoordinator'
 import type { TurnCoordinator } from '@/agent/deepchat/runtime/turnCoordinator'
-import type {
-  DeepChatEventPublisher,
-  DeepChatSessionUpdatePublisher,
-  RunJournalObserver
-} from '@/agent/deepchat/runtime/types'
+import type { RunJournalObserver } from '@/agent/deepchat/runtime/types'
 import type { MonotonicClock } from '@/lib/monotonicTime'
 import type { ToolSurfaceShadowDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceDiagnostics'
 import type { ToolSurfaceCanaryDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
@@ -75,8 +72,7 @@ export interface DeepChatHarnessDependencies {
   toolService: ToolServicePort
   hookObserver: HookObserver
   onSessionCompleted?: (sessionId: string) => void
-  publishEvent: DeepChatEventPublisher
-  publishSessionUpdate: DeepChatSessionUpdatePublisher
+  output: DeepChatOutputPort
   providerCatalogPort: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
   sessionPermissionPort: SessionPermissionPort
   acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort

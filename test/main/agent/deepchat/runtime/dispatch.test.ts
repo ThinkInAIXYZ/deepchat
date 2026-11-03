@@ -1,3 +1,4 @@
+import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
@@ -127,8 +128,7 @@ function createIo(overrides?: Partial<IoParams>): IoParams {
       setMessageError: vi.fn()
     } as any,
     abortSignal: new AbortController().signal,
-    publishEvent: publishDeepchatEventMock,
-    publishSessionUpdate: vi.fn(),
+    output: createDeepChatOutputProjection({ publishEvent: publishDeepchatEventMock, publishSessionUpdate: vi.fn() }),
     ...overrides
   }
 }

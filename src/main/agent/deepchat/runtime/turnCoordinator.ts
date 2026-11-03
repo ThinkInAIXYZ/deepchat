@@ -1,3 +1,4 @@
+import type { DeepChatOutputPort } from './output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import logger from '@shared/logger'
@@ -59,7 +60,7 @@ import {
   parseAssistantBlocks
 } from './interactionProjection'
 import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
-import type { DeepChatEventPublisher, ProcessResult } from './types'
+import type { ProcessResult } from './types'
 import {
   buildUsageFromMetadata,
   stampInteractionResolution,
@@ -159,7 +160,7 @@ export interface TurnExecutionContext extends TurnStartContext {
 
 export interface TurnCoordinatorPorts {
   pluginContext?: PluginContextPort
-  publishEvent: DeepChatEventPublisher
+  output: DeepChatOutputPort
   providerRuntime: Pick<ProviderExecutionPort, 'getRuntimeContextLimitTokens'>
   providerSettings: ProviderModelResolutionPort
   traceSettings: AgentTraceSettingsPort
@@ -1460,7 +1461,7 @@ export class TurnCoordinator {
           JSON.stringify(terminalMetadata)
         )
         this.ports.messageProjection.refresh(sessionId, assistantMessageId)
-        this.ports.publishEvent('chat.stream.failed', {
+        this.ports.output.streamFailed({
           requestId: this.ports.runLifecycle.resolveStreamRequestId(
             sessionId,
             assistantMessageId
@@ -1841,7 +1842,7 @@ export class TurnCoordinator {
             JSON.stringify(terminalMetadata)
           )
           this.ports.messageProjection.refresh(sessionId, messageId)
-          this.ports.publishEvent('chat.stream.failed', {
+          this.ports.output.streamFailed({
             requestId: this.ports.runLifecycle.resolveStreamRequestId(sessionId, messageId),
             sessionId,
             messageId,
@@ -2040,7 +2041,7 @@ export class TurnCoordinator {
       const blocks = buildTerminalErrorBlocks(initialBlocks, errorMessage)
       this.ports.messageStore.setMessageError(messageId, blocks, JSON.stringify(terminalMetadata))
       this.ports.messageProjection.refresh(sessionId, messageId)
-      this.ports.publishEvent('chat.stream.failed', {
+      this.ports.output.streamFailed({
         requestId: this.ports.runLifecycle.resolveStreamRequestId(sessionId, messageId),
         sessionId,
         messageId,

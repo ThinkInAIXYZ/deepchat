@@ -1,3 +1,4 @@
+import type { DeepChatOutputPort } from './output'
 import type {
   AssistantMessageBlock,
   ToolInteractionResponse,
@@ -51,7 +52,7 @@ import type { SessionScopeRegistry } from '@/agent/deepchat/instance/deepChatAge
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { MessageProjectionService } from './messageProjectionService'
 import type { ResumeBudgetToolCall, TurnResumePort } from './turnResumeContract'
-import type { DeepChatEventPublisher, PendingToolInteraction } from './types'
+import type { PendingToolInteraction } from './types'
 import { parseMessageMetadata } from '@/session/usageStats'
 import { MAX_TOOL_CALLS } from '@/agent/deepchat/loop/deepChatLoopEngine'
 import { throwIfAbortRequested } from './abortErrors'
@@ -122,7 +123,7 @@ export interface InteractionCoordinatorPorts {
   hookSink: Pick<RuntimeHookSink, 'scope'>
   turnCoordinator: TurnResumePort
   continuationAdmission: InteractionContinuationAdmissionPort
-  publishEvent: DeepChatEventPublisher
+  output: DeepChatOutputPort
   interactionParking: Pick<InteractionParkingRegistry, 'isParked' | 'park'>
   executionJournal: Pick<
     ExecutionJournalRecoveryReader,
@@ -553,7 +554,7 @@ export class InteractionCoordinator {
               JSON.stringify(terminalMetadata)
             )
             this.ports.messageProjection.refresh(sessionId, messageId)
-            this.ports.publishEvent('chat.stream.failed', {
+            this.ports.output.streamFailed({
               requestId: this.ports.runLifecycle.resolveStreamRequestId(sessionId, messageId),
               sessionId,
               messageId,

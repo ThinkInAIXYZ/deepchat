@@ -17,8 +17,7 @@ import type {
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/types/provider'
 import type { DeepChatProviderAttemptIdentity } from '@shared/types/provider-attempt'
-import type { DeepchatEventName } from '@shared/contracts/events'
-import type { DeepChatInternalSessionUpdate } from './sessionUpdates'
+import type { DeepChatOutputPort } from './output'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type { CacheImageOptions } from '@/platform/imageCache'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
@@ -141,9 +140,6 @@ export interface StreamState {
   blocksRevision: number
 }
 
-export type DeepChatEventPublisher = (name: DeepchatEventName, payload: unknown) => void
-export type DeepChatSessionUpdatePublisher = (update: DeepChatInternalSessionUpdate) => void
-
 export interface IoParams {
   sessionId: string
   requestId: string
@@ -152,14 +148,10 @@ export interface IoParams {
   modelId: string
   messageStore: SessionTranscript
   abortSignal: AbortSignal
-  publishEvent: DeepChatEventPublisher
-  publishSessionUpdate: DeepChatSessionUpdatePublisher
+  output: DeepChatOutputPort
 }
 
-export type ProcessIoParams = Pick<
-  IoParams,
-  'messageStore' | 'publishEvent' | 'publishSessionUpdate'
-> & {
+export type ProcessIoParams = Pick<IoParams, 'messageStore' | 'output'> & {
   tapeToolFactWriter: TapeToolFactWriter
   executionJournalWriter: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'> &
     Partial<NestedExecutionJournalWriter>

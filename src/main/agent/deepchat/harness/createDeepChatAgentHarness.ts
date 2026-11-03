@@ -175,8 +175,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     hookObserver,
     providerRuntime,
     providerSettings,
-    publishEvent,
-    publishSessionUpdate,
+    output,
     runJournalObserver,
     sessionData,
     sessionPermissionPort,
@@ -195,8 +194,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   const messageProjection = new MessageProjectionService({
     registry: runtime,
     transcript: messageStore,
-    publishEvent,
-    publishSessionUpdate
+    output
   })
   const toolResolver = new DeepChatToolResolver({
     agentSettings,
@@ -281,7 +279,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     tape: tapeService
   })
   const providerPermissionCoordinator = new ProviderPermissionCoordinator({
-    publishEvent,
+    output,
     messageStore,
     runLifecycle,
     permissionPort: deps.acpAsLlmProviderPermission,
@@ -297,7 +295,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   )
   const compaction = new CompactionRuntimeCoordinator({
     pluginContext: deps.pluginContext,
-    publishEvent,
+    output,
     compactionService,
     sessionStore,
     messageStore,
@@ -388,8 +386,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   })
   const loopRunner = new DeepChatLoopRunner({
     pluginContext: deps.pluginContext,
-    publishEvent,
-    publishSessionUpdate,
+    output,
     providerRuntime,
     providerSettings,
     traceSettings,
@@ -426,7 +423,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   })
   const turnCoordinator = new TurnCoordinator({
     pluginContext: deps.pluginContext,
-    publishEvent,
+    output,
     providerRuntime,
     providerSettings,
     traceSettings,
@@ -479,7 +476,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     sessionSettings
   })
   const interactionCoordinator = new InteractionCoordinator({
-    publishEvent,
+    output,
     messageStore,
     providerPermissionCoordinator,
     skillService,
@@ -510,8 +507,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   const acpCompatibility: AcpAgentInstanceDependencyFactory = (input) =>
     createAcpCompatibilityDependencies(
       {
-        publishEvent,
-        publishSessionUpdate,
+        output,
         providerSettings,
         traceSettings,
         providerRuntime,

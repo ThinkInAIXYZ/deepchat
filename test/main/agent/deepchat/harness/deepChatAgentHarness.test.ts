@@ -1,3 +1,4 @@
+import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createHash } from 'node:crypto'
@@ -1139,14 +1140,18 @@ function createRuntimeDependencies(
     }
   } = {}
 ): DeepChatHarnessDependencies & {
+  publishSessionUpdate: ReturnType<typeof vi.fn>
   attachmentRouter: { prepare: ReturnType<typeof vi.fn> }
   sessionUiPort: { refreshSessionUi: ReturnType<typeof vi.fn> }
 } {
   const publishSessionUpdate = vi.fn()
   const sessionUiPort = { refreshSessionUi: vi.fn() }
   return {
-    publishEvent: publishDeepchatEvent,
     publishSessionUpdate,
+    output: createDeepChatOutputProjection({
+      publishEvent: publishDeepchatEvent,
+      publishSessionUpdate
+    }),
     publishStatus: createSessionStatusProjection({
       publishEvent: publishDeepchatEvent,
       publishSessionUpdate,
