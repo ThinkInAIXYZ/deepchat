@@ -52,7 +52,7 @@ pnpm exec vitest run --config vitest.config.renderer.ts test/renderer/components
 
 **目标**：首条与后续提交使用相同的附件能力规则，同时保留两类草稿各自的模型解析和取消语义。
 
-- [ ] **依赖**：无。**删除**：`NewThreadPage.vue` 和 `useComposerSubmit.ts` 两份 `prepareFilesForCurrentModel` / `notifyUnsupportedAudioAttachments` 编排。两处保留各自选择模型和处理草稿版本的入口；提取已解析模型与文件之后的公共步骤，复用 [现有过滤函数](../../../src/renderer/src/lib/audioInputSupport.ts)。保持异步准备、取消、提交及文件顺序，main 的附件检查仍是最终裁决。
+- [x] **依赖**：无。**删除**：`NewThreadPage.vue` 和 `useComposerSubmit.ts` 两份 `prepareFilesForCurrentModel` / `notifyUnsupportedAudioAttachments` 编排。两处保留各自选择模型和处理草稿版本的入口；提取已解析模型与文件之后的公共步骤，复用 [现有过滤函数](../../../src/renderer/src/lib/audioInputSupport.ts)。保持异步准备、取消、提交及文件顺序，main 的附件检查仍是最终裁决。
 
 **实施顺序**
 

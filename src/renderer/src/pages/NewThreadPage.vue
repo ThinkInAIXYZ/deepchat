@@ -371,7 +371,7 @@ import {
 } from '@/lib/chatModelSelection'
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
-import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
+import { prepareFilesForModel } from '@/lib/audioInputSupport'
 import { isAbortError } from '@/lib/errors'
 import { isAttachmentPreparationCandidate } from '@shared/utils/attachmentRepresentation'
 import { normalizeWorkspacePath } from '@shared/utils/filesystem'
@@ -1581,48 +1581,13 @@ function onToggleVoiceInput() {
   void voiceInput.toggle()
 }
 
-function notifyUnsupportedAudioAttachments(
-  selection: { providerId: string; modelId: string },
-  rejectedAudioFiles: MessageFile[]
-) {
-  if (rejectedAudioFiles.length === 0) {
-    return
-  }
-
-  const modelLabel =
-    modelStore.findChatSelectableModel(selection.providerId, selection.modelId)?.model.name ??
-    selection.modelId
-
-  notifyRenderer({
-    kind: 'warning',
-    code: 'chat.audio.unsupported',
-    title: t('chat.input.audioInputUnsupportedTitle'),
-    description: t('chat.input.audioInputUnsupportedDescription', {
-      count: rejectedAudioFiles.length,
-      model: modelLabel
-    })
-  })
-}
-
 async function prepareFilesForCurrentModel(files: MessageFile[]): Promise<MessageFile[]> {
-  const selection = await resolveSubmissionModelSelection()
-  if (!selection || files.length === 0) {
-    return files
-  }
-
-  try {
-    const capabilities = await modelClient.getCapabilities(selection)
-    if (capabilities.supportsAudioInput) {
-      return files
-    }
-
-    const { acceptedFiles, rejectedAudioFiles } = filterUnsupportedAudioAttachments(files, false)
-    notifyUnsupportedAudioAttachments(selection, rejectedAudioFiles)
-    return acceptedFiles
-  } catch (error) {
-    console.warn('[NewThreadPage] Failed to resolve audio input capability:', error)
-    return files
-  }
+  return prepareFilesForModel(files, await resolveSubmissionModelSelection(), {
+    modelClient,
+    modelStore,
+    notify: notifyRenderer,
+    t
+  })
 }
 
 async function onFilesChange(files: MessageFile[]) {

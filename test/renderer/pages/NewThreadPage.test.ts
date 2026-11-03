@@ -1,5 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { reactive } from 'vue'
+import type { MessageFile } from '@shared/types/agent-interface'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const setup = async (
@@ -102,11 +103,14 @@ const setup = async (
     enabledModels: [
       {
         providerId: 'openai',
-        models: [{ id: 'gpt-4o-mini' }, { id: 'deepseek-chat' }]
+        models: [
+          { id: 'gpt-4o-mini', name: 'GPT Test' },
+          { id: 'deepseek-chat', name: 'DeepSeek Test' }
+        ]
       },
       {
         providerId: 'deepseek',
-        models: [{ id: 'deepseek-chat' }]
+        models: [{ id: 'deepseek-chat', name: 'DeepSeek Test' }]
       }
     ],
     get chatSelectableModelGroups() {
@@ -155,6 +159,17 @@ const setup = async (
     isDirectory: vi.fn().mockResolvedValue(true)
   }
 
+  const getCapabilities = vi.fn().mockResolvedValue({ supportsAudioInput: true })
+  const notify = vi.fn()
+  const t = vi.fn((key: string) => key)
+  vi.doMock('@api/OnboardingClient', () => ({
+    createOnboardingClient: () => ({ getState: async () => null })
+  }))
+  vi.doMock('@api/ModelClient', async () => {
+    const actual = await vi.importActual<typeof import('@api/ModelClient')>('@api/ModelClient')
+    return { createModelClient: () => ({ ...actual.createModelClient(), getCapabilities }) }
+  })
+  vi.doMock('@renderer-notifications/rendererNotificationPort', () => ({ notifyRenderer: notify }))
   vi.doMock('@/stores/ui/project', () => ({
     useProjectStore: () => projectStore
   }))
@@ -205,7 +220,7 @@ const setup = async (
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
-      t: (key: string) => key
+      t
     })
   }))
   vi.doMock('@iconify/vue', () => ({
@@ -244,13 +259,14 @@ const setup = async (
         DcButton: {
           template: '<button type="button" v-bind="$attrs"><slot /></button>'
         },
+        AgentAvatar: true,
         AcpAuthDialog: true,
         ChatInputToolbar: true,
         ChatStatusBar: true,
         ChatInputBox: {
           name: 'ChatInputBox',
-          props: ['modelValue', 'submitDisabled'],
-          emits: ['submit', 'command-submit'],
+          props: ['modelValue', 'files', 'submitDisabled'],
+          emits: ['submit', 'command-submit', 'update:files', 'update:modelValue'],
           template:
             '<div data-testid="chat-input" :data-submit-disabled="String(submitDisabled)">{{ modelValue }}<slot name="toolbar" /></div>'
         }
@@ -267,12 +283,69 @@ const setup = async (
     draftStore,
     projectStore,
     sessionStore,
-    modelStore
+    modelStore,
+    getCapabilities,
+    notify,
+    t
   }
 }
 
 describe('NewThreadPage start deeplink prefill', () => {
   beforeEach(() => localStorage.clear())
+
+  it('prepares audio consistently for supported, unsupported and unavailable capabilities', async () => {
+    for (const capability of [true, false, 'error'] as const) {
+      const { wrapper, sessionStore, getCapabilities, notify, t } = await setup('deepseek-chat')
+      const files: MessageFile[] = [
+        { name: 'notes.md', path: '/tmp/notes.md' },
+        { name: 'clip.MP3', path: '/tmp/clip.MP3' },
+        { name: 'clip.bin', path: '/tmp/clip.bin', mimeType: 'audio/flac' },
+        { name: 'diagram.png', path: '/tmp/diagram.png' }
+      ]
+      const input = wrapper.findComponent({ name: 'ChatInputBox' })
+      input.vm.$emit('update:files', files)
+      await flushPromises()
+      notify.mockClear()
+      t.mockClear()
+      if (capability === 'error') getCapabilities.mockRejectedValue(new Error('unavailable'))
+      else getCapabilities.mockResolvedValue({ supportsAudioInput: capability })
+      input.vm.$emit('submit')
+      await flushPromises()
+      expect(sessionStore.createSession).toHaveBeenCalledTimes(1)
+      expect(sessionStore.createSession.mock.calls[0][0].files).toEqual(
+        capability === false ? [files[0], files[3]] : files
+      )
+      expect(notify).toHaveBeenCalledTimes(capability === false ? 1 : 0)
+      if (capability === false) {
+        expect(t).toHaveBeenCalledWith('chat.input.audioInputUnsupportedDescription', {
+          count: 2,
+          model: 'DeepSeek Test'
+        })
+      }
+      wrapper.unmount()
+    }
+  }, 20000)
+
+  it('does not replace newer attachments with a late capability result', async () => {
+    const { wrapper, getCapabilities } = await setup('deepseek-chat')
+    let resolveCapabilities!: (value: { supportsAudioInput: boolean }) => void
+    getCapabilities.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveCapabilities = resolve
+      })
+    )
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+    const oldFiles = [{ name: 'clip.mp3', path: '/tmp/clip.mp3' }]
+    const newFiles = [{ name: 'notes.md', path: '/tmp/notes.md' }]
+    input.vm.$emit('update:files', oldFiles)
+    await flushPromises()
+    input.vm.$emit('update:files', newFiles)
+    await flushPromises()
+    resolveCapabilities({ supportsAudioInput: false })
+    await flushPromises()
+    expect(input.props('files')).toEqual(newFiles)
+    wrapper.unmount()
+  }, 20000)
 
   it('applies exact model matches and appends mentions into the input', async () => {
     const { wrapper, draftStore } = await setup('deepseek-chat')
