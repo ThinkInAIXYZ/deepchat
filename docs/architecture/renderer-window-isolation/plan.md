@@ -118,7 +118,7 @@ pnpm exec vitest run --config vitest.config.renderer.ts test/renderer/stores/ses
 
 **目标**：发送接纳、局部乐观回显和首次引导分别由正确的所有者处理；迟到结果不会吞掉新草稿。
 
-- [ ] **依赖**：R5。**删除**：`session.ts#createSession/sendMessage/completeOnboardingStep` 内的页面跳转、草稿恢复和首次聊天引导调用。将其调用者连同动作迁到聊天功能；持久快照仍由 Session 投影提交，消息/草稿各自处理局部反馈。采用服务端已落盘但前端回执失败的旧草稿时，继续按既有规则查询并恢复。
+- [x] **依赖**：R5。**删除**：`session.ts#createSession/sendMessage/completeOnboardingStep` 内的页面跳转、草稿恢复和首次聊天引导调用。将其调用者连同动作迁到聊天功能；持久快照仍由 Session 投影提交，消息/草稿各自处理局部反馈。采用服务端已落盘但前端回执失败的旧草稿时，继续按既有规则查询并恢复。
 
 **实施顺序**
 

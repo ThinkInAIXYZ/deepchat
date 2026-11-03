@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useChatSessionStore } from '@/features/chat-session/store'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useResizeObserver } from '@vueuse/core'
@@ -27,7 +28,6 @@ import type { MCPContentItem, McpAppDescriptor, PersistedMcpToolResult } from '@
 import { createMcpClient } from '@api/McpClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { useThemeStore } from '@/stores/theme'
-import { useSessionStore } from '@/stores/ui/session'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import {
   claimMcpAppNonInlineDisplay,
@@ -48,7 +48,7 @@ const { t, locale } = useI18n()
 const mcpClient = createMcpClient()
 const deviceClient = createDeviceClient()
 const themeStore = useThemeStore()
-const sessionStore = useSessionStore()
+const chatSessionStore = useChatSessionStore()
 const sidepanelStore = useSidepanelStore()
 const iframe = ref<HTMLIFrameElement | null>(null)
 const prepared = shallowRef<Awaited<ReturnType<typeof mcpClient.prepareAppView>> | null>(null)
@@ -330,7 +330,7 @@ const connectBridge = async () => {
     if (!text || !(await mcpClient.authorizeAppMessage(view.instanceId, text))) {
       return { isError: true }
     }
-    await sessionStore.sendMessage(props.conversationId, text)
+    await chatSessionStore.sendMessage(props.conversationId, text)
     return {}
   }
   nextBridge.onupdatemodelcontext = async ({ content, structuredContent }) => {

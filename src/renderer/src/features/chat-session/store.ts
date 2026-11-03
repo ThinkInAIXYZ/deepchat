@@ -1,8 +1,13 @@
 import { defineStore, storeToRefs } from 'pinia'
 import { ref, computed, watch, onScopeDispose } from 'vue'
+import { createChatClient } from '@api/ChatClient'
 import { createSessionClient } from '@api/SessionClient'
 import { getRuntimeWebContentsId } from '@api/runtime'
-import type { CreateSessionInput, SessionWithState } from '@shared/types/agent-interface'
+import type {
+  CreateSessionInput,
+  SessionWithState,
+  SendMessageInput
+} from '@shared/types/agent-interface'
 import {
   useSessionStore,
   type UISession,
@@ -37,6 +42,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
   const { clearActiveSessionSummary, commitSessionSnapshot, setSearchIntent, applySessionStatus } =
     projection
   const sessionClient = createSessionClient()
+  const chatClient = createChatClient()
   const agentStore = useAgentStore()
   const draftStore = useDraftStore()
   const messageStore = useMessageStore()
@@ -139,18 +145,14 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       }
       // Creation is durable even if the user has navigated elsewhere while it was pending.
       commitSessionSnapshot(session)
-      if (activationNavigationRequestId !== requestId) {
-        return result
+      if (activationNavigationRequestId === requestId) {
+        setActiveSessionId(session.id)
+        applyRestoredSession(session)
+        syncSelectedAgentToSession(session.id)
+        pageRouter.goToChat(session.id)
       }
-
-      setActiveSessionId(session.id)
-      applyRestoredSession(session)
       if (hasAcceptedInitialTurn) {
         applySessionStatus(session.id, 'generating')
-      }
-      syncSelectedAgentToSession(session.id)
-      pageRouter.goToChat(session.id)
-      if (hasAcceptedInitialTurn) {
         await completeOnboardingStep('first-chat')
       }
       return result
@@ -168,8 +170,8 @@ export const useChatSessionStore = defineStore('chat-session', () => {
               applyRestoredSession(session)
               syncSelectedAgentToSession(session.id)
               pageRouter.goToChat(session.id)
-              await completeOnboardingStep('first-chat')
             }
+            await completeOnboardingStep('first-chat')
             return { session }
           }
         } catch (recoveryError) {
@@ -183,6 +185,54 @@ export const useChatSessionStore = defineStore('chat-session', () => {
         error.value = `Failed to create session: ${createError}`
       }
       throw createError
+    }
+  }
+
+  async function sendMessage(
+    sessionId: string,
+    content: string | SendMessageInput,
+    options?: SubmissionRequestOptions
+  ): Promise<void> {
+    error.value = null
+    const previousStatus =
+      sessions.value.find((session) => session.id === sessionId)?.status ??
+      (activeSessionSummary.value?.id === sessionId ? activeSessionSummary.value.status : 'none')
+    applySessionStatus(sessionId, 'generating')
+    try {
+      if (options?.submissionId) {
+        await chatClient.sendMessage(sessionId, content, { submissionId: options.submissionId })
+      } else {
+        await chatClient.sendMessage(sessionId, content)
+      }
+      await completeOnboardingStep('first-chat')
+    } catch (sendError) {
+      if (options?.isCancellationRequested?.() && isAbortError(sendError)) {
+        applySessionStatus(sessionId, previousStatus)
+      } else {
+        applySessionStatus(sessionId, 'error')
+        error.value = `Failed to send message: ${sendError}`
+      }
+      throw sendError
+    }
+  }
+
+  async function setSessionModel(
+    sessionId: string,
+    providerId: string,
+    modelId: string
+  ): Promise<void> {
+    error.value = null
+    try {
+      const updated = await sessionClient.setSessionModel(sessionId, providerId, modelId)
+      commitSessionSnapshot(updated)
+      if (activeSessionId.value === sessionId) {
+        applyRestoredSession(updated)
+        projection.synchronizeContextOccupancy(sessionId)
+      }
+      await completeOnboardingStep('switch-model')
+    } catch (updateError) {
+      error.value = `Failed to set session model: ${updateError}`
+      throw updateError
     }
   }
 
@@ -374,6 +424,8 @@ export const useChatSessionStore = defineStore('chat-session', () => {
 
   return {
     createSession,
+    sendMessage,
+    setSessionModel,
     selectSession,
     closeSession,
     startNewConversation,

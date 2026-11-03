@@ -1130,8 +1130,18 @@ describe('sessionStore onboarding progress', () => {
     expect(store.activeSessionId).toBeNull()
   })
   it('marks the first-chat step complete after creating the first session', async () => {
-    const { chatSession, store, onboardingClient, pageRouter, sessionClient } = await setupStore({
-      onboardingCurrentStepId: 'first-chat'
+    const { chatSession, store, onboardingClient, pageRouter, sessionClient, emitSessionUpdate } =
+      await setupStore({
+        onboardingCurrentStepId: 'first-chat'
+      })
+    sessionClient.create.mockImplementationOnce(async () => {
+      emitSessionUpdate({
+        reason: 'activated',
+        sessionIds: ['session-1'],
+        activeSessionId: 'session-1',
+        webContentsId: 1
+      })
+      return { session: createSession() }
     })
 
     await chatSession.createSession({
@@ -1287,11 +1297,11 @@ describe('sessionStore onboarding progress', () => {
   })
 
   it('marks the first-chat step complete after a successful send', async () => {
-    const { store, chatClient, onboardingClient } = await setupStore({
+    const { chatSession, store, chatClient, onboardingClient } = await setupStore({
       onboardingCurrentStepId: 'first-chat'
     })
 
-    await store.sendMessage('session-1', 'hello onboarding')
+    await chatSession.sendMessage('session-1', 'hello onboarding')
 
     expect(chatClient.sendMessage).toHaveBeenCalledWith('session-1', 'hello onboarding')
     expect(onboardingClient.getState).toHaveBeenCalledTimes(1)
@@ -1302,14 +1312,14 @@ describe('sessionStore onboarding progress', () => {
   })
 
   it('restores session status without publishing an error when send preparation is cancelled', async () => {
-    const { store, chatClient } = await setupStore()
+    const { chatSession, store, chatClient } = await setupStore()
     store.sessions = [createSession({ id: 'session-1', status: 'none' })]
     const abortError = new Error('Aborted')
     abortError.name = 'AbortError'
     chatClient.sendMessage.mockRejectedValueOnce(abortError)
 
     await expect(
-      store.sendMessage('session-1', 'hello', {
+      chatSession.sendMessage('session-1', 'hello', {
         submissionId: 'submission-1',
         isCancellationRequested: () => true
       })
@@ -1323,12 +1333,12 @@ describe('sessionStore onboarding progress', () => {
   })
 
   it('publishes a non-abort send failure even when cancellation was requested', async () => {
-    const { store, chatClient } = await setupStore()
+    const { chatSession, store, chatClient } = await setupStore()
     store.sessions = [createSession({ id: 'session-1', status: 'none' })]
     chatClient.sendMessage.mockRejectedValueOnce(new Error('OCR runtime unavailable'))
 
     await expect(
-      store.sendMessage('session-1', 'hello', {
+      chatSession.sendMessage('session-1', 'hello', {
         submissionId: 'submission-1',
         isCancellationRequested: () => true
       })
@@ -1349,11 +1359,11 @@ describe('sessionStore onboarding progress', () => {
     )
 
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
-    const { store } = await setupStore({
+    const { chatSession, store } = await setupStore({
       onboardingCurrentStepId: 'first-chat'
     })
 
-    await store.sendMessage('session-1', 'hello onboarding')
+    await chatSession.sendMessage('session-1', 'hello onboarding')
 
     expect(dispatchSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1368,11 +1378,11 @@ describe('sessionStore onboarding progress', () => {
   })
 
   it('marks the switch-model step complete after a successful model change', async () => {
-    const { store, sessionClient, onboardingClient } = await setupStore({
+    const { chatSession, store, sessionClient, onboardingClient } = await setupStore({
       onboardingCurrentStepId: 'switch-model'
     })
 
-    await store.setSessionModel('session-1', 'anthropic', 'claude-3-7-sonnet')
+    await chatSession.setSessionModel('session-1', 'anthropic', 'claude-3-7-sonnet')
 
     expect(sessionClient.setSessionModel).toHaveBeenCalledWith(
       'session-1',
@@ -1387,9 +1397,9 @@ describe('sessionStore onboarding progress', () => {
   })
 
   it('does not update onboarding progress when the guide is idle', async () => {
-    const { store, onboardingClient } = await setupStore()
+    const { chatSession, store, onboardingClient } = await setupStore()
 
-    await store.sendMessage('session-1', 'outside onboarding')
+    await chatSession.sendMessage('session-1', 'outside onboarding')
 
     expect(onboardingClient.getState).toHaveBeenCalledTimes(1)
     expect(onboardingClient.setStepStatus).not.toHaveBeenCalled()
@@ -2250,7 +2260,7 @@ describe('sessionStore streaming cleanup', () => {
     await chatSession.applyBootstrapShell({ activeSessionId: 'session-1' })
     sessionClient.getContextOccupancy.mockClear()
 
-    await store.setSessionModel('session-1', 'anthropic', 'claude-3-7-sonnet')
+    await chatSession.setSessionModel('session-1', 'anthropic', 'claude-3-7-sonnet')
 
     expect(sessionClient.getContextOccupancy).toHaveBeenCalledWith('session-1')
   })

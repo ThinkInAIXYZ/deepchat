@@ -331,7 +331,6 @@ import {
 } from '@/components/chat/attachmentModelPicker'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useProjectStore } from '@/stores/ui/project'
-import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
@@ -380,7 +379,6 @@ import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRec
 import { cancelChatInputHeroFlight, prepareChatInputHeroFlight } from '@/lib/chatInputHero'
 
 const projectStore = useProjectStore()
-const sessionStore = useSessionStore()
 const chatSessionStore = useChatSessionStore()
 const agentStore = useAgentStore()
 const modelStore = useModelStore()
@@ -1345,7 +1343,7 @@ async function submitText(
         if (preparedHeroFlight) cancelChatInputHeroFlight()
         return false
       }
-      await sessionStore.sendMessage(targetAcpSessionId, messagePayload)
+      await chatSessionStore.sendMessage(targetAcpSessionId, messagePayload)
       void sessionClient.discardDraftSession(targetAcpSessionId).catch((error) => {
         console.warn('[NewThreadPage] Failed to release promoted ACP draft ownership:', error)
       })

@@ -103,8 +103,8 @@ describe('McpAppView', () => {
     vi.doMock('@/stores/theme', () => ({
       useThemeStore: () => ({ isDark: false })
     }))
-    vi.doMock('@/stores/ui/session', () => ({
-      useSessionStore: () => ({ sendMessage: vi.fn() })
+    vi.doMock('@/features/chat-session/store', () => ({
+      useChatSessionStore: () => ({ sendMessage: vi.fn() })
     }))
     vi.doMock('@/stores/ui/sidepanel', () => ({
       useSidepanelStore: () => sidepanelStore

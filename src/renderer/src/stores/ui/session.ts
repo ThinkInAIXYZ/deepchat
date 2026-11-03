@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onScopeDispose, getCurrentScope, shallowReactive } from 'vue'
-import { createChatClient } from '../../../api/ChatClient'
 import { createConfigClient } from '../../../api/ConfigClient'
 import { createSessionClient } from '../../../api/SessionClient'
 import type { ComputedRef } from 'vue'
@@ -10,7 +9,6 @@ import type {
   SessionMetadata,
   SessionListItem,
   SessionWithState,
-  SendMessageInput,
   SessionCompactionSnapshot,
   SessionContextOccupancySnapshot
 } from '@shared/types/agent-interface'
@@ -19,10 +17,8 @@ import {
   type OrchestrationPolicy
 } from '@shared/orchestration/policy'
 import { downloadBlob } from '@/lib/download'
-import { completeOnboardingStep } from '@/lib/onboardingResume'
 import { useMessageStore } from './message'
 import { useLiveDelegationStore } from './liveDelegation'
-import { isAbortError } from '@/lib/errors'
 import type { SessionCompactionChangedPayload } from './sessionIpc'
 import { normalizeWorkspacePath } from '@shared/utils/filesystem'
 import type { ToolModeOverride } from '@shared/toolMode'
@@ -79,10 +75,6 @@ type ActiveCompactionSync = {
   requestId: number
   snapshotPending: boolean
   bufferedEvents: SessionCompactionChangedPayload[]
-}
-type SubmissionRequestOptions = {
-  submissionId?: string
-  isCancellationRequested?: () => boolean
 }
 
 const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
@@ -312,7 +304,6 @@ function cloneSessionPageCursor(
 
 export const useSessionStore = defineStore('session', () => {
   const sessionClient = createSessionClient()
-  const chatClient = createChatClient()
   const configClient = createConfigClient()
   const messageStore = useMessageStore()
   const liveDelegationStore = useLiveDelegationStore()
@@ -1026,54 +1017,6 @@ export const useSessionStore = defineStore('session', () => {
     commitSessionSnapshot(session)
   }
 
-  async function sendMessage(
-    sessionId: string,
-    content: string | SendMessageInput,
-    options?: SubmissionRequestOptions
-  ): Promise<void> {
-    error.value = null
-    const previousStatus =
-      sessions.value.find((session) => session.id === sessionId)?.status ??
-      (activeSessionSummary.value?.id === sessionId ? activeSessionSummary.value.status : 'none')
-    applySessionStatus(sessionId, 'generating')
-    try {
-      if (options?.submissionId) {
-        await chatClient.sendMessage(sessionId, content, { submissionId: options.submissionId })
-      } else {
-        await chatClient.sendMessage(sessionId, content)
-      }
-      await completeOnboardingStep('first-chat')
-    } catch (sendError) {
-      if (options?.isCancellationRequested?.() && isAbortError(sendError)) {
-        applySessionStatus(sessionId, previousStatus)
-      } else {
-        applySessionStatus(sessionId, 'error')
-        error.value = `Failed to send message: ${sendError}`
-      }
-      throw sendError
-    }
-  }
-
-  async function setSessionModel(
-    sessionId: string,
-    providerId: string,
-    modelId: string
-  ): Promise<void> {
-    error.value = null
-    try {
-      const updated = await sessionClient.setSessionModel(sessionId, providerId, modelId)
-      commitSessionSnapshot(updated)
-      if (activeSessionId.value === sessionId) {
-        applyRestoredSession(updated)
-        synchronizeContextOccupancy(sessionId)
-      }
-      await completeOnboardingStep('switch-model')
-    } catch (updateError) {
-      error.value = `Failed to set session model: ${updateError}`
-      throw updateError
-    }
-  }
-
   async function deleteSession(sessionId: string): Promise<void> {
     error.value = null
     try {
@@ -1299,8 +1242,6 @@ export const useSessionStore = defineStore('session', () => {
     loadNextPage,
     loadSessionGroupPage,
     refreshSessionsByIds,
-    sendMessage,
-    setSessionModel,
     synchronizeContextOccupancy,
     setSessionToolMode,
     applyConfirmedOrchestrationPolicy,

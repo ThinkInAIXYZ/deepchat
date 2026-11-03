@@ -1236,6 +1236,7 @@
 </template>
 
 <script setup lang="ts">
+import { useChatSessionStore } from '@/features/chat-session/store'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
@@ -1396,6 +1397,7 @@ const modelStore = useModelStore()
 const providerStore = useProviderStore()
 const agentStore = useAgentStore()
 const sessionStore = useSessionStore()
+const chatSessionStore = useChatSessionStore()
 const draftStore = useDraftStore()
 const projectStore = useProjectStore()
 const configClient = createConfigClient()
@@ -2862,7 +2864,7 @@ async function changeModelSelection(
       return { applied: false, selectionChanged: false, previousSelection }
     }
     try {
-      await sessionStore.setSessionModel(sessionId, providerId, modelId)
+      await chatSessionStore.setSessionModel(sessionId, providerId, modelId)
       return { applied: true, selectionChanged: true, previousSelection }
     } catch (error) {
       console.warn('[ChatStatusBar] Failed to switch active session model:', error)
