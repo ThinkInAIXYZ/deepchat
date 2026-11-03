@@ -47,12 +47,12 @@ import { SkillService } from '@/skill'
 import type { SkillSessionStatePort } from '@/skill'
 import { SkillSyncService } from '@/skill/sync'
 import { SkillExecutionAuthorityResolver } from '@/skill/skillExecutionAuthority'
-import { HookService } from '@/hook'
 import { HookSettings } from '@/hook/config'
 import { SchedulerService, createCronJobRunSessionStarter } from '@/scheduler'
 import { SchedulerProcessManager } from '@/scheduler/schedulerProcessManager'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { MemoryCapability } from '../plugins/memory'
+import type { HooksCapability } from '../plugins/hooks'
 import { ProjectService } from '@/project'
 import { LiveDelegationConsentAuthority } from '@/orchestration/liveDelegationConsent'
 import { RemoteService } from '@/remote'
@@ -205,6 +205,7 @@ export async function createCoreRuntime(options: {
     'createVectorStore' | 'resetVectorStore' | 'markVectorStoreQuarantined'
   >
   memory: MemoryCapability
+  hooks: HooksCapability
   execution: Pick<
     CoreExecutionOptions,
     | 'typedEventHub'
@@ -1114,7 +1115,7 @@ export async function createCoreRuntime(options: {
   // Initialize Skill Sync service
   const skillSyncService = new SkillSyncService(skillService, skillSettings, publishDeepchatEvent)
 
-  const hookService = new HookService(
+  const hookService = options.hooks.open(
     hookSettings,
     { getSession: (sessionId) => sessionQuery.getSession(sessionId) },
     bootstrap.appVersion

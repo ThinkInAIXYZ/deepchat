@@ -15,7 +15,8 @@ G5 is complete at `1719f8075`; exact-source required checks, all six native veri
 packages and the original integrated Native foreground case pass. G6 is complete at `bd64c2d53`;
 G7 is complete at `f1b425e4b`: Rust admission and cohesive Run/interaction/input control pass
 local functional acceptance, required CI and all six actual native package targets. G8 is the
-completed selection no-go; G9 is the next functional capability selection. Further performance
+completed selection no-go; G9 product Hooks passes local functional acceptance and awaits
+publication/platform verification. Further performance
 sampling is not selected.
 Later goals start only after their dependencies and the preceding selected goal pass validation.
 
@@ -74,7 +75,7 @@ Reuse the retained baseline instead of accumulating a complete output tree for e
 | G6 Full Memory capability               | Complete, `bd64c2d53`             | G3, G4, G5                     | Recall, ingestion, management and maintenance use the one Memory service                          |
 | G7 Rust control owner                   | Complete, `f1b425e4b`             | G2, G5                         | Admission and cohesive run/interaction settlement preserve all fences                             |
 | G8 Rust batch computations              | Complete: selection no-go         | G2, G4, G5; G6 for Memory work | Measured CPU/allocation improvement with output and quality parity, or a recorded no-go           |
-| G9 Peripheral capabilities              | Conditional per selected module   | G4, G5                         | Independent useful lifetime, real consumer cutover and no duplicate supervisor                    |
+| G9 Peripheral capabilities              | Active: product Hooks             | G4, G5                         | Independent useful lifetime, real consumer cutover and no duplicate supervisor                    |
 | G10 Rust durable Store                  | Conditional compatibility project | G4, G5, G6, G7                 | One compatible encrypted writer and proven migration/recovery/maintenance behavior                |
 | G11 Headless Session Host               | Planned                           | G4, G5 and host-port audit     | Real CLI execution without Electron and without a connected desktop                               |
 | G12 Multiple clients and devices        | Planned                           | G11 and explicit grants        | Reconnect-safe clients and separately authorized, revocable device operations                     |
@@ -5058,15 +5059,59 @@ is claimed and no partial migration is left connected.
 
 ## G9. Extract peripheral services with independent useful lifetimes
 
-- [ ] Select one actual ownership group: process jobs/scheduler/watchers, documents/OCR/search,
+- [x] Select one actual ownership group: process jobs/scheduler/watchers, documents/OCR/search,
       Knowledge/RAG, MCP/ACP connections, Skills/hooks or remote channels. Do not create all proposed plugins
       merely to match the capability map.
-- [ ] Reuse current native helpers and supervisors, preserve tool/route/registration permissions,
+- [x] Reuse current native helpers and supervisors, preserve tool/route/registration permissions,
       and connect actual consumers through one generation-bound lifecycle owner.
-- [ ] Compare the module's real workload, unload/lost-reply/restart/revoke cases and resource
+- [x] Compare the module's real workload, unload/lost-reply/restart/revoke cases and resource
       envelope; account for idle Node processes removed or added.
-- [ ] Review, validate and remove the replaced manual wiring. Repeat only for another selected
+- [x] Review, validate and remove the replaced manual wiring. Repeat only for another selected
       module with a concrete lifecycle or measured resource benefit.
+- [ ] Publish this coherent source to the same Draft PR and pass required CI plus all six actual
+      native package targets before starting G10/G11.
+
+Selected: product Hooks, as defined in the RFC. The Rutis attachment owns actual HookService
+construction and permanent retirement in the same Core worker; maintenance retains temporary
+pause/drain/resume. This removes manual terminal lifecycle wiring and fences stale service
+references, including partial Kernel construction. No extra worker, transport or supervisor.
+The accepted `f1b425e4b` application build is hash-verified before the existing Hooks application
+comparison; baseline evidence is under `.deepchat/rutis-g9-hooks-acceptance/`. No new performance
+sampling is selected.
+
+The default cutover is implemented. Rust loads `core-hooks` into the existing Core worker;
+Core/Kernel pass its local capability to runtime composition, which no longer constructs
+HookService. Kernel terminal cleanup delegates to the plugin's memoized retirement; Core cleanup
+also retires an attachment left by partial construction. The existing observer/configuration/test
+routes share that one service. Maintenance still uses temporary stop/start; retired service
+references reject restart and Store configuration reads/writes. No compatibility switch, extra
+worker, generic transport or alternate implementation remains. Idle Node process delta is zero;
+the same-process SDK group keeps synchronous callback ports local. Transport loss remains covered
+by the accepted Core generation retirement contracts; no Hooks-specific RPC was introduced.
+
+Local verification:
+
+- All 2,183 accepted application files match their manifest before baseline execution.
+- The existing Hooks real-app workload passes both cases on baseline and candidate: configuration
+  save/test/persistence across restart; real Session hook payload and shutdown waiting for native
+  child stdio closure, followed by restart without replay.
+- Candidate also passes the five existing database-maintenance/shutdown cases, seven actual-app
+  cases total, zero retries. Import/overwrite/repair, encryption exclusion, delayed Native
+  credentials and shutdown drains preserve temporary service recovery and Store ownership.
+- Relevant Main tests pass: 17 files, 181 cases. One durable SDK unload case is added to the
+  existing HookService suite: pending enrichment and child closure must drain; old references and
+  configuration access stay fenced; a new plugin generation can open a fresh attachment. The
+  suite passes all 40 cases after its final stale-read assertion. No parallel fake owner is added.
+- Normal application/CLI build, Node/web types, Rust 22 cases, Cargo fmt, all-target Clippy with
+  warnings denied, repository format, i18n and lint pass. The existing unrelated Remote lint
+  warning remains. Normal generated Provider refreshes are retained.
+- Independent ownership review finds no blocking issue. Application/native checks remain the
+  authority for actual default assembly; no hot-reload or resource improvement is claimed.
+
+Evidence is under `.deepchat/rutis-g9-hooks-acceptance/`: `baseline-manifest.json`,
+`hooks-{baseline,candidate}-functional.{log,json}`, `hooks-application-build.log`,
+`hooks-affected-tests.log`, `hooks-final-service-tests.log`, Rust/static logs and the publication
+receipt. Ended owned media/profiles are removed after compact receipts are retained.
 
 ## G10. Decide and migrate durable Store to Rust
 

@@ -2,8 +2,10 @@
 
 ## Status and decision
 
-Status: G0-G7 complete; G8 records a Rust-batch selection no-go; G9 is the next capability selection.
-Evidence date: 2026-11-02. Rust admission source: `1b054b22a`; comparison baseline: `bd64c2d53`.
+Status: G0-G7 complete; G8 records a Rust-batch selection no-go; G9 product Hooks passes local
+functional acceptance and awaits exact-source publication/platform verification.
+Evidence date: 2026-11-03. Accepted Rust control source: `f1b425e4b`; G9 comparison baseline: the
+same accepted application's hash-verified build.
 Implementation reference: Rutis `v0.16.0`, released on 2026-10-24. Crates and npm packages are pinned
 to that version.
 
@@ -2009,6 +2011,29 @@ Main fans backend events out through existing renderer and CLI projections. Stre
 generation and monotonic sequence. A gap or backend change triggers authoritative bounded
 resynchronization; it does not create a second durable event store or infer success from a missing
 reply. Main and renderer state remain projections of backend facts.
+
+## Product Hooks capability
+
+The selected G9 peripheral is product Hooks: its command children and queued Session enrichment
+need a lifetime distinct from database maintenance and terminal Kernel retirement. Load a
+first-party `deepchat-hooks` plugin beside Memory and Core in the existing Core worker. It owns
+one HookService attachment, opened once with owner-local settings/query ports and the application
+version. Do not serialize callbacks or add a process, shell implementation, supervisor, route,
+configuration switch or remote execution grant.
+
+Maintenance keeps the existing temporary stop/drain/start contract. Plugin abort and Core shutdown
+permanently retire the attachment, synchronously reject new work and prevent an old service's
+`start()` from reviving it. Await queued enrichment and actual child closure before releasing
+Store ownership; a drain deadline is a failure, not proof of process exit. Permanent retirement
+also covers partial Kernel construction. The plugin's cleanup is the terminal owner; Kernel
+shutdown delegates to it instead of manually managing the HookService lifetime.
+
+Existing notification payloads, subscriptions, FIFO within each Session, command redaction,
+configuration/test routes and native shell behavior remain compatible. Compare the existing
+actual application workload before and after the cutover, including persistence/restart and a
+command whose descendant retains stdio during shutdown. Verify plugin unload with queued
+enrichment, stale references and a fresh replacement generation. This extraction makes no
+performance or independently hot-reloadable Core claim.
 
 ## Everywhere application and execution boundaries
 

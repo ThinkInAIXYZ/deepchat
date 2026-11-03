@@ -8,6 +8,7 @@ import { CoreNativeCalls } from '../core/native'
 import { createCoreSettings } from '../core/settings'
 import { CoreMemoryRuntime, type CoreMemoryService } from '../core/memory'
 import type { MemoryCapability } from './memory'
+import type { HooksCapability } from './hooks'
 import { RutisMemoryVectorStores } from '@/harness/memory-vector'
 import path from 'node:path'
 import {
@@ -55,7 +56,7 @@ const profileBootstrap = z
 
 export default definePlugin<CoreCarrierConfig>({
   name: 'deepchat-core',
-  inject: ['deepchatCoreNative', 'deepchatMemoryCapability'],
+  inject: ['deepchatCoreNative', 'deepchatMemoryCapability', 'deepchatHooksCapability'],
   provides: {
     deepchatCore: {
       identity: 'async',
@@ -76,6 +77,7 @@ export default definePlugin<CoreCarrierConfig>({
   },
   async apply(ctx, input) {
     const memoryCapability = ctx.use<MemoryCapability>('deepchatMemoryCapability')
+    const hooksCapability = ctx.use<HooksCapability>('deepchatHooksCapability')
     const config = CoreCarrierConfigSchema.parse(input)
     const store = new CorePayloadStore(config, 'core')
     const native = ctx.use<
@@ -263,6 +265,7 @@ export default definePlugin<CoreCarrierConfig>({
           }
         }
         await retire(async () => await (kernelRetirement ?? kernel?.stop()))
+        await retire(() => hooksCapability.retire())
         await retire(async () => await starting?.catch(() => undefined))
         if (kernelAttempted) await retire(() => browser.close())
         await retire(() => helpers.close())
@@ -456,6 +459,7 @@ export default definePlugin<CoreCarrierConfig>({
               admission,
               vectors: ownerVectors,
               memory: memoryCapability,
+              hooks: hooksCapability,
               bindEventPublisher: (publish) => {
                 kernelPublish = publish
               },

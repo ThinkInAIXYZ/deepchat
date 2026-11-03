@@ -1,4 +1,6 @@
 import { EventEmitter } from 'node:events'
+import { load } from '@arcships/rutis/testing'
+import hooksPlugin, { type HooksCapability } from '../../../src/harness/plugins/hooks'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   HookCommandItem,
@@ -405,6 +407,71 @@ describe('HookService subscription index', () => {
 })
 
 describe('HookService delivery ordering', () => {
+  it('plugin retirement drains children and enrichment without reviving stale references', async () => {
+    const plugin = await load(hooksPlugin, { strict: false })
+    const capability = plugin.service<HooksCapability>('deepchatHooksCapability')
+    const config = { hooks: [enabledHook('a', ['PostToolUse'])] }
+    const setConfig = vi.fn((next: HooksNotificationsSettings) => next)
+    const settings = {
+      getHooksNotificationsConfig: () => config,
+      setHooksNotificationsConfig: setConfig
+    }
+    const enrichment = Promise.withResolvers<null>()
+    const entered = Promise.withResolvers<void>()
+    const query = {
+      getSession: async () => {
+        entered.resolve()
+        return await enrichment.promise
+      }
+    }
+    const service = capability.open(settings, query, 'hook-plugin-fixture')
+    const child = new FakeChild()
+    spawnMock.mockImplementationOnce(() => child)
+    let unloading: Promise<void> | undefined
+    try {
+      await service.stop()
+      service.start()
+      expect(service.isObserved('PostToolUse')).toBe(true)
+      const command = service.testHookCommand('a')
+      service.notify({ event: 'PostToolUse', session: { sessionId: 'held' }, tool: {} })
+      await entered.promise
+      let drained = false
+      unloading = plugin.unload().then(() => {
+        drained = true
+      })
+      await vi.waitFor(() => expect(service.isObserved('PostToolUse')).toBe(false))
+      expect(() => service.start()).toThrow('retired')
+      expect(() => service.updateConfig(config)).toThrow('retired')
+      expect(() => service.getConfigSnapshot()).toThrow('retired')
+      expect(() => capability.open(settings, query, 'stale')).toThrow('cannot reopen')
+      expect((await service.testHookCommand('a')).success).toBe(false)
+      enrichment.resolve(null)
+      await Promise.resolve()
+      expect(drained).toBe(false)
+      child.emit('close', null)
+      await command
+      await unloading
+      expect(setConfig).not.toHaveBeenCalled()
+      expect(spawnMock).toHaveBeenCalledTimes(1)
+      const replacement = await load(hooksPlugin, { strict: false })
+      try {
+        expect(
+          replacement
+            .service<HooksCapability>('deepchatHooksCapability')
+            .open(settings, query, 'replacement')
+            .isObserved('PostToolUse')
+        ).toBe(true)
+        expect(() => service.start()).toThrow('retired')
+      } finally {
+        await replacement.unload()
+      }
+    } finally {
+      enrichment.resolve(null)
+      child.emit('close', null)
+      await (unloading ?? plugin.unload())
+    }
+  })
+
   it('keeps one session in emission order even when enrichment is slow', async () => {
     const { service, getSession } = createHarness([enabledHook('a', ['PostToolUse'])])
     let releaseSession: (value: null) => void = () => undefined

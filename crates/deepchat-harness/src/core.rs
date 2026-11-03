@@ -491,8 +491,13 @@ impl Plugin for Bootstrap {
                 .plugin
                 .join("memory.mjs")
                 .map_err(|e| CordisError::ServiceNotFound(e.to_string()))?;
+            let hooks_plugin = self
+                .plugin
+                .join("hooks.mjs")
+                .map_err(|e| CordisError::ServiceNotFound(e.to_string()))?;
             let patches: Vec<Patch> = serde_json::from_value(json!([{ "insert": [
                 { "id": "core-memory", "name": format!("core:{memory_plugin}") },
+                { "id": "core-hooks", "name": format!("core:{hooks_plugin}") },
                 { "id": "core", "name": format!("core:{}", self.plugin), "config": config }
             ] }]))
             .map_err(|e| CordisError::ServiceNotFound(e.to_string()))?;

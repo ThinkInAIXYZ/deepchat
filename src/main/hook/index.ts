@@ -198,6 +198,7 @@ const projectHookEvent = (event: HookEvent, time: string): HookEventProjection =
 
 export class HookService implements HookObserver {
   private accepting = true
+  private retired = false
   private readonly activeChildren = new Map<ChildProcess, Promise<void>>()
   /** Per-session delivery chain: emission order within a session, no coupling across sessions. */
   private readonly sessionChains = new Map<string, Promise<void>>()
@@ -215,6 +216,7 @@ export class HookService implements HookObserver {
 
   /** Store write and subscription refresh happen together so the index is never behind the config. */
   updateConfig(config: HooksNotificationsSettings): HooksNotificationsSettings {
+    if (this.retired) throw new Error('Hooks capability is retired')
     const stored = this.settings.setHooksNotificationsConfig(config)
     this.snapshot = buildConfigSnapshot(stored)
     return stored
@@ -226,11 +228,17 @@ export class HookService implements HookObserver {
   }
 
   start(): void {
+    if (this.retired) throw new Error('Hooks capability is retired')
     if (this.activeChildren.size > 0 || this.sessionChains.size > 0) {
       throw new Error('Hook work must drain before restarting')
     }
     this.accepting = true
     this.refreshSubscriptions()
+  }
+
+  dispose(): Promise<void> {
+    this.retired = true
+    return this.stop()
   }
 
   async stop(): Promise<void> {
@@ -322,6 +330,7 @@ export class HookService implements HookObserver {
   }
 
   private readSnapshot(): HookConfigSnapshot {
+    if (this.retired) throw new Error('Hooks capability is retired')
     this.snapshot ??= buildConfigSnapshot(this.settings.getHooksNotificationsConfig())
     return this.snapshot
   }

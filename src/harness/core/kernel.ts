@@ -82,6 +82,7 @@ export async function createCoreKernel(options: {
   admission: RuntimeOptions['agentInvocationAdmission']
   vectors: RuntimeOptions['memoryVectorStores']
   memory: RuntimeOptions['memory']
+  hooks: RuntimeOptions['hooks']
   bindEventPublisher(publish: (name: DeepchatEventName, payload: unknown) => void): void
   isStopping(): boolean
   allowInsecureTls: boolean
@@ -203,7 +204,7 @@ export async function createCoreKernel(options: {
         await step('delegation', () => owner.execution.liveDelegationService.stop())
         await step('scheduler', () => owner.cronJobs.destroy())
         await step('remote', () => owner.remoteService.destroy())
-        await step('hooks', () => owner.hookService.stop())
+        await step('hooks', () => options.hooks.retire())
         await step('context-hooks', async () => await owner.pluginService.contextHooks?.stop())
         await step('sessions', async () => {
           const sessions = data!.appSessionService.list({ includeSubagents: true })
@@ -344,6 +345,7 @@ export async function createCoreKernel(options: {
       agentInvocationAdmission: options.admission,
       memoryVectorStores: options.vectors,
       memory: options.memory,
+      hooks: options.hooks,
       execution: {
         typedEventHub,
         resolveSessionRunId: data.resolveSessionRunId,
