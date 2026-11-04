@@ -189,6 +189,25 @@ describe('DEFAULT_PROVIDERS', () => {
     )
   })
 
+  it('includes UberLLM as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'uberllm',
+        name: 'UberLLM',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.uberllm.dev/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          official: 'https://uberllm.dev/',
+          apiKey: 'https://uberllm.dev/dashboard/keys',
+          docs: 'https://uberllm.dev/docs/quickstart',
+          models: 'https://uberllm.dev/models',
+          defaultBaseUrl: 'https://api.uberllm.dev/v1'
+        })
+      })
+    )
+  })
+
   it('includes Obscurify.ai as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({
