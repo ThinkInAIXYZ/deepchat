@@ -1,3 +1,6 @@
+import { createDeepChatProgrammaticToolPort } from '@/cli/deepChatToolPort'
+import type { ProgrammaticToolPort } from '@/agent/deepchat/runtime/programmaticExecParent'
+import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
@@ -35,7 +38,7 @@ import type {
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
 import type { LoopRunRequestToolSurfaceBinding } from '@/agent/deepchat/loop/loopRun'
-import { QUESTION_TOOL_NAME } from '@/tool/agentTools/questionTool'
+import { QUESTION_TOOL_NAME } from '@shared/contracts/questionTool'
 import {
   IMAGE_GENERATE_TOOL_NAME,
   IMAGE_GENERATION_TOOL_SERVER_NAME
@@ -127,8 +130,7 @@ function createIo(overrides?: Partial<IoParams>): IoParams {
       setMessageError: vi.fn()
     } as any,
     abortSignal: new AbortController().signal,
-    publishEvent: publishDeepchatEventMock,
-    publishSessionUpdate: vi.fn(),
+    output: createDeepChatOutputProjection({ publishEvent: publishDeepchatEventMock, publishSessionUpdate: vi.fn() }),
     ...overrides
   }
 }
@@ -369,7 +371,8 @@ function createProgrammaticParentStub(
     settleError?: Error
   }> = {}
 ): Readonly<{
-  parents: Pick<ProgrammaticToolParentRegistry, 'prepare'>
+  parents: Pick<ProgrammaticToolPort, 'prepare'>
+  prepare: ReturnType<typeof vi.fn>
   armOuterDispatch: ReturnType<typeof vi.fn>
   takeArmedToken: ReturnType<typeof vi.fn>
   takeCompletedInvocationResult: ReturnType<typeof vi.fn>
@@ -434,7 +437,8 @@ function createProgrammaticParentStub(
     }
   )
   return {
-    parents: { prepare },
+    prepare,
+    parents: createDeepChatProgrammaticToolPort({ prepare } as never, { revokeConversation: vi.fn() }),
     armOuterDispatch,
     takeArmedToken,
     takeCompletedInvocationResult,
@@ -503,7 +507,7 @@ type TestHooks = Partial<ProcessControlCollaborators & ProcessInternalDiagnostic
   executionJournal?: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'> &
     Partial<NestedExecutionJournalWriter>
   toolSurface?: LoopRunRequestToolSurfaceBinding
-  programmaticToolParents?: Pick<ProgrammaticToolParentRegistry, 'prepare'>
+  programmaticToolParents?: Pick<ProgrammaticToolPort, 'prepare'>
 }
 
 function expectDeepchatEvent(eventName: string, payload: Record<string, unknown>): void {
@@ -1539,7 +1543,7 @@ describe('dispatch', () => {
           parents: parent.parents
         })
       ).toThrow('Programmatic Tool exec requires a CLI Programmatic Tool Surface')
-      expect(parent.parents.prepare).not.toHaveBeenCalled()
+      expect(parent.prepare).not.toHaveBeenCalled()
     })
 
     it('rejects Programmatic exec operation identity that conflicts with its request', () => {
@@ -1564,7 +1568,7 @@ describe('dispatch', () => {
           parents: parent.parents
         })
       ).toThrow('Programmatic Tool exec operation identity does not match its request')
-      expect(parent.parents.prepare).not.toHaveBeenCalled()
+      expect(parent.prepare).not.toHaveBeenCalled()
     })
 
     it('arms a Programmatic exec only after outer T1 and passes its exact parent authority', async () => {

@@ -94,7 +94,7 @@ local listener.
 - Access tokens, refresh tokens, auth codes, and client secrets never go to renderer state, logs,
   config sync, or MCP server config.
 - After successful auth, the MCP server restarts or reconnects and its tools/prompts/resources load
-  through the existing MCP presenter path.
+  through the existing `McpService` connection path.
 - Expired access tokens are refreshed through the SDK/provider path when a refresh token exists.
 - Invalid/expired credentials clear token status and return the card to the authenticate state.
 - Credentials are bound to immutable local server ID/config generation/binding hash, protected
@@ -164,7 +164,7 @@ an external browser auth flow is pending:
 
 - Keep new renderer-main capability on typed routes/events and `src/renderer/api/*Client`.
 - Keep user-facing strings in i18n.
-- Keep implementation inside the MCP presenter boundary unless a shared route/type is required.
+- Keep implementation inside the MCP module unless a shared route/type is required.
 - Prefer `node:http`, Web Crypto/Node crypto, Electron `safeStorage`, and the installed MCP SDK.
 - Use loopback only: `127.0.0.1` or `localhost`, never `0.0.0.0`.
 - Use a short auth timeout and always close the callback server.

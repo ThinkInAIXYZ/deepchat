@@ -34,6 +34,9 @@ vi.mock('@api/OrchestrationClient', () => ({
 vi.mock('@/stores/ui/session', () => ({
   useSessionStore: () => ({ selectSession })
 }))
+vi.mock('@/features/chat-session/store', () => ({
+  useChatSessionStore: () => ({ selectSession })
+}))
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key })

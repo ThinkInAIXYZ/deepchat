@@ -1,5 +1,4 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
-import logger from '@shared/logger'
 import type {
   DeepChatSessionState,
   ChatMessageRecord,
@@ -15,12 +14,12 @@ import {
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { isSendMessageInputEmpty } from '@/agent/shared/agentSessionNormalization'
-import type { SessionPendingInputs } from '@/session/data/pendingInputs'
-import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionPendingInputsPort } from '@/session/data/contracts'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
 import type {
-  AttachmentCapabilityRouter,
+  AttachmentPreparationPort,
   AttachmentPreparationResult
-} from '@/ocr/attachmentCapabilityRouter'
+} from '@shared/types/attachment'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { createAbortError, PENDING_INPUT_ABORT_REASON } from './abortErrors'
 import { supportsProviderVision } from './providerInputCapabilities'
@@ -31,7 +30,7 @@ import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { SessionStateResolver } from './sessionStateResolver'
 
 export type PendingInputAdmissionStorePort = Pick<
-  SessionPendingInputs,
+  SessionPendingInputsPort,
   | 'degradeBlockedInput'
   | 'deletePendingInput'
   | 'getInput'
@@ -82,8 +81,8 @@ export interface PendingInputAdmissionCoordinatorPorts {
   providerSettings: Pick<ProviderModelResolutionPort, 'getModelConfig'>
   pendingInputs: PendingInputAdmissionStorePort
   pump: PendingInputAdmissionPumpPort
-  transcript: Pick<SessionTranscript, 'getMessage'>
-  attachmentRouter: Pick<AttachmentCapabilityRouter, 'prepare'>
+  transcript: Pick<SessionTranscriptPort, 'getMessage'>
+  attachmentRouter: Pick<AttachmentPreparationPort, 'prepare'>
   sessionState: Pick<SessionStateResolver, 'get'>
   registry: SessionScopeRegistry
   sessionSettings: Pick<SessionSettingsCoordinator, 'resolveProjectDir'>
@@ -454,7 +453,7 @@ export class PendingInputAdmissionCoordinator {
       if (persisted?.mode !== 'queue' || persisted.state !== 'pending') {
         throw error
       }
-      logger.error(
+      console.error(
         `[DeepChatAgent] retry pending queue publication failed session=${sessionId}`,
         redactRuntimeErrorForLog(error)
       )
@@ -463,7 +462,7 @@ export class PendingInputAdmissionCoordinator {
     try {
       started = await this.ports.pump.drain(sessionId, 'manual')
     } catch (error) {
-      logger.error(
+      console.error(
         `[DeepChatAgent] retry pending queue drain failed session=${sessionId}`,
         redactRuntimeErrorForLog(error)
       )
@@ -630,7 +629,7 @@ export class PendingInputAdmissionCoordinator {
     try {
       claim.settle({ kind: 'release-before-user-fact' })
     } catch (releaseError) {
-      logger.error(
+      console.error(
         `[DeepChatAgent] failed to release pending input after admission failure item=${claim.id}`,
         redactRuntimeErrorForLog(releaseError)
       )

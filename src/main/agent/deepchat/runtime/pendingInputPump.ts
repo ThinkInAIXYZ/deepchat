@@ -1,4 +1,3 @@
-import logger from '@shared/logger'
 import type {
   DeepChatSessionState,
   PendingInputEnqueueSource,
@@ -10,8 +9,8 @@ import type {
   DeepChatAgentInstance,
   PendingQueueDrainLease
 } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import type { SessionPendingInputs } from '@/session/data/pendingInputs'
-import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionPendingInputsPort } from '@/session/data/contracts'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
 import {
   collectPendingInteractionEntries,
   parseAssistantBlocks,
@@ -31,7 +30,7 @@ import type {
 } from './pendingInputContracts'
 
 export type PendingInputPumpStorePort = Pick<
-  SessionPendingInputs,
+  SessionPendingInputsPort,
   | 'blockClaimedInput'
   | 'claimQueuedInput'
   | 'claimSteerInput'
@@ -81,7 +80,7 @@ export interface PendingInputTurnContext {
 
 export interface PendingInputPumpPorts {
   pendingInputs: PendingInputPumpStorePort
-  transcript: Pick<SessionTranscript, 'getMessages'>
+  transcript: Pick<SessionTranscriptPort, 'getMessages'>
   runLifecycle: PendingInputPumpLifecyclePort
   turnStarter: PendingInputTurnStarter
   sessionState: Pick<SessionStateResolver, 'get'>
@@ -125,7 +124,7 @@ class DurablePendingInputClaim implements ClaimedPendingInputHandle {
       this.fencedDisposition = disposition
       return result as ClaimedInputSettlementResult<TDisposition>
     } catch (error) {
-      // SessionPendingInputs persists before publishing. If publication throws, remember the
+      // SessionPendingInputsPort persists before publishing. If publication throws, remember the
       // durable outcome so Turn/Pump finalization never applies a second transition.
       let wasApplied = false
       try {
@@ -134,7 +133,7 @@ class DurablePendingInputClaim implements ClaimedPendingInputHandle {
         // The persistence boundary was crossed but its outcome cannot be observed. Fence the claim
         // conservatively so no caller can apply a second, potentially conflicting transition.
         this.fencedDisposition = disposition
-        logger.warn(
+        console.warn(
           `[DeepChatAgent] failed to verify pending input settlement session=${this.sessionId} item=${this.id}`,
           redactRuntimeErrorForLog(verificationError)
         )
@@ -379,7 +378,7 @@ export class PendingInputPump {
     const drainLease = scope?.instance.tryAcquirePendingQueueDrain() ?? null
     if (!scope || !drainLease) {
       const released = this.tryRelease(claim)
-      logger.error(
+      console.error(
         `[DeepChatAgent] pending input start rejected session=${record.sessionId} stage=adopt-claim`
       )
       if (released) {
@@ -501,7 +500,7 @@ export class PendingInputPump {
 
   schedule(sessionId: string, reason: PendingInputWakeReason): void {
     void this.drain(sessionId, reason).catch((error) => {
-      logger.error(
+      console.error(
         `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason}`,
         redactRuntimeErrorForLog(error)
       )
@@ -668,7 +667,7 @@ export class PendingInputPump {
       claim.settle({ kind: 'release-before-user-fact' })
       return true
     } catch (error) {
-      logger.warn(
+      console.warn(
         `[DeepChatAgent] failed to release claimed pending input item=${claim.id}`,
         redactRuntimeErrorForLog(error)
       )
@@ -763,7 +762,7 @@ export class PendingInputPump {
     stage: string,
     error: unknown
   ): void {
-    logger.error(
+    console.error(
       `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason} stage=${stage}`,
       redactRuntimeErrorForLog(error)
     )

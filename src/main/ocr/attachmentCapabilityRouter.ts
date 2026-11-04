@@ -1,4 +1,13 @@
 import type {
+  AttachmentPreparationPort,
+  AttachmentPreparationInput,
+  AttachmentPreparationResult
+} from '@shared/types/attachment'
+export type {
+  AttachmentPreparationInput,
+  AttachmentPreparationResult
+} from '@shared/types/attachment'
+import type {
   AttachmentPreparationAction,
   AttachmentPreparationIssue,
   AttachmentPreparationSummary,
@@ -74,20 +83,6 @@ export interface AttachmentRoutingDiagnostic {
   durationMs?: number
 }
 
-export interface AttachmentPreparationInput {
-  content: SendMessageInput
-  supportsVision: boolean
-  signal?: AbortSignal
-  reusePreparedAttachmentRepresentations?: boolean
-  preserveResolvedRepresentations?: boolean
-  emitDiagnostics?: boolean
-}
-
-export interface AttachmentPreparationResult {
-  content: SendMessageInput
-  summary: AttachmentPreparationSummary
-}
-
 interface OcrCandidate {
   attachmentIndex: number
   file: MessageFile
@@ -98,7 +93,7 @@ type OcrDiagnosticContext = Omit<
   'attachmentIndex' | 'representation' | 'tokenCount' | 'characterCount' | 'truncated'
 >
 
-export class AttachmentCapabilityRouter {
+export class AttachmentCapabilityRouter implements AttachmentPreparationPort {
   constructor(private readonly options: AttachmentCapabilityRouterOptions) {}
 
   async prepare(input: AttachmentPreparationInput): Promise<AttachmentPreparationResult> {

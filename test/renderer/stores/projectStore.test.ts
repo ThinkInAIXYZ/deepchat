@@ -116,6 +116,13 @@ describe('projectStore snapshot ownership', () => {
     expect(store.environments.value.map((item) => item.path)).toEqual(['/work/active'])
     expect(store.archivedEnvironments.value.map((item) => item.path)).toEqual(['/work/archived'])
     expect(store.removedEnvironments.value.map((item) => item.path)).toEqual(['/work/removed'])
+
+    projectClient.getSnapshot.mockRejectedValueOnce(new Error('snapshot failed'))
+    await expect(store.refreshProjectSnapshot()).resolves.toBe(false)
+    expect(store.environments.value.map((item) => item.path)).toEqual(['/work/active'])
+    expect(store.archivedEnvironments.value.map((item) => item.path)).toEqual(['/work/archived'])
+    expect(store.removedEnvironments.value.map((item) => item.path)).toEqual(['/work/removed'])
+    expect(store.defaultProjectPath.value).toBe('/work/default')
   })
 
   it('refreshes the project snapshot after setting the default workspace', async () => {
@@ -139,7 +146,7 @@ describe('projectStore snapshot ownership', () => {
     projectClient.getSnapshot.mockReturnValueOnce(pending.promise)
 
     const first = store.refreshProjectSnapshot()
-    const second = store.fetchProjects()
+    const second = store.refreshProjectSnapshot()
     expect(projectClient.getSnapshot).toHaveBeenCalledTimes(1)
 
     pending.resolve(snapshot(1))

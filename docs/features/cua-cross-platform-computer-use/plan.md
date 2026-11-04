@@ -2,7 +2,7 @@
 
 > Historical implementation plan for the 0.7.1 cross-platform rollout. The 0.12.6 upgrade,
 > on-demand discovery, lifecycle ownership, migration, environment, and integrity work are
-> implemented under `docs/architecture/plugin-external-runtime-lifecycle/plan.md`; its native
+> implemented under `docs/architecture/plugin-external-runtime-lifecycle/spec.md`; its native
 > release gates remain pending.
 
 ## Design Principles

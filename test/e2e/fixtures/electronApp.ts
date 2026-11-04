@@ -296,6 +296,18 @@ export const test = base.extend<ElectronFixtures>({
         timeout: 120_000
       })
 
+      // Development-only panels change native content bounds and can intercept UI automation.
+      await electronApp.evaluate(({ app, webContents }) => {
+        const closeDevTools = (contents: Electron.WebContents) => {
+          contents.on('devtools-opened', () => {
+            if (!contents.isDestroyed()) contents.closeDevTools()
+          })
+          contents.closeDevTools()
+        }
+        for (const contents of webContents.getAllWebContents()) closeDevTools(contents)
+        app.on('web-contents-created', (_event, contents) => closeDevTools(contents))
+      })
+
       let closeOutcomePromise: Promise<'graceful' | 'forced'> | undefined
       const app: ElectronAppInstance = {
         electronApp,

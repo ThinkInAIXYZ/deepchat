@@ -1,3 +1,4 @@
+import { providerDbLoader } from '@/provider/providerDbLoader'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 
@@ -16,14 +17,34 @@ import {
   buildCompactionUsageStatsRecord,
   buildUsageDashboardCalendar,
   buildUsageStatsRecord,
-  getModelLabel,
-  getProviderLabel,
   isUsageBackfillRunningStale,
   normalizeUsageStatsBackfillStatus,
   parseMessageMetadata,
   resolveUsageModelId,
   resolveUsageProviderId
 } from './usageStats'
+
+function getProviderLabel(
+  providerCatalog: Pick<ProviderSettingsPort, 'getProviders' | 'getProviderById'>,
+  providerId: string
+): string {
+  const provider =
+    providerCatalog.getProviders().find((item) => item.id === providerId) ??
+    providerCatalog.getProviderById(providerId)
+
+  if (provider?.name?.trim()) {
+    return provider.name.trim()
+  }
+
+  const dbProvider = providerDbLoader.getProvider(providerId)
+  return dbProvider?.display_name || dbProvider?.name || providerId
+}
+
+function getModelLabel(providerId: string, modelId: string): string {
+  const model =
+    providerDbLoader.getModel(providerId, modelId) ?? providerDbLoader.getModel('aihubmix', modelId)
+  return model?.display_name || model?.name || modelId
+}
 
 export class UsageStatsService {
   private backfillPromise: Promise<void> | null = null

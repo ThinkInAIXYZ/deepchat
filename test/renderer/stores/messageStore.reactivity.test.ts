@@ -8,8 +8,9 @@ describe('messageStore reactivity', () => {
 
   it('forwards stream state reactively from the stream store', async () => {
     vi.doUnmock('pinia')
-    const { createPinia, setActivePinia } = await import('pinia')
-    setActivePinia(createPinia())
+    const { createPinia, setActivePinia, disposePinia } = await import('pinia')
+    const pinia = createPinia()
+    setActivePinia(pinia)
 
     const sessionClient = {
       restore: vi.fn().mockResolvedValue({
@@ -57,6 +58,7 @@ describe('messageStore reactivity', () => {
 
     const { useMessageStore } = await import('@/stores/ui/message')
     const store = useMessageStore()
+    store.connect()
 
     store.setCurrentSessionId('s1')
     await store.loadMessages('s1')
@@ -83,5 +85,6 @@ describe('messageStore reactivity', () => {
     expect(store.currentStreamMessageId).toBe('__rate_limit__:s1:1')
     expect(store.streamingBlocks).toHaveLength(1)
     expect(store.streamRevision).toBeGreaterThan(0)
+    disposePinia(pinia)
   })
 })

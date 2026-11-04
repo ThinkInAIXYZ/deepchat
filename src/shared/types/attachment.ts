@@ -1,3 +1,4 @@
+import type { SendMessageInput } from './agent-interface'
 export const ATTACHMENT_REPRESENTATION_PREFERENCES = [
   'auto',
   'image',
@@ -106,3 +107,26 @@ export interface AttachmentPreparationSummary {
 
 export const ATTACHMENT_OCR_MAX_TEXT_CHARACTERS = 128_000
 export const ATTACHMENT_OCR_MAX_TOKENS = 8_000
+
+export interface AttachmentPreparationInput {
+  content: SendMessageInput
+  supportsVision: boolean
+  signal?: AbortSignal
+  reusePreparedAttachmentRepresentations?: boolean
+  preserveResolvedRepresentations?: boolean
+  emitDiagnostics?: boolean
+}
+
+export interface AttachmentPreparationResult {
+  content: SendMessageInput
+  summary: AttachmentPreparationSummary
+}
+
+export interface AttachmentPreparationPort {
+  prepare(input: AttachmentPreparationInput): Promise<AttachmentPreparationResult>
+}
+
+export interface CacheImageOptions {
+  signal?: AbortSignal
+  allowPrivateNetwork?: boolean
+}

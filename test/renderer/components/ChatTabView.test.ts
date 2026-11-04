@@ -72,8 +72,7 @@ const setup = async (options: SetupOptions = {}) => {
     selectedProject: null as { path: string } | null,
     selectProject: vi.fn(),
     applyBootstrapDefaultProjectPath: vi.fn(),
-    loadDefaultProjectPath: vi.fn().mockResolvedValue(undefined),
-    fetchProjects: vi.fn().mockResolvedValue(undefined)
+    refreshProjectSnapshot: vi.fn().mockResolvedValue(undefined)
   })
   const modelStore = {
     initialize: vi.fn().mockResolvedValue(undefined)
@@ -88,6 +87,9 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@/stores/ui/draft', () => ({ useDraftStore: () => draftStore }))
   vi.doMock('@/stores/ui/session', () => ({
     useSessionStore: () => sessionStore
+  }))
+  vi.doMock('@/features/chat-session/store', () => ({
+    useChatSessionStore: () => sessionStore
   }))
   vi.doMock('@/stores/ui/agent', () => ({
     useAgentStore: () => agentStore
@@ -364,7 +366,7 @@ describe('ChatTabView startup and routing', () => {
     })
     expect(markStartupInteractive).toHaveBeenCalledTimes(1)
     expect(agentStore.fetchAgents).toHaveBeenCalledTimes(1)
-    expect(projectStore.fetchProjects).toHaveBeenCalledTimes(1)
+    expect(projectStore.refreshProjectSnapshot).toHaveBeenCalledTimes(1)
   })
 
   it('falls back to route recovery when the session snapshot is unusable', async () => {

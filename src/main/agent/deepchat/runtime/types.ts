@@ -17,10 +17,9 @@ import type {
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/types/provider'
 import type { DeepChatProviderAttemptIdentity } from '@shared/types/provider-attempt'
-import type { DeepchatEventName } from '@shared/contracts/events'
-import type { DeepChatInternalSessionUpdate } from './sessionUpdates'
-import type { SessionTranscript } from '@/session/data/transcript'
-import type { CacheImageOptions } from '@/platform/imageCache'
+import type { DeepChatOutputPort } from './output'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
+import type { CacheImageOptions } from '@shared/types/attachment'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type {
   DeepChatLoopNotificationObserver,
@@ -43,7 +42,7 @@ import type {
 } from '@/tape/domain/executionJournal'
 import type { SessionPermissionGrant } from '@/session/contracts'
 import type { ToolSurfaceDeferredDispatchBindingV1 } from './toolSurface'
-import type { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
+import type { ProgrammaticToolPort } from '@/agent/deepchat/runtime/programmaticExecParent'
 
 interface RunJournalObservationIdentity {
   runId: string
@@ -141,25 +140,18 @@ export interface StreamState {
   blocksRevision: number
 }
 
-export type DeepChatEventPublisher = (name: DeepchatEventName, payload: unknown) => void
-export type DeepChatSessionUpdatePublisher = (update: DeepChatInternalSessionUpdate) => void
-
 export interface IoParams {
   sessionId: string
   requestId: string
   messageId: string
   providerId: string
   modelId: string
-  messageStore: SessionTranscript
+  messageStore: SessionTranscriptPort
   abortSignal: AbortSignal
-  publishEvent: DeepChatEventPublisher
-  publishSessionUpdate: DeepChatSessionUpdatePublisher
+  output: DeepChatOutputPort
 }
 
-export type ProcessIoParams = Pick<
-  IoParams,
-  'messageStore' | 'publishEvent' | 'publishSessionUpdate'
-> & {
+export type ProcessIoParams = Pick<IoParams, 'messageStore' | 'output'> & {
   tapeToolFactWriter: TapeToolFactWriter
   executionJournalWriter: Pick<ExecutionJournalWriter, 'commitDispatch' | 'commitToolOutcome'> &
     Partial<NestedExecutionJournalWriter>
@@ -345,7 +337,7 @@ export interface ProcessParams {
   notificationObserver?: DeepChatLoopNotificationObserver
   controls?: ProcessControlCollaborators
   diagnostics?: ProcessInternalDiagnostics
-  programmaticToolParents?: Pick<ProgrammaticToolParentRegistry, 'prepare'>
+  programmaticToolParents?: Pick<ProgrammaticToolPort, 'prepare'>
   commitRunTerminal(selection: ProcessTerminalSelection): void
   io: ProcessIoParams
 }

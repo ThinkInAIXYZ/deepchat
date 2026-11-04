@@ -297,6 +297,7 @@
 </template>
 
 <script setup lang="ts">
+import { useChatSessionStore } from '@/features/chat-session/store'
 import { computed, nextTick, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -330,7 +331,6 @@ import {
 } from '@/components/chat/attachmentModelPicker'
 import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort'
 import { useProjectStore } from '@/stores/ui/project'
-import { useSessionStore } from '@/stores/ui/session'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useModelStore } from '@/stores/modelStore'
 import { useDraftStore, type StartDeeplinkPayload } from '@/stores/ui/draft'
@@ -371,7 +371,7 @@ import {
 } from '@/lib/chatModelSelection'
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
-import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
+import { prepareFilesForModel } from '@/lib/audioInputSupport'
 import { isAbortError } from '@/lib/errors'
 import { isAttachmentPreparationCandidate } from '@shared/utils/attachmentRepresentation'
 import { normalizeWorkspacePath } from '@shared/utils/filesystem'
@@ -379,7 +379,7 @@ import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRec
 import { cancelChatInputHeroFlight, prepareChatInputHeroFlight } from '@/lib/chatInputHero'
 
 const projectStore = useProjectStore()
-const sessionStore = useSessionStore()
+const chatSessionStore = useChatSessionStore()
 const agentStore = useAgentStore()
 const modelStore = useModelStore()
 const draftStore = useDraftStore()
@@ -1338,12 +1338,12 @@ async function submitText(
     }
 
     if (isAcp && targetAcpSessionId) {
-      await sessionStore.selectSession(targetAcpSessionId)
+      await chatSessionStore.selectSession(targetAcpSessionId)
       if (submission.cancelled) {
         if (preparedHeroFlight) cancelChatInputHeroFlight()
         return false
       }
-      await sessionStore.sendMessage(targetAcpSessionId, messagePayload)
+      await chatSessionStore.sendMessage(targetAcpSessionId, messagePayload)
       void sessionClient.discardDraftSession(targetAcpSessionId).catch((error) => {
         console.warn('[NewThreadPage] Failed to release promoted ACP draft ownership:', error)
       })
@@ -1403,9 +1403,9 @@ async function submitText(
     let accepted = false
     try {
       if (submissionOptions) {
-        await sessionStore.createSession(createInput, submissionOptions)
+        await chatSessionStore.createSession(createInput, submissionOptions)
       } else {
-        await sessionStore.createSession(createInput)
+        await chatSessionStore.createSession(createInput)
       }
       accepted = true
     } finally {
@@ -1468,7 +1468,7 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   const globalDefaultProjectPath = normalizeProjectPath(projectStore.defaultProjectPath)
   const currentProjectPath = normalizeProjectPath(projectStore.selectedProject?.path)
   const selectedProjectSource = projectStore.selectionSource
-  const pendingProjectDirIntent = sessionStore.newConversationProjectDirIntent
+  const pendingProjectDirIntent = chatSessionStore.newConversationProjectDirIntent
   const projectDirIntent =
     pendingProjectDirIntent && !pendingProjectDirIntent.consumed
       ? {
@@ -1516,7 +1516,7 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
     draftStore.permissionMode = 'full_access'
     draftStore.disabledAgentTools = []
     if (projectDirIntent) {
-      sessionStore.consumeNewConversationProjectDirIntent(projectDirIntent.id)
+      chatSessionStore.consumeNewConversationProjectDirIntent(projectDirIntent.id)
     }
     return
   }
@@ -1557,7 +1557,7 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   }
   Object.assign(draftStore, buildDraftGenerationSettings(config))
   if (projectDirIntent) {
-    sessionStore.consumeNewConversationProjectDirIntent(projectDirIntent.id)
+    chatSessionStore.consumeNewConversationProjectDirIntent(projectDirIntent.id)
   }
 }
 
@@ -1581,48 +1581,13 @@ function onToggleVoiceInput() {
   void voiceInput.toggle()
 }
 
-function notifyUnsupportedAudioAttachments(
-  selection: { providerId: string; modelId: string },
-  rejectedAudioFiles: MessageFile[]
-) {
-  if (rejectedAudioFiles.length === 0) {
-    return
-  }
-
-  const modelLabel =
-    modelStore.findChatSelectableModel(selection.providerId, selection.modelId)?.model.name ??
-    selection.modelId
-
-  notifyRenderer({
-    kind: 'warning',
-    code: 'chat.audio.unsupported',
-    title: t('chat.input.audioInputUnsupportedTitle'),
-    description: t('chat.input.audioInputUnsupportedDescription', {
-      count: rejectedAudioFiles.length,
-      model: modelLabel
-    })
-  })
-}
-
 async function prepareFilesForCurrentModel(files: MessageFile[]): Promise<MessageFile[]> {
-  const selection = await resolveSubmissionModelSelection()
-  if (!selection || files.length === 0) {
-    return files
-  }
-
-  try {
-    const capabilities = await modelClient.getCapabilities(selection)
-    if (capabilities.supportsAudioInput) {
-      return files
-    }
-
-    const { acceptedFiles, rejectedAudioFiles } = filterUnsupportedAudioAttachments(files, false)
-    notifyUnsupportedAudioAttachments(selection, rejectedAudioFiles)
-    return acceptedFiles
-  } catch (error) {
-    console.warn('[NewThreadPage] Failed to resolve audio input capability:', error)
-    return files
-  }
+  return prepareFilesForModel(files, await resolveSubmissionModelSelection(), {
+    modelClient,
+    modelStore,
+    notify: notifyRenderer,
+    t
+  })
 }
 
 async function onFilesChange(files: MessageFile[]) {
@@ -1848,7 +1813,7 @@ watch(
   [
     () => selectedAgent.value.id,
     () => selectedAgent.value.type,
-    () => sessionStore.newConversationProjectDirIntent?.id ?? 0
+    () => chatSessionStore.newConversationProjectDirIntent?.id ?? 0
   ],
   () => {
     const requestSeq = ++draftDefaultsRequestSeq

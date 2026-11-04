@@ -1,8 +1,4 @@
-import logger from '@shared/logger'
-import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
-import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { DeepChatContextCoordinator } from '@/agent/deepchat/loop/contextCoordinator'
 import { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
 import { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
@@ -52,7 +48,6 @@ import type {
   ExecutionRecoveryReport
 } from '@/tape/domain/executionJournal'
 import type { ExecutionJournalRecoveryReader } from '@/tape/ports/capabilities'
-import { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
 import {
   createDeepChatLoopTapePort,
   createSkillContextTapePort
@@ -130,9 +125,9 @@ function reportStartupExecutionRecovery(
   for (const report of candidates.slice(0, MAX_STARTUP_RECOVERY_DETAILS)) {
     const diagnostic = buildStartupRecoveryDiagnostic(report)
     if (report.classification === 'corruption') {
-      logger.error('[DeepChatAgent] Execution Journal recovery candidate parked', diagnostic)
+      console.error('[DeepChatAgent] Execution Journal recovery candidate parked', diagnostic)
     } else {
-      logger.warn('[DeepChatAgent] Execution Journal recovery candidate parked', diagnostic)
+      console.warn('[DeepChatAgent] Execution Journal recovery candidate parked', diagnostic)
     }
   }
   if (candidates.length <= MAX_STARTUP_RECOVERY_DETAILS) return forceRecoverMessagesBySession
@@ -153,9 +148,9 @@ function reportStartupExecutionRecovery(
     automaticRetry: false as const
   }
   if (classificationCounts.corruption > 0) {
-    logger.error('[DeepChatAgent] Execution Journal recovery diagnostics truncated', summary)
+    console.error('[DeepChatAgent] Execution Journal recovery diagnostics truncated', summary)
   } else {
-    logger.warn('[DeepChatAgent] Execution Journal recovery diagnostics truncated', summary)
+    console.warn('[DeepChatAgent] Execution Journal recovery diagnostics truncated', summary)
   }
   return forceRecoverMessagesBySession
 }
@@ -170,38 +165,35 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     attachmentRouter,
     cacheImage,
     commandShell,
-    database,
     diagnosticNow,
     hookObserver,
     providerRuntime,
     providerSettings,
-    publishEvent,
-    publishSessionUpdate,
+    output,
     runJournalObserver,
-    sessionData,
+    sessionSettings: sessionStore,
+    transcript: messageStore,
+    tape: tapeService,
+    pendingInputs: pendingInputCoordinator,
+    programmaticExecutionJournal,
     sessionPermissionPort,
     skillService,
     skillSettings,
     toolService,
     traceSettings
   } = deps
-  const sessionStore = sessionData.settings
-  const messageStore = sessionData.transcript
-  const tapeService = sessionData.tapeStore
-  const pendingInputCoordinator = sessionData.pendingInputs
 
   const runtime = new DeepChatAgentRuntime()
-  const identity = new SessionIdentityService({ registry: runtime, database })
+  const identity = new SessionIdentityService({ registry: runtime, sessions: sessionStore })
   const messageProjection = new MessageProjectionService({
     registry: runtime,
     transcript: messageStore,
-    publishEvent,
-    publishSessionUpdate
+    output
   })
   const toolResolver = new DeepChatToolResolver({
     agentSettings,
     skillSettings,
-    sqlitePresenter: database,
+    sessions: sessionStore,
     toolService,
     skillService,
     registry: runtime,
@@ -214,12 +206,11 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     getNextMessageOrderSeq: (sessionId) => messageStore.getNextOrderSeq(sessionId),
     getMessagesUpToOrderSeq: (sessionId, orderSeq) =>
       messageStore.getMessagesUpToOrderSeq(sessionId, orderSeq),
-    getMemoryCursorOrderSeq: (sessionId) =>
-      database.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId),
+    getMemoryCursorOrderSeq: (sessionId) => sessionStore.getMemoryCursorOrderSeq(sessionId),
     updateMemoryCursorOrderSeq: (sessionId, orderSeq) =>
-      database.deepchatSessionsTable.updateMemoryCursorOrderSeq(sessionId, orderSeq),
+      sessionStore.updateMemoryCursorOrderSeq(sessionId, orderSeq),
     rewindMemoryCursorOrderSeq: (sessionId, orderSeq) =>
-      database.deepchatSessionsTable.rewindMemoryCursorOrderSeq(sessionId, orderSeq),
+      sessionStore.rewindMemoryCursorOrderSeq(sessionId, orderSeq),
     tapeReader: tapeService,
     tapeAnchorWriter: tapeService,
     getIngestionProjection: deps.getMemoryIngestionProjection
@@ -235,7 +226,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     beginSessionAgentReassignment: async (sessionId) =>
       await memory.beginSessionAgentReassignment(sessionId),
     finishSessionAgentReassignment: (sessionId) => memory.finishSessionAgentReassignment(sessionId),
-    readPersistedProjectDir: (sessionId) => database.newSessionsTable?.get(sessionId)?.project_dir
+    readPersistedProjectDir: (sessionId) => sessionStore.getIdentity(sessionId)?.projectDir
   })
   const promptAssembly = new PromptAssemblyService({
     registry: runtime,
@@ -259,15 +250,13 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   const runLifecycle = new RunLifecycleCoordinator({
     runtime,
     statusPublisher: new SessionStatusPublisher({
-      publishEvent,
-      publishSessionUpdate,
-      sessionUiPort: deps.sessionUiPort
+      publishStatus: deps.publishStatus
     }),
     transcript: messageStore,
     messageProjection,
     terminalObserver: hookSink,
     pendingInputWakeup: pendingInputWakeup.wakeup,
-    programmaticAuthority: deps.agentCliTokenAuthority
+    programmaticAuthority: deps.programmaticTools
   })
   const sessionState = new SessionStateResolver({
     registry: runtime,
@@ -283,7 +272,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     tape: tapeService
   })
   const providerPermissionCoordinator = new ProviderPermissionCoordinator({
-    publishEvent,
+    output,
     messageStore,
     runLifecycle,
     permissionPort: deps.acpAsLlmProviderPermission,
@@ -299,7 +288,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   )
   const compaction = new CompactionRuntimeCoordinator({
     pluginContext: deps.pluginContext,
-    publishEvent,
+    output,
     compactionService,
     sessionStore,
     messageStore,
@@ -317,12 +306,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   const interactionParking = new InteractionParkingRegistry()
   const toolSurfaceDiagnostics = new ToolSurfaceShadowDiagnosticsRegistry()
   const toolSurfaceCanaryDiagnostics = new ToolSurfaceCanaryDiagnosticsRegistry()
-  const programmaticToolParents =
-    deps.programmaticToolParents ??
-    new ProgrammaticToolParentRegistry({
-      tokenAuthority: deps.agentCliTokenAuthority,
-      executionJournal: sessionData.programmaticExecutionJournal
-    })
+  const programmaticToolParents = deps.programmaticTools
   const pruningFeedback = new JevPruningFeedback()
   const sessionLifecycle = new SessionLifecycleCoordinator({
     registry: runtime,
@@ -390,14 +374,13 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   })
   const loopRunner = new DeepChatLoopRunner({
     pluginContext: deps.pluginContext,
-    publishEvent,
-    publishSessionUpdate,
+    output,
     providerRuntime,
     providerSettings,
     traceSettings,
     sessionStore,
     messageStore,
-    tape: createDeepChatLoopTapePort(tapeService, sessionData.programmaticExecutionJournal),
+    tape: createDeepChatLoopTapePort(tapeService, programmaticExecutionJournal),
     pendingInputCoordinator,
     toolResolver,
     providerPermissionCoordinator,
@@ -428,7 +411,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
   })
   const turnCoordinator = new TurnCoordinator({
     pluginContext: deps.pluginContext,
-    publishEvent,
+    output,
     providerRuntime,
     providerSettings,
     traceSettings,
@@ -481,7 +464,7 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     sessionSettings
   })
   const interactionCoordinator = new InteractionCoordinator({
-    publishEvent,
+    output,
     messageStore,
     providerPermissionCoordinator,
     skillService,
@@ -509,80 +492,12 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     toolSurfaceDiagnostics
   })
 
-  const acpCompatibility: AcpAgentInstanceDependencyFactory = (input) =>
-    createAcpCompatibilityDependencies(
-      {
-        publishEvent,
-        publishSessionUpdate,
-        providerSettings,
-        traceSettings,
-        providerRuntime,
-        sessionStore,
-        messageStore,
-        tapeReconciliation: tapeService,
-        toolResolver,
-        appendViewManifest: (manifest) =>
-          loopRunner.commitTapeProviderView({
-            sessionId: manifest.sessionId,
-            messageId: manifest.messageId,
-            requestSeq: manifest.requestSeq,
-            taskType: manifest.taskType,
-            policy: manifest.policy,
-            policyVersion: manifest.policyVersion,
-            contextBuilderVersion: 'legacy-v1',
-            messages: manifest.messages,
-            tools: manifest.localToolDefinitions,
-            tokenBudget: manifest.tokenBudget,
-            providerId: manifest.providerId,
-            modelId: manifest.modelId,
-            summaryCursorOrderSeq: manifest.summaryCursorOrderSeq,
-            supportsVision: manifest.supportsVision,
-            supportsAudioInput: manifest.supportsAudioInput,
-            traceDebugEnabled: manifest.traceDebugEnabled,
-            programmaticToolCapability: null
-          }),
-        setStatus: (sessionId, status) => runLifecycle.transitionCurrentStatus(sessionId, status),
-        getSessionState: async (sessionId) => await sessionState.get(sessionId),
-        getDeepChatInstance: (sessionId) =>
-          runtime.getOrHydrateScope(toAppSessionId(sessionId)).instance,
-        getGenerationSettings: async (sessionId, instance) =>
-          await sessionSettings.getEffectiveGenerationSettings(sessionId, instance),
-        buildSystemPrompt: async (
-          sessionId,
-          basePrompt,
-          tools,
-          activeSkills,
-          sessionActiveSkills,
-          contextLength,
-          instance
-        ) =>
-          await promptAssembly.build(
-            sessionId,
-            basePrompt,
-            tools,
-            await commandShell.resolveForTurn(),
-            activeSkills,
-            instance,
-            {
-              sessionActiveSkillNamesOverride: sessionActiveSkills,
-              contextLength
-            }
-          ),
-        emitRateLimitWaitingMessage: (sessionId, messageId, requestId, snapshot) =>
-          loopRunner.emitRateLimitWaitingMessage(sessionId, messageId, requestId, snapshot),
-        clearRateLimitWaitingMessage: (sessionId, messageId, requestId) =>
-          loopRunner.clearRateLimitWaitingMessage(sessionId, messageId, requestId),
-        hookSink
-      },
-      input
-    )
-
   const reconcilePersistedRuntimeState = (): void => {
     const forceRecoverMessagesBySession = reportStartupExecutionRecovery(tapeService)
     const pendingInputRecovery = pendingInputCoordinator.recoverInputsAfterRestart()
     pendingInputPump.replaceRestartedQueueInputs(pendingInputRecovery.heldQueueInputIds)
     if (pendingInputRecovery.affectedSessionIds.size > 0) {
-      logger.info(
+      console.info(
         `DeepChatAgent: reconciled ${pendingInputRecovery.affectedSessionIds.size} sessions with pending inputs`
       )
     }
@@ -593,14 +508,14 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
       compactionRecovery.retracted > 0 ||
       compactionRecovery.failed > 0
     ) {
-      logger.info(
+      console.info(
         `DeepChatAgent: reconciled ${compactionRecovery.compacted} committed, ${compactionRecovery.retracted} stale, and ${compactionRecovery.failed} failed compaction markers`
       )
     }
 
     const recovered = messageStore.recoverPendingMessages({ forceRecoverMessagesBySession })
     if (recovered > 0) {
-      logger.info(`DeepChatAgent: recovered ${recovered} pending messages to error status`)
+      console.info(`DeepChatAgent: recovered ${recovered} pending messages to error status`)
     }
   }
   reconcilePersistedRuntimeState()
@@ -620,7 +535,6 @@ function createDeepChatRuntimeServices(deps: DeepChatHarnessDependencies): DeepC
     memoryIngestionObserver: memory,
     toolSurfaceDiagnostics,
     toolSurfaceCanaryDiagnostics,
-    acpCompatibility,
     reconcileAfterDatabaseReopen: reconcilePersistedRuntimeState
   }
 }

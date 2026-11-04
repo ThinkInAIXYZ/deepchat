@@ -1,3 +1,19 @@
+import type {
+  SessionSettingsPort,
+  SessionSummaryState,
+  ReconstructionAnchorPromptState,
+  SummaryStateCompareAndSetResult,
+  SummaryTapeAnchorInput
+} from './contracts'
+export type {
+  SessionSummaryState,
+  ReconstructionAnchorPromptState,
+  SummaryStateCompareAndSetResult,
+  SummaryTapeAnchorInput
+} from './contracts'
+import type { SessionResourceReadPort } from './contracts'
+import { normalizeOrchestrationPolicy } from '@shared/orchestration/policy'
+import { normalizeToolModeOverride } from '@shared/toolMode'
 import { SessionDatabase } from './database'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { DeepChatSessionSummaryRow } from '@/session/data/tables/deepchatSessions'
@@ -7,30 +23,6 @@ import type {
   TapeAnchorWriter,
   TapeLifecycleAdmin
 } from '@/tape/ports/capabilities'
-
-export type SessionSummaryState = {
-  summaryText: string | null
-  summaryCursorOrderSeq: number
-  summaryUpdatedAt: number | null
-}
-
-export type ReconstructionAnchorPromptState = {
-  entryId: number
-  name: string
-  state: Record<string, unknown>
-  createdAt: number
-}
-
-export type SummaryStateCompareAndSetResult = {
-  applied: boolean
-  currentState: SessionSummaryState
-}
-
-export type SummaryTapeAnchorInput = {
-  name: string
-  state: Record<string, unknown>
-  meta?: Record<string, unknown>
-}
 
 function normalizeSummaryState(row: DeepChatSessionSummaryRow | null): SessionSummaryState {
   return {
@@ -137,7 +129,7 @@ function summaryStatesEqual(left: SessionSummaryState, right: SessionSummaryStat
   )
 }
 
-export class SessionSettingsStore {
+export class SessionSettingsStore implements SessionSettingsPort {
   private database: SessionDatabase
   private readonly tape: TapeAnchorReader & TapeAnchorWriter & TapeLifecycleAdmin
 
@@ -168,6 +160,46 @@ export class SessionSettingsStore {
 
   get(id: string) {
     return this.database.deepchatSessionsTable.get(id)
+  }
+
+  getIdentity(sessionId: string): ReturnType<SessionResourceReadPort['getIdentity']> {
+    const row = this.database.newSessionsTable.get(sessionId)
+    return row
+      ? {
+          agentId: row.agent_id?.trim() || undefined,
+          parentSessionId: row.parent_session_id ?? undefined,
+          kind: row.session_kind ?? null,
+          projectDir: row.project_dir
+        }
+      : null
+  }
+
+  getOrchestrationPolicy(sessionId: string) {
+    return normalizeOrchestrationPolicy(
+      this.database.newSessionsTable.get(sessionId)?.orchestration_policy
+    )
+  }
+
+  getToolModeOverride(sessionId: string) {
+    return normalizeToolModeOverride(
+      this.database.newSessionsTable.get(sessionId)?.tool_mode_override
+    )
+  }
+
+  getDisabledAgentTools(sessionId: string): string[] {
+    return this.database.newSessionsTable.getDisabledAgentTools(sessionId)
+  }
+
+  getMemoryCursorOrderSeq(sessionId: string): number | null {
+    return this.database.deepchatSessionsTable.getMemoryCursorOrderSeq(sessionId)
+  }
+
+  updateMemoryCursorOrderSeq(sessionId: string, orderSeq: number): void {
+    this.database.deepchatSessionsTable.updateMemoryCursorOrderSeq(sessionId, orderSeq)
+  }
+
+  rewindMemoryCursorOrderSeq(sessionId: string, orderSeq: number): void {
+    this.database.deepchatSessionsTable.rewindMemoryCursorOrderSeq(sessionId, orderSeq)
   }
 
   delete(id: string): void {

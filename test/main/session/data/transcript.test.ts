@@ -2,16 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SessionTranscript } from '@/session/data/transcript'
 import { SessionTape } from '@/tape/application/sessionTape'
 import { cloneBlocksForRenderer } from '@/session/clientMessageProjection'
-import logger from '@shared/logger'
 import type { UserMessageContent } from '@shared/types/agent-interface'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
-vi.mock('@shared/logger', () => ({
-  default: {
-    error: vi.fn(),
-    warn: vi.fn()
-  }
-}))
 
 function createMockSqlitePresenter() {
   return {
@@ -171,6 +164,12 @@ describe('SessionTranscript', () => {
   let store: SessionTranscript
 
   beforeEach(() => {
+    vi.spyOn(console, 'warn')
+      .mockReset()
+      .mockImplementation(() => {})
+    vi.spyOn(console, 'error')
+      .mockReset()
+      .mockImplementation(() => {})
     sqlitePresenter = createMockSqlitePresenter()
     store = new SessionTranscript(sqlitePresenter, new SessionTape(sqlitePresenter))
   })
@@ -449,7 +448,7 @@ describe('SessionTranscript', () => {
       expect(store.listMessagesPage('s1', { limit: 10 }).messages).toEqual([
         expect.objectContaining({ id: 'm1', hasNestedExecutionAudit: false })
       ])
-      expect(logger.warn).toHaveBeenCalledWith(
+      expect(console.warn).toHaveBeenCalledWith(
         'Failed to project nested execution audit availability',
         { sessionId: 's1' },
         expect.any(Error)
@@ -668,7 +667,7 @@ describe('SessionTranscript', () => {
           })
         )
       ).not.toThrow()
-      expect(logger.error).toHaveBeenCalledWith(
+      expect(console.error).toHaveBeenCalledWith(
         'Failed to persist deepchat usage stats',
         { messageId: 'm1', source: 'live' },
         expect.any(Error)

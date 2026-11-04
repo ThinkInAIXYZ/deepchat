@@ -1,6 +1,6 @@
+import type { DeepChatOutputPort } from './output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
-import logger from '@shared/logger'
 import type {
   AttachmentPreparationSummary,
   AssistantMessageBlock,
@@ -58,14 +58,15 @@ import {
   updateToolCallResponse,
   parseAssistantBlocks
 } from './interactionProjection'
-import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
-import type { DeepChatEventPublisher, ProcessResult } from './types'
+import { buildTerminalErrorBlocks } from '@/session/data/messageContent'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
+import type { ProcessResult } from './types'
 import {
   buildUsageFromMetadata,
   stampInteractionResolution,
   stampTerminalMetadata
 } from './runtimeMetadata'
-import type { SessionSettingsStore } from '@/session/data/settings'
+import type { SessionSettingsPort } from '@/session/data/contracts'
 import type {
   TapeProviderAttemptReader,
   TapeReconciliationPort
@@ -80,10 +81,10 @@ import {
 import type { DeepChatToolCatalogSnapshot, DeepChatToolResolver } from './toolResolver'
 import type { ToolOutputGuard, ToolOutputGuardResult } from './toolOutputGuard'
 import type { ResumeBudgetToolCall } from './turnResumeContract'
-import { parseMessageMetadata } from '@/session/usageStats'
+import { parseMessageMetadata } from '@/session/data/messageContent'
 import { extractUserMessageInput } from '@/session/data/userMessageContent'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
-import type { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
+import type { AttachmentPreparationPort } from '@shared/types/attachment'
 import {
   resolveDeepChatContextBudgetLength,
   shouldUseDeepChatContextBudget
@@ -111,8 +112,8 @@ import type {
   TurnCompletion
 } from './pendingInputContracts'
 import { createDeepSeekResponsesReplayProjector } from '@/provider/deepseekResponsesAdapter'
-import type { CommandShellService } from '@/agent/shared/process/commandShellService'
-import type { SessionPendingInputs } from '@/session/data/pendingInputs'
+import type { CommandShellPort } from '@shared/commandShell'
+import type { SessionPendingInputsPort } from '@/session/data/contracts'
 import {
   SkillContextMaterializer,
   type MaterializedSkillProjection,
@@ -159,13 +160,13 @@ export interface TurnExecutionContext extends TurnStartContext {
 
 export interface TurnCoordinatorPorts {
   pluginContext?: PluginContextPort
-  publishEvent: DeepChatEventPublisher
+  output: DeepChatOutputPort
   providerRuntime: Pick<ProviderExecutionPort, 'getRuntimeContextLimitTokens'>
   providerSettings: ProviderModelResolutionPort
   traceSettings: AgentTraceSettingsPort
-  sessionStore: SessionSettingsStore
-  messageStore: SessionTranscript
-  pendingInputs: Pick<SessionPendingInputs, 'createClaimedQueueUserMessage'>
+  sessionStore: SessionSettingsPort
+  messageStore: SessionTranscriptPort
+  pendingInputs: Pick<SessionPendingInputsPort, 'createClaimedQueueUserMessage'>
   tapeReconciliation: TapeReconciliationPort & TapeProviderAttemptReader
   toolResolver: DeepChatToolResolver
   compactionService: CompactionService
@@ -178,7 +179,7 @@ export interface TurnCoordinatorPorts {
   toolOutputGuard: ToolOutputGuard
   runLifecycle: TurnRunLifecyclePort
   registry: SessionScopeRegistry
-  attachmentRouter: Pick<AttachmentCapabilityRouter, 'prepare'>
+  attachmentRouter: Pick<AttachmentPreparationPort, 'prepare'>
   sessionSettings: Pick<
     SessionSettingsCoordinator,
     'resolveProjectDir' | 'getEffectiveGenerationSettings'
@@ -190,7 +191,7 @@ export interface TurnCoordinatorPorts {
   >
   skillContextMaterializer: SkillContextMaterializer
   taskContractContext: DeepChatTaskContractContextPort
-  commandShell: Pick<CommandShellService, 'resolveForTurn'>
+  commandShell: Pick<CommandShellPort, 'resolveForTurn'>
   loopRunner: Pick<DeepChatLoopRunner, 'run'>
   messageProjection: Pick<MessageProjectionService, 'refresh'>
   hookSink: Pick<RuntimeHookSink, 'scope'>
@@ -256,7 +257,7 @@ export class TurnCoordinator {
         )
       } catch (error) {
         signal.throwIfAborted()
-        logger.warn('[DeepChatAgent] Failed to resolve provider runtime context limit', {
+        console.warn('[DeepChatAgent] Failed to resolve provider runtime context limit', {
           providerId: state.providerId,
           modelId: state.modelId,
           error: error instanceof Error ? error.message : String(error)
@@ -436,7 +437,7 @@ export class TurnCoordinator {
     sessionActiveSkillNames: string[]
     sessionSkillBodies: SkillProjectionBodies['sessionSkillBodies']
     contextLength: number
-    commandShell: Awaited<ReturnType<CommandShellService['resolveForTurn']>>
+    commandShell: Awaited<ReturnType<CommandShellPort['resolveForTurn']>>
   }): Promise<DeepChatPromptAssembly> {
     const assembly = await this.runPreStreamStep(
       {
@@ -527,7 +528,7 @@ export class TurnCoordinator {
         providerModelFacts
       )
       const projectDir = this.ports.sessionSettings.resolveProjectDir(sessionId, context?.projectDir, instance)
-      logger.info(
+      console.info(
         `[DeepChatAgent] processMessage session=${sessionId} promptLength=${content.text.length} fileCount=${content.files?.length ?? 0} hasProjectDir=${projectDir !== null}`
       )
 
@@ -1460,7 +1461,7 @@ export class TurnCoordinator {
           JSON.stringify(terminalMetadata)
         )
         this.ports.messageProjection.refresh(sessionId, assistantMessageId)
-        this.ports.publishEvent('chat.stream.failed', {
+        this.ports.output.streamFailed({
           requestId: this.ports.runLifecycle.resolveStreamRequestId(
             sessionId,
             assistantMessageId
@@ -1841,7 +1842,7 @@ export class TurnCoordinator {
             JSON.stringify(terminalMetadata)
           )
           this.ports.messageProjection.refresh(sessionId, messageId)
-          this.ports.publishEvent('chat.stream.failed', {
+          this.ports.output.streamFailed({
             requestId: this.ports.runLifecycle.resolveStreamRequestId(sessionId, messageId),
             sessionId,
             messageId,
@@ -2040,7 +2041,7 @@ export class TurnCoordinator {
       const blocks = buildTerminalErrorBlocks(initialBlocks, errorMessage)
       this.ports.messageStore.setMessageError(messageId, blocks, JSON.stringify(terminalMetadata))
       this.ports.messageProjection.refresh(sessionId, messageId)
-      this.ports.publishEvent('chat.stream.failed', {
+      this.ports.output.streamFailed({
         requestId: this.ports.runLifecycle.resolveStreamRequestId(sessionId, messageId),
         sessionId,
         messageId,
@@ -2118,7 +2119,7 @@ export class TurnCoordinator {
 }
 
 function resolveAssistantTurnSearchIntent(
-  messageStore: Pick<SessionTranscript, 'getMessage' | 'getLastUserMessageBeforeOrAt'>,
+  messageStore: Pick<SessionTranscriptPort, 'getMessage' | 'getLastUserMessageBeforeOrAt'>,
   sessionId: string,
   assistantMessageId: string
 ): boolean {
@@ -2131,7 +2132,7 @@ function resolveAssistantTurnSearchIntent(
 }
 
 function resolveAssistantTurnMessageSkillNames(
-  messageStore: Pick<SessionTranscript, 'getMessage' | 'getLastUserMessageBeforeOrAt'>,
+  messageStore: Pick<SessionTranscriptPort, 'getMessage' | 'getLastUserMessageBeforeOrAt'>,
   sessionId: string,
   assistantMessageId: string
 ): string[] {

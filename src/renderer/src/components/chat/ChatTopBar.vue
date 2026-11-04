@@ -270,6 +270,7 @@
 </template>
 
 <script setup lang="ts">
+import { useChatSessionStore } from '@/features/chat-session/store'
 import { computed, nextTick, ref, useAttrs, watch } from 'vue'
 import { createNowledgeMemClient } from '@api/NowledgeMemClient'
 import { createSessionClient } from '@api/SessionClient'
@@ -309,6 +310,7 @@ const props = defineProps<{
 const attrs = useAttrs()
 const { t } = useI18n()
 const sessionStore = useSessionStore()
+const chatSessionStore = useChatSessionStore()
 const agentStore = useAgentStore()
 const sidepanelStore = useSidepanelStore()
 const sidebarStore = useSidebarStore()
@@ -383,7 +385,7 @@ const renameValue = ref('')
 const renameInputRef = ref<HTMLInputElement | null>(null)
 
 const showCollapsedNewChatButton = computed(
-  () => sidebarStore.collapsed && Boolean(sessionStore.newConversationTargetAgentId)
+  () => sidebarStore.collapsed && Boolean(chatSessionStore.newConversationTargetAgentId)
 )
 
 const projectName = computed(() => props.project.split('/').pop() ?? props.project)
@@ -392,7 +394,7 @@ const currentSession = computed(
 )
 const currentTitle = computed(() => currentSession.value?.title ?? props.title)
 const showCollapsedNewChatSpacer = computed(
-  () => sidebarStore.collapsed && Boolean(sessionStore.newConversationTargetAgentId)
+  () => sidebarStore.collapsed && Boolean(chatSessionStore.newConversationTargetAgentId)
 )
 const parentSessionId = computed(() => currentSession.value?.parentSessionId ?? null)
 const isPinned = computed(() => Boolean(currentSession.value?.isPinned))
@@ -459,7 +461,7 @@ const canSubmitRename = computed(
 )
 
 const handleCollapsedNewChat = () => {
-  void sessionStore.startNewConversation({ refresh: true })
+  void chatSessionStore.startNewConversation({ refresh: true })
 }
 
 const openRenameDialog = async () => {
@@ -596,7 +598,7 @@ const handleClearConfirm = async () => {
   clearDialogBusy.value = true
   clearDialogError.value = null
   try {
-    await sessionStore.clearSessionMessages(props.sessionId)
+    await chatSessionStore.clearSessionMessages(props.sessionId)
     clearDialogOpen.value = false
   } catch (error) {
     console.error(t('common.error.cleanMessagesFailed'), error)
@@ -613,7 +615,7 @@ const handleDeleteConfirm = async () => {
   deleteDialogBusy.value = true
   deleteDialogError.value = null
   try {
-    await sessionStore.deleteSession(props.sessionId)
+    await chatSessionStore.deleteSession(props.sessionId)
     deleteDialogOpen.value = false
   } catch (error) {
     console.error(t('common.error.deleteChatFailed'), error)
@@ -681,7 +683,7 @@ const handleBackToParent = async () => {
   }
 
   try {
-    await sessionStore.selectSession(parentSessionId.value)
+    await chatSessionStore.selectSession(parentSessionId.value)
   } catch (error) {
     console.error('Failed to navigate to parent session:', error)
   }

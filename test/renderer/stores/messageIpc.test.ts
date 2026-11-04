@@ -29,7 +29,7 @@ vi.mock('@api/SessionClient', () => ({
   })
 }))
 
-import { bindMessageStoreIpc } from '@/stores/ui/messageIpc'
+import { createMessageIpcBinding } from '@/stores/ui/messageIpc'
 
 function createOptions(activeSessionId: string | null) {
   return {
@@ -44,14 +44,15 @@ function createOptions(activeSessionId: string | null) {
   }
 }
 
-describe('bindMessageStoreIpc stream activity', () => {
+describe('createMessageIpcBinding stream activity', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   it('invalidates recent-session views for sessions streamed in other windows', () => {
     const options = createOptions('other-session')
-    const binding = bindMessageStoreIpc(options as any)
+    const binding = createMessageIpcBinding(options as any)
+    binding.connect()
 
     chatClient.listeners.onStreamActivity({ sessionId: 'session-streaming-elsewhere' })
 
@@ -61,7 +62,8 @@ describe('bindMessageStoreIpc stream activity', () => {
 
   it('does not double-invalidate the active session', () => {
     const options = createOptions('active-session')
-    const binding = bindMessageStoreIpc(options as any)
+    const binding = createMessageIpcBinding(options as any)
+    binding.connect()
 
     chatClient.listeners.onStreamActivity({ sessionId: 'active-session' })
 

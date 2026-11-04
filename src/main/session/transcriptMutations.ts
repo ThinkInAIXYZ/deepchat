@@ -10,19 +10,8 @@ import type { SessionTranscript } from './data/transcript'
 import { buildEditedUserContent, extractUserMessageInput } from './data/userMessageContent'
 import { parseMessageMetadata } from './usageStats'
 
-export interface SessionTranscriptRuntimePort {
-  prepareClearMessages(sessionId: string): Promise<void>
-  finishClearMessages(sessionId: string): void
-  prepareRetry(
-    sessionId: string,
-    options?: { allowRestartHeldQueue?: boolean }
-  ): Promise<{ projectDir: string | null }>
-  assertNoActivePendingInputs(sessionId: string): void
-  cancelForTranscriptMutation(sessionId: string): Promise<void>
-  invalidateTranscriptFrom(sessionId: string, orderSeq: number): void
-  finishTranscriptTruncate(sessionId: string): void
-  resetForkTarget(sessionId: string, clonedMemoryCursorOrderSeq: number): void
-}
+import type { SessionTranscriptRuntimePort } from './data/contracts'
+export type { SessionTranscriptRuntimePort } from './data/contracts'
 
 export interface SessionTranscriptMutationDependencies {
   transcript: SessionTranscript

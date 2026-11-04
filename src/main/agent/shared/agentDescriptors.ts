@@ -1,3 +1,4 @@
+export const BUILTIN_DEEPCHAT_AGENT_ID = 'deepchat'
 import type { AcpAgentInstallState, AcpRegistryDistribution } from '@shared/types/acp'
 import type { AgentAvatar, DeepChatAgentConfig } from '@shared/types/agent-interface'
 

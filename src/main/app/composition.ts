@@ -1,3 +1,10 @@
+import { createMemoryIngestionProjectionPort } from '@/memory/data/ingestionProjectionPort'
+import { createDeepChatProgrammaticToolPort } from '@/cli/deepChatToolPort'
+import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
+import { createDeepChatOutputProjection } from '@/session/outputProjection'
+import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
+import { SyncSessionActivity } from '@/sync/sessionActivity'
+import type { DeepChatInternalSessionUpdate } from '@/agent/deepchat/runtime/sessionUpdates'
 import { SyncReplicaStore } from '@/sync/replica/store'
 import { SyncReplicaEndpoint } from '@/sync/replica/endpoint'
 import { AutomaticSync } from '@/sync/replica/automatic'
@@ -187,10 +194,7 @@ import { AcpAgentRuntime } from '@/agent/acp/instance'
 import { createAcpRuntimeOwner } from '@/agent/acp/createRuntimeOwner'
 import { createAcpRoutes } from '@/agent/acp/routes'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
-import type {
-  MemoryIngestionDrainOutcome,
-  MemoryIngestionObserver
-} from '@/agent/deepchat/memory/memoryIngestionObserver'
+import type { MemoryIngestionDrainOutcome } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import { MemoryService, isSafeAgentId, type MemoryServicePort } from '../memory'
 import { createMemoryVectorStorePaths, MemoryVectorStore } from '../memory/infra/memoryVectorStore'
 import { ProjectService } from '../project'
@@ -539,7 +543,7 @@ export async function createMainProcessControl(dependencies: {
   let syncHostService: SyncHostService
   let syncReplica: SyncReplicaStore | undefined
   let automaticSync: AutomaticSync | undefined
-  const syncActiveSessions = new Set<string>()
+  const syncActiveSessions = new SyncSessionActivity(() => syncReplica?.wake())
   let deeplinkService: DeeplinkService
   let notificationService: NotificationService
   let tabPresenter: TabPresenter
@@ -567,7 +571,6 @@ export async function createMainProcessControl(dependencies: {
   let agentManager: AgentManager
   let acpAgentRuntime: AcpAgentRuntime
   let memoryService: MemoryServicePort
-  let memoryIngestionObserver: MemoryIngestionObserver
   let projectService: ProjectService
   let remoteService: RemoteServiceLike
   let pluginService: PluginServicePort
@@ -772,12 +775,7 @@ export async function createMainProcessControl(dependencies: {
     sessionEventRouter.publish(name, payload)
     if (name === 'sessions.status.changed') {
       const state = payload as { sessionId: string; status: string }
-      if (state.status === 'generating' || state.status === 'running')
-        syncActiveSessions.add(state.sessionId)
-      else {
-        syncActiveSessions.delete(state.sessionId)
-        syncReplica?.wake()
-      }
+      syncActiveSessions.update(state.sessionId, state.status)
     }
   }
   dependencies.mcpAppSandboxRegistry.setConsentPublisher((windowId, payload) => {
@@ -1385,15 +1383,6 @@ export async function createMainProcessControl(dependencies: {
     }
   })
   const syncAppliedSessions = new Set<string>()
-  const hasPendingSyncSession = (id: string): boolean =>
-    Boolean(
-      mainDatabase
-        .getDatabase()
-        .prepare(
-          "SELECT 1 FROM deepchat_pending_inputs WHERE session_id=? AND state != 'consumed' LIMIT 1"
-        )
-        .get(id)
-    )
   syncReplica = new SyncReplicaStore({
     database: () => mainDatabase.getDatabase(),
     directory: path.join(app.getPath('userData'), 'sync-replica'),
@@ -1401,7 +1390,7 @@ export async function createMainProcessControl(dependencies: {
       databaseMaintenanceState === 'running' &&
       (kind === 'session'
         ? !syncActiveSessions.has(id) &&
-          !hasPendingSyncSession(id) &&
+          !sessionData.pendingInputs.hasUnconsumedInputs(id) &&
           (syncAppliedSessions.has(id) || !sessionDeletionGate.hasActiveOperations(id))
         : syncActiveSessions.size === 0 &&
           !sessionDeletionGate.hasActiveOperationsOutside(syncAppliedSessions)),
@@ -1414,7 +1403,7 @@ export async function createMainProcessControl(dependencies: {
         const id = ids[index]
         if (
           syncActiveSessions.has(id) ||
-          hasPendingSyncSession(id) ||
+          sessionData.pendingInputs.hasUnconsumedInputs(id) ||
           sessionDeletionGate.hasActiveOperations(id)
         )
           return false
@@ -2086,48 +2075,51 @@ export async function createMainProcessControl(dependencies: {
   })
   agentSettings.start()
 
+  const publishSessionUpdate = (update: DeepChatInternalSessionUpdate): void => {
+    sessionRuntimeEvents.publish(update)
+    if (update.kind === 'status' && (update.status === 'idle' || update.status === 'error')) {
+      void yoBrowserPresenter.releaseInactivePreview(update.sessionId).catch((error) => {
+        logger.warn('[YoBrowser] Failed to release inactive preview', {
+          sessionId: update.sessionId,
+          error
+        })
+      })
+    }
+  }
+
+  const notifySessionCompleted = (sessionId: string) => {
+    const session = appSessionService.get(sessionId)
+    if (session?.sessionKind !== 'regular' || resolveSessionRunId(sessionId) !== null) return
+    void notificationService.showSessionCompletion(session).catch((error) => {
+      logger.warn('[Notification] Failed to notify session completion', { sessionId, error })
+    })
+  }
+
   // Initialize new agent architecture presenters
   deepChatAgentHarness = createDeepChatAgentHarness({
     providerRuntime,
     providerSettings,
     agentSettings,
-    database: sessionData.database,
-    sessionData,
+    ...sessionData.runtime,
     toolService,
     hookObserver: hookService,
     pluginContext: pluginService.contextHooks,
-    onSessionCompleted: (sessionId) => {
-      const session = appSessionService.get(sessionId)
-      if (session?.sessionKind !== 'regular' || resolveSessionRunId(sessionId) !== null) return
-      void notificationService.showSessionCompletion(session).catch((error) => {
-        logger.warn('[Notification] Failed to notify session completion', { sessionId, error })
-      })
-    },
-    publishEvent: publishDeepchatEvent,
-    publishSessionUpdate: (update) => {
-      sessionRuntimeEvents.publish(update)
-      if (update.kind === 'status') {
-        if (update.status === 'generating') syncActiveSessions.add(update.sessionId)
-        else {
-          syncActiveSessions.delete(update.sessionId)
-          syncReplica?.wake()
-        }
-      }
-      if (update.kind === 'status' && (update.status === 'idle' || update.status === 'error')) {
-        void yoBrowserPresenter.releaseInactivePreview(update.sessionId).catch((error) => {
-          logger.warn('[YoBrowser] Failed to release inactive preview', {
-            sessionId: update.sessionId,
-            error
-          })
-        })
-      }
-    },
+    onSessionCompleted: notifySessionCompleted,
+    output: createDeepChatOutputProjection({
+      publishEvent: publishDeepchatEvent,
+      publishSessionUpdate
+    }),
+    publishStatus: createSessionStatusProjection({
+      publishEvent: publishDeepchatEvent,
+      publishSessionUpdate,
+      sessionUiPort
+    }),
     providerCatalogPort,
     sessionPermissionPort,
     acpAsLlmProviderPermission: acpAsLlmProviderPermission,
-    sessionUiPort,
     memoryPort: memoryService,
-    getMemoryIngestionProjection: () => memoryDatabase.ingestionProjectionTable,
+    getMemoryIngestionProjection: () =>
+      createMemoryIngestionProjectionPort(() => memoryDatabase.ingestionProjectionTable),
     cacheImage: (data, options) => deviceService.cacheImage(data, options),
     runJournalObserver: emitRunJournalObservation,
     skillService: skillService,
@@ -2145,8 +2137,10 @@ export async function createMainProcessControl(dependencies: {
       prepare: (sessionId) => liveDelegationService.prepareTaskContractContext(sessionId)
     },
     toolSurfaceRunMode: toolSurfaceRollout,
-    agentCliTokenAuthority,
-    programmaticToolParents
+    programmaticTools: createDeepChatProgrammaticToolPort(
+      programmaticToolParents,
+      agentCliTokenAuthority
+    )
   })
   const sessionTranscriptMutations = new SessionTranscriptMutations({
     transcript: sessionData.transcript,
@@ -2155,16 +2149,43 @@ export async function createMainProcessControl(dependencies: {
     runtime: deepChatAgentHarness,
     runInTransaction: (operation) => sessionData.database.getDatabase().transaction(operation)()
   })
-  memoryIngestionObserver = deepChatAgentHarness.memoryIngestionObserver
   acpAgentRuntime = new AcpAgentRuntime(
     acpRuntimeOwner,
-    (input) => deepChatAgentHarness.createAcpAgentInstanceDependencies(input),
+    (input) =>
+      createAcpCompatibilityDependencies(
+        {
+          providerRuntime,
+          providerSettings,
+          promptSettings,
+          traceSettings,
+          sessionStore: sessionData.settings,
+          messageStore: sessionData.transcript,
+          tape: sessionData.tapeStore,
+          agentSettings,
+          skillSettings,
+          skillService,
+          toolService,
+          providerCatalogPort,
+          commandShell: commandShellService,
+          hookObserver: hookService,
+          onSessionCompleted: notifySessionCompleted,
+          output: createDeepChatOutputProjection({
+            publishEvent: publishDeepchatEvent,
+            publishSessionUpdate
+          }),
+          publishStatus: createSessionStatusProjection({
+            publishEvent: publishDeepchatEvent,
+            publishSessionUpdate,
+            sessionUiPort
+          })
+        },
+        input
+      ),
     sessionData.pendingInputs
   )
   agentManager = new AgentManager(agentRepository, appSessionService, {
     deepchat: createDeepChatAgentBackend({
       port: deepChatAgentHarness,
-      runtime: deepChatAgentHarness.deepChatRuntime,
       transcript: sessionData.transcript,
       tape: sessionData.tape
     }),
@@ -3039,7 +3060,7 @@ export async function createMainProcessControl(dependencies: {
     // awaiting the existing chains. This avoids both late SQLite writes and shutdown deadlocks.
     const memoryIngestionDrain = (() => {
       try {
-        return memoryIngestionObserver.drainAndFence().then(
+        return deepChatAgentHarness.drainMemoryIngestion().then(
           (outcome) => ({ outcome }) as const,
           (error) => ({ error }) as const
         )
@@ -3122,7 +3143,7 @@ export async function createMainProcessControl(dependencies: {
       skillSettings,
       ensureInitialized: ensureSkillServicesInitialized,
       assertSessionActiveSkillsMutable: async (conversationId) => {
-        const state = await deepChatAgentHarness.getSessionState(conversationId)
+        const state = await agentManager.snapshotIfHydrated(toAppSessionId(conversationId))
         if (state?.status === 'generating') {
           throw new Error('Cannot change Session Skills while the session is generating.')
         }
@@ -3731,7 +3752,7 @@ export async function createMainProcessControl(dependencies: {
       await cronJobs.stop()
       await remoteService.destroy()
       await hookService.stop()
-      const drain = await memoryIngestionObserver.drainAndFence()
+      const drain = await deepChatAgentHarness.drainMemoryIngestion()
       if (drain.timedOut) {
         throw new Error(
           `Memory ingestion did not drain for sessions: ${drain.pendingSessions.join(', ')}`
@@ -3771,7 +3792,7 @@ export async function createMainProcessControl(dependencies: {
         reopenApplicationDatabase()
       }
       deepChatAgentHarness.reconcileAfterDatabaseReopen()
-      memoryIngestionObserver.resumeIngestion()
+      deepChatAgentHarness.resumeMemoryIngestion()
       memoryService.startBackgroundMaintenance()
       hookService.start()
       cronJobs.start()

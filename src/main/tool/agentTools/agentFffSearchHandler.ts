@@ -1,3 +1,4 @@
+import { GLOB_TOOL_NAME, GREP_TOOL_NAME } from '@shared/agentTools'
 import path from 'path'
 import { statSync } from 'fs'
 import { z } from 'zod'
@@ -12,8 +13,7 @@ import {
 } from '@/platform/fileSearch/fffSearchService'
 import type { CommandShellPathStyle } from '@shared/commandShell'
 
-export const GLOB_TOOL_NAME = 'glob'
-export const GREP_TOOL_NAME = 'grep'
+export { GLOB_TOOL_NAME, GREP_TOOL_NAME } from '@shared/agentTools'
 
 export const FffGlobArgsSchema = z.object({
   query: z.string().min(1).describe('File-name or path query to search'),

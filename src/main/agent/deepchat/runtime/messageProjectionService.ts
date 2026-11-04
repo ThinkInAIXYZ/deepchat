@@ -1,5 +1,6 @@
+import type { DeepChatOutputPort } from './output'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
 import {
   buildAssistantDeliverySegments,
   buildAssistantPreviewMarkdown,
@@ -7,25 +8,23 @@ import {
   extractWaitingInteraction
 } from './sessionUpdates'
 import { resolveStreamRequestId, type StreamRequestIdRegistry } from './streamRequestId'
-import type { DeepChatEventPublisher, DeepChatSessionUpdatePublisher } from './types'
 
 export type MessageProjectionTranscript = Pick<
-  SessionTranscript,
+  SessionTranscriptPort,
   'getMessage' | 'updateAssistantContent'
 >
 
 export interface MessageProjectionServiceDependencies {
   registry: StreamRequestIdRegistry
   transcript: MessageProjectionTranscript
-  publishEvent: DeepChatEventPublisher
-  publishSessionUpdate: DeepChatSessionUpdatePublisher
+  output: DeepChatOutputPort
 }
 
 export class MessageProjectionService {
   constructor(private readonly deps: MessageProjectionServiceDependencies) {}
 
   refresh(sessionId: string, messageId: string): void {
-    this.deps.publishEvent('chat.stream.completed', {
+    this.deps.output.streamCompleted({
       requestId: resolveStreamRequestId(this.deps.registry, sessionId, messageId),
       sessionId,
       messageId,
@@ -39,7 +38,7 @@ export class MessageProjectionService {
 
     try {
       const blocks = JSON.parse(message.content) as AssistantMessageBlock[]
-      this.deps.publishSessionUpdate({
+      this.deps.output.sessionUpdate({
         sessionId,
         kind: 'blocks',
         updatedAt: Date.now(),

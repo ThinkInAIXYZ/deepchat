@@ -10,8 +10,9 @@ drafts retain their existing working-directory requirement and authentication fl
 
 ## Ownership and lifecycle
 
-- `ChatTabView` remains the sole panel host. `NewThreadPage` coordinates its draft identity and
-  composer; the draft store exposes that identity to the host and shortcuts.
+- `ChatTabView` remains the sole panel host. The chat-session feature owns creation, draft adoption,
+  submission and navigation recovery. `NewThreadPage` supplies captured composer input; the draft
+  store exposes the draft identity to the host and shortcuts.
 - A DeepChat draft allocates an existing `isDraft` session record on demand, without initializing
   an agent runtime, requiring a model, or sending a message. Its identity belongs to one renderer.
   Empty, unowned drafts left by a crash can be reused for the same agent and project. The workspace

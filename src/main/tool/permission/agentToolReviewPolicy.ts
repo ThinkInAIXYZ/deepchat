@@ -4,7 +4,7 @@ import {
   LIVE_DELEGATION_AGENT_TOOL_NAME,
   SKILL_VIEW_AGENT_TOOL_NAME
 } from '@shared/agentTools'
-import { GLOB_TOOL_NAME, GREP_TOOL_NAME } from '@/tool/agentTools/agentFffSearchHandler'
+import { GLOB_TOOL_NAME, GREP_TOOL_NAME } from '@shared/agentTools'
 import { APPLY_PATCH_TOOL_NAME, STR_REPLACE_EDITOR_TOOL_NAME } from '@/tool/codeMode/toolModeTools'
 
 /**

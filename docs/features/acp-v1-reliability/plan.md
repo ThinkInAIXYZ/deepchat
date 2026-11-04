@@ -14,7 +14,7 @@
 - `acpSessionManager.ts` 负责 `new/load/resume/close/list` 的选择、持久化、listener 注册和 terminal/session cleanup。
 - `acpProvider.ts` 负责 chat turn、debug action、renderer 状态事件和 DeepChat stream event 输出。
 - `acpMessageFormatter.ts`、`acpContentMapper.ts`、`acpTerminalManager.ts`、`acpFsHandler.ts` 分别收口 prompt、update、terminal、fs 规范。
-- shared contracts / presenter types 只增加必要字段，不新增并行的 ACP 框架。
+- `shared/contracts` 和 ACP 共享类型只增加必要字段，不新增并行的 ACP 框架。
 
 推荐分 5 个可 review 增量落地：capabilities/auth、session lifecycle、prompt/content/update、terminal/fs、UI diagnostics + E2E matrix。
 
@@ -136,7 +136,7 @@ interface AcpCapabilitySnapshot {
 
 认证入口分三层：
 
-- Presenter/debug：`authenticate(agentId, methodId, workdir?)`、`logout(agentId, workdir?)`。
+- ACP typed routes/debug：`authenticate(agentId, methodId, workdir?)`、`logout(agentId, workdir?)`。
 - Settings/diagnostics UI：展示 auth methods，并提供 Authenticate 按钮。
 - Chat flow：遇到 ACP auth required 错误时，停止当前 turn，展示可操作的 auth state。
 
@@ -280,7 +280,7 @@ no AcpSessionLink                                 -> session/new
 
 - `AcpDebugActionType` 增加 `authenticate`、`logout`、`sessionList`、`sessionImport`、`sessionResume`、`sessionDetach`、`sessionCloseRemote`、`sessionFork`。
 - 增加 renderer-safe status payload：`authMethods`、`authRequired`、`capabilities`、`externalSessions`、`sessionLinks`、`lastUsage`、`lastSessionInfo`。
-- 新 typed route/client 用于 Settings/diagnostics 查询 ACP status 和执行 auth/session debug action；legacy presenter 只保留兼容。
+- 新 typed route/client 用于 Settings/diagnostics 查询 ACP status 和执行 auth/session debug action；不恢复已退休的 legacy presenter transport。
 - 所有用户可见 label/error 走 `src/renderer/src/i18n`。
 
 ## UI/UX

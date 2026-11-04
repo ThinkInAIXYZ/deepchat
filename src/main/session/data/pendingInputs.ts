@@ -1,3 +1,4 @@
+import type { SessionPendingInputsPort, PendingInputRestartRecovery } from './contracts'
 import type {
   AttachmentPreparationSummary,
   ChatMessageRecord,
@@ -11,10 +12,7 @@ import { SessionPendingInputStore } from './pendingInputStore'
 import type { SessionTranscript } from './transcript'
 import { MAX_PENDING_INPUTS } from '@shared/pendingInput'
 
-export interface PendingInputRestartRecovery {
-  affectedSessionIds: Set<string>
-  heldQueueInputIds: Set<string>
-}
+export type { PendingInputRestartRecovery } from './contracts'
 
 function toUserMessageContent(input: SendMessageInput): UserMessageContent {
   return {
@@ -28,7 +26,7 @@ function toUserMessageContent(input: SendMessageInput): UserMessageContent {
   }
 }
 
-export class SessionPendingInputs {
+export class SessionPendingInputs implements SessionPendingInputsPort {
   constructor(
     private readonly store: SessionPendingInputStore,
     private readonly transcript: SessionTranscript,
@@ -262,6 +260,10 @@ export class SessionPendingInputs {
 
   hasPendingTurnInput(sessionId: string): boolean {
     return Boolean(this.getNextSteerInput(sessionId) ?? this.getNextQueuedInput(sessionId))
+  }
+
+  hasUnconsumedInputs(sessionId: string): boolean {
+    return this.store.hasUnconsumedInputs(sessionId)
   }
 
   hasBlockingInput(sessionId: string): boolean {

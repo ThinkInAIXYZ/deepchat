@@ -1,5 +1,4 @@
 import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
-import logger from '@shared/logger'
 import {
   toTapeSessionId,
   type TapeFactSource,
@@ -164,7 +163,7 @@ function warnOnDivergentMessageFact(
   if (fields.length === 0) {
     return
   }
-  logger.warn('[Tape] message fact append returned an existing entry with a different record', {
+  console.warn('[Tape] message fact append returned an existing entry with a different record', {
     sessionId: record.sessionId,
     messageId: record.id,
     entryId: row.entry_id,

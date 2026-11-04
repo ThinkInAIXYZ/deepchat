@@ -94,6 +94,10 @@
     {
       "path": "test/main/routes/dispatcher.test.ts",
       "reason": "Cross-domain route dispatcher suite remains in the full main gate; typed Memory DTO coverage is focused in memoryDto.test.ts."
+    },
+    {
+      "path": "test/main/session/runtimeIntegration.test.ts",
+      "reason": "Cross-domain Session lifecycle and multi-turn regression suite remains in the full main gate; Memory projection mapping is covered by deepchatMemoryIngestionProjection.test.ts and coordinator behavior by memoryRuntimeCoordinator.test.ts."
     }
   ]
 }

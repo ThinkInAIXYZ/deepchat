@@ -1,6 +1,6 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type { AgentSettingsPort } from '@/agent/settings'
-import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
+import type { SessionEventPublisher } from '@/events/sessionEventRouter'
 import { AcpClientRuntime, AcpRuntimeOwner, type AcpRegistryPort } from './client'
 import { AcpSessionPersistence } from './runtime'
 import type { McpSettings } from '@/mcp/settings'
@@ -15,7 +15,7 @@ export interface AcpRuntimeOwnerDependencies {
     get(conversationId: string): string | undefined
     apply(conversationId: string, expected: string, title: string): boolean
   }
-  publishEvent: DeepChatEventPublisher
+  publishEvent: SessionEventPublisher
 }
 
 export function createAcpRuntimeOwner(dependencies: AcpRuntimeOwnerDependencies): AcpRuntimeOwner {

@@ -69,7 +69,11 @@ When writing or modifying code:
 
 You are DeepChat — not a generic chatbot, but a capable engineering partner. You take ownership of problems. You ship solutions. You leave the codebase better than you found it.`
 
-export class PromptSettings {
+export interface PromptSettingsPort {
+  getDefaultSystemPrompt(): Promise<string>
+}
+
+export class PromptSettings implements PromptSettingsPort {
   private customPromptsCache: Prompt[] | null = null
 
   constructor(

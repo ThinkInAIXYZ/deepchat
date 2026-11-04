@@ -1,8 +1,10 @@
+import { createRateLimitBlock } from './echo'
+import { createProviderViewManifest, type ProviderViewManifestInput } from '@/tape/application/providerViewManifest'
+import type { DeepChatOutputPort } from './output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import { projectPluginContext } from './pluginContext'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
-import type { CacheImageOptions } from '@/platform/imageCache'
-import logger from '@shared/logger'
+import type { CacheImageOptions } from '@shared/types/attachment'
 import type {
   AssistantMessageBlock,
   ChatMessageRecord,
@@ -15,7 +17,6 @@ import type {
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { DeepChatPromptAssembly } from '@shared/types/prompt-assembly'
-import type { DeepChatExecutionContract } from '@shared/types/execution-contract'
 import type { DeepChatTaskContractContext } from '@shared/types/task-contract'
 import type {
   ProviderExecutionPort,
@@ -24,13 +25,11 @@ import type {
 } from '@shared/types/provider'
 import type { DeepChatProviderAttemptIdentity } from '@shared/types/provider-attempt'
 import type {
-  DeepChatTapeSkillContext,
   DeepChatTapeViewContextBuilderVersion,
   DeepChatTapeViewPinnedFirstUser,
   DeepChatTapeViewPolicy,
   DeepChatTapeViewSyntheticContribution,
-  DeepChatTapeViewTaskType,
-  DeepChatTapeViewTokenBudget
+  DeepChatTapeViewTaskType
 } from '@shared/types/tape-view-manifest'
 import { randomUUID } from 'node:crypto'
 import { getReasoningEffectiveEnabledForProvider } from '@shared/types/model-db'
@@ -41,7 +40,7 @@ import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAg
 import type { ResolvedCommandShell } from '@shared/commandShell'
 import type { ResolvedToolMode } from '@shared/toolMode'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
-import type { SessionPendingInputs } from '@/session/data/pendingInputs'
+import type { SessionPendingInputsPort } from '@/session/data/contracts'
 import {
   appendCliProgrammaticToolAdapterSection,
   resolveEffectiveActiveSkillNames
@@ -82,18 +81,12 @@ import {
   type ContextOverflowFacts
 } from '@/agent/deepchat/runtime/contextWindowError'
 import { buildPersistableMessageTracePayload } from '@/agent/deepchat/runtime/messageTracePayload'
-import { cloneBlocksForRenderer } from '@/session/clientMessageProjection'
-import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
 import { processStream } from '@/agent/deepchat/runtime/process'
 import type { ProviderPermissionCoordinator } from '@/agent/deepchat/runtime/providerPermissionCoordinator'
-import type { SessionSummaryState, SessionSettingsStore } from '@/session/data/settings'
+import type { SessionSummaryState, SessionSettingsPort } from '@/session/data/contracts'
 import { AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES } from '@/agent/deepchat/runtime/toolPermissionReviewer'
 import {
-  buildExcludedRefs,
-  buildIncludedRefs,
-  buildRequestRefs,
-  buildSyntheticContributionRefs,
-  createTapeViewManifest,
   resolveTapeViewManifestPolicy,
   type TapeViewContextSelection
 } from '@/tape/domain/viewManifest'
@@ -140,8 +133,6 @@ import {
   type ToolSurfaceRunModeAssignment
 } from '@/agent/deepchat/runtime/toolSurfaceSelection'
 import type {
-  DeepChatEventPublisher,
-  DeepChatSessionUpdatePublisher,
   InterleavedReasoningConfig,
   ProcessResult,
   ProcessTerminalSelection,
@@ -206,7 +197,7 @@ import {
   type ToolSurfaceRunController,
   type ToolSurfaceSnapshot
 } from './toolSurface'
-import { buildToolSearchDefinition } from '@/tool/agentTools/toolSearchTool'
+import { buildToolSearchDefinition } from '@shared/contracts/toolSearch'
 import {
   MAX_PROGRAMMATIC_TOOL_BATCH_STEPS,
   MAX_PROGRAMMATIC_TOOL_CHILDREN,
@@ -229,7 +220,7 @@ import type { PromptAssemblyService } from './promptAssemblyService'
 import type { SessionIdentityService } from './sessionIdentityService'
 import type { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import type { ClosedToolResultPruner, ToolPermissionReviewer } from './toolRuntimeBindings'
-import type { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
+import type { ProgrammaticToolPort } from '@/agent/deepchat/runtime/programmaticExecParent'
 import { CommittedRunProjectionError } from './runTerminalProjectionError'
 
 function wrapTerminalCommitFailure(
@@ -334,7 +325,7 @@ function createProviderViewProvenanceDiagnosticReporter(): (
   return (error, context): void => {
     if (emitted < MAX_PROVIDER_VIEW_PROVENANCE_DIAGNOSTICS_PER_RUN) {
       emitted += 1
-      logger.warn('[DeepChatAgent] Provider View provenance persistence failed', {
+      console.warn('[DeepChatAgent] Provider View provenance persistence failed', {
         schemaVersion: 1,
         requestSeq: context.requestSeq,
         failurePolicy: context.failurePolicy,
@@ -346,7 +337,7 @@ function createProviderViewProvenanceDiagnosticReporter(): (
     }
     if (suppressionReported) return
     suppressionReported = true
-    logger.warn('[DeepChatAgent] Additional provider View provenance diagnostics suppressed', {
+    console.warn('[DeepChatAgent] Additional provider View provenance diagnostics suppressed', {
       schemaVersion: 1,
       limit: MAX_PROVIDER_VIEW_PROVENANCE_DIAGNOSTICS_PER_RUN
     })
@@ -397,45 +388,20 @@ export type DeepChatLoopRunInput = {
   abortController?: AbortController
 }
 
-export interface CommitTapeProviderViewInput {
-  sessionId: string
-  messageId: string
-  requestSeq: number
-  taskType: DeepChatTapeViewTaskType
-  policy: DeepChatTapeViewPolicy
-  policyVersion?: number | null
-  messages: ChatMessage[]
-  tools: MCPToolDefinition[]
-  tokenBudget: Omit<DeepChatTapeViewTokenBudget, 'estimatedPromptTokens'>
-  providerId: string
-  modelId: string
-  selection?: TapeViewContextSelection
-  summaryCursorOrderSeq: number
-  supportsVision: boolean
-  supportsAudioInput: boolean
-  traceDebugEnabled: boolean
-  contextBuilderVersion: DeepChatTapeViewContextBuilderVersion
-  syntheticContributions?: DeepChatTapeViewSyntheticContribution[]
-  pinnedFirstUser?: DeepChatTapeViewPinnedFirstUser
-  executionContract?: DeepChatExecutionContract
-  runId?: string
-  tapeIncarnationId?: string
-  skillContexts?: DeepChatTapeSkillContext[]
-  requireDurableManifest?: boolean
+export interface CommitTapeProviderViewInput extends ProviderViewManifestInput {
   toolSurfaceSnapshot?: ToolSurfaceSnapshot | null
   programmaticToolCapability: ProgrammaticToolCapabilityV1 | null
 }
 
 export interface DeepChatLoopRunnerPorts {
-  publishEvent: DeepChatEventPublisher
-  publishSessionUpdate: DeepChatSessionUpdatePublisher
+  output: DeepChatOutputPort
   providerRuntime: ProviderExecutionPort
   providerSettings: ProviderModelResolutionPort
   traceSettings: AgentTraceSettingsPort
-  sessionStore: SessionSettingsStore
-  messageStore: SessionTranscript
+  sessionStore: SessionSettingsPort
+  messageStore: SessionTranscriptPort
   tape: DeepChatLoopTapePort
-  pendingInputCoordinator: SessionPendingInputs
+  pendingInputCoordinator: SessionPendingInputsPort
   toolResolver: DeepChatToolResolver
   providerPermissionCoordinator: ProviderPermissionCoordinator
   compactionService: CompactionService
@@ -443,7 +409,7 @@ export interface DeepChatLoopRunnerPorts {
   contextCoordinator: DeepChatContextCoordinator
   toolSurfaceRunMode?: ToolSurfaceRunModePort
   programmaticToolParents: Pick<
-    ProgrammaticToolParentRegistry,
+    ProgrammaticToolPort,
     'prepare' | 'commitRunTerminal'
   >
   toolSurfaceDiagnostics: ToolSurfaceShadowDiagnosticsRegistryPort
@@ -855,7 +821,7 @@ export class DeepChatLoopRunner {
         }
         if (!runtimeContextRefreshFailureReported) {
           runtimeContextRefreshFailureReported = true
-          logger.warn('[DeepChatAgent] Failed to refresh provider runtime context limit', {
+          console.warn('[DeepChatAgent] Failed to refresh provider runtime context limit', {
             providerId: state.providerId,
             modelId: requestModelId,
             retainedLimitTokens: currentRuntimeContextLimitTokens,
@@ -1943,7 +1909,7 @@ export class DeepChatLoopRunner {
                     })
                   },
                   onBuildError: (error) =>
-                    logger.warn(
+                    console.warn(
                       `[DeepChatAgent] Failed to construct execution contract: ${
                         error instanceof Error ? error.message : String(error)
                       }`
@@ -2135,7 +2101,7 @@ export class DeepChatLoopRunner {
                 }
               },
               onAppendError: (error) =>
-                logger.warn(
+                console.warn(
                   `[DeepChatAgent] Failed to persist provider attempt outcome: ${
                     error instanceof Error ? error.message : String(error)
                   }`
@@ -2157,7 +2123,7 @@ export class DeepChatLoopRunner {
               ) {
                 clearProviderRetryWaiting()
               }
-              logger.info('[DeepChatAgent] Provider retry lifecycle', {
+              console.info('[DeepChatAgent] Provider retry lifecycle', {
                 sessionId,
                 messageId,
                 providerId: state.providerId,
@@ -2459,8 +2425,7 @@ export class DeepChatLoopRunner {
           messageStore: this.ports.messageStore,
           tapeToolFactWriter: this.ports.tape,
           executionJournalWriter: this.ports.tape,
-          publishEvent: this.ports.publishEvent,
-          publishSessionUpdate: this.ports.publishSessionUpdate
+          output: this.ports.output
         }
       })
       resourceScope.assertCurrent()
@@ -2538,7 +2503,7 @@ export class DeepChatLoopRunner {
               createToolSurfaceCanaryRunEvidenceRecorder().snapshot()
           })
         } catch (error) {
-          logger.warn('[DeepChatAgent] Tool Surface canary diagnostics recording failed', {
+          console.warn('[DeepChatAgent] Tool Surface canary diagnostics recording failed', {
             sessionId,
             providerId: state.providerId,
             modelId: state.modelId,
@@ -2595,56 +2560,7 @@ export class DeepChatLoopRunner {
     manifestHash: string
     tapeIncarnationId?: string
   } {
-    const sourceMaps = this.ports.tape.getViewManifestSourceMaps(
-      params.sessionId,
-      params.messageId
-    )
-    const selection = params.selection
-      ? {
-          ...params.selection,
-          ...(params.syntheticContributions !== undefined
-            ? { syntheticContributions: params.syntheticContributions }
-            : {})
-        }
-      : undefined
-    const manifest = createTapeViewManifest({
-      sessionId: params.sessionId,
-      messageId: params.messageId,
-      requestSeq: params.requestSeq,
-      taskType: params.taskType,
-      policy: params.policy,
-      policyVersion: params.policyVersion ?? null,
-      contextBuilderVersion: params.contextBuilderVersion,
-      messages: params.messages,
-      tools: params.tools,
-      latestEntryId: sourceMaps.latestEntryId,
-      anchorEntryIds: sourceMaps.reconstructionAnchorEntryIds,
-      reconstructionAnchorEntryId: sourceMaps.reconstructionAnchorEntryId,
-      included: selection
-        ? buildIncludedRefs(selection, sourceMaps)
-        : [
-            ...buildRequestRefs(params.messages, sourceMaps, params.pinnedFirstUser),
-            ...buildSyntheticContributionRefs(params.syntheticContributions ?? [])
-          ],
-      excluded: selection ? buildExcludedRefs(selection, sourceMaps) : [],
-      summaryCursor: selection?.summaryCursor,
-      tokenBudget: params.tokenBudget,
-      providerId: params.providerId,
-      modelId: params.modelId,
-      summaryCursorOrderSeq: params.summaryCursorOrderSeq,
-      supportsVision: params.supportsVision,
-      supportsAudioInput: params.supportsAudioInput,
-      traceDebugEnabled: params.traceDebugEnabled,
-      ...(params.executionContract ? { executionContract: params.executionContract } : {}),
-      ...(params.runId !== undefined ? { runId: params.runId } : {}),
-      ...(params.tapeIncarnationId !== undefined
-        ? { tapeIncarnationId: params.tapeIncarnationId }
-        : {}),
-      ...(params.skillContexts?.length ? { skillContexts: params.skillContexts } : {}),
-      ...(params.requireDurableManifest !== undefined
-        ? { requireDurableManifest: params.requireDurableManifest }
-        : {})
-    })
+    const manifest = createProviderViewManifest(this.ports.tape, params)
     if (!params.toolSurfaceSnapshot) {
       if (params.programmaticToolCapability !== null) {
         throw new Error('A legacy provider View cannot carry a Programmatic capability.')
@@ -2720,36 +2636,21 @@ export class DeepChatLoopRunner {
     snapshot: Pick<RateLimitQueueSnapshot, 'providerId' | 'estimatedWaitTime'> &
       Partial<Pick<RateLimitQueueSnapshot, 'qpsLimit' | 'currentQps' | 'queueLength'>>
   ): void {
-    const block: AssistantMessageBlock = {
-      type: 'action',
-      action_type: 'rate_limit',
-      content: '',
-      status: 'pending',
-      timestamp: Date.now(),
-      extra: {
-        providerId: snapshot.providerId,
-        ...(snapshot.qpsLimit === undefined ? {} : { qpsLimit: snapshot.qpsLimit }),
-        ...(snapshot.currentQps === undefined
-          ? {}
-          : { currentQps: snapshot.currentQps }),
-        ...(snapshot.queueLength === undefined ? {} : { queueLength: snapshot.queueLength }),
-        estimatedWaitTime: snapshot.estimatedWaitTime
-      }
-    }
+    const block = createRateLimitBlock(snapshot)
 
-    this.ports.publishEvent('chat.stream.updated', {
+    this.ports.output.streamSnapshot({
       kind: 'snapshot',
       requestId,
       sessionId,
       messageId,
       updatedAt: Date.now(),
       revision: ++this.rateLimitRevision,
-      blocks: cloneBlocksForRenderer([block])
+      blocks: [block]
     })
   }
 
   clearRateLimitWaitingMessage(sessionId: string, messageId: string, requestId: string): void {
-    this.ports.publishEvent('chat.stream.updated', {
+    this.ports.output.streamSnapshot({
       kind: 'snapshot',
       requestId,
       sessionId,

@@ -46,6 +46,7 @@ function createHarness() {
       hasBlockingInteraction: () => isBlocking.value,
       messageStore: messageStore as any,
       sessionStore: sessionStore as any,
+      selectSession: sessionStore.selectSession,
       sessionClient,
       chatClient,
       loadMessagesForSession,

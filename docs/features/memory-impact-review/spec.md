@@ -51,4 +51,4 @@ AFTER:  Edit/delete source -> review direct reflections (optional)
 ## Non-goals
 
 No graph browser, recursive cascade, historical snapshots, semantic re-evaluation, automatic
-recall filtering or attribution-quality benchmark. No push or external issue synchronization.
+recall filtering or attribution-quality benchmark.

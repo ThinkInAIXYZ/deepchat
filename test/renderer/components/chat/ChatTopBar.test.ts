@@ -57,6 +57,9 @@ vi.mock('@/lib/sessionReferenceClipboard', () => ({ copySessionReference: refere
 vi.mock('@/stores/ui/session', () => ({
   useSessionStore: () => stores.session
 }))
+vi.mock('@/features/chat-session/store', () => ({
+  useChatSessionStore: () => stores.session
+}))
 vi.mock('@/stores/ui/agent', () => ({
   useAgentStore: () => stores.agent
 }))

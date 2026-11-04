@@ -1,5 +1,6 @@
+import type { DeepChatOutputPort } from './output'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import { parseMessageMetadata } from '@/session/usageStats'
+import { parseMessageMetadata } from '@/session/data/messageContent'
 import type { AcpAsLlmProviderPermissionPort } from '@/provider/ports'
 import {
   applyProviderPermissionProjection,
@@ -7,13 +8,10 @@ import {
   type ProviderPermissionInteractionInput,
   type ProviderPermissionProjection
 } from './interactionProjection'
-import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
+import { buildTerminalErrorBlocks } from '@/session/data/messageContent'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
 import { buildUsageFromMetadata, stampInteractionResolution } from './runtimeMetadata'
-import type {
-  DeepChatEventPublisher,
-  PendingToolInteraction,
-  StreamState
-} from './types'
+import type { PendingToolInteraction, StreamState } from './types'
 import { markStreamChanged } from './types'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
@@ -32,11 +30,11 @@ type ProviderPermissionRunLifecyclePort = Pick<
 >
 
 interface ProviderPermissionCoordinatorDependencies {
-  messageStore: SessionTranscript
+  messageStore: SessionTranscriptPort
   runLifecycle: ProviderPermissionRunLifecyclePort
   permissionPort: AcpAsLlmProviderPermissionPort
   messageProjection: Pick<MessageProjectionService, 'refresh'>
-  publishEvent: DeepChatEventPublisher
+  output: DeepChatOutputPort
 }
 
 export class ProviderPermissionCoordinator {
@@ -236,11 +234,8 @@ export class ProviderPermissionCoordinator {
       JSON.stringify(terminalMetadata)
     )
     this.deps.messageProjection.refresh(input.sessionId, input.messageId)
-    this.deps.publishEvent('chat.stream.failed', {
-      requestId: this.deps.runLifecycle.resolveStreamRequestId(
-        input.sessionId,
-        input.messageId
-      ),
+    this.deps.output.streamFailed({
+      requestId: this.deps.runLifecycle.resolveStreamRequestId(input.sessionId, input.messageId),
       sessionId: input.sessionId,
       messageId: input.messageId,
       failedAt: Date.now(),

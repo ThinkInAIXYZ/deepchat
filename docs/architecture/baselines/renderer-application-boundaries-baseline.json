@@ -325,31 +325,7 @@
     },
     {
       "file": "src/renderer/settings/components/McpSettings.vue",
-      "specifier": "@/components/mcp-config/components/McpServers.vue"
-    },
-    {
-      "file": "src/renderer/settings/components/McpSettings.vue",
-      "specifier": "@/components/onboarding/GuidedOnboardingOverlay.vue"
-    },
-    {
-      "file": "src/renderer/settings/components/McpSettings.vue",
-      "specifier": "@/composables/useGuidedOnboardingStep"
-    },
-    {
-      "file": "src/renderer/settings/components/McpSettings.vue",
-      "specifier": "@/stores/language"
-    },
-    {
-      "file": "src/renderer/settings/components/McpSettings.vue",
-      "specifier": "@/stores/mcp"
-    },
-    {
-      "file": "src/renderer/settings/components/McpSettings.vue",
-      "specifier": "@/stores/ui/agent"
-    },
-    {
-      "file": "src/renderer/settings/components/McpSettings.vue",
-      "specifier": "@/stores/ui/session"
+      "specifier": "@/features/mcp/McpSettingsView.vue"
     },
     {
       "file": "src/renderer/settings/components/MemoryConfigInlinePanel.vue",
@@ -564,5 +540,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 128
+  "settingsToChatAppImportCount": 122
 }

@@ -55,7 +55,11 @@ import {
   SKILL_LIST_QUERY_MAX_BYTES
 } from '../../skill/routingCatalog'
 import { SkillExecutionService } from '../../skill/skillExecutionService'
-import { parseQuestionToolInput, questionToolSchema, QUESTION_TOOL_NAME } from './questionTool'
+import {
+  parseQuestionToolInput,
+  questionToolSchema,
+  QUESTION_TOOL_NAME
+} from '@shared/contracts/questionTool'
 import {
   ChatSettingsToolHandler,
   buildChatSettingsToolDefinitions,

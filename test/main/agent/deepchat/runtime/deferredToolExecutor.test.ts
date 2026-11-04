@@ -1,3 +1,4 @@
+import { createDeepChatProgrammaticToolPort } from '@/cli/deepChatToolPort'
 import { describe, expect, it, vi } from 'vitest'
 import {
   DeferredToolExecutor,
@@ -7,10 +8,7 @@ import { ExecutionJournalError } from '@/tape/domain/executionJournal'
 import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
 import { createOpaquePromptAssembly } from '@/agent/deepchat/resources/promptAssembly'
 import { buildExecutionContract } from '@/tape/domain/executionContract'
-import {
-  GIT_BASH_COMMAND_SHELL,
-  POSIX_COMMAND_SHELL
-} from '../../../../helpers/commandShell'
+import { GIT_BASH_COMMAND_SHELL, POSIX_COMMAND_SHELL } from '../../../../helpers/commandShell'
 import {
   attachProgrammaticToolDeferredResumeCapability,
   buildProgrammaticToolCapabilityV1,
@@ -190,31 +188,27 @@ function createHarness(
       )
     },
     executionJournal,
-    programmaticToolParents:
-      fixture.programmaticToolParents ??
-      ({
-        prepare: vi.fn(() => {
-          throw new Error('Unexpected Programmatic parent preparation')
-        }),
-        commitRunTerminal: vi.fn(
-          (_run: { sessionId: string; runId: string }, commit: () => unknown) => commit()
-        )
-      } as unknown as DeferredToolExecutorDependencies['programmaticToolParents'])
+    programmaticToolParents: createDeepChatProgrammaticToolPort(
+      (fixture.programmaticToolParents ??
+        ({
+          prepare: vi.fn(() => {
+            throw new Error('Unexpected Programmatic parent preparation')
+          }),
+          commitRunTerminal: vi.fn(
+            (_run: { sessionId: string; runId: string }, commit: () => unknown) => commit()
+          )
+        } as unknown as DeferredToolExecutorDependencies['programmaticToolParents'])) as never,
+      { revokeConversation: vi.fn() }
+    )
   } as unknown as DeferredToolExecutorDependencies
 
+  vi.spyOn(dependencies.programmaticToolParents, 'commitRunTerminal')
   const executor = new DeferredToolExecutor(dependencies)
   return {
     abortController,
     dependencies,
     execute: (onToolCallStarted?: () => void) =>
-      executor.execute(
-        SESSION_ID,
-        MESSAGE_ID,
-        toolCall,
-        onToolCallStarted,
-        undefined,
-        'posix'
-      ),
+      executor.execute(SESSION_ID, MESSAGE_ID, toolCall, onToolCallStarted, undefined, 'posix'),
     executionJournal,
     executor,
     order
@@ -333,8 +327,8 @@ function createProgrammaticResumeHarness(input: {
   })
   const programmaticToolParents = {
     prepare,
-    commitRunTerminal: vi.fn(
-      (_run: { sessionId: string; runId: string }, commit: () => unknown) => commit()
+    commitRunTerminal: vi.fn((_run: { sessionId: string; runId: string }, commit: () => unknown) =>
+      commit()
     )
   } as unknown as DeferredToolExecutorDependencies['programmaticToolParents']
   const harness = createHarness(
@@ -456,14 +450,7 @@ describe('DeferredToolExecutor Execution Journal', () => {
     const { dependencies, executionJournal, executor } = createHarness()
     const executionContract = buildContract()
 
-    await executor.execute(
-      SESSION_ID,
-      MESSAGE_ID,
-      TOOL_CALL,
-      undefined,
-      executionContract,
-      'posix'
-    )
+    await executor.execute(SESSION_ID, MESSAGE_ID, TOOL_CALL, undefined, executionContract, 'posix')
 
     expect(dependencies.toolExecutionPort.execute).toHaveBeenCalledWith(
       expect.anything(),
@@ -861,21 +848,19 @@ describe('DeferredToolExecutor Execution Journal', () => {
   })
 
   it('fails closed when permission is requested after dispatch', async () => {
-    const { execute, executionJournal } = createHarness(
-      async ({ options, abortController }) => {
-        options.commitDispatch?.(dispatchInput())
-        abortController.abort()
-        return {
+    const { execute, executionJournal } = createHarness(async ({ options, abortController }) => {
+      options.commitDispatch?.(dispatchInput())
+      abortController.abort()
+      return {
+        content: 'approval required',
+        rawData: {
           content: 'approval required',
-          rawData: {
-            content: 'approval required',
-            isError: true,
-            requiresPermission: true,
-            permissionRequest: { permissionType: 'write', description: 'approval required' }
-          }
+          isError: true,
+          requiresPermission: true,
+          permissionRequest: { permissionType: 'write', description: 'approval required' }
         }
       }
-    )
+    })
 
     await expect(execute()).resolves.toMatchObject({
       isError: true,
@@ -891,15 +876,13 @@ describe('DeferredToolExecutor Execution Journal', () => {
   })
 
   it('leaves T1 indeterminate when aborted before a target result is known', async () => {
-    const { execute, executionJournal } = createHarness(
-      async ({ options, abortController }) => {
-        options.commitDispatch?.(dispatchInput())
-        abortController.abort()
-        const error = new Error('Aborted')
-        error.name = 'AbortError'
-        throw error
-      }
-    )
+    const { execute, executionJournal } = createHarness(async ({ options, abortController }) => {
+      options.commitDispatch?.(dispatchInput())
+      abortController.abort()
+      const error = new Error('Aborted')
+      error.name = 'AbortError'
+      throw error
+    })
 
     await expect(execute()).rejects.toMatchObject({
       name: 'AbortError'

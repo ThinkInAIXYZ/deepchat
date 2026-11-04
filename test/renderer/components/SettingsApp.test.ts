@@ -570,21 +570,26 @@ describe('Settings App', () => {
 
     const route = reactive({
       name: 'settings-common',
-      query: {},
+      query: {} as Record<string, string>,
       params: {},
       path: '/common'
     })
     const currentRoute = ref(route)
-    const push = vi.fn().mockImplementation(async (target: { name?: string; params?: any }) => {
-      if (!target?.name) {
-        return
-      }
+    const push = vi
+      .fn()
+      .mockImplementation(
+        async (target: { name?: string; params?: any; query?: Record<string, string> }) => {
+          if (!target?.name) {
+            return
+          }
 
-      route.name = target.name
-      route.params = target.params ?? {}
-      route.path = target.name === 'settings-deepchat-agents' ? '/deepchat-agents' : '/common'
-      currentRoute.value = route
-    })
+          route.name = target.name
+          route.params = target.params ?? {}
+          route.query = target.query ?? {}
+          route.path = target.name === 'settings-deepchat-agents' ? '/deepchat-agents' : '/common'
+          currentRoute.value = route
+        }
+      )
     const isReady = vi.fn().mockResolvedValue(undefined)
     const ipcOn = vi.fn()
     const ipcRemoveListener = vi.fn()
@@ -602,7 +607,9 @@ describe('Settings App', () => {
 
     vi.doMock('vue-router', () => {
       const router = {
-        hasRoute: vi.fn((routeName: string) => routeName === 'settings-deepchat-agents'),
+        hasRoute: vi.fn((routeName: string) =>
+          ['settings-deepchat-agents', 'settings-knowledge-base'].includes(routeName)
+        ),
         isReady,
         push,
         replace: vi.fn().mockResolvedValue(undefined),
@@ -761,7 +768,7 @@ describe('Settings App', () => {
     await Promise.resolve()
 
     const navigateHandler = windowClientMock.onSettingsNavigate.mock.calls.at(-1)?.[0] as
-      | ((payload: { routeName: string }) => Promise<void>)
+      | ((payload: { routeName: string; section?: string }) => Promise<void>)
       | undefined
 
     expect(navigateHandler).toBeTypeOf('function')
@@ -772,6 +779,15 @@ describe('Settings App', () => {
       name: 'settings-deepchat-agents',
       params: undefined
     })
+
+    for (const subtab of ['dify', 'ragflow', 'fastgpt', 'builtinKnowledge']) {
+      await navigateHandler?.({ routeName: 'settings-knowledge-base', section: subtab })
+      expect(route.name).toBe('settings-knowledge-base')
+      expect(route.query).toEqual({ subtab })
+    }
+    const navigationCount = push.mock.calls.length
+    await navigateHandler?.({ routeName: 'settings-knowledge-base', section: 'builtinKnowledge' })
+    expect(push).toHaveBeenCalledTimes(navigationCount)
   }, 15000)
 
   it('reuses settings-provider route params when a provider navigate event arrives', async () => {

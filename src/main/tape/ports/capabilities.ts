@@ -468,3 +468,35 @@ export interface TapeLifecycleAdmin {
   deleteSessionTape(sessionId: string): void
   resetSessionTape(sessionId: string): void
 }
+
+export type SessionTapeCapabilities = TapeToolFactWriter &
+  TapeMessageFactWriter &
+  TapeProjectionHeadReader &
+  TapeProviderAttemptReader &
+  TapeProviderAttemptWriter &
+  TapeCompactionModelCallReader &
+  TapeCompactionModelCallWriter &
+  TapeContextOccupancyReader &
+  TapeNonContextEntryReader &
+  TapeReconciliationPort &
+  TapeViewManifestReader &
+  TapeEffectiveUserMessageSourceReader &
+  TapeExecutionViewManifestReader &
+  TapeSkillRequestAuthorityReader &
+  TapeRunViewManifestReader &
+  TapeViewManifestWriter &
+  TapeToolSurfaceViewReader &
+  TapeToolSurfaceViewWriter &
+  TapeAnchorReader &
+  TapeAnchorWriter &
+  TapeInspectionReader &
+  TapeSessionInspectionReader &
+  TapeLifecycleAdmin &
+  ExecutionJournalWriter &
+  ExecutionJournalAuditReader &
+  ExecutionJournalRecoveryReader &
+  TapeIncarnationReader &
+  TapeSkillViewResultFactWriter &
+  TapeRuntimeSkillViewContextReader &
+  TapeSkillMaterializationWriter &
+  TapeSkillMaterializationReader

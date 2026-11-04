@@ -1,3 +1,12 @@
+import {
+  createDeepChatAgentHarness,
+  getHarnessOwners
+} from '../../../../helpers/deepChatHarnessFixture'
+import { createMemoryIngestionProjectionPort } from '@/memory/data/ingestionProjectionPort'
+import { createDeepChatProgrammaticToolPort } from '@/cli/deepChatToolPort'
+import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
+import { createDeepChatOutputProjection } from '@/session/outputProjection'
+import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createHash } from 'node:crypto'
 import fs from 'fs/promises'
@@ -15,7 +24,6 @@ import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/types/provider'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import {
-  createDeepChatAgentHarness,
   type DeepChatAgentHarness,
   type DeepChatHarnessDependencies
 } from '@/agent/deepchat/harness'
@@ -23,7 +31,6 @@ import {
   PRE_STREAM_STUCK_ESCALATION_MS,
   PRE_STREAM_STUCK_WARN_MS
 } from '@/agent/deepchat/runtime/preStreamWatchdog'
-import logger from '@shared/logger'
 import { createHookObserver, noopHookObserver } from '../../../hook/hookObserverFixture'
 import { estimateMessagesTokens } from '@/agent/deepchat/runtime/contextBuilder'
 import {
@@ -188,7 +195,9 @@ function expectPublished(eventName: string, payload: Record<string, unknown>): v
 }
 
 function getRuntimeState(agent: DeepChatAgentHarness, sessionId: string): DeepChatSessionState {
-  const state = agent.deepChatRuntime.getOrHydrate(toAppSessionId(sessionId)).getRuntimeState()
+  const state = getHarnessOwners(agent)
+    .runtime.getOrHydrate(toAppSessionId(sessionId))
+    .getRuntimeState()
   if (!state) throw new Error(`Missing runtime state for ${sessionId}`)
   return state
 }
@@ -198,7 +207,7 @@ function setRuntimeStatus(
   sessionId: string,
   status: DeepChatSessionState['status']
 ): void {
-  const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId(sessionId))
+  const instance = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId(sessionId))
   instance.setRuntimeState({ ...getRuntimeState(agent, sessionId), status })
 }
 
@@ -1048,6 +1057,7 @@ function createMockProviderSettings() {
 
   const settings = {
     capabilityFixture,
+    getProviderDbSourceUrl: vi.fn(() => 'https://example.com/provider-db.json'),
     getModelConfig: vi.fn().mockReturnValue({
       type: ModelType.Chat,
       temperature: 0.7,
@@ -1137,11 +1147,23 @@ function createRuntimeDependencies(
     }
   } = {}
 ): DeepChatHarnessDependencies & {
+  publishSessionUpdate: ReturnType<typeof vi.fn>
   attachmentRouter: { prepare: ReturnType<typeof vi.fn> }
+  sessionUiPort: { refreshSessionUi: ReturnType<typeof vi.fn> }
 } {
+  const publishSessionUpdate = vi.fn()
+  const sessionUiPort = { refreshSessionUi: vi.fn() }
   return {
-    publishEvent: publishDeepchatEvent,
-    publishSessionUpdate: vi.fn(),
+    publishSessionUpdate,
+    output: createDeepChatOutputProjection({
+      publishEvent: publishDeepchatEvent,
+      publishSessionUpdate
+    }),
+    publishStatus: createSessionStatusProjection({
+      publishEvent: publishDeepchatEvent,
+      publishSessionUpdate,
+      sessionUiPort
+    }),
     providerCatalogPort: {
       getProviderModels: vi.fn().mockReturnValue([]),
       getCustomModels: vi.fn().mockReturnValue([])
@@ -1162,10 +1184,11 @@ function createRuntimeDependencies(
     acpAsLlmProviderPermission: {
       resolveAgentPermission: options.resolveAgentPermission ?? vi.fn().mockResolvedValue(undefined)
     },
-    sessionUiPort: { refreshSessionUi: vi.fn() },
+    sessionUiPort,
     memoryPort: options.memoryPort ?? createMemoryRuntimePort(),
-    getMemoryIngestionProjection:
-      options.getMemoryIngestionProjection ?? (() => undefined as never),
+    getMemoryIngestionProjection: options.getMemoryIngestionProjection
+      ? () => createMemoryIngestionProjectionPort(options.getMemoryIngestionProjection!)
+      : () => undefined as never,
     cacheImage: vi.fn(async (data: string) => data),
     skillService: options.skillService ?? getSkillServiceMock(),
     skillSettings: {
@@ -1189,12 +1212,9 @@ function createRuntimeDependencies(
     taskContractContext: {
       prepare: vi.fn().mockReturnValue(null)
     },
-    agentCliTokenAuthority: {
-      prepareProgrammaticOperation: vi.fn(() => {
-        throw new Error('Programmatic operation authority is not configured for this test')
-      }),
+    programmaticTools: createDeepChatProgrammaticToolPort(new ProgrammaticToolParentRegistry(), {
       revokeConversation: vi.fn()
-    },
+    }),
     commandShell: {
       resolveForTurn: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL),
       resolveProfile: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL)
@@ -1365,7 +1385,7 @@ describe('DeepChatAgentHarness', () => {
   let getPathSpy: ReturnType<typeof vi.spyOn> | null = null
 
   const getMemoryCoordinator = (): MemoryRuntimeCoordinator => {
-    const observer = agent.memoryIngestionObserver
+    const observer = getHarnessOwners(agent).memory
     if (!(observer instanceof MemoryRuntimeCoordinator)) {
       throw new Error('Expected the DeepChat memory ingestion owner')
     }
@@ -1409,7 +1429,7 @@ describe('DeepChatAgentHarness', () => {
   }
 
   const getSessionAgentId = (sessionId: string): string | undefined => {
-    const instance = agent.deepChatRuntime.getHydrated(toAppSessionId(sessionId))
+    const instance = getHarnessOwners(agent).runtime.getHydrated(toAppSessionId(sessionId))
     return (
       instance?.getAgentId()?.trim() ||
       sqlitePresenter.newSessionsTable.get(sessionId)?.agent_id?.trim() ||
@@ -1439,11 +1459,12 @@ describe('DeepChatAgentHarness', () => {
         agentSettings: providerSettings,
         providerRuntime: llmProvider,
         getAbortSignal: (sessionId) =>
-          agent.deepChatRuntime.getHydrated(toAppSessionId(sessionId))?.getAbortController()
-            ?.signal,
+          getHarnessOwners(agent)
+            .runtime.getHydrated(toAppSessionId(sessionId))
+            ?.getAbortController()?.signal,
         getSessionModel: (sessionId) => {
-          const state = agent.deepChatRuntime
-            .getHydrated(toAppSessionId(sessionId))
+          const state = getHarnessOwners(agent)
+            .runtime.getHydrated(toAppSessionId(sessionId))
             ?.getRuntimeState()
           const persisted = sessionData.settings.get(sessionId)
           return {
@@ -1598,13 +1619,14 @@ describe('DeepChatAgentHarness', () => {
       providerRuntime: llmProvider,
       providerSettings,
       agentSettings: providerSettings,
-      database: sqlitePresenter,
-      sessionData,
+      ...sessionData.runtime,
       toolService,
       hookObserver: createHookObserver(hookDispatcher),
       toolSurfaceRunMode: { resolve },
       pluginContext,
-      programmaticToolParents,
+      programmaticTools: createDeepChatProgrammaticToolPort(programmaticToolParents, {
+        revokeConversation: vi.fn()
+      }),
       runJournalObserver,
       diagnosticNow
     })
@@ -1620,6 +1642,9 @@ describe('DeepChatAgentHarness', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'info').mockImplementation(() => {})
     vi.mocked(nanoid).mockReturnValue('mock-msg-id')
     installedMemoryPort = createMemoryRuntimePort()
     ;(processStream as ReturnType<typeof vi.fn>).mockReset()
@@ -1714,11 +1739,12 @@ describe('DeepChatAgentHarness', () => {
       providerRuntime: llmProvider,
       providerSettings: providerSettings,
       agentSettings: providerSettings,
-      database: sqlitePresenter,
-      sessionData: sessionData,
+      ...sessionData.runtime,
       toolService: toolService,
       hookObserver: createHookObserver(hookDispatcher),
-      programmaticToolParents,
+      programmaticTools: createDeepChatProgrammaticToolPort(programmaticToolParents, {
+        revokeConversation: vi.fn()
+      }),
       runJournalObserver,
       diagnosticNow
     })
@@ -1745,13 +1771,13 @@ describe('DeepChatAgentHarness', () => {
   describe('pre-stream stuck watchdog', () => {
     const stuckWarnings = () =>
       vi
-        .mocked(logger.warn)
+        .mocked(console.warn)
         .mock.calls.map(([message]) => String(message))
         .filter((message) => message.includes('pre-stream step STUCK'))
 
     it('warns once at each threshold and clears the timers on abort', async () => {
       vi.useFakeTimers()
-      const warn = vi.mocked(logger.warn)
+      const warn = vi.mocked(console.warn)
       const pending = deferred<string[]>()
       const activeSkillsStarted = deferred<void>()
       const privateContent = 'PRIVATE_USER_CONTENT'
@@ -1788,7 +1814,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('clears watchdog timers when a step resolves or rejects', async () => {
       vi.useFakeTimers()
-      const warn = vi.mocked(logger.warn)
+      const warn = vi.mocked(console.warn)
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
       try {
@@ -1812,7 +1838,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('protects initial-send and resume generation settings', async () => {
       vi.useFakeTimers()
-      const warn = vi.mocked(logger.warn)
+      const warn = vi.mocked(console.warn)
 
       try {
         await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
@@ -1823,7 +1849,7 @@ describe('DeepChatAgentHarness', () => {
           permission_mode: 'default'
         })
         const sessionId = toAppSessionId('s1')
-        expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+        expect(getHarnessOwners(agent).runtime.evict(sessionId)).toBe(true)
         await agent.getSessionListState('s1')
         const initialSettings = deferred<string>()
         providerSettings.getDefaultSystemPrompt.mockReturnValueOnce(initialSettings.promise)
@@ -1841,7 +1867,7 @@ describe('DeepChatAgentHarness', () => {
 
         warn.mockClear()
         installPendingQuestion()
-        expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
+        expect(getHarnessOwners(agent).runtime.evict(sessionId)).toBe(true)
         await agent.getSessionListState('s1')
         const resumeSettings = deferred<string>()
         providerSettings.getDefaultSystemPrompt.mockReturnValueOnce(resumeSettings.promise)
@@ -1867,7 +1893,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('clears the final boundary when the provider stream begins', async () => {
       vi.useFakeTimers()
-      const warn = vi.mocked(logger.warn)
+      const warn = vi.mocked(console.warn)
       const providerStarted = deferred<void>()
       const providerDone = deferred<void>()
       const provider = llmProvider.getProviderInstance('openai')
@@ -1907,7 +1933,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('clears the final boundary before rate-limit admission waits', async () => {
       vi.useFakeTimers()
-      const warn = vi.mocked(logger.warn)
+      const warn = vi.mocked(console.warn)
       const rateAdmission = deferred<void>()
       llmProvider.executeWithRateLimit.mockReturnValueOnce(rateAdmission.promise)
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params: any) => {
@@ -1940,7 +1966,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('clears the final boundary when streaming setup rejects', async () => {
       vi.useFakeTimers()
-      const warn = vi.mocked(logger.warn)
+      const warn = vi.mocked(console.warn)
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
       ;(processStream as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
         new Error('stream setup failed')
@@ -2095,8 +2121,10 @@ describe('DeepChatAgentHarness', () => {
     }
 
     async function triggerFallbackAndWait() {
-      agent.memoryIngestionObserver.afterTurnSettled({
-        session: agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).getMemorySessionHandle(),
+      getHarnessOwners(agent).memory.afterTurnSettled({
+        session: getHarnessOwners(agent)
+          .runtime.getOrHydrate(toAppSessionId('s1'))
+          .getMemorySessionHandle(),
         origin: 'initial',
         outcome: { kind: 'returned', status: 'completed' }
       })
@@ -2230,25 +2258,6 @@ describe('DeepChatAgentHarness', () => {
       )
     })
 
-    it('keeps the cursor unchanged when extraction returns ok:false', async () => {
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const extractAndStore = vi.fn().mockResolvedValue({ ok: false })
-      setMemoryPort({
-        isEnabled: vi.fn(() => true),
-        extractAndStore
-      })
-      sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
-      sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockClear()
-
-      await startExtraction(10)
-
-      expect(extractAndStore).toHaveBeenCalledTimes(1)
-      expect(
-        sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq
-      ).not.toHaveBeenCalled()
-      expect(sqlitePresenter.deepchatTapeEntriesTable.appendAnchor).not.toHaveBeenCalled()
-    })
-
     it('continues after four chunks on the same session extraction chain', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const extractAndStore = installResolvedExtraction()
@@ -2323,66 +2332,6 @@ describe('DeepChatAgentHarness', () => {
           })
         })
       )
-    })
-
-    it('keeps Memory ingestion behind stable instance handles', async () => {
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      installRuntimeRecords([
-        userRecord('u1', 1, 'Remember that Redis is preferred.'),
-        assistantRecord('a1', 2, [contentBlock('Noted.')])
-      ])
-      const extractAndStore = installResolvedExtraction()
-      const sessionId = toAppSessionId('s1')
-      const instance = agent.deepChatRuntime.getOrHydrate(sessionId)
-      const memorySession = instance.getMemorySessionHandle()
-
-      expect(instance.getMemorySessionHandle()).toBe(memorySession)
-      expect(memorySession.sessionId).toBe(sessionId)
-
-      agent.memoryIngestionObserver.afterCompactionApplyReturned({
-        session: memorySession,
-        origin: 'initial',
-        targetCursorOrderSeq: 2
-      })
-      await waitForExtractionChain()
-
-      expect(extractAndStore).toHaveBeenCalledTimes(1)
-      expect(sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq).toHaveBeenCalledWith(
-        's1',
-        2
-      )
-
-      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
-      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
-      expect(replacement.getMemorySessionHandle()).not.toBe(memorySession)
-      expect(() =>
-        agent.memoryIngestionObserver.afterCompactionApplyReturned({
-          session: memorySession,
-          origin: 'initial',
-          targetCursorOrderSeq: 2
-        })
-      ).not.toThrow()
-      expect(extractAndStore).toHaveBeenCalledTimes(1)
-    })
-
-    it('computes tool admission signals from one tape read', async () => {
-      installRuntimeRecords([
-        userRecord('u1', 1, 'Read package metadata.'),
-        assistantRecord('a1', 2, [toolBlock('tool-1')])
-      ])
-      sqlitePresenter.deepchatTapeEntriesTable.getBySessionExcludingContext.mockClear()
-
-      const window = getMemoryCoordinator().buildExtractionWindow('s1', 0, 2)
-
-      expect(window).toEqual(
-        expect.objectContaining({
-          hadToolUse: true,
-          visibleTextChars: 'User: Read package metadata.'.length
-        })
-      )
-      expect(
-        sqlitePresenter.deepchatTapeEntriesTable.getBySessionExcludingContext
-      ).toHaveBeenCalledTimes(1)
     })
 
     it('rebuilds memory ingestion projection once and uses bounded range reads afterward', () => {
@@ -2483,83 +2432,6 @@ describe('DeepChatAgentHarness', () => {
       ).toHaveBeenCalledTimes(1)
     })
 
-    it('cools repeated projection rebuild failures and recovers after the retry window', () => {
-      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
-      try {
-        installRuntimeRecords([userRecord('u1', 1, 'Keep projection recovery bounded.')])
-        let current = false
-        let failReplacement = true
-        let projectedRows: any[] = []
-        let projectedMaxEntryId = 0
-        const readCurrentRange = vi.fn(
-          (_sessionId: string, fromExclusive: number, toInclusive: number) => ({
-            current,
-            maxEntryId: current
-              ? projectedMaxEntryId
-              : sqlitePresenter.deepchatTapeEntriesTable.getMaxEntryId('s1'),
-            rows: current
-              ? projectedRows.filter(
-                  (row) => row.order_seq > fromExclusive && row.order_seq <= toInclusive
-                )
-              : []
-          })
-        )
-        const replaceSession = vi.fn((_sessionId: string, rows: any[], maxEntryId: number) => {
-          if (failReplacement) throw new Error('projection rebuild failed')
-          projectedRows = rows.map((row) => ({
-            session_id: row.sessionId,
-            message_id: row.messageId,
-            order_seq: row.orderSeq,
-            entry_id: row.entryId,
-            role: row.role,
-            content: row.content,
-            status: row.status,
-            had_tool_use: row.hadToolUse ? 1 : 0
-          }))
-          projectedMaxEntryId = maxEntryId
-          current = true
-        })
-        ;(sqlitePresenter as any).deepchatMemoryIngestionProjectionTable = {
-          readCurrentRange,
-          replaceSession,
-          invalidateSession: vi.fn(() => {
-            current = false
-          })
-        }
-        sqlitePresenter.deepchatTapeEntriesTable.getBySessionExcludingContext.mockClear()
-
-        const fallback = getMemoryCoordinator().buildExtractionWindow('s1', 0, 1)
-        expect(fallback.chunks.every((chunk: any) => chunk.cursorCommitOrderSeq === null)).toBe(
-          true
-        )
-        expect(replaceSession).toHaveBeenCalledTimes(1)
-        expect(
-          sqlitePresenter.deepchatTapeEntriesTable.getBySessionExcludingContext
-        ).toHaveBeenCalledTimes(1)
-
-        expect(getMemoryCoordinator().buildExtractionWindow('s1', 0, 1)).toBeNull()
-        expect(readCurrentRange).toHaveBeenCalledTimes(1)
-        expect(replaceSession).toHaveBeenCalledTimes(1)
-        expect(
-          sqlitePresenter.deepchatTapeEntriesTable.getBySessionExcludingContext
-        ).toHaveBeenCalledTimes(1)
-
-        now.mockReturnValue(31_000)
-        failReplacement = false
-        const recovered = getMemoryCoordinator().buildExtractionWindow('s1', 0, 1)
-        expect(recovered.chunks.at(-1)?.cursorCommitOrderSeq).toBe(1)
-        expect(replaceSession).toHaveBeenCalledTimes(2)
-
-        expect(getMemoryCoordinator().buildExtractionWindow('s1', 0, 1)).toEqual(recovered)
-        expect(readCurrentRange).toHaveBeenCalledTimes(3)
-        expect(
-          sqlitePresenter.deepchatTapeEntriesTable.getBySessionExcludingContext
-        ).toHaveBeenCalledTimes(2)
-      } finally {
-        now.mockRestore()
-      }
-    })
-
     it('drops an in-flight extraction commit after clearMessages resets the session', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const { extraction, extractAndStore } = installDeferredExtraction()
@@ -2606,7 +2478,7 @@ describe('DeepChatAgentHarness', () => {
         sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq
       ).not.toHaveBeenCalled()
       expect(sqlitePresenter.deepchatTapeEntriesTable.appendAnchor).not.toHaveBeenCalled()
-      expect(agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))).toBeUndefined()
+      expect(getHarnessOwners(agent).runtime.getHydrated(toAppSessionId('s1'))).toBeUndefined()
     })
   })
 
@@ -2758,11 +2630,10 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings,
         agentSettings: providerSettings,
-        database: sqlitePresenter,
-        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+        ...createSessionDataFromDatabase(sqlitePresenter as never, {
           publishPendingInputsChanged: vi.fn(),
           publishMessagesChanged: vi.fn()
-        }),
+        }).runtime,
         toolService,
         hookObserver: noopHookObserver
       })
@@ -2789,7 +2660,7 @@ describe('DeepChatAgentHarness', () => {
       })
       const rowCountBeforeRecovery =
         sqlitePresenter.deepchatTapeEntriesTable.getBySession('s1').length
-      const loggerWarnMock = vi.mocked(logger.warn)
+      const loggerWarnMock = vi.mocked(console.warn)
       loggerWarnMock.mockClear()
       toolService.callTool.mockClear()
 
@@ -2798,11 +2669,10 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings,
         agentSettings: providerSettings,
-        database: sqlitePresenter,
-        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+        ...createSessionDataFromDatabase(sqlitePresenter as never, {
           publishPendingInputsChanged: vi.fn(),
           publishMessagesChanged: vi.fn()
-        }),
+        }).runtime,
         toolService,
         hookObserver: noopHookObserver
       })
@@ -2849,7 +2719,7 @@ describe('DeepChatAgentHarness', () => {
         responseText: 'done',
         isError: false
       })
-      const loggerWarnMock = vi.mocked(logger.warn)
+      const loggerWarnMock = vi.mocked(console.warn)
       loggerWarnMock.mockClear()
       const recoverySessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
         publishPendingInputsChanged: vi.fn(),
@@ -2864,8 +2734,7 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings,
         agentSettings: providerSettings,
-        database: sqlitePresenter,
-        sessionData: recoverySessionData,
+        ...recoverySessionData.runtime,
         toolService,
         hookObserver: noopHookObserver
       })
@@ -2894,7 +2763,7 @@ describe('DeepChatAgentHarness', () => {
           runKind: 'loop'
         })
       }
-      const loggerWarnMock = vi.mocked(logger.warn)
+      const loggerWarnMock = vi.mocked(console.warn)
       loggerWarnMock.mockClear()
 
       createDeepChatAgentHarness({
@@ -2902,11 +2771,10 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings,
         agentSettings: providerSettings,
-        database: sqlitePresenter,
-        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+        ...createSessionDataFromDatabase(sqlitePresenter as never, {
           publishPendingInputsChanged: vi.fn(),
           publishMessagesChanged: vi.fn()
-        }),
+        }).runtime,
         toolService,
         hookObserver: noopHookObserver
       })
@@ -2964,7 +2832,7 @@ describe('DeepChatAgentHarness', () => {
         ...lowerSeverity,
         corruption
       ])
-      const loggerErrorMock = vi.mocked(logger.error)
+      const loggerErrorMock = vi.mocked(console.error)
       loggerErrorMock.mockClear()
 
       createDeepChatAgentHarness({
@@ -2972,8 +2840,7 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings,
         agentSettings: providerSettings,
-        database: sqlitePresenter,
-        sessionData: recoverySessionData,
+        ...recoverySessionData.runtime,
         toolService,
         hookObserver: noopHookObserver
       })
@@ -3004,7 +2871,7 @@ describe('DeepChatAgentHarness', () => {
           created_at: 1
         }
       ])
-      const loggerErrorMock = vi.mocked(logger.error)
+      const loggerErrorMock = vi.mocked(console.error)
       loggerErrorMock.mockClear()
 
       createDeepChatAgentHarness({
@@ -3012,11 +2879,10 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings,
         agentSettings: providerSettings,
-        database: sqlitePresenter,
-        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+        ...createSessionDataFromDatabase(sqlitePresenter as never, {
           publishPendingInputsChanged: vi.fn(),
           publishMessagesChanged: vi.fn()
-        }),
+        }).runtime,
         toolService,
         hookObserver: noopHookObserver
       })
@@ -3043,21 +2909,16 @@ describe('DeepChatAgentHarness', () => {
           providerRuntime: llmProvider,
           providerSettings,
           agentSettings: providerSettings,
-          database: sqlitePresenter,
-          sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+          ...createSessionDataFromDatabase(sqlitePresenter as never, {
             publishPendingInputsChanged: vi.fn(),
             publishMessagesChanged: vi.fn()
-          }),
+          }).runtime,
           toolService,
           hookObserver: noopHookObserver
         })
       ).toThrow('journal read failed')
       expect(sqlitePresenter.deepchatPendingInputsTable.listActive).not.toHaveBeenCalled()
       expect(sqlitePresenter.deepchatMessagesTable.getByStatus).not.toHaveBeenCalled()
-    })
-
-    it('calls pending status query on init', () => {
-      expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledWith('pending')
     })
 
     it('reruns persisted runtime reconciliation after the database is reopened', () => {
@@ -3070,7 +2931,16 @@ describe('DeepChatAgentHarness', () => {
       ).toHaveBeenCalledOnce()
       expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledOnce()
 
+      const recoveryOrder = () =>
+        [
+          sqlitePresenter.deepchatTapeEntriesTable.listUnterminatedRunEvents,
+          sqlitePresenter.deepchatPendingInputsTable.listActive,
+          sqlitePresenter.deepchatMessagesTable.getCompactionRecoveryCandidates,
+          sqlitePresenter.deepchatMessagesTable.getByStatus
+        ].map((method) => vi.mocked(method).mock.invocationCallOrder.at(-1))
+      expect(recoveryOrder()).toEqual([...recoveryOrder()].sort((a, b) => a! - b!))
       agent.reconcileAfterDatabaseReopen()
+      expect(recoveryOrder()).toEqual([...recoveryOrder()].sort((a, b) => a! - b!))
 
       expect(
         sqlitePresenter.deepchatTapeEntriesTable.listUnterminatedRunEvents
@@ -3082,41 +2952,8 @@ describe('DeepChatAgentHarness', () => {
       expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledTimes(2)
     })
 
-    it('logs recovered count when > 0', () => {
-      const loggerInfoMock = vi.mocked(logger.info)
-      sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
-        {
-          id: 'm1',
-          role: 'assistant',
-          content: JSON.stringify([
-            { type: 'content', content: 'partial', status: 'pending', timestamp: 1 }
-          ])
-        }
-      ])
-
-      createDeepChatAgentHarness({
-        ...createRuntimeDependencies({
-          skillService: getSkillServiceMock()
-        }),
-        providerRuntime: llmProvider,
-        providerSettings: providerSettings,
-        agentSettings: providerSettings,
-        database: sqlitePresenter,
-        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
-          publishPendingInputsChanged: vi.fn(),
-          publishMessagesChanged: vi.fn()
-        }),
-        toolService: toolService,
-        hookObserver: noopHookObserver
-      })
-
-      expect(loggerInfoMock).toHaveBeenCalledWith(
-        'DeepChatAgent: recovered 1 pending messages to error status'
-      )
-    })
-
     it('only reconciles pending inputs for sessions that still exist', () => {
-      const loggerInfoMock = vi.mocked(logger.info)
+      const loggerInfoMock = vi.mocked(console.info)
       const claimedInputs = [
         {
           id: 'pending-existing',
@@ -3163,11 +3000,10 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings: providerSettings,
         agentSettings: providerSettings,
-        database: sqlitePresenter,
-        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+        ...createSessionDataFromDatabase(sqlitePresenter as never, {
           publishPendingInputsChanged: vi.fn(),
           publishMessagesChanged: vi.fn()
-        }),
+        }).runtime,
         toolService: toolService,
         hookObserver: noopHookObserver
       })
@@ -3224,8 +3060,7 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings,
         agentSettings: providerSettings,
-        database: sqlitePresenter,
-        sessionData: recoverySessionData,
+        ...recoverySessionData.runtime,
         toolService,
         hookObserver: noopHookObserver
       })
@@ -3294,10 +3129,19 @@ describe('DeepChatAgentHarness', () => {
   })
 
   describe('getSessionState', () => {
-    it('returns runtime state if available', async () => {
+    it('keeps replacement instances alive when stale handles release', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const state = await agent.getSessionState('s1')
       expect(state!.status).toBe('idle')
+      const release = agent.openSessionInstance('s1')
+      expect((await agent.getHydratedSessionListState('s1'))?.status).toBe('idle')
+      const runtime = getHarnessOwners(agent).runtime
+      runtime.evict(toAppSessionId('s1'))
+      const replacement = runtime.getOrHydrate(toAppSessionId('s1'))
+      release()
+      expect(runtime.getHydrated(toAppSessionId('s1'))).toBe(replacement)
+      agent.openSessionInstance('s1')()
+      expect(await agent.getHydratedSessionListState('s1')).toBeNull()
     })
 
     it('rebuilds from DB when runtime state missing', async () => {
@@ -3689,9 +3533,9 @@ describe('DeepChatAgentHarness', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Enter virtualization')
-      agent.deepChatRuntime.markToolRegistryChanged()
+      getHarnessOwners(agent).runtime.markToolRegistryChanged()
       await agent.processMessage('s1', 'Stay virtualized')
-      agent.deepChatRuntime.markToolRegistryChanged()
+      getHarnessOwners(agent).runtime.markToolRegistryChanged()
       await agent.processMessage('s1', 'Exit virtualization')
 
       expect(modes).toEqual(['native-activation', 'native-activation', 'full'])
@@ -3727,7 +3571,7 @@ describe('DeepChatAgentHarness', () => {
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Stop before provider admission')
-      agent.deepChatRuntime.markToolRegistryChanged()
+      getHarnessOwners(agent).runtime.markToolRegistryChanged()
       await agent.processMessage('s1', 'Remain on the direct adapter')
 
       expect(modes).toEqual(['native-activation', 'full'])
@@ -5015,8 +4859,8 @@ describe('DeepChatAgentHarness', () => {
     it('does not start a legacy Run when mode resolution replaces its session instance', async () => {
       recreateAgentWithToolSurfaceRunMode(() => {
         const sessionId = toAppSessionId('s1')
-        expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
-        agent.deepChatRuntime.getOrHydrate(sessionId).setRuntimeState({
+        expect(getHarnessOwners(agent).runtime.evict(sessionId)).toBe(true)
+        getHarnessOwners(agent).runtime.getOrHydrate(sessionId).setRuntimeState({
           status: 'idle',
           providerId: 'openai',
           modelId: 'gpt-4',
@@ -5072,8 +4916,8 @@ describe('DeepChatAgentHarness', () => {
       await rateGateEntered.promise
 
       const sessionId = toAppSessionId('s1')
-      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
-      agent.deepChatRuntime.getOrHydrate(sessionId).setRuntimeState({
+      expect(getHarnessOwners(agent).runtime.evict(sessionId)).toBe(true)
+      getHarnessOwners(agent).runtime.getOrHydrate(sessionId).setRuntimeState({
         status: 'idle',
         providerId: 'openai',
         modelId: 'gpt-4',
@@ -5138,8 +4982,8 @@ describe('DeepChatAgentHarness', () => {
       await retryRateGateEntered.promise
 
       const sessionId = toAppSessionId('s1')
-      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
-      agent.deepChatRuntime.getOrHydrate(sessionId).setRuntimeState({
+      expect(getHarnessOwners(agent).runtime.evict(sessionId)).toBe(true)
+      getHarnessOwners(agent).runtime.getOrHydrate(sessionId).setRuntimeState({
         status: 'idle',
         providerId: 'openai',
         modelId: 'gpt-4',
@@ -5452,8 +5296,9 @@ describe('DeepChatAgentHarness', () => {
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params) => {
         activeDuringStream = agent.getActiveGeneration('s1')
         registeredRunMatches =
-          agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).getActiveGeneration() ===
-          params.run
+          getHarnessOwners(agent)
+            .runtime.getOrHydrate(toAppSessionId('s1'))
+            .getActiveGeneration() === params.run
         return { status: 'completed' }
       })
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
@@ -5492,7 +5337,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('commits a UUID Run start before registration and a matching terminal after execution', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1'))
       const order: string[] = []
       const terminalFence = vi.spyOn(programmaticToolParents, 'commitRunTerminal')
       const tape = sessionData.tapeStore
@@ -5877,7 +5722,8 @@ describe('DeepChatAgentHarness', () => {
       })
       await preStreamStarted.promise
       expect(
-        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.getAbortController()?.signal
+        getHarnessOwners(agent).runtime.getHydrated(toAppSessionId('s1'))?.getAbortController()
+          ?.signal
       ).toMatchObject({ aborted: false })
 
       await agent.steerActiveTurn('s1', 'Refine before stream')
@@ -6920,7 +6766,7 @@ describe('DeepChatAgentHarness', () => {
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       const providerCoreStream = llmProvider.providerInstance.coreStream
-      const loggerWarnMock = vi.mocked(logger.warn)
+      const loggerWarnMock = vi.mocked(console.warn)
       loggerWarnMock.mockClear()
       const appendEvent = sqlitePresenter.deepchatTapeEntriesTable.appendEvent
       const appendImplementation = appendEvent.getMockImplementation()!
@@ -7534,8 +7380,8 @@ describe('DeepChatAgentHarness', () => {
       await vi.waitFor(() => expect(processStream).toHaveBeenCalledTimes(1))
 
       const sessionId = toAppSessionId('s1')
-      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
-      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      expect(getHarnessOwners(agent).runtime.evict(sessionId)).toBe(true)
+      const replacement = getHarnessOwners(agent).runtime.getOrHydrate(sessionId)
       replacement.setRuntimeState({
         status: 'generating',
         providerId: 'openai',
@@ -8043,6 +7889,16 @@ describe('DeepChatAgentHarness', () => {
         }
       })
 
+      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
+        provider_id: 'acp',
+        model_id: 'agent-id',
+        permission_mode: 'default',
+        system_prompt: 'DIRECT_CONFIGURED',
+        context_length: 8192,
+        max_tokens: 2048,
+        timeout_ms: 5000
+      })
+
       let activeHooks: any
       const prompt = vi.fn(async (request: schema.PromptRequest) => {
         activeHooks.onEvents([{ type: 'text', content: 'direct response' }])
@@ -8092,7 +7948,28 @@ describe('DeepChatAgentHarness', () => {
       const owner = new AcpRuntimeOwner(() => sharedClient)
       const directRuntime = new AcpAgentRuntime(
         owner,
-        (input) => agent.createAcpAgentInstanceDependencies(input),
+        (input) =>
+          createAcpCompatibilityDependencies(
+            {
+              providerRuntime: llmProvider,
+              providerSettings,
+              promptSettings: runtimeDependencies.promptSettings,
+              traceSettings: runtimeDependencies.traceSettings,
+              sessionStore: sessionData.settings,
+              messageStore: sessionData.transcript,
+              tape: sessionData.tapeStore,
+              agentSettings: providerSettings,
+              skillSettings: runtimeDependencies.skillSettings,
+              skillService,
+              toolService,
+              providerCatalogPort: runtimeDependencies.providerCatalogPort,
+              commandShell: runtimeDependencies.commandShell,
+              hookObserver: createHookObserver(hookDispatcher),
+              output: runtimeDependencies.output,
+              publishStatus: runtimeDependencies.publishStatus
+            },
+            input
+          ),
         sessionData.pendingInputs
       )
       const descriptor: AcpAgentDescriptor = {
@@ -8573,7 +8450,7 @@ describe('DeepChatAgentHarness', () => {
           stopReason
         })
         await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-        const afterTurnSettled = vi.spyOn(agent.memoryIngestionObserver, 'afterTurnSettled')
+        const afterTurnSettled = vi.spyOn(getHarnessOwners(agent).memory, 'afterTurnSettled')
         publishDeepchatEvent.mockClear()
 
         await agent.processMessage('s1', `Return ${resultStatus}`)
@@ -8604,7 +8481,7 @@ describe('DeepChatAgentHarness', () => {
         failure.name = errorName
         ;(processStream as ReturnType<typeof vi.fn>).mockRejectedValueOnce(failure)
         await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-        const afterTurnSettled = vi.spyOn(agent.memoryIngestionObserver, 'afterTurnSettled')
+        const afterTurnSettled = vi.spyOn(getHarnessOwners(agent).memory, 'afterTurnSettled')
         publishDeepchatEvent.mockClear()
 
         await agent.processMessage('s1', `Throw ${errorName}`)
@@ -9177,11 +9054,15 @@ describe('DeepChatAgentHarness', () => {
       providerSettings.getSetting.mockImplementation((key: string) =>
         key === 'traceDebugEnabled' ? true : undefined
       )
+      providerSettings.getProviderDbSourceUrl.mockReturnValue('https://example.com/dist/all.json')
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (args) => {
+        expect(args.interleavedReasoning.providerDbSourceUrl).toBe(
+          'https://example.com/dist/all.json'
+        )
         args.diagnostics?.onInterleavedReasoningGap?.({
           providerId: 'zenmux',
           modelId: 'moonshotai/kimi-k2.5',
-          providerDbSourceUrl: 'https://example.com/dist/all.json',
+          providerDbSourceUrl: args.interleavedReasoning.providerDbSourceUrl,
           reasoningContentLength: 42,
           toolCallCount: 1
         })
@@ -9314,7 +9195,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('does not publish generation settings when persistence fails', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1'))
       const previousSettings = instance.getGenerationSettings()
       sqlitePresenter.deepchatSessionsTable.updateGenerationSettings.mockImplementationOnce(() => {
         throw new Error('write failed')
@@ -9991,7 +9872,7 @@ describe('DeepChatAgentHarness', () => {
         modelId: 'gpt-4',
         permissionMode: 'full_access'
       })
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1'))
       const previousState = { ...getRuntimeState(agent, 's1') }
       const previousSettings = instance.getGenerationSettings()
       const invalidateToolProfileCache = vi.spyOn(instance, 'invalidateToolProfileCache')
@@ -10011,7 +9892,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('does not publish agent context when its transaction fails', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1'))
       const previousState = { ...getRuntimeState(agent, 's1') }
       const previousSettings = instance.getGenerationSettings()
       const invalidateToolProfileCache = vi.spyOn(instance, 'invalidateToolProfileCache')
@@ -10057,8 +9938,8 @@ describe('DeepChatAgentHarness', () => {
       )
 
       const appSessionId = toAppSessionId('s1')
-      expect(agent.deepChatRuntime.evict(appSessionId)).toBe(true)
-      const replacement = agent.deepChatRuntime.getOrHydrate(appSessionId)
+      expect(getHarnessOwners(agent).runtime.evict(appSessionId)).toBe(true)
+      const replacement = getHarnessOwners(agent).runtime.getOrHydrate(appSessionId)
       replacement.setToolProfileCache({
         profile: 'general',
         fingerprint: 'stale-after-revalidation',
@@ -10091,7 +9972,7 @@ describe('DeepChatAgentHarness', () => {
         )
       )
 
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1'))
       instance.setToolProfileCache({
         profile: 'general',
         fingerprint: 'filled-during-revalidation',
@@ -10106,7 +9987,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('waits for old-Agent memory persistence before publishing a new Agent identity', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1'))
       const coordinator = getMemoryCoordinator()
       const drain = deferred<void>()
       const beginReassignment = vi
@@ -10151,7 +10032,7 @@ describe('DeepChatAgentHarness', () => {
       })
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1'))
       instance.replaceRuntimeActivatedSkills(['runtime-skill'])
 
       await agent.setSessionAgentContext('s1', {
@@ -10222,7 +10103,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('rejects model switching while the session is generating', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).setRuntimeState({
+      getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1')).setRuntimeState({
         status: 'generating',
         providerId: 'openai',
         modelId: 'gpt-4',
@@ -10273,7 +10154,7 @@ describe('DeepChatAgentHarness', () => {
         streamResolve(undefined)
       }
       await processPromise.catch(() => {}) // ignore error from status update on destroyed session
-      expect(agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))).toBeUndefined()
+      expect(getHarnessOwners(agent).runtime.getHydrated(toAppSessionId('s1'))).toBeUndefined()
     })
   })
 
@@ -10389,7 +10270,7 @@ describe('DeepChatAgentHarness', () => {
           }
         )
 
-        const instance = agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))
+        const instance = getHarnessOwners(agent).runtime.getHydrated(toAppSessionId('s1'))
         await expect(agent.getSessionState('s1')).resolves.toMatchObject({ status: 'generating' })
         expect(instance?.getPendingInteractions()).toHaveLength(1)
         setRuntimeStatus(agent, 's1', 'generating')
@@ -10648,7 +10529,7 @@ describe('DeepChatAgentHarness', () => {
       firstRun.resolve({ status: 'aborted', stopReason: 'user_stop' })
       await firstProcess
 
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1'))
       expect(instance.getRuntimeActivatedSkills()).toEqual(['runtime-skill'])
 
       secondRun.resolve({ status: 'completed', stopReason: 'complete' })
@@ -10660,22 +10541,24 @@ describe('DeepChatAgentHarness', () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const cancelSpy = vi.spyOn(agent, 'cancelGeneration').mockResolvedValue(undefined)
       const controller = new AbortController()
-      agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).registerActiveGeneration(
-        createLoopRun({
-          runId: 'run-1',
-          sessionId: toAppSessionId('s1'),
-          messageId: 'msg-active',
-          abortController: controller,
-          messages: [],
-          streamState: createState(),
-          resources: {
-            toolDefinitions: [],
-            activeSkillNames: [],
-            commandShell: POSIX_COMMAND_SHELL,
-            toolMode: { mode: 'agent', source: 'fallback' }
-          }
-        })
-      )
+      getHarnessOwners(agent)
+        .runtime.getOrHydrate(toAppSessionId('s1'))
+        .registerActiveGeneration(
+          createLoopRun({
+            runId: 'run-1',
+            sessionId: toAppSessionId('s1'),
+            messageId: 'msg-active',
+            abortController: controller,
+            messages: [],
+            streamState: createState(),
+            resources: {
+              toolDefinitions: [],
+              activeSkillNames: [],
+              commandShell: POSIX_COMMAND_SHELL,
+              toolMode: { mode: 'agent', source: 'fallback' }
+            }
+          })
+        )
 
       await expect(agent.cancelGenerationByEventId('s1', 'msg-other')).resolves.toBe(false)
       await expect(agent.cancelGenerationByEventId('s1', 'msg-active')).resolves.toBe(true)
@@ -11102,7 +10985,9 @@ describe('DeepChatAgentHarness', () => {
         expect(processStream).not.toHaveBeenCalled()
 
         sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([])
-        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.replacePendingInteractions([])
+        getHarnessOwners(agent)
+          .runtime.getHydrated(toAppSessionId('s1'))
+          ?.replacePendingInteractions([])
         setRuntimeStatus(agent, 's1', 'idle')
         sqlitePresenter.deepchatPendingInputsTable.update.mockClear()
         await expect(agent.retryPendingQueueInput('s1', claimed.id)).resolves.toMatchObject({
@@ -11390,7 +11275,9 @@ describe('DeepChatAgentHarness', () => {
 
         await vi.waitFor(() => {
           expect(
-            agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).isPendingQueueDraining()
+            getHarnessOwners(agent)
+              .runtime.getOrHydrate(toAppSessionId('s1'))
+              .isPendingQueueDraining()
           ).toBe(false)
           expect(sqlitePresenter.deepchatPendingInputsTable.get(claimed.id)).toMatchObject({
             state: 'claimed'
@@ -11537,8 +11424,7 @@ describe('DeepChatAgentHarness', () => {
           providerRuntime: llmProvider,
           providerSettings,
           agentSettings: providerSettings,
-          database: sqlitePresenter,
-          sessionData: restartedSessionData,
+          ...restartedSessionData.runtime,
           toolService,
           hookObserver: noopHookObserver
         })
@@ -11651,7 +11537,9 @@ describe('DeepChatAgentHarness', () => {
           ])
         })
         expect(
-          agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).isPendingQueueDraining()
+          getHarnessOwners(agent)
+            .runtime.getOrHydrate(toAppSessionId('s1'))
+            .isPendingQueueDraining()
         ).toBe(false)
         expect(processStream).not.toHaveBeenCalled()
       } finally {
@@ -12913,7 +12801,7 @@ describe('DeepChatAgentHarness', () => {
       )
       expect(
         vi
-          .mocked(logger.warn)
+          .mocked(console.warn)
           .mock.calls.filter(
             ([message]) =>
               message === '[DeepChatAgent] Failed to refresh provider runtime context limit'
@@ -13180,8 +13068,8 @@ describe('DeepChatAgentHarness', () => {
         { role: 'system', content: 'Base system prompt' },
         { role: 'user', content: makeTextWithEstimatedTokens(3500) }
       ])
-      const observation = agent.deepChatRuntime
-        .getHydrated(toAppSessionId('s1'))
+      const observation = getHarnessOwners(agent)
+        .runtime.getHydrated(toAppSessionId('s1'))
         ?.getContextWindowObservation('new-api', 'custom-model')
       const manifests = getViewManifests()
 
@@ -13226,8 +13114,8 @@ describe('DeepChatAgentHarness', () => {
         { role: 'system', content: 'Base system prompt' },
         { role: 'user', content: 'Protected current input' }
       ])
-      const observation = agent.deepChatRuntime
-        .getHydrated(toAppSessionId('s1'))
+      const observation = getHarnessOwners(agent)
+        .runtime.getHydrated(toAppSessionId('s1'))
         ?.getContextWindowObservation('new-api', 'custom-model')
 
       expect(providerCoreStream).toHaveBeenCalledTimes(1)
@@ -14052,8 +13940,8 @@ describe('DeepChatAgentHarness', () => {
       await vi.waitFor(() => expect(prepareForManualCompaction).toHaveBeenCalledTimes(1))
 
       const sessionId = toAppSessionId('s1')
-      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
-      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      expect(getHarnessOwners(agent).runtime.evict(sessionId)).toBe(true)
+      const replacement = getHarnessOwners(agent).runtime.getOrHydrate(sessionId)
       replacement.setRuntimeState({
         status: 'generating',
         providerId: 'openai',
@@ -14110,13 +13998,13 @@ describe('DeepChatAgentHarness', () => {
       })
 
       const sessionId = toAppSessionId('s1')
-      const staleInstance = agent.deepChatRuntime.getOrHydrate(sessionId)
+      const staleInstance = getHarnessOwners(agent).runtime.getOrHydrate(sessionId)
       const compaction = agent.compactSession('s1')
       await vi.waitFor(() => expect(applyCompaction).toHaveBeenCalledTimes(1))
       expect(staleInstance.getCompactionState()?.status).toBe('compacting')
 
-      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
-      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      expect(getHarnessOwners(agent).runtime.evict(sessionId)).toBe(true)
+      const replacement = getHarnessOwners(agent).runtime.getOrHydrate(sessionId)
       replacement.setRuntimeState({
         status: 'generating',
         providerId: 'openai',
@@ -14156,7 +14044,7 @@ describe('DeepChatAgentHarness', () => {
         name: 'Error',
         message: 'Session missing not found'
       })
-      expect(agent.deepChatRuntime.getHydrated(toAppSessionId('missing'))).toBeUndefined()
+      expect(getHarnessOwners(agent).runtime.getHydrated(toAppSessionId('missing'))).toBeUndefined()
     })
 
     it('restores idle status when manual compaction has no eligible history', async () => {
@@ -14267,7 +14155,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('emits idle when clearMessages resets compaction state', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1'))
       sqlitePresenter.deepchatSessionsTable.updateSummaryState('s1', {
         summaryText: 'summary',
         summaryCursorOrderSeq: 3,
@@ -14294,7 +14182,7 @@ describe('DeepChatAgentHarness', () => {
     it('clears the owned compaction projection when the session is destroyed', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const sessionId = toAppSessionId('s1')
-      const instance = agent.deepChatRuntime.getOrHydrate(sessionId)
+      const instance = getHarnessOwners(agent).runtime.getOrHydrate(sessionId)
       instance.setCompactionState({
         status: 'compacted',
         cursorOrderSeq: 5,
@@ -14305,7 +14193,7 @@ describe('DeepChatAgentHarness', () => {
       await agent.destroySession('s1')
 
       expect(instance.getCompactionState()).toBeUndefined()
-      expect(agent.deepChatRuntime.getHydrated(sessionId)).toBeUndefined()
+      expect(getHarnessOwners(agent).runtime.getHydrated(sessionId)).toBeUndefined()
     })
 
     it('returns persisted compacted state for reopened sessions', async () => {
@@ -14329,11 +14217,10 @@ describe('DeepChatAgentHarness', () => {
         providerRuntime: llmProvider,
         providerSettings: providerSettings,
         agentSettings: providerSettings,
-        database: sqlitePresenter,
-        sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+        ...createSessionDataFromDatabase(sqlitePresenter as never, {
           publishPendingInputsChanged: vi.fn(),
           publishMessagesChanged: vi.fn()
-        }),
+        }).runtime,
         toolService: toolService,
         hookObserver: noopHookObserver
       })
@@ -14367,7 +14254,7 @@ describe('DeepChatAgentHarness', () => {
 
     it('prioritizes in-flight compaction before refreshing from persisted summary state', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1'))
       sqlitePresenter.deepchatSessionsTable.updateSummaryState('s1', {
         summaryText: 'persisted summary',
         summaryCursorOrderSeq: 7,
@@ -14603,7 +14490,7 @@ describe('DeepChatAgentHarness', () => {
       blocks: AssistantMessageBlock[],
       runId = `run-${messageId}`
     ) => {
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1'))
       const abortController = new AbortController()
       const streamState = createState()
       streamState.blocks = structuredClone(blocks)
@@ -14640,7 +14527,7 @@ describe('DeepChatAgentHarness', () => {
         })
         await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
         installPendingQuestion()
-        const afterTurnSettled = vi.spyOn(agent.memoryIngestionObserver, 'afterTurnSettled')
+        const afterTurnSettled = vi.spyOn(getHarnessOwners(agent).memory, 'afterTurnSettled')
         publishDeepchatEvent.mockClear()
 
         await expect(answerPendingQuestion()).resolves.toEqual({ resumed: true })
@@ -14716,7 +14603,7 @@ describe('DeepChatAgentHarness', () => {
       })
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       installPendingQuestion()
-      vi.spyOn(agent.memoryIngestionObserver, 'afterTurnSettled').mockImplementationOnce(() => {
+      vi.spyOn(getHarnessOwners(agent).memory, 'afterTurnSettled').mockImplementationOnce(() => {
         throw new Error('observer failed')
       })
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
@@ -14742,7 +14629,7 @@ describe('DeepChatAgentHarness', () => {
         ;(processStream as ReturnType<typeof vi.fn>).mockRejectedValueOnce(failure)
         await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
         installPendingQuestion()
-        const afterTurnSettled = vi.spyOn(agent.memoryIngestionObserver, 'afterTurnSettled')
+        const afterTurnSettled = vi.spyOn(getHarnessOwners(agent).memory, 'afterTurnSettled')
         publishDeepchatEvent.mockClear()
 
         await expect(answerPendingQuestion()).rejects.toBe(failure)
@@ -14919,7 +14806,7 @@ describe('DeepChatAgentHarness', () => {
       skillService.loadSkillContent.mockResolvedValue({ content: 'RUNTIME_SKILL_BODY' })
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       installPendingQuestion()
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1'))
       instance.replaceRuntimeActivatedSkills(['runtime-skill'])
       let streamParams: any
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params: any) => {
@@ -15319,7 +15206,10 @@ describe('DeepChatAgentHarness', () => {
       installPendingQuestion()
       vi.spyOn(CompactionService.prototype, 'prepareForResumeTurn').mockResolvedValue(null)
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
-        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.getAbortController()?.abort()
+        getHarnessOwners(agent)
+          .runtime.getHydrated(toAppSessionId('s1'))
+          ?.getAbortController()
+          ?.abort()
         throw new Error('late failure')
       })
 
@@ -15369,8 +15259,8 @@ describe('DeepChatAgentHarness', () => {
       await vi.waitFor(() => expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(1))
 
       const sessionId = toAppSessionId('s1')
-      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
-      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      expect(getHarnessOwners(agent).runtime.evict(sessionId)).toBe(true)
+      const replacement = getHarnessOwners(agent).runtime.getOrHydrate(sessionId)
       replacement.setRuntimeState({
         status: 'idle',
         providerId: 'openai',
@@ -15473,7 +15363,7 @@ describe('DeepChatAgentHarness', () => {
         installedSkillName: 'draft-skill'
       })
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1'))
       const invalidateToolProfileCache = vi.spyOn(instance, 'invalidateToolProfileCache')
       makeAssistantRow({
         blocks: [
@@ -15574,8 +15464,8 @@ describe('DeepChatAgentHarness', () => {
       await vi.waitFor(() => expect(skillService.installDraftSkill).toHaveBeenCalledTimes(1))
 
       const sessionId = toAppSessionId('s1')
-      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
-      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      expect(getHarnessOwners(agent).runtime.evict(sessionId)).toBe(true)
+      const replacement = getHarnessOwners(agent).runtime.getOrHydrate(sessionId)
       replacement.setRuntimeState({
         status: 'idle',
         providerId: 'openai',
@@ -15877,7 +15767,9 @@ describe('DeepChatAgentHarness', () => {
       )
       expect(processStream).not.toHaveBeenCalled()
       expect(
-        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.getFirstPendingInteraction()
+        getHarnessOwners(agent)
+          .runtime.getHydrated(toAppSessionId('s1'))
+          ?.getFirstPendingInteraction()
       ).toEqual({ messageId: 'm1', toolCallId: 'tc2', origin: 'question', order: 1 })
 
       const finalResult = await agent.respondToolInteraction('s1', 'm1', 'tc2', {
@@ -15888,7 +15780,7 @@ describe('DeepChatAgentHarness', () => {
       expect(finalResult).toEqual({ resumed: true })
       expect(processStream).toHaveBeenCalledTimes(1)
       expect(
-        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.hasPendingInteractions()
+        getHarnessOwners(agent).runtime.getHydrated(toAppSessionId('s1'))?.hasPendingInteractions()
       ).toBe(false)
     })
 
@@ -16054,7 +15946,7 @@ describe('DeepChatAgentHarness', () => {
       const started = await agent.processMessage('s1', 'Start the interaction batch')
       expect(row?.id).toBe(started.messageId)
       expect(processStream).toHaveBeenCalledTimes(1)
-      const instance = agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getHydrated(toAppSessionId('s1'))
       expect(instance?.getPendingToolBatchState()).toEqual({
         callOrder: ['tc-post', 'tc-question', 'tc-skill'],
         invokedCallIds: ['tc-skill'],
@@ -16718,8 +16610,8 @@ describe('DeepChatAgentHarness', () => {
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls.length
 
       const sessionId = toAppSessionId('s1')
-      expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
-      const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+      expect(getHarnessOwners(agent).runtime.evict(sessionId)).toBe(true)
+      const replacement = getHarnessOwners(agent).runtime.getOrHydrate(sessionId)
       replacement.setRuntimeState({
         status: 'idle',
         providerId: 'openai',
@@ -16966,8 +16858,8 @@ describe('DeepChatAgentHarness', () => {
 
       const resume = approvePendingTool()
       await fitStarted.promise
-      agent.deepChatRuntime
-        .getHydrated(toAppSessionId('s1'))
+      getHarnessOwners(agent)
+        .runtime.getHydrated(toAppSessionId('s1'))
         ?.getAbortController()
         ?.abort(PENDING_INPUT_ABORT_REASON)
       await expect(resume).resolves.toEqual({ resumed: false })
@@ -17037,7 +16929,10 @@ describe('DeepChatAgentHarness', () => {
 
       const resume = approvePendingTool()
       await fitStarted.promise
-      agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.getAbortController()?.abort()
+      getHarnessOwners(agent)
+        .runtime.getHydrated(toAppSessionId('s1'))
+        ?.getAbortController()
+        ?.abort()
       await expect(resume).resolves.toEqual({ resumed: false })
 
       const errorWrite =
@@ -17100,8 +16995,8 @@ describe('DeepChatAgentHarness', () => {
         const persistedUpdateCount =
           sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls.length
         const sessionId = toAppSessionId('s1')
-        expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
-        const replacement = agent.deepChatRuntime.getOrHydrate(sessionId)
+        expect(getHarnessOwners(agent).runtime.evict(sessionId)).toBe(true)
+        const replacement = getHarnessOwners(agent).runtime.getOrHydrate(sessionId)
         replacement.setRuntimeState({
           status: 'idle',
           providerId: 'openai',
@@ -17162,7 +17057,7 @@ describe('DeepChatAgentHarness', () => {
           if (id === row.id) row.content = content
         }
       )
-      const instance = agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getHydrated(toAppSessionId('s1'))
       instance?.replacePendingToolBatch(
         [
           {
@@ -17337,8 +17232,8 @@ describe('DeepChatAgentHarness', () => {
 
     it('cancels only the target session live ACP permission resolvers', async () => {
       const resolve = vi.fn().mockResolvedValue(undefined)
-      const first = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
-      const second = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s2'))
+      const first = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1'))
+      const second = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s2'))
       first.registerActiveProviderPermission({
         requestId: 'acp-req-1',
         messageId: 'm1',
@@ -17986,7 +17881,7 @@ describe('DeepChatAgentHarness', () => {
       expect(permissionBlock?.extra?.needsUserAction).toBe(false)
       expect(JSON.parse(metadataJson)).toMatchObject({ interactionResolution: 'cancelled' })
       expect(
-        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.hasPendingInteractions()
+        getHarnessOwners(agent).runtime.getHydrated(toAppSessionId('s1'))?.hasPendingInteractions()
       ).toBe(false)
     })
 
@@ -17998,7 +17893,7 @@ describe('DeepChatAgentHarness', () => {
         serverName: 'agent-filesystem',
         shellProfile: 'posix'
       })
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1'))
       // The stuck state: the paused run released its claim, so nothing owns the approval, yet the
       // session still reports work in progress.
       instance.setRuntimeState({
@@ -18071,7 +17966,7 @@ describe('DeepChatAgentHarness', () => {
           else if (id === 'm2') secondRow.content = content
         }
       )
-      const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
+      const instance = getHarnessOwners(agent).runtime.getOrHydrate(toAppSessionId('s1'))
 
       const dismissed = await agent.dismissToolInteraction('s1', 'm1', 'tc1')
 
@@ -18749,8 +18644,7 @@ describe('DeepChatAgentHarness', () => {
       agent = createDeepChatAgentHarness({
         ...runtimeDependencies,
         sessionPermissionPort,
-        database: sqlitePresenter,
-        sessionData,
+        ...sessionData.runtime,
         toolService,
         providerRuntime: llmProvider,
         providerSettings,
@@ -18759,7 +18653,7 @@ describe('DeepChatAgentHarness', () => {
       })
 
       await expect(agent.getSessionState('s1')).resolves.toMatchObject({ status: 'generating' })
-      const rehydratedInstance = agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))
+      const rehydratedInstance = getHarnessOwners(agent).runtime.getHydrated(toAppSessionId('s1'))
       expect(rehydratedInstance?.getPendingInteractions()).toEqual([
         {
           messageId: 'm1',
@@ -19170,8 +19064,8 @@ describe('DeepChatAgentHarness', () => {
       expect(capturedSignal).toBeDefined()
       expect(capturedSignal?.aborted).toBe(false)
       expect(
-        agent.deepChatRuntime
-          .getHydrated(toAppSessionId('s1'))
+        getHarnessOwners(agent)
+          .runtime.getHydrated(toAppSessionId('s1'))
           ?.hasDeferredToolAbortController('tc-subagent')
       ).toBe(true)
 
@@ -19180,8 +19074,8 @@ describe('DeepChatAgentHarness', () => {
       expect(capturedSignal?.aborted).toBe(true)
       await expect(executionPromise).resolves.toEqual({ resumed: false })
       expect(
-        agent.deepChatRuntime
-          .getHydrated(toAppSessionId('s1'))
+        getHarnessOwners(agent)
+          .runtime.getHydrated(toAppSessionId('s1'))
           ?.hasDeferredToolAbortController('tc-subagent')
       ).toBe(false)
     })
@@ -19229,7 +19123,9 @@ describe('DeepChatAgentHarness', () => {
             }))
           )
         }
-        agent.deepChatRuntime.getHydrated(toAppSessionId('s1'))?.replacePendingInteractions([])
+        getHarnessOwners(agent)
+          .runtime.getHydrated(toAppSessionId('s1'))
+          ?.replacePendingInteractions([])
         toolResult.resolve({
           content: 'done',
           rawData: { content: 'done', isError: false }

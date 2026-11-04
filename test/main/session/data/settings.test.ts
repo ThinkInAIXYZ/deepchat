@@ -1,4 +1,10 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
+
+vi.unmock('fs')
+vi.unmock('node:fs')
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const sqlitePresenterModule = sqliteModule
@@ -45,7 +51,8 @@ if (Database) {
   }
 }
 
-const describeIfSqlite = sqliteAvailable ? describe : describe.skip
+const describeIfSqlite =
+  sqliteAvailable || process.env.DEEPCHAT_REQUIRE_NATIVE_SQLITE === '1' ? describe : describe.skip
 
 describeIfSqlite('SessionSettingsStore tape summary state', () => {
   function createStore() {
@@ -55,6 +62,46 @@ describeIfSqlite('SessionSettingsStore tape summary state', () => {
     const store = new SessionSettingsStoreCtor(database, tape)
     return { connection, database, store }
   }
+
+  it('reads identity, tool policy and memory cursors from the current connection after reopen', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'deepchat-session-resources-'))
+    const connection = new MainDatabaseCtor(join(directory, 'agent.db'))
+    const database = new SessionDatabaseCtor(connection)
+    const store = new SessionSettingsStoreCtor(database, new SessionTapeCtor(database))
+    try {
+      database.newSessionsTable.create('parent', 'parent-agent', 'Parent', '/parent')
+      database.newSessionsTable.create('child', 'child-agent', 'Child', '/child', {
+        sessionKind: 'subagent',
+        parentSessionId: 'parent',
+        disabledAgentTools: ['exec'],
+        orchestrationPolicy: 'proactive',
+        toolModeOverride: 'minimal'
+      })
+      store.create('child', 'openai', 'fixture', 'default')
+      store.updateMemoryCursorOrderSeq('child', 8)
+      expect(store.getIdentity('missing')).toBeNull()
+      expect(store.getIdentity('child')).toEqual({
+        agentId: 'child-agent',
+        parentSessionId: 'parent',
+        kind: 'subagent',
+        projectDir: '/child'
+      })
+      connection.reopen()
+      expect(store.getIdentity('parent')?.agentId).toBe('parent-agent')
+      expect(store.getOrchestrationPolicy('child')).toBe('proactive')
+      expect(store.getToolModeOverride('child')).toBe('minimal')
+      expect(store.getDisabledAgentTools('child')).toEqual(['exec'])
+      expect(store.getMemoryCursorOrderSeq('child')).toBe(8)
+      database.newSessionsTable.updateAgentId('child', 'transferred-agent')
+      store.rewindMemoryCursorOrderSeq('child', 3)
+      connection.reopen()
+      expect(store.getIdentity('child')?.agentId).toBe('transferred-agent')
+      expect(store.getMemoryCursorOrderSeq('child')).toBe(3)
+    } finally {
+      connection.close()
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
 
   it('creates a bootstrap anchor for each session', () => {
     const { connection, database, store } = createStore()

@@ -190,3 +190,5 @@ export class SessionEventRouter {
     }
   }
 }
+
+export type SessionEventPublisher = (name: DeepchatEventName, payload: unknown) => void

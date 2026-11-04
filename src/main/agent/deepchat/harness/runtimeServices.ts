@@ -1,23 +1,39 @@
+import type { SkillContextTapePort } from '@/tape/application/capabilityAdapters'
+import type { DeepChatOutputPort } from '../runtime/output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
 import type { ProviderExecutionPort } from '@shared/types/provider'
 import type { SkillMetadataSnapshotPort, SkillServicePort } from '@shared/types/skill'
 import type { ToolServicePort } from '@shared/types/tool'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
-import type { PromptSettings } from '@/agent/promptSettings'
+import type { PromptSettingsPort } from '@/agent/promptSettings'
 import type { HookObserver } from '@/hook/observer'
 import type { MemoryRuntimePort } from '@/memory/injection'
-import type { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
+import type { AttachmentPreparationPort } from '@shared/types/attachment'
 import type { AcpAsLlmProviderPermissionPort, ProviderCatalogPort } from '@/provider/ports'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
-import type { SessionData } from '@/session/data'
-import type { SessionDatabase } from '@/session/data/database'
-import type { SessionPermissionPort, SessionUiPort } from '@/session/contracts'
+import type {
+  SessionSettingsPort,
+  SessionTranscriptPort,
+  SessionPendingInputsPort
+} from '@/session/data/contracts'
+import type {
+  DeepChatLoopTapePort,
+  TapeAnchorReader,
+  TapeAnchorWriter,
+  TapeNonContextEntryReader,
+  TapeContextOccupancyReader,
+  ExecutionJournalRecoveryReader,
+  TapeToolSurfaceViewReader,
+  ExecutionJournalWriter,
+  NestedExecutionJournalWriter
+} from '@/tape/ports/capabilities'
+import type { SessionPermissionPort } from '@/session/contracts'
+import type { SessionStatusPublisherPorts } from '@/agent/deepchat/runtime/sessionStatusPublisher'
 import type { SkillSettingsPort } from '@/skill/settings'
-import type { CacheImageOptions } from '@/platform/imageCache'
-import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
+import type { CacheImageOptions } from '@shared/types/attachment'
 import type { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import type { CommandShellService } from '@/agent/shared/process/commandShellService'
+import type { CommandShellPort } from '@shared/commandShell'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type { MemoryIngestionProjection } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
 import type { CompactionRuntimeCoordinator } from '@/agent/deepchat/runtime/compactionRuntimeCoordinator'
@@ -33,18 +49,13 @@ import type { SessionSettingsCoordinator } from '@/agent/deepchat/runtime/sessio
 import type { SessionStateResolver } from '@/agent/deepchat/runtime/sessionStateResolver'
 import type { TranscriptMutationCoordinator } from '@/agent/deepchat/runtime/transcriptMutationCoordinator'
 import type { TurnCoordinator } from '@/agent/deepchat/runtime/turnCoordinator'
-import type {
-  DeepChatEventPublisher,
-  DeepChatSessionUpdatePublisher,
-  RunJournalObserver
-} from '@/agent/deepchat/runtime/types'
+import type { RunJournalObserver } from '@/agent/deepchat/runtime/types'
 import type { MonotonicClock } from '@/lib/monotonicTime'
 import type { ToolSurfaceShadowDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceDiagnostics'
 import type { ToolSurfaceCanaryDiagnosticsRegistry } from '@/agent/deepchat/runtime/toolSurfaceCanaryDiagnostics'
 import type { DeepChatTaskContractContextPort } from '@/agent/deepchat/loop/ports'
 import type { ToolSurfaceRunModePort } from '@/agent/deepchat/runtime/deepChatLoopRunner'
-import type { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
-import type { AgentCliTokenAuthority } from '@/cli/agentTokenAuthority'
+import type { ProgrammaticToolPort } from '@/agent/deepchat/runtime/programmaticExecParent'
 
 export type DeepChatHarnessSkillPort = Pick<
   SkillServicePort,
@@ -69,37 +80,42 @@ export interface DeepChatHarnessDependencies {
   providerRuntime: ProviderExecutionPort
   providerSettings: ProviderModelResolutionPort
   agentSettings: AgentSettingsPort
-  database: SessionDatabase
-  sessionData: SessionData
+  sessionSettings: SessionSettingsPort
+  transcript: SessionTranscriptPort
+  pendingInputs: SessionPendingInputsPort
+  tape: Omit<DeepChatLoopTapePort, keyof NestedExecutionJournalWriter> &
+    SkillContextTapePort &
+    TapeAnchorReader &
+    TapeAnchorWriter &
+    TapeNonContextEntryReader &
+    TapeContextOccupancyReader &
+    ExecutionJournalRecoveryReader &
+    TapeToolSurfaceViewReader
+  programmaticExecutionJournal: Pick<ExecutionJournalWriter, 'commitToolOutcome'> &
+    NestedExecutionJournalWriter
   toolService: ToolServicePort
   hookObserver: HookObserver
   onSessionCompleted?: (sessionId: string) => void
-  publishEvent: DeepChatEventPublisher
-  publishSessionUpdate: DeepChatSessionUpdatePublisher
+  output: DeepChatOutputPort
   providerCatalogPort: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
   sessionPermissionPort: SessionPermissionPort
   acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
-  sessionUiPort: SessionUiPort
+  publishStatus: SessionStatusPublisherPorts['publishStatus']
   memoryPort: MemoryRuntimePort
   getMemoryIngestionProjection(): MemoryIngestionProjection
   cacheImage(data: string, options?: CacheImageOptions): Promise<string>
   skillService: DeepChatHarnessSkillPort
   skillSettings: SkillSettingsPort
   traceSettings: AgentTraceSettingsPort
-  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
-  attachmentRouter: Pick<AttachmentCapabilityRouter, 'prepare'>
+  promptSettings: PromptSettingsPort
+  attachmentRouter: Pick<AttachmentPreparationPort, 'prepare'>
   interactionContinuationAdmission: InteractionContinuationAdmissionPort
   taskContractContext: DeepChatTaskContractContextPort
-  commandShell: Pick<CommandShellService, 'resolveForTurn' | 'resolveProfile'>
+  commandShell: Pick<CommandShellPort, 'resolveForTurn' | 'resolveProfile'>
   /** Internal rollout seam. Production remains on the legacy path unless explicitly assigned. */
   toolSurfaceRunMode?: ToolSurfaceRunModePort
-  /** Process-live causality owner. It never reconstructs dispatch authority from Tape. */
-  programmaticToolParents?: ProgrammaticToolParentRegistry
-  /** Shared local-control authority for inert exact-operation grants and Run-scoped revocation. */
-  agentCliTokenAuthority: Pick<
-    AgentCliTokenAuthority,
-    'prepareProgrammaticOperation' | 'revokeConversation'
-  >
+  /** The host owns exact-operation grants and process-live settlement authority. */
+  programmaticTools: ProgrammaticToolPort
   runJournalObserver?: RunJournalObserver
   diagnosticNow?: MonotonicClock
 }
@@ -123,6 +139,5 @@ export interface DeepChatRuntimeServices {
   memoryIngestionObserver: MemoryIngestionObserver
   toolSurfaceDiagnostics: ToolSurfaceShadowDiagnosticsRegistry
   toolSurfaceCanaryDiagnostics: ToolSurfaceCanaryDiagnosticsRegistry
-  acpCompatibility: AcpAgentInstanceDependencyFactory
   reconcileAfterDatabaseReopen(): void
 }

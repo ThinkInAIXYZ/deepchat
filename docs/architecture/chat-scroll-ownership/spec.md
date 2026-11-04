@@ -1,13 +1,13 @@
 # Chat Scroll Ownership Architecture
 
-## Status
+## Scope
 
-Implementation in progress as of 2026-07-15. The exclusive controller, isolated message viewport,
-request attribution, geometry observer, atomic message-view commit, and bounded renderer cache are
-implemented. The real Electron scenario is present but still requires an opt-in provider run for
-final browser evidence and performance numbers.
-
-GitHub issue sync was not requested and is not part of this work.
+The exclusive controller, isolated message viewport, request attribution, geometry observation,
+atomic message-view commit, and bounded renderer cache are implemented. The real Electron test at
+`test/e2e/specs/31-chat-scroll-ownership.smoke.spec.ts` uses deterministic SQLite history without a
+provider. It exercises long-history pagination, bounded rendering, reading-position preservation,
+Session switching, and loaded-message search. Frame-by-frame compatibility, physical input, and
+reference-machine performance remain explicit gates in [plan.md](./plan.md).
 
 ## Implemented foundation
 
@@ -29,45 +29,16 @@ GitHub issue sync was not requested and is not part of this work.
 - Same-session loads are fenced by live mutation revisions. Streams remain session-scoped before
   commit and are ordered and settled by request identity; stale terminals cannot clear newer
   streams and duplicate terminals cannot start duplicate refreshes.
-- Unit, component, focused ownership, and opt-in Electron smoke coverage protect the new contract.
-
-## Validation record
-
-- Review-hardening scroll, page, keyed-parent, cache, and architecture suites passed 120/120 tests.
-- Full renderer suite with four workers and a 30-second per-test budget: 168 files and 1267 tests
-  passed.
-- Format, i18n, lint, Node/Web typecheck, and production build passed.
-- Playwright successfully discovers the opt-in real Electron scroll scenario at
-  `test/e2e/specs/31-chat-scroll-ownership.smoke.spec.ts`.
-- The real Electron/provider scenario and manual macOS trackpad matrix remain outstanding; no
-  claim of final physical-device validation is made yet.
+- Unit, component, focused ownership, and deterministic real Electron smoke coverage protect the contract.
 
 ## User need
 
 Chat scrolling must feel native and remain under the user's control in short, long, restored, and
 streaming conversations. Opening search, loading history, rendering Markdown, resizing the composer,
-showing plans, or receiving stream updates must not flash, jump backward, or steal the scrollbar.
+showing interactions, or receiving stream updates must not flash, jump backward, or steal the scrollbar.
 
 The redesign must preserve every current ChatPage capability and all existing user data while making
 the implementation smaller, testable, and maintainable.
-
-## Problem statement
-
-`ChatPage.vue` currently combines page orchestration, message conversion, session restoration,
-history pagination, bounded rendering, row measurement, auto-follow, search, Spotlight navigation,
-plan layout, composer behavior, and direct DOM scrolling in one component of more than 3,000 lines.
-
-The same outer element is both the page shell and message scroll container. Its scroll geometry
-therefore includes the top bar, search chrome, messages, plan padding, pending lanes, status content,
-and sticky composer. Those regions can change height independently of messages. Chromium may clamp
-`scrollTop` when the resulting maximum changes, even when JavaScript did not explicitly request a
-scroll.
-
-At the same time, several independent code paths can write scroll position through `scrollTop` or
-`scrollIntoView`. Ownership is inferred through overlapping millisecond windows rather than an
-explicit transaction model. Unit tests can validate numerical writes but cannot reproduce real
-Chromium layout, sticky positioning, native scroll anchoring, compositor behavior, or scroll
-clamping.
 
 ## Goals
 
@@ -75,10 +46,10 @@ clamping.
 2. Route every programmatic scroll through one typed controller with explicit reason and priority.
 3. Give an active user gesture durable ownership until the user explicitly returns to the bottom or
    requests a navigation action.
-4. Preserve current short-chat, long-chat, streaming, history, search, Spotlight, capture, plan,
+4. Preserve current short-chat, long-chat, streaming, history, search, Spotlight, capture,
    interaction, pending-input, read-only, and session-switch behavior.
 5. Keep the bounded message window and logical message addressing for long-chat performance.
-6. Preserve all stored sessions, messages, cursors, settings, drafts, plans, and pending inputs
+6. Preserve all stored sessions, messages, cursors, settings, drafts, and pending inputs
    without migration.
 7. Reduce ChatPage responsibilities into focused components and composables with black-box tests.
 8. Add real Chromium coverage for layout-dependent scroll behavior.
@@ -88,11 +59,10 @@ clamping.
 ## Non-goals
 
 - No database, IPC, presenter, session schema, or message schema changes.
-- No redesign of message visuals, composer visuals, search UI, plan UI, or interaction UI.
+- No redesign of message visuals, composer visuals, search UI, or interaction UI.
 - No replacement of the existing message store or provider/streaming pipeline.
 - No third-party virtual-list dependency as the source of message identity or position.
 - No change to the meaning or default of `autoScrollEnabled`.
-- No GitHub issue or PR creation without separate approval.
 
 ## Required architecture
 
@@ -101,23 +71,24 @@ clamping.
 The page shell must use three independent layout regions:
 
 ```text
-ChatPageShell (overflow: hidden)
-├── ChatHeaderRegion            fixed layout row; never scrolls with messages
-├── ChatMessageViewport         minmax(0, 1fr); the only overflow-y:auto owner
+ChatPage shell (overflow: hidden)
+├── Header region              fixed layout row; never scrolls with messages
+├── Message viewport           minmax(0, 1fr); the only overflow-y:auto owner
 │   ├── history status overlay  out of normal message flow
 │   ├── search overlay          out of normal message flow
 │   └── MessageList             messages and virtual spacers only
-└── ChatComposerRegion          fixed layout row; outside message scroll geometry
+└── Composer region            fixed layout row; outside message scroll geometry
     ├── pending input lane
-    ├── plan / interaction layer
+    ├── interaction layer
     ├── ChatInputBox
     └── ChatStatusBar
 ```
 
 The shell uses `display: grid`, `grid-template-rows: auto minmax(0, 1fr) auto`, and
-`overflow: hidden`. Only `ChatMessageViewport` may expose `overflow-y: auto`.
+`overflow: hidden`. Only the message viewport exposes `overflow-y: auto`. These are layout regions
+within `ChatPage.vue`; component filenames do not determine the boundary.
 
-Header, composer, plan, status, pending-input, and search height changes must not add or remove
+Header, composer, status, pending-input, and search height changes must not add or remove
 content inside the message scroll extent. Viewport size changes are reported to the controller as
 geometry changes, not mistaken for user scrolls.
 
@@ -246,7 +217,7 @@ critical path
     -> input and message viewport interactive
 
 secondary path
-  pending inputs + plans + metadata + adjacent pre-measurement + optional pre-hydration
+  pending inputs + metadata + adjacent pre-measurement + optional pre-hydration
 ```
 
 - Do not clear the visible message view before the target session window is ready to commit.
@@ -261,13 +232,13 @@ secondary path
   cache misses do not advance either generation.
 - A failed or superseded preparation does not expose the target view or enable its composer unless a
   matching cached view was already committed safely.
-- Message data and the latest viewport are the critical path. Pending inputs, plan state, status
+- Message data and the latest viewport are the critical path. Pending inputs, status
   metadata, and optional adjacent-row hydration load in parallel but do not block first message
   paint.
 - Load the existing history count for compatibility, pagination, and search correctness, but mount
   only the bounded viewport plus overscan. Loaded records must not imply mounted heavy DOM rows.
-- Preserve the page shell, composer instances, TipTap state, and global layout across session
-  switches; replace only session-scoped view data.
+- Preserve draft and editor behavior across Session switches. Keyed page remounts restore
+  Session-scoped view and bounded measurement state without exposing mixed-Session content.
 
 ### Streaming and submit behavior
 
@@ -326,7 +297,7 @@ secondary path
 | Spotlight/trace jump | Target mounts, centers once, highlights, and clears pending navigation |
 | Streaming Markdown | No full-list rebuild and no viewport movement in reading mode |
 | Images/artifacts/tools | Late size changes preserve long-list anchors without short-list writes |
-| Plan/interaction/pending lane | Visual behavior unchanged; no participation in message scroll extent |
+| Interaction/pending lane | Visual behavior unchanged; no participation in message scroll extent |
 | Composer resize/focus/IME | Draft and focus remain intact; message viewport is not scrolled |
 | Read-only/subagent sessions | Existing display and navigation behavior remains unchanged |
 | Capture/export | Full loaded-message capture behavior remains available |
@@ -340,15 +311,13 @@ secondary path
 - `autoScrollEnabled` retains its current persisted key and meaning.
 - Scroll controller state is renderer-only and ephemeral. It is reset on session epoch changes and
   is never persisted.
-- Existing user data requires no migration and remains readable by both pre-refactor and
-  post-refactor builds.
-- Rollback is a source-code rollback only; it does not require data rollback.
+- Scroll ownership changes require no persisted-data migration.
 
 ## Performance and experience acceptance criteria
 
 1. During an active user gesture, no unauthorized programmatic scroll write occurs.
 2. In reading mode, the selected logical anchor drifts by at most 1 CSS pixel across Markdown,
-   image, tool, plan, composer, and streaming layout changes.
+   image, tool, composer, and streaming layout changes.
 3. Short conversations with 1–20 messages perform zero measurement-driven scroll writes.
 4. One user navigation action produces at most one viewport write plus one highlight-only DOM pass.
 5. One animation frame contains at most one committed viewport scroll write.
@@ -380,5 +349,4 @@ secondary path
 
 ## Linked specifications
 
-- `docs/issues/chat-history-search-scroll-coordinates/spec.md`
 - `docs/ARCHITECTURE.md` Desktop platform contract

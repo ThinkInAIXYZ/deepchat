@@ -235,7 +235,7 @@ async function setup(overrides?: {
       }
     ],
     archivedEnvironments: overrides?.archivedEnvironments ?? [],
-    refreshEnvironmentData: vi.fn().mockResolvedValue(undefined),
+    refreshProjectSnapshot: vi.fn().mockResolvedValue(true),
     openDirectory: vi.fn().mockResolvedValue(undefined),
     setDefaultProject: vi.fn().mockResolvedValue(undefined),
     clearDefaultProject: vi.fn().mockResolvedValue(undefined),
@@ -309,14 +309,41 @@ describe('EnvironmentsSettings', () => {
     vi.clearAllMocks()
   })
 
-  it('renders non-temp environments by default and refreshes on mount', async () => {
+  it('renders environments and reports refresh failures before retrying', async () => {
     const { wrapper, projectStore } = await setup()
 
-    expect(projectStore.refreshEnvironmentData).toHaveBeenCalledTimes(1)
+    expect(projectStore.refreshProjectSnapshot).toHaveBeenCalledTimes(1)
     expect(wrapper.findAll('[data-testid="environment-row"]')).toHaveLength(1)
     expect(wrapper.text()).toContain('app')
     expect(wrapper.text()).not.toContain('tmp-1')
     expect(wrapper.get('[data-testid="missing-toggle"]').attributes('aria-checked')).toBe('false')
+    expect(notifyRenderer).not.toHaveBeenCalled()
+
+    const refreshButton = wrapper.findAll('button').find((button) => button.text() === 'Refresh')!
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    projectStore.refreshProjectSnapshot.mockResolvedValueOnce(false)
+    await refreshButton.trigger('click')
+    await flushPromises()
+
+    expect(notifyRenderer).toHaveBeenCalledExactlyOnceWith({
+      kind: 'error',
+      code: 'settings.environments.refresh.failed',
+      title: 'Operation failed'
+    })
+    expect(refreshButton.attributes('disabled')).toBeUndefined()
+
+    projectStore.refreshProjectSnapshot.mockRejectedValueOnce(new Error('/private/project.db'))
+    await refreshButton.trigger('click')
+    await flushPromises()
+    expect(notifyRenderer).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).not.toContain('/private/project.db')
+
+    await refreshButton.trigger('click')
+    await flushPromises()
+    expect(projectStore.refreshProjectSnapshot).toHaveBeenCalledTimes(4)
+    expect(notifyRenderer).toHaveBeenCalledTimes(2)
+    expect(refreshButton.attributes('disabled')).toBeUndefined()
+    consoleError.mockRestore()
   })
 
   it('keeps the current default visible even when it is a temp directory', async () => {

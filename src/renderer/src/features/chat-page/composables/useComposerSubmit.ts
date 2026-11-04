@@ -6,7 +6,7 @@ import type { useSessionStore } from '@/stores/ui/session'
 import type { useModelStore } from '@/stores/modelStore'
 import type { usePendingInputStore } from '@/stores/ui/pendingInput'
 import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
-import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
+import { prepareFilesForModel } from '@/lib/audioInputSupport'
 import { isAbortError } from '@/lib/errors'
 import type {
   AttachmentFallbackPolicy,
@@ -172,7 +172,6 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   const {
     messageStore,
     sessionStore,
-    modelStore,
     pendingInputStore,
     chatClient,
     sessionClient,
@@ -387,49 +386,8 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     steeringSessionIds.value = next
   }
 
-  function notifyUnsupportedAudioAttachments(
-    selection: { providerId: string; modelId: string },
-    rejectedAudioFiles: MessageFile[]
-  ) {
-    if (rejectedAudioFiles.length === 0) {
-      return
-    }
-
-    const modelLabel =
-      modelStore.findChatSelectableModel(selection.providerId, selection.modelId)?.model.name ??
-      selection.modelId
-
-    notify({
-      kind: 'warning',
-      code: 'chat.audio.unsupported',
-      title: t('chat.input.audioInputUnsupportedTitle'),
-      description: t('chat.input.audioInputUnsupportedDescription', {
-        count: rejectedAudioFiles.length,
-        model: modelLabel
-      })
-    })
-  }
-
-  async function prepareFilesForCurrentModel(files: MessageFile[]): Promise<MessageFile[]> {
-    const selection = options.getActiveModelSelection()
-    if (!selection || files.length === 0) {
-      return files
-    }
-
-    try {
-      const capabilities = await modelClient.getCapabilities(selection)
-      if (capabilities.supportsAudioInput) {
-        return files
-      }
-
-      const { acceptedFiles, rejectedAudioFiles } = filterUnsupportedAudioAttachments(files, false)
-      notifyUnsupportedAudioAttachments(selection, rejectedAudioFiles)
-      return acceptedFiles
-    } catch (error) {
-      console.warn('[ChatPage] Failed to resolve audio input capability:', error)
-      return files
-    }
-  }
+  const prepareFilesForCurrentModel = (files: MessageFile[]) =>
+    prepareFilesForModel(files, options.getActiveModelSelection(), options)
 
   const getComposerSkillsSnapshot = (): string[] => {
     return Array.from(new Set(chatInputRef.value?.getPendingSkillsSnapshot?.() ?? []))

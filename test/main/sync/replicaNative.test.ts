@@ -6,6 +6,8 @@ import { requireDatabase, describeIfNativeSqlite } from '../nativeSqliteHarness'
 import { MainDatabase } from '@/data/mainDatabase'
 import { buildMemoryTombstoneIdentities } from '@/memory/core/tombstone'
 import { SyncReplicaStore } from '@/sync/replica/store'
+import { createSessionData } from '@/session/data'
+import { DeepChatPendingInputsTable } from '@/session/data/tables/deepchatPendingInputs'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -27,13 +29,21 @@ describeIfNativeSqlite('Device sync durable merge', () => {
   })
   function device() {
     const directory = mkdtempSync(join(tmpdir(), 'deepchat-replica-'))
-    const db = new (requireDatabase())(join(directory, 'agent.db'))
+    let db = new (requireDatabase())(join(directory, 'agent.db'))
     db.exec(schema)
+    new DeepChatPendingInputsTable(db).createTable()
+    const data = createSessionData({ getDatabase: () => db }, undefined, {
+      publishPendingInputsChanged: () => {},
+      publishMessagesChanged: () => {}
+    })
     let busy: boolean | string = false
+    const canApply = (kind: string, id: string) =>
+      (!busy || (typeof busy === 'string' && busy !== id)) &&
+      (kind !== 'session' || !data.pendingInputs.hasUnconsumedInputs(id))
     let store = new SyncReplicaStore({
       directory,
       database: () => db,
-      canApply: (_kind, id) => !busy || (typeof busy === 'string' && busy !== id),
+      canApply,
       applied: () => {}
     })
     cleanups.push(() => {
@@ -42,7 +52,10 @@ describeIfNativeSqlite('Device sync durable merge', () => {
       rmSync(directory, { recursive: true, force: true })
     })
     return {
-      db,
+      get db() {
+        return db
+      },
+      pendingInputs: data.pendingInputs,
       get store() {
         return store
       },
@@ -51,10 +64,12 @@ describeIfNativeSqlite('Device sync durable merge', () => {
       },
       restart() {
         store.close()
+        db.close()
+        db = new (requireDatabase())(join(directory, 'agent.db'))
         store = new SyncReplicaStore({
           directory,
           database: () => db,
-          canApply: (_kind, id) => !busy || (typeof busy === 'string' && busy !== id),
+          canApply,
           applied: () => {}
         })
       }
@@ -134,6 +149,38 @@ describeIfNativeSqlite('Device sync durable merge', () => {
     expect(b.store.cursor(a.store.replicaId)).toBe(0)
     expect(b.db.prepare('SELECT * FROM new_sessions').all()).toEqual([])
     expect(await b.store.apply(batch)).toBe(true)
+  })
+
+  it('defers sync for unconsumed input states across database reopen', async () => {
+    const sender = device()
+    sender.db.exec("INSERT INTO new_sessions VALUES('s','First',NULL,1,1)")
+    const batch = sender.store.export(0)
+    for (const state of ['pending', 'claimed', 'blocked', 'retry_required'] as const) {
+      const receiver = device()
+      const pending = receiver.pendingInputs
+      const table = new DeepChatPendingInputsTable(receiver.db)
+      table.insert({
+        id: 'other',
+        sessionId: 'other-session',
+        mode: 'queue',
+        state: 'pending',
+        payloadJson: '{}'
+      })
+      expect(pending.hasUnconsumedInputs('s')).toBe(false)
+      table.insert({ id: 'held', sessionId: 's', mode: 'queue', state, payloadJson: '{}' })
+      expect(pending.hasUnconsumedInputs('s')).toBe(true)
+      expect(await receiver.store.apply(batch), state).toBe(false)
+      expect(receiver.store.cursor(sender.store.replicaId)).toBe(0)
+      receiver.restart()
+      expect(pending.hasUnconsumedInputs('s'), state).toBe(true)
+      expect(await receiver.store.apply(batch), state).toBe(false)
+      new DeepChatPendingInputsTable(receiver.db).update('held', { state: 'consumed' })
+      expect(pending.hasUnconsumedInputs('s')).toBe(false)
+      expect(await receiver.store.apply(batch), state).toBe(true)
+      expect(receiver.db.prepare('SELECT title FROM new_sessions WHERE id = ?').get('s')).toEqual({
+        title: 'First'
+      })
+    }
   })
 
   it('does not export an empty success while the first change is blocked', () => {

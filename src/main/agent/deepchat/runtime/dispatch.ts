@@ -19,7 +19,7 @@ import { buildExecutionContractBinding } from '@/tape/domain/executionContract'
 import {
   parseQuestionToolArgs,
   QUESTION_TOOL_NAME
-} from '@/tool/agentTools/questionTool'
+} from '@shared/contracts/questionTool'
 import type {
   InterleavedReasoningConfig,
   IoParams,
@@ -55,13 +55,14 @@ import {
 } from '@shared/commandShell'
 import {
   buildCommandPermissionSignature,
-  isCommandSignatureForProfile,
+  isCommandSignatureForProfile
+} from '@/tool/permission/commandPermissionService'
+import {
   requiresAgentToolApprovalShellProfile,
   resolveAgentToolReview
-} from '@/tool/permission'
+} from '@/tool/permission/agentToolReviewPolicy'
 import { emitDeepChatLoopNotification } from '@/agent/deepchat/loop/notificationObserver'
-import { cloneBlocksForRenderer } from '@/session/clientMessageProjection'
-import { buildTerminalErrorBlocks } from '@/session/data/transcript'
+import { buildTerminalErrorBlocks } from '@/session/data/messageContent'
 import { finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import type { EchoHandle } from './echo'
 import {
@@ -100,12 +101,12 @@ import type {
 } from '@/agent/deepchat/loop/loopRun'
 import type {
   ProgrammaticToolParentRegistration,
-  ProgrammaticToolParentRegistry
-} from '@/cli/programmaticToolParentRegistry'
+  ProgrammaticToolPort
+} from '@/agent/deepchat/runtime/programmaticExecParent'
 import {
   ProgrammaticCommandLaunchError,
   isProgrammaticCommandLaunchError
-} from '@/tool/agentTools/agentBashHandler'
+} from '@shared/types/core/mcp'
 import {
   buildToolSurfaceDeferredDispatchBinding,
   claimToolSurfaceExecution,
@@ -1749,8 +1750,7 @@ function appendSkillDraftQuestionActionBlock(
 }
 
 function flushBlocksToRenderer(io: IoParams, state: StreamState): void {
-  const renderedBlocks = cloneBlocksForRenderer(state.blocks)
-  io.publishEvent('chat.stream.updated', {
+  io.output.streamSnapshot({
     kind: 'snapshot',
     requestId: io.requestId,
     sessionId: io.sessionId,
@@ -1759,10 +1759,10 @@ function flushBlocksToRenderer(io: IoParams, state: StreamState): void {
     modelId: io.modelId,
     updatedAt: Date.now(),
     revision: state.blocksRevision,
-    blocks: renderedBlocks
+    blocks: state.blocks
   })
 
-  io.publishSessionUpdate({
+  io.output.sessionUpdate({
     sessionId: io.sessionId,
     kind: 'blocks',
     updatedAt: Date.now(),
@@ -1795,7 +1795,7 @@ async function runToolCall(params: {
   toolSurfaceExecutionBatch?: ToolSurfaceExecutionBatch
   toolSurfaceSnapshot?: ToolSurfaceSnapshot
   programmaticToolCapability?: ProgrammaticToolCapabilityV1
-  programmaticToolParents?: Pick<ProgrammaticToolParentRegistry, 'prepare'>
+  programmaticToolParents?: Pick<ProgrammaticToolPort, 'prepare'>
   toolCallOrdinalWithinBatch: number
   commandShell: ResolvedCommandShell
   contextLength: number
@@ -2584,7 +2584,7 @@ export interface SettleToolBatchParams {
   requestView?: LoopRunRequestViewBinding
   executionContract?: DeepChatExecutionContract | null
   toolSurface?: LoopRunRequestToolSurfaceBinding | null
-  programmaticToolParents?: Pick<ProgrammaticToolParentRegistry, 'prepare'>
+  programmaticToolParents?: Pick<ProgrammaticToolPort, 'prepare'>
   commandShell: ResolvedCommandShell
 }
 
@@ -3372,7 +3372,7 @@ export function finalizePaused(state: StreamState, io: IoParams): void {
 
   io.messageStore.updateAssistantContent(io.messageId, state.blocks, JSON.stringify(state.metadata))
   flushBlocksToRenderer(io, state)
-  io.publishEvent('chat.stream.completed', {
+  io.output.streamCompleted({
     requestId: io.requestId,
     sessionId: io.sessionId,
     messageId: io.messageId,
@@ -3394,7 +3394,7 @@ export function finalize(state: StreamState, io: IoParams): void {
     JSON.stringify(state.metadata)
   )
   flushBlocksToRenderer(io, state)
-  io.publishEvent('chat.stream.completed', {
+  io.output.streamCompleted({
     requestId: io.requestId,
     sessionId: io.sessionId,
     messageId: io.messageId,
@@ -3411,7 +3411,7 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
 
   io.messageStore.setMessageError(io.messageId, state.blocks, JSON.stringify(state.metadata))
   flushBlocksToRenderer(io, state)
-  io.publishEvent('chat.stream.failed', {
+  io.output.streamFailed({
     requestId: io.requestId,
     sessionId: io.sessionId,
     messageId: io.messageId,

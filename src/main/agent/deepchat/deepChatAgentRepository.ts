@@ -1,3 +1,4 @@
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/shared/agentDescriptors'
 import { nanoid } from 'nanoid'
 import type { AgentRowStore } from '@/agent/shared/agentRowStore'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
@@ -17,7 +18,7 @@ import type {
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
 
-export const BUILTIN_DEEPCHAT_AGENT_ID = 'deepchat'
+export { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/shared/agentDescriptors'
 
 export interface DeepChatAgentRepositoryDependencies {
   rows: AgentRowStore

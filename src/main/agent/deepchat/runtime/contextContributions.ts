@@ -1,7 +1,7 @@
 import { createHash } from 'crypto'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { DeepChatTapeViewSyntheticContribution } from '@shared/types/tape-view-manifest'
-import type { ReconstructionAnchorPromptState } from '@/session/data/settings'
+import type { ReconstructionAnchorPromptState } from '@/session/data/contracts'
 import type {
   DirectiveContextContribution,
   MemoryContextContribution

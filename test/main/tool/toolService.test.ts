@@ -8,7 +8,7 @@ import { POSIX_COMMAND_SHELL } from '../../helpers/commandShell'
 import { createToolCatalogPort } from '@/agent/deepchat/runtime/toolAdapters'
 import { AgentToolManager, CronJobToolHandler, TAPE_TOOL_NAMES } from '@/tool/agentTools'
 import { CommandPermissionService, ToolPermissionBroker } from '@/tool/permission'
-import { QUESTION_TOOL_NAME } from '@/tool/agentTools/questionTool'
+import { QUESTION_TOOL_NAME } from '@shared/contracts/questionTool'
 import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
 import { createAgentToolDependencies } from './agentTools/agentToolDependencies'
 import {

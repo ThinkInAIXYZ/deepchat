@@ -1,3 +1,4 @@
+import { createOnboardingClient } from '@api/OnboardingClient'
 import { guidedOnboardingStepIds, type GuidedOnboardingStepId } from '@shared/contracts/routes'
 
 export const GUIDED_ONBOARDING_RESUME_STORAGE_KEY = '__deepchat_guided_onboarding_resume'
@@ -102,4 +103,37 @@ export function requestGuidedOnboardingResume(trigger: GuidedOnboardingResumeTri
       detail: { trigger }
     })
   )
+}
+
+export async function completeOnboardingStep(stepId: GuidedOnboardingStepId): Promise<void> {
+  const onboardingClient = createOnboardingClient()
+  try {
+    const state = await onboardingClient.getState()
+
+    if (state.status !== 'active') {
+      return
+    }
+
+    const step = state.steps.find((candidate) => candidate.id === stepId)
+
+    if (!step || step.status === 'completed' || step.status === 'skipped') {
+      return
+    }
+
+    const nextState = await onboardingClient.setStepStatus({
+      stepId,
+      status: 'completed'
+    })
+
+    if (nextState.status === 'active' && nextState.currentStepId === null) {
+      await onboardingClient.complete()
+    }
+
+    const resumeIntent = readGuidedOnboardingResumeIntent()
+    if (resumeIntent?.trigger === 'step-completed' && resumeIntent.stepId === stepId) {
+      requestGuidedOnboardingResume('step-completed')
+    }
+  } catch (completionError) {
+    console.warn(`[SessionStore] Failed to complete onboarding step ${stepId}:`, completionError)
+  }
 }

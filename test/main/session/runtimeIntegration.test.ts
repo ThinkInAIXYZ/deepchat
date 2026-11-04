@@ -1,12 +1,17 @@
+import { createMemoryIngestionProjectionPort } from '@/memory/data/ingestionProjectionPort'
+import { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
+import { createDeepChatProgrammaticToolPort } from '@/cli/deepChatToolPort'
+import { createDeepChatOutputProjection } from '@/session/outputProjection'
+import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
 import * as fs from 'node:fs'
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createDeepChatAgentHarness, type DeepChatAgentHarness } from '@/agent/deepchat/harness'
+import type { DeepChatAgentHarness } from '@/agent/deepchat/harness'
+import { createDeepChatAgentHarness, getHarnessOwners } from '../../helpers/deepChatHarnessFixture'
 import { estimateMessagesTokens } from '@/agent/deepchat/runtime/contextBuilder'
 import { createHookObserver, noopHookObserver } from '../hook/hookObserverFixture'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
-import logger from '@shared/logger'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatActiveGeneration } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { createDeepChatAgentBackendFixture } from '../agent/manager/deepChatAgentBackendFixture'
@@ -49,6 +54,7 @@ vi.mock('@/events', async (importOriginal) => {
 })
 
 beforeEach(() => {
+  vi.spyOn(console, 'info').mockImplementation(() => {})
   vi.mocked(fs.promises.readFile).mockRejectedValue(
     Object.assign(new Error('AGENTS.md does not exist'), { code: 'ENOENT' })
   )
@@ -895,6 +901,7 @@ function createMockProviderRuntime() {
 function createMockProviderSettings() {
   const settings = {
     getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
+    getProviderDbSourceUrl: vi.fn(() => 'https://example.com/provider-db.json'),
     getModelConfig: vi
       .fn()
       .mockReturnValue({ temperature: 0.7, maxTokens: 4096, contextLength: 128000 }),
@@ -968,9 +975,19 @@ function createMockToolService() {
 }
 
 function createRuntimeDependencies() {
+  const publishSessionUpdate = vi.fn()
+  const sessionUiPort = { refreshSessionUi: vi.fn() }
   return {
-    publishEvent: publishDeepchatEventMock,
-    publishSessionUpdate: vi.fn(),
+    publishSessionUpdate,
+    output: createDeepChatOutputProjection({
+      publishEvent: publishDeepchatEventMock,
+      publishSessionUpdate
+    }),
+    publishStatus: createSessionStatusProjection({
+      publishEvent: publishDeepchatEventMock,
+      publishSessionUpdate,
+      sessionUiPort
+    }),
     providerCatalogPort: {
       getProviderModels: vi.fn().mockReturnValue([]),
       getCustomModels: vi.fn().mockReturnValue([])
@@ -983,9 +1000,12 @@ function createRuntimeDependencies() {
     acpAsLlmProviderPermission: {
       resolveAgentPermission: vi.fn().mockResolvedValue(undefined)
     },
-    sessionUiPort: { refreshSessionUi: vi.fn() },
+    sessionUiPort,
     memoryPort: { isEnabled: vi.fn().mockReturnValue(false) } as any,
-    getMemoryIngestionProjection: () => sqlitePresenter.deepchatMemoryIngestionProjectionTable,
+    getMemoryIngestionProjection: () =>
+      createMemoryIngestionProjectionPort(
+        () => sqlitePresenter.deepchatMemoryIngestionProjectionTable
+      ),
     cacheImage: vi.fn(async (data: string) => data),
     skillSettings: {
       isEnabled: vi.fn(() => true),
@@ -1004,12 +1024,9 @@ function createRuntimeDependencies() {
     taskContractContext: {
       prepare: vi.fn().mockReturnValue(null)
     },
-    agentCliTokenAuthority: {
-      prepareProgrammaticOperation: vi.fn(() => {
-        throw new Error('Programmatic operation authority is not configured for this test')
-      }),
+    programmaticTools: createDeepChatProgrammaticToolPort(new ProgrammaticToolParentRegistry(), {
       revokeConversation: vi.fn()
-    },
+    }),
     commandShell: {
       resolveForTurn: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL),
       resolveProfile: vi.fn().mockResolvedValue(POSIX_COMMAND_SHELL)
@@ -1050,7 +1067,7 @@ function createTranscriptMutations(
 }
 
 function createDeepChatManager(deepchatAgent: DeepChatAgentHarness, sqlitePresenter: any) {
-  const backend = createDeepChatAgentBackendFixture(deepchatAgent, deepchatAgent.deepChatRuntime)
+  const backend = createDeepChatAgentBackendFixture(deepchatAgent)
   const descriptor = (agentId: string) => ({
     id: agentId,
     kind: 'deepchat' as const,
@@ -1101,8 +1118,7 @@ describe('Integration: createSession end-to-end', () => {
       providerRuntime: llmProvider,
       providerSettings: providerSettings,
       agentSettings: providerSettings,
-      database: sqlitePresenter,
-      sessionData: sessionData,
+      ...sessionData.runtime,
       toolService: toolService,
       hookObserver: noopHookObserver
     })
@@ -1288,8 +1304,7 @@ describe('Integration: ACP hook observer', () => {
       providerRuntime: llmProvider,
       providerSettings: providerSettings,
       agentSettings: providerSettings,
-      database: sqlitePresenter,
-      sessionData: sessionData,
+      ...sessionData.runtime,
       toolService: createMockToolService(),
       hookObserver: createHookObserver(hookDispatcher)
     })
@@ -1399,8 +1414,7 @@ describe('Integration: multi-turn context', () => {
       providerRuntime: llmProvider,
       providerSettings: providerSettings,
       agentSettings: providerSettings,
-      database: sqlitePresenter,
-      sessionData: sessionData,
+      ...sessionData.runtime,
       toolService: createMockToolService(),
       hookObserver: noopHookObserver
     })
@@ -1475,8 +1489,8 @@ describe('Integration: multi-turn context', () => {
     const providerInstance = {
       coreStream: vi.fn(async function* () {
         providerAttempt += 1
-        const run = deepchatAgent.deepChatRuntime
-          .getOrHydrate(toAppSessionId(sessionId))
+        const run = getHarnessOwners(deepchatAgent)
+          .runtime.getOrHydrate(toAppSessionId(sessionId))
           .getActiveGeneration()
         if (!run) throw new Error('Expected an active loop run')
         observedRuns.push(run)
@@ -1820,8 +1834,8 @@ describe('Integration: multi-turn context', () => {
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
 
     await deepchatAgent.initSession('s-follow-up', { providerId: 'openai', modelId: 'gpt-4' })
-    const runtimeState = deepchatAgent.deepChatRuntime
-      .getOrHydrate(toAppSessionId('s-follow-up'))
+    const runtimeState = getHarnessOwners(deepchatAgent)
+      .runtime.getOrHydrate(toAppSessionId('s-follow-up'))
       .getRuntimeState()
     if (!runtimeState) throw new Error('Missing runtime state for s-follow-up')
     runtimeState.status = 'generating'
@@ -2079,7 +2093,7 @@ describe('Integration: crash recovery', () => {
       }
     ])
 
-    const loggerInfoMock = vi.mocked(logger.info)
+    const loggerInfoMock = vi.mocked(console.info)
 
     // Creating the agent triggers crash recovery
     createDeepChatAgentHarness({
@@ -2087,11 +2101,10 @@ describe('Integration: crash recovery', () => {
       providerRuntime: llmProvider,
       providerSettings: providerSettings,
       agentSettings: providerSettings,
-      database: sqlitePresenter,
-      sessionData: createSessionDataFromDatabase(sqlitePresenter as never, {
+      ...createSessionDataFromDatabase(sqlitePresenter as never, {
         publishPendingInputsChanged: vi.fn(),
         publishMessagesChanged: vi.fn()
-      }),
+      }).runtime,
       toolService: createMockToolService(),
       hookObserver: noopHookObserver
     })

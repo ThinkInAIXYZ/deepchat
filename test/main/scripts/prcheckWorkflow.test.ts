@@ -150,7 +150,8 @@ describe('PR Check workflow contracts', () => {
     ])
     expect(getRunCommands(workflow.jobs['test-main'])).toEqual([
       'pnpm install --frozen-lockfile',
-      'pnpm run test:main'
+      'pnpm run test:main',
+      'pnpm run test:harness:node'
     ])
     expect(getRunCommands(workflow.jobs['test-renderer'])).toEqual([
       'pnpm install --frozen-lockfile',

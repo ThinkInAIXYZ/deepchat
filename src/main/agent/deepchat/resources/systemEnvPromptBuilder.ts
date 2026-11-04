@@ -1,6 +1,5 @@
 import * as fs from 'node:fs'
 import path from 'node:path'
-import logger from '@shared/logger'
 import type {
   DeepChatPromptAssembly,
   DeepChatPromptDegradationCode,
@@ -58,7 +57,7 @@ function logSlowSystemEnvStep(step: string, startedAt: number): void {
     return
   }
 
-  logger.warn(`[SystemEnvPromptBuilder] step slow step=${step} elapsed=${elapsed}ms`)
+  console.warn(`[SystemEnvPromptBuilder] step slow step=${step} elapsed=${elapsed}ms`)
 }
 
 function resolveModelDisplayName(
@@ -140,7 +139,7 @@ async function readAgentsInstructionsFromDisk(sourcePath: string): Promise<Settl
       return { content: '', state: 'missing' }
     }
 
-    logger.warn('[SystemEnvPromptBuilder] Failed to read AGENTS.md', {
+    console.warn('[SystemEnvPromptBuilder] Failed to read AGENTS.md', {
       sourcePath,
       code: nodeError.code,
       message: error instanceof Error ? error.message : String(error)
@@ -185,7 +184,7 @@ async function waitForAgentsInstructions(
   }
 
   if ('timedOut' in result) {
-    logger.warn('[SystemEnvPromptBuilder] AGENTS.md read deferred', {
+    console.warn('[SystemEnvPromptBuilder] AGENTS.md read deferred', {
       sourcePath,
       budgetMs: AGENTS_READ_BUDGET_MS
     })

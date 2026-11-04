@@ -132,8 +132,10 @@ potentially sensitive output or promising recovery from an offload file with a s
 - Compaction order correction materializes only affected messages in bounded batches while the
   outer SQLite transaction remains active.
 - Tool fact order is derived from the corresponding effective message. The persisted tool payload
-  `orderSeq` remains a legacy fallback when no effective message is available, but an order-only
-  message replacement does not append new tool facts.
+  `orderSeq` is only a low-level compatibility fallback. Production effective reads discard tool
+  facts whose message has no effective revision before order projection. Linked SQL search and
+  context use the same message-derived order at the selected Tape head; an order-only message
+  replacement does not append new tool facts.
 - Backfill compares a candidate tool fact with the current effective revision using its kind, name,
   terminal status, and payload content excluding `orderSeq`. It skips only an order-only difference;
   a changed response, arguments, status, name, or other tool payload content remains a new immutable

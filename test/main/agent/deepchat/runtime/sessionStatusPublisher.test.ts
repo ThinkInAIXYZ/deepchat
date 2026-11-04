@@ -1,18 +1,26 @@
+import { createSessionStatusProjection } from '@/session/sessionStatusProjection'
+import { SyncSessionActivity } from '@/sync/sessionActivity'
 import { describe, expect, it, vi } from 'vitest'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import {
-  SessionStatusPublisher,
-  type SessionStatusPublisherPorts
-} from '@/agent/deepchat/runtime/sessionStatusPublisher'
+import { SessionStatusPublisher } from '@/agent/deepchat/runtime/sessionStatusPublisher'
 
 function createPublisher() {
-  const ports: SessionStatusPublisherPorts = {
-    publishEvent: vi.fn(),
+  const wake = vi.fn()
+  const activity = new SyncSessionActivity(wake)
+  const ports = {
+    publishEvent: vi.fn((name, payload) => {
+      if (name === 'sessions.status.changed') activity.update(payload.sessionId, payload.status)
+    }),
     publishSessionUpdate: vi.fn(),
     sessionUiPort: { refreshSessionUi: vi.fn() }
   }
-  return { ports, publisher: new SessionStatusPublisher(ports) }
+  return {
+    ports,
+    activity,
+    wake,
+    publisher: new SessionStatusPublisher({ publishStatus: createSessionStatusProjection(ports) })
+  }
 }
 
 describe('SessionStatusPublisher', () => {
@@ -78,14 +86,21 @@ describe('SessionStatusPublisher', () => {
     const runtime = new DeepChatAgentRuntime()
     const scope = runtime.getOrHydrateScope(toAppSessionId('session'))
     scope.instance.setRuntimeState({
-      status: 'idle',
+      status: 'generating',
       providerId: 'openai',
       modelId: 'gpt-5',
       permissionMode: 'full_access'
     })
-    const { ports, publisher } = createPublisher()
+    const { ports, publisher, activity, wake } = createPublisher()
 
+    activity.update('session', 'generating')
+    expect(publisher.transition(scope, 'idle')).toBe(true)
+    expect(wake).toHaveBeenCalledOnce()
+    expect(activity.has('session')).toBe(false)
+    vi.mocked(ports.publishEvent).mockClear()
+    vi.mocked(ports.sessionUiPort.refreshSessionUi).mockClear()
     expect(publisher.transition(scope, 'idle', { totalTokens: 12 })).toBe(true)
+    expect(wake).toHaveBeenCalledOnce()
 
     expect(ports.publishSessionUpdate).toHaveBeenCalledWith({
       sessionId: 'session',
@@ -124,10 +139,11 @@ describe('SessionStatusPublisher', () => {
       permissionMode: 'full_access'
     })
     const mismatchedScope = runtime.scopeFor(sessionId, otherScope.instance)
-    const { ports, publisher } = createPublisher()
+    const { ports, publisher, wake } = createPublisher()
 
     expect(publisher.transition(staleScope, 'error')).toBe(false)
     expect(publisher.transition(mismatchedScope, 'error')).toBe(false)
+    expect(wake).not.toHaveBeenCalled()
 
     expect(staleScope.state()?.status).toBe('idle')
     expect(currentScope.state()?.status).toBe('idle')

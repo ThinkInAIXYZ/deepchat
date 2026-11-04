@@ -1,6 +1,7 @@
 import type {
   AssistantMessageBlock,
   MessageFile,
+  MessageMetadata,
   UserMessageContent
 } from '@shared/types/agent-interface'
 import {
@@ -334,4 +335,51 @@ export function canonicalizeMessageContent(
   return JSON.stringify(
     blocks.map((block) => toAssistantBlock(toAssistantBlockRowInput(block, updatedAt)))
   )
+}
+
+function shouldConvertPendingBlockToError(
+  status: AssistantMessageBlock['status']
+): status is 'pending' | 'loading' {
+  return status === 'pending' || status === 'loading'
+}
+
+export function buildTerminalErrorBlocks(
+  blocks: AssistantMessageBlock[],
+  errorMessage: string
+): AssistantMessageBlock[] {
+  const normalizedBlocks: AssistantMessageBlock[] = Array.isArray(blocks)
+    ? blocks.map(
+        (block): AssistantMessageBlock =>
+          shouldConvertPendingBlockToError(block.status)
+            ? { ...block, status: 'error' as const }
+            : block
+      )
+    : []
+
+  const lastBlock = normalizedBlocks[normalizedBlocks.length - 1]
+  if (lastBlock?.type === 'error' && lastBlock.content === errorMessage) {
+    return normalizedBlocks
+  }
+
+  normalizedBlocks.push({
+    type: 'error',
+    content: errorMessage,
+    status: 'error',
+    timestamp: Date.now()
+  })
+
+  return normalizedBlocks
+}
+
+export function parseMessageMetadata(raw: string | MessageMetadata): MessageMetadata {
+  if (typeof raw !== 'string') {
+    return raw ?? {}
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as MessageMetadata
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
 }

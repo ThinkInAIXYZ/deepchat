@@ -1,3 +1,4 @@
+import { createDeepChatOutputProjection } from '@/session/outputProjection'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { StreamState, IoParams } from '@/agent/deepchat/runtime/types'
 import { createState, markStreamChanged } from '@/agent/deepchat/runtime/types'
@@ -12,7 +13,6 @@ vi.mock('@/events', () => ({
 
 import { startEcho } from '@/agent/deepchat/runtime/echo'
 import { accumulate } from '@/agent/deepchat/runtime/accumulator'
-import { cloneBlocksForRenderer } from '@/session/clientMessageProjection'
 
 const publishDeepchatEvent = vi.fn()
 
@@ -33,7 +33,10 @@ function createIo(): IoParams {
       updateAssistantContent: vi.fn()
     } as any,
     abortSignal: new AbortController().signal,
-    publishEvent: publishDeepchatEvent
+    output: createDeepChatOutputProjection({
+      publishEvent: publishDeepchatEvent,
+      publishSessionUpdate: vi.fn()
+    })
   }
 }
 
@@ -199,7 +202,12 @@ describe('echo', () => {
       expect.objectContaining({ revision: 1 })
     )
 
-    state.blocks.push({ type: 'content', content: 'more', status: 'pending', timestamp: Date.now() })
+    state.blocks.push({
+      type: 'content',
+      content: 'more',
+      status: 'pending',
+      timestamp: Date.now()
+    })
     markStreamChanged(state)
     echo.flush()
     expect(publishDeepchatEvent).toHaveBeenLastCalledWith(
@@ -263,45 +271,6 @@ describe('echo', () => {
     echo.stop()
   })
 
-  it('clones renderer blocks with structuredClone semantics', () => {
-    const blocks = [
-      {
-        type: 'content' as const,
-        content: 'hi',
-        status: 'pending' as const,
-        timestamp: 1,
-        extra: {
-          nested: [{ value: 1 }]
-        }
-      }
-    ]
-
-    const cloned = cloneBlocksForRenderer(blocks)
-
-    expect(cloned).toEqual(blocks)
-    expect(cloned).not.toBe(blocks)
-    expect(cloned[0]).not.toBe(blocks[0])
-    expect(cloned[0]?.extra).not.toBe(blocks[0]?.extra)
-    expect(cloned[0]?.extra?.nested).not.toBe(blocks[0]?.extra?.nested)
-    expect(cloned[0]?.extra?.nested[0]).not.toBe(blocks[0]?.extra?.nested[0])
-  })
-
-  it('removes undefined JSON fields before validating renderer blocks', () => {
-    const blocks = [
-      {
-        type: 'search' as const,
-        status: 'success' as const,
-        timestamp: 1,
-        extra: {
-          label: 'web_search',
-          engine: undefined
-        }
-      }
-    ]
-
-    expect(cloneBlocksForRenderer(blocks)[0]?.extra).toEqual({ label: 'web_search' })
-  })
-
   it('keeps opaque provider replay out of renderer snapshots without mutating persistence state', () => {
     const blocks = [
       {
@@ -311,14 +280,21 @@ describe('echo', () => {
         timestamp: 1,
         extra: {
           actionType: 'search',
+          engine: undefined,
+          nested: [{ value: 1 }],
           providerReplayJson: JSON.stringify({ private: 'x'.repeat(1024) })
         }
       }
     ]
 
-    const cloned = cloneBlocksForRenderer(blocks)
+    state.blocks = blocks
+    startEcho(state, io).flush()
+    const cloned = getStreamUpdatedCalls().at(-1)?.[1].blocks
 
-    expect(cloned[0]?.extra).toEqual({ actionType: 'search' })
+    expect(cloned[0]?.extra).toEqual({ actionType: 'search', nested: [{ value: 1 }] })
+    expect(cloned[0]?.extra?.nested[0]).not.toBe(blocks[0]?.extra?.nested[0])
+    expect(io.messageStore.updateAssistantContent).toHaveBeenCalledWith('m1', blocks)
+    expect(JSON.stringify(cloned)).not.toContain('providerReplayJson')
     expect(blocks[0]?.extra?.providerReplayJson).toContain('private')
   })
 })

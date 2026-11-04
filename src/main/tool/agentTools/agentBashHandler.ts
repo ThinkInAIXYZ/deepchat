@@ -1,3 +1,8 @@
+import { ProgrammaticCommandLaunchError } from '@shared/types/core/mcp'
+export {
+  ProgrammaticCommandLaunchError,
+  isProgrammaticCommandLaunchError
+} from '@shared/types/core/mcp'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
@@ -79,19 +84,6 @@ export interface AgentCommandEnvironmentPort {
     variables: Readonly<Record<string, string>>
     prependPath: readonly string[]
   }>
-}
-
-export class ProgrammaticCommandLaunchError extends Error {
-  constructor(options?: ErrorOptions) {
-    super('Programmatic CLI launch did not reach authoritative settlement', options)
-    this.name = 'ProgrammaticCommandLaunchError'
-  }
-}
-
-export function isProgrammaticCommandLaunchError(
-  error: unknown
-): error is ProgrammaticCommandLaunchError {
-  return error instanceof ProgrammaticCommandLaunchError
 }
 
 interface PreparedCommand {

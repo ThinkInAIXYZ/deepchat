@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import logger from '@shared/logger'
 import {
   PRE_STREAM_STUCK_ESCALATION_MS,
   PRE_STREAM_STUCK_WARN_MS,
@@ -7,11 +6,7 @@ import {
   startPreStreamProviderBoundaryWatchdog
 } from '@/agent/deepchat/runtime/preStreamWatchdog'
 
-vi.mock('@shared/logger', () => ({
-  default: {
-    warn: vi.fn()
-  }
-}))
+
 
 const assertNotAborted = (signal?: AbortSignal): void => signal?.throwIfAborted()
 
@@ -19,7 +14,7 @@ describe('pre-stream watchdog', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(1_000)
-    vi.mocked(logger.warn).mockClear()
+    vi.spyOn(console, 'warn').mockImplementation(() => {}).mockClear()
   })
 
   afterEach(() => {
@@ -73,22 +68,22 @@ describe('pre-stream watchdog', () => {
     )
 
     await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_WARN_MS)
-    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+    expect(vi.mocked(console.warn)).toHaveBeenCalledWith(
       expect.stringContaining('step=provider-start')
     )
-    expect(vi.mocked(logger.warn)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(console.warn)).toHaveBeenCalledTimes(1)
 
     await vi.advanceTimersByTimeAsync(
       PRE_STREAM_STUCK_ESCALATION_MS - PRE_STREAM_STUCK_WARN_MS
     )
-    expect(vi.mocked(logger.warn)).toHaveBeenLastCalledWith(
+    expect(vi.mocked(console.warn)).toHaveBeenLastCalledWith(
       expect.stringContaining('STUCK escalation')
     )
-    expect(vi.mocked(logger.warn)).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(console.warn)).toHaveBeenCalledTimes(2)
 
     boundary.cancel()
     await vi.advanceTimersByTimeAsync(PRE_STREAM_STUCK_ESCALATION_MS)
-    expect(vi.mocked(logger.warn)).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(console.warn)).toHaveBeenCalledTimes(2)
     expect(vi.getTimerCount()).toBe(0)
   })
 
@@ -103,7 +98,7 @@ describe('pre-stream watchdog', () => {
     boundary.complete()
     boundary.complete()
 
-    expect(vi.mocked(logger.warn).mock.calls.map(([message]) => message)).toEqual([
+    expect(vi.mocked(console.warn).mock.calls.map(([message]) => message)).toEqual([
       expect.stringContaining('step=provider-start elapsed=600ms'),
       expect.stringContaining('step=pre-stream-total elapsed=600ms')
     ])

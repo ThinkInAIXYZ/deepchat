@@ -8,7 +8,7 @@ import {
   ProjectSchema,
   UsageStatsBackfillStatusSchema
 } from '@shared/contracts/domainSchemas'
-import { questionToolSchema } from '@/tool/agentTools/questionTool'
+import { questionToolSchema } from '@shared/contracts/questionTool'
 
 describe('Zod 4 migration contracts', () => {
   it('validates the OpenAI authentication mode', () => {

@@ -43,6 +43,7 @@ type UseMessageActionsOptions = {
   isReadOnlySession: ComputedRef<boolean>
   hasBlockingInteraction: () => boolean
   messageStore: MessageStore
+  selectSession(sessionId: string): Promise<void>
   sessionStore: SessionStore
   sessionClient: SessionClientLike
   chatClient: ChatClientLike
@@ -276,7 +277,7 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     try {
       const forked = await options.sessionClient.forkSession(options.sessionId(), messageId)
       await options.sessionStore.fetchSessions()
-      await options.sessionStore.selectSession(forked.id)
+      await options.selectSession(forked.id)
     } catch (error) {
       console.error('[ChatPage] fork session failed:', error)
     }

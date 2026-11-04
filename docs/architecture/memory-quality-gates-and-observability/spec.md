@@ -1,15 +1,13 @@
 # Memory Quality Gates and Observability — Specification
 
-> Status: **implementation-complete / retrieval-artifact-upload-pending**
+> Status: **implemented**
 >
 > Classification: **architecture**
 >
 > Runtime scope: **local, in-process, and non-persistent**
 
 This document defines the maintained requirements for Agent Memory quality gates, retrieval evaluation,
-bounded diagnostics, Health UI exposure, and service-level test architecture. The implemented design is
-described in [plan.md](./plan.md), the execution record is in [tasks.md](./tasks.md), and the complete runtime
-metric contract is in [metrics.md](./metrics.md).
+bounded diagnostics, Health UI exposure, and service-level test architecture. The complete runtime metric contract is in [metrics.md](./metrics.md).
 
 ## 1. Purpose
 
@@ -43,13 +41,14 @@ metric calculation remain isolated from credentials, providers, and external net
 ### AC-1 — Native Memory CI
 
 - The `test-native-memory` job uses the repository-pinned Node 24 and pnpm toolchain.
-- The job installs an independent dependency tree and rebuilds the SQLite binding for the Node ABI.
+- The job installs an independent dependency tree and uses the shipped N-API SQLite prebuild.
 - A smoke step loads the binding, opens encrypted SQLite, creates a table, writes, reads, and closes it.
 - Native tests run with `DEEPCHAT_REQUIRE_NATIVE_SQLITE=1`; a missing binding, FTS, JSON, migration harness, or
   unexpected skip must produce a non-zero exit.
-- The job runs portable behavior before the Node ABI rebuild, then runs Native storage, retrieval evaluation,
-  and performance bounds.
-- The retrieval report is uploaded even when a threshold assertion fails.
+- The job runs portable behavior, the native SQLite smoke, Native storage, retrieval evaluation,
+  and performance bounds without rebuilding the N-API binding.
+- The retrieval report is uploaded with `if: always()`, even when a threshold assertion fails;
+  a missing report fails the upload step.
 
 ### AC-2 — Stable Test Scope
 
@@ -57,8 +56,8 @@ metric calculation remain isolated from credentials, providers, and external net
 - `test:memory` runs only portable Memory behavior.
 - `test:memory:eval` runs the deterministic retrieval evaluation.
 - `test:main:memory-perf` continues to use its dedicated performance configuration.
-- Native tests remain workflow-owned and do not have a local package script that could rewrite the Electron
-  binding.
+- Required-Native test orchestration remains workflow-owned; local Memory commands do not rebuild
+  native dependencies.
 - The scope guard rejects missing paths, duplicate ownership, unclassified Memory tests, Native tests in the
   portable set, and exemptions without a non-empty reason.
 - Discovery uses explicit ownership paths, filenames, and direct Memory imports rather than broad content

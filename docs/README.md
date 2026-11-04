@@ -39,15 +39,17 @@ Completed implementation trackers and resolved issue reports are available throu
 | [features/mcp-apps/](./features/mcp-apps/)                                                                     | MCP Apps host 已落地，等待 packaged sandbox 与外部 App 验证                                    |
 | [features/mcp-authorization-extensions/](./features/mcp-authorization-extensions/)                             | 授权扩展已落地，等待受控 OAuth 与安全存储验证                                                  |
 | [features/mcp-tasks/](./features/mcp-tasks/)                                                                   | Tasks 被上游公开 v2 adapter 阻塞，未实现、未宣称支持                                           |
-| [architecture/chat-scroll-ownership/](./architecture/chat-scroll-ownership/)                                   | chat viewport ownership、windowing 与真实 Chromium 验证进行中                                  |
-| [architecture/memory-quality-gates-and-observability/](./architecture/memory-quality-gates-and-observability/) | retrieval artifact upload 待完成                                                               |
+| [architecture/chat-scroll-ownership/](./architecture/chat-scroll-ownership/)                                   | 自动化分页、窗口切换与历史恢复已验证；待 macOS 物理触控板/惯性验收                                  |
 | [architecture/memory-vector-store-v2/](./architecture/memory-vector-store-v2/)                                 | v2 已落地，保留 migration window 后的 VSS removal follow-up                                    |
-| [issues/chat-history-search-scroll-coordinates/](./issues/chat-history-search-scroll-coordinates/)             | 等待 Electron/macOS 物理滚动验证                                                               |
+| [issues/chat-history-search-scroll-coordinates/](./issues/chat-history-search-scroll-coordinates/)             | 等待 macOS 物理触控板/惯性验收                                                               |
 
 ## 保留的产品合同
 
-以下 feature spec 仍承担跨模块产品或扩展合同，不是实施历史：
+以下文档仍承担跨模块产品、架构或扩展合同：
 
+- [Main Host / Harness Boundaries](./architecture/main-harness-portability/spec.md)
+- [Renderer Application Boundaries](./architecture/renderer-application-boundaries/spec.md)
+- [Memory Quality Gates and Observability](./architecture/memory-quality-gates-and-observability/spec.md)
 - [Accessibility](./features/accessibility/spec.md)
 - [Local Control Plane](./architecture/local-control-plane/spec.md)
 - [ACP Terminal Authentication](./features/acp-terminal-auth/spec.md)

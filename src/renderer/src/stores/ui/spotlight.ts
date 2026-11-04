@@ -1,3 +1,4 @@
+import { useChatSessionStore } from '@/features/chat-session/store'
 import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useRouter } from 'vue-router'
@@ -137,6 +138,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
   const settingsClient = createSettingsClient()
   const providerStore = useProviderStore()
   const sessionStore = useSessionStore()
+  const chatSessionStore = useChatSessionStore()
   const agentStore = useAgentStore()
 
   const open = ref(false)
@@ -429,7 +431,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
     closeSpotlight()
 
     if (item.kind === 'session' && item.sessionId) {
-      await sessionStore.selectSession(item.sessionId)
+      await chatSessionStore.selectSession(item.sessionId)
       await router.push({ name: 'chat' })
       return
     }
@@ -439,13 +441,16 @@ export const useSpotlightStore = defineStore('spotlight', () => {
         sessionId: item.sessionId,
         messageId: item.messageId
       }
-      await sessionStore.selectSession(item.sessionId)
+      await chatSessionStore.selectSession(item.sessionId)
       await router.push({ name: 'chat' })
       return
     }
 
     if (item.kind === 'agent') {
-      await sessionStore.startNewConversation({ agentId: item.agentId ?? undefined, refresh: true })
+      await chatSessionStore.startNewConversation({
+        agentId: item.agentId ?? undefined,
+        refresh: true
+      })
       return
     }
 
@@ -456,7 +461,7 @@ export const useSpotlightStore = defineStore('spotlight', () => {
 
     switch (item.actionId) {
       case 'new-chat':
-        await sessionStore.startNewConversation({ refresh: true })
+        await chatSessionStore.startNewConversation({ refresh: true })
         return
       case 'open-settings':
         await settingsClient.openSettings()

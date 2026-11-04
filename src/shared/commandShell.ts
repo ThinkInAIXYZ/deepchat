@@ -235,3 +235,8 @@ export function formatCommandShellForModel(shell: ResolvedCommandShell): string 
 export function formatExecCommandDescription(shell: ResolvedCommandShell): string {
   return withDialectHint(`The ${shellDisplayName(shell)} command to execute.`, shell)
 }
+
+export interface CommandShellPort {
+  resolveForTurn(): Promise<ResolvedCommandShell>
+  resolveProfile(profile: CommandShellProfile): Promise<ResolvedCommandShell>
+}

@@ -720,6 +720,10 @@
 </template>
 
 <script setup lang="ts">
+import {
+  useChatSessionStore,
+  type StartNewConversationOptions
+} from '@/features/chat-session/store'
 import { ref, computed, nextTick, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import draggable from 'vuedraggable'
@@ -753,12 +757,7 @@ import {
 import { createSettingsClient } from '@api/SettingsClient'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useProjectStore } from '@/stores/ui/project'
-import {
-  useSessionStore,
-  type SessionGroup,
-  type StartNewConversationOptions,
-  type UISession
-} from '@/stores/ui/session'
+import { useSessionStore, type SessionGroup, type UISession } from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 import {
@@ -786,6 +785,7 @@ const router = useRouter()
 const agentStore = useAgentStore()
 const projectStore = useProjectStore()
 const sessionStore = useSessionStore()
+const chatSessionStore = useChatSessionStore()
 const sidebarStore = useSidebarStore()
 const spotlightStore = useSpotlightStore()
 const themeStore = useThemeStore()
@@ -925,7 +925,7 @@ const { getShortcutBadgeLabelForSession, hasShortcutBadgeForSession, hideShortcu
     isGroupCollapsed,
     excludedSessionId: pinFlightSessionId,
     hasOwnOverlayOpen: () => spotlightStore.open || deleteDialogOpen.value,
-    selectSession: (sessionId) => void sessionStore.selectSession(sessionId)
+    selectSession: (sessionId) => void chatSessionStore.selectSession(sessionId)
   })
 
 const {
@@ -1097,7 +1097,7 @@ const startNewChat = async (options: StartNewConversationOptions) => {
   } catch (error) {
     console.warn('[WindowSideBar] Failed to switch to chat route:', error)
   } finally {
-    await sessionStore.startNewConversation(options)
+    await chatSessionStore.startNewConversation(options)
   }
 }
 
@@ -1131,7 +1131,7 @@ const handleSessionClick = async (session: { id: string }) => {
   } catch (error) {
     console.warn('[WindowSideBar] Failed to switch to chat route:', error)
   } finally {
-    await sessionStore.selectSession(session.id)
+    await chatSessionStore.selectSession(session.id)
   }
 }
 
@@ -1146,7 +1146,7 @@ const handleDeleteConfirm = async () => {
   }
 
   try {
-    await sessionStore.deleteSession(targetSession.id)
+    await chatSessionStore.deleteSession(targetSession.id)
   } catch (error) {
     console.error(t('common.error.deleteChatFailed'), error)
   }
@@ -1155,7 +1155,7 @@ const handleDeleteConfirm = async () => {
 }
 
 onMounted(() => {
-  void projectStore.fetchEnvironments()
+  void projectStore.refreshProjectSnapshot()
 })
 </script>
 

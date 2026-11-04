@@ -1,8 +1,11 @@
 import { createServer } from 'node:http'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { test, expect } from '../fixtures/electronApp'
 import { selectAgent, selectModel, sendMessage } from '../helpers/chat'
+import { openSettings } from '../helpers/settings'
 import { waitForAppReady, waitForGenerationDone } from '../helpers/wait'
 
 test('local streaming preserves an editable composer and completes the response @smoke', async ({
@@ -12,6 +15,11 @@ test('local streaming preserves an editable composer and completes the response 
   const released = new Promise<void>((resolve) => {
     releaseResponse = resolve
   })
+  let releaseBackground = () => {}
+  const backgroundReleased = new Promise<void>((resolve) => {
+    releaseBackground = resolve
+  })
+  let streamCount = 0
   const table = '| File | Result |\n| --- | --- |\n| First cell | Last cell |\n\n'
   const markdown =
     table +
@@ -62,7 +70,8 @@ test('local streaming preserves an editable composer and completes the response 
         })}\n\n`
       )
     emit(markdown)
-    await released
+    streamCount += 1
+    await (streamCount === 1 ? released : backgroundReleased)
     if (!response.destroyed) {
       emit('\n\nStream complete.', 'stop')
       response.end('data: [DONE]\n\n')
@@ -156,9 +165,101 @@ test('local streaming preserves an editable composer and completes the response 
       await expect(editor).toHaveText(draft)
       await expect(app.page.getByTestId('chat-message-user')).toHaveCount(1)
     }
+    await openSettings(app)
+    const previousPages = new Set(app.electronApp.windows())
+    await app.electronApp.evaluate(({ Menu }) => {
+      const fileMenu = Menu.getApplicationMenu()?.items.find((item) =>
+        item.submenu?.items.some((entry) => /New Window/i.test(entry.label))
+      )
+      const command = fileMenu?.submenu?.items.find((entry) => /New Window/i.test(entry.label))
+      if (!command) throw new Error('New Window command is unavailable')
+      command.click()
+    })
+    await expect
+      .poll(
+        () =>
+          app.electronApp
+            .windows()
+            .filter(
+              (page) => !previousPages.has(page) && page.url().includes('/renderer/index.html')
+            ).length
+      )
+      .toBe(1)
+    const second = app.electronApp
+      .windows()
+      .find((page) => !previousPages.has(page) && page.url().includes('/renderer/index.html'))!
+    await waitForAppReady(second)
+    const cli = (args: string[]) =>
+      promisify(execFile)(process.execPath, [resolve('out/cli/deepchat.mjs'), ...args], {
+        env: { ...process.env, DEEPCHAT_E2E_USER_DATA_DIR: app.userDataDir },
+        timeout: 30_000
+      })
+    const started = JSON.parse(
+      (
+        await cli([
+          'agent',
+          'run',
+          '--prompt',
+          'Complete after the chat window is destroyed.',
+          '--provider',
+          providerId,
+          '--model',
+          'fixture-model',
+          '--json'
+        ])
+      ).stdout
+    )
+    expect(started.ok).toBe(true)
+    await expect.poll(() => streamCount).toBe(2)
+    await second.evaluate(
+      (sessionId) => window.deepchat.invoke('sessions.activate', { sessionId }),
+      started.result.runId
+    )
+    await expect(second.getByTestId('chat-page-shell')).toHaveAttribute('data-generating', 'true')
+    await expect(app.page.getByTestId('chat-message-user')).toContainText(
+      'Render the local streaming fixture.'
+    )
+    await expect(editor).toHaveText(draft)
+    const watch = cli(['run', 'watch', '--run', started.result.runId, '--jsonl'])
+    void watch.catch(() => {})
+    let observed = ''
+    watch.child.stdout?.on('data', (chunk) => {
+      observed += chunk
+    })
+    await expect.poll(() => observed).toContain('runs.snapshot')
+    const chatWindow = await app.electronApp.browserWindow(app.page)
+    expect(
+      await chatWindow.evaluate((window) => {
+        window.destroy()
+        return window.isDestroyed()
+      })
+    ).toBe(true)
+    releaseBackground()
+    const events = (await watch).stdout
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        event: 'sessions.status.changed',
+        data: expect.objectContaining({ sessionId: started.result.runId, status: 'idle' })
+      })
+    )
+    const settled = JSON.parse(
+      (await cli(['run', 'get', '--run', started.result.runId, '--json'])).stdout
+    )
+    expect(settled.result.phase).toBe('terminal')
+    expect(settled.result.messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      status: 'sent',
+      text: expect.stringContaining('Stream complete.')
+    })
+    await expect(second.getByTestId('chat-message-assistant')).toContainText('Stream complete.')
+    await expect(second.getByTestId('chat-page-shell')).toHaveAttribute('data-generating', 'false')
     expect(app.pageErrors).toEqual([])
   } finally {
     releaseResponse()
+    releaseBackground()
     server.closeAllConnections()
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }

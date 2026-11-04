@@ -105,7 +105,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
       return enabled
     }
   }
-  const modelStore = { findChatSelectableModel: vi.fn(() => null) }
+  const modelStore = { findChatSelectableModel: vi.fn(() => ({ model: { name: 'Audio Test' } })) }
   const pendingInputStore = {
     isAtCapacity: false,
     queueInput: vi.fn().mockResolvedValue(undefined)
@@ -134,6 +134,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
   const schedulePostSubmitScrollToBottom = vi.fn()
   const openModelPicker = vi.fn()
   const notify = vi.fn()
+  const t = vi.fn((key: string) => key)
   const scope = effectScope()
   let actions!: ReturnType<typeof useComposerSubmit>
 
@@ -166,7 +167,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
       applyRestoredSessionSummary: vi.fn(),
       openModelPicker,
       notify,
-      t: (key) => key
+      t
     })
   })
 
@@ -197,6 +198,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
     schedulePostSubmitScrollToBottom,
     openModelPicker,
     notify,
+    t,
     stop: () => {
       actions.dispose()
       scope.stop()
@@ -228,6 +230,41 @@ describe('useComposerSubmit attachment preflight', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+  })
+
+  it('prepares audio consistently for supported, unsupported and unavailable capabilities', async () => {
+    for (const capability of [true, false, 'error'] as const) {
+      const harness = createHarness()
+      harness.activeModelSelection.value = { providerId: 'openai', modelId: 'gpt-4' }
+      await nextTick()
+      const files: MessageFile[] = [
+        { name: 'notes.md', path: '/tmp/notes.md' },
+        { name: 'clip.MP3', path: '/tmp/clip.MP3' },
+        { name: 'clip.bin', path: '/tmp/clip.bin', mimeType: 'audio/flac' },
+        { name: 'diagram.png', path: '/tmp/diagram.png' }
+      ]
+      if (capability === 'error')
+        harness.modelClient.getCapabilities.mockRejectedValue(new Error('unavailable'))
+      else harness.modelClient.getCapabilities.mockResolvedValue({ supportsAudioInput: capability })
+      harness.actions.message.value = 'read attachments'
+      harness.actions.attachedFiles.value = files
+      await harness.actions.onSubmit()
+      expect(harness.chatClient.sendMessage).toHaveBeenCalledWith(
+        's1',
+        expect.objectContaining({
+          files: capability === false ? [files[0], files[3]] : files
+        }),
+        expect.anything()
+      )
+      expect(harness.notify).toHaveBeenCalledTimes(capability === false ? 1 : 0)
+      if (capability === false) {
+        expect(harness.t).toHaveBeenCalledWith('chat.input.audioInputUnsupportedDescription', {
+          count: 2,
+          model: 'Audio Test'
+        })
+      }
+      harness.stop()
+    }
   })
 
   it('blocks send, commands, queue and steer while a reference is resolving', async () => {

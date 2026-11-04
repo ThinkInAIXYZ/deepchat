@@ -51,11 +51,14 @@ type StreamSessionState = {
 }
 
 type MessageStoreIpcBinding = {
+  connect: () => () => void
   cleanup: () => void
   purgeSessionTracking: (sessionId: string) => void
 }
 
-export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): MessageStoreIpcBinding {
+export function createMessageIpcBinding(
+  options: BindMessageStoreIpcOptions
+): MessageStoreIpcBinding {
   const chatClient = createChatClient()
   const sessionClient = createSessionClient()
   // Request entries are tombstones. Keep them until permanent session removal so
@@ -165,85 +168,96 @@ export function bindMessageStoreIpc(options: BindMessageStoreIpcOptions): Messag
     )
   }
 
-  const cleanups = [
-    chatClient.onStreamUpdated((payload) => {
-      if (!acceptStreamUpdate(payload)) {
-        return
-      }
-
-      options.invalidateRecentSessionView(payload.sessionId)
-      const blocks = payload.blocks as AssistantMessageBlock[]
-      if (payload.sessionId !== options.getActiveSessionId()) {
-        return
-      }
-
-      const streamMessageId = payload.messageId ?? payload.requestId
-      options.setStreamingState({
-        sessionId: payload.sessionId,
-        requestId: payload.requestId,
-        messageId: streamMessageId,
-        updatedAt: payload.updatedAt,
-        revision: payload.revision,
-        blocks,
-        metadata: {
-          providerId: payload.providerId,
-          modelId: payload.modelId
+  let disconnect: (() => void) | null = null
+  const connect = (): (() => void) => {
+    if (disconnect) return disconnect
+    const cleanups = [
+      chatClient.onStreamUpdated((payload) => {
+        if (!acceptStreamUpdate(payload)) {
+          return
         }
-      })
 
-      if (
-        streamMessageId &&
-        options.applyStreamingBlocksToMessage &&
-        !options.isEphemeralStreamMessageId(streamMessageId)
-      ) {
-        options.applyStreamingBlocksToMessage(
-          streamMessageId,
-          payload.sessionId,
+        options.invalidateRecentSessionView(payload.sessionId)
+        const blocks = payload.blocks as AssistantMessageBlock[]
+        if (payload.sessionId !== options.getActiveSessionId()) {
+          return
+        }
+
+        const streamMessageId = payload.messageId ?? payload.requestId
+        options.setStreamingState({
+          sessionId: payload.sessionId,
+          requestId: payload.requestId,
+          messageId: streamMessageId,
+          updatedAt: payload.updatedAt,
+          revision: payload.revision,
           blocks,
-          {
+          metadata: {
             providerId: payload.providerId,
             modelId: payload.modelId
-          },
-          payload.revision,
-          payload.requestId
-        )
-      }
-    }),
-    chatClient.onStreamCompleted((payload) => {
-      settleStream({
-        sessionId: payload.sessionId,
-        requestId: payload.requestId
+          }
+        })
+
+        if (
+          streamMessageId &&
+          options.applyStreamingBlocksToMessage &&
+          !options.isEphemeralStreamMessageId(streamMessageId)
+        ) {
+          options.applyStreamingBlocksToMessage(
+            streamMessageId,
+            payload.sessionId,
+            blocks,
+            {
+              providerId: payload.providerId,
+              modelId: payload.modelId
+            },
+            payload.revision,
+            payload.requestId
+          )
+        }
+      }),
+      chatClient.onStreamCompleted((payload) => {
+        settleStream({
+          sessionId: payload.sessionId,
+          requestId: payload.requestId
+        })
+      }),
+      chatClient.onStreamFailed((payload) => {
+        settleStream({
+          sessionId: payload.sessionId,
+          requestId: payload.requestId
+        })
+      }),
+      // Windows not bound to the streaming session receive no full stream events;
+      // keep their recent-session views (sidebar status) fresh from the
+      // lightweight activity signal instead. The bound window handles its own
+      // invalidation in the full-event listeners above.
+      chatClient.onStreamActivity((payload) => {
+        if (payload.sessionId !== options.getActiveSessionId()) {
+          options.invalidateRecentSessionView(payload.sessionId)
+        }
+      }),
+      sessionClient.onMessagesChanged((payload) => {
+        if (payload.sessionId !== options.getActiveSessionId()) {
+          options.invalidateRecentSessionView(payload.sessionId)
+          return
+        }
+        options.applyPersistedMessageRecords(payload.messages)
       })
-    }),
-    chatClient.onStreamFailed((payload) => {
-      settleStream({
-        sessionId: payload.sessionId,
-        requestId: payload.requestId
-      })
-    }),
-    // Windows not bound to the streaming session receive no full stream events;
-    // keep their recent-session views (sidebar status) fresh from the
-    // lightweight activity signal instead. The bound window handles its own
-    // invalidation in the full-event listeners above.
-    chatClient.onStreamActivity((payload) => {
-      if (payload.sessionId !== options.getActiveSessionId()) {
-        options.invalidateRecentSessionView(payload.sessionId)
-      }
-    }),
-    sessionClient.onMessagesChanged((payload) => {
-      if (payload.sessionId !== options.getActiveSessionId()) {
-        options.invalidateRecentSessionView(payload.sessionId)
-        return
-      }
-      options.applyPersistedMessageRecords(payload.messages)
-    })
-  ]
+    ]
+
+    const cleanup = () => {
+      if (disconnect !== cleanup) return
+      for (const dispose of cleanups) dispose()
+      disconnect = null
+    }
+    disconnect = cleanup
+    return cleanup
+  }
 
   return {
+    connect,
     cleanup: () => {
-      for (const cleanup of cleanups) {
-        cleanup()
-      }
+      disconnect?.()
       streamSessions.clear()
     },
     purgeSessionTracking: (sessionId: string) => {

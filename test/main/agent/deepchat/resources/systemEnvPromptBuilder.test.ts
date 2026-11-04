@@ -1,6 +1,5 @@
 import * as fs from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import logger from '@shared/logger'
 import {
   buildSystemEnvPrompt,
   buildSystemEnvPromptAssembly
@@ -13,9 +12,10 @@ function fileError(code: string): NodeJS.ErrnoException {
 
 describe('buildSystemEnvPrompt', () => {
   beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
     vi.mocked(fs.existsSync).mockReturnValue(false)
     vi.mocked(fs.promises.readFile).mockReset()
-    vi.mocked(logger.warn).mockClear()
+    vi.mocked(console.warn).mockClear()
   })
 
   afterEach(() => {
@@ -36,7 +36,7 @@ describe('buildSystemEnvPrompt', () => {
     expect(prompt).toContain('Working directory: /tmp/deepchat-env-prompt-missing')
     expect(prompt).toContain('Shell: sh.')
     expect(prompt).not.toContain('Instructions from:')
-    expect(logger.warn).not.toHaveBeenCalledWith(
+    expect(console.warn).not.toHaveBeenCalledWith(
       '[SystemEnvPromptBuilder] Failed to read AGENTS.md',
       expect.anything()
     )
@@ -117,7 +117,7 @@ describe('buildSystemEnvPrompt', () => {
     })
 
     expect(prompt).not.toContain('Instructions from:')
-    expect(logger.warn).toHaveBeenCalledWith('[SystemEnvPromptBuilder] Failed to read AGENTS.md', {
+    expect(console.warn).toHaveBeenCalledWith('[SystemEnvPromptBuilder] Failed to read AGENTS.md', {
       sourcePath: '/tmp/deepchat-env-prompt-error/AGENTS.md',
       code: 'EISDIR',
       message: 'EISDIR mock error'
@@ -167,7 +167,7 @@ describe('buildSystemEnvPrompt', () => {
       freshness: 'deferred',
       degradationCodes: ['agents_file_deferred']
     })
-    expect(logger.warn).toHaveBeenCalledWith('[SystemEnvPromptBuilder] AGENTS.md read deferred', {
+    expect(console.warn).toHaveBeenCalledWith('[SystemEnvPromptBuilder] AGENTS.md read deferred', {
       sourcePath: '/tmp/deepchat-env-prompt-slow/AGENTS.md',
       budgetMs: 200
     })

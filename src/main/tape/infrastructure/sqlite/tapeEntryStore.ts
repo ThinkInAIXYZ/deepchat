@@ -1,5 +1,4 @@
 import Database from 'better-sqlite3-multiple-ciphers'
-import logger from '@shared/logger'
 import { BaseTable } from '@/data/baseTable'
 import { randomUUID } from 'crypto'
 import {
@@ -931,7 +930,7 @@ export class DeepChatTapeEntriesTable
           applyProjection()
         } catch (error) {
           this.mutationProjection.invalidateSession(row.session_id)
-          logger.warn(
+          console.warn(
             `[Tape] memory ingestion projection append failed; session marked stale: ${String(error)}`
           )
         }

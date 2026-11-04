@@ -119,7 +119,7 @@ describe('McpBuiltinMarket', () => {
     }))
 
     const McpBuiltinMarket = (
-      await import('../../../src/renderer/settings/components/McpBuiltinMarket.vue')
+      await import('../../../src/renderer/src/features/mcp/McpBuiltinMarket.vue')
     ).default
     const wrapper = mount(McpBuiltinMarket)
     if (options?.waitForLoad !== false) {

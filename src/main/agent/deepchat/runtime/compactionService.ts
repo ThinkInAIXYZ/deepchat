@@ -11,13 +11,13 @@ import type {
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ProviderExecutionPort } from '@shared/types/provider'
 import type { DeepChatTapeViewPinnedFirstUser } from '@shared/types/tape-view-manifest'
-import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type {
-  SessionSettingsStore,
+  SessionSettingsPort,
   SessionSummaryState,
   SummaryTapeAnchorInput
-} from '@/session/data/settings'
+} from '@/session/data/contracts'
 import {
   buildPinnedFirstUser,
   buildHistoryTurns,
@@ -385,8 +385,8 @@ function resolveModelContextLength(modelContext: unknown, fallback: number): num
 
 export class CompactionService {
   constructor(
-    private readonly sessionStore: SessionSettingsStore,
-    private readonly messageStore: SessionTranscript,
+    private readonly sessionStore: SessionSettingsPort,
+    private readonly messageStore: SessionTranscriptPort,
     private readonly providerRuntime: Pick<
       ProviderExecutionPort,
       'executeWithRateLimit' | 'generateText'

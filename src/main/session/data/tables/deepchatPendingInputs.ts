@@ -198,6 +198,16 @@ export class DeepChatPendingInputsTable extends BaseTable {
       .all(sessionId) as DeepChatPendingInputRow[]
   }
 
+  hasUnconsumedBySession(sessionId: string): boolean {
+    return Boolean(
+      this.db
+        .prepare(
+          "SELECT 1 FROM deepchat_pending_inputs WHERE session_id = ? AND state != 'consumed' LIMIT 1"
+        )
+        .get(sessionId)
+    )
+  }
+
   countActiveBySession(sessionId: string): number {
     const row = this.db
       .prepare(

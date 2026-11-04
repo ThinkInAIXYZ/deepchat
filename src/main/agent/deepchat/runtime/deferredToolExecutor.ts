@@ -8,7 +8,7 @@ import type {
   ToolOutcomeProjection
 } from '@shared/types/core/mcp'
 import type { ToolExecutionPort, ToolResultPort } from '@/agent/deepchat/loop/ports'
-import type { CacheImageOptions } from '@/platform/imageCache'
+import type { CacheImageOptions } from '@shared/types/attachment'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {
   cacheToolCallImagePreviews,
@@ -40,17 +40,17 @@ import { toolContentToText } from './toolAdapters'
 import { isUserConfigurableAgentTool } from '@shared/agentTools'
 import type { DeepChatExecutionContract } from '@shared/types/execution-contract'
 import { CommandShellProfileSchema, type CommandShellProfile } from '@shared/commandShell'
-import type { CommandShellService } from '@/agent/shared/process/commandShellService'
+import type { CommandShellPort } from '@shared/commandShell'
 import type { ToolSurfaceDeferredDispatch } from './toolSurface'
 import type { ToolPermissionLeaseCapability } from '@shared/types/tool'
 import type {
   ProgrammaticToolParentRegistration,
-  ProgrammaticToolParentRegistry
-} from '@/cli/programmaticToolParentRegistry'
+  ProgrammaticToolPort
+} from '@/agent/deepchat/runtime/programmaticExecParent'
 import {
   isProgrammaticCommandLaunchError,
   ProgrammaticCommandLaunchError
-} from '@/tool/agentTools/agentBashHandler'
+} from '@shared/types/core/mcp'
 import { prepareProgrammaticExecParent } from './programmaticExecParent'
 import {
   requireProgrammaticToolDeferredResumeCapability,
@@ -90,8 +90,8 @@ export interface DeferredToolExecutorDependencies {
   identity: Pick<SessionIdentityService, 'getAgentId'>
   messageProjection: Pick<MessageProjectionService, 'updateSubagentToolCallProgress'>
   executionJournal: ExecutionJournalWriter
-  programmaticToolParents: Pick<ProgrammaticToolParentRegistry, 'commitRunTerminal' | 'prepare'>
-  commandShell: Pick<CommandShellService, 'resolveForTurn' | 'resolveProfile'>
+  programmaticToolParents: Pick<ProgrammaticToolPort, 'commitRunTerminal' | 'prepare'>
+  commandShell: Pick<CommandShellPort, 'resolveForTurn' | 'resolveProfile'>
   runJournalObserver?: RunJournalObserver
   diagnosticNow?: MonotonicClock
 }

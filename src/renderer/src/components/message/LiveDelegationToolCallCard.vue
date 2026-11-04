@@ -97,6 +97,7 @@
 </template>
 
 <script setup lang="ts">
+import { useChatSessionStore } from '@/features/chat-session/store'
 import { computed, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
@@ -108,7 +109,6 @@ import {
 } from '@/lib/liveDelegationPresentation'
 import type { ParsedLiveDelegationSpawn } from '@/lib/liveDelegationToolCall'
 import { useLiveDelegationStore } from '@/stores/ui/liveDelegation'
-import { useSessionStore } from '@/stores/ui/session'
 
 const props = defineProps<{
   parentSessionId: string
@@ -122,7 +122,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ toggleDetails: [] }>()
 const { t } = useI18n()
-const sessionStore = useSessionStore()
+const chatSessionStore = useChatSessionStore()
 const liveDelegationStore = useLiveDelegationStore()
 const actionError = ref<string | null>(null)
 const opening = ref(false)
@@ -175,7 +175,7 @@ async function openChild(): Promise<void> {
       throw new Error('The delegation no longer matches this transcript entry.')
     }
     if (!confirmed.childSessionId) throw new Error('The child Session is not available yet.')
-    await sessionStore.selectSession(confirmed.childSessionId)
+    await chatSessionStore.selectSession(confirmed.childSessionId)
   } catch (error) {
     console.warn('[LiveDelegationToolCallCard] Failed to open child Session:', error)
     actionError.value = t('common.error.operationFailed')

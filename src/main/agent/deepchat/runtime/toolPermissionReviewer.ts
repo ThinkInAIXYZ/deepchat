@@ -1,5 +1,4 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
-import logger from '@shared/logger'
 import { createHash } from 'crypto'
 import type { ProviderExecutionPort } from '@shared/types/provider'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -239,7 +238,7 @@ async function reviewWithJudgmentModel(
   if (!fitted) {
     // Sending an oversized request would only produce a 422 that degrades to the same answer, and the
     // judgement could not have been made anyway. Escalate directly and say why.
-    logger.warn('[DeepChatAgent] judgment review state exceeded its budget:', {
+    console.warn('[DeepChatAgent] judgment review state exceeded its budget:', {
       sessionId: request.sessionId,
       toolCallId: request.toolCallId,
       toolName: request.toolName,
@@ -288,7 +287,7 @@ async function reviewWithJudgmentModel(
         }
       : composed
 
-  logger.info('[DeepChatAgent] judgment review decision:', {
+  console.info('[DeepChatAgent] judgment review decision:', {
     sessionId: request.sessionId,
     messageId: request.messageId,
     toolCallId: request.toolCallId,
@@ -403,7 +402,7 @@ export async function reviewAutoApproveToolPermission(
     )
     throwIfAbortRequested(context.signal)
     const decision = normalizeReviewDecision(response, actionHash)
-    logger.info('[DeepChatAgent] auto-approve review decision:', {
+    console.info('[DeepChatAgent] auto-approve review decision:', {
       sessionId: request.sessionId,
       messageId: request.messageId,
       toolCallId: request.toolCallId,

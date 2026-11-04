@@ -1,4 +1,4 @@
-import logger from '@shared/logger'
+import type { ProgrammaticToolPort } from './programmaticExecParent'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
@@ -11,9 +11,9 @@ import type {
   SessionRuntimeScope
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
-import type { SessionTranscript } from '@/session/data/transcript'
-import { buildTerminalErrorBlocks } from '@/session/data/transcript'
-import { parseMessageMetadata } from '@/session/usageStats'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
+import { buildTerminalErrorBlocks } from '@/session/data/messageContent'
+import { parseMessageMetadata } from '@/session/data/messageContent'
 import {
   collectPendingInteractionEntries,
   parseAssistantBlocks,
@@ -29,12 +29,11 @@ import type { MessageProjectionService } from './messageProjectionService'
 import { resolveStreamRequestId as resolveRegistryStreamRequestId } from './streamRequestId'
 import { revokeToolSurfaceDeferredDispatchesForSession } from './toolSurface'
 import type { ProcessResult } from './types'
-import type { AgentCliTokenAuthority } from '@/cli/agentTokenAuthority'
 
 export type PendingInputWakeReason = 'enqueue' | 'completed' | 'manual'
 
 type RunLifecycleTranscript = Pick<
-  SessionTranscript,
+  SessionTranscriptPort,
   'getMessage' | 'getMessages' | 'setMessageError'
 >
 
@@ -57,7 +56,7 @@ export interface RunLifecycleCoordinatorPorts {
   pendingInputWakeup: PendingInputWakeup
   terminalObserver: RunTerminalObserver
   messageProjection: Pick<MessageProjectionService, 'refresh'>
-  programmaticAuthority: Pick<AgentCliTokenAuthority, 'revokeConversation'>
+  programmaticAuthority: Pick<ProgrammaticToolPort, 'revokeConversation'>
 }
 
 export class RunLifecycleCoordinator {
@@ -473,7 +472,7 @@ export class RunLifecycleCoordinator {
 
   schedulePendingInputDrain(sessionId: string, reason: PendingInputWakeReason): void {
     void this.requestPendingInputDrain(sessionId, reason).catch((error) => {
-      logger.error(
+      console.error(
         `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason}`,
         redactRuntimeErrorForLog(error)
       )
@@ -522,7 +521,7 @@ export class RunLifecycleCoordinator {
   private cancelProviderPermissions(instance: DeepChatAgentInstance): void {
     for (const permission of instance.takeActiveProviderPermissions()) {
       void resolveProviderPermissionSafely(() => permission.resolve(false)).catch((error) => {
-        logger.warn(
+        console.warn(
           `[DeepChatAgent] Failed to cancel ACP permission request ${permission.requestId}:`,
           redactRuntimeErrorForLog(error)
         )

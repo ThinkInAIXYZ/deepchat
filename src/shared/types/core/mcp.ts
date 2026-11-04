@@ -350,3 +350,16 @@ export interface McpSamplingDecision {
   modelId?: string
   reason?: string
 }
+
+export class ProgrammaticCommandLaunchError extends Error {
+  constructor(options?: ErrorOptions) {
+    super('Programmatic CLI launch did not reach authoritative settlement', options)
+    this.name = 'ProgrammaticCommandLaunchError'
+  }
+}
+
+export function isProgrammaticCommandLaunchError(
+  error: unknown
+): error is ProgrammaticCommandLaunchError {
+  return error instanceof ProgrammaticCommandLaunchError
+}

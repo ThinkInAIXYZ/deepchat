@@ -10,7 +10,7 @@ import {
   RUN_CODE_MAX_TIMEOUT_MS
 } from '@shared/codeModeProtocol'
 import { LIVE_DELEGATION_AGENT_TOOL_NAME } from '@shared/agentTools'
-import { QUESTION_TOOL_NAME } from '../agentTools/questionTool'
+import { QUESTION_TOOL_NAME } from '@shared/contracts/questionTool'
 
 export const RUN_CODE_TOOL_NAME = 'run_code'
 export const CODE_MODE_EXEC_TOOL_NAME = 'exec'

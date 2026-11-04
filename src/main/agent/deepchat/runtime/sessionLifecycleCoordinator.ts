@@ -1,4 +1,3 @@
-import logger from '@shared/logger'
 import type {
   PermissionMode,
   SessionGenerationSettings
@@ -6,15 +5,15 @@ import type {
 import type { ToolServicePort } from '@shared/types/tool'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
-import type { PromptSettings } from '@/agent/promptSettings'
+import type { PromptSettingsPort } from '@/agent/promptSettings'
 import type {
   DeepChatAgentRuntime,
   SessionScopeRegistry
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
-import type { SessionSettingsStore } from '@/session/data/settings'
-import type { SessionTranscript } from '@/session/data/transcript'
-import type { SessionPendingInputs } from '@/session/data/pendingInputs'
+import type { SessionSettingsPort } from '@/session/data/contracts'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
+import type { SessionPendingInputsPort } from '@/session/data/contracts'
 import type { CompactionRuntimeCoordinator } from './compactionRuntimeCoordinator'
 import { sanitizeGenerationSettings } from './generationSettings'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
@@ -25,7 +24,7 @@ import type { InteractionParkingRegistry } from './interactionParkingRegistry'
 import type { ToolSurfaceShadowDiagnosticsRegistryPort } from './toolSurfaceDiagnostics'
 import type { ToolSurfaceCanaryDiagnosticsRegistry } from './toolSurfaceCanaryDiagnostics'
 import { revokeToolSurfaceDeferredDispatchesForSession } from './toolSurface'
-import type { ProgrammaticToolParentRegistry } from '@/cli/programmaticToolParentRegistry'
+import type { ProgrammaticToolPort } from '@/agent/deepchat/runtime/programmaticExecParent'
 
 export interface SessionInitConfig {
   agentId?: string
@@ -41,10 +40,10 @@ export type SessionLifecycleRegistry = SessionScopeRegistry & Pick<DeepChatAgent
 export interface SessionLifecycleCoordinatorDependencies {
   registry: SessionLifecycleRegistry
   providerSettings: ProviderModelResolutionPort
-  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
-  sessionStore: Pick<SessionSettingsStore, 'create' | 'delete'>
-  transcript: Pick<SessionTranscript, 'deleteBySession'>
-  pendingInputs: Pick<SessionPendingInputs, 'deleteBySession'>
+  promptSettings: PromptSettingsPort
+  sessionStore: Pick<SessionSettingsPort, 'create' | 'delete'>
+  transcript: Pick<SessionTranscriptPort, 'deleteBySession'>
+  pendingInputs: Pick<SessionPendingInputsPort, 'deleteBySession'>
   toolService: Pick<ToolServicePort, 'clearConversationToolMapping'>
   identity: Pick<SessionIdentityService, 'getAgentId'>
   sessionSettings: Pick<SessionSettingsCoordinator, 'normalizeProjectDir'>
@@ -60,7 +59,7 @@ export interface SessionLifecycleCoordinatorDependencies {
   interactionParking: Pick<InteractionParkingRegistry, 'clearSession'>
   toolSurfaceDiagnostics: Pick<ToolSurfaceShadowDiagnosticsRegistryPort, 'clear'>
   toolSurfaceCanaryDiagnostics: Pick<ToolSurfaceCanaryDiagnosticsRegistry, 'clearSession'>
-  programmaticToolParents: Pick<ProgrammaticToolParentRegistry, 'releaseSession'>
+  programmaticToolParents: Pick<ProgrammaticToolPort, 'releaseSession'>
   pruningFeedback: Pick<JevPruningFeedback, 'clear'>
 }
 
@@ -70,7 +69,7 @@ export class SessionLifecycleCoordinator {
   async init(sessionId: string, config: SessionInitConfig): Promise<void> {
     const projectDir = this.deps.sessionSettings.normalizeProjectDir(config.projectDir)
     const permissionMode = config.permissionMode ?? 'default'
-    logger.info(
+    console.info(
       `[DeepChatAgent] initSession id=${sessionId} provider=${config.providerId} model=${config.modelId} permission=${permissionMode} hasProjectDir=${projectDir !== null}`
     )
     const generationSettings = await sanitizeGenerationSettings(

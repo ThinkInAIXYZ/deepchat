@@ -353,12 +353,6 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
-  // Compatibility aliases keep callers on the single snapshot owner.
-  const fetchProjects = refreshProjectSnapshot
-  const fetchEnvironments = refreshProjectSnapshot
-  const loadDefaultProjectPath = refreshProjectSnapshot
-  const refreshEnvironmentData = refreshProjectSnapshot
-
   return {
     projects,
     environments,
@@ -371,11 +365,7 @@ export const useProjectStore = defineStore('project', () => {
     selectionSource,
     error,
     selectedProject,
-    fetchProjects,
-    fetchEnvironments,
-    loadDefaultProjectPath,
     applyBootstrapDefaultProjectPath,
-    refreshEnvironmentData,
     refreshProjectSnapshot,
     ensureChatWorkspace,
     selectProject,

@@ -13,28 +13,26 @@ import type {
 } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { SessionIdentityService } from './sessionIdentityService'
-import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/deepchat/deepChatAgentRepository'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/shared/agentDescriptors'
 import type { SessionPermissionPort } from '@/session/contracts'
 import {
   buildPersistedGenerationSettingsPatch,
   buildPersistedGenerationSettingsReplacement,
-  mapPersistedGenerationPatch,
   sanitizeGenerationSettings,
+  resolveSessionGenerationSettings,
   type PersistedSessionGenerationRow
 } from './generationSettings'
 import {
-  assertProviderModelRuntimeFacts,
-  resolveProviderModelRuntimeFacts,
   type ProviderModelRuntimeFacts
 } from './providerModelRuntimeFacts'
-import type { SessionSettingsStore } from '@/session/data/settings'
+import type { SessionSettingsPort } from '@/session/data/contracts'
 import type { DeepChatToolResolver } from './toolResolver'
-import type { PromptSettings } from '@/agent/promptSettings'
+import type { PromptSettingsPort } from '@/agent/promptSettings'
 
 interface SessionSettingsCoordinatorDependencies {
   providerSettings: ProviderModelResolutionPort
-  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
-  sessionStore: SessionSettingsStore
+  promptSettings: PromptSettingsPort
+  sessionStore: SessionSettingsPort
   toolResolver: DeepChatToolResolver
   sessionPermissionPort: SessionPermissionPort
   registry: SessionScopeRegistry
@@ -61,7 +59,7 @@ export class SessionSettingsCoordinator {
 
   private resolveUpdateScope(sessionId: string): {
     scope: SessionRuntimeScope
-    dbSession: ReturnType<SessionSettingsStore['get']>
+    dbSession: ReturnType<SessionSettingsPort['get']>
   } {
     const appSessionId = toAppSessionId(sessionId)
     const hydratedScope = this.deps.registry.getHydratedScope(appSessionId)
@@ -373,57 +371,13 @@ export class SessionSettingsCoordinator {
     providedProviderModelFacts?: ProviderModelRuntimeFacts
   ): Promise<SessionGenerationSettings> {
     this.assertCurrent(sessionId, expectedInstance)
-    const state = expectedInstance.getRuntimeState()
-    let dbSession: PersistedSessionGenerationRow | undefined
-    if (providedProviderModelFacts) {
-      dbSession = state
-        ? undefined
-        : (this.deps.sessionStore.get(sessionId) as PersistedSessionGenerationRow | undefined)
-      const expectedProviderId = state?.providerId ?? dbSession?.provider_id
-      const expectedModelId = state?.modelId ?? dbSession?.model_id
-      if (!expectedProviderId || !expectedModelId) {
-        throw new Error(`Session ${sessionId} not found`)
-      }
-      assertProviderModelRuntimeFacts(
-        providedProviderModelFacts,
-        expectedProviderId,
-        expectedModelId
-      )
-    }
-    const cached = expectedInstance.getGenerationSettings()
-    if (cached) {
-      return { ...cached }
-    }
-
-    dbSession ??= this.deps.sessionStore.get(sessionId) as
-      | PersistedSessionGenerationRow
-      | undefined
-    const providerId = state?.providerId ?? dbSession?.provider_id
-    const modelId = state?.modelId ?? dbSession?.model_id
-
-    if (!providerId || !modelId) {
-      throw new Error(`Session ${sessionId} not found`)
-    }
-
-    const providerModelFacts =
-      providedProviderModelFacts ??
-      resolveProviderModelRuntimeFacts(this.deps.providerSettings, providerId, modelId)
-    const persistedPatch = dbSession
-      ? mapPersistedGenerationPatch(
-          this.deps.providerSettings,
-          dbSession,
-          providerModelFacts.capabilitySnapshot
-        )
-      : {}
-    const sanitized = await sanitizeGenerationSettings(
-      this.deps.providerSettings,
-      this.deps.promptSettings,
-      providerId,
-      modelId,
-      persistedPatch,
-      undefined,
-      providerModelFacts
-    )
+    const sanitized = await resolveSessionGenerationSettings({
+      providerSettings: this.deps.providerSettings,
+      promptSettings: this.deps.promptSettings,
+      state: expectedInstance.getRuntimeState(),
+      cached: expectedInstance.getGenerationSettings(),
+      readPersisted: () => this.deps.sessionStore.get(sessionId) as PersistedSessionGenerationRow | undefined
+    }, sessionId, providedProviderModelFacts)
     this.assertCurrent(sessionId, expectedInstance)
     expectedInstance.setGenerationSettings(sanitized)
     return { ...sanitized }

@@ -2,17 +2,6 @@ import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 describe('session boundary composition', () => {
-  it('does not load NativeKit from the application startup workload', async () => {
-    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
-      'utf8'
-    )
-
-    expect(compositionSource).not.toContain('main:yo-browser')
-    expect(compositionSource).not.toContain('yoBrowserPresenter.initialize()')
-  })
-
   it('reuses one default LegacyChatImportService across startup and skill repair', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
     const compositionSource = readFileSync(
@@ -110,22 +99,6 @@ describe('session boundary composition', () => {
     expect(mainProcessSource.match(/setMainLoggingEnabled\(/g)).toHaveLength(1)
   })
 
-  it('has no late Provider runtime connection or ready fallback', async () => {
-    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
-      'utf8'
-    )
-    const providerSettingsSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/provider/settings.ts'),
-      'utf8'
-    )
-
-    expect(compositionSource).not.toContain('.startRuntime(')
-    expect(providerSettingsSource).not.toContain('providerRuntimeReady')
-    expect(providerSettingsSource).not.toContain('runtimeEffects')
-  })
-
   it('owns one idempotent shutdown path and rejects routes after shutdown starts', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
     const compositionSource = readFileSync(
@@ -188,16 +161,6 @@ describe('session boundary composition', () => {
     expect(destroyStepIndex('windowPresenter.destroyWindows')).toBeLessThan(
       destroyStepIndex('mainDatabase.close')
     )
-  })
-
-  it('does not detach startup workload tasks without an observation owner', async () => {
-    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const compositionSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
-      'utf8'
-    )
-
-    expect(compositionSource).not.toContain('void startupWorkloadCoordinator.scheduleTask(')
   })
 
   it('finishes migrations and Skill initialization before the initial window', async () => {

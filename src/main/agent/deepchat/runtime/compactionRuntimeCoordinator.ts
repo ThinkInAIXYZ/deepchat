@@ -1,5 +1,5 @@
+import type { DeepChatOutputPort } from './output'
 import type { PluginContextPort } from '@shared/types/userPlugin'
-import logger from '@shared/logger'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type {
   SessionCompactionSnapshot,
@@ -11,9 +11,8 @@ import {
   type CompactionIntent,
   type CompactionService
 } from './compactionService'
-import type { DeepChatEventPublisher } from './types'
-import type { SessionTranscript } from '@/session/data/transcript'
-import type { SessionSettingsStore, SessionSummaryState } from '@/session/data/settings'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
+import type { SessionSettingsPort, SessionSummaryState } from '@/session/data/contracts'
 import { isAbortError, throwIfAbortRequested } from './abortErrors'
 import type { DeepChatToolResolver } from './toolResolver'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
@@ -34,7 +33,7 @@ import { resolveInterleavedReasoningConfig } from './generationSettings'
 import { resolveProviderInputCapabilities } from './providerInputCapabilities'
 import { resolveProviderModelRuntimeFacts } from './providerModelRuntimeFacts'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { CommandShellService } from '@/agent/shared/process/commandShellService'
+import type { CommandShellPort } from '@shared/commandShell'
 import {
   isSummaryGapReason,
   type SummaryGapReason
@@ -66,7 +65,7 @@ type CompactionServicePort = Pick<
 >
 
 type CompactionSessionStore = Pick<
-  SessionSettingsStore,
+  SessionSettingsPort,
   | 'get'
   | 'getReconstructionAnchorPromptState'
   | 'getReconstructionAnchorPromptStateByCompactionAttemptId'
@@ -76,7 +75,7 @@ type CompactionSessionStore = Pick<
 
 type CompactionTranscript = TapeTranscriptProjection &
   Pick<
-    SessionTranscript,
+    SessionTranscriptPort,
     | 'createCompactionMessage'
     | 'createCompactionMessageAtOrderSeq'
     | 'deleteMessage'
@@ -98,9 +97,9 @@ export interface CompactionRuntimeCoordinatorDependencies {
   registry: SessionScopeRegistry
   sessionState: Pick<SessionStateResolver, 'getSummary'>
   promptAssembly: Pick<PromptAssemblyService, 'createBasePromptAssembler'>
-  commandShell: Pick<CommandShellService, 'resolveForTurn'>
+  commandShell: Pick<CommandShellPort, 'resolveForTurn'>
   messageProjection: Pick<MessageProjectionService, 'refresh'>
-  publishEvent: DeepChatEventPublisher
+  output: DeepChatOutputPort
 }
 
 interface ApplyCompactionOptions {
@@ -425,7 +424,7 @@ export class CompactionRuntimeCoordinator {
             source: 'compact', boundaryId: intent.compactionAttemptId, signal: options?.signal
           })
         } catch (error) {
-          logger.warn('[PluginHooks] Compaction hook dispatch failed', { sessionId, error })
+          console.warn('[PluginHooks] Compaction hook dispatch failed', { sessionId, error })
         }
       }
     }
@@ -537,7 +536,7 @@ export class CompactionRuntimeCoordinator {
           : null
     }
     expectedInstance.setCompactionState(projectedState)
-    this.deps.publishEvent('sessions.compaction.changed', {
+    this.deps.output.compactionChanged({
       sessionId,
       status: projectedState.status,
       cursorOrderSeq: projectedState.cursorOrderSeq,

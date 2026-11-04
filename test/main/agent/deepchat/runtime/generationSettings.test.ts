@@ -6,6 +6,7 @@ import { ApiEndpointType, ModelType } from '@shared/model'
 import {
   buildPersistedGenerationSettingsPatch,
   mapPersistedGenerationPatch,
+  resolveInterleavedReasoningConfig,
   sanitizeGenerationSettings
 } from '@/agent/deepchat/runtime/generationSettings'
 import { resolveProviderModelRuntimeFacts } from '@/agent/deepchat/runtime/providerModelRuntimeFacts'
@@ -46,12 +47,31 @@ function createProviderSettings(): ProviderSettingsPort {
       temperature: 0.7,
       timeout: 60_000
     })),
+    getProviderDbSourceUrl: vi.fn(() => 'https://example.com/provider-db.json'),
     getProviderById: vi.fn(() => undefined),
     getCapabilitySnapshot: vi.fn(() => createCapabilitySnapshot())
   } as unknown as ProviderSettingsPort
 }
 
 describe('generation settings policy', () => {
+  it('reads the current host catalog source without changing reasoning policy', () => {
+    const providerSettings = createProviderSettings()
+    const settings = { forceInterleavedThinkingCompat: false } as SessionGenerationSettings
+    const resolve = () =>
+      resolveInterleavedReasoningConfig(providerSettings, 'openai', 'gpt-4o', settings)
+
+    expect(resolve()).toEqual({
+      preserveReasoningContent: false,
+      preserveEmptyReasoningContent: false,
+      forcedBySessionSetting: false,
+      portraitInterleaved: false,
+      reasoningSupported: false,
+      providerDbSourceUrl: 'https://example.com/provider-db.json'
+    })
+    vi.mocked(providerSettings.getProviderDbSourceUrl).mockReturnValue('https://example.com/new.json')
+    expect(resolve().providerDbSourceUrl).toBe('https://example.com/new.json')
+  })
+
   it('switches exclusive controls, persists both fields and restores implicit defaults', async () => {
     const providerSettings = createProviderSettings()
     const snapshot = {

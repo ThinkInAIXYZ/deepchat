@@ -5,10 +5,9 @@ import type { AgentSettingsPort } from '@/agent/settings'
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type { SessionScopeRegistry } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { ToolResultPort } from '@/agent/deepchat/loop/ports'
-import type { SessionSettingsStore } from '@/session/data/settings'
+import type { SessionSettingsPort } from '@/session/data/contracts'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
 import type { SessionIdentityService } from './sessionIdentityService'
-import logger from '@shared/logger'
 import { normalizeToolResultContent } from './toolAdapters'
 import { reviewAutoApproveToolPermission } from './toolPermissionReviewer'
 import {
@@ -46,7 +45,7 @@ export interface ToolRuntimeBindingDependencies {
     'executeWithRateLimit' | 'generateCompletionStandalone' | 'runJudgment'
   >
   registry: SessionScopeRegistry
-  sessionStore: Pick<SessionSettingsStore, 'get'>
+  sessionStore: Pick<SessionSettingsPort, 'get'>
   identity: Pick<SessionIdentityService, 'getAgentId'>
   runLifecycle: Pick<RunLifecycleCoordinator, 'getAbortSignal'>
   /**
@@ -70,7 +69,7 @@ export function createToolResultNormalizer(
         toolArgs: tool.toolArgs
       })
     ) {
-      logger.info('[DeepChatAgent] tool result pruning miss:', {
+      console.info('[DeepChatAgent] tool result pruning miss:', {
         sessionId: tool.sessionId,
         toolName: tool.toolName,
         toolCallId: tool.toolCallId,
@@ -174,7 +173,7 @@ export function createClosedToolResultPruner(
     })
 
     if (!outcome.attempted) {
-      logger.info('[DeepChatAgent] tool result pruning skipped:', {
+      console.info('[DeepChatAgent] tool result pruning skipped:', {
         sessionId,
         skipReason: outcome.skipReason
       })
@@ -188,7 +187,7 @@ export function createClosedToolResultPruner(
       outcome.decisions.filter((decision) => !decision.kept)
     )
 
-    logger.info('[DeepChatAgent] tool result pruning decision:', {
+    console.info('[DeepChatAgent] tool result pruning decision:', {
       sessionId,
       shape: outcome.shape,
       stateTokens: outcome.stateTokens,

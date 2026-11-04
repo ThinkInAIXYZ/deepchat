@@ -12,7 +12,6 @@ import {
   type LoopRunPromptUsageAnchor
 } from './loopRun'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import logger from '@shared/logger'
 import {
   createStreamEvent,
   type ErrorStreamEvent,
@@ -923,7 +922,7 @@ export class DeepChatContextCoordinator {
         } catch (error) {
           // A judgment that cannot be made must not block the attempt. Keep every result and let the
           // size-based stages below do what they would have done anyway.
-          logger.warn('[DeepChatContextCoordinator] tool result pruning failed:', error)
+          console.warn('[DeepChatContextCoordinator] tool result pruning failed:', error)
           base = messages
         }
       }

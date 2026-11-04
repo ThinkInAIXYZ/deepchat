@@ -1,3 +1,4 @@
+import type { DeepChatOutputPort } from './output'
 import type {
   AssistantMessageBlock,
   ToolInteractionResponse,
@@ -33,7 +34,7 @@ import {
   updateSkillDraftToolCallResponse,
   updateToolCallResponse
 } from './interactionProjection'
-import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionTranscriptPort } from '@/session/data/contracts'
 import type { ProviderPermissionCoordinator } from './providerPermissionCoordinator'
 import { MAX_TOOL_CALLS_SKIPPED_ERROR } from './process'
 import {
@@ -51,8 +52,8 @@ import type { SessionScopeRegistry } from '@/agent/deepchat/instance/deepChatAge
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { MessageProjectionService } from './messageProjectionService'
 import type { ResumeBudgetToolCall, TurnResumePort } from './turnResumeContract'
-import type { DeepChatEventPublisher, PendingToolInteraction } from './types'
-import { parseMessageMetadata } from '@/session/usageStats'
+import type { PendingToolInteraction } from './types'
+import { parseMessageMetadata } from '@/session/data/messageContent'
 import { MAX_TOOL_CALLS } from '@/agent/deepchat/loop/deepChatLoopEngine'
 import { throwIfAbortRequested } from './abortErrors'
 import type { RunLifecycleCoordinator } from './runLifecycleCoordinator'
@@ -71,7 +72,8 @@ import {
   resolveDeferredToolSurfaceDispatch
 } from './deferredToolSurface'
 import { CommandShellProfileSchema } from '@shared/commandShell'
-import { isAgentToolPathBearing, isCommandSignatureForProfile } from '@/tool/permission'
+import { isCommandSignatureForProfile } from '@/tool/permission/commandPermissionService'
+import { isAgentToolPathBearing } from '@/tool/permission/agentToolReviewPolicy'
 
 const DEFERRED_INTERACTION_PARKED_ERROR =
   'Execution is parked after its durable dispatch boundary and will not be retried automatically.'
@@ -111,7 +113,7 @@ type SkillDraftPresenter = Pick<
 >
 
 export interface InteractionCoordinatorPorts {
-  messageStore: SessionTranscript
+  messageStore: SessionTranscriptPort
   providerPermissionCoordinator: ProviderPermissionCoordinator
   skillService: SkillDraftPresenter
   runLifecycle: InteractionRunLifecyclePort
@@ -122,7 +124,7 @@ export interface InteractionCoordinatorPorts {
   hookSink: Pick<RuntimeHookSink, 'scope'>
   turnCoordinator: TurnResumePort
   continuationAdmission: InteractionContinuationAdmissionPort
-  publishEvent: DeepChatEventPublisher
+  output: DeepChatOutputPort
   interactionParking: Pick<InteractionParkingRegistry, 'isParked' | 'park'>
   executionJournal: Pick<
     ExecutionJournalRecoveryReader,
@@ -553,7 +555,7 @@ export class InteractionCoordinator {
               JSON.stringify(terminalMetadata)
             )
             this.ports.messageProjection.refresh(sessionId, messageId)
-            this.ports.publishEvent('chat.stream.failed', {
+            this.ports.output.streamFailed({
               requestId: this.ports.runLifecycle.resolveStreamRequestId(sessionId, messageId),
               sessionId,
               messageId,

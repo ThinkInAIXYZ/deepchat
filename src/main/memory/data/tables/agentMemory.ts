@@ -1,5 +1,4 @@
 import Database from 'better-sqlite3-multiple-ciphers'
-import logger from '@shared/logger'
 import { BaseTable } from '@/data/baseTable'
 import {
   AGENT_MEMORY_CATEGORIES,
@@ -1271,7 +1270,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       const idSample = repair.quarantinedIds.length
         ? ` ids=${JSON.stringify(repair.quarantinedIds)}${repair.quarantined > repair.quarantinedIds.length ? '…' : ''}`
         : ''
-      logger.warn(
+      console.warn(
         `[Memory] repaired invalid temporal metadata: quarantinedClaims=${repair.quarantined} normalizedInternal=${repair.normalizedInternal}${idSample}`
       )
     }
@@ -1310,7 +1309,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       const idSample = repair.deletedIds.length
         ? ` deletedIds=${JSON.stringify(repair.deletedIds)}${repair.deletedRows > repair.deletedIds.length ? '…' : ''}`
         : ''
-      logger.warn(
+      console.warn(
         `[Memory] repaired invalid scope rows: detachedAgentRows=${repair.detachedAgentRows} recoveredUserRows=${repair.recoveredUserRows} resyncedShadowRows=${repair.resyncedShadowRows} deletedUnrecoverableRows=${repair.deletedRows}${idSample}`
       )
     }
@@ -1595,7 +1594,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       return { internalCanonicalPreserved, legacyRepaired }
     })()
 
-    logger.warn(
+    console.warn(
       `[Memory] repaired legacy status bridge mismatches: legacy=${recovery.legacyRepaired} internalCanonical=${recovery.internalCanonicalPreserved} backup=${backupPath}`
     )
   }
@@ -1966,7 +1965,7 @@ export class AgentMemoryTable extends BaseTable implements MemoryRepositoryPort 
       )
       .get() as { count: number } | undefined
     if ((stats?.count ?? 0) > 0) {
-      logger.warn(`[Memory] v42 normalized legacy status rows: ${stats?.count ?? 0}`)
+      console.warn(`[Memory] v42 normalized legacy status rows: ${stats?.count ?? 0}`)
     }
     this.db.exec(`
       DROP TABLE agent_memory_v42_migration_stats;

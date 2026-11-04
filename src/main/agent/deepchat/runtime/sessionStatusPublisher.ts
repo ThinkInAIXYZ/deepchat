@@ -1,12 +1,14 @@
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
-import type { SessionUiPort } from '@/session/contracts'
 import type { SessionRuntimeScope } from '@/agent/deepchat/instance/deepChatAgentRuntime'
-import type { DeepChatEventPublisher, DeepChatSessionUpdatePublisher } from './types'
 
 export interface SessionStatusPublisherPorts {
-  publishEvent: DeepChatEventPublisher
-  publishSessionUpdate: DeepChatSessionUpdatePublisher
-  sessionUiPort: SessionUiPort
+  publishStatus(update: {
+    sessionId: string
+    status: DeepChatSessionState['status']
+    updatedAt: number
+    changed: boolean
+    usage?: Record<string, number>
+  }): void
 }
 
 export class SessionStatusPublisher {
@@ -31,9 +33,9 @@ export class SessionStatusPublisher {
 
     const sessionId = scope.sessionId
     if (current.status === status) {
-      this.ports.publishSessionUpdate({
+      this.ports.publishStatus({
         sessionId,
-        kind: 'status',
+        changed: false,
         updatedAt: Date.now(),
         status,
         usage
@@ -42,23 +44,13 @@ export class SessionStatusPublisher {
     }
 
     current.status = status
-    this.ports.publishEvent('sessions.status.changed', {
+    this.ports.publishStatus({
       sessionId,
-      status,
-      version: Date.now()
-    })
-    this.ports.publishEvent('sessions.updated', {
-      sessionIds: [sessionId],
-      reason: 'updated'
-    })
-    this.ports.publishSessionUpdate({
-      sessionId,
-      kind: 'status',
+      changed: true,
       updatedAt: Date.now(),
       status,
       ...(usage === undefined ? {} : { usage })
     })
-    this.ports.sessionUiPort.refreshSessionUi()
     return true
   }
 }
