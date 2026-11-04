@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.4-beta.9 (2026-11-04)
+- Decoupled the built-in Agent runtime from desktop dependencies and added standalone Node.js verification for persistence, permissions, cancellation, and recovery
+- Unified MCP settings across windows and consolidated chat session state management
+- Refreshed the bundled model and ACP catalogs
+- 将内置 Agent 运行时与桌面依赖解耦，并新增独立 Node.js 验证，覆盖持久化、权限、取消与恢复
+- 统一主窗口与设置窗口的 MCP 设置，并整合聊天会话状态管理
+- 刷新内置模型与 ACP 目录
+
 ## v1.1.4-beta.8 (2026-11-03)
 - Provider model refreshes now contact the current catalog source, show sync status, and preserve existing models on failure
 - Improved gateway model capability detection, connection-test model lists, and model selection after the first connection
