@@ -62,6 +62,18 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   await selectAgent(app.page, agentId)
   await sendMessage(app.page, 'Verify ACP structured answers')
   await expect(app.page.getByText('Choose the implementation and checks').first()).toBeVisible()
+  const generatingSessionId = await getActiveSessionId(app.page)
+  for (const [route, input] of [
+    ['skills.setActive', { conversationId: generatingSessionId, skills: [] }],
+    ['skills.removeActive', { conversationId: generatingSessionId, skill: 'fixture-unused' }]
+  ] as const) {
+    await expect(
+      app.page.evaluate(({ route, input }) => window.deepchat.invoke(route, input), {
+        route,
+        input
+      })
+    ).rejects.toThrow('Cannot change Session Skills while the session is generating.')
+  }
   await app.page.getByLabel('Complete', { exact: true }).check()
   await app.page.getByLabel('types', { exact: true }).check()
   await app.page.getByLabel('tests', { exact: true }).check()
@@ -82,6 +94,13 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     'CHILD_ONLY_OUTPUT'
   )
   const sessionId = await getActiveSessionId(app.page)
+  expect(
+    await app.page.evaluate(
+      (conversationId) =>
+        window.deepchat.invoke('skills.setActive', { conversationId, skills: [] }),
+      sessionId
+    )
+  ).toEqual({ skills: [] })
   const state = (await app.page.evaluate(
     async ({ sessionId, agentId }) =>
       await window.deepchat.invoke('acp.extensions.inspect', { sessionId, agentId }),

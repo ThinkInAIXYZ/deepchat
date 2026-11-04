@@ -3143,7 +3143,7 @@ export async function createMainProcessControl(dependencies: {
       skillSettings,
       ensureInitialized: ensureSkillServicesInitialized,
       assertSessionActiveSkillsMutable: async (conversationId) => {
-        const state = await deepChatAgentHarness.getSessionState(conversationId)
+        const state = await agentManager.snapshotIfHydrated(toAppSessionId(conversationId))
         if (state?.status === 'generating') {
           throw new Error('Cannot change Session Skills while the session is generating.')
         }
