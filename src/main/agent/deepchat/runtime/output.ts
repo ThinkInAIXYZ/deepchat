@@ -2,6 +2,7 @@ import type { AssistantMessageBlock, SessionCompactionState } from '@shared/type
 import type { DeepChatInternalSessionUpdate } from './sessionUpdates'
 
 export interface DeepChatOutputPort {
+  // Blocks are live runtime state; consume synchronously or copy before returning.
   streamSnapshot(snapshot: {
     kind: 'snapshot'
     requestId: string

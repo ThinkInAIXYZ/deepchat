@@ -259,6 +259,7 @@ pnpm run lint
 pnpm run typecheck
 pnpm run architecture:renderer-baseline:check
 pnpm run test:main
+pnpm run test:harness:node
 pnpm run test:renderer
 DEEPCHAT_REQUIRE_NATIVE_SQLITE=1 pnpm exec vitest run --config vitest.config.ts test/main/session/data/transcriptAtomicity.test.ts test/main/sync/replicaNative.test.ts
 pnpm run build

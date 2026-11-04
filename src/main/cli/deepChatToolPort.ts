@@ -1,4 +1,3 @@
-import type { PermissionMode } from '@shared/types/agent-interface'
 import type { ExecutionOperationIdentity } from '@/tape/domain/executionJournal'
 import {
   AGENT_CLI_PROGRAMMATIC_GRANT_SCHEMA_VERSION,
@@ -11,6 +10,7 @@ import type {
 import type { AgentCliTokenAuthority } from './agentTokenAuthority'
 import {
   isProgrammaticExecAttempt,
+  type ProgrammaticExecRequest,
   type ProgrammaticToolPort
 } from '@/agent/deepchat/runtime/programmaticExecParent'
 import { LOCAL_CONTROL_PROGRAMMATIC_ROUTE_SURFACE_VERSION } from '@shared/contracts/localControl'
@@ -18,26 +18,14 @@ import {
   assertProgrammaticToolCapabilityDeferredDispatch,
   assertProgrammaticToolCapabilityViewActive,
   assertProgrammaticToolCapabilityViewCommitted,
-  requireProgrammaticToolDeferredResumeCapability,
-  type ProgrammaticToolCapabilityV1
+  requireProgrammaticToolDeferredResumeCapability
 } from '@/agent/deepchat/runtime/programmaticToolSurface'
-import type {
-  ToolSurfaceDeferredDispatch,
-  ToolSurfaceSnapshot
-} from '@/agent/deepchat/runtime/toolSurface'
 
-function prepareExec(input: {
-  toolName: string
-  argumentsJson: string
-  operation: ExecutionOperationIdentity
-  sessionId: string
-  messageId: string
-  permissionMode: PermissionMode
-  toolSurfaceSnapshot?: ToolSurfaceSnapshot
-  capability?: ProgrammaticToolCapabilityV1
-  deferredDispatch?: ToolSurfaceDeferredDispatch
-  parents: Pick<ProgrammaticToolParentRegistry, 'prepare'>
-}): ProgrammaticToolParentRegistration | undefined {
+function prepareExec(
+  input: ProgrammaticExecRequest & {
+    parents: Pick<ProgrammaticToolParentRegistry, 'prepare'>
+  }
+): ProgrammaticToolParentRegistration | undefined {
   if (!isProgrammaticExecAttempt(input.toolName, input.argumentsJson)) return undefined
 
   let args: Record<string, unknown>

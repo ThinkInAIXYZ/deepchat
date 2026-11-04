@@ -78,6 +78,9 @@ jobs:
       - name: Test main process
         run: pnpm run test:main
 
+      - name: Verify standalone Node Harness
+        run: pnpm run test:harness:node
+
   test-renderer:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

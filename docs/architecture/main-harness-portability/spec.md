@@ -63,6 +63,6 @@ Host projection adapter -> client projection / typed events / internal updates /
 pnpm run test:harness:node
 ```
 
-[执行器](../../../scripts/verify-harness-node.mjs) 构建并审查生产 Harness 的静态和动态模块闭包，拒绝桌面服务、IPC 路由及具体存储实现进入核心；测试宿主另行加载真实 SQLite adapter。CJS 和 ESM 加载器分别先自检拒绝 Electron，再启动独立进程，完全避开 Vitest setup。
+[执行器](../../../scripts/verify-harness-node.mjs) 构建并审查生产 Harness 的静态和动态模块闭包，拒绝桌面服务、IPC 路由及具体存储实现进入核心；测试宿主另行加载真实 SQLite adapter。CJS 和 ESM 加载器分别先自检拒绝 Electron，再启动独立进程，完全避开 Vitest setup。PR Check 的必需 `test-main` job 在主进程套件后执行同一命令；失败会阻止 `pr-required` 通过。
 
 [最小宿主](../../../test/node/deepChatHarness.ts) 使用受限文件读取工具、脚本化模型和一次性 SQLite 文件，校验两轮上下文、工具结果进入下一次模型请求、拒绝权限、重开后的授权恢复、取消、事务失败及异常退出后的队列 hold。事务失败保留已提交的 journal 终态，回滚失败的消息投影；重开不会伪造成功消息或自动重放工具。三个进程退出码依次为 `0`、预期异常退出 `73`、`0`，真实 SQLite 不可用时直接失败。

@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 mkdirSync('node_modules/.cache', { recursive: true })
 const buildDir = mkdtempSync(resolve('node_modules/.cache/harness-node-'))
 const profile = mkdtempSync(join(tmpdir(), 'deepchat-harness-node-'))
-const forbidden = /^(?:electron(?:\/|$)|@electron[^/]*\/)|\/src\/main\/(?:desktop|platform|cli)\/|\/src\/main\/app\/(?!data\/)/
+const forbidden = /^(?:electron(?:\/|$)|@electron[^/]*\/|vue(?:\/|$)|@vue[^/]*\/|pinia(?:\/|$))|\/src\/main\/(?:desktop|platform|cli)\/|\/src\/main\/app\/(?!data\/)/
 try {
   await build({
     configFile: false,
@@ -25,7 +25,7 @@ try {
         const visit = (id, chain = []) => {
           if (visited.has(id)) return
           visited.add(id)
-          assert(!/better-sqlite|\/src\/main\/(?:data|tape\/infrastructure)\/|\/src\/main\/session\/data\/(?:database|transcript|pendingInputs|settings)\.ts$|\/src\/shared\/contracts\/(?:routes|events|bridge)/.test(id), `Storage or desktop contract entered core: ${[...chain, id].join(' -> ')}`)
+          assert(!/better-sqlite|\/src\/main\/(?:data|tape\/infrastructure)\/|\/src\/main\/session\/data\/(?:tables\/|(?:index|database|transcript|transcriptProjection|pendingInputStore|pendingInputs|settings)\.ts$)|\/src\/shared\/contracts\/(?:routes|events|bridge)/.test(id), `Storage or desktop contract entered core: ${[...chain, id].join(' -> ')}`)
           const info = this.getModuleInfo(id)
           for (const dependency of [...(info?.importedIds ?? []), ...(info?.dynamicallyImportedIds ?? [])]) visit(dependency, [...chain, id])
         }
