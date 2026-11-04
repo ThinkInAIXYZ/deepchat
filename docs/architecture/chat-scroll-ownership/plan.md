@@ -19,7 +19,6 @@ It does not replace the matrix and physical-device measurements below.
   on the reference machine.
 - [ ] Manually verify mouse-wheel and trackpad inertia in short and long macOS conversations.
 
-Header, viewport, and composer already use isolated grid rows inside ChatPage; separate component
-files are unnecessary for that geometry contract. Further feature-local extraction is tracked in
-[Renderer boundaries](../renderer-application-boundaries/plan.md). Close each remaining gate only
-with its own observed evidence.
+Header, viewport, and composer use isolated grid rows inside ChatPage, following the
+[Renderer boundaries](../renderer-application-boundaries/spec.md). Close each remaining validation
+gate only with its own observed evidence.

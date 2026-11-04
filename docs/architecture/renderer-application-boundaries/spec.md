@@ -1,138 +1,89 @@
-# Renderer Application and Startup Boundaries
+# Renderer Applications and Feature Boundaries
 
-## Ownership
+## Applications and Dependencies
 
-The five HTML/Vite entries create independent Vue, Pinia, i18n, and bootstrap runtimes. They cannot
-assume shared instances or a common lifecycle. Chat main is composed by
-`src/renderer/src/apps/chat-main/ChatMainApp.vue`; the root `App.vue` is its compatibility shell.
-`src/renderer/src/apps/chat-main/ChatTabView.vue` owns the lazy route host. The stable entry files
-remain `src/renderer/src/main.ts` and `src/renderer/index.html`.
+Each HTML/Vite entry owns its Vue, Pinia, i18n, bootstrap and listener lifecycle. Definitions and
+pure utilities may be shared across webContents; active stores and plugins are window-local.
 
-`renderer/api/core.ts` and typed `renderer/api/*Client` adapters own IPC transport. A feature-wide
-forwarding bridge would duplicate this boundary. Existing Settings imports from chat implementation
-modules are a constrained baseline: they may be reduced or replaced with explicit shared contracts,
-but new dependencies cannot be added without an architecture decision.
+| Application | Stable entry | Composition owner |
+| --- | --- | --- |
+| Chat | `src/renderer/src/main.ts` | `apps/chat-main/ChatMainApp.vue` and lazy `ChatTabView.vue`; root App.vue is the compatibility shell. |
+| Settings | `src/renderer/settings/main.ts` | Settings App.vue, including early MCP/navigation listeners. |
+| Floating | `src/renderer/floating/main.ts` | Floating app and its own readiness. |
+| Splash | `src/renderer/splash/main.ts` | Minimal Splash app. |
+| Browser overlay | `src/renderer/browser-overlay/main.ts` | Independent overlay app. |
 
-## App Independence
+`@` resolves to `src/renderer/src`. Apps compose `features/`, `platform/`, `foundation/` and typed
+`renderer/api/*Client` adapters. Features cannot import another app composition root; platform
+cannot import feature UI. Pure foundation models depend on neither Vue/Pinia nor IPC/runtime state.
+Appearance helpers retain their independent app lifecycle. `src/shared` owns cross-process contracts.
 
-| App             | Stable entry                           | Bootstrap owner             | Constraint                                             |
-| --------------- | -------------------------------------- | --------------------------- | ------------------------------------------------------ |
-| Chat main       | `src/renderer/src/main.ts`             | ChatMainApp and ChatTabView | Stage shell and interactive data; own Pinia/i18n       |
-| Settings        | `src/renderer/settings/main.ts`        | Settings App.vue            | Register early listeners independently of chat startup |
-| Floating        | `src/renderer/floating/main.ts`        | Floating app                | Own readiness and runtime instances                    |
-| Splash          | `src/renderer/splash/main.ts`          | Splash app                  | Keep its minimal window responsibility                 |
-| Browser overlay | `src/renderer/browser-overlay/main.ts` | Overlay app                 | Keep its independent active renderer entry             |
+`src/renderer/services/*` contains renderer-only implementations used by multiple apps, with narrow
+aliases and no reverse app/store/feature imports. Settings still has constrained imports from chat
+implementation modules; the generated architecture baseline rejects unreviewed growth. IPC transport
+belongs to `renderer/api/core.ts` and the typed clients, without a second forwarding facade.
 
 ## Chat Startup
 
-The states are `uninitialized -> snapshot-loading -> shell-hydrated -> interactive -> deferred-settled`.
-Failure may enter `degraded` while still producing a usable fallback route.
-
-| Work                                    | Sole owner  | Timing                                              | Blocks interactive |
-| --------------------------------------- | ----------- | --------------------------------------------------- | ------------------ |
-| Runtime and MCP deeplink listeners      | ChatMainApp | Preserve early registration and cleanup             | No                 |
-| Bootstrap snapshot                      | ChatTabView | snapshot-loading                                    | Yes                |
-| Shell snapshot and route initialization | ChatTabView | shell-hydrated                                      | Yes                |
-| First Session page                      | ChatTabView | After shell and route selection, including fallback | No                 |
-| UI settings/providers                   | ChatMainApp | Parallel with snapshot                              | No                 |
-| Agents/projects/models/Ollama           | ChatTabView | Parallel after route initialization                 | No                 |
-| Icons                                   | ChatMainApp | App mount                                           | No                 |
-| Deferred hydration                      | ChatTabView | After interactive                                   | No                 |
-
-`sessionFetchPromise` fixes its input when the first request starts. The bootstrap shell therefore
-commits before the first Session fetch, allowing `prioritizeSessionId` to use the active Session.
-ChatMainApp cannot independently prefetch the same first page. `modelStore.initialize()` remains
-interactive parallel work rather than shell-blocking work.
-
-Settings registers its MCP deeplink listener during setup, without waiting for mount or provider
-initialization. All listeners have explicit cleanup. Keyed ChatPage remount preserves its recent
-measurement-cache contract.
-
-## Dependency Rules
-
-`@` resolves to `src/renderer/src`. App, feature, platform, and foundation modules stay under that
-root and the existing TypeScript include scope:
+`ChatMainApp` owns early runtime/deeplink listeners, app-mounted icons and parallel UI/provider
+initialization. `ChatTabView` owns bootstrap snapshot, shell hydration, route selection and deferred
+data hydration:
 
 ```text
-src/renderer/src/
-  apps/          # App composition roots
-  features/      # Feature views, composables, and state composition
-  platform/      # Browser/runtime infrastructure and app lifecycle
-  foundation/    # Renderer-only types, utilities, tokens, and appearance helpers
+uninitialized -> snapshot-loading -> shell-hydrated -> interactive -> deferred-settled
+                      |
+                      +-> degraded fallback route
 ```
 
-- Apps compose features, platform, foundation, and typed API clients.
-- Features may use shared process contracts, API clients, platform, and foundation, but cannot
-  import another app's composition root.
-- Platform cannot import feature UI. Pure foundation models do not depend on Vue, Pinia, IPC, or
-  feature/app runtime state; appearance helpers retain their independent app lifecycle contract.
-- `src/renderer/services/*` is reserved for real renderer-only implementation used by multiple apps,
-  exposed through narrow aliases without reverse imports of app roots, stores, or features.
-- Each webContents creates its own runtime instances. Definitions, types, and pure utilities may be
-  shared; active stores and plugins may not.
-- `messageIpc.ts` remains the single stream tombstone/generation gate.
-- There is no renderer directory named `shared` that competes with cross-process `src/shared`.
+The shell commits before the first Session fetch so `prioritizeSessionId` uses the active Session.
+Only ChatTabView starts that first page. Agents, projects, models and Ollama load in parallel after
+route selection; model initialization does not block the shell. Settings listeners register during
+setup independently of chat/provider initialization. All listeners have explicit cleanup.
 
-## Remaining Work and Validation
-
-Feature-local ChatPage extraction, replacing Settings-to-chat imports with explicit shared contracts,
-and extracting an application service only when real orchestration repeats remain tracked in the
-[remaining work](./plan.md). They do not authorize an IPC forwarding facade.
-
-Startup, listener lifecycle, fallback, Session priority, independent Settings startup, and keyed-page
-restoration are regression contracts. The renderer architecture baseline checks all active entries
-and refuses growth in constrained cross-app imports. Changes require the relevant tests, formatter,
-i18n, lint, type checks, and baseline check; this document does not assert fresh execution results.
-
-## Window State and Feature Ownership
+## Feature and Window Ownership
 
 ```text
-ChatMainApp -> ChatTabView -> chat-session feature
-                              -> Session projection / Message projection / per-window draft
-                              -> page router / Agent selection / typed clients
-Chat plugins -> McpPluginsPage --+
-Settings app -> McpSettings -----+-> features/mcp/McpSettingsView
-                                    -> MCP state / explicit Agent target / typed clients
-NewThreadPage / useComposerSubmit -> shared attachment preparation -> ModelClient
-Floating / Splash / Browser Overlay -> independent bootstrap and restricted preload
+ChatMainApp -> ChatTabView -> chat-session -> Session lists / message projection / window draft
+Settings MCP --+
+Chat plugins --+-> features/mcp/McpSettingsView -> MCP state / explicit Agent target
+NewThreadPage / useComposerSubmit -> prepareFilesForModel -> ModelClient
 ```
 
-Shared definitions do not share active instances across webContents. `features/chat-session/store.ts`
-owns chat navigation, creation, submission recovery, and the binding of cross-store effects. The
-Session store owns lists, paging, active summaries, versions, and query invalidation. Constructing a
-Session list must not create Message, draft, router, attachment-recovery, or Agent runtime stores.
-The message projection owns display state; `messageIpc` is the sole request-generation and terminal
-tombstone gate. Disconnecting a window preserves tombstones; permanently deleting a Session clears
-its tracking. Reconnecting is idempotent, and stale cleanup cannot disconnect a newer connection.
+`features/chat-session/store.ts` owns navigation, creation, submission recovery and cross-store
+effects. The Session store owns lists, paging, summaries, versions and invalidation; constructing
+a list does not create message, draft, router, attachment-recovery or Agent runtime stores.
+ChatPage-local composition and scroll ownership are defined in
+[ChatPage composition](../chatpage-decomposition/spec.md) and [scroll boundaries](../chat-scroll-ownership/spec.md).
 
-All navigation producers share one per-window intent generation: local selection/close/new-chat,
-references with Tape incarnation, targeted IPC, and creation receipts. Only the latest intent may
-change route, selected Agent, or draft. Creation still commits its durable list item after navigation
-away; an old response cannot reclaim focus or clear a newer draft. Database replacement invalidates
-in-flight list reads. Targeted activation and deactivation affect only their owning webContents.
+`messageIpc.ts` is the sole stream generation/tombstone gate. Disconnect retains tombstones;
+permanent Session deletion clears tracking. Reconnection is idempotent, and stale cleanup cannot
+disconnect a newer connection. Keyed ChatPage remounts restore bounded recent measurement state.
 
-First and subsequent submissions use `prepareFilesForModel`. Equivalent capabilities preserve the
-same file order. Unsupported audio produces the existing count/model notification; query failure
-preserves attachments for main-process adjudication. Draft revisions, cancellation, attachment
-blocking, first-chat onboarding, queue, steer, and retry retain their separate acceptance rules.
+Local selection/close/new-chat, Tape references, targeted IPC and creation receipts share one
+per-window navigation generation. Only its current owner changes route, Agent selection or draft.
+Creation still commits its list item after navigation away; a late response cannot reclaim focus or
+clear a newer draft. Database replacement invalidates in-flight reads. Targeted activation and
+deactivation affect only their owning webContents.
 
-### MCP Hosts
+First and later submissions use `prepareFilesForModel` and preserve file order for equivalent
+capabilities. Unsupported audio uses the count/model notification; a capability-query failure
+preserves attachments for Main adjudication. Draft revisions, cancellation, blocked attachments,
+onboarding, queue, steer and retry keep their distinct gates.
 
-Settings and Chat plugins compose `features/mcp/McpSettingsView.vue`; neither host imports the
-other app's implementation. A fresh global MCP subtree creates no chat stores or stream listeners.
-Agent scope requires an explicit target ID and stale loads/saves cannot overwrite a newer target.
-`agent-policy-saved` carries the original target for the caller's cache refresh.
+## Shared MCP Feature
 
-Each host owns its route and preserves unrelated query parameters when opening/closing `view=market`.
-The shared view emits market, onboarding, and knowledge-settings intents. Chat opens Settings through
-the typed client. Settings maps the knowledge `section` intent to `route.query.subtab`, including a
-new panel on an already-open knowledge page; Dify, RAGFlow, FastGPT, and built-in knowledge read that
-query. Provider parameters and database section intents retain their independent handling.
+Settings and Chat plugins compose `features/mcp/McpSettingsView.vue`. Global MCP initialization
+creates no chat stores or stream listeners. Agent scope requires an explicit target; late loads and
+saves cannot overwrite a newer target. `agent-policy-saved` identifies the original target.
 
-### Validation Contracts
+Each host owns its route and preserves unrelated query fields when changing `view=market`. The view
+emits market, onboarding and knowledge-settings intents. Chat opens Settings through the typed client;
+Settings maps knowledge `section` to `route.query.subtab`, including switches on an open page.
+Dify, RAGFlow, FastGPT and built-in knowledge consume that query. Provider/database intents retain
+their own handling.
 
-Use real Pinia/router subtrees for isolation and lifecycle contracts. Use the actual application for
-multi-window targeting, late streams, draft recovery, and knowledge-panel navigation. No client
-receives provider replay, credentials, or Electron objects. The architecture baseline records
-constrained imports and rejects unreviewed growth; baseline counts are generated facts, not a reason
-to move code into a generic directory.
+## Boundary Verification
+
+Real Pinia/router subtrees protect isolation and disposal; application scenarios protect multi-window
+targeting, late streams, draft recovery and knowledge-panel navigation. The architecture baseline
+covers all active entries. Clients receive neither provider replay, credentials nor Electron objects.
