@@ -52,7 +52,7 @@ stay on their own lifecycles.
 - mise, asdf, nvm, or any version-manager shim layer.
 - Migrating OCR assets, CUA, or DuckDB VSS onto this lifecycle.
 - Auto-download on startup, silent source switch, or a telemetry/analytics SDK.
-- Using Electron's Node (ABI 145) for OCR native modules or for `npx` MCP.
+- Using Electron's Node for OCR native modules or for `npx` MCP.
 - Two managed Node versions. Catalog publishes one pin.
 - Patching files inside the read-only app directory when a bundled payload is
   corrupt. Offer managed install first; reinstall the app last.
@@ -231,7 +231,7 @@ must point at the resolved official Node after the flip.
 1. One resolver. Consumers do not invent a second PATH chain.
 2. One persisted source per kind. Resolve never walk to the next source.
 3. One managed Node pin. Catalog never lists a second Node version.
-4. Official Node ABI 137 for OCR. Electron Node is only for DeepChat's own JS.
+4. The managed official Node runtime for OCR. Electron Node is only for DeepChat's own JS.
 5. CLI host is Electron, even if a managed Node is installed.
 6. Interrupted download never becomes the active pointer.
 7. Failed mirror probes are not written to disk cache.
@@ -310,7 +310,7 @@ writer.
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | mise                          | Extra tool to ship, implicit shims, version-manager UX we do not want. Download the official Node distro directly.                       |
 | Implicit PATH fallback chain  | Production pain; silent source changes.                                                                                                  |
-| Electron Node for OCR / npx   | ABI 145 vs 137; no npm/npx/corepack.                                                                                                     |
+| Electron Node for OCR / npx   | Electron ABI differs from official Node; no npm/npx/corepack.                                                                                                     |
 | Two managed Node versions     | OCR and MCP share one pin. System Node is the user's binary, not a second download.                                                      |
 | Restore Bun                   | Historical only; removed in v0.4.9. Schema stub, UI hidden, no downloader.                                                               |
 | Drop uv from the artifact now | Removing the seed and re-downloading it is worse, and a CVE-decoupled override still needs a managed path. Keep seed + managed override. |

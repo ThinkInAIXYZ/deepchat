@@ -1,128 +1,59 @@
-# PR Check Quality Gates — Specification
+# PR Check Quality Gates
 
-> Status: **implemented — external workflow validation pending**
->
-> Classification: **architecture**
->
-> GitHub issue: **not requested**
+## Workflow Ownership
 
-This document defines the maintained pull-request quality gates and their local test-entrypoint
-contracts. The implementation design is described in [plan.md](./plan.md), and execution progress is
-tracked in [tasks.md](./tasks.md).
+`.github/workflows/prcheck.yml` runs for every pull request targeting `dev`. Independent jobs
+produce static, main, renderer, Native Memory, and source-build evidence. The lightweight
+`pr-required` job is the stable fail-closed aggregate. Native packaging is owned separately by
+[CI and release packaging](../ci-release-packaging/spec.md).
 
-## 1. Purpose
+Local `test`, `test:main`, `test:renderer`, and `test:coverage` commands use `vitest run`.
+`test:watch` is the explicit interactive command. Required-Native orchestration belongs to its
+workflow rather than a local command that rebuilds a developer's native dependencies.
 
-The existing PR workflow combines unrelated checks in one generic build job, omits the complete main
-and renderer test suites, and contains stale or ineffective commands. This makes failures harder to
-diagnose and allows changes to merge without exercising the repository's primary test boundaries.
+## Required Jobs
 
-The new architecture separates independent evidence into named jobs, retains the specialized Native
-Memory sequence, and exposes one fail-closed aggregate check for branch protection.
+| Job | Required behavior |
+| --- | --- |
+| `static` | Lint, formatting, i18n parity, renderer architecture baseline, icon generation, and type checking |
+| `test-main` | Complete main suite, then `test:harness:node` against the production dependency closure |
+| `test-renderer` | Complete renderer suite with the committed worker and heap settings |
+| `test-native-memory` | DuckDB/VSS preparation, portable Memory, encrypted SQLite smoke, Native Tape/OCR/Memory, retrieval evaluation, performance bounds, and report upload |
+| `build` | Canonical `pnpm run build`, including its prebuild refresh and local build checks |
+| `pr-required` | Depend on all five jobs and require every result to be `success` |
 
-## 2. Goals
+The standalone Node gate rejects Electron loading and verifies real persistence/recovery outside
+Vitest setup. Its accepted host contract is defined in
+[Main and Harness boundaries](../main-harness-portability/spec.md).
 
-- Make the default and scoped Vitest commands explicitly one-shot in non-interactive and interactive
-  environments.
-- Keep local test commands aligned with maintained test locations and Native SQLite ownership.
-- Run static analysis, main tests, renderer tests, Native Memory validation, and the production
-  prebuild/build contract as independent PR jobs.
-- Consume the committed `pnpm-lock.yaml` with explicit frozen installs so manifest drift fails before
-  any quality gate runs.
-- Preserve required Native Memory ordering across portable tests, Node ABI rebuild, smoke validation,
-  Native suites, evaluation, performance checks, and report upload.
-- Make one lightweight aggregate job fail when any required quality gate fails, is cancelled, or is
-  unexpectedly skipped.
-- Keep workflow behavior statically testable so job topology and critical commands cannot silently
-  drift.
+## Native Memory Sequence
 
-## 3. Acceptance Criteria
+The job installs an independent dependency tree with the shipped SQLite N-API prebuild. It does
+not rebuild that binding for a Node ABI. Portable Memory runs before the native smoke; required
+storage/evaluation suites use `DEEPCHAT_REQUIRE_NATIVE_SQLITE=1`, with required DuckDB VSS admission
+where applicable. Missing native capabilities or unexpected skips fail rather than producing
+portable-only success.
 
-### AC-1 — One-Shot Test Entrypoints
+The retrieval evaluator writes `test-results/memory/retrieval-v1.json` before threshold assertions.
+Upload uses `if: always()` and `if-no-files-found: error`. Runtime metrics and fixture semantics
+remain in [Memory quality gates](../memory-quality-gates-and-observability/spec.md).
 
-- `test`, `test:main`, `test:renderer`, and `test:coverage` use `vitest run`.
-- `test:watch` retains explicit watch behavior.
-- The obsolete `test:main:native-sqlite` script is absent.
-- Native SQLite invocation remains workflow-owned because rebuilding for the Node ABI can replace the
-  Electron-compatible binding in a developer dependency tree.
-- The Windows ARM64 workflow references the maintained Native Memory test path.
-- A static contract test covers these script and workflow-path requirements.
+The separately dispatched Windows ARM64 workflow owns its target's Native Memory vector path,
+package, and launch evidence. Linux PR success cannot establish that target's behavior; remaining
+validation is tracked in [plan.md](./plan.md).
 
-### AC-2 — Parallel PR Gates
+## Failure and Supply-Chain Contract
 
-- The workflow always schedules `static`, `test-main`, `test-renderer`, `test-native-memory`, and
-  `build` for pull requests targeting `main` or `dev`.
-- `static` runs lint, formatting, localization parity, renderer architecture baseline, icon
-  generation, and type checking.
-- `test-main` and `test-renderer` run their complete one-shot suites.
 - Every repository-root dependency install uses `pnpm install --frozen-lockfile`.
-- `build` runs the canonical `pnpm run build`, including its prebuild data refresh and full local
-  build contract.
-- No single-element matrix, path filter, renderer sharding, packages job, dependency-cache policy
-  change, or `install:sharp` step is introduced.
+- Required PR jobs run on `ubuntu-24.04`, have timeouts, and use the pinned Node/pnpm toolchain.
+- Actions use full commit SHAs. Checkout does not persist credentials; repository contents
+  permission is read-only.
+- PR concurrency cancels obsolete runs for the same pull request.
+- `pr-required` uses `if: always()` and explicitly inspects every dependency result. Failure,
+  cancellation, or unexpected skip must produce failure.
+- No path-based skipping or test sharding weakens the always-on suite boundary.
+- Parsed workflow and entrypoint contract tests protect topology, Native ordering, aggregate
+  semantics, critical commands, and prohibited legacy steps.
 
-### AC-3 — Native Memory Gate
-
-- `test-native-memory` runs the portable Memory command before rebuilding SQLite for the Node ABI.
-- The workflow verifies DuckDB VSS before portable Memory tests.
-- The rebuilt SQLite binding passes the encrypted smoke test before any required-Native suite.
-- Encrypted OCR artifact, Native Memory, retrieval evaluation, and performance suites remain covered.
-- The workflow does not run `test:memory:scope` separately because `test:memory` owns that guard.
-- The retrieval report is uploaded with `if: always()`.
-
-### AC-4 — Fail-Closed Aggregation
-
-- `pr-required` declares every quality gate and `main-release-guard` in `needs`.
-- `pr-required` uses `if: always()` and actively validates each dependency result.
-- `main-release-guard` must be `success` for pull requests targeting `main` and may be `skipped` only
-  for pull requests targeting `dev`.
-- A failed, cancelled, or unexpectedly skipped required quality gate makes `pr-required` fail.
-- Branch protection can use `PR Check / pr-required` without depending on individual job names.
-
-### AC-5 — Workflow Safety and Maintainability
-
-- Workflow permissions are explicitly read-only for repository contents.
-- Pull-request concurrency cancels obsolete runs for the same pull request.
-- Every job has a timeout.
-- Actions remain pinned to full commit SHAs and jobs remain on `ubuntu-24.04`.
-- Checkout does not persist credentials.
-- A parsed-YAML contract test covers topology, commands, Native ordering, permissions, concurrency,
-  aggregation, and prohibited legacy steps.
-
-## 4. Constraints
-
-- Do not modify application public APIs, stored data, or runtime behavior as part of the CI
-  architecture.
-- Do not add a packages job when the repository has no packages test boundary.
-- Do not add path-based job skipping or test sharding before the always-on baseline is established.
-- Keep pnpm caching disabled; cache adoption is a separate performance change now that
-  `pnpm-lock.yaml` is tracked.
-- Do not rebuild the Native SQLite dependency during local validation.
-- Do not change remote branch-protection rules in this change.
-- Do not create or sync a GitHub issue for this architecture record.
-
-## 5. Non-Goals
-
-- Reducing runner-minute usage through selective execution.
-- Splitting renderer tests into shards.
-- Enabling dependency caching or changing generated-registry policies.
-- Replacing the existing test framework or build pipeline.
-- Proving Windows ARM64 or Node-ABI Native behavior outside their owning workflows.
-
-## 6. Compatibility and Risks
-
-- The one-shot script change intentionally removes implicit watch behavior from developer-facing test
-  commands; `test:watch` remains the explicit interactive entrypoint.
-- Parallel jobs repeat dependency installation and increase aggregate runner minutes. They reduce
-  wall-clock latency and isolate failures, but optimization is deferred until a reliable baseline
-  exists.
-- Frozen installs fail immediately when `package.json` and `pnpm-lock.yaml` diverge, so dependency
-  changes must update and commit both files together.
-- `build` intentionally repeats type checking already performed by `static` because the canonical
-  build command is itself a maintained release contract.
-- Native workflow behavior remains ABI-sensitive and must be verified after a push; local validation
-  covers only portable Memory behavior and static workflow contracts.
-
-## 7. Open Questions
-
-None. The job topology, command ownership, failure semantics, and deferred optimizations are fixed for
-this increment.
+Branch protection can require `PR Check / pr-required`; changing remote protection remains a
+repository-administration action. Release-to-main policy is owned by the release process.

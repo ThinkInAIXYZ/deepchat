@@ -7,8 +7,7 @@
 > GitHub issue: **not requested**
 
 This document defines the maintained native packaging, regression, and release-assembly contracts.
-The implementation design is described in [plan.md](./plan.md), and execution progress is tracked in
-[tasks.md](./tasks.md).
+Remaining native release validation is tracked in [plan.md](./plan.md).
 
 ## 1. Purpose
 

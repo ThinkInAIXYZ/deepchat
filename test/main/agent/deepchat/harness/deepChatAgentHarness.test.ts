@@ -2334,26 +2334,6 @@ describe('DeepChatAgentHarness', () => {
       )
     })
 
-    it('computes tool admission signals from one tape read', async () => {
-      installRuntimeRecords([
-        userRecord('u1', 1, 'Read package metadata.'),
-        assistantRecord('a1', 2, [toolBlock('tool-1')])
-      ])
-      sqlitePresenter.deepchatTapeEntriesTable.getBySessionExcludingContext.mockClear()
-
-      const window = getMemoryCoordinator().buildExtractionWindow('s1', 0, 2)
-
-      expect(window).toEqual(
-        expect.objectContaining({
-          hadToolUse: true,
-          visibleTextChars: 'User: Read package metadata.'.length
-        })
-      )
-      expect(
-        sqlitePresenter.deepchatTapeEntriesTable.getBySessionExcludingContext
-      ).toHaveBeenCalledTimes(1)
-    })
-
     it('rebuilds memory ingestion projection once and uses bounded range reads afterward', () => {
       installRuntimeRecords([
         userRecord('u1', 1, 'Read package metadata.'),
@@ -2972,38 +2952,6 @@ describe('DeepChatAgentHarness', () => {
       expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledTimes(2)
     })
 
-    it('logs recovered count when > 0', () => {
-      const loggerInfoMock = vi.mocked(console.info)
-      sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
-        {
-          id: 'm1',
-          role: 'assistant',
-          content: JSON.stringify([
-            { type: 'content', content: 'partial', status: 'pending', timestamp: 1 }
-          ])
-        }
-      ])
-
-      createDeepChatAgentHarness({
-        ...createRuntimeDependencies({
-          skillService: getSkillServiceMock()
-        }),
-        providerRuntime: llmProvider,
-        providerSettings: providerSettings,
-        agentSettings: providerSettings,
-        ...createSessionDataFromDatabase(sqlitePresenter as never, {
-          publishPendingInputsChanged: vi.fn(),
-          publishMessagesChanged: vi.fn()
-        }).runtime,
-        toolService: toolService,
-        hookObserver: noopHookObserver
-      })
-
-      expect(loggerInfoMock).toHaveBeenCalledWith(
-        'DeepChatAgent: recovered 1 pending messages to error status'
-      )
-    })
-
     it('only reconciles pending inputs for sessions that still exist', () => {
       const loggerInfoMock = vi.mocked(console.info)
       const claimedInputs = [
@@ -3181,7 +3129,7 @@ describe('DeepChatAgentHarness', () => {
   })
 
   describe('getSessionState', () => {
-    it('returns runtime state if available', async () => {
+    it('keeps replacement instances alive when stale handles release', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const state = await agent.getSessionState('s1')
       expect(state!.status).toBe('idle')

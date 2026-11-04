@@ -11,7 +11,6 @@ debug 会话没有本地 conversation 绑定，其 session-scoped 提问取消�
 依赖固定为 `@agentclientprotocol/sdk@1.4.0` 和 `acp-extension-core@0.1.9`。SDK 默认入口
 仍使用 ACP wire `protocolVersion: 1`；SDK 版本、wire 版本、每个 Lody capability 的版本互相
 独立。Core 核对源码为 `c80616271c52de79ab4502fd58901d1e72088b86`，核对日期 2026-09-28。
-执行和验证状态见 [plan.md](./plan.md)。
 
 不引入新的 agent framework、执行循环、任务调度器、provider、插件注册器或第二套 JSON-RPC
 transport。远端计划不自动执行，远端子代理不创建本地会话。
@@ -67,7 +66,7 @@ Two processes may use the same remote session, tool, run or request ID without s
 Request-scoped forms must refer to an actual outstanding request on the source connection.
 
 `AcpExtensionState` lives in existing ACP session metadata; no database migration or extra store is
-required. It separates context, accounting, plans, goals, tasks, runs, receipts and history. Metadata
+required. It separates context, accounting, goals, tasks, runs, receipts and history. Metadata
 merges are serialized; writes tied to an old remote binding cannot resurrect a replaced session.
 Revision and connection identity protect renderer hydration from stale responses. Child output writes
 and invalidation are batched at 200 ms; terminal state is immediate.
@@ -219,7 +218,7 @@ AFTER
   Preview   [expand]
                      [Cancel] [Decline] [Submit]
 [composer]   [reported context] [Agent status]
-                                 Usage / quotas / plans
+                                 Usage / quotas
                                  Goal [pause] [resume]
                                  Tasks and linked child runs
                                  History preview / import

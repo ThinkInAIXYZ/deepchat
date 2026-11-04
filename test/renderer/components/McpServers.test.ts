@@ -249,85 +249,55 @@ describe('McpServers', () => {
     vi.stubGlobal('open', vi.fn())
   })
 
-  it('renders the add button in the footer action area', async () => {
+  it('lets the host hide and restore the footer add action', async () => {
     const { wrapper } = await setup()
-    const actionButtons = wrapper.findAll('[data-testid="action-button"]')
+    expect(wrapper.findAll('[data-testid="action-button"]')[0]?.text()).toContain('common.add')
 
-    expect(actionButtons[0]?.text()).toContain('common.add')
-  })
-
-  it('can hide the footer add button for settings header ownership', async () => {
-    const { wrapper } = await setup({ showFooterAddButton: false })
-
+    await wrapper.setProps({ showFooterAddButton: false })
     expect(wrapper.text()).not.toContain('common.add')
+
+    await wrapper.setProps({ showFooterAddButton: true })
+    expect(wrapper.findAll('[data-testid="action-button"]')[0]?.text()).toContain('common.add')
   })
 
-  it('uses a localized refresh label in MCP diagnostics', async () => {
-    const { wrapper } = await setup()
-
-    expect(wrapper.text()).toContain('mcp.tools.refresh')
-    expect(wrapper.text()).not.toContain('common.refresh')
-  })
-
-  it('ignores diagnostics responses from a previously selected server', async () => {
+  it('clears old diagnostics and rejects late results after switching servers', async () => {
     const { wrapper, getServerDiagnostics } = await setup({ withServers: true })
+    let resolveStopped!: (value: ReturnType<typeof createDiagnostics>) => void
     let resolveRunning!: (value: ReturnType<typeof createDiagnostics>) => void
-    let resolveStopped!: (value: ReturnType<typeof createDiagnostics>) => void
-    getServerDiagnostics.mockImplementation(
-      (serverName: string) =>
-        new Promise<ReturnType<typeof createDiagnostics>>((resolve) => {
-          if (serverName === 'running-server') {
-            resolveRunning = resolve
-          } else {
-            resolveStopped = resolve
-          }
-        })
-    )
-
-    const diagnosticButtons = wrapper.findAll('[data-testid="diagnostics-server"]')
-    await diagnosticButtons[0].trigger('click')
-    await diagnosticButtons[1].trigger('click')
-
-    resolveStopped(createDiagnostics('stopped-id'))
-    await flushPromises()
-    expect(
-      (wrapper.vm as unknown as { diagnostics: { serverId: string } }).diagnostics.serverId
-    ).toBe('stopped-id')
-
-    resolveRunning(createDiagnostics('running-id'))
-    await flushPromises()
-    expect(
-      (wrapper.vm as unknown as { diagnostics: { serverId: string } }).diagnostics.serverId
-    ).toBe('stopped-id')
-  })
-
-  it('clears diagnostics while loading a different server', async () => {
-    const { wrapper, getServerDiagnostics } = await setup({ withServers: true })
-    let resolveStopped!: (value: ReturnType<typeof createDiagnostics>) => void
     getServerDiagnostics
-      .mockResolvedValueOnce(createDiagnostics('running-id'))
+      .mockResolvedValueOnce(createDiagnostics('initial-running'))
       .mockImplementationOnce(
         () =>
           new Promise<ReturnType<typeof createDiagnostics>>((resolve) => {
             resolveStopped = resolve
           })
       )
+      .mockImplementationOnce(
+        () =>
+          new Promise<ReturnType<typeof createDiagnostics>>((resolve) => {
+            resolveRunning = resolve
+          })
+      )
 
-    const diagnosticButtons = wrapper.findAll('[data-testid="diagnostics-server"]')
-    await diagnosticButtons[0].trigger('click')
+    expect(wrapper.text()).toContain('mcp.tools.refresh')
+    expect(wrapper.text()).not.toContain('common.refresh')
+    const buttons = wrapper.findAll('[data-testid="diagnostics-server"]')
+    await buttons[0].trigger('click')
     await flushPromises()
-    expect(
-      (wrapper.vm as unknown as { diagnostics: { serverId: string } }).diagnostics.serverId
-    ).toBe('running-id')
+    expect(wrapper.text()).toContain('initial-running')
 
-    await diagnosticButtons[1].trigger('click')
-    expect((wrapper.vm as unknown as { diagnostics: unknown }).diagnostics).toBeNull()
+    await buttons[1].trigger('click')
+    expect(wrapper.text()).not.toContain('initial-running')
+    await buttons[0].trigger('click')
+    expect(wrapper.text()).not.toContain('initial-running')
 
-    resolveStopped(createDiagnostics('stopped-id'))
+    resolveRunning(createDiagnostics('current-running'))
     await flushPromises()
-    expect(
-      (wrapper.vm as unknown as { diagnostics: { serverId: string } }).diagnostics.serverId
-    ).toBe('stopped-id')
+    expect(wrapper.text()).toContain('current-running')
+    resolveStopped(createDiagnostics('stale-stopped'))
+    await flushPromises()
+    expect(wrapper.text()).toContain('current-running')
+    expect(wrapper.text()).not.toContain('stale-stopped')
   })
 
   it('keeps duplicate add feedback inline until the server name changes', async () => {

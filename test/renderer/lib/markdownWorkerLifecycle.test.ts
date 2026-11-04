@@ -85,22 +85,20 @@ describe('markdownWorkerLifecycle stream-diffs worker pool', () => {
     expect(markstreamVue.setStreamDiffsWorkerPool).toHaveBeenCalledWith(mockPool)
   })
 
-  it('terminates the pool and resets the lifecycle on cleanup', async () => {
+  it('releases workers on unload and reinitializes on demand', async () => {
     await ensureMarkdownWorkers()
     expect(areMarkdownWorkersInitialized()).toBe(true)
 
-    _resetForTesting()
+    window.dispatchEvent(new Event('beforeunload'))
 
     expect(markstreamVue.terminateStreamDiffsWorkerPool).toHaveBeenCalled()
+    expect(markstreamVue.clearKaTeXWorker).toHaveBeenCalled()
+    expect(markstreamVue.clearMermaidWorker).toHaveBeenCalled()
     expect(areMarkdownWorkersInitialized()).toBe(false)
-  })
-
-  it('re-injects a fresh pool after a lifecycle reset', async () => {
-    await ensureMarkdownWorkers()
-    _resetForTesting()
 
     await ensureMarkdownWorkers()
 
+    expect(areMarkdownWorkersInitialized()).toBe(true)
     expect(diffsWorkerModule.getOrCreateWorkerPoolSingleton).toHaveBeenCalledTimes(2)
     expect(markstreamVue.setStreamDiffsWorkerPool).toHaveBeenCalledTimes(2)
     expect(markstreamVue.setStreamDiffsWorkerPool).toHaveBeenLastCalledWith(mockPool)

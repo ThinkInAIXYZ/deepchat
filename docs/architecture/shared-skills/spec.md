@@ -164,7 +164,8 @@ without persisting them in Tape.
 Each Run keeps the active names, content identity, and package authority resolved at Run start.
 Canonical source packages are not duplicated per Agent; only the bounded request execution package
 is materialized for verified script execution. Transfer, rebind, fork, and Subagent creation
-recompute the destination Agent intersection.
+recompute the destination Agent intersection. Agents keep independent configuration rather than inheriting
+from the built-in Agent; every Session binds an explicit Agent ID.
 
 One cache and watcher cover global metadata and content. Binding changes invalidate only affected
 Agent views. The number of Agents is small enough to scan for reverse impact; no reverse index is

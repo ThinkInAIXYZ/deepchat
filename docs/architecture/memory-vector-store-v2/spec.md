@@ -49,12 +49,12 @@ At DeepChat's memory scale the index buys nothing:
   `<agentId>.v2.duckdb.quarantine` — a marker written when a runtime failure or a failed
   preserve migration quarantines the store; its presence makes the next process destroy all of
   the agent's store files (v2, staging, legacy v1), remove the marker as the final destruction
-  step, and only then publish a fresh store (see plan.md decision tree, step 0); a v1-era process
+  step, and only then publish a fresh store; a v1-era process
   never writes this marker — and
   `<agentId>.v2.duckdb.migrating` — migration staging, never a valid store; deleted on sight.
 - Commit point: **every** creation path (fresh create, quarantine recovery, rebuild, preserve
   migration) builds at `.migrating` and atomically renames to the final path after verification
-  (`publishFreshV2()`, see plan.md); nothing is ever initialized directly at the final path.
+  (`publishFreshV2()`); nothing is ever initialized directly at the final path.
   `<agentId>.v2.duckdb` existing always means a committed, authoritative store; its authority
   never depends on post-commit cleanup succeeding.
 - Recovery is terminal within the process that encounters an unsafe native or filesystem state.
@@ -66,6 +66,44 @@ At DeepChat's memory scale the index buys nothing:
   logical operation may complete after a durable quarantine marker is present, while locked
   vector files are intentionally left for the next process.
 
+## Migration and Publication Order
+
+Format detection uses filesystem presence before acquiring a native handle:
+
+1. A quarantine marker requires deletion of all current, staging, and legacy main/WAL files.
+   Delete the marker last; only then may a fresh publication begin. Startup also sweeps markers
+   whose Agent has been deleted. A failed deletion closes admission for this process.
+2. Staging main/WAL files are uncommitted and are removed. A committed v2 remains authoritative,
+   including when best-effort cleanup of leftover v1 files fails. An orphan v2 WAL without its
+   main file must be removed before publication.
+3. A v1 with a WAL is never opened. Destroy and rebuild from SQLite coverage. A WAL-free v1 may
+   be preserved through a dedicated read-only legacy reader only when bundled VSS is available
+   and exactly one valid embedding identity matches. Invalid identity rebuilds safely; a native
+   legacy-access failure requires quarantine.
+4. A missing store is created empty. Every publication builds at staging, validates schema,
+   format and embedding identity, checkpoints and closes, verifies no staging WAL, then atomically
+   renames to the absent final path. Preserve also validates source/target row counts.
+
+Preserve copies keyset-paged rows in one INSERT-only transaction. It has a 60-second no-progress
+limit refreshed by successful native work, not an absolute total-size limit. Deadline expiry
+abandons the migration: every native await and filesystem side effect checks its fence. Late
+settlement remains observed but cannot query, close, publish, delete, or reopen admission.
+Bundled extension materialization is shared independently of a caller's abandonment fence.
+
+An unsafe legacy handle is never synchronously closed or deleted in-process. Persist quarantine,
+use FTS-only recall, and let the next process recover. A failed final open after rename also keeps
+the committed store and defers recovery. Crashes before rename leave staging and legacy evidence;
+crashes after rename leave an authoritative v2 with optional legacy cleanup.
+
+Manager health is `healthy`, `suspect`, or `quarantined`. Temporary admission closure uses owned
+holds rather than inferring authority from a lease epoch. Reopen only after the last hold releases
+on healthy state. Reset and retirement return `completed` or `pending-restart`; quarantined cleanup
+may finish logically only after its marker is durable. Agent deletion performs this preflight
+before repository deletion. Marker failure aborts deletion; an already committed SQLite clear
+still publishes its change and clears cooldown/diagnostics before propagating that failure.
+Reindex leaves pending rows for the next process instead of warming a quarantined store. Abandoning
+one Agent does not remove other Agents from shared embedding warmup.
+
 ## VSS extension lifecycle
 
 - This release: the bundled VSS extension is kept **only** for reading v1 stores during
@@ -75,8 +113,8 @@ At DeepChat's memory scale the index buys nothing:
   path; a native `LOAD`, `ATTACH`, or metadata-read failure after native access begins requires
   terminal quarantine.
 - Follow-up release: once the migration window has passed, remove the bundled extension and its
-  materialization / network-install machinery from `memoryVectorStore.ts` and the runtime
-  installer.
+  materialization / network-install machinery from the vector store and runtime installer.
+  The remaining compatibility-window task is tracked in [plan.md](./plan.md).
 
 ## Scale escape hatch (recorded, not built)
 

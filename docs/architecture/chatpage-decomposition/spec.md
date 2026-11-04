@@ -1,82 +1,52 @@
-# ChatPage 分解与竞态治理
+# ChatPage Composition and Race Ownership
 
-## 背景
+`src/renderer/src/features/chat-page/ChatPage.vue` composes the chat page. Its private composables
+stay in `features/chat-page/composables/`; `ChatTabView` consumes the feature through its page entry.
+They depend on page state and are not general renderer utilities.
 
-ChatPage 原位于 `src/renderer/src/pages/ChatPage.vue`，膨胀到 3050 行；现已迁至
-`src/renderer/src/features/chat-page/ChatPage.vue`。单个 `<script setup>` 承载 10+ 个关注点：
-会话恢复、消息记录转换、虚拟窗口、测量批处理、手势/滚动、占位符状态机、
-会话内搜索、语音输入、发送/排队/steer、消息操作。竞态治理靠散落的手写令牌
-（`sessionRestoreRequestId`、`voiceInputConfigToken`、`attachmentFilterToken`、
-`chatScrollSessionEpoch`、`pendingAssistantPlaceholderSeq`）和大量模块级 `let`，理解成本极高。
+## Feature Owners
 
-计划清单能力已退出：原 `usePlanFloatLifecycle`、plan store 和浮层已移除，事件桥仅管理
-window 事件；交互 dock 继续承载问题和权限请求。历史数据边界见
-[agent-plan-retirement](../agent-plan-retirement/spec.md)。旧 `plan.md` / `tasks.md` 保留实施历史。
+| Owner | Contract |
+| --- | --- |
+| `useSessionRestore` | Session preparation, restore generation, stale-write rejection, and deactivation |
+| `useDisplayMessages` | Record-to-display conversion, stable/streaming groups, render-key cache, and pending-assistant placeholder state |
+| `useMessageVirtualization` | Bounded windows, measurement batches, logical anchors, and geometry observation |
+| `useListGestures` | Wheel, touch, pointer, and keyboard intents for the scroll controller |
+| `useChatSearch` | Loaded-message search, navigation intent, and highlight scheduling |
+| `useComposerSubmit` | Send, queue, steer, commands, compaction, and attachment-generation gates |
+| `useVoiceInput` | Availability, model configuration subscriptions, recognition/transcription, and cleanup |
+| `useToolInteraction` | Top-level/Subagent interactions, response single-flight, and current-page refresh |
+| `useMessageActions` | Retry, edit, delete confirmation, fork, and continue |
+| `usePendingInputActions` | Queue edits/reorder/delete/steer while preserving attachments and Skills |
+| `useChatPageEventBridge` | Window-event subscriptions with explicit start/stop ownership |
 
-## 现状边界（已良好分层，不动）
+The assistant placeholder stays with display conversion because its render-key handoff and streaming
+visibility depend on the same mutable cache. A second owner must not mirror that state.
 
-滚动仲裁已是成熟架构，本次仅把 ChatPage 内的胶水调用归拢，不改其内部时序：
+Each asynchronous owner carries its own generation/token and disposal boundary. It cannot write
+page state after Session replacement, deactivation, or a newer operation. The
+[chat-session application feature](../renderer-application-boundaries/spec.md) separately owns
+cross-store navigation, creation, and submission coordination; page composables consume that owner.
 
-- `useChatScrollController` — 独占滚动通道、状态机驱动、rAF commit/verify。
-- `chatScrollState` — 纯 reducer 状态机（mode/userOwned/nearBottom/activeGesture）。
-- `chatScrollOperationArbiter` — 物理滚动条独占所有权 + 优先级抢占。
-- `chatScrollRequestQueue` — 单槽优先级队列。
-- `useMessageWindow` — 虚拟列表布局、测量高度、快照捕获/恢复。
-- `recentMessageMeasurementCache` — 最近会话测量 LRU 缓存。
+## Scroll and Display Boundaries
 
-## 目标
+The [scroll contract](../chat-scroll-ownership/spec.md) owns geometry and viewport writes:
 
-1. 主文件收缩到 ~400 行，只做装配 + 模板。
-2. 每类竞态由一个自持 epoch/token 的 composable 独立治理，边界清晰。
-3. 删除确认的死代码。
-4. 行为零漂移：每抽一个 composable 即 typecheck；最终 lint/test/真实应用验证。
+- `useChatScrollController` owns mode, intent admission, and frame commit/verification.
+- `chatScrollState` is the pure ownership reducer.
+- `chatScrollOperationArbiter` owns one active physical scroll operation.
+- `chatScrollRequestQueue` owns the coalescing priority slot.
+- `useMessageWindow` owns logical layout, bounded ranges, and measurement snapshots.
+- `recentMessageMeasurementCache` retains bounded recent-Session measurements across page remounts.
 
-## 死代码（确认零引用）
+Page composition cannot bypass these owners with direct viewport writes or independent timers.
+Further extraction must reduce a concrete ownership dependency; an arbitrary page line count is
+not an acceptance condition.
 
-- `composables/message/useMessageScroll.ts`（339 行）— 全项目零引用，旧 vue-virtual-scroller 实现。
-- `composables/message/types.ts` 中的 `ScrollInfo` 接口 — 仅被上文件引用（`CaptureOptions` 仍在用，保留）。
+`features/chat-page/model/displayMessage.ts` owns the pure `DisplayMessage` family, assistant-block
+renderability, and compaction policy. Lists, blocks, stores, and tests may consume that contract.
+It depends only on shared types and cannot import ChatPage, feature composables, or stores.
 
-## 当前分解边界（11 个 composable）
-
-| composable | 职责 | 收编的状态/竞态 |
-|---|---|---|
-| `useSessionRestore` | 会话切换、令牌 gate、恢复 | `sessionRestoreRequestId`、`canWriteSessionView`、启动延迟恢复调度 |
-| `useDisplayMessages` | 记录→DisplayMessage、稳定/流式分离、缓存；**并含占位符四态机** | `displayMessageCache`、`assistantRenderKeyByMessageId`、`pendingAssistantPlaceholder` 全套 |
-| `useMessageVirtualization` | 窗口范围、测量批处理、锚点补偿、几何观测 | `pendingMeasureQueue`、rAF flush |
-| `useListGestures` | wheel/touch/pointer/键盘手势 → 控制器 | ~15 handler、`isListScrolling` |
-| `useChatSearch` | 会话内搜索（包 `lib/chatSearch`） | 搜索 rAF、highlight 调度 |
-| `useComposerSubmit` | 发送/排队/steer/命令/compaction | 统一 gate 后的提交路径、`attachmentFilterToken` |
-| `useVoiceInput` | 语音输入可用性、识别与转写适配 | `voiceInputConfigToken`、模型配置订阅、speech cleanup |
-| `useToolInteraction` | 待处理工具/问题交互聚合与响应 | 子 agent progress 解析、响应单飞锁、当前页面会话刷新 |
-| `useMessageActions` | 消息重试、编辑、删除确认、fork、continue | 删除确认状态、消息操作刷新策略 |
-| `usePendingInputActions` | 已排队输入的编辑、移动、删除、steer | 队列项附件/技能保留、steer 守卫 |
-| `useChatPageEventBridge` | window 事件订阅 | 显式 `start`/`stop`，避免监听泄漏与重复订阅 |
-
-> 决策记录：原计划独立的 `useAssistantPlaceholder` 并入 `useDisplayMessages`。占位符的
-> renderKey 交接直接写入消息转换缓存读取的 `assistantRenderKeyByMessageId`，显隐判定依赖
-> `hasFirstStreamingContent` / `ephemeralRateLimitBlock`，占位符行本身注入流式尾部组装；
-> 强拆会造成两个 composable 双向共享三份可变状态，不如单一所有者边界清晰。
-
-## 约束
-
-- 每个 composable 自持一个防竞态 epoch/token，替代散落的模块级令牌。
-- 不改 `useChatScrollController` 及其协作模块的对外时序契约。
-- 优先 shadcn-vue / VueUse（`useEventListener`、`useRafFn` 等）替代手写 rAF/监听器。
-- i18n key 不新增；用户可见字符串沿用现有 key。
-
-## 模块位置决策
-
-`ChatPage.vue` 与其 11 个 composable 位于 `features/chat-page/`（分别是
-`features/chat-page/ChatPage.vue` 与 `features/chat-page/composables/`），而非全局 `lib/` /
-`components/`。这是有意的 feature-local 布局：它们是 ChatPage 独占的私有逻辑，强耦合页面
-props 与页面级 store 组合，不面向复用。`ChatTabView` 只通过
-`@/features/chat-page/ChatPage.vue` 组合该 feature；页面内部只使用相对的 `./composables/*`
-引用。就近放置能让读者一眼看出归属、避免误当作通用工具被其他页面引用。
-
-同一 feature 的纯展示契约位于 `features/chat-page/model/displayMessage.ts`：它拥有
-`DisplayMessage` 家族、assistant block 的 renderability policy 与 compaction 判定。chat list、
-message block 组件、store 与测试可读取该纯 contract，但不得反向依赖 ChatPage、feature composable
-或 store；该模块只依赖 shared types。
-
-`lint:architecture` guard 通过（未对该布局设硬约束）。若后续有第二个页面需要复用其中某个
-composable，再将其上提到 `lib/` 并补通用化改造。
+The built-in plan checklist capability is retired. The event bridge manages window events, and
+the interaction dock handles questions and permissions. Historical data follows
+[plan retirement](../agent-plan-retirement/spec.md).

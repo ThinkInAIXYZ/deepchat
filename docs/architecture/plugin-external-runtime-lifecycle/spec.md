@@ -489,73 +489,10 @@ release must not ship another Linux CUA artifact that still bundles and auto-sta
 native CUA validation fails, whether to omit that optional plugin artifact is a release decision,
 not a reason to stop building the Linux application.
 
-## Implementation verification
+## Validation Ownership
 
-Automated verification completed on 2026-07-28:
-
-- `pnpm test`: 657 files and 7005 tests passed; 20 files and 277 tests were conditionally skipped.
-- `pnpm run build`, `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, and
-  `pnpm run typecheck` passed.
-- CUA manifest validation and a real `darwin/arm64` plugin bundle/verification passed with the
-  development signing path.
-- Provider/ACP catalog refresh validation passed after the build-generated snapshots changed.
-
-The macOS development artifact was not notarized and did not exercise TCC, screen capture, or input.
-Windows, Linux desktop-session, macOS x64, and release-signed/notarized native gates remain release
-blockers and are tracked in `tasks.md`.
-
-Native macOS development testing subsequently confirmed on-demand startup, exact per-tool
-permissions, app launch, and window discovery, but exposed a deterministic first-action failure:
-the provider emitted both a valid `element_index` and `element_token: ""`, and upstream 0.12.6 gave
-the invalid empty token precedence.
-
-Model-facing compatibility verification completed on 2026-07-28:
-
-- `pnpm exec vitest run test/main/plugin/cuaToolAdapter.test.ts test/main/mcp/toolManager.test.ts
-test/main/agent/deepchat/runtime/toolAdapters.test.ts
-test/main/agent/deepchat/runtime/toolRuntimeBindings.test.ts`: 62 tests passed;
-- `pnpm run test:main`: 5416 tests passed and 277 environment-gated tests skipped;
-- `pnpm run typecheck`, `pnpm run lint`, `pnpm run i18n`, and `pnpm run
-plugin:validate -- --name cua`: passed.
-
-The native Calculator flow must be rerun after restarting the development app before the
-model-facing native behavior is accepted.
-
-CUA 0.13.1 upgrade verification completed on 2026-07-29:
-
-- `pnpm run plugin:bundle -- --name cua --platform darwin --arch arm64` and
-  `pnpm run plugin:verify -- --name cua --platform darwin --arch arm64 --plugin-root
-build/bundled-plugins` passed with a development-signed artifact;
-- the generated macOS arm64 catalog reports driver 0.13.1 and 49 tools, and the packaged runtime
-  excludes `cua-cursor-theme`;
-- 182 focused CUA, plugin, MCP, package, and renderer tests passed;
-- `pnpm run test:main`: 467 files and 5568 tests passed; 20 files and 279 tests were
-  conditionally skipped;
-- `pnpm run test:renderer`: 207 files and 1653 tests passed;
-- `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`, and
-  `pnpm run plugin:validate -- --name cua` passed.
-
-The direct-driver ownership smoke, Windows/Linux native catalogs and runtime behavior,
-release-signed/notarized macOS behavior, and preinstalled custom-theme loading remain native
-release gates.
-
-CUA 0.14.1 upgrade verification completed on 2026-07-30:
-
-- all five pinned supported-target release assets matched their upstream SHA-256 values; static
-  protocol, catalog, signing, entitlement, and native-library audits found no host-contract drift;
-- `pnpm run plugin:bundle -- --name cua --platform darwin --arch arm64`,
-  `pnpm run plugin:validate -- --name cua --platform darwin --arch arm64`, and
-  `pnpm run plugin:verify -- --name cua --platform darwin --arch arm64 --plugin-root
-build/bundled-plugins` passed with a development-signed artifact;
-- the generated macOS arm64 catalog reports driver 0.14.1 and 49 tools, the packaged runtime
-  excludes `cua-cursor-theme`, and strict code-signature verification passed;
-- 178 focused CUA, plugin, MCP, package, integrity, and renderer tests passed;
-- `pnpm run test:main`: 467 files and 5591 tests passed; 20 files and 279 tests were
-  conditionally skipped;
-- `pnpm run test:renderer`: 207 files and 1653 tests passed;
-- `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`, and
-  `pnpm run build` passed.
-
-Windows/Linux native catalogs and behavior, macOS x64 and release-signed/notarized behavior,
-direct-driver ownership, separately installed v2 themes, explicit retired-v1 rejection, and GNOME
-Wayland helper states remain native release gates.
+Repository tests protect lifecycle coalescing, authority, stale cleanup, discovery/policy parity,
+integrity, package layout, and model-projection boundaries. Development-signed macOS artifacts and
+CI packages do not establish native target behavior. The current pinned driver contract is in
+[CUA Driver Contract](../cua-driver-0-17-contract-migration/spec.md); physical-platform, theme,
+security, and release-signing gates remain in [plan.md](./plan.md).

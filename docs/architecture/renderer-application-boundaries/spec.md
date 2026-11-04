@@ -50,9 +50,6 @@ measurement-cache contract.
 
 ## Dependency Rules
 
-The [window isolation contract](../renderer-window-isolation/spec.md) assigns ownership of the
-shared MCP view, chat navigation and message subscriptions within these startup boundaries.
-
 `@` resolves to `src/renderer/src`. App, feature, platform, and foundation modules stay under that
 root and the existing TypeScript include scope:
 
@@ -80,9 +77,62 @@ src/renderer/src/
 
 Feature-local ChatPage extraction, replacing Settings-to-chat imports with explicit shared contracts,
 and extracting an application service only when real orchestration repeats remain tracked in the
-existing plan and task list. They do not authorize an IPC forwarding facade.
+[remaining work](./plan.md). They do not authorize an IPC forwarding facade.
 
 Startup, listener lifecycle, fallback, Session priority, independent Settings startup, and keyed-page
 restoration are regression contracts. The renderer architecture baseline checks all active entries
 and refuses growth in constrained cross-app imports. Changes require the relevant tests, formatter,
 i18n, lint, type checks, and baseline check; this document does not assert fresh execution results.
+
+## Window State and Feature Ownership
+
+```text
+ChatMainApp -> ChatTabView -> chat-session feature
+                              -> Session projection / Message projection / per-window draft
+                              -> page router / Agent selection / typed clients
+Chat plugins -> McpPluginsPage --+
+Settings app -> McpSettings -----+-> features/mcp/McpSettingsView
+                                    -> MCP state / explicit Agent target / typed clients
+NewThreadPage / useComposerSubmit -> shared attachment preparation -> ModelClient
+Floating / Splash / Browser Overlay -> independent bootstrap and restricted preload
+```
+
+Shared definitions do not share active instances across webContents. `features/chat-session/store.ts`
+owns chat navigation, creation, submission recovery, and the binding of cross-store effects. The
+Session store owns lists, paging, active summaries, versions, and query invalidation. Constructing a
+Session list must not create Message, draft, router, attachment-recovery, or Agent runtime stores.
+The message projection owns display state; `messageIpc` is the sole request-generation and terminal
+tombstone gate. Disconnecting a window preserves tombstones; permanently deleting a Session clears
+its tracking. Reconnecting is idempotent, and stale cleanup cannot disconnect a newer connection.
+
+All navigation producers share one per-window intent generation: local selection/close/new-chat,
+references with Tape incarnation, targeted IPC, and creation receipts. Only the latest intent may
+change route, selected Agent, or draft. Creation still commits its durable list item after navigation
+away; an old response cannot reclaim focus or clear a newer draft. Database replacement invalidates
+in-flight list reads. Targeted activation and deactivation affect only their owning webContents.
+
+First and subsequent submissions use `prepareFilesForModel`. Equivalent capabilities preserve the
+same file order. Unsupported audio produces the existing count/model notification; query failure
+preserves attachments for main-process adjudication. Draft revisions, cancellation, attachment
+blocking, first-chat onboarding, queue, steer, and retry retain their separate acceptance rules.
+
+### MCP Hosts
+
+Settings and Chat plugins compose `features/mcp/McpSettingsView.vue`; neither host imports the
+other app's implementation. A fresh global MCP subtree creates no chat stores or stream listeners.
+Agent scope requires an explicit target ID and stale loads/saves cannot overwrite a newer target.
+`agent-policy-saved` carries the original target for the caller's cache refresh.
+
+Each host owns its route and preserves unrelated query parameters when opening/closing `view=market`.
+The shared view emits market, onboarding, and knowledge-settings intents. Chat opens Settings through
+the typed client. Settings maps the knowledge `section` intent to `route.query.subtab`, including a
+new panel on an already-open knowledge page; Dify, RAGFlow, FastGPT, and built-in knowledge read that
+query. Provider parameters and database section intents retain their independent handling.
+
+### Validation Contracts
+
+Use real Pinia/router subtrees for isolation and lifecycle contracts. Use the actual application for
+multi-window targeting, late streams, draft recovery, and knowledge-panel navigation. No client
+receives provider replay, credentials, or Electron objects. The architecture baseline records
+constrained imports and rejects unreviewed growth; baseline counts are generated facts, not a reason
+to move code into a generic directory.

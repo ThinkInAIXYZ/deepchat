@@ -2,7 +2,7 @@
 
 > The completed tasks below record the original 0.7.1 rollout. Follow-up work for issue #2039 and
 > driver upgrades from 0.12.6 onward are tracked in
-> `docs/architecture/plugin-external-runtime-lifecycle/tasks.md`.
+> `docs/architecture/plugin-external-runtime-lifecycle/spec.md`.
 
 ## Task List
 

@@ -2,7 +2,7 @@
 
 **验收目标**：Electron 和一个普通 Node 验证宿主通过同一个生产入口构造内建 Agent。两者使用同一套 Turn、Run、暂停、取消和恢复逻辑。主应用继续拥有桌面能力、真实凭据、用户数据库和现有 IPC。先在当前仓库和进程内建立这个边界；独立发包、常驻服务、CLI 切换、Rust 化与数据库迁移均需另案决定。
 
-[分步实施计划](./plan.md) · [Renderer 边界](../renderer-window-isolation/spec.md) · [Session 合同](../session-management.md) · [已有 Harness 合同](../deepchat-agent-harness-boundaries/spec.md)
+[Renderer 边界](../renderer-application-boundaries/spec.md) · [Session 合同](../session-management.md) · [已有 Harness 合同](../deepchat-agent-harness-boundaries/spec.md)
 
 ## 运行边界
 
