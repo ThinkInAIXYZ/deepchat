@@ -338,20 +338,23 @@ const handleSettingsNavigate = async (payload?: SettingsNavigationPayload) => {
   const params = normalizeRouteParams(payload?.params)
   if (!routeName || !router.hasRoute(routeName)) return
   await router.isReady()
+  const subtab = routeName === 'settings-knowledge-base' ? payload?.section : undefined
   if (
     router.currentRoute.value.name !== routeName ||
-    !hasSameRouteParams(router.currentRoute.value.params, params)
+    !hasSameRouteParams(router.currentRoute.value.params, params) ||
+    (subtab && router.currentRoute.value.query.subtab !== subtab)
   ) {
     await router.push({
       name: routeName,
-      params: Object.keys(params).length > 0 ? params : undefined
+      params: Object.keys(params).length > 0 ? params : undefined,
+      ...(subtab ? { query: { subtab } } : {})
     })
   }
   if (routeName === 'settings-provider') {
     await syncPendingProviderInstall()
   }
 
-  await publishSettingsSection(payload?.section)
+  if (!subtab) await publishSettingsSection(payload?.section)
 }
 
 let providerStoreInitializePromise: Promise<void> | null = null

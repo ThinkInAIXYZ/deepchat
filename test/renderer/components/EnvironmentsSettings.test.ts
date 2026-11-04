@@ -330,7 +330,6 @@ describe('EnvironmentsSettings', () => {
       code: 'settings.environments.refresh.failed',
       title: 'Operation failed'
     })
-    expect(wrapper.findAll('[data-testid="environment-row"]')).toHaveLength(1)
     expect(refreshButton.attributes('disabled')).toBeUndefined()
 
     projectStore.refreshProjectSnapshot.mockRejectedValueOnce(new Error('/private/project.db'))

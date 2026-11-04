@@ -172,5 +172,41 @@ test('MCP hosts preserve management, market, onboarding and snapshot routes @smo
     await expect(page.getByTestId('settings-mcp-page')).toBeVisible()
     await page.screenshot({ path: `test-results/e2e/mcp-${entry}-r2.png` })
   }
+  for (const [entry, page, path] of [
+    ['settings', settingsPage, '/mcp'],
+    ['plugins', app.page, '/plugins/mcp']
+  ] as const) {
+    for (const [serverName, subtab, panelName] of [
+      ['difyKnowledge', 'dify', settingsMessages.knowledgeBase.dify],
+      ['ragflowKnowledge', 'ragflow', 'RAGFlow'],
+      ['fastGptKnowledge', 'fastgpt', 'FastGPT'],
+      ['builtinKnowledge', 'builtinKnowledge', settingsMessages.knowledgeBase.builtInKnowledgeTitle]
+    ]) {
+      await settingsPage.evaluate(() => {
+        window.location.hash = '#/overview'
+      })
+      await expect(settingsPage.getByTestId('settings-overview-page')).toBeVisible()
+      await page.evaluate((path) => {
+        window.location.hash = `#${path}`
+      }, path)
+      await expect(page.getByTestId('settings-mcp-page')).toBeVisible()
+      await page
+        .getByRole('button', { name: `${commonMessages.more}: ${serverName}`, exact: true })
+        .click()
+      await page
+        .getByRole('menuitem', { name: settingsMessages.mcp.editServer, exact: true })
+        .click()
+      await expect(settingsPage.getByTestId('settings-knowledge-base-page')).toBeVisible()
+      await expect(
+        settingsPage.getByRole('button', { name: panelName, exact: true })
+      ).toHaveAttribute('aria-expanded', 'true')
+      await expect
+        .poll(() => settingsPage.evaluate(() => window.location.hash))
+        .toContain(`subtab=${subtab}`)
+      await settingsPage.screenshot({
+        path: test.info().outputPath(`knowledge-${entry}-${subtab}.png`)
+      })
+    }
+  }
   expect(app.pageErrors).toEqual([])
 })
