@@ -70,7 +70,15 @@ export const nodeAppHost: AppHost = {
 
   getResourcesPath(): string {
     return process.env.DEEPCHAT_RESOURCES_PATH ?? path.join(process.cwd(), 'resources')
-  }
+  },
+
+  // Launch-at-login is an OS integration the shell owns. Reporting "off" and
+  // ignoring writes keeps the setting inert here instead of failing a read.
+  getLoginItemEnabled(): boolean {
+    return false
+  },
+
+  setLoginItemEnabled(): void {}
 }
 
 /** Canonical name so the build can swap this module in for the electron one. */

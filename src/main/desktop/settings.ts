@@ -3,7 +3,6 @@ import { appHost } from '@/platform/appHost'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { ShortcutKeySetting } from '@shared/types/desktop'
 import { defaultShortcutKey } from './shortcutKeySettings'
-import { app } from 'electron'
 import { themeHost } from '@/platform/themeHost'
 import {
   getLocaleDirection,
@@ -121,11 +120,11 @@ export class DesktopSettings {
   }
 
   getLaunchAtLoginEnabled(): boolean {
-    return app.getLoginItemSettings().openAtLogin
+    return appHost.getLoginItemEnabled()
   }
 
   setLaunchAtLoginEnabled(enabled: boolean): void {
-    app.setLoginItemSettings({ openAtLogin: Boolean(enabled) })
+    appHost.setLoginItemEnabled(Boolean(enabled))
     this.publishEvent('settings.changed', {
       changedKeys: ['launchAtLoginEnabled'],
       version: Date.now(),

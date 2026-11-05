@@ -28,5 +28,13 @@ export const electronAppHost: AppHost = {
 
   getResourcesPath(): string {
     return process.resourcesPath
+  },
+
+  getLoginItemEnabled(): boolean {
+    return app.getLoginItemSettings().openAtLogin
+  },
+
+  setLoginItemEnabled(enabled: boolean): void {
+    app.setLoginItemSettings({ openAtLogin: Boolean(enabled) })
   }
 }

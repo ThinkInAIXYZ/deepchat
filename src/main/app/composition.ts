@@ -94,8 +94,6 @@ import {
   createNotificationRoutes,
   type SemanticNotificationPublisher
 } from '../notifications'
-import { DesktopSettings } from '../desktop/settings'
-import { FontSettings } from '../desktop/fontSettings'
 import { TabPresenter } from '../desktop/tab'
 import { secretHost } from '@/platform/secretHost'
 import { DesktopSessionBinding } from '@/desktop/sessionBinding'
@@ -123,7 +121,6 @@ import { createDesktopRoutes } from '../desktop/routes'
 import { createFileRoutes } from '../file/routes'
 import { createKnowledgeRoutes } from '../knowledge/routes'
 import { KnowledgeSettings } from '@/knowledge/settings'
-import { PromptSettings } from '@/agent/promptSettings'
 import { AgentSettings } from '@/agent/settings'
 import { AgentLifecycleGate } from '@/agent/lifecycleGate'
 import { SessionDeletionGate } from '@/session/deletionGate'
@@ -155,7 +152,6 @@ import { ConversationExporterService } from '../exporter'
 import { createExporterRoutes } from '../exporter/routes'
 import { SkillService } from '../skill'
 import type { SkillSessionStatePort } from '../skill'
-import { SkillSettings } from '../skill/settings'
 import { SkillSyncService } from '../skill/sync'
 import { SkillExecutionAuthorityResolver } from '../skill/skillExecutionAuthority'
 import { HookService } from '../hook'
@@ -170,6 +166,7 @@ import {
 } from '@/agent/deepchat/runtime/toolSurfaceRollout'
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import { createSessionData } from '@/session/data'
+import { createSettingsSubsystem } from './subsystems/settings'
 import { MemoryDatabase } from '@/memory/data/database'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { resolveAssistantModelSelection } from '@/agent/shared/assistantModelSelection'
@@ -220,7 +217,6 @@ import { AgentRepository } from '../agent/repository'
 import { AgentDatabase } from '@/agent/data/database'
 import { DeepChatDefaults } from '../agent/deepchat/defaults'
 import { CommandShellService } from '@/agent/shared/process/commandShellService'
-import { AgentTraceSettings } from '../agent/traceSettings'
 import type { MainDatabase } from '../data/mainDatabase'
 import {
   DatabaseSecurityService,
@@ -906,18 +902,17 @@ export async function createMainProcessControl(dependencies: {
   const agentRepository = new AgentRepository(agentDatabase, sessionData.database, memoryDatabase)
   const agentLifecycle = new AgentLifecycleGate()
   const sessionDeletionGate = new SessionDeletionGate()
-  const promptSettings = new PromptSettings(dependencies.settingsStore, {
-    publishCustomPromptsChanged: (prompts) =>
-      publishDeepchatEvent('config.customPrompts.changed', {
-        prompts,
-        version: Date.now()
-      }),
-    publishSystemPromptsChanged: (state) =>
-      publishDeepchatEvent('config.systemPrompts.changed', {
-        ...state,
-        version: Date.now()
-      })
-  })
+  const { promptSettings, desktopSettings, fontSettings, skillSettings, traceSettings } =
+    createSettingsSubsystem({
+      store: dependencies.settingsStore,
+      publish: publishDeepchatEvent,
+      effects: {
+        refreshLanguage: () => {
+          void tabPresenter.refreshLanguage()
+        },
+        refreshTheme: async () => {}
+      }
+    })
   appSessionService = new AppSessionService(projectDatabase, sessionData.database, () =>
     projectService.notifyEnvironmentProjectionChanged()
   )
@@ -978,20 +973,6 @@ export async function createMainProcessControl(dependencies: {
     dependencies.settingsStore,
     sessionData.tapeStore
   )
-  const desktopSettings = new DesktopSettings(
-    dependencies.settingsStore,
-    {
-      refreshLanguage: () => {
-        void tabPresenter.refreshLanguage()
-      },
-      refreshTheme: async () => {}
-    },
-    publishDeepchatEvent
-  )
-  const fontSettings = new FontSettings(dependencies.settingsStore, publishDeepchatEvent)
-  const skillSettings = new SkillSettings(dependencies.settingsStore)
-  const traceSettings = new AgentTraceSettings(dependencies.settingsStore)
-
   const acpSessionPersistence = new AcpSessionPersistence(
     agentDatabase,
     sessionData.database,

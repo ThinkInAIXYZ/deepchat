@@ -34,6 +34,7 @@ import { SessionDatabase } from '@/session/data/database'
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import { ProjectDatabase } from '@/project/data/database'
 import { createOnboardingRoutes } from '@/onboarding/routes'
+import { createSettingsSubsystem } from '@/app/subsystems/settings'
 import { ProviderSettings } from '@/provider/settings'
 import { McpSettings } from '@/mcp/settings'
 import { McpDatabase } from '@/mcp/data/database'
@@ -68,6 +69,17 @@ const readEntries = (keys: readonly ConfigEntryKey[]): Record<string, unknown> =
   return values
 }
 
+// Same services the Electron main process builds. The effects are inert here:
+// window chrome belongs to the Go shell, so there is nothing to re-apply.
+const settingsSubsystem = createSettingsSubsystem({
+  store: settings,
+  publish: (name, payload) => emit(name, payload),
+  effects: {
+    refreshLanguage: () => {},
+    refreshTheme: async () => {}
+  }
+})
+
 const readLanguage = () => {
   const requested = settings.get<string>('language') ?? 'system'
   const locale = resolveSupportedLocale(requested === 'system' ? appHost.getLocale() : requested)
@@ -78,10 +90,10 @@ const readLanguage = () => {
   }
 }
 
-const readTheme = () => {
-  const theme = settings.get<'dark' | 'light' | 'system'>('appTheme') ?? 'system'
-  return { theme, isDark: theme === 'dark' }
-}
+const readTheme = () => ({
+  theme: settingsSubsystem.desktopSettings.getTheme(),
+  isDark: settingsSubsystem.desktopSettings.getCurrentThemeIsDark()
+})
 
 const readDeviceInfo = () => {
   const platform = process.platform
@@ -209,7 +221,9 @@ const sidecarRoutes: DeepchatRouteMap = createRouteMap([
     configSetThemeRoute.name,
     async (rawInput) => {
       const input = configSetThemeRoute.input.parse(rawInput)
-      settings.set('appTheme', input.theme)
+      // Goes through DesktopSettings so the stored source and the appearance the
+      // theme host reports never disagree.
+      settingsSubsystem.desktopSettings.setTheme(input.theme)
       return configSetThemeRoute.output.parse(readTheme())
     }
   ],

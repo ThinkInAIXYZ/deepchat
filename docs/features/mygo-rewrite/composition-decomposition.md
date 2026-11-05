@@ -1,6 +1,6 @@
 # composition 拆解方案
 
-状态：方案，未实施
+状态：第 1 步已实施（`createSettingsSubsystem`），其余待做
 目的：把 `src/main/app/composition.ts`（3903 行）拆成可独立装配的业务子系统，让 Node sidecar 与 Electron 主进程共用同一批工厂。这是剩余 8 条 sidecar 路由的共同前提。
 
 ## 1. 现状
@@ -54,7 +54,7 @@ export function createSettingsSubsystem(deps: { store: SettingsStore; publish: D
 
 | 步骤 | 工厂 | 主要依赖 | 解锁的 sidecar 路由 |
 | --- | --- | --- | --- |
-| 1 | `createSettingsSubsystem` | store、publish | `settings.getSnapshot` |
+| 1 | `createSettingsSubsystem` ✅ | store、publish | `settings.getSnapshot` |
 | 2 | `createProviderSubsystem` | settings、providerDatabase、publish | `providers.*` 其余条目 |
 | 3 | `createAgentSubsystem` | settings、agentDatabase、provider、publish | `sessions.getAgents`、`agents.*` |
 | 4 | `createMcpSubsystem` | settings、mcpDatabase、pluginRuntime、publish | `mcp.listPrompts`、`mcp.getClients`、`mcp.listToolDefinitions`、`mcp.listResources` |
@@ -73,6 +73,18 @@ export function createSettingsSubsystem(deps: { store: SettingsStore; publish: D
 - **`createLivePort` 延迟取值**：多处用 `createLivePort(() => service)` 绕过构造顺序。工厂化后应改为「先建依赖、再建服务」，减少这层间接。
 - **启动编排与销毁顺序**有测试约束（`compositionBoundaries.test.ts` 里的 destroy 顺序断言）。拆工厂时不要动顺序，先原样搬运。
 - **`agentSettings` 有 12 个构造参数**，是最难拆的一块。建议最后做，且先只暴露 sidecar 需要的读方法。
+
+## 4.1 第 1 步的实施结果
+
+`src/main/app/subsystems/settings.ts` 已抽出，`composition.ts` 改为调用它，同时 sidecar 也用它构建 `DesktopSettings`：
+
+- 新增 `platform/node/themeHost.ts`（sidecar 侧的主题源）
+- `AppHost` 补 `getLoginItemEnabled` / `setLoginItemEnabled`，`desktop/settings.ts` 不再 import electron
+- sidecar 的 `config.getTheme` / `config.setTheme` 改为走 `DesktopSettings`，不再直接读写设置
+
+顺带修掉一个真 bug：之前 `config.setTheme` 只写设置、不通知 theme host，导致返回 `{theme:'dark', isDark:false}` 自相矛盾。现在两条路径统一。
+
+验证：`config.setTheme dark` → `{theme:'dark',isDark:true}`；壳通过 `DEEPCHAT_SYSTEM_THEME_DARK=1` 注入系统外观时，`theme:'system'` 也能得到 `isDark:true`。
 
 ## 5. 验证方式
 

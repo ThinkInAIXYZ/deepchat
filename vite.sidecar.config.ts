@@ -13,7 +13,7 @@ export default defineConfig({
     // Order matters: the host swaps must come before the generic `@/` prefix.
     alias: [
       {
-        find: /^@\/platform\/(appHost|processHost|secretHost|storeHost)$/,
+        find: /^@\/platform\/(appHost|processHost|secretHost|storeHost|themeHost)$/,
         replacement: resolve('src/main/platform/node') + '/$1.ts'
       },
       { find: /^@\/(.*)$/, replacement: resolve('src/main') + '/$1' },

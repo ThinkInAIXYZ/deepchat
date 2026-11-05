@@ -34,6 +34,9 @@ export interface AppHost {
   isPackaged(): boolean
   /** Bundled resources directory (`Contents/Resources` in a macOS app). */
   getResourcesPath(): string
+  /** Whether the app opens at login. */
+  getLoginItemEnabled(): boolean
+  setLoginItemEnabled(enabled: boolean): void
 }
 
 export { electronAppHost as appHost } from './electron/appHost'
