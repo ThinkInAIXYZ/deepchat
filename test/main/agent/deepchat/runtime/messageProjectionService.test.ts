@@ -112,11 +112,15 @@ describe('MessageProjectionService', () => {
 
     service.refresh(SESSION_ID, MESSAGE_ID)
     service.refresh(SESSION_ID, 'other-message')
+    service.refresh(SESSION_ID, 'other-message')
 
-    expect(vi.mocked(publishEvent).mock.calls.map(([, payload]) => payload)).toMatchObject([
+    const payloads = vi.mocked(publishEvent).mock.calls.map(([, payload]) => payload)
+    expect(payloads).toMatchObject([
       { requestId: 'run-1', messageId: MESSAGE_ID },
-      { requestId: 'other-message', messageId: 'other-message' }
+      { requestId: expect.stringMatching(/^other-message:refresh:/), messageId: 'other-message' },
+      { requestId: expect.stringMatching(/^other-message:refresh:/), messageId: 'other-message' }
     ])
+    expect(payloads[1].requestId).not.toBe(payloads[2].requestId)
   })
 
   it('persists subagent progress before refreshing the projection', () => {
