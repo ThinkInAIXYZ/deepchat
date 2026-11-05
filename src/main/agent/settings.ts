@@ -182,7 +182,12 @@ export class AgentSettings implements AgentSettingsPort {
     private readonly acpCatalog: AcpCatalogSettings,
     isPrivacyModeEnabled: () => boolean,
     userDataPath: string,
-    private readonly provider: AgentSettingsProviderPort,
+    /**
+     * Resolved per call rather than captured: the provider runtime is built after
+     * this class and takes this class as a dependency, so holding the port at
+     * construction would make the two impossible to build in either order.
+     */
+    private readonly provider: () => AgentSettingsProviderPort,
     private readonly events: AgentSettingsEvents,
     private readonly cleanupDeletedAgent: (
       agentId: string
@@ -218,7 +223,7 @@ export class AgentSettings implements AgentSettingsPort {
         logger.warn('[AgentSettings] Failed to materialize independent Agent configs.', { error })
       }
     }
-    this.provider.setAcpProviderEnabled(this.acpCatalog.getGlobalEnabled())
+    this.provider().setAcpProviderEnabled(this.acpCatalog.getGlobalEnabled())
     const previousAgents = this.registry.listAgents()
     void this.registry
       .initialize()
@@ -227,7 +232,7 @@ export class AgentSettings implements AgentSettingsPort {
         this.syncRegistryAgentsToRepository()
         const changedAgentIds = findChangedAcpRegistryAgentIds(previousAgents, registryAgents)
         if (changedAgentIds.length > 0) {
-          await this.provider.refreshAcpProviderAgents(changedAgentIds)
+          await this.provider().refreshAcpProviderAgents(changedAgentIds)
         }
         this.notifyAcpAgentsChanged()
       })
@@ -250,13 +255,13 @@ export class AgentSettings implements AgentSettingsPort {
 
     try {
       if (!enabled && enabledAgentIds.length > 0) {
-        await this.provider.refreshAcpProviderAgents(enabledAgentIds)
+        await this.provider().refreshAcpProviderAgents(enabledAgentIds)
       }
-      this.provider.setAcpProviderEnabled(enabled)
+      this.provider().setAcpProviderEnabled(enabled)
     } catch (error) {
       try {
         this.acpCatalog.setGlobalEnabled(previousEnabled)
-        this.provider.setAcpProviderEnabled(previousEnabled)
+        this.provider().setAcpProviderEnabled(previousEnabled)
       } catch (rollbackError) {
         throw new AggregateError(
           [error, rollbackError],
@@ -305,7 +310,7 @@ export class AgentSettings implements AgentSettingsPort {
     this.syncRegistryAgentsToRepository()
     const changedAgentIds = findChangedAcpRegistryAgentIds(previousAgents, refreshedAgents)
     if (changedAgentIds.length > 0) {
-      await this.provider.refreshAcpProviderAgents(changedAgentIds)
+      await this.provider().refreshAcpProviderAgents(changedAgentIds)
     }
     const agents = await this.listAcpRegistryAgents()
     this.notifyAcpAgentsChanged()
@@ -474,7 +479,7 @@ export class AgentSettings implements AgentSettingsPort {
     const providerId = config.visionModel?.providerId?.trim()
     const modelId = config.visionModel?.modelId?.trim()
     return Boolean(
-      providerId && modelId && this.provider.getModelConfig(modelId, providerId).vision
+      providerId && modelId && this.provider().getModelConfig(modelId, providerId).vision
     )
   }
 
@@ -681,7 +686,7 @@ export class AgentSettings implements AgentSettingsPort {
     }
     this.repository.setAgentInstallState(registryAgent.id, installingState)
     this.notifyAcpAgentsChanged([registryAgent.id])
-    if (repair) await this.provider.refreshAcpProviderAgents([registryAgent.id])
+    if (repair) await this.provider().refreshAcpProviderAgents([registryAgent.id])
 
     try {
       const installedState = await this.launchSpecs.ensureRegistryAgentInstalled(
@@ -900,23 +905,25 @@ export class AgentSettings implements AgentSettingsPort {
   }
 
   private handleAcpAgentsMutated(agentIds?: string[]): void {
-    this.provider.clearAcpProviderModelStatus()
+    this.provider().clearAcpProviderModelStatus()
     this.notifyAcpAgentsChanged(agentIds)
-    void this.provider.refreshAcpProviderAgents(agentIds).catch((error) => {
-      console.warn('[ACP] Failed to refresh agent processes after config change:', error)
-    })
+    void this.provider()
+      .refreshAcpProviderAgents(agentIds)
+      .catch((error) => {
+        console.warn('[ACP] Failed to refresh agent processes after config change:', error)
+      })
   }
 
   private tryClearAcpProviderDerivedState(clearModels: boolean): void {
     if (clearModels) {
       try {
-        this.provider.clearAcpProviderModels()
+        this.provider().clearAcpProviderModels()
       } catch (error) {
         console.warn('[ACP] Failed to clear ACP models:', error)
       }
     }
     try {
-      this.provider.clearAcpProviderModelStatus()
+      this.provider().clearAcpProviderModelStatus()
     } catch (error) {
       console.warn('[ACP] Failed to clear ACP model status:', error)
     }

@@ -995,7 +995,7 @@ export async function createMainProcessControl(dependencies: {
     dependencies.acpCatalogSettings,
     () => dependencies.privacySettings.isEnabled(),
     appHost.getPath('userData'),
-    {
+    () => ({
       getModelConfig: (modelId, providerId) => providerSettings.getModelConfig(modelId, providerId),
       setAcpProviderEnabled: (enabled) => {
         const provider = providerSettings.getProviderById('acp')
@@ -1013,7 +1013,7 @@ export async function createMainProcessControl(dependencies: {
         }
         await provider.refreshAgents(agentIds)
       }
-    },
+    }),
     {
       publishCatalogChanged: (agentIds) =>
         emitAgentCatalogChanged(agentSettings, publishDeepchatEvent, agentIds),

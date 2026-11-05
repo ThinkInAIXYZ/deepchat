@@ -88,6 +88,16 @@ export function createSettingsSubsystem(deps: { store: SettingsStore; publish: D
 
 第 2 步（`createProviderSubsystem`）同样已完成：`composition.ts` 与 sidecar 共用同一工厂，sidecar 的 `providers.listSummaries` 仍返回完整 provider 目录。
 
+### 打破构造循环（已完成）
+
+`AgentSettings` 与 `ProviderRuntime` 互相依赖：前者构造时需要 provider 端口（内部闭包引用后者），后者构造时需要前者。现在 `AgentSettings` 的端口改成**按调用求值的 getter**：
+
+```ts
+new AgentSettings(..., () => ({ getModelConfig, setAcpProviderEnabled, ... }), ...)
+```
+
+这样两者可以按任意顺序构造，`composition.ts` 与测试都改成了传函数。这一步本身不依赖 sidecar，但它是 `AgentSettings` 能搬出去的前提。
+
 第 3 步的结论与预期不同，值得记下来：`AgentSettings` 的 12 个依赖里有 `providerRuntime`、`memoryService`、`skillService`、`agentLifecycle`，整体工厂化的前提是这些子系统先搬出 composition，属于「做不了」而不是「难做」。
 
 因此 sidecar 的 `sessions.getAgents` 采用只读替代：直接用 `AgentRepository` 与 `AcpCatalogSettings`，也就是 `AgentSettings.listAgents()` 与 `getAcpEnabled()` 内部委托的同一对对象，再交给现成的 `listAvailableAgents` 过滤。代价是这层委托关系有第二处写法，收益是不必为两个只读方法引入十个协作者。等 `providerRuntime`、`memoryService` 搬出来之后，应改回 `createAgentSubsystem`。

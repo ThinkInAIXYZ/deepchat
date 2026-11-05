@@ -33,12 +33,12 @@ describe('AgentSettings ACP availability', () => {
         setGlobalEnabled
       },
       getAcpAgents: vi.fn().mockResolvedValue([{ id: 'codex-acp' }]),
-      provider: {
+      provider: () => ({
         refreshAcpProviderAgents: vi.fn().mockRejectedValue(runtimeError),
         setAcpProviderEnabled,
         clearAcpProviderModels,
         clearAcpProviderModelStatus
-      },
+      }),
       notifyAcpAgentsChanged
     }) as AgentSettings
 
@@ -65,12 +65,12 @@ describe('AgentSettings ACP availability', () => {
         setGlobalEnabled: vi.fn(() => true)
       },
       getAcpAgents: vi.fn().mockResolvedValue([]),
-      provider: {
+      provider: () => ({
         refreshAcpProviderAgents: vi.fn(),
         setAcpProviderEnabled: vi.fn(),
         clearAcpProviderModels,
         clearAcpProviderModelStatus
-      },
+      }),
       notifyAcpAgentsChanged: vi.fn(() => {
         throw new Error('window closed')
       })
@@ -122,7 +122,7 @@ describe('AgentSettings migrations', () => {
       cleanupDeprecatedBuiltinAgentSelections: vi.fn(() => sequence.push('cleanup-deprecated')),
       materializeIndependentDeepChatAgentConfigs: vi.fn(() => sequence.push('materialize-v3')),
       settings: { get: vi.fn(() => 2) },
-      provider: { setAcpProviderEnabled: vi.fn() },
+      provider: () => ({ setAcpProviderEnabled: vi.fn() }),
       acpCatalog: { getGlobalEnabled: vi.fn(() => false) },
       registry: {
         listAgents: vi.fn(() => []),
@@ -150,7 +150,7 @@ describe('AgentSettings migrations', () => {
       cleanupDeprecatedBuiltinAgentSelections,
       materializeIndependentDeepChatAgentConfigs,
       settings: { get: vi.fn(() => 3) },
-      provider: { setAcpProviderEnabled: vi.fn() },
+      provider: () => ({ setAcpProviderEnabled: vi.fn() }),
       acpCatalog: { getGlobalEnabled: vi.fn(() => false) },
       registry: {
         listAgents: vi.fn(() => []),
@@ -713,10 +713,10 @@ describe('AgentSettings ACP notifications', () => {
   it('publishes catalog, model, and session changes before refreshing processes', async () => {
     const sequence: string[] = []
     const settings = Object.assign(Object.create(AgentSettings.prototype), {
-      provider: {
+      provider: () => ({
         clearAcpProviderModelStatus: vi.fn(() => sequence.push('cache-clear')),
         refreshAcpProviderAgents: vi.fn(async () => sequence.push('process-refresh'))
-      },
+      }),
       events: {
         publishCatalogChanged: vi.fn(() => sequence.push('catalog')),
         publishAcpModelsChanged: vi.fn(() => sequence.push('models')),
@@ -745,12 +745,12 @@ describe('AgentSettings ACP notifications', () => {
         sequence.push('list-enabled-agents')
         return [{ id: 'agent-1' }, { id: 'agent-2' }]
       }),
-      provider: {
+      provider: () => ({
         refreshAcpProviderAgents,
         setAcpProviderEnabled: vi.fn(() => sequence.push('provider-disable')),
         clearAcpProviderModels: vi.fn(),
         clearAcpProviderModelStatus: vi.fn()
-      },
+      }),
       notifyAcpAgentsChanged: vi.fn()
     }) as AgentSettings
 
@@ -777,7 +777,7 @@ describe('AgentSettings ACP notifications', () => {
         listAgents: vi.fn(() => previous),
         refresh: vi.fn(async () => refreshed)
       },
-      provider: { refreshAcpProviderAgents },
+      provider: () => ({ refreshAcpProviderAgents }),
       syncRegistryAgentsToRepository: vi.fn(),
       listAcpRegistryAgents: vi.fn(async () => refreshed),
       notifyAcpAgentsChanged: vi.fn()
