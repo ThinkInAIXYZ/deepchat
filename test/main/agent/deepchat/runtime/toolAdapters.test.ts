@@ -235,9 +235,9 @@ describe('DeepChat tool adapters', () => {
     ).toThrow('Tool Surface runtime authority gate is unavailable.')
   })
 
-  it('delegates success, error, screenshot fallback, preparation and batch fitting', async () => {
+  it('delegates success, error, normalization, preparation and batch fitting', async () => {
     const normalize: ToolResultPort['normalize'] = vi.fn(async ({ content, isError }) =>
-      isError ? content : 'English screenshot summary'
+      isError ? content : 'normalized summary'
     )
     const prepareToolOutput = vi.fn().mockResolvedValue({
       kind: 'ok',
@@ -249,7 +249,7 @@ describe('DeepChat tool adapters', () => {
       results: [
         {
           toolCallId: 'call-1',
-          toolName: 'cdp_send',
+          toolName: 'grep',
           responseText: 'prepared',
           contextResponseText: 'prepared',
           isError: false,
@@ -265,33 +265,33 @@ describe('DeepChat tool adapters', () => {
     const screenshotInput = {
       sessionId: 'session-1',
       toolCallId: 'call-1',
-      toolName: 'cdp_send',
+      toolName: 'grep',
       toolArgs: '{"method":"Page.captureScreenshot"}',
       content: '{"data":"YWJj"}',
       isError: false,
       signal: abortController.signal
     }
 
-    await expect(port.normalize(screenshotInput)).resolves.toBe('English screenshot summary')
+    await expect(port.normalize(screenshotInput)).resolves.toBe('normalized summary')
     await expect(
       port.normalize({ ...screenshotInput, content: 'failed', isError: true })
     ).resolves.toBe('failed')
     await port.prepare({
       sessionId: 'session-1',
       toolCallId: 'call-1',
-      toolName: 'cdp_send',
-      rawContent: 'English screenshot summary'
+      toolName: 'grep',
+      rawContent: 'normalized summary'
     })
     await port.fitBatch({
       sessionId: 'session-1',
       conversationMessages: [],
-      toolDefinitions: [makeTool('cdp_send')],
+      toolDefinitions: [makeTool('grep')],
       contextLength: 32_000,
       maxTokens: 1_024,
       results: [
         {
           toolCallId: 'call-1',
-          toolName: 'cdp_send',
+          toolName: 'grep',
           responseText: 'prepared',
           isError: false
         }
@@ -306,62 +306,6 @@ describe('DeepChat tool adapters', () => {
     })
     expect(prepareToolOutput).toHaveBeenCalledTimes(1)
     expect(fitToolBatchOutputs).toHaveBeenCalledTimes(1)
-  })
-
-  it('normalizes a screenshot through the resolved session vision model', async () => {
-    const executeWithRateLimit = vi.fn().mockResolvedValue(undefined)
-    const generateCompletionStandalone = vi.fn().mockResolvedValue('Visible browser page')
-    const result = await normalizeToolResultContent(
-      {
-        providerSettings: {
-          getModelConfig: vi.fn(() => ({ vision: true, temperature: 0.1, maxTokens: 500 })),
-          isKnownModel: vi.fn(() => true)
-        } as any,
-        agentSettings: {
-          resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({}),
-          agentSupportsCapability: vi.fn().mockResolvedValue(true)
-        } as any,
-        providerRuntime: {
-          executeWithRateLimit,
-          generateCompletionStandalone
-        } as any,
-        getAbortSignal: () => undefined,
-        getSessionModel: () => ({
-          providerId: 'openai',
-          modelId: 'gpt-4o',
-          agentId: 'deepchat'
-        })
-      },
-      {
-        sessionId: 'session-1',
-        toolCallId: 'call-1',
-        toolName: 'cdp_send',
-        toolArgs: '{"method":"Page.captureScreenshot","params":{"format":"jpeg"}}',
-        content: '{"data":"YWJj"}',
-        isError: false
-      }
-    )
-
-    expect(result).toBe('Visible browser page')
-    expect(executeWithRateLimit).toHaveBeenCalledWith('openai', { signal: undefined })
-    expect(generateCompletionStandalone).toHaveBeenCalledWith(
-      'openai',
-      [
-        expect.objectContaining({
-          role: 'user',
-          content: expect.arrayContaining([
-            expect.objectContaining({
-              type: 'image_url',
-              image_url: expect.objectContaining({ url: 'data:image/jpeg;base64,YWJj' })
-            })
-          ])
-        })
-      ],
-      'gpt-4o',
-      0.1,
-      500,
-      { signal: undefined, swallowErrors: false }
-    )
   })
 
   it('appends bounded CUA visual grounding for an explicitly requested screenshot', async () => {

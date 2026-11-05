@@ -8,7 +8,7 @@ import QRCode from 'qrcode'
 import { useTunnelSyncStore } from '../stores/tunnelSync'
 import { createToolchainClient } from '@api/ToolchainClient'
 import { createDeviceClient } from '@api/DeviceClient'
-import { createBrowserClient } from '@api/BrowserClient'
+import { openRuntimeExternal } from '@api/runtime'
 import type { ToolchainKindStatus } from '@shared/types/toolchains'
 import type { SyncTunnelConfig } from '@shared/contracts/routes/syncHost.routes'
 import { Switch } from '@shadcn/components/ui/switch'
@@ -24,7 +24,9 @@ const store = useTunnelSyncStore()
 const { host, peer, devices, busy, error, transferring } = storeToRefs(store)
 const tools = createToolchainClient()
 const deviceClient = createDeviceClient()
-const browser = createBrowserClient()
+const openGuide = () => {
+  void openRuntimeExternal(guideUrl)
+}
 const toolchain = ref<ToolchainKindStatus | null>(null)
 const port = ref('48632')
 const mode = ref<SyncTunnelConfig['mode']>('quick')
@@ -263,12 +265,9 @@ async function overwrite() {
           >
             <li>
               {{ t('sync.tunnel.domainStepOne') }}
-              <a
-                :href="guideUrl"
-                class="underline underline-offset-2"
-                @click.prevent="browser.openExternal(guideUrl)"
-                >{{ t('sync.tunnel.guide') }}</a
-              >
+              <a :href="guideUrl" class="underline underline-offset-2" @click.prevent="openGuide">{{
+                t('sync.tunnel.guide')
+              }}</a>
             </li>
             <li>
               {{ t('sync.tunnel.domainStepTwo') }}

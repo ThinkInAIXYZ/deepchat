@@ -1,5 +1,5 @@
-import { app } from 'electron'
 import path from 'path'
+import { appHost } from '@/platform/appHost'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { ScanCache } from '@shared/types/skillSync'
 import type {
@@ -43,7 +43,8 @@ export class SkillSettings implements SkillSettingsPort {
 
   getPath(): string {
     return (
-      this.store.get<string>('skillsPath') || path.join(app.getPath('home'), '.deepchat', 'skills')
+      this.store.get<string>('skillsPath') ||
+      path.join(appHost.getPath('home'), '.deepchat', 'skills')
     )
   }
 

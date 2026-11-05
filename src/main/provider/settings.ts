@@ -1,4 +1,5 @@
 import type { SystemPrompt } from '@shared/types/prompt'
+import { appHost } from '@/platform/appHost'
 import type {
   LLM_PROVIDER,
   MODEL_META,
@@ -25,7 +26,6 @@ import {
 } from '@shared/modelConfigDefaults'
 import { DEFAULT_PROVIDERS } from '@/provider/defaults'
 import path from 'path'
-import { app } from 'electron'
 import fs from 'fs'
 import { compare } from 'compare-versions'
 import { ModelConfigHelper } from '@/provider/modelConfig'
@@ -373,8 +373,8 @@ export class ProviderSettings implements ProviderSettingsPort {
   ) {
     this.appSettings = settings
     this.store = new ProviderDbStore(settings, () => this.database.settingsTable)
-    this.userDataPath = app.getPath('userData')
-    this.currentAppVersion = app.getVersion()
+    this.userDataPath = appHost.getPath('userData')
+    this.currentAppVersion = appHost.getVersion()
     this.providerHelper = new ProviderHelper({
       store: this.store,
       setSetting: this.setSetting.bind(this),

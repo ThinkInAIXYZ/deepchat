@@ -64,14 +64,6 @@ export const windowCloseCurrentRoute = defineRouteContract({
   })
 })
 
-export const windowCloseFloatingCurrentRoute = defineRouteContract({
-  name: 'window.closeFloatingCurrent',
-  input: z.object({}).default({}),
-  output: z.object({
-    closed: z.boolean()
-  })
-})
-
 export const windowPreviewFileRoute = defineRouteContract({
   name: 'window.previewFile',
   input: z.object({

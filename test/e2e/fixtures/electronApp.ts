@@ -44,8 +44,6 @@ const isMainAppWindow = async (page: Page): Promise<boolean> => {
     url.startsWith('devtools://') ||
     url.includes('/settings/index.html') ||
     url.includes('/splash/index.html') ||
-    url.includes('/floating/index.html') ||
-    url.includes('/browser-overlay/index.html') ||
     url.includes('/plugin-settings/index.html')
   ) {
     return false

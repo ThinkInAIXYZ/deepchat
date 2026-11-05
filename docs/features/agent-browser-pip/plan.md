@@ -1,5 +1,7 @@
 # Agent Browser Surfaces and Picture-in-Picture Implementation Plan
 
+> **状态：已在 mygo 迁移中移除。** 内置浏览器（YoBrowser）与 Agent 浏览器自动化整体下线，本文档仅作为历史设计记录保留，见 `docs/features/mygo-rewrite/release-notes-draft.md`。
+
 ## Status
 
 The read-only mirror revision is implemented. The workspace/tab and Fit-desktop sections below

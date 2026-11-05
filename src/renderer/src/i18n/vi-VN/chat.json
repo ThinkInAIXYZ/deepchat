@@ -1,7 +1,10 @@
 {
   "sessionReference": {
     "copy": "Sao chép tham chiếu cuộc trò chuyện",
-    "groups": { "session": "Phiên", "file": "Tệp" },
+    "groups": {
+      "session": "Phiên",
+      "file": "Tệp"
+    },
     "open": "Mở {title}",
     "unavailableTitle": "Tham chiếu phiên không khả dụng",
     "unavailableDescription": "Phiên này đã bị xóa, đặt lại hoặc không còn khả dụng.",
@@ -70,8 +73,7 @@
         "agentCore": "Lõi Agent",
         "agentImageGeneration": "Tạo hình ảnh",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "Cài đặt DeepChat",
-        "yobrowser": "Trình duyệt Yo"
+        "deepchatSettings": "Cài đặt DeepChat"
       }
     },
     "toolMode": {

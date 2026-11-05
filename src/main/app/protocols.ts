@@ -1,10 +1,11 @@
 import logger from '@shared/logger'
+import { appHost } from '@/platform/appHost'
 /**
  * Protocol handlers used by the main process
  * Registers deepcdn, imgcache, and workspace preview protocols
  */
 
-import { protocol, app } from 'electron'
+import { protocol } from 'electron'
 import path from 'path'
 import fs, { promises as fsp, Stats } from 'fs'
 import { Readable } from 'stream'
@@ -157,11 +158,11 @@ export async function registerProtocols(
       const filePath = request.url.slice('deepcdn://'.length)
       // Determine resource path based on dev/production environment
       const candidates = is.dev
-        ? [path.join(app.getAppPath(), 'resources')]
+        ? [path.join(appHost.getAppPath(), 'resources')]
         : [
-            path.join(process.resourcesPath, 'app.asar.unpacked', 'resources'),
-            path.join(process.resourcesPath, 'resources'),
-            process.resourcesPath
+            path.join(appHost.getResourcesPath(), 'app.asar.unpacked', 'resources'),
+            path.join(appHost.getResourcesPath(), 'resources'),
+            appHost.getResourcesPath()
           ]
       const baseResourcesDir = await findDeepCdnResourcesDir(candidates)
       const fullPath = resolvePathInsideRoot(path.join(baseResourcesDir, 'cdn'), filePath)
@@ -208,7 +209,10 @@ export async function registerProtocols(
   protocol.handle('imgcache', async (request) => {
     const filePath = request.url.slice('imgcache://'.length)
     // Images are stored in the images subfolder of user data directory
-    const fullPath = resolvePathInsideRoot(path.join(app.getPath('userData'), 'images'), filePath)
+    const fullPath = resolvePathInsideRoot(
+      path.join(appHost.getPath('userData'), 'images'),
+      filePath
+    )
     if (!fullPath) {
       return new Response('Forbidden', {
         status: 403,

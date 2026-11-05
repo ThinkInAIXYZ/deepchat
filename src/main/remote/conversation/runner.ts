@@ -1,5 +1,5 @@
-import { app } from 'electron'
 import crypto from 'node:crypto'
+import { appHost } from '@/platform/appHost'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type {
@@ -150,7 +150,7 @@ const safeDecodePath = (value: string): string => {
 }
 
 const resolveCachedImagePath = (source: string): string => {
-  const cacheDir = path.join(app.getPath('userData'), 'images')
+  const cacheDir = path.join(appHost.getPath('userData'), 'images')
   const cachePath = safeDecodePath(source.slice(IMGCACHE_URL_PREFIX.length))
   const fullPath = path.resolve(cacheDir, cachePath)
   const relativePath = path.relative(cacheDir, fullPath)
@@ -882,7 +882,7 @@ export class RemoteConversationRunner {
       return path.join(workspace, REMOTE_ASSET_ROOT)
     }
 
-    return path.join(app.getPath('userData'), REMOTE_GENERATED_ASSET_ROOT)
+    return path.join(appHost.getPath('userData'), REMOTE_GENERATED_ASSET_ROOT)
   }
 
   private async prepareRemoteAttachments(

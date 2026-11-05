@@ -165,19 +165,6 @@
         class="px-2 py-2"
         @update:model-value="handleContentProtectionChange"
       />
-
-      <!-- Floating button toggle -->
-      <DcToggleRow
-        v-if="FLOATING_BUTTON_AVAILABLE"
-        id="floating-button-switch"
-        icon="lucide:mouse-pointer-click"
-        :label="t('settings.display.floatingButton')"
-        :description="t('settings.display.floatingButtonDesc')"
-        label-min-width="220px"
-        :model-value="floatingButtonStore.enabled"
-        class="px-2 py-2"
-        @update:model-value="handleFloatingButtonChange"
-      />
     </DcSectionCard>
   </SettingsPageShell>
 
@@ -228,10 +215,8 @@ import { storeToRefs } from 'pinia'
 import { DcToggleRow } from '@dc-ui/components/toggle-row'
 import { DcSectionCard } from '@dc-ui/components/section-card'
 
-import { FLOATING_BUTTON_AVAILABLE } from '@shared/featureFlags'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useLanguageStore } from '@/stores/language'
-import { useFloatingButtonStore } from '@/stores/floatingButton'
 import { useThemeStore, type ThemeMode } from '@/stores/theme'
 import {
   Dialog,
@@ -249,7 +234,6 @@ import { LOCALE_DISPLAY_NAMES, SUPPORTED_LOCALES, type RequestedLocale } from '@
 
 const languageStore = useLanguageStore()
 const uiSettingsStore = useUiSettingsStore()
-const floatingButtonStore = useFloatingButtonStore()
 const themeStore = useThemeStore()
 const { t } = useI18n()
 const { themeMode } = storeToRefs(themeStore)
@@ -330,10 +314,6 @@ const notificationsEnabled = computed({
 
 const handleNotificationsChange = (value: boolean) => {
   uiSettingsStore.setNotificationsEnabled(value)
-}
-
-const handleFloatingButtonChange = (value: boolean) => {
-  floatingButtonStore.setFloatingButtonEnabled(value)
 }
 
 onMounted(async () => {

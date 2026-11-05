@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import { app } from 'electron'
+import { appHost } from '@/platform/appHost'
 import * as path from 'path'
 
 /**
@@ -32,7 +32,7 @@ export class RuntimeHelper {
 
     // Handle ~ symbol (user home directory)
     if (expandedPath.startsWith('~/') || expandedPath === '~') {
-      const homeDir = app.getPath('home')
+      const homeDir = appHost.getPath('home')
       expandedPath = expandedPath.replace('~', homeDir)
     }
 
@@ -85,7 +85,7 @@ export class RuntimeHelper {
       return false
     }
 
-    const appPath = app.getAppPath()
+    const appPath = appHost.getAppPath()
     const normalizedPath = appPath.toLowerCase()
 
     // Check if app is installed in Program Files or Program Files (x86)
@@ -109,7 +109,7 @@ export class RuntimeHelper {
       return null
     }
 
-    const appDataPath = app.getPath('appData')
+    const appDataPath = appHost.getPath('appData')
     return path.join(appDataPath, 'npm')
   }
 }

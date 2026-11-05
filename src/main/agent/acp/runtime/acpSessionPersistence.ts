@@ -1,5 +1,5 @@
-import { app } from 'electron'
 import { toAcpRemoteSessionId, type AcpRemoteSessionId } from '@/agent/shared/agentSessionIds'
+import { appHost } from '@/platform/appHost'
 import * as fs from 'fs'
 import path from 'node:path'
 import type * as schema from '@agentclientprotocol/sdk'
@@ -396,7 +396,7 @@ export class AcpSessionPersistence {
 
   getDefaultWorkdir(): string {
     try {
-      const home = app.getPath('home')
+      const home = appHost.getPath('home')
       if (this.isWorkdirUsable(home)) {
         return home
       }

@@ -24,12 +24,6 @@ test('data settings exposes database security and device read-only routes @smoke
   await expect(settingsPage.getByTestId('database-repair-button')).toBeVisible({
     timeout: 30_000
   })
-  await expect(settingsPage.getByTestId('yobrowser-sandbox-section')).toBeVisible({
-    timeout: 30_000
-  })
-  await expect(settingsPage.getByTestId('yobrowser-clear-sandbox-button')).toBeVisible({
-    timeout: 30_000
-  })
 
   const snapshot = await settingsPage.evaluate(async () => {
     const databaseSecurity = (await window.deepchat.invoke('databaseSecurity.getStatus', {})) as {

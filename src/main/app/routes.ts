@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { appHost } from '@/platform/appHost'
 import type { DatabaseRepairReport } from '@shared/types/databaseSchema'
 import type { AgentSettingsPort } from '@/agent/settings'
 import {
@@ -204,7 +204,7 @@ export function createAppRoutes(deps: {
       debugShowSplashScenarioRoute.name,
       async (rawInput) => {
         const input = debugShowSplashScenarioRoute.input.parse(rawInput)
-        if (!import.meta.env.DEV || app.isPackaged) {
+        if (!import.meta.env.DEV || appHost.isPackaged()) {
           return debugShowSplashScenarioRoute.output.parse({ shown: false })
         }
         await deps.splash.showDebugScenario(input.mode)
@@ -215,7 +215,7 @@ export function createAppRoutes(deps: {
       debugCloseSplashScenarioRoute.name,
       async (rawInput) => {
         debugCloseSplashScenarioRoute.input.parse(rawInput)
-        if (!import.meta.env.DEV || app.isPackaged) {
+        if (!import.meta.env.DEV || appHost.isPackaged()) {
           return debugCloseSplashScenarioRoute.output.parse({ closed: false })
         }
         return debugCloseSplashScenarioRoute.output.parse({
@@ -227,7 +227,7 @@ export function createAppRoutes(deps: {
       debugCreateMockChatSessionRoute.name,
       async (rawInput) => {
         debugCreateMockChatSessionRoute.input.parse(rawInput)
-        if (!import.meta.env.DEV || app.isPackaged) {
+        if (!import.meta.env.DEV || appHost.isPackaged()) {
           return debugCreateMockChatSessionRoute.output.parse({
             created: false,
             sessionId: null,

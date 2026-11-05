@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { FLOATING_BUTTON_EVENTS } from '../../../src/shared/floatingButtonChannels'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '../../../src/shared/contracts/channels'
-import { browserActivityChangedEvent } from '../../../src/shared/contracts/events'
 import {
   DATABASE_RECOVERY_CANCEL_CHANNEL,
   DATABASE_RECOVERY_REQUEST_CHANNEL,
@@ -14,34 +12,6 @@ import {
 import { SPLASH_DEBUG_MODE_CHANNEL } from '../../../src/shared/contracts/splash'
 
 type Listener = (_event: unknown, payload: unknown) => void
-
-const validSnapshot = {
-  expanded: false,
-  activeCount: 1,
-  sessions: [
-    {
-      id: 'session-1',
-      title: 'Active task',
-      status: 'in_progress',
-      updatedAt: 1,
-      agent: {
-        id: 'agent-1',
-        name: 'DeepChat',
-        type: 'deepchat'
-      }
-    }
-  ]
-}
-
-const validBrowserActivity = {
-  id: 'activity-1',
-  sessionId: 'session-1',
-  windowId: 1,
-  kind: 'navigation',
-  action: 'navigate',
-  phase: 'started',
-  timestamp: 1
-}
 
 const validUnlockRequest = {
   requestId: 'unlock-1',
@@ -154,77 +124,8 @@ describe('preload IPC boundaries', () => {
     vi.restoreAllMocks()
     vi.doUnmock('electron')
     delete (process as { contextIsolated?: boolean }).contextIsolated
-    delete (window as { floatingButtonAPI?: unknown }).floatingButtonAPI
-    delete (window as { yoBrowserOverlay?: unknown }).yoBrowserOverlay
     delete (window as { deepchatPlugin?: unknown }).deepchatPlugin
     delete (window as { deepchatSplash?: unknown }).deepchatSplash
-  })
-
-  it('exposes floating listeners with scoped unsubscribe and payload validation', async () => {
-    const { ipcRenderer, listeners } = installElectronPreloadMock()
-    await import('../../../src/preload/floating-preload')
-
-    const floatingButtonAPI = (
-      window as Window & {
-        floatingButtonAPI: {
-          setExpanded: (expanded: boolean) => void
-          onSnapshotUpdate: (callback: (payload: typeof validSnapshot) => void) => () => void
-        }
-      }
-    ).floatingButtonAPI
-
-    floatingButtonAPI.setExpanded(true)
-    floatingButtonAPI.setExpanded('yes' as unknown as boolean)
-
-    expect(ipcRenderer.send).toHaveBeenCalledTimes(1)
-    expect(ipcRenderer.send).toHaveBeenCalledWith(FLOATING_BUTTON_EVENTS.SET_EXPANDED, true)
-
-    const callback = vi.fn()
-    const unsubscribe = floatingButtonAPI.onSnapshotUpdate(callback)
-    const [listener] = listeners.get(FLOATING_BUTTON_EVENTS.SNAPSHOT_UPDATED) ?? []
-
-    listener?.({}, validSnapshot)
-    listener?.({}, { expanded: true })
-    unsubscribe()
-
-    expect(callback).toHaveBeenCalledTimes(1)
-    expect(callback).toHaveBeenCalledWith(validSnapshot)
-    expect(ipcRenderer.removeListener).toHaveBeenCalledWith(
-      FLOATING_BUTTON_EVENTS.SNAPSHOT_UPDATED,
-      listener
-    )
-    expect(ipcRenderer.removeAllListeners).not.toHaveBeenCalled()
-  })
-
-  it('validates browser overlay activity events before invoking the renderer callback', async () => {
-    const { ipcRenderer, listeners } = installElectronPreloadMock()
-    await import('../../../src/preload/browser-overlay-preload')
-
-    const yoBrowserOverlay = (
-      window as Window & {
-        yoBrowserOverlay: {
-          onActivityChanged: (
-            callback: (payload: typeof validBrowserActivity) => void
-          ) => () => void
-        }
-      }
-    ).yoBrowserOverlay
-
-    const callback = vi.fn()
-    const unsubscribe = yoBrowserOverlay.onActivityChanged(callback)
-    const [listener] = listeners.get(browserActivityChangedEvent.name) ?? []
-
-    listener?.({}, validBrowserActivity)
-    listener?.({}, { id: 'missing-required-fields' })
-    unsubscribe()
-
-    expect(callback).toHaveBeenCalledTimes(1)
-    expect(callback).toHaveBeenCalledWith(validBrowserActivity)
-    expect(ipcRenderer.removeListener).toHaveBeenCalledWith(
-      browserActivityChangedEvent.name,
-      listener
-    )
-    expect(ipcRenderer.removeAllListeners).not.toHaveBeenCalled()
   })
 
   it('backs plugin settings preload APIs with typed route bridge calls', async () => {

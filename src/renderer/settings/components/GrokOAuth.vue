@@ -116,6 +116,7 @@
 </template>
 
 <script setup lang="ts">
+import { openRuntimeExternal } from '@api/runtime'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
@@ -123,7 +124,6 @@ import { DcButton } from '@dc-ui/components/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { createOAuthClient } from '@api/OAuthClient'
-import { createBrowserClient } from '@api/BrowserClient'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { XaiGrokAuthStatus } from '@shared/contracts/routes'
@@ -146,7 +146,6 @@ const signedOutStatus: XaiGrokAuthStatus = {
 }
 
 const oauthClient = createOAuthClient()
-const browserClient = createBrowserClient()
 const modelCheckStore = useModelCheckStore()
 const status = ref<XaiGrokAuthStatus>(signedOutStatus)
 const busyAction = ref<'device' | 'cancel' | 'logout' | null>(null)
@@ -245,7 +244,7 @@ const logout = () => runAuthAction('logout', () => oauthClient.logoutXaiGrok())
 
 const openVerificationUrl = () => {
   if (verificationLink.value) {
-    void browserClient.openExternal(verificationLink.value)
+    void openRuntimeExternal(verificationLink.value)
   }
 }
 

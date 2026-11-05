@@ -2,7 +2,6 @@ import logger from '@shared/logger'
 // src/main/desktop/window/index.ts
 import {
   BrowserWindow,
-  shell,
   nativeImage,
   screen,
   webContents as electronWebContents,
@@ -10,6 +9,7 @@ import {
 } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
+import { shellHost } from '@/platform/shellHost'
 import icon from '../../../../resources/icon.png?asset' // App icon (macOS/Linux)
 import iconWin from '../../../../resources/icon.ico?asset' // App icon (Windows)
 import { is } from '@electron-toolkit/utils' // Electron utilities
@@ -23,7 +23,6 @@ import { DEEPLINK_EVENTS, DEV_EVENTS, SETTINGS_EVENTS, SHORTCUT_EVENTS } from '@
 import windowStateManager from 'electron-window-state' // Window state manager
 // TrayPresenter is globally managed in main/index.ts, this Presenter is not responsible for its lifecycle
 import { TabPresenter } from '../tab'
-import { FloatingChatWindow } from './FloatingChatWindow' // Floating chat window
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import { StartupWorkloadCoordinator } from '../../app/startupWorkloadCoordinator'
 import { openExternalUrl } from '@/lib/externalUrl'
@@ -52,7 +51,6 @@ export class WindowPresenter implements IWindowPresenter {
   private mainWindowId: number | null = null
   // Tracks close-to-hide separately from the native macOS Hide command.
   private mainWindowHiddenByClose = false
-  private floatingChatWindow: FloatingChatWindow | null = null
   private settingsWindow: BrowserWindow | null = null
   private settingsWindowReady = false
   private pendingSettingsMessages: PendingSettingsMessage[] = []
@@ -141,12 +139,6 @@ export class WindowPresenter implements IWindowPresenter {
    */
   previewFile(filePath: string): void {
     let targetWindow = this.getFocusedWindow()
-    if (!targetWindow && this.floatingChatWindow && this.floatingChatWindow.isShowing()) {
-      const floatingWindow = this.floatingChatWindow.getWindow()
-      if (floatingWindow) {
-        targetWindow = floatingWindow
-      }
-    }
     if (!targetWindow) {
       targetWindow = this.mainWindow
     }
@@ -156,7 +148,7 @@ export class WindowPresenter implements IWindowPresenter {
       if (process.platform === 'darwin') {
         targetWindow.previewFile(filePath)
       } else {
-        shell.openPath(filePath) // 使用系统默认应用打开
+        void shellHost.openPath(filePath) // 使用系统默认应用打开
       }
     } else {
       console.warn('Cannot preview file, no valid window found.')
@@ -412,17 +404,6 @@ export class WindowPresenter implements IWindowPresenter {
         console.error(`Error sending message "${channel}" to settings window:`, error)
       }
     }
-
-    if (this.floatingChatWindow && this.floatingChatWindow.isShowing()) {
-      const floatingWindow = this.floatingChatWindow.getWindow()
-      if (floatingWindow && !floatingWindow.isDestroyed()) {
-        try {
-          this.sendToWebContentsTarget(floatingWindow.webContents, channel, args)
-        } catch (error) {
-          console.error(`Error sending message "${channel}" to floating chat window:`, error)
-        }
-      }
-    }
   }
 
   /**
@@ -581,15 +562,6 @@ export class WindowPresenter implements IWindowPresenter {
             ? 'local://chat'
             : `local://${options.initialRoute}`
       },
-      windowType: 'chat',
-      x: options?.x,
-      y: options?.y
-    })
-  }
-
-  public async createBrowserWindow(options?: { x?: number; y?: number }): Promise<number | null> {
-    return await this.createManagedWindow({
-      windowType: 'chat',
       x: options?.x,
       y: options?.y
     })
@@ -601,7 +573,6 @@ export class WindowPresenter implements IWindowPresenter {
       url: string
       icon?: string
     }
-    windowType?: 'chat' | 'browser'
     forMovedTab?: boolean
     x?: number
     y?: number
@@ -622,8 +593,7 @@ export class WindowPresenter implements IWindowPresenter {
       url: string
       icon?: string
     }
-    windowType?: 'chat' | 'browser'
-    forMovedTab?: boolean // 用户拖拽标签页到新窗口时强制显示（即使是 browser 窗口）
+    forMovedTab?: boolean // 用户拖拽标签页到新窗口时强制显示
     x?: number // 初始 X 坐标
     y?: number // 初始 Y 坐标
   }): Promise<number | null> {
@@ -1205,80 +1175,6 @@ export class WindowPresenter implements IWindowPresenter {
       console.error('Error sending message to default tab:', error)
       return false // 过程中发生错误
     }
-  }
-
-  public async createFloatingChatWindow(): Promise<void> {
-    if (this.floatingChatWindow) {
-      logger.info('FloatingChatWindow already exists')
-      return
-    }
-
-    try {
-      this.floatingChatWindow = new FloatingChatWindow(this.tabPresenter, () =>
-        this.isApplicationQuitting()
-      )
-      await this.floatingChatWindow.create()
-      logger.info('FloatingChatWindow created successfully')
-    } catch (error) {
-      console.error('Failed to create FloatingChatWindow:', error)
-      this.floatingChatWindow = null
-      throw error
-    }
-  }
-
-  public async showFloatingChatWindow(floatingButtonPosition?: {
-    x: number
-    y: number
-    width: number
-    height: number
-  }): Promise<void> {
-    if (!this.floatingChatWindow) {
-      await this.createFloatingChatWindow()
-    }
-
-    if (this.floatingChatWindow) {
-      this.floatingChatWindow.show(floatingButtonPosition)
-      logger.info('FloatingChatWindow shown')
-    }
-  }
-
-  public hideFloatingChatWindow(): void {
-    if (this.floatingChatWindow) {
-      this.floatingChatWindow.hide()
-      logger.info('FloatingChatWindow hidden')
-    }
-  }
-
-  public async toggleFloatingChatWindow(floatingButtonPosition?: {
-    x: number
-    y: number
-    width: number
-    height: number
-  }): Promise<void> {
-    if (!this.floatingChatWindow) {
-      await this.createFloatingChatWindow()
-    }
-
-    if (this.floatingChatWindow) {
-      this.floatingChatWindow.toggle(floatingButtonPosition)
-      logger.info('FloatingChatWindow toggled')
-    }
-  }
-
-  public destroyFloatingChatWindow(): void {
-    if (this.floatingChatWindow) {
-      this.floatingChatWindow.destroy()
-      this.floatingChatWindow = null
-      logger.info('FloatingChatWindow destroyed')
-    }
-  }
-
-  public isFloatingChatWindowVisible(): boolean {
-    return this.floatingChatWindow?.isShowing() || false
-  }
-
-  public getFloatingChatWindow(): FloatingChatWindow | null {
-    return this.floatingChatWindow
   }
 
   /**

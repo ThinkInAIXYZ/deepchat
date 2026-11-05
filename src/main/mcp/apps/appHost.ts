@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
-import { shell } from 'electron'
+import { shellHost } from '@/platform/shellHost'
+
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type {
   MCPContentItem,
@@ -539,7 +540,7 @@ export class McpAppHost implements McpAppHostPort {
     }
     this.assertLiveInstance(instanceId, context)
     await this.assertDescriptorCurrent(instance.descriptor)
-    await shell.openExternal(normalizedUrl)
+    await shellHost.openExternal(normalizedUrl)
     return true
   }
 

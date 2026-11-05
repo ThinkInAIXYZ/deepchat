@@ -1,7 +1,7 @@
 import logger from '@shared/logger'
+import { appHost } from '@/platform/appHost'
 import type { DatabaseSchemaDiagnosis, DatabaseSchemaIssue } from '@shared/types/databaseSchema'
 import type { DatabaseRepairReason } from '@shared/notifications'
-import { app } from 'electron'
 import path from 'path'
 import {
   isDestructiveDatabaseError,
@@ -67,7 +67,7 @@ export class DatabaseInitializer implements IDatabaseInitializer {
 
   constructor(options?: DatabaseInitializerOptions) {
     // Initialize database path
-    const dbDir = path.join(app.getPath('userData'), 'app_db')
+    const dbDir = path.join(appHost.getPath('userData'), 'app_db')
     this.dbPath = options?.dbPath ?? path.join(dbDir, 'agent.db')
     this.password = options?.password
     this.observe = options?.observe ?? (() => undefined)

@@ -1,7 +1,10 @@
 {
   "sessionReference": {
     "copy": "Kopiér sessionsreference",
-    "groups": { "session": "Sessioner", "file": "Filer" },
+    "groups": {
+      "session": "Sessioner",
+      "file": "Filer"
+    },
     "open": "Åbn {title}",
     "unavailableTitle": "Sessionsreference er ikke tilgængelig",
     "unavailableDescription": "Sessionen er slettet, nulstillet eller ikke længere tilgængelig.",
@@ -78,8 +81,7 @@
         "agentCore": "Agent Core",
         "agentImageGeneration": "Billedgenerering",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "DeepChat Settings",
-        "yobrowser": "YoBrowser"
+        "deepchatSettings": "DeepChat Settings"
       }
     },
     "toolMode": {

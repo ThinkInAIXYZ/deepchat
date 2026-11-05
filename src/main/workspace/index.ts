@@ -1,9 +1,10 @@
 import path from 'path'
+import { shellHost } from '@/platform/shellHost'
 import fs from 'fs'
 import { execFile } from 'child_process'
 import { fileURLToPath } from 'url'
 import { promisify } from 'util'
-import { shell } from 'electron'
+
 import {
   createWatcherRequestId,
   type IFileWatcherService,
@@ -785,7 +786,7 @@ export class WorkspaceService implements WorkspaceServicePort {
     const normalizedPath = path.resolve(filePath)
 
     try {
-      shell.showItemInFolder(normalizedPath)
+      shellHost.showItemInFolder(normalizedPath)
     } catch (error) {
       console.error(`[Workspace] Failed to reveal path: ${normalizedPath}`, error)
     }
@@ -798,7 +799,7 @@ export class WorkspaceService implements WorkspaceServicePort {
     }
 
     const normalizedPath = path.resolve(filePath)
-    const errorMessage = await shell.openPath(normalizedPath)
+    const errorMessage = await shellHost.openPath(normalizedPath)
 
     if (errorMessage) {
       throw new Error(errorMessage)

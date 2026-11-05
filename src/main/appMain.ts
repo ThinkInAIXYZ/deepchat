@@ -1,4 +1,6 @@
-import { app, dialog } from 'electron'
+import { app } from 'electron'
+import { appHost } from '@/platform/appHost'
+import { dialogHost } from '@/platform/dialogHost'
 import { StartupWorkloadCoordinator } from './app/startupWorkloadCoordinator'
 import { registerWorkspacePreviewSchemes } from './workspace/workspacePreviewProtocol'
 import { registerMcpAppScheme } from './mcp/apps/sandboxProtocol'
@@ -31,7 +33,7 @@ export function startApp(): void {
   }
   // Propagate the effective userData dir so child process registry records (and forked
   // utility processes, which cannot access the electron app module) stay isolated with it.
-  process.env.DEEPCHAT_USER_DATA_DIR = app.getPath('userData')
+  process.env.DEEPCHAT_USER_DATA_DIR = appHost.getPath('userData')
 
   app.setName(APP_NAME)
   if (process.platform === 'darwin') {
@@ -192,7 +194,7 @@ export function startApp(): void {
         ...(durationMs === undefined ? {} : { durationMs }),
         error: classifyMainLogError(error)
       })
-      dialog.showErrorBox(
+      dialogHost.showErrorBox(
         'Application startup failed',
         error instanceof Error ? error.message : String(error)
       )

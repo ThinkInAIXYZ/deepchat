@@ -1,5 +1,7 @@
 import logger from '@shared/logger'
-import { BrowserWindow, Menu, MenuItemConstructorOptions, WebContents, dialog, net } from 'electron'
+import { BrowserWindow, Menu, MenuItemConstructorOptions, WebContents } from 'electron'
+import { dialogHost } from '@/platform/dialogHost'
+import { netHost } from '@/platform/netHost'
 import path from 'path'
 import sharp from 'sharp'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
@@ -119,7 +121,7 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
             }
 
             // 打开保存对话框
-            const { canceled, filePath } = await dialog.showSaveDialog({
+            const { canceled, filePath } = await dialogHost.showSaveDialog({
               defaultPath: fileName,
               filters: [
                 { name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
@@ -145,7 +147,7 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
             } else {
               // 处理普通URL
               try {
-                const response = await net.fetch(url)
+                const response = await netHost.fetch(url)
                 if (!response.ok) {
                   throw new Error(`下载图片失败: ${response.status}`)
                 }

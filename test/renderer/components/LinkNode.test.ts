@@ -7,7 +7,6 @@ describe('LinkNode', () => {
     vi.resetModules()
 
     const sidepanelStore = {
-      openBrowser: vi.fn(),
       selectFile: vi.fn()
     }
 
@@ -69,29 +68,20 @@ describe('LinkNode', () => {
     document.body.innerHTML = ''
   })
 
-  it('opens http links in YoBrowser by default', async () => {
-    const { wrapper, sidepanelStore } = await setup({
+  it('opens http links in the system browser by default', async () => {
+    const { wrapper } = await setup({
       href: 'https://example.com'
     })
 
     await wrapper.get('a').trigger('click')
 
-    expect(sidepanelStore.openBrowser).toHaveBeenCalledTimes(1)
-    expect(window.deepchat.invoke).toHaveBeenCalledWith(
-      'browser.loadUrl',
-      expect.objectContaining({
-        sessionId: 'session-1',
-        url: 'https://example.com'
-      })
-    )
-    expect(window.api.openExternal).not.toHaveBeenCalled()
+    expect(window.api.openExternal).toHaveBeenCalledWith('https://example.com')
   })
 
   it('falls back to node text when markstream does not provide a slot', async () => {
     vi.resetModules()
 
     const sidepanelStore = {
-      openBrowser: vi.fn(),
       selectFile: vi.fn()
     }
 
@@ -126,27 +116,23 @@ describe('LinkNode', () => {
   })
 
   it('opens http links in the system browser on Alt click', async () => {
-    const { wrapper, sidepanelStore } = await setup({
+    const { wrapper } = await setup({
       href: 'https://example.com'
     })
 
     await wrapper.get('a').trigger('click', { altKey: true })
 
     expect(window.api.openExternal).toHaveBeenCalledWith('https://example.com')
-    expect(sidepanelStore.openBrowser).not.toHaveBeenCalled()
-    expect(window.deepchat.invoke).not.toHaveBeenCalledWith('browser.loadUrl', expect.anything())
   })
 
-  it('opens mailto links externally without using YoBrowser', async () => {
-    const { wrapper, sidepanelStore } = await setup({
+  it('opens mailto links externally', async () => {
+    const { wrapper } = await setup({
       href: 'mailto:test@example.com'
     })
 
     await wrapper.get('a').trigger('click')
 
     expect(window.api.openExternal).toHaveBeenCalledWith('mailto:test@example.com')
-    expect(sidepanelStore.openBrowser).not.toHaveBeenCalled()
-    expect(window.deepchat.invoke).not.toHaveBeenCalledWith('browser.loadUrl', expect.anything())
   })
 
   it('opens local markdown links in the workspace preview', async () => {
@@ -198,15 +184,13 @@ describe('LinkNode', () => {
     })
     document.body.appendChild(target)
 
-    const { wrapper, sidepanelStore } = await setup({
+    const { wrapper } = await setup({
       href: '#details'
     })
 
     await wrapper.get('a').trigger('click')
 
     expect(scrollIntoView).toHaveBeenCalled()
-    expect(sidepanelStore.openBrowser).not.toHaveBeenCalled()
-    expect(window.deepchat.invoke).not.toHaveBeenCalledWith('browser.loadUrl', expect.anything())
     expect(window.deepchat.invoke).not.toHaveBeenCalledWith(
       'workspace.resolveMarkdownLinkedFile',
       expect.anything()

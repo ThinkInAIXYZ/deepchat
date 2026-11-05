@@ -1,3 +1,4 @@
+import { toProviderSummary } from './summary'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import type { MODEL_META } from '@shared/types/provider'
 import type { OAuthServicePort } from '@shared/types/oauth'
@@ -116,19 +117,6 @@ export function createProviderRoutes(deps: {
     void deps.recordSettingsActivity(input).catch((error) => {
       console.warn('[SettingsActivity] Failed to record provider activity:', error)
     })
-  }
-
-  const toProviderSummary = (
-    provider: ReturnType<typeof providerSettings.getProviders>[number]
-  ) => {
-    const {
-      models: _models,
-      customModels: _customModels,
-      enabledModels: _enabledModels,
-      disabledModels: _disabledModels,
-      ...summary
-    } = provider
-    return summary
   }
 
   return createRouteMap([

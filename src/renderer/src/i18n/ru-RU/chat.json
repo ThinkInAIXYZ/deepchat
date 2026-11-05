@@ -1,7 +1,10 @@
 {
   "sessionReference": {
     "copy": "Копировать ссылку на сеанс",
-    "groups": { "session": "Сеансы", "file": "Файлы" },
+    "groups": {
+      "session": "Сеансы",
+      "file": "Файлы"
+    },
     "open": "Открыть {title}",
     "unavailableTitle": "Ссылка на сеанс недоступна",
     "unavailableDescription": "Этот сеанс удалён, сброшен или больше недоступен.",
@@ -70,8 +73,7 @@
         "agentCore": "Agent Core",
         "agentImageGeneration": "Генерация изображений",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "DeepChat Settings",
-        "yobrowser": "YoBrowser"
+        "deepchatSettings": "DeepChat Settings"
       }
     },
     "toolMode": {

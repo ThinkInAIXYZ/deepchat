@@ -1,7 +1,10 @@
 {
   "sessionReference": {
     "copy": "Copy session reference",
-    "groups": { "session": "Sessions", "file": "Files" },
+    "groups": {
+      "session": "Sessions",
+      "file": "Files"
+    },
     "open": "Open {title}",
     "unavailableTitle": "Session reference unavailable",
     "unavailableDescription": "This session was deleted, reset, or is no longer available.",
@@ -70,8 +73,7 @@
         "agentCore": "Agent Core",
         "agentImageGeneration": "Image Generation",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "DeepChat Settings",
-        "yobrowser": "YoBrowser"
+        "deepchatSettings": "DeepChat Settings"
       }
     },
     "toolMode": {

@@ -1,4 +1,4 @@
-import { shell } from 'electron'
+import { shellHost } from '@/platform/shellHost'
 import { normalizeExternalUrl } from '@shared/externalUrl'
 
 export function openExternalUrl(url: string, source: string): boolean {
@@ -8,7 +8,7 @@ export function openExternalUrl(url: string, source: string): boolean {
     return false
   }
 
-  Promise.resolve(shell.openExternal(externalUrl)).catch((error) => {
+  Promise.resolve(shellHost.openExternal(externalUrl)).catch((error) => {
     console.error(`Failed to open external URL from ${source}: ${externalUrl}`, error)
   })
   return true

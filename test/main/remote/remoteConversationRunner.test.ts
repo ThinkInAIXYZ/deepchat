@@ -810,7 +810,7 @@ describe('RemoteConversationRunner', () => {
           timestamp: 4,
           tool_call: {
             id: 'tool-screenshot',
-            name: 'cdp_send',
+            name: 'grep',
             params: JSON.stringify({ method: 'Page.captureScreenshot' }),
             response: JSON.stringify({ data: 'omitted from text' }),
             imagePreviews: [
@@ -849,7 +849,7 @@ describe('RemoteConversationRunner', () => {
           },
           extra: {
             toolCallId: 'tool-screenshot',
-            toolName: 'cdp_send',
+            toolName: 'grep',
             toolImagePreviewId: 'screenshot-1',
             toolImagePreviewSource: 'screenshot',
             toolImagePreviewTitle: 'Page.captureScreenshot'

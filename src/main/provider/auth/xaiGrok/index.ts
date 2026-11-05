@@ -1,5 +1,6 @@
 import logger from '@shared/logger'
-import { shell } from 'electron'
+import { shellHost } from '@/platform/shellHost'
+
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { XaiGrokAuthStatus } from '@shared/types/xai-grok'
 import {
@@ -230,7 +231,7 @@ export class XaiGrokAuth {
 
       const browserUrl = deviceCode.verificationUriComplete || deviceCode.verificationUri
       try {
-        await shell.openExternal(browserUrl)
+        await shellHost.openExternal(browserUrl)
       } catch (error) {
         logger.warn('[xAI Grok OAuth] Failed to open browser:', sanitizeError(error))
       }

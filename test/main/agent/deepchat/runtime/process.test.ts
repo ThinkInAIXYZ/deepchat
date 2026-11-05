@@ -2166,13 +2166,13 @@ describe('processStream', () => {
       const order: string[] = []
       observeCommitOrder(order)
       const longOutput = JSON.stringify({ data: 'x'.repeat(7000) })
-      const coreStream = createToolRoundStream('cdp_send', '{"method":"Page.captureScreenshot"}')
+      const coreStream = createToolRoundStream('grep', '{"method":"Page.captureScreenshot"}')
 
       const result = await processStream(
         createParams({
           coreStream,
-          toolExecution: createToolExecutionPort(createMockToolService({ cdp_send: longOutput })),
-          tools: [makeTool('cdp_send')],
+          toolExecution: createToolExecutionPort(createMockToolService({ grep: longOutput })),
+          tools: [makeTool('grep')],
           modelConfig: { contextLength: 1 } as any,
           maxTokens: 1
         })
@@ -4015,12 +4015,12 @@ describe('processStream', () => {
         return (async function* () {
           yield {
             type: 'tool_call_start',
-            tool_call_id: 'function.cdp_send:11',
-            tool_call_name: 'cdp_send'
+            tool_call_id: 'function.grep:11',
+            tool_call_name: 'grep'
           } as LLMCoreStreamEvent
           yield {
             type: 'tool_call_end',
-            tool_call_id: 'function.cdp_send:11',
+            tool_call_id: 'function.grep:11',
             tool_call_arguments_complete: '{"method":"Page.captureScreenshot"}'
           } as LLMCoreStreamEvent
           yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
@@ -4032,11 +4032,11 @@ describe('processStream', () => {
       })()
     }) as unknown as ProcessParams['coreStream']
 
-    const toolService = createMockToolService({ cdp_send: longScreenshot })
+    const toolService = createMockToolService({ grep: longScreenshot })
     const params = createParams({
       coreStream,
       toolExecution: createToolExecutionPort(toolService),
-      tools: [makeTool('cdp_send')]
+      tools: [makeTool('grep')]
     })
 
     const promise = processStream(params)
@@ -4045,7 +4045,7 @@ describe('processStream', () => {
 
     const secondCallMessages = (coreStream as ReturnType<typeof vi.fn>).mock.calls[1][0]
     const toolResultMsg = secondCallMessages.find((m: any) => m.role === 'tool')
-    const offloadPath = resolveToolOffloadPath('s1', 'function.cdp_send:11')
+    const offloadPath = resolveToolOffloadPath('s1', 'function.grep:11')
     expect(toolResultMsg.content).toContain('[Tool output offloaded]')
     expect(toolResultMsg.content).toContain(`Offload file: ${offloadPath}`)
     expect(toolResultMsg.content).not.toContain(':11.offload')

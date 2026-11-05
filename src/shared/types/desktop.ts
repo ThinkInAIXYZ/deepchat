@@ -1,17 +1,4 @@
-import type { BrowserWindow, WebContents, WebContentsView } from 'electron'
-import type {
-  BrowserImportApplyResult,
-  BrowserImportPreview,
-  BrowserImportScanResult,
-  BrowserPageInfo,
-  BrowserPreviewMode,
-  BrowserPreviewModeResult,
-  DownloadInfo,
-  ScreenshotOptions,
-  YoBrowserStatus
-} from './browser'
-import type { MCPToolDefinition } from './mcp'
-import type { ComputerUsePreviewMode, ComputerUsePreviewModeResult } from './computerUse'
+import type { BrowserWindow, WebContentsView } from 'electron'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 
@@ -25,18 +12,12 @@ export interface TabData {
   icon?: string
 }
 
-export interface FloatingChatWindowLike {
-  isShowing(): boolean
-  getWindow(): BrowserWindow | null
-}
-
 export interface IWindowPresenter {
   createAppWindow(options?: {
     initialRoute?: string
     x?: number
     y?: number
   }): Promise<number | null>
-  createBrowserWindow(options?: { x?: number; y?: number }): Promise<number | null>
   createShellWindow(options?: {
     activateTabId?: number
     initialTab?: {
@@ -45,7 +26,6 @@ export interface IWindowPresenter {
       icon?: string
     }
     forMovedTab?: boolean
-    windowType?: 'chat' | 'browser'
     x?: number
     y?: number
   }): Promise<number | null>
@@ -82,93 +62,16 @@ export interface IWindowPresenter {
   closeWindow(windowId: number, forceClose?: boolean): Promise<void>
   isApplicationQuitting(): boolean
   setApplicationQuitting(isQuitting: boolean): void
-  destroyFloatingChatWindow(): void
-  isFloatingChatWindowVisible(): boolean
-  getFloatingChatWindow(): FloatingChatWindowLike | null
   getFocusedWindow(): BrowserWindow | undefined
   toggleMainWindowVisibility(mustShow?: boolean): void
   sendToWebContents(webContentsId: number, channel: string, ...args: unknown[]): Promise<boolean>
   sendToMainWindow(channel: string, ...args: unknown[]): Promise<boolean>
   sendToActiveTab(windowId: number, channel: string, ...args: unknown[]): Promise<boolean>
   getAllWindows(): BrowserWindow[]
-  toggleFloatingChatWindow(floatingButtonPosition?: {
-    x: number
-    y: number
-    width: number
-    height: number
-  }): Promise<void>
-  createFloatingChatWindow(): Promise<void>
 }
 
 export type ShortcutKeySetting = Record<string, string>
 export type ShortcutKey = string
-
-export interface IYoBrowserPresenter {
-  getBrowserStatus(sessionId: string): Promise<YoBrowserStatus>
-  loadUrl(
-    sessionId: string,
-    url: string,
-    timeoutMs?: number,
-    hostWindowId?: number
-  ): Promise<YoBrowserStatus>
-  focusSessionBrowser(sessionId: string, hostWindowId: number): boolean
-  attachSessionBrowser(sessionId: string, hostWindowId: number): Promise<boolean>
-  updateSessionBrowserBounds(
-    sessionId: string,
-    hostWindowId: number,
-    bounds: {
-      x: number
-      y: number
-      width: number
-      height: number
-    },
-    visible: boolean
-  ): Promise<void>
-  detachSessionBrowser(sessionId: string): Promise<void>
-  setPreviewMode(
-    sessionId: string,
-    mode: BrowserPreviewMode,
-    hostWindowId?: number,
-    runId?: string
-  ): Promise<BrowserPreviewModeResult>
-  releaseInactivePreview(sessionId: string): Promise<void>
-  dismissPreview(sessionId: string, runId: string): boolean
-  destroySessionBrowser(sessionId: string): Promise<void>
-  goBack(sessionId: string): Promise<void>
-  goForward(sessionId: string): Promise<void>
-  reload(sessionId: string): Promise<void>
-  getNavigationState(sessionId: string): Promise<{
-    canGoBack: boolean
-    canGoForward: boolean
-  }>
-  captureScreenshot(sessionId: string, options?: ScreenshotOptions): Promise<string>
-  getBrowserPage(sessionId: string): Promise<BrowserPageInfo | null>
-  startDownload(url: string, savePath?: string): Promise<DownloadInfo>
-  clearSandboxData(): Promise<void>
-  scanImportSources(): Promise<BrowserImportScanResult>
-  previewImport(profileId: string): Promise<BrowserImportPreview>
-  applyImport(token: string): Promise<BrowserImportApplyResult>
-  shutdown(): Promise<void>
-  readonly toolHandler: {
-    getToolDefinitions(): MCPToolDefinition[]
-    callTool(
-      toolName: string,
-      args: Record<string, unknown>,
-      conversationId?: string,
-      runId?: string
-    ): Promise<string>
-  }
-}
-
-export interface IComputerUsePreviewPresenter {
-  setPreviewMode(
-    sessionId: string,
-    mode: ComputerUsePreviewMode,
-    hostWindowId?: number
-  ): Promise<ComputerUsePreviewModeResult>
-  dismissPreview(sessionId: string, runId: string): boolean
-  shutdown(): void
-}
 
 export interface ITabPresenter {
   createTab(windowId: number, url: string, options?: TabCreateOptions): Promise<number | null>
@@ -203,8 +106,6 @@ export interface ITabPresenter {
     }
   ): Promise<string | null>
   isLastTabInWindow(tabId: number): Promise<boolean>
-  registerFloatingWindow(webContentsId: number, webContents: WebContents): void
-  unregisterFloatingWindow(webContentsId: number): void
   resetTabToBlank(tabId: number): Promise<void>
   destroy(): Promise<void>
 }

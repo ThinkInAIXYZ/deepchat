@@ -1,4 +1,5 @@
 import { createMemoryIngestionProjectionPort } from '@/memory/data/ingestionProjectionPort'
+import { appHost } from '@/platform/appHost'
 import { createDeepChatProgrammaticToolPort } from '@/cli/deepChatToolPort'
 import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
 import { createDeepChatOutputProjection } from '@/session/outputProjection'
@@ -39,7 +40,7 @@ import {
 import path from 'path'
 import { pathToFileURL } from 'node:url'
 import { DialogService } from '../desktop/dialog'
-import { safeStorage, app, ipcMain, webContents as electronWebContents } from 'electron'
+import { app, ipcMain, webContents as electronWebContents } from 'electron'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope, type DeepchatEventName } from '@shared/contracts/events'
 import { optimizer } from '@electron-toolkit/utils'
@@ -54,11 +55,7 @@ import { projectFinalAssistantAnswer } from '@shared/lib/assistantDeliverySegmen
 import type { SkillMetadataSnapshotPort, SkillServicePort } from '@shared/types/skill'
 import type { SkillSyncServicePort } from '@shared/types/skillSync'
 import type { IConversationExporter } from '../exporter/interface'
-import type {
-  IShortcutPresenter,
-  IWindowPresenter,
-  IYoBrowserPresenter
-} from '@shared/types/desktop'
+import type { IShortcutPresenter, IWindowPresenter } from '@shared/types/desktop'
 import type { DialogServicePort } from '@shared/types/dialog'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { ProviderRuntime } from '../provider'
@@ -100,12 +97,10 @@ import {
 import { DesktopSettings } from '../desktop/settings'
 import { FontSettings } from '../desktop/fontSettings'
 import { TabPresenter } from '../desktop/tab'
+import { secretHost } from '@/platform/secretHost'
 import { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import { TrayPresenter } from '../desktop/tray'
 import { OAuthService } from '../provider/auth'
-import { FloatingButtonPresenter } from '../desktop/floatingButton'
-import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
-import { ComputerUsePreviewPresenter } from '@/desktop/computerUse/ComputerUsePreviewPresenter'
 import { AgentPreviewCoordinator } from '@/desktop/preview/AgentPreviewCoordinator'
 import { KnowledgeService } from '../knowledge'
 import { WorkspaceService } from '../workspace'
@@ -549,13 +544,10 @@ export async function createMainProcessControl(dependencies: {
   let tabPresenter: TabPresenter
   let trayPresenter: TrayPresenter
   let oauthService: OAuthService
-  let floatingButtonPresenter: FloatingButtonPresenter
   let knowledgeService: KnowledgeServicePort
   let workspaceService: WorkspaceServicePort
   let toolService: ToolService
   let deepChatAgentHarness: DeepChatAgentHarness
-  let yoBrowserPresenter: IYoBrowserPresenter
-  let computerUsePreviewPresenter: ComputerUsePreviewPresenter
   let agentPreviewCoordinator: AgentPreviewCoordinator
   let dialogService: DialogServicePort
   let skillService: SkillServicePort & SkillMetadataSnapshotPort
@@ -644,16 +636,16 @@ export async function createMainProcessControl(dependencies: {
   const toolSurfaceRollout = new ToolSurfaceRolloutOwner(TOOL_SURFACE_PRODUCTION_ROLLOUT_POLICY_V1)
   let programmaticToolDispatcher: ProgrammaticToolDispatcher
   const artifactSpool = new ArtifactSpool({
-    directory: path.join(app.getPath('userData'), 'local-control', 'artifacts'),
+    directory: path.join(appHost.getPath('userData'), 'local-control', 'artifacts'),
     consumeAgentBytes: (tokenId, bytes) => agentCliTokenAuthority.consumeBytes(tokenId, bytes),
     log: logger
   })
   const cliAuditLog = new CliAuditLog({
-    directory: path.join(app.getPath('userData'), 'local-control')
+    directory: path.join(appHost.getPath('userData'), 'local-control')
   })
   const cliServer = new CliServer({
-    userDataPath: app.getPath('userData'),
-    appVersion: app.getVersion(),
+    userDataPath: appHost.getPath('userData'),
+    appVersion: appHost.getVersion(),
     dispatch: async (method, input, caller, signal) => {
       if (cliAudioTranscriptionService?.handlesRpc(method)) {
         assertRouteAllowedDuringDatabaseMaintenance(method)
@@ -990,10 +982,9 @@ export async function createMainProcessControl(dependencies: {
     dependencies.settingsStore,
     {
       refreshLanguage: () => {
-        floatingButtonPresenter.refreshLanguage()
         void tabPresenter.refreshLanguage()
       },
-      refreshTheme: () => floatingButtonPresenter.refreshTheme()
+      refreshTheme: async () => {}
     },
     publishDeepchatEvent
   )
@@ -1021,7 +1012,7 @@ export async function createMainProcessControl(dependencies: {
     agentRepository,
     dependencies.acpCatalogSettings,
     () => dependencies.privacySettings.isEnabled(),
-    app.getPath('userData'),
+    appHost.getPath('userData'),
     {
       getModelConfig: (modelId, providerId) => providerSettings.getModelConfig(modelId, providerId),
       setAcpProviderEnabled: (enabled) => {
@@ -1115,7 +1106,7 @@ export async function createMainProcessControl(dependencies: {
     providerSettings,
     providerRuntime,
     artifactSpool,
-    mediaCacheDirectory: path.join(app.getPath('userData'), 'images'),
+    mediaCacheDirectory: path.join(appHost.getPath('userData'), 'images'),
     log: logger
   })
   cliAudioTranscriptionService = new CliAudioTranscriptionService({
@@ -1145,13 +1136,13 @@ export async function createMainProcessControl(dependencies: {
   const commandPermissionHandler = new CommandPermissionService()
   const resolveCliDirectory = () =>
     resolveBundledCliDirectory({
-      appPath: app.getAppPath(),
-      resourcesPath: process.resourcesPath,
-      isPackaged: app.isPackaged
+      appPath: appHost.getAppPath(),
+      resourcesPath: appHost.getResourcesPath(),
+      isPackaged: appHost.isPackaged()
     })
   const cliLauncherService = new CliLauncherService({
-    homeDirectory: app.getPath('home'),
-    userDataDirectory: app.getPath('userData'),
+    homeDirectory: appHost.getPath('home'),
+    userDataDirectory: appHost.getPath('userData'),
     environmentPath: process.env.PATH,
     shell: process.env.SHELL,
     localAppDataDirectory: process.env.LOCALAPPDATA,
@@ -1273,10 +1264,10 @@ export async function createMainProcessControl(dependencies: {
   shortcutPresenter = new ShortcutPresenter(desktopSettings, windowPresenter, publishDeepchatEvent)
   fileService = new FileService(dependencies.settingsStore)
   ocrSettings = new OcrSettings(dependencies.settingsStore, publishDeepchatEvent)
-  const toolchainHomeDir = app.getPath('home')
+  const toolchainHomeDir = appHost.getPath('home')
   const toolchainService = ToolchainService.initialize({
-    appPath: app.getAppPath(),
-    userDataDir: app.getPath('userData'),
+    appPath: appHost.getAppPath(),
+    userDataDir: appHost.getPath('userData'),
     env: mergeDetectionEnv(process.env, toolchainHomeDir, process.platform),
     allowProbe: () => !dependencies.privacySettings.isEnabled(),
     onProgress: (progress) =>
@@ -1307,8 +1298,8 @@ export async function createMainProcessControl(dependencies: {
       })
   }
   ocrRuntimeService = new OcrRuntimeService({
-    appPath: app.getAppPath(),
-    isPackaged: app.isPackaged,
+    appPath: appHost.getAppPath(),
+    isPackaged: appHost.isPackaged(),
     nodeRuntimePath: null,
     resolveNode: () => {
       const resolved = toolchainService.resolve('node', { purpose: 'ocr' })
@@ -1321,11 +1312,11 @@ export async function createMainProcessControl(dependencies: {
       }
       return { executable: resolved.node, version: resolved.version }
     },
-    tempBaseDir: app.getPath('temp'),
-    userDataDir: app.getPath('userData')
+    tempBaseDir: appHost.getPath('temp'),
+    userDataDir: appHost.getPath('userData')
   })
   cliOcrService = new CliOcrService({
-    appVersion: app.getVersion(),
+    appVersion: appHost.getVersion(),
     ocrRuntime: ocrRuntimeService,
     artifactSpool,
     log: logger
@@ -1360,18 +1351,15 @@ export async function createMainProcessControl(dependencies: {
   )
   const syncTokenStorage = {
     protectToken: (token: string) => {
-      if (
-        !safeStorage.isEncryptionAvailable() ||
-        (process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text')
-      ) {
+      if (!secretHost.isAvailable() || secretHost.isInsecure()) {
         throw new Error('sync.error.safeStorageUnavailable')
       }
-      return safeStorage.encryptString(token).toString('base64')
+      return secretHost.encryptString(token).toString('base64')
     },
-    revealToken: (wrapped: string) => safeStorage.decryptString(Buffer.from(wrapped, 'base64'))
+    revealToken: (wrapped: string) => secretHost.decryptString(Buffer.from(wrapped, 'base64'))
   }
   syncPeerService = new SyncPeerService({
-    directory: path.join(app.getPath('userData'), 'sync-peer'),
+    directory: path.join(appHost.getPath('userData'), 'sync-peer'),
     replicaId: () => syncReplica!.replicaId,
     ...syncTokenStorage,
     isLocalDatabaseEncrypted: () => Boolean(mainDatabase.getDatabasePassword()),
@@ -1385,7 +1373,7 @@ export async function createMainProcessControl(dependencies: {
   const syncAppliedSessions = new Set<string>()
   syncReplica = new SyncReplicaStore({
     database: () => mainDatabase.getDatabase(),
-    directory: path.join(app.getPath('userData'), 'sync-replica'),
+    directory: path.join(appHost.getPath('userData'), 'sync-replica'),
     canApply: (kind, id) =>
       databaseMaintenanceState === 'running' &&
       (kind === 'session'
@@ -1505,7 +1493,7 @@ export async function createMainProcessControl(dependencies: {
   })
   const replicaEndpoint = new SyncReplicaEndpoint({
     store: syncReplica,
-    directory: path.join(app.getPath('userData'), 'sync-host'),
+    directory: path.join(appHost.getPath('userData'), 'sync-host'),
     hostId: () => syncHostService.getHostId(),
     available: () =>
       databaseMaintenanceState === 'running' &&
@@ -1514,7 +1502,7 @@ export async function createMainProcessControl(dependencies: {
   })
   automaticSync = new AutomaticSync({
     store: syncReplica,
-    directory: path.join(app.getPath('userData'), 'sync-peer'),
+    directory: path.join(appHost.getPath('userData'), 'sync-peer'),
     connection: () => syncPeerService.connection(),
     available: () =>
       databaseMaintenanceState === 'running' &&
@@ -1535,26 +1523,17 @@ export async function createMainProcessControl(dependencies: {
       return syncService.createHostBackup()
     },
     getFolderPath: () => syncSettings.getFolderPath(),
-    getUserDataPath: () => app.getPath('userData'),
-    getAppVersion: () => app.getVersion(),
+    getUserDataPath: () => appHost.getPath('userData'),
+    getAppVersion: () => appHost.getVersion(),
     logger
   })
   notificationService = new NotificationService(desktopSettings, publishDeepchatEvent)
   trayPresenter = new TrayPresenter(desktopSettings, windowPresenter)
   dialogService = new DialogService(publishDeepchatEvent)
   agentPreviewCoordinator = new AgentPreviewCoordinator()
-  yoBrowserPresenter = new YoBrowserPresenter(
-    windowPresenter,
-    publishDeepchatEvent,
-    agentPreviewCoordinator
-  )
-  computerUsePreviewPresenter = new ComputerUsePreviewPresenter(
-    windowPresenter,
-    agentPreviewCoordinator
-  )
 
   // Define the storage root for built-in knowledge databases.
-  const dbDir = path.join(app.getPath('userData'), 'app_db')
+  const dbDir = path.join(appHost.getPath('userData'), 'app_db')
   knowledgeService = new KnowledgeService({
     config: knowledgeSettings,
     storageRoot: dbDir,
@@ -1595,7 +1574,6 @@ export async function createMainProcessControl(dependencies: {
     publishDeepchatEvent,
     (data, options) => deviceService.cacheImage(data, options),
     pluginRuntimeSupervisor,
-    computerUsePreviewPresenter,
     {
       registry: dependencies.mcpAppSandboxRegistry,
       permissionBroker: toolPermissionBroker,
@@ -1899,7 +1877,6 @@ export async function createMainProcessControl(dependencies: {
       tape: createSkillExecutionAuthorityTapePort(sessionData.tapeStore),
       environments: skillService
     }),
-    browser: yoBrowserPresenter.toolHandler,
     files: {
       getMimeType: (filePath) => fileService.getMimeType(filePath),
       prepareFileCompletely: (absPath, typeInfo, contentType) =>
@@ -1999,13 +1976,7 @@ export async function createMainProcessControl(dependencies: {
     getAgentType: async (agentId) => await agentSettings.getAgentType(agentId)
   }
   const sessionUiPort: SessionUiPort = {
-    refreshSessionUi: () => {
-      try {
-        void floatingButtonPresenter.refreshWidgetState()
-      } catch (error) {
-        console.warn('[Main] Failed to refresh floating widget state:', error)
-      }
-    }
+    refreshSessionUi: () => undefined
   }
   sessionPermissionPort = createSessionPermissionPort({
     agentCliTokenAuthority,
@@ -2077,14 +2048,6 @@ export async function createMainProcessControl(dependencies: {
 
   const publishSessionUpdate = (update: DeepChatInternalSessionUpdate): void => {
     sessionRuntimeEvents.publish(update)
-    if (update.kind === 'status' && (update.status === 'idle' || update.status === 'error')) {
-      void yoBrowserPresenter.releaseInactivePreview(update.sessionId).catch((error) => {
-        logger.warn('[YoBrowser] Failed to release inactive preview', {
-          sessionId: update.sessionId,
-          error
-        })
-      })
-    }
   }
 
   const notifySessionCompleted = (sessionId: string) => {
@@ -2272,14 +2235,6 @@ export async function createMainProcessControl(dependencies: {
     deeplinkService.processStartupUrl()
   )
   ;(windowPresenter as WindowPresenter).bindTabPresenter(tabPresenter)
-  floatingButtonPresenter = new FloatingButtonPresenter(
-    agentSettings,
-    desktopSettings,
-    sessionQuery,
-    desktopSessionBinding,
-    windowPresenter as WindowPresenter,
-    tabPresenter
-  )
   sessionAssignmentPolicy = new SessionAssignmentPolicy(
     {
       resolveAgent: (agentId) => {
@@ -2311,9 +2266,7 @@ export async function createMainProcessControl(dependencies: {
     },
     runtime: {
       cleanupSessionBackends: async (sessionId) =>
-        await agentManager.cleanupSessionBackends(sessionId),
-      destroySessionBrowser: async (sessionId) =>
-        await yoBrowserPresenter.destroySessionBrowser(sessionId)
+        await agentManager.cleanupSessionBackends(sessionId)
     },
     state: deepChatAgentHarness,
     permissions: sessionPermissionPort,
@@ -2729,22 +2682,6 @@ export async function createMainProcessControl(dependencies: {
     scheduleMainStartupTask(
       mainRunId,
       {
-        id: 'main:floating-button',
-        target: 'main',
-        phase: 'deferred',
-        resource: 'io',
-        labelKey: 'startup.main.floatingButton',
-        run: async () => {
-          await initializeFloatingButton()
-        }
-      },
-      'Failed to schedule floating button initialization:',
-      { component: 'floating_widget', category: 'resource' }
-    )
-
-    scheduleMainStartupTask(
-      mainRunId,
-      {
         id: 'main:skills-sync-scan',
         target: 'main',
         phase: 'background',
@@ -2813,16 +2750,6 @@ export async function createMainProcessControl(dependencies: {
         if (isStartupWorkloadCancellation(error)) return
         console.error('Failed to schedule idle provider warmup:', error)
       })
-  }
-
-  async function initializeFloatingButton() {
-    try {
-      await floatingButtonPresenter.initialize()
-      logger.info('FloatingButtonPresenter initialized successfully')
-    } catch (error) {
-      reportMainStartupComponentFailure(dependencies.startupRunId, 'floating_widget', 'resource')
-      console.error('Failed to initialize FloatingButtonPresenter:', error)
-    }
   }
 
   async function initializeSkills(): Promise<void> {
@@ -3031,16 +2958,8 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('semanticNotificationDiagnostics.dispose', () =>
       semanticNotificationDiagnostics.dispose()
     )
-    await runDestroyStep('computerUsePreviewPresenter.shutdown', () =>
-      computerUsePreviewPresenter.shutdown()
-    )
-    await runDestroyStep('yoBrowserPresenter.shutdown', () => yoBrowserPresenter.shutdown())
     await runDestroyStep('agentPreviewCoordinator.shutdown', () =>
       agentPreviewCoordinator.shutdown()
-    )
-    await runDestroyStep('floatingButtonPresenter.destroy', () => floatingButtonPresenter.destroy())
-    await runDestroyStep('windowPresenter.destroyFloatingChatWindow', () =>
-      windowPresenter.destroyFloatingChatWindow()
     )
     await runDestroyStep('tabPresenter.destroy', () => tabPresenter.destroy())
     await runDestroyStep('windowPresenter.destroyWindows', () => {
@@ -3175,13 +3094,10 @@ export async function createMainProcessControl(dependencies: {
         sessionLifecycle.ownsDraftSession(sessionId, webContentsId),
       windowPresenter,
       shortcutPresenter,
-      browserPresenter: yoBrowserPresenter,
-      computerUsePreviewPresenter,
       desktopSessionBinding,
       tabPresenter,
       dialogService,
       settings: desktopSettings,
-      setFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled),
       recordActivity: (input) => {
         void settingsDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
@@ -3409,7 +3325,7 @@ export async function createMainProcessControl(dependencies: {
       splash: dependencies.splash
     })
     const cliRoutes = createCliRoutes({
-      appVersion: app.getVersion(),
+      appVersion: appHost.getVersion(),
       getStatus: () => cliServer.getStatus(),
       hasTrustedRenderer: async () =>
         (await semanticNotificationTargets.getExistingTargets()).some(
@@ -3493,7 +3409,7 @@ export async function createMainProcessControl(dependencies: {
     })
     const authorizeRendererIpc = createRendererIpcAuthorizer({
       rendererDirectoryUrl: pathToFileURL(path.join(__dirname, '../renderer/')).href,
-      developmentServerUrl: app.isPackaged ? undefined : process.env.ELECTRON_RENDERER_URL,
+      developmentServerUrl: appHost.isPackaged() ? undefined : process.env.ELECTRON_RENDERER_URL,
       pluginSettingsWindow
     })
     registerDeepchatRoutes(ipcMain, routeDispatcher, authorizeRendererIpc)
@@ -3876,9 +3792,7 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function openRemoteSession(sessionId: string): Promise<boolean> {
-    const chatWindows = windowPresenter
-      .getAllWindows()
-      .filter((window) => tabPresenter.getWindowType(window.id) === 'chat')
+    const chatWindows = windowPresenter.getAllWindows()
     const focusedWindow = windowPresenter.getFocusedWindow()
     const targetWindow =
       focusedWindow && chatWindows.some((window) => window.id === focusedWindow.id)

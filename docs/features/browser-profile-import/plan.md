@@ -1,5 +1,7 @@
 # Browser Website Data and Session Import Implementation Plan
 
+> **状态：已在 mygo 迁移中移除。** 该导入功能仅服务于 YoBrowser 会话，随内置浏览器一起下线，本文档仅作为历史设计记录保留。
+
 ## Status
 
 V1 implemented. This document remains the design record; unchecked tasks are validation or later

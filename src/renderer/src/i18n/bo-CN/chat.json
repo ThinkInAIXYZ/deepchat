@@ -1,7 +1,10 @@
 {
   "sessionReference": {
     "copy": "གླེང་མོལ་གྱི་ལུང་འདྲེན་འདྲ་བཤུས།",
-    "groups": { "session": "གླེང་མོལ།", "file": "ཡིག་ཆ།" },
+    "groups": {
+      "session": "གླེང་མོལ།",
+      "file": "ཡིག་ཆ།"
+    },
     "open": "{title} ཁ་ཕྱེ།",
     "unavailableTitle": "གླེང་མོལ་གྱི་ལུང་འདྲེན་མི་འདུག",
     "unavailableDescription": "གླེང་མོལ་འདི་བསུབས་པའམ་བསྐྱར་སྒྲིག་བྱས་ཟིན།",
@@ -69,8 +72,7 @@
         "agentCore": "ལྟེ་བའི་ལག་ཆ།",
         "agentImageGeneration": "པར་རིས་སྐྱེད་པ།",
         "agentSkills": "རྩལ་ནུས་ལག་ཆ།",
-        "deepchatSettings": "DeepChat སྒྲིག་འགོད།",
-        "yobrowser": "YoBrowser"
+        "deepchatSettings": "DeepChat སྒྲིག་འགོད།"
       }
     },
     "toolMode": {

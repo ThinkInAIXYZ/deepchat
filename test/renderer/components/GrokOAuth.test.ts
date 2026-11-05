@@ -75,8 +75,8 @@ describe('GrokOAuth', () => {
     vi.doMock('@api/OAuthClient', () => ({
       createOAuthClient: () => oauthClient
     }))
-    vi.doMock('@api/BrowserClient', () => ({
-      createBrowserClient: () => browserClient
+    vi.doMock('@api/runtime', () => ({
+      openRuntimeExternal: browserClient.openExternal
     }))
     vi.doMock('@/stores/modelCheck', () => ({
       useModelCheckStore: () => modelCheckStore

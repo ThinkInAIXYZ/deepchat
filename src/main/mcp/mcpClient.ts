@@ -1,4 +1,5 @@
 import { NOWLEDGE_PLUGIN_ID } from '@shared/types/nowledgeMemPlugin'
+import { appHost } from '@/platform/appHost'
 import { resolveMcpEnvironmentBinding } from './environmentBindings'
 import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
@@ -37,7 +38,6 @@ import type {
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
-import { app } from 'electron'
 // import { NO_PROXY, proxyConfig } from '@/platform/proxy'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
@@ -572,7 +572,7 @@ export class McpClient {
         command = this.runtimeHelper.expandPath(command)
         args = args.map((arg) => this.runtimeHelper.expandPath(arg))
 
-        const HOME_DIR = app.getPath('home')
+        const HOME_DIR = appHost.getPath('home')
 
         // Define allowed environment variables whitelist
         const allowedEnvVars = [
@@ -734,7 +734,7 @@ export class McpClient {
           this.serverConfig as Partial<MCPServerConfig>
         ) ?? []
       this.client = new Client(
-        { name: 'DeepChat', version: app.getVersion() },
+        { name: 'DeepChat', version: appHost.getVersion() },
         {
           capabilities: {
             sampling: {},

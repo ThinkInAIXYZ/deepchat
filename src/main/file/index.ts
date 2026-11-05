@@ -1,5 +1,8 @@
 import logger from '@shared/logger'
-import { app, clipboard, dialog, nativeImage, net } from 'electron'
+import { appHost } from '@/platform/appHost'
+import { netHost } from '@/platform/netHost'
+import { dialogHost } from '@/platform/dialogHost'
+import { clipboardHost } from '@/platform/clipboardHost'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -127,7 +130,7 @@ export class FileService implements FileServicePort {
     settings: Pick<SettingsStore, 'get'>,
     fileValidationService?: IFileValidationService
   ) {
-    this.userDataPath = app.getPath('userData')
+    this.userDataPath = appHost.getPath('userData')
     this.tempDir = path.join(this.userDataPath, 'temp')
     this.settings = settings
     this.fileValidationService = fileValidationService || new FileValidationService()
@@ -353,7 +356,7 @@ export class FileService implements FileServicePort {
 
     const preferredExtension = getImageExtensionFromMimeType(image.mimeType)
     const extensions = Array.from(new Set([preferredExtension, ...IMAGE_SAVE_EXTENSIONS]))
-    const { canceled, filePath } = await dialog.showSaveDialog({
+    const { canceled, filePath } = await dialogHost.showSaveDialog({
       defaultPath,
       filters: [
         { name: 'Images', extensions },
@@ -371,8 +374,7 @@ export class FileService implements FileServicePort {
 
   async copyImage(file: SaveImageInput): Promise<{ copied: boolean }> {
     const image = await this.resolveImageData(file)
-    const clipboardImage = this.createClipboardImage(image)
-    clipboard.writeImage(clipboardImage)
+    clipboardHost.writeImageBytes(image.data, image.mimeType)
     return { copied: true }
   }
 
@@ -411,7 +413,7 @@ export class FileService implements FileServicePort {
   }
 
   private async resolveCachedImage(source: string): Promise<ResolvedImageData> {
-    const cacheDir = path.join(app.getPath('userData'), 'images')
+    const cacheDir = path.join(appHost.getPath('userData'), 'images')
     const rawCachePath = source.slice('imgcache://'.length)
     const cachePath = this.safeDecodePath(rawCachePath)
     const fullPath = path.resolve(cacheDir, cachePath)
@@ -441,7 +443,7 @@ export class FileService implements FileServicePort {
       throw new Error('Unsupported image URL')
     }
 
-    const response = await net.fetch(url.toString())
+    const response = await netHost.fetch(url.toString())
     if (!response.ok) {
       throw new Error(`Failed to download image: ${response.status}`)
     }
@@ -476,21 +478,6 @@ export class FileService implements FileServicePort {
     }
 
     return { data, mimeType }
-  }
-
-  private createClipboardImage(image: ResolvedImageData): Electron.NativeImage {
-    const imageFromBuffer = nativeImage.createFromBuffer(image.data)
-    if (!imageFromBuffer.isEmpty()) {
-      return imageFromBuffer
-    }
-
-    const dataUrl = `data:${image.mimeType};base64,${image.data.toString('base64')}`
-    const imageFromDataUrl = nativeImage.createFromDataURL(dataUrl)
-    if (!imageFromDataUrl.isEmpty()) {
-      return imageFromDataUrl
-    }
-
-    throw new Error('Image data cannot be copied to clipboard')
   }
 
   private safeDecodePath(filePath: string): string {

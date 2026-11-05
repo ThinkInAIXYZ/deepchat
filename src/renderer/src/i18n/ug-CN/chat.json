@@ -1,7 +1,10 @@
 {
   "sessionReference": {
     "copy": "سۆھبەت نەقىلىنى كۆچۈرۈش",
-    "groups": { "session": "سۆھبەتلەر", "file": "ھۆججەتلەر" },
+    "groups": {
+      "session": "سۆھبەتلەر",
+      "file": "ھۆججەتلەر"
+    },
     "open": "{title} نى ئېچىش",
     "unavailableTitle": "سۆھبەت نەقىلىنى ئىشلەتكىلى بولمايدۇ",
     "unavailableDescription": "بۇ سۆھبەت ئۆچۈرۈلگەن، قايتا تەڭشەلگەن ياكى مەۋجۇت ئەمەس.",
@@ -69,8 +72,7 @@
         "agentCore": "يادرولۇق قوراللار",
         "agentImageGeneration": "رەسىم ھاسىل قىلىش",
         "agentSkills": "مەھارەت قوراللىرى",
-        "deepchatSettings": "DeepChat نى تەڭشەش",
-        "yobrowser": "YoBrowser"
+        "deepchatSettings": "DeepChat نى تەڭشەش"
       }
     },
     "toolMode": {

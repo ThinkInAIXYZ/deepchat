@@ -1,11 +1,11 @@
 import { LODY_EXTENSION_METHODS } from 'acp-extension-core'
+import { appHost } from '@/platform/appHost'
 import { parseLodyNotification, type AcpExtensionNotification } from './acpLodyExtensions'
 import { AcpElicitationBridge } from './acpElicitationBridge'
 import spawn from 'cross-spawn'
 import type { ChildProcessWithoutNullStreams } from 'child_process'
 import { Readable, Writable } from 'node:stream'
 import { randomUUID } from 'node:crypto'
-import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import { client, PROTOCOL_VERSION, RequestError } from '@agentclientprotocol/sdk'
@@ -416,12 +416,12 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
    * Keeps file access constrained to a temp directory rather than the entire filesystem.
    */
   private getFallbackWorkdir(): string {
-    const tempDir = path.join(app.getPath('temp'), 'deepchat-acp', 'sessions')
+    const tempDir = path.join(appHost.getPath('temp'), 'deepchat-acp', 'sessions')
     try {
       fs.mkdirSync(tempDir, { recursive: true })
     } catch (error) {
       console.warn('[ACP] Failed to create fallback workdir, defaulting to system temp:', error)
-      return app.getPath('temp')
+      return appHost.getPath('temp')
     }
     return tempDir
   }
@@ -1487,7 +1487,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
           enableElicitation: this.enableElicitation,
           enableSubagentEvents: this.enableSubagentEvents
         }),
-        clientInfo: { name: 'DeepChat', version: app.getVersion() }
+        clientInfo: { name: 'DeepChat', version: appHost.getVersion() }
       }
       this.debugLog.append(agent.id, {
         kind: 'request',

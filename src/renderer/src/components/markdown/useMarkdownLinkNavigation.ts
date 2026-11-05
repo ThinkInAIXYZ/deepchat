@@ -1,5 +1,5 @@
+import { openRuntimeExternal } from '@api/runtime'
 import { toValue, type MaybeRefOrGetter } from 'vue'
-import { createBrowserClient } from '@api/BrowserClient'
 import { createWorkspaceClient } from '@api/WorkspaceClient'
 import { useSessionStore } from '@/stores/ui/session'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
@@ -22,7 +22,6 @@ function buildSafeAttributeSelector(value: string): string {
 export function useMarkdownLinkNavigation(options: UseMarkdownLinkNavigationOptions = {}) {
   const sessionStore = useSessionStore()
   const sidepanelStore = useSidepanelStore()
-  const browserClient = createBrowserClient()
   const workspaceClient = createWorkspaceClient()
 
   const getSessionContext = (): SessionContext => {
@@ -42,7 +41,7 @@ export function useMarkdownLinkNavigation(options: UseMarkdownLinkNavigationOpti
 
   const openExternal = async (url: string): Promise<boolean> => {
     try {
-      await browserClient.openExternal(url)
+      await openRuntimeExternal(url)
       return true
     } catch (error) {
       console.warn('[markdown-links] Failed to open external link:', url, error)
@@ -71,22 +70,6 @@ export function useMarkdownLinkNavigation(options: UseMarkdownLinkNavigationOpti
     }
 
     return false
-  }
-
-  const openInYoBrowser = async (url: string): Promise<boolean> => {
-    const { sessionId } = getSessionContext()
-    if (!sessionId) {
-      return openExternal(url)
-    }
-
-    try {
-      sidepanelStore.openBrowser()
-      await browserClient.loadUrl(sessionId, url)
-      return true
-    } catch (error) {
-      console.warn('[markdown-links] Failed to open link in YoBrowser:', url, error)
-      return openExternal(url)
-    }
   }
 
   const openLocalFile = async (href: string): Promise<boolean> => {
@@ -132,7 +115,7 @@ export function useMarkdownLinkNavigation(options: UseMarkdownLinkNavigationOpti
         if (event?.altKey) {
           return openExternal(target.url)
         }
-        return openInYoBrowser(target.url)
+        return openExternal(target.url)
       case 'system':
       case 'external':
         event?.preventDefault()

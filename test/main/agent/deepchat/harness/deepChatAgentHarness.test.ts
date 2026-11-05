@@ -8325,7 +8325,6 @@ describe('DeepChatAgentHarness', () => {
       await agent.processMessage('s1', 'Inspect tools')
 
       expect(runtimeBuilder).toHaveBeenCalledWith({
-        hasYoBrowser: false,
         hasExec: true,
         hasProcess: false
       })
@@ -16369,82 +16368,6 @@ describe('DeepChatAgentHarness', () => {
       ).toBe(true)
     })
 
-    it('normalizes deferred screenshot tool results before resume', async () => {
-      tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-deferred-offload-'))
-      getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
-
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
-        visionModel: { providerId: 'anthropic', modelId: 'claude-3-7-sonnet' }
-      })
-      makeAssistantRow({
-        blocks: [
-          {
-            type: 'tool_call',
-            status: 'pending',
-            timestamp: 1,
-            tool_call: {
-              id: 'tc1',
-              name: 'cdp_send',
-              params: '{"method":"Page.captureScreenshot"}',
-              response: ''
-            }
-          },
-          {
-            type: 'action',
-            action_type: 'tool_call_permission',
-            status: 'pending',
-            timestamp: 2,
-            content: 'Need permission',
-            tool_call: {
-              id: 'tc1',
-              name: 'cdp_send',
-              params: '{"method":"Page.captureScreenshot"}'
-            },
-            extra: {
-              needsUserAction: true,
-              permissionType: 'write',
-              permissionRequest: JSON.stringify({
-                permissionType: 'write',
-                description: 'Need permission',
-                toolName: 'cdp_send',
-                serverName: 'yo-browser'
-              })
-            }
-          }
-        ]
-      })
-      toolService.getAllToolDefinitions.mockResolvedValueOnce([
-        {
-          type: 'function',
-          function: {
-            name: 'cdp_send',
-            description: 'CDP send',
-            parameters: { type: 'object', properties: {} }
-          },
-          server: { name: 'yo-browser', icons: '', description: '' }
-        }
-      ])
-      toolService.callTool.mockResolvedValueOnce({
-        content: JSON.stringify({ data: 'x'.repeat(7000) }),
-        rawData: { content: JSON.stringify({ data: 'x'.repeat(7000) }), isError: false }
-      })
-
-      const result = await agent.respondToolInteraction('s1', 'm1', 'tc1', {
-        kind: 'permission',
-        granted: true
-      })
-
-      expect(result).toEqual({ resumed: true })
-      const updatedBlocks = JSON.parse(
-        sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
-      )
-      expect(updatedBlocks[0].tool_call.response).toBe('English screenshot summary')
-      expect(updatedBlocks[0].tool_call.response).not.toContain('[Tool output offloaded]')
-      expect(updatedBlocks[0].status).toBe('success')
-      expect(processStream).toHaveBeenCalledTimes(1)
-    })
-
     it('does not rewrite a guard-owned deferred artifact before a budget downgrade', async () => {
       const originalOffloadPath = '/tmp/original-tool-output.offload'
       vi.spyOn(ToolOutputGuard.prototype, 'prepareToolOutput').mockResolvedValueOnce({
@@ -16467,7 +16390,7 @@ describe('DeepChatAgentHarness', () => {
             timestamp: 1,
             tool_call: {
               id: 'tc1',
-              name: 'cdp_send',
+              name: 'grep',
               params: '{"method":"Page.captureScreenshot"}',
               response: ''
             }
@@ -16480,7 +16403,7 @@ describe('DeepChatAgentHarness', () => {
             content: 'Need permission',
             tool_call: {
               id: 'tc1',
-              name: 'cdp_send',
+              name: 'grep',
               params: '{"method":"Page.captureScreenshot"}'
             },
             extra: {
@@ -16489,7 +16412,7 @@ describe('DeepChatAgentHarness', () => {
               permissionRequest: JSON.stringify({
                 permissionType: 'write',
                 description: 'Need permission',
-                toolName: 'cdp_send',
+                toolName: 'grep',
                 serverName: 'yo-browser'
               })
             }
@@ -16500,7 +16423,7 @@ describe('DeepChatAgentHarness', () => {
         {
           type: 'function',
           function: {
-            name: 'cdp_send',
+            name: 'grep',
             description: 'CDP send',
             parameters: { type: 'object', properties: {} }
           },
@@ -19360,9 +19283,10 @@ describe('DeepChatAgentHarness', () => {
       const normalized = await normalizeToolResult({
         sessionId: 's1',
         toolCallId: 'tc1',
-        toolName: 'cdp_send',
-        toolArgs: '{"method":"Page.captureScreenshot"}',
-        content: '{"data":"YWJj"}',
+        toolName: 'get_window_state',
+        toolArgs: '{"include_screenshot":true}',
+        content: [{ type: 'image', mimeType: 'image/jpeg', data: 'YWJj' }],
+        ownerPluginId: 'com.deepchat.plugins.cua',
         isError: false
       })
 
@@ -19385,7 +19309,7 @@ describe('DeepChatAgentHarness', () => {
         expect.any(Number),
         { signal: undefined, swallowErrors: false }
       )
-      expect(normalized).toBe('English screenshot summary')
+      expect(JSON.stringify(normalized)).toContain('English screenshot summary')
     })
 
     it('returns a cancellation message when screenshot normalization is aborted', async () => {
@@ -19395,16 +19319,19 @@ describe('DeepChatAgentHarness', () => {
       const normalized = await normalizeToolResult({
         sessionId: 's1',
         toolCallId: 'tc1',
-        toolName: 'cdp_send',
-        toolArgs: '{"method":"Page.captureScreenshot"}',
-        content: '{"data":"YWJj"}',
+        toolName: 'get_window_state',
+        toolArgs: '{"include_screenshot":true}',
+        content: [{ type: 'image', mimeType: 'image/jpeg', data: 'YWJj' }],
+        ownerPluginId: 'com.deepchat.plugins.cua',
         isError: false,
         abortSignal: abortController.signal
       })
 
       expect(llmProvider.executeWithRateLimit).not.toHaveBeenCalled()
       expect(llmProvider.generateCompletionStandalone).not.toHaveBeenCalled()
-      expect(normalized).toBe('Screenshot captured, but automatic English analysis was canceled.')
+      expect(JSON.stringify(normalized)).toContain(
+        'Screenshot captured, but automatic English analysis was canceled.'
+      )
     })
 
     it('ignores fallback agent vision models when the agent does not support vision', async () => {
@@ -19433,9 +19360,10 @@ describe('DeepChatAgentHarness', () => {
       const normalized = await normalizeToolResult({
         sessionId: 's1',
         toolCallId: 'tc1',
-        toolName: 'cdp_send',
-        toolArgs: '{"method":"Page.captureScreenshot"}',
-        content: '{"data":"YWJj"}',
+        toolName: 'get_window_state',
+        toolArgs: '{"include_screenshot":true}',
+        content: [{ type: 'image', mimeType: 'image/jpeg', data: 'YWJj' }],
+        ownerPluginId: 'com.deepchat.plugins.cua',
         isError: false
       })
 
@@ -19445,7 +19373,7 @@ describe('DeepChatAgentHarness', () => {
         'vision'
       )
       expect(llmProvider.generateCompletionStandalone).not.toHaveBeenCalled()
-      expect(normalized).toBe(
+      expect(JSON.stringify(normalized)).toContain(
         'Screenshot captured, but automatic English analysis is unavailable because neither the current session model nor the agent vision model can analyze images.'
       )
     })
@@ -19458,14 +19386,16 @@ describe('DeepChatAgentHarness', () => {
       const normalized = await normalizeToolResult({
         sessionId: 's1',
         toolCallId: 'tc1',
-        toolName: 'cdp_send',
-        toolArgs: '{"method":"Page.captureScreenshot"}',
-        content: '{"data":"YWJj"}',
+        toolName: 'get_window_state',
+        toolArgs: '{"include_screenshot":true}',
+        content: [{ type: 'image', mimeType: 'image/jpeg', data: 'YWJj' }],
+        ownerPluginId: 'com.deepchat.plugins.cua',
         isError: false
       })
 
-      expect(normalized).toContain('neither the current session model nor the agent vision model')
-      expect(normalized).not.toContain('YWJj')
+      expect(JSON.stringify(normalized)).toContain(
+        'neither the current session model nor the agent vision model'
+      )
       expect(llmProvider.generateCompletionStandalone).not.toHaveBeenCalled()
     })
   })

@@ -6,8 +6,8 @@ const { openExternal } = vi.hoisted(() => ({
   openExternal: vi.fn().mockResolvedValue(undefined)
 }))
 
-vi.mock('@api/BrowserClient', () => ({
-  createBrowserClient: () => ({ openExternal })
+vi.mock('@api/runtime', () => ({
+  openRuntimeExternal: openExternal
 }))
 
 vi.mock('@/stores/theme', () => ({

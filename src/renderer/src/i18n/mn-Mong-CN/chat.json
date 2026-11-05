@@ -1,7 +1,10 @@
 {
   "sessionReference": {
     "copy": "ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠤ ᠡᠰᠢᠯᠡᠯ ᠢ ᠬᠠᠭᠤᠯᠪᠤᠷᠢᠯᠠᠬᠤ",
-    "groups": { "session": "ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ", "file": "ᠹᠠᠶᠢᠯ" },
+    "groups": {
+      "session": "ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ",
+      "file": "ᠹᠠᠶᠢᠯ"
+    },
     "open": "{title} ᠨᠡᠭᠡᠭᠡᠬᠦ",
     "unavailableTitle": "ᠶᠠᠷᠢᠯᠴᠠᠭᠠᠨ ᠤ ᠡᠰᠢᠯᠡᠯ ᠠᠰᠢᠭᠯᠠᠬᠤ ᠪᠣᠯᠣᠮᠵᠢ ᠦᠭᠡᠢ",
     "unavailableDescription": "ᠡᠨᠡ ᠶᠠᠷᠢᠯᠴᠠᠭ᠎ᠠ ᠤᠰᠠᠳᠬᠠᠭᠳᠠᠭᠰᠠᠨ ᠪᠤᠶᠤ ᠳᠠᠬᠢᠨ ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠤᠭᠳᠠᠪᠠ.",
@@ -69,8 +72,7 @@
         "agentCore": "ᠪᠠᠭᠠᠵᠢ",
         "agentImageGeneration": "ᠶᠢᠨ ᠪᠥᠲᠥᠭᠡᠯᠲᠡ",
         "agentSkills": "ᠮᠡᠷᠭᠡᠵᠢᠯ ᠪᠠᠭᠠᠵᠢ",
-        "deepchatSettings": "DeepChat ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠭ᠎ᠠ",
-        "yobrowser": "YoBrowser"
+        "deepchatSettings": "DeepChat ᠲᠣᠬᠢᠷᠠᠭᠤᠯᠭ᠎ᠠ"
       }
     },
     "toolMode": {

@@ -129,26 +129,6 @@ describe('extractToolCallImagePreviews', () => {
     ])
   })
 
-  it('preserves CDP screenshot metadata when image caching is unavailable', async () => {
-    const previews = await extractToolCallImagePreviews({
-      toolName: 'cdp_send',
-      toolArgs: JSON.stringify({
-        method: 'Page.captureScreenshot',
-        params: { format: 'jpeg' }
-      }),
-      content: JSON.stringify({ data: 'BBBB' })
-    })
-
-    expect(previews).toEqual([
-      {
-        id: 'screenshot-1',
-        mimeType: 'image/jpeg',
-        title: 'Page.captureScreenshot',
-        source: 'screenshot'
-      }
-    ])
-  })
-
   it('extracts explicit image references from JSON output', async () => {
     const cacheImage = vi.fn(async () => 'imgcache://output.webp')
 

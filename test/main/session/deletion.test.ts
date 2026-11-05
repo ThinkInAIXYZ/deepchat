@@ -47,9 +47,6 @@ function createHarness() {
     runtime: {
       cleanupSessionBackends: vi.fn(async (sessionId: string) => {
         order.push(`runtime:${sessionId}`)
-      }),
-      destroySessionBrowser: vi.fn(async (sessionId: string) => {
-        order.push(`browser:${sessionId}`)
       })
     },
     state: {
@@ -86,10 +83,8 @@ describe('SessionDeletion', () => {
     ])
     expect(harness.order).toEqual([
       'runtime:parent',
-      'browser:parent',
       'orchestration:parent',
       'runtime:child',
-      'browser:child',
       'orchestration:child',
       'state:child',
       'skills:clear:child',
@@ -115,9 +110,6 @@ describe('SessionDeletion', () => {
       new Error('orchestration failed')
     )
     harness.dependencies.runtime.cleanupSessionBackends.mockRejectedValue(backendError)
-    harness.dependencies.runtime.destroySessionBrowser.mockRejectedValue(
-      new Error('browser cleanup failed')
-    )
     harness.dependencies.state.destroySession.mockRejectedValue(new Error('state failed'))
     harness.dependencies.skills.clearNewAgentSessionSkills.mockRejectedValue(
       new Error('skill cleanup failed')
@@ -127,7 +119,6 @@ describe('SessionDeletion', () => {
     expect(harness.dependencies.state.destroySession).toHaveBeenCalledWith('parent')
     expect(harness.dependencies.sessions.delete).toHaveBeenCalledWith('parent')
     expect(harness.dependencies.orchestration.prepareSessionDeletion).toHaveBeenCalledWith('parent')
-    expect(harness.dependencies.runtime.destroySessionBrowser).toHaveBeenCalledWith('parent')
     expect(harness.dependencies.permissions.clearSessionPermissions).toHaveBeenCalledWith('parent')
     expect(harness.dependencies.skills.completeNewAgentSessionSkillsDeletion).toHaveBeenCalledWith(
       'parent'

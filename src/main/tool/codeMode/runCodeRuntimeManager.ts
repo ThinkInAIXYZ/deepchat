@@ -1,8 +1,10 @@
 import fs from 'node:fs'
+import { appHost } from '@/platform/appHost'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
-import type { UtilityProcess } from 'electron'
+import type { HostedProcess } from '@/platform/processHost'
+import { processHost } from '@/platform/processHost'
 import type { MCPToolDefinition, MCPToolResponse, ToolDispatchCommitInput } from '@shared/types/mcp'
 import type { ToolCallOptions } from '@shared/types/tool'
 import {
@@ -20,14 +22,7 @@ import { MAX_EXECUTION_JOURNAL_NESTED_CHILDREN } from '@/tape/domain/executionJo
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { normalizeCodexToolName } from './toolModeTools'
 
-type CodeModeUtilityProcess = Pick<UtilityProcess, 'postMessage' | 'kill' | 'pid'> & {
-  on(event: 'message', listener: (message: unknown) => void): CodeModeUtilityProcess
-  on(event: 'exit', listener: (code: number) => void): CodeModeUtilityProcess
-  on(event: 'error', listener: (type: string, location: string) => void): CodeModeUtilityProcess
-  off(event: 'message', listener: (message: unknown) => void): CodeModeUtilityProcess
-  off(event: 'exit', listener: (code: number) => void): CodeModeUtilityProcess
-  off(event: 'error', listener: (type: string, location: string) => void): CodeModeUtilityProcess
-}
+type CodeModeUtilityProcess = HostedProcess
 
 export interface RunCodeNestedExecutionInput {
   sessionId: string
@@ -1046,11 +1041,10 @@ export class RunCodeRuntimeManager {
 
   private inspectRss(cell: ActiveCell): void {
     if (!cell.host.pid) return
-    void import('electron')
-      .then(({ app }) => {
+    void processHost
+      .getMemoryRssBytes(cell.host.pid)
+      .then((rssBytes) => {
         if (cell.state === 'stopping') return
-        const metric = app.getAppMetrics().find((entry) => entry.pid === cell.host.pid)
-        const rssBytes = metric ? metric.memory.workingSetSize * 1024 : null
         if (rssBytes === null) return
         cell.startupRssBytes ??= rssBytes
         const softLimit = Math.max(RSS_SOFT_MIN_BYTES, cell.startupRssBytes + RSS_SOFT_DELTA_BYTES)
@@ -1135,8 +1129,7 @@ export class RunCodeRuntimeManager {
   }
 
   private async spawnDefaultHost(): Promise<CodeModeUtilityProcess> {
-    const { app, utilityProcess } = await import('electron')
-    const modulePath = this.resolveUtilityHostEntryPoint(app.getAppPath())
+    const modulePath = this.resolveUtilityHostEntryPoint(appHost.getAppPath())
     const env: Record<string, string> = {
       DEEPCHAT_CODE_MODE_HOST: '1'
     }
@@ -1144,13 +1137,12 @@ export class RunCodeRuntimeManager {
       const value = process.env[name]
       if (value) env[name] = value
     }
-    return utilityProcess.fork(modulePath, ['--deepchat-code-mode-host'], {
+    return processHost.fork(modulePath, ['--deepchat-code-mode-host'], {
       serviceName: 'DeepChat Code Mode Cell',
       stdio: 'ignore',
       env,
-      execArgv: ['--max-old-space-size=64'],
-      allowLoadingUnsignedLibraries: false
-    }) as CodeModeUtilityProcess
+      execArgv: ['--max-old-space-size=64']
+    })
   }
 
   private resolveUtilityHostEntryPoint(appPath?: string): string {

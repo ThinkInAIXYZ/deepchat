@@ -671,45 +671,6 @@
       "failedTitle": "Aktualisierung fehlgeschlagen",
       "failedDescription": "Modellkonfiguration kann vorübergehend nicht aktualisiert werden. Bitte später erneut versuchen."
     },
-    "yoBrowser": {
-      "title": "YoBrowser-Sandbox",
-      "description": "Unabhängige Browser-Sandbox, die Cookies und lokalen Speicher nicht mit der Haupt-App teilt. YoBrowser-Daten können hier mit einem Klick gelöscht werden.",
-      "clearButton": "YoBrowser-Daten löschen",
-      "confirmTitle": "YoBrowser-Daten wirklich löschen?",
-      "confirmDescription": "Cookies, Cache, LocalStorage, IndexedDB und weitere Daten der YoBrowser-Sitzung werden gelöscht. Möglicherweise müssen Sie sich auf Websites erneut anmelden.",
-      "confirmAction": "Jetzt löschen",
-      "clearing": "Wird bereinigt...",
-      "clearedTitle": "YoBrowser-Daten gelöscht",
-      "clearedDescription": "Die Sandbox-Sitzung wurde zurückgesetzt; zugehörige Tabs werden neu geladen.",
-      "clearFailedTitle": "Löschen fehlgeschlagen",
-      "clearFailedDescription": "Bitte erneut versuchen oder Protokolle für weitere Informationen prüfen.",
-      "import": {
-        "button": "Import website data",
-        "title": "Import browser session data",
-        "description": "Choose a Chrome or Arc profile. macOS may ask you to authorize Keychain access. The source is never modified.",
-        "scanning": "Looking for browser profiles...",
-        "unsupportedTitle": "Not supported on this platform",
-        "unsupportedDescription": "Direct browser data import is currently available only on macOS. Windows remains unsupported because current Chrome data is app-bound.",
-        "profileLabel": "Source profile",
-        "profilePlaceholder": "Select a profile",
-        "noProfiles": "No supported Chrome or Arc profiles with cookie data were found.",
-        "cookies": "Cookies and sessions",
-        "supported": "Included in this import",
-        "otherData": "Passwords and web storage",
-        "notIncluded": "Not included in this version",
-        "preview": "Authorize and preview",
-        "previewTitle": "Ready to replace YoBrowser cookies",
-        "previewDescription": "{count} cookies can be imported. Existing YoBrowser cookies will be replaced.",
-        "skipped": "Skipped: {expired} expired, {partitioned} partitioned.",
-        "confirm": "Replace and import",
-        "doneTitle": "Import complete",
-        "doneDescription": "Imported {count} cookies. Open browser pages were reloaded.",
-        "keyDenied": "Keychain access was denied or the browser key could not be read.",
-        "previewExpired": "The source changed or the preview expired. Create a new preview.",
-        "encryptionUnsupported": "This profile uses an encryption format that this importer does not support.",
-        "failed": "Import failed before completion. Existing YoBrowser cookies were restored when mutation had started."
-      }
-    },
     "privacyTitle": "Data & Privacy",
     "privacyDescription": "Backup-Synchronisierung, Privatsphärenmodus, Datenwartung und gefährliche Aktionen verwalten.",
     "dangerZone": {
@@ -2053,9 +2014,7 @@
     "text-base": "Standard",
     "text-lg": "Groß",
     "text-xl": "Sehr groß",
-    "text-2xl": "Extra groß",
-    "floatingButton": "Schwebende Schaltfläche",
-    "floatingButtonDesc": "Eine schwebende Schaltfläche auf dem Desktop anzeigen, um das App-Fenster schnell zu öffnen"
+    "text-2xl": "Extra groß"
   },
   "shortcuts": {
     "title": "Tastenkürzel-Einstellungen",

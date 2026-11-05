@@ -10,7 +10,6 @@ import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundE
 import * as sessionVisionResolverModule from '@/agent/vision/sessionVisionResolver'
 import { createAgentToolDependencies } from './agentToolDependencies'
 import { CommandPermissionService } from '@/tool/permission'
-import { getYoBrowserToolDefinitions } from '@/tool/browser/definitions'
 import { selectToolBatchExecutionMode } from '@/agent/deepchat/runtime/toolExecutionPolicy'
 
 vi.mock('fs', async (importOriginal) => {
@@ -268,17 +267,9 @@ describe('AgentToolManager read routing', () => {
         agentWorkspacePath: workspaceDir,
         conversationId: 'conv1',
         skillsEnabled: true
-      })),
-      ...getYoBrowserToolDefinitions()
+      }))
     ]
-    const names = [
-      'glob',
-      'grep',
-      'skill_list',
-      'tape_search',
-      'tape_context',
-      'get_browser_status'
-    ]
+    const names = ['glob', 'grep', 'skill_list', 'tape_search', 'tape_context']
     const selectedDefinitions = definitions.filter((definition) =>
       names.includes(definition.function.name)
     )

@@ -118,7 +118,6 @@ const createMcpService = (
     publishDeepchatEventMock,
     cacheImage,
     undefined,
-    undefined,
     mcpApps
       ? ({
           registry: mcpApps.registry,

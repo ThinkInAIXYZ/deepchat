@@ -379,10 +379,11 @@ describe('SessionAssignmentPolicy', () => {
 
   it('normalizes legacy tool and skill values deterministically', () => {
     expect(
-      normalizeDisabledAgentTools([' yo_browser_cdp_send ', 'grep', 'ls', 'cdp_send'], {
-        dropLegacySearchTools: true
-      })
-    ).toEqual(['cdp_send'])
+      normalizeDisabledAgentTools(
+        [' yo_browser_cdp_send ', 'custom_tool', 'ls', 'custom_tool', 'cdp_send'],
+        { dropLegacySearchTools: true }
+      )
+    ).toEqual(['custom_tool'])
     expect(
       normalizeDisabledAgentTools([...Object.values(TAPE_TOOL_NAMES), 'read', 'tape_search'])
     ).toEqual(['read'])

@@ -1,5 +1,5 @@
-import { app } from 'electron'
 import fs from 'node:fs/promises'
+import { appHost } from '@/platform/appHost'
 import path from 'node:path'
 import type { SettingsStore } from '@/config/settingsStore'
 import {
@@ -27,7 +27,7 @@ export class RendererPerformanceLogService {
 
   constructor(
     private readonly settings: Pick<SettingsStore, 'get'>,
-    private readonly getUserDataPath: () => string = () => app.getPath('userData'),
+    private readonly getUserDataPath: () => string = () => appHost.getPath('userData'),
     private readonly fsImpl: RendererPerformanceLogFs = fs,
     private readonly now: () => number = Date.now,
     private readonly onWriteError: () => void = () => {

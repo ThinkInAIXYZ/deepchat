@@ -1,7 +1,10 @@
 {
   "sessionReference": {
     "copy": "Oturum referansını kopyala",
-    "groups": { "session": "Oturumlar", "file": "Dosyalar" },
+    "groups": {
+      "session": "Oturumlar",
+      "file": "Dosyalar"
+    },
     "open": "{title} öğesini aç",
     "unavailableTitle": "Oturum başvurusu kullanılamıyor",
     "unavailableDescription": "Bu oturum silindi, sıfırlandı veya artık kullanılamıyor.",
@@ -70,8 +73,7 @@
         "agentCore": "Agent Çekirdek",
         "agentImageGeneration": "Görüntü Üretimi",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "DeepChat Ayarlar",
-        "yobrowser": "YoBrowser"
+        "deepchatSettings": "DeepChat Ayarlar"
       }
     },
     "toolMode": {

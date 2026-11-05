@@ -1,8 +1,8 @@
 <script setup lang="ts">
+import { openRuntimeExternal } from '@api/runtime'
 import { computed, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DcButton } from '@dc-ui/components/button'
-import { createBrowserClient } from '@api/BrowserClient'
 import type { AcpElicitationField, AcpElicitationView } from '@shared/types/acp-elicitation'
 import { useAcpExtensionsStore } from '@/stores/acpExtensions'
 
@@ -60,7 +60,7 @@ function select(field: AcpElicitationField, value: string, event: Event) {
 async function openUrl() {
   if (!props.request.url) return
   try {
-    await createBrowserClient().openExternal(props.request.url)
+    await openRuntimeExternal(props.request.url)
   } catch {
     store.errors[props.request.requestId] = true
   }

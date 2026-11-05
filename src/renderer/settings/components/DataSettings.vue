@@ -955,60 +955,6 @@
               </div>
             </DcConfirmDialog>
           </div>
-
-          <div
-            data-testid="yobrowser-sandbox-section"
-            class="flex flex-col gap-3 pt-4 lg:flex-row lg:items-center lg:justify-between"
-            :dir="languageStore.dir"
-          >
-            <div class="flex gap-3">
-              <Icon icon="lucide:shield" class="mt-1 h-4 w-4 text-muted-foreground" />
-              <div class="flex flex-col gap-1">
-                <div class="text-sm font-medium">{{ t('settings.data.yoBrowser.title') }}</div>
-                <p class="text-xs text-muted-foreground">
-                  {{ t('settings.data.yoBrowser.description') }}
-                </p>
-              </div>
-            </div>
-            <div class="flex w-full shrink-0 flex-col gap-2 lg:w-56">
-              <BrowserDataImportDialog />
-              <DcButton
-                variant="outline"
-                class="w-full shrink-0 lg:w-56"
-                :loading="isClearingSandbox"
-                icon="lucide:trash-2"
-                data-testid="yobrowser-clear-sandbox-button"
-                :disabled="isClearingSandbox"
-                @click="isClearSandboxDialogOpen = true"
-              >
-                <span class="text-sm font-medium">
-                  {{
-                    isClearingSandbox
-                      ? t('settings.data.yoBrowser.clearing')
-                      : t('settings.data.yoBrowser.clearButton')
-                  }}
-                </span>
-              </DcButton>
-              <DcConfirmDialog
-                :open="isClearSandboxDialogOpen"
-                :title="t('settings.data.yoBrowser.confirmTitle')"
-                :description="t('settings.data.yoBrowser.confirmDescription')"
-                :confirm-label="
-                  isClearingSandbox
-                    ? t('settings.data.yoBrowser.clearing')
-                    : t('settings.data.yoBrowser.confirmAction')
-                "
-                :busy="isClearingSandbox"
-                :confirm-attrs="{ 'data-testid': 'yobrowser-clear-sandbox-confirm' }"
-                @update:open="handleClearSandboxDialogOpenChange"
-                @confirm="handleClearSandboxData"
-              >
-                <p v-if="sandboxClearFailed" role="alert" class="text-sm text-destructive">
-                  {{ t('settings.data.yoBrowser.clearFailedTitle') }}
-                </p>
-              </DcConfirmDialog>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1040,6 +986,7 @@
 </template>
 
 <script setup lang="ts">
+import { openRuntimeExternal } from '@api/runtime'
 import TunnelSyncSettings from './TunnelSyncSettings.vue'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
 import { useI18n } from 'vue-i18n'
@@ -1085,7 +1032,6 @@ import {
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { useSyncStore } from '@/stores/sync'
 import { useLanguageStore } from '@/stores/language'
-import { createBrowserClient } from '@api/BrowserClient'
 import { createConfigClient } from '@api/ConfigClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createOnboardingClient } from '@api/OnboardingClient'
@@ -1101,7 +1047,6 @@ import { notifyRenderer } from '@renderer-notifications/rendererNotificationPort
 import PrivacySettingsSection from './common/PrivacySettingsSection.vue'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import ProviderConfigImportDialog from './ProviderConfigImportDialog.vue'
-import BrowserDataImportDialog from './BrowserDataImportDialog.vue'
 import { settingsLeaveGuard } from '../services/settingsLeaveGuard'
 
 const PROVIDER_IMPORT_SECTION = 'provider-import'
@@ -1125,7 +1070,6 @@ const isPresenterError = (value: unknown): value is PresenterErrorResult => {
 const { t } = useI18n()
 const languageStore = useLanguageStore()
 const syncStore = useSyncStore()
-const browserClient = createBrowserClient()
 const configClient = createConfigClient()
 const deviceClient = createDeviceClient()
 const onboardingClient = createOnboardingClient()
@@ -1148,9 +1092,6 @@ const isResetDialogOpen = ref(false)
 const resetType = ref<'chat' | 'knowledge' | 'config' | 'all'>('chat')
 const isResetting = ref(false)
 const isUpdatingModelConfig = ref(false)
-const isClearingSandbox = ref(false)
-const sandboxClearFailed = ref(false)
-const isClearSandboxDialogOpen = ref(false)
 const isRepairing = ref(false)
 const lastRepairReport = ref<DatabaseRepairReport | null>(null)
 const databaseSecurityStatus = ref<DatabaseSecurityStatus | null>(null)
@@ -1829,7 +1770,7 @@ const completeProviderImportOnboardingSteps = async (result: ProviderImportApply
 }
 
 const openExternalLink = (url: string) => {
-  void browserClient.openExternal(url).catch(() => {
+  void openRuntimeExternal(url).catch(() => {
     window.open(url, '_blank', 'noopener,noreferrer')
   })
 }
@@ -1897,7 +1838,6 @@ const dataOperationBusy = computed(
     isRepairing.value ||
     isUpdatingModelConfig.value ||
     isResetting.value ||
-    isClearingSandbox.value ||
     isSyncFeedbackPending.value ||
     isCloudFeedbackPending.value
 )
@@ -1909,10 +1849,6 @@ const databaseSecurityDraftDirty = computed(
     )
 )
 const dataDraftDirty = computed(() => cloudFormDirty.value || databaseSecurityDraftDirty.value)
-
-watch(isClearSandboxDialogOpen, (open) => {
-  if (!open) sandboxClearFailed.value = false
-})
 
 const discardDataDrafts = () => {
   if (cloudConfig.value) {
@@ -1926,7 +1862,6 @@ const discardDataDrafts = () => {
   isDatabaseEncryptionDialogOpen.value = false
   isImportDialogOpen.value = false
   isResetDialogOpen.value = false
-  isClearSandboxDialogOpen.value = false
 }
 
 const dataLeaveGuardLease = settingsLeaveGuard.register({
@@ -2221,32 +2156,5 @@ const handleReset = async () => {
   } finally {
     isResetting.value = false
   }
-}
-
-const handleClearSandboxData = async () => {
-  if (isClearingSandbox.value) return
-
-  sandboxClearFailed.value = false
-  isClearingSandbox.value = true
-  try {
-    await browserClient.clearSandboxData()
-    notifyRenderer({
-      kind: 'success',
-      code: 'settings.data.sandbox.cleared',
-      title: t('settings.data.yoBrowser.clearedTitle'),
-      description: t('settings.data.yoBrowser.clearedDescription')
-    })
-    isClearSandboxDialogOpen.value = false
-  } catch (error) {
-    console.error('[DataSettings] Failed to clear YoBrowser sandbox data', error)
-    sandboxClearFailed.value = true
-  } finally {
-    isClearingSandbox.value = false
-  }
-}
-
-const handleClearSandboxDialogOpenChange = (open: boolean) => {
-  if (isClearingSandbox.value) return
-  isClearSandboxDialogOpen.value = open
 }
 </script>

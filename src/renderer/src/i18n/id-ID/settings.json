@@ -671,45 +671,6 @@
       "failedTitle": "Pembaruan gagal",
       "failedDescription": "Konfigurasi model tidak dapat di-refresh saat ini, silakan coba lagi nanti."
     },
-    "yoBrowser": {
-      "title": "YoBrowser Kotak Pasir",
-      "description": "Kotak pasir browser independen yang tidak berbagi cookie dan penyimpanan lokal dengan aplikasi utama. Anda dapat menghapus data YoBrowser dengan satu klik di sini.",
-      "clearButton": "Hapus data YoBrowser",
-      "confirmTitle": "Konfirmasi untuk menghapus data YoBrowser?",
-      "confirmDescription": "Cookie, cache, LocalStorage, IndexedDB, dan data lain dari sesi YoBrowser akan dihapus, dan Anda mungkin perlu masuk lagi ke situs web.",
-      "confirmAction": "Hapus sekarang",
-      "clearing": "Membersihkan...",
-      "clearedTitle": "Menghapus data YoBrowser",
-      "clearedDescription": "Sesi sandbox telah disetel ulang dan tab terkait akan dimuat ulang.",
-      "clearFailedTitle": "Pembersihan gagal",
-      "clearFailedDescription": "Silakan coba lagi atau periksa log untuk informasi lebih lanjut.",
-      "import": {
-        "button": "Impor data situs web",
-        "title": "Impor data sesi browser",
-        "description": "Pilih profil Chrome atau Arc. macOS mungkin meminta Anda mengizinkan akses Rantai Kunci. Sumber tidak akan diubah.",
-        "scanning": "Mencari profil browser...",
-        "unsupportedTitle": "Tidak didukung di platform ini",
-        "unsupportedDescription": "Impor data browser secara langsung saat ini hanya tersedia di macOS. Windows belum didukung karena data Chrome saat ini terikat pada aplikasi.",
-        "profileLabel": "Profil sumber",
-        "profilePlaceholder": "Pilih profil",
-        "noProfiles": "Tidak ditemukan profil Chrome atau Arc yang didukung dengan data cookie.",
-        "cookies": "Cookie dan sesi",
-        "supported": "Disertakan dalam impor ini",
-        "otherData": "Kata sandi dan penyimpanan web",
-        "notIncluded": "Tidak disertakan dalam versi ini",
-        "preview": "Izinkan dan pratinjau",
-        "previewTitle": "Siap mengganti cookie YoBrowser",
-        "previewDescription": "{count} cookie dapat diimpor. Cookie YoBrowser yang ada akan diganti.",
-        "skipped": "Dilewati: {expired} kedaluwarsa, {partitioned} terpartisi.",
-        "confirm": "Ganti dan impor",
-        "doneTitle": "Impor selesai",
-        "doneDescription": "{count} cookie telah diimpor. Halaman browser yang terbuka telah dimuat ulang.",
-        "keyDenied": "Akses Rantai Kunci ditolak atau kunci browser tidak dapat dibaca.",
-        "previewExpired": "Sumber berubah atau pratinjau kedaluwarsa. Buat pratinjau baru.",
-        "encryptionUnsupported": "Profil ini menggunakan format enkripsi yang tidak didukung oleh pengimpor ini.",
-        "failed": "Impor gagal sebelum selesai. Cookie YoBrowser yang ada telah dipulihkan jika perubahan sempat dimulai."
-      }
-    },
     "privacyTitle": "Data & Privasi",
     "privacyDescription": "Kelola sinkronisasi cadangan, mode privasi, pemeliharaan data, dan operasi berbahaya.",
     "dangerZone": {
@@ -2053,9 +2014,7 @@
     "text-base": "Standar",
     "text-lg": "Besar",
     "text-xl": "ekstra besar",
-    "text-2xl": "Ekstra besar",
-    "floatingButton": "tombol mengambang",
-    "floatingButtonDesc": "Tampilkan tombol mengambang di desktop untuk memunculkan jendela aplikasi dengan cepat"
+    "text-2xl": "Ekstra besar"
   },
   "shortcuts": {
     "title": "Pengaturan tombol pintas",

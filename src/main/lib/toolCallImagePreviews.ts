@@ -26,25 +26,6 @@ const TRAILING_URL_PUNCTUATION_PATTERN = /[),.;:!?\]}，。；：！？）】]+$
 const IMAGE_PATH_EXTENSION_PATTERN = /\.(png|jpe?g|gif|webp|bmp|ico|avif|svg)$/i
 const MAX_TOOL_CALL_IMAGE_PREVIEWS = 4
 
-function parseJsonRecord(value: unknown): Record<string, unknown> | null {
-  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-    return value as Record<string, unknown>
-  }
-
-  if (typeof value !== 'string' || !value.trim()) {
-    return null
-  }
-
-  try {
-    const parsed = JSON.parse(value)
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null
-  } catch {
-    return null
-  }
-}
-
 function parseJsonValue(value: string): unknown {
   try {
     return JSON.parse(value)
@@ -143,47 +124,6 @@ async function cachePreviewData(
   } catch (error) {
     if (signal?.aborted) throw error
     return undefined
-  }
-}
-
-function resolveScreenshotMimeType(format: unknown): string {
-  if (typeof format !== 'string') {
-    return 'image/png'
-  }
-  const normalized = format.trim().toLowerCase()
-  if (normalized === 'jpeg' || normalized === 'jpg') return 'image/jpeg'
-  if (normalized === 'webp') return 'image/webp'
-  return 'image/png'
-}
-
-function extractScreenshotPreview(
-  toolName: string | undefined,
-  toolArgs: string | undefined,
-  content: string | MCPContentItem[]
-): ImagePreviewInput | null {
-  if (toolName !== 'cdp_send' || typeof content !== 'string') {
-    return null
-  }
-
-  const parsedArgs = parseJsonRecord(toolArgs)
-  if (!parsedArgs || parsedArgs.method !== 'Page.captureScreenshot') {
-    return null
-  }
-
-  const parsedContent = parseJsonRecord(content)
-  const rawData = typeof parsedContent?.data === 'string' ? parsedContent.data.trim() : ''
-  if (!rawData) {
-    return null
-  }
-
-  const screenshotParams = parseJsonRecord(parsedArgs.params)
-  const mimeType = resolveScreenshotMimeType(screenshotParams?.format)
-
-  return {
-    data: normalizeImagePayload(rawData, mimeType),
-    mimeType,
-    title: 'Page.captureScreenshot',
-    source: 'screenshot'
   }
 }
 
@@ -309,15 +249,6 @@ export async function prepareToolCallImageContent(
 }> {
   params.signal?.throwIfAborted()
   const inputs: ImagePreviewInput[] = []
-  const screenshotPreview = extractScreenshotPreview(
-    params.toolName,
-    params.toolArgs,
-    params.content
-  )
-  if (screenshotPreview) {
-    inputs.push(screenshotPreview)
-  }
-
   if (Array.isArray(params.content)) {
     inputs.push(...extractStructuredImagePreviews(params.content))
   } else {

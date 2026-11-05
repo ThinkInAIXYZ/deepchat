@@ -1,6 +1,6 @@
 import fs from 'fs'
+import { appHost } from '@/platform/appHost'
 import path from 'path'
-import { app } from 'electron'
 import {
   ProviderAggregate,
   ProviderEntry,
@@ -87,7 +87,7 @@ export class ProviderDbLoader {
   private readonly catalogListeners = new Set<ProviderDbCatalogListener>()
 
   constructor() {
-    this.userDataDir = process.env.DEEPCHAT_E2E_USER_DATA_DIR?.trim() || app.getPath('userData')
+    this.userDataDir = process.env.DEEPCHAT_E2E_USER_DATA_DIR?.trim() || appHost.getPath('userData')
     this.cacheDir = path.join(this.userDataDir, 'provider-db')
     this.cacheFilePath = path.join(this.cacheDir, 'providers.json')
     this.metaFilePath = path.join(this.cacheDir, 'meta.json')
@@ -172,7 +172,7 @@ export class ProviderDbLoader {
 
   private loadFromBuiltIn(): ProviderAggregate | null {
     try {
-      const helperPath = path.join(app.getAppPath(), 'resources', 'model-db', 'providers.json')
+      const helperPath = path.join(appHost.getAppPath(), 'resources', 'model-db', 'providers.json')
       if (!fs.existsSync(helperPath)) return null
       const raw = fs.readFileSync(helperPath, 'utf-8')
       const parsed = JSON.parse(raw)

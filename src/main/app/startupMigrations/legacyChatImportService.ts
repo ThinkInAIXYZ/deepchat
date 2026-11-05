@@ -1,5 +1,5 @@
-import { app } from 'electron'
 import path from 'path'
+import { appHost } from '@/platform/appHost'
 import fs from 'fs'
 import Database from 'better-sqlite3-multiple-ciphers'
 import type {
@@ -54,7 +54,7 @@ export class LegacyChatImportService {
     this.projectDatabase = projectDatabase
     this.memoryDatabase = memoryDatabase
     this.messageStore = new SessionTranscript(this.sessionDatabase, tapeFacts)
-    this.sourceDbPath = sourceDbPath ?? path.join(app.getPath('userData'), 'app_db', 'chat.db')
+    this.sourceDbPath = sourceDbPath ?? path.join(appHost.getPath('userData'), 'app_db', 'chat.db')
     this.notifyEnvironmentProjectionChanged = notifyEnvironmentProjectionChanged
   }
 

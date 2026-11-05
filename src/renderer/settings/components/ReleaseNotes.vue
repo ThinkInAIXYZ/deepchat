@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import { createBrowserClient } from '@api/BrowserClient'
+import { openRuntimeExternal } from '@api/runtime'
 import { useThemeStore } from '@/stores/theme'
 import NodeRenderer from 'markstream-vue'
 import { useI18n } from 'vue-i18n'
@@ -33,7 +33,6 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const themeStore = useThemeStore()
-const browserClient = createBrowserClient()
 
 const openReleaseLink = (event: MouseEvent) => {
   if (event.button > 1 || !(event.target instanceof Element)) return
@@ -51,7 +50,7 @@ const openReleaseLink = (event: MouseEvent) => {
   }
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return
 
-  void browserClient.openExternal(url.href).catch((error) => {
+  void openRuntimeExternal(url.href).catch((error) => {
     console.warn('[ReleaseNotes] Failed to open release link', error)
   })
 }

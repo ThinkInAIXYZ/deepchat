@@ -155,7 +155,6 @@ describe('session boundary composition', () => {
     expect(destroyStepIndex('skillSyncScan.drain')).toBeLessThan(
       destroyStepIndex('skillSyncService.destroy')
     )
-    expect(destroySource).toContain("'yoBrowserPresenter.shutdown'")
     expect(destroySource).toContain("'tabPresenter.destroy'")
     expect(destroySource).toContain("'backgroundExecSessionManager.shutdown'")
     expect(destroyStepIndex('windowPresenter.destroyWindows')).toBeLessThan(

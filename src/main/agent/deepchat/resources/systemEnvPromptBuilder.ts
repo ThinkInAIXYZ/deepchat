@@ -21,7 +21,6 @@ export interface BuildSystemEnvPromptOptions {
 }
 
 export interface RuntimeCapabilitiesPromptOptions {
-  hasYoBrowser?: boolean
   hasExec?: boolean
   hasProcess?: boolean
 }
@@ -246,16 +245,12 @@ async function readAgentsInstructions(sourcePath: string): Promise<AgentsInstruc
 
 export function buildRuntimeCapabilitiesPrompt(
   options: RuntimeCapabilitiesPromptOptions = {
-    hasYoBrowser: true,
     hasExec: true,
     hasProcess: true
   }
 ): string {
   const lines = ['## Runtime Capabilities']
 
-  if (options.hasYoBrowser) {
-    lines.push('- YoBrowser tools are available for browser automation when needed.')
-  }
   if (options.hasExec) {
     lines.push(
       '- Use exec(background: true) to explicitly detach long-running terminal commands; foreground exec may also return a running session after its yield window.'

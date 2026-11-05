@@ -1,7 +1,10 @@
 {
   "sessionReference": {
     "copy": "Sitzungsreferenz kopieren",
-    "groups": { "session": "Sitzungen", "file": "Dateien" },
+    "groups": {
+      "session": "Sitzungen",
+      "file": "Dateien"
+    },
     "open": "{title} öffnen",
     "unavailableTitle": "Sitzungsreferenz nicht verfügbar",
     "unavailableDescription": "Diese Sitzung wurde gelöscht, zurückgesetzt oder ist nicht mehr verfügbar.",
@@ -70,8 +73,7 @@
         "agentCore": "Core-Tools",
         "agentImageGeneration": "Bilderzeugung",
         "agentSkills": "Skill-Tools",
-        "deepchatSettings": "DeepChat-Einstellungen",
-        "yobrowser": "YoBrowser"
+        "deepchatSettings": "DeepChat-Einstellungen"
       }
     },
     "toolMode": {

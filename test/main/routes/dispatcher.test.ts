@@ -7,12 +7,7 @@ import type { RemoteServicePort } from '@shared/types/remote'
 import type { IConversationExporter } from '@/exporter/interface'
 import type { McpServicePort } from '@shared/types/mcp'
 import type { ProviderRuntimePort } from '@shared/types/provider'
-import type {
-  IShortcutPresenter,
-  ITabPresenter,
-  IWindowPresenter,
-  IYoBrowserPresenter
-} from '@shared/types/desktop'
+import type { IShortcutPresenter, ITabPresenter, IWindowPresenter } from '@shared/types/desktop'
 import type { MainDatabase } from '@/data/mainDatabase'
 import type { TapeInspectionReader } from '@/tape/ports/capabilities'
 import type { OAuthServicePort } from '@shared/types/oauth'
@@ -254,22 +249,6 @@ function createRuntime() {
       fileCreated: new Date('2024-01-01T00:00:00.000Z'),
       fileModified: new Date('2024-01-02T00:00:00.000Z')
     }
-  }
-
-  const browserStatus = {
-    initialized: true,
-    page: {
-      id: 'page-1',
-      url: 'https://example.com',
-      title: 'Example',
-      status: 'ready' as const,
-      createdAt: 1,
-      updatedAt: 2
-    },
-    canGoBack: false,
-    canGoForward: true,
-    visible: true,
-    loading: false
   }
 
   const providerSettings = {
@@ -1005,10 +984,6 @@ function createRuntime() {
     setContentProtectionEnabled: vi.fn((value: boolean) => {
       settings.contentProtectionEnabled = value
     }),
-    getFloatingButtonEnabled: vi.fn(() => settings.floatingButtonEnabled),
-    setFloatingButtonEnabled: vi.fn((value: boolean) => {
-      settings.floatingButtonEnabled = value
-    }),
     getShortcutKeys: vi.fn(() => ({})),
     setShortcutKeys: vi.fn(),
     resetShortcutKeys: vi.fn()
@@ -1025,7 +1000,6 @@ function createRuntime() {
     getSystemFonts: vi.fn().mockResolvedValue(['Inter', 'JetBrains Mono'])
   }
   const applyContentProtection = vi.fn()
-  const setFloatingButtonEnabled = vi.fn()
   const loggingService = {
     getEnabled: vi.fn(() => settings.loggingEnabled),
     setEnabled: vi.fn((value: boolean) => {
@@ -1322,40 +1296,6 @@ function createRuntime() {
     ])
   } as unknown as WorkspaceServicePort
 
-  const yoBrowserPresenter = {
-    getBrowserStatus: vi.fn().mockResolvedValue(browserStatus),
-    loadUrl: vi.fn(
-      async (sessionId: string, url: string, timeoutMs?: number, hostWindowId?: number) => ({
-        ...browserStatus,
-        page: {
-          ...browserStatus.page,
-          id: `${sessionId}-${hostWindowId ?? 'none'}`,
-          url,
-          updatedAt: timeoutMs ?? 2
-        }
-      })
-    ),
-    attachSessionBrowser: vi.fn().mockResolvedValue(true),
-    focusSessionBrowser: vi.fn().mockReturnValue(true),
-    updateSessionBrowserBounds: vi.fn().mockResolvedValue(undefined),
-    detachSessionBrowser: vi.fn().mockResolvedValue(undefined),
-    setPreviewMode: vi.fn().mockResolvedValue({ updated: true, surface: 'renderer-canvas' }),
-    dismissPreview: vi.fn(() => true),
-    destroySessionBrowser: vi.fn().mockResolvedValue(undefined),
-    goBack: vi.fn().mockResolvedValue(undefined),
-    goForward: vi.fn().mockResolvedValue(undefined),
-    reload: vi.fn().mockResolvedValue(undefined),
-    clearSandboxData: vi.fn().mockResolvedValue(undefined)
-  } as unknown as IYoBrowserPresenter
-  const computerUsePreviewPresenter = {
-    setPreviewMode: vi.fn(async (_sessionId: string, mode: string) => ({
-      updated: true,
-      surface: mode === 'stopped' ? 'none' : 'renderer-canvas'
-    })),
-    dismissPreview: vi.fn(() => true),
-    shutdown: vi.fn()
-  }
-
   const tabPresenter = {
     captureTabArea: vi.fn().mockResolvedValue('data:image/png;base64,capture'),
     stitchImagesWithWatermark: vi.fn().mockResolvedValue('data:image/png;base64,stitched')
@@ -1624,13 +1564,10 @@ function createRuntime() {
     ownsDraftSession: sessionLifecyclePort.ownsDraftSession,
     windowPresenter,
     shortcutPresenter,
-    browserPresenter: yoBrowserPresenter,
-    computerUsePreviewPresenter,
     desktopSessionBinding,
     tabPresenter,
     dialogService: dialogService as unknown as DialogServicePort,
     settings: desktopSettings as never,
-    setFloatingButtonEnabled,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
     }
@@ -1905,8 +1842,6 @@ function createRuntime() {
     fileService,
     knowledgeService,
     workspaceService,
-    yoBrowserPresenter,
-    computerUsePreviewPresenter,
     tabPresenter,
     cronJobs,
     usageStatsService,
@@ -5610,13 +5545,6 @@ describe('dispatchDeepchatRoute', () => {
       createRendererRouteContext(42, 7)
     )
 
-    const closeFloatingResult = await dispatchDeepchatRoute(
-      runtime,
-      'window.closeFloatingCurrent',
-      {},
-      createRendererRouteContext(444, 7)
-    )
-
     const closeResult = await dispatchDeepchatRoute(
       runtime,
       'window.closeCurrent',
@@ -5706,8 +5634,6 @@ describe('dispatchDeepchatRoute', () => {
     })
     expect(windowPresenter.previewFile).toHaveBeenCalledWith('C:/workspace/README.md')
     expect(previewResult).toEqual({ previewed: true })
-    expect(windowPresenter.hide).toHaveBeenCalledWith(19)
-    expect(closeFloatingResult).toEqual({ closed: true })
     expect(windowPresenter.close).toHaveBeenCalledWith(7)
     expect(closeResult).toEqual({ closed: true })
     expect(windowPresenter.getSettingsWindowId).toHaveBeenCalled()
@@ -6186,214 +6112,6 @@ describe('dispatchDeepchatRoute', () => {
     expect(unwatchResult).toEqual({ watching: false })
     expect(workspaceService.unregisterWorkspace).toHaveBeenCalledWith('/workspace')
     expect(unregisterResult).toEqual({ unregistered: true })
-  })
-
-  it('dispatches phase3 browser routes with host window context', async () => {
-    const { runtime, yoBrowserPresenter } = createRuntime()
-
-    const statusResult = await dispatchDeepchatRoute(
-      runtime,
-      'browser.getStatus',
-      {
-        sessionId: 'session-1'
-      },
-      createRendererRouteContext(88, 3)
-    )
-    const loadResult = await dispatchDeepchatRoute(
-      runtime,
-      'browser.loadUrl',
-      {
-        sessionId: 'session-1',
-        url: 'https://example.com/docs',
-        timeoutMs: 5000
-      },
-      createRendererRouteContext(88, 3)
-    )
-    const attachResult = await dispatchDeepchatRoute(
-      runtime,
-      'browser.attachCurrentWindow',
-      {
-        sessionId: 'session-1'
-      },
-      createRendererRouteContext(88, 3)
-    )
-    const updateResult = await dispatchDeepchatRoute(
-      runtime,
-      'browser.updateCurrentWindowBounds',
-      {
-        sessionId: 'session-1',
-        bounds: {
-          x: 10,
-          y: 20,
-          width: 400,
-          height: 300
-        },
-        visible: true
-      },
-      createRendererRouteContext(88, 3)
-    )
-    const backResult = await dispatchDeepchatRoute(
-      runtime,
-      'browser.goBack',
-      {
-        sessionId: 'session-1'
-      },
-      createRendererRouteContext(88, 3)
-    )
-    const detachResult = await dispatchDeepchatRoute(
-      runtime,
-      'browser.detach',
-      {
-        sessionId: 'session-1'
-      },
-      createRendererRouteContext(88, 3)
-    )
-    const destroyResult = await dispatchDeepchatRoute(
-      runtime,
-      'browser.destroy',
-      {
-        sessionId: 'session-1'
-      },
-      createRendererRouteContext(88, 3)
-    )
-    const clearSandboxResult = await dispatchDeepchatRoute(
-      runtime,
-      'browser.clearSandboxData',
-      {},
-      createRendererRouteContext(88, 3)
-    )
-
-    expect(statusResult).toEqual({
-      status: expect.objectContaining({
-        initialized: true,
-        visible: true
-      })
-    })
-    expect(yoBrowserPresenter.loadUrl).toHaveBeenCalledWith(
-      'session-1',
-      'https://example.com/docs',
-      5000,
-      3
-    )
-    expect(loadResult).toEqual({
-      status: expect.objectContaining({
-        page: expect.objectContaining({
-          id: 'session-1-3',
-          url: 'https://example.com/docs'
-        })
-      })
-    })
-    expect(yoBrowserPresenter.attachSessionBrowser).toHaveBeenCalledWith('session-1', 3)
-    expect(attachResult).toEqual({ attached: true })
-    expect(yoBrowserPresenter.updateSessionBrowserBounds).toHaveBeenCalledWith(
-      'session-1',
-      3,
-      {
-        x: 10,
-        y: 20,
-        width: 400,
-        height: 300
-      },
-      true
-    )
-    expect(updateResult).toEqual({ updated: true })
-    expect(yoBrowserPresenter.goBack).toHaveBeenCalledWith('session-1')
-    expect(backResult).toEqual({
-      status: expect.objectContaining({
-        initialized: true
-      })
-    })
-    expect(yoBrowserPresenter.detachSessionBrowser).toHaveBeenCalledWith('session-1')
-    expect(detachResult).toEqual({ detached: true })
-    expect(yoBrowserPresenter.destroySessionBrowser).toHaveBeenCalledWith('session-1')
-    expect(destroyResult).toEqual({ destroyed: true })
-    expect(yoBrowserPresenter.clearSandboxData).toHaveBeenCalledTimes(1)
-    expect(clearSandboxResult).toEqual({ cleared: true })
-  })
-
-  it('restricts browser keyboard entry to the caller window and active session', async () => {
-    const { runtime, desktopSessionBinding, yoBrowserPresenter, sessionLifecyclePort } =
-      createRuntime()
-    desktopSessionBinding.getActiveId.mockReturnValue('session-1')
-    const focus = (sessionId: string, windowId: number | null = 3) =>
-      dispatchDeepchatRoute(
-        runtime,
-        'browser.focusContent',
-        { sessionId },
-        createRendererRouteContext(88, windowId)
-      )
-
-    expect(await focus('session-1')).toEqual({ focused: true })
-    expect(yoBrowserPresenter.focusSessionBrowser).toHaveBeenCalledWith('session-1', 3)
-    expect(desktopSessionBinding.getActiveId).toHaveBeenCalledWith(88)
-    expect(await focus('other-session')).toEqual({ focused: false })
-    expect(await focus('session-1', null)).toEqual({ focused: false })
-    expect(yoBrowserPresenter.focusSessionBrowser).toHaveBeenCalledTimes(1)
-    sessionLifecyclePort.ownsDraftSession.mockImplementation(
-      (id, owner) => id === 'draft-1' && owner === 88
-    )
-    expect(await focus('draft-1')).toEqual({ focused: true })
-    expect(yoBrowserPresenter.focusSessionBrowser).toHaveBeenLastCalledWith('draft-1', 3)
-  })
-
-  it('scopes Computer Use preview routes to the active sender session', async () => {
-    const { runtime, computerUsePreviewPresenter, desktopSessionBinding, yoBrowserPresenter } =
-      createRuntime()
-    const context = createRendererRouteContext(88, 3)
-    desktopSessionBinding.getActiveId.mockReturnValue('session-1')
-
-    const eligible = await dispatchDeepchatRoute(
-      runtime,
-      'computerUse.setPreviewMode',
-      { sessionId: 'session-1', mode: 'eligible' },
-      context
-    )
-    const browserDismissed = await dispatchDeepchatRoute(
-      runtime,
-      'browser.dismissPreview',
-      { sessionId: 'session-1', runId: 'run-1' },
-      context
-    )
-    const dismissed = await dispatchDeepchatRoute(
-      runtime,
-      'computerUse.dismissPreview',
-      { sessionId: 'session-1', runId: 'run-1' },
-      context
-    )
-
-    desktopSessionBinding.getActiveId.mockReturnValue('session-2')
-    const rejected = await dispatchDeepchatRoute(
-      runtime,
-      'computerUse.setPreviewMode',
-      { sessionId: 'session-1', mode: 'eligible' },
-      context
-    )
-    const cleanup = await dispatchDeepchatRoute(
-      runtime,
-      'computerUse.setPreviewMode',
-      { sessionId: 'session-1', mode: 'stopped' },
-      context
-    )
-
-    expect(eligible).toEqual({ updated: true, surface: 'renderer-canvas' })
-    expect(computerUsePreviewPresenter.setPreviewMode).toHaveBeenNthCalledWith(
-      1,
-      'session-1',
-      'eligible',
-      3
-    )
-    expect(browserDismissed).toEqual({ dismissed: true })
-    expect(yoBrowserPresenter.dismissPreview).toHaveBeenCalledWith('session-1', 'run-1')
-    expect(dismissed).toEqual({ dismissed: true })
-    expect(computerUsePreviewPresenter.dismissPreview).toHaveBeenCalledWith('session-1', 'run-1')
-    expect(rejected).toEqual({ updated: false, surface: 'none' })
-    expect(cleanup).toEqual({ updated: true, surface: 'none' })
-    expect(computerUsePreviewPresenter.setPreviewMode).toHaveBeenNthCalledWith(
-      2,
-      'session-1',
-      'stopped',
-      3
-    )
   })
 
   it('dispatches phase3 tab routes through the renderer tab adapter', async () => {

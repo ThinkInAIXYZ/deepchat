@@ -1,7 +1,10 @@
 {
   "sessionReference": {
     "copy": "Salin referensi sesi",
-    "groups": { "session": "Sesi", "file": "File" },
+    "groups": {
+      "session": "Sesi",
+      "file": "File"
+    },
     "open": "Buka {title}",
     "unavailableTitle": "Referensi sesi tidak tersedia",
     "unavailableDescription": "Sesi ini telah dihapus, diatur ulang, atau tidak lagi tersedia.",
@@ -70,8 +73,7 @@
         "agentCore": "alat inti",
         "agentImageGeneration": "generasi gambar",
         "agentSkills": "Alat Skills",
-        "deepchatSettings": "DeepChat Pengaturan",
-        "yobrowser": "YoBrowser"
+        "deepchatSettings": "DeepChat Pengaturan"
       }
     },
     "toolMode": {

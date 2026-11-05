@@ -1,8 +1,10 @@
 import { spawn, type ChildProcess } from 'child_process'
+import { appHost } from '@/platform/appHost'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import type { UtilityProcess } from 'electron'
+import type { HostedProcess } from '@/platform/processHost'
+import { processHost } from '@/platform/processHost'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import logger from './backgroundExecLogger'
@@ -1186,8 +1188,8 @@ export class BackgroundExecSessionManager {
 }
 
 class BackgroundExecUtilityProxy {
-  private host: UtilityProcess | null = null
-  private hostReady: Promise<UtilityProcess> | null = null
+  private host: HostedProcess | null = null
+  private hostReady: Promise<HostedProcess> | null = null
   private requestId = 0
   private shuttingDown = false
   private readonly pendingRequests = new Map<
@@ -1524,7 +1526,7 @@ class BackgroundExecUtilityProxy {
     })
   }
 
-  private async ensureHost(): Promise<UtilityProcess> {
+  private async ensureHost(): Promise<HostedProcess> {
     if (this.host) {
       return this.host
     }
@@ -1541,10 +1543,9 @@ class BackgroundExecUtilityProxy {
     }
   }
 
-  private async startHost(): Promise<UtilityProcess> {
-    const { app, utilityProcess } = await import('electron')
-    const modulePath = this.resolveUtilityHostEntryPoint(app.getAppPath())
-    const host = utilityProcess.fork(modulePath, ['--deepchat-exec-utility-host'], {
+  private async startHost(): Promise<HostedProcess> {
+    const modulePath = this.resolveUtilityHostEntryPoint(appHost.getAppPath())
+    const host = processHost.fork(modulePath, ['--deepchat-exec-utility-host'], {
       serviceName: 'DeepChat Exec Utility',
       stdio: 'ignore',
       env: {
@@ -1559,7 +1560,7 @@ class BackgroundExecUtilityProxy {
       logger.error('[BackgroundExecProxy] Utility process error:', { type, location })
     })
 
-    return await new Promise<UtilityProcess>((resolve, reject) => {
+    return await new Promise<HostedProcess>((resolve, reject) => {
       let settled = false
       const settle = (callback: () => void) => {
         if (settled) {

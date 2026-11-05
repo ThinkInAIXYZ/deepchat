@@ -1,4 +1,5 @@
 import logger from '@shared/logger'
+import { appHost } from '@/platform/appHost'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { is } from '@electron-toolkit/utils'
 import type {
@@ -17,11 +18,9 @@ import {
 import { join } from 'path'
 import contextMenu from './contextMenu'
 import { getContextMenuLabels } from '@shared/i18n'
-import { app } from 'electron'
 import { addWatermarkToNativeImage } from '@/lib/watermark'
 import { stitchImagesVertically } from '@/lib/scrollCapture'
 import { openExternalUrl } from '@/lib/externalUrl'
-import { getYoBrowserSession } from './browser/yoBrowserSession'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope } from '@shared/contracts/events'
 
@@ -48,10 +47,8 @@ export class TabPresenter implements ITabPresenter {
   // WebContents ID 到 Tab ID 的映射 (用于IPC调用来源识别)
   private webContentsToTabId: Map<number, number> = new Map()
 
-  private windowTypes: Map<number, 'chat' | 'browser'> = new Map()
   private chromeHeights: Map<number, number> = new Map()
   private static readonly DEFAULT_CHROME_HEIGHT = 60
-  private static readonly DEFAULT_WINDOW_TYPE: 'chat' | 'browser' = 'chat'
 
   private windowPresenter: IWindowPresenter // 窗口管理器实例
 
@@ -61,14 +58,6 @@ export class TabPresenter implements ITabPresenter {
     private readonly onFirstContentLoaded: () => void
   ) {
     this.windowPresenter = windowPresenter // 注入窗口管理器
-  }
-
-  setWindowType(windowId: number, type: 'chat' | 'browser'): void {
-    this.windowTypes.set(windowId, type)
-  }
-
-  getWindowType(windowId: number): 'chat' | 'browser' {
-    return this.windowTypes.get(windowId) ?? TabPresenter.DEFAULT_WINDOW_TYPE
   }
 
   handleWindowSizeChanged(windowId: number): void {
@@ -99,7 +88,6 @@ export class TabPresenter implements ITabPresenter {
     }
     views?.forEach((viewId) => this.desktopSessionBinding.unbind(viewId))
     this.windowTabs.delete(windowId)
-    this.windowTypes.delete(windowId)
     this.chromeHeights.delete(windowId)
   }
 
@@ -120,18 +108,9 @@ export class TabPresenter implements ITabPresenter {
     logger.info('createTab', windowId, url, options)
     const window = BrowserWindow.fromId(windowId)
     if (!window) return null
-    if (!this.windowTypes.has(windowId)) {
-      this.windowTypes.set(windowId, TabPresenter.DEFAULT_WINDOW_TYPE)
-    }
-    const windowType = this.getWindowType(windowId)
     const isLocalUrl = url.startsWith('local://')
 
-    if (windowType === 'browser' && isLocalUrl) {
-      console.warn(`Browser window ${windowId} cannot open local tab: ${url}`)
-      return null
-    }
-
-    if (windowType === 'chat' && !isLocalUrl && !options.allowNonLocal) {
+    if (!isLocalUrl && !options.allowNonLocal) {
       console.warn(
         `Chat window ${windowId} cannot open external tab without explicit opt-in: ${url}`
       )
@@ -147,15 +126,7 @@ export class TabPresenter implements ITabPresenter {
       devTools: is.dev
     }
 
-    // 对于 browser 窗口，不注入 preload（安全考虑）
-    // 对于 chat 窗口，注入 preload
-    if (windowType !== 'browser') {
-      webPreferences.preload = join(__dirname, '../preload/index.mjs')
-    }
-
-    if (windowType === 'browser') {
-      webPreferences.session = getYoBrowserSession()
-    }
+    webPreferences.preload = join(__dirname, '../preload/index.mjs')
 
     // 创建新的WebContentsView
     const view = new WebContentsView({
@@ -404,14 +375,9 @@ export class TabPresenter implements ITabPresenter {
       console.warn(`attachTab: Tab ${tabId} state not found.`)
       return false
     }
-    const targetWindowType = this.getWindowType(targetWindowId)
     const isLocal = state.url?.startsWith('local://')
 
-    if (targetWindowType === 'browser' && isLocal) {
-      console.warn(`Browser window ${targetWindowId} cannot attach local tab ${tabId}.`)
-      return false
-    }
-    if (targetWindowType === 'chat' && !isLocal) {
+    if (!isLocal) {
       console.warn(`Chat window ${targetWindowId} cannot attach external tab ${tabId}.`)
       return false
     }
@@ -454,14 +420,9 @@ export class TabPresenter implements ITabPresenter {
       console.warn(`moveTab: Tab ${tabId} state not found.`)
       return false
     }
-    const targetWindowType = this.getWindowType(targetWindowId)
     const isLocal = tabState.url?.startsWith('local://')
 
-    if (targetWindowType === 'browser' && isLocal) {
-      console.warn(`Browser window ${targetWindowId} cannot receive local tab ${tabId}.`)
-      return false
-    }
-    if (targetWindowType === 'chat' && !isLocal) {
+    if (!isLocal) {
       console.warn(`Chat window ${targetWindowId} cannot receive external tab ${tabId}.`)
       return false
     }
@@ -592,22 +553,17 @@ export class TabPresenter implements ITabPresenter {
 
     // 检查是否是窗口的第一个标签页
     const isFirstTab = this.windowTabs.get(windowId)?.length === 1
-    const windowType = this.getWindowType(windowId)
 
     // 页面加载完成
     if (isFirstTab) {
       webContents.once('did-finish-load', () => {
         this.onFirstContentLoaded()
-        // Only call focusActiveTab for chat windows, not browser windows
-        // Browser windows should stay hidden when created via tool calls
-        if (windowType !== 'browser') {
-          setTimeout(() => {
-            const windowPresenter = this.windowPresenter as any
-            if (windowPresenter && typeof windowPresenter.focusActiveTab === 'function') {
-              windowPresenter.focusActiveTab(windowId, 'initial')
-            }
-          }, 300)
-        }
+        setTimeout(() => {
+          const windowPresenter = this.windowPresenter as any
+          if (windowPresenter && typeof windowPresenter.focusActiveTab === 'function') {
+            windowPresenter.focusActiveTab(windowId, 'initial')
+          }
+        }, 300)
       })
     }
 
@@ -679,16 +635,9 @@ export class TabPresenter implements ITabPresenter {
     // Re-adding ensures it's on top in most view hierarchies
     window.contentView.addChildView(view)
     this.updateViewBounds(window, view)
-    const windowType = this.getWindowType(window.id)
     const isVisible = window.isVisible()
-    const isFocused = window.isFocused()
 
-    // For browser windows, only focus if window is already focused
-    // This prevents focus stealing when tools call activateTab() on hidden browser windows
-    // For chat windows, focus if visible (normal behavior)
-    const shouldFocus = windowType === 'browser' ? isVisible && isFocused : isVisible
-
-    if (shouldFocus && !view.webContents.isDestroyed()) {
+    if (isVisible && !view.webContents.isDestroyed()) {
       view.webContents.focus()
     }
   }
@@ -701,11 +650,8 @@ export class TabPresenter implements ITabPresenter {
     // 获取窗口尺寸
     const { width, height } = window.getContentBounds()
 
-    // 根据窗口类型使用固定高度值
-    // Chat 模式：AppBar = 36px (h-9)
-    // Browser 模式：AppBar + BrowserToolbar = 36px + 48px = 84px (h-9 + h-12)
-    const windowType = this.getWindowType(window.id)
-    const topOffset = windowType === 'browser' ? 84 : 36
+    // AppBar = 36px (h-9)
+    const topOffset = 36
     const viewHeight = Math.max(0, height - topOffset)
 
     // 设置视图位置大小（留出顶部标签栏空间）
@@ -730,7 +676,7 @@ export class TabPresenter implements ITabPresenter {
       this.tabContextMenuDisposers.delete(tabId)
     }
 
-    const lang = app.getLocale()
+    const lang = appHost.getLocale()
     const labels = await getContextMenuLabels(lang)
 
     const disposer = contextMenu({
@@ -796,7 +742,6 @@ export class TabPresenter implements ITabPresenter {
     this.tabState.clear()
     this.windowTabs.clear()
     this.webContentsToTabId.clear()
-    this.windowTypes.clear()
     this.chromeHeights.clear()
   }
 
@@ -857,27 +802,19 @@ export class TabPresenter implements ITabPresenter {
     }
 
     // 2. 创建新窗口
-    const sourceWindowType = this.getWindowType(originalWindowId)
     const newWindowOptions: Record<string, any> = {
-      forMovedTab: true,
-      windowType: sourceWindowType
+      forMovedTab: true
     }
     if (screenX !== undefined && screenY !== undefined) {
       newWindowOptions.x = screenX
       newWindowOptions.y = screenY
     }
 
-    const newWindowId =
-      sourceWindowType === 'browser'
-        ? await this.windowPresenter.createBrowserWindow({
-            x: newWindowOptions.x,
-            y: newWindowOptions.y
-          })
-        : await this.windowPresenter.createAppWindow({
-            initialRoute: 'chat',
-            x: newWindowOptions.x,
-            y: newWindowOptions.y
-          })
+    const newWindowId = await this.windowPresenter.createAppWindow({
+      initialRoute: 'chat',
+      x: newWindowOptions.x,
+      y: newWindowOptions.y
+    })
 
     if (newWindowId === null) {
       console.error('moveTabToNewWindow: Failed to create a new window.')
@@ -1062,42 +999,6 @@ export class TabPresenter implements ITabPresenter {
           await this.notifyWindowTabsUpdate(windowId)
         }
       }
-    }
-  }
-
-  registerFloatingWindow(webContentsId: number, webContents: Electron.WebContents): void {
-    try {
-      logger.info(`TabPresenter: Registering floating window as virtual tab, ID: ${webContentsId}`)
-      if (this.tabs.has(webContentsId)) {
-        console.warn(`TabPresenter: Tab ${webContentsId} already exists, skipping registration`)
-        return
-      }
-      const virtualView = {
-        webContents: webContents,
-        setVisible: () => {},
-        setBounds: () => {},
-        getBounds: () => ({ x: 0, y: 0, width: 400, height: 600 })
-      } as any
-      this.webContentsToTabId.set(webContentsId, webContentsId)
-      this.tabs.set(webContentsId, virtualView)
-      logger.info(
-        `TabPresenter: Virtual tab registered successfully for floating window ${webContentsId}`
-      )
-    } catch (error) {
-      console.error('TabPresenter: Failed to register floating window:', error)
-    }
-  }
-
-  unregisterFloatingWindow(webContentsId: number): void {
-    try {
-      logger.info(`TabPresenter: Unregistering floating window virtual tab, ID: ${webContentsId}`)
-      this.webContentsToTabId.delete(webContentsId)
-      this.tabs.delete(webContentsId)
-      logger.info(
-        `TabPresenter: Virtual tab unregistered successfully for floating window ${webContentsId}`
-      )
-    } catch (error) {
-      console.error('TabPresenter: Failed to unregister floating window:', error)
     }
   }
 }

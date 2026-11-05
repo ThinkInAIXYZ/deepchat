@@ -1,4 +1,4 @@
-import ElectronStore from 'electron-store'
+import { storeHost } from '@/platform/storeHost'
 import type { PluginToolPolicyDecision } from '@shared/types/plugin'
 
 type StoredToolPolicy = {
@@ -17,7 +17,7 @@ export type PluginToolPolicyLookup = {
   decision: PluginToolPolicyDecision | null
 }
 
-const store = new ElectronStore<ToolPolicySettings>({
+const store = storeHost.create<ToolPolicySettings>({
   name: 'plugin-tool-policies',
   defaults: {
     policies: []
@@ -25,7 +25,7 @@ const store = new ElectronStore<ToolPolicySettings>({
 })
 
 export function registerPluginToolPolicy(policy: StoredToolPolicy): void {
-  const policies = store.get('policies') ?? []
+  const policies = store.get<StoredToolPolicy[]>('policies') ?? []
   const filtered = policies.filter(
     (item) => !(item.pluginId === policy.pluginId && item.serverId === policy.serverId)
   )
@@ -33,7 +33,7 @@ export function registerPluginToolPolicy(policy: StoredToolPolicy): void {
 }
 
 export function unregisterPluginToolPolicies(pluginId: string): void {
-  const policies = store.get('policies') ?? []
+  const policies = store.get<StoredToolPolicy[]>('policies') ?? []
   store.set(
     'policies',
     policies.filter((policy) => policy.pluginId !== pluginId)
@@ -48,7 +48,7 @@ export function getPluginToolPolicy(
 }
 
 function getEnabledServerPolicies(serverId: string): StoredToolPolicy[] {
-  const policies = store.get('policies') ?? []
+  const policies = store.get<StoredToolPolicy[]>('policies') ?? []
   return policies.filter((policy) => policy.enabled && policy.serverId === serverId)
 }
 

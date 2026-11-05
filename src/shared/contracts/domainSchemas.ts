@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { BrowserPageStatus } from '../types/browser'
 import { ApiEndpointType, ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
 import {
   AttachmentRepresentationPreferenceSchema,
@@ -935,27 +934,6 @@ export const WorkspaceLinkedFileResolutionSchema = z.object({
   name: z.string(),
   relativePath: z.string(),
   workspaceRoot: z.string().nullable()
-})
-
-export const BrowserPageInfoSchema = z.object({
-  id: z.string(),
-  url: z.string(),
-  title: z.string().optional(),
-  favicon: z.string().optional(),
-  status: z.enum(BrowserPageStatus),
-  createdAt: z.number().int(),
-  updatedAt: z.number().int()
-})
-
-export const YoBrowserStatusSchema = z.object({
-  initialized: z.boolean(),
-  page: BrowserPageInfoSchema.nullable(),
-  canGoBack: z.boolean(),
-  canGoForward: z.boolean(),
-  visible: z.boolean(),
-  loading: z.boolean(),
-  owner: z.enum(['agent', 'user']).optional(),
-  agentRunId: z.string().optional()
 })
 
 export const RectangleSchema = z.object({

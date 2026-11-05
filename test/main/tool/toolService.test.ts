@@ -4130,66 +4130,6 @@ describe('ToolService', () => {
     )
   })
 
-  it('omits YoBrowser prompt text when no yobrowser tools are enabled', () => {
-    const mcpService = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
-      callTool: vi.fn()
-    } as any
-    const providerSettings = {
-      getModelConfig: vi.fn()
-    }
-
-    const toolService = new ToolService({
-      skillSettings: { isEnabled: () => false } as any,
-      mcpService,
-      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
-      providerSettings: providerSettings as any,
-      settings: { get: vi.fn() },
-      commandPermissionHandler: new CommandPermissionService(),
-      agentTools: buildAgentToolRuntimeMock()
-    })
-
-    const withoutYoBrowser = toolService.buildToolSystemPrompt({
-      conversationId: 'conv-1',
-      toolDefinitions: [
-        {
-          ...buildToolDefinition('read', 'agent-filesystem'),
-          source: 'agent'
-        }
-      ]
-    })
-    const withYoBrowser = toolService.buildToolSystemPrompt({
-      conversationId: 'conv-1',
-      toolDefinitions: [
-        {
-          ...buildToolDefinition('read', 'agent-filesystem'),
-          source: 'agent'
-        },
-        {
-          ...buildToolDefinition('load_url', 'yobrowser'),
-          source: 'agent'
-        },
-        {
-          ...buildToolDefinition('cdp_send', 'yobrowser'),
-          source: 'agent'
-        }
-      ]
-    })
-
-    expect(withoutYoBrowser).not.toContain('YoBrowser')
-    expect(withYoBrowser).toContain('YoBrowser')
-    expect(withYoBrowser).toContain('cdp_send')
-    expect(withYoBrowser).toContain(
-      'Prefer `load_url` to create the session browser and handle navigation.'
-    )
-    expect(withYoBrowser).toContain(
-      'Avoid using `cdp_send` `Page.navigate` for normal navigation unless needed.'
-    )
-    expect(withYoBrowser).toContain(
-      'If `cdp_send` reports `yobrowser_unavailable`, call `get_browser_status`, then use `load_url` with the target URL when available.'
-    )
-  })
-
   it('includes question guidance only when deepchat_question is enabled', () => {
     const mcpService = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),

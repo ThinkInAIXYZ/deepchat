@@ -1,4 +1,5 @@
 import logger from '@shared/logger'
+import { appHost } from '@/platform/appHost'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -15,10 +16,9 @@ import type {
 import type { KnowledgeDatabasePort } from '../ports'
 
 import { nanoid } from 'nanoid'
-import { app } from 'electron'
 
 const runtimeBasePath = path
-  .join(app.getAppPath(), 'runtime')
+  .join(appHost.getAppPath(), 'runtime')
   .replace('app.asar', 'app.asar.unpacked')
 const extensionDir = path.join(runtimeBasePath, 'duckdb', 'extensions')
 const extensionSuffix = '.duckdb_extension'

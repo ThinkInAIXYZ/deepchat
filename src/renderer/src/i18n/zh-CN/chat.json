@@ -1,7 +1,10 @@
 {
   "sessionReference": {
     "copy": "复制会话引用",
-    "groups": { "session": "会话", "file": "文件" },
+    "groups": {
+      "session": "会话",
+      "file": "文件"
+    },
     "open": "打开 {title}",
     "unavailableTitle": "会话引用不可用",
     "unavailableDescription": "该会话已删除、重置或不再可用。",
@@ -70,8 +73,7 @@
         "agentCore": "核心工具",
         "agentImageGeneration": "图像生成",
         "agentSkills": "技能工具",
-        "deepchatSettings": "DeepChat 设置",
-        "yobrowser": "YoBrowser"
+        "deepchatSettings": "DeepChat 设置"
       }
     },
     "toolMode": {

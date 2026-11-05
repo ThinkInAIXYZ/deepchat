@@ -204,7 +204,7 @@
 </template>
 
 <script setup lang="ts">
-import { createBrowserClient } from '@api/BrowserClient'
+import { openRuntimeExternal } from '@api/runtime'
 import { createConfigClient } from '@api/ConfigClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
@@ -243,7 +243,6 @@ const { t } = useI18n()
 const themeStore = useThemeStore()
 const languageStore = useLanguageStore()
 const route = useRoute()
-const browserClient = createBrowserClient()
 const configClient = createConfigClient()
 const deviceClient = createDeviceClient()
 const windowClient = createWindowClient()
@@ -391,7 +390,7 @@ const syncUpdateStatus = async () => {
 }
 
 const openExternalLink = (url: string) => {
-  void browserClient.openExternal(url).catch(() => {
+  void openRuntimeExternal(url).catch(() => {
     window.open(url, '_blank', 'noopener,noreferrer')
   })
 }

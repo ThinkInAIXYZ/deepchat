@@ -1,7 +1,8 @@
 import * as fs from 'fs'
+import { appHost } from '@/platform/appHost'
 import * as path from 'path'
 import { randomBytes } from 'node:crypto'
-import { app, safeStorage } from 'electron'
+import { secretHost } from '@/platform/secretHost'
 
 export type XaiGrokCredentialStorage = 'safeStorage' | 'file' | 'none'
 
@@ -48,12 +49,12 @@ export class XaiGrokCredentialStore {
 
   constructor(filePath?: string) {
     this.filePath =
-      filePath || path.join(app.getPath('userData'), 'xai-grok-auth', 'credentials.json')
+      filePath || path.join(appHost.getPath('userData'), 'xai-grok-auth', 'credentials.json')
   }
 
   getStorageState(): XaiGrokCredentialStorage {
     try {
-      return safeStorage.isEncryptionAvailable() ? 'safeStorage' : 'file'
+      return secretHost.isAvailable() ? 'safeStorage' : 'file'
     } catch (error) {
       console.warn(
         '[XaiGrokCredentialStore] Encryption availability check failed, using file storage:',
@@ -92,7 +93,7 @@ export class XaiGrokCredentialStore {
         ? {
             version: 1,
             storage: 'safeStorage',
-            wrapped: safeStorage.encryptString(JSON.stringify(normalized)).toString('base64'),
+            wrapped: secretHost.encryptString(JSON.stringify(normalized)).toString('base64'),
             updatedAt: now
           }
         : {
@@ -187,7 +188,7 @@ export class XaiGrokCredentialStore {
 
     let decrypted: string
     try {
-      decrypted = safeStorage.decryptString(Buffer.from(envelope.wrapped, 'base64'))
+      decrypted = secretHost.decryptString(Buffer.from(envelope.wrapped, 'base64'))
     } catch (error) {
       return {
         state: 'undecryptable',

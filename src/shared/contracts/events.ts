@@ -19,18 +19,6 @@ import {
   appRuntimeWindowFocusedEvent
 } from './events/app-runtime.events'
 import {
-  browserActivityChangedEvent,
-  browserOpenRequestedEvent,
-  browserPreviewActionEvent,
-  browserPreviewFrameEvent,
-  browserPreviewSurfaceChangedEvent,
-  browserStatusChangedEvent
-} from './events/browser.events'
-import {
-  computerUsePreviewFrameEvent,
-  computerUsePreviewSurfaceChangedEvent
-} from './events/computerUse.events'
-import {
   chatStreamActivityEvent,
   chatStreamCompletedEvent,
   chatStreamFailedEvent,
@@ -47,7 +35,6 @@ import {
   configCustomPromptsChangedEvent,
   configAgentsChangedEvent,
   configDefaultProjectPathChangedEvent,
-  configFloatingButtonChangedEvent,
   configLanguageChangedEvent,
   configShortcutKeysChangedEvent,
   configSyncSettingsChangedEvent,
@@ -152,8 +139,6 @@ import {
   runsTurnFailedEvent
 } from './events/runs.events'
 
-export * from './events/browser.events'
-export * from './events/computerUse.events'
 export * from './events/acp-auth.events'
 export * from './events/approvals.events'
 export * from './events/app-runtime.events'
@@ -190,14 +175,6 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [workspaceInvalidatedEvent.name]: workspaceInvalidatedEvent,
   [workspaceWatchStatusChangedEvent.name]: workspaceWatchStatusChangedEvent,
   [liveDelegationChangedEvent.name]: liveDelegationChangedEvent,
-  [browserActivityChangedEvent.name]: browserActivityChangedEvent,
-  [browserPreviewActionEvent.name]: browserPreviewActionEvent,
-  [browserPreviewFrameEvent.name]: browserPreviewFrameEvent,
-  [browserPreviewSurfaceChangedEvent.name]: browserPreviewSurfaceChangedEvent,
-  [computerUsePreviewFrameEvent.name]: computerUsePreviewFrameEvent,
-  [computerUsePreviewSurfaceChangedEvent.name]: computerUsePreviewSurfaceChangedEvent,
-  [browserOpenRequestedEvent.name]: browserOpenRequestedEvent,
-  [browserStatusChangedEvent.name]: browserStatusChangedEvent,
   [settingsChangedEvent.name]: settingsChangedEvent,
   [settingsCommandShellChangedEvent.name]: settingsCommandShellChangedEvent,
   [settingsNavigateRequestedEvent.name]: settingsNavigateRequestedEvent,
@@ -237,7 +214,6 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [configLanguageChangedEvent.name]: configLanguageChangedEvent,
   [configThemeChangedEvent.name]: configThemeChangedEvent,
   [configSystemThemeChangedEvent.name]: configSystemThemeChangedEvent,
-  [configFloatingButtonChangedEvent.name]: configFloatingButtonChangedEvent,
   [configSyncSettingsChangedEvent.name]: configSyncSettingsChangedEvent,
   [configDefaultProjectPathChangedEvent.name]: configDefaultProjectPathChangedEvent,
   [configAgentsChangedEvent.name]: configAgentsChangedEvent,

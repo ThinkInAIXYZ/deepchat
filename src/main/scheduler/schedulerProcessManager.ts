@@ -1,19 +1,13 @@
 import fs from 'fs'
+import { appHost } from '@/platform/appHost'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import type { UtilityProcess } from 'electron'
+import type { HostedProcess } from '@/platform/processHost'
+import { processHost } from '@/platform/processHost'
 import type { CronJobsSchedulerStatus, SchedulerCommand, SchedulerEvent } from '@shared/cronJobs'
 import type { CronJobsSchedulerSnapshot } from './repository'
 
-type SchedulerUtilityProcess = Pick<UtilityProcess, 'postMessage' | 'kill' | 'pid'> & {
-  on(event: 'message', listener: (message: unknown) => void): SchedulerUtilityProcess
-  on(event: 'exit', listener: (code: number) => void): SchedulerUtilityProcess
-  on(event: 'error', listener: (type: string, location: string) => void): SchedulerUtilityProcess
-  once(event: 'spawn', listener: () => void): SchedulerUtilityProcess
-  once(event: 'exit', listener: (code: number) => void): SchedulerUtilityProcess
-  off(event: 'spawn', listener: () => void): SchedulerUtilityProcess
-  off(event: 'exit', listener: (code: number) => void): SchedulerUtilityProcess
-}
+type SchedulerUtilityProcess = HostedProcess
 
 export interface SchedulerRunDueEvent {
   jobId: string
@@ -187,9 +181,8 @@ export class SchedulerProcessManager {
   }
 
   private async spawnDefaultHost(): Promise<SchedulerUtilityProcess> {
-    const { app, utilityProcess } = await import('electron')
-    const modulePath = this.resolveUtilityHostEntryPoint(app.getAppPath())
-    const host = utilityProcess.fork(modulePath, ['--deepchat-cron-scheduler-host'], {
+    const modulePath = this.resolveUtilityHostEntryPoint(appHost.getAppPath())
+    const host = processHost.fork(modulePath, ['--deepchat-cron-scheduler-host'], {
       serviceName: 'DeepChat Cron Jobs Scheduler',
       stdio: 'ignore',
       env: {

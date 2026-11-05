@@ -1,6 +1,5 @@
 export * from './AcpAuthClient'
 export * from './AppRuntimeClient'
-export * from './BrowserClient'
 export * from './ConfigClient'
 export * from './ChatClient'
 export * from './ContextMenuClient'

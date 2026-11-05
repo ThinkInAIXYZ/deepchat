@@ -1,5 +1,7 @@
 import logger from '@shared/logger'
-import { app, globalShortcut, Menu, BrowserWindow, type MenuItemConstructorOptions } from 'electron'
+import { appHost } from '@/platform/appHost'
+import { app, Menu, BrowserWindow, type MenuItemConstructorOptions } from 'electron'
+import { shortcutHost } from '@/platform/shortcutHost'
 
 import { SHORTCUT_EVENTS } from '../events'
 import { defaultShortcutKey } from './shortcutKeySettings'
@@ -75,7 +77,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
 
     if (process.platform === 'darwin') {
       template.push({
-        label: app.getName(),
+        label: appHost.getName(),
         submenu: [
           { role: 'about' },
           { type: 'separator' },
@@ -271,10 +273,10 @@ export class ShortcutPresenter implements IShortcutPresenter {
   }
 
   private registerSystemShortcuts(): void {
-    globalShortcut.unregisterAll()
+    shortcutHost.unregisterAll()
 
     if (this.shortcutKeys.ShowHideWindow) {
-      globalShortcut.register(this.shortcutKeys.ShowHideWindow, () => {
+      shortcutHost.register(this.shortcutKeys.ShowHideWindow, () => {
         this.windowPresenter.toggleMainWindowVisibility()
       })
     }
@@ -286,7 +288,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
   }
 
   destroy(): void {
-    globalShortcut.unregisterAll()
+    shortcutHost.unregisterAll()
     Menu.setApplicationMenu(null)
   }
 }

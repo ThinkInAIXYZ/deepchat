@@ -1,4 +1,5 @@
-import { app, shell } from 'electron'
+import { shellHost } from '@/platform/shellHost'
+import { appHost } from '@/platform/appHost'
 import fs from 'fs'
 import path from 'path'
 import type { DeviceServicePort } from '@shared/types/device'
@@ -43,9 +44,9 @@ export class ProjectService {
     this.sessionDatabase = sessionDatabase
     this.deviceService = deviceService
     this.settings = settings
-    this.tempRoot = path.resolve(app.getPath('temp'))
-    this.userDataWorkspacesRoot = path.resolve(path.join(app.getPath('userData'), 'workspaces'))
-    this.appDataRoot = path.resolve(app.getPath('appData'))
+    this.tempRoot = path.resolve(appHost.getPath('temp'))
+    this.userDataWorkspacesRoot = path.resolve(path.join(appHost.getPath('userData'), 'workspaces'))
+    this.appDataRoot = path.resolve(appHost.getPath('appData'))
     this.snapshotVersion = this.readSnapshotVersion()
   }
 
@@ -226,7 +227,7 @@ export class ProjectService {
       return
     }
 
-    const errorMessage = await shell.openPath(normalizedPath)
+    const errorMessage = await shellHost.openPath(normalizedPath)
     if (errorMessage) {
       throw new Error(errorMessage)
     }
@@ -453,13 +454,13 @@ export class ProjectService {
     }
 
     try {
-      addCandidate(app.getPath('documents'))
+      addCandidate(appHost.getPath('documents'))
     } catch (error) {
       console.warn('[ProjectService] Failed to resolve Documents path:', error)
     }
 
     try {
-      addCandidate(app.getPath('home'))
+      addCandidate(appHost.getPath('home'))
     } catch (error) {
       console.warn('[ProjectService] Failed to resolve Home path:', error)
     }

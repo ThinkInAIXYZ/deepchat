@@ -1,6 +1,5 @@
 import type { FileServicePort } from '@shared/types/file'
 import type { ProviderRuntimePort } from '@shared/types/provider'
-import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 import type {
   DeepChatSubagentMeta,
@@ -214,18 +213,6 @@ export interface AgentLiveDelegationToolPort {
   ): Promise<LiveDelegationDetail>
 }
 
-export interface AgentBrowserToolPort {
-  getToolDefinitions(): MCPToolDefinition[]
-  callTool(
-    toolName: string,
-    args: Record<string, unknown>,
-    conversationId?: string,
-    runId?: string,
-    beforeInvoke?: (normalizedArguments: Record<string, unknown>) => void,
-    signal?: AbortSignal
-  ): Promise<string>
-}
-
 export type AgentFileToolPort = Pick<FileServicePort, 'getMimeType' | 'prepareFileCompletely'>
 
 export type AgentProviderToolPort = Pick<
@@ -273,7 +260,6 @@ export interface AgentToolDependencies {
   agentInvocationAdmission: AgentInvocationAdmissionPort
   skills: SkillServicePort
   skillExecutionAuthority: SkillExecutionAuthorityPort
-  browser: AgentBrowserToolPort
   files: AgentFileToolPort
   provider: AgentProviderToolPort
   desktop: AgentDesktopToolPort

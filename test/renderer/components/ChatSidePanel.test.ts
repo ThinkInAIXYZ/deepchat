@@ -8,14 +8,13 @@ describe('ChatSidePanel', () => {
 
   const setup = async (options?: {
     open?: boolean
-    activeTab?: 'workspace' | 'browser' | 'mcp-app' | 'tape-inspector'
+    activeTab?: 'workspace' | 'mcp-app' | 'tape-inspector'
     mcpAppPreviewOwnerId?: string | null
     sessionId?: string | null
     traceDebugEnabled?: boolean
   }) => {
     vi.resetModules()
 
-    let openRequestedHandler: ((payload: unknown) => void) | null = null
     const sidepanelStore = reactive({
       open: options?.open ?? true,
       activeTab: options?.activeTab ?? 'workspace',
@@ -25,10 +24,6 @@ describe('ChatSidePanel', () => {
       minWidth: 360,
       maxWidth: 960,
       openWorkspace: vi.fn(),
-      openBrowser: vi.fn(() => {
-        sidepanelStore.activeTab = 'browser'
-        sidepanelStore.open = true
-      }),
       openMcpAppPreview: vi.fn((ownerId: string) => {
         sidepanelStore.mcpAppPreviewOwnerId = ownerId
         sidepanelStore.activeTab = 'mcp-app'
@@ -58,25 +53,6 @@ describe('ChatSidePanel', () => {
       Icon: defineComponent({
         name: 'Icon',
         template: '<span data-testid="icon" />'
-      })
-    }))
-
-    vi.doMock('@api/BrowserClient', () => ({
-      createBrowserClient: () => ({
-        onOpenRequestedForCurrentWindow: vi.fn((handler: (payload: unknown) => void) => {
-          openRequestedHandler = handler
-          return vi.fn()
-        })
-      })
-    }))
-
-    vi.doMock('@/components/sidepanel/BrowserPanel.vue', () => ({
-      default: defineComponent({
-        name: 'BrowserPanel',
-        setup() {
-          onMounted(() => window.dispatchEvent(new Event('browser-panel-mounted')))
-        },
-        template: '<div data-testid="browser-panel-stub" />'
       })
     }))
 
@@ -148,8 +124,7 @@ describe('ChatSidePanel', () => {
 
     return {
       wrapper,
-      sidepanelStore,
-      emitOpenRequested: (payload: unknown) => openRequestedHandler?.(payload)
+      sidepanelStore
     }
   }
 
@@ -169,34 +144,6 @@ describe('ChatSidePanel', () => {
     await separator.trigger('keydown', { key: 'Home' })
     expect(sidepanelStore.setWidth).toHaveBeenLastCalledWith(360)
     wrapper.unmount()
-  })
-
-  it('unmounts workspace content before mounting browser content', async () => {
-    vi.useFakeTimers()
-    const lifecycleEvents: string[] = []
-    const recordWorkspaceUnmount = () => lifecycleEvents.push('workspace-unmounted')
-    const recordBrowserMount = () => lifecycleEvents.push('browser-mounted')
-    window.addEventListener('workspace-panel-unmounted', recordWorkspaceUnmount)
-    window.addEventListener('browser-panel-mounted', recordBrowserMount)
-
-    try {
-      const { wrapper } = await setup({ activeTab: 'workspace' })
-      const browserTab = wrapper
-        .findAll('button')
-        .find((button) => button.text() === 'common.browser.name')
-      expect(browserTab).toBeDefined()
-
-      await browserTab!.trigger('click')
-      await vi.runAllTimersAsync()
-      await nextTick()
-
-      expect(lifecycleEvents).toEqual(['workspace-unmounted', 'browser-mounted'])
-      expect(wrapper.find('[data-testid="workspace-panel-stub"]').exists()).toBe(false)
-      expect(wrapper.find('[data-testid="browser-panel-stub"]').exists()).toBe(true)
-    } finally {
-      window.removeEventListener('workspace-panel-unmounted', recordWorkspaceUnmount)
-      window.removeEventListener('browser-panel-mounted', recordBrowserMount)
-    }
   })
 
   it('keeps the mcp-app outlet mounted so teleported apps always have a target', async () => {
@@ -232,58 +179,6 @@ describe('ChatSidePanel', () => {
     expect(shell.attributes('data-tape-inspector-fullscreen')).toBe('false')
   })
 
-  it('opens the browser sidepanel when OPEN_REQUESTED targets the current host window', async () => {
-    const { sidepanelStore, emitOpenRequested } = await setup({
-      open: false,
-      activeTab: 'workspace'
-    })
-
-    emitOpenRequested({
-      windowId: 7,
-      sessionId: 'session-1',
-      url: 'https://example.com',
-      version: Date.now()
-    })
-
-    expect(sidepanelStore.openBrowser).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps a closed sidepanel closed for Agent browser activity', async () => {
-    const { sidepanelStore, emitOpenRequested } = await setup({
-      open: false,
-      activeTab: 'workspace'
-    })
-
-    emitOpenRequested({
-      windowId: 7,
-      sessionId: 'session-1',
-      url: 'https://example.com',
-      source: 'agent',
-      runId: 'run-1',
-      version: Date.now()
-    })
-
-    expect(sidepanelStore.openBrowser).not.toHaveBeenCalled()
-  })
-
-  it('switches an open workspace sidepanel to Browser for Agent activity', async () => {
-    const { sidepanelStore, emitOpenRequested } = await setup({
-      open: true,
-      activeTab: 'workspace'
-    })
-
-    emitOpenRequested({
-      windowId: 7,
-      sessionId: 'session-1',
-      url: 'https://example.com',
-      source: 'agent',
-      runId: 'run-1',
-      version: Date.now()
-    })
-
-    expect(sidepanelStore.openBrowser).toHaveBeenCalledTimes(1)
-  })
-
   it('dispatches session-scoped workspace insertion requests from the workspace panel', async () => {
     const insertionListener = vi.fn()
     window.addEventListener(WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED, insertionListener)
@@ -315,7 +210,6 @@ describe('ChatSidePanel', () => {
     })
 
     expect(wrapper.find('[data-testid="workspace-panel-stub"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="browser-panel-stub"]').exists()).toBe(false)
     expect(wrapper.get('[data-testid="mcp-app-sidepanel-outlet"]').isVisible()).toBe(true)
 
     await wrapper.get('[data-testid="mcp-app-sidepanel-tab"]').trigger('click')

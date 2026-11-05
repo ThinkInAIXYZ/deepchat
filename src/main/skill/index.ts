@@ -1,4 +1,5 @@
-import { app, shell } from 'electron'
+import { appHost } from '@/platform/appHost'
+import { shellHost } from '@/platform/shellHost'
 import path from 'path'
 import fs from 'fs'
 import { execFile } from 'node:child_process'
@@ -402,14 +403,14 @@ export class SkillService implements SkillServicePort {
     // Skills directory: ~/.deepchat/skills/
     this.skillsDir = this.resolveSkillsDir()
     this.sidecarDir = path.join(this.skillsDir, SKILL_CONFIG.SIDECAR_DIR)
-    this.draftsRoot = path.join(app.getPath('temp'), SKILL_CONFIG.DRAFT_ROOT_DIR)
+    this.draftsRoot = path.join(appHost.getPath('temp'), SKILL_CONFIG.DRAFT_ROOT_DIR)
     this.ensureSkillsDir()
   }
 
   private resolveSkillsDir(): string {
     const configuredPath = this.settings.getPath()
     const normalized = configuredPath?.trim()
-    const homePath = app.getPath('home')
+    const homePath = appHost.getPath('home')
     const homeDir = homePath ? path.resolve(homePath) : path.resolve('.')
     const fallbackDir = path.join(homeDir, '.deepchat', 'skills')
     const resolved = normalized ? path.resolve(normalized) : fallbackDir
@@ -3317,13 +3318,13 @@ export class SkillService implements SkillServicePort {
   }
 
   private getBuiltinSkillsDirCandidates(): string[] {
-    if (!app.isPackaged) {
-      return [path.join(app.getAppPath(), 'resources', 'skills')]
+    if (!appHost.isPackaged()) {
+      return [path.join(appHost.getAppPath(), 'resources', 'skills')]
     }
     return [
-      path.join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'skills'),
-      path.join(process.resourcesPath, 'resources', 'skills'),
-      path.join(process.resourcesPath, 'skills')
+      path.join(appHost.getResourcesPath(), 'app.asar.unpacked', 'resources', 'skills'),
+      path.join(appHost.getResourcesPath(), 'resources', 'skills'),
+      path.join(appHost.getResourcesPath(), 'skills')
     ]
   }
 
@@ -3413,7 +3414,7 @@ export class SkillService implements SkillServicePort {
       return { success: false, error: 'Zip file not found', errorCode: 'not_found' }
     }
 
-    const tempDir = fs.mkdtempSync(path.join(app.getPath('temp'), 'deepchat-skill-'))
+    const tempDir = fs.mkdtempSync(path.join(appHost.getPath('temp'), 'deepchat-skill-'))
     try {
       await extractSkillArchive(zipPath, tempDir, {
         maxArchiveBytes: SKILL_CONFIG.ZIP_MAX_SIZE
@@ -3459,7 +3460,7 @@ export class SkillService implements SkillServicePort {
   ): Promise<SkillInstallResult> {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     const finishOperation = this.beginAgentScopeOperation(normalizedAgentId)
-    const tempZipPath = path.join(app.getPath('temp'), `deepchat-skill-${randomUUID()}.zip`)
+    const tempZipPath = path.join(appHost.getPath('temp'), `deepchat-skill-${randomUUID()}.zip`)
     try {
       await downloadSkillArchive(url, tempZipPath, {
         maxBytes: SKILL_CONFIG.ZIP_MAX_SIZE,
@@ -4268,7 +4269,7 @@ export class SkillService implements SkillServicePort {
   private backupExistingSkill(skillName: string): string {
     const sourceDir = path.join(this.skillsDir, skillName)
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const backupRoot = path.join(app.getPath('home'), '.deepchat', 'backups', 'skill-installs')
+    const backupRoot = path.join(appHost.getPath('home'), '.deepchat', 'backups', 'skill-installs')
     fs.mkdirSync(backupRoot, { recursive: true })
     const backupDir = path.join(backupRoot, `${skillName}-${timestamp}-${randomUUID()}`)
     fs.renameSync(sourceDir, backupDir)
@@ -4347,7 +4348,7 @@ export class SkillService implements SkillServicePort {
   }
 
   private async cloneGitSkillRepo(repoUrl: string): Promise<string> {
-    const operationRoot = path.join(app.getPath('home'), '.deepchat', 'tmp', 'skill-installs')
+    const operationRoot = path.join(appHost.getPath('home'), '.deepchat', 'tmp', 'skill-installs')
     fs.mkdirSync(operationRoot, { recursive: true })
     const cloneDir = path.join(operationRoot, `${Date.now()}-${randomUUID()}`)
     try {
@@ -4857,7 +4858,7 @@ export class SkillService implements SkillServicePort {
     }
 
     const skillDir = path.resolve(metadata.skillRoot)
-    const backupRoot = path.join(app.getPath('home'), '.deepchat', 'backups', 'skill-deletes')
+    const backupRoot = path.join(appHost.getPath('home'), '.deepchat', 'backups', 'skill-deletes')
     fs.mkdirSync(backupRoot, { recursive: true })
     const backupDir = path.join(backupRoot, `${name}-${Date.now()}-${randomUUID()}`)
     const sessions = this.agentScopePort ? await this.agentScopePort.listSessions() : []
@@ -5343,7 +5344,7 @@ export class SkillService implements SkillServicePort {
     const normalizedAgentId = await this.requireAgentScope(agentId)
     const finishOperation = this.beginAgentScopeOperation(normalizedAgentId)
     try {
-      await shell.openPath(this.skillsDir)
+      await shellHost.openPath(this.skillsDir)
     } finally {
       finishOperation()
     }
@@ -5379,7 +5380,7 @@ export class SkillService implements SkillServicePort {
     }
     const ownerPluginId = this.getStoredManagementState().skills[name]?.ownerPluginId
     const userPluginRoot = path.join(
-      app.getPath('userData'),
+      appHost.getPath('userData'),
       PLUGIN_INSTALL_DIRECTORY,
       USER_PLUGIN_INSTALL_DIRECTORY
     )

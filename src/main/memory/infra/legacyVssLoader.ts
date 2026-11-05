@@ -1,4 +1,5 @@
 import logger from '@shared/logger'
+import { appHost } from '@/platform/appHost'
 import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -6,7 +7,6 @@ import { promisify } from 'node:util'
 import { gunzip } from 'node:zlib'
 
 import type { DuckDBConnection } from '@duckdb/node-api'
-import { app } from 'electron'
 
 const extensionSuffix = '.duckdb_extension'
 const VSS_EXTENSION_NAME = `vss${extensionSuffix}`
@@ -90,7 +90,7 @@ async function inflatePackagedVssExtension(
 
 async function materializePackagedVssExtension(assetPath: string, dbPath: string): Promise<string> {
   const resolvedAssetPath = path.resolve(assetPath)
-  const materializationRoot = path.resolve(app.getPath('userData') || path.dirname(dbPath))
+  const materializationRoot = path.resolve(appHost.getPath('userData') || path.dirname(dbPath))
   const cacheKey = materializationCacheKey(resolvedAssetPath, materializationRoot)
   const existing = PACKAGED_VSS_MATERIALIZATION_PROMISES.get(cacheKey)
   if (existing) {
@@ -122,7 +122,7 @@ async function resolveLegacyVssPath(
   fence?: LegacyVssLoadFence
 ): Promise<{ extensionPath: string; source: string } | null> {
   const runtimeBasePath = path
-    .join(app.getAppPath(), 'runtime')
+    .join(appHost.getAppPath(), 'runtime')
     .replace('app.asar', 'app.asar.unpacked')
   const extensionDir = path.join(runtimeBasePath, 'duckdb', 'extensions')
   const extensionPath = path.join(extensionDir, VSS_EXTENSION_NAME)
@@ -148,7 +148,7 @@ async function resolveLegacyVssPath(
 
   const message = `[MemoryVectorStore] bundled VSS extension missing at ${extensionPath} or ${packagedAssetPath}. Run installRuntime:duckdb:vss before packaging.`
   if (fence) throw new LegacyVssUnavailableError(message)
-  if (app.isPackaged) {
+  if (appHost.isPackaged()) {
     logger.error(`${message} Vector recall disabled until a valid bundled extension ships.`)
     throw new Error(message)
   }
@@ -169,7 +169,7 @@ export async function loadLegacyVss(
       return
     } catch (error) {
       const message = `[MemoryVectorStore] ${resolved.source} VSS extension failed to load from ${resolved.extensionPath}: ${String(error)}`
-      if (app.isPackaged || fence) {
+      if (appHost.isPackaged() || fence) {
         logger.error(`${message}. Vector recall disabled until a valid bundled extension ships.`)
         throw error
       }

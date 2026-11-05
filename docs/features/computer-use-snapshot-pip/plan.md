@@ -1,5 +1,7 @@
 # Computer Use Snapshot Picture-in-Picture Implementation Plan
 
+> **状态：已在 mygo 迁移中移除。** computer use 的 PiP 预览窗口已下线，CUA 插件与其工具调用保持不变，本文档仅作为历史设计记录保留。
+
 ## Status
 
 Implemented on branch `codex/computer-use-snapshot-pip` on 2026-07-28.

@@ -1,5 +1,6 @@
 import { createHash, createPublicKey, randomBytes, verify as verifySignature } from 'node:crypto'
-import { shell } from 'electron'
+import { shellHost } from '@/platform/shellHost'
+
 import {
   CrossAppAccessProvider,
   discoverAndRequestJwtAuthGrant,
@@ -397,7 +398,7 @@ export class McpEnterpriseIdentityManager {
         .then((callback) => this.finishAuth(flow!, callback.code))
         .catch((error) => this.failAuth(flow!, error))
 
-      await shell.openExternal(authorizationUrl.toString())
+      await shellHost.openExternal(authorizationUrl.toString())
       return this.getStatus(profileId)
     } catch (error) {
       if (flow) {

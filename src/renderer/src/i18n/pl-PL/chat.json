@@ -1,7 +1,10 @@
 {
   "sessionReference": {
     "copy": "Kopiuj odwołanie do sesji",
-    "groups": { "session": "Sesje", "file": "Pliki" },
+    "groups": {
+      "session": "Sesje",
+      "file": "Pliki"
+    },
     "open": "Otwórz {title}",
     "unavailableTitle": "Odwołanie do sesji jest niedostępne",
     "unavailableDescription": "Ta sesja została usunięta, zresetowana lub nie jest już dostępna.",
@@ -70,8 +73,7 @@
         "agentCore": "Rdzeń Agent",
         "agentImageGeneration": "Generowanie obrazu",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "Ustawienia DeepChat",
-        "yobrowser": "Twoja przeglądarka"
+        "deepchatSettings": "Ustawienia DeepChat"
       }
     },
     "toolMode": {

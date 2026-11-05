@@ -1,4 +1,5 @@
-import { BrowserWindow, clipboard, shell } from 'electron'
+import { BrowserWindow, clipboard } from 'electron'
+import { shellHost } from '@/platform/shellHost'
 import { exec } from 'child_process'
 import logger from '@shared/logger'
 import { z } from 'zod'
@@ -381,7 +382,7 @@ export class GitHubCopilotDeviceFlow {
       // Handle messages
       instructionWindow.webContents.on('ipc-message', (_event, channel, ...args) => {
         if (channel === 'open-external') {
-          shell.openExternal(args[0])
+          shellHost.openExternal(args[0])
         }
       })
 
@@ -390,7 +391,7 @@ export class GitHubCopilotDeviceFlow {
         try {
           const msg = typeof message === 'string' ? JSON.parse(message) : message
           if (msg.type === 'open-external') {
-            shell.openExternal(msg.url)
+            shellHost.openExternal(msg.url)
           } else if (msg.type === 'copy-to-clipboard') {
             if (typeof msg.text === 'string') {
               clipboard.writeText(msg.text)
@@ -436,7 +437,7 @@ export class GitHubCopilotDeviceFlow {
             })
           } else {
             // Non-Windows systems use default shell.openExternal
-            await shell.openExternal(url)
+            await shellHost.openExternal(url)
           }
         } catch (error) {
           console.error('Failed to open browser:', error)

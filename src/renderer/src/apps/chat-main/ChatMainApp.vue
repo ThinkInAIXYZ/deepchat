@@ -49,7 +49,6 @@ import {
 } from '@/lib/onboardingResume'
 import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
 import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
-import { createWindowClient } from '@api/WindowClient'
 import {
   RENDERER_PERFORMANCE_REPORTER,
   RendererPerformanceReporter
@@ -77,7 +76,6 @@ watch(
 const configClient = createConfigClient()
 const notificationClient = createNotificationClient()
 const onboardingClient = createOnboardingClient()
-const windowClient = createWindowClient()
 const sessionStore = useSessionStore()
 const chatSessionStore = useChatSessionStore()
 const disconnectChatSession = chatSessionStore.connect()
@@ -445,15 +443,7 @@ const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRu
   getCurrentRouteName: () => router.currentRoute.value.name
 })
 
-// Handle ESC key - close floating chat window
-const handleEscKey = (event: KeyboardEvent) => {
-  if (event.key === 'Escape') {
-    void windowClient.closeFloatingCurrent()
-  }
-}
-
 // Same listeners as before; VueUse owns register/unregister with the component scope.
-useEventListener(window, 'keydown', handleEscKey)
 useEventListener(
   window,
   GUIDED_ONBOARDING_RESUME_REQUESTED_EVENT,

@@ -73,8 +73,7 @@
         "agentCore": "Cœur de l'agent",
         "agentImageGeneration": "Génération d'images",
         "agentSkills": "Skills de l'agent",
-        "deepchatSettings": "Paramètres DeepChat",
-        "yobrowser": "YoBrowser"
+        "deepchatSettings": "Paramètres DeepChat"
       }
     },
     "toolMode": {

@@ -1,4 +1,5 @@
-import { app, shell } from 'electron'
+import { shellHost } from '@/platform/shellHost'
+import { appHost } from '@/platform/appHost'
 import fs from 'fs'
 import path from 'path'
 import type { SettingsStore } from '@/config/settingsStore'
@@ -29,10 +30,10 @@ export class LoggingService {
   }
 
   async openFolder(): Promise<void> {
-    const loggingFolderPath = path.join(app.getPath('userData'), 'logs')
+    const loggingFolderPath = path.join(appHost.getPath('userData'), 'logs')
     if (!fs.existsSync(loggingFolderPath)) {
       fs.mkdirSync(loggingFolderPath, { recursive: true })
     }
-    await shell.openPath(loggingFolderPath)
+    await shellHost.openPath(loggingFolderPath)
   }
 }

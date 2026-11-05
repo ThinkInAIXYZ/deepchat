@@ -226,12 +226,11 @@ describe('session data migrations', () => {
     )
 
     expect(fixture.replaceSessionDisabledTools).toHaveBeenCalledWith('session-1', [
-      'cdp_send',
       'custom_tool',
       'exec'
     ])
     expect(fixture.updateSessionDisabledTools).toHaveBeenCalledWith(
-      JSON.stringify(['cdp_send', 'custom_tool', 'exec']),
+      JSON.stringify(['custom_tool', 'exec']),
       'session-1'
     )
     expect(fixture.providerSettings.updateDeepChatAgent).toHaveBeenCalledWith('deepchat', {

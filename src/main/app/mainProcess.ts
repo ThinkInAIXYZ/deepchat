@@ -1,5 +1,5 @@
 import { electronApp } from '@electron-toolkit/utils'
-import { app } from 'electron'
+import { appHost } from '@/platform/appHost'
 import { createSettingsStore } from '@/config/settingsStore'
 import { SecretStore } from '@/config/secretStore'
 import { DatabaseSecurityService } from './databaseSecurity'
@@ -94,7 +94,7 @@ export async function startMainProcess(
       settings: settingsStore,
       mcpSettings: mcpSettings.getMigrationSnapshot(),
       acpCatalog: acpCatalogSettings.getMigrationSnapshot(),
-      userDataPath: app.getPath('userData')
+      userDataPath: appHost.getPath('userData')
     })
     settingsStore.attachDatabase(settingsDatabase)
     mcpSettings.connectDatabase(mcpDatabase)

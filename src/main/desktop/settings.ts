@@ -1,9 +1,10 @@
 import type { SettingsStore } from '@/config/settingsStore'
+import { appHost } from '@/platform/appHost'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { ShortcutKeySetting } from '@shared/types/desktop'
 import { defaultShortcutKey } from './shortcutKeySettings'
-import { app, nativeTheme } from 'electron'
-import type { FloatingButtonBounds } from '@shared/types/floating-widget'
+import { app } from 'electron'
+import { themeHost } from '@/platform/themeHost'
 import {
   getLocaleDirection,
   resolveRequestedLocale,
@@ -28,7 +29,7 @@ export class DesktopSettings {
 
   getLanguage(): SupportedLocale {
     const language = this.getRequestedLanguage()
-    return resolveSupportedLocale(language === 'system' ? app.getLocale() : language)
+    return resolveSupportedLocale(language === 'system' ? appHost.getLocale() : language)
   }
 
   setLanguage(language: string): void {
@@ -45,11 +46,11 @@ export class DesktopSettings {
   }
 
   initializeTheme(): void {
-    nativeTheme.themeSource = this.getTheme()
-    nativeTheme.on('updated', () => {
-      if (nativeTheme.themeSource !== 'system') return
+    themeHost.setSource(this.getTheme())
+    themeHost.onUpdated(() => {
+      if (themeHost.source() !== 'system') return
       this.publishEvent('config.systemTheme.changed', {
-        isDark: nativeTheme.shouldUseDarkColors,
+        isDark: themeHost.isDark(),
         version: Date.now()
       })
       void this.effects.refreshTheme()
@@ -57,15 +58,15 @@ export class DesktopSettings {
   }
 
   setTheme(theme: 'dark' | 'light' | 'system'): boolean {
-    nativeTheme.themeSource = theme
+    themeHost.setSource(theme)
     this.settings.set('appTheme', theme)
     this.publishEvent('config.theme.changed', {
       theme,
-      isDark: nativeTheme.shouldUseDarkColors,
+      isDark: themeHost.isDark(),
       version: Date.now()
     })
     void this.effects.refreshTheme()
-    return nativeTheme.shouldUseDarkColors
+    return themeHost.isDark()
   }
 
   getTheme(): 'dark' | 'light' | 'system' {
@@ -73,7 +74,7 @@ export class DesktopSettings {
   }
 
   getCurrentThemeIsDark(): boolean {
-    return nativeTheme.shouldUseDarkColors
+    return themeHost.isDark()
   }
 
   getNotificationsEnabled(): boolean {
@@ -148,36 +149,6 @@ export class DesktopSettings {
       version: Date.now(),
       values: { contentProtectionEnabled: value }
     })
-  }
-
-  getFloatingButtonEnabled(): boolean {
-    return this.settings.get<boolean>('floatingButtonEnabled') ?? false
-  }
-
-  setFloatingButtonEnabled(enabled: boolean): void {
-    const value = Boolean(enabled)
-    this.settings.set('floatingButtonEnabled', value)
-    this.publishEvent('config.floatingButton.changed', {
-      enabled: value,
-      version: Date.now()
-    })
-  }
-
-  getFloatingButtonBounds(): FloatingButtonBounds | null {
-    const value = this.settings.get<FloatingButtonBounds>('floatingButtonBounds')
-    if (
-      !value ||
-      typeof value.x !== 'number' ||
-      typeof value.y !== 'number' ||
-      (value.dockSide !== 'left' && value.dockSide !== 'right')
-    ) {
-      return null
-    }
-    return value
-  }
-
-  setFloatingButtonBounds(bounds: FloatingButtonBounds): void {
-    this.settings.set('floatingButtonBounds', bounds)
   }
 
   getShortcutKeys(): ShortcutKeySetting {

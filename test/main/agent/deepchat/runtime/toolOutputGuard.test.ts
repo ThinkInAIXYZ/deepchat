@@ -281,7 +281,7 @@ describe('ToolOutputGuard', () => {
       guard.prepareToolOutput({
         sessionId: 's1',
         toolCallId: 'call-1',
-        toolName: 'cdp_send',
+        toolName: 'grep',
         rawContent
       })
     ).resolves.toEqual({

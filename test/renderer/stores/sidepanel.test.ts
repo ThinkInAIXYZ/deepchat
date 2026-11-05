@@ -114,12 +114,12 @@ describe('sidepanel store', () => {
 
   it('ignores Inspector requests without a session and preserves the active panel', async () => {
     const { store } = await setupSidepanelStore(1200)
-    store.openBrowser()
+    store.openMcpAppPreview('owner-1')
 
     store.openTapeInspector('   ', { messageId: 'message-1' })
 
     expect(store.open).toBe(true)
-    expect(store.activeTab).toBe('browser')
+    expect(store.activeTab).toBe('mcp-app')
     expect(store.tapeInspectorOpenRequest).toBeNull()
   })
 

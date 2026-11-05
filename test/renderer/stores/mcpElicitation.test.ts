@@ -13,10 +13,8 @@ vi.mock('@api/McpClient', () => ({
   })
 }))
 
-vi.mock('@api/BrowserClient', () => ({
-  createBrowserClient: () => ({
-    openExternal: vi.fn().mockResolvedValue(undefined)
-  })
+vi.mock('@api/runtime', () => ({
+  openRuntimeExternal: vi.fn().mockResolvedValue(undefined)
 }))
 
 const setupStore = async () => {

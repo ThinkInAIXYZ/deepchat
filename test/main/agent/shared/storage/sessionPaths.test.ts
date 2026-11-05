@@ -14,7 +14,7 @@ describe('sessionPaths offload path sanitization', () => {
   it('sanitizes colon-based tool call ids into a normal .offload file name', () => {
     vi.spyOn(os, 'homedir').mockReturnValue(homeDir)
 
-    const toolCallId = 'function.cdp_send:11'
+    const toolCallId = 'function.grep:11'
     const fingerprint = createHash('sha1').update(toolCallId).digest('hex').slice(0, 8)
     const filePath = resolveToolOffloadPath('session-a', toolCallId)
 
@@ -24,7 +24,7 @@ describe('sessionPaths offload path sanitization', () => {
         '.deepchat',
         'sessions',
         'session-a',
-        `tool_function.cdp_send_11_${fingerprint}.offload`
+        `tool_function.grep_11_${fingerprint}.offload`
       )
     )
     expect(path.basename(filePath!)).not.toContain(':')

@@ -1,5 +1,5 @@
-import { app } from 'electron'
 import type { SettingsStore } from '@/config/settingsStore'
+import { appHost } from '@/platform/appHost'
 
 export class UpdateSettings {
   constructor(private readonly settings: SettingsStore) {}
@@ -9,7 +9,7 @@ export class UpdateSettings {
     if (raw === 'stable' || raw === 'beta') {
       return raw
     }
-    const channel = /-(?:alpha|beta|rc|canary)(?:[.-]\d+)?$/i.test(app.getVersion())
+    const channel = /-(?:alpha|beta|rc|canary)(?:[.-]\d+)?$/i.test(appHost.getVersion())
       ? 'beta'
       : 'stable'
     this.settings.set('updateChannel', channel)

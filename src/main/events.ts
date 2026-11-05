@@ -1,5 +1,3 @@
-export { FLOATING_BUTTON_EVENTS } from '@shared/floatingButtonChannels'
-
 /**
  * 事件系统常量定义
  *

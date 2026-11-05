@@ -56,7 +56,6 @@ import {
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from './permission'
 import { ToolPermissionBroker, type ToolPermissionContext } from './permission'
-import { YO_BROWSER_TOOL_NAMES } from './browser/definitions'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { SettingsStore } from '@/config/settingsStore'
@@ -168,10 +167,9 @@ interface ToolServiceOptions {
 const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'glob', 'grep', 'exec', 'process']
 const MINIMAL_REPLACED_AGENT_FILESYSTEM_TOOLS = new Set(['read', 'write', 'edit', 'glob', 'grep'])
 const MINIMAL_EDITOR_REQUIRED_AGENT_TOOLS = ['read', 'write', 'edit'] as const
-const OFFLOAD_TOOL_NAMES = new Set(['exec', 'cdp_send'])
+const OFFLOAD_TOOL_NAMES = new Set(['exec'])
 const UNSAFE_CODE_MODE_TOOL_NAMES = new Set(['__proto__', 'constructor', 'prototype'])
 const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
-  ...YO_BROWSER_TOOL_NAMES,
   IMAGE_GENERATE_TOOL_NAME,
   CRON_JOB_AGENT_TOOL_NAME,
   LIVE_DELEGATION_AGENT_TOOL_NAME,
@@ -2170,8 +2168,7 @@ export class ToolService implements ToolServicePort {
       this.buildTapePrompt(groupedTools.get(AGENT_TAPE_TOOL_SERVER_NAME) ?? []),
       this.buildCronJobPrompt(groupedTools.get(CRON_JOB_TOOL_SERVER_NAME) ?? []),
       this.buildSkillsPrompt(toolNames),
-      this.buildSettingsPrompt(groupedTools.get('deepchat-settings') ?? []),
-      this.buildYoBrowserPrompt(groupedTools.get('yobrowser') ?? [])
+      this.buildSettingsPrompt(groupedTools.get('deepchat-settings') ?? [])
     ]
 
     return sections.filter(Boolean).join('\n\n')
@@ -2399,36 +2396,6 @@ export class ToolService implements ToolServicePort {
       `DeepChat settings tools are available in this session: ${names}.`,
       'Prefer these tools over describing manual settings steps when a direct change is possible.'
     ].join('\n')
-  }
-
-  private buildYoBrowserPrompt(tools: MCPToolDefinitionBase[]): string {
-    if (tools.length === 0) {
-      return ''
-    }
-
-    const toolNames = new Set(tools.map((tool) => tool.function.name))
-    const lines = [
-      '## YoBrowser Tools',
-      `Available YoBrowser tools: ${tools.map((tool) => `\`${tool.function.name}\``).join(', ')}.`
-    ]
-
-    if (toolNames.has('get_browser_status')) {
-      lines.push('- Use `get_browser_status` to inspect the current session browser state.')
-    }
-    if (toolNames.has('load_url')) {
-      lines.push('- Prefer `load_url` to create the session browser and handle navigation.')
-    }
-    if (toolNames.has('cdp_send')) {
-      lines.push(
-        '- Use `cdp_send` for DOM inspection, scripted interaction, screenshots, and low-level CDP commands.'
-      )
-      lines.push('- Avoid using `cdp_send` `Page.navigate` for normal navigation unless needed.')
-      lines.push(
-        '- If `cdp_send` reports `yobrowser_unavailable`, call `get_browser_status`, then use `load_url` with the target URL when available.'
-      )
-    }
-
-    return lines.join('\n')
   }
 }
 

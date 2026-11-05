@@ -7095,80 +7095,6 @@ describe('dispatch', () => {
       expect(block!.status).toBe('error')
     })
 
-    it('preserves recoverable YoBrowser unavailable errors as failed tool context', async () => {
-      const tools = [makeTool('cdp_send')]
-      const toolService = createMockToolService()
-      const payload = {
-        ok: false,
-        error: {
-          code: 'yobrowser_unavailable',
-          message: 'YoBrowser is not available for this session, so the CDP command was not run.',
-          recoverable: true,
-          sessionId: 's1',
-          method: 'Page.captureScreenshot',
-          browserStatus: {
-            initialized: false,
-            page: null,
-            canGoBack: false,
-            canGoForward: false,
-            visible: false,
-            loading: false
-          },
-          suggestedNextActions: [
-            'Call get_browser_status to inspect the current browser state.',
-            'Call load_url with the target URL to recreate or reopen the session browser.'
-          ]
-        }
-      }
-      const content = JSON.stringify(payload)
-      ;(toolService.callTool as ReturnType<typeof vi.fn>).mockResolvedValue({
-        content,
-        rawData: {
-          toolCallId: 'tc1',
-          content,
-          isError: true
-        }
-      })
-      const conversation: any[] = []
-
-      state.blocks.push({
-        type: 'tool_call',
-        content: '',
-        status: 'pending',
-        timestamp: Date.now(),
-        tool_call: {
-          id: 'tc1',
-          name: 'cdp_send',
-          params: '{"method":"Page.captureScreenshot"}',
-          response: ''
-        }
-      })
-      state.completedToolCalls = [
-        { id: 'tc1', name: 'cdp_send', arguments: '{"method":"Page.captureScreenshot"}' }
-      ]
-
-      await settleToolBatch(
-        state,
-        conversation,
-        0,
-        tools,
-        toolService,
-        'gpt-4',
-        io,
-        'full_access',
-        new ToolOutputGuard(),
-        32000,
-        1024
-      )
-
-      const toolMsg = conversation.find((message: any) => message.role === 'tool')
-      expect(toolMsg.content).toContain('yobrowser_unavailable')
-
-      const block = state.blocks.find((b) => b.type === 'tool_call')
-      expect(block!.tool_call!.response).toContain('yobrowser_unavailable')
-      expect(block!.status).toBe('error')
-    })
-
     it('commits a returned parallel result before stopping on abort', async () => {
       const abortController = new AbortController()
       const abortIo = createIo({ abortSignal: abortController.signal })
@@ -7771,9 +7697,9 @@ describe('dispatch', () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-'))
       homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
-      const tools = [makeTool('cdp_send')]
+      const tools = [makeTool('grep')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
-      const toolService = createMockToolService({ cdp_send: longScreenshot })
+      const toolService = createMockToolService({ grep: longScreenshot })
       const conversation: any[] = []
 
       state.blocks.push({
@@ -7782,16 +7708,16 @@ describe('dispatch', () => {
         status: 'pending',
         timestamp: Date.now(),
         tool_call: {
-          id: 'function.cdp_send:11',
-          name: 'cdp_send',
+          id: 'function.grep:11',
+          name: 'grep',
           params: '{"method":"Page.captureScreenshot"}',
           response: ''
         }
       })
       state.completedToolCalls = [
         {
-          id: 'function.cdp_send:11',
-          name: 'cdp_send',
+          id: 'function.grep:11',
+          name: 'grep',
           arguments: '{"method":"Page.captureScreenshot"}'
         }
       ]
@@ -7812,7 +7738,7 @@ describe('dispatch', () => {
 
       expect(executed.terminalError).toBeUndefined()
       const toolMessage = conversation.find((message: any) => message.role === 'tool')
-      const offloadPath = resolveToolOffloadPath('s1', 'function.cdp_send:11')
+      const offloadPath = resolveToolOffloadPath('s1', 'function.grep:11')
       expect(toolMessage.content).toContain('[Tool output offloaded]')
       expect(toolMessage.content).toContain(`Offload file: ${offloadPath}`)
       expect(toolMessage.content).not.toContain(':11.offload')
@@ -7822,9 +7748,9 @@ describe('dispatch', () => {
     })
 
     it('normalizes tool output through the result port before offload', async () => {
-      const tools = [makeTool('cdp_send')]
+      const tools = [makeTool('grep')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
-      const toolService = createMockToolService({ cdp_send: longScreenshot })
+      const toolService = createMockToolService({ grep: longScreenshot })
       const conversation: any[] = []
       const hooks = {
         resultNormalizer: vi.fn().mockResolvedValue('English screenshot summary')
@@ -7837,7 +7763,7 @@ describe('dispatch', () => {
         timestamp: Date.now(),
         tool_call: {
           id: 'tc-normalized',
-          name: 'cdp_send',
+          name: 'grep',
           params: '{"method":"Page.captureScreenshot"}',
           response: ''
         }
@@ -7845,7 +7771,7 @@ describe('dispatch', () => {
       state.completedToolCalls = [
         {
           id: 'tc-normalized',
-          name: 'cdp_send',
+          name: 'grep',
           arguments: '{"method":"Page.captureScreenshot"}'
         }
       ]
@@ -7871,7 +7797,7 @@ describe('dispatch', () => {
         expect.objectContaining({
           sessionId: 's1',
           toolCallId: 'tc-normalized',
-          toolName: 'cdp_send',
+          toolName: 'grep',
           toolArgs: '{"method":"Page.captureScreenshot"}',
           content: longScreenshot,
           isError: false
@@ -7888,9 +7814,9 @@ describe('dispatch', () => {
       homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
       const writeFileSpy = vi.spyOn(fs, 'writeFile').mockRejectedValueOnce(new Error('disk full'))
 
-      const tools = [makeTool('cdp_send')]
+      const tools = [makeTool('grep')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
-      const toolService = createMockToolService({ cdp_send: longScreenshot })
+      const toolService = createMockToolService({ grep: longScreenshot })
       const conversation: any[] = []
 
       state.blocks.push({
@@ -7900,7 +7826,7 @@ describe('dispatch', () => {
         timestamp: Date.now(),
         tool_call: {
           id: 'tc1',
-          name: 'cdp_send',
+          name: 'grep',
           params: '{"method":"Page.captureScreenshot"}',
           response: ''
         }
@@ -7908,7 +7834,7 @@ describe('dispatch', () => {
       state.completedToolCalls = [
         {
           id: 'tc1',
-          name: 'cdp_send',
+          name: 'grep',
           arguments: '{"method":"Page.captureScreenshot"}'
         }
       ]
@@ -8234,9 +8160,9 @@ describe('dispatch', () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-offload-clean-'))
       homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
-      const tools = [makeTool('cdp_send')]
+      const tools = [makeTool('grep')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
-      const toolService = createMockToolService({ cdp_send: longScreenshot })
+      const toolService = createMockToolService({ grep: longScreenshot })
       const conversation: any[] = []
 
       state.blocks.push({
@@ -8246,7 +8172,7 @@ describe('dispatch', () => {
         timestamp: Date.now(),
         tool_call: {
           id: 'tc1',
-          name: 'cdp_send',
+          name: 'grep',
           params: '{"method":"Page.captureScreenshot"}',
           response: ''
         }
@@ -8254,7 +8180,7 @@ describe('dispatch', () => {
       state.completedToolCalls = [
         {
           id: 'tc1',
-          name: 'cdp_send',
+          name: 'grep',
           arguments: '{"method":"Page.captureScreenshot"}'
         }
       ]
@@ -8283,9 +8209,9 @@ describe('dispatch', () => {
       tempHome = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-dispatch-terminal-clean-'))
       homedirSpy = vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
 
-      const tools = [makeTool('cdp_send')]
+      const tools = [makeTool('grep')]
       const longScreenshot = JSON.stringify({ data: 'x'.repeat(7000) })
-      const toolService = createMockToolService({ cdp_send: longScreenshot })
+      const toolService = createMockToolService({ grep: longScreenshot })
       const conversation: any[] = []
       const hooks = {
         onPreToolUse: vi.fn(),
@@ -8301,7 +8227,7 @@ describe('dispatch', () => {
         timestamp: Date.now(),
         tool_call: {
           id: 'tc1',
-          name: 'cdp_send',
+          name: 'grep',
           params: '{"method":"Page.captureScreenshot"}',
           response: ''
         }
@@ -8309,7 +8235,7 @@ describe('dispatch', () => {
       state.completedToolCalls = [
         {
           id: 'tc1',
-          name: 'cdp_send',
+          name: 'grep',
           arguments: '{"method":"Page.captureScreenshot"}'
         }
       ]
@@ -8334,7 +8260,7 @@ describe('dispatch', () => {
       expect(state.blocks[0].status).toBe('error')
       expect(hooks.onPostToolUseFailure).toHaveBeenCalledWith({
         callId: 'tc1',
-        name: 'cdp_send',
+        name: 'grep',
         params: '{"method":"Page.captureScreenshot"}',
         error: expect.stringContaining('remaining context window is too small')
       })

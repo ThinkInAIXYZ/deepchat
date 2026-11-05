@@ -13,18 +13,12 @@ import {
 } from '../helpers/chat'
 import { waitForAppReady, waitForGenerationDone } from '../helpers/wait'
 
-test('new-session files and native browser survive the first message @smoke', async ({ app }) => {
+test('new-session files survive the first message @smoke', async ({ app }) => {
   const workspace = join(app.userDataDir, 'workspace-fixture')
   const filePath = join(workspace, 'README.md')
   mkdirSync(workspace)
   writeFileSync(filePath, '# Workspace evidence\n\nThe draft preview survives sending.\n')
   const server = createServer(async (request, response) => {
-    if (request.url === '/page') {
-      response
-        .writeHead(200, { 'Content-Type': 'text/html' })
-        .end('<title>Draft browser</title><input value="Retained page state">')
-      return
-    }
     if (request.url !== '/v1/chat/completions') {
       response.writeHead(404).end()
       return
@@ -52,7 +46,6 @@ test('new-session files and native browser survive the first message @smoke', as
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as { port: number }
-  const pageUrl = `http://127.0.0.1:${port}/page`
   let selectedAgentId: string | undefined
   try {
     await waitForAppReady(app.page)
@@ -95,30 +88,6 @@ test('new-session files and native browser survive the first message @smoke', as
     await expect(app.page.getByTestId('chat-input-contenteditable')).toContainText('README.md')
     await file.click()
     await expect(panel).toContainText('The draft preview survives sending.')
-    await panel.getByRole('button', { name: 'Yo Browser', exact: true }).click()
-    await panel.getByRole('textbox', { name: 'Address bar' }).fill(pageUrl)
-    await panel.getByRole('textbox', { name: 'Address bar' }).press('Enter')
-    const draftId = (await panel.getAttribute('data-session-id')) ?? ''
-    expect(draftId).not.toBe('')
-    await expect
-      .poll(async () =>
-        app.page.evaluate(async (sessionId) => {
-          const { status } = await window.deepchat.invoke('browser.getStatus', { sessionId })
-          return status.page?.title
-        }, draftId)
-      )
-      .toBe('Draft browser')
-    const browserId = await app.page.evaluate(async (sessionId) => {
-      const { status } = await window.deepchat.invoke('browser.getStatus', { sessionId })
-      return status.page?.id
-    }, draftId)
-    await app.electronApp.evaluate(async ({ webContents }, url) => {
-      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
-      if (!page) throw new Error('Native browser page not found')
-      await page.executeJavaScript(
-        'document.querySelector("input").value = "Edited before sending"'
-      )
-    }, pageUrl)
     const iconCases = [
       ['openrouter/google/gemini-3.1-pro', 'gemini'],
       ['fixture-model', 'openai']
@@ -181,6 +150,8 @@ test('new-session files and native browser survive the first message @smoke', as
       ).toHaveAttribute('alt', icon)
       await app.page.keyboard.press('Escape')
     }
+    const draftId = (await getActiveSessionId(app.page)) ?? ''
+    expect(draftId).not.toBe('')
     await sendMessage(app.page, 'Review this workspace.')
     await waitForGenerationDone(app.page)
     expect(await getActiveSessionId(app.page)).toBe(draftId)
@@ -188,17 +159,6 @@ test('new-session files and native browser survive the first message @smoke', as
       window.deepchat.invoke('sessions.getActive', {})
     )
     expect(session?.agentId).toBe(selectedAgentId)
-    const { status } = await app.page.evaluate(
-      async (sessionId) => window.deepchat.invoke('browser.getStatus', { sessionId }),
-      draftId
-    )
-    expect(status.page).toMatchObject({ id: browserId, url: pageUrl })
-    expect(
-      await app.electronApp.evaluate(async ({ webContents }, url) => {
-        const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
-        return await page?.executeJavaScript('document.querySelector("input").value')
-      }, pageUrl)
-    ).toBe('Edited before sending')
     await panel.getByRole('button', { name: 'Workspace', exact: true }).click()
     await expect(panel).toContainText('The draft preview survives sending.')
     await createNewChat(app.page)

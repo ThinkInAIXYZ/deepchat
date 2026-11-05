@@ -60,18 +60,6 @@ const normalizeSvgMarkup = (markup: string): string => {
 }
 
 const resolveIconMarkup = async (agentId: string, iconUrl: string): Promise<string> => {
-  const floatingButtonApi = (
-    window as Window & {
-      floatingButtonAPI?: {
-        getAcpRegistryIconMarkup?: (agentId: string, iconUrl: string) => Promise<string>
-      }
-    }
-  ).floatingButtonAPI
-
-  if (typeof floatingButtonApi?.getAcpRegistryIconMarkup === 'function') {
-    return await floatingButtonApi.getAcpRegistryIconMarkup(agentId, iconUrl)
-  }
-
   return await createConfigClient().getAcpRegistryIconMarkup(agentId, iconUrl)
 }
 

@@ -1,4 +1,5 @@
-import { clipboard, nativeImage, type IpcMain } from 'electron'
+import type { IpcMain } from 'electron'
+import { clipboardHost } from '@/platform/clipboardHost'
 import { CLIPBOARD_IPC_CHANNELS } from '@shared/clipboardChannels'
 import type { AuthorizeRendererIpc } from './rendererIpcSecurity'
 
@@ -8,20 +9,16 @@ import type { AuthorizeRendererIpc } from './rendererIpcSecurity'
 export function registerClipboardIpc(ipcMain: IpcMain, authorize: AuthorizeRendererIpc): void {
   ipcMain.handle(CLIPBOARD_IPC_CHANNELS.WRITE_TEXT, (event, text: string) => {
     authorize(event)
-    clipboard.writeText(text)
+    clipboardHost.writeText(text)
   })
 
   ipcMain.handle(CLIPBOARD_IPC_CHANNELS.WRITE_IMAGE, (event, dataUrl: string) => {
     authorize(event)
-    const image = nativeImage.createFromDataURL(dataUrl)
-    if (image.isEmpty()) {
-      throw new Error('Image data cannot be copied to clipboard')
-    }
-    clipboard.writeImage(image)
+    clipboardHost.writeImageDataUrl(dataUrl)
   })
 
   ipcMain.handle(CLIPBOARD_IPC_CHANNELS.READ_TEXT, (event) => {
     authorize(event)
-    return clipboard.readText()
+    return clipboardHost.readText()
   })
 }

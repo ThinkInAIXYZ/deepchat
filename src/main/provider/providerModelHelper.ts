@@ -2,7 +2,7 @@ import logger from '@shared/logger'
 import type { MODEL_META, ModelRouteConfig } from '@shared/types/provider'
 import { isNewApiEndpointType, ModelType, resolveNewApiModelTypeFromMetadata } from '@shared/model'
 import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
-import ElectronStore from 'electron-store'
+import { storeHost } from '@/platform/storeHost'
 import path from 'path'
 import type { StoreLike } from '@/config/storeLike'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
@@ -98,7 +98,7 @@ export class ProviderModelHelper {
       logger.info(
         `[ProviderModelHelper] getProviderModelStore: creating isolated store "${storeName}" at "${storePath}" for provider "${providerId}"`
       )
-      const store = new ElectronStore<IModelStore>({
+      const store = storeHost.create<IModelStore>({
         name: storeName,
         cwd: storePath,
         defaults: {

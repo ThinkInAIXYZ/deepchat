@@ -11,7 +11,6 @@ import {
   windowConsumePendingSettingsProviderInstallRoute,
   windowFocusMainRoute,
   windowCloseCurrentRoute,
-  windowCloseFloatingCurrentRoute,
   windowGetCurrentStateRoute,
   windowMinimizeCurrentRoute,
   windowNotifySettingsReadyRoute,
@@ -43,10 +42,6 @@ export function createWindowClient(bridge: DeepchatBridge = getDeepchatBridge())
 
   async function closeCurrent() {
     return await bridge.invoke(windowCloseCurrentRoute.name, {})
-  }
-
-  async function closeFloatingCurrent() {
-    return await bridge.invoke(windowCloseFloatingCurrentRoute.name, {})
   }
 
   async function previewFile(filePath: string) {
@@ -168,7 +163,6 @@ export function createWindowClient(bridge: DeepchatBridge = getDeepchatBridge())
     minimizeCurrent,
     toggleMaximizeCurrent,
     closeCurrent,
-    closeFloatingCurrent,
     previewFile,
     closeSettings,
     focusMainWindow,

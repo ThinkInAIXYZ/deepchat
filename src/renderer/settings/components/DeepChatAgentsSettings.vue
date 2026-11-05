@@ -1091,8 +1091,7 @@ const GROUP_ORDER = [
   'agent-core',
   'agent-image-generation',
   'agent-skills',
-  'deepchat-settings',
-  'yobrowser'
+  'deepchat-settings'
 ]
 const { t } = useI18n()
 const router = useRouter()
@@ -1317,8 +1316,6 @@ const getGroupLabel = (serverName: string) => {
       return t('chat.input.tools.groups.agentSkills')
     case 'deepchat-settings':
       return t('chat.input.tools.groups.deepchatSettings')
-    case 'yobrowser':
-      return t('chat.input.tools.groups.yobrowser')
     default:
       return serverName
   }

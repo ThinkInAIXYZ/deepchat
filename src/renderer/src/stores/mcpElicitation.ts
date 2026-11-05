@@ -1,7 +1,7 @@
+import { openRuntimeExternal } from '@api/runtime'
 import { computed, getCurrentScope, onScopeDispose, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { createMcpClient } from '@api/McpClient'
-import { createBrowserClient } from '@api/BrowserClient'
 import type { McpElicitationDecision, McpElicitationRequestPayload } from '@shared/types/mcp'
 
 import { readElicitationFields, isValidElicitationFormat } from '@shared/types/elicitation'
@@ -11,7 +11,6 @@ const createFieldMap = <T>(): Record<string, T> => Object.create(null) as Record
 
 export const useMcpElicitationStore = defineStore('mcpElicitation', () => {
   const mcpClient = createMcpClient()
-  const browserClient = createBrowserClient()
   const request = ref<McpElicitationRequestPayload | null>(null)
   const values = ref<Record<string, unknown>>(createFieldMap())
   const errors = ref<Record<string, string>>(createFieldMap())
@@ -216,7 +215,7 @@ export const useMcpElicitationStore = defineStore('mcpElicitation', () => {
 
   const openRequestedUrl = async () => {
     if (request.value?.mode === 'url' && request.value.url) {
-      await browserClient.openExternal(request.value.url)
+      await openRuntimeExternal(request.value.url)
     }
   }
 

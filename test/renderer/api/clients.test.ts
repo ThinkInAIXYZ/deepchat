@@ -4,8 +4,6 @@ import { pluginsInvokeActionRoute } from '@shared/contracts/routes'
 import type { HooksNotificationsSettings } from '@shared/hooksNotifications'
 import { createAcpAuthClient } from '../../../src/renderer/api/AcpAuthClient'
 import { createAppRuntimeClient } from '../../../src/renderer/api/AppRuntimeClient'
-import { createBrowserClient } from '../../../src/renderer/api/BrowserClient'
-import { createComputerUseClient } from '../../../src/renderer/api/ComputerUseClient'
 import { createChatClient } from '../../../src/renderer/api/ChatClient'
 import { createConfigClient } from '../../../src/renderer/api/ConfigClient'
 import { createContextMenuClient } from '../../../src/renderer/api/ContextMenuClient'
@@ -858,41 +856,6 @@ describe('renderer api clients', () => {
                   supportsTemperatureControl: true,
                   temperatureCapability: true
                 }
-              }
-            case 'browser.updateCurrentWindowBounds':
-              return { updated: true }
-            case 'browser.setPreviewMode':
-              return { updated: true, surface: 'renderer-canvas' }
-            case 'browser.dismissPreview':
-              return { dismissed: true }
-            case 'computerUse.setPreviewMode':
-              return { updated: true, surface: 'renderer-canvas' }
-            case 'computerUse.dismissPreview':
-              return { dismissed: true }
-            case 'browser.clearSandboxData':
-              return { cleared: true }
-            case 'browser.import.scan':
-              return { platformSupported: true, profiles: [] }
-            case 'browser.import.preview':
-              return {
-                token: 'preview-token',
-                profile: {
-                  id: payload?.profileId,
-                  browser: 'chrome',
-                  browserName: 'Google Chrome',
-                  profileName: 'Default',
-                  supported: true
-                },
-                cookieCount: 3,
-                skippedExpired: 1,
-                skippedPartitioned: 0
-              }
-            case 'browser.import.apply':
-              return {
-                importedCookies: 3,
-                skippedExpired: 1,
-                skippedPartitioned: 0,
-                syncedAt: 123
               }
             case 'window.closeSettings':
               return { closed: true }
@@ -2300,111 +2263,6 @@ describe('renderer api clients', () => {
     })
   })
 
-  it('serializes browser bounds updates before invoking the bridge', async () => {
-    const bridge = createBridge()
-    const browserClient = createBrowserClient(bridge)
-    const reactiveBounds = new Proxy(
-      {
-        x: 12,
-        y: 34,
-        width: 320,
-        height: 180
-      },
-      {}
-    )
-
-    await browserClient.updateCurrentWindowBounds('session-1', reactiveBounds, false)
-
-    expect(bridge.invoke).toHaveBeenCalledWith('browser.updateCurrentWindowBounds', {
-      sessionId: 'session-1',
-      bounds: {
-        x: 12,
-        y: 34,
-        width: 320,
-        height: 180
-      },
-      visible: false
-    })
-    expect((bridge.invoke as ReturnType<typeof vi.fn>).mock.calls[0][1].bounds).not.toBe(
-      reactiveBounds
-    )
-  })
-
-  it('routes browser sandbox clearing through the shared registry name', async () => {
-    const bridge = createBridge()
-    const browserClient = createBrowserClient(bridge)
-
-    await expect(browserClient.clearSandboxData()).resolves.toBe(true)
-
-    expect(bridge.invoke).toHaveBeenCalledWith('browser.clearSandboxData', {})
-  })
-
-  it('routes browser preview mode through the shared registry name', async () => {
-    const bridge = createBridge()
-    const browserClient = createBrowserClient(bridge)
-
-    await expect(browserClient.setPreviewMode('session-1', 'capturing', 'run-1')).resolves.toEqual({
-      updated: true,
-      surface: 'renderer-canvas'
-    })
-
-    expect(bridge.invoke).toHaveBeenCalledWith('browser.setPreviewMode', {
-      sessionId: 'session-1',
-      mode: 'capturing',
-      runId: 'run-1'
-    })
-  })
-
-  it('routes Browser and Computer Use preview dismissal through typed registry names', async () => {
-    const bridge = createBridge()
-    const browserClient = createBrowserClient(bridge)
-    const computerUseClient = createComputerUseClient(bridge)
-
-    await expect(browserClient.dismissPreview('session-1', 'run-1')).resolves.toBe(true)
-    await expect(computerUseClient.dismissPreview('session-1', 'run-1')).resolves.toBe(true)
-
-    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'browser.dismissPreview', {
-      sessionId: 'session-1',
-      runId: 'run-1'
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'computerUse.dismissPreview', {
-      sessionId: 'session-1',
-      runId: 'run-1'
-    })
-  })
-
-  it('routes Computer Use preview mode through the shared registry name', async () => {
-    const bridge = createBridge()
-    const client = createComputerUseClient(bridge)
-
-    await expect(client.setPreviewMode('session-1', 'eligible')).resolves.toEqual({
-      updated: true,
-      surface: 'renderer-canvas'
-    })
-
-    expect(bridge.invoke).toHaveBeenCalledWith('computerUse.setPreviewMode', {
-      sessionId: 'session-1',
-      mode: 'eligible'
-    })
-  })
-
-  it('routes browser website-data import through typed registry names', async () => {
-    const bridge = createBridge()
-    const browserClient = createBrowserClient(bridge)
-
-    await browserClient.scanImportSources()
-    await browserClient.previewImport('chrome:Default')
-    await browserClient.applyImport('preview-token')
-
-    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'browser.import.scan', {})
-    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'browser.import.preview', {
-      profileId: 'chrome:Default'
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'browser.import.apply', {
-      token: 'preview-token'
-    })
-  })
-
   it('routes database security operations through the shared registry names', async () => {
     const bridge = createBridge()
     const databaseSecurityClient = createDatabaseSecurityClient(bridge)
@@ -3069,36 +2927,6 @@ describe('renderer api clients', () => {
     expect(() => structuredClone(payload)).not.toThrow()
   })
 
-  it('subscribes to browser activity events', () => {
-    const bridge = createBridge()
-    const browserClient = createBrowserClient(bridge)
-    const listener = vi.fn()
-
-    browserClient.onActivityChanged(listener)
-
-    expect(bridge.on).toHaveBeenCalledWith('browser.activity.changed', listener)
-  })
-
-  it('subscribes to browser preview frames', () => {
-    const bridge = createBridge()
-    const browserClient = createBrowserClient(bridge)
-    const listener = vi.fn()
-
-    browserClient.onPreviewFrame(listener)
-
-    expect(bridge.on).toHaveBeenCalledWith('browser.preview.frame', listener)
-  })
-
-  it('subscribes to browser preview actions', () => {
-    const bridge = createBridge()
-    const browserClient = createBrowserClient(bridge)
-    const listener = vi.fn()
-
-    browserClient.onPreviewAction(listener)
-
-    expect(bridge.on).toHaveBeenCalledWith('browser.preview.action', listener)
-  })
-
   it('invokes the provider catalog routes and subscribes to catalog changes', async () => {
     const bridge = createBridge()
     const catalog = {
@@ -3152,22 +2980,5 @@ describe('renderer api clients', () => {
     const listener = vi.fn()
     client.onCatalogChanged(listener)
     expect(bridge.on).toHaveBeenCalledWith('providers.catalog.changed', listener)
-  })
-
-  it('subscribes to Computer Use preview frames and surface changes', () => {
-    const bridge = createBridge()
-    const client = createComputerUseClient(bridge)
-    const frameListener = vi.fn()
-    const surfaceListener = vi.fn()
-
-    client.onPreviewFrame(frameListener)
-    client.onPreviewSurfaceChanged(surfaceListener)
-
-    expect(bridge.on).toHaveBeenNthCalledWith(1, 'computerUse.preview.frame', frameListener)
-    expect(bridge.on).toHaveBeenNthCalledWith(
-      2,
-      'computerUse.preview.surface.changed',
-      surfaceListener
-    )
   })
 })

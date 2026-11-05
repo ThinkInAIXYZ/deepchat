@@ -14,7 +14,7 @@ const api = vi.hoisted(() => ({
 }))
 vi.unmock('pinia')
 vi.mock('@api/AcpExtensionsClient', () => ({ createAcpExtensionsClient: () => api }))
-vi.mock('@api/BrowserClient', () => ({ createBrowserClient: () => ({ openExternal: vi.fn() }) }))
+vi.mock('@api/runtime', () => ({ openRuntimeExternal: vi.fn() }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
 describe('ACP structured question form', () => {

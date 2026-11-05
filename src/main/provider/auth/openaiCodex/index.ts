@@ -1,5 +1,6 @@
 import logger from '@shared/logger'
-import { shell } from 'electron'
+import { shellHost } from '@/platform/shellHost'
+
 import { URL } from 'url'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import {
@@ -224,7 +225,7 @@ export class OpenAICodexAuth {
       }
       this.pendingBrowserFlow = flow
       flow.flowPromise = this.completeBrowserLogin(flow, callbackSession.waitForCallback())
-      await shell.openExternal(authUrl.toString())
+      await shellHost.openExternal(authUrl.toString())
       this.publishStatusChanged()
       return this.getStatus()
     } catch (error) {

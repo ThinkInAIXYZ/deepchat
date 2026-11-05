@@ -1,5 +1,5 @@
-import { app } from 'electron'
-import ElectronStore from 'electron-store'
+import { storeHost } from '@/platform/storeHost'
+import { appHost } from '@/platform/appHost'
 import path from 'node:path'
 import type { Prompt, SystemPrompt } from '@shared/types/prompt'
 import type { MCPServerConfig } from '@shared/types/mcp'
@@ -46,7 +46,7 @@ export function migrateConfigStorage(options: {
   userDataPath: string
   currentAppVersion?: string
 }): ConfigMigrationResult {
-  const currentAppVersion = options.currentAppVersion ?? app.getVersion()
+  const currentAppVersion = options.currentAppVersion ?? appHost.getVersion()
   const previousAppVersion = options.settings.get<string>('appVersion')
 
   migrateBusinessConfigToSqlite(options)
@@ -81,7 +81,7 @@ function migrateBusinessConfigToSqlite(options: Parameters<typeof migrateConfigS
 
   for (const provider of providers) {
     const storeName = `models_${encodeURIComponent(provider.id).replace(/\*/g, '%2A')}`
-    const store = new ElectronStore<{ models: MODEL_META[]; custom_models: MODEL_META[] }>({
+    const store = storeHost.create<{ models: MODEL_META[]; custom_models: MODEL_META[] }>({
       name: storeName,
       cwd: path.join(options.userDataPath, PROVIDER_MODELS_DIR),
       defaults: { models: [], custom_models: [] }
@@ -161,14 +161,14 @@ function migrateSensitiveConfigToSqlite(options: Parameters<typeof migrateConfig
     }
   }
 
-  const customPromptsStore = new ElectronStore<{ prompts: Prompt[] }>({
+  const customPromptsStore = storeHost.create<{ prompts: Prompt[] }>({
     name: 'custom_prompts',
     defaults: { prompts: [] }
   })
   appSettingsTable.setAppSetting('customPrompts', customPromptsStore.get('prompts', []), true)
   customPromptsStore.set('prompts', [])
 
-  const systemPromptsStore = new ElectronStore<{ prompts: SystemPrompt[] }>({
+  const systemPromptsStore = storeHost.create<{ prompts: SystemPrompt[] }>({
     name: 'system_prompts',
     defaults: {
       prompts: [
@@ -186,7 +186,7 @@ function migrateSensitiveConfigToSqlite(options: Parameters<typeof migrateConfig
   appSettingsTable.setAppSetting('systemPrompts', systemPromptsStore.get('prompts', []), true)
   systemPromptsStore.set('prompts', [])
 
-  const knowledgeStore = new ElectronStore<{ knowledgeConfigs: BuiltinKnowledgeConfig[] }>({
+  const knowledgeStore = storeHost.create<{ knowledgeConfigs: BuiltinKnowledgeConfig[] }>({
     name: 'knowledge-configs',
     defaults: { knowledgeConfigs: [] }
   })
@@ -217,7 +217,7 @@ function migrateAppStartupState(options: Parameters<typeof migrateConfigStorage>
 }
 
 function readLegacyModelConfigs(): Record<string, IModelConfig> {
-  const store = new ElectronStore<Record<string, IModelConfig | LegacyModelConfigMeta>>({
+  const store = storeHost.create<Record<string, IModelConfig | LegacyModelConfigMeta>>({
     name: 'model-config'
   })
   const snapshot = store.store

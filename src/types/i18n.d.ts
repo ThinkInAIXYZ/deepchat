@@ -109,7 +109,6 @@ declare module 'vue-i18n' {
           agentImageGeneration: string
           agentSkills: string
           deepchatSettings: string
-          yobrowser: string
         }
       }
       toolMode: {
@@ -907,11 +906,6 @@ declare module 'vue-i18n' {
       chats: string
       emptyTitle: string
       emptyDescription: string
-      searchPlaceholder: string
-      searchAriaLabel: string
-      searchEmptyTitle: string
-      searchEmptyDescription: string
-      searchLoadedRangeDescription: string
     }
     spotlight: {
       placeholder: string
@@ -2447,6 +2441,9 @@ declare module 'vue-i18n' {
       subagentsTitle: string
       subagentsDescription: string
       subagentsEnabled: string
+      defaultProactiveCollaboration: string
+      defaultProactiveCollaborationDescription: string
+      defaultProactiveCollaborationScope: string
       subagentTargetType: string
       subagentTargetSelf: string
       subagentTargetAgent: string
@@ -2910,45 +2907,6 @@ declare module 'vue-i18n' {
         upToDateDescription: string
         failedTitle: string
         failedDescription: string
-      }
-      yoBrowser: {
-        title: string
-        description: string
-        clearButton: string
-        confirmTitle: string
-        confirmDescription: string
-        confirmAction: string
-        clearing: string
-        clearedTitle: string
-        clearedDescription: string
-        clearFailedTitle: string
-        clearFailedDescription: string
-        import: {
-          button: string
-          title: string
-          description: string
-          scanning: string
-          unsupportedTitle: string
-          unsupportedDescription: string
-          profileLabel: string
-          profilePlaceholder: string
-          noProfiles: string
-          cookies: string
-          supported: string
-          otherData: string
-          notIncluded: string
-          preview: string
-          previewTitle: string
-          previewDescription: string
-          skipped: string
-          confirm: string
-          doneTitle: string
-          doneDescription: string
-          keyDenied: string
-          previewExpired: string
-          encryptionUnsupported: string
-          failed: string
-        }
       }
       privacyTitle: string
       privacyDescription: string
@@ -3724,8 +3682,6 @@ declare module 'vue-i18n' {
       'text-lg': string
       'text-xl': string
       'text-2xl': string
-      floatingButton: string
-      floatingButtonDesc: string
     }
     shortcuts: {
       title: string

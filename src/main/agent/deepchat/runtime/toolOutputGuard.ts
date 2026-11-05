@@ -23,7 +23,7 @@ const TOOL_OUTPUT_VIEW_COMPACTION_MARKER = '[Tool output compacted from provider
 const TOOL_OUTPUT_VIEW_COMPACTION_THRESHOLD = 8192
 const TOOL_OUTPUT_VIEW_COMPACTION_HEAD = 4096
 const TOOL_OUTPUT_VIEW_COMPACTION_TAIL = 1024
-const TOOLS_REQUIRING_OFFLOAD = new Set(['ls', 'find', 'grep', 'cdp_send'])
+const TOOLS_REQUIRING_OFFLOAD = new Set(['ls', 'find', 'grep'])
 const CONTEXT_FALLBACK_OFFLOAD_TOOLS = new Set([
   ...TOOLS_REQUIRING_OFFLOAD,
   'exec',

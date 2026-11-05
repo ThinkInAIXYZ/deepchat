@@ -40,10 +40,6 @@ const setup = async (
   vi.resetModules()
 
   const openExternal = vi.fn().mockResolvedValue(undefined)
-  const browserClient = {
-    openExternal,
-    clearSandboxData: vi.fn().mockResolvedValue(true)
-  }
   const syncStore = reactive({
     syncEnabled: true,
     syncFolderPath: '/tmp/deepchat-sync',
@@ -177,8 +173,8 @@ const setup = async (
   vi.doMock('@api/DatabaseSecurityClient', () => ({
     createDatabaseSecurityClient: () => databaseSecurityClient
   }))
-  vi.doMock('@api/BrowserClient', () => ({
-    createBrowserClient: () => browserClient
+  vi.doMock('@api/runtime', () => ({
+    openRuntimeExternal: openExternal
   }))
   vi.doMock('@api/ConfigClient', () => ({
     createConfigClient: () => configClient
@@ -310,7 +306,6 @@ const setup = async (
 
   return {
     openExternal,
-    browserClient,
     wrapper,
     syncStore,
     uiSettingsStore,
@@ -349,9 +344,6 @@ const findResetConfirmButton = (wrapper: ReturnType<typeof mount>) =>
 const findDatabaseEncryptionButton = (wrapper: ReturnType<typeof mount>, text: string) =>
   findButtonByText(wrapper, text, 'Database encryption')
 
-const findClearSandboxConfirmButton = (wrapper: ReturnType<typeof mount>) =>
-  findButtonByText(wrapper, 'settings.data.yoBrowser.confirmAction', 'Clear YoBrowser sandbox')
-
 describe('DataSettings', () => {
   it('loads data settings without a success notification', async () => {
     const { syncStore, notifyRenderer } = await setup()
@@ -385,7 +377,6 @@ describe('DataSettings', () => {
     expect(wrapper.text()).toContain('settings.data.resetKnowledgeData')
     expect(wrapper.text()).toContain('settings.data.resetConfig')
     expect(wrapper.text()).toContain('settings.data.resetAll')
-    expect(wrapper.text()).toContain('settings.data.yoBrowser.title')
     expect(wrapper.text()).toContain('settings.data.databaseEncryption.systemCredentialStore')
   })
 
@@ -884,64 +875,6 @@ describe('DataSettings', () => {
 
     expect(wrapper.text()).toContain('settings.data.databaseRepair.lastResultLabel')
     expect(wrapper.text()).toContain('settings.data.databaseRepair.manualHint')
-  })
-
-  it('clears YoBrowser sandbox data through BrowserClient', async () => {
-    const { wrapper, browserClient, notifyRenderer } = await setup()
-
-    await findClearSandboxConfirmButton(wrapper).trigger('click')
-    await flushPromises()
-
-    expect(browserClient.clearSandboxData).toHaveBeenCalledTimes(1)
-    expect(notifyRenderer).toHaveBeenCalledWith({
-      kind: 'success',
-      code: 'settings.data.sandbox.cleared',
-      title: 'settings.data.yoBrowser.clearedTitle',
-      description: 'settings.data.yoBrowser.clearedDescription'
-    })
-  })
-
-  it('keeps the sandbox confirmation open when clearing fails', async () => {
-    const { wrapper, browserClient, notifyRenderer } = await setup({ realAlertDialog: true })
-    browserClient.clearSandboxData.mockRejectedValueOnce(
-      new Error('Failed to delete /private/sandbox/session')
-    )
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    notifyRenderer.mockClear()
-
-    await wrapper.get('[data-testid="yobrowser-clear-sandbox-button"]').trigger('click')
-    await flushPromises()
-    document
-      .querySelector<HTMLButtonElement>('[data-testid="yobrowser-clear-sandbox-confirm"]')!
-      .click()
-    await flushPromises()
-
-    const sandboxConfirm = document.querySelector('[data-testid="yobrowser-clear-sandbox-confirm"]')
-    expect(sandboxConfirm?.closest('[data-slot="alert-dialog-content"]')?.textContent).toContain(
-      'settings.data.yoBrowser.clearFailedTitle'
-    )
-    expect(notifyRenderer).not.toHaveBeenCalled()
-    expect(document.body.textContent).not.toContain('/private/sandbox/session')
-    expect(document.querySelector('[data-testid="yobrowser-clear-sandbox-confirm"]')).not.toBeNull()
-
-    document
-      .querySelector<HTMLButtonElement>('[data-testid="yobrowser-clear-sandbox-confirm"]')!
-      .click()
-    await flushPromises()
-
-    expect(browserClient.clearSandboxData).toHaveBeenCalledTimes(2)
-    expect(
-      (wrapper.vm as unknown as { isClearSandboxDialogOpen: boolean }).isClearSandboxDialogOpen
-    ).toBe(false)
-    expect(notifyRenderer).toHaveBeenCalledOnce()
-    expect(notifyRenderer).toHaveBeenCalledWith({
-      kind: 'success',
-      code: 'settings.data.sandbox.cleared',
-      title: 'settings.data.yoBrowser.clearedTitle',
-      description: 'settings.data.yoBrowser.clearedDescription'
-    })
-    consoleError.mockRestore()
-    wrapper.unmount()
   })
 
   it('renders the PublicProviderConf link and opens it externally when clicked', async () => {

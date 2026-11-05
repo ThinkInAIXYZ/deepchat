@@ -1,7 +1,10 @@
 {
   "sessionReference": {
     "copy": "セッション参照をコピー",
-    "groups": { "session": "セッション", "file": "ファイル" },
+    "groups": {
+      "session": "セッション",
+      "file": "ファイル"
+    },
     "open": "{title} を開く",
     "unavailableTitle": "セッション参照を利用できません",
     "unavailableDescription": "このセッションは削除、リセットされたか、利用できなくなりました。",
@@ -70,8 +73,7 @@
         "agentCore": "Agent Core",
         "agentImageGeneration": "画像生成",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "DeepChat Settings",
-        "yobrowser": "YoBrowser"
+        "deepchatSettings": "DeepChat Settings"
       }
     },
     "toolMode": {

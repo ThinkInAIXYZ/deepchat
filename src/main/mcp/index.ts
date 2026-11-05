@@ -36,7 +36,7 @@ import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { ProviderRuntimePort } from '@shared/types/provider'
 import { ServerManager } from './serverManager'
 import type { McpClient as RuntimeMcpClient } from './mcpClient'
-import { ToolManager, type ComputerUsePreviewObserver } from './toolManager'
+import { ToolManager } from './toolManager'
 import { McpRouterManager } from './mcprouterManager'
 import {
   AUTH_EXTENSION_CLIENT_CREDENTIALS,
@@ -172,7 +172,6 @@ export class McpService implements McpServicePort {
     private readonly publishEvent: DeepchatEventPublisher,
     cacheImage?: (data: string, options?: CacheImageOptions) => Promise<string>,
     pluginRuntimeSupervisor?: PluginRuntimeSupervisor,
-    computerUsePreviewObserver?: ComputerUsePreviewObserver,
     mcpApps?: {
       registry: McpAppSandboxRegistry
       permissionBroker: ToolPermissionBroker
@@ -250,8 +249,7 @@ export class McpService implements McpServicePort {
           this.pluginRuntimeSupervisor.getAvailableToolServerNames(),
         ensureRunning: (serverName, reason) =>
           this.pluginRuntimeSupervisor.ensureRunning(serverName, reason)
-      },
-      computerUsePreviewObserver
+      }
     )
     this.appHost = mcpApps
       ? new McpAppHost({

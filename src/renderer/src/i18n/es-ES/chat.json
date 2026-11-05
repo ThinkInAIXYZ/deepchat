@@ -1,7 +1,10 @@
 {
   "sessionReference": {
     "copy": "Copiar referencia de conversación",
-    "groups": { "session": "Sesiones", "file": "Archivos" },
+    "groups": {
+      "session": "Sesiones",
+      "file": "Archivos"
+    },
     "open": "Abrir {title}",
     "unavailableTitle": "Referencia de sesión no disponible",
     "unavailableDescription": "Esta sesión se eliminó, reinició o ya no está disponible.",
@@ -70,8 +73,7 @@
         "agentCore": "Núcleo del Agent",
         "agentImageGeneration": "Generación de imágenes",
         "agentSkills": "Agent Skills",
-        "deepchatSettings": "Ajustes de DeepChat",
-        "yobrowser": "YoBrowser"
+        "deepchatSettings": "Ajustes de DeepChat"
       }
     },
     "toolMode": {

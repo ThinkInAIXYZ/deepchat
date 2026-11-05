@@ -1,4 +1,5 @@
-import { app, screen, type BrowserWindow, type Rectangle } from 'electron'
+import { screen, type BrowserWindow, type Rectangle } from 'electron'
+import { appHost } from '@/platform/appHost'
 import { performance } from 'node:perf_hooks'
 import logger from '@shared/logger'
 
@@ -386,7 +387,7 @@ export class AgentPreviewCoordinator {
     try {
       const attached = overlay.attachHost({
         id: this.hostId(host.id),
-        title: host.getTitle().trim() || app.getName() || 'DeepChat',
+        title: host.getTitle().trim() || appHost.getName() || 'DeepChat',
         bounds: this.normalizeBounds(host.getContentBounds()),
         windowHandle: host.getNativeWindowHandle(),
         anchor: {

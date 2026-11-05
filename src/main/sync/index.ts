@@ -1,5 +1,6 @@
 import { SYNC_PORTABLE_SETTINGS } from '@shared/types/syncPortableSettings'
-import { app, shell } from 'electron'
+import { appHost } from '@/platform/appHost'
+import { shellHost } from '@/platform/shellHost'
 import { isNowledgeMachineLocalSetting } from '@shared/types/nowledgeMemPlugin'
 import path from 'path'
 import fs from 'fs'
@@ -125,11 +126,17 @@ export interface SyncImportResult {
 export class SyncService {
   private isBackingUp = false
   private currentBackupStatus: BackupStatus = 'idle'
-  private readonly APP_SETTINGS_PATH = path.join(app.getPath('userData'), 'app-settings.json')
-  private readonly CUSTOM_PROMPTS_PATH = path.join(app.getPath('userData'), 'custom_prompts.json')
-  private readonly SYSTEM_PROMPTS_PATH = path.join(app.getPath('userData'), 'system_prompts.json')
-  private readonly MCP_SETTINGS_PATH = path.join(app.getPath('userData'), 'mcp-settings.json')
-  private readonly DB_PATH = path.join(app.getPath('userData'), 'app_db', 'agent.db')
+  private readonly APP_SETTINGS_PATH = path.join(appHost.getPath('userData'), 'app-settings.json')
+  private readonly CUSTOM_PROMPTS_PATH = path.join(
+    appHost.getPath('userData'),
+    'custom_prompts.json'
+  )
+  private readonly SYSTEM_PROMPTS_PATH = path.join(
+    appHost.getPath('userData'),
+    'system_prompts.json'
+  )
+  private readonly MCP_SETTINGS_PATH = path.join(appHost.getPath('userData'), 'mcp-settings.json')
+  private readonly DB_PATH = path.join(appHost.getPath('userData'), 'app_db', 'agent.db')
 
   constructor(
     private readonly settings: SyncSettings,
@@ -150,7 +157,7 @@ export class SyncService {
     if (!exists) {
       fs.mkdirSync(syncFolderPath, { recursive: true })
     }
-    shell.openPath(syncFolderPath)
+    shellHost.openPath(syncFolderPath)
   }
 
   public isBackupInProgress(): boolean {
@@ -356,7 +363,7 @@ export class SyncService {
       version: Date.now()
     })
 
-    const extractionDir = path.join(app.getPath('temp'), `deepchat-backup-${Date.now()}`)
+    const extractionDir = path.join(appHost.getPath('temp'), `deepchat-backup-${Date.now()}`)
     fs.mkdirSync(extractionDir, { recursive: true })
 
     const tempCurrentFiles: Record<string, string | null> = {
@@ -577,7 +584,7 @@ export class SyncService {
     const active = this.database.getDatabase()
     if (!active.prepare("SELECT 1 FROM sqlite_master WHERE name='_sync_state'").get()) return
     const temporary = await fs.promises.mkdtemp(
-      path.join(app.getPath('temp'), 'deepchat-sync-backup-')
+      path.join(appHost.getPath('temp'), 'deepchat-sync-backup-')
     )
     const file = path.join(temporary, 'agent.db')
     try {
@@ -1069,7 +1076,10 @@ export class SyncService {
   }
 
   private async validateBackupArchive(backupZipPath: string): Promise<void> {
-    const extractionDir = path.join(app.getPath('temp'), `deepchat-backup-validate-${Date.now()}`)
+    const extractionDir = path.join(
+      appHost.getPath('temp'),
+      `deepchat-backup-validate-${Date.now()}`
+    )
     fs.mkdirSync(extractionDir, { recursive: true })
 
     try {
@@ -1168,7 +1178,7 @@ export class SyncService {
   }
 
   private createTempBackup(originalPath: string, name: string): string | null {
-    const tempPath = path.join(app.getPath('temp'), `${name}.${Date.now()}.bak`)
+    const tempPath = path.join(appHost.getPath('temp'), `${name}.${Date.now()}.bak`)
     try {
       this.copyFile(originalPath, tempPath)
     } catch (error) {

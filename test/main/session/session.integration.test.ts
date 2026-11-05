@@ -1573,7 +1573,7 @@ describe('Session application coordinators', () => {
         {
           agentId: 'deepchat',
           message: 'Hi',
-          disabledAgentTools: ['exec', 'exec', 'cdp_send']
+          disabledAgentTools: ['exec', 'exec', 'grep']
         },
         1
       )
@@ -1585,7 +1585,7 @@ describe('Session application coordinators', () => {
         null,
         expect.objectContaining({
           isDraft: false,
-          disabledAgentTools: expect.arrayContaining(['cdp_send', 'exec'])
+          disabledAgentTools: expect.arrayContaining(['exec', 'grep'])
         })
       )
     })
@@ -2744,7 +2744,7 @@ describe('Session application coordinators', () => {
         generationSettings: {
           systemPrompt: 'Should not be inherited'
         },
-        disabledAgentTools: ['exec', 'cdp_send'],
+        disabledAgentTools: ['exec', 'grep'],
         activeSkills: ['skill-a']
       })
 
@@ -3845,11 +3845,11 @@ describe('Session application coordinators', () => {
         created_at: 1000,
         updated_at: 1000
       })
-      sqlitePresenter.newSessionsTable.getDisabledAgentTools.mockReturnValue(['exec', 'cdp_send'])
+      sqlitePresenter.newSessionsTable.getDisabledAgentTools.mockReturnValue(['exec', 'grep'])
 
       const disabledTools = await assignment.getSessionDisabledAgentTools('s1')
 
-      expect(disabledTools).toEqual(['exec', 'cdp_send'])
+      expect(disabledTools).toEqual(['exec', 'grep'])
     })
 
     it('updates disabled agent tools without requiring prompt-cache invalidation', async () => {
@@ -3864,18 +3864,18 @@ describe('Session application coordinators', () => {
       })
 
       const disabledTools = await assignment.updateSessionDisabledAgentTools('s1', [
-        'grep',
+        'read',
         'ls',
-        'cdp_send',
+        'grep',
         'exec',
         'exec'
       ])
 
-      expect(disabledTools).toEqual(['cdp_send', 'exec', 'grep'])
+      expect(disabledTools).toEqual(['exec', 'grep', 'read'])
       expect(sqlitePresenter.newSessionsTable.updateDisabledAgentTools).toHaveBeenCalledWith('s1', [
-        'cdp_send',
         'exec',
-        'grep'
+        'grep',
+        'read'
       ])
     })
   })

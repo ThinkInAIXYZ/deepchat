@@ -36,14 +36,6 @@ export const configSystemThemeChangedEvent = defineEventContract({
   })
 })
 
-export const configFloatingButtonChangedEvent = defineEventContract({
-  name: 'config.floatingButton.changed',
-  payload: z.object({
-    enabled: z.boolean(),
-    version: RevisionSchema
-  })
-})
-
 export const configSyncSettingsChangedEvent = defineEventContract({
   name: 'config.syncSettings.changed',
   payload: z.object({

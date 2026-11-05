@@ -1,6 +1,6 @@
 import path from 'node:path'
+import { netHost } from '@/platform/netHost'
 import { EventEmitter } from 'node:events'
-import { net } from 'electron'
 import logger from '@shared/logger'
 import {
   CHANNEL_MAX_FILE_SIZE_BYTES,
@@ -230,7 +230,7 @@ export abstract class ChannelAdapter extends EventEmitter implements IChannelAda
     mediaType: string
     size: number
   } | null> {
-    const response = await net.fetch(url)
+    const response = await netHost.fetch(url)
     if (!response.ok) {
       this.emitLog('warn', 'Failed to download channel attachment.', {
         url,

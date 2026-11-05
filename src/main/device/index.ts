@@ -1,18 +1,20 @@
 import logger from '@shared/logger'
+import { appHost } from '@/platform/appHost'
 import type { DeviceInfo, DeviceServicePort, DiskInfo, MemoryInfo } from '@shared/types/device'
 import os from 'os'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
-import { app, dialog } from 'electron'
+import { app } from 'electron'
+import { dialogHost } from '@/platform/dialogHost'
 import { svgSanitizer } from '../lib/svgSanitizer'
 import { cacheImage, type CacheImageOptions } from '@/platform/imageCache'
 const execAsync = promisify(exec)
 
 export class DeviceService implements DeviceServicePort {
   static getDefaultHeaders(): Record<string, string> {
-    const version = app.getVersion()
+    const version = appHost.getVersion()
     return {
       'HTTP-Referer': 'https://deepchatai.cn',
       'X-Title': 'DeepChat',
@@ -20,7 +22,7 @@ export class DeviceService implements DeviceServicePort {
     }
   }
   async getAppVersion(): Promise<string> {
-    return app.getVersion()
+    return appHost.getVersion()
   }
 
   async getDeviceInfo(): Promise<DeviceInfo> {
@@ -144,7 +146,7 @@ export class DeviceService implements DeviceServicePort {
 
   async resetData(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const response = dialog.showMessageBoxSync({
+      const response = dialogHost.showMessageBoxSync({
         type: 'warning',
         buttons: ['确认', '取消'],
         defaultId: 0,
@@ -153,7 +155,7 @@ export class DeviceService implements DeviceServicePort {
       })
       if (response === 0) {
         try {
-          const dbPath = path.join(app.getPath('userData'), 'app_db')
+          const dbPath = path.join(appHost.getPath('userData'), 'app_db')
           const removeDirectory = (dirPath: string): void => {
             if (fs.existsSync(dirPath)) {
               fs.readdirSync(dirPath).forEach((file) => {
@@ -187,7 +189,7 @@ export class DeviceService implements DeviceServicePort {
    */
   async resetDataByType(resetType: 'chat' | 'knowledge' | 'config' | 'all'): Promise<void> {
     try {
-      const userDataPath = app.getPath('userData')
+      const userDataPath = appHost.getPath('userData')
 
       const removeDirectory = (dirPath: string): void => {
         if (fs.existsSync(dirPath)) {
@@ -312,7 +314,7 @@ export class DeviceService implements DeviceServicePort {
    * @returns 返回所选目录的路径，如果用户取消则返回null
    */
   async selectDirectory(): Promise<{ canceled: boolean; filePaths: string[] }> {
-    return dialog.showOpenDialog({
+    return dialogHost.showOpenDialog({
       properties: ['openDirectory', 'createDirectory']
     })
   }
@@ -330,7 +332,7 @@ export class DeviceService implements DeviceServicePort {
     if (options?.multiple) {
       properties.push('multiSelections')
     }
-    return dialog.showOpenDialog({
+    return dialogHost.showOpenDialog({
       properties,
       filters: options?.filters
     })

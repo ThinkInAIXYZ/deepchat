@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CUA_PLUGIN_ID } from '@shared/types/plugin'
-import { ToolManager, type ComputerUsePreviewObserver } from '@/mcp/toolManager'
+import { ToolManager } from '@/mcp/toolManager'
 import { McpPreDispatchError } from '@/mcp/errors'
 import { validateAndCloneMcpTool } from '@/mcp/schemaValidation'
 import type { PluginRuntimeStartReason } from '@/plugin/runtimeSupervisor'
@@ -122,7 +122,6 @@ describe('ToolManager', () => {
       unavailableServers?: Set<string>
       publishEvent?: ReturnType<typeof vi.fn>
     } = {},
-    computerUsePreviewObserver?: ComputerUsePreviewObserver,
     resolveCachedImageDataUrl?: (source: string, signal?: AbortSignal) => Promise<string>
   ) {
     return new ToolManager(
@@ -150,7 +149,6 @@ describe('ToolManager', () => {
             throw new Error(`Unexpected runtime start for ${serverName}`)
           })
       },
-      computerUsePreviewObserver,
       resolveCachedImageDataUrl
     )
   }
@@ -1165,7 +1163,6 @@ describe('ToolManager', () => {
       createServerManager([client]),
       {},
       {},
-      undefined,
       resolveCachedImageDataUrl
     )
     const argumentsJson = JSON.stringify({
@@ -1207,7 +1204,6 @@ describe('ToolManager', () => {
       createServerManager([client]),
       {},
       {},
-      undefined,
       resolveCachedImageDataUrl
     )
 
@@ -1237,7 +1233,6 @@ describe('ToolManager', () => {
       createServerManager([client]),
       {},
       {},
-      undefined,
       vi.fn().mockResolvedValue(dataUrl)
     )
 
@@ -1268,7 +1263,6 @@ describe('ToolManager', () => {
       createServerManager([client]),
       {},
       {},
-      undefined,
       vi.fn().mockRejectedValue(new Error('cached image is missing'))
     )
 
@@ -2268,91 +2262,7 @@ describe('ToolManager', () => {
     expect(JSON.stringify(result.content)).not.toContain('private value')
   })
 
-  it('observes trusted CUA snapshots with run metadata without changing tool arguments', async () => {
-    const client = createClient(
-      'cua-driver',
-      [
-        {
-          name: 'get_window_state',
-          description: 'Read the current window',
-          inputSchema: {
-            properties: {},
-            required: []
-          }
-        }
-      ],
-      {
-        source: 'plugin',
-        ownerPluginId: CUA_PLUGIN_ID
-      }
-    )
-    client.callTool.mockResolvedValue({
-      content: [
-        {
-          type: 'image',
-          mimeType: 'image/png',
-          data: 'aW1hZ2U='
-        }
-      ],
-      isError: false
-    })
-    const observer = {
-      started: vi.fn(),
-      completed: vi.fn(),
-      failed: vi.fn()
-    }
-    const manager = createToolManager(
-      createProviderSettings('cua-driver'),
-      createServerManager([client]),
-      { 'cua-driver': CUA_PLUGIN_ID },
-      { ensureRunning: vi.fn().mockResolvedValue(undefined) },
-      observer
-    )
-    const toolCall = {
-      id: 'cua-state-1',
-      type: 'function' as const,
-      function: {
-        name: 'get_window_state',
-        arguments: '{"pid":12,"window_id":34}'
-      },
-      conversationId: 'session-1'
-    }
-
-    const result = await manager.callTool(toolCall, { runId: 'run-1' })
-
-    expect(client.callTool).toHaveBeenCalledWith(
-      'get_window_state',
-      {
-        pid: 12,
-        window_id: 34
-      },
-      expect.objectContaining({
-        toolDefinition: expect.objectContaining({ name: 'get_window_state' })
-      })
-    )
-    expect(observer.started).toHaveBeenCalledWith({
-      conversationId: 'session-1',
-      runId: 'run-1',
-      toolCallId: 'cua-state-1',
-      toolName: 'get_window_state',
-      args: {
-        pid: 12,
-        window_id: 34
-      },
-      source: {
-        serverName: 'cua-driver',
-        ownerPluginId: CUA_PLUGIN_ID
-      }
-    })
-    expect(observer.completed).toHaveBeenCalledWith(
-      expect.objectContaining({ toolCallId: 'cua-state-1' }),
-      result
-    )
-    expect(observer.failed).not.toHaveBeenCalled()
-    expect(JSON.stringify(client.callTool.mock.calls)).not.toContain('run-1')
-  })
-
-  it('does not project a CUA preview when the dispatch commit fails', async () => {
+  it('does not dispatch a CUA call when the dispatch commit fails', async () => {
     const client = createClient(
       'cua-driver',
       [
@@ -2364,17 +2274,11 @@ describe('ToolManager', () => {
       ],
       { source: 'plugin', ownerPluginId: CUA_PLUGIN_ID }
     )
-    const observer = {
-      started: vi.fn(),
-      completed: vi.fn(),
-      failed: vi.fn()
-    }
     const manager = createToolManager(
       createProviderSettings('cua-driver'),
       createServerManager([client]),
       { 'cua-driver': CUA_PLUGIN_ID },
-      { ensureRunning: vi.fn().mockResolvedValue(undefined) },
-      observer
+      { ensureRunning: vi.fn().mockResolvedValue(undefined) }
     )
     const journalError = new Error('journal unavailable')
 
@@ -2396,359 +2300,9 @@ describe('ToolManager', () => {
     ).rejects.toBe(journalError)
 
     expect(client.callTool).not.toHaveBeenCalled()
-    expect(observer.started).not.toHaveBeenCalled()
-    expect(observer.completed).not.toHaveBeenCalled()
-    expect(observer.failed).not.toHaveBeenCalled()
   })
 
-  it('refreshes PiP after a trusted click without exposing or awaiting the private snapshot', async () => {
-    let snapshotPolicy: 'allow' | 'ask' = 'allow'
-    vi.spyOn(toolPolicyStore, 'resolvePluginToolPolicy').mockImplementation(
-      (_serverId, toolName) => ({
-        managed: toolName === 'get_window_state',
-        decision: toolName === 'get_window_state' ? snapshotPolicy : null
-      })
-    )
-    const tools = [
-      {
-        name: 'click',
-        description: 'Click the current window',
-        inputSchema: {
-          properties: {},
-          required: []
-        }
-      },
-      {
-        name: 'get_window_state',
-        description: 'Read the current window',
-        inputSchema: {
-          properties: {},
-          required: []
-        }
-      }
-    ]
-    const client = createClient('cua-driver', tools, {
-      source: 'plugin',
-      ownerPluginId: CUA_PLUGIN_ID
-    })
-    const privateSnapshots = [
-      deferred<{
-        content: Array<{ type: string; mimeType: string; data: string }>
-        isError: boolean
-      }>(),
-      deferred<{
-        content: Array<{ type: string; mimeType: string; data: string }>
-        isError: boolean
-      }>()
-    ]
-    let privateSnapshotIndex = 0
-    client.callTool.mockImplementation((toolName: string) => {
-      if (toolName === 'click') {
-        return Promise.resolve({
-          content: 'clicked',
-          structuredContent: createConfirmedCuaClickResult(),
-          isError: false
-        })
-      }
-      return privateSnapshots[privateSnapshotIndex++].promise
-    })
-    const publishEvent = vi.fn()
-    const observer = {
-      shouldCaptureAfterClick: vi.fn(() => true),
-      started: vi.fn(),
-      completed: vi.fn(),
-      failed: vi.fn()
-    }
-    const providerSettings = createProviderSettings('cua-driver')
-    const manager = new ToolManager(
-      providerSettings as never,
-      providerSettings as never,
-      createServerManager([client]) as never,
-      semanticNotifications,
-      publishEvent,
-      {
-        ownsServer: (serverName) => serverName === 'cua-driver',
-        isServerAvailable: (serverName) => serverName === 'cua-driver',
-        getOwnerPluginId: (serverName) => (serverName === 'cua-driver' ? CUA_PLUGIN_ID : undefined),
-        getAvailableToolCatalogs: () => [
-          {
-            pluginId: CUA_PLUGIN_ID,
-            serverName: 'cua-driver',
-            displayName: 'CUA Driver',
-            toolCatalog: {
-              version: '1',
-              tools
-            }
-          }
-        ],
-        getAvailableToolServerNames: () => ['cua-driver'],
-        ensureRunning: vi.fn().mockResolvedValue(undefined)
-      },
-      observer
-    )
-
-    const result = await manager.callTool(
-      {
-        id: 'cua-click-1',
-        type: 'function',
-        function: {
-          name: 'click',
-          arguments: '{"pid":12,"window_id":34,"x":10,"y":20}'
-        },
-        conversationId: 'session-1'
-      },
-      { runId: 'run-1' }
-    )
-
-    expect(result).toMatchObject({
-      toolCallId: 'cua-click-1',
-      content: expect.stringContaining('## CUA action result'),
-      isError: false,
-      ownerPluginId: CUA_PLUGIN_ID,
-      structuredContent: expect.objectContaining({ effect: 'confirmed' })
-    })
-    expect(client.callTool).toHaveBeenNthCalledWith(
-      1,
-      'click',
-      {
-        pid: 12,
-        window_id: 34,
-        x: 10,
-        y: 20
-      },
-      expect.objectContaining({
-        toolDefinition: expect.objectContaining({ name: 'click' })
-      })
-    )
-    await vi.waitFor(() => expect(client.callTool).toHaveBeenCalledTimes(2))
-    expect(client.callTool).toHaveBeenNthCalledWith(2, 'get_window_state', {
-      pid: 12,
-      window_id: 34
-    })
-    expect(observer.shouldCaptureAfterClick).toHaveBeenCalledWith(
-      expect.objectContaining({
-        toolCallId: 'cua-click-1',
-        toolName: 'click',
-        conversationId: 'session-1',
-        runId: 'run-1'
-      })
-    )
-    expect(observer.started).toHaveBeenCalledWith(
-      expect.objectContaining({
-        toolCallId: 'cua-click-1:pip-snapshot',
-        toolName: 'get_window_state',
-        args: {
-          pid: 12,
-          window_id: 34
-        }
-      })
-    )
-    expect(observer.completed).not.toHaveBeenCalled()
-    expect(publishEvent).toHaveBeenCalledOnce()
-    expect(publishEvent).toHaveBeenCalledWith(
-      'mcp.toolCall.result',
-      expect.objectContaining({
-        functionName: 'click',
-        content: expect.stringContaining('## CUA action result')
-      })
-    )
-
-    privateSnapshots[0].resolve({
-      content: [
-        {
-          type: 'image',
-          mimeType: 'image/png',
-          data: 'aW1hZ2U='
-        }
-      ],
-      isError: false
-    })
-    await vi.waitFor(() => expect(observer.completed).toHaveBeenCalledOnce())
-
-    expect(observer.completed).toHaveBeenCalledWith(
-      expect.objectContaining({ toolCallId: 'cua-click-1:pip-snapshot' }),
-      expect.objectContaining({
-        toolCallId: 'cua-click-1:pip-snapshot',
-        content: [
-          {
-            type: 'image',
-            mimeType: 'image/png',
-            data: 'aW1hZ2U='
-          }
-        ]
-      })
-    )
-    expect(publishEvent).toHaveBeenCalledOnce()
-    expect(observer.failed).not.toHaveBeenCalled()
-
-    const laterResult = await manager.callTool(
-      {
-        id: 'cua-click-2',
-        type: 'function',
-        function: {
-          name: 'click',
-          arguments: '{"pid":12,"window_id":34,"x":30,"y":40}'
-        },
-        conversationId: 'session-1'
-      },
-      { runId: 'run-1' }
-    )
-    expect(laterResult.content).toContain('## CUA action result')
-    expect(publishEvent).toHaveBeenCalledTimes(2)
-
-    const privateFailure = new Error('private snapshot failed')
-    privateSnapshots[1].reject(privateFailure)
-    await vi.waitFor(() => expect(observer.failed).toHaveBeenCalledOnce())
-
-    expect(observer.failed).toHaveBeenCalledWith(
-      expect.objectContaining({ toolCallId: 'cua-click-2:pip-snapshot' }),
-      privateFailure
-    )
-    expect(publishEvent).toHaveBeenCalledTimes(2)
-
-    snapshotPolicy = 'ask'
-    const guardedResult = await manager.callTool(
-      {
-        id: 'cua-click-3',
-        type: 'function',
-        function: {
-          name: 'click',
-          arguments: '{"pid":12,"window_id":34,"x":50,"y":60}'
-        },
-        conversationId: 'session-1'
-      },
-      { runId: 'run-1' }
-    )
-
-    expect(guardedResult.content).toContain('## CUA action result')
-    expect(client.callTool).toHaveBeenCalledTimes(5)
-    expect(observer.shouldCaptureAfterClick).toHaveBeenCalledTimes(2)
-    expect(observer.started).toHaveBeenCalledTimes(2)
-  })
-
-  it('blocks a private PiP snapshot when the live schema differs from the catalog', async () => {
-    vi.spyOn(toolPolicyStore, 'resolvePluginToolPolicy').mockImplementation(
-      (_serverId, toolName) => ({
-        managed: toolName === 'get_window_state',
-        decision: toolName === 'get_window_state' ? 'allow' : null
-      })
-    )
-    const liveTools = [
-      {
-        name: 'click',
-        description: 'Click the current window',
-        inputSchema: {
-          properties: {},
-          required: []
-        }
-      },
-      {
-        name: 'get_window_state',
-        description: 'Read the current window',
-        inputSchema: {
-          properties: {
-            pid: { type: 'integer' }
-          },
-          required: ['pid']
-        }
-      }
-    ]
-    const catalogTools = [
-      liveTools[0],
-      {
-        ...liveTools[1],
-        inputSchema: {
-          properties: {
-            pid: { type: 'integer' },
-            window_id: { type: 'integer' }
-          },
-          required: ['pid', 'window_id']
-        }
-      }
-    ]
-    const client = createClient('cua-driver', liveTools, {
-      source: 'plugin',
-      ownerPluginId: CUA_PLUGIN_ID
-    })
-    client.callTool.mockResolvedValue({
-      content: 'clicked',
-      structuredContent: createConfirmedCuaClickResult(),
-      isError: false
-    })
-    const serverManager = createServerManager([client])
-    const observer = {
-      shouldCaptureAfterClick: vi.fn(() => true),
-      started: vi.fn(),
-      completed: vi.fn(),
-      failed: vi.fn()
-    }
-    const manager = createToolManager(
-      createProviderSettings('cua-driver'),
-      serverManager,
-      { 'cua-driver': CUA_PLUGIN_ID },
-      {
-        ensureRunning: vi.fn().mockResolvedValue(undefined),
-        catalogs: [
-          {
-            pluginId: CUA_PLUGIN_ID,
-            serverName: 'cua-driver',
-            displayName: 'CUA Driver',
-            toolCatalog: {
-              version: '1',
-              tools: catalogTools
-            }
-          }
-        ]
-      },
-      observer
-    )
-
-    const result = await manager.callTool(
-      {
-        id: 'cua-click-schema-drift',
-        type: 'function',
-        function: {
-          name: 'click',
-          arguments: '{"pid":12,"window_id":34,"x":10,"y":20}'
-        },
-        conversationId: 'session-1'
-      },
-      { runId: 'run-1' }
-    )
-
-    expect(result.content).toContain('## CUA action result')
-    await vi.waitFor(() => expect(observer.failed).toHaveBeenCalledOnce())
-    expect(client.callTool).toHaveBeenCalledOnce()
-    expect(client.callTool).toHaveBeenCalledWith(
-      'click',
-      {
-        pid: 12,
-        window_id: 34,
-        x: 10,
-        y: 20
-      },
-      expect.objectContaining({
-        toolDefinition: expect.objectContaining({ name: 'click' })
-      })
-    )
-    expect(observer.completed).not.toHaveBeenCalled()
-    expect(observer.failed).toHaveBeenCalledWith(
-      expect.objectContaining({
-        toolCallId: 'cua-click-schema-drift:pip-snapshot',
-        toolName: 'get_window_state'
-      }),
-      expect.objectContaining({
-        message:
-          'Live MCP tool "get_window_state" schema differs from the packaged catalog for server "cua-driver" at "#/properties/window_id" (missing from live schema)'
-      })
-    )
-    expect(serverManager.setServerLastError).toHaveBeenCalledWith(
-      'cua-driver',
-      'Live MCP tool "get_window_state" schema differs from the packaged catalog for server "cua-driver" at "#/properties/window_id" (missing from live schema)'
-    )
-  })
-
-  it('does not privately snapshot failed, invalid-target, or untrusted clicks', async () => {
+  it('does not dispatch a private snapshot for failed, invalid-target, or untrusted clicks', async () => {
     const trustedClient = createClient(
       'cua-driver',
       [
@@ -2773,18 +2327,11 @@ describe('ToolManager', () => {
         structuredContent: createConfirmedCuaClickResult(),
         isError: false
       })
-    const trustedObserver = {
-      shouldCaptureAfterClick: vi.fn(() => true),
-      started: vi.fn(),
-      completed: vi.fn(),
-      failed: vi.fn()
-    }
     const trustedManager = createToolManager(
       createProviderSettings('cua-driver'),
       createServerManager([trustedClient]),
       { 'cua-driver': CUA_PLUGIN_ID },
-      { ensureRunning: vi.fn().mockResolvedValue(undefined) },
-      trustedObserver
+      { ensureRunning: vi.fn().mockResolvedValue(undefined) }
     )
 
     await trustedManager.callTool(
@@ -2813,8 +2360,6 @@ describe('ToolManager', () => {
     )
 
     expect(trustedClient.callTool).toHaveBeenCalledTimes(2)
-    expect(trustedObserver.shouldCaptureAfterClick).not.toHaveBeenCalled()
-    expect(trustedObserver.started).not.toHaveBeenCalled()
 
     const untrustedClient = createClient(
       'manual-cua',
@@ -2833,18 +2378,11 @@ describe('ToolManager', () => {
         sourceId: 'com.deepchat.plugins.cua'
       }
     )
-    const untrustedObserver = {
-      shouldCaptureAfterClick: vi.fn(() => true),
-      started: vi.fn(),
-      completed: vi.fn(),
-      failed: vi.fn()
-    }
     const untrustedManager = createToolManager(
       createProviderSettings('manual-cua'),
       createServerManager([untrustedClient]),
       {},
-      {},
-      untrustedObserver
+      {}
     )
 
     await untrustedManager.callTool(
@@ -2861,8 +2399,6 @@ describe('ToolManager', () => {
     )
 
     expect(untrustedClient.callTool).toHaveBeenCalledOnce()
-    expect(untrustedObserver.shouldCaptureAfterClick).not.toHaveBeenCalled()
-    expect(untrustedObserver.started).not.toHaveBeenCalled()
   })
 
   it('does not trust a non-plugin server that spoofs the CUA source id', async () => {
@@ -2883,17 +2419,11 @@ describe('ToolManager', () => {
         sourceId: 'com.deepchat.plugins.cua'
       }
     )
-    const observer = {
-      started: vi.fn(),
-      completed: vi.fn(),
-      failed: vi.fn()
-    }
     const manager = createToolManager(
       createProviderSettings('spoofed-cua'),
       createServerManager([client]),
       {},
-      {},
-      observer
+      {}
     )
 
     await manager.callTool(
@@ -2910,68 +2440,6 @@ describe('ToolManager', () => {
     )
 
     expect(client.callTool).toHaveBeenCalledOnce()
-    expect(observer.started).not.toHaveBeenCalled()
-    expect(observer.completed).not.toHaveBeenCalled()
-    expect(observer.failed).not.toHaveBeenCalled()
-  })
-
-  it('reports a failed trusted CUA invocation without changing the tool error response', async () => {
-    const client = createClient(
-      'cua-driver',
-      [
-        {
-          name: 'get_window_state',
-          description: 'Read the current window',
-          inputSchema: {
-            properties: {},
-            required: []
-          }
-        }
-      ],
-      {
-        source: 'plugin',
-        ownerPluginId: CUA_PLUGIN_ID
-      }
-    )
-    const failure = new Error('driver failed')
-    client.callTool.mockRejectedValue(failure)
-    const observer = {
-      started: vi.fn(),
-      completed: vi.fn(),
-      failed: vi.fn()
-    }
-    const manager = createToolManager(
-      createProviderSettings('cua-driver'),
-      createServerManager([client]),
-      { 'cua-driver': CUA_PLUGIN_ID },
-      { ensureRunning: vi.fn().mockResolvedValue(undefined) },
-      observer
-    )
-
-    const result = await manager.callTool(
-      {
-        id: 'cua-state-failed',
-        type: 'function',
-        function: {
-          name: 'get_window_state',
-          arguments: '{"pid":12,"window_id":34}'
-        },
-        conversationId: 'session-1'
-      },
-      { runId: 'run-1' }
-    )
-
-    expect(result).toEqual({
-      toolCallId: 'cua-state-failed',
-      content: "Error: Failed to execute tool 'get_window_state': driver failed",
-      isError: true
-    })
-    expect(observer.started).toHaveBeenCalledOnce()
-    expect(observer.completed).not.toHaveBeenCalled()
-    expect(observer.failed).toHaveBeenCalledWith(
-      expect.objectContaining({ toolCallId: 'cua-state-failed' }),
-      failure
-    )
   })
 
   it('normalizes CUA Windows launch bundle paths before dispatch', async () => {

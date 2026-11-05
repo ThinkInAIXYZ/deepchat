@@ -1,7 +1,9 @@
 import fs from 'fs'
+import { appHost } from '@/platform/appHost'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import type { UtilityProcess } from 'electron'
+import type { HostedProcess } from '@/platform/processHost'
+import { processHost } from '@/platform/processHost'
 import type {
   FileWatcherHostEvent,
   FileWatcherRpcMethod,
@@ -23,8 +25,8 @@ const RESTART_DELAY_MS = 800
 const RPC_TIMEOUT_MS = 15000
 
 export class WatcherHostClient {
-  private host: UtilityProcess | null = null
-  private hostReady: Promise<UtilityProcess> | null = null
+  private host: HostedProcess | null = null
+  private hostReady: Promise<HostedProcess> | null = null
   private requestId = 0
   private restartAttempts = 0
   private restartTimer: NodeJS.Timeout | null = null
@@ -127,7 +129,7 @@ export class WatcherHostClient {
     })
   }
 
-  private async ensureHost(): Promise<UtilityProcess> {
+  private async ensureHost(): Promise<HostedProcess> {
     if (this.host) {
       return this.host
     }
@@ -145,11 +147,10 @@ export class WatcherHostClient {
     }
   }
 
-  private async startHost(): Promise<UtilityProcess> {
-    const { app, utilityProcess } = await import('electron')
-    const modulePath = this.resolveUtilityHostEntryPoint(app.getAppPath())
+  private async startHost(): Promise<HostedProcess> {
+    const modulePath = this.resolveUtilityHostEntryPoint(appHost.getAppPath())
     const serviceLabel = this.hostKind === 'git' ? 'Git' : 'Content'
-    const host = utilityProcess.fork(modulePath, ['--deepchat-file-watcher-host'], {
+    const host = processHost.fork(modulePath, ['--deepchat-file-watcher-host'], {
       serviceName: `DeepChat ${serviceLabel} File Watcher`,
       stdio: 'ignore',
       env: {
@@ -169,7 +170,7 @@ export class WatcherHostClient {
       })
     })
 
-    return await new Promise<UtilityProcess>((resolve, reject) => {
+    return await new Promise<HostedProcess>((resolve, reject) => {
       let settled = false
       const settle = (callback: () => void) => {
         if (settled) {

@@ -1,7 +1,8 @@
 import * as fs from 'node:fs'
+import { appHost } from '@/platform/appHost'
 import * as path from 'node:path'
 import { randomBytes } from 'node:crypto'
-import { app, safeStorage } from 'electron'
+import { secretHost } from '@/platform/secretHost'
 import type {
   OAuthDiscoveryState,
   StoredOAuthClientInformation,
@@ -158,11 +159,7 @@ const isLinuxBasicTextBackend = (): boolean => {
     return false
   }
 
-  try {
-    return safeStorage.getSelectedStorageBackend() === 'basic_text'
-  } catch {
-    return true
-  }
+  return secretHost.selectedBackend() === 'basic_text'
 }
 
 export class McpOAuthCredentialStore {
@@ -172,12 +169,13 @@ export class McpOAuthCredentialStore {
   private records: McpCredentialData = {}
 
   constructor(filePath?: string) {
-    this.filePath = filePath || path.join(app.getPath('userData'), 'mcp-oauth', 'credentials.json')
+    this.filePath =
+      filePath || path.join(appHost.getPath('userData'), 'mcp-oauth', 'credentials.json')
   }
 
   getStorageState(): McpOAuthCredentialStorage {
     try {
-      if (!safeStorage.isEncryptionAvailable() || isLinuxBasicTextBackend()) {
+      if (!secretHost.isAvailable() || isLinuxBasicTextBackend()) {
         return 'memory'
       }
       return 'safeStorage'
@@ -495,7 +493,7 @@ export class McpOAuthCredentialStore {
           fs.unlinkSync(this.filePath)
           return
         }
-        const raw = safeStorage.decryptString(Buffer.from(envelope.wrapped, 'base64'))
+        const raw = secretHost.decryptString(Buffer.from(envelope.wrapped, 'base64'))
         if (Buffer.byteLength(raw, 'utf8') > MAX_CREDENTIAL_PAYLOAD_BYTES) {
           throw new Error('MCP credential payload is oversized')
         }
@@ -518,7 +516,7 @@ export class McpOAuthCredentialStore {
               if (!isBoundedString(envelope.wrapped, MAX_CREDENTIAL_FILE_BYTES)) {
                 throw new Error('Legacy MCP credential envelope is invalid')
               }
-              const raw = safeStorage.decryptString(Buffer.from(envelope.wrapped, 'base64'))
+              const raw = secretHost.decryptString(Buffer.from(envelope.wrapped, 'base64'))
               if (Buffer.byteLength(raw, 'utf8') > MAX_CREDENTIAL_PAYLOAD_BYTES) {
                 throw new Error('Legacy MCP credential payload is oversized')
               }
@@ -577,7 +575,7 @@ export class McpOAuthCredentialStore {
     const envelope: StoredCredentialEnvelopeV2 = {
       version: 2,
       storage: 'safeStorage',
-      wrapped: safeStorage
+      wrapped: secretHost
         .encryptString(JSON.stringify(this.normalizeRecords(this.records)))
         .toString('base64'),
       updatedAt: Date.now()

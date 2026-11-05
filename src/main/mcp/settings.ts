@@ -1,9 +1,7 @@
 import logger from '@shared/logger'
 import type { MCPServerConfig, McpEnterpriseIdentityProfile } from '@shared/types/mcp'
 import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
-import ElectronStore from 'electron-store'
-// app is used in DEFAULT_INMEMORY_SERVERS but removed buildInFileSystem
-// import { app } from 'electron'
+import { storeHost } from '@/platform/storeHost'
 import { compare } from 'compare-versions'
 import { isBuiltinKnowledgeSupported } from '../knowledge/support'
 import type { StoreLike } from '../config/storeLike'
@@ -415,7 +413,7 @@ export class McpSettings {
     >
   ) {
     // Initialize MCP settings storage
-    this.mcpStore = new ElectronStore<IMcpSettings>({
+    this.mcpStore = storeHost.create<IMcpSettings>({
       name: 'mcp-settings',
       defaults: {
         mcpServers: this.buildDefaultServerConfigs(),

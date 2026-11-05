@@ -1,4 +1,4 @@
-import ElectronStore from 'electron-store'
+import { storeHost } from '@/platform/storeHost'
 import { nanoid } from 'nanoid'
 import type { AcpAgentConfig } from '@shared/types/acp'
 import type {
@@ -172,7 +172,7 @@ export class AcpCatalogSettings {
 
   constructor(options: { mcpSettings: McpSettings }) {
     this.mcpSettings = options.mcpSettings
-    this.store = new ElectronStore<InternalStore>({
+    this.store = storeHost.create<InternalStore>({
       name: 'acp_agents',
       defaults: {
         enabled: false,

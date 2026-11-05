@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { link, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
-import { safeStorage } from 'electron'
+import { secretHost } from '@/platform/secretHost'
 
 const OCR_CACHE_KEY_BYTES = 32
 
@@ -23,6 +23,13 @@ export interface SafeStorageAdapter {
     | 'unknown'
 }
 
+const defaultEncryption: SafeStorageAdapter = {
+  isEncryptionAvailable: () => secretHost.isAvailable(),
+  encryptString: (value: string) => secretHost.encryptString(value),
+  decryptString: (value: Buffer) => secretHost.decryptString(value),
+  getSelectedStorageBackend: () => secretHost.selectedBackend() ?? 'unknown'
+}
+
 interface WrappedOcrCacheKey {
   schemaVersion: 1
   wrappedKey: string
@@ -31,7 +38,7 @@ interface WrappedOcrCacheKey {
 export class SafeStorageOcrCacheKeyProvider implements OcrCacheKeyProvider {
   constructor(
     private readonly keyFilePath: string,
-    private readonly encryption: SafeStorageAdapter = safeStorage,
+    private readonly encryption: SafeStorageAdapter = defaultEncryption,
     private readonly platform: NodeJS.Platform = process.platform
   ) {}
 

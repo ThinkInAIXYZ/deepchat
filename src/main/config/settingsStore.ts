@@ -1,14 +1,13 @@
 import type { SettingsDatabase } from '@/settings/data/database'
+import { appHost } from '@/platform/appHost'
 import { AppSettingsDbBackedStore } from '@/settings/appSettingsDbStore'
 import type { StoreLike } from '@/config/storeLike'
-import ElectronStore from 'electron-store'
+import { storeHost } from '@/platform/storeHost'
 import path from 'node:path'
-import { app } from 'electron'
-
 export function createSettingsStore(): SettingsStore {
-  const userDataPath = app.getPath('userData')
+  const userDataPath = appHost.getPath('userData')
   return new SettingsStore(
-    new ElectronStore<Record<string, unknown>>({
+    storeHost.create<Record<string, unknown>>({
       name: 'app-settings',
       defaults: {
         language: 'system',
@@ -27,14 +26,13 @@ export function createSettingsStore(): SettingsStore {
         autoCompactionTriggerThreshold: 80,
         autoCompactionRetainRecentPairs: 2,
         loggingEnabled: false,
-        floatingButtonEnabled: false,
         fontFamily: '',
         codeFontFamily: '',
         default_system_prompt: '',
-        skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
+        skillsPath: path.join(appHost.getPath('home'), '.deepchat', 'skills'),
         enableSkills: true,
         skillDraftSuggestionsEnabled: false,
-        appVersion: app.getVersion(),
+        appVersion: appHost.getVersion(),
         hooksNotifications: { hooks: [] },
         agentCommandShell: { preference: 'auto' }
       }

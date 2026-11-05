@@ -107,12 +107,6 @@ const getDefaultDeepchatInvokeResult = (
         isDark: payload.theme === 'dark',
         version: 1
       }
-    case 'config.getFloatingButton':
-    case 'config.setFloatingButton':
-      return {
-        enabled: payload.enabled ?? false,
-        version: 0
-      }
     case 'config.getSyncSettings':
       return {
         enabled: false,

@@ -1,4 +1,5 @@
 import { Tray, Menu, app, nativeImage, NativeImage } from 'electron'
+import { appHost } from '@/platform/appHost'
 import * as path from 'path'
 import { getContextMenuLabels } from '@shared/i18n'
 import type { IWindowPresenter } from '@shared/types/desktop'
@@ -12,7 +13,7 @@ export class TrayPresenter {
     private readonly settings: Pick<DesktopSettings, 'getLanguage'>,
     private readonly windowPresenter: IWindowPresenter
   ) {
-    this.iconPath = path.join(app.getAppPath(), 'resources')
+    this.iconPath = path.join(appHost.getAppPath(), 'resources')
   }
 
   private createTray() {

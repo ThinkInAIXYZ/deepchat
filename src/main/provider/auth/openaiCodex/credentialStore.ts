@@ -1,7 +1,8 @@
 import * as fs from 'fs'
+import { appHost } from '@/platform/appHost'
 import * as path from 'path'
 import { randomBytes } from 'node:crypto'
-import { app, safeStorage } from 'electron'
+import { secretHost } from '@/platform/secretHost'
 
 export type OpenAICodexCredentialStorage = 'safeStorage' | 'file' | 'none'
 
@@ -47,12 +48,12 @@ export class OpenAICodexCredentialStore {
 
   constructor(filePath?: string) {
     this.filePath =
-      filePath || path.join(app.getPath('userData'), 'openai-codex-auth', 'credentials.json')
+      filePath || path.join(appHost.getPath('userData'), 'openai-codex-auth', 'credentials.json')
   }
 
   getStorageState(): OpenAICodexCredentialStorage {
     try {
-      return safeStorage.isEncryptionAvailable() ? 'safeStorage' : 'file'
+      return secretHost.isAvailable() ? 'safeStorage' : 'file'
     } catch (error) {
       console.warn(
         '[OpenAICodexCredentialStore] Encryption availability check failed, using file storage:',
@@ -93,7 +94,7 @@ export class OpenAICodexCredentialStore {
         ? {
             version: 1,
             storage: 'safeStorage',
-            wrapped: safeStorage.encryptString(JSON.stringify(normalized)).toString('base64'),
+            wrapped: secretHost.encryptString(JSON.stringify(normalized)).toString('base64'),
             updatedAt: now
           }
         : {
@@ -194,7 +195,7 @@ export class OpenAICodexCredentialStore {
 
     let decrypted: string
     try {
-      decrypted = safeStorage.decryptString(Buffer.from(envelope.wrapped, 'base64'))
+      decrypted = secretHost.decryptString(Buffer.from(envelope.wrapped, 'base64'))
     } catch (error) {
       return {
         state: 'undecryptable',

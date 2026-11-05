@@ -1,4 +1,4 @@
-import { shell } from 'electron'
+import { shellHost } from '@/platform/shellHost'
 import type {
   OAuthClientInformationContext,
   OAuthClientMetadata,
@@ -116,7 +116,7 @@ export class DeepChatMcpOAuthProvider implements OAuthClientProvider {
       throw new Error('MCP OAuth authorization URL must use HTTPS or loopback HTTP')
     }
 
-    await shell.openExternal(authorizationUrl.toString())
+    await shellHost.openExternal(authorizationUrl.toString())
   }
 
   saveCodeVerifier(codeVerifier: string): void {

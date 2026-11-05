@@ -155,7 +155,6 @@ const setup = async (options?: {
         buildTool('read', 'agent-filesystem'),
         buildTool('exec', 'agent-filesystem'),
         buildTool('deepchat_question', 'agent-core'),
-        buildTool('cdp_send', 'yobrowser'),
         buildTool('mcp_tool', 'demo-server', 'mcp')
       ])
   }
@@ -256,7 +255,6 @@ const setup = async (options?: {
           'chat.input.tools.groups.agentCore': 'Agent Core',
           'chat.input.tools.groups.agentSkills': 'Agent Skills',
           'chat.input.tools.groups.deepchatSettings': 'DeepChat Settings',
-          'chat.input.tools.groups.yobrowser': 'YoBrowser',
           'chat.input.toolMode.title': 'Mode',
           'chat.input.toolMode.modelDefault': 'Model default',
           'chat.input.toolMode.useModelDefault': 'Use model default',

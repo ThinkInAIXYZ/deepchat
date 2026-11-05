@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'child_process'
-import { app } from 'electron'
+import { appHost } from '@/platform/appHost'
 import fs from 'fs'
 import type {
   HookCommandItem,
@@ -291,7 +291,7 @@ export class HookService implements HookObserver {
       event,
       time: new Date().toISOString(),
       isTest: true,
-      app: { version: app.getVersion(), platform: process.platform },
+      app: { version: appHost.getVersion(), platform: process.platform },
       session: { conversationId: undefined, agentId: null, workdir: null },
       user: { messageId: undefined, promptPreview: 'Test message' },
       tool: null,
@@ -406,7 +406,7 @@ export class HookService implements HookObserver {
       time: projection.time,
       isTest: false,
       app: {
-        version: app.getVersion(),
+        version: appHost.getVersion(),
         platform: process.platform
       },
       session: {

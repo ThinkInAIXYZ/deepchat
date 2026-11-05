@@ -1,5 +1,7 @@
 import logger from '@shared/logger'
-import { app, shell } from 'electron'
+import { appHost } from '@/platform/appHost'
+import { app } from 'electron'
+import { shellHost } from '@/platform/shellHost'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import electronUpdater from 'electron-updater'
 import type { UpdateInfo } from 'electron-updater'
@@ -113,7 +115,7 @@ const toVersionInfo = (info: UpdateInfo): VersionInfo => {
 
 // 获取自动更新状态文件路径
 const getUpdateMarkerFilePath = () => {
-  return path.join(app.getPath('userData'), 'auto_update_marker.json')
+  return path.join(appHost.getPath('userData'), 'auto_update_marker.json')
 }
 
 export class UpgradeService {
@@ -229,7 +231,7 @@ export class UpgradeService {
       // 版本号兜底保护：electron-updater 在 channel 错配时可能把当前 beta 安装包"更新"成更旧的正式版。
       // 严格按 semver 判定——只要远端版本 <= 当前版本就拒绝。这里不再单独以"channel 是否同源"为拒绝条件，
       // 以免误伤"beta → 同版本号 stable 正式发布"这类合法的渠道收敛升级。
-      const currentVersion = app.getVersion()
+      const currentVersion = appHost.getVersion()
       const remoteVersion = info?.version || ''
 
       let isDowngradeOrSame = false
@@ -320,7 +322,7 @@ export class UpgradeService {
       if (fs.existsSync(this._updateMarkerPath)) {
         const content = fs.readFileSync(this._updateMarkerPath, 'utf8')
         const updateInfo = JSON.parse(content)
-        const currentVersion = app.getVersion()
+        const currentVersion = appHost.getVersion()
         logger.info('检查未完成的更新', updateInfo, currentVersion)
 
         // 如果当前版本与目标版本相同，说明更新已完成
@@ -504,12 +506,12 @@ export class UpgradeService {
     if (type === 'github') {
       const url = this._versionInfo?.githubUrl || githubFallbackUrl
       if (url) {
-        shell.openExternal(url)
+        shellHost.openExternal(url)
       }
     } else if (type === 'official') {
       const url = this._versionInfo?.downloadUrl || OFFICIAL_DOWNLOAD_URL
       if (url) {
-        shell.openExternal(url)
+        shellHost.openExternal(url)
       }
     }
   }

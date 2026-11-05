@@ -41,9 +41,7 @@ const configClientMock = vi.hoisted(() => ({
 const deviceClientMock = vi.hoisted(() => ({
   getAppVersion: vi.fn()
 }))
-const browserClientMock = vi.hoisted(() => ({
-  openExternal: vi.fn()
-}))
+const openExternalMock = vi.hoisted(() => ({ openExternal: vi.fn() }))
 const windowClientMock = vi.hoisted(() => ({
   startGuidedOnboarding: vi.fn(),
   onSettingsCheckForUpdates: vi.fn().mockImplementation((listener: () => void) => {
@@ -80,8 +78,8 @@ vi.mock('@api/ConfigClient', () => ({
 vi.mock('@api/DeviceClient', () => ({
   createDeviceClient: () => deviceClientMock
 }))
-vi.mock('@api/BrowserClient', () => ({
-  createBrowserClient: () => browserClientMock
+vi.mock('@api/runtime', () => ({
+  openRuntimeExternal: openExternalMock.openExternal
 }))
 vi.mock('@api/WindowClient', () => ({
   createWindowClient: () => windowClientMock
@@ -144,14 +142,14 @@ describe('AboutUsSettings', () => {
     configClientMock.getUpdateChannel.mockReset()
     configClientMock.setUpdateChannel.mockReset()
     deviceClientMock.getAppVersion.mockReset()
-    browserClientMock.openExternal.mockReset()
+    openExternalMock.openExternal.mockReset()
     upgradeStoreMock.refreshStatus.mockReset()
     upgradeStoreMock.checkUpdate.mockReset()
     upgradeStoreMock.handleUpdate.mockReset()
     configClientMock.getUpdateChannel.mockResolvedValue('stable')
     configClientMock.setUpdateChannel.mockResolvedValue('stable')
     deviceClientMock.getAppVersion.mockResolvedValue('1.0.0-beta.3')
-    browserClientMock.openExternal.mockResolvedValue(undefined)
+    openExternalMock.openExternal.mockResolvedValue(undefined)
     upgradeStoreMock.refreshStatus.mockResolvedValue('error')
     upgradeStoreMock.checkUpdate.mockResolvedValue('error')
     upgradeStoreMock.handleUpdate.mockResolvedValue(undefined)

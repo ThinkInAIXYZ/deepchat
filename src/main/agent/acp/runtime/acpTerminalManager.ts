@@ -1,9 +1,9 @@
 import fs from 'fs'
+import { appHost } from '@/platform/appHost'
 import path from 'path'
 import { spawn } from 'node-pty'
 import type { IPty } from 'node-pty'
 import { nanoid } from 'nanoid'
-import { app } from 'electron'
 import { RequestError } from '@agentclientprotocol/sdk'
 import type * as schema from '@agentclientprotocol/sdk'
 
@@ -43,13 +43,13 @@ export class AcpTerminalManager {
       return path.resolve(normalized)
     }
 
-    const fallbackDir = path.join(app.getPath('temp'), 'deepchat-acp', 'terminals')
+    const fallbackDir = path.join(appHost.getPath('temp'), 'deepchat-acp', 'terminals')
     try {
       fs.mkdirSync(fallbackDir, { recursive: true })
       console.warn(`[ACP Terminal] Missing cwd, using fallback directory: ${fallbackDir}`)
       return fallbackDir
     } catch (error) {
-      const tempDir = app.getPath('temp')
+      const tempDir = appHost.getPath('temp')
       console.warn(
         `[ACP Terminal] Failed to create fallback directory, using temp path instead: ${tempDir}`,
         error

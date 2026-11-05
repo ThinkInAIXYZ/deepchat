@@ -1,7 +1,10 @@
 {
   "sessionReference": {
     "copy": "複製工作階段參照",
-    "groups": { "session": "工作階段", "file": "檔案" },
+    "groups": {
+      "session": "工作階段",
+      "file": "檔案"
+    },
     "open": "開啟 {title}",
     "unavailableTitle": "工作階段引用無法使用",
     "unavailableDescription": "此工作階段已刪除、重設或不再可用。",
@@ -70,8 +73,7 @@
         "agentCore": "核心工具",
         "agentImageGeneration": "圖像生成",
         "agentSkills": "技能工具",
-        "deepchatSettings": "DeepChat 設定",
-        "yobrowser": "YoBrowser"
+        "deepchatSettings": "DeepChat 設定"
       }
     },
     "toolMode": {

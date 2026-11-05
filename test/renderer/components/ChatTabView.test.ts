@@ -180,18 +180,6 @@ const setup = async (options: SetupOptions = {}) => {
     })
   }))
 
-  vi.doMock('@/components/browser/AgentBrowserPiP.vue', () => ({
-    default: defineComponent({
-      name: 'AgentBrowserPiP',
-      template: '<div data-testid="agent-browser-pip-stub" />'
-    })
-  }))
-  vi.doMock('@/components/computerUse/AgentComputerUsePiP.vue', () => ({
-    default: defineComponent({
-      name: 'AgentComputerUsePiP',
-      template: '<div data-testid="agent-computer-use-pip-stub" />'
-    })
-  }))
   vi.doMock('@/pages/NewThreadPage.vue', () => ({
     default: defineComponent({
       name: 'NewThreadPage',

@@ -1,15 +1,11 @@
-import { safeStorage } from 'electron'
+import { secretHost } from '@/platform/secretHost'
 import type { SettingsStore } from './settingsStore'
 
 export class SecretStore {
   constructor(private readonly settings: SettingsStore) {}
 
   isAvailable(): boolean {
-    try {
-      return safeStorage.isEncryptionAvailable()
-    } catch {
-      return false
-    }
+    return secretHost.isAvailable()
   }
 
   get(key: string): string {
@@ -18,7 +14,7 @@ export class SecretStore {
       return ''
     }
     try {
-      return safeStorage.decryptString(Buffer.from(wrapped, 'base64'))
+      return secretHost.decryptString(Buffer.from(wrapped, 'base64'))
     } catch (error) {
       console.error(`[SecretStore] Failed to decrypt ${key}:`, error)
       return ''
@@ -33,7 +29,7 @@ export class SecretStore {
     if (!this.isAvailable()) {
       throw new Error('sync.error.safeStorageUnavailable')
     }
-    return Buffer.from(safeStorage.encryptString(value)).toString('base64')
+    return Buffer.from(secretHost.encryptString(value)).toString('base64')
   }
 
   setWrapped(key: string, wrapped: string): void {

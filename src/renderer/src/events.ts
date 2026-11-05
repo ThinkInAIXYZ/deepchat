@@ -1,5 +1,3 @@
-export { FLOATING_BUTTON_EVENTS } from '@shared/floatingButtonChannels'
-
 /**
  * 事件系统常量定义
  * 看似这里和 main/events.ts 重复了，其实不然，这里只包含了main上来给renderer的事件

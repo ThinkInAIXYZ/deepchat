@@ -1,41 +1,16 @@
-import { app, BrowserWindow } from 'electron'
+import { BrowserWindow } from 'electron'
+import { appHost } from '@/platform/appHost'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope } from '@shared/contracts/events'
-import type {
-  IShortcutPresenter,
-  ITabPresenter,
-  IWindowPresenter,
-  IComputerUsePreviewPresenter,
-  IYoBrowserPresenter
-} from '@shared/types/desktop'
+import type { IShortcutPresenter, ITabPresenter, IWindowPresenter } from '@shared/types/desktop'
 import type { DialogServicePort } from '@shared/types/dialog'
 import { getLocaleDirection } from '@shared/locales'
 import type { DesktopSettings } from './settings'
 import {
-  browserAttachCurrentWindowRoute,
-  browserFocusContentRoute,
-  browserApplyImportRoute,
-  browserClearSandboxDataRoute,
-  browserDismissPreviewRoute,
-  browserDestroyRoute,
-  browserDetachRoute,
-  browserGetStatusRoute,
-  browserGoBackRoute,
-  browserGoForwardRoute,
-  browserLoadUrlRoute,
-  browserPreviewImportRoute,
-  browserReloadRoute,
-  browserScanImportSourcesRoute,
-  browserSetPreviewModeRoute,
-  browserUpdateCurrentWindowBoundsRoute,
-  computerUseDismissPreviewRoute,
-  computerUseSetPreviewModeRoute,
-  configGetFloatingButtonRoute,
   configGetLanguageRoute,
   configGetShortcutKeysRoute,
   configGetThemeRoute,
   configResetShortcutKeysRoute,
-  configSetFloatingButtonRoute,
   configSetLanguageRoute,
   configSetShortcutKeysRoute,
   configSetThemeRoute,
@@ -48,7 +23,6 @@ import {
   tabCaptureCurrentAreaRoute,
   tabStitchImagesWithWatermarkRoute,
   windowCloseCurrentRoute,
-  windowCloseFloatingCurrentRoute,
   windowCloseSettingsRoute,
   windowConsumePendingSettingsProviderInstallRoute,
   windowFocusMainRoute,
@@ -76,23 +50,13 @@ export function createDesktopRoutes(deps: {
   ownsDraftSession(sessionId: string, webContentsId: number): boolean
   windowPresenter: IWindowPresenter
   shortcutPresenter: IShortcutPresenter
-  browserPresenter: IYoBrowserPresenter
-  computerUsePreviewPresenter: IComputerUsePreviewPresenter
   desktopSessionBinding: Pick<DesktopSessionBinding, 'getActiveId'>
   tabPresenter: ITabPresenter
   dialogService: DialogServicePort
   settings: DesktopSettings
-  setFloatingButtonEnabled(enabled: boolean): void
   recordActivity(input: SettingsActivityInput): void
 }): DeepchatRouteMap {
-  const {
-    windowPresenter,
-    shortcutPresenter,
-    browserPresenter,
-    computerUsePreviewPresenter,
-    tabPresenter,
-    dialogService
-  } = deps
+  const { windowPresenter, shortcutPresenter, tabPresenter, dialogService } = deps
   const readWindowState = (context: RouteContext) => {
     const caller = requireRendererCaller(context)
     const window = caller.windowId == null ? null : BrowserWindow.fromId(caller.windowId)
@@ -105,8 +69,6 @@ export function createDesktopRoutes(deps: {
       isFocused: exists ? windowPresenter.isMainWindowFocused(caller.windowId!) : false
     }
   }
-  const readBrowserStatus = async (sessionId: string) =>
-    await browserPresenter.getBrowserStatus(sessionId)
   const readLanguage = () => {
     const locale = deps.settings.getLanguage()
     return {
@@ -149,26 +111,6 @@ export function createDesktopRoutes(deps: {
         const input = configSetThemeRoute.input.parse(rawInput)
         deps.settings.setTheme(input.theme)
         return configSetThemeRoute.output.parse(readTheme())
-      }
-    ],
-    [
-      configGetFloatingButtonRoute.name,
-      async (rawInput) => {
-        configGetFloatingButtonRoute.input.parse(rawInput)
-        return configGetFloatingButtonRoute.output.parse({
-          enabled: deps.settings.getFloatingButtonEnabled()
-        })
-      }
-    ],
-    [
-      configSetFloatingButtonRoute.name,
-      async (rawInput) => {
-        const input = configSetFloatingButtonRoute.input.parse(rawInput)
-        deps.settings.setFloatingButtonEnabled(input.enabled)
-        deps.setFloatingButtonEnabled(input.enabled)
-        return configSetFloatingButtonRoute.output.parse({
-          enabled: deps.settings.getFloatingButtonEnabled()
-        })
       }
     ],
     [
@@ -280,19 +222,6 @@ export function createDesktopRoutes(deps: {
       }
     ],
     [
-      windowCloseFloatingCurrentRoute.name,
-      async (rawInput, context) => {
-        windowCloseFloatingCurrentRoute.input.parse(rawInput)
-        const caller = requireRendererCaller(context)
-        const window = windowPresenter.getFloatingChatWindow()?.getWindow() ?? null
-        if (!window || window.isDestroyed() || window.webContents.id !== caller.webContentsId) {
-          return windowCloseFloatingCurrentRoute.output.parse({ closed: false })
-        }
-        windowPresenter.hide(window.id)
-        return windowCloseFloatingCurrentRoute.output.parse({ closed: true })
-      }
-    ],
-    [
       windowPreviewFileRoute.name,
       async (rawInput) => {
         const input = windowPreviewFileRoute.input.parse(rawInput)
@@ -360,7 +289,7 @@ export function createDesktopRoutes(deps: {
       windowStartGuidedOnboardingRoute.name,
       async (rawInput) => {
         windowStartGuidedOnboardingRoute.input.parse(rawInput)
-        if (!import.meta.env.DEV || app.isPackaged) {
+        if (!import.meta.env.DEV || appHost.isPackaged()) {
           return windowStartGuidedOnboardingRoute.output.parse({ started: false, focused: false })
         }
         await windowPresenter.sendToAllWindows(DEV_EVENTS.START_GUIDED_ONBOARDING)
@@ -368,220 +297,6 @@ export function createDesktopRoutes(deps: {
           started: true,
           focused: windowPresenter.focusMainWindow()
         })
-      }
-    ],
-    [
-      browserGetStatusRoute.name,
-      async (rawInput) => {
-        const input = browserGetStatusRoute.input.parse(rawInput)
-        return browserGetStatusRoute.output.parse({
-          status: await readBrowserStatus(input.sessionId)
-        })
-      }
-    ],
-    [
-      browserLoadUrlRoute.name,
-      async (rawInput, context) => {
-        const input = browserLoadUrlRoute.input.parse(rawInput)
-        const caller = requireRendererCaller(context)
-        const browser = browserPresenter as IYoBrowserPresenter & {
-          loadUrl(
-            sessionId: string,
-            url: string,
-            timeoutMs?: number,
-            hostWindowId?: number
-          ): Promise<Awaited<ReturnType<IYoBrowserPresenter['getBrowserStatus']>>>
-        }
-        return browserLoadUrlRoute.output.parse({
-          status: await browser.loadUrl(
-            input.sessionId,
-            input.url,
-            input.timeoutMs,
-            caller.windowId ?? undefined
-          )
-        })
-      }
-    ],
-    [
-      browserFocusContentRoute.name,
-      async (rawInput, context) => {
-        const input = browserFocusContentRoute.input.parse(rawInput)
-        const caller = requireRendererCaller(context)
-        const active =
-          deps.desktopSessionBinding.getActiveId(caller.webContentsId) === input.sessionId ||
-          deps.ownsDraftSession(input.sessionId, caller.webContentsId)
-        return browserFocusContentRoute.output.parse({
-          focused:
-            caller.windowId != null &&
-            active &&
-            browserPresenter.focusSessionBrowser(input.sessionId, caller.windowId)
-        })
-      }
-    ],
-    [
-      browserAttachCurrentWindowRoute.name,
-      async (rawInput, context) => {
-        const input = browserAttachCurrentWindowRoute.input.parse(rawInput)
-        const caller = requireRendererCaller(context)
-        if (caller.windowId == null) {
-          return browserAttachCurrentWindowRoute.output.parse({ attached: false })
-        }
-        return browserAttachCurrentWindowRoute.output.parse({
-          attached: await browserPresenter.attachSessionBrowser(input.sessionId, caller.windowId)
-        })
-      }
-    ],
-    [
-      browserUpdateCurrentWindowBoundsRoute.name,
-      async (rawInput, context) => {
-        const input = browserUpdateCurrentWindowBoundsRoute.input.parse(rawInput)
-        const caller = requireRendererCaller(context)
-        if (caller.windowId == null) {
-          return browserUpdateCurrentWindowBoundsRoute.output.parse({ updated: false })
-        }
-        await browserPresenter.updateSessionBrowserBounds(
-          input.sessionId,
-          caller.windowId,
-          input.bounds,
-          input.visible
-        )
-        return browserUpdateCurrentWindowBoundsRoute.output.parse({ updated: true })
-      }
-    ],
-    [
-      browserDetachRoute.name,
-      async (rawInput) => {
-        const input = browserDetachRoute.input.parse(rawInput)
-        await browserPresenter.detachSessionBrowser(input.sessionId)
-        return browserDetachRoute.output.parse({ detached: true })
-      }
-    ],
-    [
-      browserSetPreviewModeRoute.name,
-      async (rawInput, context) => {
-        const input = browserSetPreviewModeRoute.input.parse(rawInput)
-        const caller = requireRendererCaller(context)
-        return browserSetPreviewModeRoute.output.parse(
-          await browserPresenter.setPreviewMode(
-            input.sessionId,
-            input.mode,
-            caller.windowId ?? undefined,
-            input.runId
-          )
-        )
-      }
-    ],
-    [
-      browserDismissPreviewRoute.name,
-      async (rawInput) => {
-        const input = browserDismissPreviewRoute.input.parse(rawInput)
-        return browserDismissPreviewRoute.output.parse({
-          dismissed: browserPresenter.dismissPreview(input.sessionId, input.runId)
-        })
-      }
-    ],
-    [
-      computerUseSetPreviewModeRoute.name,
-      async (rawInput, context) => {
-        const input = computerUseSetPreviewModeRoute.input.parse(rawInput)
-        const caller = requireRendererCaller(context)
-        if (
-          caller.windowId == null ||
-          (input.mode !== 'stopped' &&
-            deps.desktopSessionBinding.getActiveId(caller.webContentsId) !== input.sessionId)
-        ) {
-          return computerUseSetPreviewModeRoute.output.parse({
-            updated: false,
-            surface: 'none'
-          })
-        }
-        return computerUseSetPreviewModeRoute.output.parse(
-          await computerUsePreviewPresenter.setPreviewMode(
-            input.sessionId,
-            input.mode,
-            caller.windowId
-          )
-        )
-      }
-    ],
-    [
-      computerUseDismissPreviewRoute.name,
-      async (rawInput, context) => {
-        const input = computerUseDismissPreviewRoute.input.parse(rawInput)
-        const caller = requireRendererCaller(context)
-        const active =
-          deps.desktopSessionBinding.getActiveId(caller.webContentsId) === input.sessionId
-        return computerUseDismissPreviewRoute.output.parse({
-          dismissed:
-            active && computerUsePreviewPresenter.dismissPreview(input.sessionId, input.runId)
-        })
-      }
-    ],
-    [
-      browserDestroyRoute.name,
-      async (rawInput) => {
-        const input = browserDestroyRoute.input.parse(rawInput)
-        await browserPresenter.destroySessionBrowser(input.sessionId)
-        return browserDestroyRoute.output.parse({ destroyed: true })
-      }
-    ],
-    [
-      browserGoBackRoute.name,
-      async (rawInput) => {
-        const input = browserGoBackRoute.input.parse(rawInput)
-        await browserPresenter.goBack(input.sessionId)
-        return browserGoBackRoute.output.parse({ status: await readBrowserStatus(input.sessionId) })
-      }
-    ],
-    [
-      browserGoForwardRoute.name,
-      async (rawInput) => {
-        const input = browserGoForwardRoute.input.parse(rawInput)
-        await browserPresenter.goForward(input.sessionId)
-        return browserGoForwardRoute.output.parse({
-          status: await readBrowserStatus(input.sessionId)
-        })
-      }
-    ],
-    [
-      browserReloadRoute.name,
-      async (rawInput) => {
-        const input = browserReloadRoute.input.parse(rawInput)
-        await browserPresenter.reload(input.sessionId)
-        return browserReloadRoute.output.parse({ status: await readBrowserStatus(input.sessionId) })
-      }
-    ],
-    [
-      browserClearSandboxDataRoute.name,
-      async (rawInput) => {
-        browserClearSandboxDataRoute.input.parse(rawInput)
-        await browserPresenter.clearSandboxData()
-        return browserClearSandboxDataRoute.output.parse({ cleared: true })
-      }
-    ],
-    [
-      browserScanImportSourcesRoute.name,
-      async (rawInput) => {
-        browserScanImportSourcesRoute.input.parse(rawInput)
-        return browserScanImportSourcesRoute.output.parse(
-          await browserPresenter.scanImportSources()
-        )
-      }
-    ],
-    [
-      browserPreviewImportRoute.name,
-      async (rawInput) => {
-        const input = browserPreviewImportRoute.input.parse(rawInput)
-        return browserPreviewImportRoute.output.parse(
-          await browserPresenter.previewImport(input.profileId)
-        )
-      }
-    ],
-    [
-      browserApplyImportRoute.name,
-      async (rawInput) => {
-        const input = browserApplyImportRoute.input.parse(rawInput)
-        return browserApplyImportRoute.output.parse(await browserPresenter.applyImport(input.token))
       }
     ],
     [

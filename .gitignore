@@ -28,3 +28,7 @@ test-results/
 
 # tsc incremental build info
 *.tsbuildinfo
+shell/spike/spike
+shell/spike/frontend/mygo.gen.ts
+shell/spike/build/
+shell/spike/mygo.gen.ts

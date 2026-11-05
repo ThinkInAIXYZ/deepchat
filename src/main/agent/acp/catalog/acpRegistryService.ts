@@ -1,6 +1,7 @@
 import fs from 'fs'
+import { appHost } from '@/platform/appHost'
 import path from 'path'
-import { app, net } from 'electron'
+import { netHost } from '@/platform/netHost'
 import type { AcpRegistryAgent } from '@shared/types/acp'
 import type {
   AcpRegistryBinaryDistribution,
@@ -221,7 +222,7 @@ export class AcpRegistryService {
 
   constructor(options: AcpRegistryServiceOptions = {}) {
     this.isPrivacyModeEnabled = options.isPrivacyModeEnabled ?? (() => false)
-    const userDataPath = app.getPath('userData')
+    const userDataPath = appHost.getPath('userData')
     this.cacheDir = path.join(userDataPath, 'acp-registry')
     this.cacheFilePath = path.join(this.cacheDir, 'registry.json')
     this.metaFilePath = path.join(this.cacheDir, 'meta.json')
@@ -441,7 +442,7 @@ export class AcpRegistryService {
 
   private getBuiltInResourceRoots(): string[] {
     return [
-      path.join(app.getAppPath(), ...ACP_REGISTRY_RESOURCE_DIR),
+      path.join(appHost.getAppPath(), ...ACP_REGISTRY_RESOURCE_DIR),
       path.join(process.cwd(), ...ACP_REGISTRY_RESOURCE_DIR)
     ]
   }
@@ -520,7 +521,7 @@ export class AcpRegistryService {
     const timeout = setTimeout(() => controller.abort(), 10000)
 
     try {
-      const response = await net.fetch(iconUrl, {
+      const response = await netHost.fetch(iconUrl, {
         signal: controller.signal
       })
 

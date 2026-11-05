@@ -37,28 +37,6 @@ import {
   acpAuthStatusRoute
 } from './routes/acp-auth.routes'
 import {
-  browserAttachCurrentWindowRoute,
-  browserFocusContentRoute,
-  browserApplyImportRoute,
-  browserClearSandboxDataRoute,
-  browserDismissPreviewRoute,
-  browserDestroyRoute,
-  browserDetachRoute,
-  browserGetStatusRoute,
-  browserGoBackRoute,
-  browserGoForwardRoute,
-  browserLoadUrlRoute,
-  browserPreviewImportRoute,
-  browserReloadRoute,
-  browserScanImportSourcesRoute,
-  browserSetPreviewModeRoute,
-  browserUpdateCurrentWindowBoundsRoute
-} from './routes/browser.routes'
-import {
-  computerUseDismissPreviewRoute,
-  computerUseSetPreviewModeRoute
-} from './routes/computerUse.routes'
-import {
   chatCancelSubmissionRoute,
   chatDismissToolInteractionRoute,
   chatRespondToolInteractionRoute,
@@ -143,7 +121,6 @@ import {
   configGetDefaultProjectPathRoute,
   configGetDefaultSystemPromptRoute,
   configGetEntriesRoute,
-  configGetFloatingButtonRoute,
   configGetGeminiSafetyRoute,
   configGetHooksNotificationsRoute,
   configGetKnowledgeConfigsRoute,
@@ -180,7 +157,6 @@ import {
   configSetDefaultProjectPathRoute,
   configSetDefaultSystemPromptIdRoute,
   configSetDefaultSystemPromptRoute,
-  configSetFloatingButtonRoute,
   configSetGeminiSafetyRoute,
   configSetHooksNotificationsRoute,
   configSetKnowledgeConfigsRoute,
@@ -650,7 +626,6 @@ import {
 } from './routes/upgrade.routes'
 import {
   windowCloseCurrentRoute,
-  windowCloseFloatingCurrentRoute,
   windowCloseSettingsRoute,
   windowConsumePendingSettingsProviderInstallRoute,
   windowFocusMainRoute,
@@ -689,11 +664,9 @@ import {
   orchestrationSetPolicyRoute
 } from './routes/orchestration.routes'
 
-export * from './routes/browser.routes'
 export * from './routes/approvals.routes'
 export * from './routes/artifacts.routes'
 export * from './routes/audio.routes'
-export * from './routes/computerUse.routes'
 export * from './routes/acp-auth.routes'
 export * from './routes/chat.routes'
 export * from './routes/config.routes'
@@ -764,7 +737,6 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [windowMinimizeCurrentRoute.name]: windowMinimizeCurrentRoute,
   [windowToggleMaximizeCurrentRoute.name]: windowToggleMaximizeCurrentRoute,
   [windowCloseCurrentRoute.name]: windowCloseCurrentRoute,
-  [windowCloseFloatingCurrentRoute.name]: windowCloseFloatingCurrentRoute,
   [windowPreviewFileRoute.name]: windowPreviewFileRoute,
   [windowCloseSettingsRoute.name]: windowCloseSettingsRoute,
   [windowFocusMainRoute.name]: windowFocusMainRoute,
@@ -899,24 +871,6 @@ const DEEPCHAT_ROUTE_CATALOG_PART_2 = {
   [workspaceGetGitStatusRoute.name]: workspaceGetGitStatusRoute,
   [workspaceGetGitDiffRoute.name]: workspaceGetGitDiffRoute,
   [workspaceSearchFilesRoute.name]: workspaceSearchFilesRoute,
-  [browserGetStatusRoute.name]: browserGetStatusRoute,
-  [browserLoadUrlRoute.name]: browserLoadUrlRoute,
-  [browserAttachCurrentWindowRoute.name]: browserAttachCurrentWindowRoute,
-  [browserFocusContentRoute.name]: browserFocusContentRoute,
-  [browserUpdateCurrentWindowBoundsRoute.name]: browserUpdateCurrentWindowBoundsRoute,
-  [browserDetachRoute.name]: browserDetachRoute,
-  [browserDestroyRoute.name]: browserDestroyRoute,
-  [browserGoBackRoute.name]: browserGoBackRoute,
-  [browserGoForwardRoute.name]: browserGoForwardRoute,
-  [browserReloadRoute.name]: browserReloadRoute,
-  [browserClearSandboxDataRoute.name]: browserClearSandboxDataRoute,
-  [browserScanImportSourcesRoute.name]: browserScanImportSourcesRoute,
-  [browserSetPreviewModeRoute.name]: browserSetPreviewModeRoute,
-  [browserDismissPreviewRoute.name]: browserDismissPreviewRoute,
-  [browserPreviewImportRoute.name]: browserPreviewImportRoute,
-  [browserApplyImportRoute.name]: browserApplyImportRoute,
-  [computerUseSetPreviewModeRoute.name]: computerUseSetPreviewModeRoute,
-  [computerUseDismissPreviewRoute.name]: computerUseDismissPreviewRoute,
   [tabCaptureCurrentAreaRoute.name]: tabCaptureCurrentAreaRoute,
   [tabStitchImagesWithWatermarkRoute.name]: tabStitchImagesWithWatermarkRoute
 } satisfies Record<string, RouteContract>
@@ -928,8 +882,6 @@ const DEEPCHAT_ROUTE_CATALOG_PART_3 = {
   [configSetLanguageRoute.name]: configSetLanguageRoute,
   [configGetThemeRoute.name]: configGetThemeRoute,
   [configSetThemeRoute.name]: configSetThemeRoute,
-  [configGetFloatingButtonRoute.name]: configGetFloatingButtonRoute,
-  [configSetFloatingButtonRoute.name]: configSetFloatingButtonRoute,
   [configGetSyncSettingsRoute.name]: configGetSyncSettingsRoute,
   [configUpdateSyncSettingsRoute.name]: configUpdateSyncSettingsRoute,
   [configGetProxySettingsRoute.name]: configGetProxySettingsRoute,

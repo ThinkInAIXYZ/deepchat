@@ -14,7 +14,7 @@ import {
 } from '@shared/modelConfigDefaults'
 import { applyMoonshotKimiReasoningTemperaturePolicy } from '@shared/modelRequestPolicy'
 import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
-import ElectronStore from 'electron-store'
+import { storeHost } from '@/platform/storeHost'
 import {
   hasAnthropicReasoningToggle,
   getReasoningEffortDefault,
@@ -95,7 +95,7 @@ export class ModelConfigHelper {
   private cacheInitialized: boolean = false
 
   constructor(
-    store: StoreLike<Record<string, unknown>> = new ElectronStore<Record<string, unknown>>({
+    store: StoreLike<Record<string, unknown>> = storeHost.create<Record<string, unknown>>({
       name: 'model-config'
     })
   ) {

@@ -1,5 +1,5 @@
-import { app } from 'electron'
 import path from 'node:path'
+import { appHost } from '@/platform/appHost'
 import type { SecretStore } from '@/config/secretStore'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
@@ -31,7 +31,8 @@ export class SyncSettings {
 
   getFolderPath(): string {
     return (
-      this.settings.get<string>('syncFolderPath') || path.join(app.getPath('home'), 'DeepchatSync')
+      this.settings.get<string>('syncFolderPath') ||
+      path.join(appHost.getPath('home'), 'DeepchatSync')
     )
   }
 

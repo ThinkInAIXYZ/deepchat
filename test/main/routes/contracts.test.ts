@@ -177,12 +177,6 @@ describe('main kernel contracts', () => {
         'acpAuth.inspect',
         'acpAuth.start',
         'acpAuth.status',
-        'browser.attachCurrentWindow',
-        'browser.clearSandboxData',
-        'browser.dismissPreview',
-        'browser.setPreviewMode',
-        'computerUse.dismissPreview',
-        'computerUse.setPreviewMode',
         'databaseSecurity.repairSchema',
         'debug.createMockChatSession',
         'config.addManualAcpAgent',
@@ -590,9 +584,7 @@ describe('main kernel contracts', () => {
     ).toThrow()
   })
 
-  it('validates database repair and browser sandbox utility route payloads', () => {
-    expect(DEEPCHAT_ROUTE_CATALOG['browser.clearSandboxData'].input.parse({})).toEqual({})
-
+  it('validates database repair utility route payloads', () => {
     expect(
       DEEPCHAT_ROUTE_CATALOG['databaseSecurity.repairSchema'].output.parse({
         report: {
@@ -2032,14 +2024,6 @@ describe('main kernel contracts', () => {
         'appRuntime.systemNotificationClicked',
         'appRuntime.windowBlurred',
         'appRuntime.windowFocused',
-        'browser.activity.changed',
-        'browser.open.requested',
-        'browser.preview.action',
-        'browser.preview.frame',
-        'browser.preview.surface.changed',
-        'browser.status.changed',
-        'computerUse.preview.frame',
-        'computerUse.preview.surface.changed',
         'chat.stream.completed',
         'chat.stream.failed',
         'chat.stream.updated',
@@ -2048,7 +2032,6 @@ describe('main kernel contracts', () => {
         'config.agents.changed',
         'config.customPrompts.changed',
         'config.defaultProjectPath.changed',
-        'config.floatingButton.changed',
         'config.language.changed',
         'config.shortcutKeys.changed',
         'config.syncSettings.changed',
@@ -2144,88 +2127,6 @@ describe('main kernel contracts', () => {
       }
     } as unknown
     expect(contract.safeParse(bypassedPayload).success).toBe(false)
-  })
-
-  it('accepts only byte arrays for browser preview frames', () => {
-    const payload = {
-      sessionId: 'session-1',
-      runId: 'run-1',
-      sequence: 0,
-      width: 480,
-      height: 300,
-      mimeType: 'image/jpeg',
-      timestamp: Date.now()
-    } as const
-
-    expect(
-      DEEPCHAT_EVENT_CATALOG['browser.preview.frame'].payload.safeParse({
-        ...payload,
-        data: new Uint8Array([1, 2, 3])
-      }).success
-    ).toBe(true)
-    expect(
-      DEEPCHAT_EVENT_CATALOG['browser.preview.frame'].payload.safeParse({
-        ...payload,
-        data: new Uint16Array([1, 2, 3])
-      }).success
-    ).toBe(false)
-    expect(
-      DEEPCHAT_EVENT_CATALOG['browser.preview.frame'].payload.safeParse({
-        ...payload,
-        data: new DataView(new ArrayBuffer(3))
-      }).success
-    ).toBe(false)
-  })
-
-  it('validates bounded Computer Use preview frames with a target epoch', () => {
-    const payload = {
-      sessionId: 'session-1',
-      runId: 'run-1',
-      epoch: 2,
-      sequence: 3,
-      width: 480,
-      height: 300,
-      mimeType: 'image/jpeg',
-      timestamp: Date.now()
-    } as const
-
-    expect(
-      DEEPCHAT_EVENT_CATALOG['computerUse.preview.frame'].payload.safeParse({
-        ...payload,
-        data: new Uint8Array([1, 2, 3])
-      }).success
-    ).toBe(true)
-    expect(
-      DEEPCHAT_EVENT_CATALOG['computerUse.preview.frame'].payload.safeParse({
-        ...payload,
-        epoch: -1,
-        data: new Uint8Array([1, 2, 3])
-      }).success
-    ).toBe(false)
-    expect(
-      DEEPCHAT_EVENT_CATALOG['computerUse.preview.frame'].payload.safeParse({
-        ...payload,
-        data: new Uint8Array(512 * 1024 + 1)
-      }).success
-    ).toBe(false)
-  })
-
-  it('validates browser preview actions against an exact target', () => {
-    expect(
-      DEEPCHAT_EVENT_CATALOG['browser.preview.action'].payload.safeParse({
-        action: 'activate',
-        windowId: 1,
-        sessionId: 'session-1',
-        runId: 'run-1'
-      }).success
-    ).toBe(true)
-    expect(
-      DEEPCHAT_EVENT_CATALOG['browser.preview.action'].payload.safeParse({
-        action: 'activate',
-        windowId: 1,
-        sessionId: 'session-1'
-      }).success
-    ).toBe(false)
   })
 
   it('validates typed chat stream payloads', () => {

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { appHost } from '@/platform/appHost'
 import { is } from '@electron-toolkit/utils'
-import { app } from 'electron'
 import { originalConsole } from '@shared/logger'
 import { MainJsonlPersistence } from './mainJsonlPersistence'
 import { MainLogger, type MainLogInternalWarning } from './mainLogger'
@@ -18,12 +18,12 @@ const INTERNAL_WARNING_TEXT: Record<MainLogInternalWarning, string> = {
 }
 
 const persistence = new MainJsonlPersistence({
-  getUserDataPath: () => app.getPath('userData')
+  getUserDataPath: () => appHost.getPath('userData')
 })
 
 export const mainLogger = new MainLogger({
   persistence,
-  appVersion: app.getVersion(),
+  appVersion: appHost.getVersion(),
   processInstanceId: randomUUID(),
   writeConsole: is.dev
     ? (_level, text) => {

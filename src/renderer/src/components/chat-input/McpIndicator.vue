@@ -393,13 +393,7 @@ type SystemPromptMenuOption = {
   disabled?: boolean
 }
 
-const GROUP_ORDER = [
-  'agent-filesystem',
-  'agent-core',
-  'agent-skills',
-  'deepchat-settings',
-  'yobrowser'
-]
+const GROUP_ORDER = ['agent-filesystem', 'agent-core', 'agent-skills', 'deepchat-settings']
 const TOOL_MODE_OPTIONS: readonly ToolMode[] = ['agent', 'code', 'minimal']
 const MINIMAL_AGENT_FILESYSTEM_TOOLS = new Set([
   'read',
@@ -581,8 +575,6 @@ const getGroupLabel = (serverName: string) => {
       return t('chat.input.tools.groups.agentSkills')
     case 'deepchat-settings':
       return t('chat.input.tools.groups.deepchatSettings')
-    case 'yobrowser':
-      return t('chat.input.tools.groups.yobrowser')
     default:
       return serverName
   }

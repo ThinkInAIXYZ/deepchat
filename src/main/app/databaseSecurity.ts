@@ -1,6 +1,9 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { app, safeStorage } from 'electron'
-import ElectronStore from 'electron-store'
+import { appHost } from '@/platform/appHost'
+import { app } from 'electron'
+import { secretHost } from '@/platform/secretHost'
+import { storeHost } from '@/platform/storeHost'
+import type { StoreLike } from '@/config/storeLike'
 import fs from 'fs'
 import path from 'path'
 import Database from 'better-sqlite3-multiple-ciphers'
@@ -98,14 +101,14 @@ function isFtsMaintenanceSchemaObject(row: SqliteSchemaRow & { tbl_name?: string
 }
 
 export class DatabaseSecurityService {
-  private readonly store: ElectronStore<{ metadata: DatabaseSecurityMetadata }>
+  private readonly store: StoreLike<{ metadata: DatabaseSecurityMetadata }>
   private readonly dbPath: string
   private migrationInProgress = false
 
   constructor(options?: { dbPath?: string }) {
-    const dbDir = path.join(app.getPath('userData'), 'app_db')
+    const dbDir = path.join(appHost.getPath('userData'), 'app_db')
     this.dbPath = options?.dbPath ?? path.join(dbDir, 'agent.db')
-    this.store = new ElectronStore<{ metadata: DatabaseSecurityMetadata }>({
+    this.store = storeHost.create<{ metadata: DatabaseSecurityMetadata }>({
       name: 'database-security',
       defaults: {
         metadata: DEFAULT_METADATA
@@ -653,27 +656,19 @@ export class DatabaseSecurityService {
   }
 
   private wrapPassword(password: string): string {
-    return Buffer.from(safeStorage.encryptString(password)).toString('base64')
+    return Buffer.from(secretHost.encryptString(password)).toString('base64')
   }
 
   private unwrapPassword(wrappedPassword: string): string {
-    return safeStorage.decryptString(Buffer.from(wrappedPassword, 'base64'))
+    return secretHost.decryptString(Buffer.from(wrappedPassword, 'base64'))
   }
 
   private isSafeStorageAvailable(): boolean {
-    try {
-      return safeStorage.isEncryptionAvailable()
-    } catch {
-      return false
-    }
+    return secretHost.isAvailable()
   }
 
   private getSafeStorageBackend(): string | undefined {
-    try {
-      return process.platform === 'linux' ? safeStorage.getSelectedStorageBackend() : undefined
-    } catch {
-      return undefined
-    }
+    return secretHost.selectedBackend()
   }
 
   private assertEnabled(): void {

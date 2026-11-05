@@ -38,6 +38,7 @@ import type {
   ResolveTapeInspectorEvidenceEntriesOutput
 } from '@shared/types/tape-inspector'
 import { TAPE_INSPECTOR_SUPPORT_EVIDENCE_LIMIT } from '@shared/types/tape-inspector'
+import { toSessionListItem } from './listItem'
 import { ExecutionJournalCorruptionError } from '@/tape/domain/executionJournal'
 import type {
   SessionLightweightOptions,
@@ -522,10 +523,7 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
     } catch {
       // Lightweight reads remain available when an Agent is unavailable.
     }
-    return {
-      ...record,
-      status
-    }
+    return toSessionListItem(record, status)
   }
 
   private dedupeAndSortSessionListItems(items: SessionListItem[]): SessionListItem[] {

@@ -1,4 +1,5 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
+import { appHost } from '@/platform/appHost'
 import {
   TOOL_EXECUTION,
   type MCPToolDefinition,
@@ -12,7 +13,7 @@ import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { z } from 'zod'
 import fs from 'fs'
 import path from 'path'
-import { app, nativeImage } from 'electron'
+import sharp from 'sharp'
 import logger from '@shared/logger'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -71,7 +72,6 @@ import type {
   AgentToolDependencies,
   LiveDelegationStartAuthorization
 } from '../runtimePorts'
-import { YO_BROWSER_TOOL_NAMES } from '../browser/definitions'
 import { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
 import {
   AgentImageGenerationTool,
@@ -80,10 +80,7 @@ import {
 } from './agentImageGenerationTool'
 import { AgentTapeToolHandler } from './agentTapeTools'
 import { AGENT_MEMORY_TOOL_SERVER_NAME, AgentMemoryToolHandler } from './agentMemoryTools'
-import {
-  createAgentToolErrorResult,
-  createAgentToolSuccessResult
-} from '@shared/lib/agentToolResultEnvelope'
+import { createAgentToolSuccessResult } from '@shared/lib/agentToolResultEnvelope'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
   LIVE_DELEGATION_AGENT_TOOL_NAME,
@@ -105,7 +102,6 @@ import {
   CronJobToolHandler,
   cronJobActionNeedsPermission
 } from './cronJobTool'
-import { isYoBrowserUnavailableError } from '../browser/errors'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
 import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
@@ -249,7 +245,6 @@ const isAbortError = (error: unknown): boolean =>
   error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
 
 export class AgentToolManager {
-  private static readonly YO_BROWSER_TOOL_NAME_SET = new Set<string>(YO_BROWSER_TOOL_NAMES)
   private agentWorkspacePath: string | null
   private fileSystemHandler: AgentFileSystemHandler | null = null
   private bashHandler: AgentBashHandler | null = null
@@ -823,15 +818,6 @@ export class AgentToolManager {
       }
     }
 
-    // 5. YoBrowser CDP tools (agent mode only)
-    if (isAgentMode) {
-      try {
-        appendDefinitions(this.getYoBrowserToolHandler().getToolDefinitions(), 'user-configurable')
-      } catch (error) {
-        handleAvailabilityError('[AgentToolManager] Failed to load YoBrowser tools', error)
-      }
-    }
-
     return defs
   }
 
@@ -1033,42 +1019,6 @@ export class AgentToolManager {
     // Route to DeepChat settings tools
     if (this.isChatSettingsTool(toolName)) {
       return await this.callChatSettingsTool(toolName, args, conversationId, options)
-    }
-
-    // Route to YoBrowser CDP tools
-    if (AgentToolManager.YO_BROWSER_TOOL_NAME_SET.has(toolName)) {
-      try {
-        const response = await this.getYoBrowserToolHandler().callTool(
-          toolName,
-          args,
-          conversationId,
-          options?.runId,
-          this.createAgentDispatchCommit(toolName, 'yobrowser', args, options),
-          options?.signal
-        )
-        return {
-          content: response
-        }
-      } catch (error) {
-        if (!isYoBrowserUnavailableError(error)) {
-          throw error
-        }
-
-        const payload = error.payload
-        const content = JSON.stringify(payload)
-        return {
-          content,
-          rawData: {
-            content,
-            isError: true,
-            toolResult: createAgentToolErrorResult(toolName, payload.error.message, {
-              code: payload.error.code,
-              recoverable: payload.error.recoverable,
-              data: payload
-            })
-          }
-        }
-      }
     }
 
     throw new Error(`Unknown Agent tool: ${toolName}`)
@@ -2292,8 +2242,8 @@ export class AgentToolManager {
 
     if (includeRuntimeRoots) {
       addPath(conversationId ? resolveSessionDir(conversationId) : null)
-      addPath(app.getPath('temp'))
-      addPath(path.join(app.getPath('userData'), 'temp'))
+      addPath(appHost.getPath('temp'))
+      addPath(path.join(appHost.getPath('userData'), 'temp'))
     }
 
     if (conversationId) {
@@ -2476,15 +2426,18 @@ export class AgentToolManager {
     return mimeType.startsWith('image/')
   }
 
-  private buildImageMetadataBlock(filePath: string, mimeType: string, fileSize: number): string {
+  private async buildImageMetadataBlock(
+    filePath: string,
+    mimeType: string,
+    fileSize: number
+  ): Promise<string> {
     let width: number | null = null
     let height: number | null = null
     try {
-      const image = nativeImage.createFromPath(filePath)
-      const size = image.getSize()
-      if (size.width > 0 && size.height > 0) {
-        width = size.width
-        height = size.height
+      const metadata = await sharp(filePath).metadata()
+      if (metadata.width && metadata.height) {
+        width = metadata.width
+        height = metadata.height
       }
     } catch (error) {
       logger.warn('[AgentToolManager] Failed to read image dimensions', { filePath, error })
@@ -2510,7 +2463,7 @@ export class AgentToolManager {
     throwIfAbortRequested(signal)
     const fileBuffer = await fs.promises.readFile(filePath)
     throwIfAbortRequested(signal)
-    const metadata = this.buildImageMetadataBlock(filePath, mimeType, fileBuffer.length)
+    const metadata = await this.buildImageMetadataBlock(filePath, mimeType, fileBuffer.length)
     const dataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`
     let previewData: string | undefined
     let dispatchCommitFailed = false
@@ -2805,7 +2758,7 @@ export class AgentToolManager {
   }
 
   private getDefaultAgentWorkspacePath(): string {
-    const tempDir = path.join(app.getPath('temp'), 'deepchat-agent', 'workspaces')
+    const tempDir = path.join(appHost.getPath('temp'), 'deepchat-agent', 'workspaces')
     try {
       fs.mkdirSync(tempDir, { recursive: true })
     } catch (error) {
@@ -2813,7 +2766,7 @@ export class AgentToolManager {
         '[AgentToolManager] Failed to create default workspace, using system temp:',
         error
       )
-      return app.getPath('temp')
+      return appHost.getPath('temp')
     }
     return tempDir
   }
@@ -2830,10 +2783,6 @@ export class AgentToolManager {
 
   private getSkillService() {
     return this.dependencies.skills
-  }
-
-  private getYoBrowserToolHandler() {
-    return this.dependencies.browser
   }
 
   private getFileService() {

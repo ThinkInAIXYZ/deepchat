@@ -120,11 +120,6 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     activeTab.value = 'workspace'
   }
 
-  const openBrowser = () => {
-    open.value = true
-    activeTab.value = 'browser'
-  }
-
   let nextTapeInspectorRequestToken = 0
   const openTapeInspector = (
     sessionId: string,
@@ -253,7 +248,6 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     getSessionState,
     setWidth,
     openWorkspace,
-    openBrowser,
     openTapeInspector,
     openMcpAppPreview,
     closeMcpAppPreview,

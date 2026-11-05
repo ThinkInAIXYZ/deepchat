@@ -269,9 +269,6 @@ export async function buildSystemPromptAssemblyWithSkills(
     canRunSkillScripts: agentToolNames.has('skill_run')
   }
   const runtimePrompt = buildRuntimeCapabilitiesPrompt({
-    hasYoBrowser: toolDefinitions.some(
-      (tool) => tool.source === 'agent' && tool.server.name === 'yobrowser'
-    ),
     hasExec: agentToolNames.has('exec'),
     hasProcess: agentToolNames.has('process')
   })

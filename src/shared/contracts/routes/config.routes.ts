@@ -287,24 +287,6 @@ export const configSetThemeRoute = defineRouteContract({
   })
 })
 
-export const configGetFloatingButtonRoute = defineRouteContract({
-  name: 'config.getFloatingButton',
-  input: z.object({}).default({}),
-  output: z.object({
-    enabled: z.boolean()
-  })
-})
-
-export const configSetFloatingButtonRoute = defineRouteContract({
-  name: 'config.setFloatingButton',
-  input: z.object({
-    enabled: z.boolean()
-  }),
-  output: z.object({
-    enabled: z.boolean()
-  })
-})
-
 export const configGetSyncSettingsRoute = defineRouteContract({
   name: 'config.getSyncSettings',
   input: z.object({}).default({}),

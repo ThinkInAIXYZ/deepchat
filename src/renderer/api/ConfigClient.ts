@@ -3,7 +3,6 @@ import {
   configAgentsChangedEvent,
   configCustomPromptsChangedEvent,
   configDefaultProjectPathChangedEvent,
-  configFloatingButtonChangedEvent,
   configLanguageChangedEvent,
   configShortcutKeysChangedEvent,
   configSyncSettingsChangedEvent,
@@ -28,7 +27,6 @@ import {
   configGetAzureApiVersionRoute,
   configGetDefaultProjectPathRoute,
   configGetDefaultSystemPromptRoute,
-  configGetFloatingButtonRoute,
   configGetGeminiSafetyRoute,
   configGetHooksNotificationsRoute,
   configGetKnowledgeConfigsRoute,
@@ -65,7 +63,6 @@ import {
   configSetDefaultProjectPathRoute,
   configSetDefaultSystemPromptIdRoute,
   configSetDefaultSystemPromptRoute,
-  configSetFloatingButtonRoute,
   configSetGeminiSafetyRoute,
   configSetHooksNotificationsRoute,
   configSetKnowledgeConfigsRoute,
@@ -238,15 +235,6 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
   async function setTheme(theme: 'dark' | 'light' | 'system') {
     const result = await bridge.invoke(configSetThemeRoute.name, { theme })
     return result.isDark
-  }
-
-  async function getFloatingButtonEnabled() {
-    const result = await bridge.invoke(configGetFloatingButtonRoute.name, {})
-    return result.enabled
-  }
-
-  async function setFloatingButtonEnabled(enabled: boolean) {
-    return await bridge.invoke(configSetFloatingButtonRoute.name, { enabled })
   }
 
   async function getSyncEnabled() {
@@ -671,12 +659,6 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
     return bridge.on(configSystemThemeChangedEvent.name, listener)
   }
 
-  function onFloatingButtonChanged(
-    listener: (payload: { enabled: boolean; version: number }) => void
-  ) {
-    return bridge.on(configFloatingButtonChangedEvent.name, listener)
-  }
-
   function onSyncSettingsChanged(
     listener: (payload: { enabled: boolean; folderPath: string; version: number }) => void
   ) {
@@ -740,8 +722,6 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
     getCurrentThemeIsDark,
     getThemeState,
     setTheme,
-    getFloatingButtonEnabled,
-    setFloatingButtonEnabled,
     getSyncEnabled,
     setSyncEnabled,
     getSyncFolderPath,
@@ -819,7 +799,6 @@ export function createConfigClient(bridge: DeepchatBridge = getDeepchatBridge())
     onLanguageChanged,
     onThemeChanged,
     onSystemThemeChanged,
-    onFloatingButtonChanged,
     onSyncSettingsChanged,
     onDefaultProjectPathChanged,
     onAgentsChanged,
