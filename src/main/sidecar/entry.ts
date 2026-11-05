@@ -13,18 +13,15 @@
 import os from 'node:os'
 import { createInterface } from 'node:readline'
 import {
-  configGetEntriesRoute,
   configGetLanguageRoute,
   configGetThemeRoute,
   configListCustomPromptsRoute,
   configSetLanguageRoute,
   configSetThemeRoute,
-  configUpdateEntriesRoute,
   deviceGetInfoRoute,
   upgradeGetStatusRoute,
   windowGetCurrentStateRoute,
-  windowGetRuntimeIdentityRoute,
-  type ConfigEntryKey
+  windowGetRuntimeIdentityRoute
 } from '@shared/contracts/routes'
 import { getLocaleDirection, resolveSupportedLocale } from '@shared/locales'
 import { appHost } from '@/platform/appHost'
@@ -43,6 +40,9 @@ import { toolchainsGetStatusRoute } from '@shared/contracts/routes'
 import { ProjectDatabase } from '@/project/data/database'
 import { createOnboardingRoutes } from '@/onboarding/routes'
 import { createSettingsSubsystem } from '@/app/subsystems/settings'
+import { createAppSettingsRoutes } from '@/app/settingsRoutes'
+import { SettingsDatabase } from '@/settings/data/database'
+import { CommandShellService } from '@/agent/shared/process/commandShellService'
 import { createProviderSubsystem } from '@/app/subsystems/provider'
 import { McpSettings } from '@/mcp/settings'
 import { McpDatabase } from '@/mcp/data/database'
@@ -69,14 +69,6 @@ export const emit = (event: string, payload: unknown): void => {
   write({ event, payload })
 }
 
-const readEntries = (keys: readonly ConfigEntryKey[]): Record<string, unknown> => {
-  const values: Record<string, unknown> = {}
-  for (const key of keys) {
-    values[key] = settings.get(key)
-  }
-  return values
-}
-
 // Same services the Electron main process builds. The effects are inert here:
 // window chrome belongs to the Go shell, so there is nothing to re-apply.
 const settingsSubsystem = createSettingsSubsystem({
@@ -84,7 +76,11 @@ const settingsSubsystem = createSettingsSubsystem({
   publish: (name, payload) => emit(name, payload),
   effects: {
     refreshLanguage: () => {},
-    refreshTheme: async () => {}
+    refreshTheme: async () => {},
+    // Restarting and the log sink are process-level responsibilities the shell
+    // owns; the sidecar only reads the settings.
+    restartApp: () => {},
+    setLogPersistenceEnabled: () => {}
   }
 })
 
@@ -224,30 +220,6 @@ const requireSessions = (): AppSessionService => {
 }
 
 const sidecarRoutes: DeepchatRouteMap = createRouteMap([
-  [
-    configGetEntriesRoute.name,
-    async (rawInput) => {
-      const input = configGetEntriesRoute.input.parse(rawInput)
-      return configGetEntriesRoute.output.parse({
-        version: Date.now(),
-        values: readEntries(input.keys ?? [])
-      })
-    }
-  ],
-  [
-    configUpdateEntriesRoute.name,
-    async (rawInput) => {
-      const input = configUpdateEntriesRoute.input.parse(rawInput)
-      for (const change of input.changes) {
-        settings.set(change.key, change.value)
-      }
-      return configUpdateEntriesRoute.output.parse({
-        version: Date.now(),
-        changedKeys: input.changes.map((change) => change.key),
-        values: readEntries(input.changes.map((change) => change.key))
-      })
-    }
-  ],
   [configGetLanguageRoute.name, async () => configGetLanguageRoute.output.parse(readLanguage())],
   [
     configSetLanguageRoute.name,
@@ -361,7 +333,45 @@ const sidecarRoutes: DeepchatRouteMap = createRouteMap([
   ]
 ])
 
+const settingsDatabase = database ? new SettingsDatabase(database) : null
+const privacy = {
+  isEnabled: () => settings.get<boolean>('privacyModeEnabled') === true,
+  setEnabled: (enabled: boolean) => settings.set('privacyModeEnabled', Boolean(enabled))
+}
+
+const settingsRouteMaps: DeepchatRouteMap[] = [
+  createAppSettingsRoutes({
+    settings,
+    agentDefaults: settingsSubsystem.agentDefaults,
+    privacy,
+    traceSettings: settingsSubsystem.traceSettings,
+    desktopSettings: settingsSubsystem.desktopSettings,
+    fonts: settingsSubsystem.fontSettings,
+    logging: settingsSubsystem.logging,
+    ocr: settingsSubsystem.ocr,
+    commandShell: new CommandShellService({ settings }),
+    publishEvent: (name, payload) => emit(name, payload),
+    // Content protection is window chrome, which the shell owns.
+    applyContentProtection: () => {},
+    recordActivity: (input) => {
+      void settingsDatabase?.recordSettingsActivity(input).catch((error: unknown) => {
+        console.warn('[SettingsActivity] Failed to record settings activity:', error)
+      })
+    },
+    listActivities: async (limit) =>
+      settingsDatabase ? settingsDatabase.listSettingsActivity(limit) : []
+  })
+]
+
 const registry = new Map(sidecarRoutes)
+for (const map of settingsRouteMaps) {
+  for (const [name, handler] of map) {
+    if (registry.has(name)) {
+      throw new Error(`Duplicate sidecar route: ${name}`)
+    }
+    registry.set(name, handler)
+  }
+}
 for (const [name, handler] of createOnboardingRoutes(settings)) {
   if (registry.has(name)) {
     throw new Error(`Duplicate sidecar route: ${name}`)

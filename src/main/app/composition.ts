@@ -103,7 +103,6 @@ import { AgentPreviewCoordinator } from '@/desktop/preview/AgentPreviewCoordinat
 import { KnowledgeService } from '../knowledge'
 import { WorkspaceService } from '../workspace'
 import { FileWatcherService } from '../platform/fileWatcher'
-import { LoggingService } from './logging'
 import { RendererPerformanceLogService } from './rendererPerformanceLogService'
 import type { PrivacySettings } from './privacy'
 import type { ProxySettings } from '@/platform/proxySettings'
@@ -903,17 +902,22 @@ export async function createMainProcessControl(dependencies: {
   const agentRepository = new AgentRepository(agentDatabase, sessionData.database, memoryDatabase)
   const agentLifecycle = new AgentLifecycleGate()
   const sessionDeletionGate = new SessionDeletionGate()
+  const settingsSubsystem = createSettingsSubsystem({
+    store: dependencies.settingsStore,
+    publish: publishDeepchatEvent,
+    effects: {
+      refreshLanguage: () => {
+        void tabPresenter.refreshLanguage()
+      },
+      refreshTheme: async () => {},
+      restartApp: () => {
+        restartApplication().catch((error) => logger.error('Application restart failed:', error))
+      },
+      setLogPersistenceEnabled: setMainLoggingEnabled
+    }
+  })
   const { promptSettings, desktopSettings, fontSettings, skillSettings, traceSettings } =
-    createSettingsSubsystem({
-      store: dependencies.settingsStore,
-      publish: publishDeepchatEvent,
-      effects: {
-        refreshLanguage: () => {
-          void tabPresenter.refreshLanguage()
-        },
-        refreshTheme: async () => {}
-      }
-    })
+    settingsSubsystem
   appSessionService = new AppSessionService(projectDatabase, sessionData.database, () =>
     projectService.notifyEnvironmentProjectionChanged()
   )
@@ -1190,14 +1194,7 @@ export async function createMainProcessControl(dependencies: {
   })
   const liveDelegationConsent = new LiveDelegationConsentAuthority()
   deviceService = new DeviceService()
-  const loggingService = new LoggingService(
-    dependencies.settingsStore,
-    () => {
-      restartApplication().catch((error) => logger.error('Application restart failed:', error))
-    },
-    publishDeepchatEvent,
-    setMainLoggingEnabled
-  )
+  const loggingService = settingsSubsystem.logging
   const rendererPerformanceLogService = new RendererPerformanceLogService(
     dependencies.settingsStore
   )

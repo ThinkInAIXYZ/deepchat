@@ -5,12 +5,19 @@ import { FontSettings } from '@/desktop/fontSettings'
 import { PromptSettings } from '@/agent/promptSettings'
 import { SkillSettings } from '@/skill/settings'
 import { AgentTraceSettings } from '@/agent/traceSettings'
+import { DeepChatDefaults } from '@/agent/deepchat/defaults'
+import { LoggingService } from '@/app/logging'
+import { OcrSettings } from '@/ocr/ocrSettings'
 
 export interface SettingsSubsystemEffects {
   /** Re-applies the UI language to every open window. */
   refreshLanguage(): void
   /** Re-applies dark/light to the native window chrome. */
   refreshTheme(): Promise<void>
+  /** Restarts the app so a persisted logging change takes effect. */
+  restartApp(): void
+  /** Turns the main-process log sink on or off with the setting. */
+  setLogPersistenceEnabled(enabled: boolean): void
 }
 
 export interface SettingsSubsystem {
@@ -19,6 +26,9 @@ export interface SettingsSubsystem {
   fontSettings: FontSettings
   skillSettings: SkillSettings
   traceSettings: AgentTraceSettings
+  agentDefaults: DeepChatDefaults
+  logging: LoggingService
+  ocr: OcrSettings
 }
 
 /**
@@ -56,6 +66,22 @@ export function createSettingsSubsystem(deps: {
     desktopSettings: new DesktopSettings(deps.store, deps.effects, deps.publish),
     fontSettings: new FontSettings(deps.store, deps.publish),
     skillSettings: new SkillSettings(deps.store),
-    traceSettings: new AgentTraceSettings(deps.store)
+    traceSettings: new AgentTraceSettings(deps.store),
+    agentDefaults: new DeepChatDefaults({
+      settings: deps.store,
+      publishSettingChanged: (key, value) =>
+        deps.publish('settings.changed', {
+          changedKeys: [key],
+          version: Date.now(),
+          values: { [key]: value }
+        })
+    }),
+    logging: new LoggingService(
+      deps.store,
+      deps.effects.restartApp,
+      deps.publish,
+      deps.effects.setLogPersistenceEnabled
+    ),
+    ocr: new OcrSettings(deps.store, deps.publish)
   }
 }

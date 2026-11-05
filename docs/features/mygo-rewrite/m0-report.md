@@ -190,7 +190,7 @@ sidecar 每行 {"event": name, "payload": ...}
 
 `src/main/sidecar/entry.ts` 由 `vite.sidecar.config.ts` 打成 `out/sidecar/entry.mjs`，**产物里没有 Electron**。
 
-当前注册 **22 条路由**。其中 5 条直接复用官方路由工厂 `createOnboardingRoutes(settings)`，会话列表走真实的 `AppSessionService`：
+当前注册 **31 条路由**。其中 5 条直接复用官方路由工厂 `createOnboardingRoutes(settings)`，会话列表走真实的 `AppSessionService`：
 
 | 路由 | 数据来源 |
 | --- | --- |
@@ -208,6 +208,7 @@ sidecar 每行 {"event": name, "payload": ...}
 | `mcp.getEnabled` / `mcp.getServers` | 真实 `McpSettings`（store + 数据库镜像），返回 MCP 开关与内置服务配置 |
 | `sessions.getAgents` | 真实 `AgentRepository` + `AcpCatalogSettings`，经 `listAvailableAgents` 过滤 |
 | `toolchains.getStatus` | 真实 `ToolchainService`，实测评测到系统 node v24.21.0 |
+| `settings.*`（9 条） | 直接复用 `createAppSettingsRoutes`，装配 `DesktopSettings`/`FontSettings`/`LoggingService`/`OcrSettings`/`DeepChatDefaults`/`CommandShellService` 与真实的设置活动表 |
 
 用真实工厂而不是重写，是这一版的设计要点：路由的解析、默认值与状态机都来自原实现，sidecar 只提供运行时。
 
@@ -309,6 +310,22 @@ SPIKE shortcut.registered=CmdOrCtrl+Shift+D
 通知那条差异是重要发现：macOS 的 `UNUserNotificationCenter` 要求应用有 bundle identifier，只有 `mygo build` 出来的 `.app` 才满足，`go run` 不满足。**因此凡是依赖通知的验收都必须在打包产物上做。**
 
 另外首次展示通知时系统会弹权限确认框，这会阻塞自动化脚本——第一次跑要么人工点掉，要么先授予权限。
+
+## 16. 设置路由整批接通（已验证）
+
+`createAppSettingsRoutes` 的依赖虽然看起来多，但每一项都能在 sidecar 里真实构造，于是直接复用了整个工厂，一次接通 9 条路由：`settings.getSnapshot`、`settings.update`、`settings.getPublic`、`settings.updatePublic`、`settings.getCommandShell`、`settings.updateCommandShell`、`settings.checkCommandShell`、`settings.activity.list`、`settings.fonts`。
+
+为此把 `DeepChatDefaults`、`LoggingService`、`OcrSettings` 也并入 `createSettingsSubsystem`，把「重启应用」「日志落盘开关」变成显式 effect——Electron 传真实实现，sidecar 传空实现并注明了原因。
+
+实测：
+
+```
+settings.getSnapshot  -> 完整快照（字号、字体、自动压缩阈值、隐私、通知、OCR…）
+settings.update       -> {"changedKeys":["fontSizeLevel"],"values":{"fontSizeLevel":3}}
+再次读取              -> 3（已落盘）
+```
+
+顺带补了 `platform/node/shellHost.ts`：`logging.ts` 引用 `shellHost` 会把 Electron 拖进产物。Node 版本会在调用时打印警告而不是静默成功——打开文件夹属于壳的职责，sidecar 假装做到了会更糟。
 
 ## 下一步
 
