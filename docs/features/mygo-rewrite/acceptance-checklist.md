@@ -91,6 +91,11 @@ SQLCipher 加密库写入、正确密钥重开、错误密钥被拒均验证通�
 
 壳先处理、sidecar 兜底。窗口类路由已由 Go 实现：实测 `window.toggleMaximizeCurrent` 让窗口从 1280×820 变为 1920×960，`window.getCurrentState` 同步返回 `isMaximized: true`。详见 `m0-report.md` 第 13 节。
 
+## 四之五、壳侧能力（部分验证）
+
+已实测：窗口最小化/最大化/关闭、托盘图标与菜单、全局快捷键。
+未验证：系统通知、文件对话框、Dock 菜单、开机自启注册。详见 `m0-report.md` 第 15 节。
+
 ## 五、端到端链路（已验证）
 
 ```

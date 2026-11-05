@@ -283,6 +283,23 @@ renderer 调 window.deepchat.invoke('config.getTheme')
 1. `fmt.Sprintf` 不能用来注入 JS——打包产物里有 `%n` 之类的序列，会被当成格式动词，脚本静默解析失败。
 2. 注入失败时页面不会有任何提示，只有 `window.deepchat` 恰好不存在。因此给 preload 加了 `window.__deepchatPreloadError` 与 `window.__step` 两个探针，并把生成的脚本 dump 出来用 `node --check` 验证。
 
+## 15. 壳侧能力：托盘与全局快捷键（已验证）
+
+在 spike 里加了两个开关，默认开启：
+
+```
+SPIKE tray.created=true
+SPIKE tray.menuItems=4
+SPIKE shortcut.registered=CmdOrCtrl+Shift+D
+```
+
+- 托盘：`mygo.NewTray` + `mygo.NewMenu`，菜单含「显示窗口 / 隐藏窗口 / 分隔线 / 退出（RoleQuit）」，点击图标唤起窗口
+- 全局快捷键：`mygo.GlobalShortcut.Register`，`CmdOrCtrl+Shift+D` 切换窗口显隐
+
+两者都需要应用 ready 之后调用，属于壳的职责，不需要 sidecar 参与。加上前几轮的窗口控制，壳侧已经覆盖：窗口生命周期、托盘、菜单、全局快捷键。
+
+仍未验证：系统通知（`NewNotification`）、文件对话框、Dock 菜单、开机自启的实际注册。这些都在 mygo 里有对应 API，属于接线工作。
+
 ## 下一步
 
 1. 接入真实桥接：用 `window.api` 的 mygo 实现替换 spike 里的 stub，验证 55 次启动调用能否返回真实数据（对应 M2/M3）。

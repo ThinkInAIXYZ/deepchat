@@ -232,6 +232,8 @@ func main() {
 	probeScript := flag.String("probe", "", "JavaScript to evaluate in the page after it loads, printing the result")
 	shotPath := flag.String("shot", "", "write a PNG screenshot of the page to this path")
 	dumpPreload := flag.String("dump-preload", "", "write the composed preload script to this path")
+	trayIcon := flag.String("tray-icon", "../../build/icon.png", "PNG shown in the menu bar")
+	shortcutKey := flag.String("shortcut", "CmdOrCtrl+Shift+D", "global shortcut that toggles the window")
 	bridgeScript := flag.String(
 		"bridge",
 		"../../out/preload/bridge.js",
@@ -307,6 +309,56 @@ func main() {
 				PreloadScript: preload,
 			},
 		})
+		if *trayIcon != "" {
+			trayMenu := mygo.NewMenu([]*mygo.MenuItem{
+				{
+					ID:    "show",
+					Label: "显示窗口",
+					Click: func(*mygo.MenuItem, *mygo.Window) { win.Show(); win.Focus() },
+				},
+				{
+					ID:    "hide",
+					Label: "隐藏窗口",
+					Click: func(*mygo.MenuItem, *mygo.Window) { win.Hide() },
+				},
+				mygo.Separator(),
+				{ID: "quit", Label: "退出", Role: mygo.RoleQuit},
+			})
+			icon, err := os.ReadFile(*trayIcon)
+			if err != nil {
+				report("tray.iconError", err.Error())
+			} else if tray, err := mygo.NewTray(mygo.TrayOptions{
+				ID:             "deepchat-spike",
+				Icon:           icon,
+				IconIsTemplate: true,
+				Title:          "DeepChat",
+				ToolTip:        "DeepChat mygo spike",
+				Menu:           trayMenu,
+			}); err != nil {
+				report("tray.error", err.Error())
+			} else {
+				tray.OnClick(func() { win.Show(); win.Focus() })
+				report("tray.created", true)
+				report("tray.menuItems", len(trayMenu.Items()))
+			}
+		}
+
+		if *shortcutKey != "" {
+			err := mygo.GlobalShortcut.Register(*shortcutKey, func() {
+				if win.IsFocused() {
+					win.Hide()
+				} else {
+					win.Show()
+					win.Focus()
+				}
+			})
+			if err != nil {
+				report("shortcut.error", err.Error())
+			} else {
+				report("shortcut.registered", *shortcutKey)
+			}
+		}
+
 		bridge.window = win
 		bridge.windowID = win.ID()
 		report("window.created", true)
