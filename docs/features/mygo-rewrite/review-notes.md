@@ -76,7 +76,21 @@
 | `test:main` | 9788 通过、1 失败 |
 | `test:renderer` | 2704 通过 |
 | sidecar 产物 | 1.67 MB，`from "electron"` 0 次 |
-| 冷启动覆盖率 | 119 次进入 sidecar 的调用中 110 次被真实服务 |
+| 冷启动覆盖率 | 119 次进入 sidecar 的调用中 111 次被真实服务 |
+| Electron 版构建 | `electron-vite build` 通过（main / preload / renderer） |
+| Electron 版启动 | 真实启动冒烟通过，见下 |
+
+**Electron 版启动冒烟**（本轮新增，此前的验证都停留在单测与 Go 壳，没有真正启动过 Electron）：
+
+```
+pnpm exec electron out/main/index.js --user-data-dir=/tmp/dc-electron-smoke
+```
+
+日志显示完整启动链路走通：`app.startup.started` → 数据库打开（5.1 ms）→ 建表（25 ms）→ 迁移 → 协议注册 → 95 个 provider 限流初始化 → 知识库、MCP、插件依次就绪。窗口与渲染进程正常起来。
+
+用临时 user-data 目录，没有接触真实用户数据。
+
+唯一一条报错是 `plugins/memcode` 的清单校验（`Invalid Nowledge Mem server URL`）。该文件在我改动之前就存在（`git log` 显示由 `7f9d54f61` 修改），且 `plugins/` 目录没有任何本地改动，与本次迁移无关。
 
 唯一失败用例是 `test/main/scripts/buildCli.test.ts`：它构建并运行真实 CLI 产物，本机 Node 24.21.0 低于项目要求的 24.22.1，报 `dyld: Library not loaded: @rpath/libnode.137.dylib`。与本分支改动无关，但没有在干净环境复验过——**这条请在 CI 上确认**。
 

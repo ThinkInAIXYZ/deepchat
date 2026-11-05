@@ -123,6 +123,8 @@ renderer（未改动的 DeepChat 前端）
 | `pnpm run i18n` | 通过 |
 | `pnpm run test:main` | 9785 通过、1 失败 |
 | `pnpm run test:renderer` | 2704 通过 |
+| `pnpm exec electron-vite build` | 通过 |
+| Electron 版启动冒烟 | 通过（临时 user-data 目录，未接触真实数据） |
 | `pnpm run e2e:smoke` | 未运行（需完整构建） |
 
 唯一失败的用例是 `test/main/scripts/buildCli.test.ts`：它会构建并运行真实 CLI 产物，本机报
