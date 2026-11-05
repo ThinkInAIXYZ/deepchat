@@ -166,6 +166,26 @@ describe('generation settings policy', () => {
     expect(result.maxTokens).toBe(4_096)
   })
 
+  it('defaults maxTokens to the configured model output when the window has room', async () => {
+    const providerSettings = createProviderSettings()
+    vi.mocked(providerSettings.getModelConfig).mockReturnValue({
+      contextLength: 1_000_000,
+      maxTokens: 32_000,
+      temperature: 0.7,
+      timeout: 60_000
+    })
+
+    const result = await sanitizeGenerationSettings(
+      providerSettings,
+      { getDefaultSystemPrompt: vi.fn().mockResolvedValue('default prompt') },
+      'openai',
+      'gpt-4o',
+      {}
+    )
+
+    expect(result.maxTokens).toBe(32_000)
+  })
+
   it('does not materialize an absent model topP as an explicit undefined property', async () => {
     const result = await sanitizeGenerationSettings(
       createProviderSettings(),
