@@ -104,7 +104,7 @@ new AgentSettings(..., () => ({ getModelConfig, setAcpProviderEnabled, ... }), .
 
 第 6 步意外地简单：`ToolchainService` 本身就是纯 Node 类（静态单例 + 探测 PATH），没有任何 Electron 依赖，sidecar 直接 `ToolchainService.initialize(...)` 即可，不需要工厂。实测 `toolchains.getStatus` 返回了真实的系统 node v24.21.0 路径与版本。
 
-截至此步，sidecar 共 22 条路由。剩下的 7 条（`mcp.listPrompts`、`mcp.getClients`、`mcp.listToolDefinitions`、`mcp.listResources`、`settings.getSnapshot`、`startup.getBootstrap`、`sessions.get*` 其余）都卡在 `McpService` 与 `AgentSettings` 的多协作者上，那两个类又分别依赖 provider runtime、plugin supervisor、memory service、skill service。顺序判断需要修正：
+截至此步，sidecar 共 22 条路由（后续几轮已到 37 条，`mcp.*` 四条也已接通）。当时剩下的 7 条（`mcp.listPrompts`、`mcp.getClients`、`mcp.listToolDefinitions`、`mcp.listResources`、`settings.getSnapshot`、`startup.getBootstrap`、`sessions.get*` 其余）都卡在 `McpService` 与 `AgentSettings` 的多协作者上，那两个类又分别依赖 provider runtime、plugin supervisor、memory service、skill service。顺序判断需要修正：
 
 1. 先搬 `providerRuntime`（它依赖 provider、desktop settings、事件，相对独立）
 2. 再搬 `memoryService` 与 `skillService`

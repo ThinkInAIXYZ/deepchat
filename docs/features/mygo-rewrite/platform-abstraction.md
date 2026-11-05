@@ -137,7 +137,7 @@ DEEPCHAT_USER_DATA=/tmp/dc-sidecar-test node out/sidecar/entry.mjs
 - `config.updateEntries` 改成 `manual`，再次读取得到 `manual`，并落盘
 - 契约校验真实生效：传入白名单外的键（如 `language`）会被 zod 拒绝并返回结构化错误
 
-当前只注册了两条路由，其余 27 条按启动清单逐个迁移。这也是第一次证明「同一份业务代码、两种运行时」成立。
+当时只注册了两条路由，其余按启动清单逐个迁移；后续几轮已扩到 37 条（见 `m0-report.md` 第 12 至 17 节）。这也是第一次证明「同一份业务代码、两种运行时」成立。
 
 ## 4. 与 mygo 的关系
 

@@ -107,7 +107,7 @@ renderer（未改动的 DeepChat 前端）
   -> Node sidecar（stdin/stdout JSON）
 ```
 
-- 冷启动共 53 次调用、29 条路由，清单见 `boot-route-inventory.md`
+- 首次采集的基线是 53 次调用、29 条路由（`boot-route-inventory.md`）；当前实现的冷启动是 122 次调用，其中 120 次由真实代码服务
 - 界面语言、主题、provider 目录、onboarding 状态均由 sidecar 返回并生效，截图 `evidence/renderer-real-sidecar.png`、`evidence/renderer-with-providers.png`
 - 事件通道已接通：sidecar 事件 → Go `Broadcast` → preload 分发 → `window.deepchat.on`
 - preload 用的是应用自己的 `createBridge`（`out/preload/bridge.js`），契约校验与 Electron 下完全一致；非法枚举值与未知路由都会被拦下
@@ -134,7 +134,7 @@ renderer（未改动的 DeepChat 前端）
 ## 七、下一步（按依赖排序）
 
 1. ~~事件通道~~：已完成，见第五节。
-2. **真实 sidecar**：31 条路由 + 真实加密数据库（含迁移）已在 sidecar 里跑通。冷启动清单里只剩 2 条路由各 1 次调用未服务（`acp.elicitation.list`、`remoteControl.listChannels`）（`mcp.listPrompts`、`mcp.listToolDefinitions`、`mcp.getClients`、`mcp.listResources`、`startup.getBootstrap`），它们需要 MCP 活连接与启动编排，依赖 composition 拆解（见 `composition-decomposition.md`）。
+2. **真实 sidecar**：37 条路由 + 真实加密数据库（含迁移）已在 sidecar 里跑通。冷启动清单里只剩 2 条路由各 1 次调用未服务（`acp.elicitation.list`、`remoteControl.listChannels`）（`mcp.listPrompts`、`mcp.listToolDefinitions`、`mcp.getClients`、`mcp.listResources`、`startup.getBootstrap`），它们需要 MCP 活连接与启动编排，依赖 composition 拆解（见 `composition-decomposition.md`）。
 3. **Go 壳路由分流**：window、app、tray、menu、shortcut 由 Go 直接服务，其余转 sidecar。
 4. **口令迁移**：`safeStorage` → `mygo.Secrets` 的迁移脚本与首次启动流程。
 5. **打包与更新**：三平台产物、签名、公证，以及 Electron 用户向 mygo 版的升级路径。
@@ -146,7 +146,7 @@ renderer（未改动的 DeepChat 前端）
 
 ## 七之三、本分支的规模
 
-相对 `dev`：**334 个文件、+5,334 / −21,972 行、13 个提交**。
+相对 `dev`：**342 个文件、+5,787 / −22,028 行、19 个提交**。
 
 | 提交 | 内容 |
 | --- | --- |
@@ -163,6 +163,12 @@ renderer（未改动的 DeepChat 前端）
 | `afa8b65cb` | 全部设置路由 |
 | `4c366d49c` | `mcp.getServerAuthStatus` + 覆盖率日志 |
 | `3d661f044` | 壳回答 `notification.rendererReady` |
+| `c61ec53fa` | 评审说明与数字校正 |
+| `cc50626e8` | `project.getSnapshot` |
+| `a23e78d40` | 远程控制目录抽取（路由回退） |
+| `c402361fb` | Electron 构建与启动冒烟记录 |
+| `1cbf7a452` | MCP 运行时接入 |
+| `78030b9f8` | 评审说明刷新 |
 
 ## 八、验收结论
 
