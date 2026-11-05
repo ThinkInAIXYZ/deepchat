@@ -1,0 +1,32 @@
+# mygo 验证工程
+
+这不是产品代码，只用于回答 `docs/features/mygo-rewrite/m0-spike.md` 里的问题。结论见
+`docs/features/mygo-rewrite/m0-report.md`。
+
+## 需要
+
+- Go 1.27.3+（`brew install go`）
+- 若要加载真实渲染层，先在仓库根目录执行 `pnpm exec electron-vite build --outDir out`
+
+## 运行
+
+```bash
+cd shell/spike
+
+# 生成 TypeScript 客户端，不开窗口
+MYGO_GENERATE=./frontend/mygo.gen.ts go run .
+
+# 内置探针页：验证绑定、事件、流式通道、自定义协议、截图、PDF、Eval、密钥库
+go run . -seconds 10
+
+# 加载 DeepChat 真实渲染层并截图
+go run . -seconds 12 -renderer ../../out/renderer -shot /tmp/renderer.png
+```
+
+`-probe '<js>'` 可以在页面加载后执行一段脚本并打印返回值。
+
+## 说明
+
+- `frontend/mygo.gen.ts` 是生成物，不提交。
+- `main.go` 里的 `deepchatBridgeStub` 是 `window.deepchat` / `window.api` 的最小桩，只保证渲染层能启动；
+  真实实现应当把这些调用转给 Node sidecar。

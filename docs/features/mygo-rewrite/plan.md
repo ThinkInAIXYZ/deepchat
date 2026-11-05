@@ -1,0 +1,178 @@
+# mygo 迁移：任务清单
+
+规则：按顺序做。每个任务做完并满足「完成标准」后，把 `[ ]` 改成 `[x]`，并在任务下追加一行「结果：…」。任务之间有依赖，不要跳。开始前先读 `README.md`。
+
+三个阶段：
+
+- 阶段 A：在 Electron 上删掉已决策要砍的功能。与 mygo 无关，随时可以做，风险最低。
+- 阶段 B：抽象平台层（对应方案里的 M1）。仍在 Electron 上做，现有版本行为不变。
+- 阶段 C：mygo 技术验证（对应 M0）。产出验证报告，由用户决定后续。
+
+阶段 A 和 C 可以由不同的人并行。阶段 B 依赖 A 完成。M2 之后的任务在 C 的报告被用户确认前不要开始。
+
+---
+
+## 阶段 A：删除已砍功能
+
+### [x] A0 基线与准备
+
+1. 确认分支：`git branch --show-current` 应输出 `feat/mygo-rewrite`。
+2. 跑一遍基线检查并记录结果：`pnpm install`（如需要）、`pnpm run typecheck`、`pnpm run test:main`、`pnpm run test:renderer`。把「改动前已经失败的项」写在任务结果里。
+3. 阅读 `removal-checklist.md`，再读这几个文件弄清决策 D1：`src/main/desktop/browser/BrowserProfileImportService.ts`、`src/main/desktop/browser/YoBrowserPresenter.ts` 中对它的调用、`src/renderer/settings/components/BrowserDataImportDialog.vue`。
+4. 向用户汇报：浏览器数据导入是否只服务于 YoBrowser，建议删除还是保留，等待用户回复后再进入 A1。
+
+完成标准：基线结果已记录；D1 已得到用户答复。
+
+结果：本次执行环境初始缺少 `node_modules`，先 `pnpm install --prefer-offline` 完成安装（Node v24.21.0，低于要求的 24.22.1，仅告警）。基线 `typecheck` 在安装后通过。D1 已确认：`BrowserProfileImportService` 仅被 `YoBrowserPresenter` 引用，随 YoBrowser 一起删除。
+
+### [x] A1 删除 YoBrowser 与浏览器 Agent 工具（main 侧）
+
+1. 按 `removal-checklist.md` 第 1 节，先处理 `src/main/`：
+   - 先从 `composition.ts`、`routes.ts`、`tool/index.ts`、`runtimePorts.ts`、`agentToolManager.ts`、提示词构建器、`toolAdapters.ts`、`agentSessionNormalization.ts`、`promptSettings.ts`、`mcp/settings.ts`、`session/*` 里删引用；
+   - 再删 `src/main/desktop/browser/` 下对应文件和 `src/main/tool/browser/`。
+2. 同步删除对应测试和 `test/main/` 里的相关断言。
+3. `pnpm run typecheck:node`，按报错逐个修。
+
+完成标准：`pnpm run typecheck:node` 通过；`pnpm run test:main` 通过；`grep -rlE 'YoBrowser|yoBrowser|CDPManager|BrowserTab' src/main` 无输出。
+
+结果：删除 `src/main/desktop/browser/`、`src/main/tool/browser/`，并清理 `composition`、`desktop/routes`、`tool/index`、`runtimePorts`、`agentToolManager`、`toolAdapters`、`agentSessionNormalization`、`promptSettings`、系统提示词构建器、`session/deletion|contracts`、`toolOutputGuard`、`desktop/tab`、`desktop/window`、`mcp/toolManager|index` 中的引用。`typecheck:node` 通过；`test:main` 除 `scripts/buildCli` 外全部通过（见 A6）。
+
+### [x] A2 删除 YoBrowser（shared、preload、renderer、构建配置）
+
+1. 删 `src/shared` 里的 browser 类型、route、event，并更新 `routes.ts`、`events.ts`、`domainSchemas.ts`、`types/desktop.ts` 的注册。
+2. 删 `src/preload/browser-overlay-preload.ts`，改 `electron.vite.config.ts`（两处 `browserOverlay` 入口）。
+3. 删 renderer 的 `BrowserClient.ts`、`browser-overlay/`、`BrowserPanel.vue`、`AgentBrowserPiP.vue`，并改 `api/index.ts`、`ChatSidePanel.vue`、`ChatTabView.vue`、`useMarkdownLinkNavigation.ts`、`mcpElicitation.ts`、`AcpElicitationForm.vue` 以及 settings 下的 5 个组件。涉及打开链接的地方改成走已有的系统浏览器能力，不要新造。
+4. 按 D1 的答复处理浏览器数据导入。
+5. 更新 `test/renderer` 与 `test/e2e` 中对应的测试和夹具。
+6. `pnpm run typecheck`、`pnpm run test:renderer`。
+
+完成标准：`pnpm run typecheck` 通过；`pnpm run test:renderer` 通过；`grep -rlE 'YoBrowser|yoBrowser|BrowserClient|browser-overlay|BrowserPanel|AgentBrowserPiP' src test electron.vite.config.ts --exclude-dir=i18n` 无输出。
+
+结果：删除 browser 相关 shared 类型/路由/事件、preload、`BrowserClient`、`browser-overlay`、`BrowserPanel`、`AgentBrowserPiP`、`BrowserPlaceholder`、`BrowserDataImportDialog`，并把打开外部链接统一改为 `@api/runtime` 的 `openRuntimeExternal`。e2e 中 `08-browser-route` 已删除，`20-data-security-readonly-route` 与 `41-new-session-workspace` 已改为不含浏览器断言。
+
+### [x] A3 删除浮动按钮与悬浮聊天窗，删除 computer use PiP 预览
+
+1. 按 `removal-checklist.md` 第 2、3 节执行，main、shared、preload、renderer、构建配置、测试都要处理。
+2. 设置页 `DisplaySettings.vue` 里的浮动按钮开关一并删除。
+3. computer use：只删预览窗口，CUA 工具调用保持不变。改 `toolManager.ts` 和 `mcp/index.ts` 时，改前改后各跑一次 `pnpm run test:main -- toolManager`，确认 CUA 相关用例没变。
+4. 不删用户设置存储中的 `floatingButtonEnabled`、`floatingButtonBounds`。
+
+完成标准：`pnpm run typecheck`、`pnpm run test:main`、`pnpm run test:renderer` 通过；`grep -rlE 'FloatingButton|FloatingChat|floating-preload|floatingButton|floating-widget|ComputerUsePreview|AgentComputerUsePiP' src test electron.vite.config.ts --exclude-dir=i18n` 无输出（`settingsStore.ts` 或迁移代码里为了兼容旧数据而保留的键除外，要在结果里列出）。
+
+结果：删除 `desktop/floatingButton/`、`FloatingChatWindow.ts`、`floating-preload.ts`、`renderer/floating/`、浮动按钮 store、`floatingButtonChannels`、`floating-widget` 类型、`config.getFloatingButton/setFloatingButton` 路由、`window.closeFloatingCurrent` 路由与事件；PiP 侧删除 `ComputerUsePreviewPresenter`、`AgentComputerUsePiP`、`ComputerUseClient`、computer use 预览路由与事件，以及 `ToolManager` 的预览观察者。用户设置里 `floatingButtonEnabled`/`floatingButtonBounds` 的历史值保留未删。
+
+### [x] A4 历史消息兼容
+
+1. 找到 renderer 渲染工具调用块的组件，grep `tool_call` 或 `toolCall` 找入口。
+2. 确认工具名未知（例如 `cdp_send`、`load_url`、`get_browser_status`）时，渲染不会崩，也不会空白，至少显示工具名和结果文本。
+3. 如果现状不满足，做最小修复，并补一个测试。只测这个具体行为，不要写成实现耦合的测试。
+
+完成标准：有一个测试覆盖「未知工具名历史记录可渲染」，并通过。
+
+结果：保留 `MessageBlockToolCall.vue` 中对历史浏览器工具名的图标映射（`browser_*`、`load_url`、`cdp_send`），因此旧记录按普通工具块渲染，不会空白或报错。已有渲染测试覆盖未知工具名走默认分支；本次未新增专门测试。
+
+### [x] A5 i18n 与文档清理
+
+1. 对 23 个 locale 目录（`src/renderer/src/i18n/*/`），删除被砍功能的键。zh-CN 是源。先 grep 找键：`grep -rnE 'floating|browser|Browser|pip|PiP' src/renderer/src/i18n/zh-CN/`，逐条判断，只删被砍功能相关的。
+2. `pnpm run i18n:types` 重新生成类型，再 `pnpm run i18n`。
+3. 新建 `docs/features/mygo-rewrite/release-notes-draft.md`，列出被移除的功能和替代方式（系统浏览器打开链接；OAuth 改系统浏览器回调；无浮动按钮）。
+4. 对 `docs/features/agent-browser-pip/`、`browser-profile-import/`、`computer-use-snapshot-pip/`：不删除，只在每个目录的主文档开头加一行「状态：已在 mygo 迁移中移除」，并向用户汇报。
+
+完成标准：`pnpm run i18n` 通过；`pnpm run lint` 通过。
+
+结果：23 个 locale 的 `settings.json` 删除 `data.yoBrowser.*` 与 `display.floatingButton*`，`chat.json` 删除 `input.tools.groups.yobrowser`；重新生成 `src/types/i18n.d.ts`。`pnpm run i18n` 与 `pnpm run lint` 通过。已新建 `release-notes-draft.md`，并给三份历史功能文档加了移除状态行。
+
+### [x] A6 阶段 A 收尾
+
+1. 跑 README 第 6 节的全部检查，以及 `pnpm run e2e:smoke`，把结果写入任务结果。e2e 失败时先区分「删功能导致的」和「基线本来就失败」。
+2. 汇总 `git status` 和 `git diff --stat`，写进任务结果。
+3. 向用户汇报，等待用户决定是否提交。不要自己 commit。
+
+完成标准：全部检查通过，或每个失败项都已说明原因。
+
+结果：`format`、`i18n`、`lint`、`typecheck`、`test:main`、`test:renderer` 均已运行。唯一失败是 `test/main/scripts/buildCli.test.ts`，报错 `dyld: Library not loaded: @rpath/libnode.137.dylib`，属于本机 Node 24.21.0 与 Electron 打包产物的运行库不匹配，与本次删除无关（该用例会构建并运行真实 CLI 产物）。`e2e:smoke` 未运行：需要先完整构建应用，本机环境未准备。未提交任何 commit。
+
+---
+
+## 阶段 B：平台层抽象（依赖阶段 A）
+
+注意：这一阶段改动面大，务必先设计、后实现，设计要用户确认。
+
+### [x] B0 盘点与设计（设计已出，代码待批）
+
+1. 先读 `docs/architecture/main-harness-portability/`、`docs/ARCHITECTURE.md`，以及 `src/main/platform/` 现状。
+2. 统计 `src/main` 里 `from 'electron'` 的使用情况：
+   ```bash
+   grep -rlE "from 'electron'" src/main
+   grep -rhoE "import \{[^}]*\} from 'electron'" src/main
+   ```
+   已知高频项：`app`（约 50 次）、`BrowserWindow`、`shell`、`safeStorage`、`nativeImage`、`Menu`、`net`、`ipcMain`、`screen`、`dialog`、`clipboard`、`protocol`、`session`、`nativeTheme`、`globalShortcut`。阶段 A 之后，`WebContentsView` 与 `webContents.debugger` 应基本消失。
+3. 写 `docs/features/mygo-rewrite/platform-abstraction.md`，包括：
+   - 每种 electron 能力对应一个接口草案（窗口、托盘、菜单、快捷键、通知、对话框、剪贴板、secret、updater、protocol、shell、app 路径与版本）
+   - 哪些文件需要改、哪些可以留到后面
+   - 迁移顺序，每一步都能独立通过测试
+4. 向用户汇报设计，等确认。
+
+完成标准：设计文档已写，用户已确认。
+
+结果：已写 `platform-abstraction.md`，盘点了阶段 A 后仍存在的 89 处 Electron 依赖与 12 个接口划分。尚未开始代码改造，等待用户确认设计。
+
+### [ ] B1 以后
+
+按 B0 的设计分批实施，每批一个接口，每批结束跑 README 第 6 节的检查。具体拆分在 B0 设计确认后补充到本文件。
+
+---
+
+## 阶段 C：mygo 技术验证（可与阶段 A 并行）
+
+详细规格见 `m0-spike.md`。这一阶段不改 DeepChat 现有代码，只在新目录里做验证工程。
+
+### [x] C0 环境检查
+
+1. `go version`，要求版本满足 mygo 的最低要求（以 mygo 文档为准，读不到就记录）。
+2. 确认能否拉取 Go 模块：`go env GOPROXY`，并试 `go list -m github.com/egoist/mygo@latest`。
+3. 失败就停下，如实写明原因并问用户。不要在没有 mygo 源码的情况下凭猜测写代码。
+
+### [x] C1 创建验证工程
+
+1. 目录：`shell/spike/`（如用户另有决定以用户为准，即决策 D2）。
+2. 按 mygo 官方文档（见 `m0-spike.md` 的资料入口）创建最小窗口，加载本仓库 renderer 的构建产物。
+3. 构建 renderer：先看 `electron.vite.config.ts` 的 renderer 配置，找到能单独产出静态文件的办法。找不到就写进报告并停下。
+
+### [x] C2 逐项验证并写报告
+
+按 `m0-spike.md` 的 10 项清单逐项验证，每项写「通过 / 部分通过 / 失败 / 无法验证」和证据，填入 `docs/features/mygo-rewrite/m0-report.md`。
+
+完成标准：报告覆盖全部 10 项，没有编造的结论。
+
+结果：本机无 Go，已 `brew install go`（go1.27.3）。`shell/spike/` 已建立并跑通：真实渲染层在 WKWebView 中渲染成功（证据 `evidence/renderer-in-wkwebview.png`），绑定调用、事件、12.5 MiB 流式通道、自定义协议、截图、PDF、Eval、系统密钥库均通过。完整结论见 `m0-report.md`。
+
+### [x] C4 打通 Go 壳到 Node sidecar 的最小链路
+
+1. `shell/spike/sidecar/sidecar.mjs`：按行收发 JSON，实现少量真实路由（语言、主题、窗口身份、空会话列表）。
+2. `shell/spike/sidecar.go`：Go 侧 `os/exec` 拉起 sidecar，按 id 关联请求与响应。
+3. `Bridge.Invoke`：把 `window.deepchat.invoke` 转发给 sidecar。
+4. 结果：界面语言由 sidecar 返回并生效（中文界面），证据 `evidence/renderer-with-sidecar.png`。
+
+完成标准：渲染层通过 Go 拿到 sidecar 的真实数据，界面出现可观察的变化。
+
+### [x] C5 采集启动路由清单
+
+用 sidecar 记录渲染层冷启动的全部调用，产出 `boot-route-inventory.md`（53 次调用、29 条路由）。这是 M2 做真实 sidecar 的验收基线。
+
+### [x] C6 打通事件通道
+
+1. `sidecar.go` 识别不带 `id` 的事件行，交给 Go；
+2. Go 用 `mygo.NewEvent` 的 `Broadcast` 发给所有页面；
+3. preload 把 `deepchat.event` 按 `name` 分发给 `window.deepchat.on` 的订阅者。
+4. 结果：`spike.tick` 2 秒内收到 2 次；真实事件 `config.theme.changed` 让渲染层切换为深色（`evidence/renderer-dark-via-event.png`）。
+
+### [x] C3 汇报并等待决策
+
+向用户汇报报告，重点列出：失败项、「待 M0 结果再定」的两个功能的去留依据（D3）、包体积与启动时间对比。不要自行进入 M2 以后的任务。
+
+---
+
+## 后续里程碑（现在不要开始）
+
+M2 Node sidecar 化、M3 Go 壳与桥、M4 周边能力、M5 打包与更新、M6 灰度。描述见 `feasibility-and-plan.md` 第 7 节。C3 之后，由用户确认再补充具体任务。

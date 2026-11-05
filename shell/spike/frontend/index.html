@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>DeepChat mygo spike</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        margin: 24px;
+        line-height: 1.5;
+      }
+      pre {
+        background: #f4f4f5;
+        padding: 12px;
+        border-radius: 8px;
+        white-space: pre-wrap;
+      }
+      .pass {
+        color: #15803d;
+      }
+      .fail {
+        color: #b91c1c;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>DeepChat mygo spike</h1>
+    <p>This page only checks the capabilities the DeepChat rewrite depends on.</p>
+    <pre id="out">running…</pre>
+    <script type="module">
+      const out = document.getElementById('out')
+      const lines = []
+      const log = (name, ok, detail) => {
+        lines.push(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`)
+        void call('Report', name, ok, detail ?? '').catch(() => {})
+        out.textContent = lines.join('\n')
+        out.className = ok ? 'pass' : 'fail'
+        console.log(`SPIKE page.${name}=${ok ? 'true' : 'false'} ${detail ?? ''}`)
+      }
+
+      // The generated client is produced by `mygo generate`; the spike keeps a
+      // hand-written shim so it can run without the CLI.
+      const call = (method, ...args) => window.mygo.call('Bridge.' + method, ...args)
+
+      try {
+        const pong = await call('Ping', 'deepchat')
+        log('rpc', pong === 'pong:deepchat', pong)
+      } catch (error) {
+        log('rpc', false, String(error))
+      }
+
+      try {
+        const info = await call('Info')
+        log('info', true, JSON.stringify(info))
+      } catch (error) {
+        log('info', false, String(error))
+      }
+
+      try {
+        const response = await fetch('spikeasset://localhost/hello.txt')
+        const text = await response.text()
+        log('custom-protocol', text.includes('spike'), text.trim())
+      } catch (error) {
+        log('custom-protocol', false, String(error))
+      }
+
+      try {
+        // 200 x 64 KiB = 12.5 MiB, the shape of DeepChat's streaming snapshots.
+        const channel = window.mygo.channel()
+        let chunks = 0
+        let bytes = 0
+        channel.onmessage = (value) => {
+          chunks += 1
+          bytes += value.length
+        }
+        const started = performance.now()
+        await call('Stream', 200, 64 * 1024, channel)
+        log(
+          'stream',
+          chunks === 200,
+          `${chunks} chunks / ${bytes} bytes in ${(performance.now() - started).toFixed(0)}ms`
+        )
+      } catch (error) {
+        log('stream', false, String(error))
+      }
+
+      try {
+        const received = await new Promise((resolve, reject) => {
+          const off = window.mygo.on('spike.progress', (payload) => {
+            off()
+            resolve(payload)
+          })
+          call('Emit', 'hello').catch(reject)
+        })
+        log('event', received?.payload === 'hello', JSON.stringify(received))
+      } catch (error) {
+        log('event', false, String(error))
+      }
+
+      try {
+        const bytes = await call('Screenshot')
+        log('screenshot', bytes > 0, `${bytes} bytes`)
+      } catch (error) {
+        log('screenshot', false, String(error))
+      }
+
+      try {
+        const bytes = await call('PDF')
+        log('pdf', bytes > 0, `${bytes} bytes`)
+      } catch (error) {
+        log('pdf', false, String(error))
+      }
+
+      try {
+        const title = await call('Eval', 'document.title')
+        log('eval', title === 'DeepChat mygo spike', title)
+      } catch (error) {
+        log('eval', false, String(error))
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "DeepChat Spike",
+  "slug": "deepchat-spike",
+  "identifier": "xyz.thinkinai.deepchat.spike",
+  "version": "0.0.1",
+  "frontendDist": "../../out/renderer",
+  "bindings": "frontend/mygo.gen.ts",
+  "out": "build"
+}
