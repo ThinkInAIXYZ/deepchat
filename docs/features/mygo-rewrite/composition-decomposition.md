@@ -56,7 +56,7 @@ export function createSettingsSubsystem(deps: { store: SettingsStore; publish: D
 | --- | --- | --- | --- |
 | 1 | `createSettingsSubsystem` ✅ | store、publish | `settings.getSnapshot` |
 | 2 | `createProviderSubsystem` ✅ | settings、providerDatabase、publish | `providers.*` 其余条目 |
-| 3 | `createAgentSubsystem` | settings、agentDatabase、provider、publish | `sessions.getAgents`、`agents.*` |
+| 3 | `createAgentSubsystem` ⚠️ 只做了只读部分 | settings、agentDatabase、provider、publish | `sessions.getAgents`、`agents.*` |
 | 4 | `createMcpSubsystem` | settings、mcpDatabase、pluginRuntime、publish | `mcp.listPrompts`、`mcp.getClients`、`mcp.listToolDefinitions`、`mcp.listResources` |
 | 5 | `createSessionSubsystem` | 上述全部 | `startup.getBootstrap`、会话相关剩余 |
 | 6 | `createToolchainSubsystem` | settings、filesystem | `toolchains.getStatus` |
@@ -87,6 +87,10 @@ export function createSettingsSubsystem(deps: { store: SettingsStore; publish: D
 验证：`config.setTheme dark` → `{theme:'dark',isDark:true}`；壳通过 `DEEPCHAT_SYSTEM_THEME_DARK=1` 注入系统外观时，`theme:'system'` 也能得到 `isDark:true`。
 
 第 2 步（`createProviderSubsystem`）同样已完成：`composition.ts` 与 sidecar 共用同一工厂，sidecar 的 `providers.listSummaries` 仍返回完整 provider 目录。
+
+第 3 步的结论与预期不同，值得记下来：`AgentSettings` 的 12 个依赖里有 `providerRuntime`、`memoryService`、`skillService`、`agentLifecycle`，整体工厂化的前提是这些子系统先搬出 composition，属于「做不了」而不是「难做」。
+
+因此 sidecar 的 `sessions.getAgents` 采用只读替代：直接用 `AgentRepository` 与 `AcpCatalogSettings`，也就是 `AgentSettings.listAgents()` 与 `getAcpEnabled()` 内部委托的同一对对象，再交给现成的 `listAvailableAgents` 过滤。代价是这层委托关系有第二处写法，收益是不必为两个只读方法引入十个协作者。等 `providerRuntime`、`memoryService` 搬出来之后，应改回 `createAgentSubsystem`。
 
 ## 5. 验证方式
 

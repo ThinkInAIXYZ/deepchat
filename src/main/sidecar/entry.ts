@@ -32,6 +32,11 @@ import { createSettingsStore, type SettingsStore } from '@/config/settingsStore'
 import { MainDatabase } from '@/data/mainDatabase'
 import { SessionDatabase } from '@/session/data/database'
 import { AppSessionService } from '@/agent/shared/appSessionService'
+import { AgentRepository } from '@/agent/repository'
+import { AgentDatabase } from '@/agent/data/database'
+import { MemoryDatabase } from '@/memory/data/database'
+import { AcpCatalogSettings } from '@/agent/acp/catalog/settings'
+import { listAvailableAgents } from '@/agent/shared/availableAgentCatalog'
 import { ProjectDatabase } from '@/project/data/database'
 import { createOnboardingRoutes } from '@/onboarding/routes'
 import { createSettingsSubsystem } from '@/app/subsystems/settings'
@@ -175,6 +180,26 @@ const mcpSettings = (() => {
   return instance
 })()
 
+// `sessions.getAgents` only needs the two reads below. `AgentSettings` carries ten
+// more collaborators (provider runtime, memory cleanup, skill cleanup, lifecycle),
+// which belong to subsystems that have not moved yet, so this reads the same
+// repository and ACP catalog those methods delegate to.
+const agentCatalog = database
+  ? (() => {
+      const sessionDatabase = new SessionDatabase(database)
+      const repository = new AgentRepository(
+        new AgentDatabase(database),
+        sessionDatabase,
+        new MemoryDatabase(database)
+      )
+      const acpCatalog = new AcpCatalogSettings({ mcpSettings })
+      return {
+        listAgents: async () => repository.listAgents(),
+        getAcpEnabled: async () => acpCatalog.getGlobalEnabled()
+      }
+    })()
+  : null
+
 const requireSessions = (): AppSessionService => {
   if (!database) {
     throw new Error('Database is not available in this sidecar session')
@@ -282,7 +307,17 @@ const sidecarRoutes: DeepchatRouteMap = createRouteMap([
       })
     }
   ],
-  [sessionsGetAgentsRoute.name, async () => sessionsGetAgentsRoute.output.parse({ agents: [] })],
+  [
+    sessionsGetAgentsRoute.name,
+    async () => {
+      if (!agentCatalog) {
+        throw new Error('Database is not available in this sidecar session')
+      }
+      return sessionsGetAgentsRoute.output.parse({
+        agents: await listAvailableAgents(agentCatalog)
+      })
+    }
+  ],
   [
     windowGetRuntimeIdentityRoute.name,
     async () =>
