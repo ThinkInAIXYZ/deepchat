@@ -190,7 +190,7 @@ sidecar 每行 {"event": name, "payload": ...}
 
 `src/main/sidecar/entry.ts` 由 `vite.sidecar.config.ts` 打成 `out/sidecar/entry.mjs`，**产物里没有 Electron**。
 
-当前注册 **32 条路由**。`DEEPCHAT_ROUTE_LOG` 实测冷启动覆盖率：**110/120 次调用由真实路由服务（92%）**，明细见 `boot-route-inventory.md`。其中 5 条直接复用官方路由工厂 `createOnboardingRoutes(settings)`，会话列表走真实的 `AppSessionService`：
+当前注册 **32 条路由**。`DEEPCHAT_ROUTE_LOG` 实测冷启动：120 次调用里 **110 次由 sidecar 真实路由服务，9 次落入空实现**，另有 1 次（`notification.rendererReady`）根本不进 sidecar，由壳直接回答。明细见 `boot-route-inventory.md`。其中 5 条直接复用官方路由工厂 `createOnboardingRoutes(settings)`，会话列表走真实的 `AppSessionService`：
 
 | 路由 | 数据来源 |
 | --- | --- |
@@ -249,6 +249,7 @@ sidecar 每行 {"event": name, "payload": ...}
 | `window.minimizeCurrent` | `win.Minimize()` |
 | `window.toggleMaximizeCurrent` | `win.ToggleMaximize()` |
 | `window.closeCurrent` | `win.Close()` |
+| `notification.rendererReady` | 直接返回 `ready: true`：页面能发问就说明已就绪 |
 
 实测：在页面里调用 `window.toggleMaximizeCurrent` 后，窗口从 1280×820 变为 1920×960，随后 `window.getCurrentState` 返回 `isMaximized: true`。说明自定义标题栏的按钮可以直接由 Go 接管，不需要经过 Node。
 

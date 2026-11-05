@@ -180,6 +180,10 @@ func (b *Bridge) shellRoute(route string) (string, bool, error) {
 	case "window.closeCurrent":
 		win.Close()
 		return `{"closed":true}`, true, nil
+	case "notification.rendererReady":
+		// The shell knows when the page has loaded; the renderer is ready as soon as
+		// it can ask, so answering this needs no round trip into Node.
+		return `{"ready":true}`, true, nil
 	case "device.selectDirectory", "device.selectFiles":
 		// Native file dialogs belong to the shell: the sidecar has no window to
 		// attach a sheet to. The answer is the contract's plain shape.

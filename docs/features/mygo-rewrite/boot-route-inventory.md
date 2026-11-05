@@ -65,9 +65,10 @@ SPIKE_ROUTE_LOG=/tmp/route-log.jsonl go run . -seconds 14 -renderer ../../out/re
 
 | 指标 | 数值 |
 | --- | --- |
-| 冷启动调用总数 | 120 次 |
-| 被真实路由服务 | **110 次（92%）** |
-| 落到空实现 | 10 次 |
+| 冷启动调用总数 | 119 次进入 sidecar |
+| 被真实路由服务 | **110 次（92.4%）** |
+| 落到空实现 | 9 次 |
+| 由壳直接回答 | 1 次（`notification.rendererReady`） |
 
 未服务的调用（共 8 条路由）：
 
@@ -80,7 +81,6 @@ SPIKE_ROUTE_LOG=/tmp/route-log.jsonl go run . -seconds 14 -renderer ../../out/re
 | 1 | `project.getSnapshot` | 需要 `ProjectService` 与工作区状态 |
 | 1 | `acp.elicitation.list` | 需要 ACP 运行时 |
 | 1 | `remoteControl.listChannels` | 需要远程控制运行时 |
-| 1 | `notification.rendererReady` | 属于窗口/壳的职责 |
 
 对照上一轮（22 条路由时）是 72/124 次，接入 `settings.*` 与 `mcp.getServerAuthStatus` 后提升到 110/120。
 
