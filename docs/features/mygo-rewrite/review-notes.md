@@ -1,6 +1,6 @@
 # 评审说明（branch `feat/mygo-rewrite`）
 
-面向 reviewer。相对 `dev`：**334 个文件、+5,334 / −21,972 行、13 个提交**。
+面向 reviewer。相对 `dev`：**342 个文件、+5,784 / −22,028 行、18 个提交**。
 
 ## 这个分支做了什么
 
@@ -66,7 +66,7 @@
 
 业务层（agent / provider / mcp / memory / tool / session）引用 Electron 的文件从 8 降到 5，边界外总数从 89 降到 36。
 
-新增 `src/main/sidecar/entry.ts`：同一个业务代码在 Node 里跑，已接 32 条路由。`vite.sidecar.config.ts` 在打包层把 `platform/electron/*` 换成 `platform/node/*`，业务代码只认一个符号。
+新增 `src/main/sidecar/entry.ts`：同一个业务代码在 Node 里跑，已接 37 条路由，冷启动 122 次调用里 120 次由真实业务代码服务。`vite.sidecar.config.ts` 在打包层把 `platform/electron/*` 换成 `platform/node/*`，业务代码只认一个符号。
 
 ## 三、怎么验证的
 
@@ -76,7 +76,7 @@
 | `test:main` | 9788 通过、1 失败 |
 | `test:renderer` | 2704 通过 |
 | sidecar 产物 | 1.67 MB，`from "electron"` 0 次 |
-| 冷启动覆盖率 | 119 次进入 sidecar 的调用中 111 次被真实服务 |
+| 冷启动覆盖率 | 122 次进入 sidecar 的调用中 120 次被真实服务 |
 | Electron 版构建 | `electron-vite build` 通过（main / preload / renderer） |
 | Electron 版启动 | 真实启动冒烟通过，见下 |
 
@@ -100,11 +100,14 @@ pnpm exec electron out/main/index.js --user-data-dir=/tmp/dc-electron-smoke
 2. **`src/main/agent/settings.ts`**：provider 端口从构造时传值改成按调用求值的 getter，用来解除与 `ProviderRuntime` 的构造循环。行为不变，但签名变了，测试也一并调整。
 3. **`src/shared/logger.ts`**：不再依赖 `@electron-toolkit/utils`，改用 `import.meta.env.DEV` 与 `NODE_ENV`。影响面几乎全局，但判断语义等价。
 4. **`src/main/sidecar/entry.ts` 的 `sessions.getAgents`**：没有走 `AgentSettings`，而是直接用 `AgentRepository` + `AcpCatalogSettings`。这是折中，风险写在 `composition-decomposition.md` 里，等 `providerRuntime` 搬出来应改回工厂。
-5. **`shell/spike/`**：验证工程，不是产品代码。9 个源文件，构建产物已 gitignore。
+5. **`src/main/platform/proxy.ts`**：代理应用从直接调用 Electron `session` 改为可注入的 `ProxySessionApplier`，Electron 实现在 `platform/electron/proxyApplier.ts` 并在 `mainProcess.ts` 装上。副作用是 `proxy.test.ts` 改为注入假实现。
+6. **`src/main/sidecar/entry.ts` 的 `McpService` 装配**：ACP 代理列表为空、MCP sampling 抛错、语义通知丢弃，都是因为对应运行时还没迁移；服务器启动未接线。这三处是「能构造但能力不全」，不是完整实现。
+7. **`shell/spike/`**：验证工程，不是产品代码。9 个源文件，构建产物已 gitignore。
 
 ## 五、已知遗留
 
-- 剩余 9 次冷启动调用未服务，全部需要 MCP 活连接或 ACP/远程控制运行时
+- 剩余 2 次冷启动调用未服务（`acp.elicitation.list`、`remoteControl.listChannels`），需要各自运行时整体迁移
+- sidecar 不启动 MCP 服务器，`mcp.getClients` 等返回空列表；启停编排待定
 - OAuth 三个文件仍用 `BrowserWindow`：回调页在仓库之外，改成系统浏览器需要服务端配合跳回 deep link
 - Windows / Linux 只在代码层面兼容，未在真机验证
 - 自动更新链路未设计
