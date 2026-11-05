@@ -80,10 +80,7 @@ import {
 } from './channels/feishu/feishuAuth'
 import { WeixinIlinkClient } from './channels/weixinIlink/weixinIlinkClient'
 import { listRemoteChannelDescriptors } from './catalog'
-import {
-  RemoteDelivery,
-  type RemoteDeliveryInput
-} from './delivery/service'
+import { RemoteDelivery, type RemoteDeliveryInput } from './delivery/service'
 
 const DEFAULT_CHANNEL_ID = 'default'
 const WEIXIN_TRACE_LOG_ENABLED = process.env.DEEPCHAT_WEIXIN_TRACE === '1'

@@ -27,7 +27,7 @@ import type {
   McpAppSandboxRegistry,
   McpAppRouteContext
 } from './sandboxRegistry'
-import { MCP_APP_SCHEME } from './sandboxRegistry'
+import { MCP_APP_SCHEME } from './scheme'
 import { assertBoundedMcpJson } from '../schemaValidation'
 import { resolvePluginToolPolicy } from '@/plugin/toolPolicyStore'
 

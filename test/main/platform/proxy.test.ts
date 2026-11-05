@@ -15,15 +15,6 @@ const { Agent, EnvHttpProxyAgent, setGlobalDispatcher } = vi.hoisted(() => ({
   setGlobalDispatcher: vi.fn()
 }))
 
-vi.mock('electron', () => ({
-  session: {
-    defaultSession: {
-      setProxy: electronMocks.setProxy,
-      resolveProxy: electronMocks.resolveProxy
-    }
-  }
-}))
-
 vi.mock('undici', () => ({
   Agent,
   EnvHttpProxyAgent,
@@ -34,8 +25,24 @@ import {
   FETCH_DISPATCHER_TIMEOUTS,
   ProxyConfig,
   ProxyMode,
-  createGlobalFetchDispatcher
+  createGlobalFetchDispatcher,
+  setProxySessionApplier
 } from '@/platform/proxy'
+
+// The proxy module no longer talks to Electron; the runtime installs an applier.
+// These tests drive the same surface through a fake one.
+setProxySessionApplier({
+  applySystem: async () => {
+    const result = await electronMocks.resolveProxy()
+    return typeof result === 'string' ? result : ''
+  },
+  applyDirect: async () => {
+    await electronMocks.setProxy({ mode: 'direct' })
+  },
+  applyRules: async (rules: string) => {
+    await electronMocks.setProxy({ proxyRules: rules })
+  }
+})
 
 describe('ProxyConfig readiness', () => {
   beforeEach(() => {
@@ -62,7 +69,8 @@ describe('ProxyConfig readiness', () => {
     expect(settled).toBe(false)
     finishResolution('DIRECT')
     await expect(config.whenReady()).resolves.toBe(true)
-    expect(electronMocks.resolveProxy).toHaveBeenCalledWith('https://www.google.com')
+    // The probe URL belongs to the Electron applier now, not to ProxyConfig.
+    expect(electronMocks.resolveProxy).toHaveBeenCalled()
   })
 
   it('keeps the latest proxy mode when an earlier system resolution finishes late', async () => {

@@ -46,6 +46,10 @@ import { createSettingsSubsystem } from '@/app/subsystems/settings'
 import { createAppSettingsRoutes } from '@/app/settingsRoutes'
 import { SettingsDatabase } from '@/settings/data/database'
 import { CommandShellService } from '@/agent/shared/process/commandShellService'
+import { McpService } from '@/mcp'
+import { createInMemoryServerFactory } from '@/mcp/inMemoryServers/builder'
+import { KnowledgeSettings } from '@/knowledge/settings'
+import { createSessionDataFromDatabase } from '@/session/data'
 import { createProviderSubsystem } from '@/app/subsystems/provider'
 import { McpSettings } from '@/mcp/settings'
 import { McpDatabase } from '@/mcp/data/database'
@@ -53,7 +57,14 @@ import { SecretStore } from '@/config/secretStore'
 import { McpOAuthManager } from '@/mcp/mcpOAuthManager'
 import { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
 import { mcpGetServerAuthStatusRoute } from '@shared/contracts/routes'
-import { mcpGetEnabledRoute, mcpGetServersRoute } from '@shared/contracts/routes'
+import {
+  mcpGetClientsRoute,
+  mcpGetEnabledRoute,
+  mcpGetServersRoute,
+  mcpListPromptsRoute,
+  mcpListResourcesRoute,
+  mcpListToolDefinitionsRoute
+} from '@shared/contracts/routes'
 import { ProviderDatabase } from '@/provider/data/database'
 import { toProviderSummary } from '@/provider/summary'
 import { providersListSummariesRoute } from '@shared/contracts/routes'
@@ -189,6 +200,13 @@ const mcpSettings = (() => {
 // more collaborators (provider runtime, memory cleanup, skill cleanup, lifecycle),
 // which belong to subsystems that have not moved yet, so this reads the same
 // repository and ACP catalog those methods delegate to.
+const privacy = {
+  isEnabled: () => settings.get<boolean>('privacyModeEnabled') === true,
+  setEnabled: (enabled: boolean) => settings.set('privacyModeEnabled', Boolean(enabled))
+}
+
+const acpCatalog = database ? new AcpCatalogSettings({ mcpSettings }) : null
+
 const agentCatalog = database
   ? (() => {
       const sessionDatabase = new SessionDatabase(database)
@@ -197,10 +215,9 @@ const agentCatalog = database
         sessionDatabase,
         new MemoryDatabase(database)
       )
-      const acpCatalog = new AcpCatalogSettings({ mcpSettings })
       return {
         listAgents: async () => repository.listAgents(),
-        getAcpEnabled: async () => acpCatalog.getGlobalEnabled()
+        getAcpEnabled: async () => acpCatalog?.getGlobalEnabled() ?? false
       }
     })()
   : null
@@ -276,6 +293,63 @@ const projectService = database
     )
   : null
 
+// The MCP service is assembled here the way the Electron main process assembles
+// it. Two collaborators stay narrow on purpose:
+// - ACP agents are empty because the ACP runtime has not moved; MCP tools scoped
+//   to ACP agents therefore do not appear yet.
+// - Completion (used for MCP sampling) is not available without the provider
+//   runtime, so it fails when a server actually asks for a sample.
+const sessionData = database
+  ? createSessionDataFromDatabase(new SessionDatabase(database), {
+      publishPendingInputsChanged: () => {},
+      publishMessagesChanged: () => {}
+    })
+  : null
+
+const mcpService =
+  database && sessionData
+    ? new McpService(
+        providerSettings!,
+        {
+          getAcpAgents: async () => [],
+          getAgentMcpSelections: async (agentId, isBuiltin) =>
+            acpCatalog?.getAgentMcpSelections(agentId, isBuiltin) ?? []
+        },
+        settingsSubsystem.promptSettings,
+        mcpSettings,
+        privacy,
+        createInMemoryServerFactory({
+          sqlitePresenter: sessionData.database,
+          sessions: { get: (sessionId: string) => requireSessions().get(sessionId) },
+          transcript: sessionData.transcript,
+          settings: sessionData.settings,
+          locale: settingsSubsystem.desktopSettings,
+          promptSettings: settingsSubsystem.promptSettings,
+          knowledgeSettings: new KnowledgeSettings(settings, mcpSettings),
+          // Built-in knowledge search lives in the Electron main process; a
+          // builtinKnowledge server fails to start here instead of returning nothing.
+          knowledgeService: {
+            search: async () => {
+              throw new Error('Built-in knowledge search is not available in the sidecar')
+            }
+          } as never
+        }),
+        {
+          generateCompletionStandalone: async () => {
+            throw new Error('MCP sampling is not available in the sidecar')
+          }
+        } as never,
+        () => {},
+        // Semantic notifications are surfaces the desktop shell presents; the
+        // sidecar has no window, so they are dropped here.
+        { occur: () => {}, recover: () => {} },
+        (name, payload) => emit(name, payload),
+        undefined,
+        undefined,
+        undefined
+      )
+    : null
+
 const requireSessions = (): AppSessionService => {
   if (!database) {
     throw new Error('Database is not available in this sidecar session')
@@ -335,6 +409,38 @@ const sidecarRoutes: DeepchatRouteMap = createRouteMap([
         throw new Error('Database is not available in this sidecar session')
       }
       return projectGetSnapshotRoute.output.parse(await projectService.getSnapshot(20))
+    }
+  ],
+  [
+    mcpGetClientsRoute.name,
+    async () => {
+      if (!mcpService) throw new Error('Database is not available in this sidecar session')
+      return mcpGetClientsRoute.output.parse({ clients: await mcpService.getMcpClients() })
+    }
+  ],
+  [
+    mcpListToolDefinitionsRoute.name,
+    async () => {
+      if (!mcpService) throw new Error('Database is not available in this sidecar session')
+      return mcpListToolDefinitionsRoute.output.parse({
+        tools: await mcpService.getAllToolDefinitions()
+      })
+    }
+  ],
+  [
+    mcpListPromptsRoute.name,
+    async () => {
+      if (!mcpService) throw new Error('Database is not available in this sidecar session')
+      return mcpListPromptsRoute.output.parse({ prompts: await mcpService.getAllPrompts() })
+    }
+  ],
+  [
+    mcpListResourcesRoute.name,
+    async () => {
+      if (!mcpService) throw new Error('Database is not available in this sidecar session')
+      return mcpListResourcesRoute.output.parse({
+        resources: await mcpService.getAllResources()
+      })
     }
   ],
   [
@@ -421,11 +527,6 @@ const sidecarRoutes: DeepchatRouteMap = createRouteMap([
 ])
 
 const settingsDatabase = database ? new SettingsDatabase(database) : null
-const privacy = {
-  isEnabled: () => settings.get<boolean>('privacyModeEnabled') === true,
-  setEnabled: (enabled: boolean) => settings.set('privacyModeEnabled', Boolean(enabled))
-}
-
 const settingsRouteMaps: DeepchatRouteMap[] = [
   createAppSettingsRoutes({
     settings,

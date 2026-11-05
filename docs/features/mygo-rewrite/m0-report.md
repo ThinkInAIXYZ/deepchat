@@ -190,7 +190,7 @@ sidecar 每行 {"event": name, "payload": ...}
 
 `src/main/sidecar/entry.ts` 由 `vite.sidecar.config.ts` 打成 `out/sidecar/entry.mjs`，**产物里没有 Electron**。
 
-当前注册 **33 条路由**。`DEEPCHAT_ROUTE_LOG` 实测冷启动：120 次调用里 **111 次由 sidecar 真实路由服务，8 次落入空实现**，另有 1 次（`notification.rendererReady`）根本不进 sidecar，由壳直接回答。明细见 `boot-route-inventory.md`。其中 5 条直接复用官方路由工厂 `createOnboardingRoutes(settings)`，会话列表走真实的 `AppSessionService`：
+当前注册 **37 条路由**。`DEEPCHAT_ROUTE_LOG` 实测冷启动：122 次调用里 **120 次由 sidecar 真实路由服务，2 次落入空实现**，另有 1 次（`notification.rendererReady`）根本不进 sidecar，由壳直接回答。明细见 `boot-route-inventory.md`。其中 5 条直接复用官方路由工厂 `createOnboardingRoutes(settings)`，会话列表走真实的 `AppSessionService`：
 
 | 路由 | 数据来源 |
 | --- | --- |
@@ -210,6 +210,7 @@ sidecar 每行 {"event": name, "payload": ...}
 | `toolchains.getStatus` | 真实 `ToolchainService`，实测评测到系统 node v24.21.0 |
 | `mcp.getServerAuthStatus` | 真实 `McpOAuthManager` + 凭据存储，读磁盘状态，不需要活连接 |
 | `project.getSnapshot` | 真实 `ProjectService`；设备端口里只有目录选择器不可用，调用时明确报错 |
+| `mcp.getClients` / `listToolDefinitions` / `listPrompts` / `listResources` | 真实 `McpService`，见第 17 节 |
 | `settings.*`（9 条） | 直接复用 `createAppSettingsRoutes`，装配 `DesktopSettings`/`FontSettings`/`LoggingService`/`OcrSettings`/`DeepChatDefaults`/`CommandShellService` 与真实的设置活动表 |
 
 用真实工厂而不是重写，是这一版的设计要点：路由的解析、默认值与状态机都来自原实现，sidecar 只提供运行时。
@@ -329,6 +330,32 @@ settings.update       -> {"changedKeys":["fontSizeLevel"],"values":{"fontSizeLev
 ```
 
 顺带补了 `platform/node/shellHost.ts`：`logging.ts` 引用 `shellHost` 会把 Electron 拖进产物。Node 版本会在调用时打印警告而不是静默成功——打开文件夹属于壳的职责，sidecar 假装做到了会更糟。
+
+## 17. MCP 运行时接入（已验证）
+
+`McpService` 的构造函数是纯装配、不启动服务器，且插件 supervisor 有默认实现，因此可以在 sidecar 里按 Electron 的方式构造它。为此补了两处边界拆分：
+
+1. `mcp/apps/scheme.ts`：`MCP_APP_SCHEME` 从 `sandboxRegistry`（依赖 Electron `session`）抽出来，`appHost` 只取常量。
+2. `platform/proxy.ts`：代理应用改为可注入的 `ProxySessionApplier`，Electron 实现在 `platform/electron/proxyApplier.ts`。`serverManager` 依赖 `proxyConfig`，而它原来直接调用 `session.defaultSession`。
+
+三处保守处理，都写明了原因：
+
+- **ACP 代理列表为空**：ACP 运行时未迁移，因此 MCP 里按 ACP 代理划分的工具选择暂时为空
+- **MCP sampling 抛错**：需要 provider runtime，sidecar 里没有；只有当服务器真的发起采样时才会触发
+- **语义通知丢弃**：那是由壳展示的界面，sidecar 没有窗口
+
+实测四条路由全部返回（测试库未启用服务器，所以是空列表）：
+
+```
+mcp.getClients -> {"clients":[]}
+mcp.listToolDefinitions -> {"tools":[]}
+mcp.listPrompts -> {"prompts":[]}
+mcp.listResources -> {"resources":[]}
+```
+
+**尚未接线**：sidecar 没有调用 `mcpService.initialize()`，因此已启用的 MCP 服务器不会自动启动。这是有意为之——启动服务器会拉起 npx/uvx 子进程，等壳与 sidecar 的启停编排确定后再接。
+
+覆盖率因此从 111/119 提升到 **120/122（98.4%）**。
 
 ## 下一步
 

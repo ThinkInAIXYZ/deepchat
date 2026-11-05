@@ -3,7 +3,8 @@ import { appHost } from '@/platform/appHost'
 import { createSettingsStore } from '@/config/settingsStore'
 import { SecretStore } from '@/config/secretStore'
 import { DatabaseSecurityService } from './databaseSecurity'
-import { proxyConfig } from '@/platform/proxy'
+import { proxyConfig, setProxySessionApplier } from '@/platform/proxy'
+import { electronProxyApplier } from '@/platform/electron/proxyApplier'
 import type { StartupWorkloadCoordinator } from '@/app/startupWorkloadCoordinator'
 import { createMainProcessControl, type MainProcessControl } from './composition'
 import { initializeMainDatabaseWithRecovery } from './databaseStartup'
@@ -102,6 +103,7 @@ export async function startMainProcess(
     if (configMigration.appVersionChanged) {
       mcpSettings.onUpgrade(configMigration.previousAppVersion)
     }
+    setProxySessionApplier(electronProxyApplier)
     proxyConfig.initFromConfig(proxySettings.getMode(), proxySettings.getCustomUrl())
     await registerProtocols(mcpAppSandboxRegistry)
 

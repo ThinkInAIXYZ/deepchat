@@ -20,7 +20,9 @@ type ElectronPermission =
   | Parameters<PermissionRequestHandler>[1]
   | Parameters<PermissionCheckHandler>[1]
 
-export const MCP_APP_SCHEME = 'mcp-app'
+import { MCP_APP_SCHEME } from './scheme'
+
+export { MCP_APP_SCHEME }
 
 export type McpAppRouteContext = {
   webContentsId: number

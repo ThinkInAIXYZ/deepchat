@@ -1,5 +1,4 @@
 import logger from '@shared/logger'
-import { session } from 'electron'
 import { Agent, EnvHttpProxyAgent, setGlobalDispatcher } from 'undici'
 
 // 先简单处理，用系统代理
@@ -52,6 +51,30 @@ function mergeNoProxy(defaultNoProxy: string, inheritedNoProxy: string): string 
   return Array.from(noProxySet).join(', ')
 }
 
+/**
+ * Applies the proxy to whatever owns the network stack: Electron's session in the
+ * desktop app, nothing in a plain Node process. Kept as a strategy so this module
+ * does not import Electron and can be loaded by the sidecar.
+ */
+export interface ProxySessionApplier {
+  applySystem(): Promise<string>
+  applyDirect(): Promise<void>
+  applyRules(rules: string): Promise<void>
+}
+
+const noopApplier: ProxySessionApplier = {
+  applySystem: async () => '',
+  applyDirect: async () => {},
+  applyRules: async () => {}
+}
+
+let applier: ProxySessionApplier = noopApplier
+
+/** Installs the runtime's proxy applier; call once before `resolveProxy`. */
+export function setProxySessionApplier(next: ProxySessionApplier): void {
+  applier = next
+}
+
 export class ProxyConfig {
   private proxyUrl: string | null = null
   private mode: ProxyMode = ProxyMode.SYSTEM
@@ -98,8 +121,7 @@ export class ProxyConfig {
       }
 
       // 系统代理模式
-      await session.defaultSession.setProxy({ mode: 'system' })
-      const proxyString = await session.defaultSession.resolveProxy('https://www.google.com')
+      const proxyString = await applier.applySystem()
       const [protocol, address] = proxyString.split(';')[0].split(' ')
       logger.info('proxy url', protocol, address)
       const resolvedProxyUrl =
@@ -141,7 +163,7 @@ export class ProxyConfig {
   }
 
   private async clearProxy(): Promise<void> {
-    await session.defaultSession.setProxy({ mode: 'direct' })
+    await applier.applyDirect()
     this.proxyUrl = null
     this.clearProxyEnv()
     setGlobalDispatcher(createGlobalFetchDispatcher())
@@ -160,7 +182,7 @@ export class ProxyConfig {
   }
 
   private async setCustomProxy(proxyUrl: string): Promise<void> {
-    await session.defaultSession.setProxy({ proxyRules: proxyUrl })
+    await applier.applyRules(proxyUrl)
     const mergedNoProxy = mergeNoProxy(NO_PROXY, this.inheritedNoProxy)
     setGlobalDispatcher(
       createGlobalFetchDispatcher({

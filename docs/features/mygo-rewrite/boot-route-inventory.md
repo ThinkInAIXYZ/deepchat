@@ -65,9 +65,9 @@ SPIKE_ROUTE_LOG=/tmp/route-log.jsonl go run . -seconds 14 -renderer ../../out/re
 
 | 指标 | 数值 |
 | --- | --- |
-| 冷启动调用总数 | 119 次进入 sidecar |
-| 被真实路由服务 | **111 次（93.3%）** |
-| 落到空实现 | 8 次 |
+| 冷启动调用总数 | 122 次进入 sidecar |
+| 被真实路由服务 | **120 次（98.4%）** |
+| 落到空实现 | 2 次 |
 
 ### 一次被回退的尝试
 
@@ -78,18 +78,14 @@ SPIKE_ROUTE_LOG=/tmp/route-log.jsonl go run . -seconds 14 -renderer ../../out/re
 （`REMOTE_CHANNEL_CATALOG` 抽到 `remote/catalog.ts` 的改动保留，它是纯重构，让后续迁移不必加载渠道运行时。）
 | 由壳直接回答 | 1 次（`notification.rendererReady`） |
 
-未服务的调用（共 8 条路由）：
+未服务的调用（共 2 条路由）：
 
 | 次数 | 路由 | 原因 |
 | --- | --- | --- |
-| 2 | `mcp.listToolDefinitions` | 需要 MCP 活连接 |
-| 2 | `mcp.getClients` | 同上 |
-| 1 | `mcp.listPrompts` | 同上 |
-| 1 | `mcp.listResources` | 同上 |
 | 1 | `acp.elicitation.list` | 需要 ACP 运行时 |
-| 1 | `remoteControl.listChannels` | 需要远程控制运行时 |
+| 1 | `remoteControl.listChannels` | 与 `getChannelStatus` 必须一起迁移，见下文 |
 
-对照上一轮（22 条路由时）是 72/124 次，接入 `settings.*` 与 `mcp.getServerAuthStatus` 后提升到 110/120。
+演进：22 条路由时 72/124 → `settings.*` 与 `mcp.getServerAuthStatus` 后 110/120 → `project.getSnapshot`、`notification.rendererReady` 后 111/119 → **MCP 运行时接入后 120/122**。
 
 其中 `mcp.getServerAuthStatus` 单条就占了 42 次调用——MCP 指示器会对每个服务器轮询一次，这也是为什么它值得优先实现：只依赖 `McpOAuthManager` 与设置，不需要活连接。
 
