@@ -39,6 +39,8 @@ import { ToolchainService } from '@/toolchains/service'
 import { mergeDetectionEnv } from '@/toolchains/detectionEnv'
 import { toolchainsGetStatusRoute } from '@shared/contracts/routes'
 import { ProjectDatabase } from '@/project/data/database'
+import { ProjectService } from '@/project'
+import { projectGetSnapshotRoute } from '@shared/contracts/routes'
 import { createOnboardingRoutes } from '@/onboarding/routes'
 import { createSettingsSubsystem } from '@/app/subsystems/settings'
 import { createAppSettingsRoutes } from '@/app/settingsRoutes'
@@ -227,6 +229,53 @@ const mcpOAuthManager = new McpOAuthManager(
   undefined
 )
 
+// ProjectService reads projects and environments from the database. Its device
+// port is only used by the directory picker, which the shell answers, so the
+// dialog methods fail loudly instead of pretending a cancel.
+const devicePort = {
+  getAppVersion: async () => appHost.getVersion(),
+  getDeviceInfo: async () => readDeviceInfo(),
+  getCPUUsage: async () => 0,
+  getMemoryUsage: async () => ({
+    total: os.totalmem(),
+    free: os.freemem(),
+    used: os.totalmem() - os.freemem()
+  }),
+  // Disk statistics come from Electron's system information; the shell reports
+  // them, so zeros here mean "unknown" rather than "empty disk".
+  getDiskSpace: async () => ({ total: 0, free: 0, used: 0 }),
+  resetData: async () => {
+    throw new Error('Resetting data is handled by the desktop shell')
+  },
+  resetDataByType: async () => {
+    throw new Error('Resetting data is handled by the desktop shell')
+  },
+  selectDirectory: async () => {
+    throw new Error('Directory pickers are handled by the desktop shell')
+  },
+  selectFiles: async () => {
+    throw new Error('File pickers are handled by the desktop shell')
+  },
+  restartApp: async () => {
+    throw new Error('Restarting is handled by the desktop shell')
+  },
+  cacheImage: async (imageData: string) => imageData,
+  sanitizeSvgContent: async (svgContent: string) => svgContent
+}
+
+const projectService = database
+  ? new ProjectService(
+      new ProjectDatabase(database),
+      new SessionDatabase(database),
+      devicePort,
+      settings,
+      (projectPath, version) =>
+        emit('config.defaultProjectPath.changed', { path: projectPath, version }),
+      (action, environmentPath, version) =>
+        emit('project.environments.changed', { action, path: environmentPath, version })
+    )
+  : null
+
 const requireSessions = (): AppSessionService => {
   if (!database) {
     throw new Error('Database is not available in this sidecar session')
@@ -278,6 +327,15 @@ const sidecarRoutes: DeepchatRouteMap = createRouteMap([
   [
     toolchainsGetStatusRoute.name,
     async () => toolchainsGetStatusRoute.output.parse(toolchainService.getStatus())
+  ],
+  [
+    projectGetSnapshotRoute.name,
+    async () => {
+      if (!projectService) {
+        throw new Error('Database is not available in this sidecar session')
+      }
+      return projectGetSnapshotRoute.output.parse(await projectService.getSnapshot(20))
+    }
   ],
   [
     mcpGetServerAuthStatusRoute.name,

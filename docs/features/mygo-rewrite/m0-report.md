@@ -190,7 +190,7 @@ sidecar 每行 {"event": name, "payload": ...}
 
 `src/main/sidecar/entry.ts` 由 `vite.sidecar.config.ts` 打成 `out/sidecar/entry.mjs`，**产物里没有 Electron**。
 
-当前注册 **32 条路由**。`DEEPCHAT_ROUTE_LOG` 实测冷启动：120 次调用里 **110 次由 sidecar 真实路由服务，9 次落入空实现**，另有 1 次（`notification.rendererReady`）根本不进 sidecar，由壳直接回答。明细见 `boot-route-inventory.md`。其中 5 条直接复用官方路由工厂 `createOnboardingRoutes(settings)`，会话列表走真实的 `AppSessionService`：
+当前注册 **33 条路由**。`DEEPCHAT_ROUTE_LOG` 实测冷启动：120 次调用里 **111 次由 sidecar 真实路由服务，8 次落入空实现**，另有 1 次（`notification.rendererReady`）根本不进 sidecar，由壳直接回答。明细见 `boot-route-inventory.md`。其中 5 条直接复用官方路由工厂 `createOnboardingRoutes(settings)`，会话列表走真实的 `AppSessionService`：
 
 | 路由 | 数据来源 |
 | --- | --- |
@@ -209,6 +209,7 @@ sidecar 每行 {"event": name, "payload": ...}
 | `sessions.getAgents` | 真实 `AgentRepository` + `AcpCatalogSettings`，经 `listAvailableAgents` 过滤 |
 | `toolchains.getStatus` | 真实 `ToolchainService`，实测评测到系统 node v24.21.0 |
 | `mcp.getServerAuthStatus` | 真实 `McpOAuthManager` + 凭据存储，读磁盘状态，不需要活连接 |
+| `project.getSnapshot` | 真实 `ProjectService`；设备端口里只有目录选择器不可用，调用时明确报错 |
 | `settings.*`（9 条） | 直接复用 `createAppSettingsRoutes`，装配 `DesktopSettings`/`FontSettings`/`LoggingService`/`OcrSettings`/`DeepChatDefaults`/`CommandShellService` 与真实的设置活动表 |
 
 用真实工厂而不是重写，是这一版的设计要点：路由的解析、默认值与状态机都来自原实现，sidecar 只提供运行时。
