@@ -68,6 +68,14 @@ SPIKE_ROUTE_LOG=/tmp/route-log.jsonl go run . -seconds 14 -renderer ../../out/re
 | 冷启动调用总数 | 119 次进入 sidecar |
 | 被真实路由服务 | **111 次（93.3%）** |
 | 落到空实现 | 8 次 |
+
+### 一次被回退的尝试
+
+`remoteControl.listChannels` 本身只是静态目录，接上很容易。但接上之后渲染层会开始为 5 个渠道轮询 `remoteControl.getChannelStatus`，而那个必须知道运行时连接状态，sidecar 答不了。
+
+结果：未服务调用从 8 次涨到 12 次，用户还会看到更多报错。**单条路由「能实现」和「该实现」是两件事**——这条被回退，等远程控制运行时整体迁移时一起做。
+
+（`REMOTE_CHANNEL_CATALOG` 抽到 `remote/catalog.ts` 的改动保留，它是纯重构，让后续迁移不必加载渠道运行时。）
 | 由壳直接回答 | 1 次（`notification.rendererReady`） |
 
 未服务的调用（共 8 条路由）：

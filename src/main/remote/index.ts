@@ -79,8 +79,8 @@ import {
   startFeishuPersonalAgentRegistration
 } from './channels/feishu/feishuAuth'
 import { WeixinIlinkClient } from './channels/weixinIlink/weixinIlinkClient'
+import { listRemoteChannelDescriptors } from './catalog'
 import {
-  REMOTE_DELIVERY_CHANNELS,
   RemoteDelivery,
   type RemoteDeliveryInput
 } from './delivery/service'
@@ -91,34 +91,6 @@ const REMOTE_DELIVERY_ERROR_NOTIFY_INTERVAL_MS = 60 * 1000
 const FEISHU_AUTH_SESSION_TTL_MS = 5 * 60 * 1000
 const FEISHU_AUTH_DEFAULT_WAIT_TIMEOUT_MS = 5 * 60 * 1000
 const FEISHU_INSTALL_DEFAULT_WAIT_TIMEOUT_MS = 5 * 60 * 1000
-const REMOTE_CHANNEL_CATALOG = [
-  {
-    id: 'telegram',
-    titleKey: 'settings.remote.telegram.title',
-    descriptionKey: 'settings.remote.telegram.description'
-  },
-  {
-    id: 'feishu',
-    titleKey: 'settings.remote.feishu.title',
-    descriptionKey: 'settings.remote.feishu.description'
-  },
-  {
-    id: 'qqbot',
-    titleKey: 'settings.remote.qqbot.title',
-    descriptionKey: 'settings.remote.qqbot.description'
-  },
-  {
-    id: 'discord',
-    titleKey: 'settings.remote.discord.title',
-    descriptionKey: 'settings.remote.discord.description'
-  },
-  {
-    id: 'weixin-ilink',
-    titleKey: 'settings.remote.weixinIlink.title',
-    descriptionKey: 'settings.remote.weixinIlink.description'
-  }
-] satisfies readonly Omit<RemoteChannelDescriptor, 'supportsCronDelivery'>[]
-
 type FeishuAuthSessionState = {
   sessionKey: string
   state: string
@@ -327,10 +299,7 @@ export class RemoteService {
   }
 
   async listRemoteChannels(): Promise<RemoteChannelDescriptor[]> {
-    return REMOTE_CHANNEL_CATALOG.map((channel) => ({
-      ...channel,
-      supportsCronDelivery: REMOTE_DELIVERY_CHANNELS.includes(channel.id)
-    }))
+    return listRemoteChannelDescriptors()
   }
 
   async getChannelSettings<T extends RemoteChannel>(channel: T): Promise<ChannelSettingsMap[T]> {
