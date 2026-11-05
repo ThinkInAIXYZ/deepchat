@@ -341,8 +341,8 @@ importers:
         specifier: ^0.18.7
         version: 0.18.7
       markstream-vue:
-        specifier: 2.0.11
-        version: 2.0.11(@antv/infographic@0.2.20)(katex@0.18.7)(mermaid@11.17.2)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue-i18n@11.4.17(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
+        specifier: 2.0.24
+        version: 2.0.24(@antv/infographic@0.2.20)(katex@0.18.7)(mermaid@11.17.2)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue-i18n@11.4.17(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2))
       mermaid:
         specifier: ^11.17.2
         version: 11.17.2
@@ -862,8 +862,8 @@ packages:
   '@braintree/sanitize-url@7.1.2':
     resolution: {integrity: sha512-jigsZK+sMF/cuiB7sERuo9V7N9jx+dhmHHnQyDSVdpZwVutaBu7WvNYqMDLSgFgfB30n452TP3vjDAvFC973mA==}
 
-  '@chenglou/pretext@0.0.8':
-    resolution: {integrity: sha512-yqm2GMxnPI7VHcHwe84P8ZF0JK/2d2DMKPqMN+s95jQhwDMYYXKVFVJUMEaVWckQStdsjdLav/0Vu+d9YbtGxA==}
+  '@chenglou/pretext@0.0.9':
+    resolution: {integrity: sha512-vInlpC//3vjRfWTs78k2BBIq/0bUdpjIp8TIn9fXe0NvnChhTQZfjioVzERQQbkQvCVpPpw7PDOrTWMHpq27VA==}
 
   '@chevrotain/types@11.1.2':
     resolution: {integrity: sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw==}
@@ -5365,8 +5365,8 @@ packages:
   markdown-it-task-checkbox@1.0.6:
     resolution: {integrity: sha512-7pxkHuvqTOu3iwVGmDPeYjQg+AIS9VQxzyLP9JCg9lBjgPAJXGEkChK6A2iFuj3tS0GV3HG2u5AMNhcQqwxpJw==}
 
-  markdown-it-ts@1.1.2:
-    resolution: {integrity: sha512-17qO3LQLK+JXom5Zt6Z9l7OGWWv9eYquTxdj3xIPGe1OBHdYXrzNYA3xCgCyIj1uItv4jkqbQf6FkaqifKkySw==}
+  markdown-it-ts@1.1.3:
+    resolution: {integrity: sha512-SbESZWanQt/SLspTRPnzi2mKXatM35KHjkIy9QF0w2LZX8Gxu/37n9jiYccolE2OaMf8ikc0BK7LcFSNY/1GHQ==}
     engines: {node: '>=20.19'}
 
   marked@14.0.0:
@@ -5379,11 +5379,11 @@ packages:
     engines: {node: '>= 20'}
     hasBin: true
 
-  markstream-core@2.0.11:
-    resolution: {integrity: sha512-F35jzpU6982HjKPi3bTP8d0TAGXDsQIux1ZlpIU+jQRa/0DCbIC/4AM0UxbOUiHc7bwluaMDMVgQe6uaGTU3PQ==}
+  markstream-core@2.0.24:
+    resolution: {integrity: sha512-RgboNZO9Wm5a+mgE0eHalTCczWTZ5SUtfgIjm4NJImj04p2V5aS4Tv/+I4P8y5KzcoJBDSpwzSKxeTTKfKI6OA==}
 
-  markstream-vue@2.0.11:
-    resolution: {integrity: sha512-p7hWU+SSFlfsYAfUPxo0Fg3YfxF/kRF5XT+TdsmF/2xhBagTKvhtfHdX4bE4ZU7PWL8eoAor/L3qhuhlavBkBg==}
+  markstream-vue@2.0.24:
+    resolution: {integrity: sha512-YxaV5awT4VHG9szXyj9CVYpp5aszsuzJfKWozs5pUQDpdZQbj+N2/HQQcgWjBpJ0zKdwvcW+hKZtW0SnuSw8zw==}
     peerDependencies:
       '@antv/infographic': ^0.2.3
       '@terrastruct/d2': '>=0.1.33'
@@ -6398,8 +6398,8 @@ packages:
       vue:
         optional: true
 
-  stream-markdown-parser@1.2.16:
-    resolution: {integrity: sha512-5MEAPd3zxbwvpr8jimBMaptNOPoALvKwUOAVIzXk/92SmOppEN+ZWTinNeFcS219qFjlt08mDLGHW0MDTIlXNA==}
+  stream-markdown-parser@1.2.25:
+    resolution: {integrity: sha512-ChP47WMbx5E4fx70Q/8qrhsWyC4OdhwWxGiZRcCClRUmt7/farJkqYyVaVGBByFDeSS2uG+6E1bCH/vYZ7g+JA==}
 
   stream-monaco@0.0.49:
     resolution: {integrity: sha512-ksZYJXw45NralnpgWqcptqrgDdbGZaTyYmvATvhlK8eY0tyeTxs0iuQzMTF4cpGf5OlIgkNJOfbFh4M97OozSw==}
@@ -7764,7 +7764,7 @@ snapshots:
 
   '@braintree/sanitize-url@7.1.2': {}
 
-  '@chenglou/pretext@0.0.8': {}
+  '@chenglou/pretext@0.0.9': {}
 
   '@chevrotain/types@11.1.2': {}
 
@@ -12299,7 +12299,7 @@ snapshots:
 
   markdown-it-task-checkbox@1.0.6: {}
 
-  markdown-it-ts@1.1.2:
+  markdown-it-ts@1.1.3:
     dependencies:
       entities: 8.0.0
       linkify-it: 6.1.0
@@ -12310,14 +12310,14 @@ snapshots:
 
   marked@16.4.2: {}
 
-  markstream-core@2.0.11: {}
+  markstream-core@2.0.24: {}
 
-  markstream-vue@2.0.11(@antv/infographic@0.2.20)(katex@0.18.7)(mermaid@11.17.2)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue-i18n@11.4.17(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)):
+  markstream-vue@2.0.24(@antv/infographic@0.2.20)(katex@0.18.7)(mermaid@11.17.2)(stream-diffs@0.0.2(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue-i18n@11.4.17(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)))(vue@3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)):
     dependencies:
-      '@chenglou/pretext': 0.0.8
+      '@chenglou/pretext': 0.0.9
       '@floating-ui/dom': 1.8.0
-      markstream-core: 2.0.11
-      stream-markdown-parser: 1.2.16
+      markstream-core: 2.0.24
+      stream-markdown-parser: 1.2.25
       vue: 3.5.42(typescript-native-bridge@6.0.3-bridge.16.tsgo.7.0.2)
     optionalDependencies:
       '@antv/infographic': 0.2.20
@@ -13434,7 +13434,7 @@ snapshots:
       - react
       - react-dom
 
-  stream-markdown-parser@1.2.16:
+  stream-markdown-parser@1.2.25:
     dependencies:
       markdown-it-container: 4.0.0
       markdown-it-footnote: 4.0.0
@@ -13442,7 +13442,7 @@ snapshots:
       markdown-it-mark: 4.0.0
       markdown-it-sup: 2.0.0
       markdown-it-task-checkbox: 1.0.6
-      markdown-it-ts: 1.1.2
+      markdown-it-ts: 1.1.3
 
   stream-monaco@0.0.49(monaco-editor@0.55.1):
     dependencies:
