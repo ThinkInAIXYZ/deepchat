@@ -10,6 +10,7 @@
  * into one registry. Anything that still needs Electron (windows, tray, IPC, the
  * SQLCipher database) stays out until its service moves here.
  */
+import { appendFileSync } from 'node:fs'
 import os from 'node:os'
 import { createInterface } from 'node:readline'
 import {
@@ -47,6 +48,9 @@ import { createProviderSubsystem } from '@/app/subsystems/provider'
 import { McpSettings } from '@/mcp/settings'
 import { McpDatabase } from '@/mcp/data/database'
 import { SecretStore } from '@/config/secretStore'
+import { McpOAuthManager } from '@/mcp/mcpOAuthManager'
+import { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
+import { mcpGetServerAuthStatusRoute } from '@shared/contracts/routes'
 import { mcpGetEnabledRoute, mcpGetServersRoute } from '@shared/contracts/routes'
 import { ProviderDatabase } from '@/provider/data/database'
 import { toProviderSummary } from '@/provider/summary'
@@ -212,6 +216,17 @@ const toolchainService = ToolchainService.initialize({
   onStateChanged: () => emit('toolchains.changed', { version: Date.now() })
 })
 
+// The OAuth manager only needs the credential store and MCP settings: it reads
+// what is on disk, so the renderer can learn each server's auth state without a
+// live connection.
+const mcpOAuthManager = new McpOAuthManager(
+  new McpOAuthCredentialStore(),
+  (name, payload) => emit(name, payload),
+  undefined,
+  mcpSettings,
+  undefined
+)
+
 const requireSessions = (): AppSessionService => {
   if (!database) {
     throw new Error('Database is not available in this sidecar session')
@@ -263,6 +278,20 @@ const sidecarRoutes: DeepchatRouteMap = createRouteMap([
   [
     toolchainsGetStatusRoute.name,
     async () => toolchainsGetStatusRoute.output.parse(toolchainService.getStatus())
+  ],
+  [
+    mcpGetServerAuthStatusRoute.name,
+    async (rawInput) => {
+      const input = mcpGetServerAuthStatusRoute.input.parse(rawInput)
+      const servers = await mcpSettings.getMcpServers()
+      const match = Object.entries(servers).find(([, config]) => config.serverId === input.serverId)
+      if (!match) {
+        throw new Error('MCP server identity was not found')
+      }
+      return mcpGetServerAuthStatusRoute.output.parse({
+        status: await mcpOAuthManager.getStatus(match[0], match[1])
+      })
+    }
   ],
   [
     mcpGetEnabledRoute.name,
@@ -379,6 +408,18 @@ for (const [name, handler] of createOnboardingRoutes(settings)) {
   registry.set(name, handler)
 }
 
+// Optional route log for measuring coverage against the boot inventory. Off
+// unless the shell asks for it, and never written on the hot path otherwise.
+const routeLogPath = process.env.DEEPCHAT_ROUTE_LOG
+const logRoute = (route: string, served: boolean): void => {
+  if (!routeLogPath) return
+  try {
+    appendFileSync(routeLogPath, `${JSON.stringify({ route, served })}\n`)
+  } catch {
+    // Measurement must never break a request.
+  }
+}
+
 const handleLine = async (line: string): Promise<void> => {
   const trimmed = line.trim()
   if (!trimmed) return
@@ -396,9 +437,11 @@ const handleLine = async (line: string): Promise<void> => {
 
   const handler = registry.get(route as never)
   if (!handler) {
+    logRoute(route, false)
     write({ id: request.id, result: {} })
     return
   }
+  logRoute(route, true)
 
   try {
     write({ id: request.id, result: await handler(request.input, context) })

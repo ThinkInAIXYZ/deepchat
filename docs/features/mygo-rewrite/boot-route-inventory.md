@@ -58,3 +58,31 @@ SPIKE_ROUTE_LOG=/tmp/route-log.jsonl go run . -seconds 14 -renderer ../../out/re
 
 1. 让真实 main 进程跑在 sidecar 里，用同一份清单做回归：路由名与入参形状必须一致。
 2. MCP 相关路由默认异步越过后再补齐，避免启动阻塞。
+
+## 用真实 sidecar 重放：覆盖率
+
+`DEEPCHAT_ROUTE_LOG=<path>` 会让 sidecar 记录每次调用是否被真实路由服务。用当前实现重放冷启动：
+
+| 指标 | 数值 |
+| --- | --- |
+| 冷启动调用总数 | 120 次 |
+| 被真实路由服务 | **110 次（92%）** |
+| 落到空实现 | 10 次 |
+
+未服务的调用（共 8 条路由）：
+
+| 次数 | 路由 | 原因 |
+| --- | --- | --- |
+| 2 | `mcp.listToolDefinitions` | 需要 MCP 活连接 |
+| 2 | `mcp.getClients` | 同上 |
+| 1 | `mcp.listPrompts` | 同上 |
+| 1 | `mcp.listResources` | 同上 |
+| 1 | `project.getSnapshot` | 需要 `ProjectService` 与工作区状态 |
+| 1 | `acp.elicitation.list` | 需要 ACP 运行时 |
+| 1 | `remoteControl.listChannels` | 需要远程控制运行时 |
+| 1 | `notification.rendererReady` | 属于窗口/壳的职责 |
+
+对照上一轮（22 条路由时）是 72/124 次，接入 `settings.*` 与 `mcp.getServerAuthStatus` 后提升到 110/120。
+
+其中 `mcp.getServerAuthStatus` 单条就占了 42 次调用——MCP 指示器会对每个服务器轮询一次，这也是为什么它值得优先实现：只依赖 `McpOAuthManager` 与设置，不需要活连接。
+

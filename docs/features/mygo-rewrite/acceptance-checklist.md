@@ -76,7 +76,7 @@
 - 读改落盘全部正确，非法键被 zod 拒绝
 - 入口：`src/main/sidecar/entry.ts`；构建配置：`vite.sidecar.config.ts`
 - 原生模块与 SQLCipher 已在纯 Node 下实测可用，数据库方案见 `database-decision.md`
-- 已接 31 条路由：config 读写、语言、主题、自定义提示词、设备信息、更新占位、窗口身份与状态、复用的 5 条 onboarding、走真实 `AppSessionService` 的会话列表、走真实 `ProviderSettings` 的 provider 摘要、走真实 `McpSettings` 的 MCP 开关与服务配置、复用的 9 条 `settings.*`
+- 已接 32 条路由，冷启动覆盖率 110/120 次调用（92%）：config 读写、语言、主题、自定义提示词、设备信息、更新占位、窗口身份与状态、复用的 5 条 onboarding、走真实 `AppSessionService` 的会话列表、走真实 `ProviderSettings` 的 provider 摘要、走真实 `McpSettings` 的 MCP 开关与服务配置、复用的 9 条 `settings.*`
 - 与 Go 壳联调：真实设置文件驱动真实渲染层，界面变为日语 + 深色（`evidence/renderer-real-sidecar.png`）
 
 ## 四之三、原生模块可用性（已验证）
@@ -132,7 +132,7 @@ renderer（未改动的 DeepChat 前端）
 ## 七、下一步（按依赖排序）
 
 1. ~~事件通道~~：已完成，见第五节。
-2. **真实 sidecar**：31 条路由 + 真实加密数据库（含迁移）已在 sidecar 里跑通。冷启动清单里还剩 4 条未接（`mcp.listPrompts`、`mcp.listToolDefinitions`、`mcp.getClients`、`mcp.listResources`、`startup.getBootstrap`），它们需要 MCP 活连接与启动编排，依赖 composition 拆解（见 `composition-decomposition.md`）。
+2. **真实 sidecar**：31 条路由 + 真实加密数据库（含迁移）已在 sidecar 里跑通。冷启动清单里只剩 8 条路由共 10 次调用未服务（`mcp.listPrompts`、`mcp.listToolDefinitions`、`mcp.getClients`、`mcp.listResources`、`startup.getBootstrap`），它们需要 MCP 活连接与启动编排，依赖 composition 拆解（见 `composition-decomposition.md`）。
 3. **Go 壳路由分流**：window、app、tray、menu、shortcut 由 Go 直接服务，其余转 sidecar。
 4. **口令迁移**：`safeStorage` → `mygo.Secrets` 的迁移脚本与首次启动流程。
 5. **打包与更新**：三平台产物、签名、公证，以及 Electron 用户向 mygo 版的升级路径。
