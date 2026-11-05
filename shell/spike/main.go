@@ -180,6 +180,25 @@ func (b *Bridge) shellRoute(route string) (string, bool, error) {
 	case "window.closeCurrent":
 		win.Close()
 		return `{"closed":true}`, true, nil
+	case "device.selectDirectory", "device.selectFiles":
+		// Native file dialogs belong to the shell: the sidecar has no window to
+		// attach a sheet to. The answer is the contract's plain shape.
+		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+			Title:     "Select",
+			Directory: route == "device.selectDirectory",
+			Parent:    win,
+		})
+		if err != nil {
+			return "", true, err
+		}
+		quoted, err := json.Marshal(paths)
+		if err != nil {
+			return "", true, err
+		}
+		if paths == nil {
+			quoted = []byte("[]")
+		}
+		return fmt.Sprintf(`{"canceled":%t,"filePaths":%s}`, len(paths) == 0, quoted), true, nil
 	default:
 		return "", false, nil
 	}
@@ -234,6 +253,7 @@ func main() {
 	dumpPreload := flag.String("dump-preload", "", "write the composed preload script to this path")
 	trayIcon := flag.String("tray-icon", "../../build/icon.png", "PNG shown in the menu bar")
 	shortcutKey := flag.String("shortcut", "CmdOrCtrl+Shift+D", "global shortcut that toggles the window")
+	notify := flag.Bool("notify", false, "show a system notification once the window is ready")
 	bridgeScript := flag.String(
 		"bridge",
 		"../../out/preload/bridge.js",
@@ -340,6 +360,19 @@ func main() {
 				tray.OnClick(func() { win.Show(); win.Focus() })
 				report("tray.created", true)
 				report("tray.menuItems", len(trayMenu.Items()))
+			}
+		}
+
+		if *notify {
+			notification := mygo.NewNotification(mygo.NotificationOptions{
+				ID:    "deepchat-spike-ready",
+				Title: "DeepChat",
+				Body:  "mygo spike ready",
+			})
+			if err := notification.Show(); err != nil {
+				report("notification.error", err.Error())
+			} else {
+				report("notification.shown", true)
 			}
 		}
 

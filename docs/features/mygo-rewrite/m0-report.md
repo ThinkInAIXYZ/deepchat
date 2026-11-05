@@ -298,7 +298,17 @@ SPIKE shortcut.registered=CmdOrCtrl+Shift+D
 
 两者都需要应用 ready 之后调用，属于壳的职责，不需要 sidecar 参与。加上前几轮的窗口控制，壳侧已经覆盖：窗口生命周期、托盘、菜单、全局快捷键。
 
-仍未验证：系统通知（`NewNotification`）、文件对话框、Dock 菜单、开机自启的实际注册。这些都在 mygo 里有对应 API，属于接线工作。
+系统通知与文件对话框也已处理：
+
+| 能力 | 结果 |
+| --- | --- |
+| 系统通知 | **打包后可用**：`.app` 里 `notification.shown=true`；`go run` 下报 `not supported on this platform` |
+| 文件对话框 | `device.selectDirectory` / `device.selectFiles` 已由壳实现（`mygo.Dialog.Open`），需要人工点击验证 |
+| Dock 菜单、开机自启 | 未验证 |
+
+通知那条差异是重要发现：macOS 的 `UNUserNotificationCenter` 要求应用有 bundle identifier，只有 `mygo build` 出来的 `.app` 才满足，`go run` 不满足。**因此凡是依赖通知的验收都必须在打包产物上做。**
+
+另外首次展示通知时系统会弹权限确认框，这会阻塞自动化脚本——第一次跑要么人工点掉，要么先授予权限。
 
 ## 下一步
 
