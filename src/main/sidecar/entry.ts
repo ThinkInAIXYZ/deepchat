@@ -35,7 +35,7 @@ import { AppSessionService } from '@/agent/shared/appSessionService'
 import { ProjectDatabase } from '@/project/data/database'
 import { createOnboardingRoutes } from '@/onboarding/routes'
 import { createSettingsSubsystem } from '@/app/subsystems/settings'
-import { ProviderSettings } from '@/provider/settings'
+import { createProviderSubsystem } from '@/app/subsystems/provider'
 import { McpSettings } from '@/mcp/settings'
 import { McpDatabase } from '@/mcp/data/database'
 import { SecretStore } from '@/config/secretStore'
@@ -152,16 +152,16 @@ const database = dbPath
 // the Electron main process uses. The privacy port is the only collaborator that
 // needs a value, and it comes from the settings store in both runtimes.
 const providerSettings = database
-  ? new ProviderSettings(
-      settings,
-      {
+  ? createProviderSubsystem({
+      store: settings,
+      privacy: {
         isEnabled: () => settings.get<boolean>('privacyModeEnabled') === true,
         setEnabled: () => {}
       },
-      new ProviderDatabase(database),
-      () => {},
-      settings.get<string>('appVersion') ?? undefined
-    )
+      database: new ProviderDatabase(database),
+      publish: (name, payload) => emit(name, payload),
+      previousAppVersion: settings.get<string>('appVersion') ?? undefined
+    }).providerSettings
   : null
 
 // MCP settings are store-backed with a database mirror, exactly as in the main

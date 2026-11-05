@@ -55,7 +55,7 @@ export function createSettingsSubsystem(deps: { store: SettingsStore; publish: D
 | 步骤 | 工厂 | 主要依赖 | 解锁的 sidecar 路由 |
 | --- | --- | --- | --- |
 | 1 | `createSettingsSubsystem` ✅ | store、publish | `settings.getSnapshot` |
-| 2 | `createProviderSubsystem` | settings、providerDatabase、publish | `providers.*` 其余条目 |
+| 2 | `createProviderSubsystem` ✅ | settings、providerDatabase、publish | `providers.*` 其余条目 |
 | 3 | `createAgentSubsystem` | settings、agentDatabase、provider、publish | `sessions.getAgents`、`agents.*` |
 | 4 | `createMcpSubsystem` | settings、mcpDatabase、pluginRuntime、publish | `mcp.listPrompts`、`mcp.getClients`、`mcp.listToolDefinitions`、`mcp.listResources` |
 | 5 | `createSessionSubsystem` | 上述全部 | `startup.getBootstrap`、会话相关剩余 |
@@ -85,6 +85,8 @@ export function createSettingsSubsystem(deps: { store: SettingsStore; publish: D
 顺带修掉一个真 bug：之前 `config.setTheme` 只写设置、不通知 theme host，导致返回 `{theme:'dark', isDark:false}` 自相矛盾。现在两条路径统一。
 
 验证：`config.setTheme dark` → `{theme:'dark',isDark:true}`；壳通过 `DEEPCHAT_SYSTEM_THEME_DARK=1` 注入系统外观时，`theme:'system'` 也能得到 `isDark:true`。
+
+第 2 步（`createProviderSubsystem`）同样已完成：`composition.ts` 与 sidecar 共用同一工厂，sidecar 的 `providers.listSummaries` 仍返回完整 provider 目录。
 
 ## 5. 验证方式
 

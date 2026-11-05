@@ -167,6 +167,7 @@ import {
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import { createSessionData } from '@/session/data'
 import { createSettingsSubsystem } from './subsystems/settings'
+import { createProviderSubsystem } from './subsystems/provider'
 import { MemoryDatabase } from '@/memory/data/database'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { resolveAssistantModelSelection } from '@/agent/shared/assistantModelSelection'
@@ -776,13 +777,13 @@ export async function createMainProcessControl(dependencies: {
   const unsubscribeStartupWorkload = startupWorkloadCoordinator.subscribe((payload) => {
     publishDeepchatEvent('startup.workload.changed', payload)
   })
-  providerSettings = new ProviderSettings(
-    dependencies.settingsStore,
-    dependencies.privacySettings,
-    dependencies.providerDatabase,
-    publishDeepchatEvent,
-    dependencies.previousAppVersion
-  )
+  providerSettings = createProviderSubsystem({
+    store: dependencies.settingsStore,
+    privacy: dependencies.privacySettings,
+    database: dependencies.providerDatabase,
+    publish: publishDeepchatEvent,
+    previousAppVersion: dependencies.previousAppVersion
+  }).providerSettings
 
   const memoryDatabase = new MemoryDatabase(mainDatabase)
   const sessionData = createSessionData(
