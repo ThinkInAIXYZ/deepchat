@@ -330,6 +330,25 @@ describe('McpSettings', () => {
     expect(servers['deed-page'].customHeaders).toBeUndefined()
   })
 
+  it('adds the disabled Sofya search MCP server with a key placeholder for existing users', async () => {
+    const { McpSettings } = await loadHelper('darwin')
+    const helper = new McpSettings()
+    const mcpStore = (helper as any).mcpStore
+
+    mcpStore.set('mcpServers', {})
+
+    const servers = await helper.getMcpServers()
+
+    expect(servers['sofya-search']).toMatchObject({
+      type: 'http',
+      baseUrl: 'https://mcp.sofya.co/mcp',
+      customHeaders: {
+        Authorization: 'Bearer YOUR_SOFYA_API_KEY'
+      },
+      enabled: false
+    })
+  })
+
   it('does not recreate the Apple built-in server after the user removed it', async () => {
     const { McpSettings } = await loadHelper('darwin')
     const helper = new McpSettings()
