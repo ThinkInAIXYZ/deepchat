@@ -59,7 +59,7 @@ export function createSettingsSubsystem(deps: { store: SettingsStore; publish: D
 | 3 | `createAgentSubsystem` ⚠️ 只做了只读部分 | settings、agentDatabase、provider、publish | `sessions.getAgents`、`agents.*` |
 | 4 | `createMcpSubsystem` | settings、mcpDatabase、pluginRuntime、publish | `mcp.listPrompts`、`mcp.getClients`、`mcp.listToolDefinitions`、`mcp.listResources` |
 | 5 | `createSessionSubsystem` | 上述全部 | `startup.getBootstrap`、会话相关剩余 |
-| 6 | `createToolchainSubsystem` | settings、filesystem | `toolchains.getStatus` |
+| 6 | `createToolchainSubsystem` ✅ 不需要拆分 | settings、filesystem | `toolchains.getStatus` |
 
 每个工厂完成后：
 
@@ -91,6 +91,14 @@ export function createSettingsSubsystem(deps: { store: SettingsStore; publish: D
 第 3 步的结论与预期不同，值得记下来：`AgentSettings` 的 12 个依赖里有 `providerRuntime`、`memoryService`、`skillService`、`agentLifecycle`，整体工厂化的前提是这些子系统先搬出 composition，属于「做不了」而不是「难做」。
 
 因此 sidecar 的 `sessions.getAgents` 采用只读替代：直接用 `AgentRepository` 与 `AcpCatalogSettings`，也就是 `AgentSettings.listAgents()` 与 `getAcpEnabled()` 内部委托的同一对对象，再交给现成的 `listAvailableAgents` 过滤。代价是这层委托关系有第二处写法，收益是不必为两个只读方法引入十个协作者。等 `providerRuntime`、`memoryService` 搬出来之后，应改回 `createAgentSubsystem`。
+
+第 6 步意外地简单：`ToolchainService` 本身就是纯 Node 类（静态单例 + 探测 PATH），没有任何 Electron 依赖，sidecar 直接 `ToolchainService.initialize(...)` 即可，不需要工厂。实测 `toolchains.getStatus` 返回了真实的系统 node v24.21.0 路径与版本。
+
+截至此步，sidecar 共 22 条路由。剩下的 7 条（`mcp.listPrompts`、`mcp.getClients`、`mcp.listToolDefinitions`、`mcp.listResources`、`settings.getSnapshot`、`startup.getBootstrap`、`sessions.get*` 其余）都卡在 `McpService` 与 `AgentSettings` 的多协作者上，那两个类又分别依赖 provider runtime、plugin supervisor、memory service、skill service。顺序判断需要修正：
+
+1. 先搬 `providerRuntime`（它依赖 provider、desktop settings、事件，相对独立）
+2. 再搬 `memoryService` 与 `skillService`
+3. 然后 `AgentSettings` 与 `McpService` 才可能整体工厂化
 
 ## 5. 验证方式
 

@@ -37,6 +37,9 @@ import { AgentDatabase } from '@/agent/data/database'
 import { MemoryDatabase } from '@/memory/data/database'
 import { AcpCatalogSettings } from '@/agent/acp/catalog/settings'
 import { listAvailableAgents } from '@/agent/shared/availableAgentCatalog'
+import { ToolchainService } from '@/toolchains/service'
+import { mergeDetectionEnv } from '@/toolchains/detectionEnv'
+import { toolchainsGetStatusRoute } from '@shared/contracts/routes'
 import { ProjectDatabase } from '@/project/data/database'
 import { createOnboardingRoutes } from '@/onboarding/routes'
 import { createSettingsSubsystem } from '@/app/subsystems/settings'
@@ -200,6 +203,19 @@ const agentCatalog = database
     })()
   : null
 
+// The toolchain service is plain Node: it probes executables on PATH and manages
+// downloads under the user-data directory. The shell owns nothing here, so the
+// sidecar initializes and serves it directly.
+const toolchainService = ToolchainService.initialize({
+  appPath: appHost.getAppPath(),
+  userDataDir: appHost.getPath('userData'),
+  env: mergeDetectionEnv(process.env, appHost.getPath('home'), process.platform),
+  allowProbe: () => settings.get<boolean>('privacyModeEnabled') !== true,
+  onProgress: (progress) => emit('toolchains.progress', { ...progress, version: Date.now() }),
+  onMissing: (missing) => emit('toolchains.missing', { missing, version: Date.now() }),
+  onStateChanged: () => emit('toolchains.changed', { version: Date.now() })
+})
+
 const requireSessions = (): AppSessionService => {
   if (!database) {
     throw new Error('Database is not available in this sidecar session')
@@ -271,6 +287,10 @@ const sidecarRoutes: DeepchatRouteMap = createRouteMap([
       upgradeGetStatusRoute.output.parse({
         snapshot: { status: null, progress: null, error: null, updateInfo: null }
       })
+  ],
+  [
+    toolchainsGetStatusRoute.name,
+    async () => toolchainsGetStatusRoute.output.parse(toolchainService.getStatus())
   ],
   [
     mcpGetEnabledRoute.name,
