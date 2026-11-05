@@ -104,6 +104,7 @@ renderer（未改动的 DeepChat 前端）
 - 冷启动共 53 次调用、29 条路由，清单见 `boot-route-inventory.md`
 - 界面语言、主题、provider 目录、onboarding 状态均由 sidecar 返回并生效，截图 `evidence/renderer-real-sidecar.png`、`evidence/renderer-with-providers.png`
 - 事件通道已接通：sidecar 事件 → Go `Broadcast` → preload 分发 → `window.deepchat.on`
+- preload 用的是应用自己的 `createBridge`（`out/preload/bridge.js`），契约校验与 Electron 下完全一致；非法枚举值与未知路由都会被拦下
 - 用真实事件验证：推送 `config.theme.changed` 后渲染层切换为深色（`evidence/renderer-dark-via-event.png`）
 
 ## 六、代码质量门禁（当前状态）

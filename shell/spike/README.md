@@ -30,3 +30,15 @@ go run . -seconds 12 -renderer ../../out/renderer -shot /tmp/renderer.png
 - `frontend/mygo.gen.ts` 是生成物，不提交。
 - `main.go` 里的 `deepchatBridgeStub` 是 `window.deepchat` / `window.api` 的最小桩，只保证渲染层能启动；
   真实实现应当把这些调用转给 Node sidecar。
+
+## 构建顺序
+
+`-sidecar` 模式需要先构建两样东西：
+
+```bash
+pnpm run sidecar:build   # out/sidecar/entry.mjs
+pnpm run preload:build   # out/preload/bridge.js（应用自己的 createBridge）
+```
+
+`-bridge` 可指向别的路径；找不到时会退回到内置替身并在输出里打印 `bridge.missing`。
+`-dump-preload <path>` 可以把最终注入的 preload 写出来，配合 `node --check` 排查语法问题。

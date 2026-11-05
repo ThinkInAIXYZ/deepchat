@@ -231,6 +231,12 @@ func main() {
 	sidecarScript := flag.String("sidecar", "", "spawn this Node script as the invoke target")
 	probeScript := flag.String("probe", "", "JavaScript to evaluate in the page after it loads, printing the result")
 	shotPath := flag.String("shot", "", "write a PNG screenshot of the page to this path")
+	dumpPreload := flag.String("dump-preload", "", "write the composed preload script to this path")
+	bridgeScript := flag.String(
+		"bridge",
+		"../../out/preload/bridge.js",
+		"bundled createBridge IIFE injected into the sidecar preload",
+	)
 	flag.Parse()
 
 	findings := map[string]any{}
@@ -274,7 +280,23 @@ func main() {
 		report("startup.readyMs", time.Since(processStarted).Milliseconds())
 		preload := deepchatBridgeStub
 		if *sidecarScript != "" {
-			preload = deepchatBridgeSidecar
+			bridge, err := os.ReadFile(*bridgeScript)
+			if err != nil {
+				report("bridge.missing", err.Error())
+				preload = deepchatBridgeSidecar // renders with the stub, so the window still opens
+			} else {
+				// Not Sprintf: the bundle contains percent signs that would be read as verbs.
+				preload = strings.Replace(
+					deepchatBridgeSidecar,
+					"/*__DEEPCHAT_BRIDGE__*/",
+					string(bridge),
+					1,
+				)
+				report("bridge.injected", len(bridge))
+				if *dumpPreload != "" {
+					_ = os.WriteFile(*dumpPreload, []byte(preload), 0o644)
+				}
+			}
 		}
 		win := mygo.NewWindow(mygo.WindowOptions{
 			Title:  "DeepChat mygo spike",

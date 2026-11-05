@@ -154,30 +154,49 @@ func (s *sidecarProcess) call(route string, inputJSON string) (string, error) {
 
 // deepchatBridgeSidecar is the preload used when a sidecar is present: every
 // renderer route goes through mygo's binding to the Node process.
+//
+// The bridge itself is the app's own `createBridge`, bundled to IIFE by
+// `pnpm run preload:build` and injected at the marker, so the renderer keeps the same
+// contract validation it has under Electron.
 const deepchatBridgeSidecar = `
 (() => {
-  const listeners = new Map()
-  const invoke = async (route, input) => {
-    const raw = await window.mygo.call('Bridge.Invoke', route, JSON.stringify(input ?? {}))
-    return JSON.parse(raw)
-  }
+  const listeners = new Set()
   window.mygo.on('deepchat.event', (envelope) => {
-    const handler = listeners.get(envelope?.name)
-    if (handler) handler(envelope.payload)
+    for (const listener of listeners) listener({}, envelope)
   })
-  window.deepchat = {
-    invoke,
-    on: (name, fn) => {
-      listeners.set(name, fn)
-      return () => listeners.delete(name)
+
+  const ipcRenderer = {
+    invoke: async (channel, ...args) => {
+      if (channel !== 'deepchat:route:invoke') {
+        throw new Error('Unsupported channel: ' + channel)
+      }
+      const [route, input] = args
+      const raw = await window.mygo.call('Bridge.Invoke', route, JSON.stringify(input ?? {}))
+      return JSON.parse(raw)
+    },
+    on: (channel, listener) => {
+      if (channel === 'deepchat:event') listeners.add(listener)
+    },
+    removeListener: (channel, listener) => {
+      if (channel === 'deepchat:event') listeners.delete(listener)
     }
   }
+
+  window.__step = 'start'
+  try {
+    /*__DEEPCHAT_BRIDGE__*/
+    window.__step = 'bundled'
+    window.deepchat = DeepchatBridge.createBridge(ipcRenderer)
+    window.__step = 'created'
+  } catch (error) {
+    // Surface the failure instead of leaving the page without a bridge.
+    window.__deepchatPreloadError = String((error && error.stack) || error)
+    window.deepchat = undefined
+  }
+  if (!window.deepchat) return
   window.api = {
-    invoke,
-    on: (name, fn) => {
-      listeners.set(name, fn)
-      return () => listeners.delete(name)
-    },
+    invoke: (route, input) => window.deepchat.invoke(route, input),
+    on: (name, fn) => window.deepchat.on(name, fn),
     removeListener: () => {},
     openExternal: async (url) => {
       await window.mygo.call('Bridge.OpenExternal', url)
@@ -186,8 +205,9 @@ const deepchatBridgeSidecar = `
     copyImage: (dataUrl) => window.mygo.call('Bridge.CopyImage', dataUrl),
     readClipboardText: async () => '',
     getPathForFile: () => '',
-    getPlatform: () => window.mygo.platform,
-    getArch: () => 'arm64'
+    getPlatform: () => 'darwin',
+    getArch: () => 'arm64',
+    toRelativePath: (filePath) => filePath
   }
 })()
 `

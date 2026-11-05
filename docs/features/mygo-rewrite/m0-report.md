@@ -256,6 +256,33 @@ sidecar 每行 {"event": name, "payload": ...}
 - **sidecar 负责**：会话、Agent、Provider、MCP、Skill、Memory、Tape、工具执行、数据库
 - **边界**：凡是需要「原生资源」的，壳做；凡是需要「业务数据」的，sidecar 做
 
+## 14. 真实 preload 桥接（已验证）
+
+之前的预加载脚本是手写的几十行替身。现在 Go 壳注入的是**应用自己的 `createBridge`**：`vite.preload.config.ts` 把它打成 IIFE（311 KB），Go 在启动时读入并放进 preload。
+
+```
+renderer 调 window.deepchat.invoke('config.getTheme')
+  -> createBridge 解析输入契约（zod）
+  -> ipcRenderer 适配层（在 mygo 绑定上模拟 invoke/on/removeListener）
+  -> Bridge.Invoke -> sidecar
+  -> 输出契约校验后返回
+```
+
+实测：
+
+| 调用 | 结果 |
+| --- | --- |
+| `config.getTheme` | `{"theme":"system","isDark":false}`，经过输出契约解析 |
+| `config.setTheme {theme:'purple'}` | 被拒绝（`invalid_value`，枚举校验在渲染进程侧就拦下） |
+| `nope.route` | 被拒绝（未知路由，未发出 IPC） |
+
+意义：渲染层拿到的 `window.deepchat` 与 Electron 下是**同一个实现**，包括输入输出契约校验、事件 payload 校验、`chat.stream.updated` 的快速形状检查。这让「界面与交互不变」从「看起来一样」变成「走同一套契约」。
+
+踩到的两个坑（都值得记住）：
+
+1. `fmt.Sprintf` 不能用来注入 JS——打包产物里有 `%n` 之类的序列，会被当成格式动词，脚本静默解析失败。
+2. 注入失败时页面不会有任何提示，只有 `window.deepchat` 恰好不存在。因此给 preload 加了 `window.__deepchatPreloadError` 与 `window.__step` 两个探针，并把生成的脚本 dump 出来用 `node --check` 验证。
+
 ## 下一步
 
 1. 接入真实桥接：用 `window.api` 的 mygo 实现替换 spike 里的 stub，验证 55 次启动调用能否返回真实数据（对应 M2/M3）。
