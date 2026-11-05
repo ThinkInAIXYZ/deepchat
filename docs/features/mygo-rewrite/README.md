@@ -21,6 +21,7 @@
 8. `boot-route-inventory.md`：渲染层冷启动调用清单（M2 的验收基线）
 9. `database-decision.md`：数据库方案与原生模块实测结论
 10. `composition-decomposition.md`：composition 拆解方案（剩余路由的唯一前提）
+11. `review-notes.md`：给评审者的说明（变化、验证方式、重点看哪里）
 6. 仓库根目录 `AGENTS.md`：项目规则，优先级高于本目录文档中与之冲突的内容
 
 ## 3. 已经确认的产品决策（不要重新讨论）

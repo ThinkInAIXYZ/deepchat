@@ -45,7 +45,7 @@
 
 现状（2026-11-05）：8 个接口已抽出，共迁移约 160 处调用。
 
-边界外仍直接 import electron 的文件从 89 降到 **37**；`electron-store` 也只剩平台实现内部使用。
+边界外仍直接 import electron 的文件从 89 降到 **36**；`electron-store` 也只剩平台实现内部使用。
 
 ### 业务层几乎已经与 Electron 解耦
 

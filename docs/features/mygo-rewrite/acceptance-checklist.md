@@ -76,7 +76,7 @@
 - 读改落盘全部正确，非法键被 zod 拒绝
 - 入口：`src/main/sidecar/entry.ts`；构建配置：`vite.sidecar.config.ts`
 - 原生模块与 SQLCipher 已在纯 Node 下实测可用，数据库方案见 `database-decision.md`
-- sidecar 已接 32 条路由；壳另有 6 条（窗口控制与渲染就绪）。冷启动 119 次进入 sidecar 的调用中 110 次被真实服务（92%）：config 读写、语言、主题、自定义提示词、设备信息、更新占位、窗口身份与状态、复用的 5 条 onboarding、走真实 `AppSessionService` 的会话列表、走真实 `ProviderSettings` 的 provider 摘要、走真实 `McpSettings` 的 MCP 开关与服务配置、复用的 9 条 `settings.*`
+- sidecar 已接 32 条路由；壳另有 8 条（5 条窗口控制、1 条渲染就绪、2 条文件对话框）。冷启动 119 次进入 sidecar 的调用中 110 次被真实服务（92%）：config 读写、语言、主题、自定义提示词、设备信息、更新占位、窗口身份与状态、复用的 5 条 onboarding、走真实 `AppSessionService` 的会话列表、走真实 `ProviderSettings` 的 provider 摘要、走真实 `McpSettings` 的 MCP 开关与服务配置、复用的 9 条 `settings.*`
 - 与 Go 壳联调：真实设置文件驱动真实渲染层，界面变为日语 + 深色（`evidence/renderer-real-sidecar.png`）
 
 ## 四之三、原生模块可用性（已验证）
@@ -141,6 +141,26 @@ renderer（未改动的 DeepChat 前端）
 ## 七之二、遗留工作的唯一大前提
 
 剩余 8 条 sidecar 路由（`mcp.listPrompts`、`mcp.listToolDefinitions`、`mcp.getClients`、`mcp.listResources`、`settings.getSnapshot`、`startup.getBootstrap`、`toolchains.getStatus`、`sessions.getAgents`）都依赖 `composition.ts` 的多服务装配。拆解方案见 `composition-decomposition.md`，里面给出了 6 个工厂的拆分顺序、依赖约定、已知难点与验证方式。
+
+## 七之三、本分支的规模
+
+相对 `dev`：**334 个文件、+5,334 / −21,972 行、13 个提交**。
+
+| 提交 | 内容 |
+| --- | --- |
+| `fa4cdcca0` | 删除桌面专属功能 + 平台端口 + sidecar 入口 |
+| `4b08e6c98` | 文档与 Go 验证工程 |
+| `59ab83f71` | 设置子系统工厂 |
+| `a70d63ba3` | Provider 子系统工厂 |
+| `43f03d449` | `sessions.getAgents` |
+| `9677f7eeb` | `toolchains.getStatus` |
+| `1315c133e` | 真实 preload 桥接 |
+| `0a777d777` | 托盘与全局快捷键 |
+| `d1219f578` | 通知与文件对话框 |
+| `f9ba44002` | 解除 agent/provider 构造循环 |
+| `afa8b65cb` | 全部设置路由 |
+| `4c366d49c` | `mcp.getServerAuthStatus` + 覆盖率日志 |
+| `3d661f044` | 壳回答 `notification.rendererReady` |
 
 ## 八、验收结论
 
