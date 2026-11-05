@@ -383,6 +383,20 @@ const DEFAULT_MCP_SERVERS = {
       disable: false,
       type: 'http' as MCPServerType,
       baseUrl: 'https://deed.page/mcp'
+    },
+    'sofya-search': {
+      command: '',
+      args: [],
+      env: {},
+      descriptions:
+        'Sofya web search MCP: search the web, read pages as markdown, pull specific answers out of a page, and run multi-source research with cited sources. Requires a Sofya API key from https://sofya.co/dashboard. Set the Authorization header to Bearer YOUR_SOFYA_API_KEY. Docs: https://sofya.co/docs.',
+      icons: '🧭',
+      disable: false,
+      type: 'http' as MCPServerType,
+      baseUrl: 'https://mcp.sofya.co/mcp',
+      customHeaders: {
+        Authorization: 'Bearer YOUR_SOFYA_API_KEY'
+      }
     }
   } satisfies Record<string, Omit<MCPServerConfig, 'enabled'>>,
   mcpEnabled: false // MCP functionality is disabled by default
