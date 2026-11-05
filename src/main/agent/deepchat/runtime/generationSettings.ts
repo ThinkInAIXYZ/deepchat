@@ -28,7 +28,7 @@ import {
 import { normalizeImageGenerationOptions } from '@shared/imageGenerationSettings'
 import { normalizeVideoGenerationOptions } from '@shared/videoGenerationSettings'
 import { isDeepSeekSeriesModelId } from '@shared/model'
-import { capAgentDefaultMaxTokens } from './contextBudget'
+import { capAgentRequestMaxTokens } from './contextBudget'
 import type { InterleavedReasoningConfig } from './types'
 import {
   assertProviderModelRuntimeFacts,
@@ -229,7 +229,7 @@ async function buildDefaultGenerationSettings(
     rawProviderMaxTokensDefault && rawProviderMaxTokensDefault > 0
       ? rawProviderMaxTokensDefault
       : Math.min(4096, contextLengthDefault)
-  const maxTokensDefault = capAgentDefaultMaxTokens(providerMaxTokensDefault, contextLengthDefault)
+  const maxTokensDefault = capAgentRequestMaxTokens(providerMaxTokensDefault, contextLengthDefault)
   const timeoutDefault = toValidNonNegativeInteger(modelConfig.timeout) ?? DEFAULT_MODEL_TIMEOUT
   const topPDefault = normalizeTopP(modelConfig.topP)
 

@@ -13,8 +13,7 @@ import {
 } from './contextBuilder'
 import type { ContextRuntimeContributions } from './contextContributions'
 
-export const AGENT_DEFAULT_MAX_OUTPUT_TOKENS_CAP = 16_384
-export const AGENT_REQUEST_MAX_OUTPUT_TOKENS_CAP = 32_768
+export const AGENT_REQUEST_MAX_OUTPUT_TOKENS_CAP = 131_072
 export const AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS = 1
 export const AGENT_CONTEXT_SAFETY_MARGIN_TOKENS = 256
 export const AGENT_CONTEXT_PRESSURE_MIN_OUTPUT_TOKENS = 4_000
@@ -128,13 +127,6 @@ export function capAgentRequestMaxTokens(
   return Math.max(
     AGENT_MIN_EFFECTIVE_OUTPUT_TOKENS,
     Math.min(requested, AGENT_REQUEST_MAX_OUTPUT_TOKENS_CAP, getContextOutputCap(contextLength))
-  )
-}
-
-export function capAgentDefaultMaxTokens(maxTokens: number, contextLength: number): number {
-  return Math.min(
-    capAgentRequestMaxTokens(maxTokens, contextLength),
-    AGENT_DEFAULT_MAX_OUTPUT_TOKENS_CAP
   )
 }
 
