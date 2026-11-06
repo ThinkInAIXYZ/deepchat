@@ -209,7 +209,7 @@ export class WorkspaceService implements WorkspaceServicePort {
         hostKind: 'content',
         purpose: 'workspace-content',
         recursive: true,
-        excludes: this.createContentWatchExcludes(workspacePath),
+        excludes: this.createContentWatchExcludes(),
         fallbackMode: 'snapshot-polling'
       },
       (batch) => this.handleContentWatchBatch(workspacePath, batch),
@@ -261,15 +261,10 @@ export class WorkspaceService implements WorkspaceServicePort {
     }
   }
 
-  private createContentWatchExcludes(workspacePath: string): string[] {
-    const root = workspacePath.split(path.sep).join('/')
-    return [
-      `${root}/.git/**`,
-      ...WATCH_IGNORED_DIRS.flatMap((segment) => [
-        `${root}/${segment}/**`,
-        `${root}/**/${segment}/**`
-      ])
-    ]
+  // @parcel/watcher matches globs against paths relative to the watch root.
+  // `.git/**/*` skips git internals but keeps the `.git` directory event that triggers git refresh.
+  private createContentWatchExcludes(): string[] {
+    return ['**/.git/**/*', ...WATCH_IGNORED_DIRS.map((segment) => `**/${segment}/**`)]
   }
 
   private shouldIgnoreContentWatchPath(watchPath: string): boolean {
