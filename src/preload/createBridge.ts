@@ -1,5 +1,6 @@
 import type { IpcRendererEvent } from 'electron'
 import type { DeepchatBridge } from '@shared/contracts/bridge'
+import { reviveDeepchatJson } from '@shared/deepchatJson'
 import { DEEPCHAT_EVENT_CHANNEL, DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import {
   getDeepchatEventContract,
@@ -23,6 +24,12 @@ type IpcRendererLike = {
     listener: (event: IpcRendererEvent, ...args: unknown[]) => void
   ): void
 }
+
+type BridgeOptions = {
+  jsonTransport?: boolean
+}
+
+const identity = (value: unknown): unknown => value
 
 function isDeepchatEventEnvelope(value: unknown): value is DeepchatEventEnvelope {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -57,11 +64,15 @@ type BridgeEventRuntime = {
   attached: boolean
   dispatch: (event: IpcRendererEvent, envelope: unknown) => void
   listeners: Map<DeepchatEventName, Set<SharedEventListener>>
+  revivePayload: (value: unknown) => unknown
 }
 
 const bridgeEventRuntimes = new WeakMap<IpcRendererLike, BridgeEventRuntime>()
 
-function getBridgeEventRuntime(ipcRenderer: IpcRendererLike): BridgeEventRuntime {
+function getBridgeEventRuntime(
+  ipcRenderer: IpcRendererLike,
+  jsonTransport: boolean
+): BridgeEventRuntime {
   const existingRuntime = bridgeEventRuntimes.get(ipcRenderer)
   if (existingRuntime) {
     return existingRuntime
@@ -70,6 +81,7 @@ function getBridgeEventRuntime(ipcRenderer: IpcRendererLike): BridgeEventRuntime
   const runtime: BridgeEventRuntime = {
     attached: false,
     listeners: new Map(),
+    revivePayload: jsonTransport ? reviveDeepchatJson : identity,
     dispatch: (_event: IpcRendererEvent, envelope: unknown) => {
       if (!isDeepchatEventEnvelope(envelope)) {
         return
@@ -83,14 +95,15 @@ function getBridgeEventRuntime(ipcRenderer: IpcRendererLike): BridgeEventRuntime
       const contract = getDeepchatEventContract(envelope.name)
       let payload: unknown
       try {
+        const revivedPayload = runtime.revivePayload(envelope.payload)
         if (STREAM_VALIDATION_BYPASS_EVENTS.has(envelope.name)) {
-          if (!isPlausibleStreamSnapshot(envelope.payload)) {
+          if (!isPlausibleStreamSnapshot(revivedPayload)) {
             console.error(`[DeepchatBridge] Malformed ${envelope.name} payload: shape check failed`)
             return
           }
-          payload = envelope.payload
+          payload = revivedPayload
         } else {
-          payload = contract.payload.parse(envelope.payload)
+          payload = contract.payload.parse(revivedPayload)
         }
       } catch (error) {
         console.error(`[DeepchatBridge] Invalid event payload for ${envelope.name}:`, error)
@@ -110,7 +123,11 @@ function getBridgeEventRuntime(ipcRenderer: IpcRendererLike): BridgeEventRuntime
   return runtime
 }
 
-export function createBridge(ipcRenderer: IpcRendererLike): DeepchatBridge {
+export function createBridge(
+  ipcRenderer: IpcRendererLike,
+  options: BridgeOptions = {}
+): DeepchatBridge {
+  const revivePayload = options.jsonTransport ? reviveDeepchatJson : identity
   return {
     async invoke<T extends DeepchatRouteName>(
       routeName: T,
@@ -127,14 +144,14 @@ export function createBridge(ipcRenderer: IpcRendererLike): DeepchatBridge {
         routeName,
         normalizedInput
       )
-      return contract.output.parse(output) as DeepchatRouteOutput<T>
+      return contract.output.parse(revivePayload(output)) as DeepchatRouteOutput<T>
     },
 
     on<T extends DeepchatEventName>(
       eventName: T,
       listener: (payload: DeepchatEventEnvelope<T>['payload']) => void
     ) {
-      const runtime = getBridgeEventRuntime(ipcRenderer)
+      const runtime = getBridgeEventRuntime(ipcRenderer, options.jsonTransport === true)
       const listeners = runtime.listeners.get(eventName) ?? new Set<SharedEventListener>()
       listeners.add(listener as SharedEventListener)
       runtime.listeners.set(eventName, listeners)

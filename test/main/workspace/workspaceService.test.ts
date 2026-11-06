@@ -360,7 +360,8 @@ describe('WorkspaceService readFilePreview', () => {
       .mockResolvedValueOnce({
         path: path.join(workspacePath, 'index.html'),
         name: 'index.html',
-        mimeType: 'text/html',
+        // CodeFileAdapter returns text/code even when detection identifies HTML.
+        mimeType: 'text/code',
         content: '<html></html>',
         thumbnail: '',
         metadata: {
@@ -421,6 +422,31 @@ describe('WorkspaceService readFilePreview', () => {
     expect(pdfPreview?.content).toBe('page 1')
     expect(svgPreview?.kind).toBe('svg')
     expect(svgPreview?.previewUrl).toBe(createWorkspacePreviewUrl(workspacePath, svgPath))
+  })
+
+  it('classifies XHTML returned by the code adapter as a document preview', async () => {
+    const xhtmlPath = path.join(workspacePath, 'index.xhtml')
+    const prepareFileCompletely = vi.fn().mockResolvedValue({
+      path: xhtmlPath,
+      name: 'index.xhtml',
+      mimeType: 'text/code',
+      content: '<html></html>',
+      thumbnail: '',
+      metadata: {
+        fileName: 'index.xhtml',
+        fileSize: 13,
+        fileCreated: new Date('2024-01-01T00:00:00Z'),
+        fileModified: new Date('2024-01-02T00:00:00Z')
+      }
+    })
+    const presenter = createWorkspaceService({ prepareFileCompletely } as any)
+    fs.writeFileSync(xhtmlPath, '<html></html>')
+    await presenter.registerWorkspace(workspacePath)
+
+    const preview = await presenter.readFilePreview(xhtmlPath)
+
+    expect(preview?.kind).toBe('html')
+    expect(preview?.previewUrl).toBe(createWorkspacePreviewUrl(workspacePath, xhtmlPath))
   })
 
   it('keeps unsupported files as binary without previewUrl', async () => {

@@ -68,6 +68,9 @@ func main() {
 		}
 	})
 	mygo.App.WhenReady(func() {
+		if err := bridge.registerNativeProtocols(); err != nil {
+			log.Fatalf("configure native protocols: %v", err)
+		}
 		if layout.rendererDir != "" {
 			files := os.DirFS(layout.rendererDir)
 			mygo.SetFrontend(files)

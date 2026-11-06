@@ -279,10 +279,14 @@ M2 Node sidecar 化、M3 Go 壳与桥、M4 周边能力、M5 打包与更新、M
 
 结果：真实 splash role、受限 channel/语言读取、主窗隐藏与早期 ready 重放已接通。修复了初始 `about:blank` 提前完成导航、独立缓存重放颠倒 progress/request、缺失 entry 被当成成功，以及 manual unlock 被 60 秒 readiness 看门狗误杀。`sidecar.process.ready` 仅解除 transport 超时，完整 `sidecar.app.started` 继续控制 renderer 加载和恢复成功。macOS 临时加密副本完成错误/正确密码、60 秒等待、锁定期 sidecar 替换、orphan recovery-cancel 文件保全和真实 data 回退验收；37 个相关 Node 测试、Go 全包 race/vet、类型/lint/i18n 与构建通过，完整 main 9827 passed / 2 既有 tunnel failed / 6 skipped，renderer 2704 全通过。证据与限制详见 `acceptance-checklist.md` D2c2b3；普通聊天多窗口、nested Page、OS Secrets 迁移、其他平台与正式发行仍未完成。独立终审指出的导航 P2 已由后续 committed-revision 修复和真实静态/回退/settings 复验覆盖，未将其隐瞒为原提交已验证能力。复核发现的 WebView2 fragment-only 不触发 ContentLoading 也已单列同文档完成路径，并通过 `e2e` 标签的真实 `#/old`→`#/new` 页面回归；Windows/Linux 实机验收仍未执行。
 
-#### [ ] D2c2c 接通 preview iframe 协议与隔离边界
+#### [x] D2c2c 接通 preview iframe 协议与隔离边界
 
-1. 源码调查确认当前 workspace 与 MCP Apps 使用主 Page 内 iframe，真正缺口是 `protocol.handle()` 假成功、真实响应转发、独立 origin 与既有 owner 校验。优先完成这条实际产品链，保持脚本/same-origin 分离和调用方约束，不能借主窗 sender、通用 Eval 或 app-origin srcdoc 绕过。
-2. `TabPresenter` 的 Electron WebContentsView 仍是另一条未迁移路径；mygo `Window.NewWebView` 要求宿主 `WindowOptions.Content`，当前主窗为普通 Page，不能直接嵌入。后续独立 Page registry 必须自行分配 pageId、用 EmitPage 定向事件并覆盖关闭/代次恢复；不以 Content fixture 或主窗 ID 冒充现有 tab/workspace/MCP Apps 已迁移。
+1. 按 `spec.md` §4.7 建立 Node 真实 protocol callback registry 与 begin/read/cancel 内部通道，复用现有四个 scheme handler；保留 Response status/headers，reader 分片不超过 256 KiB，禁止整文件 arrayBuffer。
+2. Go 预注册固定 scheme，复用真实 caller/role 校验，完成 HTTP metadata、逐块写出、HEAD、超时、取消和替换代次失败；不以主窗身份虚构 iframe，不向 renderer 开放任意 protocol route。
+3. 以 Go/Node 流合同回归证明 header、分片、owner、取消与关闭，再用临时 workspace root 的真实 `workspace.register`/`readFilePreview` URL 验证主 renderer iframe 的 HTML、脚本、独立 origin 和大文件，检查截图、异常与 sidecar replacement。MCP 实例/权限和 legacy TabPresenter 不在本切片冒充完成。
+4. 完成格式、类型、Go race/vet、相关及完整回归、真实 UI 验收和独立 diff 审查后提交推送；保留 MCP 完整生命周期、独立 Page registry、跨平台与发行差距。
+
+结果：Node callback registry、Go 固定 scheme 转发和 begin/read/cancel 流式链路已接通，development/packaged 注册、HEAD、owner、实时 Page source、header、pending begin 取消和分块由 Go/Node 合同测试覆盖。真实 macOS 临时 profile 中，`workspace.register`/`readFilePreview` 生成的 HTML iframe 成功执行脚本，frame 内 `fetch()` 读回 401,443 bytes；父正文、`deepchat`、`mygo`、父 URL 的访问均为 `SecurityError`，截图已核对。杀死测试 sidecar 后，同一 Go 壳完成 replacement 和 renderer 重载，旧 iframe 消失，新代次拒绝未注册路径并再次通过完整 preview/隔离验收。另修复 JSON `Date` 类型保留、marker-shaped 普通 JSON 的可逆转义与真实 `CodeFileAdapter` 的 `.html/.htm/.xhtml` 分类回退；Electron structured-clone 不执行 native JSON reviver，native `chat.stream.updated` 浅校验前同样恢复一次 transport 类型。MCP 实例/权限、legacy TabPresenter、Windows/Linux、正式发行及完整结构化克隆仍未由本切片证明，证据与限制见 `acceptance-checklist.md`。
 
 ### [ ] D3 完成窗口与原生能力
 

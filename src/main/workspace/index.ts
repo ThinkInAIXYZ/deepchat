@@ -552,7 +552,11 @@ export class WorkspaceService implements WorkspaceServicePort {
       return 'markdown'
     }
 
-    if (mimeType === 'text/html' || mimeType === 'application/xhtml+xml') {
+    if (
+      mimeType === 'text/html' ||
+      mimeType === 'application/xhtml+xml' ||
+      ['.html', '.htm', '.xhtml'].includes(extension)
+    ) {
       return 'html'
     }
 

@@ -10,11 +10,13 @@
  * one JSON response per line, plus unsolicited `{event}` lines.
  */
 import { createInterface } from 'node:readline'
+import { stringifyDeepchatJson } from '@shared/deepchatJson'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import {
   emitAppBeforeQuit,
   installElectronShimHooks,
   invokeIpc,
+  nativeIpcEvent,
   handleNativeWindowNotification,
   sendIpc,
   whenIpcHandlerRegistered,
@@ -25,7 +27,8 @@ import { SidecarLifecycle } from './lifecycle'
 import {
   configureNativeSettingsSnapshot,
   configureNativeWindowCommands,
-  resolveNativeWindowCommand
+  resolveNativeWindowCommand,
+  runWithNativeCaller
 } from '@/platform/node/nativeWindowCommands'
 import {
   NATIVE_SPLASH_CHANNEL_ROUTE,
@@ -35,6 +38,12 @@ import {
 } from '@/platform/node/nativeWindowProtocol'
 import { configGetLanguageRoute } from '@shared/contracts/routes/config.routes'
 import type { DesktopLanguageState } from '@/desktop/settings'
+import {
+  handleNativeProtocolRoute,
+  NATIVE_PROTOCOL_BEGIN_ROUTE,
+  NATIVE_PROTOCOL_CANCEL_ROUTE,
+  NATIVE_PROTOCOL_READ_ROUTE
+} from '@/platform/node/nativeProtocol'
 
 // Keep one private path for protocol envelopes. Everything else reaches stderr,
 // including shared/logger's pre-bound console and direct process.stdout writes.
@@ -44,7 +53,7 @@ process.stdout.write = ((...args: unknown[]) => {
 }) as typeof process.stdout.write
 
 const write = (payload: unknown): void => {
-  protocolStdoutWrite(`${JSON.stringify(payload)}\n`)
+  protocolStdoutWrite(`${stringifyDeepchatJson(payload)}\n`)
 }
 
 const nativeWindowId = Number(process.env.DEEPCHAT_NATIVE_WINDOW_ID)
@@ -94,6 +103,12 @@ const nativeSplashChannels = new Set([
   'database-security:unlock-cancel',
   'database-security:recovery-submit',
   'database-security:recovery-cancel'
+])
+
+const nativeProtocolRoutes = new Set([
+  NATIVE_PROTOCOL_BEGIN_ROUTE,
+  NATIVE_PROTOCOL_READ_ROUTE,
+  NATIVE_PROTOCOL_CANCEL_ROUTE
 ])
 
 function isNativeSplashSource(source?: IpcRequestSource): boolean {
@@ -180,6 +195,22 @@ const handleLine = async (line: string): Promise<void> => {
         id: request.id,
         result: configGetLanguageRoute.output.parse(readSplashLanguageState())
       })
+    } catch (error) {
+      write({ id: request.id, error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+
+  if (nativeProtocolRoutes.has(request.route)) {
+    try {
+      await appReady
+      // Cancellation is allowed for the original owner after navigation, so an
+      // old reader can be released. Begin/read require a current native sender.
+      if (request.route !== NATIVE_PROTOCOL_CANCEL_ROUTE) nativeIpcEvent(request.source)
+      const value = await runWithNativeCaller(request.source!, () =>
+        handleNativeProtocolRoute(request.route!, request.input, request.source)
+      )
+      write({ id: request.id, result: value ?? {} })
     } catch (error) {
       write({ id: request.id, error: error instanceof Error ? error.message : String(error) })
     }

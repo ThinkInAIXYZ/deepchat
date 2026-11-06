@@ -283,7 +283,7 @@
     {
       "id": "codebuddy-code",
       "name": "Codebuddy Code",
-      "version": "2.180.0",
+      "version": "2.181.0",
       "description": "Tencent Cloud's official intelligent coding tool",
       "website": "https://www.codebuddy.cn/cli/",
       "authors": [
@@ -293,7 +293,7 @@
       "license_url": "https://www.codebuddy.cn/agreement/",
       "distribution": {
         "npx": {
-          "package": "@tencent-ai/codebuddy-code@2.180.0",
+          "package": "@tencent-ai/codebuddy-code@2.181.0",
           "args": [
             "--acp"
           ]
@@ -1076,7 +1076,7 @@
     {
       "id": "kimchi",
       "name": "Kimchi",
-      "version": "1.28.3",
+      "version": "1.29.0",
       "description": "Coding agent powered by multi-model orchestration",
       "repository": "https://github.com/getkimchi/kimchi",
       "website": "https://kimchi.dev",
@@ -1088,8 +1088,8 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.28.3/kimchi_darwin_arm64.tar.gz",
-            "sha256": "4a59c1a5b994e1c871c54006a6ceb9759d7cf89fe7189492612616e70e76ff2a",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.29.0/kimchi_darwin_arm64.tar.gz",
+            "sha256": "b365948d76ccee391c5378e043dade1b6423652aac95e53cd6824d1b715dcf91",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1097,8 +1097,8 @@
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.28.3/kimchi_darwin_amd64.tar.gz",
-            "sha256": "cf0142b672b69e6544a9446ae34ff59a992c5fde97be1dd86dd79d631f9990ca",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.29.0/kimchi_darwin_amd64.tar.gz",
+            "sha256": "ecde897611bb02a9049518ca4884509a0388e94fa62e59983e2a0591a1409ec5",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1106,8 +1106,8 @@
             ]
           },
           "linux-aarch64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.28.3/kimchi_linux_arm64.tar.gz",
-            "sha256": "2a7bf76292cf278492f929812516388717e6f9c752aa5210bbd256bc69c232a5",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.29.0/kimchi_linux_arm64.tar.gz",
+            "sha256": "2c6e95e1d782e75ef2c0024d5c8415b99e9e571dda114b514724feef7da2ab45",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1115,8 +1115,8 @@
             ]
           },
           "linux-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.28.3/kimchi_linux_amd64.tar.gz",
-            "sha256": "2a674db3f5bed93c25a17b7eda30ed1760d87234cc43490ccf3d24adc657b02b",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.29.0/kimchi_linux_amd64.tar.gz",
+            "sha256": "de77b9a8d0383fe45c2a2c85bb7b9fb6bcf5f2aba9c7546214dcc64501b41f74",
             "cmd": "./bin/kimchi",
             "args": [
               "--mode",
@@ -1124,8 +1124,8 @@
             ]
           },
           "windows-x86_64": {
-            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.28.3/kimchi_windows_amd64.zip",
-            "sha256": "ad4cb3141b63f3f845ad0bed08c9210d07442aa807edc12b7ac2971e8d6f7917",
+            "archive": "https://github.com/getkimchi/kimchi/releases/download/v1.29.0/kimchi_windows_amd64.zip",
+            "sha256": "86047c7a65395e325f34ed99b24b404c4b4fec49b3be645c550560e0624cebf8",
             "cmd": "./bin/kimchi.exe",
             "args": [
               "--mode",
@@ -1138,9 +1138,9 @@
     },
     {
       "id": "kimi",
-      "name": "Kimi CLI",
+      "name": "Kimi CLI (Legacy)",
       "version": "1.52.0",
-      "description": "Moonshot AI's coding assistant",
+      "description": "Archived by Moonshot AI. Use Kimi Code instead",
       "repository": "https://github.com/MoonshotAI/kimi-cli",
       "website": "https://moonshotai.github.io/kimi-cli/",
       "authors": [
@@ -1193,6 +1193,28 @@
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/kimi.svg"
+    },
+    {
+      "id": "kimi-code",
+      "name": "Kimi Code",
+      "version": "2.5.2",
+      "description": "Moonshot AI's next-gen coding agent",
+      "repository": "https://github.com/MoonshotAI/kimi-code",
+      "website": "https://moonshotai.github.io/kimi-code/",
+      "authors": [
+        "Moonshot AI"
+      ],
+      "license": "MIT",
+      "license_url": "https://github.com/MoonshotAI/kimi-code/blob/main/LICENSE",
+      "distribution": {
+        "npx": {
+          "package": "@moonshot-ai/kimi-code@2.5.2",
+          "args": [
+            "acp"
+          ]
+        }
+      },
+      "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/kimi-code.svg"
     },
     {
       "id": "kiro",
@@ -1645,7 +1667,7 @@
     {
       "id": "qwen-code",
       "name": "Qwen Code",
-      "version": "0.26.8",
+      "version": "0.26.9",
       "description": "Alibaba's Qwen coding assistant",
       "repository": "https://github.com/QwenLM/qwen-code",
       "website": "https://qwenlm.github.io/qwen-code-docs/en/users/overview",
@@ -1656,7 +1678,7 @@
       "license_url": "https://github.com/QwenLM/qwen-code/blob/main/LICENSE",
       "distribution": {
         "npx": {
-          "package": "@qwen-code/qwen-code@0.26.8",
+          "package": "@qwen-code/qwen-code@0.26.9",
           "args": [
             "--acp",
             "--experimental-skills"

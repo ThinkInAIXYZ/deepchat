@@ -34,6 +34,11 @@ import {
   runWithNativeHost
 } from '../nativeWindowCommands'
 import { parseNativeWindowDescriptor, type NativeWindowDescriptor } from '../nativeWindowProtocol'
+import {
+  handleNativeProtocol,
+  isNativeProtocolHandled,
+  unhandleNativeProtocol
+} from '../nativeProtocol'
 
 type Listener = (...args: never[]) => void
 
@@ -665,7 +670,7 @@ export const ipcMain = {
   }
 }
 
-function nativeIpcEvent(source?: IpcRequestSource): {
+export function nativeIpcEvent(source?: IpcRequestSource): {
   window: ShimBrowserWindow
   sender: ShimWebContents
   event: Record<string, unknown>
@@ -837,9 +842,16 @@ export const session = {
 
 export const protocol = {
   registerSchemesAsPrivileged: (): void => undefined,
-  handle: (): boolean => true,
-  unhandle: (): void => undefined,
-  isProtocolHandled: async (): Promise<boolean> => true
+  handle: (
+    scheme: string,
+    handler: (request: {
+      url: string
+      method: string
+      headers: Record<string, string>
+    }) => Response | Promise<Response>
+  ): boolean => handleNativeProtocol(scheme, handler),
+  unhandle: (scheme: string): void => unhandleNativeProtocol(scheme),
+  isProtocolHandled: async (scheme: string): Promise<boolean> => isNativeProtocolHandled(scheme)
 }
 
 export const Menu = {

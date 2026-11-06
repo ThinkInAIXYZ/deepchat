@@ -1,6 +1,6 @@
 # mygo 完整替代验收与差距清单
 
-更新：2026-11-07（D2c2b3 真实 splash/数据库解锁窗口）
+更新：2026-11-07（D2c2c 真实 preview 协议与 sidecar replacement）
 分支：`feat/mygo-rewrite`
 规范：`spec.md`；执行状态：`plan.md` 阶段 D
 整体结论：**尚未完成替代，不得发布为 Electron 的完整替代品。**
@@ -58,8 +58,8 @@
 | 文件对话框 | 部分 spike/不应视为可用 | shim 仍可能返回 `canceled:false` 与空数组，正式结果必须由真实 Go bridge 返回 |
 | 通知 | 部分 spike | 仅打包 `.app` 的简单通知实测；业务点击目标和回调未验收 |
 | Clipboard/nativeImage | 未实现 | sidecar 仍丢弃文本/图片写入，图片对象和截图可能是空输出 |
-| workspace 预览/长图 | 未实现完整链路 | `CapturePage`/`Eval` 能力存在不等于 tab capture、组合图片、滚动导出已成功 |
-| workspace/MCP Apps 协议隔离 | 未实现产品边界 | shim `protocol.handle()` 可能假报 true；未形成 origin、导航、session partition 与 sender 的完整安全验证 |
+| workspace 预览/长图 | 部分实现（D2c2c HTML preview 已验证） | 真实 workspace-preview iframe、脚本和大文件流已验收；`CapturePage`/`Eval` 能力存在不等于 tab capture、组合图片、滚动导出已成功 |
+| workspace/MCP Apps 协议隔离 | 部分实现（D2c2c workspace macOS 已验证） | workspace-preview 的 origin、脚本隔离、owner、取消和 sidecar replacement 有证据；MCP Apps 实例/权限、session partition、nested Page 与 Windows/Linux 尚未验收 |
 | preload/context isolation | 未实现对等验证 | mygo v0.7.4 macOS 使用未指定 content world 的 `WKUserScript`；需要上游隔离能力或经评审的等价 least-privilege 设计，spike `Eval` 与任意外链转发禁止进入正式绑定 |
 | renderer sender 与文档来源 | 部分实现（D2c2b3 已验证主窗口、settings 与 splash） | Go source 隔离于 renderer input，Node 绑定平台返回的真实原生 ID 并复核精确 role/path。主窗口、settings 与 splash 使用不同文档白名单，未知窗口、origin、带凭据或 preview URL 均拒绝；splash 的四条 channel、早期只读语言、受限 data 回退和锁定期替换已实测。nested view 与 content-world 对等证明仍未完成 |
 | OAuth | 部分受阻 | 系统浏览器迁移未完成；GitHub 回调页需配合回到 deep chat deep link，其他 OAuth 仍需逐项源审 |
@@ -99,6 +99,17 @@
 | 灰度、回滚及生产升级 | 未实现且需授权 | 不改变更新服务器或默认渠道，直到完整验收和用户授权 |
 
 ## 4. 当前验证与已知失败
+
+D2c2c 真实 preview 协议与流式传输：
+
+- `src/main/platform/node/nativeProtocol.ts` 现在维护固定 scheme 的真实 callback registry、请求 metadata、owner/document 和 256 KiB 分片 reader；`shell/deepchat/native_protocol.go` 将 Go 原生 scheme 请求转发到同一 Node handler，支持 GET/HEAD、逐块 flush、取消和非法 metadata（含 `Connection` 指定字段）拒绝。development/packaged 启动都注册 scheme，begin 有 pending/cancel tombstone 和 body 清理，Go 每次 read 前复核真实 Page URL。`protocol.handle()` 不再对这四个 scheme 假报成功，begin/read/cancel 也没有暴露为 renderer 通用业务 route。
+- 实际运行暴露出两个协议前的前置兼容问题并已修复：sidecar JSON transport 用带标记的 `Date` 编解码保留 `workspace.readFilePreview` 的 metadata 类型，普通 marker-shaped JSON 用 entries 转义，只有 native `jsonTransport` bridge 在 shape/Zod 校验前恢复且只递归 plain JSON object，未遇 marker 时保留原引用以避免流事件全量深拷贝，Electron structured-clone 路径不执行恢复；workspace 对真实 `CodeFileAdapter` 返回的 `text/code` 增加 `.html/.htm/.xhtml` 分类回退。没有把 route schema 改成接受字符串，也没有把日期以外的 structured clone 类型宣称为已等价。
+- macOS 临时 profile 使用真实 e2e Go binary、现有 Vue renderer、sidecar 和 preload。通过 `workspace.register` 与 `workspace.readFilePreview` 得到 `workspace-preview://…/preview.html`，生产 sandbox `allow-scripts allow-same-origin` 的 iframe 实际显示 HTML 并执行脚本。frame 内 `fetch()` 的完整 `ArrayBuffer` 为 **401,443 bytes**，不是只检查 iframe 元素或 header；`/tmp/deepchat-d2c2c-workspace-preview.png` 在目标内容完成后生成并人工查看。
+- 隔离断言由 **frame 内脚本** 执行，而不是从父页面读取自己的 WindowProxy：frame 的 `location.origin` 为 `workspace-preview://…`，自身 `mygo` 为 `undefined`，读取父正文、父 `deepchat`、父 `mygo`、父 URL 全部得到 `SecurityError`。恢复后再次得到相同结果；未开启 `PreloadAllFrames`，未使用 app-origin `srcdoc`。
+- 最终修复版恢复场景在同一 Go 进程 `89678` 中杀死测试 sidecar `89702`，replacement `89784` ready 后 renderer 重载，旧 iframe 引用消失。新代次先对未注册路径返回 `preview:null`，再重新注册临时 root、加载同一 401,443-byte preview，全部字节与隔离断言通过；`/tmp/deepchat-d2c2c-workspace-preview-recovered.png` 已人工查看。此次是已加载 preview 的进程替换验收，未把它夸大为真实 in-flight read 杀死时序；begin 取消、导航失效和 client disconnect 由 Go/Node 合同测试覆盖。
+- Go/Node 定向测试覆盖真实 Response headers、HEAD 不取 reader及取消错误传播、大 source chunk 分片、owner/document、pending/提前取消、非法 method/metadata 和 client disconnect；workspace service 回归使用真实 adapter 的 `text/code` MIME，native validated-event、`chat.stream.updated` fast path 与 Electron structured-clone 都覆盖 marker-shaped JSON。最终 Oxfmt、typecheck、lint、i18n、Go 全包 race/vet、正常/e2e Go build、fragment e2e、`pnpm run build`、最终 Electron/CLI build 与 sidecar/preload build 通过。完整 main 为 9848 项，其中 **9840 passed / 2 failed / 6 skipped**，681 文件通过、1 文件失败、2 文件跳过；仅有既有两项 `sync.tunnel.error.tunnelFailed`。完整 renderer 为 **281 文件、2707 测试全部通过**。Node 24.18.0 与 engines >=24.22.1 的既有 warning 仍存在。
+- 正常 prebuild 按仓库约定刷新并保留 `resources/model-db/providers.json`、`resources/acp-registry/registry.json` 与新增的 `resources/acp-registry/icons/kimi-code.svg`；这些是构建生成的公开 registry 更新，不是手写业务数据迁移。
+- 仍未执行 Windows/Linux 实机、正式打包/安装升级、MCP Apps 实例创建及完整权限矩阵、Range/全部 privileged-scheme 等价、legacy TabPresenter/native nested identity。mygo v0.7.4 的 Windows `schemeResponse` 仍将完整 body 聚合到 `bytes.Buffer` 后才 `Finish`，需要上游/fork 的增量 `IStream`/`SchemeBodyWriter` 与 Windows 实测；当前 Go flush 不能被称为 Windows 流式传输。`mcp-app` 的通用 transport 已接线不等于 MCP 生命周期已验收；完整业务、迁移和 Electron 默认切换目标仍未完成。
 
 D2c2b3 真实 splash/数据库解锁窗口：
 
@@ -191,4 +202,4 @@ D1 直接验证：
 
 ## 6. 下一项最高优先级工作
 
-D2c2b2 的 settings 代次恢复和 D2c2b3 的真实 splash/数据库解锁已按上述范围验证。源码调查确认当前 workspace 与 MCP Apps 使用主 Page 内 iframe，下一优先级是 **D2c2c：将 `protocol.handle()` 的假成功替换为真实 preview 响应转发，并验证独立 origin、脚本隔离和既有 owner 校验**。`TabPresenter` 是另一条未迁移路径；mygo `NewWebView` 要求 native `Content` 宿主，后续独立 Page registry 必须自行分配 pageId、用 EmitPage 定向事件，不能用主窗 ID、Content fixture 或通用 Eval 冒充现有 tab/workspace/MCP Apps 已迁移。随后是原生焦点、大帧限额、全局背压、后台生命周期和 preload content-world；D3–D7 仍是验收中不能删除的差距。
+D2c2c 的真实 workspace preview、frame 内隔离和 sidecar replacement 已按上述范围验证。下一优先级是 **D2c2d：用真实 MCP Apps sandbox 实例走通 `mcp-app` handler、资源权限和工具/事件边界**，不能把通用 protocol registry 的成功当成 MCP 已完成；随后处理独立 Page registry/native nested identity、原生焦点、大帧限额、全局背压、后台生命周期和 preload content-world。`TabPresenter` 是另一条未迁移路径；mygo `NewWebView` 要求 native `Content` 宿主，后续独立 Page registry 必须自行分配 pageId、用 EmitPage 定向事件，不能用主窗 ID、Content fixture 或通用 Eval 冒充现有 tab/workspace/MCP Apps 已迁移。D3–D7、Windows/Linux、真实迁移与发行仍是验收中不能删除的差距。

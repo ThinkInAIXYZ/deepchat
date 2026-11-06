@@ -45,7 +45,7 @@ const deepchatBridgeSidecar = `
   try {
     /*__DEEPCHAT_BRIDGE__*/
     window.__step = 'bundled'
-    window.deepchat = DeepchatBridge.createBridge(ipcRenderer)
+    window.deepchat = DeepchatBridge.createBridge(ipcRenderer, { jsonTransport: true })
     window.__step = 'created'
   } catch (error) {
     // Surface the failure instead of leaving the page without a bridge.

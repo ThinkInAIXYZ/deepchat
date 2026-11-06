@@ -1,4 +1,5 @@
 import { createBridge } from '../../../src/preload/createBridge'
+import { stringifyDeepchatJson } from '@shared/deepchatJson'
 import { DEEPCHAT_EVENT_CHANNEL, DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import { afterEach } from 'vitest'
 
@@ -213,6 +214,124 @@ describe('createBridge', () => {
       '[DeepchatBridge] Invalid event payload for sessions.compaction.changed:',
       expect.any(Error)
     )
+  })
+
+  it('preserves marker-shaped JSON in native validated event payloads', () => {
+    let registeredListener: ((event: unknown, payload: unknown) => void) | undefined
+    const ipcRenderer = {
+      invoke: vi.fn(),
+      on: vi.fn((_channel: string, listener: (event: unknown, payload: unknown) => void) => {
+        registeredListener = listener
+      }),
+      removeListener: vi.fn()
+    }
+    const bridge = createBridge(ipcRenderer, { jsonTransport: true })
+    const listener = vi.fn()
+    bridge.on('mcp.elicitation.request', listener)
+    const payload = {
+      request: {
+        requestId: 'request-1',
+        serverName: 'server-1',
+        mode: 'form' as const,
+        message: 'Choose a value',
+        requestedSchema: {
+          __deepchatDate: 'date',
+          value: '2026-01-02T03:04:05.006Z'
+        }
+      },
+      version: 1
+    }
+
+    registeredListener?.(
+      {},
+      {
+        name: 'mcp.elicitation.request',
+        payload: JSON.parse(stringifyDeepchatJson(payload))
+      }
+    )
+
+    expect(listener).toHaveBeenCalledWith(payload)
+  })
+
+  it('revives marker-shaped MCP data before stream snapshot validation', () => {
+    let registeredListener: ((event: unknown, payload: unknown) => void) | undefined
+    const ipcRenderer = {
+      invoke: vi.fn(),
+      on: vi.fn((_channel: string, listener: (event: unknown, payload: unknown) => void) => {
+        registeredListener = listener
+      }),
+      removeListener: vi.fn()
+    }
+    const bridge = createBridge(ipcRenderer, { jsonTransport: true })
+    const listener = vi.fn()
+    bridge.on('chat.stream.updated', listener)
+    const payload = {
+      sessionId: 'session-1',
+      requestId: 'request-1',
+      blocks: [
+        {
+          type: 'tool_call',
+          status: 'success',
+          timestamp: 1,
+          tool_call: {
+            id: 'call-1',
+            name: 'demo',
+            mcpResult: {
+              schemaVersion: 1,
+              serverId: 'server-1',
+              configGeneration: 1,
+              bindingHash: 'binding',
+              toolName: 'demo',
+              structuredContent: {
+                __deepchatDate: 'date',
+                value: '2026-01-02T03:04:05.006Z'
+              }
+            }
+          }
+        }
+      ]
+    }
+
+    registeredListener?.(
+      {},
+      {
+        name: 'chat.stream.updated',
+        payload: JSON.parse(stringifyDeepchatJson(payload))
+      }
+    )
+
+    expect(listener).toHaveBeenCalledWith(payload)
+  })
+
+  it('does not revive marker-shaped objects from Electron structured clone', () => {
+    let registeredListener: ((event: unknown, payload: unknown) => void) | undefined
+    const ipcRenderer = {
+      invoke: vi.fn(),
+      on: vi.fn((_channel: string, listener: (event: unknown, payload: unknown) => void) => {
+        registeredListener = listener
+      }),
+      removeListener: vi.fn()
+    }
+    const bridge = createBridge(ipcRenderer)
+    const listener = vi.fn()
+    bridge.on('mcp.elicitation.request', listener)
+    const payload = {
+      request: {
+        requestId: 'request-1',
+        serverName: 'server-1',
+        mode: 'form' as const,
+        message: 'Choose a value',
+        requestedSchema: {
+          __deepchatDate: 'date',
+          value: '2026-01-02T03:04:05.006Z'
+        }
+      },
+      version: 1
+    }
+
+    registeredListener?.({}, { name: 'mcp.elicitation.request', payload })
+
+    expect(listener).toHaveBeenCalledWith(payload)
   })
 
   it('rejects invalid route responses', async () => {
