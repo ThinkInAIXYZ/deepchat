@@ -33,9 +33,43 @@ const (
 	maxSplashInlineDocumentBytes = 65_536
 )
 
+type nativeDocumentNavigation struct {
+	mu                sync.Mutex
+	committedURL      string
+	committedRevision uint64
+}
+
+func (n *nativeDocumentNavigation) commit(rawURL string) {
+	n.mu.Lock()
+	n.committedURL = rawURL
+	n.committedRevision++
+	n.mu.Unlock()
+}
+
+func (n *nativeDocumentNavigation) currentRevision() uint64 {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.committedRevision
+}
+
+func (n *nativeDocumentNavigation) committed(rawURL string, after uint64) bool {
+	if n == nil {
+		return false
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	// Hash routes are state within the committed document, not a new document.
+	return n.committedRevision > after && sameNativeDocumentRevisionURL(rawURL, n.committedURL)
+}
+
 type nativeWindowRecord struct {
-	window *mygo.Window
-	role   nativeWindowRole
+	window     *mygo.Window
+	role       nativeWindowRole
+	navigation *nativeDocumentNavigation
+}
+
+func (r nativeWindowRecord) readyForNotification(rawURL string) bool {
+	return isRendererDocument(r.role, rawURL) && r.navigation.committed(rawURL, 0)
 }
 
 type nativeWindowState struct {
@@ -138,7 +172,7 @@ func (b *Bridge) notifyWindow(record nativeWindowRecord, name string) {
 			log.Printf("discard native window notification: %v", err)
 			return
 		}
-		if name == nativeWindowReady && !isRendererDocument(record.role, state.DocumentURL) {
+		if name == nativeWindowReady && !record.readyForNotification(state.DocumentURL) {
 			return
 		}
 	} else {
@@ -233,7 +267,7 @@ func (b *Bridge) registerWindow(window *mygo.Window, role nativeWindowRole) {
 		b.mu.Unlock()
 		panic("native window ID is already registered")
 	}
-	record := nativeWindowRecord{window: window, role: role}
+	record := nativeWindowRecord{window: window, role: role, navigation: &nativeDocumentNavigation{}}
 	b.windows[window.ID()] = record
 	if role == nativeWindowMain {
 		if b.primary == nil || b.primary.IsDestroyed() {
@@ -272,6 +306,7 @@ func (b *Bridge) registerWindow(window *mygo.Window, role nativeWindowRole) {
 		b.mu.Unlock()
 		b.notifyWindow(record, nativeWindowClosed)
 	})
+	window.Page().OnDidNavigate(record.navigation.commit)
 	window.Page().OnDidFinishLoad(func() { b.notifyWindow(record, nativeWindowReady) })
 	window.OnFocus(func() { b.notifyWindow(record, nativeWindowFocused) })
 	window.OnBlur(func() { b.notifyWindow(record, nativeWindowFocused) })
@@ -417,6 +452,7 @@ func (b *Bridge) handleNativeWindowCommand(
 		}
 		b.mu.RLock()
 		role := b.windows[input.WindowID].role
+		navigation := b.windows[input.WindowID].navigation
 		b.mu.RUnlock()
 		if !isRendererDocument(role, input.DocumentURL) {
 			return nil, errors.New("native window document is not allowed for its role")
@@ -430,7 +466,7 @@ func (b *Bridge) handleNativeWindowCommand(
 		if closing {
 			return nil, errors.New("native window is closing")
 		}
-		if err := b.loadNativeDocument(ctx, window, input.DocumentURL); err != nil {
+		if err := b.loadNativeDocument(ctx, window, input.DocumentURL, navigation); err != nil {
 			return nil, err
 		}
 		return b.describeNativeWindow(nativeWindowRecord{window: window, role: role})
@@ -512,7 +548,7 @@ func (b *Bridge) commandCaller(source sidecar.RequestSource) error {
 	return nil
 }
 
-func sameNativeDocumentURL(requested, candidate string) bool {
+func sameNativeDocumentRevisionURL(requested, candidate string) bool {
 	if strings.HasPrefix(requested, splashInlineDocumentPrefix) ||
 		strings.HasPrefix(candidate, splashInlineDocumentPrefix) {
 		return requested == candidate
@@ -521,11 +557,35 @@ func sameNativeDocumentURL(requested, candidate string) bool {
 	right, rightErr := url.Parse(candidate)
 	return leftErr == nil && rightErr == nil && left.Scheme == right.Scheme &&
 		left.Host == right.Host && left.User == nil && right.User == nil &&
-		left.EscapedPath() == right.EscapedPath() && left.RawQuery == right.RawQuery &&
-		left.Fragment == right.Fragment
+		left.EscapedPath() == right.EscapedPath() && left.RawQuery == right.RawQuery
 }
 
-func (b *Bridge) loadNativeDocument(ctx context.Context, window *mygo.Window, rawURL string) error {
+func sameNativeDocumentURL(requested, candidate string) bool {
+	if !sameNativeDocumentRevisionURL(requested, candidate) {
+		return false
+	}
+	if strings.HasPrefix(requested, splashInlineDocumentPrefix) ||
+		strings.HasPrefix(candidate, splashInlineDocumentPrefix) {
+		return true
+	}
+	left, _ := url.Parse(requested)
+	right, _ := url.Parse(candidate)
+	return left.Fragment == right.Fragment
+}
+
+func canFinishNativeDocumentLoad(
+	navigation *nativeDocumentNavigation, rawURL, currentURL string, after uint64,
+) bool {
+	return navigation.committed(rawURL, after) && sameNativeDocumentURL(rawURL, currentURL)
+}
+
+func (b *Bridge) loadNativeDocument(
+	ctx context.Context, window *mygo.Window, rawURL string, navigation *nativeDocumentNavigation,
+) error {
+	if navigation == nil {
+		return errors.New("native window navigation state is unavailable")
+	}
+	beforeLoad := navigation.currentRevision()
 	loaded := make(chan error, 1)
 	var once sync.Once
 	finish := func(err error) {
@@ -533,14 +593,14 @@ func (b *Bridge) loadNativeDocument(ctx context.Context, window *mygo.Window, ra
 	}
 	page := window.Page()
 	offFinish := page.OnDidFinishLoad(func() {
-		// A window starts at about:blank. Its completion must not resolve the
-		// subsequent real navigation and trigger early native show/focus calls.
-		if sameNativeDocumentURL(rawURL, page.URL()) {
+		// A blank or previous navigation may finish while page.URL() already
+		// shows this request. Require the target's committed generation too.
+		if canFinishNativeDocumentLoad(navigation, rawURL, page.URL(), beforeLoad) {
 			finish(nil)
 		}
 	})
 	offFailed := page.OnDidFailLoad(func(loadError *mygo.LoadError) {
-		if sameNativeDocumentURL(rawURL, loadError.URL) {
+		if loadError != nil && sameNativeDocumentURL(rawURL, loadError.URL) {
 			finish(errors.New("native document failed to load"))
 		}
 	})

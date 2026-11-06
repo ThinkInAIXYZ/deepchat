@@ -277,12 +277,12 @@ M2 Node sidecar 化、M3 Go 壳与桥、M4 周边能力、M5 打包与更新、M
 3. 保持现有 SplashWindow 显示、抑制和关闭业务不变，处理主窗口隐藏启动及早期 ready 重放，完成正常 profile UI 与复制加密 fixture 的实际解锁/恢复验证。
 4. 运行格式、类型、Go race/vet、main/受影响回归、sidecar/preload 构建和真实场景验收，更新已知差距，审查后提交推送；不把本切片扩大为平台发行或真实数据迁移完成证明。
 
-结果：真实 splash role、受限 channel/语言读取、主窗隐藏与早期 ready 重放已接通。修复了初始 `about:blank` 提前完成导航、独立缓存重放颠倒 progress/request、缺失 entry 被当成成功，以及 manual unlock 被 60 秒 readiness 看门狗误杀。`sidecar.process.ready` 仅解除 transport 超时，完整 `sidecar.app.started` 继续控制 renderer 加载和恢复成功。macOS 临时加密副本完成错误/正确密码、60 秒等待、锁定期 sidecar 替换、orphan recovery-cancel 文件保全和真实 data 回退验收；37 个相关 Node 测试、Go 全包 race/vet、类型/lint/i18n 与构建通过，完整 main 9827 passed / 2 既有 tunnel failed / 6 skipped，renderer 2704 全通过。证据与限制详见 `acceptance-checklist.md` D2c2b3；普通聊天多窗口、nested Page、OS Secrets 迁移、其他平台与正式发行仍未完成。
+结果：真实 splash role、受限 channel/语言读取、主窗隐藏与早期 ready 重放已接通。修复了初始 `about:blank` 提前完成导航、独立缓存重放颠倒 progress/request、缺失 entry 被当成成功，以及 manual unlock 被 60 秒 readiness 看门狗误杀。`sidecar.process.ready` 仅解除 transport 超时，完整 `sidecar.app.started` 继续控制 renderer 加载和恢复成功。macOS 临时加密副本完成错误/正确密码、60 秒等待、锁定期 sidecar 替换、orphan recovery-cancel 文件保全和真实 data 回退验收；37 个相关 Node 测试、Go 全包 race/vet、类型/lint/i18n 与构建通过，完整 main 9827 passed / 2 既有 tunnel failed / 6 skipped，renderer 2704 全通过。证据与限制详见 `acceptance-checklist.md` D2c2b3；普通聊天多窗口、nested Page、OS Secrets 迁移、其他平台与正式发行仍未完成。独立终审指出的导航 P2 已由后续 committed-revision 修复和真实静态/回退/settings 复验覆盖，未将其隐瞒为原提交已验证能力。
 
-#### [ ] D2c2c 建立 nested Page/WebView 身份与内容边界
+#### [ ] D2c2c 接通 preview iframe 协议与隔离边界
 
-1. 先梳理 workspace、MCP Apps 和其他 WebView 的实际创建、调用方与销毁路径，以 `CallerPage().WebView()` 的独立身份建立 webContents/frame 映射，不能用主窗 ID 或 origin 猜测顶替。
-2. 保持预览/插件隔离与 sender 校验，覆盖创建、导航、目标事件、关闭和 sidecar replacement；未实现的 capture/eval 不得用主窗操作或静默成功替代。随后继续 D2c2 全局资源预算及 D3 原生能力差距。
+1. 源码调查确认当前 workspace 与 MCP Apps 使用主 Page 内 iframe，真正缺口是 `protocol.handle()` 假成功、真实响应转发、独立 origin 与既有 owner 校验。优先完成这条实际产品链，保持脚本/same-origin 分离和调用方约束，不能借主窗 sender、通用 Eval 或 app-origin srcdoc 绕过。
+2. `TabPresenter` 的 Electron WebContentsView 仍是另一条未迁移路径；mygo `Window.NewWebView` 要求宿主 `WindowOptions.Content`，当前主窗为普通 Page，不能直接嵌入。后续独立 Page registry 必须自行分配 pageId、用 EmitPage 定向事件并覆盖关闭/代次恢复；不以 Content fixture 或主窗 ID 冒充现有 tab/workspace/MCP Apps 已迁移。
 
 ### [ ] D3 完成窗口与原生能力
 

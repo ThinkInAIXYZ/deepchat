@@ -163,6 +163,48 @@ func TestNativeDocumentLoadCompletionMatchesRequestedNavigation(t *testing.T) {
 	}
 }
 
+func TestNativeDocumentLoadWaitsForTargetCommit(t *testing.T) {
+	const target = "mygo://localhost/splash/index.html"
+	navigation := &nativeDocumentNavigation{}
+	record := nativeWindowRecord{role: nativeWindowSplash, navigation: navigation}
+	beforeLoad := navigation.currentRevision()
+
+	// An old blank completion can observe the target's provisional URL before
+	// the target commits. Neither that completion nor its ready is sufficient.
+	if canFinishNativeDocumentLoad(navigation, target, target, beforeLoad) {
+		t.Fatal("an uncommitted target completed the requested navigation")
+	}
+	if record.readyForNotification(target) {
+		t.Fatal("an uncommitted target emitted native ready")
+	}
+	// A failure of the real target must still reach the inline fallback even
+	// before it commits; stale blank success must not swallow this failure.
+	if !sameNativeDocumentURL(target, target) {
+		t.Fatal("the requested target's load failure was not recognized")
+	}
+
+	navigation.commit("about:blank")
+	if canFinishNativeDocumentLoad(navigation, target, target, beforeLoad) {
+		t.Fatal("the initial blank document completed the target navigation")
+	}
+	navigation.commit(target)
+	if !canFinishNativeDocumentLoad(navigation, target, target, beforeLoad) {
+		t.Fatal("the committed target did not complete its navigation")
+	}
+	if !record.readyForNotification(target) {
+		t.Fatal("the committed target did not emit native ready")
+	}
+	if !record.readyForNotification(target + "#/") {
+		t.Fatal("a same-document hash route suppressed native ready")
+	}
+	if record.readyForNotification(target + "?other=1") {
+		t.Fatal("an uncommitted query change emitted native ready")
+	}
+	if canFinishNativeDocumentLoad(navigation, target, target, navigation.currentRevision()) {
+		t.Fatal("a previous target generation completed a later navigation request")
+	}
+}
+
 func TestNativeActionDocumentForErrorRedactsNonLocalAndPrivateURLParts(t *testing.T) {
 	if got := nativeActionDocumentForError("mygo://localhost/splash/index.html?query=private#private"); got != "/splash/index.html" {
 		t.Fatalf("local document diagnostic = %q", got)
