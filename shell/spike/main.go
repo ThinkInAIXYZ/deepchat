@@ -26,6 +26,7 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -258,6 +259,7 @@ func main() {
 	trayIcon := flag.String("tray-icon", "../../build/icon.png", "PNG shown in the menu bar")
 	shortcutKey := flag.String("shortcut", "CmdOrCtrl+Shift+D", "global shortcut that toggles the window")
 	notify := flag.Bool("notify", false, "show a system notification once the window is ready")
+	appPath := flag.String("app-path", "../..", "repository root the sidecar treats as the app directory")
 	bridgeScript := flag.String(
 		"bridge",
 		"../../out/preload/bridge.js",
@@ -285,6 +287,12 @@ func main() {
 		report("protocol.error", err.Error())
 	} else {
 		report("protocol.registered", true)
+	}
+
+	// The sidecar resolves resources (ACP registry, provider catalog) from the app
+	// directory, which is not its working directory.
+	if abs, err := filepath.Abs(*appPath); err == nil {
+		_ = os.Setenv("DEEPCHAT_APP_PATH", abs)
 	}
 
 	bridge := &Bridge{report: report}

@@ -387,6 +387,33 @@ sessions.create         -> "No provider or model configured. Please set a defaul
 - 文件监视 utility process 起不来（`File watcher utility process exited`）
 - SkillSync worker 无法解析（`?modulePath` 只保证编译通过）
 
+## 19. 端到端发消息（已验证）
+
+用一个本地 mock provider（OpenAI Responses 协议，SSE 流式）跑通了完整链路，不需要任何密钥：
+
+```
+node shell/spike/local-chat-check.mjs
+  sessions.create -> session 7byQDcP27Zfyajp0Rqig1
+  stream completed (chat.stream.completed)
+  sessions.listMessagesPage -> 2 条消息
+  reply contains mock text: true
+```
+
+在 Go 壳里跑同一条链路（`node shell/spike/local-chat-ui.mjs`）：
+
+```
+SPIKE probe.result={"sessionId":"cttIOvqNn-C6a8YdPg1f9","messages":2,"hasReply":true}
+```
+
+即：渲染层 → 真实 preload 契约 → Go 壳 → 完整主进程 sidecar → 会话服务 → ProviderRuntime → HTTP 流式响应 → 落库。这条链上没有任何模拟环节，只有模型是本地的假服务。
+
+过程中修掉两个真问题：
+
+1. **sidecar 的 stderr 被丢弃**（`cmd.Stderr = nil`）。表现为「路由返回空对象」，实际是启动失败。现在 stderr 直通终端。
+2. **sidecar 的工作目录不对**：它按 `appHost.getAppPath()` 找 ACP 注册表快照，而壳从 `shell/spike` 启动它，于是 `startup failed: No registry snapshot is available`，IPC 从未注册。新增 `-app-path` 并把绝对路径通过 `DEEPCHAT_APP_PATH` 传给子进程——而且必须在**启动 sidecar 之前**设置。
+
+截图里显示的是引导页，因为临时档案没有完成引导；会话与回复已通过 `listMessagesPage` 验证。
+
 ## 下一步
 
 1. 接入真实桥接：用 `window.api` 的 mygo 实现替换 spike 里的 stub，验证 55 次启动调用能否返回真实数据（对应 M2/M3）。

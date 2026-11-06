@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"sync"
 )
@@ -47,7 +48,9 @@ func startSidecar(script string) (process *sidecarProcess, err error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd.Stderr = nil
+	// Keep the sidecar's diagnostics visible: a silent crash is otherwise
+	// indistinguishable from a route that has no handler.
+	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
