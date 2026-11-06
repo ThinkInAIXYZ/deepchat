@@ -563,6 +563,71 @@ describe('WindowPresenter', () => {
     expect((presenter as any).settingsWindow).toBe(appWindow)
   })
 
+  it('returns the recreated window ID for navigation queued behind creation', async () => {
+    const fixtures = [-101, -102].map(createSettingsLifecycleWindow)
+    let releaseFirst!: (value: {
+      windowId: number
+      role: 'settings'
+      documentUrl: 'about:blank'
+      visible: false
+      focused: false
+    }) => void
+    createNativeSettingsWindowMock
+      .mockReset()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseFirst = resolve
+          })
+      )
+      .mockResolvedValue({
+        windowId: 82,
+        role: 'settings',
+        documentUrl: 'about:blank',
+        visible: false,
+        focused: false
+      })
+    registerNativeWindowMock.mockImplementation((window, descriptor) => {
+      window.id = descriptor.windowId
+    })
+    isNativeWindowClosingMock.mockReturnValue(false)
+    activateNativeSettingsWindowMock.mockImplementation(async () => {
+      fixtures[0].close()
+    })
+    waitForNativeSettingsWindowClosedMock.mockResolvedValue(undefined)
+    nativeRendererDirectoryUrlMock.mockReturnValue('mygo://localhost/')
+    vi.mocked(BrowserWindow)
+      .mockImplementationOnce(function () {
+        return fixtures[0].window
+      })
+      .mockImplementationOnce(function () {
+        return fixtures[1].window
+      })
+    const { WindowPresenter } = await import('@/desktop/window')
+    const presenter = new WindowPresenter(
+      { getContentProtectionEnabled: vi.fn(() => false) } as any,
+      vi.fn(),
+      vi.fn()
+    )
+
+    const first = presenter.createSettingsWindow()
+    const second = presenter.createSettingsWindow({ routeName: 'settings-about' })
+    await vi.waitFor(() => expect(createNativeSettingsWindowMock).toHaveBeenCalledTimes(1))
+    releaseFirst({
+      windowId: 81,
+      role: 'settings',
+      documentUrl: 'about:blank',
+      visible: false,
+      focused: false
+    })
+
+    await expect(first).resolves.toBe(81)
+    await expect(second).resolves.toBe(82)
+    expect(activateNativeSettingsWindowMock).toHaveBeenCalledWith(81)
+    expect(createNativeSettingsWindowMock).toHaveBeenCalledTimes(2)
+    expect((presenter as any).settingsWindow).toBe(fixtures[1].window)
+  })
+
   it('waits for actual closes during settings loading and immediate reopen', async () => {
     const fixtures = [-101, -102, -103].map(createSettingsLifecycleWindow)
     const closing = new Set<number>()

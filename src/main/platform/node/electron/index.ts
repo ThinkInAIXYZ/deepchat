@@ -27,7 +27,8 @@ import {
   forgetNativeWindowState,
   recordNativeWindowState,
   restoreAfterNativeCloseFailure,
-  runWithNativeCaller
+  runWithNativeCaller,
+  runWithNativeHost
 } from '../nativeWindowCommands'
 import { parseNativeWindowDescriptor, type NativeWindowDescriptor } from '../nativeWindowProtocol'
 
@@ -223,6 +224,7 @@ class ShimBrowserWindow extends Emitter {
   private readonly placeholderId = -nextWindowId++
   private nativeWindowId: number | null = null
   private nativeState: NativeWindowDescriptor | null = null
+  private nativeCloseAttempt = 0
   private readonly unsupportedWindowOperations = new Set<string>()
   readonly webContents = new ShimWebContents()
   private maximized = false
@@ -295,6 +297,7 @@ class ShimBrowserWindow extends Emitter {
       return
     }
     const closing = { ...state, closeRequested: true }
+    const closeAttempt = action === 'close' ? ++this.nativeCloseAttempt : 0
     if (action === 'close') {
       if (!recordNativeWindowState(closing)) {
         // A close can already have arrived when creation/binding failed before
@@ -305,14 +308,21 @@ class ShimBrowserWindow extends Emitter {
       this.nativeState = closing
     }
     void Promise.resolve()
-      .then(() => applyNativeWindowAction(state, action, documentUrl))
+      .then(() =>
+        action === 'close'
+          ? runWithNativeHost(() => applyNativeWindowAction(state, action, documentUrl))
+          : applyNativeWindowAction(state, action, documentUrl)
+      )
       .then((next) => {
         if (action !== 'close') this.applyNativeState(next)
       })
       .catch((error: unknown) => {
-        if (action === 'close' && this.nativeState === closing) {
-          this.nativeState = state
-          restoreAfterNativeCloseFailure(state)
+        if (action === 'close' && this.nativeCloseAttempt === closeAttempt && !this.destroyed) {
+          // ready/focus may replace nativeState while this close is in flight.
+          // Roll back only this attempt and preserve the latest native sequence.
+          const latest = cachedNativeWindowState(state.windowId) ?? state
+          this.nativeState = { ...latest, closeRequested: false }
+          restoreAfterNativeCloseFailure(latest)
         }
         console.error(`[sidecar] native window ${action} failed`, error)
       })

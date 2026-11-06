@@ -8,7 +8,7 @@ import {
 } from './nativeWindowProtocol'
 
 const COMMAND_TIMEOUT_MS = 15_000
-const ipcCaller = new AsyncLocalStorage<NativeCaller>()
+const ipcCaller = new AsyncLocalStorage<NativeCaller | undefined>()
 const pending = new Map<number, PendingCommand>()
 let nextCommandId = 0
 let transport: ((command: NativeWindowCommand) => void) | undefined
@@ -100,6 +100,11 @@ export function configureNativeWindowCommands(send: (command: NativeWindowComman
 
 export function runWithNativeCaller<T>(source: NativeCaller, run: () => T): T {
   return ipcCaller.run(source, run)
+}
+
+/** Explicit trusted main-process operations must not inherit an expiring IPC caller. */
+export function runWithNativeHost<T>(run: () => T): T {
+  return ipcCaller.run(undefined, run)
 }
 
 function request(
@@ -218,7 +223,7 @@ export function closeNativeSettingsWindow(windowId: number): Promise<void> {
     return Promise.reject(new Error('native settings cleanup has no matching descriptor'))
   }
   if (state.closeRequested) return waitForNativeSettingsWindowClosed(windowId)
-  return applyNativeWindowAction(state, 'close').then(
+  return runWithNativeHost(() => applyNativeWindowAction(state, 'close')).then(
     () => waitForNativeSettingsWindowClosed(windowId),
     (error: unknown) => {
       restoreAfterNativeCloseFailure(state)

@@ -1195,7 +1195,7 @@ export class WindowPresenter implements IWindowPresenter {
     const pending = this.settingsWindowCreation
     if (pending) {
       const windowId = await pending
-      if (windowId !== null && navigation) await this.createSettingsWindow(navigation)
+      if (windowId !== null && navigation) return this.createSettingsWindow(navigation)
       return windowId
     }
     const creation = this.createSettingsWindowCore(navigation)

@@ -259,7 +259,7 @@ M2 Node sidecar 化、M3 Go 壳与桥、M4 周边能力、M5 打包与更新、M
 3. 在 macOS disposable profile 实测双原生窗口、settings sender、目标事件、关闭和再次创建，补 Go 普通/race、Node 定向、完整回归与 Electron 对照构建；修复对照构建中已退役 floating 页的残留图标扫描。
 4. 修复实际运行故障：`/settings/index.html` 的相对 301 导航导致空文档，需由 Go 在不改变规范 URL 的情况下直接提供现存 index；重复打开调用 `app.focus` 缺失，需通过验证 caller 的 `focus_app` 命令调用真实 `mygo.App.Focus()`，不按最新窗口猜 caller；兼容 proxy 不得给不存在的 `then` 返回 no-op，否则 `await` 会把窗口视为 thenable 并永久等待。
 
-结果：macOS 隔离 profile 中主窗口与 settings 窗口同时存活，settings 的真实业务响应、DOM、原生 focused 状态与截图均已核对；重复打开复用窗口 2，关闭后立即重开得到 `windowId=3` / `webContentsId=4`。把窗口 3 切到 `about:blank` 后业务 IPC 被 Go 拒绝，随后关闭并恢复为窗口 4；最终通过原生菜单完成业务销毁和退出。生命周期审查还覆盖了 stale close/ready 通知、pending close、通知合并顺序、加载失败释放与 userinfo URL 绕过。settings 导航、窗口 RPC、`focus_app`、非 thenable wrapper 和现存 index 响应均有回归覆盖；24 个定向 Node 测试与 Go race/vet 通过。完整回归数字及 Electron 对照修复见 `acceptance-checklist.md`。正式 Bridge 不提供通用 Eval；此项不包含 sidecar 替换后的 settings 自动重绑定、splash 解锁、普通聊天多窗口或 nested Page，见 D2c2b2。
+结果：macOS 隔离 profile 中主窗口与 settings 窗口同时存活，settings 的真实业务响应、DOM、原生 focused 状态与截图均已核对；重复打开复用窗口 2，关闭后立即重开得到 `windowId=3` / `webContentsId=4`。把窗口 3 切到 `about:blank` 后业务 IPC 被 Go 拒绝，随后关闭并恢复为窗口 4；最终通过原生菜单完成业务销毁和退出。生命周期审查还覆盖了 stale close/ready 通知、close 失败后的 attempt 回滚与重试、过期 caller 下的显式 host 补偿、并发 navigation 的新 ID、pending close、通知合并顺序、加载失败释放与 userinfo URL 绕过。settings 导航、窗口 RPC、`focus_app`、非 thenable wrapper 和现存 index 响应均有回归覆盖；27 个定向 Node 测试与 Go race/vet 通过。完整回归数字及 Electron 对照修复见 `acceptance-checklist.md`。正式 Bridge 不提供通用 Eval；此项不包含 sidecar 替换后的 settings 自动重绑定、splash 解锁、普通聊天多窗口或 nested Page，见 D2c2b2。
 
 #### [ ] D2c2b2 恢复保留窗口并绑定 Page 身份
 

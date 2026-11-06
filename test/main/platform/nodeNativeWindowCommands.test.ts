@@ -198,7 +198,52 @@ describe('native window command identity and lifecycle', () => {
     expect(sent).toHaveLength(1)
   })
 
-  it('destroys a settings window before its real document loads without inventing a caller', async () => {
+  it('rolls back a failed close after a newer focus notification and allows retry', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const sent: NativeWindowCommand[] = []
+    commands.configureNativeWindowCommands((command) => sent.push(command))
+    const window = new shim.BrowserWindow({})
+    host.nodeAppHost.registerNativeWindow!(window, state(7, 'settings', { sequence: 3 }))
+    window.destroy()
+    shim.handleNativeWindowNotification(
+      'native.window.focused',
+      state(7, 'settings', { sequence: 4, focused: false }),
+      7
+    )
+    await vi.waitFor(() => expect(sent).toHaveLength(1))
+    expect(commands.resolveNativeWindowCommand(sent[0].id, undefined, 'close rejected')).toBe(true)
+    await vi.waitFor(() => expect(commands.isNativeWindowClosing(7)).toBe(false))
+    expect(commands.cachedNativeWindowState(7)).toMatchObject({
+      sequence: 4,
+      focused: false,
+      closeRequested: false
+    })
+    expect(window.isDestroyed()).toBe(false)
+
+    window.destroy()
+    await vi.waitFor(() => expect(sent).toHaveLength(2))
+    expect(sent[1]).toMatchObject({ host: true, input: { action: 'close', windowId: 7 } })
+    expect(
+      commands.resolveNativeWindowCommand(
+        sent[1].id,
+        state(7, 'settings', {
+          sequence: 4,
+          documentUrl: '',
+          visible: false,
+          closeRequested: true
+        }),
+        undefined
+      )
+    ).toBe(true)
+    shim.handleNativeWindowNotification(
+      'native.window.closed',
+      state(7, 'settings', { sequence: 5, documentUrl: '', visible: false }),
+      7
+    )
+    await vi.waitFor(() => expect(window.isDestroyed()).toBe(true))
+  })
+
+  it('destroys a blank settings window without inheriting an IPC caller', async () => {
     const sent: NativeWindowCommand[] = []
     commands.configureNativeWindowCommands((command) => sent.push(command))
     const window = new shim.BrowserWindow({})
@@ -206,7 +251,10 @@ describe('native window command identity and lifecycle', () => {
       window,
       state(9, 'settings', { documentUrl: 'about:blank' })
     )
-    window.destroy()
+    commands.runWithNativeCaller(
+      { windowId: primary.id, documentUrl: 'mygo://localhost/#/obsolete' },
+      () => window.destroy()
+    )
     expect(window.isDestroyed()).toBe(false)
     await vi.waitFor(() => expect(sent).toHaveLength(1))
     expect(sent[0]).toMatchObject({
@@ -228,6 +276,38 @@ describe('native window command identity and lifecycle', () => {
     )
     expect(window.isDestroyed()).toBe(true)
     expect(shim.BrowserWindow.fromId(9)).toBeNull()
+  })
+
+  it('uses the explicit host domain for direct failure compensation inside IPC', async () => {
+    const sent: NativeWindowCommand[] = []
+    commands.configureNativeWindowCommands((command) => sent.push(command))
+    const window = new shim.BrowserWindow({})
+    const descriptor = state(9, 'settings', { documentUrl: 'about:blank' })
+    commands.recordNativeWindowState(descriptor)
+    host.nodeAppHost.registerNativeWindow!(window, descriptor)
+    expect(window.id).toBe(9)
+    expect(commands.cachedNativeWindowState(9)).toMatchObject({ role: 'settings' })
+    const closing = commands.runWithNativeCaller(
+      { windowId: primary.id, documentUrl: 'mygo://localhost/#/obsolete' },
+      () => host.nodeAppHost.closeNativeSettingsWindow!(window.id)
+    )
+    await vi.waitFor(() => expect(sent).toHaveLength(1))
+    expect(sent[0]).toMatchObject({ host: true, input: { action: 'close', windowId: 9 } })
+    expect(sent[0].source).toBeUndefined()
+    expect(
+      commands.resolveNativeWindowCommand(
+        sent[0].id,
+        state(9, 'settings', { documentUrl: '', visible: false, closeRequested: true }),
+        undefined
+      )
+    ).toBe(true)
+    shim.handleNativeWindowNotification(
+      'native.window.closed',
+      state(9, 'settings', { documentUrl: '', visible: false }),
+      9
+    )
+    await expect(closing).resolves.toBeUndefined()
+    expect(window.isDestroyed()).toBe(true)
   })
 
   it('rejects unbound navigation and uses an explicit host principal outside IPC', async () => {
