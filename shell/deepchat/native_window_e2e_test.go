@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -232,6 +233,22 @@ window.mygo.on('deepchat.event', (event) => window.nativeEvents.push(event))
 				finish(fmt.Errorf("renderer-created command was not rejected: %v", err))
 				return
 			}
+			for _, action := range []string{
+				"load_page", "attach_page", "detach_page", "bounds_page", "visible_page", "focus_page", "close_page",
+			} {
+				input, _ := json.Marshal(map[string]any{
+					"action": action, "pageId": nested.PageID, "documentUrl": "mygo://localhost/",
+					"x": 0, "y": 36, "width": 640, "height": 400, "visible": true,
+				})
+				_, err = bridge.handleNativeWindowCommand(context.Background(), sidecar.NativeWindowCommand{
+					Type: sidecar.NativeWindowCommandType, ID: -2, Input: input,
+					Source: &sidecar.RequestSource{WindowID: window.ID(), DocumentURL: "mygo://localhost/"},
+				})
+				if err == nil || !strings.Contains(err.Error(), "host command") {
+					finish(fmt.Errorf("non-host %s was not rejected: %v", action, err))
+					return
+				}
+			}
 			if _, err = command("load_page", map[string]any{
 				"pageId": nested.PageID, "documentUrl": "mygo://localhost/",
 			}); err != nil {
@@ -317,8 +334,40 @@ window.mygo.on('deepchat.event', (event) => window.nativeEvents.push(event))
 				finish(err)
 				return
 			}
+			externalServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/start" {
+					http.Redirect(w, r, "/final", http.StatusFound)
+					return
+				}
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				_, _ = w.Write([]byte(`<!doctype html><title>External fixture</title><body>external</body>`))
+			}))
+			defer externalServer.Close()
+			external, err := command("load_page", map[string]any{
+				"pageId": nested.PageID, "documentUrl": externalServer.URL + "/start",
+			})
+			if err != nil {
+				finish(fmt.Errorf("load redirected external page: %w", err))
+				return
+			}
+			if got := external.(nativePageState).DocumentURL; got != externalServer.URL+"/final" {
+				finish(fmt.Errorf("redirected external URL = %q", got))
+				return
+			}
+			if err := bridge.deliverEvent(sidecar.Event{
+				Name: "test.external", Payload: json.RawMessage(`{}`),
+				Source: &sidecar.EventTarget{WindowID: window.ID(), PageID: nested.PageID},
+			}); err == nil || !strings.Contains(err.Error(), "without business document access") {
+				finish(fmt.Errorf("external nested page received a business event: %v", err))
+				return
+			}
 
+			oldView := nestedViewPage(bridge, nested.PageID).WebView()
 			bridge.nativeWindowEnvironment()
+			if !oldView.IsDestroyed() {
+				finish(errors.New("replacement did not destroy the old native view"))
+				return
+			}
 			if _, err := bridge.nestedPage(nested.PageID); err == nil {
 				finish(errors.New("replacement kept the old nested page"))
 				return
@@ -345,6 +394,7 @@ window.mygo.on('deepchat.event', (event) => window.nativeEvents.push(event))
 		}()
 	})
 	defer mygo.Protocol.Unhandle("mygo")
+
 	if err := <-result; err != nil {
 		t.Fatal(err)
 	}

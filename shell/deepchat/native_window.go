@@ -711,6 +711,17 @@ func canFinishNativeDocumentLoad(
 	return navigation.committed(rawURL, after) && sameNativeDocumentURL(rawURL, currentURL)
 }
 
+func canFinishExternalNativePageLoad(
+	navigation *nativeDocumentNavigation, currentURL string, after uint64,
+) bool {
+	parsed, err := url.Parse(currentURL)
+	if err != nil || parsed.User != nil || parsed.Host == "" ||
+		(parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return false
+	}
+	return navigation.committed(currentURL, after)
+}
+
 func (b *Bridge) loadNativeDocument(
 	ctx context.Context, window *mygo.Window, rawURL string, navigation *nativeDocumentNavigation,
 ) error {
@@ -719,6 +730,13 @@ func (b *Bridge) loadNativeDocument(
 
 func (b *Bridge) loadNativePageDocument(
 	ctx context.Context, page *mygo.Page, rawURL string, navigation *nativeDocumentNavigation,
+) error {
+	return b.loadNativePageDocumentWithRedirect(ctx, page, rawURL, navigation, false)
+}
+
+func (b *Bridge) loadNativePageDocumentWithRedirect(
+	ctx context.Context, page *mygo.Page, rawURL string, navigation *nativeDocumentNavigation,
+	allowRedirect bool,
 ) error {
 	if navigation == nil {
 		return errors.New("native window navigation state is unavailable")
@@ -745,12 +763,14 @@ func (b *Bridge) loadNativePageDocument(
 		}
 		// A blank or previous navigation may finish while page.URL() already
 		// shows this request. Require the target's committed generation too.
-		if canFinishNativeDocumentLoad(navigation, rawURL, page.URL(), beforeLoad) {
+		if canFinishNativeDocumentLoad(navigation, rawURL, page.URL(), beforeLoad) ||
+			(allowRedirect && canFinishExternalNativePageLoad(navigation, page.URL(), beforeLoad)) {
 			finish(nil)
 		}
 	})
 	offFailed := page.OnDidFailLoad(func(loadError *mygo.LoadError) {
-		if loadError != nil && sameNativeDocumentURL(rawURL, loadError.URL) {
+		if loadError != nil && (sameNativeDocumentURL(rawURL, loadError.URL) ||
+			(allowRedirect && loadError.URL == page.URL())) {
 			finish(errors.New("native document failed to load"))
 		}
 	})

@@ -165,7 +165,9 @@ func (b *Bridge) loadNestedPage(ctx context.Context, id uint64, rawURL string) (
 	if err != nil {
 		return nativePageState{}, err
 	}
-	if err := b.loadNativePageDocument(ctx, record.page, rawURL, record.navigation); err != nil {
+	parsed, _ := url.Parse(rawURL)
+	allowRedirect := parsed.Scheme == "http" || parsed.Scheme == "https"
+	if err := b.loadNativePageDocumentWithRedirect(ctx, record.page, rawURL, record.navigation, allowRedirect); err != nil {
 		return nativePageState{}, err
 	}
 	return nativePageStateOf(record), nil

@@ -74,6 +74,9 @@ func (b *Bridge) deliverEvent(event sidecar.Event) error {
 		if err != nil || nested.window.ID() != event.Source.WindowID {
 			return errors.New("sidecar event targets an unregistered or destroyed nested page")
 		}
+		if !isNativeNestedBusinessDocument(nested.page.URL()) {
+			return errors.New("sidecar event targets a nested page without business document access")
+		}
 		return deepchatEvent.EmitPage(nested.page, deepchatEventPayload{Name: event.Name, Payload: event.Payload})
 	}
 	b.mu.RLock()
