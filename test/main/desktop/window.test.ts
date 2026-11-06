@@ -4,6 +4,13 @@ import { SETTINGS_EVENTS } from '@/events'
 
 const activateAppOnMacMock = vi.hoisted(() => vi.fn())
 const registerNativePrimaryWindowMock = vi.hoisted(() => vi.fn())
+const createNativeSettingsWindowMock = vi.hoisted(() => vi.fn())
+const registerNativeWindowMock = vi.hoisted(() => vi.fn())
+const nativeRendererDirectoryUrlMock = vi.hoisted(() => vi.fn())
+const activateNativeSettingsWindowMock = vi.hoisted(() => vi.fn())
+const closeNativeSettingsWindowMock = vi.hoisted(() => vi.fn())
+const waitForNativeSettingsWindowClosedMock = vi.hoisted(() => vi.fn())
+const isNativeWindowClosingMock = vi.hoisted(() => vi.fn())
 const originalBrowserWindowFromId = (BrowserWindow as any).fromId
 
 vi.mock('@/platform/appHost', async (importOriginal) => {
@@ -12,7 +19,14 @@ vi.mock('@/platform/appHost', async (importOriginal) => {
     ...actual,
     appHost: {
       ...actual.appHost,
-      registerNativePrimaryWindow: registerNativePrimaryWindowMock
+      registerNativePrimaryWindow: registerNativePrimaryWindowMock,
+      createNativeSettingsWindow: createNativeSettingsWindowMock,
+      registerNativeWindow: registerNativeWindowMock,
+      activateNativeSettingsWindow: activateNativeSettingsWindowMock,
+      closeNativeSettingsWindow: closeNativeSettingsWindowMock,
+      waitForNativeSettingsWindowClosed: waitForNativeSettingsWindowClosedMock,
+      isNativeWindowClosing: isNativeWindowClosingMock,
+      getNativeRendererDirectoryUrl: nativeRendererDirectoryUrlMock
     }
   }
 })
@@ -31,6 +45,61 @@ vi.mock('electron-window-state', () => ({
     unmanage: vi.fn()
   }))
 }))
+
+function createSettingsLifecycleWindow(placeholderId: number): {
+  window: any
+  close: () => void
+} {
+  const listeners = new Map<string, Array<() => void>>()
+  let destroyed = false
+  const addListener = (name: string, listener: () => void): void => {
+    listeners.set(name, [...(listeners.get(name) ?? []), listener])
+  }
+  const close = (): void => {
+    if (destroyed) return
+    destroyed = true
+    for (const listener of listeners.get('closed') ?? []) listener()
+  }
+  const window: any = {
+    id: placeholderId,
+    loadURL: vi.fn(),
+    on: vi.fn((name: string, listener: () => void) => {
+      addListener(name, listener)
+      return window
+    }),
+    once: vi.fn((name: string, listener: () => void) => {
+      addListener(name, listener)
+      return window
+    }),
+    removeListener: vi.fn((name: string, listener: () => void) => {
+      listeners.set(
+        name,
+        (listeners.get(name) ?? []).filter((entry) => entry !== listener)
+      )
+      return window
+    }),
+    webContents: {
+      id: placeholderId * -10,
+      on: vi.fn(),
+      send: vi.fn(),
+      setWindowOpenHandler: vi.fn(),
+      setBackgroundThrottling: vi.fn(),
+      setFrameRate: vi.fn(),
+      openDevTools: vi.fn(),
+      isDestroyed: vi.fn(() => destroyed)
+    },
+    isDestroyed: vi.fn(() => destroyed),
+    setContentProtection: vi.fn(),
+    setBackgroundColor: vi.fn(),
+    setHiddenInMissionControl: vi.fn(),
+    setSkipTaskbar: vi.fn(),
+    show: vi.fn(),
+    focus: vi.fn(),
+    destroy: vi.fn(close),
+    close: vi.fn(close)
+  }
+  return { window, close }
+}
 
 describe('WindowPresenter', () => {
   beforeEach(() => {
@@ -428,6 +497,180 @@ describe('WindowPresenter', () => {
         minHeight: 640
       })
     )
+  })
+
+  it('shares a pending native settings creation before constructing a wrapper', async () => {
+    const nativeDescriptor = {
+      windowId: 81,
+      role: 'settings',
+      documentUrl: 'about:blank',
+      visible: false,
+      focused: false
+    } as const
+    let releaseNativeWindow!: (value: typeof nativeDescriptor) => void
+    createNativeSettingsWindowMock.mockReturnValue(
+      new Promise((resolve) => {
+        releaseNativeWindow = resolve
+      })
+    )
+    registerNativeWindowMock.mockImplementation((window, descriptor) => {
+      window.id = descriptor.windowId
+    })
+    nativeRendererDirectoryUrlMock.mockReturnValue('mygo://localhost/')
+    const appWindow = {
+      id: -1,
+      loadURL: vi.fn(),
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      webContents: {
+        id: 811,
+        on: vi.fn(),
+        send: vi.fn(),
+        setWindowOpenHandler: vi.fn(),
+        setBackgroundThrottling: vi.fn(),
+        setFrameRate: vi.fn(),
+        openDevTools: vi.fn(),
+        isDestroyed: vi.fn(() => false)
+      },
+      isDestroyed: vi.fn(() => false),
+      setContentProtection: vi.fn(),
+      setBackgroundColor: vi.fn(),
+      setHiddenInMissionControl: vi.fn(),
+      setSkipTaskbar: vi.fn(),
+      show: vi.fn(),
+      focus: vi.fn()
+    }
+    vi.mocked(BrowserWindow).mockImplementationOnce(function () {
+      return appWindow as any
+    })
+    const { WindowPresenter } = await import('@/desktop/window')
+    const presenter = new WindowPresenter(
+      { getContentProtectionEnabled: vi.fn(() => false) } as any,
+      vi.fn(),
+      vi.fn()
+    )
+
+    const first = presenter.createSettingsWindow()
+    const second = presenter.createSettingsWindow()
+    await vi.waitFor(() => expect(createNativeSettingsWindowMock).toHaveBeenCalledTimes(1))
+    expect(BrowserWindow).not.toHaveBeenCalled()
+    releaseNativeWindow(nativeDescriptor)
+
+    await expect(Promise.all([first, second])).resolves.toEqual([81, 81])
+    expect(BrowserWindow).toHaveBeenCalledTimes(1)
+    expect(registerNativeWindowMock).toHaveBeenCalledWith(appWindow, nativeDescriptor)
+    expect(appWindow.loadURL).toHaveBeenCalledWith('mygo://localhost/settings/index.html')
+    expect((presenter as any).settingsWindow).toBe(appWindow)
+  })
+
+  it('waits for actual closes during settings loading and immediate reopen', async () => {
+    const fixtures = [-101, -102, -103].map(createSettingsLifecycleWindow)
+    const closing = new Set<number>()
+    let nextId = 80
+    createNativeSettingsWindowMock.mockReset().mockImplementation(async () => ({
+      windowId: ++nextId,
+      role: 'settings',
+      documentUrl: 'about:blank',
+      visible: false,
+      focused: false
+    }))
+    registerNativeWindowMock.mockImplementation((window, descriptor) => {
+      window.id = descriptor.windowId
+    })
+    isNativeWindowClosingMock.mockImplementation((id) => closing.has(id))
+    waitForNativeSettingsWindowClosedMock.mockImplementation((id) => {
+      const fixture = fixtures.find((candidate) => candidate.window.id === id)
+      if (!fixture || fixture.window.isDestroyed()) return Promise.resolve()
+      return new Promise<void>((resolve) => fixture.window.once('closed', resolve))
+    })
+    nativeRendererDirectoryUrlMock.mockReturnValue('mygo://localhost/')
+    vi.mocked(BrowserWindow)
+      .mockImplementationOnce(function () {
+        return fixtures[0].window
+      })
+      .mockImplementationOnce(function () {
+        return fixtures[1].window
+      })
+      .mockImplementationOnce(function () {
+        return fixtures[2].window
+      })
+    const { WindowPresenter } = await import('@/desktop/window')
+    const presenter = new WindowPresenter(
+      { getContentProtectionEnabled: vi.fn(() => false) } as any,
+      vi.fn(),
+      vi.fn()
+    )
+
+    let releaseLoad!: () => void
+    let loadCalls = 0
+    const loading = new Promise<void>((resolve) => {
+      releaseLoad = resolve
+    })
+    fixtures[0].window.loadURL = () => {
+      loadCalls++
+      return loading
+    }
+    const creation = presenter.createSettingsWindow()
+    await vi.waitFor(() => expect(loadCalls).toBe(1))
+    expect((presenter as any).settingsWindow).toBe(fixtures[0].window)
+    closing.add(fixtures[0].window.id)
+    releaseLoad()
+    await vi.waitFor(() => expect(waitForNativeSettingsWindowClosedMock).toHaveBeenCalledWith(81))
+    expect(createNativeSettingsWindowMock).toHaveBeenCalledTimes(1)
+
+    fixtures[0].close()
+    await expect(creation).resolves.toBe(82)
+
+    closing.add(82)
+    const reopened = presenter.createSettingsWindow()
+    await vi.waitFor(() => expect(waitForNativeSettingsWindowClosedMock).toHaveBeenCalledWith(82))
+    expect(createNativeSettingsWindowMock).toHaveBeenCalledTimes(2)
+    fixtures[1].close()
+    await expect(reopened).resolves.toBe(83)
+    expect(createNativeSettingsWindowMock).toHaveBeenCalledTimes(3)
+    expect((presenter as any).settingsWindow).toBe(fixtures[2].window)
+  })
+
+  it('closes the native settings window when loading fails', async () => {
+    const fixture = createSettingsLifecycleWindow(-101)
+    createNativeSettingsWindowMock.mockReset().mockResolvedValue({
+      windowId: 81,
+      role: 'settings',
+      documentUrl: 'about:blank',
+      visible: false,
+      focused: false
+    })
+    registerNativeWindowMock.mockImplementation((window, descriptor) => {
+      window.id = descriptor.windowId
+    })
+    const closing = new Set<number>()
+    isNativeWindowClosingMock.mockImplementation((id) => closing.has(id))
+    closeNativeSettingsWindowMock.mockImplementation(async (id: number) => {
+      closing.add(id)
+      fixture.close()
+    })
+    waitForNativeSettingsWindowClosedMock.mockResolvedValue(undefined)
+    nativeRendererDirectoryUrlMock.mockReturnValue('mygo://localhost/')
+    fixture.window.loadURL = async () => {
+      throw new Error('settings document failed')
+    }
+    vi.mocked(BrowserWindow).mockImplementationOnce(function () {
+      return fixture.window
+    })
+    const { WindowPresenter } = await import('@/desktop/window')
+    const presenter = new WindowPresenter(
+      { getContentProtectionEnabled: vi.fn(() => false) } as any,
+      vi.fn(),
+      vi.fn()
+    )
+
+    await expect(presenter.createSettingsWindow({ routeName: 'settings-about' })).rejects.toThrow(
+      'settings document failed'
+    )
+    expect(closeNativeSettingsWindowMock).toHaveBeenCalledWith(81)
+    expect(fixture.window.isDestroyed()).toBe(true)
+    expect((presenter as any).settingsWindow).toBeNull()
+    expect((presenter as any).pendingSettingsMessages).toHaveLength(0)
   })
 
   it('preserves per-tab delivery order across consecutive sendToAllWindows broadcasts', async () => {

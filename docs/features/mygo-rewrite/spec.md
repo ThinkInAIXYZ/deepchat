@@ -92,7 +92,18 @@ D2c1 的恢复验收必须包含真实 sidecar 故障注入和新代次 DOM 观�
 - splash 先于主窗口创建并关闭是现有业务的真实时序。它不能抢占主窗口绑定；未登记的窗口/视图使用不可作为原生 caller 的占位身份，其事件按 webContents 记录一次明确告警后丢弃，不得退化为全窗口广播。每个带目标的 sidecar event 只向匹配的 Go 窗口 `Emit`，全局 quit 控制单独处理。
 - 实际页面 URL 取代用于“帮助授权通过”的伪造 `file:` URL。只有显式 Node host 为同一 renderer 资源提供 `mygo://localhost/` 映射；精确入口 `index.html`、settings 和 splash 进入既有授权函数，`frame === mainFrame`、`sender.getURL()` 与 frame URL 一致性仍由原检查执行，未知 origin、路径、带凭据 URL 和预览文档被拒绝。Electron 默认不启用 mygo 文档映射。
 
-本切片仅证明已注册主窗口的调用和事件归属。第二个真实窗口的异步创建、独立 sender、close→destroy→申请方重绑定、nested WebView 映射、splash/数据库解锁的实际原生流程仍未完成。Go 侧页面文档门目前只接受主入口，不宣称 settings/splash 的产品路径已经支持。mygo dev URL 流程也未在本次变化中启用或验证；它不能通过放宽来源匹配来获得隐式信任。
+本切片建立已注册主窗口的调用和事件归属，但不单独证明第二个真实窗口的异步创建、独立 sender、close→destroy→申请方重绑定、nested WebView 映射或 splash/数据库解锁流程。此处的源文档规则只覆盖主入口；settings 的独立 role/path 规则见 4.4，不通过放宽主入口或来源匹配获得隐式信任。mygo dev URL 流程仍未启用或验证。
+
+### 4.4 D2c2b1 settings 窗口的原生创建和生命周期合同
+
+- `system.openSettings` 继续复用现有 typed route、`WindowPresenter.createSettingsWindow` 和 renderer，不增加平行设置页或通用 `Eval`。Node 通过平台端口请求 Go 确保一个 settings 原生窗口；Go 返回真实 window ID、role 和实际状态后，Node 才能绑定 `ShimBrowserWindow`。没有对应端口的 Electron 保持 Chromium 的创建路径。禁止把负占位 ID、最后创建窗口或任意仍存活 webContents 当作此操作的替代实现。
+- sidecar 与 Go 之间增加窄的 `native.window` 命令协议，只支持 settings 创建/复用、允许文档加载、显示、隐藏、焦点、原生应用激活和关闭。Node 的调用方向 ID 使用独立负数命名空间，避免与 Go→Node 的普通请求混淆；response 沿用现有 `id`/`result`/`error` envelope。复用同一 write ticket、物理写入与残帧关闭语义。Manager 为每条命令提供有界生命周期，隔离旧 generation，按到达顺序串行执行命令；队列有界时必须明确背压失败，不能静默丢弃。
+- 创建命令必须携带来自当前原生 IPC 调用的 source，而不是 renderer input 或调用方自选的 target。Go 再次核对已注册窗口、顶层 Page、实际 Page URL、role/path；`load` 额外要求目标窗口为该文档允许的 role，settings 仅允许 `/settings/index.html`。加载前的 `about:blank` 不会获得业务 sender。Node 用 `AsyncLocalStorage` 在异步 renderer handler 间保留原调用来源；原生 ready/focus 回调使用 Go 自己提供的窗口描述，不借用另一窗口的上下文。应用激活优先使用该 caller，非 IPC 回调仅可使用启动环境指定的主窗口，不能选择最新或任意窗口。
+- `mygo://` 继续由 Go 的精确文件系统服务提供。对实际存在的 `/index.html` 或 `/settings/index.html`，避免 `FileServer` 的相对 `./` 301 重定向使 WebKit 顶层 navigation 停留空文档；保留请求的规范入口 URL，其他资源和路由仍走原有文件服务，不扩大到目录或任意文件读取。
+- Go 创建窗口时先保持隐藏，Node 完成本地绑定并开始允许的 settings 文档加载后，真实 ready-to-show 才进入现有显示流程。ready、focus/blur 和 closed 通知携带 Go 已注册 ID；Node 只更新已经绑定的对应窗口。closed 必须移除 sender 并使本地 wrapper/settings 单例进入不可再调用状态。原生回调不在 mygo 主线程执行管道 I/O；通知发送失败必须记录，不能代替实际窗口完成证据。
+- 非 IPC 的 sidecar host principal 与 renderer source 必须互斥，renderer input 不能提升为 host。host action 仍受目标 role 和当前实际文档约束，只有 settings 创建失败后的 `about:blank` 允许 host close；空白文档不能因此获得业务 IPC。native wrapper 对未知成员可以明确记录兼容 gap，但必须保持非 thenable，避免 `await` 把 no-op `then` 当成异步契约并永久等待。
+- close request 不等于 closed：创建/立即重开必须等待真实 closed 通知，构造、绑定或导航失败必须释放对应原生窗口。Go→Node 状态以单调 sequence 拒绝迟到事件，ready/focus 不得解除 pending close；同窗口通知按原生顺序 remove-and-append 合并，closed 清除尚未送达的 ready/focus。Electron 路径继续使用真实 Chromium 事件，不经过 Go sequence。
+- 本切片的验收目标是两个同时存活的真实原生窗口、独立 window/webContents 身份、settings IPC、按 window 的事件和实际关闭/重新创建。尚未覆盖 sidecar 替换时 settings 的自动恢复绑定、多个普通聊天窗口、splash/数据库解锁的实际 native 界面、nested `WebView` ID/frame 隔离，以及全局背压/内存预算。主窗口已有的恢复行为保持在正常 generation 下验证；不据此宣称第二窗口恢复完成。
 
 ## 5. 后台进程与 worker 合同
 

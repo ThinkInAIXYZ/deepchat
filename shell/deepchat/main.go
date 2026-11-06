@@ -41,7 +41,7 @@ func main() {
 	var stopping atomic.Bool
 	var rendererLoadStarted atomic.Bool
 	var manager *sidecar.Manager
-	bridge := &Bridge{}
+	bridge := &Bridge{preload: sidecar.PreloadScript(string(preload))}
 	defer func() {
 		stopping.Store(true)
 		if manager == nil {
@@ -62,7 +62,11 @@ func main() {
 	})
 	mygo.App.WhenReady(func() {
 		if layout.rendererDir != "" {
-			mygo.SetFrontend(os.DirFS(layout.rendererDir))
+			files := os.DirFS(layout.rendererDir)
+			mygo.SetFrontend(files)
+			if err := mygo.Protocol.Handle("mygo", rendererProtocol(files)); err != nil {
+				log.Fatalf("configure frontend probe: %v", err)
+			}
 		}
 		// Register the real window before Node can emit any events. Load the
 		// application only after the real dispatcher, not just Node, is ready.
@@ -75,7 +79,7 @@ func main() {
 				PreloadScript: sidecar.PreloadScript(string(preload)),
 			},
 		})
-		bridge.registerWindow(window)
+		bridge.registerWindow(window, nativeWindowMain)
 		// A fast startup can announce readiness before StartManager returns.
 		// Publish the manager before the first page can issue an IPC request.
 		managerAssigned := make(chan struct{})
@@ -95,6 +99,7 @@ func main() {
 					log.Printf("sidecar exited unexpectedly; replacement scheduled: %v", err)
 				}
 			},
+			OnCommand: bridge.handleNativeWindowCommand,
 			OnEvent: func(event sidecar.Event) {
 				if event.Name == "app.quit.requested" {
 					stopping.Store(true)
@@ -136,7 +141,7 @@ func main() {
 			go mygo.App.Quit()
 			return
 		}
-		bridge.process = manager
+		bridge.setProcess(manager)
 		close(managerAssigned)
 	})
 

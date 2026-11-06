@@ -2,8 +2,10 @@ package sidecar
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 )
@@ -12,6 +14,7 @@ const (
 	defaultMaxRestarts  = 3
 	defaultBackoff      = 750 * time.Millisecond
 	defaultStartupLimit = 60 * time.Second
+	defaultCommandLimit = 10 * time.Second
 	maxBackoff          = 4 * time.Second
 )
 
@@ -25,8 +28,10 @@ type ManagerOptions struct {
 	MaxRestarts      int
 	Backoff          time.Duration
 	StartupTimeout   time.Duration
+	CommandTimeout   time.Duration
 	OnUnexpectedExit func(error)
 	OnEvent          func(Event)
+	OnCommand        NativeWindowCommandHandler
 	OnReady          func()
 	OnExhausted      func(error)
 }
@@ -49,6 +54,16 @@ type Manager struct {
 	stop        chan struct{}
 	stopOnce    sync.Once
 	startFailed bool
+	runCtx      context.Context
+	cancel      context.CancelFunc
+	commands    chan managedCommand
+}
+
+type managedCommand struct {
+	generation int
+	command    NativeWindowCommand
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 func StartManager(options ManagerOptions) (*Manager, error) {
@@ -67,8 +82,25 @@ func StartManager(options ManagerOptions) (*Manager, error) {
 	if options.StartupTimeout < 0 {
 		return nil, errors.New("sidecar startup timeout cannot be negative")
 	}
-	manager := &Manager{options: options, onEvent: options.OnEvent, stop: make(chan struct{})}
+	if options.CommandTimeout == 0 {
+		options.CommandTimeout = defaultCommandLimit
+	}
+	if options.CommandTimeout < 0 {
+		return nil, errors.New("sidecar command timeout cannot be negative")
+	}
+	runCtx, cancel := context.WithCancel(context.Background())
+	manager := &Manager{
+		options:  options,
+		onEvent:  options.OnEvent,
+		stop:     make(chan struct{}),
+		runCtx:   runCtx,
+		cancel:   cancel,
+		commands: make(chan managedCommand, 32),
+	}
+	go manager.commandLoop()
 	if err := manager.start(); err != nil {
+		manager.stopOnce.Do(func() { close(manager.stop) })
+		manager.cancel()
 		return nil, err
 	}
 	return manager, nil
@@ -109,6 +141,7 @@ func (m *Manager) start() error {
 		m.unexpectedExit(generation, err)
 	}
 	options.OnEvent = func(event Event) { m.handleEvent(generation, event) }
+	options.OnCommand = func(command NativeWindowCommand) { m.handleCommand(generation, command) }
 	process, err := Start(options)
 	if err != nil {
 		m.lastErr = err
@@ -224,6 +257,129 @@ func (m *Manager) scheduleRestart(failedGeneration int) {
 	})
 }
 
+func (m *Manager) handleCommand(generation int, command NativeWindowCommand) {
+	m.mu.Lock()
+	current := m.process != nil && generation == m.generation && !m.stopping
+	m.mu.Unlock()
+	if !current {
+		return
+	}
+	ctx, cancel := context.WithTimeout(m.runCtx, m.options.CommandTimeout)
+	select {
+	case m.commands <- managedCommand{generation: generation, command: command, ctx: ctx, cancel: cancel}:
+	case <-ctx.Done():
+		cancel()
+	default:
+		if err := m.replyCommand(ctx, generation, command.ID, nil, errors.New("native window command queue is full")); err != nil && !errors.Is(err, ErrClosed) && !errors.Is(err, context.Canceled) {
+			log.Printf("native window command response failed: %v", err)
+		}
+		cancel()
+	}
+}
+
+func (m *Manager) commandLoop() {
+	for {
+		select {
+		case <-m.runCtx.Done():
+			return
+		case job := <-m.commands:
+			m.executeCommand(job)
+		}
+	}
+}
+
+func (m *Manager) executeCommand(job managedCommand) {
+	ctx, cancel := job.ctx, job.cancel
+	defer cancel()
+	generation, command := job.generation, job.command
+	m.mu.Lock()
+	current := m.process != nil && generation == m.generation && !m.stopping
+	m.mu.Unlock()
+	if !current {
+		return
+	}
+	var result any
+	var err error
+	if err = ctx.Err(); err != nil {
+		// A queued deadline is an execution barrier, not just a reply deadline.
+		// Already-started synchronous native calls cannot be hard-cancelled.
+		m.replyExpiredCommand(generation, command.ID, err)
+		return
+	}
+	if m.options.OnCommand == nil {
+		err = errors.New("native window commands are unavailable")
+	} else {
+		result, err = m.options.OnCommand(ctx, command)
+	}
+	m.replyExpiredCommand(generation, command.ID, err, result)
+}
+
+func (m *Manager) replyExpiredCommand(generation int, id int, resultErr error, result ...any) {
+	ctx, cancel := context.WithTimeout(m.runCtx, m.options.CommandTimeout)
+	defer cancel()
+	var value any
+	if len(result) > 0 {
+		value = result[0]
+	}
+	if replyErr := m.replyCommand(ctx, generation, id, value, resultErr); replyErr != nil && !errors.Is(replyErr, ErrClosed) && !errors.Is(replyErr, context.Canceled) {
+		log.Printf("native window command response failed: %v", replyErr)
+	}
+}
+
+func (m *Manager) replyCommand(
+	ctx context.Context,
+	generation int,
+	id int,
+	result any,
+	resultErr error,
+) error {
+	m.mu.Lock()
+	if m.stopping || m.process == nil || generation != m.generation {
+		m.mu.Unlock()
+		return ErrClosed
+	}
+	process := m.process
+	m.mu.Unlock()
+	answer := reply{}
+	if resultErr != nil {
+		answer.Error = resultErr.Error()
+	} else {
+		encoded, err := json.Marshal(result)
+		if err != nil {
+			return fmt.Errorf("encode native command result: %w", err)
+		}
+		answer.Result = encoded
+	}
+	return process.writeCommandReply(ctx, id, answer)
+}
+
+func (m *Manager) EmitEvent(ctx context.Context, event Event) error {
+	if !json.Valid(event.Payload) {
+		return errors.New("sidecar event payload is not valid JSON")
+	}
+	ctx, cancel := context.WithTimeout(ctx, m.options.CommandTimeout)
+	defer cancel()
+	m.mu.Lock()
+	if m.stopping || m.process == nil {
+		m.mu.Unlock()
+		return ErrClosed
+	}
+	process := m.process
+	m.mu.Unlock()
+	var source *RequestSource
+	if event.Source != nil {
+		source = &RequestSource{WindowID: event.Source.WindowID}
+	}
+	_, err := process.writeEnvelope(ctx, nil, false, func(id int) (any, error) {
+		// A one-way envelope only shares the ordered write ticket. It has no
+		// response waiter and never adds an entry to the discarded-ID map.
+		return map[string]any{
+			"id": id, "event": event.Name, "payload": event.Payload, "source": source,
+		}, nil
+	})
+	return err
+}
+
 func (m *Manager) handleEvent(generation int, event Event) {
 	m.mu.Lock()
 	current := m.process != nil && generation == m.generation && !m.stopping
@@ -280,6 +436,9 @@ func (m *Manager) Close(ctx context.Context) error {
 	}
 	m.stopping = true
 	m.stopOnce.Do(func() { close(m.stop) })
+	if m.cancel != nil {
+		m.cancel()
+	}
 	process := m.process
 	m.process = nil
 	m.mu.Unlock()

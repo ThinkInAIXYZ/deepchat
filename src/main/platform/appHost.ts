@@ -38,6 +38,21 @@ export interface AppHost {
   getNativeRendererDirectoryUrl?(): string
   /** Bind the primary Go window before the presenter records its ID. */
   registerNativePrimaryWindow?(window: import('electron').BrowserWindow): void
+  /** Ask Go to create or reuse its actual settings window. */
+  createNativeSettingsWindow?(
+    bounds: import('./node/nativeWindowProtocol').NativeWindowBounds
+  ): Promise<import('./node/nativeWindowProtocol').NativeWindowDescriptor>
+  /** Bind a returned native descriptor without assigning local window IDs. */
+  registerNativeWindow?(
+    window: import('electron').BrowserWindow,
+    descriptor: import('./node/nativeWindowProtocol').NativeWindowDescriptor
+  ): void
+  /** Wait for native show/focus instead of assuming a fire-and-forget request worked. */
+  activateNativeSettingsWindow?(windowId: number): Promise<void>
+  /** Compensate a failed native creation, including a document still at about:blank. */
+  closeNativeSettingsWindow?(windowId: number): Promise<void>
+  waitForNativeSettingsWindowClosed?(windowId: number): Promise<void>
+  isNativeWindowClosing?(windowId: number): boolean
   /** Whether the app opens at login. */
   getLoginItemEnabled(): boolean
   setLoginItemEnabled(enabled: boolean): void

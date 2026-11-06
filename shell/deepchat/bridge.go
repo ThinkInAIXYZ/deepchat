@@ -25,53 +25,30 @@ var deepchatEvent = mygo.NewEvent[deepchatEventPayload]("deepchat.event")
 // Bridge deliberately exposes only product operations used by the renderer and
 // preload. Probe methods such as arbitrary Eval do not belong in this package.
 type Bridge struct {
-	mu          sync.RWMutex
-	primary     *mygo.Window
-	windows     map[int]*mygo.Window
-	process     *sidecar.Manager
-	externalURL func(string) error
+	mu                 sync.RWMutex
+	primary            *mygo.Window
+	settings           *mygo.Window
+	windows            map[int]nativeWindowRecord
+	process            *sidecar.Manager
+	externalURL        func(string) error
+	preload            string
+	nativeCommands     sync.Mutex
+	closingWindows     map[int]bool
+	windowSequences    map[int]uint64
+	notificationQueue  []nativeWindowNotification
+	notificationSignal chan struct{}
 }
 
-func (b *Bridge) registerWindow(window *mygo.Window) {
-	if window == nil || window.ID() <= 0 {
-		panic("cannot register an invalid native window")
-	}
+func (b *Bridge) setProcess(manager *sidecar.Manager) {
 	b.mu.Lock()
-	if b.windows == nil {
-		b.windows = map[int]*mygo.Window{}
-	}
-	if existing := b.windows[window.ID()]; existing != nil && existing != window {
-		b.mu.Unlock()
-		panic("native window ID is already registered")
-	}
-	b.windows[window.ID()] = window
-	if b.primary == nil || b.primary.IsDestroyed() {
-		b.primary = window
-	}
+	b.process = manager
 	b.mu.Unlock()
-	remove := func() {
-		b.mu.Lock()
-		defer b.mu.Unlock()
-		if b.windows[window.ID()] == window {
-			delete(b.windows, window.ID())
-		}
-		if b.primary == window {
-			b.primary = nil
-		}
-	}
-	window.OnClosed(remove)
-	if window.IsDestroyed() {
-		remove()
-	}
 }
 
-func (b *Bridge) primaryWindow() *mygo.Window {
+func (b *Bridge) manager() *sidecar.Manager {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	if b.primary == nil || b.primary.IsDestroyed() {
-		return nil
-	}
-	return b.primary
+	return b.process
 }
 
 func (b *Bridge) deliverEvent(event sidecar.Event) error {
@@ -79,7 +56,7 @@ func (b *Bridge) deliverEvent(event sidecar.Event) error {
 		return errors.New("sidecar event has no native window target")
 	}
 	b.mu.RLock()
-	window := b.windows[event.Source.WindowID]
+	window := b.windows[event.Source.WindowID].window
 	b.mu.RUnlock()
 	if window == nil || window.IsDestroyed() {
 		return errors.New("sidecar event targets an unregistered or destroyed native window")
@@ -88,16 +65,7 @@ func (b *Bridge) deliverEvent(event sidecar.Event) error {
 }
 
 func isPrimaryRendererDocument(rawURL string) bool {
-	parsed, err := url.Parse(rawURL)
-	if err != nil || parsed.User != nil || parsed.Scheme != "mygo" || parsed.Host != "localhost" {
-		return false
-	}
-	switch parsed.EscapedPath() {
-	case "", "/", "/index.html":
-		return true
-	default:
-		return false
-	}
+	return isRendererDocument(nativeWindowMain, rawURL)
 }
 
 func (b *Bridge) requestSource(ctx context.Context) (sidecar.RequestSource, *mygo.Window, error) {
@@ -109,12 +77,12 @@ func (b *Bridge) requestSource(ctx context.Context) (sidecar.RequestSource, *myg
 	b.mu.RLock()
 	registered := b.windows[window.ID()]
 	b.mu.RUnlock()
-	if window.ID() <= 0 || registered == nil || registered != window {
+	if window.ID() <= 0 || registered.window == nil || registered.window != window {
 		return sidecar.RequestSource{}, nil, errors.New("renderer caller is not a registered application window")
 	}
 	documentURL := page.URL()
-	if !isPrimaryRendererDocument(documentURL) {
-		return sidecar.RequestSource{}, nil, errors.New("renderer caller is not the primary application document")
+	if !isRendererDocument(registered.role, documentURL) {
+		return sidecar.RequestSource{}, nil, errors.New("renderer caller is not an allowed application document")
 	}
 	return sidecar.RequestSource{WindowID: window.ID(), DocumentURL: documentURL}, window, nil
 }
@@ -132,10 +100,11 @@ func (b *Bridge) Invoke(ctx context.Context, route string, inputJSON string) (st
 	if answer, handled, err := b.shellRoute(window, route); handled {
 		return answer, err
 	}
-	if b.process == nil {
+	process := b.manager()
+	if process == nil {
 		return "", errors.New("sidecar is not available")
 	}
-	return b.process.Call(ctx, route, inputJSON, source)
+	return process.Call(ctx, route, inputJSON, source)
 }
 
 func (b *Bridge) shellRoute(window *mygo.Window, route string) (string, bool, error) {

@@ -15,11 +15,16 @@ import {
   emitAppBeforeQuit,
   installElectronShimHooks,
   invokeIpc,
+  handleNativeWindowNotification,
   whenIpcHandlerRegistered,
   type IpcRequestSource
 } from '@/platform/node/electron'
 import { startApp } from '@/appMain'
 import { SidecarLifecycle } from './lifecycle'
+import {
+  configureNativeWindowCommands,
+  resolveNativeWindowCommand
+} from '@/platform/node/nativeWindowCommands'
 
 // Keep one private path for protocol envelopes. Everything else reaches stderr,
 // including shared/logger's pre-bound console and direct process.stdout writes.
@@ -42,6 +47,7 @@ if (
 }
 
 const lifecycle = new SidecarLifecycle(emitAppBeforeQuit)
+configureNativeWindowCommands(write)
 installElectronShimHooks({
   sendEvent: (name, payload, windowId) =>
     write({ event: name, payload, source: windowId === undefined ? undefined : { windowId } }),
@@ -57,6 +63,11 @@ type SidecarRequest = {
   id?: number
   route?: string
   input?: unknown
+  event?: string
+  command?: string
+  payload?: unknown
+  result?: unknown
+  error?: unknown
   source?: IpcRequestSource
 }
 
@@ -69,6 +80,24 @@ const handleLine = async (line: string): Promise<void> => {
     request = JSON.parse(trimmed)
   } catch (error) {
     write({ error: `bad request: ${String(error)}` })
+    return
+  }
+
+  if (typeof request.command === 'string') {
+    console.error('[sidecar] rejected a command from the Go side')
+    return
+  }
+  if (typeof request.event === 'string') {
+    try {
+      handleNativeWindowNotification(request.event, request.payload, request.source?.windowId)
+    } catch (error) {
+      console.error('[sidecar] native window notification failed', error)
+    }
+    return
+  }
+  if (resolveNativeWindowCommand(request.id, request.result, request.error)) return
+  if (typeof request.id === 'number' && request.id < 0) {
+    console.warn('[sidecar] discarding a late or unknown native command response')
     return
   }
 

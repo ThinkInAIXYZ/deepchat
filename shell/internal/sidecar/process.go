@@ -39,6 +39,7 @@ type Options struct {
 	ShutdownTimeout time.Duration
 	OnExit          func(error)
 	OnEvent         func(Event)
+	OnCommand       func(NativeWindowCommand)
 }
 
 type EventTarget struct {
@@ -57,6 +58,23 @@ type RequestSource struct {
 	WindowID    int    `json:"windowId"`
 	DocumentURL string `json:"documentUrl"`
 }
+
+const NativeWindowCommandType = "native.window"
+
+// NativeWindowCommand has a request-direction negative ID, never the positive
+// request IDs allocated by the Go caller. Input is decoded only by the narrow
+// window action handler, not exposed as a generic native RPC channel.
+type NativeWindowCommand struct {
+	ID     int             `json:"id"`
+	Type   string          `json:"command"`
+	Input  json.RawMessage `json:"input"`
+	Source *RequestSource  `json:"source,omitempty"`
+	// Host is a sidecar-initiated operation, not renderer-derived source data.
+	// The Go handler still limits its actions and target documents.
+	Host bool `json:"host,omitempty"`
+}
+
+type NativeWindowCommandHandler func(context.Context, NativeWindowCommand) (any, error)
 
 type reply struct {
 	ID     int             `json:"id"`
@@ -81,6 +99,7 @@ type Process struct {
 	pending   map[int]chan reply
 	discarded map[int]struct{}
 	onEvent   func(Event)
+	onCommand func(NativeWindowCommand)
 	closed    bool
 	stopping  bool
 	exitErr   error
@@ -154,6 +173,7 @@ func Start(options Options) (*Process, error) {
 		shutdownTimeout: shutdownTimeout,
 		onExit:          options.OnExit,
 		onEvent:         options.OnEvent,
+		onCommand:       options.OnCommand,
 		pending:         map[int]chan reply{},
 		discarded:       map[int]struct{}{},
 		writeToken:      make(chan struct{}, 1),
@@ -264,10 +284,28 @@ func (p *Process) handleLine(line []byte) error {
 		return nil
 	}
 	var envelope struct {
-		Event string `json:"event"`
+		Event   string `json:"event"`
+		Command string `json:"command"`
 	}
 	if err := json.Unmarshal(line, &envelope); err != nil {
 		return fmt.Errorf("malformed sidecar output: %w", err)
+	}
+	if envelope.Command != "" {
+		if envelope.Command != NativeWindowCommandType {
+			return errors.New("unsupported sidecar command type")
+		}
+		var command NativeWindowCommand
+		if err := json.Unmarshal(line, &command); err != nil || command.ID >= 0 {
+			return errors.New("malformed native window command")
+		}
+		p.mu.Lock()
+		handler := p.onCommand
+		p.mu.Unlock()
+		if handler == nil {
+			return errors.New("native window commands are unavailable")
+		}
+		handler(command)
+		return nil
 	}
 	if envelope.Event != "" {
 		var event Event
@@ -369,6 +407,30 @@ type writeReceipt struct {
 func (p *Process) writeFrame(
 	ctx context.Context, route string, input json.RawMessage, source *RequestSource,
 ) (writeReceipt, error) {
+	return p.writeEnvelope(ctx, nil, true, func(id int) (any, error) {
+		return map[string]any{
+			"id": id, "route": route, "input": input, "source": source,
+		}, nil
+	})
+}
+
+func (p *Process) writeCommandReply(ctx context.Context, id int, answer reply) error {
+	if id >= 0 {
+		return errors.New("native window command response requires its negative request ID")
+	}
+	_, err := p.writeEnvelope(ctx, &id, false, func(id int) (any, error) {
+		answer.ID = id
+		return answer, nil
+	})
+	return err
+}
+
+func (p *Process) writeEnvelope(
+	ctx context.Context,
+	responseID *int,
+	awaitReply bool,
+	encode func(int) (any, error),
+) (writeReceipt, error) {
 	releaseToken := true
 	select {
 	case p.writeToken <- struct{}{}:
@@ -396,14 +458,23 @@ func (p *Process) writeFrame(
 		p.mu.Unlock()
 		return writeReceipt{}, ErrClosed
 	}
-	p.nextID++
-	receipt := writeReceipt{id: p.nextID, waiting: make(chan reply, 1)}
-	p.pending[receipt.id] = receipt.waiting
+	receipt := writeReceipt{}
+	if responseID != nil {
+		receipt.id = *responseID
+	} else {
+		p.nextID++
+		receipt.id = p.nextID
+	}
+	if awaitReply {
+		receipt.waiting = make(chan reply, 1)
+		p.pending[receipt.id] = receipt.waiting
+	}
 	p.mu.Unlock()
-	request, err := json.Marshal(map[string]any{
-		"id": receipt.id, "route": route, "input": input,
-		"source": source,
-	})
+	message, err := encode(receipt.id)
+	if err != nil {
+		return receipt, err
+	}
+	request, err := json.Marshal(message)
 	if err != nil {
 		return receipt, err
 	}

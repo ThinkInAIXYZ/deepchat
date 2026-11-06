@@ -20,6 +20,16 @@ import { nodeAppHost } from '../appHost'
 import { nodeProcessHost } from '../processHost'
 import { nodeSecretHost } from '../secretHost'
 import { nodeShellHost } from '../shellHost'
+import {
+  applyNativeWindowAction,
+  cachedNativeWindowState,
+  focusNativeApp,
+  forgetNativeWindowState,
+  recordNativeWindowState,
+  restoreAfterNativeCloseFailure,
+  runWithNativeCaller
+} from '../nativeWindowCommands'
+import { parseNativeWindowDescriptor, type NativeWindowDescriptor } from '../nativeWindowProtocol'
 
 type Listener = (...args: never[]) => void
 
@@ -91,6 +101,9 @@ function noopSurface<T extends object>(target: T, label: string): T {
       const value = Reflect.get(object, property, receiver)
       if (value !== undefined) return value
       if (typeof property !== 'string') return value
+      // Electron windows are not thenables. A no-op `then` would make await call
+      // it and wait forever instead of resolving to the wrapped object.
+      if (property === 'then') return undefined
       if (!reported.has(property)) {
         reported.add(property)
         console.warn(`[sidecar] ${label}.${property} is not implemented; ignored`)
@@ -117,10 +130,7 @@ const defaultSessionRaw = {
 let nextWebContentsId = 1
 let nextWindowId = 1
 
-export type IpcRequestSource = Readonly<{
-  windowId: number
-  documentUrl: string
-}>
+export type IpcRequestSource = import('../nativeWindowProtocol').NativeCaller
 
 /** Sender records are bound by native window ID; nested views have no identity until Go binds them. */
 class ShimWebContents extends Emitter {
@@ -191,8 +201,16 @@ class ShimWebContents extends Emitter {
   setFrameRate(): void {}
   openDevTools(): void {}
   closeDevTools(): void {}
-  async loadURL(): Promise<void> {}
-  async loadFile(): Promise<void> {}
+  async loadURL(url: string): Promise<void> {
+    const owner = this.ownerWindowId === null ? undefined : nativeWindows.get(this.ownerWindowId)
+    if (!owner) throw new Error('webContents.loadURL requires a bound native window')
+    await owner.loadURL(url)
+  }
+  async loadFile(filePath: string, options?: import('electron').LoadFileOptions): Promise<void> {
+    const owner = this.ownerWindowId === null ? undefined : nativeWindows.get(this.ownerWindowId)
+    if (!owner) throw new Error('webContents.loadFile requires a bound native window')
+    await owner.loadFile(filePath, options)
+  }
   focus(): void {}
   reload(): void {}
   getURL(): string {
@@ -204,8 +222,9 @@ class ShimWebContents extends Emitter {
 class ShimBrowserWindow extends Emitter {
   private readonly placeholderId = -nextWindowId++
   private nativeWindowId: number | null = null
+  private nativeState: NativeWindowDescriptor | null = null
+  private readonly unsupportedWindowOperations = new Set<string>()
   readonly webContents = new ShimWebContents()
-  private visible = true
   private maximized = false
   private fullScreen = false
   private destroyed = false
@@ -218,42 +237,132 @@ class ShimBrowserWindow extends Emitter {
     return this.nativeWindowId ?? this.placeholderId
   }
 
-  bindNativeWindow(windowId: number): void {
-    if (!Number.isSafeInteger(windowId) || windowId <= 0) {
-      throw new Error('native window ID must be a positive integer')
+  bindNativeWindow(descriptor: NativeWindowDescriptor): void {
+    if (this.destroyed || this.webContents.isDestroyed()) {
+      throw new Error('a destroyed window cannot claim a native identity')
     }
-    if (this.nativeWindowId === windowId) return
+    const state = parseNativeWindowDescriptor(descriptor)
     if (this.nativeWindowId !== null) {
-      throw new Error('window cannot be rebound to another native window')
+      if (this.nativeWindowId !== state.windowId || this.nativeState?.role !== state.role) {
+        throw new Error('window cannot be rebound to another native window or role')
+      }
+      this.applyNativeState(state)
+      return
     }
-    const existing = nativeWindows.get(windowId)
+    const existing = nativeWindows.get(state.windowId)
     if (existing && existing !== this) {
       if (!existing.isDestroyed() && !existing.webContents.isDestroyed()) {
         throw new Error('native window ID already belongs to another window')
       }
-      nativeWindows.delete(windowId)
+      nativeWindows.delete(state.windowId)
     }
-    this.webContents.bindWindow(windowId)
-    this.nativeWindowId = windowId
-    nativeWindows.set(windowId, this)
+    this.webContents.bindWindow(state.windowId)
+    this.nativeWindowId = state.windowId
+    this.nativeState = state
+    this.applyNativeState(state)
+    nativeWindows.set(state.windowId, this)
+  }
+
+  getNativeWindowState(): NativeWindowDescriptor | null {
+    return this.nativeState
+  }
+
+  applyNativeState(state: NativeWindowDescriptor): void {
+    if (this.nativeWindowId !== state.windowId || this.nativeState?.role !== state.role) {
+      throw new Error('native window state does not match its binding')
+    }
+    this.nativeState = state
+    this.webContents.updateDocument(state.documentUrl)
+  }
+
+  reportUnboundOperation(action: string): void {
+    if (this.unsupportedWindowOperations.has(action)) return
+    this.unsupportedWindowOperations.add(action)
+    console.error(`[sidecar] cannot ${action} an unbound BrowserWindow`)
+  }
+
+  performNativeAction(
+    action: 'load_document' | 'show' | 'hide' | 'focus' | 'close',
+    documentUrl?: string
+  ): void {
+    const state = this.nativeState
+    if (this.destroyed || !state) {
+      this.reportUnboundOperation(action)
+      return
+    }
+    if (state.closeRequested) {
+      if (action !== 'close') this.reportUnboundOperation(`${action} a closing native window`)
+      return
+    }
+    const closing = { ...state, closeRequested: true }
+    if (action === 'close') {
+      if (!recordNativeWindowState(closing)) {
+        // A close can already have arrived when creation/binding failed before
+        // this wrapper installed its own listener. Do not leak that wrapper.
+        this.finalizeDestruction()
+        return
+      }
+      this.nativeState = closing
+    }
+    void Promise.resolve()
+      .then(() => applyNativeWindowAction(state, action, documentUrl))
+      .then((next) => {
+        if (action !== 'close') this.applyNativeState(next)
+      })
+      .catch((error: unknown) => {
+        if (action === 'close' && this.nativeState === closing) {
+          this.nativeState = state
+          restoreAfterNativeCloseFailure(state)
+        }
+        console.error(`[sidecar] native window ${action} failed`, error)
+      })
+  }
+
+  async loadURL(documentUrl: string): Promise<void> {
+    if (this.destroyed || !this.nativeState) {
+      throw new Error('window.loadURL requires a bound native window')
+    }
+    const state = await applyNativeWindowAction(this.nativeState, 'load_document', documentUrl)
+    this.applyNativeState(state)
+  }
+
+  async loadFile(filePath: string, _options?: import('electron').LoadFileOptions): Promise<void> {
+    if (this.destroyed || !this.nativeState) {
+      throw new Error('window.loadFile requires a bound native window')
+    }
+    const mainEntry = path.resolve(path.dirname(process.argv[1]), '../renderer/index.html')
+    if (
+      this.nativeState.role !== 'main' ||
+      path.basename(filePath) !== 'index.html' ||
+      path.resolve(filePath) !== mainEntry
+    ) {
+      throw new Error('window.loadFile only owns the initial primary renderer entry')
+    }
+    // Go already gates and loads the real primary renderer after dispatcher
+    // readiness. Do not issue a duplicate navigation during bootstrap.
   }
 
   show(): void {
-    this.visible = true
+    this.performNativeAction('show')
   }
   showInactive(): void {
-    this.visible = true
+    this.performNativeAction('show')
   }
   hide(): void {
-    this.visible = false
+    if (!this.nativeState) {
+      return
+    }
+    this.performNativeAction('hide')
   }
-  focus(): void {}
+  focus(): void {
+    this.performNativeAction('focus')
+  }
   blur(): void {}
   isVisible(): boolean {
-    return this.visible
+    return this.nativeState?.visible ?? false
   }
   isFocused(): boolean {
-    return true
+    return this.nativeState?.focused ?? false
   }
   maximize(): void {
     this.maximized = true
@@ -299,8 +408,6 @@ class ShimBrowserWindow extends Emitter {
   getContentBounds() {
     return { x: 0, y: 0, width: 1280, height: 820 }
   }
-  async loadURL(): Promise<void> {}
-  async loadFile(): Promise<void> {}
   isLoading(): boolean {
     return false
   }
@@ -320,16 +427,42 @@ class ShimBrowserWindow extends Emitter {
   setContentProtection(): void {}
   setAlwaysOnTop(): void {}
   moveTop(): void {}
-  destroy(): void {
-    if (nativeWindows.get(this.id)?.webContents === this.webContents) {
-      nativeWindows.delete(this.id)
+  private finalizeDestruction(): void {
+    if (this.destroyed) return
+    if (this.nativeWindowId !== null && nativeWindows.get(this.nativeWindowId) === this) {
+      nativeWindows.delete(this.nativeWindowId)
     }
+    const index = windows.indexOf(this)
+    if (index >= 0) windows.splice(index, 1)
     this.destroyed = true
+    if (this.nativeState) this.nativeState = { ...this.nativeState, visible: false, focused: false }
     this.webContents.markDestroyed()
+    this.emit('closed')
   }
+
+  finalizeNativeClose(): void {
+    this.finalizeDestruction()
+  }
+
+  destroy(): void {
+    if (this.destroyed) return
+    if (this.nativeState) {
+      // Bound windows finish locally only after Go reports the actual close.
+      this.performNativeAction('close')
+      return
+    }
+    this.finalizeDestruction()
+  }
+
   close(): void {
+    if (this.destroyed) return
+    if (this.nativeState) {
+      this.performNativeAction('close')
+      return
+    }
     this.destroy()
   }
+
   isDestroyed(): boolean {
     return this.destroyed
   }
@@ -339,24 +472,67 @@ class ShimBrowserWindow extends Emitter {
   minimize(): void {}
 
   static getAllWindows(): ShimBrowserWindow[] {
-    return windows
+    return windows.filter((window) => !window.isDestroyed())
   }
   static getFocusedWindow(): ShimBrowserWindow | null {
-    return windows[0] ?? null
+    return windows.find((window) => !window.isDestroyed() && window.isFocused()) ?? null
   }
   static fromWebContents(contents: ShimWebContents): ShimBrowserWindow | null {
-    return windows.find((window) => window.webContents === contents) ?? null
+    return (
+      windows.find((window) => !window.isDestroyed() && window.webContents === contents) ?? null
+    )
   }
   static fromId(id: number): ShimBrowserWindow | null {
-    return windows.find((window) => window.id === id) ?? null
+    return windows.find((window) => !window.isDestroyed() && window.id === id) ?? null
   }
   static getFocusedWebContents(): ShimWebContents | null {
-    return windows[0]?.webContents ?? null
+    const window = windows.find((candidate) => !candidate.isDestroyed() && candidate.isFocused())
+    return window?.webContents ?? null
   }
 }
 
 const windows: ShimBrowserWindow[] = []
 const nativeWindows = new Map<number, ShimBrowserWindow>()
+
+export function handleNativeWindowNotification(
+  name: string,
+  rawState: unknown,
+  windowId: unknown
+): void {
+  if (!Number.isSafeInteger(windowId) || (windowId as number) <= 0) {
+    throw new Error('native window notification has no valid source')
+  }
+  if (
+    name !== 'native.window.ready' &&
+    name !== 'native.window.focused' &&
+    name !== 'native.window.closed'
+  ) {
+    throw new Error('unsupported native window notification')
+  }
+  const state = parseNativeWindowDescriptor(rawState)
+  if (state.windowId !== windowId) {
+    throw new Error('native window notification source does not match its descriptor')
+  }
+  const window = nativeWindows.get(state.windowId)
+  if (name === 'native.window.closed') {
+    if (!forgetNativeWindowState(state.windowId, state.sequence)) return
+    if (window) {
+      window.applyNativeState(state)
+      window.finalizeNativeClose()
+    } else {
+      console.warn(`[sidecar] native window ${name} has no bound target (${state.windowId})`)
+    }
+    return
+  }
+  if (!recordNativeWindowState(state)) return
+  if (!window) {
+    console.warn(`[sidecar] native window ${name} has no bound target (${state.windowId})`)
+    return
+  }
+  window.applyNativeState(cachedNativeWindowState(state.windowId) ?? state)
+  if (name === 'native.window.ready') window.emit('ready-to-show')
+  if (name === 'native.window.focused') window.emit(state.focused ? 'focus' : 'blur')
+}
 
 function senderForNativeSource(source: IpcRequestSource): {
   window: ShimBrowserWindow
@@ -380,12 +556,15 @@ const BrowserWindowCtor = function BrowserWindowCtor(
 
 // Statics the app relies on to map a page back to its window.
 Object.assign(BrowserWindowCtor, {
-  getAllWindows: () => windows,
-  getFocusedWindow: () => windows.find((window) => !window.isDestroyed()) ?? null,
+  getAllWindows: () => windows.filter((window) => !window.isDestroyed()),
+  getFocusedWindow: () =>
+    windows.find((window) => !window.isDestroyed() && window.isFocused()) ?? null,
   fromWebContents: (contents: ShimWebContents) =>
-    windows.find((window) => window.webContents === contents) ?? null,
-  fromId: (id: number) => windows.find((window) => window.id === id) ?? null,
-  getFocusedWebContents: () => windows.find((window) => !window.isDestroyed())?.webContents ?? null
+    windows.find((window) => !window.isDestroyed() && window.webContents === contents) ?? null,
+  fromId: (id: number) =>
+    windows.find((window) => !window.isDestroyed() && window.id === id) ?? null,
+  getFocusedWebContents: () =>
+    windows.find((window) => !window.isDestroyed() && window.isFocused())?.webContents ?? null
 })
 
 export const BrowserWindow = BrowserWindowCtor as unknown as typeof import('electron').BrowserWindow
@@ -493,12 +672,18 @@ export async function invokeIpc(
     })
   }
   for (const listener of ipcInvokeListeners) listener(event)
-  return { handled: true, value: await handler(event, ...args) }
+  return {
+    handled: true,
+    value: await runWithNativeCaller(source, () => handler(event, ...args))
+  }
 }
 
 export const webContents = {
   fromId(id: number): ShimWebContents | null {
-    return windows.find((window) => window.webContents.id === id)?.webContents ?? null
+    return (
+      windows.find((window) => !window.webContents.isDestroyed() && window.webContents.id === id)
+        ?.webContents ?? null
+    )
   },
   getAllWebContents(): ShimWebContents[] {
     return windows.map((window) => window.webContents)
@@ -540,6 +725,11 @@ export const app = Object.assign(appEmitter, {
   setName: (): void => undefined,
   setAppUserModelId: (): void => undefined,
   setActivationPolicy: (): void => undefined,
+  focus: (): void => {
+    void focusNativeApp().catch((error: unknown) => {
+      console.error('[sidecar] native application focus failed', error)
+    })
+  },
   setAsDefaultProtocolClient: (): boolean => true,
   removeAsDefaultProtocolClient: (): boolean => true,
   requestSingleInstanceLock: (): boolean => true,

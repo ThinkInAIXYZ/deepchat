@@ -1,6 +1,28 @@
 import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import type { AppHost, AppPathName } from '../appHost'
+import {
+  activateNativeSettingsWindow,
+  cachedNativeWindowState,
+  closeNativeSettingsWindow,
+  createNativeSettingsWindow,
+  isNativeWindowClosing,
+  waitForNativeSettingsWindowClosed
+} from './nativeWindowCommands'
+import type { NativeWindowDescriptor } from './nativeWindowProtocol'
+
+function bindNativeWindow(
+  window: import('electron').BrowserWindow,
+  descriptor: NativeWindowDescriptor
+): void {
+  const target = window as unknown as {
+    bindNativeWindow?: (descriptor: NativeWindowDescriptor) => void
+  }
+  if (typeof target.bindNativeWindow !== 'function') {
+    throw new Error('native window binding is unavailable')
+  }
+  target.bindNativeWindow.call(window, descriptor)
+}
 
 /**
  * Path and version resolution for a Node sidecar.
@@ -85,13 +107,28 @@ export const nodeAppHost: AppHost = {
     ) {
       throw new Error('native primary window identity is required')
     }
-    const target = window as unknown as {
-      bindNativeWindow?: (windowId: number) => void
-    }
-    if (typeof target.bindNativeWindow !== 'function') {
-      throw new Error('native window binding is unavailable for the primary window')
-    }
-    target.bindNativeWindow.call(window, windowId)
+    bindNativeWindow(window, {
+      windowId,
+      role: 'main',
+      ...(cachedNativeWindowState(windowId) ?? {
+        documentUrl: '',
+        visible: true,
+        focused: false
+      })
+    })
+  },
+
+  createNativeSettingsWindow,
+  activateNativeSettingsWindow,
+  closeNativeSettingsWindow,
+  waitForNativeSettingsWindowClosed,
+  isNativeWindowClosing,
+
+  registerNativeWindow(
+    window: import('electron').BrowserWindow,
+    descriptor: NativeWindowDescriptor
+  ): void {
+    bindNativeWindow(window, cachedNativeWindowState(descriptor.windowId) ?? descriptor)
   },
 
   // Launch-at-login is an OS integration the shell owns. Reporting "off" and

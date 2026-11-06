@@ -28,6 +28,11 @@ describe('native IPC caller identity', () => {
     vi.unstubAllEnvs()
   })
 
+  it('keeps window wrappers non-thenable for async creation flows', async () => {
+    const window = new shim.BrowserWindow({})
+    await expect(Promise.resolve(window)).resolves.toBe(window)
+  })
+
   it('uses the registered main receiver after splash has closed', async () => {
     const splash = new shim.BrowserWindow({})
     const primary = registerPrimary(shim, host)
@@ -72,7 +77,39 @@ describe('native IPC caller identity', () => {
         documentUrl: 'mygo://localhost/'
       })
     ).resolves.toEqual({ handled: true, value: 'unreachable' })
+    const commands = await import('@/platform/node/nativeWindowCommands')
+    commands.configureNativeWindowCommands((command) => {
+      expect(command.host).toBe(true)
+      expect(command.source).toBeUndefined()
+      expect(command.input).toMatchObject({ action: 'close', windowId: primary.id })
+      expect(
+        commands.resolveNativeWindowCommand(
+          command.id,
+          {
+            windowId: primary.id,
+            role: 'main',
+            documentUrl: '',
+            visible: false,
+            focused: false,
+            closeRequested: true
+          },
+          undefined
+        )
+      ).toBe(true)
+      shim.handleNativeWindowNotification(
+        'native.window.closed',
+        {
+          windowId: primary.id,
+          role: 'main',
+          documentUrl: '',
+          visible: false,
+          focused: false
+        },
+        primary.id
+      )
+    })
     primary.destroy()
+    await vi.waitFor(() => expect(primary.isDestroyed()).toBe(true))
     await expect(
       shim.invokeIpc(channel, [], {
         windowId: primary.id,

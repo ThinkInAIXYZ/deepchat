@@ -1,6 +1,6 @@
 # mygo 完整替代验收与差距清单
 
-更新：2026-11-06（D2c1 真实关闭与 sidecar 恢复切片）
+更新：2026-11-06（D2c2b1 settings 原生窗口切片）
 分支：`feat/mygo-rewrite`
 规范：`spec.md`；执行状态：`plan.md` 阶段 D
 整体结论：**尚未完成替代，不得发布为 Electron 的完整替代品。**
@@ -46,21 +46,21 @@
 | 启动 readiness 与 route 错误 | 部分实现（D2c1 已验证） | 早期请求等待真实 dispatcher 注册，ready 后才发布 started，缺 route/缺 dispatcher 返回错误；每代有 60 秒默认 readiness deadline，挂起也进入有界恢复。业务初始化卡死与大输入资源上限仍未覆盖 |
 | 超时、取消、背压、损坏响应 | 部分实现（D2c1 已验证单请求边界） | 共享 Process 支持请求 deadline、取消后的合法迟到响应丢弃、非法输出/异常 id 失败；4 MiB 阻塞写入与并发 Close 有界，残帧终止本代，不在通用状态锁中做管道 I/O。超大读取、全局内存/背压和长期资源治理仍待 D2c2 |
 | sidecar 崩溃恢复和进程树关闭 | 部分实现（D2c1 单项 macOS 已验证） | 在途请求收到确定错误；超时强杀覆盖进程组并等待回收；真实退出复用 Main shutdown coordinator；意外退出按代次有界恢复并重载 renderer，不自动重放 mutation。尚缺更多流/后台任务异常和多平台重复验收 |
-| 多窗口身份 | 部分实现（D2c2a 已验证已注册主窗口） | Go 将真实 caller window/page 和 document URL 加入请求；`WindowPresenter` 通过平台端口先绑定主窗口 ID、后登记 map，业务 webContents ID 可不同。第二真实窗口的异步创建、其 sender、关闭/恢复及 nested view 映射仍未实现 |
+| 多窗口身份 | 部分实现（D2c2b1 已验证 settings 创建、关闭和重开） | Go 将真实 caller window/page 和 document URL 加入请求；`WindowPresenter` 先绑定平台提供的真实 ID、后登记 map，业务 webContents ID 可不同。主窗口和 settings 可同时存活，关闭后不会复用已销毁 sender；settings 的 sidecar 崩溃重绑定、普通聊天多窗口及 nested view 映射仍未实现 |
 | 单实例、deep link 和生命周期事件 | 部分实现（D2b1 已验证） | 第二次启动实测退出且不再启动业务进程；deep link、原生命运周期事件和 relaunch 尚未完整桥接 |
 
 ### 3.3 原生能力与安全边界（阶段 D3）
 
 | 能力 | 状态 | 差距 |
 | --- | --- | --- |
-| 窗口、托盘、全局快捷键 | 部分实现 | macOS 已验证主窗口最大化 1280×788 → 1920×928、非最大化恢复及目标事件；没有第二真实窗口、完整菜单、托盘、快捷键和跨平台事件合同 |
+| 窗口、托盘、全局快捷键 | 部分实现 | macOS 已验证主窗口最大化/恢复、settings 的真实 renderer/RPC、重复打开和关闭后新 ID 重开；`app.focus` 已接真实原生调用，但自动化读取的 focused 仍为 false，尚无焦点成功证据。完整菜单、托盘、快捷键和跨平台事件合同仍缺口 |
 | 文件对话框 | 部分 spike/不应视为可用 | shim 仍可能返回 `canceled:false` 与空数组，正式结果必须由真实 Go bridge 返回 |
 | 通知 | 部分 spike | 仅打包 `.app` 的简单通知实测；业务点击目标和回调未验收 |
 | Clipboard/nativeImage | 未实现 | sidecar 仍丢弃文本/图片写入，图片对象和截图可能是空输出 |
 | workspace 预览/长图 | 未实现完整链路 | `CapturePage`/`Eval` 能力存在不等于 tab capture、组合图片、滚动导出已成功 |
 | workspace/MCP Apps 协议隔离 | 未实现产品边界 | shim `protocol.handle()` 可能假报 true；未形成 origin、导航、session partition 与 sender 的完整安全验证 |
 | preload/context isolation | 未实现对等验证 | mygo v0.7.4 macOS 使用未指定 content world 的 `WKUserScript`；需要上游隔离能力或经评审的等价 least-privilege 设计，spike `Eval` 与任意外链转发禁止进入正式绑定 |
-| renderer sender 与文档来源 | 部分实现（D2c2a 已验证主窗口） | Go source 隔离于 renderer input，frame 使用真实 `mygo://localhost/` URL；Node host 显式注册精确入口并由原 authorizer 复核，Electron 不启用该映射，未知窗口、origin、带凭据或 preview URL 均拒绝。尚未实现 nested view、真实第二窗口 sender 与 content-world 对等证明 |
+| renderer sender 与文档来源 | 部分实现（D2c2b1 已验证主窗口和 settings） | Go source 隔离于 renderer input，frame 使用真实 `mygo://localhost/` URL；Node host 注册精确入口、绑定平台返回的真实原生 ID，并由原 authorizer 复核。主窗口和 settings 使用不同 role/path 白名单，未知窗口、origin、带凭据或 preview URL 均拒绝。nested view、settings 崩溃重绑定与 content-world 对等证明仍未完成 |
 | OAuth | 部分受阻 | 系统浏览器迁移未完成；GitHub 回调页需配合回到 deep chat deep link，其他 OAuth 仍需逐项源审 |
 | 代理/权限/网络状态 | 未实现 | shim 的 proxy、permission、webRequest 和 `net.isOnline()` 等并非真实系统状态 |
 
@@ -98,6 +98,16 @@
 | 灰度、回滚及生产升级 | 未实现且需授权 | 不改变更新服务器或默认渠道，直到完整验收和用户授权 |
 
 ## 4. 当前验证与已知失败
+
+D2c2b1 真实 settings 窗口：
+
+- Node→Go 使用负 ID 的 `native.window` 命令和独立 response，保留同一线性 write ticket；Go 仅在已注册窗口、当前顶层 Page 和 role/path 通过后允许操作。Node 用 `AsyncLocalStorage` 保留实际 IPC caller，不读取 renderer 提供的 source；没有 IPC 上下文的 `focus_app` 只采用启动环境指定的主窗口。sidecar host 与 renderer source 互斥，host 对 settings `about:blank` 仅有关闭权限。关闭通知解绑对应 wrapper，创建请求并发时共享同一 pending promise；单调 sequence、pending close 和 remove-and-append 合并阻止迟到 ready/focus 或 close acknowledgement 复活旧窗口。
+- 首次实跑发现 business open 成功但窗口只有 `<html><head></head><body></body></html>`：Go `FileServer` 对 `/settings/index.html` 返回 `301 Location: ./`，WebKit 顶层 navigation 停在空文档，而 `/settings/` 可返回预期 HTML。`shell/deepchat/frontend.go` 仅对实际存在的 index 入口调整内部请求路径，保持原 origin/path 和其余静态文件服务，未扩大 origin 或文档授权；其单元测试覆盖 canonical URL、直接导航 URL 和资源直通。
+- 后续硬化版本又出现 settings 永久停在 `about:blank`。SIGQUIT 栈证明 Go 命令循环已空闲，真正原因是 `noopSurface` 给不存在的 `then` 返回 no-op，`await new BrowserWindow()` 将 proxy 当成 thenable 并永不 resolve；现在 `then` 明确为 `undefined`，并由 `Promise.resolve(window)` 回归测试保护。构造、绑定和导航失败的窗口释放由故障注入单测覆盖，本轮未把该项写成真实资源故障注入。
+- 最终版本使用 macOS disposable profile `/tmp/deepchat-d2c2b-thenfix.UjQafm` 验证：窗口 2 加载 `mygo://localhost/settings/index.html#/overview`，`config.getLanguage` 返回 `en-US/system`，runtime identity 为 `windowId=2` / `webContentsId=3`；重复打开仍返回 2，Common Settings 的实际点击进入 `#/common`。automation 与 `window.getCurrentState` 均报告 focused=true；这不扩大为其他平台或 OS 前台进程矩阵结论。页面完成后的 `/tmp/deepchat-mygo-settings-then-fix.png` 已人工查看。
+- 关闭窗口 2 并立即重开得到窗口 3 / webContents 4，DOM 与 `/tmp/deepchat-mygo-settings-then-fix-reopened.png` 正常。将窗口 3 切到 `about:blank` 后，preload 仍存在，但 `config.getLanguage` 被 Go 以 `renderer caller is not an allowed application document` 拒绝；随后正常关闭并创建窗口 4 / webContents 5，业务 IPC 和 Settings Overview 恢复。最终通过 `DeepChat → Quit DeepChat` 菜单退出，窗口 4 收到 closed，业务数据库关闭，无 replacement、EPIPE、uncaught exception、socket 或进程残留。
+- `go test -race ./deepchat ./internal/sidecar`、`go vet ./deepchat ./internal/sidecar`、完整 `go test ./...`、正常壳构建和 24 个定向 Node 测试通过。Oxfmt、typecheck、lint、i18n、`icons:check`、`sidecar:app:build` 通过；本切片完整 `pnpm run build`（含 prebuild、Electron 与 CLI）也已通过。最终完整 main 为 9822 项，其中 9814 passed / 2 failed / 6 skipped，678 文件通过、1 文件失败、2 文件跳过；失败仅为既有 tunnel 两项。完整 renderer 为 281 文件、2704 测试全部通过。
+- prebuild 的既有图标扫描仍引用已删除的 `src/renderer/floating`，首次执行报 `ENOENT`。已移除这个退役扫描根并按正常生成器刷新两份图标产物，未恢复已删减 UI；之后 icons freshness 与完整对照构建通过。
 
 D2c2a 可信原生窗口身份验证：
 
@@ -152,4 +162,4 @@ D1 直接验证：
 
 ## 6. 下一项最高优先级工作
 
-D2c2a 的可信主窗口身份、真实文档来源校验、定向事件和崩溃重载已完成。下一优先级是 **D2c2b：真实第二窗口的异步创建与 page/document role、native close/destroy、目标事件、nested Page 身份，以及 splash/settings 的显式绑定**，继续 D2c2 原有的大帧限额、全局背压、内存预算和后台异常生命周期；不能用主窗口注册端口代替多窗口能力。preload content-world 隔离、deep link 和真实原生能力紧随其后。D3–D7 仍是验收中不能删除的差距。
+D2c2b1 的真实 settings 创建、独立 sender、role 文档、关闭和再次创建已按上述范围验证。下一优先级是 **D2c2b2：sidecar 替换时按真实 descriptor 恢复 settings 绑定，并显式建立 splash/数据库解锁的原生窗口所有权**。不能让已关闭窗口从旧 snapshot 复活，也不能保留启动日志中 splash 导航无绑定窗口的错误。随后是 nested Page 身份、原生焦点验收、大帧限额、全局背压、内存预算、后台异常生命周期和 preload content-world 隔离；D3–D7 仍是验收中不能删除的差距。

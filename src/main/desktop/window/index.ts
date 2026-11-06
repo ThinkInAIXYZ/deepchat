@@ -2,6 +2,7 @@ import logger from '@shared/logger'
 // src/main/desktop/window/index.ts
 import {
   BrowserWindow,
+  type BrowserWindowConstructorOptions,
   nativeImage,
   screen,
   webContents as electronWebContents,
@@ -30,6 +31,7 @@ import { openExternalUrl } from '@/lib/externalUrl'
 import { activateAppOnMac } from '@/lib/activateApp'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope } from '@shared/contracts/events'
+import type { NativeWindowDescriptor } from '@/platform/node/nativeWindowProtocol'
 
 type PendingSettingsMessage = {
   channel: string
@@ -53,6 +55,7 @@ export class WindowPresenter implements IWindowPresenter {
   // Tracks close-to-hide separately from the native macOS Hide command.
   private mainWindowHiddenByClose = false
   private settingsWindow: BrowserWindow | null = null
+  private settingsWindowCreation: Promise<number | null> | null = null
   private settingsWindowReady = false
   private pendingSettingsMessages: PendingSettingsMessage[] = []
   private pendingSettingsProviderInstalls: ProviderInstallPreview[] = []
@@ -1189,33 +1192,136 @@ export class WindowPresenter implements IWindowPresenter {
   public async createSettingsWindow(
     navigation?: SettingsNavigationPayload
   ): Promise<number | null> {
+    const pending = this.settingsWindowCreation
+    if (pending) {
+      const windowId = await pending
+      if (windowId !== null && navigation) await this.createSettingsWindow(navigation)
+      return windowId
+    }
+    const creation = this.createSettingsWindowCore(navigation)
+    this.settingsWindowCreation = creation
+    try {
+      return await creation
+    } finally {
+      if (this.settingsWindowCreation === creation) this.settingsWindowCreation = null
+    }
+  }
+
+  private async waitForSettingsWindowClosed(window: BrowserWindow): Promise<void> {
+    if (window.isDestroyed()) return
+    if (appHost.waitForNativeSettingsWindowClosed) {
+      await appHost.waitForNativeSettingsWindowClosed(window.id)
+      return
+    }
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        window.removeListener('closed', onClosed)
+        reject(new Error(`settings window ${window.id} did not close within 20 seconds`))
+      }, 20_000)
+      const onClosed = (): void => {
+        clearTimeout(timeout)
+        resolve()
+      }
+      window.once('closed', onClosed)
+    })
+  }
+
+  private async recreateSettingsWindowAfterClose(
+    window: BrowserWindow,
+    navigation?: SettingsNavigationPayload
+  ): Promise<number | null> {
+    await this.waitForSettingsWindowClosed(window)
+    return this.createSettingsWindowCore(navigation)
+  }
+
+  private async cleanupFailedSettingsWindow(
+    window: BrowserWindow | undefined,
+    nativeWindow?: NativeWindowDescriptor
+  ): Promise<void> {
+    if (nativeWindow && nativeWindow.role !== 'settings') {
+      logger.error('Refusing settings cleanup for a non-settings native descriptor')
+      return
+    }
+    if (nativeWindow && appHost.closeNativeSettingsWindow) {
+      try {
+        await appHost.closeNativeSettingsWindow(nativeWindow.windowId)
+      } catch (error) {
+        logger.error('Failed to clean up a failed native settings window', error)
+      }
+    }
+    if (!window) return
+    if (!window.isDestroyed()) window.destroy()
+    if (nativeWindow && !window.isDestroyed()) await this.waitForSettingsWindowClosed(window)
+  }
+
+  private async constructSettingsBrowserWindow(
+    options: BrowserWindowConstructorOptions,
+    nativeWindow?: NativeWindowDescriptor
+  ): Promise<BrowserWindow> {
+    try {
+      return new BrowserWindow(options)
+    } catch (error) {
+      await this.cleanupFailedSettingsWindow(undefined, nativeWindow)
+      throw error
+    }
+  }
+
+  private async createSettingsWindowCore(
+    navigation?: SettingsNavigationPayload
+  ): Promise<number | null> {
     const settingsStartupStart = Date.now()
     console.info('[Startup][Settings][Main] createSettingsWindow start')
-    // If settings window already exists, just show and focus it
-    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
-      logger.info('Settings window already exists, showing and focusing.')
-      this.settingsWindow.show()
-      this.settingsWindow.focus()
-      activateAppOnMac()
-      if (navigation) {
-        if (this.settingsWindowReady) {
-          this.sendSettingsNavigation(this.settingsWindow.id, navigation)
+    // A close request is not yet a destroyed window. Wait for its real closed
+    // notification instead of racing the old ID with a new native binding.
+    const existing = this.settingsWindow
+    if (existing && !existing.isDestroyed()) {
+      if (appHost.isNativeWindowClosing?.(existing.id)) {
+        return this.recreateSettingsWindowAfterClose(existing, navigation)
+      }
+      try {
+        logger.info('Settings window already exists, showing and focusing.')
+        if (appHost.activateNativeSettingsWindow) {
+          await appHost.activateNativeSettingsWindow(existing.id)
         } else {
-          this.pendingSettingsMessages.push({
-            channel: DEEPCHAT_EVENT_CHANNEL,
-            args: [createDeepchatEventEnvelope('settings.navigateRequested', navigation)]
-          })
+          existing.show()
+          existing.focus()
+        }
+        activateAppOnMac()
+        if (navigation) {
+          if (this.settingsWindowReady) {
+            this.sendSettingsNavigation(existing.id, navigation)
+          } else {
+            this.pendingSettingsMessages.push({
+              channel: DEEPCHAT_EVENT_CHANNEL,
+              args: [createDeepchatEventEnvelope('settings.navigateRequested', navigation)]
+            })
 
-          const targetUrl = this.getSettingsWindowTargetUrl(navigation)
-          logger.info(`Settings window is not ready, reloading to target URL: ${targetUrl}`)
-          console.info('[Startup][Settings][Main] loadURL start', targetUrl)
-          await this.settingsWindow.loadURL(targetUrl)
-          console.info(
-            `[Startup][Settings][Main] loadURL end windowId=${this.settingsWindow.id} elapsed=${Date.now() - settingsStartupStart}ms`
-          )
+            const targetUrl = this.getSettingsWindowTargetUrl(navigation)
+            logger.info(`Settings window is not ready, reloading to target URL: ${targetUrl}`)
+            console.info('[Startup][Settings][Main] loadURL start', targetUrl)
+            await existing.loadURL(targetUrl)
+            console.info(
+              `[Startup][Settings][Main] loadURL end windowId=${existing.id} elapsed=${Date.now() - settingsStartupStart}ms`
+            )
+          }
+        }
+      } catch (error) {
+        if (
+          !existing.isDestroyed() &&
+          this.settingsWindow === existing &&
+          !appHost.isNativeWindowClosing?.(existing.id)
+        ) {
+          throw error
         }
       }
-      return this.settingsWindow.id
+      if (
+        existing.isDestroyed() ||
+        this.settingsWindow !== existing ||
+        appHost.isNativeWindowClosing?.(existing.id)
+      ) {
+        return this.recreateSettingsWindowAfterClose(existing, navigation)
+      }
+      return existing.id
     }
 
     logger.info('Creating new settings window.')
@@ -1230,47 +1336,80 @@ export class WindowPresenter implements IWindowPresenter {
       defaultHeight: 800
     })
 
-    // Create Settings Window with state persistence
-    const settingsWindow = new BrowserWindow({
-      x: settingsWindowState.x,
-      y: settingsWindowState.y,
+    const nativeWindow = await appHost.createNativeSettingsWindow?.({
       width: settingsWindowState.width,
       height: settingsWindowState.height,
       minWidth: 900,
       minHeight: 640,
-      show: false,
-      autoHideMenuBar: true,
-      fullscreenable: false,
-
-      icon: iconFile,
-      title: 'DeepChat - Settings',
-      titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : undefined,
-      transparent: process.platform === 'darwin',
-      vibrancy: process.platform === 'darwin' ? 'under-window' : undefined,
-      visualEffectState: process.platform === 'darwin' ? 'followWindow' : undefined,
-      backgroundMaterial: process.platform === 'win32' ? 'mica' : undefined,
-      backgroundColor: '#00ffffff',
-      maximizable: true,
-      minimizable: true,
-      frame: process.platform === 'darwin',
-      hasShadow: true,
-      trafficLightPosition: process.platform === 'darwin' ? { x: 12, y: 10 } : undefined,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        preload: join(__dirname, '../preload/index.mjs'),
-        sandbox: false,
-        devTools: is.dev
-      },
-      roundedCorners: true
+      x: settingsWindowState.x ?? 0,
+      y: settingsWindowState.y ?? 0
     })
+
+    if (nativeWindow && nativeWindow.role !== 'settings') {
+      throw new Error('native settings role does not match')
+    }
+    if (nativeWindow?.closeRequested) {
+      if (!appHost.waitForNativeSettingsWindowClosed) {
+        throw new Error('native closing-window lifecycle is unavailable')
+      }
+      await appHost.waitForNativeSettingsWindowClosed(nativeWindow.windowId)
+      return this.createSettingsWindowCore(navigation)
+    }
+
+    // Create Settings Window with state persistence
+    const settingsWindow = await this.constructSettingsBrowserWindow(
+      {
+        x: settingsWindowState.x,
+        y: settingsWindowState.y,
+        width: settingsWindowState.width,
+        height: settingsWindowState.height,
+        minWidth: 900,
+        minHeight: 640,
+        show: false,
+        autoHideMenuBar: true,
+        fullscreenable: false,
+
+        icon: iconFile,
+        title: 'DeepChat - Settings',
+        titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : undefined,
+        transparent: process.platform === 'darwin',
+        vibrancy: process.platform === 'darwin' ? 'under-window' : undefined,
+        visualEffectState: process.platform === 'darwin' ? 'followWindow' : undefined,
+        backgroundMaterial: process.platform === 'win32' ? 'mica' : undefined,
+        backgroundColor: '#00ffffff',
+        maximizable: true,
+        minimizable: true,
+        frame: process.platform === 'darwin',
+        hasShadow: true,
+        trafficLightPosition: process.platform === 'darwin' ? { x: 12, y: 10 } : undefined,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          preload: join(__dirname, '../preload/index.mjs'),
+          sandbox: false,
+          devTools: is.dev
+        },
+        roundedCorners: true
+      },
+      nativeWindow
+    )
 
     if (!settingsWindow) {
       console.error('Failed to create settings window.')
+      await this.cleanupFailedSettingsWindow(undefined, nativeWindow)
       return null
     }
 
-    this.settingsWindow = settingsWindow
+    try {
+      if (nativeWindow) {
+        if (!appHost.registerNativeWindow) throw new Error('native settings binding is unavailable')
+        appHost.registerNativeWindow(settingsWindow, nativeWindow)
+      }
+      this.settingsWindow = settingsWindow
+    } catch (error) {
+      await this.cleanupFailedSettingsWindow(settingsWindow, nativeWindow)
+      throw error
+    }
     this.resetSettingsWindowState()
     this.startupWorkloadCoordinator?.createRun('settings')
     const windowId = settingsWindow.id
@@ -1317,21 +1456,40 @@ export class WindowPresenter implements IWindowPresenter {
       // Unmanage window state when window is closed
       settingsWindowState.unmanage()
       this.startupWorkloadCoordinator?.cancelTarget('settings')
-      this.settingsWindow = null
-      this.resetSettingsWindowState(true)
+      if (this.settingsWindow === settingsWindow) {
+        this.settingsWindow = null
+        this.resetSettingsWindowState(true)
+      }
     })
 
     // Load settings renderer HTML
     const targetUrl = this.getSettingsWindowTargetUrl(navigation)
     logger.info(`Loading settings renderer URL: ${targetUrl}`)
     console.info('[Startup][Settings][Main] loadURL start', targetUrl)
-    await settingsWindow.loadURL(targetUrl)
+    try {
+      await settingsWindow.loadURL(targetUrl)
+    } catch (error) {
+      if (this.settingsWindow === settingsWindow) {
+        this.settingsWindow = null
+        this.resetSettingsWindowState(true)
+      }
+      await this.cleanupFailedSettingsWindow(settingsWindow, nativeWindow)
+      throw error
+    }
 
     console.info(
       `[Startup][Settings][Main] loadURL end windowId=${windowId} elapsed=${Date.now() - settingsStartupStart}ms`
     )
 
     // Open DevTools in development mode
+    if (
+      settingsWindow.isDestroyed() ||
+      this.settingsWindow !== settingsWindow ||
+      appHost.isNativeWindowClosing?.(windowId)
+    ) {
+      return this.recreateSettingsWindowAfterClose(settingsWindow, navigation)
+    }
+
     if (is.dev) {
       settingsWindow.webContents.openDevTools({ mode: 'detach' })
     }
@@ -1568,8 +1726,10 @@ export class WindowPresenter implements IWindowPresenter {
         )
       : null
 
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      const settingsUrl = new URL('/settings/index.html', process.env['ELECTRON_RENDERER_URL'])
+    const nativeRoot = appHost.getNativeRendererDirectoryUrl?.()
+    const settingsRoot = nativeRoot ?? process.env['ELECTRON_RENDERER_URL']
+    if (settingsRoot && (nativeRoot || is.dev)) {
+      const settingsUrl = new URL('/settings/index.html', settingsRoot)
       if (initialNavigationPath) {
         settingsUrl.hash = initialNavigationPath
       }

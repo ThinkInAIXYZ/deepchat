@@ -33,7 +33,6 @@ const rendererRoots = [
   'src/shared',
   'src/renderer/src',
   'src/renderer/settings',
-  'src/renderer/floating',
   'src/renderer/splash'
 ].map((sourcePath) => path.join(repoRoot, sourcePath))
 
