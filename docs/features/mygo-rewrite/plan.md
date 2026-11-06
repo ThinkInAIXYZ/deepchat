@@ -313,7 +313,7 @@ M2 Node sidecar 化、M3 Go 壳与桥、M4 周边能力、M5 打包与更新、M
 3. 在真实主窗口完成 local tab 创建、显示、切换、导航和关闭，验证非零 bounds、独立 sender/事件、外部文档权限、同 URL 多 tab、宿主关闭与 DOM/截图。sidecar replacement 必须先销毁旧 nested 再重载 primary，旧 pageId 不可复用。
 4. 完成 Go/Node 定向与全包检查、相关 renderer 回归、正常/e2e build、真实恢复验收、文档和独立 diff 审查后提交推送；多窗口、tab 状态持久化、完整 window-open/favicons、Windows/Linux 和发行不纳入本切片完成范围。
 
-设计状态：§4.9 已记录实现合同，尚未开始生产实现。
+进展：Go 原生子切片已完成。`native_page.go` 建立真实 WebView registry、单调 pageId、独立 bounds/visibility/z-order 与 host-only ensure/load/attach/detach/bounds/visible/focus/close 命令；`RequestSource`/`EventTarget` 增加 pageId，nested 业务 route 不再误入宿主 `shellRoute`，外部 http(s) 只允许显示，replacement 确定性销毁旧 pages 且不复用 ID。真实 race e2e 覆盖未注册 Page/非 host 拒绝、加载、非零 placement、source PageID、精确事件、visibility/focus、replacement 和重复 close；现有 primary + MCP 启动回归通过。D2c2f 仍保持未完成：Node sender、native ready/navigation/title 通知、`contentView`/`WebContentsView` 与现有 `TabPresenter` 的可见 UI 生命周期尚未接通，详见 `acceptance-checklist.md`。
 
 ### [ ] D3 完成窗口与原生能力
 

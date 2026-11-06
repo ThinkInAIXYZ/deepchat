@@ -43,7 +43,8 @@ type Options struct {
 }
 
 type EventTarget struct {
-	WindowID int `json:"windowId"`
+	WindowID int    `json:"windowId"`
+	PageID   uint64 `json:"pageId,omitempty"`
 }
 
 type Event struct {
@@ -56,6 +57,7 @@ type Event struct {
 // DocumentURL is the current page URL returned by mygo, not a renderer-supplied value.
 type RequestSource struct {
 	WindowID    int    `json:"windowId"`
+	PageID      uint64 `json:"pageId,omitempty"`
 	DocumentURL string `json:"documentUrl"`
 }
 

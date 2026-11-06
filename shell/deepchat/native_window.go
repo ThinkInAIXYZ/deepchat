@@ -344,6 +344,7 @@ func (b *Bridge) registerWindowPage(window *mygo.Window, role nativeWindowRole, 
 		return isNativePermissionOriginAllowed(request.Origin)
 	})
 	window.OnClosed(func() {
+		b.removeNestedPagesForWindow(window)
 		b.mu.Lock()
 		if current := b.windows[window.ID()]; current.window == window {
 			delete(b.windows, window.ID())
@@ -408,6 +409,9 @@ func (b *Bridge) splashWindow() *mygo.Window {
 // nativeWindowEnvironment is evaluated for every new sidecar generation. A
 // closing or destroyed settings window never turns into an ensure/create hint.
 func (b *Bridge) nativeWindowEnvironment() []string {
+	// The manager calls this after fencing old native commands. Nested tabs are
+	// intentionally not restored yet; stale pages never cross a sidecar generation.
+	b.resetNestedPages()
 	empty := []string{nativeSettingsSnapshotEnv + "="}
 	window := b.settingsWindow()
 	if window == nil {
@@ -447,6 +451,8 @@ func (b *Bridge) handleNativeWindowCommand(
 	var input struct {
 		Action      string `json:"action"`
 		WindowID    int    `json:"windowId"`
+		PageID      uint64 `json:"pageId"`
+		Visible     *bool  `json:"visible"`
 		DocumentURL string `json:"documentUrl"`
 		Width       int    `json:"width"`
 		Height      int    `json:"height"`
@@ -482,6 +488,49 @@ func (b *Bridge) handleNativeWindowCommand(
 		return nil, err
 	}
 	switch input.Action {
+	case "ensure_page":
+		if !command.Host {
+			return nil, errors.New("nested page creation requires a host command")
+		}
+		return b.ensureNestedPage(input.WindowID)
+	case "load_page":
+		if !command.Host {
+			return nil, errors.New("nested page navigation requires a host command")
+		}
+		return b.loadNestedPage(ctx, input.PageID, input.DocumentURL)
+	case "attach_page", "detach_page":
+		if !command.Host {
+			return nil, errors.New("nested page attachment requires a host command")
+		}
+		return b.attachNestedPage(input.PageID, input.Action == "attach_page")
+	case "bounds_page":
+		if !command.Host {
+			return nil, errors.New("nested page bounds require a host command")
+		}
+		return b.setNestedPageBounds(input.PageID, nativePageBounds{
+			X: input.X, Y: input.Y, Width: input.Width, Height: input.Height,
+		})
+	case "visible_page":
+		if !command.Host {
+			return nil, errors.New("nested page visibility requires a host command")
+		}
+		if input.Visible == nil {
+			return nil, errors.New("nested page visibility requires a boolean value")
+		}
+		return b.setNestedPageVisibility(input.PageID, *input.Visible)
+	case "focus_page":
+		if !command.Host {
+			return nil, errors.New("nested page focus requires a host command")
+		}
+		return b.focusNestedPage(input.PageID)
+	case "close_page":
+		if !command.Host {
+			return nil, errors.New("nested page close requires a host command")
+		}
+		if err := b.closeNestedPage(input.PageID); err != nil {
+			return nil, err
+		}
+		return map[string]bool{"closed": true}, nil
 	case "ensure_settings":
 		record, err := b.ensureSettingsWindow(input.Width, input.Height, input.MinWidth, input.MinHeight, input.X, input.Y)
 		if err != nil {
@@ -594,6 +643,9 @@ func validCommandCallerDocument(role nativeWindowRole, currentURL, sourceURL str
 }
 
 func (b *Bridge) commandCaller(source sidecar.RequestSource) error {
+	if source.PageID != 0 {
+		return errors.New("native window command requires a primary page caller")
+	}
 	window, err := b.nativeWindow(source.WindowID)
 	if err != nil {
 		return err
@@ -662,18 +714,23 @@ func canFinishNativeDocumentLoad(
 func (b *Bridge) loadNativeDocument(
 	ctx context.Context, window *mygo.Window, rawURL string, navigation *nativeDocumentNavigation,
 ) error {
+	return b.loadNativePageDocument(ctx, b.nativePage(nativeWindowRecord{window: window}), rawURL, navigation)
+}
+
+func (b *Bridge) loadNativePageDocument(
+	ctx context.Context, page *mygo.Page, rawURL string, navigation *nativeDocumentNavigation,
+) error {
 	if navigation == nil {
 		return errors.New("native window navigation state is unavailable")
+	}
+	if page == nil {
+		return errors.New("native window has no page")
 	}
 	beforeLoad := navigation.currentRevision()
 	loaded := make(chan error, 1)
 	var once sync.Once
 	finish := func(err error) {
 		once.Do(func() { loaded <- err })
-	}
-	page := b.nativePage(nativeWindowRecord{window: window})
-	if page == nil {
-		return errors.New("native window has no page")
 	}
 	beforeURL := page.URL()
 	fragmentOnly := isSameDocumentFragmentNavigation(rawURL, beforeURL)
@@ -697,7 +754,7 @@ func (b *Bridge) loadNativeDocument(
 			finish(errors.New("native document failed to load"))
 		}
 	})
-	offClosed := window.OnClosed(func() {
+	offClosed := page.Window().OnClosed(func() {
 		finish(errors.New("native window closed while loading document"))
 	})
 	defer offFinish()

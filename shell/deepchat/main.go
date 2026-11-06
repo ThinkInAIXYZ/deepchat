@@ -88,9 +88,16 @@ func main() {
 			Width:  1280,
 			Height: 820,
 			Content: ui.View(func(c *ui.Context) {
-				if rendererView != nil {
-					ui.WebView(c, rendererView).Fill()
-				}
+				ui.Box(c).Fill().Children(func() {
+					if rendererView != nil {
+						ui.WebView(c, rendererView).Fill()
+						for _, placement := range bridge.nestedPagePlacements(rendererView.Window().ID()) {
+							ui.WebView(c, placement.view).Absolute().
+								Left(float32(placement.bounds.X)).Top(float32(placement.bounds.Y)).
+								Size(float32(placement.bounds.Width), float32(placement.bounds.Height))
+						}
+					}
+				})
 			}),
 		})
 		rendererView, err = window.NewWebView(mygo.WebViewOptions{

@@ -39,6 +39,9 @@ type Bridge struct {
 	settings           *mygo.Window
 	splash             *mygo.Window
 	windows            map[int]nativeWindowRecord
+	pages              map[uint64]nativePageRecord
+	nextPageID         uint64
+	nextPageZ          uint64
 	process            *sidecar.Manager
 	externalURL        func(string) error
 	preload            string
@@ -66,6 +69,13 @@ func (b *Bridge) deliverEvent(event sidecar.Event) error {
 	if event.Source == nil || event.Source.WindowID <= 0 {
 		return errors.New("sidecar event has no native window target")
 	}
+	if event.Source.PageID != 0 {
+		nested, err := b.nestedPage(event.Source.PageID)
+		if err != nil || nested.window.ID() != event.Source.WindowID {
+			return errors.New("sidecar event targets an unregistered or destroyed nested page")
+		}
+		return deepchatEvent.EmitPage(nested.page, deepchatEventPayload{Name: event.Name, Payload: event.Payload})
+	}
 	b.mu.RLock()
 	registered := b.windows[event.Source.WindowID]
 	b.mu.RUnlock()
@@ -91,14 +101,21 @@ func (b *Bridge) requestSource(ctx context.Context) (sidecar.RequestSource, *myg
 	if window.ID() <= 0 || registered.window == nil || registered.window != window {
 		return sidecar.RequestSource{}, nil, errors.New("renderer caller is not a registered application window")
 	}
-	if registered.page == nil || page != registered.page {
-		return sidecar.RequestSource{}, nil, errors.New("renderer caller is not the registered primary application page")
-	}
 	documentURL := page.URL()
-	if !isRendererDocument(registered.role, documentURL) {
-		return sidecar.RequestSource{}, nil, errors.New("renderer caller is not an allowed application document")
+	if registered.page != nil && page == registered.page {
+		if !isRendererDocument(registered.role, documentURL) {
+			return sidecar.RequestSource{}, nil, errors.New("renderer caller is not an allowed application document")
+		}
+		return sidecar.RequestSource{WindowID: window.ID(), DocumentURL: documentURL}, window, nil
 	}
-	return sidecar.RequestSource{WindowID: window.ID(), DocumentURL: documentURL}, window, nil
+	nested, ok := b.nestedPageByPointer(page)
+	if !ok || nested.window != window {
+		return sidecar.RequestSource{}, nil, errors.New("renderer caller is not a registered application page")
+	}
+	if !isNativeNestedBusinessDocument(documentURL) {
+		return sidecar.RequestSource{}, nil, errors.New("nested page document is not allowed for business IPC")
+	}
+	return sidecar.RequestSource{WindowID: window.ID(), PageID: nested.id, DocumentURL: documentURL}, window, nil
 }
 
 func (b *Bridge) authorize(ctx context.Context) error {
@@ -126,8 +143,10 @@ func (b *Bridge) Invoke(ctx context.Context, route string, inputJSON string) (st
 	if role == nativeWindowSplash && route != "config.getLanguage" {
 		return "", errors.New("business route is not allowed for the splash document")
 	}
-	if answer, handled, err := b.shellRoute(window, route); handled {
-		return answer, err
+	if source.PageID == 0 {
+		if answer, handled, err := b.shellRoute(window, route); handled {
+			return answer, err
+		}
 	}
 	process := b.manager()
 	if process == nil {
