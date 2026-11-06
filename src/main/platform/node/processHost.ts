@@ -1,5 +1,19 @@
 import { fork, type ChildProcess } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { basename, extname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { HostedProcess, HostedProcessOptions, ProcessHost } from '../processHost'
+
+/**
+ * Prefer utility hosts emitted beside the sidecar bundle. The shared managers
+ * still resolve Electron's out/main paths first; relying on those files would
+ * make a sidecar-only package depend on a second, unrelated build.
+ */
+function resolveNodeUtilityModule(modulePath: string): string {
+  const moduleName = basename(modulePath, extname(modulePath))
+  const sidecarModule = fileURLToPath(new URL(`${moduleName}.mjs`, import.meta.url))
+  return existsSync(sidecarModule) ? sidecarModule : modulePath
+}
 
 /**
  * `utilityProcess` replacement for the sidecar: a forked Node process with the
@@ -39,7 +53,7 @@ class ForkedProcess implements HostedProcess {
 
 export const nodeProcessHost: ProcessHost = {
   fork(modulePath: string, args: string[], options: HostedProcessOptions): HostedProcess {
-    const child = fork(modulePath, args, {
+    const child = fork(resolveNodeUtilityModule(modulePath), args, {
       env: options.env,
       stdio: options.stdio === 'ignore' ? 'ignore' : options.stdio,
       execArgv: options.execArgv

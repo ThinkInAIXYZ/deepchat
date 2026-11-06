@@ -10,21 +10,31 @@ import { defineConfig } from 'vite'
  * do in `vite.sidecar.config.ts`.
  */
 /**
- * electron-vite resolves `import x from './worker?modulePath'` to the worker's
- * path at build time. The sidecar does not run those workers, but the modules
- * that import them still have to compile, so the query is answered with the
- * resolved path.
+ * electron-vite emits `import x from './worker?modulePath'` as a separate chunk
+ * and resolves its path at build time. The sidecar must do the same: a source
+ * filename alone would make Node resolve a non-existent file in the cwd.
  */
+const skillSyncWorkerEntry = resolve('src/main/skill/sync/scanWorkerEntry.ts')
+const modulePathPrefix = '\0modulePath:'
 const modulePathPlugin = {
   name: 'sidecar-module-path',
   enforce: 'pre' as const,
-  resolveId(id: string) {
-    return id.endsWith('?modulePath') ? `\0modulePath:${id}` : null
+  async resolveId(id: string, importer: string | undefined) {
+    if (!id.endsWith('?modulePath')) return null
+    const target = id.replace(/\?modulePath$/, '')
+    const resolved = await this.resolve(target, importer, { skipSelf: true })
+    return resolved ? `${modulePathPrefix}${resolved.id}` : null
   },
   load(id: string) {
-    if (!id.startsWith('\0modulePath:')) return null
-    const target = id.slice('\0modulePath:'.length).replace(/\?modulePath$/, '')
-    return `export default ${JSON.stringify(target)}`
+    if (!id.startsWith(modulePathPrefix)) return null
+    const target = id.slice(modulePathPrefix.length)
+    if (target !== skillSyncWorkerEntry) {
+      throw new Error(`Unsupported sidecar module path: ${target}`)
+    }
+    return `
+import { fileURLToPath } from 'node:url'
+export default fileURLToPath(new URL('./scanWorkerEntry.mjs', import.meta.url))
+`
   }
 }
 
@@ -66,12 +76,19 @@ export default defineConfig({
     sourcemap: true,
     ssr: true,
     rollupOptions: {
-      input: resolve('src/main/sidecar/app.ts'),
+      input: {
+        app: resolve('src/main/sidecar/app.ts'),
+        backgroundExecUtilityHost: resolve('src/main/backgroundExecUtilityHostEntry.ts'),
+        codeModeUtilityHost: resolve('src/main/codeModeUtilityHostEntry.ts'),
+        fileWatcherUtilityHost: resolve('src/main/fileWatcherUtilityHostEntry.ts'),
+        scanWorkerEntry: skillSyncWorkerEntry,
+        schedulerUtilityHost: resolve('src/main/schedulerUtilityHostEntry.ts')
+      },
       // `electron` is not external here: it resolves to the shim above.
       external: ['electron-store', 'better-sqlite3-multiple-ciphers'],
       output: {
         format: 'es',
-        entryFileNames: 'app.mjs',
+        entryFileNames: '[name].mjs',
         // The main process is written for CommonJS output; give the bundle the two
         // globals it assumes.
         banner:

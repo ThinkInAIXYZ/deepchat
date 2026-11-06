@@ -176,3 +176,63 @@
 ## 后续里程碑（现在不要开始）
 
 M2 Node sidecar 化、M3 Go 壳与桥、M4 周边能力、M5 打包与更新、M6 灰度。描述见 `feasibility-and-plan.md` 第 7 节。C3 之后，由用户确认再补充具体任务。
+
+---
+
+## 阶段 D：产品化替代（用户已明确启动，现行计划）
+
+规范见 `spec.md`，逐条现状证据见 `acceptance-checklist.md`。阶段 A–C 是历史记录；上面的“不要进入 M2”“等待确认”不再限制本阶段。每完成一个切片更新对应勾选项、结果和证据，不以局部通过替代 `spec.md` 第 8 节的整体验收。
+
+### [x] D0 建立当前差距与 SDD 基线
+
+1. 审计 sidecar shim、后台进程、正式壳、数据、安全、平台和发布现状。
+2. 新建 `spec.md`，将 `acceptance-checklist.md` 更新为当前可核验差距清单。
+3. 记录本机已有 tunnel 测试失败和缺少 Windows/Linux runner，不将它们写成通过。
+
+完成标准：差距清单区分已验证、部分实现、未实现和外部阻塞，且每项有源代码或运行证据。
+
+结果：完成两项只读审计并复核当前实现，新增 `spec.md`，重写 `acceptance-checklist.md` 为 sidecar、正式壳、安全、业务、数据、发布六类差距。记录 shim 假成功、真实窗口身份缺失、preload content-world 未证明、缺少三平台 runner，以及 sync tunnel 两项既有失败；旧 route 数量不再充当对等验收。
+
+### [x] D1 恢复 sidecar 后台进程运行时
+
+1. 为 file watcher、scheduler、background exec、code mode 提供 Node parent-port 兼容，不修改 Electron 的 parentPort 路径。
+2. 让 `vite.sidecar-app.config.ts` 输出 4 个 utility host 与 SkillSync worker 实体产物；Node `ProcessHost` 优先解析 sidecar 同目录入口，不再偶然依赖 Electron 的 `out/main`。
+3. 真实执行至少一项 utility host IPC 往返和 SkillSync worker 调用；重跑聊天链路，确认不再出现此前的即时退出与模块缺失。
+
+完成标准：后台入口不仅编译通过，还在 Node 中真实执行并返回合同结果；Electron 构建与相关测试保持通过。
+
+结果：4 个 utility host 共用 Electron/Node parent-port 适配并由 sidecar 构建分别输出 `.mjs`，Node ProcessHost 优先使用同目录入口；SkillSync 也输出并执行真实 worker。sidecar file-watcher IPC 与 SkillSync 结构化结果通过，service/local UI 聊天均再次通过（UI：`messages=2`、`pageEvents=8`、两条 DOM 消息可见）。定向 34 测试、renderer 2704 测试及 format/i18n/lint/typecheck/build 通过；完整 main 为 9790 通过、2 个既有 tunnel 失败。scheduler/background-exec/code-mode 的独立业务级场景和崩溃恢复仍归 D2/D4，不标记为已对等。
+
+### [ ] D2 建立正式 Go 壳与可靠传输
+
+1. 将 spike 的 probe 代码与正式应用入口分离，固定资源布局、构建命令和临时 profile 开发流程。
+2. 增加启动 readiness、未知路由/未就绪错误、请求超时与取消、损坏输出诊断和在途请求收尾。
+3. 建立单实例、sidecar 异常退出处理、受控重启和完整进程树关闭。
+4. 建立真实 window/webContents 身份映射，移除“选择最后一个窗口”的临时行为。
+5. 将 spike 的通用 Eval 与任意外链绑定排除在正式入口之外，保持 app-document 和外链 allowlist 校验，并解决或明确评审 mygo preload content-world 差距。
+
+完成标准：正式构建可从干净临时目录启动；sidecar 未就绪、崩溃、重启和退出均有确定性行为与测试证据；不能把仅提前注入脚本宣称已具备 Electron context isolation。
+
+### [ ] D3 完成窗口与原生能力
+
+实现多窗口/tab、主菜单、托盘、快捷键、deep link、真实对话框、剪贴板、通知、外观和屏幕状态。将 shell-owned shim 的静默成功逐项替换为真实桥接或明确 unsupported；完成 workspace 预览、长图导出和 MCP Apps 独立安全评审。
+
+### [ ] D4 完成业务功能与异常路径对等
+
+按 `spec.md` 的业务矩阵验证 Provider、DeepChat/ACP Agent、工具、MCP 全生命周期、Skill、Memory、workspace、设置、导入导出及关键 Web 组件。覆盖取消、重试、慢流、错误、数据库锁定、大数据量、任务恢复和跨窗口事件。
+
+### [ ] D5 完成凭据和用户数据迁移
+
+使用 OS Secrets 替换开发密钥文件，以复制 fixture 验证 safeStorage 迁移、SQLCipher 数据保留、幂等、备份、失败恢复和回滚。真实数据操作与生产迁移发布分别请求授权。
+
+### [ ] D6 完成打包、平台和更新验收
+
+分发 Node 运行时、原生模块、worker、插件和资源，分别执行 macOS、Windows、Linux 安装后 smoke；验证签名、文件关联、deep link、卸载、自动更新与回滚。无法取得对应 runner 或证书时只记录外部阻塞，不改写验收结论。
+
+### [ ] D7 全量验收和经授权的发行切换
+
+运行完整功能与质量矩阵，关闭所有影响用户功能的 shim/noop，完成架构、迁移、运维、发布和回滚文档。只有在全部验收满足并获得明确授权后，才改变默认发行版、删除 Electron 或关闭本 goal。
+
+### [ ] 持续复查
+
+每个 D 切片完成后立即审查并开始下一个仍未完成的切片；若存在不依赖外部条件的剩余工作，不以“本轮已足够”结束长期目标。

@@ -5,24 +5,15 @@ import {
 } from './backgroundExecSessionManager'
 import { childProcessRegistry } from './childProcessRegistry'
 import logger from './backgroundExecLogger'
+import {
+  getUtilityParentPort,
+  type UtilityParentPort as ParentPort
+} from '@/platform/utilityParentPort'
 
 const EXEC_UTILITY_HOST_ARG = '--deepchat-exec-utility-host'
 
-type ParentPort = {
-  postMessage(message: unknown): void
-  on(event: 'message', listener: (message: unknown) => void): void
-  start?(): void
-}
-
 type ParentPortMessageEvent = {
   data?: unknown
-}
-
-function getParentPort(): ParentPort | null {
-  const maybeProcess = process as NodeJS.Process & {
-    parentPort?: ParentPort
-  }
-  return maybeProcess.parentPort ?? null
 }
 
 function isExecUtilityHostRequest(): boolean {
@@ -101,7 +92,7 @@ export function runBackgroundExecUtilityHostIfRequested(): boolean {
     return false
   }
 
-  const parentPort = getParentPort()
+  const parentPort = getUtilityParentPort()
   if (!parentPort) {
     throw new Error('Background exec utility host started without a parent port.')
   }

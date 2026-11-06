@@ -8,17 +8,12 @@ import type {
   SchedulerEvent
 } from '@shared/cronJobs'
 import { CronExpressionService } from './cronExpressionService'
+import { getUtilityParentPort } from '@/platform/utilityParentPort'
 
 const SCHEDULER_HOST_ARG = '--deepchat-cron-scheduler-host'
 const HEARTBEAT_INTERVAL_MS = 5_000
 const MAX_SCAN_DELAY_MS = 30_000
 const DUE_SCAN_LIMIT = 100
-
-type ParentPort = {
-  postMessage(message: unknown): void
-  on(event: 'message', listener: (message: unknown) => void): void
-  start?(): void
-}
 
 type ParentPortMessageEvent = {
   data?: unknown
@@ -36,13 +31,6 @@ interface DueCronJobRow {
 interface SchedulerSnapshot {
   enabledJobCount: number
   nextRunAt: number | null
-}
-
-function getParentPort(): ParentPort | null {
-  const maybeProcess = process as NodeJS.Process & {
-    parentPort?: ParentPort
-  }
-  return maybeProcess.parentPort ?? null
 }
 
 function isSchedulerHostRequest(): boolean {
@@ -420,7 +408,7 @@ export function runSchedulerUtilityHostIfRequested(): boolean {
     return false
   }
 
-  const parentPort = getParentPort()
+  const parentPort = getUtilityParentPort()
   if (!parentPort) {
     throw new Error('Cron scheduler utility host started without a parent port.')
   }

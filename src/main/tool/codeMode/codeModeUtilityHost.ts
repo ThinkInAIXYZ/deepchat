@@ -10,12 +10,10 @@ import {
   type RunCodeParentMessage,
   type RunCodeToolBinding
 } from '@shared/codeModeProtocol'
-
-type ParentPort = {
-  postMessage(message: unknown): void
-  on(event: 'message', listener: (message: unknown) => void): void
-  start?(): void
-}
+import {
+  getUtilityParentPort,
+  type UtilityParentPort as ParentPort
+} from '@/platform/utilityParentPort'
 
 type PendingCall = {
   toolName: string
@@ -179,7 +177,7 @@ const CONTEXT_RUNTIME_FACTORY_SOURCE = String.raw`
 `
 
 function getParentPort(): ParentPort {
-  const parentPort = (process as NodeJS.Process & { parentPort?: ParentPort }).parentPort
+  const parentPort = getUtilityParentPort()
   if (!parentPort) throw new Error('Code mode utility host started without a parent port.')
   return parentPort
 }

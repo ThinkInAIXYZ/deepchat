@@ -1,198 +1,123 @@
-# mygo 迁移验收清单
+# mygo 完整替代验收与差距清单
 
-日期：2026-11-05
+更新：2026-11-06（阶段 D 审计与后台进程运行时切片）
 分支：`feat/mygo-rewrite`
-用途：给验收者一份可以逐条核对的现状清单。每条都标注「已验证 / 部分验证 / 未开始」并给出证据位置。
+规范：`spec.md`；执行状态：`plan.md` 阶段 D
+整体结论：**尚未完成替代，不得发布为 Electron 的完整替代品。**
 
-## 一、产品决策（已定，不再讨论）
+## 1. 证据等级与范围
 
-| 决策 | 状态 |
-| --- | --- |
-| 内置浏览器 YoBrowser 与 Agent 浏览器自动化 | 已删除 |
-| computer use 的 PiP 预览窗口 | 已删除；CUA 插件保留 |
-| 浮动按钮、悬浮聊天窗 | 已删除 |
-| OAuth 改系统浏览器 + deep link 回调 | 未实施，受阻（见第四节） |
-| OCR 与 sharp 放进 Node sidecar | 保留，尚未迁移 |
-| Linux 实验性支持 | 未验证（无环境） |
+- **已验证**：当前源码上有直接运行证据；历史证据注明对应 spike/提交。
+- **部分实现**：有代码或局部验证，但独立运行、异常路径或完整功能仍未证明。
+- **未实现**：没有满足要求的真实实现。
+- **外部阻塞**：本地可推进工作完成后仍需外部环境或授权，不能把未执行写成通过。
 
-## 二、阶段 A：删除已砍功能（已完成）
+保留功能以 `spec.md` 第 2 节为准。YoBrowser、浮动聊天窗和 computer-use PiP 是已经确认并实施的删减，不计为待恢复的对等差距。`m0-report.md` 保存 M0 历史证据；本文件跟踪产品化真实现状，不沿用旧测试数字代替当前验证。
 
-验证方式：主进程与渲染层测试全绿，功能相关代码与 i18n 键清零。
+## 2. 已验证的基线
 
-- [x] YoBrowser 相关代码、路由、事件、preload、渲染组件全部移除
-- [x] 浏览器数据导入（`BrowserProfileImportService`）随 YoBrowser 删除
-- [x] 浮动窗口、浮动按钮、computer use PiP 预览移除
-- [x] 23 个 locale 的相关 i18n 键清理，`src/types/i18n.d.ts` 重新生成
-- [x] 历史消息兼容：旧浏览器工具名仍按普通工具块渲染
-- [x] 停用的旧工具名从会话「已禁用工具」列表中自动清理
-- [x] 用户设置里 `floatingButtonEnabled` 等历史值保留未删
-
-证据：`removal-checklist.md`、`release-notes-draft.md`、`plan.md` 的 A0–A6 结果行。
-
-规模：223 个文件、约 −21,500 行。
-
-## 三、阶段 C：mygo 技术验证（核心项已完成）
-
-| 验证项 | 状态 | 证据 |
+| 能力 | 状态 | 当前证据 |
 | --- | --- | --- |
-| 真实渲染层在 WKWebView 中启动 | 已验证 | `evidence/renderer-in-wkwebview.png` |
-| 绑定调用与事件 | 已验证 | `m0-report.md` 第 2 项 |
-| 流式通道（12.5 MiB） | 已验证，25 ms | `m0-report.md` 第 3 项 |
-| 自定义协议 | 已验证 | 第 5 项 |
-| 页面截图、PDF、脚本求值 | 已验证 | 第 6 项 |
-| 系统密钥库 | 已验证（macOS） | 第 8 项 |
-| 打包 | 已验证：`.app` 75 MB、`.dmg` 15 MB | 第 9 项 |
-| 冷启动 | 已验证：首帧约 250 ms | 第 10 项 |
-| Windows / Linux 渲染 | 未验证（无环境） | — |
-| `safeStorage` 口令迁移 | 未验证 | — |
-| 自动更新升级链路 | 未验证 | — |
+| 真实 Vue renderer 在 macOS WKWebView 启动 | 已验证（spike） | `m0-report.md` 第 1、11–16 节及对应截图 |
+| Go 绑定、renderer typed bridge、事件分发 | 已验证（spike） | `m0-report.md` 第 2、11、14 节 |
+| SQLCipher 与现有主进程业务在 Node 中运行 | 已验证（spike） | `m0-report.md` 第 12、18 节；`database-decision.md` |
+| 本地 mock Responses API 的 service-level 聊天 | 已验证 | `node shell/spike/local-chat-check.mjs`：`chat.stream.completed`、消息契约与完整回复匹配 |
+| Go 壳中的真实 UI 聊天路径 | 已验证（提交 `5b764591d`） | `local-chat-ui.mjs` 真实点击 onboarding 和侧边栏，DOM + `/tmp/deepchat-chat-final.png` 同时验证 2 条消息 |
+| 流式 channel、自定义协议、截图、PDF、macOS Secrets API | 已验证（spike 单项） | `m0-report.md` 第 3–8 节；不等于对应产品功能已迁移 |
+| macOS spike `.app` / `.dmg` | 已验证（仅 spike） | `m0-report.md` 第 9 节；不含正式 Node 运行时、迁移、更新或完整产品矩阵 |
 
-## 四、阶段 B：平台抽象（进行中）
+## 3. 当前差距总表
 
-边界外直接 import electron 的文件：**89 → 38**。
+### 3.1 sidecar 后台运行时（阶段 D1）
 
-已完成的接口（9 个，均在 `src/main/platform/`，Electron 实现位于 `platform/electron/`）：
+| 项目 | 状态 | 实现与证据 |
+| --- | --- | --- |
+| Electron/Node parent-port 兼容 | 已验证本切片 | `src/main/platform/utilityParentPort.ts`；真实 `child_process.fork` 下 file-watcher RPC 成功往返；定向合同测试通过 |
+| file watcher 独立 sidecar 入口 | 已验证本切片 | `out/sidecar/fileWatcherUtilityHost.mjs` 真实生成并执行 IPC，不依赖 `out/main` |
+| scheduler/background-exec/code-mode 独立 sidecar 入口 | 部分实现 | 4 个 `.mjs` 已生成且 Node ProcessHost 会优先选择同目录入口；其余 host 尚未分别执行业务级验收 |
+| SkillSync worker | 已验证本切片 | `out/sidecar/scanWorkerEntry.mjs` 真实 worker 返回 `{ok:true, scanResults:[], discoveries:[]}`；完整 sidecar 聊天启动中不再出现模块缺失和主线程 fallback 日志 |
+| 后台子进程异常诊断、恢复与关闭 | 未实现完整闭环 | 当前请求/进程级恢复和打包后完整生命周期仍待 D2/D4；单次成功启动不代表恢复已验证 |
 
-| 接口 | 迁移的调用点数量 |
-| --- | --- |
-| `AppHost` | 126 |
-| `SecretHost` | 7 个文件 |
-| `ShellHost` | 13 |
-| `ProcessHost` | 4 个 utility process |
-| `DialogHost` | 4 处 |
-| `NetHost` | 4 处 |
-| `ClipboardHost` | 3 处 |
-| `ThemeHost` | 1 处 |
-| `ShortcutHost` | 2 处 |
+### 3.2 正式产品壳与传输（阶段 D2）
 
-业务层（agent / provider / mcp / memory / tape / tool / skill / session）只剩 **6 个文件**引用 Electron，逐个结论文档在 `platform-abstraction.md`。
+| 能力 | 状态 | 差距 |
+| --- | --- | --- |
+| 正式应用入口 | 未实现 | 仍是 `shell/spike/main.go` + `go run` + 调试 flags + smoke 脚本 |
+| 启动 readiness 与 route 错误 | 未实现 | `src/main/sidecar/app.ts` 在路由未注册时返回 `{}`，`sidecar.app.started` 不等于业务初始化完成 |
+| 超时、取消、背压、损坏响应 | 未实现完整合同 | stdin/stdout JSON 只有基础 id 关联，没有完整请求生命周期治理 |
+| sidecar 崩溃恢复和进程树关闭 | 未实现 | 未取消所有在途请求，未形成受控重启和子进程清理闭环 |
+| 多窗口身份 | 未实现 | shim 窗口 id 固定为 1，IPC sender 使用最后一个存活窗口，真实多窗口不可接受 |
+| 单实例、deep link 和生命周期事件 | 部分 spike/未产品化 | shim 中 `requestSingleInstanceLock()` 恒 true，生命周期 listener 没有真实壳事件入口，relaunch 仅记录日志 |
 
-**受阻项**：3 个 OAuth 文件依赖 `https://deepchatai.cn/auth/github/callback` 这个仓库外的回调页。改成系统浏览器后，需要该页面再跳回 `deepchat://` 才能把授权码带回应用。没有服务端配合无法完成。
+### 3.3 原生能力与安全边界（阶段 D3）
 
-## 四之二、M2 第一版（已验证）
+| 能力 | 状态 | 差距 |
+| --- | --- | --- |
+| 窗口、托盘、全局快捷键 | 部分 spike | 仅主窗口和单项 macOS 验证；没有多窗口、完整菜单和正式注册/事件合同 |
+| 文件对话框 | 部分 spike/不应视为可用 | shim 仍可能返回 `canceled:false` 与空数组，正式结果必须由真实 Go bridge 返回 |
+| 通知 | 部分 spike | 仅打包 `.app` 的简单通知实测；业务点击目标和回调未验收 |
+| Clipboard/nativeImage | 未实现 | sidecar 仍丢弃文本/图片写入，图片对象和截图可能是空输出 |
+| workspace 预览/长图 | 未实现完整链路 | `CapturePage`/`Eval` 能力存在不等于 tab capture、组合图片、滚动导出已成功 |
+| workspace/MCP Apps 协议隔离 | 未实现产品边界 | shim `protocol.handle()` 可能假报 true；未形成 origin、导航、session partition 与 sender 的完整安全验证 |
+| preload/context isolation | 未实现对等验证 | mygo v0.7.4 macOS 使用未指定 content world 的 `WKUserScript`；需要上游隔离能力或经评审的等价 least-privilege 设计，spike `Eval` 与任意外链转发禁止进入正式绑定 |
+| OAuth | 部分受阻 | 系统浏览器迁移未完成；GitHub 回调页需配合回到 deep chat deep link，其他 OAuth 仍需逐项源审 |
+| 代理/权限/网络状态 | 未实现 | shim 的 proxy、permission、webRequest 和 `net.isOnline()` 等并非真实系统状态 |
 
-- `pnpm run sidecar:build` 产出 `out/sidecar/entry.mjs`，不含 Electron
-- 用真实 `SettingsStore` 与真实路由契约处理 `config.getEntries` / `config.updateEntries`
-- 读改落盘全部正确，非法键被 zod 拒绝
-- 入口：`src/main/sidecar/entry.ts`；构建配置：`vite.sidecar.config.ts`
-- 原生模块与 SQLCipher 已在纯 Node 下实测可用，数据库方案见 `database-decision.md`
-- sidecar 已接 37 条路由；壳另有 8 条（5 条窗口控制、1 条渲染就绪、2 条文件对话框）。冷启动 122 次进入 sidecar 的调用中 120 次被真实服务（98.4%）：config 读写、语言、主题、自定义提示词、设备信息、更新占位、窗口身份与状态、复用的 5 条 onboarding、走真实 `AppSessionService` 的会话列表、走真实 `ProviderSettings` 的 provider 摘要、走真实 `McpSettings` 的 MCP 开关与服务配置、复用的 9 条 `settings.*`
-- 与 Go 壳联调：真实设置文件驱动真实渲染层，界面变为日语 + 深色（`evidence/renderer-real-sidecar.png`）
+### 3.4 业务功能对等（阶段 D4）
 
-## 四之三、原生模块可用性（已验证）
+以下均有原 Electron/TypeScript 实现，但 mygo 组合运行时尚未完成对等验收：
 
-在纯 Node 进程里加载：`better-sqlite3-multiple-ciphers`、`node-pty`、`sharp`、`@parcel/watcher`、`@duckdb/node-api`、`@zerob13/nativekit`、`opendal` 全部通过。原因是 Node 24.21 与 Electron 43 的 Node 同为 ABI 137。
+- Provider、真实模型配置、附件、流取消、重试、会话恢复、数据库锁定与重启恢复。
+- DeepChat/ACP Agent、工具调用、权限确认、terminal、跨窗口交互。
+- MCP 启停、tools/prompts/resources、sampling、elicitation 和 MCP Apps。
+- Skill、Memory、workspace、搜索、设置、导入导出、通知和插件。
+- Monaco、Mermaid、markstream、TipTap、xterm、虚拟滚动在系统 WebView 的交互回归。
+- 慢流、超大 payload、sidecar 崩溃、多个窗口、后台任务和大数据量性能基线。
 
-SQLCipher 加密库写入、正确密钥重开、错误密钥被拒均验证通过。结论：sidecar 可以直接持有现有数据库，不需要为用户数据做任何转换。
+因此，“524 条路由注册”仅证明装配覆盖，不是功能对等验收。
 
-更进一步，sidecar 已经用真实的 `MainDatabase` 打开加密库并跑完迁移：`tables: 74`、`hasSessions: true`。详见 `database-decision.md`。
+### 3.5 凭据和数据迁移（阶段 D5）
 
-## 四之四、路由归属（已验证）
+| 能力 | 状态 | 差距 |
+| --- | --- | --- |
+| OS 密钥保护 | 未实现 | `node/secretHost.ts` 的正式路径仍使用用户目录 `0600` 密钥，`isInsecure() === true`；不满足产品要求 |
+| safeStorage 密文迁移 | 未实现 | 当前 AES-GCM 格式不能直接解读 Electron 密文，尚无一次性重加密流程 |
+| 数据库/设置无损升级 | 未验证端到端迁移 | 真实 SQLCipher 可由 Node 打开不等于现有用户迁移、回滚和幂等已通过 |
+| 中断、错误密钥、缺失密钥和恢复 | 未实现 | 需要复制 fixture，禁止直接在真实用户数据上实验 |
 
-壳先处理、sidecar 兜底。窗口类路由已由 Go 实现：实测 `window.toggleMaximizeCurrent` 让窗口从 1280×820 变为 1920×960，`window.getCurrentState` 同步返回 `isMaximized: true`。详见 `m0-report.md` 第 13 节。
+### 3.6 打包、平台和发布（阶段 D6）
 
-## 四之五、壳侧能力（部分验证）
+| 能力 | 状态 | 差距 |
+| --- | --- | --- |
+| macOS 正式应用包 | 未实现 | spike 包不包含正式 sidecar 运行时和完整资源布局 |
+| Windows / Linux | 外部阻塞待环境 | 尚无真实构建和运行 smoke，不能用跨平台编译替代验证 |
+| Node/native addon/worker/plugin 分发 | 未实现 | 侧车入口刚开始具备独立后台文件，完整 Node 运行时和原生模块仍需打包验证 |
+| 签名、公证、安装、卸载和文件关联 | 未验证 | 不属于 spike `.dmg` 的已验证范围 |
+| 自动更新 | 未实现 | sidecar updater 的检查和安装仍是空实现，relaunch 没有真实动作；更新状态可能停在中途 |
+| 灰度、回滚及生产升级 | 未实现且需授权 | 不改变更新服务器或默认渠道，直到完整验收和用户授权 |
 
-已实测：窗口最小化/最大化/关闭、托盘图标与菜单、全局快捷键、系统通知（**仅打包后的 `.app` 可用**）。
-已实现待人工验证：文件对话框（`device.selectDirectory` / `device.selectFiles`）。
-未验证：Dock 菜单、开机自启注册。详见 `m0-report.md` 第 15 节。
+## 4. 当前验证与已知失败
 
-## 五、端到端链路（已验证）
+D1 直接验证：
 
-```
-renderer（未改动的 DeepChat 前端）
-  -> window.deepchat.invoke
-  -> mygo 绑定
-  -> Go 壳
-  -> Node sidecar（stdin/stdout JSON）
-```
+- `pnpm run typecheck:node` 通过；`pnpm run sidecar:app:build` 成功生成 4 个 utility host、SkillSync worker 和 sidecar 主入口。
+- 定向测试中 4 个文件、34 个测试通过，包括新增的 Node parent-port 合同测试。
+- sidecar 自身 file-watcher entry 的真实 Node IPC 返回预期 RPC 错误合同，证明进程未在 parent-port 检查处退出。
+- SkillSync 实体 worker 返回结构化成功结果；`local-chat-check` 再次完成 streaming + persistence，此前 watcher 和 worker Startup 错误消失。
+- Go UI 最终复验得到 `messages=2`、`pageEvents=8`、`listed/hasReply/chatPage/userMessageVisible/assistantReplyVisible=true`、`onboardingVisible=false`，`/tmp/deepchat-chat-runtime-slice.png` 已人工核对。若使用全量 Electron 构建，需按 `run.sh` 顺序重新生成 `out/preload/bridge.js`，旧产物被清理后再截图不能证明 bridge 回归。
+- `format`、`i18n`、`lint`、`typecheck`、Electron build、sidecar build 均通过。完整 `test:renderer` 为 281 个文件、2704 测试通过；完整 `test:main` 为 9790 通过、2 失败、6 跳过。
 
-- 首次采集的基线是 53 次调用、29 条路由（`boot-route-inventory.md`）；当前实现的冷启动是 122 次调用，其中 120 次由真实代码服务
-- 界面语言、主题、provider 目录、onboarding 状态均由 sidecar 返回并生效，截图 `evidence/renderer-real-sidecar.png`、`evidence/renderer-with-providers.png`
-- 事件通道已接通：sidecar 事件 → Go `Broadcast` → preload 分发 → `window.deepchat.on`
-- preload 用的是应用自己的 `createBridge`（`out/preload/bridge.js`），契约校验与 Electron 下完全一致；非法枚举值与未知路由都会被拦下
-- 用真实事件验证：推送 `config.theme.changed` 后渲染层切换为深色（`evidence/renderer-dark-via-event.png`）
+已知失败仍是 `test/main/sync/tunnel.test.ts` 两项 `sync.tunnel.error.tunnelFailed`，此前单文件重跑也可复现；本切片未修改 sync/tunnel。这两个失败使“完整 main 全绿”仍为未完成项，不能从最终验收中略去。
 
-## 六、代码质量门禁（当前状态）
+本机 Node 为 v24.18.0，仓库声明要求 >=24.22.1；当前命令会给出 engine warning。不能据此宣称与目标 Node 版本完全等价的发布验证。
 
-| 检查 | 结果 |
-| --- | --- |
-| `pnpm run typecheck` | 通过 |
-| `pnpm run lint` | 通过，0 warning 0 error |
-| `pnpm run format` | 通过 |
-| `pnpm run i18n` | 通过 |
-| `pnpm run test:main` | 9785 通过、1 失败 |
-| `pnpm run test:renderer` | 2704 通过 |
-| `pnpm exec electron-vite build` | 通过 |
-| Electron 版启动冒烟 | 通过（临时 user-data 目录，未接触真实数据） |
-| `pnpm run e2e:smoke` | 未运行（需完整构建） |
+## 5. 外部条件与授权边界
 
-唯一失败的用例是 `test/main/scripts/buildCli.test.ts`：它会构建并运行真实 CLI 产物，本机报
-`dyld: Library not loaded: @rpath/libnode.137.dylib`。原因是本机 Node 为 24.21.0，而项目要求
->= 24.22.1，Electron 打包产物的原生库与之不匹配。与本次改动无关，尚未在干净环境复验。
+- Windows/Linux runner 未提供；对应构建与 UI smoke 尚未执行。
+- 生产签名证书、公证和生产更新环境的验证需要后续环境与明确授权。
+- GitHub OAuth 的仓库外回调页仍需配合；这不是放宽本地安全校验的理由。
+- 未经明确授权，不操作真实用户数据，不发布生产更新，不删除 Electron，不改变默认发行版。
 
-## 七、下一步（按依赖排序）
+## 6. 下一项最高优先级工作
 
-1. ~~事件通道~~：已完成，见第五节。
-2. **真实 sidecar**：37 条路由 + 真实加密数据库（含迁移）已在 sidecar 里跑通。冷启动清单里只剩 2 条路由各 1 次调用未服务（`acp.elicitation.list`、`remoteControl.listChannels`）（`mcp.listPrompts`、`mcp.listToolDefinitions`、`mcp.getClients`、`mcp.listResources`、`startup.getBootstrap`），它们需要 MCP 活连接与启动编排，依赖 composition 拆解（见 `composition-decomposition.md`）。
-3. **Go 壳路由分流**：window、app、tray、menu、shortcut 由 Go 直接服务，其余转 sidecar。
-4. **口令迁移**：`safeStorage` → `mygo.Secrets` 的迁移脚本与首次启动流程。
-5. **打包与更新**：三平台产物、签名、公证，以及 Electron 用户向 mygo 版的升级路径。
-6. **Linux / Windows 验证**：需要对应环境。
-
-## 七之二、遗留工作的唯一大前提
-
-剩余 8 条 sidecar 路由（`mcp.listPrompts`、`mcp.listToolDefinitions`、`mcp.getClients`、`mcp.listResources`、`settings.getSnapshot`、`startup.getBootstrap`、`toolchains.getStatus`、`sessions.getAgents`）都依赖 `composition.ts` 的多服务装配。拆解方案见 `composition-decomposition.md`，里面给出了 6 个工厂的拆分顺序、依赖约定、已知难点与验证方式。
-
-## 七之三、本分支的规模
-
-相对 `dev`：**342 个文件、+5,787 / −22,028 行、19 个提交**。
-
-| 提交 | 内容 |
-| --- | --- |
-| `fa4cdcca0` | 删除桌面专属功能 + 平台端口 + sidecar 入口 |
-| `4b08e6c98` | 文档与 Go 验证工程 |
-| `59ab83f71` | 设置子系统工厂 |
-| `a70d63ba3` | Provider 子系统工厂 |
-| `43f03d449` | `sessions.getAgents` |
-| `9677f7eeb` | `toolchains.getStatus` |
-| `1315c133e` | 真实 preload 桥接 |
-| `0a777d777` | 托盘与全局快捷键 |
-| `d1219f578` | 通知与文件对话框 |
-| `f9ba44002` | 解除 agent/provider 构造循环 |
-| `afa8b65cb` | 全部设置路由 |
-| `4c366d49c` | `mcp.getServerAuthStatus` + 覆盖率日志 |
-| `3d661f044` | 壳回答 `notification.rendererReady` |
-| `c61ec53fa` | 评审说明与数字校正 |
-| `cc50626e8` | `project.getSnapshot` |
-| `a23e78d40` | 远程控制目录抽取（路由回退） |
-| `c402361fb` | Electron 构建与启动冒烟记录 |
-| `1cbf7a452` | MCP 运行时接入 |
-| `78030b9f8` | 评审说明刷新 |
-
-## 六之二、完整主进程模式（已验证）
-
-`pnpm run sidecar:app:build` 产出 `out/sidecar/app.mjs`：整个 Electron 主进程跑在 Node 里，靠 `platform/node/electron/` 的 shim 提供 Electron API。**524 条契约路由全部可用**，不再是逐条迁移的 37 条。
-
-实测：`config.getLanguage`、`providers.listSummaries`、`sessions.listLightweight` 返回真实数据；`sessions.create` 在没有配置模型时返回项目的原始错误提示，说明服务与校验都在跑。
-
-`./shell/spike/run.sh` 默认使用这个模式；`DEEPCHAT_ROUTES_ONLY=1` 可切回逐条路由版。
-
-## 七之四、提交前自审
-
-对 `dev...HEAD` 的 diff 做过一次扫描，结果：
-
-| 检查 | 结果 |
-| --- | --- |
-| 新增代码里的 `console.log` / `debugger` / `TODO` | 无 |
-| 临时路径（`/tmp/`、本机绝对路径、测试目录名） | 无 |
-| 被注释掉的 import | 无 |
-| 疑似密钥或令牌 | 无 |
-| sidecar 里的降级实现 | 全部以明确错误或 `isInsecure()` 暴露，不静默成功 |
-
-## 八、验收结论
-
-- **方案可行性**：已验证。渲染层零改动即可在系统 webview 中运行，桌面能力齐备，体积与启动均有明显收益。
-- **阶段 A（删功能）**：可验收。
-- **阶段 B（平台抽象）**：约完成一半，剩余工作集中在 `desktop/` 与 `app/`，其中 OAuth 一项受阻于仓库外依赖。
-- **整体迁移**：尚未到可发布的验收阶段。按当前进度，剩余工作主要是 M2–M6，粗估 4–6 个月。
+完成 D1 的完整检查与提交后进入 **D2：正式 Go 壳与可靠 sidecar 生命周期**。第一目标是消除启动未就绪返回 `{}` 和基础进程所有权缺口，再逐步建立正式入口、单实例、真实窗口身份和异常恢复。D3–D7 仍为必须完成的后续范围，不因 D1 通过而关闭 goal。

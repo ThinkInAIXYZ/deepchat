@@ -1,23 +1,11 @@
 import { FileWatcherHost } from './watcherHost'
 import type { FileWatcherRpcRequest, FileWatcherRpcResponse } from './watcherTypes'
+import { getUtilityParentPort, type UtilityParentPort as ParentPort } from '../utilityParentPort'
 
 const FILE_WATCHER_HOST_ARG = '--deepchat-file-watcher-host'
 
-type ParentPort = {
-  postMessage(message: unknown): void
-  on(event: 'message', listener: (message: unknown) => void): void
-  start?(): void
-}
-
 type ParentPortMessageEvent = {
   data?: unknown
-}
-
-function getParentPort(): ParentPort | null {
-  const maybeProcess = process as NodeJS.Process & {
-    parentPort?: ParentPort
-  }
-  return maybeProcess.parentPort ?? null
 }
 
 function isFileWatcherHostRequest(): boolean {
@@ -97,7 +85,7 @@ export function runFileWatcherUtilityHostIfRequested(): boolean {
     return false
   }
 
-  const parentPort = getParentPort()
+  const parentPort = getUtilityParentPort()
   if (!parentPort) {
     throw new Error('File watcher utility host started without a parent port.')
   }

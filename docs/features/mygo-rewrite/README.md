@@ -1,5 +1,7 @@
 # mygo 迁移：执行者必读（先读这一份）
 
+> 2026-11-06：产品化替代 goal 已由用户明确启动。现行规范是 `spec.md`，执行顺序是 `plan.md` 的阶段 D；当前验收以 `acceptance-checklist.md` 的最新记录为准。本文其余部分保留阶段 A–C 的历史约束，其中“不要进入 M2”“等待用户确认”“不要主动 commit”等描述不再限制阶段 D。仍须保护现有改动、逐项验证，并仅按用户授权提交和推送。
+
 你是接手执行的 AI。这份文档规定了你能做什么、不能做什么、按什么顺序做。请逐字遵守，不要自行扩大范围。
 
 ## 1. 背景
@@ -12,17 +14,18 @@
 ## 2. 文档阅读顺序
 
 1. 本文件
-2. `feasibility-and-plan.md`：分析与方案，重点读第 4、5、6、10 节
-3. `plan.md`：你要执行的任务清单（按里程碑，每个任务有完成标准）
-4. `removal-checklist.md`：要删除功能的文件清单（实测 grep 结果）
-5. `m0-spike.md`：Go 技术验证的规格与报告模板；实际结论见 `m0-report.md`
-6. `acceptance-checklist.md`：当前进度与验收状态，给验收者看
-7. `platform-abstraction.md`：阶段 B 的接口设计与进度
-8. `boot-route-inventory.md`：渲染层冷启动调用清单（M2 的验收基线）
-9. `database-decision.md`：数据库方案与原生模块实测结论
-10. `composition-decomposition.md`：composition 拆解方案（剩余路由的唯一前提）
-11. `review-notes.md`：给评审者的说明（变化、验证方式、重点看哪里）
-6. 仓库根目录 `AGENTS.md`：项目规则，优先级高于本目录文档中与之冲突的内容
+2. `spec.md`：产品化替代的现行规范与最终完成定义
+3. `feasibility-and-plan.md`：分析与方案，重点读第 4、5、6、10 节
+4. `plan.md`：你要执行的任务清单（按里程碑，每个任务有完成标准）
+5. `removal-checklist.md`：要删除功能的文件清单（实测 grep 结果）
+6. `m0-spike.md`：Go 技术验证的规格与报告模板；实际结论见 `m0-report.md`
+7. `acceptance-checklist.md`：当前进度与验收状态，给验收者看
+8. `platform-abstraction.md`：阶段 B 的接口设计与进度
+9. `boot-route-inventory.md`：渲染层冷启动调用清单（M2 的验收基线）
+10. `database-decision.md`：数据库方案与原生模块实测结论
+11. `composition-decomposition.md`：composition 拆解方案（剩余路由的唯一前提）
+12. `review-notes.md`：给评审者的说明（变化、验证方式、重点看哪里）
+13. 仓库根目录 `AGENTS.md`：项目规则，优先级高于本目录文档中与之冲突的内容
 
 ## 3. 已经确认的产品决策（不要重新讨论）
 
