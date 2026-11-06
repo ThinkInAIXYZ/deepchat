@@ -12,7 +12,11 @@ import {
 } from './lib/startupDeepLink'
 import { isInsecureTlsAllowed } from './lib/insecureTls'
 import { ensureRegularAppOnMac } from './lib/activateApp'
-import { startMainProcess, type MainProcessControl } from './app/mainProcess'
+import {
+  startMainProcess,
+  type MainProcessControl,
+  type MainProcessStartupSupport
+} from './app/mainProcess'
 import type { MainShutdownActionClaim } from './app/mainShutdownCoordinator'
 import { mainLogger, reportMainProcessFatal, reportNativeMainError } from './logging'
 import { classifyMainLogError, type MainLogShutdownReason } from './logging/mainLogEvents'
@@ -21,7 +25,7 @@ import { elapsedMonotonicMs, readMonotonicNow } from './lib/monotonicTime'
 let appStarted = false
 const APP_NAME = 'DeepChat'
 
-export function startApp(): void {
+export function startApp(startupSupport: MainProcessStartupSupport = {}): void {
   if (appStarted) {
     return
   }
@@ -177,7 +181,8 @@ export function startApp(): void {
       mainProcess = await startMainProcess(
         startupWorkloadCoordinator,
         mainStartupRunId,
-        requestUpdateInstall
+        requestUpdateInstall,
+        startupSupport
       )
       const durationMs = elapsedMonotonicMs(startupStartedAt)
       mainLogger.emit('app.startup.terminal', {

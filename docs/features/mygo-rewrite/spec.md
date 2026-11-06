@@ -79,7 +79,7 @@ D2b1 是单窗口、可监督的第一根产品脊柱。D2c1 只关闭真实业�
 - stdout 读管道由壳独立持有，读取与 `Wait` 分离，避免退出关闭截断合法响应或因子进程继承写端而永久阻塞。意外 EOF 不等于进程退出，超过该代关闭 deadline 必须强杀。清理失败独立结束等待和调用，标记终态，禁止在旧子树可能存活时创建新代次。
 - 大输入的序列化与实际写入不得占用生命周期状态锁。发送权按 context 等待，并在发送权范围内分配 ID、编码和写出帧，使 wire 顺序与 ID 顺序一致；残缺帧或阻塞写入超时必须终止当前代次，不能在后一请求前拼接不完整 JSON。取消期间发送权保持到实际 writer 完成，发送前再次检查进程关闭状态；关闭首先停止接受新调用，再异步关闭输入并保有强制回收 deadline。
 - startup event handler 必须在 reader goroutine 启动前安装，避免立即 ready 被丢失并触发错误的 startup timeout。Windows 使用每代独立 Job Object 和 `KILL_ON_JOB_CLOSE` 处理根进程退出后的子树，不能只依赖根 PID 的 `taskkill`；此项目前只有源码与交叉编译证据，仍需真实 Windows 运行验收。
-- 正常关闭和管理器关闭事件不得创建替代进程。连续启动失败默认最多重试 3 次，采用有上限的指数退避；每代有默认 60 秒的可配置 readiness deadline，活着但从不 ready 的进程必须被强杀并进入同一恢复流程。只有真实 `sidecar.app.started` 才清零连续失败计数，未经历这个信号的进程启动不算恢复成功。
+- 正常关闭和管理器关闭事件不得创建替代进程。连续启动失败默认最多重试 3 次，采用有上限的指数退避；每代有默认 60 秒的可配置 transport-readiness deadline，活着但从不具备可用 IPC transport 的进程必须被强杀并进入同一恢复流程。安装 stdin/关闭处理后的 `sidecar.process.ready` 只解除这个超时，不能加载 renderer、清零失败预算或冒充业务启动完成；数据库等待用户解锁不受该超时误杀。只有真实 `sidecar.app.started` 才清零连续失败计数、触发主 renderer 加载或恢复，未经历这个信号的进程启动不算完整恢复成功。
 - 替换进程 ready 后等待真实 renderer reload，不得用单纯 Node 进程存活代替页面注册恢复。失败耗尽后请求返回明确错误，壳进入退出流程。
 - 正式生产绑定不包含通用 Eval。mygo 官方 automation 仅在 `e2e` 构建和显式 `MYGO_AUTOMATION` 下启用，用于测试窗口的 DOM、只读 IPC 与实际截图，其余发行构建必须保持该入口关闭。
 
@@ -114,6 +114,16 @@ D2c1 的恢复验收必须包含真实 sidecar 故障注入和新代次 DOM 观�
 - 启动恢复只能消费一次快照，并将当时仍存活的 descriptor 传给 `WindowPresenter` 现有 settings 创建、事件监听、ready 和 pending-message 管线。该路径不得调用普通 `ensure_settings` 来创造替代窗口；快照之外的正常用户打开仍走 D2c2b1。恢复需要绑定实际原生 ID 并重载 renderer：允许的 `mygo` settings 文档保留其 path/query/hash，半创建的 `about:blank` 使用正常 settings 入口；不得重放崩溃前未确认的 mutation。
 - closed tombstone、缺失缓存、`closeRequested`、已有 wrapper 处于关闭中，或恢复期间到达的真实 close 都使本次恢复结束，不得等待后自动重建或申请一个新 ID。并发用户打开与恢复仍共用一个 `settingsWindowCreation`，但只有明确的用户新建操作可以进入普通 ensure/create。恢复失败必须记录并按 role/window ID 清理实际窗口或明确保留原因，不能静默留下一个看似正常但无 sender 的旧 DOM。
 - 验收必须在真实 macOS disposable profile 中杀死旧 sidecar，确认新代主窗口恢复之外，settings 也完成真实 renderer/preload 重建、ready、独立 sender、业务调用与目标事件；旧 renderer 标记必须消失。另在 replacement 启动期间关闭 settings，最终只能保留主窗口，不得从快照重新创建设置窗口。此项不包含多普通聊天窗口、splash/数据库解锁或 nested Page。
+
+### 4.6 D2c2b3 真实 splash/数据库解锁窗口
+
+- `SplashWindow` 的既有显示延迟、主窗口抑制、解锁/恢复请求、取消与关闭语义保持不变，不复制另一套数据库决策或表单。Go 新增受控 `splash` role 和 `ensure_splash` 命令，按 420×340、隐藏、透明、无边框、禁止移动/缩放、置顶的真实窗口返回 descriptor；Node 取得该身份后才能绑定并导航，未绑定 `loadFile/loadURL` 继续明确失败。Electron 保留 Chromium 路径。
+- 唯一静态应用入口为 `mygo://localhost/splash/index.html`。`loadFile` 只把实际存在且为文件的精确 splash entry 映射到该 URL，缺失时必须拒绝并让既有回退接管，不能把 mygo 缺失资源的空文档当作加载成功；`loadURL` 不接受其他 origin/path，内联 `data:text/html;charset=utf-8,` 回退仅由受信 `SplashWindow` 生成且原文长度受限。mygo 对 opaque data origin 的 `data:///` trust 只用于该 splash，不使用通配 origin；Go 仍逐次校验精确前缀、65,536 字节上限和 role/channel。`about:blank` 仅用于创建/清理阶段，不是正常 caller。通用 Eval、任意外链和普通业务文档都不能借 splash role 获得权限。
+- 正常 splash Vue renderer 与 inline 回退共用同一 `createSplashApi` 业务逻辑，分别注入 Electron ipcRenderer 或受限 mygo port。其独立 preload 复用现有常量、请求监听/退订和提交参数校验，不能弱化 Electron `contextBridge`；Go preload 使用 mygo 原生取消订阅。状态事件可能早于 Vue `onMounted` 到达，preload 必须缓存当前状态，并按原始跨 channel 顺序在一次微任务中重放；逐 channel 立即重放会把旧 `progress(active=true)` 放在新 request 之后，错误覆盖 manual-unlock 表单。生产资源布局必须包含并校验专用 splash bundle，缺失时明确失败。
+- unlock submit/cancel 与 recovery submit/cancel 是仅有的四条原生源 channel。Go 根据已注册 splash Page、实际文档、固定 channel 和 JSON envelope 复核后交给 sidecar，Node 再交给 `SplashWindow` 既有 `ipcMain.on` 监听者；不得经过通用 route dispatcher 自创 mutation。事件仍按真实 window ID 回到同一 Page。它们不能等待数据库路由 readiness，否则形成解锁死锁。
+- 早期语言读取必须与实际 `config.getLanguage` 使用同一个 `settingsStore`、`DesktopSettings` 的 locale 规则和 route output schema。仅当当前已验证文档为 splash 时，`config.getLanguage` 可以在早期 reader 已注册后直接读取；`data:` 回退只能执行该只读查询及上述四条 channel，其他业务 route 保持拒绝。其他文档和所有 mutation 均必须等待正常 appReady 与调用方校验。
+- 启动主窗口与 splash 均先隐藏。Go 的文档加载 Promise 只接受与本次请求一致的完成/失败 URL，创建时 `about:blank` 的 DidFinishLoad 不得提前 resolve；旧导航的失败也不能终止新目标。主窗口的真实 renderer ready 如果在 Node 绑定之前到达，Node 在绑定并安装现有监听器后重放对应 ready-to-show；不得提前展示主窗口，也不得因丢失早期 ready 永久隐藏。随后沿用现有 SplashWindow suppress/close 和真正 closed 通知，不能用占位 wrapper 的删除冒充窗口销毁。
+- 验收先用正常临时 profile 验证真实 splash、DOM、语言、显示/关闭及主窗口切换，再以复制加密 fixture 触发实际错误密码→有效密码与 recovery/cancel，核对 requestId、数据库结果、原文件保留和业务日志；密码不得进入日志、截图或提交。另覆盖静态入口失败回退、非 splash 文档拒绝、未知 channel 拒绝和 sidecar 重启期间的确定性行为。Windows/Linux、正式打包、真实用户数据迁移与 mygo content-world 差距仍单列，不能由此切片推断完成。
 
 ## 5. 后台进程与 worker 合同
 

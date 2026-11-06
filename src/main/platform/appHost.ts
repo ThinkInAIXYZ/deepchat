@@ -42,6 +42,10 @@ export interface AppHost {
   createNativeSettingsWindow?(
     bounds: import('./node/nativeWindowProtocol').NativeWindowBounds
   ): Promise<import('./node/nativeWindowProtocol').NativeWindowDescriptor>
+  /** Ask Go to create or reuse the real startup splash window. */
+  createNativeSplashWindow?(): Promise<import('./node/nativeWindowProtocol').NativeWindowDescriptor>
+  /** Compensate a failed splash creation without granting business IPC. */
+  closeNativeSplashWindow?(windowId: number): Promise<void>
   /** Consume this generation's still-live settings snapshot, if one needs restoration. */
   consumeNativeSettingsSnapshot?():
     | import('./node/nativeWindowProtocol').NativeWindowDescriptor

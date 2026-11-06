@@ -50,7 +50,7 @@
     "cli:build": "node scripts/build-cli.mjs",
     "sidecar:build": "vite build --config vite.sidecar.config.ts",
     "sidecar:app:build": "vite build --config vite.sidecar-app.config.ts",
-    "preload:build": "vite build --config vite.preload.config.ts",
+    "preload:build": "vite build --config vite.preload.config.ts && vite build --config vite.splash-preload.config.ts",
     "release:ff": "node scripts/release-fast-forward.mjs",
     "postinstall": "install-electron && electron-builder install-app-deps",
     "hooks:install": "git config core.hooksPath .githooks",

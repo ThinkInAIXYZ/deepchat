@@ -9,11 +9,12 @@ import (
 )
 
 type resourceLayout struct {
-	appRoot      string
-	rendererDir  string
-	sidecarEntry string
-	preloadPath  string
-	nodePath     string
+	appRoot           string
+	rendererDir       string
+	sidecarEntry      string
+	preloadPath       string
+	splashPreloadPath string
+	nodePath          string
 }
 
 func requireResourceFile(path string) error {
@@ -40,13 +41,14 @@ func resolveResourceLayout(resourcesDir string) (resourceLayout, error) {
 			return resourceLayout{}, fmt.Errorf("development Node.js is unavailable: %w", err)
 		}
 		layout := resourceLayout{
-			appRoot:      absRoot,
-			rendererDir:  filepath.Join(absRoot, "out", "renderer"),
-			sidecarEntry: filepath.Join(absRoot, "out", "sidecar", "app.mjs"),
-			preloadPath:  filepath.Join(absRoot, "out", "preload", "bridge.js"),
-			nodePath:     nodePath,
+			appRoot:           absRoot,
+			rendererDir:       filepath.Join(absRoot, "out", "renderer"),
+			sidecarEntry:      filepath.Join(absRoot, "out", "sidecar", "app.mjs"),
+			preloadPath:       filepath.Join(absRoot, "out", "preload", "bridge.js"),
+			splashPreloadPath: filepath.Join(absRoot, "out", "preload", "splash.js"),
+			nodePath:          nodePath,
 		}
-		for _, path := range []string{layout.sidecarEntry, layout.preloadPath} {
+		for _, path := range []string{layout.sidecarEntry, layout.preloadPath, layout.splashPreloadPath} {
 			if err := requireResourceFile(path); err != nil {
 				return resourceLayout{}, err
 			}
@@ -62,12 +64,13 @@ func resolveResourceLayout(resourcesDir string) (resourceLayout, error) {
 		executable += ".exe"
 	}
 	layout := resourceLayout{
-		appRoot:      resourcesDir,
-		sidecarEntry: filepath.Join(resourcesDir, "sidecar", "app.mjs"),
-		preloadPath:  filepath.Join(resourcesDir, "preload", "bridge.js"),
-		nodePath:     filepath.Join(resourcesDir, "runtime", "node", "bin", executable),
+		appRoot:           resourcesDir,
+		sidecarEntry:      filepath.Join(resourcesDir, "sidecar", "app.mjs"),
+		preloadPath:       filepath.Join(resourcesDir, "preload", "bridge.js"),
+		splashPreloadPath: filepath.Join(resourcesDir, "preload", "splash.js"),
+		nodePath:          filepath.Join(resourcesDir, "runtime", "node", "bin", executable),
 	}
-	for _, path := range []string{layout.nodePath, layout.sidecarEntry, layout.preloadPath} {
+	for _, path := range []string{layout.nodePath, layout.sidecarEntry, layout.preloadPath, layout.splashPreloadPath} {
 		if err := requireResourceFile(path); err != nil {
 			return resourceLayout{}, err
 		}

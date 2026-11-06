@@ -270,6 +270,20 @@ M2 Node sidecar 化、M3 Go 壳与桥、M4 周边能力、M5 打包与更新、M
 
 结果：每代 sidecar 使用 Go 当前 settings descriptor，Manager 在进入环境采集前隔离未执行旧命令并等待已开始的同步原生命令结束，空快照覆盖继承环境，Node 校验后一次消费并复用正常 Presenter 恢复管线；恢复不经过 `ensure_settings`，保留允许的 settings URL，closed/pending-close、重复消费或中途关闭均不复活。真实 macOS 中，sidecar 28616→28746 后 settings 自动重载并保留 `#/common`，旧 renderer 标记消失，业务 sender、target language event 和新 ready 均恢复；第二次 kill 后立即 native close，replacement 28892 后没有自动重建，只有显式打开才创建 id=3。最终版本还证明非法继承快照被清空，并由 32473→32726 再次完成真实恢复。31 个相关 Node 回归、Go race/vet、类型/静态检查与构建通过；完整回归数字、两次截图和退出证据见 `acceptance-checklist.md`。普通聊天多窗口、splash、nested Page 和全局资源治理仍未完成。
 
+#### [x] D2c2b3 实现真实 splash/数据库解锁窗口
+
+1. 增加受控 splash role、`ensure_splash`、专用 preload 资源和精确导航/文档白名单；只在真实 descriptor 绑定后加载窗口，补齐角色文档鉴权测试。
+2. 抽取同一 `createSplashApi` 复用 Electron 与 mygo 平台端口，接通四条有来源校验的 unlock/recovery channel、同源事件和只读早期语言状态，保持普通 appReady 边界。
+3. 保持现有 SplashWindow 显示、抑制和关闭业务不变，处理主窗口隐藏启动及早期 ready 重放，完成正常 profile UI 与复制加密 fixture 的实际解锁/恢复验证。
+4. 运行格式、类型、Go race/vet、main/受影响回归、sidecar/preload 构建和真实场景验收，更新已知差距，审查后提交推送；不把本切片扩大为平台发行或真实数据迁移完成证明。
+
+结果：真实 splash role、受限 channel/语言读取、主窗隐藏与早期 ready 重放已接通。修复了初始 `about:blank` 提前完成导航、独立缓存重放颠倒 progress/request、缺失 entry 被当成成功，以及 manual unlock 被 60 秒 readiness 看门狗误杀。`sidecar.process.ready` 仅解除 transport 超时，完整 `sidecar.app.started` 继续控制 renderer 加载和恢复成功。macOS 临时加密副本完成错误/正确密码、60 秒等待、锁定期 sidecar 替换、orphan recovery-cancel 文件保全和真实 data 回退验收；37 个相关 Node 测试、Go 全包 race/vet、类型/lint/i18n 与构建通过，完整 main 9827 passed / 2 既有 tunnel failed / 6 skipped，renderer 2704 全通过。证据与限制详见 `acceptance-checklist.md` D2c2b3；普通聊天多窗口、nested Page、OS Secrets 迁移、其他平台与正式发行仍未完成。
+
+#### [ ] D2c2c 建立 nested Page/WebView 身份与内容边界
+
+1. 先梳理 workspace、MCP Apps 和其他 WebView 的实际创建、调用方与销毁路径，以 `CallerPage().WebView()` 的独立身份建立 webContents/frame 映射，不能用主窗 ID 或 origin 猜测顶替。
+2. 保持预览/插件隔离与 sender 校验，覆盖创建、导航、目标事件、关闭和 sidecar replacement；未实现的 capture/eval 不得用主窗操作或静默成功替代。随后继续 D2c2 全局资源预算及 D3 原生能力差距。
+
 ### [ ] D3 完成窗口与原生能力
 
 实现多窗口/tab、主菜单、托盘、快捷键、deep link、真实对话框、剪贴板、通知、外观和屏幕状态。将 shell-owned shim 的静默成功逐项替换为真实桥接或明确 unsupported；完成 workspace 预览、长图导出和 MCP Apps 独立安全评审。

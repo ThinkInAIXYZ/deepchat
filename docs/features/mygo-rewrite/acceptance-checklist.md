@@ -1,6 +1,6 @@
 # mygo 完整替代验收与差距清单
 
-更新：2026-11-06（D2c2b1 settings 原生窗口切片）
+更新：2026-11-07（D2c2b3 真实 splash/数据库解锁窗口）
 分支：`feat/mygo-rewrite`
 规范：`spec.md`；执行状态：`plan.md` 阶段 D
 整体结论：**尚未完成替代，不得发布为 Electron 的完整替代品。**
@@ -43,10 +43,11 @@
 | 能力 | 状态 | 差距 |
 | --- | --- | --- |
 | 正式应用入口 | 部分实现（D2b1 已实测） | `shell/deepchat` 可构建并直接启动、获得单实例锁并回收 sidecar，不是正式打包发行版；spike 与正式入口共享 `internal/sidecar` |
-| 启动 readiness 与 route 错误 | 部分实现（D2c1 已验证） | 早期请求等待真实 dispatcher 注册，ready 后才发布 started，缺 route/缺 dispatcher 返回错误；每代有 60 秒默认 readiness deadline，挂起也进入有界恢复。业务初始化卡死与大输入资源上限仍未覆盖 |
+| 启动 readiness 与 route 错误 | 部分实现（D2c2b3 已验证锁定期等待） | 早期普通请求等待真实 dispatcher，缺 route/缺 dispatcher 返回错误；60 秒 deadline 仅约束 `sidecar.process.ready` 的 IPC transport，manual unlock 不再被误杀，完整 `sidecar.app.started` 仍独占主 renderer 加载与恢复成功。业务初始化卡死与大输入资源上限仍未覆盖 |
 | 超时、取消、背压、损坏响应 | 部分实现（D2c1 已验证单请求边界） | 共享 Process 支持请求 deadline、取消后的合法迟到响应丢弃、非法输出/异常 id 失败；4 MiB 阻塞写入与并发 Close 有界，残帧终止本代，不在通用状态锁中做管道 I/O。超大读取、全局内存/背压和长期资源治理仍待 D2c2 |
 | sidecar 崩溃恢复和进程树关闭 | 部分实现（D2c1 单项 macOS 已验证） | 在途请求收到确定错误；超时强杀覆盖进程组并等待回收；真实退出复用 Main shutdown coordinator；意外退出按代次有界恢复并重载 renderer，不自动重放 mutation。尚缺更多流/后台任务异常和多平台重复验收 |
-| 多窗口身份 | 部分实现（D2c2b1 已验证 settings 创建、关闭和重开） | Go 将真实 caller window/page 和 document URL 加入请求；`WindowPresenter` 先绑定平台提供的真实 ID、后登记 map，业务 webContents ID 可不同。主窗口和 settings 可同时存活，关闭后不会复用已销毁 sender；settings 的 sidecar 崩溃重绑定、普通聊天多窗口及 nested view 映射仍未实现 |
+| 多窗口身份 | 部分实现（D2c2b1 已验证 settings 创建、关闭和重开） | Go 将真实 caller window/page 和 document URL 加入请求；`WindowPresenter` 先绑定平台提供的真实 ID、后登记 map，业务 webContents ID 可不同。主窗口和 settings 可同时存活，关闭后不会复用已销毁 sender；settings 代次恢复见 D2c2b2，普通聊天多窗口及 nested view 映射仍未实现 |
+| 启动 splash 与数据库解锁 | 已验证本切片（仅 macOS 临时副本） | 原生 splash-first、manual 错误/正确密码、锁定期 sidecar 替换、orphan recovery-cancel 与 data 回退均有真实 DOM/截图；普通聊天多窗口、其他恢复类型、真实用户迁移和其他平台仍未覆盖 |
 | 单实例、deep link 和生命周期事件 | 部分实现（D2b1 已验证） | 第二次启动实测退出且不再启动业务进程；deep link、原生命运周期事件和 relaunch 尚未完整桥接 |
 
 ### 3.3 原生能力与安全边界（阶段 D3）
@@ -60,7 +61,7 @@
 | workspace 预览/长图 | 未实现完整链路 | `CapturePage`/`Eval` 能力存在不等于 tab capture、组合图片、滚动导出已成功 |
 | workspace/MCP Apps 协议隔离 | 未实现产品边界 | shim `protocol.handle()` 可能假报 true；未形成 origin、导航、session partition 与 sender 的完整安全验证 |
 | preload/context isolation | 未实现对等验证 | mygo v0.7.4 macOS 使用未指定 content world 的 `WKUserScript`；需要上游隔离能力或经评审的等价 least-privilege 设计，spike `Eval` 与任意外链转发禁止进入正式绑定 |
-| renderer sender 与文档来源 | 部分实现（D2c2b1 已验证主窗口和 settings） | Go source 隔离于 renderer input，frame 使用真实 `mygo://localhost/` URL；Node host 注册精确入口、绑定平台返回的真实原生 ID，并由原 authorizer 复核。主窗口和 settings 使用不同 role/path 白名单，未知窗口、origin、带凭据或 preview URL 均拒绝。nested view、settings 崩溃重绑定与 content-world 对等证明仍未完成 |
+| renderer sender 与文档来源 | 部分实现（D2c2b3 已验证主窗口、settings 与 splash） | Go source 隔离于 renderer input，Node 绑定平台返回的真实原生 ID 并复核精确 role/path。主窗口、settings 与 splash 使用不同文档白名单，未知窗口、origin、带凭据或 preview URL 均拒绝；splash 的四条 channel、早期只读语言、受限 data 回退和锁定期替换已实测。nested view 与 content-world 对等证明仍未完成 |
 | OAuth | 部分受阻 | 系统浏览器迁移未完成；GitHub 回调页需配合回到 deep chat deep link，其他 OAuth 仍需逐项源审 |
 | 代理/权限/网络状态 | 未实现 | shim 的 proxy、permission、webRequest 和 `net.isOnline()` 等并非真实系统状态 |
 
@@ -84,7 +85,7 @@
 | OS 密钥保护 | 未实现 | `node/secretHost.ts` 的正式路径仍使用用户目录 `0600` 密钥，`isInsecure() === true`；不满足产品要求 |
 | safeStorage 密文迁移 | 未实现 | 当前 AES-GCM 格式不能直接解读 Electron 密文，尚无一次性重加密流程 |
 | 数据库/设置无损升级 | 未验证端到端迁移 | 真实 SQLCipher 可由 Node 打开不等于现有用户迁移、回滚和幂等已通过 |
-| 中断、错误密钥、缺失密钥和恢复 | 未实现 | 需要复制 fixture，禁止直接在真实用户数据上实验 |
+| 中断、错误密钥、缺失密钥和恢复 | 部分实现/本切片仅验证启动分支 | D2c2b3 已在临时副本验证 manual 错误密码与 orphan recovery-cancel 文件保全；真实用户迁移的中断、错误/缺失密钥、备份回滚与幂等仍需复制 fixture，禁止直接在真实用户数据上实验 |
 
 ### 3.6 打包、平台和发布（阶段 D6）
 
@@ -98,6 +99,19 @@
 | 灰度、回滚及生产升级 | 未实现且需授权 | 不改变更新服务器或默认渠道，直到完整验收和用户授权 |
 
 ## 4. 当前验证与已知失败
+
+D2c2b3 真实 splash/数据库解锁窗口：
+
+- Go 创建并注册受限 `splash` role，Node 在绑定真实 descriptor 后导航；主窗从隐藏 `about:blank` 起步，早期 `ready-to-show` 仅在绑定且安装现有监听后重放。原生加载按目标 URL 过滤完成/失败事件，初始空页不会提前 resolve；`loadFile` 只在精确 splash entry 确实存在且为文件时映射 URL，不再把缺失资源产生的空文档当成成功。420×340、透明、无边框、不可移动/缩放、置顶窗口的 DOM 与截图均已核对。
+- 同一 `createSplashApi` 复用于 Electron 与 mygo，只有 unlock/recovery 的 submit/cancel 四条原生 channel 及只读早期语言读取。preload 缓存早于 Vue `onMounted` 到达的状态，并按原始跨 channel 顺序在一次微任务中重放；实测修复了旧 progress 在 request 后重放、把 manual 表单错误覆盖为 system-unlock 的时序。普通业务 route 仍拒绝 splash 来源，非精确文档/超限 data URL/未知 channel 不获得权限。
+- 通过应用自身 `databaseSecurity.enable` 生成临时 SQLCipher fixture，并只操作其副本；未使用真实用户数据或凭据。manual-unlock 中错误密码显示 `Wrong password. Try again.`、清空输入且可重试；等待超过原 60 秒 readiness deadline 时 sidecar PID 45847 保持不变，主窗仍隐藏。随后提交正确测试口令，同一 PID 完成启动，原生窗口只剩主窗并显示 `#/welcome`。`/tmp/deepchat-d2c2b3-splash-manual.png`、`/tmp/deepchat-d2c2b3-splash-invalid.png` 与 `/tmp/deepchat-d2c2b3-main-unlocked.png` 均在目标 DOM 完成后生成并人工查看。
+- `sidecar.process.ready` 现在只约束 IPC transport 看门狗，不能触发主 renderer 加载、清零崩溃预算或冒充完整业务启动；`sidecar.app.started` 保留原有 dispatcher 门槛。锁定期实际杀死 sidecar 48734 后由 48796 接管，同一 splash `id=2` 重新加载、旧页面标记消失、manual 表单和 `en-US/system` 语言读取恢复，主窗仍隐藏；`/tmp/deepchat-d2c2b3-splash-restarted.png` 已人工核对，随后取消解锁正常退出，没有再生成替代进程。
+- recovery 使用独立 `orphaned-sidecar` fixture，实际出现“存在无主数据库日志”的 Start empty/Quit 表单，`/tmp/deepchat-d2c2b3-orphan-recovery.png` 已人工核对。选择 recovery Quit 后，WAL 和移开的主库测试备份的内容摘要逐项不变，没有创建新主库或 quarantine 目录。本项不冒充 true-corruption、unreadable 或真实用户迁移矩阵已经通过。
+- 暂时移开本次生成的 splash 静态入口后，`loadFile` 明确失败并进入真实 `data:` 回退（16154 字节）。回退的受限 `data:///` trust 没有使用通配 origin，Go 仍校验精确前缀和 65,536 字节上限；语言读取、错误密码反馈正常，普通 debug 业务 route 被 `business route is not allowed for the splash document` 拒绝。`/tmp/deepchat-d2c2b3-inline-invalid.png` 已人工查看；退出 trap 恢复静态入口，SHA-256 校验与原文件一致。
+- 修复前还真实观察到 splash 对 `about:blank` 的三次 show/focus 失败，以及等待密码的 sidecar 被 60 秒超时误杀。目标导航过滤、transport/app readiness 分离后，正常 manual 启动不再出现这些错误。错误诊断仅输出脱敏的本地文档 path，不记录 query、fragment 或 data 内容；临时事件追踪代码未保留在交付中。
+- 本切片没有执行 Windows/Linux、正式打包、真实用户数据迁移或完整数据库损坏类型矩阵；OS Secrets/safeStorage 迁移仍在 D5，nested Page 和 preload content-world 隔离仍未完成。
+- Electron `electron-vite build` 通过。该构建会清理 `out/preload`，因此随后按 `run.sh` 顺序重新执行 `sidecar:app:build` 和 `preload:build`，再启动 Go；新的非加密临时 profile 中主窗显示 `#/welcome`，settings 创建为 `id=3`、加载 `#/overview`、语言读取为 `en-US/system`，关闭后只剩主窗。`/tmp/deepchat-d2c2b3-settings-regression.png` 已人工核对；这证明目标 URL 修复没有破坏既有 settings 导航，不是完整 Electron UI 验收。
+- 37 个相关 Node 测试通过；Node/Web typecheck、lint、i18n、icons freshness、Go 全包 race/vet、正常/e2e 壳构建及 sidecar/preload 构建通过。最终完整 main 为 9835 项，其中 9827 passed / 2 failed / 6 skipped，679 文件通过、1 文件失败、2 文件跳过；仅有既有两项 tunnel 失败。完整 renderer 为 281 文件、2704 测试全部通过。Node 24.18.0 与当前 package engines 的 >=24.22.1 要求仍有既有警告，未把它改写为环境完全匹配。
 
 D2c2b2 sidecar 代次间自动恢复 settings：
 
@@ -175,4 +189,4 @@ D1 直接验证：
 
 ## 6. 下一项最高优先级工作
 
-D2c2b1 的真实 settings 创建、独立 sender、role 文档、关闭和再次创建已按上述范围验证。下一优先级是 **D2c2b2：sidecar 替换时按真实 descriptor 恢复 settings 绑定，并显式建立 splash/数据库解锁的原生窗口所有权**。不能让已关闭窗口从旧 snapshot 复活，也不能保留启动日志中 splash 导航无绑定窗口的错误。随后是 nested Page 身份、原生焦点验收、大帧限额、全局背压、内存预算、后台异常生命周期和 preload content-world 隔离；D3–D7 仍是验收中不能删除的差距。
+D2c2b2 的 settings 代次恢复和 D2c2b3 的真实 splash/数据库解锁已按上述范围验证。下一优先级是 **D2c2c：以 `CallerPage().WebView()` 的独立身份建立 nested Page/WebView 的 webContents/frame 映射**，先读 workspace、MCP Apps 等真实创建与销毁路径，不用主窗 ID、origin 猜测或通用 Eval 顶替。随后是原生焦点验收、大帧限额、全局背压、内存预算、后台异常生命周期和 preload content-world 隔离；D3–D7 仍是验收中不能删除的差距。

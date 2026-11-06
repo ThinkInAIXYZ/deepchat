@@ -4,8 +4,7 @@ import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope } from '@shared/contracts/events'
 import type { IShortcutPresenter, ITabPresenter, IWindowPresenter } from '@shared/types/desktop'
 import type { DialogServicePort } from '@shared/types/dialog'
-import { getLocaleDirection } from '@shared/locales'
-import type { DesktopSettings } from './settings'
+import { readDesktopLanguageState, type DesktopSettings } from './settings'
 import {
   configGetLanguageRoute,
   configGetShortcutKeysRoute,
@@ -69,14 +68,7 @@ export function createDesktopRoutes(deps: {
       isFocused: exists ? windowPresenter.isMainWindowFocused(caller.windowId!) : false
     }
   }
-  const readLanguage = () => {
-    const locale = deps.settings.getLanguage()
-    return {
-      requestedLanguage: deps.settings.getRequestedLanguage(),
-      locale,
-      direction: getLocaleDirection(locale)
-    }
-  }
+  const readLanguage = () => readDesktopLanguageState(deps.settings)
   const readTheme = () => ({
     theme: deps.settings.getTheme(),
     isDark: deps.settings.getCurrentThemeIsDark()

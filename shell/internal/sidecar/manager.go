@@ -50,7 +50,7 @@ type Manager struct {
 	restarts       int
 	stopping       bool
 	failed         bool
-	ready          bool
+	transportReady bool
 	lastErr        error
 	startupErr     error
 	onEvent        func(Event)
@@ -149,7 +149,7 @@ func (m *Manager) start() error {
 	if m.stopping {
 		return ErrClosed
 	}
-	m.ready = false
+	m.transportReady = false
 	m.startupErr = nil
 	options := m.options.Process
 	if m.options.Environment != nil {
@@ -176,13 +176,13 @@ func (m *Manager) start() error {
 func (m *Manager) watchStartup(generation int) {
 	time.AfterFunc(m.options.StartupTimeout, func() {
 		m.mu.Lock()
-		if m.stopping || m.ready || generation != m.generation || m.process == nil {
+		if m.stopping || m.transportReady || generation != m.generation || m.process == nil {
 			m.mu.Unlock()
 			return
 		}
 		process := m.process
 		m.startupErr = fmt.Errorf(
-			"sidecar did not become ready within %s: %w",
+			"sidecar transport did not become ready within %s: %w",
 			m.options.StartupTimeout, context.DeadlineExceeded,
 		)
 		m.mu.Unlock()
@@ -411,10 +411,14 @@ func (m *Manager) EmitEvent(ctx context.Context, event Event) error {
 func (m *Manager) handleEvent(generation int, event Event) {
 	m.mu.Lock()
 	current := m.process != nil && generation == m.generation && !m.stopping
+	if current && (event.Name == "sidecar.process.ready" || event.Name == "sidecar.app.started") {
+		// Database unlock can legitimately outlive the transport startup timeout.
+		// An older app-only sidecar also proves transport readiness when it starts.
+		m.transportReady = true
+	}
 	if current && event.Name == "sidecar.app.started" {
-		// Only the real dispatcher-ready signal proves that replacement worked.
+		// Only the real dispatcher-ready signal starts the renderer and resets backoff.
 		m.restarts = 0
-		m.ready = true
 		m.failed = false
 		m.startFailed = false
 		m.startupErr = nil

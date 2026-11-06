@@ -27,6 +27,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("read renderer bridge: %v", err)
 	}
+	splashPreload, err := os.ReadFile(layout.splashPreloadPath)
+	if err != nil {
+		log.Fatalf("read splash bridge: %v", err)
+	}
 	// Node's appHost resolves registries and bundled data from this root.
 	if err := os.Setenv("DEEPCHAT_APP_PATH", layout.appRoot); err != nil {
 		log.Fatalf("configure application root: %v", err)
@@ -41,7 +45,10 @@ func main() {
 	var stopping atomic.Bool
 	var rendererLoadStarted atomic.Bool
 	var manager *sidecar.Manager
-	bridge := &Bridge{preload: sidecar.PreloadScript(string(preload))}
+	bridge := &Bridge{
+		preload:       sidecar.PreloadScript(string(preload)),
+		splashPreload: sidecar.PreloadScript(string(preload) + "\n" + string(splashPreload)),
+	}
 	defer func() {
 		stopping.Store(true)
 		if manager == nil {
@@ -73,6 +80,7 @@ func main() {
 		window := mygo.NewWindow(mygo.WindowOptions{
 			Title:  "DeepChat",
 			URL:    "about:blank",
+			Hidden: true,
 			Width:  1280,
 			Height: 820,
 			Page: mygo.PageOptions{
@@ -107,7 +115,7 @@ func main() {
 					go mygo.App.Quit()
 					return
 				}
-				if event.Name == "sidecar.app.started" || stopping.Load() {
+				if event.Name == "sidecar.app.started" || event.Name == "sidecar.process.ready" || stopping.Load() {
 					return
 				}
 				if err := bridge.deliverEvent(event); err != nil {

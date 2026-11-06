@@ -4,6 +4,7 @@ import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { ShortcutKeySetting } from '@shared/types/desktop'
 import { defaultShortcutKey } from './shortcutKeySettings'
 import { themeHost } from '@/platform/themeHost'
+import { configGetLanguageRoute, type DeepchatRouteOutput } from '@shared/contracts/routes'
 import {
   getLocaleDirection,
   resolveRequestedLocale,
@@ -11,6 +12,21 @@ import {
   type RequestedLocale,
   type SupportedLocale
 } from '@shared/locales'
+
+export type DesktopLanguageState = DeepchatRouteOutput<typeof configGetLanguageRoute.name>
+
+/** Read the same locale state used by config.getLanguage before routes are ready. */
+export function readDesktopLanguageState(
+  settings: Pick<DesktopSettings, 'getRequestedLanguage' | 'getLanguage'>
+): DesktopLanguageState {
+  const requestedLanguage = settings.getRequestedLanguage()
+  const locale = settings.getLanguage()
+  return {
+    requestedLanguage,
+    locale,
+    direction: getLocaleDirection(locale)
+  }
+}
 
 export class DesktopSettings {
   constructor(

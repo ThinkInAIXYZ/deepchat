@@ -22,16 +22,27 @@ type deepchatEventPayload struct {
 
 var deepchatEvent = mygo.NewEvent[deepchatEventPayload]("deepchat.event")
 
+const nativeSplashChannelRoute = "native.splash.channel"
+
+var allowedSplashChannels = map[string]bool{
+	"database-security:unlock-submit":   true,
+	"database-security:unlock-cancel":   true,
+	"database-security:recovery-submit": true,
+	"database-security:recovery-cancel": true,
+}
+
 // Bridge deliberately exposes only product operations used by the renderer and
 // preload. Probe methods such as arbitrary Eval do not belong in this package.
 type Bridge struct {
 	mu                 sync.RWMutex
 	primary            *mygo.Window
 	settings           *mygo.Window
+	splash             *mygo.Window
 	windows            map[int]nativeWindowRecord
 	process            *sidecar.Manager
 	externalURL        func(string) error
 	preload            string
+	splashPreload      string
 	nativeCommands     sync.Mutex
 	closingWindows     map[int]bool
 	windowSequences    map[int]uint64
@@ -88,14 +99,29 @@ func (b *Bridge) requestSource(ctx context.Context) (sidecar.RequestSource, *myg
 }
 
 func (b *Bridge) authorize(ctx context.Context) error {
-	_, _, err := b.requestSource(ctx)
-	return err
+	source, _, err := b.requestSource(ctx)
+	if err != nil {
+		return err
+	}
+	b.mu.RLock()
+	role := b.windows[source.WindowID].role
+	b.mu.RUnlock()
+	if role == nativeWindowSplash {
+		return errors.New("native operation is not allowed for the splash document")
+	}
+	return nil
 }
 
 func (b *Bridge) Invoke(ctx context.Context, route string, inputJSON string) (string, error) {
 	source, window, err := b.requestSource(ctx)
 	if err != nil {
 		return "", err
+	}
+	b.mu.RLock()
+	role := b.windows[window.ID()].role
+	b.mu.RUnlock()
+	if role == nativeWindowSplash && route != "config.getLanguage" {
+		return "", errors.New("business route is not allowed for the splash document")
 	}
 	if answer, handled, err := b.shellRoute(window, route); handled {
 		return answer, err
@@ -105,6 +131,34 @@ func (b *Bridge) Invoke(ctx context.Context, route string, inputJSON string) (st
 		return "", errors.New("sidecar is not available")
 	}
 	return process.Call(ctx, route, inputJSON, source)
+}
+
+// SplashChannel is a narrow submit/cancel port used only during database startup.
+// It never grants access to the general business route dispatcher.
+func (b *Bridge) SplashChannel(ctx context.Context, channel string, inputJSON string) (string, error) {
+	source, _, err := b.requestSource(ctx)
+	if err != nil {
+		return "", err
+	}
+	b.mu.RLock()
+	role := b.windows[source.WindowID].role
+	b.mu.RUnlock()
+	if role != nativeWindowSplash || !allowedSplashChannels[channel] {
+		return "", errors.New("native splash channel is not allowed")
+	}
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(inputJSON), &payload); err != nil || payload == nil {
+		return "", errors.New("native splash payload must be an object")
+	}
+	envelope, err := json.Marshal(map[string]any{"channel": channel, "payload": payload})
+	if err != nil {
+		return "", errors.New("encode native splash payload")
+	}
+	process := b.manager()
+	if process == nil {
+		return "", errors.New("sidecar is not available")
+	}
+	return process.Call(ctx, nativeSplashChannelRoute, string(envelope), source)
 }
 
 func (b *Bridge) shellRoute(window *mygo.Window, route string) (string, bool, error) {

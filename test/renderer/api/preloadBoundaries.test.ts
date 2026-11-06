@@ -203,7 +203,7 @@ describe('preload IPC boundaries', () => {
     const callback = vi.fn()
     const unsubscribe = deepchatSplash.onDebugMode(callback)
 
-    expect(callback).toHaveBeenCalledExactlyOnceWith('system-unlock')
+    await vi.waitFor(() => expect(callback).toHaveBeenCalledExactlyOnceWith('system-unlock'))
     unsubscribe()
   })
 
@@ -249,14 +249,19 @@ describe('preload IPC boundaries', () => {
     const unsubscribeRequest = deepchatSplash.onUnlockRequest(unlockRequestCallback)
     const unsubscribeProgress = deepchatSplash.onUnlockProgress(unlockProgressCallback)
     const unsubscribeDebugMode = deepchatSplash.onDebugMode(debugModeCallback)
-    const [requestListener] = listeners.get(DATABASE_UNLOCK_REQUEST_CHANNEL) ?? []
-    const [progressListener] = listeners.get(DATABASE_UNLOCK_PROGRESS_CHANNEL) ?? []
-    const debugModeListeners = listeners.get(SPLASH_DEBUG_MODE_CHANNEL) ?? []
-    const debugModeListener = debugModeListeners.at(-1)
+    const requestListener = listeners.get(DATABASE_UNLOCK_REQUEST_CHANNEL)?.at(-1)
+    const progressListener = listeners.get(DATABASE_UNLOCK_PROGRESS_CHANNEL)?.at(-1)
+    const debugModeListener = listeners.get(SPLASH_DEBUG_MODE_CHANNEL)?.at(-1)
 
-    requestListener?.({}, validUnlockRequest)
-    progressListener?.({}, validUnlockProgress)
-    debugModeListener?.({}, 'unlock')
+    for (const [channel, payload] of [
+      [DATABASE_UNLOCK_REQUEST_CHANNEL, validUnlockRequest],
+      [DATABASE_UNLOCK_PROGRESS_CHANNEL, validUnlockProgress],
+      [SPLASH_DEBUG_MODE_CHANNEL, 'unlock']
+    ] as const) {
+      for (const listener of [...(listeners.get(channel) ?? [])]) {
+        listener({}, payload)
+      }
+    }
     unsubscribeRequest()
     unsubscribeProgress()
     unsubscribeDebugMode()
@@ -291,6 +296,10 @@ describe('preload IPC boundaries', () => {
     expect(ipcRenderer.removeListener).toHaveBeenCalledWith(
       DATABASE_UNLOCK_PROGRESS_CHANNEL,
       progressListener
+    )
+    expect(ipcRenderer.removeListener).toHaveBeenCalledWith(
+      SPLASH_DEBUG_MODE_CHANNEL,
+      debugModeListener
     )
     expect(ipcRenderer.removeAllListeners).not.toHaveBeenCalled()
     expect(ipcRenderer.send).toHaveBeenCalledTimes(4)

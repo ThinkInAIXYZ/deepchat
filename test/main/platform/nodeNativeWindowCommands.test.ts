@@ -1,3 +1,6 @@
+import { statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   NativeWindowCommand,
@@ -9,13 +12,18 @@ const bounds = { width: 1300, height: 800, minWidth: 900, minHeight: 640, x: 0, 
 
 function state(
   windowId: number,
-  role: 'main' | 'settings',
+  role: 'main' | 'settings' | 'splash',
   overrides: Partial<NativeWindowDescriptor> = {}
 ): NativeWindowDescriptor {
   return {
     windowId,
     role,
-    documentUrl: role === 'main' ? 'mygo://localhost/' : 'mygo://localhost/settings/index.html',
+    documentUrl:
+      role === 'main'
+        ? 'mygo://localhost/'
+        : role === 'settings'
+          ? 'mygo://localhost/settings/index.html'
+          : 'mygo://localhost/splash/index.html',
     visible: true,
     focused: false,
     ...overrides
@@ -184,6 +192,99 @@ describe('native window command identity and lifecycle', () => {
       7
     )
     expect(closed).toHaveBeenCalledTimes(1)
+  })
+
+  it('replays an early native ready exactly once after binding', async () => {
+    const window = new shim.BrowserWindow({})
+    const ready = vi.fn()
+    window.on('ready-to-show', ready)
+    shim.handleNativeWindowNotification(
+      'native.window.ready',
+      state(7, 'settings', { visible: false, sequence: 1 }),
+      7
+    )
+    host.nodeAppHost.registerNativeWindow!(window, state(7, 'settings', { visible: false }))
+    await vi.waitFor(() => expect(ready).toHaveBeenCalledTimes(1))
+    await Promise.resolve()
+    expect(ready).toHaveBeenCalledTimes(1)
+
+    shim.handleNativeWindowNotification(
+      'native.window.closed',
+      state(7, 'settings', { sequence: 2, documentUrl: '', visible: false }),
+      7
+    )
+    const replacement = new shim.BrowserWindow({})
+    host.nodeAppHost.registerNativeWindow!(replacement, state(7, 'settings', { visible: false }))
+    const duplicate = vi.fn()
+    replacement.on('ready-to-show', duplicate)
+    await Promise.resolve()
+    expect(duplicate).not.toHaveBeenCalled()
+  })
+
+  it('delivers a raw send only to listeners on the verified sender window', () => {
+    const received: Array<{ channel: string; webContentsId: number; requestId: string }> = []
+    const window = new shim.BrowserWindow({})
+    host.nodeAppHost.registerNativeWindow!(window, state(7, 'settings'))
+    shim.ipcMain.on('database-security:unlock-submit', (event, payload: unknown) => {
+      received.push({
+        channel: 'database-security:unlock-submit',
+        webContentsId: (event as { sender: { id: number } }).sender.id,
+        requestId: (payload as { requestId: string }).requestId
+      })
+    })
+    shim.sendIpc(
+      'database-security:unlock-submit',
+      { requestId: 'demo-request', password: 'not-a-real-password' },
+      { windowId: 7, documentUrl: 'mygo://localhost/settings/index.html' }
+    )
+    expect(received).toEqual([
+      {
+        channel: 'database-security:unlock-submit',
+        webContentsId: window.webContents.id,
+        requestId: 'demo-request'
+      }
+    ])
+    expect(() =>
+      shim.sendIpc('database-security:unlock-submit', { requestId: 'demo-request' })
+    ).toThrow('IPC request requires a valid native window source')
+  })
+
+  it('rejects a missing splash file before navigation and loads an existing entry', async () => {
+    const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+    vi.mocked(statSync).mockImplementation(fs.statSync)
+    const fixtureRoot = fs.mkdtempSync(path.join(tmpdir(), 'deepchat-splash-entry-'))
+    const originalEntry = process.argv[1]
+    process.argv[1] = path.join(fixtureRoot, 'out/sidecar/app.mjs')
+    try {
+      const window = new shim.BrowserWindow({})
+      host.nodeAppHost.registerNativeWindow!(window, state(7, 'splash'))
+      const sent: NativeWindowCommand[] = []
+      commands.configureNativeWindowCommands((command) => sent.push(command))
+      const splashEntry = path.join(fixtureRoot, 'out/renderer/splash/index.html')
+      await expect(window.loadFile(splashEntry)).rejects.toThrow('existing native splash entry')
+      expect(sent).toHaveLength(0)
+
+      fs.mkdirSync(path.dirname(splashEntry), { recursive: true })
+      fs.writeFileSync(splashEntry, '<!doctype html><title>Test splash</title>')
+      const loading = window.loadFile(splashEntry)
+      await vi.waitFor(() => expect(sent).toHaveLength(1))
+      expect(sent[0].input).toMatchObject({
+        action: 'load_document',
+        windowId: 7,
+        documentUrl: 'mygo://localhost/splash/index.html'
+      })
+      expect(
+        commands.resolveNativeWindowCommand(
+          sent[0].id,
+          state(7, 'splash', { sequence: 1 }),
+          undefined
+        )
+      ).toBe(true)
+      await expect(loading).resolves.toBeUndefined()
+    } finally {
+      process.argv[1] = originalEntry
+      fs.rmSync(fixtureRoot, { recursive: true, force: true })
+    }
   })
 
   it('keeps close pending through old acknowledgements and newer focus events', async () => {

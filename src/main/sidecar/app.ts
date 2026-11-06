@@ -16,6 +16,7 @@ import {
   installElectronShimHooks,
   invokeIpc,
   handleNativeWindowNotification,
+  sendIpc,
   whenIpcHandlerRegistered,
   type IpcRequestSource
 } from '@/platform/node/electron'
@@ -26,6 +27,14 @@ import {
   configureNativeWindowCommands,
   resolveNativeWindowCommand
 } from '@/platform/node/nativeWindowCommands'
+import {
+  NATIVE_SPLASH_CHANNEL_ROUTE,
+  NATIVE_SPLASH_DOCUMENT_PREFIX,
+  NATIVE_SPLASH_INLINE_MAX_LENGTH,
+  NATIVE_SPLASH_INLINE_PREFIX
+} from '@/platform/node/nativeWindowProtocol'
+import { configGetLanguageRoute } from '@shared/contracts/routes/config.routes'
+import type { DesktopLanguageState } from '@/desktop/settings'
 
 // Keep one private path for protocol envelopes. Everything else reaches stderr,
 // including shared/logger's pre-bound console and direct process.stdout writes.
@@ -61,7 +70,12 @@ configureNativeSettingsSnapshot(process.env.DEEPCHAT_NATIVE_SETTINGS_SNAPSHOT)
 // Register the waiter before startup: route registration is the existing signal
 // that the real dispatcher and its route registry are ready to accept work.
 const appReady = whenIpcHandlerRegistered(DEEPCHAT_ROUTE_INVOKE_CHANNEL)
-startApp()
+let readSplashLanguageState: (() => DesktopLanguageState) | undefined
+startApp({
+  registerSplashLanguageReader: (read) => {
+    readSplashLanguageState = read
+  }
+})
 
 type SidecarRequest = {
   id?: number
@@ -73,6 +87,23 @@ type SidecarRequest = {
   result?: unknown
   error?: unknown
   source?: IpcRequestSource
+}
+
+const nativeSplashChannels = new Set([
+  'database-security:unlock-submit',
+  'database-security:unlock-cancel',
+  'database-security:recovery-submit',
+  'database-security:recovery-cancel'
+])
+
+function isNativeSplashSource(source?: IpcRequestSource): boolean {
+  const url = source?.documentUrl
+  return Boolean(
+    url &&
+    (url.startsWith(NATIVE_SPLASH_DOCUMENT_PREFIX) ||
+      (url.startsWith(NATIVE_SPLASH_INLINE_PREFIX) &&
+        url.length <= NATIVE_SPLASH_INLINE_MAX_LENGTH))
+  )
 }
 
 const handleLine = async (line: string): Promise<void> => {
@@ -114,6 +145,47 @@ const handleLine = async (line: string): Promise<void> => {
     return
   }
 
+  if (request.route === NATIVE_SPLASH_CHANNEL_ROUTE) {
+    if (!isNativeSplashSource(request.source)) {
+      write({ id: request.id, error: 'native splash source is not allowed' })
+      return
+    }
+    const input = request.input
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      write({ id: request.id, error: 'native splash input is invalid' })
+      return
+    }
+    const { channel, payload } = input as { channel?: unknown; payload?: unknown }
+    if (typeof channel !== 'string' || !nativeSplashChannels.has(channel)) {
+      write({ id: request.id, error: 'native splash channel is not allowed' })
+      return
+    }
+    try {
+      sendIpc(channel, payload, request.source)
+      write({ id: request.id, result: {} })
+    } catch (error) {
+      write({ id: request.id, error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+
+  if (
+    request.route === configGetLanguageRoute.name &&
+    isNativeSplashSource(request.source) &&
+    readSplashLanguageState
+  ) {
+    try {
+      configGetLanguageRoute.input.parse(request.input ?? {})
+      write({
+        id: request.id,
+        result: configGetLanguageRoute.output.parse(readSplashLanguageState())
+      })
+    } catch (error) {
+      write({ id: request.id, error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+
   try {
     await appReady
     const { handled, value } = await invokeIpc(
@@ -145,8 +217,12 @@ input.on('close', () => {
   )
 })
 
-// Transport startup alone is not readiness. Advertise only after the real route
-// dispatcher has been registered; requests already received await the same signal.
+// Unlocking an encrypted database can legitimately wait for user input indefinitely.
+// The transport startup deadline must not treat that wait as an unresponsive process.
+write({ event: 'sidecar.process.ready', payload: { mode: 'full-main-process' } })
+
+// Normal routes still require the real dispatcher. Main-window loading, successful
+// recovery and restart backoff use that stronger signal, not transport readiness.
 void appReady.then(() => {
   write({ event: 'sidecar.app.started', payload: { mode: 'full-main-process' } })
 })

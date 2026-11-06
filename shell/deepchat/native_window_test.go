@@ -31,6 +31,30 @@ func TestIsRendererDocumentRolePathWhitelist(t *testing.T) {
 			rawURL: "mygo://localhost/settings/index.html?panel=general#/account", want: true,
 		},
 		{
+			name: "splash entry with query and fragment", role: nativeWindowSplash,
+			rawURL: "mygo://localhost/splash/index.html?mode=recovery#/unlock", want: true,
+		},
+		{
+			name: "splash inline fallback", role: nativeWindowSplash,
+			rawURL: splashInlineDocumentPrefix + "%3Chtml%3E", want: true,
+		},
+		{
+			name: "oversized splash inline fallback", role: nativeWindowSplash,
+			rawURL: splashInlineDocumentPrefix + strings.Repeat("A", maxSplashInlineDocumentBytes),
+		},
+		{
+			name: "splash cannot load main", role: nativeWindowSplash,
+			rawURL: "mygo://localhost/index.html",
+		},
+		{
+			name: "main cannot load splash", role: nativeWindowMain,
+			rawURL: "mygo://localhost/splash/index.html",
+		},
+		{
+			name: "splash non html data", role: nativeWindowSplash,
+			rawURL: "data:text/plain;charset=utf-8,hello",
+		},
+		{
 			name: "main cannot load settings", role: nativeWindowMain,
 			rawURL: "mygo://localhost/settings/index.html",
 		},
@@ -119,9 +143,49 @@ func TestNativeWindowCommandRequiresVerifiedCaller(t *testing.T) {
 	}
 }
 
+func TestNativeDocumentLoadCompletionMatchesRequestedNavigation(t *testing.T) {
+	for _, test := range []struct {
+		requested string
+		candidate string
+		want      bool
+	}{
+		{requested: "mygo://localhost/splash/index.html", candidate: "about:blank"},
+		{requested: "mygo://localhost/splash/index.html", candidate: "mygo://localhost/splash/index.html", want: true},
+		{requested: "mygo://localhost/splash/index.html", candidate: "mygo://user@localhost/splash/index.html"},
+		{requested: "mygo://localhost/index.html?one=1#ready", candidate: "mygo://localhost/index.html?one=2#ready"},
+		{requested: "mygo://localhost/index.html?one=1#ready", candidate: "mygo://localhost/index.html?one=1#ready", want: true},
+		{requested: splashInlineDocumentPrefix + "%3Chtml%3E", candidate: splashInlineDocumentPrefix + "%3Chtml%3E", want: true},
+		{requested: splashInlineDocumentPrefix + "%3Chtml%3E", candidate: splashInlineDocumentPrefix + "%3Cbody%3E"},
+	} {
+		if got := sameNativeDocumentURL(test.requested, test.candidate); got != test.want {
+			t.Errorf("completion match for %q against %q = %v, want %v", test.requested, test.candidate, got, test.want)
+		}
+	}
+}
+
+func TestNativeActionDocumentForErrorRedactsNonLocalAndPrivateURLParts(t *testing.T) {
+	if got := nativeActionDocumentForError("mygo://localhost/splash/index.html?query=private#private"); got != "/splash/index.html" {
+		t.Fatalf("local document diagnostic = %q", got)
+	}
+	for _, rawURL := range []string{
+		"file:///private/fixture.db",
+		"data:text/html;charset=utf-8,private-content",
+		"mygo://user@localhost/private",
+	} {
+		if got := nativeActionDocumentForError(rawURL); got != "<restricted>" {
+			t.Fatalf("restricted document diagnostic for %q = %q", rawURL, got)
+		}
+	}
+	if got := nativeActionDocumentForError("about:blank"); got != "about:blank" {
+		t.Fatalf("blank document diagnostic = %q", got)
+	}
+}
+
 func TestNativeHostActionDocumentOnlyPermitsBlankSettingsCleanup(t *testing.T) {
-	if !isHostActionDocument(nativeWindowSettings, "about:blank", "close") {
-		t.Fatal("host cleanup must handle a failed pre-document settings creation")
+	for _, role := range []nativeWindowRole{nativeWindowSettings, nativeWindowSplash} {
+		if !isHostActionDocument(role, "about:blank", "close") {
+			t.Fatalf("host cleanup must handle a failed pre-document creation for %s", role)
+		}
 	}
 	for _, test := range []struct {
 		role     nativeWindowRole
@@ -131,6 +195,8 @@ func TestNativeHostActionDocumentOnlyPermitsBlankSettingsCleanup(t *testing.T) {
 		{role: nativeWindowMain, document: "about:blank", action: "close"},
 		{role: nativeWindowSettings, document: "about:blank", action: "show"},
 		{role: nativeWindowSettings, document: "about:blank", action: "focus"},
+		{role: nativeWindowSplash, document: "about:blank", action: "show"},
+		{role: nativeWindowSplash, document: "about:blank", action: "focus"},
 		{role: nativeWindowSettings, document: "about:blank", action: "load_document"},
 		{role: nativeWindowSettings, document: "about:blank#forged", action: "close"},
 	} {

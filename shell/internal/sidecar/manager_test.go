@@ -387,6 +387,76 @@ createInterface({ input: process.stdin }).on('line', (line) => {
 	}
 }
 
+func TestManagerTransportSurvivesPendingApplicationStartup(t *testing.T) {
+	options := managedTestOptions(t, `
+import { createInterface } from 'node:readline'
+process.stdout.write(JSON.stringify({ event: 'sidecar.process.ready', payload: { phase: 'unlock' } }) + '\n')
+createInterface({ input: process.stdin }).on('line', (line) => {
+  const request = JSON.parse(line)
+  process.stdout.write(JSON.stringify({ id: request.id, result: { alive: true } }) + '\n')
+})
+`, t.TempDir())
+	manager, err := StartManager(ManagerOptions{
+		Process:          options,
+		MaxRestarts:      1,
+		Backoff:          time.Millisecond,
+		StartupTimeout:   50 * time.Millisecond,
+		OnReady:          func() { t.Error("transport readiness must not start the renderer") },
+		OnUnexpectedExit: func(err error) { t.Errorf("transport-ready sidecar restarted while waiting for input: %v", err) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = manager.Close(ctx)
+	}()
+
+	// Waiting for a password is not an application startup timeout. Keep the
+	// transport deadline short so the old behavior fails this test reliably.
+	time.Sleep(175 * time.Millisecond)
+	if _, err := manager.Call(context.Background(), "health", `{}`); err != nil {
+		t.Fatalf("transport did not survive pending application startup: %v", err)
+	}
+}
+
+func TestManagerTransportReadyDoesNotResetRecoveryBudget(t *testing.T) {
+	instanceFile := filepath.Join(t.TempDir(), "instances.log")
+	options := managedTestOptions(t, `
+import { appendFileSync } from 'node:fs'
+appendFileSync(process.env.SIDECAR_TEST_INSTANCE_FILE, 'start\n')
+process.stdout.write(JSON.stringify({ event: 'sidecar.process.ready', payload: {} }) + '\n')
+process.exit(17)
+`, instanceFile)
+	exhausted := make(chan error, 1)
+	manager, err := StartManager(ManagerOptions{
+		Process:     options,
+		MaxRestarts: 2,
+		Backoff:     time.Millisecond,
+		OnExhausted: func(err error) { exhausted <- err },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = manager.Close(ctx)
+	}()
+	select {
+	case <-exhausted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("transport-ready crash loop was not bounded")
+	}
+	if starts := managedStarts(t, instanceFile); starts != 3 {
+		t.Fatalf("transport readiness reset recovery budget: %d starts", starts)
+	}
+	if _, err := manager.Call(context.Background(), "health", `{}`); !errors.Is(err, ErrRecoveryUnavailable) {
+		t.Fatalf("expected unavailable recovery after a transport-ready crash loop, got %v", err)
+	}
+}
+
 func TestGenerationDelayIsBounded(t *testing.T) {
 	for _, test := range []struct {
 		attempt int

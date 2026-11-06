@@ -21,23 +21,41 @@ import { ProviderDatabase } from '@/provider/data/database'
 import { McpDatabase } from '@/mcp/data/database'
 import { AgentDatabase } from '@/agent/data/database'
 import { mainLogger, setMainLoggingEnabled } from '@/logging'
+import {
+  DesktopSettings,
+  readDesktopLanguageState,
+  type DesktopLanguageState
+} from '@/desktop/settings'
 
 export type { MainProcessControl } from './composition'
+
+export type MainProcessStartupSupport = {
+  registerSplashLanguageReader?: (read: () => DesktopLanguageState) => void
+}
 
 export async function startMainProcess(
   startupWorkloadCoordinator: StartupWorkloadCoordinator,
   startupRunId: string,
-  requestUpdateInstall: (installAction: () => void) => Promise<void>
+  requestUpdateInstall: (installAction: () => void) => Promise<void>,
+  startupSupport: MainProcessStartupSupport = {}
 ): Promise<MainProcessControl> {
   const splashWindow = new SplashWindow()
   let mainProcess: MainProcessControl | undefined
   let database: Awaited<ReturnType<typeof initializeMainDatabaseWithRecovery>> | undefined
 
-  await splashWindow.create()
-
   try {
-    electronApp.setAppUserModelId('com.wefonk.deepchat')
     const settingsStore = createSettingsStore()
+    const startupDesktopSettings = new DesktopSettings(
+      settingsStore,
+      { refreshLanguage: () => undefined, refreshTheme: async () => undefined },
+      () => undefined
+    )
+    startupSupport.registerSplashLanguageReader?.(() =>
+      readDesktopLanguageState(startupDesktopSettings)
+    )
+    await splashWindow.create()
+
+    electronApp.setAppUserModelId('com.wefonk.deepchat')
     setMainLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     const secretStore = new SecretStore(settingsStore)
     const privacySettings = new PrivacySettings(settingsStore)

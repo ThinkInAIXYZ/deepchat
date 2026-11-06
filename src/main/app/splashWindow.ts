@@ -23,6 +23,7 @@ import {
   type DatabaseUnlockReason
 } from '@shared/contracts/databaseSecurity'
 import { activateAppOnMac } from '@/lib/activateApp'
+import { appHost } from '@/platform/appHost'
 import { SPLASH_DEBUG_MODE_CHANNEL, type SplashDebugMode } from '@shared/contracts/splash'
 
 const SPLASH_SHOW_DELAY_MS = 200
@@ -85,6 +86,7 @@ export class SplashWindow {
     }, SPLASH_SHOW_DELAY_MS)
 
     const iconFile = nativeImage.createFromPath(process.platform === 'win32' ? iconWin : icon)
+    const nativeWindow = await appHost.createNativeSplashWindow?.()
 
     try {
       this.splashWindow = new BrowserWindow({
@@ -109,6 +111,11 @@ export class SplashWindow {
           devTools: is.dev
         }
       })
+      if (nativeWindow) {
+        if (nativeWindow.role !== 'splash') throw new Error('native splash role does not match')
+        if (!appHost.registerNativeWindow) throw new Error('native splash binding is unavailable')
+        appHost.registerNativeWindow(this.splashWindow, nativeWindow)
+      }
       this.splashWindow.on('ready-to-show', () => {
         this.splashReadyToShow = true
         this.maybeShowSplash()
@@ -143,6 +150,13 @@ export class SplashWindow {
         this.closeHiddenSplashWindow()
       }
     } catch (error) {
+      if (nativeWindow) {
+        try {
+          await appHost.closeNativeSplashWindow?.(nativeWindow.windowId)
+        } catch (cleanupError) {
+          console.error('Failed to clean up native splash window:', cleanupError)
+        }
+      }
       this.clearSplashShowDelayTimer()
       console.error('Failed to create splash window:', error)
       throw error

@@ -12,6 +12,7 @@
  * thing that keeps the caller alive and records that it was asked, instead of
  * pretending it succeeded. Search for "not implemented" to find those spots.
  */
+import { statSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -23,8 +24,10 @@ import { nodeShellHost } from '../shellHost'
 import {
   applyNativeWindowAction,
   cachedNativeWindowState,
+  consumeNativeWindowReady,
   focusNativeApp,
   forgetNativeWindowState,
+  recordNativeWindowReady,
   recordNativeWindowState,
   restoreAfterNativeCloseFailure,
   runWithNativeCaller,
@@ -263,6 +266,13 @@ class ShimBrowserWindow extends Emitter {
     this.nativeState = state
     this.applyNativeState(state)
     nativeWindows.set(state.windowId, this)
+    if (!state.visible && consumeNativeWindowReady(state.windowId)) {
+      // Go can finish the first document before Node binds its wrapper. Replay
+      // only once after this synchronous turn, when presenter listeners exist.
+      queueMicrotask(() => {
+        if (!this.destroyed) this.emit('ready-to-show')
+      })
+    }
   }
 
   getNativeWindowState(): NativeWindowDescriptor | null {
@@ -339,6 +349,17 @@ class ShimBrowserWindow extends Emitter {
   async loadFile(filePath: string, _options?: import('electron').LoadFileOptions): Promise<void> {
     if (this.destroyed || !this.nativeState) {
       throw new Error('window.loadFile requires a bound native window')
+    }
+    const splashEntry = path.resolve(path.dirname(process.argv[1]), '../renderer/splash/index.html')
+    if (this.nativeState.role === 'splash') {
+      if (path.resolve(filePath) !== splashEntry) {
+        throw new Error('window.loadFile only owns the initial native splash entry')
+      }
+      if (!statSync(splashEntry, { throwIfNoEntry: false })?.isFile()) {
+        throw new Error('window.loadFile requires an existing native splash entry')
+      }
+      await this.loadURL('mygo://localhost/splash/index.html')
+      return
     }
     const mainEntry = path.resolve(path.dirname(process.argv[1]), '../renderer/index.html')
     if (
@@ -535,12 +556,16 @@ export function handleNativeWindowNotification(
     return
   }
   if (!recordNativeWindowState(state)) return
+  if (name === 'native.window.ready') recordNativeWindowReady(state.windowId)
   if (!window) {
     console.warn(`[sidecar] native window ${name} has no bound target (${state.windowId})`)
     return
   }
   window.applyNativeState(cachedNativeWindowState(state.windowId) ?? state)
-  if (name === 'native.window.ready') window.emit('ready-to-show')
+  if (name === 'native.window.ready') {
+    window.emit('ready-to-show')
+    window.webContents.emit('did-finish-load')
+  }
   if (name === 'native.window.focused') window.emit(state.focused ? 'focus' : 'blur')
 }
 
@@ -640,16 +665,11 @@ export const ipcMain = {
   }
 }
 
-/**
- * Runs one renderer invocation, the way Chromium would hand it to `ipcMain`.
- * Returns `undefined` when nothing registered the channel, so the caller can fall
- * back to its own handlers.
- */
-export async function invokeIpc(
-  channel: string,
-  args: unknown[],
-  source?: IpcRequestSource
-): Promise<{ handled: boolean; value?: unknown }> {
+function nativeIpcEvent(source?: IpcRequestSource): {
+  window: ShimBrowserWindow
+  sender: ShimWebContents
+  event: Record<string, unknown>
+} {
   if (
     !source ||
     !Number.isSafeInteger(source.windowId) ||
@@ -659,18 +679,12 @@ export async function invokeIpc(
   ) {
     throw new Error('IPC request requires a valid native window source')
   }
-  // Source metadata comes from Go's verified caller, never renderer input.
-  // Lack of a live binding is an error; creating a synthetic sender would let
-  // an unknown document impersonate any registered application window.
-  const handler = ipcHandlers.get(channel)
-  if (!handler) return { handled: false }
   const { window, sender } = senderForNativeSource(source)
   sender.updateDocument(source.documentUrl)
   const event = {
     sender,
     frameId: 1,
     processId: process.pid,
-    // The authorizer requires the frame to be the sender's main frame.
     senderFrame: sender.mainFrame
   }
   if (process.env.DEEPCHAT_DEBUG_IPC) {
@@ -681,10 +695,37 @@ export async function invokeIpc(
       destroyed: sender.isDestroyed()
     })
   }
+  return { window, sender, event }
+}
+
+/** Delivers a raw send to existing `ipcMain.on` listeners with a verified source. */
+export function sendIpc(channel: string, payload: unknown, source?: IpcRequestSource): void {
+  const { event } = nativeIpcEvent(source)
+  for (const listener of ipcListeners.get(channel) ?? []) {
+    runWithNativeCaller(source!, () => listener(event as never, payload as never))
+  }
+}
+
+/**
+ * Runs one renderer invocation, the way Chromium would hand it to `ipcMain`.
+ * Returns `undefined` when nothing registered the channel, so the caller can fall
+ * back to its own handlers.
+ */
+export async function invokeIpc(
+  channel: string,
+  args: unknown[],
+  source?: IpcRequestSource
+): Promise<{ handled: boolean; value?: unknown }> {
+  // Source metadata comes from Go's verified caller, never renderer input.
+  // Lack of a live binding is an error; creating a synthetic sender would let
+  // an unknown document impersonate any registered application window.
+  const handler = ipcHandlers.get(channel)
+  if (!handler) return { handled: false }
+  const { event } = nativeIpcEvent(source)
   for (const listener of ipcInvokeListeners) listener(event)
   return {
     handled: true,
-    value: await runWithNativeCaller(source, () => handler(event, ...args))
+    value: await runWithNativeCaller(source!, () => handler(event, ...args))
   }
 }
 

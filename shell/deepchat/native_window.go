@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/url"
 	"runtime"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/ThinkInAIXYZ/deepchat/shell/internal/sidecar"
@@ -19,13 +21,16 @@ type nativeWindowRole string
 const (
 	nativeWindowMain     nativeWindowRole = "main"
 	nativeWindowSettings nativeWindowRole = "settings"
+	nativeWindowSplash   nativeWindowRole = "splash"
 
 	nativeWindowReady   = "native.window.ready"
 	nativeWindowFocused = "native.window.focused"
 	nativeWindowClosed  = "native.window.closed"
 
-	nativeNotificationTimeout = 10 * time.Second
-	nativeSettingsSnapshotEnv = "DEEPCHAT_NATIVE_SETTINGS_SNAPSHOT"
+	nativeNotificationTimeout    = 10 * time.Second
+	nativeSettingsSnapshotEnv    = "DEEPCHAT_NATIVE_SETTINGS_SNAPSHOT"
+	splashInlineDocumentPrefix   = "data:text/html;charset=utf-8,"
+	maxSplashInlineDocumentBytes = 65_536
 )
 
 type nativeWindowRecord struct {
@@ -49,6 +54,10 @@ type nativeWindowNotification struct {
 }
 
 func isRendererDocument(role nativeWindowRole, rawURL string) bool {
+	if role == nativeWindowSplash && strings.HasPrefix(rawURL, splashInlineDocumentPrefix) &&
+		len(rawURL) <= maxSplashInlineDocumentBytes {
+		return true
+	}
 	parsed, err := url.Parse(rawURL)
 	if err != nil || parsed.User != nil || parsed.Scheme != "mygo" || parsed.Host != "localhost" {
 		return false
@@ -58,9 +67,22 @@ func isRendererDocument(role nativeWindowRole, rawURL string) bool {
 		return parsed.EscapedPath() == "" || parsed.EscapedPath() == "/" || parsed.EscapedPath() == "/index.html"
 	case nativeWindowSettings:
 		return parsed.EscapedPath() == "/settings/index.html"
+	case nativeWindowSplash:
+		return parsed.EscapedPath() == "/splash/index.html"
 	default:
 		return false
 	}
+}
+
+func nativeActionDocumentForError(rawURL string) string {
+	if rawURL == "about:blank" {
+		return rawURL
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Scheme != "mygo" || parsed.Host != "localhost" || parsed.User != nil {
+		return "<restricted>"
+	}
+	return parsed.EscapedPath()
 }
 
 func isHostActionDocument(role nativeWindowRole, rawURL, action string) bool {
@@ -69,7 +91,7 @@ func isHostActionDocument(role nativeWindowRole, rawURL, action string) bool {
 	}
 	// Creation errors must not leave a hidden native window or permit the blank
 	// transport document to become an ordinary renderer caller.
-	return action == "close" && role == nativeWindowSettings && rawURL == "about:blank"
+	return action == "close" && (role == nativeWindowSettings || role == nativeWindowSplash) && rawURL == "about:blank"
 }
 
 func sameRendererDocumentPath(first, second string) bool {
@@ -199,7 +221,8 @@ func (b *Bridge) dispatchWindowNotifications() {
 }
 
 func (b *Bridge) registerWindow(window *mygo.Window, role nativeWindowRole) {
-	if window == nil || window.ID() <= 0 || (role != nativeWindowMain && role != nativeWindowSettings) {
+	if window == nil || window.ID() <= 0 ||
+		(role != nativeWindowMain && role != nativeWindowSettings && role != nativeWindowSplash) {
 		panic("cannot register an invalid native window")
 	}
 	b.mu.Lock()
@@ -216,12 +239,18 @@ func (b *Bridge) registerWindow(window *mygo.Window, role nativeWindowRole) {
 		if b.primary == nil || b.primary.IsDestroyed() {
 			b.primary = window
 		}
-	} else {
+	} else if role == nativeWindowSettings {
 		if b.settings != nil && b.settings != window && !b.settings.IsDestroyed() {
 			b.mu.Unlock()
 			panic("settings native window is already registered")
 		}
 		b.settings = window
+	} else {
+		if b.splash != nil && b.splash != window && !b.splash.IsDestroyed() {
+			b.mu.Unlock()
+			panic("splash native window is already registered")
+		}
+		b.splash = window
 	}
 	b.mu.Unlock()
 
@@ -236,11 +265,14 @@ func (b *Bridge) registerWindow(window *mygo.Window, role nativeWindowRole) {
 		if b.settings == window {
 			b.settings = nil
 		}
+		if b.splash == window {
+			b.splash = nil
+		}
 		delete(b.closingWindows, window.ID())
 		b.mu.Unlock()
 		b.notifyWindow(record, nativeWindowClosed)
 	})
-	window.Page().OnDOMReady(func() { b.notifyWindow(record, nativeWindowReady) })
+	window.Page().OnDidFinishLoad(func() { b.notifyWindow(record, nativeWindowReady) })
 	window.OnFocus(func() { b.notifyWindow(record, nativeWindowFocused) })
 	window.OnBlur(func() { b.notifyWindow(record, nativeWindowFocused) })
 	if window.IsDestroyed() {
@@ -264,6 +296,15 @@ func (b *Bridge) settingsWindow() *mygo.Window {
 		return nil
 	}
 	return b.settings
+}
+
+func (b *Bridge) splashWindow() *mygo.Window {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if b.splash == nil || b.splash.IsDestroyed() {
+		return nil
+	}
+	return b.splash
 }
 
 // nativeWindowEnvironment is evaluated for every new sidecar generation. A
@@ -356,6 +397,19 @@ func (b *Bridge) handleNativeWindowCommand(
 		state.CloseRequested = b.closingWindows[record.window.ID()]
 		b.mu.RUnlock()
 		return state, nil
+	case "ensure_splash":
+		record, err := b.ensureSplashWindow()
+		if err != nil {
+			return nil, err
+		}
+		state, err := b.describeNativeWindow(record)
+		if err != nil {
+			return nil, err
+		}
+		b.mu.RLock()
+		state.CloseRequested = b.closingWindows[record.window.ID()]
+		b.mu.RUnlock()
+		return state, nil
 	case "load_document":
 		window, err := b.nativeWindow(input.WindowID)
 		if err != nil {
@@ -376,8 +430,8 @@ func (b *Bridge) handleNativeWindowCommand(
 		if closing {
 			return nil, errors.New("native window is closing")
 		}
-		if err := window.Page().LoadURL(input.DocumentURL); err != nil {
-			return nil, fmt.Errorf("load native window document: %w", err)
+		if err := b.loadNativeDocument(ctx, window, input.DocumentURL); err != nil {
+			return nil, err
 		}
 		return b.describeNativeWindow(nativeWindowRecord{window: window, role: role})
 	case "focus_app":
@@ -392,8 +446,15 @@ func (b *Bridge) handleNativeWindowCommand(
 		role := b.windows[input.WindowID].role
 		b.mu.RUnlock()
 		if command.Host {
-			if window.Page() == nil || !isHostActionDocument(role, window.Page().URL(), input.Action) {
-				return nil, errors.New("native host action document is not allowed for its role")
+			documentURL := "<unavailable>"
+			if window.Page() != nil {
+				documentURL = window.Page().URL()
+			}
+			if !isHostActionDocument(role, documentURL, input.Action) {
+				return nil, fmt.Errorf(
+					"native host action document is not allowed for its role (window=%d role=%s action=%s document=%q)",
+					input.WindowID, role, input.Action, nativeActionDocumentForError(documentURL),
+				)
 			}
 		}
 		b.mu.Lock()
@@ -451,6 +512,55 @@ func (b *Bridge) commandCaller(source sidecar.RequestSource) error {
 	return nil
 }
 
+func sameNativeDocumentURL(requested, candidate string) bool {
+	if strings.HasPrefix(requested, splashInlineDocumentPrefix) ||
+		strings.HasPrefix(candidate, splashInlineDocumentPrefix) {
+		return requested == candidate
+	}
+	left, leftErr := url.Parse(requested)
+	right, rightErr := url.Parse(candidate)
+	return leftErr == nil && rightErr == nil && left.Scheme == right.Scheme &&
+		left.Host == right.Host && left.User == nil && right.User == nil &&
+		left.EscapedPath() == right.EscapedPath() && left.RawQuery == right.RawQuery &&
+		left.Fragment == right.Fragment
+}
+
+func (b *Bridge) loadNativeDocument(ctx context.Context, window *mygo.Window, rawURL string) error {
+	loaded := make(chan error, 1)
+	var once sync.Once
+	finish := func(err error) {
+		once.Do(func() { loaded <- err })
+	}
+	page := window.Page()
+	offFinish := page.OnDidFinishLoad(func() {
+		// A window starts at about:blank. Its completion must not resolve the
+		// subsequent real navigation and trigger early native show/focus calls.
+		if sameNativeDocumentURL(rawURL, page.URL()) {
+			finish(nil)
+		}
+	})
+	offFailed := page.OnDidFailLoad(func(loadError *mygo.LoadError) {
+		if sameNativeDocumentURL(rawURL, loadError.URL) {
+			finish(errors.New("native document failed to load"))
+		}
+	})
+	offClosed := window.OnClosed(func() {
+		finish(errors.New("native window closed while loading document"))
+	})
+	defer offFinish()
+	defer offFailed()
+	defer offClosed()
+	if err := page.LoadURL(rawURL); err != nil {
+		return fmt.Errorf("load native window document: %w", err)
+	}
+	select {
+	case err := <-loaded:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("wait for native document load: %w", ctx.Err())
+	}
+}
+
 func (b *Bridge) ensureSettingsWindow(width, height, minWidth, minHeight, x, y int) (nativeWindowRecord, error) {
 	if existing := b.settingsWindow(); existing != nil {
 		return nativeWindowRecord{window: existing, role: nativeWindowSettings}, nil
@@ -479,6 +589,34 @@ func (b *Bridge) ensureSettingsWindow(width, height, minWidth, minHeight, x, y i
 	}
 	b.registerWindow(window, nativeWindowSettings)
 	return nativeWindowRecord{window: window, role: nativeWindowSettings}, nil
+}
+
+func (b *Bridge) ensureSplashWindow() (nativeWindowRecord, error) {
+	if existing := b.splashWindow(); existing != nil {
+		return nativeWindowRecord{window: existing, role: nativeWindowSplash}, nil
+	}
+	if b.splashPreload == "" {
+		return nativeWindowRecord{}, errors.New("native splash preload is unavailable")
+	}
+	window := mygo.NewWindow(mygo.WindowOptions{
+		Title: "DeepChat", URL: "about:blank", Hidden: true,
+		Width: 420, Height: 340,
+		Frameless: true, DisableResize: true, DisableMove: true,
+		DisableFullScreen: true, AlwaysOnTop: true, SkipTaskbar: true,
+		Transparent: true, BackgroundColor: "#00000000",
+		Page: mygo.PageOptions{
+			PreloadScript: b.splashPreload,
+			// MyGo represents a data URL origin as data:// and trims one trailing
+			// slash from each entry. Bridge authorization still limits the exact
+			// inline prefix, size and channels; no arbitrary origin is trusted.
+			TrustedOrigins: []string{"data:///"},
+		},
+	})
+	if window == nil {
+		return nativeWindowRecord{}, errors.New("create native splash window")
+	}
+	b.registerWindow(window, nativeWindowSplash)
+	return nativeWindowRecord{window: window, role: nativeWindowSplash}, nil
 }
 
 func (b *Bridge) applyWindowAction(windowID int, action string) error {

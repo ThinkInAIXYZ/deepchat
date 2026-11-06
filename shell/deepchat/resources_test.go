@@ -14,7 +14,7 @@ func TestResolveResourceLayoutDevelopment(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, path := range []string{"out/sidecar/app.mjs", "out/preload/bridge.js"} {
+	for _, path := range []string{"out/sidecar/app.mjs", "out/preload/bridge.js", "out/preload/splash.js"} {
 		if err := os.WriteFile(filepath.Join(root, path), []byte("// test\n"), 0o600); err != nil {
 			t.Fatal(err)
 		}

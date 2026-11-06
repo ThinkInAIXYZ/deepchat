@@ -15,6 +15,7 @@ let transport: ((command: NativeWindowCommand) => void) | undefined
 const windowStates = new Map<number, NativeWindowDescriptor>()
 const closedWindowSequences = new Map<number, number>()
 const closingNativeWindows = new Set<number>()
+const nativeWindowReadyIds = new Set<number>()
 let nativeSettingsSnapshotId: number | null = null
 type CloseWaiter = {
   resolve: () => void
@@ -38,6 +39,16 @@ export function recordNativeWindowState(state: NativeWindowDescriptor): boolean 
 
 export function cachedNativeWindowState(windowId: number): NativeWindowDescriptor | undefined {
   return windowStates.get(windowId)
+}
+
+export function recordNativeWindowReady(windowId: number): void {
+  nativeWindowReadyIds.add(windowId)
+}
+
+export function consumeNativeWindowReady(windowId: number): boolean {
+  const ready = nativeWindowReadyIds.has(windowId)
+  nativeWindowReadyIds.delete(windowId)
+  return ready
 }
 
 export function configureNativeSettingsSnapshot(raw: string | undefined): void {
@@ -70,6 +81,7 @@ export function forgetNativeWindowState(windowId: number, sequence = 0): boolean
   const closed = closedWindowSequences.get(windowId)
   if (closed !== undefined && sequence <= closed) return false
   closedWindowSequences.set(windowId, sequence)
+  nativeWindowReadyIds.delete(windowId)
   closingNativeWindows.delete(windowId)
   windowStates.delete(windowId)
   const waiters = closeWaiters.get(windowId) ?? []
@@ -81,11 +93,11 @@ export function forgetNativeWindowState(windowId: number, sequence = 0): boolean
   return true
 }
 
-export function waitForNativeSettingsWindowClosed(windowId: number): Promise<void> {
+function waitForNativeWindowClosed(windowId: number, role: 'settings' | 'splash'): Promise<void> {
   if (closedWindowSequences.has(windowId)) return Promise.resolve()
   const state = windowStates.get(windowId)
-  if (!state?.closeRequested || state.role !== 'settings') {
-    return Promise.reject(new Error('native settings window has no pending close'))
+  if (!state?.closeRequested || state.role !== role) {
+    return Promise.reject(new Error(`native ${role} window has no pending close`))
   }
   return new Promise<void>((resolve, reject) => {
     let waiter: CloseWaiter
@@ -93,12 +105,16 @@ export function waitForNativeSettingsWindowClosed(windowId: number): Promise<voi
       const remaining = (closeWaiters.get(windowId) ?? []).filter((entry) => entry !== waiter)
       if (remaining.length > 0) closeWaiters.set(windowId, remaining)
       else closeWaiters.delete(windowId)
-      reject(new Error(`native settings window ${windowId} did not close within 20 seconds`))
+      reject(new Error(`native ${role} window ${windowId} did not close within 20 seconds`))
     }, 20_000)
     timeout.unref?.()
     waiter = { resolve, reject, timeout }
     closeWaiters.set(windowId, [...(closeWaiters.get(windowId) ?? []), waiter])
   })
+}
+
+export function waitForNativeSettingsWindowClosed(windowId: number): Promise<void> {
+  return waitForNativeWindowClosed(windowId, 'settings')
 }
 
 export function restoreAfterNativeCloseFailure(state: NativeWindowDescriptor): void {
@@ -195,6 +211,15 @@ export function createNativeSettingsWindow(
   })
 }
 
+export function createNativeSplashWindow(): Promise<NativeWindowDescriptor> {
+  return request(ipcCaller.getStore(), { action: 'ensure_splash' }).then((value) => {
+    const state = parseNativeWindowDescriptor(value)
+    if (state.role !== 'splash') throw new Error('invalid native splash role')
+    recordNativeWindowState(state)
+    return windowStates.get(state.windowId) ?? state
+  })
+}
+
 export function focusNativeApp(): Promise<void> {
   return request(ipcCaller.getStore(), { action: 'focus_app' }).then(() => undefined)
 }
@@ -244,19 +269,27 @@ export function activateNativeSettingsWindow(windowId: number): Promise<void> {
     .then(() => undefined)
 }
 
-export function closeNativeSettingsWindow(windowId: number): Promise<void> {
+function closeNativeWindow(windowId: number, role: 'settings' | 'splash'): Promise<void> {
   const state = windowStates.get(windowId)
-  if (!state || state.role !== 'settings') {
-    return Promise.reject(new Error('native settings cleanup has no matching descriptor'))
+  if (!state || state.role !== role) {
+    return Promise.reject(new Error(`native ${role} cleanup has no matching descriptor`))
   }
-  if (state.closeRequested) return waitForNativeSettingsWindowClosed(windowId)
+  if (state.closeRequested) return waitForNativeWindowClosed(windowId, role)
   return runWithNativeHost(() => applyNativeWindowAction(state, 'close')).then(
-    () => waitForNativeSettingsWindowClosed(windowId),
+    () => waitForNativeWindowClosed(windowId, role),
     (error: unknown) => {
       restoreAfterNativeCloseFailure(state)
       throw error
     }
   )
+}
+
+export function closeNativeSettingsWindow(windowId: number): Promise<void> {
+  return closeNativeWindow(windowId, 'settings')
+}
+
+export function closeNativeSplashWindow(windowId: number): Promise<void> {
+  return closeNativeWindow(windowId, 'splash')
 }
 
 export function isNativeWindowClosing(windowId: number): boolean {
