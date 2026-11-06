@@ -31,6 +31,8 @@ vi.mock('path', async () => {
 
 type NativeCallback = (error: Error | null, events: unknown[]) => void
 
+type NativeCallback = (error: Error | null, events: unknown[]) => void
+
 describe('FileWatcherHost', () => {
   let rootPath: string
   let messages: FileWatcherHostEvent[]
@@ -55,6 +57,11 @@ describe('FileWatcherHost', () => {
       fs.writeFileSync(snapshotPath, '')
     })
   })
+
+  const eventBatches = () =>
+    messages.flatMap((message) =>
+      message.type === 'file-watcher:event-batch' ? [message.batch.events] : []
+    )
 
   afterEach(async () => {
     await host.shutdown()
@@ -137,10 +144,48 @@ describe('FileWatcherHost', () => {
     expect(() => emit(null, events)).not.toThrow()
     await vi.advanceTimersByTimeAsync(100)
 
-    const batches = messages.flatMap((message) =>
-      message.type === 'file-watcher:event-batch' ? [message.batch] : []
-    )
-    expect(batches).toHaveLength(1)
-    expect(batches[0].events).toEqual([{ path: rootPath, type: 'overflow' }])
+    expect(eventBatches()).toEqual([[{ path: rootPath, type: 'overflow' }]])
+  })
+
+  it('resubscribes and requests a rescan after a native callback error', async () => {
+    const callbacks: NativeCallback[] = []
+    const unsubscribe = vi.fn()
+    parcel.subscribe.mockImplementation(async (_root: string, callback: NativeCallback) => {
+      callbacks.push(callback)
+      return { unsubscribe }
+    })
+
+    await host.watch(request)
+    callbacks[0](new Error('Events were dropped by the FSEvents client.'), [])
+    await vi.advanceTimersByTimeAsync(100)
+
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
+    expect(parcel.subscribe).toHaveBeenCalledTimes(2)
+    expect(parcel.writeSnapshot).not.toHaveBeenCalled()
+    expect(eventBatches()).toEqual([[{ path: rootPath, type: 'overflow' }]])
+  })
+
+  it('falls back to snapshot polling when resubscribing fails', async () => {
+    let emit: NativeCallback = () => {}
+    parcel.subscribe
+      .mockImplementationOnce(async (_root: string, callback: NativeCallback) => {
+        emit = callback
+        return { unsubscribe: vi.fn() }
+      })
+      .mockRejectedValueOnce(new Error('subscribe failed'))
+
+    await host.watch(request)
+    emit(new Error('Buffer overflow. Some events may have been lost.'), [])
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(parcel.writeSnapshot).toHaveBeenCalledTimes(1)
+    expect(
+      messages.some(
+        (message) =>
+          message.type === 'file-watcher:status' &&
+          message.status.reason === 'native-error' &&
+          message.status.mode === 'snapshot-polling'
+      )
+    ).toBe(true)
   })
 })

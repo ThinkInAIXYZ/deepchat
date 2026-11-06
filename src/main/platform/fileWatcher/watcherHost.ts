@@ -34,6 +34,7 @@ type ActiveWatch = {
   chunkTimer: NodeJS.Timeout | null
   pollTimer: NodeJS.Timeout | null
   snapshotPath: string | null
+  recovering: boolean
   disposed: boolean
 }
 
@@ -67,37 +68,14 @@ export class FileWatcherHost {
       chunkTimer: null,
       pollTimer: null,
       snapshotPath: null,
+      recovering: false,
       disposed: false
     }
 
     this.watches.set(request.id, activeWatch)
 
     try {
-      const subscription = await parcelWatcher.subscribe(
-        request.rootPath,
-        (error, events) => {
-          if (error) {
-            void this.handleNativeError(activeWatch, error)
-            return
-          }
-          this.enqueueEvents(activeWatch, toWatcherEvents(events))
-        },
-        {
-          ignore: request.excludes
-        }
-      )
-
-      if (activeWatch.disposed) {
-        await subscription.unsubscribe()
-        return
-      }
-
-      activeWatch.subscription = subscription
-      this.sendStatus(activeWatch, {
-        health: 'healthy',
-        mode: 'native',
-        reason: 'ready'
-      })
+      await this.subscribeNative(activeWatch)
     } catch (error) {
       await this.handleNativeError(activeWatch, error)
     }
@@ -117,6 +95,60 @@ export class FileWatcherHost {
     const activeWatches = Array.from(this.watches.values())
     this.watches.clear()
     await Promise.all(activeWatches.map((activeWatch) => this.disposeActiveWatch(activeWatch)))
+  }
+
+  private async subscribeNative(activeWatch: ActiveWatch): Promise<void> {
+    const subscription = await parcelWatcher.subscribe(
+      activeWatch.request.rootPath,
+      (error, events) => {
+        if (error) {
+          void this.recoverNative(activeWatch)
+          return
+        }
+        this.enqueueEvents(activeWatch, toWatcherEvents(events))
+      },
+      {
+        ignore: activeWatch.request.excludes
+      }
+    )
+
+    if (activeWatch.disposed) {
+      await subscription.unsubscribe()
+      return
+    }
+
+    activeWatch.subscription = subscription
+    this.sendStatus(activeWatch, {
+      health: 'healthy',
+      mode: 'native',
+      reason: 'ready'
+    })
+  }
+
+  // Errors delivered through the subscription callback mean events were lost. FSEvents keeps the
+  // stream running after dropping events, while a Windows buffer overflow or an inotify failure
+  // tears the subscription down. Resubscribing and requesting a full rescan covers both cases;
+  // only a failed resubscribe falls back to snapshot polling.
+  private async recoverNative(activeWatch: ActiveWatch): Promise<void> {
+    if (activeWatch.disposed || activeWatch.recovering) {
+      return
+    }
+
+    activeWatch.recovering = true
+    try {
+      await this.unsubscribeNative(activeWatch).catch(() => undefined)
+      await this.subscribeNative(activeWatch)
+      this.enqueueEvents(activeWatch, [
+        {
+          path: activeWatch.request.rootPath,
+          type: 'overflow'
+        }
+      ])
+    } catch (error) {
+      await this.handleNativeError(activeWatch, error)
+    } finally {
+      activeWatch.recovering = false
+    }
   }
 
   private async handleNativeError(activeWatch: ActiveWatch, error: unknown): Promise<void> {
