@@ -3,7 +3,19 @@ import { BrowserWindow } from 'electron'
 import { SETTINGS_EVENTS } from '@/events'
 
 const activateAppOnMacMock = vi.hoisted(() => vi.fn())
+const registerNativePrimaryWindowMock = vi.hoisted(() => vi.fn())
 const originalBrowserWindowFromId = (BrowserWindow as any).fromId
+
+vi.mock('@/platform/appHost', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/appHost')>()
+  return {
+    ...actual,
+    appHost: {
+      ...actual.appHost,
+      registerNativePrimaryWindow: registerNativePrimaryWindowMock
+    }
+  }
+})
 
 vi.mock('@/lib/activateApp', () => ({
   activateAppOnMac: activateAppOnMacMock
@@ -164,6 +176,68 @@ describe('WindowPresenter', () => {
 
     ;(presenter as any).handleSettingsWindowNavigationStart(9, true, false)
     expect((presenter as any).settingsWindowReady).toBe(false)
+  })
+
+  it('binds native primary identity before reading or registering the window ID', async () => {
+    const handlers = new Map<string, (...args: any[]) => void>()
+    const appWindow = {
+      id: -1,
+      loadURL: vi.fn(),
+      loadFile: vi.fn(),
+      on: vi.fn((name: string, handler: (...args: any[]) => void) => {
+        handlers.set(name, handler)
+      }),
+      once: vi.fn(),
+      removeListener: vi.fn(),
+      webContents: {
+        id: 1010,
+        send: vi.fn(),
+        on: vi.fn(),
+        setWindowOpenHandler: vi.fn(),
+        setBackgroundThrottling: vi.fn(),
+        setFrameRate: vi.fn(),
+        openDevTools: vi.fn(),
+        isDestroyed: vi.fn(() => false)
+      },
+      isDestroyed: vi.fn(() => false),
+      isMinimized: vi.fn(() => false),
+      setContentProtection: vi.fn(),
+      setBackgroundColor: vi.fn(),
+      setHiddenInMissionControl: vi.fn(),
+      setSkipTaskbar: vi.fn(),
+      show: vi.fn(),
+      focus: vi.fn(),
+      hide: vi.fn(),
+      restore: vi.fn()
+    }
+    vi.mocked(BrowserWindow).mockImplementationOnce(function () {
+      return appWindow as any
+    })
+    const { WindowPresenter } = await import('@/desktop/window')
+    const presenter = new WindowPresenter(
+      {
+        getContentProtectionEnabled: vi.fn(() => false),
+        getCloseToQuit: vi.fn(() => false)
+      } as any,
+      vi.fn(),
+      vi.fn()
+    )
+    presenter.bindTabPresenter({
+      handleWindowSizeChanged: vi.fn(),
+      handleWindowClosed: vi.fn(),
+      getWindowTabsData: vi.fn(() => [])
+    } as any)
+    registerNativePrimaryWindowMock.mockImplementationOnce((window: { id: number }) => {
+      expect(presenter.windows.size).toBe(0)
+      expect(window.id).toBe(-1)
+      window.id = 101
+    })
+
+    await expect(presenter.createAppWindow({ x: 0, y: 0 })).resolves.toBe(101)
+    expect(presenter.windows.get(101)).toBe(appWindow)
+    expect(appWindow.webContents.id).toBe(1010)
+    expect(registerNativePrimaryWindowMock).toHaveBeenCalledTimes(1)
+    expect(registerNativePrimaryWindowMock).toHaveBeenCalledWith(appWindow)
   })
 
   it('restores the main window only after close-to-hide', async () => {

@@ -2,6 +2,7 @@ package sidecar
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -79,18 +80,61 @@ process.stdin.on('close', () => process.exit(0))
 	}
 }
 
+func TestCallPreservesNativeSourceOutsideRendererInput(t *testing.T) {
+	process := startTestProcess(t, `
+import { createInterface } from 'node:readline'
+createInterface({ input: process.stdin }).on('line', (line) => {
+  const request = JSON.parse(line)
+  process.stdout.write(JSON.stringify({ id: request.id, result: { source: request.source, input: request.input } }) + '\n')
+})
+process.stdin.on('close', () => process.exit(0))
+`, nil)
+	source := RequestSource{WindowID: 17, DocumentURL: "mygo://localhost/index.html#/chat"}
+	answer, err := process.Call(context.Background(), "test.echo-source", `{"source":{"windowId":999}}`, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result struct {
+		Source RequestSource `json:"source"`
+		Input  struct {
+			Source struct {
+				WindowID int `json:"windowId"`
+			} `json:"source"`
+		} `json:"input"`
+	}
+	if err := json.Unmarshal([]byte(answer), &result); err != nil {
+		t.Fatalf("decode native source response: %v", err)
+	}
+	if result.Source != source {
+		t.Fatalf("native source changed: got %+v, want %+v", result.Source, source)
+	}
+	if result.Input.Source.WindowID != 999 {
+		t.Fatalf("renderer input was not preserved separately: %s", answer)
+	}
+	if _, err := process.Call(context.Background(), "test.never", `{}`, source, source); err == nil || !strings.Contains(err.Error(), "at most one native source") {
+		t.Fatalf("expected multiple source rejection, got %v", err)
+	}
+}
+
 func TestRequestsKeepMonotonicIDOrderDuringEncoding(t *testing.T) {
 	orderFile := filepath.Join(t.TempDir(), "order.log")
 	process := startTestProcess(t, `
 import { appendFileSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 const orderFile = process.env.SIDECAR_TEST_ORDER_FILE
+let slowRequest
 createInterface({ input: process.stdin }).on('line', (line) => {
   const request = JSON.parse(line)
   appendFileSync(orderFile, String(request.id) + ':' + request.route + '\n')
-  const respond = () => process.stdout.write(JSON.stringify({ id: request.id, result: { route: request.route } }) + '\n')
-  if (request.route === 'slow') setTimeout(respond, 25)
-  else respond()
+  if (request.route === 'slow') {
+    slowRequest = request
+    return
+  }
+  if (slowRequest) {
+    process.stdout.write(JSON.stringify({ id: slowRequest.id, result: { route: 'slow' } }) + '\n')
+    slowRequest = undefined
+  }
+  process.stdout.write(JSON.stringify({ id: request.id, result: { route: request.route } }) + '\n')
 })
 `, func(options *Options) {
 		options.Env = append(options.Env, "SIDECAR_TEST_ORDER_FILE="+orderFile)
@@ -102,18 +146,27 @@ createInterface({ input: process.stdin }).on('line', (line) => {
 		slowResult <- err
 	}()
 
-	deadline := time.After(2 * time.Second)
-	finishedEarly := false
-	for !finishedEarly && len(process.writeToken) == 0 {
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	timeout := time.NewTimer(2 * time.Second)
+	defer timeout.Stop()
+	for {
+		data, err := os.ReadFile(orderFile)
+		if err == nil && string(data) == "1:slow\n" {
+			break
+		}
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Fatal(err)
+		}
 		select {
 		case err := <-slowResult:
 			if err != nil {
 				t.Fatalf("large request failed before the smaller call: %v", err)
 			}
-			finishedEarly = true
-		case <-deadline:
-			t.Fatal("the large request never acquired its write turn")
-		default:
+			t.Fatal("the held slow response completed before the smaller call")
+		case <-ticker.C:
+		case <-timeout.C:
+			t.Fatal("the large request did not reach Node first")
 		}
 	}
 	if _, err := process.Call(context.Background(), "fast", `{}`); err != nil {

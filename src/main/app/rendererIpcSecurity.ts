@@ -14,11 +14,13 @@ const PLUGIN_SETTINGS_ROUTES = new Set([
 export function createRendererIpcAuthorizer(options: {
   rendererDirectoryUrl: string
   developmentServerUrl?: string
+  nativeRendererDirectoryUrl?: string
   pluginSettingsWindow: Pick<PluginSettingsWindowPort, 'getPluginIdForWebContents'>
 }): AuthorizeRendererIpc {
   const matchDocument = createAppDocumentMatcher(
     options.rendererDirectoryUrl,
-    options.developmentServerUrl
+    options.developmentServerUrl,
+    options.nativeRendererDirectoryUrl
   )
 
   return (event, routeName) => {

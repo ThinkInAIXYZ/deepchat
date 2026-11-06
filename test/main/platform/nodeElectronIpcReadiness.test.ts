@@ -1,10 +1,21 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { ipcMain, invokeIpc, whenIpcHandlerRegistered } from '@/platform/node/electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { nodeAppHost } from '@/platform/node/appHost'
+import {
+  BrowserWindow,
+  ipcMain,
+  invokeIpc,
+  whenIpcHandlerRegistered
+} from '@/platform/node/electron'
 
 const channel = 'test:sidecar-ready'
 
+beforeEach(() => {
+  vi.stubEnv('DEEPCHAT_NATIVE_WINDOW_ID', '1')
+})
+
 afterEach(() => {
   ipcMain.removeHandler(channel)
+  vi.unstubAllEnvs()
 })
 
 describe('sidecar IPC readiness', () => {
@@ -18,9 +29,13 @@ describe('sidecar IPC readiness', () => {
     expect(becameReady).toBe(false)
 
     ipcMain.handle(channel, () => 'ready')
+    const primary = new BrowserWindow({})
+    nodeAppHost.registerNativePrimaryWindow!(primary)
     await ready
 
     expect(becameReady).toBe(true)
-    await expect(invokeIpc(channel, [])).resolves.toEqual({ handled: true, value: 'ready' })
+    await expect(
+      invokeIpc(channel, [], { windowId: primary.id, documentUrl: 'mygo://localhost/' })
+    ).resolves.toEqual({ handled: true, value: 'ready' })
   })
 })

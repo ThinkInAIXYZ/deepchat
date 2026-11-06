@@ -72,6 +72,28 @@ export const nodeAppHost: AppHost = {
     return process.env.DEEPCHAT_RESOURCES_PATH ?? path.join(process.cwd(), 'resources')
   },
 
+  getNativeRendererDirectoryUrl(): string {
+    return 'mygo://localhost/'
+  },
+
+  registerNativePrimaryWindow(window: import('electron').BrowserWindow): void {
+    const windowId = Number(process.env.DEEPCHAT_NATIVE_WINDOW_ID)
+    if (
+      !process.env.DEEPCHAT_NATIVE_WINDOW_ID ||
+      !Number.isSafeInteger(windowId) ||
+      windowId <= 0
+    ) {
+      throw new Error('native primary window identity is required')
+    }
+    const target = window as unknown as {
+      bindNativeWindow?: (windowId: number) => void
+    }
+    if (typeof target.bindNativeWindow !== 'function') {
+      throw new Error('native window binding is unavailable for the primary window')
+    }
+    target.bindNativeWindow.call(window, windowId)
+  },
+
   // Launch-at-login is an OS integration the shell owns. Reporting "off" and
   // ignoring writes keeps the setting inert here instead of failing a read.
   getLoginItemEnabled(): boolean {

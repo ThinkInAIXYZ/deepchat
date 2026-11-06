@@ -26,6 +26,7 @@ type ManagerOptions struct {
 	Backoff          time.Duration
 	StartupTimeout   time.Duration
 	OnUnexpectedExit func(error)
+	OnEvent          func(Event)
 	OnReady          func()
 	OnExhausted      func(error)
 }
@@ -66,7 +67,7 @@ func StartManager(options ManagerOptions) (*Manager, error) {
 	if options.StartupTimeout < 0 {
 		return nil, errors.New("sidecar startup timeout cannot be negative")
 	}
-	manager := &Manager{options: options, stop: make(chan struct{})}
+	manager := &Manager{options: options, onEvent: options.OnEvent, stop: make(chan struct{})}
 	if err := manager.start(); err != nil {
 		return nil, err
 	}
@@ -247,7 +248,9 @@ func (m *Manager) handleEvent(generation int, event Event) {
 	}
 }
 
-func (m *Manager) Call(ctx context.Context, route string, inputJSON string) (string, error) {
+func (m *Manager) Call(
+	ctx context.Context, route string, inputJSON string, source ...RequestSource,
+) (string, error) {
 	m.mu.Lock()
 	process := m.process
 	failed := m.failed
@@ -262,7 +265,7 @@ func (m *Manager) Call(ctx context.Context, route string, inputJSON string) (str
 		}
 		return "", ErrClosed
 	}
-	return process.Call(ctx, route, inputJSON)
+	return process.Call(ctx, route, inputJSON, source...)
 }
 
 func (m *Manager) Close(ctx context.Context) error {

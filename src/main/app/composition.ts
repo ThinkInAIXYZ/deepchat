@@ -3389,6 +3389,7 @@ export async function createMainProcessControl(dependencies: {
     const authorizeRendererIpc = createRendererIpcAuthorizer({
       rendererDirectoryUrl: pathToFileURL(path.join(__dirname, '../renderer/')).href,
       developmentServerUrl: appHost.isPackaged() ? undefined : process.env.ELECTRON_RENDERER_URL,
+      nativeRendererDirectoryUrl: appHost.getNativeRendererDirectoryUrl?.(),
       pluginSettingsWindow
     })
     registerDeepchatRoutes(ipcMain, routeDispatcher, authorizeRendererIpc)

@@ -20,6 +20,23 @@ remain covered by the acceptance checklist. Production mode intentionally fails
 when bundled resources are absent rather than silently using the source checkout
 or an arbitrary system Node.
 
+D2c2a binds the first business window to an explicit native identity. Go creates
+and registers the real main window **before** starting Node, exports its ID as
+`DEEPCHAT_NATIVE_WINDOW_ID`, and loads the renderer only after the dispatcher is
+ready. `WindowPresenter` binds that ID before registering its own window in
+`windowsById`; Go window IDs and business webContents IDs are independent and
+must not be equated. The Node shim resolves IPC senders only from live, registered
+native windows, and events route to their matched window. Unknown, destroyed, or
+unbound windows fail closed or have their events discarded with a warning.
+These are not multi-window creation semantics: real secondary windows, their
+page roles, native destroy, and nested-page identity remain D2c2b work.
+
+The native request includes a separately captured caller window ID and actual
+document URL. Renderer-supplied `input.source` cannot override it. The sidecar
+authorizer accepts the protected `mygo://localhost/` entry documents and the
+exact settings/splash routes; development URLs and Electron's `file:` documents
+remain separately checked by the native port.
+
 ## Development validation
 
 Build the real renderer, typed preload, and sidecar first:

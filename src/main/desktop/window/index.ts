@@ -10,6 +10,7 @@ import {
 import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { shellHost } from '@/platform/shellHost'
+import { appHost } from '@/platform/appHost'
 import icon from '../../../../resources/icon.png?asset' // App icon (macOS/Linux)
 import iconWin from '../../../../resources/icon.ico?asset' // App icon (Windows)
 import { is } from '@electron-toolkit/utils' // Electron utilities
@@ -665,6 +666,11 @@ export class WindowPresenter implements IWindowPresenter {
       return null
     }
 
+    // The Go shell's real primary ID must be assigned before any local maps or
+    // callbacks observe it. Electron retains its native ID assignment unchanged.
+    if (this.mainWindowId === null) {
+      appHost.registerNativePrimaryWindow?.(appWindow)
+    }
     const windowId = appWindow.id
     this.windows.set(windowId, appWindow) // 将窗口实例存入 Map
 

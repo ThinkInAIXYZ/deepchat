@@ -14,7 +14,6 @@
  */
 import os from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { nodeAppHost } from '../appHost'
@@ -62,17 +61,14 @@ class Emitter {
 // ---------------------------------------------------------------------------
 
 export type SidecarHooks = {
-  /** Sends one event envelope to every page. */
-  sendEvent(name: string, payload: unknown): void
+  /** Sends one application event to its assigned native window, or a control event without one. */
+  sendEvent(name: string, payload: unknown, windowId?: number): void
   /** Reports the business shutdown flow allowing the sidecar process to exit. */
   quitRequested?(): void
-  /** Window id the shell assigned to the window that hosts this page. */
-  windowId(): number
 }
 
 let hooks: SidecarHooks = {
-  sendEvent: () => undefined,
-  windowId: () => 1
+  sendEvent: () => undefined
 }
 
 export function installElectronShimHooks(next: Partial<SidecarHooks>): void {
@@ -119,31 +115,39 @@ const defaultSessionRaw = {
 }
 
 let nextWebContentsId = 1
+let nextWindowId = 1
 
-/**
- * The document the app believes its window is showing.
- *
- * The real window is rendered by the Go shell from the same build output, but the
- * app's IPC authorizer compares the frame URL against the renderer directory, so
- * the shim reports the file URL that directory resolves to.
- */
-const rendererDocumentUrl = (): string => {
-  if (process.env.DEEPCHAT_RENDERER_URL) return process.env.DEEPCHAT_RENDERER_URL
-  const directory = pathToFileURL(path.join(nodeAppHost.getAppPath(), 'out', 'renderer') + path.sep)
-  return new URL('index.html', directory).href
-}
+export type IpcRequestSource = Readonly<{
+  windowId: number
+  documentUrl: string
+}>
 
+/** Sender records are bound by native window ID; nested views have no identity until Go binds them. */
 class ShimWebContents extends Emitter {
   readonly id = nextWebContentsId++
   private destroyed = false
+  private ownerWindowId: number | null = null
+  private reportedUnownedEvent = false
   readonly session = defaultSession
   readonly navigationHistory = { canGoBack: () => false, goBack: () => undefined }
-  /** The same URL as `mainFrame`, as Chromium reports it. */
-  private url = rendererDocumentUrl()
+  /** The actual calling document, or empty before the first native request. */
+  private url = ''
   readonly mainFrame = { url: this.url, routingId: 1, processId: process.pid }
 
+  bindWindow(windowId: number): void {
+    if (this.ownerWindowId !== null && this.ownerWindowId !== windowId) {
+      throw new Error('webContents cannot be rebound to another native window')
+    }
+    this.ownerWindowId = windowId
+  }
+
+  updateDocument(documentUrl: string): void {
+    this.url = documentUrl
+    this.mainFrame.url = documentUrl
+  }
+
   send(channel: string, ...args: unknown[]): void {
-    // DeepChat sends one envelope per event; the shell broadcasts it to pages.
+    // DeepChat sends one envelope per event to its native window's current page.
     const [envelope] = args
     const name =
       envelope && typeof envelope === 'object' && 'name' in envelope
@@ -153,7 +157,19 @@ class ShimWebContents extends Emitter {
       envelope && typeof envelope === 'object' && 'payload' in envelope
         ? (envelope as { payload: unknown }).payload
         : args[0]
-    hooks.sendEvent(name, payload)
+    if (this.ownerWindowId === null) {
+      // A nested view cannot be promoted to its parent window implicitly. That
+      // would deliver private messages to the wrong document.
+      if (!this.reportedUnownedEvent) {
+        this.reportedUnownedEvent = true
+        console.error(
+          `[sidecar] discarding events from webContents(${this.id}) without a native window owner`
+        )
+      }
+      return
+    }
+    if (this.destroyed) return
+    hooks.sendEvent(name, payload, this.ownerWindowId)
   }
 
   isDestroyed(): boolean {
@@ -165,7 +181,8 @@ class ShimWebContents extends Emitter {
   }
 
   async executeJavaScript(): Promise<unknown> {
-    // The shell owns the page; it exposes Bridge.Eval for the cases that matter.
+    // Documented migration stub: the product Bridge deliberately has no generic
+    // Eval operation; opt-in native UI automation is not a runtime implementation.
     return undefined
   }
 
@@ -185,7 +202,8 @@ class ShimWebContents extends Emitter {
 }
 
 class ShimBrowserWindow extends Emitter {
-  readonly id = 1
+  private readonly placeholderId = -nextWindowId++
+  private nativeWindowId: number | null = null
   readonly webContents = new ShimWebContents()
   private visible = true
   private maximized = false
@@ -194,6 +212,30 @@ class ShimBrowserWindow extends Emitter {
 
   constructor(readonly options: Record<string, unknown> = {}) {
     super()
+  }
+
+  get id(): number {
+    return this.nativeWindowId ?? this.placeholderId
+  }
+
+  bindNativeWindow(windowId: number): void {
+    if (!Number.isSafeInteger(windowId) || windowId <= 0) {
+      throw new Error('native window ID must be a positive integer')
+    }
+    if (this.nativeWindowId === windowId) return
+    if (this.nativeWindowId !== null) {
+      throw new Error('window cannot be rebound to another native window')
+    }
+    const existing = nativeWindows.get(windowId)
+    if (existing && existing !== this) {
+      if (!existing.isDestroyed() && !existing.webContents.isDestroyed()) {
+        throw new Error('native window ID already belongs to another window')
+      }
+      nativeWindows.delete(windowId)
+    }
+    this.webContents.bindWindow(windowId)
+    this.nativeWindowId = windowId
+    nativeWindows.set(windowId, this)
   }
 
   show(): void {
@@ -279,6 +321,9 @@ class ShimBrowserWindow extends Emitter {
   setAlwaysOnTop(): void {}
   moveTop(): void {}
   destroy(): void {
+    if (nativeWindows.get(this.id)?.webContents === this.webContents) {
+      nativeWindows.delete(this.id)
+    }
     this.destroyed = true
     this.webContents.markDestroyed()
   }
@@ -311,6 +356,18 @@ class ShimBrowserWindow extends Emitter {
 }
 
 const windows: ShimBrowserWindow[] = []
+const nativeWindows = new Map<number, ShimBrowserWindow>()
+
+function senderForNativeSource(source: IpcRequestSource): {
+  window: ShimBrowserWindow
+  sender: ShimWebContents
+} {
+  const bound = nativeWindows.get(source.windowId)
+  if (!bound || bound.isDestroyed() || bound.webContents.isDestroyed()) {
+    throw new Error('IPC source has no live native window binding')
+  }
+  return { window: bound, sender: bound.webContents }
+}
 
 const BrowserWindowCtor = function BrowserWindowCtor(
   this: unknown,
@@ -401,16 +458,25 @@ export const ipcMain = {
  */
 export async function invokeIpc(
   channel: string,
-  args: unknown[]
+  args: unknown[],
+  source?: IpcRequestSource
 ): Promise<{ handled: boolean; value?: unknown }> {
+  if (
+    !source ||
+    !Number.isSafeInteger(source.windowId) ||
+    source.windowId <= 0 ||
+    typeof source.documentUrl !== 'string' ||
+    source.documentUrl.length === 0
+  ) {
+    throw new Error('IPC request requires a valid native window source')
+  }
+  // Source metadata comes from Go's verified caller, never renderer input.
+  // Lack of a live binding is an error; creating a synthetic sender would let
+  // an unknown document impersonate any registered application window.
   const handler = ipcHandlers.get(channel)
   if (!handler) return { handled: false }
-
-  // Several windows exist over a session (splash, main, settings). Requests come
-  // from the page the shell is showing, so use the newest window that is still
-  // alive rather than a fixed index.
-  const liveWindows = windows.filter((window) => !window.webContents.isDestroyed())
-  const sender = liveWindows.at(-1)?.webContents ?? new ShimWebContents()
+  const { window, sender } = senderForNativeSource(source)
+  sender.updateDocument(source.documentUrl)
   const event = {
     sender,
     frameId: 1,
@@ -421,8 +487,8 @@ export async function invokeIpc(
   if (process.env.DEEPCHAT_DEBUG_IPC) {
     console.error('[sidecar] ipc event', {
       sameFrame: event.senderFrame === sender.mainFrame,
-      frameUrl: event.senderFrame?.url,
-      senderUrl: sender.getURL(),
+      windowId: window.id,
+      webContentsId: sender.id,
       destroyed: sender.isDestroyed()
     })
   }

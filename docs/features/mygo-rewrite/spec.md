@@ -49,7 +49,7 @@ Renderer
 ```
 
 - **Go 壳**负责需要真实原生资源或包所有权的动作。sidecar 不得通过返回成功、空文件路径或空图片伪装这些动作已经完成。
-- **sidecar**负责业务计算和保持现有 typed route/event 语义。渲染器发送者身份必须来自 Go YAML/窗口映射和可信传输，不能由页面输入任意声明。
+- **sidecar**负责业务计算和保持现有 typed route/event 语义。渲染器发送者身份必须来自 Go 原生窗口映射和可信传输，不能由页面输入任意声明。
 - **renderer**继续通过 `window.deepchat`、`window.api` 和 typed client 调用，不直接获取 Go/Node 原生句柄。
 - 当前 Electron 兼容 shim 是迁移层，不是最终正确性的证明。每个保留 shim 成员必须被归类为真实实现、明确转发、允许的空操作或待删除差距；用户可观察功能不得静默降级。
 
@@ -84,6 +84,15 @@ D2b1 是单窗口、可监督的第一根产品脊柱。D2c1 只关闭真实业�
 - 正式生产绑定不包含通用 Eval。mygo 官方 automation 仅在 `e2e` 构建和显式 `MYGO_AUTOMATION` 下启用，用于测试窗口的 DOM、只读 IPC 与实际截图，其余发行构建必须保持该入口关闭。
 
 D2c1 的恢复验收必须包含真实 sidecar 故障注入和新代次 DOM 观察，不能仅依靠 helper 测试或路由数量。它不涵盖多窗口身份、批量流恢复、所有 worker 或平台发行矩阵。
+
+### 4.3 D2c2a 主窗口 caller/source 与 native event 合同
+
+- 每个 renderer 请求的 `source` 由 Go 从已经过 `CallerWindow` / `CallerPage` 验证的调用方生成，包含原生 `windowId` 与当前实际 `documentUrl`；renderer 的 `input` 中同名字段没有授权意义。只有已注册、未销毁的顶层主窗口能通过源校验，嵌套页面不会借用宿主窗口身份。source 分配与编码仍在原单调 write ticket 内，不改变 D2c1 的取消和残帧合同。
+- 原生主窗口先由 Go 创建并注册，再启动 sidecar；启动环境只包含该实例真实的 `DEEPCHAT_NATIVE_WINDOW_ID`，缺失或非法时明确失败。业务必须区分两侧 ID 命名空间：`BrowserWindow.id` 对应已注册的原生窗口，`webContents.id` 可以不同。`WindowPresenter` 在登记窗口映射之前通过平台端口绑定主窗口；不能按 Node 的创建序号或任意仍存活的窗口猜 sender。Electron 不注册这个端口，继续由 Chromium 分配身份。
+- splash 先于主窗口创建并关闭是现有业务的真实时序。它不能抢占主窗口绑定；未登记的窗口/视图使用不可作为原生 caller 的占位身份，其事件按 webContents 记录一次明确告警后丢弃，不得退化为全窗口广播。每个带目标的 sidecar event 只向匹配的 Go 窗口 `Emit`，全局 quit 控制单独处理。
+- 实际页面 URL 取代用于“帮助授权通过”的伪造 `file:` URL。只有显式 Node host 为同一 renderer 资源提供 `mygo://localhost/` 映射；精确入口 `index.html`、settings 和 splash 进入既有授权函数，`frame === mainFrame`、`sender.getURL()` 与 frame URL 一致性仍由原检查执行，未知 origin、路径、带凭据 URL 和预览文档被拒绝。Electron 默认不启用 mygo 文档映射。
+
+本切片仅证明已注册主窗口的调用和事件归属。第二个真实窗口的异步创建、独立 sender、close→destroy→申请方重绑定、nested WebView 映射、splash/数据库解锁的实际原生流程仍未完成。Go 侧页面文档门目前只接受主入口，不宣称 settings/splash 的产品路径已经支持。mygo dev URL 流程也未在本次变化中启用或验证；它不能通过放宽来源匹配来获得隐式信任。
 
 ## 5. 后台进程与 worker 合同
 

@@ -118,6 +118,36 @@ describe('native renderer document boundary', () => {
     expect(() => authorize(eventFor('https://example.com/'), 'plugins.get')).toThrow('Native IPC')
   })
 
+  it('accepts only explicit mygo app entries, without changing the Electron defaults', () => {
+    const mygoAuthorize = createRendererIpcAuthorizer({
+      rendererDirectoryUrl,
+      nativeRendererDirectoryUrl: 'mygo://localhost/',
+      pluginSettingsWindow: { getPluginIdForWebContents: () => null }
+    })
+    for (const url of [
+      'mygo://localhost/',
+      'mygo://localhost/index.html?window=2#/chat',
+      'mygo://localhost/settings/index.html#/providers'
+    ]) {
+      expect(() => mygoAuthorize(eventFor(url), 'mcp.startServer')).not.toThrow()
+      expect(() => authorize(eventFor(url), 'mcp.startServer')).toThrow('Native IPC')
+    }
+    for (const url of [
+      'mygo://evil.test/',
+      'mygo://localhost:8080/',
+      'mygo://user@localhost/',
+      'mygo://localhost/preview.html',
+      'mygo://localhost/index.html/preview.html',
+      'mygo://localhost/%69ndex.html',
+      'https://localhost/'
+    ]) {
+      expect(() => mygoAuthorize(eventFor(url), 'mcp.startServer')).toThrow('Native IPC')
+    }
+    const splash = eventFor('mygo://localhost/splash/index.html')
+    expect(() => mygoAuthorize(splash, 'config.getLanguage')).not.toThrow()
+    expect(() => mygoAuthorize(splash, 'mcp.startServer')).toThrow('Native IPC')
+  })
+
   it('authorizes before route dispatch or any clipboard side effect', async () => {
     const handlers = new Map<string, (...args: unknown[]) => unknown>()
     const ipcMain = {

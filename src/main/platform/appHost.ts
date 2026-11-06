@@ -34,6 +34,10 @@ export interface AppHost {
   isPackaged(): boolean
   /** Bundled resources directory (`Contents/Resources` in a macOS app). */
   getResourcesPath(): string
+  /** Exact native renderer root serving the same entries, when the host has one. */
+  getNativeRendererDirectoryUrl?(): string
+  /** Bind the primary Go window before the presenter records its ID. */
+  registerNativePrimaryWindow?(window: import('electron').BrowserWindow): void
   /** Whether the app opens at login. */
   getLoginItemEnabled(): boolean
   setLoginItemEnabled(enabled: boolean): void

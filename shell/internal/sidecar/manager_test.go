@@ -41,6 +41,41 @@ func managedStarts(t *testing.T, instanceFile string) int {
 	return strings.Count(string(data), "start\n")
 }
 
+func TestManagerInitialEventsAreNotMissed(t *testing.T) {
+	instanceFile := filepath.Join(t.TempDir(), "instances.log")
+	options := managedTestOptions(t, `
+process.stdout.write(JSON.stringify({ event: 'sidecar.app.started', payload: { generation: 1 } }) + '\n')
+process.stdin.on('close', () => process.exit(0))
+process.stdin.resume()
+`, instanceFile)
+	ready := make(chan struct{}, 1)
+	events := make(chan Event, 1)
+	manager, err := StartManager(ManagerOptions{
+		Process: options,
+		OnReady: func() { ready <- struct{}{} },
+		OnEvent: func(event Event) { events <- event },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = manager.Close(ctx)
+	}()
+	for range 2 {
+		select {
+		case <-ready:
+		case event := <-events:
+			if event.Name != "sidecar.app.started" {
+				t.Fatalf("unexpected startup event: %+v", event)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("an event handler installed at construction missed startup")
+		}
+	}
+}
+
 func TestManagerRestartsWithoutReplayingRequest(t *testing.T) {
 	instanceFile := filepath.Join(t.TempDir(), "instances.log")
 	options := managedTestOptions(t, `

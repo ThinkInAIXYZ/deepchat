@@ -15,7 +15,8 @@ import {
   emitAppBeforeQuit,
   installElectronShimHooks,
   invokeIpc,
-  whenIpcHandlerRegistered
+  whenIpcHandlerRegistered,
+  type IpcRequestSource
 } from '@/platform/node/electron'
 import { startApp } from '@/appMain'
 import { SidecarLifecycle } from './lifecycle'
@@ -31,11 +32,20 @@ const write = (payload: unknown): void => {
   protocolStdoutWrite(`${JSON.stringify(payload)}\n`)
 }
 
+const nativeWindowId = Number(process.env.DEEPCHAT_NATIVE_WINDOW_ID)
+if (
+  !process.env.DEEPCHAT_NATIVE_WINDOW_ID ||
+  !Number.isSafeInteger(nativeWindowId) ||
+  nativeWindowId <= 0
+) {
+  throw new Error('sidecar requires the real native startup window ID')
+}
+
 const lifecycle = new SidecarLifecycle(emitAppBeforeQuit)
 installElectronShimHooks({
-  sendEvent: (name, payload) => write({ event: name, payload }),
-  quitRequested: () => lifecycle.notifyQuitRequested(),
-  windowId: () => Number(process.env.DEEPCHAT_WINDOW_ID ?? 1)
+  sendEvent: (name, payload, windowId) =>
+    write({ event: name, payload, source: windowId === undefined ? undefined : { windowId } }),
+  quitRequested: () => lifecycle.notifyQuitRequested()
 })
 
 // Register the waiter before startup: route registration is the existing signal
@@ -43,7 +53,12 @@ installElectronShimHooks({
 const appReady = whenIpcHandlerRegistered(DEEPCHAT_ROUTE_INVOKE_CHANNEL)
 startApp()
 
-type SidecarRequest = { id?: number; route?: string; input?: unknown }
+type SidecarRequest = {
+  id?: number
+  route?: string
+  input?: unknown
+  source?: IpcRequestSource
+}
 
 const handleLine = async (line: string): Promise<void> => {
   const trimmed = line.trim()
@@ -68,10 +83,11 @@ const handleLine = async (line: string): Promise<void> => {
 
   try {
     await appReady
-    const { handled, value } = await invokeIpc(DEEPCHAT_ROUTE_INVOKE_CHANNEL, [
-      request.route,
-      request.input ?? {}
-    ])
+    const { handled, value } = await invokeIpc(
+      DEEPCHAT_ROUTE_INVOKE_CHANNEL,
+      [request.route, request.input ?? {}],
+      request.source
+    )
     if (!handled) {
       throw new Error('main process route dispatcher is unavailable')
     }

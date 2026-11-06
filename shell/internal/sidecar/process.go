@@ -41,9 +41,21 @@ type Options struct {
 	OnEvent         func(Event)
 }
 
+type EventTarget struct {
+	WindowID int `json:"windowId"`
+}
+
 type Event struct {
 	Name    string          `json:"event"`
 	Payload json.RawMessage `json:"payload"`
+	Source  *EventTarget    `json:"source,omitempty"`
+}
+
+// RequestSource is native caller metadata captured outside the renderer's input.
+// DocumentURL is the current page URL returned by mygo, not a renderer-supplied value.
+type RequestSource struct {
+	WindowID    int    `json:"windowId"`
+	DocumentURL string `json:"documentUrl"`
 }
 
 type reply struct {
@@ -354,7 +366,9 @@ type writeReceipt struct {
 	waiting chan reply
 }
 
-func (p *Process) writeFrame(ctx context.Context, route string, input json.RawMessage) (writeReceipt, error) {
+func (p *Process) writeFrame(
+	ctx context.Context, route string, input json.RawMessage, source *RequestSource,
+) (writeReceipt, error) {
 	releaseToken := true
 	select {
 	case p.writeToken <- struct{}{}:
@@ -388,6 +402,7 @@ func (p *Process) writeFrame(ctx context.Context, route string, input json.RawMe
 	p.mu.Unlock()
 	request, err := json.Marshal(map[string]any{
 		"id": receipt.id, "route": route, "input": input,
+		"source": source,
 	})
 	if err != nil {
 		return receipt, err
@@ -435,10 +450,21 @@ func (p *Process) writeFrame(ctx context.Context, route string, input json.RawMe
 }
 
 // Call dispatches one route without inventing success for an absent response.
-// The caller's deadline wins when it is earlier than RequestTimeout.
-func (p *Process) Call(ctx context.Context, route string, inputJSON string) (string, error) {
+// The caller's deadline wins when it is earlier than RequestTimeout. Normal
+// renderer requests provide exactly one native source; an omitted source is
+// reserved for transport tests and is rejected by the product sidecar entry.
+func (p *Process) Call(
+	ctx context.Context, route string, inputJSON string, source ...RequestSource,
+) (string, error) {
 	if route == "" {
 		return "", errors.New("sidecar route is required")
+	}
+	if len(source) > 1 {
+		return "", errors.New("sidecar request accepts at most one native source")
+	}
+	var callerSource *RequestSource
+	if len(source) == 1 {
+		callerSource = &source[0]
 	}
 	input := json.RawMessage("null")
 	if inputJSON != "" {
@@ -458,7 +484,7 @@ func (p *Process) Call(ctx context.Context, route string, inputJSON string) (str
 		return "", fmt.Errorf("sidecar route %q: %w", route, err)
 	}
 
-	receipt, writeErr := p.writeFrame(callCtx, route, input)
+	receipt, writeErr := p.writeFrame(callCtx, route, input, callerSource)
 	if writeErr != nil {
 		if receipt.waiting != nil {
 			p.discardCall(receipt.id, receipt.waiting)

@@ -46,21 +46,21 @@
 | 启动 readiness 与 route 错误 | 部分实现（D2c1 已验证） | 早期请求等待真实 dispatcher 注册，ready 后才发布 started，缺 route/缺 dispatcher 返回错误；每代有 60 秒默认 readiness deadline，挂起也进入有界恢复。业务初始化卡死与大输入资源上限仍未覆盖 |
 | 超时、取消、背压、损坏响应 | 部分实现（D2c1 已验证单请求边界） | 共享 Process 支持请求 deadline、取消后的合法迟到响应丢弃、非法输出/异常 id 失败；4 MiB 阻塞写入与并发 Close 有界，残帧终止本代，不在通用状态锁中做管道 I/O。超大读取、全局内存/背压和长期资源治理仍待 D2c2 |
 | sidecar 崩溃恢复和进程树关闭 | 部分实现（D2c1 单项 macOS 已验证） | 在途请求收到确定错误；超时强杀覆盖进程组并等待回收；真实退出复用 Main shutdown coordinator；意外退出按代次有界恢复并重载 renderer，不自动重放 mutation。尚缺更多流/后台任务异常和多平台重复验收 |
-| 多窗口身份 | 部分实现（仅单窗口） | 正式 Bridge 使用 `mygo.CallerWindow` 校验当前真实主窗口；shim 内部多窗口身份仍固定/选择最后窗口，目标事件和关闭通知未对等 |
+| 多窗口身份 | 部分实现（D2c2a 已验证已注册主窗口） | Go 将真实 caller window/page 和 document URL 加入请求；`WindowPresenter` 通过平台端口先绑定主窗口 ID、后登记 map，业务 webContents ID 可不同。第二真实窗口的异步创建、其 sender、关闭/恢复及 nested view 映射仍未实现 |
 | 单实例、deep link 和生命周期事件 | 部分实现（D2b1 已验证） | 第二次启动实测退出且不再启动业务进程；deep link、原生命运周期事件和 relaunch 尚未完整桥接 |
 
 ### 3.3 原生能力与安全边界（阶段 D3）
 
 | 能力 | 状态 | 差距 |
 | --- | --- | --- |
-| 窗口、托盘、全局快捷键 | 部分 spike | 仅主窗口和单项 macOS 验证；没有多窗口、完整菜单和正式注册/事件合同 |
+| 窗口、托盘、全局快捷键 | 部分实现 | macOS 已验证主窗口最大化 1280×788 → 1920×928、非最大化恢复及目标事件；没有第二真实窗口、完整菜单、托盘、快捷键和跨平台事件合同 |
 | 文件对话框 | 部分 spike/不应视为可用 | shim 仍可能返回 `canceled:false` 与空数组，正式结果必须由真实 Go bridge 返回 |
 | 通知 | 部分 spike | 仅打包 `.app` 的简单通知实测；业务点击目标和回调未验收 |
 | Clipboard/nativeImage | 未实现 | sidecar 仍丢弃文本/图片写入，图片对象和截图可能是空输出 |
 | workspace 预览/长图 | 未实现完整链路 | `CapturePage`/`Eval` 能力存在不等于 tab capture、组合图片、滚动导出已成功 |
 | workspace/MCP Apps 协议隔离 | 未实现产品边界 | shim `protocol.handle()` 可能假报 true；未形成 origin、导航、session partition 与 sender 的完整安全验证 |
 | preload/context isolation | 未实现对等验证 | mygo v0.7.4 macOS 使用未指定 content world 的 `WKUserScript`；需要上游隔离能力或经评审的等价 least-privilege 设计，spike `Eval` 与任意外链转发禁止进入正式绑定 |
-| renderer sender 与文档来源 | 部分实现（仅单主窗口原生 Caller 校验） | Go 校验真实 `CallerWindow`，但 shim 仍选择最后窗口，并把 frame URL 固定为 canonical `file:` 以通过 Electron 授权；真实页面是 `mygo://localhost/`。D2c2 必须传递可信原生 window/page 身份与 document URL，拒绝未知/错配调用，扩展既有 app-document 授权而不是绕过它 |
+| renderer sender 与文档来源 | 部分实现（D2c2a 已验证主窗口） | Go source 隔离于 renderer input，frame 使用真实 `mygo://localhost/` URL；Node host 显式注册精确入口并由原 authorizer 复核，Electron 不启用该映射，未知窗口、origin、带凭据或 preview URL 均拒绝。尚未实现 nested view、真实第二窗口 sender 与 content-world 对等证明 |
 | OAuth | 部分受阻 | 系统浏览器迁移未完成；GitHub 回调页需配合回到 deep chat deep link，其他 OAuth 仍需逐项源审 |
 | 代理/权限/网络状态 | 未实现 | shim 的 proxy、permission、webRequest 和 `net.isOnline()` 等并非真实系统状态 |
 
@@ -98,6 +98,16 @@
 | 灰度、回滚及生产升级 | 未实现且需授权 | 不改变更新服务器或默认渠道，直到完整验收和用户授权 |
 
 ## 4. 当前验证与已知失败
+
+D2c2a 可信原生窗口身份验证：
+
+- Go 从真实 `CallerWindow` / `CallerPage` 采集窗口身份和 document URL，source 与 renderer input 分离。实际调用得到原生 `windowId=1`、业务 `webContentsId=2`，证明两个 ID 空间不能混用。向 `providers.listSummaries` 的 input 注入伪造 source 后结果仍为 95 个 provider，Node 记录的真实 ID 未被覆盖，日志不再打印带输入内容的完整 source URL。
+- 启动顺序已根因修复：Go 先创建并注册原生窗口，再启动 Node；`WindowPresenter` 先绑定真实 ID 再放入 `windowsById`，splash-first 不再抢占主窗口身份。此前 splash 测试版确实因优势窗口被绑定到 webContents 1 而报 `IPC source window is not the registered startup window`；该机制已删除，不通过自动认领其他窗口绕过失败。
+- macOS 真实窗口实测 `window.toggleMaximizeCurrent` 得到页面 viewport 1280×788 → 1920×928，再恢复 1280×788。`config.setLanguage` 改为 `zh-CN` 后只收到一个目标的 `config.language.changed` 事件，最终 `getLanguage=zh-CN`、DOM 事件计数为 1，并已核对中文界面截图 `/tmp/deepchat-native-source-language.png`（仅含 copy 的测试设置，没有真实数据或凭据）。
+- 实际 kill 旧 sidecar 25806 后检查到恰好一个替代进程 29859；页面导航类型为 `reload`，旧探针全局变量为 `undefined`，新调用仍得到 `windowId=1` / `webContentsId=2` 和 95 个 provider。`/tmp/deepchat-mygo-bound-recovered.png` 已人工核对。随后通过原生 `DeepChat → Quit DeepChat` 菜单退出，观察到 `destroy.mainDatabase.close done` 和应用级 `app exited`；没有 source rejection、sidecar 事件残留、进程组残留、control socket、data race 或 panic。
+- 两条 `[sidecar] discarding events from webContents(1) without a native window owner` 是主窗口注册前 splash 测试 webContents 的目标事件被有意丢弃，每个无主 webContents 仅告警一次。当前将未绑定窗口保持负占位 ID，拒绝它伪造原生 caller；这不是成功投递。Splash 尚未显式建立 Go 窗口注册与 Page 身份，真实 DB unlock / protected migration 流程也未验证，必须作为 D2c2b 输入而不是视为已完成能力。
+- Go source 校验保留 `mygo://localhost` 主文档的 `""`、`/`、`/index.html`，拒绝非主 Page、错误 origin 和带 userinfo 的 URL。Node 复核实际 mygo/frame URL、精确 main/settings/splash 文档路径和 live native window；Electron 端口不返回 mygo renderer origin，保持 Chromium sender 行为。定向 48 个 Node 测试、Go 普通/race/vet、Node/Web typecheck、完整 renderer 回归、lint、i18n、Electron 对照构建均通过；最新完整 main 为 677 个文件通过、1 失败、2 跳过，9804 passed / 2 failed / 6 skipped。仅有两项既有 tunnel 失败，见下文。
+- e2e race 二进制仅在 macOS disposable profile 执行，临时二进制、control socket 和截图都在工作区之外，不属于交付文件。`executeJavaScript` 仍是披露的非-Eval stub，通知“renderer ready”路径未使用；真实第二窗口、Page 级 nested identity、全局背压/内存预算、后台异常生命周期、Windows/Linux 运行、正式打包和真实用户数据迁移仍待完成。
 
 D2c1 关闭协调、恢复和一次性 profile UI 验证：
 
@@ -142,4 +152,4 @@ D1 直接验证：
 
 ## 6. 下一项最高优先级工作
 
-D2c1 的真实关闭协调和有界 sidecar 恢复已完成。下一优先级是 **D2c2：真实多 window/webContents 身份与 sender 校验、目标事件和关闭通知**，并继续大输入和长期资源治理；不能用固定/最后窗口身份运行多窗口功能。preload content-world 隔离、deep link 和真实原生能力紧随其后。D3–D7 仍是验收中不能删除的差距。
+D2c2a 的可信主窗口身份、真实文档来源校验、定向事件和崩溃重载已完成。下一优先级是 **D2c2b：真实第二窗口的异步创建与 page/document role、native close/destroy、目标事件、nested Page 身份，以及 splash/settings 的显式绑定**，继续 D2c2 原有的大帧限额、全局背压、内存预算和后台异常生命周期；不能用主窗口注册端口代替多窗口能力。preload content-world 隔离、deep link 和真实原生能力紧随其后。D3–D7 仍是验收中不能删除的差距。

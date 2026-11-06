@@ -15,7 +15,8 @@ function documentUrl(value: string): string | null {
 /** Exact entry documents, not every file or every page on the development origin. */
 export function createAppDocumentMatcher(
   rendererDirectoryUrl: string,
-  developmentServerUrl?: string
+  developmentServerUrl?: string,
+  nativeRendererDirectoryUrl?: string
 ): (url: string) => AppDocument | null {
   const documents = new Map<string, AppDocument>()
   const entries = [
@@ -25,6 +26,26 @@ export function createAppDocumentMatcher(
   ] as const
   for (const [entry, kind] of entries) {
     documents.set(new URL(entry, rendererDirectoryUrl).href, kind)
+  }
+
+  if (nativeRendererDirectoryUrl !== undefined) {
+    const base = new URL(nativeRendererDirectoryUrl)
+    if (
+      base.protocol !== 'mygo:' ||
+      base.host !== 'localhost' ||
+      base.username !== '' ||
+      base.password !== '' ||
+      base.pathname !== '/' ||
+      base.search !== '' ||
+      base.hash !== ''
+    ) {
+      throw new Error('Invalid mygo renderer directory URL')
+    }
+    // The Go shell serves the same renderer build at "/" and index.html.
+    documents.set(base.href, 'main')
+    for (const [entry, kind] of entries) {
+      documents.set(new URL(entry, base).href, kind)
+    }
   }
 
   if (developmentServerUrl) {

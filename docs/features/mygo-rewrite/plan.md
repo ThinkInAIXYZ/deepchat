@@ -235,6 +235,23 @@ M2 Node sidecar 化、M3 Go 壳与桥、M4 周边能力、M5 打包与更新、M
 
 完成标准：正式构建可从干净临时 profile 启动；sidecar 未就绪、崩溃、重启和退出均有确定性行为与测试证据；完整流/子进程异常生命周期、多窗口身份和 Web 安全边界已验证，不能把仅提前注入脚本或仅切换父进程 stdin 宣称已具备 Electron 同等隔离与资源治理。
 
+#### [x] D2c2a 建立已注册主窗口和可信来源映射
+
+1. Go 先创建并注册原生窗口，再启动 sidecar；业务 dispatcher 就绪后才加载实际 renderer。Go 从 `CallerWindow` / `CallerPage` 采集 window ID 和真实 URL，并在请求信封中单独传递，renderer 不能通过 input 声明 source。
+2. `WindowPresenter` 通过可选平台端口给主窗口绑定真实原生 ID；没有该端口的 Electron 继续使用 Chromium 的 ID。它先绑定、后登记 map，避免 splash-first 及关闭 splash 后的 sender 失效。
+3. 删除隐式首个/最后窗口及无主 sender 回退。每个业务事件按真实窗口投递，未绑定 view 不允许隐式提升为主窗口 sender；退出控制保持独立处理。
+4. 接入实际 `mygo://localhost/` 文档授权，保留 frame 身份、URL 一致性和精确文档白名单。初始事件监听在子进程创建前安装，manager 发布后 initial ready 才加载页面。
+
+结果：macOS 实际界面得到原生 window=1、业务 webContents=2；伪造 input.source 不影响身份，provider=95，maximize 使页面从 1280×788 正确变成 1920×928 并恢复，语言业务事件到达一次且显示真实中文界面。终止旧 sidecar 后，replace 列出新 PID，页面确实 `reload`，旧探针退出，恢复后的身份、provider、语言和截图均正确。正常菜单退出完成业务销毁，没有残留进程组。
+
+覆盖 splash-first 关闭、缺失/未知/销毁来源、重复绑定、按窗口事件与告警、文档拒绝和 Electron 对照路径。Go race/vet、Node 类型检查、定向 48 测试、完整 renderer 回归、Electron 对照构建通过。此项不表示已具备第二个真实窗口或嵌套视图，详细数字和限制见 `acceptance-checklist.md`。
+
+#### [ ] D2c2b 完成新增窗口、嵌套身份及全局资源治理
+
+1. 完成真实第二窗口的异步创建、page/document role、目标事件、native close/destroy 和恢复时期的绑定；不得把本切片的单主窗口注册端口当作多窗口创建能力。
+2. 为 nested WebView 建立按实际 Page 的对象映射及隔离验证，不能仅复制顶层 windowId。
+3. 继续 D2c2 原有的大帧、全局背压、内存预算、流/后台任务异常生命周期和长期资源测量，并解决内容隔离差距。
+
 ### [ ] D3 完成窗口与原生能力
 
 实现多窗口/tab、主菜单、托盘、快捷键、deep link、真实对话框、剪贴板、通知、外观和屏幕状态。将 shell-owned shim 的静默成功逐项替换为真实桥接或明确 unsupported；完成 workspace 预览、长图导出和 MCP Apps 独立安全评审。
