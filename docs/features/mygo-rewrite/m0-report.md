@@ -414,7 +414,7 @@ SPIKE probe.result={"sessionId":"cttIOvqNn-C6a8YdPg1f9","messages":2,"hasReply":
 
 截图里显示的是引导页，因为临时档案没有完成引导；会话与回复已通过 `listMessagesPage` 验证。
 
-再往下查了一层：**事件通道是通的**。页面订阅 `sessions.updated` 与 `chat.stream.updated` 后，创建会话的过程中收到了 5 个事件。所以侧边栏仍显示「还没有会话」不是通道问题，而是列表的查询键与脚本创建会话时使用的 agent 不是同一个——属于下一轮要定位的具体问题，不是架构缺陷。
+再往下查了一层：**事件通道是通的**。页面订阅 `sessions.updated` 与 `chat.stream.updated` 后，创建会话的过程中收到了 5 个事件；随后直接调用 `sessions.listLightweight` 也能找到该会话（`listed: true`）。因此侧边栏仍显示「还没有会话」不能归因于 agent 查询键：源码中的默认 agent 和脚本都是 `deepchat`。真正的差异是 renderer 的 `pageRouter` 是内存状态，`sessions.activate` 只改变主进程激活状态，不能替代 renderer 的 `chatSessionStore.selectSession()`；下一步应通过真实 UI 点击或在 renderer 测试入口调用该 store，而不是修改 agentId。
 
 ## 下一步
 

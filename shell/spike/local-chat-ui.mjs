@@ -171,17 +171,19 @@ new Promise(async (resolve) => {
     window.deepchat.on('sessions.updated', () => seen.push('sessions.updated'))
     window.deepchat.on('chat.stream.updated', () => seen.push('stream'))
     await window.deepchat.invoke('onboarding.complete', { force: true })
-    await new Promise((r) => setTimeout(r, 1500))
-    console.log('events seen by page:', seen.length)
-    location.hash = '#/chat'
-    await new Promise((r) => setTimeout(r, 2500))
-    // Open the session the way a user would: click its row in the sidebar.
-    const row = [...document.querySelectorAll('*')].find(
-      (element) =>
-        element.children.length === 0 && element.textContent?.includes('你好，请用一句话介绍自己')
+    // Keep the renderer's onboarding composable in sync too: complete() above
+    // updates the server, while the visible dialog owns a local reactive copy.
+    const skip = [...document.querySelectorAll('button')].find(
+      (button) => button.textContent?.trim() === '全部跳过'
     )
-    row?.closest('button, [role=button], li, div')?.click()
-    await new Promise((r) => setTimeout(r, 5000))
+    skip?.click()
+    await new Promise((r) => setTimeout(r, 800))
+    // pageRouter is in-memory; activate through the same IPC route used by the sidebar.
+    await window.deepchat.invoke('sessions.activate', { sessionId: created.session.id })
+    await new Promise((r) => setTimeout(r, 6000))
+    const listAfter = await window.deepchat.invoke('sessions.listLightweight', {
+      limit: 30, cursor: null, includeSubagents: false
+    })
     const page = await window.deepchat.invoke('sessions.listMessagesPage', {
       sessionId: created.session.id,
       limit: 20
@@ -190,6 +192,7 @@ new Promise(async (resolve) => {
       sessionId: created.session.id,
       messages: page.messages.length,
       pageEvents: seen.length,
+      listed: listAfter.items.some((item) => item.id === created.session.id),
       hasReply: JSON.stringify(page).includes('mock')
     }))
   } catch (error) {
