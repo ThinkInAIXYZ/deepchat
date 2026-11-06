@@ -14,6 +14,7 @@ import path from 'node:path'
 const shot = process.argv[2] ?? '/tmp/deepchat-mygo-chat.png'
 const profile = mkdtempSync(path.join(tmpdir(), 'deepchat-ui-chat-'))
 const REPLY = '你好，我是本地 mock 模型，界面链路已经跑通。'
+const PROMPT = '你好，请用一句话介绍自己'
 const MODEL_ID = 'mock-local-model'
 const PROVIDER_ID = 'typesafe'
 
@@ -127,7 +128,7 @@ writeFileSync(
         {
           id: PROVIDER_ID,
           name: 'TypeSafe',
-          apiType: 'openai-completions',
+          apiType: 'openai-responses',
           apiKey: 'local',
           baseUrl,
           enable: true,
@@ -151,8 +152,19 @@ writeFileSync(
 
 const probe = `
 new Promise(async (resolve) => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+  const waitFor = async (read, description, timeout = 20000) => {
+    const deadline = Date.now() + timeout
+    while (Date.now() < deadline) {
+      const value = read()
+      if (value) return value
+      await wait(100)
+    }
+    throw new Error('Timed out waiting for ' + description + ': ' + document.body.innerText.slice(0, 500))
+  }
+
   // The app registers its IPC handlers near the end of startup.
-  await new Promise((r) => setTimeout(r, 14000))
+  await wait(14000)
   try {
     const lang = await window.deepchat.invoke('config.getLanguage', {})
     const list = await window.deepchat.invoke('providers.list', {})
@@ -161,26 +173,64 @@ new Promise(async (resolve) => {
       updates: { apiKey: 'local', baseUrl: '${baseUrl}', enable: true }
     })
     await window.deepchat.invoke('providers.refreshModels', { providerId: '${PROVIDER_ID}' })
-    const created = await window.deepchat.invoke('sessions.create', {
-      agentId: 'deepchat',
-      message: '你好，请用一句话介绍自己',
-      providerId: '${PROVIDER_ID}',
-      modelId: '${MODEL_ID}'
-    })
+
     const seen = []
     window.deepchat.on('sessions.updated', () => seen.push('sessions.updated'))
     window.deepchat.on('chat.stream.updated', () => seen.push('stream'))
-    await window.deepchat.invoke('onboarding.complete', { force: true })
-    // Keep the renderer's onboarding composable in sync too: complete() above
-    // updates the server, while the visible dialog owns a local reactive copy.
-    const skip = [...document.querySelectorAll('button')].find(
-      (button) => button.textContent?.trim() === '全部跳过'
+
+    // Use the same action as a person skipping the guide. This updates both the
+    // backend state and WelcomePage's local reactive copy before entering chat.
+    const skip = await waitFor(
+      () => document.querySelector('[data-testid="welcome-guide-expert-action"]'),
+      'the guided onboarding skip action'
     )
-    skip?.click()
-    await new Promise((r) => setTimeout(r, 800))
-    // pageRouter is in-memory; activate through the same IPC route used by the sidebar.
-    await window.deepchat.invoke('sessions.activate', { sessionId: created.session.id })
-    await new Promise((r) => setTimeout(r, 6000))
+    skip.click()
+    await waitFor(
+      () =>
+        location.hash === '#/chat' &&
+        !document.querySelector(
+          '[data-testid="welcome-guide-coachmark"], [data-testid="guided-onboarding-overlay"]'
+        ),
+      'onboarding to close and the chat route to mount'
+    )
+
+    const created = await window.deepchat.invoke('sessions.create', {
+      agentId: 'deepchat',
+      message: '${PROMPT}',
+      providerId: '${PROVIDER_ID}',
+      modelId: '${MODEL_ID}'
+    })
+
+    // Wait for the real sessions.updated projection, then select through the
+    // sidebar button. That invokes chatSessionStore.selectSession and pageRouter.
+    const sessionButton = await waitFor(
+      () =>
+        document.querySelector(
+          '[data-session-id="' + created.session.id + '"] .session-content'
+        ),
+      'the created session in the renderer sidebar'
+    )
+    sessionButton.click()
+    await waitFor(
+      () => document.querySelector('[data-testid="chat-page-shell"]'),
+      'the selected chat page'
+    )
+    const userMessage = await waitFor(
+      () =>
+        [...document.querySelectorAll('[data-testid="chat-message-user"]')].find((element) =>
+          element.textContent.includes('${PROMPT}')
+        ),
+      'the user message in ChatPage'
+    )
+    const assistantMessage = await waitFor(
+      () =>
+        [...document.querySelectorAll('[data-testid="chat-message-assistant"]')].find((element) =>
+          element.textContent.includes('${REPLY}')
+        ),
+      'the mock assistant reply in ChatPage',
+      30000
+    )
+
     const listAfter = await window.deepchat.invoke('sessions.listLightweight', {
       limit: 30, cursor: null, includeSubagents: false
     })
@@ -188,15 +238,24 @@ new Promise(async (resolve) => {
       sessionId: created.session.id,
       limit: 20
     })
+    await wait(500)
     resolve(JSON.stringify({
       sessionId: created.session.id,
       messages: page.messages.length,
       pageEvents: seen.length,
       listed: listAfter.items.some((item) => item.id === created.session.id),
-      hasReply: JSON.stringify(page).includes('mock')
+      hasReply: JSON.stringify(page).includes('${REPLY}'),
+      chatPage: Boolean(document.querySelector('[data-testid="chat-page-shell"]')),
+      onboardingVisible: Boolean(
+        document.querySelector(
+          '[data-testid="welcome-guide-coachmark"], [data-testid="guided-onboarding-overlay"]'
+        )
+      ),
+      userMessageVisible: userMessage.getBoundingClientRect().height > 0,
+      assistantReplyVisible: assistantMessage.getBoundingClientRect().height > 0
     }))
   } catch (error) {
-    resolve('ERR ' + JSON.stringify(String(error).slice(0, 240)) + ' lang=' + (typeof lang !== 'undefined' ? JSON.stringify(lang) : 'n/a') + ' providers=' + (typeof list !== 'undefined' ? list.providers.length : 'n/a'))
+    resolve('ERR ' + JSON.stringify(String(error).slice(0, 700)) + ' lang=' + (typeof lang !== 'undefined' ? JSON.stringify(lang) : 'n/a') + ' providers=' + (typeof list !== 'undefined' ? list.providers.length : 'n/a'))
   }
 })
 `

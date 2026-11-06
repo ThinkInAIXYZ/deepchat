@@ -387,7 +387,7 @@ sessions.create         -> "No provider or model configured. Please set a defaul
 - 文件监视 utility process 起不来（`File watcher utility process exited`）
 - SkillSync worker 无法解析（`?modulePath` 只保证编译通过）
 
-## 19. 端到端发消息（已验证）
+## 19. 端到端发消息与聊天页（已验证）
 
 用一个本地 mock provider（OpenAI Responses 协议，SSE 流式）跑通了完整链路，不需要任何密钥：
 
@@ -399,22 +399,35 @@ node shell/spike/local-chat-check.mjs
   reply contains mock text: true
 ```
 
-在 Go 壳里跑同一条链路（`node shell/spike/local-chat-ui.mjs`）：
-
-```
-SPIKE probe.result={"sessionId":"cttIOvqNn-C6a8YdPg1f9","messages":2,"hasReply":true}
-```
-
-即：渲染层 → 真实 preload 契约 → Go 壳 → 完整主进程 sidecar → 会话服务 → ProviderRuntime → HTTP 流式响应 → 落库。这条链上没有任何模拟环节，只有模型是本地的假服务。
+即：渲染层 → 真实 preload 契约 → Go 壳 → 完整主进程 sidecar → 会话服务 → ProviderRuntime → HTTP 流式响应 → 落库。这条链上没有任何模拟环节，只有模型是本地的假服务。2026-11-06 复验仍收到 `chat.stream.completed`，`sessions.listMessagesPage` 的消息结构正确，且持久化回复包含完整 mock 文本。
 
 过程中修掉两个真问题：
 
 1. **sidecar 的 stderr 被丢弃**（`cmd.Stderr = nil`）。表现为「路由返回空对象」，实际是启动失败。现在 stderr 直通终端。
 2. **sidecar 的工作目录不对**：它按 `appHost.getAppPath()` 找 ACP 注册表快照，而壳从 `shell/spike` 启动它，于是 `startup failed: No registry snapshot is available`，IPC 从未注册。新增 `-app-path` 并把绝对路径通过 `DEEPCHAT_APP_PATH` 传给子进程——而且必须在**启动 sidecar 之前**设置。
 
-截图里显示的是引导页，因为临时档案没有完成引导；会话与回复已通过 `listMessagesPage` 验证。
+### 2026-11-06 renderer 聊天页复验
 
-再往下查了一层：**事件通道是通的**。页面订阅 `sessions.updated` 与 `chat.stream.updated` 后，创建会话的过程中收到了 5 个事件；随后直接调用 `sessions.listLightweight` 也能找到该会话（`listed: true`）。因此侧边栏仍显示「还没有会话」不能归因于 agent 查询键：源码中的默认 agent 和脚本都是 `deepchat`。真正的差异是 renderer 的 `pageRouter` 是内存状态，`sessions.activate` 只改变主进程激活状态，不能替代 renderer 的 `chatSessionStore.selectSession()`；下一步应通过真实 UI 点击或在 renderer 测试入口调用该 store，而不是修改 agentId。
+Go 壳里的 `local-chat-ui.mjs` 现在按真实用户流程验收：点击 WelcomePage 的「全部跳过」，同时完成后端 onboarding 和 renderer 本地 reactive state；创建会话后等待真实的 `sessions.updated` projection 出现在侧边栏；点击现有会话按钮，经由 `chatSessionStore.selectSession()` 和内存 `pageRouter.goToChat()` 打开 ChatPage；最后等待用户消息和完整 mock 回复出现在消息 DOM 中。
+
+最终一次运行结果：
+
+```
+SPIKE probe.result={"sessionId":"AaOZhWKDTI7X-BzmBLkga","messages":2,"pageEvents":8,"listed":true,"hasReply":true,"chatPage":true,"onboardingVisible":false,"userMessageVisible":true,"assistantReplyVisible":true}
+SPIKE shot.bytes=83168
+```
+
+截图 `/tmp/deepchat-chat-final.png` 已人工查看：没有 onboarding overlay，聊天页同时显示用户消息「你好，请用一句话介绍自己」和 assistant 回复「你好，我是本地 mock 模型，界面链路已经跑通。」。因此目前三层结论分别为：
+
+- **service-level chat 已完成**：真实路由、ProviderRuntime、流式响应和持久化均已通过。
+- **renderer event delivery 已验证**：probe 在创建会话前订阅事件，本次收到 8 个 `sessions.updated` / `chat.stream.updated` 事件，且 renderer projection 实际出现了新建会话。
+- **UI chat screenshot 已完成**：不是只验证主进程激活状态，而是通过真实侧边栏点击打开会话，并同时检查 DOM 与最终截图。
+
+这次失败排查还修正了三个 smoke 自身的问题，未修改生产 renderer：
+
+1. 旧 harness 固定启动后 5 秒截图，而 probe 自己先等待 14 秒才操作，截图必然早于会话创建；现在有 probe 时在 probe 结束后截图，无 probe 时保留原 5 秒行为。
+2. 旧脚本直接调用 `sessions.activate`，没有覆盖真实 `selectSession()` 用户路径；现在复用已有 DOM 入口，无需暴露 Pinia store 或增加调试 bridge。
+3. UI mock 实现的是 OpenAI Responses API，却把 provider 配成 `openai-completions`，导致真实请求落到未实现的 `/v1/chat/completions`。配置已改为 `openai-responses`；`hasReply` 也改为匹配完整回复，避免失败的 assistant 记录仅因 model id 含有 `mock` 就误报成功。
 
 ## 下一步
 

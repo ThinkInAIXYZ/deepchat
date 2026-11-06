@@ -422,19 +422,23 @@ func main() {
 			_ = mygo.Secrets.Delete("spike-probe")
 		}
 
-		if *shotPath != "" {
+		captureShot := func() {
+			png, shotErr := win.CapturePage()
+			if shotErr != nil {
+				report("shot.error", shotErr.Error())
+				return
+			}
+			if writeErr := os.WriteFile(*shotPath, png, 0o644); writeErr != nil {
+				report("shot.error", writeErr.Error())
+				return
+			}
+			report("shot.bytes", len(png))
+		}
+
+		if *shotPath != "" && *probeScript == "" {
 			go func() {
 				<-time.After(5 * time.Second)
-				png, shotErr := win.CapturePage()
-				if shotErr != nil {
-					report("shot.error", shotErr.Error())
-					return
-				}
-				if writeErr := os.WriteFile(*shotPath, png, 0o644); writeErr != nil {
-					report("shot.error", writeErr.Error())
-					return
-				}
-				report("shot.bytes", len(png))
+				captureShot()
 			}()
 		}
 
@@ -443,6 +447,9 @@ func main() {
 				<-time.After(2 * time.Second)
 				value, evalErr := win.Page().Eval(*probeScript)
 				report("probe.result", fmt.Sprintf("%v err=%v", value, evalErr))
+				if *shotPath != "" {
+					captureShot()
+				}
 			}()
 		}
 
