@@ -11,7 +11,11 @@
  */
 import { createInterface } from 'node:readline'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
-import { installElectronShimHooks, invokeIpc } from '@/platform/node/electron'
+import {
+  installElectronShimHooks,
+  invokeIpc,
+  whenIpcHandlerRegistered
+} from '@/platform/node/electron'
 import { startApp } from '@/appMain'
 
 const write = (payload: unknown): void => {
@@ -23,6 +27,9 @@ installElectronShimHooks({
   windowId: () => Number(process.env.DEEPCHAT_WINDOW_ID ?? 1)
 })
 
+// Register the waiter before startup: route registration is the existing signal
+// that the real dispatcher and its route registry are ready to accept work.
+const appReady = whenIpcHandlerRegistered(DEEPCHAT_ROUTE_INVOKE_CHANNEL)
 startApp()
 
 type SidecarRequest = { id?: number; route?: string; input?: unknown }
@@ -39,18 +46,19 @@ const handleLine = async (line: string): Promise<void> => {
     return
   }
 
-  if (!request.route) return
+  if (!request.route) {
+    write({ id: request.id, error: 'bad request: route is required' })
+    return
+  }
 
   try {
+    await appReady
     const { handled, value } = await invokeIpc(DEEPCHAT_ROUTE_INVOKE_CHANNEL, [
       request.route,
       request.input ?? {}
     ])
     if (!handled) {
-      // Nothing registered the channel: the app has not finished booting, or the
-      // route genuinely does not exist.
-      write({ id: request.id, result: {} })
-      return
+      throw new Error('main process route dispatcher is unavailable')
     }
     write({ id: request.id, result: value ?? {} })
   } catch (error) {
@@ -64,5 +72,8 @@ input.on('line', (line) => {
 })
 input.on('close', () => process.exit(0))
 
-// The app announces readiness through its own logs; this marks the transport as up.
-write({ event: 'sidecar.app.started', payload: { mode: 'full-main-process' } })
+// Transport startup alone is not readiness. Advertise only after the real route
+// dispatcher has been registered; requests already received await the same signal.
+void appReady.then(() => {
+  write({ event: 'sidecar.app.started', payload: { mode: 'full-main-process' } })
+})

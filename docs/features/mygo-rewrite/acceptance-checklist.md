@@ -43,7 +43,7 @@
 | 能力 | 状态 | 差距 |
 | --- | --- | --- |
 | 正式应用入口 | 未实现 | 仍是 `shell/spike/main.go` + `go run` + 调试 flags + smoke 脚本 |
-| 启动 readiness 与 route 错误 | 未实现 | `src/main/sidecar/app.ts` 在路由未注册时返回 `{}`，`sidecar.app.started` 不等于业务初始化完成 |
+| 启动 readiness 与 route 错误 | 部分实现（D2a 已验证） | 早期请求现在等待真实 dispatcher 注册，ready 后才发布 started，缺 route/缺 dispatcher 返回错误；启动超时和启动失败终态仍未覆盖 |
 | 超时、取消、背压、损坏响应 | 未实现完整合同 | stdin/stdout JSON 只有基础 id 关联，没有完整请求生命周期治理 |
 | sidecar 崩溃恢复和进程树关闭 | 未实现 | 未取消所有在途请求，未形成受控重启和子进程清理闭环 |
 | 多窗口身份 | 未实现 | shim 窗口 id 固定为 1，IPC sender 使用最后一个存活窗口，真实多窗口不可接受 |
@@ -120,4 +120,4 @@ D1 直接验证：
 
 ## 6. 下一项最高优先级工作
 
-完成 D1 的完整检查与提交后进入 **D2：正式 Go 壳与可靠 sidecar 生命周期**。第一目标是消除启动未就绪返回 `{}` 和基础进程所有权缺口，再逐步建立正式入口、单实例、真实窗口身份和异常恢复。D3–D7 仍为必须完成的后续范围，不因 D1 通过而关闭 goal。
+D1 与 D2a 已提交后进入 **D2b：正式 Go 壳与可靠 sidecar 生命周期**。D2a 使请求等待真实 dispatcher readiness，单元与完整聊天复验通过；下一目标是正式入口、请求超时/取消、单实例、真实窗口身份、sidecar 崩溃恢复和有序关闭。D3–D7 仍为必须完成的后续范围，不因 readiness 或后台进程切片通过而关闭 goal。

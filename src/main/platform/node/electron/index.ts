@@ -340,13 +340,32 @@ type IpcHandler = (event: unknown, ...args: unknown[]) => unknown
 const ipcHandlers = new Map<string, IpcHandler>()
 const ipcListeners = new Map<string, Listener[]>()
 const ipcInvokeListeners: Array<(event: unknown) => void> = []
+const ipcHandlerWaiters = new Map<string, Set<() => void>>()
+
+function notifyIpcHandlerRegistered(channel: string): void {
+  const waiters = ipcHandlerWaiters.get(channel)
+  ipcHandlerWaiters.delete(channel)
+  for (const resolve of waiters ?? []) resolve()
+}
+
+/** Resolves after the real main process registers a named invoke handler. */
+export function whenIpcHandlerRegistered(channel: string): Promise<void> {
+  if (ipcHandlers.has(channel)) return Promise.resolve()
+  return new Promise((resolve) => {
+    const waiters = ipcHandlerWaiters.get(channel) ?? new Set<() => void>()
+    waiters.add(resolve)
+    ipcHandlerWaiters.set(channel, waiters)
+  })
+}
 
 export const ipcMain = {
   handle(channel: string, handler: IpcHandler): void {
     ipcHandlers.set(channel, handler)
+    notifyIpcHandlerRegistered(channel)
   },
   handleOnce(channel: string, handler: IpcHandler): void {
     ipcHandlers.set(channel, handler)
+    notifyIpcHandlerRegistered(channel)
   },
   removeHandler(channel: string): void {
     ipcHandlers.delete(channel)

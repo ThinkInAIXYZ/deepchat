@@ -203,7 +203,14 @@ M2 Node sidecar 化、M3 Go 壳与桥、M4 周边能力、M5 打包与更新、M
 
 结果：4 个 utility host 共用 Electron/Node parent-port 适配并由 sidecar 构建分别输出 `.mjs`，Node ProcessHost 优先使用同目录入口；SkillSync 也输出并执行真实 worker。sidecar file-watcher IPC 与 SkillSync 结构化结果通过，service/local UI 聊天均再次通过（UI：`messages=2`、`pageEvents=8`、两条 DOM 消息可见）。定向 34 测试、renderer 2704 测试及 format/i18n/lint/typecheck/build 通过；完整 main 为 9790 通过、2 个既有 tunnel 失败。scheduler/background-exec/code-mode 的独立业务级场景和崩溃恢复仍归 D2/D4，不标记为已对等。
 
-### [ ] D2 建立正式 Go 壳与可靠传输
+### [x] D2a 建立真实 sidecar readiness
+
+1. 以真实 dispatcher 注册为 readiness，早期请求等待同一信号，未返回 `{}` 假成功。
+2. ready 后才发布 `sidecar.app.started`，dispatcher 异常缺失和缺 route 请求返回明确错误。
+
+结果：`platform/node/electron` 新增 handler waiter，`sidecar/app` 在启动前安装监听并在每个请求中等待 appReady。定向 readiness/Node parent-port 2 测试、Node typecheck、sidecar build 和完整 mock 聊天通过。启动超时、崩溃恢复和正式壳仍未完成，见 D2b。
+
+### [ ] D2b 建立正式 Go 壳与可靠传输
 
 1. 将 spike 的 probe 代码与正式应用入口分离，固定资源布局、构建命令和临时 profile 开发流程。
 2. 增加启动 readiness、未知路由/未就绪错误、请求超时与取消、损坏输出诊断和在途请求收尾。
