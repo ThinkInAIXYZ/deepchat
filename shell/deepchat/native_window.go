@@ -111,8 +111,18 @@ func isRendererDocument(role nativeWindowRole, rawURL string) bool {
 // mygo trusts every registered custom protocol by default. DeepChat uses custom
 // protocols for untrusted nested documents, so they must not inherit device access.
 func isNativePermissionOriginAllowed(rawOrigin string) bool {
+	return isNativePermissionOriginAllowedForOS(rawOrigin, runtime.GOOS)
+}
+
+func isNativePermissionOriginAllowedForOS(rawOrigin, goos string) bool {
+	// mygo's Linux backend attributes nested requests to the top-level page URI.
+	// Until it supplies the requesting frame, even a first-party origin is unsafe.
+	if goos == "linux" {
+		return false
+	}
 	parsed, err := url.Parse(rawOrigin)
-	if err != nil || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+	if err != nil || parsed.User != nil || parsed.RawQuery != "" || parsed.ForceQuery ||
+		parsed.Fragment != "" || parsed.Opaque != "" || strings.Contains(rawOrigin, "#") {
 		return false
 	}
 	if parsed.EscapedPath() != "" && parsed.EscapedPath() != "/" {

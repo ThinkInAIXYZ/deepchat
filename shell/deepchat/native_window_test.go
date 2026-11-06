@@ -104,13 +104,28 @@ func TestNativePermissionOriginAllowed(t *testing.T) {
 		{name: "renderer user info", origin: "mygo://user@localhost"},
 		{name: "permission URL with path", origin: "mcp-app://instance-id/sandbox.html"},
 		{name: "permission URL with query", origin: "mygo://localhost/?allowed=true"},
+		{name: "permission URL with empty query", origin: "mygo://localhost?"},
+		{name: "permission URL with empty fragment", origin: "https://127.0.0.1:5173#"},
+		{name: "opaque file URL", origin: "file:garbage"},
 		{name: "malformed origin", origin: "://bad-url"},
 		{name: "empty origin", origin: ""},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := isNativePermissionOriginAllowed(test.origin); got != test.want {
-				t.Fatalf("isNativePermissionOriginAllowed(%q) = %t, want %t", test.origin, got, test.want)
+			if got := isNativePermissionOriginAllowedForOS(test.origin, "darwin"); got != test.want {
+				t.Fatalf("isNativePermissionOriginAllowedForOS(%q, darwin) = %t, want %t", test.origin, got, test.want)
+			}
+		})
+	}
+}
+
+func TestNativePermissionOriginDeniedOnLinux(t *testing.T) {
+	for _, origin := range []string{
+		"mygo://localhost", "file://", "http://localhost:5173", "mcp-app://instance-id",
+	} {
+		t.Run(origin, func(t *testing.T) {
+			if isNativePermissionOriginAllowedForOS(origin, "linux") {
+				t.Fatalf("Linux permission origin %q was allowed without requesting-frame attribution", origin)
 			}
 		})
 	}
