@@ -449,11 +449,13 @@ export const app = Object.assign(appEmitter, {
   setLoginItemSettings: (settings: { openAtLogin?: boolean }): void => {
     nodeAppHost.setLoginItemEnabled(Boolean(settings.openAtLogin))
   },
+  // Quitting is the shell's decision: it owns the process tree and the window.
+  // Exiting here would kill the sidecar while the page is still asking it things.
   quit: (): void => {
-    process.exit(0)
+    hooks.sendEvent('app.quit.requested', {})
   },
   exit: (): void => {
-    process.exit(0)
+    hooks.sendEvent('app.quit.requested', {})
   },
   relaunch: (): void => {
     console.warn('[sidecar] app.relaunch is handled by the shell')
