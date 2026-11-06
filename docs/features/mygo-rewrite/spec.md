@@ -149,6 +149,19 @@ D2c1 的恢复验收必须包含真实 sidecar 故障注入和新代次 DOM 观�
 - mygo v0.7.4 的 e2e automation 只会对 `window.Page()` 执行 Eval，对 Content 返回 unsupported。验收前必须提供仅限 `e2e` 构建的 primary-page automation 适配，使现有 DOM/业务驱动和截图仍能针对真实 primary WebView；正常构建不得包含该适配，不得向 renderer 或生产 Bridge 新增通用 Eval route。临时探针和测试 server 不进入交付。
 - 验收至少覆盖真实启动与业务 RPC、DOM/截图、原生 maximize/restore、目标事件、workspace preview 与 MCP App iframe、sidecar 杀死后的 primary reload/身份恢复，以及 settings/splash 的回归。只有这些既有流程在 Content 宿主上重新通过后，才能进入独立 nested pageId、attach/detach、bounds 和 `WebContentsView` 切片。Windows/Linux 实机、正式打包和完整 tab 生命周期仍不属于本切片。
 
+### 4.9 D2c2f 独立 nested Page 与 WebContentsView 生命周期
+
+- D2c2e 的 primary WebView 是 nested 的宿主前提，不是 tab 完成。D2c2f 必须在同一 native Content 中实现真实子 WebView，并复用现有 `TabPresenter`、`WebContentsView` 调用方、preload 和业务路由；不得另写一套 tab 业务、用 Content fixture 冒充用户界面，或把主窗/primary Page 身份复制给子 Page。
+- Go 维护单调递增且不超过 JavaScript safe-integer 的 pageId，并建立 pageId→`{host window, WebView, Page, navigation, bounds, visibility, z-order}` 的注册表。mygo 内部 ID、Node `webContents.id` 和 pageId 是不同命名空间；销毁、宿主关闭和 sidecar replacement 后不得复用旧 pageId 或保留可冒充旧页面的 tombstone 映射。
+- nested 创建、文档加载、attach/detach、bounds、visibility、focus 和 close 使用窄的 host-only native commands。Node sidecar 是业务调用方，renderer 不能通过输入自封为 host 或获得通用页面创建/授权 route。创建时从 `about:blank` 起步，允许 Electron 既有的先 load 后 attach 顺序；pending load 必须在 attach 后落到真实 Page，失败不得留下看似成功的半注册对象。
+- Content 始终全尺寸放置 primary WebView，并按 registry 的 bounds/z-order 放置已 attach 且 visible 的子 WebView；隐藏的非活动 tab 保留 Page 但不参与放置，close 必须销毁 WebView。`setBounds/getBounds`、`setVisible`、`webContents.close()`、`focus()` 不能继续是零值或 no-op。primary 和 nested 的可见区域由真实 native layout 决定，不能只创建后台页面就宣称可见 tab。
+- `RequestSource` 和 `EventTarget` 增加独立 pageId，primary 使用缺省/零值，nested 必须为正 pageId。Go `requestSource` 按 CallerPage 找到 nested record，复核宿主 window 和当前文档；Node 按 pageId 找回对应 `ShimWebContents`，事件通过 `EmitPage` 精确返回同一 Page。缺 pageId 的 nested sender、错误 window/page 组合、已销毁对象和旧代次事件都拒绝，不能回退 primary。
+- local tab 的 `loadFile`/hash 与 `loadURL` 复用现有 renderer 文档规则。外部 http(s) 文档只有在既有 `TabPresenter` 明确允许的路径下才可显示，但其业务 IPC、native protocol 和 privileged route 必须拒绝；显示外部页面不等于信任其 sender。所有 nested Page 安装与 primary 相同的 fail-closed 权限 handler，外部文档不得借 preload 或 `window.mygo` 绕过文档白名单。
+- native ready/navigation/title/close/focus 通知携带 pageId、宿主 window 和真实状态，Node 更新 `mainFrame.url` 并触发既有 `did-finish-load`、`did-navigate`、`page-title-updated` 等监听。`BrowserWindow.fromWebContents`、全局 `webContents.fromId/getAllWebContents`、focused target 和 session binding 必须能找到 nested sender，不能只查主窗 webContents。
+- `WebContentsView` shim 实现真实 `contentView.addChildView/removeChildView`、pending load、cached bounds、visibility、focus 与销毁；`TabPresenter` 在现有 create/activate/detach/destroy 流程中等待必要的原生 readiness，不为同步 Electron API 制造已完成假象。local tab 的标题、文档、显示/隐藏和关闭沿用现有状态映射，页面加载失败与重复关闭必须确定性清理。
+- 初版 sidecar replacement 不承诺恢复 `TabPresenter` 的内存 tab 状态：在新代次环境求值前，经过既有 native-command 屏障后销毁所有 nested WebView、递增 pageId 命名空间并清空映射，再重载 primary，让现有 UI 以无 stale native view 的状态重建。旧命令不得越过屏障创建页面，旧 pageId 不得向新 sidecar 投递事件。此项是明确的有界恢复行为，不是完整 tab 状态恢复；后者属于后续持久化工作。
+- 验收必须在真实主窗口用现有 `TabPresenter` 创建、显示、切换、导航和关闭 local tab，核对非零 bounds、真实 DOM/截图、独立 sender、目标事件与关闭后资源消失；另验证外部文档可见但业务 IPC 被拒绝、同 URL 多 tab 不串 sender、重复关闭和宿主关闭。随后杀死 sidecar，确认旧 nested 全部销毁、primary 重载且新代次不能访问旧 pageId，并回归 settings/splash/workspace/MCP。Windows/Linux、tab 拖动/多窗口、完整 tab 状态恢复、window-open/favicons 全矩阵、系统级合成截图和正式发行不属于本切片的完成声明。
+
 ## 5. 后台进程与 worker 合同
 
 现有 file watcher、cron scheduler、background exec 和 code-mode host 共享一种窄的 parent-port 合同：`postMessage`、`message` 监听和可选 `start`。Electron 使用 `process.parentPort`，Node 使用 `process.send` 与 `process.on('message')` 适配，同一 utility host 主体不得复制两份。

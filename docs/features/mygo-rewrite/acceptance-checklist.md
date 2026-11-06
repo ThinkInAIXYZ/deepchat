@@ -223,4 +223,4 @@ D1 直接验证：
 
 ## 6. 下一项最高优先级工作
 
-D2c2e 已在真实主窗口建立 native Content + primary WebView、精确 primary Page sender、`EmitPage`、恢复和 e2e 边界；这只是宿主迁移，不是 tab 完成。下一项是 **D2c2f：独立 nested pageId 与真实 `WebContentsView` 生命周期**，必须实现 host-only 创建/销毁、pending load、attach/detach、非零 bounds、独立 sender/`EmitPage`、sidecar replacement 和关闭清理，再用现有 `TabPresenter` 验证可见 UI，不能用 Content fixture 或通用 Eval 冒充迁移。MCP 精确 pending-request consent 仍受 mygo 异步 permission API 与 Linux requesting-frame origin 阻塞；系统级原生合成截图、原生焦点、大帧限额、全局背压、后台生命周期、preload content-world、Windows/Linux、D3–D7、真实迁移与发行仍是验收中不能删除的差距。
+D2c2e 已在真实主窗口建立 native Content + primary WebView、精确 primary Page sender、`EmitPage`、恢复和 e2e 边界；这只是宿主迁移，不是 tab 完成。下一项是 **D2c2f：独立 nested pageId 与真实 `WebContentsView` 生命周期**（合同见 `spec.md` §4.9），必须实现 host-only 创建/销毁、pending load、attach/detach、非零 bounds、独立 sender/`EmitPage`、sidecar replacement 和关闭清理，再用现有 `TabPresenter` 验证可见 UI，不能用 Content fixture 或通用 Eval 冒充迁移。MCP 精确 pending-request consent 仍受 mygo 异步 permission API 与 Linux requesting-frame origin 阻塞；系统级原生合成截图、原生焦点、大帧限额、全局背压、后台生命周期、preload content-world、Windows/Linux、D3–D7、真实迁移与发行仍是验收中不能删除的差距。

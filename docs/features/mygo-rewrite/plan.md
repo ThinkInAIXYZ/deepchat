@@ -306,6 +306,15 @@ M2 Node sidecar 化、M3 Go 壳与桥、M4 周边能力、M5 打包与更新、M
 
 结果：主窗口已改为无额外 UI 的 native Content 宿主，现有 renderer 是全尺寸 primary WebView；native window record 显式保存 primary Page，业务 sender 要求 CallerPage 指针一致，事件统一 `EmitPage`，导航、权限、ready 与 replacement 均使用该 Page。真实 macOS 启动/RPC、最大化/恢复、中文目标事件、独立 settings 窗口、workspace 1201-byte preview 与四项 `SecurityError`、MCP App 工具与隔离均通过。sidecar 3181→3412 后同一 Go 进程和 primary Page 重载，旧标记消失，重新激活合成会话后 MCP 再次通过。加密临时副本完成错误密码反馈、正确密码解锁和 Content 主窗就绪。真实 e2e 还证明同 URL 的 secondary WebView 被 source 校验拒绝。正常/e2e build、Go 全包 race/vet、真实 fragment/primary-secondary e2e、typecheck、lint 和 i18n 通过。此片不包含 nested pageId、tab attach/bounds 或 `WebContentsView` 完成声明；系统级合成截图、Windows/Linux、MCP 异步权限和完整发行仍未完成，证据与限制见 `acceptance-checklist.md`。
 
+#### [ ] D2c2f 实现独立 nested Page 与 WebContentsView
+
+1. 按 `spec.md` §4.9 建立 Go nested registry、单调 pageId、host-only 创建/加载/attach/bounds/visible/focus/close 命令和 Content 布局；source/event envelope 与 Node sender 均使用独立 pageId，外部文档保持业务拒绝。
+2. 实现真实 `contentView`、`WebContentsView` 和 `ShimWebContents` 的 pending load、bounds、visibility、focus、导航/标题/ready/close 通知及销毁，复用现有 `TabPresenter` 流程，不另写 tab 业务。
+3. 在真实主窗口完成 local tab 创建、显示、切换、导航和关闭，验证非零 bounds、独立 sender/事件、外部文档权限、同 URL 多 tab、宿主关闭与 DOM/截图。sidecar replacement 必须先销毁旧 nested 再重载 primary，旧 pageId 不可复用。
+4. 完成 Go/Node 定向与全包检查、相关 renderer 回归、正常/e2e build、真实恢复验收、文档和独立 diff 审查后提交推送；多窗口、tab 状态持久化、完整 window-open/favicons、Windows/Linux 和发行不纳入本切片完成范围。
+
+设计状态：§4.9 已记录实现合同，尚未开始生产实现。
+
 ### [ ] D3 完成窗口与原生能力
 
 实现多窗口/tab、主菜单、托盘、快捷键、deep link、真实对话框、剪贴板、通知、外观和屏幕状态。将 shell-owned shim 的静默成功逐项替换为真实桥接或明确 unsupported；完成 workspace 预览、长图导出和 MCP Apps 独立安全评审。
