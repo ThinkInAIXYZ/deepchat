@@ -668,6 +668,9 @@ export class WorkspaceService implements WorkspaceServicePort {
     try {
       const result = await execFileAsync('git', args, {
         cwd: workspacePath,
+        // Background status must not rewrite .git/index: the git watcher would see the write and
+        // trigger another status refresh. Older git ignores this variable instead of failing.
+        env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' },
         windowsHide: true,
         maxBuffer: 8 * 1024 * 1024
       })
