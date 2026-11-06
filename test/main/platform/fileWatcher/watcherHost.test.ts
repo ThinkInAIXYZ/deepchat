@@ -29,6 +29,8 @@ vi.mock('path', async () => {
   return { default: actual, ...actual }
 })
 
+type NativeCallback = (error: Error | null, events: unknown[]) => void
+
 describe('FileWatcherHost', () => {
   let rootPath: string
   let messages: FileWatcherHostEvent[]
@@ -79,6 +81,23 @@ describe('FileWatcherHost', () => {
     expect(parcel.getEventsSince).toHaveBeenCalledTimes(2)
   })
 
+  it('starts one fallback poll loop for repeated native errors', async () => {
+    let emit: NativeCallback = () => {}
+    parcel.subscribe.mockImplementation(async (_root: string, callback: NativeCallback) => {
+      emit = callback
+      return { unsubscribe: () => new Promise((resolve) => setTimeout(resolve, 10)) }
+    })
+    parcel.getEventsSince.mockResolvedValue([])
+
+    await host.watch(request)
+    emit(new Error('Events were dropped by the FSEvents client.'), [])
+    emit(new Error('Events were dropped by the FSEvents client.'), [])
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS + 50)
+
+    expect(parcel.writeSnapshot).toHaveBeenCalledTimes(2)
+    expect(parcel.getEventsSince).toHaveBeenCalledTimes(1)
+  })
+
   it('removes a snapshot that finishes writing after the watch is disposed', async () => {
     parcel.subscribe.mockRejectedValue(new Error('subscribe failed'))
     let snapshotPath = ''
@@ -104,8 +123,8 @@ describe('FileWatcherHost', () => {
   })
 
   it('emits overflow for a batch too large to buffer', async () => {
-    let emit: (error: Error | null, events: unknown[]) => void = () => {}
-    parcel.subscribe.mockImplementation(async (_root: string, callback: typeof emit) => {
+    let emit: NativeCallback = () => {}
+    parcel.subscribe.mockImplementation(async (_root: string, callback: NativeCallback) => {
       emit = callback
       return { unsubscribe: vi.fn() }
     })

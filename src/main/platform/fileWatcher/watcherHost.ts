@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -119,7 +120,9 @@ export class FileWatcherHost {
   }
 
   private async handleNativeError(activeWatch: ActiveWatch, error: unknown): Promise<void> {
-    if (activeWatch.disposed) {
+    // Several error callbacks can arrive before the native unsubscribe finishes. Only the first
+    // one may start a fallback, or each would run its own poll loop on the same snapshot.
+    if (activeWatch.disposed || activeWatch.mode !== 'native') {
       return
     }
 
@@ -139,8 +142,8 @@ export class FileWatcherHost {
       return
     }
 
-    await this.unsubscribeNative(activeWatch)
     activeWatch.mode = activeWatch.request.fallbackMode ?? 'snapshot-polling'
+    await this.unsubscribeNative(activeWatch)
 
     if (activeWatch.mode === 'git-metadata-polling') {
       this.startSnapshotPolling(activeWatch, message)
@@ -151,9 +154,11 @@ export class FileWatcherHost {
   }
 
   private startSnapshotPolling(activeWatch: ActiveWatch, message?: string): void {
+    // The random suffix keeps a file left by a crashed process with a reused pid from being taken
+    // as this watch's baseline, which would replay events from long ago.
     const snapshotPath = path.join(
       os.tmpdir(),
-      `deepchat-watcher-${process.pid}-${activeWatch.request.id}.snapshot`
+      `deepchat-watcher-${process.pid}-${activeWatch.request.id}-${randomUUID()}.snapshot`
     )
     activeWatch.snapshotPath = snapshotPath
 
